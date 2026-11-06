@@ -10,9 +10,8 @@ from __future__ import annotations
 
 import random
 import re
-from typing import Callable
 
-from agentrs.environments.base import TaskSpec, Verification
+from agentrs.environments.base import Verification
 from agentrs.environments.miniweb.core import App, Page, W
 
 # ---------------------------------------------------------------------- vocab
@@ -707,5 +706,3 @@ MAX_STEPS = {"click_button": 6, "navigate_link": 8, "fill_field": 8, "login": 10
 DIFFICULTY = {"click_button": 1, "menu": 2, "fill_field": 2, "dropdown": 2, "navigate_link": 2,
               "checkboxes": 3, "login": 3, "search_lookup": 3, "form_validation": 4, "checkout": 5,
               "dialog_confirm": 2, "scroll_find": 2, "toggle_settings": 3, "lookup_then_fill": 4}
-
-Maker = Callable[[random.Random, str], dict]

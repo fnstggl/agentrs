@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import re
 import sqlite3
 from pathlib import Path
@@ -115,5 +114,3 @@ class EpisodicMemory:
         with sqlite3.connect(self.path) as c:
             return c.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
 
-
-_ = math

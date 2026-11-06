@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 from typing import Optional, Sequence
@@ -68,7 +67,6 @@ _SCRATCH_TOKENIZER_CACHE = Path(os.environ.get("AGENTRS_CACHE", Path.home() / ".
 
 def _scratch_corpus() -> list[str]:
     """Deterministic corpus for training the scratch tokenizer (MiniWeb prompts + actions)."""
-    from agentrs.agent.belief import BeliefState
     from agentrs.agent.runtime import TeacherActor, run_episode
     from agentrs.demonstrations.teacher import ScriptedTeacher
     from agentrs.environments.miniweb.core import MiniWebEnv
@@ -81,7 +79,6 @@ def _scratch_corpus() -> list[str]:
             ep = run_episode(env, t, TeacherActor(ScriptedTeacher(epsilon=0.3, seed=t.seed)))
             for tr in ep.transitions:
                 texts.append((tr.belief_prompt or "") + " " + tr.action + "\n" + tr.diff_text)
-    _ = BeliefState
     return texts
 
 
@@ -469,5 +466,3 @@ class LMBackbone(nn.Module):
 def config_hash(cfg: BaseModel) -> str:
     return hashlib.sha1(json.dumps(cfg.model_dump(), sort_keys=True, default=str).encode()).hexdigest()[:10]
 
-
-_ = math

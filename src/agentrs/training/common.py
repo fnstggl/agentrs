@@ -9,7 +9,7 @@ import os
 import random
 import shutil
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 import numpy as np
 import torch
@@ -213,5 +213,3 @@ def param_change(model: nn.Module, snap: dict[str, torch.Tensor]) -> float:
             tot += float((p.detach() - snap[n]).pow(2).sum())
     return math.sqrt(tot)
 
-
-Any_ = Any

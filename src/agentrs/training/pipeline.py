@@ -24,12 +24,11 @@ import time
 from pathlib import Path
 from typing import Optional
 
-import torch
 from pydantic import ConfigDict, BaseModel, Field
 
 from agentrs.agent.runtime import TeacherActor
 from agentrs.data.replay import ReplayBuffer
-from agentrs.data.schemas import EpisodeRecord, Provenance, Source, Transition
+from agentrs.data.schemas import EpisodeRecord, Provenance, Source
 from agentrs.data.storage import ExperienceStore
 from agentrs.demonstrations.teacher import ScriptedTeacher
 from agentrs.environments.miniweb.families import HELDOUT_FAMILIES, TRAIN_FAMILIES
@@ -389,5 +388,3 @@ def generate_val_demos(cfg: ExperimentConfig) -> list[EpisodeRecord]:
 def run_experiment(cfg: ExperimentConfig) -> dict:
     return Experiment(cfg).run()
 
-
-_ = (torch, Transition)

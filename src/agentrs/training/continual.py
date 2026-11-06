@@ -32,7 +32,7 @@ from agentrs.models.critic import CriticConfig
 from agentrs.models.policy import PolicyConfig
 from agentrs.models.world_model import WorldModelConfig
 from agentrs.monitoring.tracker import Tracker
-from agentrs.training.curriculum import Curriculum, CurriculumConfig, update_from_episodes
+from agentrs.training.curriculum import Curriculum, CurriculumConfig
 from agentrs.training.rl import RLConfig
 
 
@@ -208,7 +208,6 @@ class Learner:
 
 
 def run_continual(cfg: ContinualConfig) -> dict:
-    from agentrs.environments.miniweb.families import TRAIN_FAMILIES
     from agentrs.models.policy import LMPolicy
     from agentrs.training.common import load_model, save_checkpoint
 
@@ -264,5 +263,4 @@ def run_continual(cfg: ContinualConfig) -> dict:
                      "mean_forgetting": rec["mean_forgetting"]}, step=cycle, prefix="continual/")
         (root / "continual_report.json").write_text(json.dumps(report, indent=1, default=str))
     tracker.close()
-    _ = TRAIN_FAMILIES
     return report

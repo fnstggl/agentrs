@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import math
-import random
 from collections import defaultdict
 from typing import Iterable, Optional, Sequence
 
@@ -110,5 +108,3 @@ def brier(probs, labels) -> float:
     y = np.asarray(list(labels), dtype=float)
     return float(((p - y) ** 2).mean()) if len(p) else float("nan")
 
-
-_ = (math, random)

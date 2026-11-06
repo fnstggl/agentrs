@@ -281,7 +281,7 @@ def cmd_eval_wm(a) -> int:
 
 def cmd_train_critic(a) -> int:
     from agentrs.models.critic import Critic, CriticConfig
-    from agentrs.training.common import GradientTrainer, OptimConfig, load_weights
+    from agentrs.training.common import GradientTrainer, OptimConfig
     from agentrs.training.critic import CriticTrainConfig, train_critic
 
     _threads(a)
@@ -294,7 +294,6 @@ def cmd_train_critic(a) -> int:
     if a.resume:
         _trainer_resume(cr, trainer, a.resume)
     r = train_critic(cr, train, val, cfg, out_dir=a.out, trainer=trainer)
-    _ = load_weights
     _print({k: r[k] for k in ("n_train", "before", "after", "param_change_l2")})
     return 0
 

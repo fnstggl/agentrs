@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
 from agentrs.actions.schema import Action, ActionType
@@ -173,5 +173,3 @@ def discover_skills(trajectories: Sequence[Sequence[str]], min_count: int = 5, l
             cnt[tuple(types[i : i + length])] += 1
     return [(k, v) for k, v in cnt.most_common() if v >= min_count]
 
-
-_ = field

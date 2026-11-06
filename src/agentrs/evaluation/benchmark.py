@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import Callable, Optional, Sequence
+from typing import Optional, Sequence
 
 import torch
 
@@ -64,5 +64,3 @@ def evaluate_actor(env: Environment, tasks: Sequence[TaskSpec], actor: Actor, re
     m["inference_flops_per_success"] = m["inference_flops"] / max(1, sum(bool(e.success) for e in eps))
     return m, eps
 
-
-Factory = Callable[[], Actor]

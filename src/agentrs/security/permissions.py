@@ -21,7 +21,7 @@ import time
 from typing import Callable, Optional
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from agentrs.actions.schema import Action, ActionType
 from agentrs.environments.base import (
@@ -194,4 +194,3 @@ class PrivacyGuard:
 
 __all__ = ["PermissionPolicy", "GuardedEnvironment", "check_action", "PermissionDenied", "PrivacyGuard",
            "default_policy_for"]
-_ = Field  # keep import for pydantic forward refs

@@ -19,11 +19,10 @@ Truncation is bootstrapped with V(s_T); termination is not.
 
 from __future__ import annotations
 
-import math
 import random
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Callable, Optional, Sequence
+from typing import Optional, Sequence
 
 import numpy as np
 import torch
@@ -230,6 +229,3 @@ class RLTrainer:
 def episode_transitions(eps: Sequence[EpisodeRecord]) -> list[list[Transition]]:
     return [ep.transitions for ep in eps if ep.transitions]
 
-
-Collector = Callable[[int], list[EpisodeRecord]]
-_ = math

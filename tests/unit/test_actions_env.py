@@ -5,7 +5,7 @@ from agentrs.agent.runtime import RandomActor, TeacherActor, run_episode
 from agentrs.data.diff import StateDiff, compute_diff, content_set
 from agentrs.demonstrations.teacher import ScriptedTeacher
 from agentrs.environments.miniweb.core import MiniWebEnv
-from agentrs.environments.miniweb.families import FAMILIES, HELDOUT_FAMILIES, TRAIN_FAMILIES
+from agentrs.environments.miniweb.families import HELDOUT_FAMILIES, TRAIN_FAMILIES
 from agentrs.environments.miniweb.tasks import make_task, task_set
 
 

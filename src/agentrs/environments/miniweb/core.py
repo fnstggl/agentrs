@@ -23,7 +23,7 @@ to old ids become stale, as in a real browser.
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from agentrs.actions.schema import Action, ActionType

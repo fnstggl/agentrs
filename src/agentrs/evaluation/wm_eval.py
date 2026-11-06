@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import random
 from collections import defaultdict
-from typing import Optional, Sequence
+from typing import Sequence
 
 import numpy as np
 import torch
@@ -25,7 +25,7 @@ from agentrs.data.schemas import Transition
 from agentrs.environments.base import Observation
 from agentrs.evaluation.metrics import auroc, bernoulli_nll, brier, expected_calibration_error, reliability_table
 from agentrs.models.world_model import N_OUT, WorldModel
-from agentrs.training.world_model import WMExample, episode_histories, make_wm_examples
+from agentrs.training.world_model import WMExample, make_wm_examples
 
 OUT_NAMES = EVENT_NAMES + ["reward", "terminal"]
 
@@ -158,5 +158,3 @@ def drift_eval(wm: WorldModel, val: Sequence[Transition], k: int = 3, n: int = 2
     return {"n_episodes": len(eps), "k": k, "f1_model_by_step": (model_f1 / m).tolist(),
             "f1_persistence_by_step": (pers_f1 / m).tolist()}
 
-
-_ = Optional

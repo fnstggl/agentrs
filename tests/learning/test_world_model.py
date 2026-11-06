@@ -3,10 +3,9 @@ uncertainty, unseen actions, and learning a held-out synthetic dynamics problem 
 
 import torch
 
-from agentrs.data.diff import N_EVENTS, StateDiff
 from agentrs.environments.base import ElementState, Observation
-from agentrs.evaluation.wm_eval import FrequencyBaseline, evaluate_world_model
-from agentrs.models.world_model import N_OUT, WorldModel, WorldModelConfig, bootstrap_mask
+from agentrs.evaluation.wm_eval import evaluate_world_model
+from agentrs.models.world_model import WorldModel, WorldModelConfig, bootstrap_mask
 from agentrs.training.common import OptimConfig
 from agentrs.training.world_model import WMTrainConfig, make_wm_examples, train_world_model
 
@@ -76,4 +75,3 @@ def test_learns_heldout_dynamics_better_than_baselines(scratch_bb, demo_data):
     res = evaluate_world_model(wm, train, val, n_generate=10, n_drift=3)
     assert res["model"]["event_nll"] < res["action_type"]["event_nll"] < res["marginal"]["event_nll"]
     assert res["model"]["terminal_nll"] < res["action_type"]["terminal_nll"]
-    _ = (FrequencyBaseline, N_OUT, N_EVENTS, StateDiff)

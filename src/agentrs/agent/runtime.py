@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional, Protocol
 
-from agentrs.actions.schema import Action, ActionType, try_parse_action
+from agentrs.actions.schema import Action, try_parse_action
 from agentrs.agent.belief import BeliefState
 from agentrs.data.diff import compute_diff
 from agentrs.data.schemas import EpisodeRecord, Provenance, Source, Transition, WMPredictionRecord
@@ -130,9 +130,7 @@ def run_episode(
     for step in range(task.max_steps):
         candidates = belief.augment_candidates(env.available_actions())
         prompt = belief.prompt() if record_prompts else None
-        dec = actor.decide(belief, candidates)
-        if dec.action.type == ActionType.SKILL:
-            dec = _reject_unexpanded_skill(dec)
+        dec = actor.decide(belief, candidates)  # raw skill actions reach the env and are rejected there
         result = env.step(dec.action)
         diff = compute_diff(obs, result.observation)
         last = result.terminated or result.truncated or step == task.max_steps - 1
@@ -179,8 +177,3 @@ def run_episode(
         memory.add_episode(ep)
     return ep
 
-
-def _reject_unexpanded_skill(dec: Decision) -> Decision:
-    # Skills must be expanded by a SkillExecutor actor wrapper; raw skill actions are
-    # sent to the env, which reports them as invalid (no permission bypass).
-    return dec

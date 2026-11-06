@@ -1,6 +1,5 @@
 import json
 
-import pyarrow.parquet as pq
 import pytest
 
 from agentrs.agent.runtime import RandomActor, TeacherActor, run_episode
@@ -158,4 +157,3 @@ def test_config_overrides(tmp_path):
     with pytest.raises(ValidationError):
         load_config(ExperimentConfig, p, ["rl.clip_eps=not-a-number"])
     assert apply_overrides({}, ["a.b=2"]) == {"a": {"b": 2}}
-    _ = pq

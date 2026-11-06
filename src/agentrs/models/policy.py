@@ -13,9 +13,8 @@ and differentiable, which is what the RL and imitation objectives need.
 
 from __future__ import annotations
 
-import math
 import random
-from typing import Optional, Sequence
+from typing import Sequence
 
 import torch
 import torch.nn as nn
@@ -133,5 +132,3 @@ def kl_from_logp(lp: torch.Tensor, ref_lp: torch.Tensor) -> torch.Tensor:
     """KL(pi || ref) over the same candidate set."""
     return (lp.exp() * (lp - ref_lp)).sum()
 
-
-_ = math
