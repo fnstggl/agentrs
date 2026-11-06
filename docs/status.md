@@ -60,23 +60,32 @@ Chromium). See the bottom of this file for the latest run.
 * Exit criterion met: policy weights update from verified rewards; the loop runs repeatedly
   without manual dataset reconstruction.
 
-## Phase 6 — Imagined experience: implemented, measured
+## Phase 6 — Imagined experience: implemented, measured (no benefit found)
 * Implemented: bounded rollouts from real states, uncertainty cut-off, IMAGINED provenance
   (schema-enforced), separate partition, down-weighting, exploitation monitor.
-* Executed: D+imagination runs vs D without imagination; grounding test.
-* Result reported in the experiments doc, whether or not it helps.
+* Executed: D+imagination for 2 seeds vs D without imagination; grounding test.
+* Result: no measurable effect on real held-out success. Imagined 2-step rollouts almost never
+  reached predicted success and the uncertainty threshold (0.08) was never reached by the actual
+  ensemble spread (≈0.01) — the filter needs calibrating to the model's uncertainty scale.
 
 ## Phase 7 — Continual learning: complete at small scale
 * Implemented: actor and evaluator as separate processes, learner with persistent ingestion
   state, SQLite registry, gated promotion, rollback, curriculum, historical replay, forgetting
   metric.
-* Executed: multi-cycle runs (test with spawned processes; dev run reported in experiments doc).
+* Executed: 6-cycle run with Pythia-14M from the seed-0 BC policy (`results/continual/`), plus a
+  2-cycle test with spawned processes. Every candidate tied production on the frontier evaluation
+  and was promoted under the tie-permissive gate; the curriculum never advanced. The mechanics
+  (versioned actors, ingestion, gating, rollback, forgetting tracking) work; one PPO update per
+  32-episode cycle is too small a learning signal to change greedy behaviour.
 
 ## Phase 8 — Transfer and generalization research: protocol complete, evidence limited
 * Implemented: held-out instances/layouts/templates/vocabulary and four held-out families;
   baselines A–D; ablations; skills; memory; multiple seeds; bootstrap CIs; compute accounting.
-* Executed: see `docs/experiments.md`. At the CPU scale used here, the experiment can answer the
-  question only for tiny models; it does **not** establish anything about large models.
+* Executed: A/B/C/D (2 seeds), D+imagination (2 seeds), ablations (no demos, no replay, horizon,
+  uncertainty penalty, policy prior, world-model size), world-model transfer study, real-browser
+  transfer. Result: imitation is the only component with a measurable effect; no configuration
+  transfers to unseen families. At this scale the experiment cannot detect differences below
+  ≈15 points and says nothing about large models.
 
 ## Known gaps (honest list)
 * No GPU runs; the Qwen3-4B research profile is configured and its code path is the same as the
@@ -85,3 +94,11 @@ Chromium). See the bottom of this file for the latest run.
 * No latent recurrent belief state; no visual observations.
 * Distributed (scaled) actor/learner not implemented.
 * Human demonstrations were not collected from real people.
+* C seed 1 was not run separately (its weights are identical to D seed 1's by construction;
+  identity verified on seed 0).
+
+## Latest full test run
+
+`python -m pytest -q` → **104 passed** in 160 s (4 CPU cores shared with running experiments;
+includes 25 real-Chromium browser tests). `bash scripts/verify_cli_workflows.sh` executed all
+documented CLI workflows successfully.

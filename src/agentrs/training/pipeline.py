@@ -268,6 +268,7 @@ class Experiment:
             self.results["bc"] = {k: r[k] for k in ("n_train_examples", "before", "after", "param_change_l2")}
             self.results["bc"]["from_cache"] = hit
             self._ckpt("policy_bc", self.policy)
+            self.evaluate("after_bc", sets=("val",))
         if self.wm is not None and not demo_ts:  # world model learns only from own experience
             from agentrs.training.common import GradientTrainer
 

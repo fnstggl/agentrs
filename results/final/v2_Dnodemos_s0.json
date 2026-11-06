@@ -1,0 +1,983 @@
+{
+ "config": {
+  "name": "v2_Dnodemos_s0",
+  "seed": 0,
+  "out_dir": "runs/final",
+  "variant": "D",
+  "use_demos": false,
+  "use_world_model": true,
+  "use_planning_collect": false,
+  "use_planning_eval": true,
+  "use_imagination": false,
+  "historical_replay": true,
+  "train_families": [
+   "click_button",
+   "navigate_link",
+   "fill_field",
+   "login",
+   "checkboxes",
+   "dropdown",
+   "menu",
+   "search_lookup",
+   "form_validation",
+   "checkout"
+  ],
+  "heldout_families": [
+   "dialog_confirm",
+   "scroll_find",
+   "toggle_settings",
+   "lookup_then_fill"
+  ],
+  "n_demo_tasks_per_family": 40,
+  "teacher_epsilon": 0.15,
+  "n_rl_tasks_per_family": 200,
+  "eval_sets": {
+   "val": 4,
+   "test": 4,
+   "test_family": 8
+  },
+  "policy": {
+   "backbone": {
+    "name": "EleutherAI/pythia-14m",
+    "revision": null,
+    "dtype": "float32",
+    "device": "cpu",
+    "lora": null,
+    "max_prompt_tokens": 512,
+    "head_keep_tokens": 64,
+    "gradient_checkpointing": false,
+    "scratch": {
+     "hidden_size": 64,
+     "num_layers": 2,
+     "num_heads": 4,
+     "vocab_size": 512,
+     "max_positions": 1024
+    },
+    "seed": 0
+   },
+   "temperature": 1.0,
+   "prefix_cache": true,
+   "vocab_restrict": true,
+   "length_norm": 0.0,
+   "generative_proposals": 0,
+   "max_candidates": 40
+  },
+  "world_model": {
+   "backbone": {
+    "name": "EleutherAI/pythia-14m",
+    "revision": null,
+    "dtype": "float32",
+    "device": "cpu",
+    "lora": null,
+    "max_prompt_tokens": 512,
+    "head_keep_tokens": 64,
+    "gradient_checkpointing": false,
+    "scratch": {
+     "hidden_size": 64,
+     "num_layers": 2,
+     "num_heads": 4,
+     "vocab_size": 512,
+     "max_positions": 1024
+    },
+    "seed": 0
+   },
+   "n_heads": 5,
+   "head_hidden": 128,
+   "bootstrap_prob": 0.8,
+   "diff_loss_weight": 1.0,
+   "head_loss_weight": 1.0,
+   "history_items": 3,
+   "max_obs_elements": 30,
+   "max_diff_tokens": 96
+  },
+  "critic": {
+   "backbone": {
+    "name": "EleutherAI/pythia-14m",
+    "revision": null,
+    "dtype": "float32",
+    "device": "cpu",
+    "lora": null,
+    "max_prompt_tokens": 512,
+    "head_keep_tokens": 64,
+    "gradient_checkpointing": false,
+    "scratch": {
+     "hidden_size": 64,
+     "num_layers": 2,
+     "num_heads": 4,
+     "vocab_size": 512,
+     "max_positions": 1024
+    },
+    "seed": 0
+   },
+   "head_hidden": 128,
+   "gamma": 0.95,
+   "td_lambda": 1.0
+  },
+  "bc": {
+   "optim": {
+    "lr": 0.0005,
+    "weight_decay": 0.0,
+    "betas": [
+     0.9,
+     0.999
+    ],
+    "warmup_steps": 30,
+    "total_steps": 600,
+    "schedule": "cosine",
+    "min_lr_ratio": 0.1,
+    "grad_clip": 1.0,
+    "max_bad_steps": 10
+   },
+   "batch_size": 16,
+   "steps": 600,
+   "w_success": 1.0,
+   "w_unknown": 0.3,
+   "w_failure": 0.0,
+   "eval_every": 300,
+   "seed": 0
+  },
+  "wm_train": {
+   "optim": {
+    "lr": 0.001,
+    "weight_decay": 0.0,
+    "betas": [
+     0.9,
+     0.999
+    ],
+    "warmup_steps": 30,
+    "total_steps": 100000,
+    "schedule": "constant",
+    "min_lr_ratio": 0.1,
+    "grad_clip": 1.0,
+    "max_bad_steps": 10
+   },
+   "batch_size": 16,
+   "steps": 800,
+   "eval_every": 400,
+   "seed": 0
+  },
+  "critic_train": {
+   "optim": {
+    "lr": 0.0005,
+    "weight_decay": 0.0,
+    "betas": [
+     0.9,
+     0.999
+    ],
+    "warmup_steps": 20,
+    "total_steps": 300,
+    "schedule": "cosine",
+    "min_lr_ratio": 0.1,
+    "grad_clip": 1.0,
+    "max_bad_steps": 10
+   },
+   "batch_size": 32,
+   "steps": 300,
+   "eval_every": 300,
+   "seed": 0
+  },
+  "rl": {
+   "algo": "ppo",
+   "gamma": 0.95,
+   "gae_lambda": 0.95,
+   "baseline": "critic",
+   "advantage_norm": true,
+   "epochs": 2,
+   "minibatch_size": 32,
+   "clip_eps": 0.2,
+   "rho_max": 1.0,
+   "entropy_coef": 0.001,
+   "kl_coef": 0.0,
+   "invalid_action_penalty": 0.1,
+   "group_size": 4,
+   "distill_coef": 0.0,
+   "imagined_weight": 0.5,
+   "policy_optim": {
+    "lr": 3e-05,
+    "weight_decay": 0.0,
+    "betas": [
+     0.9,
+     0.999
+    ],
+    "warmup_steps": 0,
+    "total_steps": 100000,
+    "schedule": "constant",
+    "min_lr_ratio": 0.1,
+    "grad_clip": 1.0,
+    "max_bad_steps": 10
+   },
+   "critic_optim": {
+    "lr": 0.0003,
+    "weight_decay": 0.0,
+    "betas": [
+     0.9,
+     0.999
+    ],
+    "warmup_steps": 0,
+    "total_steps": 100000,
+    "schedule": "constant",
+    "min_lr_ratio": 0.1,
+    "grad_clip": 1.0,
+    "max_bad_steps": 10
+   },
+   "critic_steps_per_iter": 4,
+   "max_kl_stop": 0.5
+  },
+  "rl_iterations": 25,
+  "episodes_per_iter": 32,
+  "wm_steps_per_iter": 15,
+  "planner": {
+   "enabled": true,
+   "num_candidates": 4,
+   "horizon": 1,
+   "num_branches": 1,
+   "branch_candidates": 2,
+   "gamma": 0.95,
+   "uncertainty_penalty": 1.0,
+   "diff_uncertainty_weight": 0.0,
+   "action_cost": 0.0,
+   "policy_prior_weight": 0.1,
+   "selection": "argmax",
+   "selection_temperature": 0.05,
+   "epsilon": 0.0,
+   "max_wm_calls": 24,
+   "generate_next_states": true,
+   "greedy_diffs": true
+  },
+  "imagination": {
+   "enabled": false,
+   "horizon": 2,
+   "rollouts_per_update": 16,
+   "max_epistemic": 0.08,
+   "sample_rewards": false,
+   "exploitation_gap": 0.3,
+   "seed": 0
+  },
+  "eval_every_iters": 5,
+  "exploration_epsilon": 0.0,
+  "save_checkpoints": true,
+  "cache_dir": "runs/cache"
+ },
+ "evals": [
+  {
+   "tag": "start",
+   "real_env_steps": 0,
+   "real_episodes": 0,
+   "flops": {
+    "policy_train": 0.0,
+    "wm_train": 0.0,
+    "critic_train": 0.0,
+    "inference": 1686127824896.0
+   },
+   "results": {
+    "policy/val": {
+     "n": 40,
+     "success_rate": 0.025,
+     "success_ci95": [
+      0.0,
+      0.1
+     ],
+     "mean_steps": 6.525,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 261.0,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 0.22887583682504556,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "checkboxes": 0.0,
+      "checkout": 0.0,
+      "click_button": 0.25,
+      "dropdown": 0.0,
+      "fill_field": 0.0,
+      "form_validation": 0.0,
+      "login": 0.0,
+      "menu": 0.0,
+      "navigate_link": 0.0,
+      "search_lookup": 0.0
+     },
+     "eval_wall_time_s": 9.168899059295654,
+     "inference_flops": 1686127824896.0,
+     "inference_flops_per_success": 1686127824896.0
+    }
+   }
+  },
+  {
+   "tag": "iter5",
+   "real_env_steps": 1207,
+   "real_episodes": 160,
+   "flops": {
+    "policy_train": 63291114590208.0,
+    "wm_train": 17676530294784.0,
+    "critic_train": 0.0,
+    "inference": 11528658796544.0
+   },
+   "results": {
+    "policy/val": {
+     "n": 40,
+     "success_rate": 0.025,
+     "success_ci95": [
+      0.0,
+      0.075
+     ],
+     "mean_steps": 7.975,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 319.0,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 0.25167260507500944,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "checkboxes": 0.0,
+      "checkout": 0.0,
+      "click_button": 0.25,
+      "dropdown": 0.0,
+      "fill_field": 0.0,
+      "form_validation": 0.0,
+      "login": 0.0,
+      "menu": 0.0,
+      "navigate_link": 0.0,
+      "search_lookup": 0.0
+     },
+     "eval_wall_time_s": 10.071070432662964,
+     "inference_flops": 2030758633472.0,
+     "inference_flops_per_success": 2030758633472.0
+    }
+   }
+  },
+  {
+   "tag": "iter10",
+   "real_env_steps": 2529,
+   "real_episodes": 320,
+   "flops": {
+    "policy_train": 117034951348224.0,
+    "wm_train": 33934613188608.0,
+    "critic_train": 0.0,
+    "inference": 21366631829504.0
+   },
+   "results": {
+    "policy/val": {
+     "n": 40,
+     "success_rate": 0.025,
+     "success_ci95": [
+      0.0,
+      0.1
+     ],
+     "mean_steps": 7.8,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 312.0,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 0.22678514904987424,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "checkboxes": 0.0,
+      "checkout": 0.0,
+      "click_button": 0.25,
+      "dropdown": 0.0,
+      "fill_field": 0.0,
+      "form_validation": 0.0,
+      "login": 0.0,
+      "menu": 0.0,
+      "navigate_link": 0.0,
+      "search_lookup": 0.0
+     },
+     "eval_wall_time_s": 9.075666904449463,
+     "inference_flops": 1975275577344.0,
+     "inference_flops_per_success": 1975275577344.0
+    }
+   }
+  },
+  {
+   "tag": "iter15",
+   "real_env_steps": 3741,
+   "real_episodes": 480,
+   "flops": {
+    "policy_train": 191523401981952.0,
+    "wm_train": 50427345518592.0,
+    "critic_train": 0.0,
+    "inference": 31080612048896.0
+   },
+   "results": {
+    "policy/val": {
+     "n": 40,
+     "success_rate": 0.05,
+     "success_ci95": [
+      0.0,
+      0.125
+     ],
+     "mean_steps": 7.25,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 145.0,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 0.24423855450008886,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "checkboxes": 0.0,
+      "checkout": 0.0,
+      "click_button": 0.25,
+      "dropdown": 0.0,
+      "fill_field": 0.0,
+      "form_validation": 0.0,
+      "login": 0.0,
+      "menu": 0.25,
+      "navigate_link": 0.0,
+      "search_lookup": 0.0
+     },
+     "eval_wall_time_s": 9.773930788040161,
+     "inference_flops": 1869570789376.0,
+     "inference_flops_per_success": 934785394688.0
+    }
+   }
+  },
+  {
+   "tag": "iter20",
+   "real_env_steps": 4888,
+   "real_episodes": 640,
+   "flops": {
+    "policy_train": 261680375955456.0,
+    "wm_train": 66639004962816.0,
+    "critic_train": 0.0,
+    "inference": 40288182771712.0
+   },
+   "results": {
+    "policy/val": {
+     "n": 40,
+     "success_rate": 0.0,
+     "success_ci95": [
+      0.0,
+      0.0
+     ],
+     "mean_steps": 7.55,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 302.0,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 0.23581041667521277,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "checkboxes": 0.0,
+      "checkout": 0.0,
+      "click_button": 0.0,
+      "dropdown": 0.0,
+      "fill_field": 0.0,
+      "form_validation": 0.0,
+      "login": 0.0,
+      "menu": 0.0,
+      "navigate_link": 0.0,
+      "search_lookup": 0.0
+     },
+     "eval_wall_time_s": 9.436682939529419,
+     "inference_flops": 1915375259648.0,
+     "inference_flops_per_success": 1915375259648.0
+    }
+   }
+  },
+  {
+   "tag": "final",
+   "real_env_steps": 6029,
+   "real_episodes": 800,
+   "flops": {
+    "policy_train": 323435549614080.0,
+    "wm_train": 83221545566208.0,
+    "critic_train": 0.0,
+    "inference": 102018034548736.0
+   },
+   "results": {
+    "policy/val": {
+     "n": 40,
+     "success_rate": 0.025,
+     "success_ci95": [
+      0.0,
+      0.1
+     ],
+     "mean_steps": 7.8,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 312.0,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 0.25648545952508356,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "checkboxes": 0.0,
+      "checkout": 0.0,
+      "click_button": 0.25,
+      "dropdown": 0.0,
+      "fill_field": 0.0,
+      "form_validation": 0.0,
+      "login": 0.0,
+      "menu": 0.0,
+      "navigate_link": 0.0,
+      "search_lookup": 0.0
+     },
+     "eval_wall_time_s": 10.263853311538696,
+     "inference_flops": 1972011868160.0,
+     "inference_flops_per_success": 1972011868160.0
+    },
+    "policy/test": {
+     "n": 40,
+     "success_rate": 0.05,
+     "success_ci95": [
+      0.0,
+      0.125
+     ],
+     "mean_steps": 7.475,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 149.5,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 0.3266144904000612,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "checkboxes": 0.0,
+      "checkout": 0.0,
+      "click_button": 0.5,
+      "dropdown": 0.0,
+      "fill_field": 0.0,
+      "form_validation": 0.0,
+      "login": 0.0,
+      "menu": 0.0,
+      "navigate_link": 0.0,
+      "search_lookup": 0.0
+     },
+     "eval_wall_time_s": 13.069331884384155,
+     "inference_flops": 2123042824192.0,
+     "inference_flops_per_success": 1061521412096.0
+    },
+    "policy/test_family": {
+     "n": 32,
+     "success_rate": 0.0,
+     "success_ci95": [
+      0.0,
+      0.0
+     ],
+     "mean_steps": 5.625,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 180.0,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 0.18469918009367348,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "dialog_confirm": 0.0,
+      "lookup_then_fill": 0.0,
+      "scroll_find": 0.0,
+      "toggle_settings": 0.0
+     },
+     "eval_wall_time_s": 5.913942575454712,
+     "inference_flops": 1208275783680.0,
+     "inference_flops_per_success": 1208275783680.0
+    },
+    "planner/val": {
+     "n": 40,
+     "success_rate": 0.025,
+     "success_ci95": [
+      0.0,
+      0.1
+     ],
+     "mean_steps": 7.8,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 312.0,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 1.9401998805999938,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "checkboxes": 0.0,
+      "checkout": 0.0,
+      "click_button": 0.25,
+      "dropdown": 0.0,
+      "fill_field": 0.0,
+      "form_validation": 0.0,
+      "login": 0.0,
+      "menu": 0.0,
+      "navigate_link": 0.0,
+      "search_lookup": 0.0
+     },
+     "eval_wall_time_s": 77.61729383468628,
+     "inference_flops": 18108746678272.0,
+     "inference_flops_per_success": 18108746678272.0
+    },
+    "planner/test": {
+     "n": 40,
+     "success_rate": 0.05,
+     "success_ci95": [
+      0.0,
+      0.125
+     ],
+     "mean_steps": 7.475,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 149.5,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 2.1351608916000258,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "checkboxes": 0.0,
+      "checkout": 0.0,
+      "click_button": 0.5,
+      "dropdown": 0.0,
+      "fill_field": 0.0,
+      "form_validation": 0.0,
+      "login": 0.0,
+      "menu": 0.0,
+      "navigate_link": 0.0,
+      "search_lookup": 0.0
+     },
+     "eval_wall_time_s": 85.41103625297546,
+     "inference_flops": 19876270284800.0,
+     "inference_flops_per_success": 9938135142400.0
+    },
+    "planner/test_family": {
+     "n": 32,
+     "success_rate": 0.0,
+     "success_ci95": [
+      0.0,
+      0.0
+     ],
+     "mean_steps": 5.28125,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 169.0,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 1.2677970494686406,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "dialog_confirm": 0.0,
+      "lookup_then_fill": 0.0,
+      "scroll_find": 0.0,
+      "toggle_settings": 0.0
+     },
+     "eval_wall_time_s": 40.57335138320923,
+     "inference_flops": 10830056218624.0,
+     "inference_flops_per_success": 10830056218624.0
+    }
+   }
+  }
+ ],
+ "stages": {
+  "wm_train": [
+   {
+    "wall_s": 23.445520877838135
+   },
+   {
+    "wall_s": 29.56557583808899
+   },
+   {
+    "wall_s": 23.18589973449707
+   },
+   {
+    "wall_s": 25.888360023498535
+   },
+   {
+    "wall_s": 25.080798625946045
+   },
+   {
+    "wall_s": 22.608675479888916
+   },
+   {
+    "wall_s": 22.809117317199707
+   },
+   {
+    "wall_s": 22.31510829925537
+   },
+   {
+    "wall_s": 25.198156118392944
+   },
+   {
+    "wall_s": 27.02396535873413
+   },
+   {
+    "wall_s": 24.21174669265747
+   },
+   {
+    "wall_s": 28.410563468933105
+   },
+   {
+    "wall_s": 21.747437715530396
+   },
+   {
+    "wall_s": 25.55719542503357
+   },
+   {
+    "wall_s": 22.642755031585693
+   },
+   {
+    "wall_s": 30.00750994682312
+   },
+   {
+    "wall_s": 22.66244077682495
+   },
+   {
+    "wall_s": 21.971810579299927
+   },
+   {
+    "wall_s": 24.288941621780396
+   },
+   {
+    "wall_s": 22.935461282730103
+   },
+   {
+    "wall_s": 24.72939443588257
+   },
+   {
+    "wall_s": 29.266536951065063
+   },
+   {
+    "wall_s": 24.8247492313385
+   },
+   {
+    "wall_s": 33.00336194038391
+   },
+   {
+    "wall_s": 22.812226057052612
+   }
+  ],
+  "policy_train": [
+   {
+    "wall_s": 18.65167546272278
+   },
+   {
+    "wall_s": 31.642227172851562
+   },
+   {
+    "wall_s": 80.62207579612732
+   },
+   {
+    "wall_s": 50.30992674827576
+   },
+   {
+    "wall_s": 50.676931381225586
+   },
+   {
+    "wall_s": 23.592682600021362
+   },
+   {
+    "wall_s": 53.79984998703003
+   },
+   {
+    "wall_s": 20.934489488601685
+   },
+   {
+    "wall_s": 38.385496616363525
+   },
+   {
+    "wall_s": 43.574044942855835
+   },
+   {
+    "wall_s": 62.211347579956055
+   },
+   {
+    "wall_s": 70.78274011611938
+   },
+   {
+    "wall_s": 58.98411321640015
+   },
+   {
+    "wall_s": 77.81628441810608
+   },
+   {
+    "wall_s": 59.83801579475403
+   },
+   {
+    "wall_s": 60.42473602294922
+   },
+   {
+    "wall_s": 68.65932583808899
+   },
+   {
+    "wall_s": 64.56987237930298
+   },
+   {
+    "wall_s": 45.762147665023804
+   },
+   {
+    "wall_s": 41.71283149719238
+   },
+   {
+    "wall_s": 28.23614740371704
+   },
+   {
+    "wall_s": 24.348387479782104
+   },
+   {
+    "wall_s": 58.2288818359375
+   },
+   {
+    "wall_s": 52.430668592453
+   },
+   {
+    "wall_s": 82.64475584030151
+   }
+  ]
+ },
+ "n_demo_episodes": 0,
+ "demo_success_rate": null,
+ "rl": {
+  "iterations": 25,
+  "imagination_final_enabled": false
+ },
+ "final": {
+  "policy/val": {
+   "n": 40,
+   "success_rate": 0.025,
+   "success_ci95": [
+    0.0,
+    0.1
+   ],
+   "mean_steps": 7.8,
+   "invalid_action_rate": 0.0,
+   "real_steps_per_success": 312.0,
+   "error_recovery_rate": null,
+   "mean_wall_time_s": 0.25648545952508356,
+   "long_horizon_success": 0.0,
+   "by_family": {
+    "checkboxes": 0.0,
+    "checkout": 0.0,
+    "click_button": 0.25,
+    "dropdown": 0.0,
+    "fill_field": 0.0,
+    "form_validation": 0.0,
+    "login": 0.0,
+    "menu": 0.0,
+    "navigate_link": 0.0,
+    "search_lookup": 0.0
+   },
+   "eval_wall_time_s": 10.263853311538696,
+   "inference_flops": 1972011868160.0,
+   "inference_flops_per_success": 1972011868160.0
+  },
+  "policy/test": {
+   "n": 40,
+   "success_rate": 0.05,
+   "success_ci95": [
+    0.0,
+    0.125
+   ],
+   "mean_steps": 7.475,
+   "invalid_action_rate": 0.0,
+   "real_steps_per_success": 149.5,
+   "error_recovery_rate": null,
+   "mean_wall_time_s": 0.3266144904000612,
+   "long_horizon_success": 0.0,
+   "by_family": {
+    "checkboxes": 0.0,
+    "checkout": 0.0,
+    "click_button": 0.5,
+    "dropdown": 0.0,
+    "fill_field": 0.0,
+    "form_validation": 0.0,
+    "login": 0.0,
+    "menu": 0.0,
+    "navigate_link": 0.0,
+    "search_lookup": 0.0
+   },
+   "eval_wall_time_s": 13.069331884384155,
+   "inference_flops": 2123042824192.0,
+   "inference_flops_per_success": 1061521412096.0
+  },
+  "policy/test_family": {
+   "n": 32,
+   "success_rate": 0.0,
+   "success_ci95": [
+    0.0,
+    0.0
+   ],
+   "mean_steps": 5.625,
+   "invalid_action_rate": 0.0,
+   "real_steps_per_success": 180.0,
+   "error_recovery_rate": null,
+   "mean_wall_time_s": 0.18469918009367348,
+   "long_horizon_success": 0.0,
+   "by_family": {
+    "dialog_confirm": 0.0,
+    "lookup_then_fill": 0.0,
+    "scroll_find": 0.0,
+    "toggle_settings": 0.0
+   },
+   "eval_wall_time_s": 5.913942575454712,
+   "inference_flops": 1208275783680.0,
+   "inference_flops_per_success": 1208275783680.0
+  },
+  "planner/val": {
+   "n": 40,
+   "success_rate": 0.025,
+   "success_ci95": [
+    0.0,
+    0.1
+   ],
+   "mean_steps": 7.8,
+   "invalid_action_rate": 0.0,
+   "real_steps_per_success": 312.0,
+   "error_recovery_rate": null,
+   "mean_wall_time_s": 1.9401998805999938,
+   "long_horizon_success": 0.0,
+   "by_family": {
+    "checkboxes": 0.0,
+    "checkout": 0.0,
+    "click_button": 0.25,
+    "dropdown": 0.0,
+    "fill_field": 0.0,
+    "form_validation": 0.0,
+    "login": 0.0,
+    "menu": 0.0,
+    "navigate_link": 0.0,
+    "search_lookup": 0.0
+   },
+   "eval_wall_time_s": 77.61729383468628,
+   "inference_flops": 18108746678272.0,
+   "inference_flops_per_success": 18108746678272.0
+  },
+  "planner/test": {
+   "n": 40,
+   "success_rate": 0.05,
+   "success_ci95": [
+    0.0,
+    0.125
+   ],
+   "mean_steps": 7.475,
+   "invalid_action_rate": 0.0,
+   "real_steps_per_success": 149.5,
+   "error_recovery_rate": null,
+   "mean_wall_time_s": 2.1351608916000258,
+   "long_horizon_success": 0.0,
+   "by_family": {
+    "checkboxes": 0.0,
+    "checkout": 0.0,
+    "click_button": 0.5,
+    "dropdown": 0.0,
+    "fill_field": 0.0,
+    "form_validation": 0.0,
+    "login": 0.0,
+    "menu": 0.0,
+    "navigate_link": 0.0,
+    "search_lookup": 0.0
+   },
+   "eval_wall_time_s": 85.41103625297546,
+   "inference_flops": 19876270284800.0,
+   "inference_flops_per_success": 9938135142400.0
+  },
+  "planner/test_family": {
+   "n": 32,
+   "success_rate": 0.0,
+   "success_ci95": [
+    0.0,
+    0.0
+   ],
+   "mean_steps": 5.28125,
+   "invalid_action_rate": 0.0,
+   "real_steps_per_success": 169.0,
+   "error_recovery_rate": null,
+   "mean_wall_time_s": 1.2677970494686406,
+   "long_horizon_success": 0.0,
+   "by_family": {
+    "dialog_confirm": 0.0,
+    "lookup_then_fill": 0.0,
+    "scroll_find": 0.0,
+    "toggle_settings": 0.0
+   },
+   "eval_wall_time_s": 40.57335138320923,
+   "inference_flops": 10830056218624.0,
+   "inference_flops_per_success": 10830056218624.0
+  }
+ },
+ "total_wall_s": 2379.163008451462,
+ "real_env_steps": 6029,
+ "real_episodes": 800,
+ "flops": {
+  "policy_train": 323435549614080.0,
+  "wm_train": 83221545566208.0,
+  "critic_train": 0.0,
+  "inference": 102018034548736.0
+ }
+}

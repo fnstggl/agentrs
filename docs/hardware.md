@@ -30,7 +30,10 @@ prefix cache is ≈4.5× faster than scoring full sequences; restricting token n
 candidate vocabulary removed the 50k-way softmax that otherwise dominated (≈2.5× end-to-end BC
 speedup).
 
-Memory: one experiment process with three Pythia-14M models uses ≈0.6–1.5 GB RAM (measured).
+Memory (measured): an experiment process with three Pythia-14M models starts at ≈0.6–1.5 GB and
+grows to ≈2.2–3.3 GB RSS during the RL phase (replay, planner generation caches, allocator
+fragmentation). On a 15 GB machine more than ~4–5 concurrent runs triggered the OOM killer;
+`scripts/job_pool.sh` (max concurrency, `MALLOC_ARENA_MAX=2`) is the safe launcher.
 
 ## Storage (measured)
 

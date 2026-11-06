@@ -1,0 +1,53 @@
+{
+ "run": "runs/final/v2_C_s0",
+ "policy": "runs/final/v2_C_s0/checkpoints/policy_final",
+ "world_model": "runs/wm_study/wm_dev_s0",
+ "critic": "runs/final/v2_C_s0/checkpoints/critic_final",
+ "results": [
+  {
+   "planner": {
+    "horizon": 1
+   },
+   "val": {
+    "success_rate": 0.275,
+    "success_ci95": [
+     0.15,
+     0.425
+    ],
+    "invalid_action_rate": 0.0,
+    "mean_steps": 6.275,
+    "seconds_per_episode": 2.2675457537174224,
+    "inference_flops_per_episode": 378416529100.8,
+    "by_family": {
+     "checkboxes": 0.0,
+     "checkout": 0.0,
+     "click_button": 0.25,
+     "dropdown": 0.25,
+     "fill_field": 0.75,
+     "form_validation": 0.0,
+     "login": 0.25,
+     "menu": 0.5,
+     "navigate_link": 0.25,
+     "search_lookup": 0.5
+    }
+   },
+   "test_family": {
+    "success_rate": 0.0625,
+    "success_ci95": [
+     0.0,
+     0.15625
+    ],
+    "invalid_action_rate": 0.0,
+    "mean_steps": 3.875,
+    "seconds_per_episode": 1.2658867612481117,
+    "inference_flops_per_episode": 241978714112.0,
+    "by_family": {
+     "dialog_confirm": 0.125,
+     "lookup_then_fill": 0.0,
+     "scroll_find": 0.0,
+     "toggle_settings": 0.125
+    }
+   }
+  }
+ ]
+}

@@ -31,8 +31,14 @@ def main():
     ap.add_argument("--runs", nargs="+", required=True)
     ap.add_argument("--split", default="val")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--bc-runs", nargs="*", default=[],
+                    help="B (imitation) runs; their final success is the 0-RL-step point for C/D of the same seed")
     a = ap.parse_args()
     curves = defaultdict(list)
+    bc = {}
+    for r in a.bc_runs:
+        res = json.loads((Path(r) / "results.json").read_text())
+        bc[res["config"]["seed"]] = res["final"][f"policy/{a.split}"]["success_rate"]
     for r in a.runs:
         p = Path(r) / "results.json"
         if not p.exists():
@@ -40,7 +46,10 @@ def main():
         res = json.loads(p.read_text())
         for mode in ("policy", "planner"):
             pts = [(e["real_env_steps"], e["results"][f"{mode}/{a.split}"]["success_rate"]) for e in res["evals"]
-                   if f"{mode}/{a.split}" in e["results"]]
+                   if f"{mode}/{a.split}" in e["results"] and e["tag"] != "start"]
+            seed = res["config"]["seed"]
+            if res["config"].get("use_demos", True) and seed in bc and mode == "policy":
+                pts = [(0, bc[seed])] + pts  # after behaviour cloning, before RL
             if len(pts) > 1:
                 curves[label(res["config"], mode)].append(pts)
     fig, ax = plt.subplots(figsize=(7, 4.2))
@@ -49,7 +58,10 @@ def main():
         for pts in runs:
             ln, = ax.plot([x for x, _ in pts], [y for _, y in pts], marker="o", ms=3, lw=1.2, alpha=0.8,
                           color=ln.get_color() if ln is not None else None, label=lab if ln is None else None)
-    ax.set_xlabel("real environment steps used for RL")
+    for seed, v in sorted(bc.items()):
+        ax.axhline(v, ls=":", lw=1, color="gray")
+        ax.text(10, v + 0.01, f"B imitation, seed {seed}", fontsize=7, color="gray")
+    ax.set_xlabel("real environment steps used for RL (0 = after behaviour cloning)")
     ax.set_ylabel(f"verified success ({a.split})")
     ax.set_ylim(0, 1)
     ax.grid(alpha=0.3)

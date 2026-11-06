@@ -1,0 +1,381 @@
+{
+ "world_model": "runs/wm_study/wm_dev31m_s0",
+ "n_train": 1175,
+ "sets": {
+  "val": {
+   "n_val": 162,
+   "model": {
+    "event_nll": 0.07214710186418427,
+    "event_brier": 0.017859372865960642,
+    "event_auroc_mean": 0.993878272688143,
+    "event_ece": 0.015509462981943412,
+    "reward_nll": 0.2932488584345722,
+    "reward_auroc": 0.9471618357487923,
+    "terminal_nll": 0.21509858859972472,
+    "terminal_auroc": 0.9874005305039788,
+    "reliability_events": [
+     {
+      "bin": 0,
+      "n": 1667,
+      "mean_pred": 0.0010860765623352084,
+      "frac_pos": 0.0065986802639472104
+     },
+     {
+      "bin": 1,
+      "n": 9,
+      "mean_pred": 0.13908531847927305,
+      "frac_pos": 0.3333333333333333
+     },
+     {
+      "bin": 2,
+      "n": 8,
+      "mean_pred": 0.25378225557506084,
+      "frac_pos": 0.375
+     },
+     {
+      "bin": 3,
+      "n": 4,
+      "mean_pred": 0.33131567388772964,
+      "frac_pos": 0.5
+     },
+     {
+      "bin": 4,
+      "n": 2,
+      "mean_pred": 0.4232742339372635,
+      "frac_pos": 1.0
+     },
+     {
+      "bin": 5,
+      "n": 1,
+      "mean_pred": 0.5239132642745972,
+      "frac_pos": 0.0
+     },
+     {
+      "bin": 6,
+      "n": 2,
+      "mean_pred": 0.6612103581428528,
+      "frac_pos": 0.5
+     },
+     {
+      "bin": 7,
+      "n": 5,
+      "mean_pred": 0.744117796421051,
+      "frac_pos": 1.0
+     },
+     {
+      "bin": 8,
+      "n": 11,
+      "mean_pred": 0.8548206199299205,
+      "frac_pos": 0.8181818181818182
+     },
+     {
+      "bin": 9,
+      "n": 235,
+      "mean_pred": 0.9910040464807064,
+      "frac_pos": 0.9319148936170213
+     }
+    ]
+   },
+   "marginal": {
+    "event_nll": 0.3169548728114032,
+    "event_brier": 0.10041634098375413,
+    "event_auroc_mean": 0.5,
+    "event_ece": 0.012341745597197334,
+    "reward_nll": 0.4714847570797663,
+    "reward_auroc": 0.5,
+    "terminal_nll": 0.6530739795185186,
+    "terminal_auroc": 0.5
+   },
+   "action_type": {
+    "event_nll": 0.19378928476999535,
+    "event_brier": 0.06024238381251846,
+    "event_auroc_mean": 0.8133105449287126,
+    "event_ece": 0.0073907183945249935,
+    "reward_nll": 0.46043012977386777,
+    "reward_auroc": 0.6385869565217391,
+    "terminal_nll": 0.3134106053526443,
+    "terminal_auroc": 0.8925729442970822
+   },
+   "uncertainty_flags_error_auroc": 0.8086595799844438,
+   "mean_epistemic_std": 0.003182151587679982,
+   "diff_nll_per_token": 0.30670492053889153,
+   "generation": {
+    "n": 80,
+    "diff_exact_match": 0.5875,
+    "next_obs_f1_model": 0.8574750902692079,
+    "next_obs_f1_persistence": 0.7433924021240197,
+    "next_obs_f1_by_action_type": {
+     "type": 0.8587606837606838,
+     "click": 0.7854375689669807,
+     "finish": 1.0,
+     "select": 0.875,
+     "clear": 0.9000000000000001,
+     "wait": 0.6
+    }
+   },
+   "drift": {
+    "n_episodes": 24,
+    "k": 3,
+    "f1_model_by_step": [
+     0.8222222222222224,
+     0.6428708750399926,
+     0.6216538975730153
+    ],
+    "f1_persistence_by_step": [
+     0.6526251526251526,
+     0.561634199134199,
+     0.49644059644059646
+    ]
+   }
+  },
+  "test": {
+   "n_val": 181,
+   "model": {
+    "event_nll": 0.15326336195335236,
+    "event_brier": 0.033206337688335155,
+    "event_auroc_mean": 0.9748544684051492,
+    "event_ece": 0.03125812780044441,
+    "reward_nll": 0.35350550724957225,
+    "reward_auroc": 0.9408233276157805,
+    "terminal_nll": 0.329258434071961,
+    "terminal_auroc": 0.9700028034763106,
+    "reliability_events": [
+     {
+      "bin": 0,
+      "n": 1856,
+      "mean_pred": 0.0012120442547523592,
+      "frac_pos": 0.009159482758620689
+     },
+     {
+      "bin": 1,
+      "n": 12,
+      "mean_pred": 0.15261714470883211,
+      "frac_pos": 0.16666666666666666
+     },
+     {
+      "bin": 2,
+      "n": 7,
+      "mean_pred": 0.24650701667581285,
+      "frac_pos": 0.5714285714285714
+     },
+     {
+      "bin": 3,
+      "n": 5,
+      "mean_pred": 0.3516607403755188,
+      "frac_pos": 0.6
+     },
+     {
+      "bin": 4,
+      "n": 6,
+      "mean_pred": 0.45167918503284454,
+      "frac_pos": 0.5
+     },
+     {
+      "bin": 5,
+      "n": 2,
+      "mean_pred": 0.5719344317913055,
+      "frac_pos": 0.0
+     },
+     {
+      "bin": 6,
+      "n": 5,
+      "mean_pred": 0.6525852084159851,
+      "frac_pos": 0.4
+     },
+     {
+      "bin": 7,
+      "n": 6,
+      "mean_pred": 0.7529902358849844,
+      "frac_pos": 0.16666666666666666
+     },
+     {
+      "bin": 8,
+      "n": 22,
+      "mean_pred": 0.8620004084977236,
+      "frac_pos": 0.2727272727272727
+     },
+     {
+      "bin": 9,
+      "n": 251,
+      "mean_pred": 0.9891585501066718,
+      "frac_pos": 0.8685258964143426
+     }
+    ]
+   },
+   "marginal": {
+    "event_nll": 0.308395936516167,
+    "event_brier": 0.09554444292226667,
+    "event_auroc_mean": 0.5,
+    "event_ece": 0.030548292863055097,
+    "reward_nll": 0.44696778701341805,
+    "reward_auroc": 0.5,
+    "terminal_nll": 0.6279775622130157,
+    "terminal_auroc": 0.5
+   },
+   "action_type": {
+    "event_nll": 0.2166042484712528,
+    "event_brier": 0.06601515696419205,
+    "event_auroc_mean": 0.7890219969000852,
+    "event_ece": 0.033105072531740894,
+    "reward_nll": 0.4687371896041449,
+    "reward_auroc": 0.6080617495711835,
+    "terminal_nll": 0.3287670434173519,
+    "terminal_auroc": 0.8826044294925708
+   },
+   "uncertainty_flags_error_auroc": 0.8303135888501743,
+   "mean_epistemic_std": 0.0040720379911363125,
+   "diff_nll_per_token": 0.8751152947391847,
+   "generation": {
+    "n": 80,
+    "diff_exact_match": 0.4125,
+    "next_obs_f1_model": 0.8114174930265587,
+    "next_obs_f1_persistence": 0.7947283394709865,
+    "next_obs_f1_by_action_type": {
+     "type": 0.8336675020885548,
+     "click": 0.7406152256980093,
+     "finish": 1.0,
+     "select": 0.9523809523809524,
+     "clear": 0.8888888888888888
+    }
+   },
+   "drift": {
+    "n_episodes": 28,
+    "k": 3,
+    "f1_model_by_step": [
+     0.7625513427675082,
+     0.5899139777982104,
+     0.5842025265510449
+    ],
+    "f1_persistence_by_step": [
+     0.7152964099392671,
+     0.6697872563943994,
+     0.5570643642072213
+    ]
+   }
+  },
+  "test_family": {
+   "n_val": 140,
+   "model": {
+    "event_nll": 0.7799789857920706,
+    "event_brier": 0.15732322417380473,
+    "event_auroc_mean": 0.7912612287706895,
+    "event_ece": 0.160995096403431,
+    "reward_nll": 0.5964101103247115,
+    "reward_auroc": 0.8359013867488444,
+    "terminal_nll": 0.770382870894282,
+    "terminal_auroc": 0.8445281439631722,
+    "reliability_events": [
+     {
+      "bin": 0,
+      "n": 1220,
+      "mean_pred": 0.004313126480433283,
+      "frac_pos": 0.04836065573770492
+     },
+     {
+      "bin": 1,
+      "n": 43,
+      "mean_pred": 0.139315131618533,
+      "frac_pos": 0.06976744186046512
+     },
+     {
+      "bin": 2,
+      "n": 26,
+      "mean_pred": 0.2522788620912112,
+      "frac_pos": 0.23076923076923078
+     },
+     {
+      "bin": 3,
+      "n": 26,
+      "mean_pred": 0.35414008223093474,
+      "frac_pos": 0.15384615384615385
+     },
+     {
+      "bin": 4,
+      "n": 13,
+      "mean_pred": 0.46254889093912566,
+      "frac_pos": 0.07692307692307693
+     },
+     {
+      "bin": 5,
+      "n": 30,
+      "mean_pred": 0.5533269027868907,
+      "frac_pos": 0.13333333333333333
+     },
+     {
+      "bin": 6,
+      "n": 25,
+      "mean_pred": 0.6445945882797242,
+      "frac_pos": 0.24
+     },
+     {
+      "bin": 7,
+      "n": 17,
+      "mean_pred": 0.7445559045847725,
+      "frac_pos": 0.4117647058823529
+     },
+     {
+      "bin": 8,
+      "n": 45,
+      "mean_pred": 0.8611760099728902,
+      "frac_pos": 0.2
+     },
+     {
+      "bin": 9,
+      "n": 235,
+      "mean_pred": 0.9780347014995332,
+      "frac_pos": 0.3617021276595745
+     }
+    ]
+   },
+   "marginal": {
+    "event_nll": 0.35051228535103657,
+    "event_brier": 0.09642630963131364,
+    "event_auroc_mean": 0.5,
+    "event_ece": 0.05558117894566493,
+    "reward_nll": 0.4797747259692337,
+    "reward_auroc": 0.5,
+    "terminal_nll": 0.6954128782963362,
+    "terminal_auroc": 0.5
+   },
+   "action_type": {
+    "event_nll": 0.30946613210538554,
+    "event_brier": 0.09111010309621821,
+    "event_auroc_mean": 0.6459079742930942,
+    "event_ece": 0.07854073083632744,
+    "reward_nll": 0.5808755831615835,
+    "reward_auroc": 0.5042372881355932,
+    "terminal_nll": 0.5171382812093995,
+    "terminal_auroc": 0.7447164678803097
+   },
+   "uncertainty_flags_error_auroc": 0.8480392156862745,
+   "mean_epistemic_std": 0.01936705969274044,
+   "diff_nll_per_token": 2.312306375663245,
+   "generation": {
+    "n": 80,
+    "diff_exact_match": 0.2125,
+    "next_obs_f1_model": 0.5452235035495905,
+    "next_obs_f1_persistence": 0.8090505890699531,
+    "next_obs_f1_by_action_type": {
+     "finish": 1.0,
+     "click": 0.44673744087931727,
+     "type": 0.8000000000000002,
+     "scroll": 0.5726495726495726
+    }
+   },
+   "drift": {
+    "n_episodes": 21,
+    "k": 3,
+    "f1_model_by_step": [
+     0.46532039389182245,
+     0.13599162742019888,
+     0.12500261643118787
+    ],
+    "f1_persistence_by_step": [
+     0.5572821163798607,
+     0.513456067741782,
+     0.49233182857243
+    ]
+   }
+  }
+ }
+}

@@ -202,9 +202,28 @@ python scripts/planner_sweep.py runs/v2/v2_D_s0 --grid horizon=1,2 uncertainty_p
 
 ## Results (CPU development profile, Pythia-14M everywhere)
 
-See [`docs/experiments.md`](docs/experiments.md) for the full tables, confidence intervals,
-compute accounting, ablations and caveats. Summary of what was actually measured is at the top of
-that document. No claim of superiority over frontier models is made or implied.
+Measured on 4 CPU cores, 2 seeds, 32–40 verified evaluation episodes per split
+(full tables, intervals, compute and ablations in [`docs/experiments.md`](docs/experiments.md);
+raw files in `results/`):
+
+| configuration | val | held-out instances (test) | unseen families |
+|---|---|---|---|
+| A pretrained policy, no updates | 0.025 | 0.025 | 0.031 |
+| B behaviour cloning | 0.325 | 0.250 | 0.000 |
+| C B + PPO from verified rewards (800 episodes) | 0.288 | 0.288 | 0.000 |
+| D C + learned world model + MPC planning | 0.313 | 0.275 | 0.000 |
+| D + imagination-based training (planner) | 0.300 | 0.250 | 0.016 |
+
+* Imitation is what works; RL, planning and imagination produced **no measurable gain** at this
+  scale, and planning cost ≈9× more inference compute per success. Nothing transferred to unseen
+  task families. The hypothesis is **not supported** by these measurements — which are far too
+  small (tiny models, ±12–15-point intervals) to refute it.
+* The world model genuinely learns action consequences (held-out event AUROC 0.99 vs 0.81 for a
+  frequency baseline) and partially transfers to unseen families (reward AUROC 0.65–0.84 vs 0.50)
+  but is overconfident there; a 31M world model transfers better than a 14M one.
+* A trained policy behaves identically in real Chromium and in the simulator (20/20 episodes).
+
+No claim of superiority over frontier models is made or implied.
 
 ## Safety defaults
 
