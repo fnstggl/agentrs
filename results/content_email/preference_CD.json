@@ -1,0 +1,58 @@
+{
+ "email_C_s0": {
+  "greedy": {
+   "morning": 0.38333333333333336,
+   "afternoon": 0.0,
+   "invalid": 0.6166666666666667,
+   "success": 0.3
+  },
+  "sample": {
+   "morning": 0.3333333333333333,
+   "afternoon": 0.0,
+   "invalid": 0.6666666666666666,
+   "success": 0.25
+  }
+ },
+ "email_C_s1": {
+  "greedy": {
+   "morning": 0.23333333333333334,
+   "afternoon": 0.0,
+   "invalid": 0.7666666666666667,
+   "success": 0.18333333333333332
+  },
+  "sample": {
+   "morning": 0.25,
+   "afternoon": 0.0,
+   "invalid": 0.75,
+   "success": 0.2
+  }
+ },
+ "email_D_s0": {
+  "greedy": {
+   "morning": 0.38333333333333336,
+   "afternoon": 0.0,
+   "invalid": 0.6166666666666667,
+   "success": 0.3
+  },
+  "sample": {
+   "morning": 0.3333333333333333,
+   "afternoon": 0.0,
+   "invalid": 0.6666666666666666,
+   "success": 0.25
+  }
+ },
+ "email_D_s1": {
+  "greedy": {
+   "morning": 0.23333333333333334,
+   "afternoon": 0.0,
+   "invalid": 0.7666666666666667,
+   "success": 0.18333333333333332
+  },
+  "sample": {
+   "morning": 0.25,
+   "afternoon": 0.0,
+   "invalid": 0.75,
+   "success": 0.2
+  }
+ }
+}

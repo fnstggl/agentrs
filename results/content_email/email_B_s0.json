@@ -1,0 +1,458 @@
+{
+ "config": {
+  "name": "email_B_s0",
+  "out_dir": "runs/content_email",
+  "seed": 0,
+  "variant": "B",
+  "init_policy": "runs/cache/bc_1318e51fdd21",
+  "init_world_model": "runs/cache/wm_c962f7759108",
+  "policy": {
+   "backbone": {
+    "name": "EleutherAI/pythia-14m",
+    "revision": null,
+    "dtype": "float32",
+    "device": "cpu",
+    "lora": null,
+    "max_prompt_tokens": 512,
+    "head_keep_tokens": 64,
+    "gradient_checkpointing": false,
+    "scratch": {
+     "hidden_size": 64,
+     "num_layers": 2,
+     "num_heads": 4,
+     "vocab_size": 512,
+     "max_positions": 1024
+    },
+    "seed": 0
+   },
+   "temperature": 1.0,
+   "prefix_cache": true,
+   "vocab_restrict": true,
+   "length_norm": 0.0,
+   "generative_proposals": 0,
+   "max_candidates": 40
+  },
+  "world_model": {
+   "backbone": {
+    "name": "EleutherAI/pythia-14m",
+    "revision": null,
+    "dtype": "float32",
+    "device": "cpu",
+    "lora": null,
+    "max_prompt_tokens": 512,
+    "head_keep_tokens": 64,
+    "gradient_checkpointing": false,
+    "scratch": {
+     "hidden_size": 64,
+     "num_layers": 2,
+     "num_heads": 4,
+     "vocab_size": 512,
+     "max_positions": 1024
+    },
+    "seed": 0
+   },
+   "n_heads": 5,
+   "head_hidden": 128,
+   "bootstrap_prob": 0.8,
+   "diff_loss_weight": 1.0,
+   "head_loss_weight": 1.0,
+   "history_items": 3,
+   "max_obs_elements": 30,
+   "max_diff_tokens": 96,
+   "content_head_weight": 1.0,
+   "chunk_tokens": 160
+  },
+  "gen": {
+   "max_content_tokens": 40,
+   "temperature": 1.0
+  },
+  "n_demo_per_family": 160,
+  "bc": {
+   "steps": 300,
+   "batch_size": 16,
+   "optim": {
+    "lr": 0.0005,
+    "weight_decay": 0.0,
+    "betas": [
+     0.9,
+     0.999
+    ],
+    "warmup_steps": 20,
+    "total_steps": 300,
+    "schedule": "cosine",
+    "min_lr_ratio": 0.1,
+    "grad_clip": 1.0,
+    "max_bad_steps": 10
+   },
+   "w_success": 1.0,
+   "w_failure": 0.0,
+   "w_unknown": 0.3,
+   "rehearsal_weight": 0.5,
+   "seed": 0
+  },
+  "rl": {
+   "clip_eps": 0.2,
+   "kl_coef": 0.02,
+   "epochs": 1,
+   "minibatch_size": 16,
+   "token_reduction": "sum",
+   "invalid_penalty": 0.1,
+   "advantage": "group",
+   "optim": {
+    "lr": 3e-05,
+    "weight_decay": 0.0,
+    "betas": [
+     0.9,
+     0.999
+    ],
+    "warmup_steps": 0,
+    "total_steps": 100000,
+    "schedule": "constant",
+    "min_lr_ratio": 0.1,
+    "grad_clip": 1.0,
+    "max_bad_steps": 10
+   },
+   "imagined_weight": 0.5
+  },
+  "rl_iterations": 40,
+  "tasks_per_iter": 8,
+  "group_size": 6,
+  "wm_initial_steps": 400,
+  "wm_steps_per_iter": 15,
+  "wm_train": {
+   "steps": 300,
+   "batch_size": 16,
+   "optim": {
+    "lr": 0.001,
+    "weight_decay": 0.0,
+    "betas": [
+     0.9,
+     0.999
+    ],
+    "warmup_steps": 0,
+    "total_steps": 100000,
+    "schedule": "constant",
+    "min_lr_ratio": 0.1,
+    "grad_clip": 1.0,
+    "max_bad_steps": 10
+   },
+   "seed": 0
+  },
+  "planner": {
+   "num_candidates": 4,
+   "temperature": 1.0,
+   "revision_rounds": 1,
+   "target_score": 0.8,
+   "uncertainty_penalty": 1.0,
+   "min_score_to_act": 0.0,
+   "max_uncertainty": 1.0,
+   "predict_responses": true
+  },
+  "imagination": {
+   "drafts_per_state": 4,
+   "states_per_update": 8,
+   "max_epistemic": 0.15,
+   "weight": 0.5
+  },
+  "eval_sets": {
+   "val": 40,
+   "test": 40,
+   "test_family": 8
+  },
+  "eval_every": 10,
+  "miniweb_eval_tasks_per_family": 2,
+  "cache_dir": "runs/cache",
+  "families": [
+   "content_email"
+  ]
+ },
+ "evals": [
+  {
+   "tag": "start",
+   "real_episodes": 0,
+   "policy/val": {
+    "n": 40,
+    "success_rate": 0.0,
+    "success_ci95": [
+     0.0,
+     0.0
+    ],
+    "first_attempt_success": 0.0,
+    "format_valid_rate": 0.0,
+    "quality_partial_mean": 0.0,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.0
+    },
+    "eval_wall_time_s": 11.775508403778076,
+    "inference_flops": 0.0
+   },
+   "policy/test": {
+    "n": 40,
+    "success_rate": 0.0,
+    "success_ci95": [
+     0.0,
+     0.0
+    ],
+    "first_attempt_success": 0.0,
+    "format_valid_rate": 0.0,
+    "quality_partial_mean": 0.0,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.0
+    },
+    "eval_wall_time_s": 10.834181070327759,
+    "inference_flops": 0.0
+   },
+   "policy/test_family": {
+    "n": 8,
+    "success_rate": 0.0,
+    "success_ci95": [
+     0.0,
+     0.0
+    ],
+    "first_attempt_success": 0.0,
+    "format_valid_rate": 0.0,
+    "quality_partial_mean": 0.0,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_document": 0.0
+    },
+    "eval_wall_time_s": 2.758575916290283,
+    "inference_flops": 0.0
+   },
+   "lm_perplexity": 78348.66887510598,
+   "action_regression": {
+    "val_nll": 2.114445690381325,
+    "val_acc": 0.4745762711864407,
+    "miniweb_success": 0.3
+   }
+  },
+  {
+   "tag": "final",
+   "real_episodes": 0,
+   "policy/val": {
+    "n": 40,
+    "success_rate": 0.325,
+    "success_ci95": [
+     0.175,
+     0.475
+    ],
+    "first_attempt_success": 0.325,
+    "format_valid_rate": 0.35,
+    "quality_partial_mean": 0.3375,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.325
+    },
+    "eval_wall_time_s": 2.3273656368255615,
+    "inference_flops": 0.0
+   },
+   "policy/test": {
+    "n": 40,
+    "success_rate": 0.225,
+    "success_ci95": [
+     0.1,
+     0.35
+    ],
+    "first_attempt_success": 0.225,
+    "format_valid_rate": 0.25,
+    "quality_partial_mean": 0.2375,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.225
+    },
+    "eval_wall_time_s": 2.3559021949768066,
+    "inference_flops": 0.0
+   },
+   "policy/test_family": {
+    "n": 8,
+    "success_rate": 0.0,
+    "success_ci95": [
+     0.0,
+     0.0
+    ],
+    "first_attempt_success": 0.0,
+    "format_valid_rate": 1.0,
+    "quality_partial_mean": 0.5,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_document": 0.0
+    },
+    "eval_wall_time_s": 0.47001147270202637,
+    "inference_flops": 0.0
+   },
+   "lm_perplexity": 1210040.0192976242,
+   "action_regression": {
+    "val_nll": 2.5718245465876692,
+    "val_acc": 0.4406779661016949,
+    "miniweb_success": 0.25
+   }
+  }
+ ],
+ "rl": [],
+ "hacking": [],
+ "start": {
+  "tag": "start",
+  "real_episodes": 0,
+  "policy/val": {
+   "n": 40,
+   "success_rate": 0.0,
+   "success_ci95": [
+    0.0,
+    0.0
+   ],
+   "first_attempt_success": 0.0,
+   "format_valid_rate": 0.0,
+   "quality_partial_mean": 0.0,
+   "factual_accuracy": null,
+   "engagement_mean_NOT_REWARD": null,
+   "declined_rate": 0.0,
+   "by_family": {
+    "content_email": 0.0
+   },
+   "eval_wall_time_s": 11.775508403778076,
+   "inference_flops": 0.0
+  },
+  "policy/test": {
+   "n": 40,
+   "success_rate": 0.0,
+   "success_ci95": [
+    0.0,
+    0.0
+   ],
+   "first_attempt_success": 0.0,
+   "format_valid_rate": 0.0,
+   "quality_partial_mean": 0.0,
+   "factual_accuracy": null,
+   "engagement_mean_NOT_REWARD": null,
+   "declined_rate": 0.0,
+   "by_family": {
+    "content_email": 0.0
+   },
+   "eval_wall_time_s": 10.834181070327759,
+   "inference_flops": 0.0
+  },
+  "policy/test_family": {
+   "n": 8,
+   "success_rate": 0.0,
+   "success_ci95": [
+    0.0,
+    0.0
+   ],
+   "first_attempt_success": 0.0,
+   "format_valid_rate": 0.0,
+   "quality_partial_mean": 0.0,
+   "factual_accuracy": null,
+   "engagement_mean_NOT_REWARD": null,
+   "declined_rate": 0.0,
+   "by_family": {
+    "content_document": 0.0
+   },
+   "eval_wall_time_s": 2.758575916290283,
+   "inference_flops": 0.0
+  },
+  "lm_perplexity": 78348.66887510598,
+  "action_regression": {
+   "val_nll": 2.114445690381325,
+   "val_acc": 0.4745762711864407,
+   "miniweb_success": 0.3
+  }
+ },
+ "demos": {
+  "episodes": 160,
+  "success_rate": 0.49375
+ },
+ "bc": {
+  "n_demos": 79,
+  "first10": 9.240300226211549,
+  "last10": 0.29050352796912193,
+  "train_flops": 150454855090176
+ },
+ "final": {
+  "tag": "final",
+  "real_episodes": 0,
+  "policy/val": {
+   "n": 40,
+   "success_rate": 0.325,
+   "success_ci95": [
+    0.175,
+    0.475
+   ],
+   "first_attempt_success": 0.325,
+   "format_valid_rate": 0.35,
+   "quality_partial_mean": 0.3375,
+   "factual_accuracy": null,
+   "engagement_mean_NOT_REWARD": null,
+   "declined_rate": 0.0,
+   "by_family": {
+    "content_email": 0.325
+   },
+   "eval_wall_time_s": 2.3273656368255615,
+   "inference_flops": 0.0
+  },
+  "policy/test": {
+   "n": 40,
+   "success_rate": 0.225,
+   "success_ci95": [
+    0.1,
+    0.35
+   ],
+   "first_attempt_success": 0.225,
+   "format_valid_rate": 0.25,
+   "quality_partial_mean": 0.2375,
+   "factual_accuracy": null,
+   "engagement_mean_NOT_REWARD": null,
+   "declined_rate": 0.0,
+   "by_family": {
+    "content_email": 0.225
+   },
+   "eval_wall_time_s": 2.3559021949768066,
+   "inference_flops": 0.0
+  },
+  "policy/test_family": {
+   "n": 8,
+   "success_rate": 0.0,
+   "success_ci95": [
+    0.0,
+    0.0
+   ],
+   "first_attempt_success": 0.0,
+   "format_valid_rate": 1.0,
+   "quality_partial_mean": 0.5,
+   "factual_accuracy": null,
+   "engagement_mean_NOT_REWARD": null,
+   "declined_rate": 0.0,
+   "by_family": {
+    "content_document": 0.0
+   },
+   "eval_wall_time_s": 0.47001147270202637,
+   "inference_flops": 0.0
+  },
+  "lm_perplexity": 1210040.0192976242,
+  "action_regression": {
+   "val_nll": 2.5718245465876692,
+   "val_acc": 0.4406779661016949,
+   "miniweb_success": 0.25
+  }
+ },
+ "total_wall_s": 504.1465542316437,
+ "real_episodes": 0,
+ "flops": {
+  "policy_train": 150454855090176.0,
+  "wm_train": 0.0,
+  "inference": 1780128276480.0
+ }
+}

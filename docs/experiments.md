@@ -250,3 +250,89 @@ These were found by tests or by monitoring runs; each changed the code or the pr
 7. **Memory.** In the RL phase one experiment process grows to ≈2 GB; running 8 in parallel on a
    15 GB machine triggered the OOM killer twice. Runs were restarted from scratch (deterministic);
    `scripts/mem_queue.sh` now admits jobs only when memory is available.
+
+## Content learning (parameterized semantic actions)
+
+Design: `docs/content_learning.md`. Raw files: `results/content/` (all domains) and
+`results/content_email/` (email domain). Policy and world model start from the seed-matched MiniWeb
+checkpoints (the shared network), Pythia-14M, CPU. Two seeds. Verified success only; engagement is
+reported separately and never used as reward.
+
+### Summary of what was measured
+
+* **Imitation of others' content works on held-out instances:** 0% (A) → 8–17% on all domains and
+  30–32.5% on email (B), with well-formed content rising from 13–24% to 74–80%.
+* **Content RL from verified outcomes produced a small, consistent gain on the email domain:**
+  B → C validation 32.5→45% and 30→42.5%, held-out test 22.5→32.5% and 10→17.5%; pooled over 140
+  held-out email tasks per seed +7.9 and +4.3 points. The gain came from more well-formed messages,
+  not a new preference (imitation of successful demos had already learned "propose mornings").
+  On the mixed-domain suite (30 iterations, 960 episodes) RL showed no measurable gain (val 8.3%
+  vs 12.5% for B, mean of two seeds).
+* **World-model planning over content drafts did not help:** mean validation success with the
+  planner was below the same weights without it (email 35% vs 44%; mixed suite 6–13% vs 15%).
+  The content world model learned to *rank* outcomes (email held-out AUROC 0.90/0.88, ECE 0.22;
+  mixed-domain AUROC 0.73–0.86 in 3 of 4 runs) but was badly calibrated on the mixed suite
+  (ECE 0.63–0.74) because it trained mostly on the policy's own low-success content and was
+  evaluated on the teacher's high-success content.
+* **Imagined content training (E): no measurable effect** (mixed suite val 14.6% vs 14.6% for D's
+  policy, mean of two seeds).
+* **Nothing transferred to the unseen document domain** (0% for every configuration) and success on
+  held-out values / vocabulary stayed at 0–4% on the mixed suite: the 14M model does not copy unseen
+  strings reliably.
+* **Regressions were detected, not silent.** Content training of the shared network raised MiniWeb
+  imitation NLL (2.11→3.50–3.63 seed 0; 2.47→3.02–3.20 seed 1) and lowered MiniWeb success
+  (0.30→0.25; 0.45→0.30–0.35) despite rehearsal of MiniWeb demonstrations. General-text perplexity
+  was already 78k–503k *before* content training (the MiniWeb imitation stage had wrecked the
+  pretrained model's 114) and went higher.
+* **Reward hacking:** engagement is not rewarded, yet imitation copied the teacher's hype
+  ("AMAZING question!!!", ~45% of forum posts). The windowed monitor flagged one run (mixed-suite D,
+  seed 0: hype +0.20, z = 2.7; engagement +24 views without a rise in verified success); the other
+  runs showed no significant drift.
+
+### Mixed-domain suite (config, email, forum, code; document held out)
+
+24 validation episodes, 24 test, 16 unseen-domain per run; 30 RL iterations × 32 episodes for C/D/E.
+
+| configuration | val success (s0 / s1) | test | unseen domain | well-formed (val) | MiniWeb success after |
+|---|---|---|---|---|---|
+| A no content learning | 0.000 / 0.000 | 0 / 0 | 0 / 0 | 0.13 / 0.24 | 0.30 / 0.45 (unchanged) |
+| B imitation | 0.167 / 0.083 | 0 / 0 | 0 / 0 | 0.74 / 0.80 | 0.25 / 0.35 |
+| C + content RL | 0.125 / 0.042 | 0 / 0 | 0 / 0 | 0.81 / 0.83 | 0.25 / 0.35 |
+| D + world model, policy | 0.167 / 0.125 | 0.042 / 0.042 | 0 / 0 | 0.72 / 0.85 | 0.25 / 0.30 |
+| D + world model, planner | 0.042 / 0.083 | 0 / 0.042 | 0 / 0 | 0.71 / 0.83 | – |
+| E + imagination, policy | 0.208 / 0.083 | 0 / 0.042 | 0 / 0 | 0.82 / 0.82 | 0.25 / 0.35 |
+| E + imagination, planner | 0.250 / 0.000 | 0 / 0 | 0 / 0 | 0.77 / 0.78 | – |
+
+Caveat (bug, fixed afterwards): in this suite D and E drew world-model replay samples from the same
+random generator as the RL task sampler, so their RL task streams differed from C's. Planner vs
+policy *within* a D/E run is on identical weights; D/E policy numbers vs C are independent samples
+of the same RL procedure. The email runs below use the fix: D's policy is bit-identical to C's.
+
+Compute (seed 0): B 0.22 PFLOP training; C 0.25 PFLOP training + 0.013 inference; D/E add
+0.19–0.20 PFLOP world-model training and use 0.015–0.016 PFLOP inference.
+
+### Email domain (outcome depends only on which listed time the message proposes)
+
+40 validation + 40 test episodes per run; 160 demonstrations; 40 RL iterations × 48 episodes.
+
+| configuration | val (s0 / s1) | test (s0 / s1) | well-formed val | extra 60 held-out tasks, greedy |
+|---|---|---|---|---|
+| B imitation (successful demos) | 0.325 / 0.300 | 0.225 / 0.100 | 0.35 / 0.30 | 0.267 / 0.217 |
+| C + content RL | **0.450 / 0.425** | **0.325 / 0.175** | 0.47 / 0.42 | 0.300 / 0.183 |
+| D planner (same weights as C) | 0.350 / 0.350 | 0.450 / 0.125 | 0.35 / 0.35 | – |
+
+What each policy proposes on the extra 60 held-out tasks (greedy): B morning 27% / 25%, afternoon
+0%, malformed 73% / 75%; C morning 38% / 23%, afternoon 0%, malformed 62% / 77%.
+
+### What these results prove and do not prove
+
+* Proven by measurement here: content is learned in the network's weights from others'
+  demonstrations (A→B), the content world model learns content-dependent outcomes well enough to
+  rank them (AUROC ≈ 0.9 on email), verified-reward RL can move the content distribution in the
+  right direction (micro-task test: > 1 nat log-odds shift on held-out tasks; email: small positive
+  gain on both seeds), and every safeguard (permissions, decline, engagement ≠ reward, regression
+  report, monitor) operates in the real loop.
+* Not shown: that planning over content drafts with a learned world model improves on direct RL
+  (it did not here), that imagined training helps, or that anything transfers to an unseen content
+  domain. These need a model that can copy and compose strings reliably (the configured GPU profile)
+  and much larger evaluations.

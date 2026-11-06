@@ -133,5 +133,8 @@ engagement ≠ reward with hacking flagged, and causal-label tests.
 
 ## 9. Experiments
 
-Configurations A–E and their measured results: see `docs/experiments.md`, section
-"Content learning".
+Configurations A–E (mixed domains, 2 seeds) and B/C/D on the email domain (2 seeds) were run with
+Pythia-14M on CPU. In short: imitation gives the measurable gain (0% → 8–33% on held-out instances);
+verified-reward RL gave a small consistent gain on email (+4 to +12 points) and none on the mixed
+suite; planning over content drafts and imagined training gave none; nothing transferred to the
+unseen document domain. Full tables and caveats: `docs/experiments.md`, section "Content learning".

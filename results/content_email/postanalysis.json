@@ -1,0 +1,686 @@
+{
+ "email_B_s0": {
+  "variant": "B",
+  "seed": 0,
+  "final": {
+   "policy/val": {
+    "success_rate": 0.325,
+    "first_attempt_success": 0.325,
+    "quality_partial_mean": 0.3375,
+    "format_valid_rate": 0.35,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.325
+    }
+   },
+   "policy/test": {
+    "success_rate": 0.225,
+    "first_attempt_success": 0.225,
+    "quality_partial_mean": 0.2375,
+    "format_valid_rate": 0.25,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.225
+    }
+   },
+   "policy/test_family": {
+    "success_rate": 0.0,
+    "first_attempt_success": 0.0,
+    "quality_partial_mean": 0.5,
+    "format_valid_rate": 1.0,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_document": 0.0
+    }
+   }
+  },
+  "lm_perplexity": 1210040.0192976242,
+  "action_regression": {
+   "val_nll": 2.5718245465876692,
+   "val_acc": 0.4406779661016949,
+   "miniweb_success": 0.25
+  },
+  "start_action_regression": {
+   "val_nll": 2.114445690381325,
+   "val_acc": 0.4745762711864407,
+   "miniweb_success": 0.3
+  },
+  "curve": [
+   [
+    "start",
+    0,
+    0.0
+   ],
+   [
+    "final",
+    0,
+    0.325
+   ]
+  ],
+  "hacking": {
+   "hype_early": null,
+   "hype_late": null,
+   "n_early": 0,
+   "n_late": 0,
+   "flags": []
+  },
+  "regressions": null,
+  "wm_heldout": null,
+  "wm_heldout_family": null,
+  "real_episodes": 0,
+  "flops": {
+   "policy_train": 150454855090176.0,
+   "wm_train": 0.0,
+   "inference": 1780128276480.0
+  },
+  "wall_min": 8.4
+ },
+ "email_B_s1": {
+  "variant": "B",
+  "seed": 1,
+  "final": {
+   "policy/val": {
+    "success_rate": 0.3,
+    "first_attempt_success": 0.3,
+    "quality_partial_mean": 0.3,
+    "format_valid_rate": 0.3,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.3
+    }
+   },
+   "policy/test": {
+    "success_rate": 0.1,
+    "first_attempt_success": 0.1,
+    "quality_partial_mean": 0.1125,
+    "format_valid_rate": 0.125,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.1
+    }
+   },
+   "policy/test_family": {
+    "success_rate": 0.0,
+    "first_attempt_success": 0.0,
+    "quality_partial_mean": 0.5,
+    "format_valid_rate": 1.0,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_document": 0.0
+    }
+   }
+  },
+  "lm_perplexity": 844339.267792375,
+  "action_regression": {
+   "val_nll": 3.13877068131657,
+   "val_acc": 0.4915254237288136,
+   "miniweb_success": 0.6
+  },
+  "start_action_regression": {
+   "val_nll": 2.4740734181161654,
+   "val_acc": 0.4745762711864407,
+   "miniweb_success": 0.45
+  },
+  "curve": [
+   [
+    "start",
+    0,
+    0.0
+   ],
+   [
+    "final",
+    0,
+    0.3
+   ]
+  ],
+  "hacking": {
+   "hype_early": null,
+   "hype_late": null,
+   "n_early": 0,
+   "n_late": 0,
+   "flags": []
+  },
+  "regressions": null,
+  "wm_heldout": null,
+  "wm_heldout_family": null,
+  "real_episodes": 0,
+  "flops": {
+   "policy_train": 151578386976768.0,
+   "wm_train": 0.0,
+   "inference": 1056400764928.0
+  },
+  "wall_min": 8.5
+ },
+ "email_C_s0": {
+  "variant": "C",
+  "seed": 0,
+  "final": {
+   "policy/val": {
+    "success_rate": 0.45,
+    "first_attempt_success": 0.45,
+    "quality_partial_mean": 0.4625,
+    "format_valid_rate": 0.475,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.45
+    }
+   },
+   "policy/test": {
+    "success_rate": 0.325,
+    "first_attempt_success": 0.325,
+    "quality_partial_mean": 0.3625,
+    "format_valid_rate": 0.4,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.325
+    }
+   },
+   "policy/test_family": {
+    "success_rate": 0.0,
+    "first_attempt_success": 0.0,
+    "quality_partial_mean": 0.5,
+    "format_valid_rate": 1.0,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_document": 0.0
+    }
+   }
+  },
+  "lm_perplexity": 1074005.6074832745,
+  "action_regression": {
+   "val_nll": 2.55447418002759,
+   "val_acc": 0.4576271186440678,
+   "miniweb_success": 0.25
+  },
+  "start_action_regression": {
+   "val_nll": 2.114445690381325,
+   "val_acc": 0.4745762711864407,
+   "miniweb_success": 0.3
+  },
+  "curve": [
+   [
+    "start",
+    0,
+    0.0
+   ],
+   [
+    "after_bc",
+    0,
+    0.325
+   ],
+   [
+    "iter10",
+    480,
+    0.425
+   ],
+   [
+    "iter20",
+    960,
+    0.35
+   ],
+   [
+    "iter30",
+    1440,
+    0.375
+   ],
+   [
+    "final",
+    1920,
+    0.45
+   ]
+  ],
+  "hacking": {
+   "hype_early": null,
+   "hype_late": null,
+   "n_early": 0,
+   "n_late": 0,
+   "flags": []
+  },
+  "regressions": [
+   "general-text perplexity rose 78348.7 -> 1074005.6"
+  ],
+  "wm_heldout": null,
+  "wm_heldout_family": null,
+  "real_episodes": 1920,
+  "flops": {
+   "policy_train": 182837321342976.0,
+   "wm_train": 0.0,
+   "inference": 13423692144640.0
+  },
+  "wall_min": 7.4
+ },
+ "email_C_s1": {
+  "variant": "C",
+  "seed": 1,
+  "final": {
+   "policy/val": {
+    "success_rate": 0.425,
+    "first_attempt_success": 0.425,
+    "quality_partial_mean": 0.425,
+    "format_valid_rate": 0.425,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.425
+    }
+   },
+   "policy/test": {
+    "success_rate": 0.175,
+    "first_attempt_success": 0.175,
+    "quality_partial_mean": 0.175,
+    "format_valid_rate": 0.175,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.175
+    }
+   },
+   "policy/test_family": {
+    "success_rate": 0.0,
+    "first_attempt_success": 0.0,
+    "quality_partial_mean": 0.5,
+    "format_valid_rate": 1.0,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_document": 0.0
+    }
+   }
+  },
+  "lm_perplexity": 641129.8942077162,
+  "action_regression": {
+   "val_nll": 3.213438001729674,
+   "val_acc": 0.4915254237288136,
+   "miniweb_success": 0.55
+  },
+  "start_action_regression": {
+   "val_nll": 2.4740734181161654,
+   "val_acc": 0.4745762711864407,
+   "miniweb_success": 0.45
+  },
+  "curve": [
+   [
+    "start",
+    0,
+    0.0
+   ],
+   [
+    "after_bc",
+    0,
+    0.3
+   ],
+   [
+    "iter10",
+    480,
+    0.375
+   ],
+   [
+    "iter20",
+    960,
+    0.25
+   ],
+   [
+    "iter30",
+    1440,
+    0.25
+   ],
+   [
+    "final",
+    1920,
+    0.425
+   ]
+  ],
+  "hacking": {
+   "hype_early": null,
+   "hype_late": null,
+   "n_early": 0,
+   "n_late": 0,
+   "flags": []
+  },
+  "regressions": [
+   "high-level imitation NLL rose 2.47 -> 3.21"
+  ],
+  "wm_heldout": null,
+  "wm_heldout_family": null,
+  "real_episodes": 1920,
+  "flops": {
+   "policy_train": 183975371108352.0,
+   "wm_train": 0.0,
+   "inference": 12700471070720.0
+  },
+  "wall_min": 7.1
+ },
+ "email_D_s0": {
+  "variant": "D",
+  "seed": 0,
+  "final": {
+   "policy/val": {
+    "success_rate": 0.45,
+    "first_attempt_success": 0.45,
+    "quality_partial_mean": 0.4625,
+    "format_valid_rate": 0.475,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.45
+    }
+   },
+   "planner/val": {
+    "success_rate": 0.35,
+    "first_attempt_success": 0.35,
+    "quality_partial_mean": 0.35,
+    "format_valid_rate": 0.35,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.35
+    }
+   },
+   "policy/test": {
+    "success_rate": 0.325,
+    "first_attempt_success": 0.325,
+    "quality_partial_mean": 0.3625,
+    "format_valid_rate": 0.4,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.325
+    }
+   },
+   "planner/test": {
+    "success_rate": 0.45,
+    "first_attempt_success": 0.45,
+    "quality_partial_mean": 0.475,
+    "format_valid_rate": 0.5,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.45
+    }
+   },
+   "policy/test_family": {
+    "success_rate": 0.0,
+    "first_attempt_success": 0.0,
+    "quality_partial_mean": 0.5,
+    "format_valid_rate": 1.0,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_document": 0.0
+    }
+   },
+   "planner/test_family": {
+    "success_rate": 0.0,
+    "first_attempt_success": 0.0,
+    "quality_partial_mean": 0.5,
+    "format_valid_rate": 1.0,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_document": 0.0
+    }
+   }
+  },
+  "lm_perplexity": 1074005.6074832745,
+  "action_regression": {
+   "val_nll": 2.55447418002759,
+   "val_acc": 0.4576271186440678,
+   "miniweb_success": 0.25
+  },
+  "start_action_regression": {
+   "val_nll": 2.114445690381325,
+   "val_acc": 0.4745762711864407,
+   "miniweb_success": 0.3
+  },
+  "curve": [
+   [
+    "start",
+    0,
+    0.0
+   ],
+   [
+    "after_bc",
+    0,
+    0.325
+   ],
+   [
+    "iter10",
+    480,
+    0.425
+   ],
+   [
+    "iter20",
+    960,
+    0.35
+   ],
+   [
+    "iter30",
+    1440,
+    0.375
+   ],
+   [
+    "final",
+    1920,
+    0.45
+   ]
+  ],
+  "hacking": {
+   "hype_early": null,
+   "hype_late": null,
+   "n_early": 0,
+   "n_late": 0,
+   "flags": []
+  },
+  "regressions": [
+   "general-text perplexity rose 78348.7 -> 1074005.6"
+  ],
+  "wm_heldout": {
+   "n": 80,
+   "objective_nll": 0.5598680227920136,
+   "objective_brier": 0.196536271546387,
+   "objective_ece": 0.22500861109001563,
+   "objective_auroc": 0.8997252747252747,
+   "base_rate": 0.35,
+   "uncertainty_flags_error_auroc": 0.08665269042627533
+  },
+  "wm_heldout_family": {
+   "n": 8,
+   "objective_nll": 0.6948554956717943,
+   "objective_brier": 0.2510591037353793,
+   "objective_ece": 0.49505073577165604,
+   "objective_auroc": null,
+   "base_rate": 0.0,
+   "uncertainty_flags_error_auroc": 0.9375
+  },
+  "real_episodes": 1920,
+  "flops": {
+   "policy_train": 182837321342976.0,
+   "wm_train": 198150982459392.0,
+   "inference": 15726154567680.0
+  },
+  "wall_min": 24.3
+ },
+ "email_D_s1": {
+  "variant": "D",
+  "seed": 1,
+  "final": {
+   "policy/val": {
+    "success_rate": 0.425,
+    "first_attempt_success": 0.425,
+    "quality_partial_mean": 0.425,
+    "format_valid_rate": 0.425,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.425
+    }
+   },
+   "planner/val": {
+    "success_rate": 0.35,
+    "first_attempt_success": 0.35,
+    "quality_partial_mean": 0.35,
+    "format_valid_rate": 0.35,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.35
+    }
+   },
+   "policy/test": {
+    "success_rate": 0.175,
+    "first_attempt_success": 0.175,
+    "quality_partial_mean": 0.175,
+    "format_valid_rate": 0.175,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.175
+    }
+   },
+   "planner/test": {
+    "success_rate": 0.125,
+    "first_attempt_success": 0.125,
+    "quality_partial_mean": 0.1375,
+    "format_valid_rate": 0.15,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_email": 0.125
+    }
+   },
+   "policy/test_family": {
+    "success_rate": 0.0,
+    "first_attempt_success": 0.0,
+    "quality_partial_mean": 0.5,
+    "format_valid_rate": 1.0,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_document": 0.0
+    }
+   },
+   "planner/test_family": {
+    "success_rate": 0.0,
+    "first_attempt_success": 0.0,
+    "quality_partial_mean": 0.5,
+    "format_valid_rate": 1.0,
+    "factual_accuracy": null,
+    "engagement_mean_NOT_REWARD": null,
+    "declined_rate": 0.0,
+    "by_family": {
+     "content_document": 0.0
+    }
+   }
+  },
+  "lm_perplexity": 641129.8942077162,
+  "action_regression": {
+   "val_nll": 3.213438001729674,
+   "val_acc": 0.4915254237288136,
+   "miniweb_success": 0.55
+  },
+  "start_action_regression": {
+   "val_nll": 2.4740734181161654,
+   "val_acc": 0.4745762711864407,
+   "miniweb_success": 0.45
+  },
+  "curve": [
+   [
+    "start",
+    0,
+    0.0
+   ],
+   [
+    "after_bc",
+    0,
+    0.3
+   ],
+   [
+    "iter10",
+    480,
+    0.375
+   ],
+   [
+    "iter20",
+    960,
+    0.25
+   ],
+   [
+    "iter30",
+    1440,
+    0.25
+   ],
+   [
+    "final",
+    1920,
+    0.425
+   ]
+  ],
+  "hacking": {
+   "hype_early": null,
+   "hype_late": null,
+   "n_early": 0,
+   "n_late": 0,
+   "flags": []
+  },
+  "regressions": [
+   "high-level imitation NLL rose 2.47 -> 3.21"
+  ],
+  "wm_heldout": {
+   "n": 80,
+   "objective_nll": 0.6935389738088108,
+   "objective_brier": 0.24698385767947095,
+   "objective_ece": 0.22656548796221612,
+   "objective_auroc": 0.8804945054945055,
+   "base_rate": 0.35,
+   "uncertainty_flags_error_auroc": 0.13873626373626374
+  },
+  "wm_heldout_family": {
+   "n": 8,
+   "objective_nll": 0.1856083556505446,
+   "objective_brier": 0.029688934021565888,
+   "objective_ece": 0.16868938691914082,
+   "objective_auroc": null,
+   "base_rate": 0.0,
+   "uncertainty_flags_error_auroc": null
+  },
+  "real_episodes": 1920,
+  "flops": {
+   "policy_train": 183975371108352.0,
+   "wm_train": 198946595979264.0,
+   "inference": 15030393667584.0
+  },
+  "wall_min": 24.5
+ }
+}
