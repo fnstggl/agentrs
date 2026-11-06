@@ -587,7 +587,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--set", nargs="*", default=[])
 
     s = add("baselines", cmd_baselines, "run variants A,B,C,D over seeds with a shared config")
-    s.add_argument("--config", default="configs/experiments/dev_base.yaml")
+    s.add_argument("--config", default="configs/experiments/v2_base.yaml")
     s.add_argument("--variants", default="A,B,C,D")
     s.add_argument("--seeds", default="0")
     s.add_argument("--prefix", default="baseline")
