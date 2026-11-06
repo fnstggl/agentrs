@@ -15,6 +15,7 @@ It does **not** assume the hypothesis is true. See [`docs/experiments.md`](docs/
 the measured results — including the negative ones.
 
 * Architecture and design rationale: [`docs/architecture.md`](docs/architecture.md)
+* Parameterized semantic action learning (content as part of the action): [`docs/content_learning.md`](docs/content_learning.md)
 * Experiments, results, ablations, compute: [`docs/experiments.md`](docs/experiments.md)
 * Phase-by-phase status (implemented / executed / tested / unverified): [`docs/status.md`](docs/status.md)
 * Hardware profiles and resource estimates: [`docs/hardware.md`](docs/hardware.md)
@@ -38,6 +39,7 @@ the measured results — including the negative ones.
 | Episodic memory, skills (options), skill discovery | `memory/` | tested |
 | Consent-gated human demonstration recorders (terminal and browser) | `agent/runtime.py`, `demonstrations/` | tested |
 | Evaluation, baselines A–D, ablations, reports, plots | `evaluation/`, `training/pipeline.py`, `scripts/` | executed |
+| Semantic content actions: content-generating policy, content-conditioned world model, content planner, content RL, verifiable content environment | `content/`, `environments/content/` | tested (15 tests); A–E executed |
 
 ## Quick start (CPU)
 
@@ -53,7 +55,7 @@ source .venv/bin/activate
 python -m pytest -q
 ```
 
-The full suite (104 tests: unit, learning, safety, integration, browser) takes a few minutes on 4
+The full suite (119 tests: unit, learning, safety, integration, browser) takes a few minutes on 4
 CPU cores. Browser tests skip with a reason if Chromium cannot be launched; set
 `AGENTRS_CHROMIUM=/path/to/chrome` or run `playwright install chromium`. Learning tests use a tiny
 randomly initialised model and need no downloads; experiment configs download Pythia from the
@@ -188,6 +190,16 @@ python -m agentrs visualize --run runs/v2/v2_D_s0
 
 ```bash
 python -m agentrs visualize --store runs/rl/experience --world-model runs/ckpt/wm
+```
+
+**Content actions** (generate content as part of the action, predict its effect, learn from verified outcomes):
+
+```bash
+python -m agentrs content-episode --family content_code --split test --index 4
+```
+
+```bash
+python -m agentrs content-experiment configs/content/base.yaml --set variant=E name=content_E_s0
 ```
 
 Experiment reports and evaluation-only planner ablations:

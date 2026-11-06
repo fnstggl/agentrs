@@ -87,6 +87,19 @@ Chromium). See the bottom of this file for the latest run.
   transfers to unseen families. At this scale the experiment cannot detect differences below
   ≈15 points and says nothing about large models.
 
+## Parameterized semantic action learning: implemented, tested, executed
+* Implemented: `SUBMIT` content actions and `SemanticAction` records (complete content, exact token
+  ids and behaviour log-probs, checkpoint, permissions); a verifiable content environment with five
+  domains (one held out); content-generating policy on the shared network; content-conditioned
+  world model; consequence-based planner that can decline; content imitation with high-level
+  rehearsal; world-model prediction-error training; token-level content RL with exact KL;
+  imagined content training; evaluation of success vs engagement, quality, factual accuracy,
+  calibration, perplexity and high-level regression; windowed reward-hacking monitor;
+  observational vs randomised effect estimates. See `docs/content_learning.md`.
+* Tests: 15 in `tests/content/` (all mandatory items + end-to-end loop).
+* Executed: configurations A–E × 2 seeds on all content domains, and B/C/D × 2 seeds on the email
+  domain; results in `docs/experiments.md` ("Content learning").
+
 ## Known gaps (honest list)
 * No GPU runs; the Qwen3-4B research profile is configured and its code path is the same as the
   executed one, but it was never run.
@@ -99,6 +112,6 @@ Chromium). See the bottom of this file for the latest run.
 
 ## Latest full test run
 
-`python -m pytest -q` → **104 passed** in 160 s (4 CPU cores shared with running experiments;
+`python -m pytest -q` → **119 passed** (latest run, incl. 15 content tests; earlier: 104 passed) in 160 s (4 CPU cores shared with running experiments;
 includes 25 real-Chromium browser tests). `bash scripts/verify_cli_workflows.sh` executed all
 documented CLI workflows successfully.

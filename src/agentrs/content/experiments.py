@@ -128,7 +128,8 @@ class ContentExperiment:
         self.results: dict = {"config": cfg.model_dump(), "evals": [], "rl": [], "hacking": []}
         self.real_episodes = 0
         self.flops = {"policy_train": 0.0, "wm_train": 0.0, "inference": 0.0}
-        self.rng = random.Random(cfg.seed + 7)
+        self.rng = random.Random(cfg.seed + 7)  # RL task stream: identical for C, D and E
+        self.aux_rng = random.Random(cfg.seed + 13)  # world-model replay / imagination sampling only
         # high-level (MiniWeb) regression data for the shared network
         from agentrs.training.bc import BCConfig, make_examples
         from agentrs.training.pipeline import ExperimentConfig, generate_demonstrations, generate_val_demos
@@ -251,11 +252,11 @@ class ContentExperiment:
             imagined = []
             if wm is not None:
                 f1 = wm.backbone.flops_counter
-                hist = self.rng.sample(all_real, min(len(all_real), 48))
+                hist = self.aux_rng.sample(all_real, min(len(all_real), 48))
                 wr = wmt.train(new_ts + hist, steps=c.wm_steps_per_iter)
                 stats["wm_loss"] = wr["last10"]
                 if c.variant == "E":
-                    starts = [t for t in self.rng.sample(new_ts, min(len(new_ts), c.imagination.states_per_update))
+                    starts = [t for t in self.aux_rng.sample(new_ts, min(len(new_ts), c.imagination.states_per_update))
                               if t.semantic_action is not None]
                     imagined, ist = imagined_content_steps(cp, wm, starts, c.imagination, seed=c.seed * 977 + it)
                     stats.update(ist)
