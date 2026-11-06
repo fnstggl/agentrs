@@ -1,20 +1,22 @@
-# Shared settings for the CPU comparison (A/B/C/D). Same data, rewards, eval sets for every variant.
+# v2 CPU comparison (A/B/C/D + imagination). Identical demonstrations, starting checkpoint,
+# reward definition, RL task stream and evaluation sets for every variant of a given seed.
+# Deterministic shared stages (BC, initial world model, initial critic) are cached per seed.
 inherit: ../models/dev_pythia14m.yaml
-out_dir: runs/dev
+out_dir: runs/v2
 seed: 0
-n_demo_tasks_per_family: 20
+n_demo_tasks_per_family: 40
 teacher_epsilon: 0.15
 n_rl_tasks_per_family: 200
-eval_sets: {val: 3, test: 3, test_family: 5}
+eval_sets: {val: 4, test: 4, test_family: 8}
 bc:
-  steps: 500
-  batch_size: 16
-  eval_every: 250
-  optim: {lr: 1.0e-3, total_steps: 500, warmup_steps: 20, schedule: cosine}
-wm_train:
   steps: 600
   batch_size: 16
   eval_every: 300
+  optim: {lr: 5.0e-4, total_steps: 600, warmup_steps: 30, schedule: cosine}
+wm_train:
+  steps: 800
+  batch_size: 16
+  eval_every: 400
   optim: {lr: 1.0e-3, total_steps: 100000, warmup_steps: 30, schedule: constant}
 critic_train:
   steps: 300
@@ -28,14 +30,13 @@ rl:
   gamma: 0.95
   gae_lambda: 0.95
   entropy_coef: 0.01
-  kl_coef: 0.0
   invalid_action_penalty: 0.1
   policy_optim: {lr: 1.0e-4, total_steps: 100000}
   critic_optim: {lr: 3.0e-4, total_steps: 100000}
-rl_iterations: 30
-episodes_per_iter: 40
-wm_steps_per_iter: 20
-eval_every_iters: 10
+rl_iterations: 25
+episodes_per_iter: 32
+wm_steps_per_iter: 15
+eval_every_iters: 5
 planner:
   num_candidates: 4
   horizon: 1

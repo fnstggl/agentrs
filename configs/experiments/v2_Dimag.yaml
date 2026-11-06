@@ -1,0 +1,4 @@
+inherit: v2_base.yaml
+name: v2_Dimag
+variant: D
+use_imagination: true

@@ -69,10 +69,14 @@ def vocab(split: str, train: list, test: list) -> list:
 
 
 def product_names(rng: random.Random, n: int) -> list[str]:
-    names = set()
+    # ordered list (not a set): set iteration order depends on PYTHONHASHSEED and would make
+    # task generation differ between processes
+    names: list[str] = []
     while len(names) < n:
-        names.add(f"{rng.choice(_ADJ)} {rng.choice(_NOUNS)}")
-    return sorted(names, key=lambda _: rng.random())
+        x = f"{rng.choice(_ADJ)} {rng.choice(_NOUNS)}"
+        if x not in names:
+            names.append(x)
+    return names
 
 
 def price(rng: random.Random) -> str:

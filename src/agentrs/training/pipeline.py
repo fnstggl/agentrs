@@ -15,6 +15,9 @@ reported separately.
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
+import hashlib
 import json
 import random
 import time
@@ -87,6 +90,9 @@ class ExperimentConfig(BaseModel):
     eval_every_iters: int = 5
     exploration_epsilon: float = 0.0
     save_checkpoints: bool = True
+    # Deterministic stages shared by variants with the same seed (BC policy, initial world model,
+    # initial critic) are computed once and reused; set to null to disable.
+    cache_dir: Optional[str] = "runs/cache"
 
     def resolved(self) -> "ExperimentConfig":
         c = self.model_copy(deep=True)
@@ -200,6 +206,45 @@ class Experiment:
         r["flops"] = self.flops
         (self.dir / "results.json").write_text(json.dumps(r, indent=1, default=str))
 
+    def _cache_key(self, stage: str, *parts) -> str:
+        c = self.cfg
+        blob = json.dumps({"stage": stage, "seed": c.seed, "fams": c.train_families, "demos": c.n_demo_tasks_per_family,
+                           "eps": c.teacher_epsilon, "parts": [p.model_dump() if hasattr(p, "model_dump") else p
+                                                               for p in parts], "v": 2}, sort_keys=True, default=str)
+        return f"{stage}_{hashlib.sha1(blob.encode()).hexdigest()[:12]}"
+
+    @contextlib.contextmanager
+    def _cache_lock(self, key: str):
+        d = Path(self.cfg.cache_dir)
+        d.mkdir(parents=True, exist_ok=True)
+        with open(d / f"{key}.lock", "w") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)  # other variants with the same seed wait here
+            try:
+                yield d / key
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+
+    def _cached_stage(self, key_stage: str, model, parts: tuple, train_fn, flops_key: str):
+        """Run ``train_fn`` (returns a summary dict) or load model weights + summary from the cache."""
+        from agentrs.training.common import load_weights
+
+        if not self.cfg.cache_dir:
+            return self._train_stage(flops_key, train_fn), False
+        key = self._cache_key(key_stage, *parts)
+        with self._cache_lock(key) as path:
+            if (path / "summary.json").exists():
+                load_weights(path, model)
+                summ = json.loads((path / "summary.json").read_text())
+                self.flops[flops_key] += summ.get("_train_flops", 0.0)  # account the compute it cost
+                return summ, True
+            f0 = self.flops[flops_key]
+            r = self._train_stage(flops_key, train_fn)
+            save_checkpoint(path, model, r.get("trainer"), keep_optimizer=True)
+            summ = {k: v for k, v in r.items() if k not in ("trainer", "history")}
+            summ["_train_flops"] = self.flops[flops_key] - f0
+            (path / "summary.json").write_text(json.dumps(summ, default=str))
+            return r, False
+
     def _ckpt(self, name: str, model, trainer=None):
         if self.cfg.save_checkpoints and model is not None:
             save_checkpoint(self.dir / "checkpoints" / name, model, trainer, keep_optimizer=False)
@@ -219,19 +264,28 @@ class Experiment:
         self.results["demo_success_rate"] = (sum(bool(e.success) for e in demos) / len(demos)) if demos else None
         self.evaluate("start", sets=("val",))
         if c.use_demos:
-            r = self._train_stage("policy_train", lambda: train_bc(self.policy, demo_ts, val_demo, c.bc,
-                                                                    tracker=self.tracker))
+            r, hit = self._cached_stage("bc", self.policy, (c.policy, c.bc), lambda: train_bc(
+                self.policy, demo_ts, val_demo, c.bc, tracker=self.tracker), "policy_train")
             self.results["bc"] = {k: r[k] for k in ("n_train_examples", "before", "after", "param_change_l2")}
+            self.results["bc"]["from_cache"] = hit
             self._ckpt("policy_bc", self.policy)
         if self.wm is not None:
-            r = self._train_stage("wm_train", lambda: train_world_model(self.wm, demo_ts, val_demo, c.wm_train,
-                                                                        tracker=self.tracker))
+            from agentrs.training.common import GradientTrainer, load_trainer_state
+
+            r, hit = self._cached_stage("wm", self.wm, (c.world_model, c.wm_train), lambda: train_world_model(
+                self.wm, demo_ts, val_demo, c.wm_train, tracker=self.tracker), "wm_train")
             self.results["wm_initial"] = {k: r[k] for k in ("n_train", "before", "after", "param_change_l2")}
-            self.wm_trainer = r["trainer"]
+            self.results["wm_initial"]["from_cache"] = hit
+            if hit:
+                self.wm_trainer = GradientTrainer(self.wm, c.wm_train.optim)
+                load_trainer_state(Path(c.cache_dir) / self._cache_key("wm", c.world_model, c.wm_train),
+                                   self.wm_trainer, restore_rng=False)
+            else:
+                self.wm_trainer = r["trainer"]
             self._ckpt("world_model_init", self.wm)
         if self.critic is not None and demo_ts:
-            r = self._train_stage("critic_train", lambda: train_critic(self.critic, demo_ts, val_demo,
-                                                                       c.critic_train, tracker=self.tracker))
+            r, hit = self._cached_stage("critic", self.critic, (c.critic, c.critic_train), lambda: train_critic(
+                self.critic, demo_ts, val_demo, c.critic_train, tracker=self.tracker), "critic_train")
             self.results["critic_initial"] = {k: r[k] for k in ("n_train", "before", "after")}
         if c.rl_iterations > 0:
             self.run_rl()

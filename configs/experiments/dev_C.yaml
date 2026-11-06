@@ -1,3 +1,0 @@
-inherit: dev_base.yaml
-name: dev_C_s0
-variant: C

@@ -144,3 +144,24 @@ def test_diff_apply_reproduces_next_observation_content():
             if len(d.added) <= 14:
                 pred2 = StateDiff.from_text(d.to_text()).apply(tr.observation)
                 assert content_set(pred2) == content_set(tr.next_observation), d.to_text()
+
+
+def test_task_generation_independent_of_hash_seed():
+    """Tasks and teacher episodes must be identical across processes with different PYTHONHASHSEED."""
+    import os
+    import subprocess
+    import sys
+
+    code = ("import json;from agentrs.environments.miniweb.tasks import task_set;"
+            "from agentrs.agent.runtime import run_episode, TeacherActor;"
+            "from agentrs.demonstrations.teacher import ScriptedTeacher;"
+            "from agentrs.environments.miniweb.core import MiniWebEnv;e=MiniWebEnv();ts=task_set('train', n_per_family=3);"
+            "print(json.dumps([(t.goal, t.private.get('product'), [x.action for x in run_episode(e,t,"
+            "TeacherActor(ScriptedTeacher(0.3, i))).transitions]) for i,t in enumerate(ts)]))")
+    src = os.path.join(os.path.dirname(__file__), "..", "..", "src")
+    outs = set()
+    for hs in ("1", "2", "3"):
+        env = {**os.environ, "PYTHONHASHSEED": hs, "PYTHONPATH": src}
+        outs.add(subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True,
+                                check=True).stdout)
+    assert len(outs) == 1

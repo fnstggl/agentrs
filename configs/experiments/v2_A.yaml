@@ -1,0 +1,3 @@
+inherit: v2_base.yaml
+name: v2_A
+variant: A
