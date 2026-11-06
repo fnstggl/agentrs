@@ -86,6 +86,11 @@ def migrate_record(d: dict) -> dict:
         d.setdefault("selection", "policy")
         d.setdefault("behavior_logprob", d.get("policy_logprob"))
         d["schema_version"] = 2
+        v = 2
+    if v < 3:
+        d.setdefault("semantic_action", None)
+        d.setdefault("content_outcome", None)
+        d["schema_version"] = 3
     return d
 
 

@@ -24,6 +24,10 @@ def make_env(env_id: str = "miniweb", guarded: bool = True, policy: Optional[Per
         from agentrs.environments.web.playwright_env import LocalWebEnv
 
         env = LocalWebEnv(**kw)
+    elif env_id == "content":
+        from agentrs.environments.content.env import ContentEnv
+
+        env = ContentEnv(**kw)
     elif env_id.startswith("browsergym"):
         from agentrs.environments.browsergym_adapter import BrowserGymEnv
 
@@ -31,7 +35,7 @@ def make_env(env_id: str = "miniweb", guarded: bool = True, policy: Optional[Per
     else:
         raise ValueError(f"unknown env {env_id}")
     if guarded:
-        env = GuardedEnvironment(env, policy or PermissionPolicy(step_timeout_seconds=0 if env_id == "miniweb" else 30))
+        env = GuardedEnvironment(env, policy or PermissionPolicy(step_timeout_seconds=0 if env_id in ("miniweb", "content") else 30))
     return env
 
 

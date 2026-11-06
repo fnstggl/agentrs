@@ -403,6 +403,17 @@ class LMBackbone(nn.Module):
                        stop_text: Optional[str] = None, stop_token: Optional[int] = None, greedy: bool = False,
                        generator: Optional[torch.Generator] = None) -> list[tuple[str, float]]:
         """Batched sampling for several (possibly different) prompts with a shared KV-cache loop."""
+        outs = self.generate_tokens(prompts, max_new_tokens, temperature, stop_text, stop_token, greedy, generator)
+        return [(o["text"], float(sum(o["logprobs"]))) for o in outs]
+
+    @torch.no_grad()
+    def generate_tokens(self, prompts: Sequence[str], max_new_tokens: int = 48, temperature: float = 1.0,
+                        stop_text: Optional[str] = None, stop_token: Optional[int] = None, greedy: bool = False,
+                        generator: Optional[torch.Generator] = None) -> list[dict]:
+        """Sample continuations and return, per prompt: decoded ``text``, the exact sampled token
+        ``ids``, the per-token ``logprobs`` under the sampling distribution (softmax(logits / T)),
+        and whether a stop condition was reached (``finished``). The ids are what training must
+        re-score: re-tokenising the decoded text can produce a different token sequence."""
         dev = self.device
         n = len(prompts)
         pids = [self.encode_prompt(p) for p in prompts]
@@ -423,7 +434,7 @@ class LMBackbone(nn.Module):
         stop = self.newline_id if stop_token is None else stop_token
         eos = self.tokenizer.eos_token_id
         gen: list[list[int]] = [[] for _ in range(n)]
-        lps = torch.zeros(n, device=dev)
+        tok_lps: list[list[float]] = [[] for _ in range(n)]
         done = torch.zeros(n, dtype=torch.bool, device=dev)
         for _ in range(max_new_tokens):
             logp = F.log_softmax(logits / max(temperature, 1e-5), dim=-1)
@@ -431,10 +442,11 @@ class LMBackbone(nn.Module):
                 nxt = logp.argmax(-1)
             else:
                 nxt = torch.multinomial(logp.exp(), 1, generator=generator).squeeze(-1)
-            lps = lps + torch.where(done, torch.zeros_like(lps), logp.gather(-1, nxt[:, None]).squeeze(-1))
+            chosen = logp.gather(-1, nxt[:, None]).squeeze(-1)
             for i in range(n):
                 if not done[i]:
                     gen[i].append(int(nxt[i]))
+                    tok_lps[i].append(float(chosen[i]))
             if stop_text is not None:
                 newly = torch.tensor([stop_text in self.tokenizer.decode(g[-12:]) for g in gen], device=dev)
             else:
@@ -450,7 +462,35 @@ class LMBackbone(nn.Module):
             nxt_pos = nxt_pos + 1
             cache = o.past_key_values
             logits = o.logits[:, -1].float()
-        return [(self.tokenizer.decode(g), float(lp)) for g, lp in zip(gen, lps)]
+        return [{"text": self.tokenizer.decode(g), "ids": g, "logprobs": lp, "finished": bool(d)}
+                for g, lp, d in zip(gen, tok_lps, done.tolist())]
+
+    def token_logprobs_from_ids(self, prompts: Sequence[str], cont_ids: Sequence[Sequence[int]],
+                                return_logdists: bool = False):
+        """Exact per-token log-probabilities (full vocabulary, T = 1) of given continuation token ids
+        after each prompt. Differentiable. Returns (logps (N, Cmax), mask (N, Cmax)) and, with
+        ``return_logdists``, the full log-distributions (N, Cmax, V) at those positions (for exact KL)."""
+        dev = self.device
+        hidden, ids, spans, owners = self._forward_full(list(prompts), [[list(c)] for c in cont_ids])
+        Cmax = max(1, max(b - a for a, b in spans))
+        pos = torch.zeros((len(spans), Cmax), dtype=torch.long, device=dev)
+        valid = torch.zeros((len(spans), Cmax), dtype=torch.bool, device=dev)
+        for k, (a, b) in enumerate(spans):
+            if b > a:
+                pos[k, : b - a] = torch.arange(a - 1, b - 1, device=dev)
+                valid[k, : b - a] = True
+        h = hidden.gather(1, pos.unsqueeze(-1).expand(-1, -1, hidden.shape[-1]))
+        W = self._out_emb()
+        logits = h.float() @ W.float().T
+        bias = getattr(self.model.get_output_embeddings(), "bias", None)
+        if bias is not None:
+            logits = logits + bias.float()
+        logd = F.log_softmax(logits, dim=-1)
+        tgt = ids.gather(1, (pos + 1).clamp(max=ids.shape[1] - 1))
+        lp = torch.where(valid, logd.gather(-1, tgt.unsqueeze(-1)).squeeze(-1), 0.0)
+        if return_logdists:
+            return lp, valid, logd
+        return lp, valid
 
     # ---------------------------------------------------------------- persistence
     def trainable_state_dict(self) -> dict[str, torch.Tensor]:

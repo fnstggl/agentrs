@@ -14,9 +14,10 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from agentrs.content.semantic_action import SemanticAction
 from agentrs.environments.base import Observation
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 class Source(str, Enum):
@@ -89,6 +90,11 @@ class Transition(BaseModel):
     provenance: Provenance
     verification: Optional[dict[str, Any]] = None
     action_confidence: Optional[float] = None  # for inferred labels
+    # content actions: complete content, generation log-probs, permissions (schema v3)
+    semantic_action: Optional[SemanticAction] = None
+    # environment-reported content outcome (format, objective, partial credit, response, engagement,
+    # confounders). Engagement is recorded, never used as reward.
+    content_outcome: Optional[dict[str, Any]] = None
 
     @model_validator(mode="after")
     def _grounding(self):

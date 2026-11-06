@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional, Protocol
 
-from agentrs.actions.schema import Action, try_parse_action
+from agentrs.actions.schema import ActionType, Action, try_parse_action
 from agentrs.agent.belief import BeliefState
 from agentrs.data.diff import compute_diff
 from agentrs.data.schemas import EpisodeRecord, Provenance, Source, Transition, WMPredictionRecord
@@ -31,6 +31,7 @@ class Decision:
     selection: str = "policy"
     wm_prediction: Optional[WMPredictionRecord] = None
     info: dict[str, Any] = field(default_factory=dict)
+    semantic: Optional[Any] = None  # SemanticAction for content-bearing actions
 
 
 class Actor(Protocol):
@@ -146,6 +147,21 @@ def run_episode(
             truncated=result.truncated or (last and not result.terminated),
             checkpoints=dict(checkpoints or {}), provenance=prov,
         )
+        if dec.semantic is None and dec.action.type == ActionType.SUBMIT:
+            # content from any other actor (teacher, human, scripted, skill): record the complete
+            # content with its provenance; it carries no behaviour log-probs of this policy
+            from agentrs.content.semantic_action import SemanticAction
+
+            dec.semantic = SemanticAction(operation=dec.action.name or "", content=dec.action.text or "",
+                                          target_env=env.env_id, goal=task.goal, context=prompt or "",
+                                          source=prov.source.value if dec.selection == "policy" else dec.selection)
+        if dec.semantic is not None:
+            sa = dec.semantic.model_copy(deep=True)
+            denied = bool(result.error and "permission denied" in result.error)
+            sa.execution_status = "denied" if denied else ("executed" if result.action_valid else "rejected")
+            sa.permission = result.error if denied else "allowed"
+            tr.semantic_action = sa
+        tr.content_outcome = result.info.get("content_outcome")
         ep.transitions.append(tr)
         if not result.action_valid:
             ep.num_invalid += 1

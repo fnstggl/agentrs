@@ -38,6 +38,7 @@ class ActionType(str, Enum):
     WAIT = "wait"
     FINISH = "finish"
     SKILL = "skill"  # hierarchical macro-action; expanded into primitive actions
+    SUBMIT = "submit"  # semantic content action: submit(<operation>, "<complete generated content>")
 
 
 # Which argument slots each action type uses.
@@ -52,10 +53,12 @@ _SIGNATURES: dict[ActionType, tuple[str, ...]] = {
     ActionType.WAIT: (),
     ActionType.FINISH: ("text?",),
     ActionType.SKILL: ("name", "text?"),
+    ActionType.SUBMIT: ("name", "text"),
 }
 
 SCROLL_DIRECTIONS = ("up", "down")
 MAX_TEXT_LEN = 256
+MAX_CONTENT_LEN = 65_536  # generated content carried by SUBMIT; longer content goes by reference
 _ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_\-]{0,31}$")
 
 
@@ -73,13 +76,6 @@ class Action(BaseModel):
     text: Optional[str] = None  # typed text / option / url / answer / skill args
     direction: Optional[str] = None  # scroll direction
     name: Optional[str] = None  # skill name
-
-    @field_validator("text")
-    @classmethod
-    def _limit_text(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and len(v) > MAX_TEXT_LEN:
-            raise ValueError(f"text argument longer than {MAX_TEXT_LEN} chars")
-        return v
 
     @field_validator("target")
     @classmethod
@@ -99,6 +95,13 @@ class Action(BaseModel):
                 raise ValueError(f"{self.type.value} requires '{slot}'")
             if slot not in allowed and val is not None:
                 raise ValueError(f"{self.type.value} does not take '{slot}'")
+        limit = MAX_CONTENT_LEN if self.type == ActionType.SUBMIT else MAX_TEXT_LEN
+        if self.text is not None and len(self.text) > limit:
+            raise ValueError(f"text argument longer than {limit} chars")
+        if self.type == ActionType.SKILL and self.name is not None and not _ID_RE.match(self.name):
+            raise ValueError(f"invalid skill name {self.name!r}")
+        if self.type == ActionType.SUBMIT and (self.name is None or not _ID_RE.match(self.name)):
+            raise ValueError(f"invalid content operation {self.name!r}")
         if self.type == ActionType.SCROLL and self.direction not in SCROLL_DIRECTIONS:
             raise ValueError(f"scroll direction must be one of {SCROLL_DIRECTIONS}")
 
@@ -117,6 +120,8 @@ class Action(BaseModel):
             return "wait()"
         if t == ActionType.FINISH:
             return "finish()" if self.text is None else f"finish({_quote(self.text)})"
+        if t == ActionType.SUBMIT:
+            return f"submit({self.name}, {_quote(self.text)})"
         if t == ActionType.SKILL:
             if self.text is None:
                 return f"skill({self.name})"
@@ -162,6 +167,10 @@ class Action(BaseModel):
     @classmethod
     def wait(cls) -> "Action":
         return cls(type=ActionType.WAIT)
+
+    @classmethod
+    def submit(cls, operation: str, content: str) -> "Action":
+        return cls(type=ActionType.SUBMIT, name=operation, text=content)
 
     @classmethod
     def finish(cls, answer: Optional[str] = None) -> "Action":
@@ -275,6 +284,13 @@ def parse_action(s: str) -> Action:
             lx.expect(")")
             lx.done()
             return Action(type=at, text=txt)
+        if at == ActionType.SUBMIT:
+            nm = lx.ident()
+            lx.expect(",")
+            txt = lx.string()
+            lx.expect(")")
+            lx.done()
+            return Action(type=at, name=nm, text=txt)
         if at == ActionType.SKILL:
             nm = lx.ident()
             lx.ws()

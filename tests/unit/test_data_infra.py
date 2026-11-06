@@ -56,7 +56,8 @@ def test_migration_v1(episodes):
     d.pop("behavior_logprob")
     d["policy_logprob"] = -0.5
     t = Transition.model_validate(migrate_record(d))
-    assert t.schema_version == 2 and t.behavior_logprob == -0.5 and t.selection == "policy"
+    assert t.schema_version == 3 and t.behavior_logprob == -0.5 and t.selection == "policy"
+    assert t.semantic_action is None and t.content_outcome is None
 
 
 def test_imagined_and_human_schema_guards(episodes):

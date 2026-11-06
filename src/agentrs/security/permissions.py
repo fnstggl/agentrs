@@ -39,8 +39,14 @@ class PermissionPolicy(BaseModel):
 
     allowed_action_types: frozenset[ActionType] = frozenset(
         {ActionType.CLICK, ActionType.TYPE, ActionType.CLEAR, ActionType.SELECT, ActionType.SCROLL,
-         ActionType.NAVIGATE, ActionType.READ, ActionType.WAIT, ActionType.FINISH}
+         ActionType.NAVIGATE, ActionType.READ, ActionType.WAIT, ActionType.FINISH, ActionType.SUBMIT}
     )
+    # content operations the agent may execute (all of these are sandboxed/local by default)
+    allowed_content_ops: frozenset[str] = frozenset(
+        {"apply_config", "send_email", "post_reply", "submit_code", "write_document"})
+    # operations that publish or send outside the sandbox: always need explicit human approval
+    approval_required_ops: frozenset[str] = frozenset()
+    max_content_submissions: int = 10  # per episode (rate limit on publishing/sending)
     # URL allowlist. Relative paths ("/...") are resolved against the environment origin.
     allowed_url_prefixes: tuple[str, ...] = ("/",)
     allowed_hosts: tuple[str, ...] = ("localhost", "127.0.0.1")
@@ -76,6 +82,11 @@ def check_action(policy: PermissionPolicy, action: Action) -> Optional[str]:
         return f"action type {action.type.value!r} is not permitted"
     if action.text is not None and len(action.text) > policy.max_text_length:
         return "text argument too long"
+    if action.type == ActionType.SUBMIT:
+        if action.name not in policy.allowed_content_ops:
+            return f"content operation {action.name!r} is not permitted"
+        if action.name in policy.approval_required_ops:
+            return "consequential action requires human approval"
     if action.type == ActionType.NAVIGATE and not policy.url_allowed(action.text or ""):
         return f"navigation to {action.text!r} is outside the allowlist"
     if policy.consequential_markers and action.text:
@@ -96,6 +107,7 @@ class GuardedEnvironment(Environment):
         self.env_id = env.env_id
         self.version = env.version
         self._n_actions = 0
+        self._n_submissions = 0
         self._t0 = time.monotonic()
         self._last_action_t = 0.0
         self._task: Optional[TaskSpec] = None
@@ -105,6 +117,7 @@ class GuardedEnvironment(Environment):
     def reset(self, task: TaskSpec) -> Observation:
         self._task = task
         self._n_actions = 0
+        self._n_submissions = 0
         self._t0 = time.monotonic()
         self.denied = []
         try:
@@ -136,6 +149,10 @@ class GuardedEnvironment(Environment):
         reason = check_action(self.policy, action)
         if reason == "consequential action requires human approval" and self.approve(action):
             reason = None
+        if reason is None and action.type == ActionType.SUBMIT:
+            self._n_submissions += 1
+            if self._n_submissions > self.policy.max_content_submissions:
+                reason = "content submission rate limit reached"
         if reason is not None:
             self.denied.append((action.to_str(), reason))
             return self._error_result(f"permission denied: {reason}", truncated=budget_hit)
