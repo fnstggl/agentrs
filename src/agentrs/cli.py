@@ -464,6 +464,54 @@ def cmd_visualize(a) -> int:
     return 0
 
 
+def cmd_content_episode(a) -> int:
+    """Run one content task with the teacher, a trained content policy, or the content planner."""
+    from agentrs.agent.runtime import TeacherActor, run_episode
+    from agentrs.demonstrations.content_teacher import ContentTeacher
+    from agentrs.environments.content.env import make_content_task
+    from agentrs.evaluation.benchmark import make_env
+
+    _threads(a)
+    env = make_env("content")
+    task = make_content_task(a.family, a.split, a.index)
+    if a.actor == "teacher":
+        actor = TeacherActor(ContentTeacher(a.seed))
+    else:
+        from agentrs.content.policy import ContentGeneratingPolicy, ContentPolicyActor
+        from agentrs.training.common import load_model
+
+        cp = ContentGeneratingPolicy(load_model(a.policy))
+        if a.actor == "planner":
+            from agentrs.content.planner import ContentOutcomePlanner, ContentPlannerConfig
+
+            actor = ContentOutcomePlanner(cp, load_model(a.world_model), ContentPlannerConfig(
+                num_candidates=a.num_candidates), seed=a.seed)
+        else:
+            actor = ContentPolicyActor(cp, "greedy" if a.greedy else "sample", seed=a.seed)
+    ep = run_episode(env, task, actor)
+    print(f"GOAL: {task.goal}")
+    for t in ep.transitions:
+        print(f"{t.step}. {t.action}")
+        if t.content_outcome:
+            o = t.content_outcome
+            print(f"   -> {o.get('response')}  (objective_met={o.get('objective_met')}, engagement={o.get('engagement')})")
+        if t.wm_prediction is not None:
+            print(f"   predicted P(objective)={t.wm_prediction.event_probs[1]:.2f} "
+                  f"uncertainty={t.wm_prediction.epistemic:.3f}")
+    print(f"verified success: {ep.success}")
+    return 0
+
+
+def cmd_content_experiment(a) -> int:
+    from agentrs.config import load_config
+    from agentrs.content.experiments import ContentExperimentConfig, run_content_experiment
+
+    _threads(a)
+    res = run_content_experiment(load_config(ContentExperimentConfig, a.config, a.set))
+    _print({k: v["success_rate"] for k, v in res["final"].items() if isinstance(v, dict) and "success_rate" in v})
+    return 0
+
+
 def cmd_data_summary(a) -> int:
     from agentrs.data.storage import ExperienceStore
 
@@ -611,6 +659,22 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--episode", help="episode id (default: first)")
     s.add_argument("--world-model", help="checkpoint to show predicted vs actual diffs")
     s.add_argument("--out")
+
+    s = add("content-episode", cmd_content_episode, "run one content task (teacher/policy/planner)")
+    s.add_argument("--family", default="content_email",
+                   choices=["content_config", "content_email", "content_forum", "content_code", "content_document"])
+    s.add_argument("--split", default="train")
+    s.add_argument("--index", type=int, default=0)
+    s.add_argument("--actor", default="teacher", choices=["teacher", "policy", "planner"])
+    s.add_argument("--policy")
+    s.add_argument("--world-model")
+    s.add_argument("--num-candidates", type=int, default=4)
+    s.add_argument("--greedy", action="store_true")
+    s.add_argument("--seed", type=int, default=0)
+
+    s = add("content-experiment", cmd_content_experiment, "run a content-learning configuration (A-E)")
+    s.add_argument("config")
+    s.add_argument("--set", nargs="*", default=[])
 
     s = add("data-summary", cmd_data_summary, "summarise an experience store")
     s.add_argument("--store", required=True)
