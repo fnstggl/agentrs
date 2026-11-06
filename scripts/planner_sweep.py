@@ -32,13 +32,19 @@ def main():
     ap.add_argument("--n-per-family", type=int, default=0, help="0 = use the run's eval set sizes")
     ap.add_argument("--threads", type=int, default=0)
     ap.add_argument("--out", default="")
+    ap.add_argument("--policy", help="override the run's final policy checkpoint")
+    ap.add_argument("--world-model", help="override the run's final world-model checkpoint")
+    ap.add_argument("--critic", help="override the run's final critic checkpoint")
+    ap.add_argument("--no-policy-only", action="store_true", help="skip the policy-only baseline row")
     a = ap.parse_args()
     if a.threads:
         torch.set_num_threads(a.threads)
     run = Path(a.run)
     res_cfg = json.loads((run / "results.json").read_text())["config"]
     ck = run / "checkpoints"
-    pol, wm, cr = load_model(ck / "policy_final"), load_model(ck / "world_model_final"), load_model(ck / "critic_final")
+    pol = load_model(a.policy or ck / "policy_final")
+    wm = load_model(a.world_model or ck / "world_model_final")
+    cr = load_model(a.critic or ck / "critic_final")
     for m in (pol, wm, cr):
         m.eval()
     env = make_env("miniweb")
@@ -53,8 +59,8 @@ def main():
         keys.append(k)
         values.append([type(getattr(PlannerConfig(), k))(x) for x in v.split(",")])
     base = PlannerConfig.model_validate(res_cfg["planner"])
-    out = {"run": str(run), "results": []}
-    configs = [("policy_only", None)] + [(dict(zip(keys, combo)), combo) for combo in itertools.product(*values)]
+    out = {"run": str(run), "policy": a.policy, "world_model": a.world_model, "critic": a.critic, "results": []}
+    configs = ([] if a.no_policy_only else [("policy_only", None)]) + [(dict(zip(keys, combo)), combo) for combo in itertools.product(*values)]
     for name, combo in configs:
         rec = {"planner": name}
         for s, tasks in sets.items():
