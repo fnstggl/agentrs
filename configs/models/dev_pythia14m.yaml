@@ -1,0 +1,10 @@
+# CPU development profile: Pythia-14M (pretrained, open weights) for every component.
+# Measured on a 4-core CPU: ~49k tokens/s inference, ~0.3-0.7 s per training step (batch 16).
+policy:
+  backbone: {name: EleutherAI/pythia-14m, max_prompt_tokens: 512}
+  vocab_restrict: true
+world_model:
+  backbone: {name: EleutherAI/pythia-14m, max_prompt_tokens: 512}
+  n_heads: 5
+critic:
+  backbone: {name: EleutherAI/pythia-14m, max_prompt_tokens: 512}

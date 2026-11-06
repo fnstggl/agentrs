@@ -1,0 +1,3 @@
+inherit: dev_base.yaml
+name: dev_D_s0
+variant: D

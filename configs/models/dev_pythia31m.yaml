@@ -1,0 +1,7 @@
+# CPU development profile, larger: Pythia-31M (~16k tokens/s inference on 4 CPU cores).
+policy:
+  backbone: {name: EleutherAI/pythia-31m, max_prompt_tokens: 512}
+world_model:
+  backbone: {name: EleutherAI/pythia-31m, max_prompt_tokens: 512}
+critic:
+  backbone: {name: EleutherAI/pythia-31m, max_prompt_tokens: 512}

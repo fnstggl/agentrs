@@ -1,0 +1,4 @@
+inherit: dev_base.yaml
+name: dev_Dimag_s0
+variant: D
+use_imagination: true

@@ -1,0 +1,49 @@
+# Shared settings for the CPU comparison (A/B/C/D). Same data, rewards, eval sets for every variant.
+inherit: ../models/dev_pythia14m.yaml
+out_dir: runs/dev
+seed: 0
+n_demo_tasks_per_family: 20
+teacher_epsilon: 0.15
+n_rl_tasks_per_family: 200
+eval_sets: {val: 3, test: 3, test_family: 5}
+bc:
+  steps: 500
+  batch_size: 16
+  eval_every: 250
+  optim: {lr: 1.0e-3, total_steps: 500, warmup_steps: 20, schedule: cosine}
+wm_train:
+  steps: 600
+  batch_size: 16
+  eval_every: 300
+  optim: {lr: 1.0e-3, total_steps: 100000, warmup_steps: 30, schedule: constant}
+critic_train:
+  steps: 300
+  batch_size: 32
+  eval_every: 300
+  optim: {lr: 5.0e-4, total_steps: 300, warmup_steps: 20, schedule: cosine}
+rl:
+  algo: ppo
+  epochs: 2
+  minibatch_size: 16
+  gamma: 0.95
+  gae_lambda: 0.95
+  entropy_coef: 0.01
+  kl_coef: 0.0
+  invalid_action_penalty: 0.1
+  policy_optim: {lr: 1.0e-4, total_steps: 100000}
+  critic_optim: {lr: 3.0e-4, total_steps: 100000}
+rl_iterations: 30
+episodes_per_iter: 40
+wm_steps_per_iter: 20
+eval_every_iters: 10
+planner:
+  num_candidates: 4
+  horizon: 1
+  num_branches: 1
+  uncertainty_penalty: 1.0
+  policy_prior_weight: 0.1
+  max_wm_calls: 24
+imagination:
+  horizon: 2
+  rollouts_per_update: 16
+  max_epistemic: 0.08

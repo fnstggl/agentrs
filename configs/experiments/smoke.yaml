@@ -1,0 +1,21 @@
+# Minutes-scale end-to-end check of the full model-based loop (offline, no downloads).
+inherit: ../models/smoke_scratch.yaml
+name: smoke
+out_dir: runs/smoke
+variant: D
+train_families: [click_button, fill_field]
+heldout_families: [dialog_confirm]
+n_demo_tasks_per_family: 5
+n_rl_tasks_per_family: 20
+eval_sets: {val: 2, test: 2, test_family: 2}
+bc: {steps: 10, eval_every: 5}
+wm_train: {steps: 10, eval_every: 5}
+critic_train: {steps: 10, eval_every: 5}
+rl: {algo: ppo, epochs: 2}
+rl_iterations: 2
+episodes_per_iter: 6
+wm_steps_per_iter: 3
+use_imagination: true
+imagination: {rollouts_per_update: 4, horizon: 2}
+planner: {num_candidates: 3, horizon: 1}
+eval_every_iters: 1

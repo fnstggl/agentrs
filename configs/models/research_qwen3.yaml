@@ -1,0 +1,14 @@
+# Research profile (GPU, NOT executed in the development sandbox).
+# Policy: Qwen3-4B + LoRA (bf16 weights ~8 GB; with LoRA r=16, activations for batch 8 x 768 tokens
+# and AdamW states for adapters, budget ~24 GB VRAM). World model / critic: Qwen3-0.6B + LoRA (~4 GB each).
+# Full-vocabulary scoring (vocab_restrict: false) is affordable on GPU and gives the exact LM policy.
+policy:
+  backbone: {name: Qwen/Qwen3-4B, dtype: bfloat16, device: cuda, max_prompt_tokens: 1536,
+             lora: {r: 16, alpha: 32, dropout: 0.05, target_modules: all-linear}, gradient_checkpointing: true}
+  vocab_restrict: false
+world_model:
+  backbone: {name: Qwen/Qwen3-0.6B, dtype: bfloat16, device: cuda, max_prompt_tokens: 1536,
+             lora: {r: 16, alpha: 32, dropout: 0.05, target_modules: all-linear}}
+critic:
+  backbone: {name: Qwen/Qwen3-0.6B, dtype: bfloat16, device: cuda, max_prompt_tokens: 1536,
+             lora: {r: 16, alpha: 32, dropout: 0.05, target_modules: all-linear}}

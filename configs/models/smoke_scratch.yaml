@@ -1,0 +1,8 @@
+# Offline smoke-test profile: tiny randomly initialised GPT-NeoX + locally trained BPE tokenizer.
+policy:
+  backbone: {name: scratch, scratch: {hidden_size: 64, num_layers: 2, num_heads: 4, vocab_size: 512}}
+world_model:
+  backbone: {name: scratch, scratch: {hidden_size: 64, num_layers: 2, num_heads: 4, vocab_size: 512}}
+  n_heads: 3
+critic:
+  backbone: {name: scratch, scratch: {hidden_size: 64, num_layers: 2, num_heads: 4, vocab_size: 512}}
