@@ -1,0 +1,9 @@
+{
+ "n": 20,
+ "sim_success": 0.3,
+ "browser_success": 0.3,
+ "identical_action_sequences": 20,
+ "identical_outcomes": 20,
+ "browser_seconds_per_episode": 20.607165455750057,
+ "sim_seconds_per_episode": 20.253623926649926
+}

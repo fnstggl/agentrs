@@ -9,7 +9,7 @@ initial_policy: runs/ckpt/policy_bc
 use_world_model: true
 wm_steps_per_cycle: 20
 eval_tasks_per_family: 3
-rl: {algo: ppo, epochs: 2, policy_optim: {lr: 1.0e-4, total_steps: 100000}}
+rl: {algo: ppo, epochs: 2, minibatch_size: 32, entropy_coef: 0.001, policy_optim: {lr: 3.0e-5, total_steps: 100000}}
 gate: {min_improvement: 0.0, max_family_regression: 0.34, max_invalid_rate: 0.3}
 curriculum: {advance_threshold: 0.5, min_episodes: 16, window: 32}
 separate_processes: true

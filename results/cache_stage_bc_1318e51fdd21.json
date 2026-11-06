@@ -1,0 +1,1 @@
+{"n_train_examples": 1006, "n_val_examples": 59, "before": {"val_nll": 4.832688961998891, "val_acc": 0.13559322033898305}, "after": {"val_nll": 2.114445690381325, "val_acc": 0.4745762711864407}, "param_change_l2": 7.078139566034551, "_train_flops": 144082687991808.0}

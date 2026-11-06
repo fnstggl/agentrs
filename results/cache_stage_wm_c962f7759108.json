@@ -1,0 +1,1 @@
+{"n_train": 1175, "n_val": 61, "before": {"val_loss": 3.952868993165063, "val_head_bce": 0.48140267856785507, "val_diff_nll_per_token": 3.4714661543486547}, "after": {"val_loss": 0.28133385542963374, "val_head_bce": 0.050158689622996286, "val_diff_nll_per_token": 0.23117516934871674}, "param_change_l2": 71.302301238945, "_train_flops": 160248346017792.0}

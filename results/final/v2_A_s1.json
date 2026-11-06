@@ -1,0 +1,494 @@
+{
+ "config": {
+  "name": "v2_A_s1",
+  "seed": 1,
+  "out_dir": "runs/v2",
+  "variant": "A",
+  "use_demos": false,
+  "use_world_model": false,
+  "use_planning_collect": false,
+  "use_planning_eval": false,
+  "use_imagination": false,
+  "historical_replay": true,
+  "train_families": [
+   "click_button",
+   "navigate_link",
+   "fill_field",
+   "login",
+   "checkboxes",
+   "dropdown",
+   "menu",
+   "search_lookup",
+   "form_validation",
+   "checkout"
+  ],
+  "heldout_families": [
+   "dialog_confirm",
+   "scroll_find",
+   "toggle_settings",
+   "lookup_then_fill"
+  ],
+  "n_demo_tasks_per_family": 40,
+  "teacher_epsilon": 0.15,
+  "n_rl_tasks_per_family": 200,
+  "eval_sets": {
+   "val": 4,
+   "test": 4,
+   "test_family": 8
+  },
+  "policy": {
+   "backbone": {
+    "name": "EleutherAI/pythia-14m",
+    "revision": null,
+    "dtype": "float32",
+    "device": "cpu",
+    "lora": null,
+    "max_prompt_tokens": 512,
+    "head_keep_tokens": 64,
+    "gradient_checkpointing": false,
+    "scratch": {
+     "hidden_size": 64,
+     "num_layers": 2,
+     "num_heads": 4,
+     "vocab_size": 512,
+     "max_positions": 1024
+    },
+    "seed": 0
+   },
+   "temperature": 1.0,
+   "prefix_cache": true,
+   "vocab_restrict": true,
+   "length_norm": 0.0,
+   "generative_proposals": 0,
+   "max_candidates": 40
+  },
+  "world_model": {
+   "backbone": {
+    "name": "EleutherAI/pythia-14m",
+    "revision": null,
+    "dtype": "float32",
+    "device": "cpu",
+    "lora": null,
+    "max_prompt_tokens": 512,
+    "head_keep_tokens": 64,
+    "gradient_checkpointing": false,
+    "scratch": {
+     "hidden_size": 64,
+     "num_layers": 2,
+     "num_heads": 4,
+     "vocab_size": 512,
+     "max_positions": 1024
+    },
+    "seed": 0
+   },
+   "n_heads": 5,
+   "head_hidden": 128,
+   "bootstrap_prob": 0.8,
+   "diff_loss_weight": 1.0,
+   "head_loss_weight": 1.0,
+   "history_items": 3,
+   "max_obs_elements": 30,
+   "max_diff_tokens": 96
+  },
+  "critic": {
+   "backbone": {
+    "name": "EleutherAI/pythia-14m",
+    "revision": null,
+    "dtype": "float32",
+    "device": "cpu",
+    "lora": null,
+    "max_prompt_tokens": 512,
+    "head_keep_tokens": 64,
+    "gradient_checkpointing": false,
+    "scratch": {
+     "hidden_size": 64,
+     "num_layers": 2,
+     "num_heads": 4,
+     "vocab_size": 512,
+     "max_positions": 1024
+    },
+    "seed": 0
+   },
+   "head_hidden": 128,
+   "gamma": 0.95,
+   "td_lambda": 1.0
+  },
+  "bc": {
+   "optim": {
+    "lr": 0.0005,
+    "weight_decay": 0.0,
+    "betas": [
+     0.9,
+     0.999
+    ],
+    "warmup_steps": 30,
+    "total_steps": 600,
+    "schedule": "cosine",
+    "min_lr_ratio": 0.1,
+    "grad_clip": 1.0,
+    "max_bad_steps": 10
+   },
+   "batch_size": 16,
+   "steps": 600,
+   "w_success": 1.0,
+   "w_unknown": 0.3,
+   "w_failure": 0.0,
+   "eval_every": 300,
+   "seed": 0
+  },
+  "wm_train": {
+   "optim": {
+    "lr": 0.001,
+    "weight_decay": 0.0,
+    "betas": [
+     0.9,
+     0.999
+    ],
+    "warmup_steps": 30,
+    "total_steps": 100000,
+    "schedule": "constant",
+    "min_lr_ratio": 0.1,
+    "grad_clip": 1.0,
+    "max_bad_steps": 10
+   },
+   "batch_size": 16,
+   "steps": 800,
+   "eval_every": 400,
+   "seed": 0
+  },
+  "critic_train": {
+   "optim": {
+    "lr": 0.0005,
+    "weight_decay": 0.0,
+    "betas": [
+     0.9,
+     0.999
+    ],
+    "warmup_steps": 20,
+    "total_steps": 300,
+    "schedule": "cosine",
+    "min_lr_ratio": 0.1,
+    "grad_clip": 1.0,
+    "max_bad_steps": 10
+   },
+   "batch_size": 32,
+   "steps": 300,
+   "eval_every": 300,
+   "seed": 0
+  },
+  "rl": {
+   "algo": "ppo",
+   "gamma": 0.95,
+   "gae_lambda": 0.95,
+   "baseline": "critic",
+   "advantage_norm": true,
+   "epochs": 2,
+   "minibatch_size": 16,
+   "clip_eps": 0.2,
+   "rho_max": 1.0,
+   "entropy_coef": 0.01,
+   "kl_coef": 0.0,
+   "invalid_action_penalty": 0.1,
+   "group_size": 4,
+   "distill_coef": 0.0,
+   "imagined_weight": 0.5,
+   "policy_optim": {
+    "lr": 0.0001,
+    "weight_decay": 0.0,
+    "betas": [
+     0.9,
+     0.999
+    ],
+    "warmup_steps": 0,
+    "total_steps": 100000,
+    "schedule": "constant",
+    "min_lr_ratio": 0.1,
+    "grad_clip": 1.0,
+    "max_bad_steps": 10
+   },
+   "critic_optim": {
+    "lr": 0.0003,
+    "weight_decay": 0.0,
+    "betas": [
+     0.9,
+     0.999
+    ],
+    "warmup_steps": 0,
+    "total_steps": 100000,
+    "schedule": "constant",
+    "min_lr_ratio": 0.1,
+    "grad_clip": 1.0,
+    "max_bad_steps": 10
+   },
+   "critic_steps_per_iter": 4,
+   "max_kl_stop": 0.5
+  },
+  "rl_iterations": 0,
+  "episodes_per_iter": 32,
+  "wm_steps_per_iter": 15,
+  "planner": {
+   "enabled": true,
+   "num_candidates": 4,
+   "horizon": 1,
+   "num_branches": 1,
+   "branch_candidates": 2,
+   "gamma": 0.95,
+   "uncertainty_penalty": 1.0,
+   "diff_uncertainty_weight": 0.0,
+   "action_cost": 0.0,
+   "policy_prior_weight": 0.1,
+   "selection": "argmax",
+   "selection_temperature": 0.05,
+   "epsilon": 0.0,
+   "max_wm_calls": 24,
+   "generate_next_states": true,
+   "greedy_diffs": true
+  },
+  "imagination": {
+   "enabled": false,
+   "horizon": 2,
+   "rollouts_per_update": 16,
+   "max_epistemic": 0.08,
+   "sample_rewards": false,
+   "exploitation_gap": 0.3,
+   "seed": 0
+  },
+  "eval_every_iters": 5,
+  "exploration_epsilon": 0.0,
+  "save_checkpoints": true,
+  "cache_dir": "runs/cache"
+ },
+ "evals": [
+  {
+   "tag": "start",
+   "real_env_steps": 0,
+   "real_episodes": 0,
+   "flops": {
+    "policy_train": 0.0,
+    "wm_train": 0.0,
+    "critic_train": 0.0,
+    "inference": 1686127824896.0
+   },
+   "results": {
+    "policy/val": {
+     "n": 40,
+     "success_rate": 0.025,
+     "success_ci95": [
+      0.0,
+      0.1
+     ],
+     "mean_steps": 6.525,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 261.0,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 0.4477900904500302,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "checkboxes": 0.0,
+      "checkout": 0.0,
+      "click_button": 0.25,
+      "dropdown": 0.0,
+      "fill_field": 0.0,
+      "form_validation": 0.0,
+      "login": 0.0,
+      "menu": 0.0,
+      "navigate_link": 0.0,
+      "search_lookup": 0.0
+     },
+     "eval_wall_time_s": 17.932425260543823,
+     "inference_flops": 1686127824896.0,
+     "inference_flops_per_success": 1686127824896.0
+    }
+   }
+  },
+  {
+   "tag": "final",
+   "real_env_steps": 0,
+   "real_episodes": 0,
+   "flops": {
+    "policy_train": 0.0,
+    "wm_train": 0.0,
+    "critic_train": 0.0,
+    "inference": 6648456962048.0
+   },
+   "results": {
+    "policy/val": {
+     "n": 40,
+     "success_rate": 0.025,
+     "success_ci95": [
+      0.0,
+      0.1
+     ],
+     "mean_steps": 6.525,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 261.0,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 0.2571945686750496,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "checkboxes": 0.0,
+      "checkout": 0.0,
+      "click_button": 0.25,
+      "dropdown": 0.0,
+      "fill_field": 0.0,
+      "form_validation": 0.0,
+      "login": 0.0,
+      "menu": 0.0,
+      "navigate_link": 0.0,
+      "search_lookup": 0.0
+     },
+     "eval_wall_time_s": 10.296151638031006,
+     "inference_flops": 1686127824896.0,
+     "inference_flops_per_success": 1686127824896.0
+    },
+    "policy/test": {
+     "n": 40,
+     "success_rate": 0.025,
+     "success_ci95": [
+      0.0,
+      0.075
+     ],
+     "mean_steps": 7.225,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 289.0,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 0.29754666032492877,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "checkboxes": 0.0,
+      "checkout": 0.0,
+      "click_button": 0.25,
+      "dropdown": 0.0,
+      "fill_field": 0.0,
+      "form_validation": 0.0,
+      "login": 0.0,
+      "menu": 0.0,
+      "navigate_link": 0.0,
+      "search_lookup": 0.0
+     },
+     "eval_wall_time_s": 11.905948638916016,
+     "inference_flops": 2120679448576.0,
+     "inference_flops_per_success": 2120679448576.0
+    },
+    "policy/test_family": {
+     "n": 32,
+     "success_rate": 0.03125,
+     "success_ci95": [
+      0.0,
+      0.09375
+     ],
+     "mean_steps": 5.0,
+     "invalid_action_rate": 0.0,
+     "real_steps_per_success": 160.0,
+     "error_recovery_rate": null,
+     "mean_wall_time_s": 0.2262648622500194,
+     "long_horizon_success": 0.0,
+     "by_family": {
+      "dialog_confirm": 0.0,
+      "lookup_then_fill": 0.0,
+      "scroll_find": 0.0,
+      "toggle_settings": 0.125
+     },
+     "eval_wall_time_s": 7.244444131851196,
+     "inference_flops": 1155521863680.0,
+     "inference_flops_per_success": 1155521863680.0
+    }
+   }
+  }
+ ],
+ "stages": {},
+ "n_demo_episodes": 0,
+ "demo_success_rate": null,
+ "final": {
+  "policy/val": {
+   "n": 40,
+   "success_rate": 0.025,
+   "success_ci95": [
+    0.0,
+    0.1
+   ],
+   "mean_steps": 6.525,
+   "invalid_action_rate": 0.0,
+   "real_steps_per_success": 261.0,
+   "error_recovery_rate": null,
+   "mean_wall_time_s": 0.2571945686750496,
+   "long_horizon_success": 0.0,
+   "by_family": {
+    "checkboxes": 0.0,
+    "checkout": 0.0,
+    "click_button": 0.25,
+    "dropdown": 0.0,
+    "fill_field": 0.0,
+    "form_validation": 0.0,
+    "login": 0.0,
+    "menu": 0.0,
+    "navigate_link": 0.0,
+    "search_lookup": 0.0
+   },
+   "eval_wall_time_s": 10.296151638031006,
+   "inference_flops": 1686127824896.0,
+   "inference_flops_per_success": 1686127824896.0
+  },
+  "policy/test": {
+   "n": 40,
+   "success_rate": 0.025,
+   "success_ci95": [
+    0.0,
+    0.075
+   ],
+   "mean_steps": 7.225,
+   "invalid_action_rate": 0.0,
+   "real_steps_per_success": 289.0,
+   "error_recovery_rate": null,
+   "mean_wall_time_s": 0.29754666032492877,
+   "long_horizon_success": 0.0,
+   "by_family": {
+    "checkboxes": 0.0,
+    "checkout": 0.0,
+    "click_button": 0.25,
+    "dropdown": 0.0,
+    "fill_field": 0.0,
+    "form_validation": 0.0,
+    "login": 0.0,
+    "menu": 0.0,
+    "navigate_link": 0.0,
+    "search_lookup": 0.0
+   },
+   "eval_wall_time_s": 11.905948638916016,
+   "inference_flops": 2120679448576.0,
+   "inference_flops_per_success": 2120679448576.0
+  },
+  "policy/test_family": {
+   "n": 32,
+   "success_rate": 0.03125,
+   "success_ci95": [
+    0.0,
+    0.09375
+   ],
+   "mean_steps": 5.0,
+   "invalid_action_rate": 0.0,
+   "real_steps_per_success": 160.0,
+   "error_recovery_rate": null,
+   "mean_wall_time_s": 0.2262648622500194,
+   "long_horizon_success": 0.0,
+   "by_family": {
+    "dialog_confirm": 0.0,
+    "lookup_then_fill": 0.0,
+    "scroll_find": 0.0,
+    "toggle_settings": 0.125
+   },
+   "eval_wall_time_s": 7.244444131851196,
+   "inference_flops": 1155521863680.0,
+   "inference_flops_per_success": 1155521863680.0
+  }
+ },
+ "total_wall_s": 47.41550612449646,
+ "real_env_steps": 0,
+ "real_episodes": 0,
+ "flops": {
+  "policy_train": 0.0,
+  "wm_train": 0.0,
+  "critic_train": 0.0,
+  "inference": 6648456962048.0
+ }
+}
