@@ -1,0 +1,99 @@
+episode f67aedd206c648c6 task=miniweb/form_validation/train/62 success=True (terminated:success)
+GOAL: Create an account for "Erin Moore" using the email "erin89@example.com".
+
+--- step 0: type(e338, "Erin Moore")  valid=True  reward=0.0
+observation:
+  URL: /signup
+  TITLE: Sign up
+  [e337] textbox "Email" value=""
+  [e338] textbox "Full name" value=""
+  [e339] button "Create account"
+actual change:
+  ~ [e338] value="Erin Moore"
+world model now predicts:
+  ~ [e337] value="Erin Moore"
+  P(reward)=0.00 P(terminal)=0.00 epistemic=0.003
+
+--- step 1: type(e337, "erin89@example.com")  valid=True  reward=0.0
+observation:
+  URL: /signup
+  TITLE: Sign up
+  [e337] textbox "Email" value=""
+  [e338] textbox "Full name" value="Erin Moore"
+  [e339] button "Create account"
+actual change:
+  ~ [e337] value="erin89@example.com"
+world model now predicts:
+  ~ [e337] value="erin89@example.com"
+  P(reward)=0.00 P(terminal)=0.00 epistemic=0.002
+
+--- step 2: clear(e337)  valid=True  reward=0.0
+observation:
+  URL: /signup
+  TITLE: Sign up
+  [e337] textbox "Email" value="erin89@example.com"
+  [e338] textbox "Full name" value="Erin Moore"
+  [e339] button "Create account"
+actual change:
+  ~ [e337] value=""
+world model now predicts:
+  ~ [e337] value=""
+  P(reward)=0.00 P(terminal)=0.00 epistemic=0.003
+
+--- step 3: type(e337, "erin89@example.com")  valid=True  reward=0.0
+observation:
+  URL: /signup
+  TITLE: Sign up
+  [e337] textbox "Email" value=""
+  [e338] textbox "Full name" value="Erin Moore"
+  [e339] button "Create account"
+actual change:
+  ~ [e337] value="erin89@example.com"
+world model now predicts:
+  ~ [e337] value="erin89@example.com"
+  P(reward)=0.00 P(terminal)=0.00 epistemic=0.002
+
+--- step 4: clear(e337)  valid=True  reward=0.0
+observation:
+  URL: /signup
+  TITLE: Sign up
+  [e337] textbox "Email" value="erin89@example.com"
+  [e338] textbox "Full name" value="Erin Moore"
+  [e339] button "Create account"
+actual change:
+  ~ [e337] value=""
+world model now predicts:
+  ~ [e337] value=""
+  P(reward)=0.00 P(terminal)=0.00 epistemic=0.003
+
+--- step 5: type(e337, "erin89@example.com")  valid=True  reward=0.0
+observation:
+  URL: /signup
+  TITLE: Sign up
+  [e337] textbox "Email" value=""
+  [e338] textbox "Full name" value="Erin Moore"
+  [e339] button "Create account"
+actual change:
+  ~ [e337] value="erin89@example.com"
+world model now predicts:
+  ~ [e337] value="erin89@example.com"
+  P(reward)=0.00 P(terminal)=0.00 epistemic=0.002
+
+--- step 6: click(e339)  valid=True  reward=1.0
+observation:
+  URL: /signup
+  TITLE: Sign up
+  [e337] textbox "Email" value="erin89@example.com"
+  [e338] textbox "Full name" value="Erin Moore"
+  [e339] button "Create account"
+actual change:
+  url: /welcome
+  title: Welcome
+  reload
+  + [new] heading "Account created!"
+world model now predicts:
+  url: /welcome
+  title: Welcome
+  reload
+  + [new] heading "Account created!"
+  P(reward)=0.58 P(terminal)=0.62 epistemic=0.037
