@@ -1,0 +1,18 @@
+# Focused content-RL experiment on the email domain: the outcome depends only on WHICH listed time
+# the generated message proposes (hidden recipient preference). Imitation of a teacher that picks
+# times at random, filtered to SUCCESSFUL demos (the brief's B), already leans toward mornings;
+# the question is whether verified-reward RL improves beyond that.
+inherit: base.yaml
+out_dir: runs/content_email
+families: [content_email]
+n_demo_per_family: 160
+bc:
+  steps: 300
+  batch_size: 16
+  rehearsal_weight: 0.5
+  optim: {lr: 5.0e-4, total_steps: 300, warmup_steps: 20, schedule: cosine}
+rl_iterations: 40
+tasks_per_iter: 8
+group_size: 6
+eval_sets: {val: 40, test: 40, test_family: 8}
+eval_every: 10

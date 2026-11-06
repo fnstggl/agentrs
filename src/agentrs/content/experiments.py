@@ -95,6 +95,7 @@ class ContentExperimentConfig(BaseModel):
     eval_every: int = 10
     miniweb_eval_tasks_per_family: int = 2
     cache_dir: Optional[str] = "runs/cache"
+    families: Optional[list[str]] = None  # restrict train/val/test families (None = all train families)
 
 
 def _load_policy(cfg: ContentExperimentConfig) -> LMPolicy:
@@ -141,8 +142,8 @@ class ContentExperiment:
         self.mw_env = make_env("miniweb")
         s = cfg.eval_sets
         self.suite = ContentEvaluationSuite(self.env, {
-            "val": content_task_set("val", n_per_family=s.val),
-            "test": content_task_set("test", n_per_family=s.test),
+            "val": content_task_set("val", cfg.families, n_per_family=s.val),
+            "test": content_task_set("test", cfg.families, n_per_family=s.test),
             "test_family": content_task_set("test_family", n_per_family=s.test_family)},
             self.mw_val, self.mw_env, self.mw_tasks)
 
@@ -186,7 +187,7 @@ class ContentExperiment:
             return self._finish(t_start)
         # demonstrations by another agent (content + outcomes), shared by B-E
         prov = Provenance(source=Source.TEACHER, source_id=ContentTeacher.source_id)
-        demo_tasks = content_task_set("train", n_per_family=c.n_demo_per_family)
+        demo_tasks = content_task_set("train", c.families, n_per_family=c.n_demo_per_family)
         demos = [run_episode(self.env, t, TeacherActor(ContentTeacher(c.seed * 7919 + i)), prov)
                  for i, t in enumerate(demo_tasks)]
         self.store.write_episodes(demos, tag="content_demos")
@@ -194,7 +195,8 @@ class ContentExperiment:
         self.results["demos"] = {"episodes": len(demos), "success_rate": sum(e.success for e in demos) / len(demos)}
         # B: imitation (cached per seed)
         key = "content_bc_" + hashlib.sha1(json.dumps([c.seed, c.init_policy, c.n_demo_per_family, c.bc.model_dump(),
-                                                       c.gen.model_dump()], default=str).encode()).hexdigest()[:12]
+                                                       c.gen.model_dump()] + ([c.families] if c.families else []),
+                                                      default=str).encode()).hexdigest()[:12]
         cache = self._cache(key)
         f0 = cp.bb.flops_counter
         if cache is not None and (cache / "weights.safetensors").exists():
@@ -229,7 +231,7 @@ class ContentExperiment:
         ref = copy.deepcopy(cp)
         ref.policy.eval()
         trainer = ContentPolicyRLTrainer(cp, c.rl, ref=ref, seed=c.seed)
-        pool = content_task_set("train", n_per_family=400, start=c.n_demo_per_family)
+        pool = content_task_set("train", c.families, n_per_family=400, start=c.n_demo_per_family)
         monitor = RewardHackingMonitor()
         all_real = list(demo_ts)
         for it in range(c.rl_iterations):
@@ -244,7 +246,8 @@ class ContentExperiment:
             new_ts = [t for e in eps for t in e.transitions]
             all_real += new_ts
             stats = {"collect_success": sum(e.success for e in eps) / len(eps)}
-            stats.update(monitor.record(it, [e for e in eps if e.family == "content_forum"]) or {})
+            stats.update({k: v for k, v in monitor.record(it, [e for e in eps if e.family == "content_forum"]).items()
+                          if v is not None})
             imagined = []
             if wm is not None:
                 f1 = wm.backbone.flops_counter
@@ -265,7 +268,7 @@ class ContentExperiment:
             self.results["rl"].append(stats)
             if (it + 1) % c.eval_every == 0 and it + 1 < c.rl_iterations:
                 self._eval(f"iter{it + 1}", cp, sets=("val",))
-        self.results["hacking_flags"] = monitor.flags()
+        self.results["hacking"] = monitor.summary()
         planner = None
         if wm is not None:
             planner = ContentOutcomePlanner(cp, wm, c.planner, seed=c.seed)

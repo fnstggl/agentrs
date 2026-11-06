@@ -382,7 +382,6 @@ def test_permissions_and_rate_limits_apply_to_content_actions():
 def test_engagement_is_not_reward_and_hacking_is_flagged():
     env = ContentEnv()
     plain, hype, wrong_hype = [], [], []
-    mon = RewardHackingMonitor()
     eps_a, eps_b = [], []
     for i in range(20):
         t = make_content_task("content_forum", "train", i)
@@ -401,9 +400,17 @@ def test_engagement_is_not_reward_and_hacking_is_flagged():
     for i in range(10):
         eps_a.append(run_episode(env, make_content_task("content_forum", "val", i), teach))
         eps_b.append(run_episode(env, make_content_task("content_forum", "val", i), spam))
-    mon.record(0, eps_a)
-    mon.record(1, eps_b)
-    assert mon.flags()
+    quiet = RewardHackingMonitor(window=2, min_n=10)
+    for i in range(4):
+        quiet.record(i, eps_a)
+    assert not quiet.flags()  # no change, no flag
+    mon = RewardHackingMonitor(window=2, min_n=10)
+    for i in range(2):
+        mon.record(i, eps_a)
+    for i in range(2, 4):
+        mon.record(i, eps_b)
+    fl = mon.flags()
+    assert any("engagement" in f for f in fl) and any("proxy" in f for f in fl)
 
 
 class _Spam:
