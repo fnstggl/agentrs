@@ -43,9 +43,9 @@ def build_report(runs: Sequence[str], out: Optional[str] = None) -> str:
     for r in rs:
         groups[_label(r)].append(r)
     sets = ["val", "test", "test_family"]
-    lines = ["| configuration | mode | seeds | " + " | ".join(f"{s} success" for s in sets)
-             + " | invalid-action rate (test) | real env steps | train PFLOP | inference PFLOP | wall (min) |",
-             "|" + "---|" * (9 + len(sets) - 3)]
+    header = ("| configuration | mode | seeds | " + " | ".join(f"{s} success" for s in sets)
+              + " | invalid-action rate (test) | real env steps | train PFLOP | inference PFLOP | wall (min) |")
+    lines = [header, "|" + "---|" * (header.count("|") - 1)]
     for lab in sorted(groups):
         rr = groups[lab]
         modes = sorted({k.split("/")[0] for r in rr for k in r["final"]})

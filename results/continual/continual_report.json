@@ -1,0 +1,412 @@
+{
+ "cycles": [
+  {
+   "cycle": 1,
+   "actor": {
+    "episodes": 32,
+    "success": 0.34375,
+    "steps": 86,
+    "policy": "policy-1793968380-6201a3"
+   },
+   "learner": {
+    "wm_loss": 0.12451311945915222,
+    "rl_pg_loss": -0.032783242563406624,
+    "rl_entropy": 0.5125214705864588,
+    "rl_clipfrac": 0.1268939400712649,
+    "rl_approx_kl_old": 0.020545476872333285,
+    "rl_mean_adv": 0.011365138925611973,
+    "rl_mean_ratio": 0.9877705276012421,
+    "rl_grad_norm": 8.299027999242147,
+    "rl_lr": 3e-05,
+    "rl_skipped": 0.0,
+    "rl_critic_loss": 0.9629989415407181,
+    "rl_critic_grad_norm": 8.574123501777649,
+    "rl_n_steps": 86,
+    "rl_n_imagined_steps": 0,
+    "candidate": "policy-1793968437-1718a9"
+   },
+   "evaluation": {
+    "candidate": "policy-1793968437-1718a9",
+    "promoted": true,
+    "reason": "success_rate improved by +0.000",
+    "candidate_metrics": {
+     "success_rate": 0.3333333333333333,
+     "invalid_action_rate": 0.0,
+     "by_family": {
+      "click_button": 0.3333333333333333,
+      "dropdown": 0.6666666666666666,
+      "fill_field": 0.3333333333333333,
+      "menu": 0.3333333333333333,
+      "navigate_link": 0.0
+     },
+     "n": 15
+    },
+    "production_metrics": {
+     "success_rate": 0.3333333333333333,
+     "invalid_action_rate": 0.0,
+     "by_family": {
+      "click_button": 0.3333333333333333,
+      "dropdown": 0.6666666666666666,
+      "fill_field": 0.3333333333333333,
+      "menu": 0.3333333333333333,
+      "navigate_link": 0.0
+     },
+     "n": 15
+    },
+    "production_before": "policy-1793968380-6201a3"
+   },
+   "curriculum": {
+    "stage": 0,
+    "competence": {
+     "0": 0.34375,
+     "1": 0.0,
+     "2": 0.0
+    },
+    "log": []
+   },
+   "advanced": false,
+   "mean_forgetting": 0.0,
+   "wall_s": 64.56964349746704
+  },
+  {
+   "cycle": 2,
+   "actor": {
+    "episodes": 32,
+    "success": 0.28125,
+    "steps": 82,
+    "policy": "policy-1793968437-1718a9"
+   },
+   "learner": {
+    "wm_loss": 0.2441554069519043,
+    "rl_pg_loss": -0.024241687109073002,
+    "rl_entropy": 0.5289680361747742,
+    "rl_clipfrac": 0.1012731504937013,
+    "rl_approx_kl_old": 0.010350889489927795,
+    "rl_mean_adv": 0.013530004769563675,
+    "rl_mean_ratio": 0.9948240021864573,
+    "rl_grad_norm": 12.536398728688559,
+    "rl_lr": 3e-05,
+    "rl_skipped": 0.0,
+    "rl_critic_loss": 0.4651547446846962,
+    "rl_critic_grad_norm": 3.8619742691516876,
+    "rl_n_steps": 82,
+    "rl_n_imagined_steps": 0,
+    "candidate": "policy-1793968501-450004"
+   },
+   "evaluation": {
+    "candidate": "policy-1793968501-450004",
+    "promoted": true,
+    "reason": "success_rate improved by +0.000",
+    "candidate_metrics": {
+     "success_rate": 0.3333333333333333,
+     "invalid_action_rate": 0.0,
+     "by_family": {
+      "click_button": 0.3333333333333333,
+      "dropdown": 0.6666666666666666,
+      "fill_field": 0.3333333333333333,
+      "menu": 0.3333333333333333,
+      "navigate_link": 0.0
+     },
+     "n": 15
+    },
+    "production_metrics": {
+     "success_rate": 0.3333333333333333,
+     "invalid_action_rate": 0.0,
+     "by_family": {
+      "click_button": 0.3333333333333333,
+      "dropdown": 0.6666666666666666,
+      "fill_field": 0.3333333333333333,
+      "menu": 0.3333333333333333,
+      "navigate_link": 0.0
+     },
+     "n": 15
+    },
+    "production_before": "policy-1793968437-1718a9"
+   },
+   "curriculum": {
+    "stage": 0,
+    "competence": {
+     "0": 0.28125,
+     "1": 0.0,
+     "2": 0.0
+    },
+    "log": []
+   },
+   "advanced": false,
+   "mean_forgetting": 0.0,
+   "wall_s": 63.29477310180664
+  },
+  {
+   "cycle": 3,
+   "actor": {
+    "episodes": 32,
+    "success": 0.25,
+    "steps": 93,
+    "policy": "policy-1793968501-450004"
+   },
+   "learner": {
+    "wm_loss": 0.21560782194137573,
+    "rl_pg_loss": -0.009093070402741432,
+    "rl_entropy": 0.49021634459495544,
+    "rl_clipfrac": 0.04328304591278235,
+    "rl_approx_kl_old": 0.0022941072047615307,
+    "rl_mean_adv": 0.0031348553796609244,
+    "rl_mean_ratio": 0.9885504047075907,
+    "rl_grad_norm": 8.40182069937388,
+    "rl_lr": 3e-05,
+    "rl_skipped": 0.0,
+    "rl_critic_loss": 0.39106322079896927,
+    "rl_critic_grad_norm": 1.716204583644867,
+    "rl_n_steps": 93,
+    "rl_n_imagined_steps": 0,
+    "candidate": "policy-1793968565-332c59"
+   },
+   "evaluation": {
+    "candidate": "policy-1793968565-332c59",
+    "promoted": true,
+    "reason": "success_rate improved by +0.000",
+    "candidate_metrics": {
+     "success_rate": 0.3333333333333333,
+     "invalid_action_rate": 0.0,
+     "by_family": {
+      "click_button": 0.3333333333333333,
+      "dropdown": 0.6666666666666666,
+      "fill_field": 0.3333333333333333,
+      "menu": 0.3333333333333333,
+      "navigate_link": 0.0
+     },
+     "n": 15
+    },
+    "production_metrics": {
+     "success_rate": 0.3333333333333333,
+     "invalid_action_rate": 0.0,
+     "by_family": {
+      "click_button": 0.3333333333333333,
+      "dropdown": 0.6666666666666666,
+      "fill_field": 0.3333333333333333,
+      "menu": 0.3333333333333333,
+      "navigate_link": 0.0
+     },
+     "n": 15
+    },
+    "production_before": "policy-1793968501-450004"
+   },
+   "curriculum": {
+    "stage": 0,
+    "competence": {
+     "0": 0.25,
+     "1": 0.0,
+     "2": 0.0
+    },
+    "log": []
+   },
+   "advanced": false,
+   "mean_forgetting": 0.0,
+   "wall_s": 63.80807971954346
+  },
+  {
+   "cycle": 4,
+   "actor": {
+    "episodes": 32,
+    "success": 0.34375,
+    "steps": 83,
+    "policy": "policy-1793968565-332c59"
+   },
+   "learner": {
+    "wm_loss": 0.0627676397562027,
+    "rl_pg_loss": -0.001521174485484759,
+    "rl_entropy": 0.5616642932097117,
+    "rl_clipfrac": 0.013980263223250708,
+    "rl_approx_kl_old": 0.0019955413966575484,
+    "rl_mean_adv": -0.010243577882647514,
+    "rl_mean_ratio": 0.9916721681753794,
+    "rl_grad_norm": 9.332115411758423,
+    "rl_lr": 3e-05,
+    "rl_skipped": 0.0,
+    "rl_critic_loss": 0.38501063734292984,
+    "rl_critic_grad_norm": 2.035642832517624,
+    "rl_n_steps": 83,
+    "rl_n_imagined_steps": 0,
+    "candidate": "policy-1793968628-263823"
+   },
+   "evaluation": {
+    "candidate": "policy-1793968628-263823",
+    "promoted": true,
+    "reason": "success_rate improved by +0.000",
+    "candidate_metrics": {
+     "success_rate": 0.3333333333333333,
+     "invalid_action_rate": 0.0,
+     "by_family": {
+      "click_button": 0.3333333333333333,
+      "dropdown": 0.6666666666666666,
+      "fill_field": 0.3333333333333333,
+      "menu": 0.3333333333333333,
+      "navigate_link": 0.0
+     },
+     "n": 15
+    },
+    "production_metrics": {
+     "success_rate": 0.3333333333333333,
+     "invalid_action_rate": 0.0,
+     "by_family": {
+      "click_button": 0.3333333333333333,
+      "dropdown": 0.6666666666666666,
+      "fill_field": 0.3333333333333333,
+      "menu": 0.3333333333333333,
+      "navigate_link": 0.0
+     },
+     "n": 15
+    },
+    "production_before": "policy-1793968565-332c59"
+   },
+   "curriculum": {
+    "stage": 0,
+    "competence": {
+     "0": 0.34375,
+     "1": 0.0,
+     "2": 0.0
+    },
+    "log": []
+   },
+   "advanced": false,
+   "mean_forgetting": 0.0,
+   "wall_s": 62.41210460662842
+  },
+  {
+   "cycle": 5,
+   "actor": {
+    "episodes": 32,
+    "success": 0.15625,
+    "steps": 72,
+    "policy": "policy-1793968628-263823"
+   },
+   "learner": {
+    "wm_loss": 0.1786489486694336,
+    "rl_pg_loss": 0.007049786547819774,
+    "rl_entropy": 0.554329514503479,
+    "rl_clipfrac": 0.041666666666666664,
+    "rl_approx_kl_old": 0.0016410474763688399,
+    "rl_mean_adv": -0.023890208452939987,
+    "rl_mean_ratio": 1.0039067566394806,
+    "rl_grad_norm": 11.22163716952006,
+    "rl_lr": 3e-05,
+    "rl_skipped": 0.0,
+    "rl_critic_loss": 0.44951359182596207,
+    "rl_critic_grad_norm": 2.144331783056259,
+    "rl_n_steps": 72,
+    "rl_n_imagined_steps": 0,
+    "candidate": "policy-1793968684-aa177e"
+   },
+   "evaluation": {
+    "candidate": "policy-1793968684-aa177e",
+    "promoted": true,
+    "reason": "success_rate improved by +0.000",
+    "candidate_metrics": {
+     "success_rate": 0.3333333333333333,
+     "invalid_action_rate": 0.0,
+     "by_family": {
+      "click_button": 0.3333333333333333,
+      "dropdown": 0.6666666666666666,
+      "fill_field": 0.3333333333333333,
+      "menu": 0.3333333333333333,
+      "navigate_link": 0.0
+     },
+     "n": 15
+    },
+    "production_metrics": {
+     "success_rate": 0.3333333333333333,
+     "invalid_action_rate": 0.0,
+     "by_family": {
+      "click_button": 0.3333333333333333,
+      "dropdown": 0.6666666666666666,
+      "fill_field": 0.3333333333333333,
+      "menu": 0.3333333333333333,
+      "navigate_link": 0.0
+     },
+     "n": 15
+    },
+    "production_before": "policy-1793968628-263823"
+   },
+   "curriculum": {
+    "stage": 0,
+    "competence": {
+     "0": 0.15625,
+     "1": 0.0,
+     "2": 0.0
+    },
+    "log": []
+   },
+   "advanced": false,
+   "mean_forgetting": 0.0,
+   "wall_s": 55.85337042808533
+  },
+  {
+   "cycle": 6,
+   "actor": {
+    "episodes": 32,
+    "success": 0.34375,
+    "steps": 100,
+    "policy": "policy-1793968684-aa177e"
+   },
+   "learner": {
+    "wm_loss": 0.10967330634593964,
+    "rl_pg_loss": -0.0960410381667316,
+    "rl_entropy": 0.5198923461139202,
+    "rl_clipfrac": 0.06640625,
+    "rl_approx_kl_old": 0.013885794549423736,
+    "rl_mean_adv": 0.08280973078217357,
+    "rl_mean_ratio": 0.9987140819430351,
+    "rl_grad_norm": 8.771338522434235,
+    "rl_lr": 3e-05,
+    "rl_skipped": 0.0,
+    "rl_critic_loss": 0.450561985373497,
+    "rl_critic_grad_norm": 2.0640991926193237,
+    "rl_n_steps": 100,
+    "rl_n_imagined_steps": 0,
+    "candidate": "policy-1793968748-462371"
+   },
+   "evaluation": {
+    "candidate": "policy-1793968748-462371",
+    "promoted": true,
+    "reason": "success_rate improved by +0.000",
+    "candidate_metrics": {
+     "success_rate": 0.3333333333333333,
+     "invalid_action_rate": 0.0,
+     "by_family": {
+      "click_button": 0.3333333333333333,
+      "dropdown": 0.6666666666666666,
+      "fill_field": 0.3333333333333333,
+      "menu": 0.3333333333333333,
+      "navigate_link": 0.0
+     },
+     "n": 15
+    },
+    "production_metrics": {
+     "success_rate": 0.3333333333333333,
+     "invalid_action_rate": 0.0,
+     "by_family": {
+      "click_button": 0.3333333333333333,
+      "dropdown": 0.6666666666666666,
+      "fill_field": 0.3333333333333333,
+      "menu": 0.3333333333333333,
+      "navigate_link": 0.0
+     },
+     "n": 15
+    },
+    "production_before": "policy-1793968684-aa177e"
+   },
+   "curriculum": {
+    "stage": 0,
+    "competence": {
+     "0": 0.34375,
+     "1": 0.0,
+     "2": 0.0
+    },
+    "log": []
+   },
+   "advanced": false,
+   "mean_forgetting": 0.0,
+   "wall_s": 64.01812267303467
+  }
+ ]
+}

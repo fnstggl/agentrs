@@ -1,0 +1,53 @@
+{
+ "run": "runs/final/v2_D_s0",
+ "policy": null,
+ "world_model": null,
+ "critic": null,
+ "results": [
+  {
+   "planner": {
+    "policy_prior_weight": 1.0
+   },
+   "val": {
+    "success_rate": 0.25,
+    "success_ci95": [
+     0.125,
+     0.4
+    ],
+    "invalid_action_rate": 0.0,
+    "mean_steps": 6.625,
+    "seconds_per_episode": 2.000307333469391,
+    "inference_flops_per_episode": 395830246400.0,
+    "by_family": {
+     "checkboxes": 0.0,
+     "checkout": 0.0,
+     "click_button": 0.25,
+     "dropdown": 0.25,
+     "fill_field": 0.75,
+     "form_validation": 0.0,
+     "login": 0.25,
+     "menu": 0.5,
+     "navigate_link": 0.0,
+     "search_lookup": 0.5
+    }
+   },
+   "test_family": {
+    "success_rate": 0.0,
+    "success_ci95": [
+     0.0,
+     0.0
+    ],
+    "invalid_action_rate": 0.0,
+    "mean_steps": 4.1875,
+    "seconds_per_episode": 1.7212435975670815,
+    "inference_flops_per_episode": 269976977920.0,
+    "by_family": {
+     "dialog_confirm": 0.0,
+     "lookup_then_fill": 0.0,
+     "scroll_find": 0.0,
+     "toggle_settings": 0.0
+    }
+   }
+  }
+ ]
+}

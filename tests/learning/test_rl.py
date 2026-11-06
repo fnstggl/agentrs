@@ -52,7 +52,7 @@ def test_truncation_is_bootstrapped_termination_is_not(scratch_bb):
     trunc[-1].next_belief_prompt = "GOAL: g final\nACTION:"
     term = [_tr("B", 0), _tr("B", 1, terminated=True)]
     st = build_rl_steps([trunc], cfg, cr)
-    v_final = float(cr.value(["GOAL: g final\nACTION:"])[0])
+    v_final = float(cr.value(["GOAL: g final\nACTION:"])[0].detach())
     assert st[-1].ret == pytest.approx(v_final, abs=1e-5)
     st2 = build_rl_steps([term], cfg, cr)
     assert st2[-1].ret == pytest.approx(0.0)
