@@ -4,11 +4,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source .venv/bin/activate
-mkdir -p runs/v2/logs
+mkdir -p runs/final/logs
 for seed in ${SEEDS:-0}; do
   for v in A B C D Dimag; do
     nohup python scripts/run_experiment.py configs/experiments/v2_${v}.yaml --threads 1 \
-      --set seed=${seed} name=v2_${v}_s${seed} > runs/v2/logs/v2_${v}_s${seed}.log 2>&1 &
+      --set seed=${seed} name=v2_${v}_s${seed} > runs/final/logs/v2_${v}_s${seed}.log 2>&1 &
   done
 done
 wait

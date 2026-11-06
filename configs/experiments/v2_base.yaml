@@ -2,7 +2,7 @@
 # reward definition, RL task stream and evaluation sets for every variant of a given seed.
 # Deterministic shared stages (BC, initial world model, initial critic) are cached per seed.
 inherit: ../models/dev_pythia14m.yaml
-out_dir: runs/v2
+out_dir: runs/final
 seed: 0
 n_demo_tasks_per_family: 40
 teacher_epsilon: 0.15
@@ -23,15 +23,18 @@ critic_train:
   batch_size: 32
   eval_every: 300
   optim: {lr: 5.0e-4, total_steps: 300, warmup_steps: 20, schedule: cosine}
+# RL step size tuned on the val split (runs/tune): lr 1e-4 gave per-update KL 0.1-0.4, constant
+# PPO early stopping and val success falling 0.30 -> 0.175 after 5 iterations; 1e-5 and 3e-5 were
+# stable (KL ~0.002-0.02) with val 0.30 / 0.325 after 5 iterations. 3e-5 selected.
 rl:
   algo: ppo
   epochs: 2
-  minibatch_size: 16
+  minibatch_size: 32
   gamma: 0.95
   gae_lambda: 0.95
-  entropy_coef: 0.01
+  entropy_coef: 0.001
   invalid_action_penalty: 0.1
-  policy_optim: {lr: 1.0e-4, total_steps: 100000}
+  policy_optim: {lr: 3.0e-5, total_steps: 100000}
   critic_optim: {lr: 3.0e-4, total_steps: 100000}
 rl_iterations: 25
 episodes_per_iter: 32
