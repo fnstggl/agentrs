@@ -1,0 +1,5 @@
+# Ablation 4: no observational learning (no demonstrations for policy, world model or critic).
+inherit: v2_base.yaml
+name: v2_Dnodemos
+variant: D
+use_demos: false

@@ -254,7 +254,7 @@ class Experiment:
         c = self.cfg
         t_start = time.time()
         demos: list[EpisodeRecord] = []
-        if c.use_demos or c.use_world_model:
+        if c.use_demos:  # "no observational learning" ablation: no demos for ANY component
             demos = generate_demonstrations(c, self.store)
             for ep in demos:
                 self.replay.add_episode(ep)
@@ -269,7 +269,11 @@ class Experiment:
             self.results["bc"] = {k: r[k] for k in ("n_train_examples", "before", "after", "param_change_l2")}
             self.results["bc"]["from_cache"] = hit
             self._ckpt("policy_bc", self.policy)
-        if self.wm is not None:
+        if self.wm is not None and not demo_ts:  # world model learns only from own experience
+            from agentrs.training.common import GradientTrainer
+
+            self.wm_trainer = GradientTrainer(self.wm, c.wm_train.optim)
+        if self.wm is not None and demo_ts:
             from agentrs.training.common import GradientTrainer, load_trainer_state
 
             r, hit = self._cached_stage("wm", self.wm, (c.world_model, c.wm_train), lambda: train_world_model(

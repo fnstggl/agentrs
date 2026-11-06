@@ -1,0 +1,6 @@
+# Ablation 9: larger world model (Pythia-31M instead of Pythia-14M); policy and critic unchanged.
+inherit: v2_base.yaml
+name: v2_Dwm31m
+variant: D
+world_model:
+  backbone: {name: EleutherAI/pythia-31m, max_prompt_tokens: 512}

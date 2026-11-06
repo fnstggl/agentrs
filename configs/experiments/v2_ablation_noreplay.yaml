@@ -1,0 +1,5 @@
+# Ablation 6: no historical replay (online world-model updates use only the newest experience).
+inherit: v2_base.yaml
+name: v2_Dnoreplay
+variant: D
+historical_replay: false

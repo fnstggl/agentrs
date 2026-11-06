@@ -165,3 +165,20 @@ def test_task_generation_independent_of_hash_seed():
         outs.add(subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True,
                                 check=True).stdout)
     assert len(outs) == 1
+
+
+def test_gymnasium_adapter():
+    from gymnasium.utils.env_checker import check_env
+
+    from agentrs.environments.gym_adapter import GymnasiumEnv
+
+    genv = GymnasiumEnv(MiniWebEnv(), task_set("train", ["click_button", "fill_field"], n_per_family=3))
+    check_env(genv, skip_render_check=True)
+    obs, info = genv.reset(seed=0, options={"task_index": 0})
+    assert obs.startswith("GOAL:") and info["action_mask"]
+    obs, r, term, trunc, info = genv.step("__import__('os')")
+    assert info["action_valid"] is False and r == 0.0
+    task = genv.tasks[0]
+    target = next(e for e in info["observation"].elements if e.name == task.private["target"])
+    obs, r, term, trunc, info = genv.step(f"click({target.eid})")
+    assert term and r == 1.0 and info["verification"]["success"]
