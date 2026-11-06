@@ -1,0 +1,12 @@
+# Content-learning comparison A-E (CPU, Pythia-14M). The policy starts from the seed-0 MiniWeb
+# behaviour-cloned checkpoint (the shared high-level action policy), and the content world model
+# extends the seed-0 MiniWeb world model. Same demos, RL episodes and evaluation sets for C/D/E.
+out_dir: runs/content
+seed: 0
+init_policy: runs/cache/bc_1318e51fdd21
+init_world_model: runs/cache/wm_c962f7759108
+n_demo_per_family: 40
+rl_iterations: 30
+tasks_per_iter: 8
+group_size: 4
+eval_every: 10

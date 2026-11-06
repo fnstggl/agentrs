@@ -2,7 +2,6 @@
 model, compared by the planner, and learned by gradient updates from verified outcomes."""
 
 import copy
-import random
 
 import pytest
 import torch
@@ -12,7 +11,7 @@ from agentrs.agent.runtime import TeacherActor, run_episode
 from agentrs.content.data import ContentExperienceDataset, observational_association, randomized_variant_test
 from agentrs.content.evaluation import RewardHackingMonitor, action_regression, lm_perplexity, regression_check
 from agentrs.content.planner import ContentOutcomePlanner, ContentPlannerConfig
-from agentrs.content.policy import ContentGenConfig, ContentGeneratingPolicy, ContentPolicyActor, escape_content
+from agentrs.content.policy import ContentGenConfig, ContentGeneratingPolicy, ContentPolicyActor
 from agentrs.content.semantic_action import ContentActionEncoder, SemanticAction
 from agentrs.content.training import (
     ContentBCConfig,
@@ -141,12 +140,9 @@ def test_world_model_trains_on_content_and_distinguishes_content(scratch_bb, mic
     data = []
     for i in range(160):  # authorised third-party examples: both times, observed outcomes
         t = micro_task("train", 200 + i)
-        obs = env.reset(t)
         slot = SLOTS[i % 2]
-        r = env.step(Action.submit("send_email", canonical(t.private["who"], slot)))
         ep = run_episode(env, t, TeacherActor(_Fixed(slot)), TEACH)
         data += ep.transitions
-        _ = (obs, r)
     ex = content_wm_examples(wm, data)
     for e in ex[:20]:
         assert e.transition.action in e.prompt  # the exact content is in the model input
@@ -280,8 +276,8 @@ def test_planner_compares_content_candidates_and_can_decline(bc_policy, scratch_
     no_email = PermissionPolicy(allowed_content_ops=frozenset({"apply_config"}))
     gated = ContentOutcomePlanner(cp, wm, ContentPlannerConfig(num_candidates=3), permissions=no_email)
     ep3 = run_episode(make_env("content"), micro_task("val", 3), gated)
-    assert ep3.transitions[0].action == "finish()" and "not authorised" in gated.last_candidates.__class__.__name__ + \
-        str(ep3.transitions[0].selection) or ep3.transitions[0].selection == "planner_declined"
+    assert ep3.transitions[0].action == "finish()" and ep3.transitions[0].selection == "planner_declined"
+    assert gated.stats["declined"] == 1 and gated.stats["candidates_scored"] == 0  # refused before drafting
 
 
 def test_imagined_success_is_not_verified_success(bc_policy, scratch_bb):
@@ -466,4 +462,3 @@ def test_end_to_end_goal_generate_predict_execute_update_evaluate(bc_policy, scr
     new = ContentGeneratingPolicy(load_model(path), cp.cfg, checkpoint_id="content-rl-v1")
     m, eps = evaluate_content(env, [micro_task("val", 100 + i) for i in range(6)], ContentPolicyActor(new, "greedy"))
     assert m["n"] == 6 and all(e.transitions[0].semantic_action.policy_checkpoint == "content-rl-v1" for e in eps)
-    _ = random

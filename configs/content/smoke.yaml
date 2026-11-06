@@ -1,0 +1,17 @@
+# Minutes-scale offline check of the content pipeline (tiny scratch models).
+out_dir: runs/content_smoke
+init_policy: null
+init_world_model: null
+policy: {backbone: {name: scratch, scratch: {hidden_size: 48, num_layers: 2, num_heads: 4, vocab_size: 512}}}
+world_model: {backbone: {name: scratch, scratch: {hidden_size: 48, num_layers: 2, num_heads: 4, vocab_size: 512}}, n_heads: 3}
+n_demo_per_family: 4
+bc: {steps: 10}
+rl_iterations: 2
+tasks_per_iter: 2
+group_size: 2
+wm_initial_steps: 5
+wm_steps_per_iter: 2
+eval_sets: {val: 1, test: 1, test_family: 2}
+eval_every: 1
+miniweb_eval_tasks_per_family: 1
+cache_dir: null
