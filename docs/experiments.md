@@ -55,3 +55,38 @@ training passes; reported separately for policy training, world-model training, 
 and inference (including planning). Real environment interactions are counted in steps and
 episodes. Cached shared stages (BC / initial world model / critic) are charged to every run that
 uses them.
+
+## Findings during development (measured, including failures)
+
+These were found by tests or by monitoring runs; each changed the code or the protocol.
+
+1. **Hash-seed nondeterminism confounded the first comparison.** `product_names()` iterated a
+   Python `set`, so `checkout`/`search_lookup` task instances depended on `PYTHONHASHSEED` and
+   differed between experiment processes. The pilot comparison (`results/pilot/`) is therefore
+   *not* controlled and is not reported as a result. Fixed; a test now regenerates tasks and
+   teacher episodes under three hash seeds and requires identical output. After the fix, an
+   RL run is bit-reproducible: the final seed-0 C run reproduced the per-iteration statistics of
+   the tuning run exactly.
+2. **PPO step size.** With lr 1e-4 (full fine-tuning of Pythia-14M), per-update approximate KL was
+   0.1–0.4, the clip fraction 25–43%, KL early stopping fired almost every iteration, entropy rose,
+   and validation success fell from 0.30 (BC) to 0.175 after 5 iterations
+   (`results/tuning/v2_C_s0_lr1e-4_aborted_metrics.jsonl`). On the val split, lr 1e-5 and 3e-5 gave
+   KL ≈ 0.002–0.02 and val success 0.30 / 0.325 after 5 iterations; 3e-5 was selected. All C/D runs
+   reported below use the tuned value; the aborted lr 1e-4 runs are not reported as results.
+3. **Planner-collected data is strongly off-policy.** Training PPO on episodes collected by the
+   softmax planner gave approximate KL ≈ 7.6 against the recorded behaviour probabilities in a
+   smoke run (immediate early stop). Main runs therefore collect on-policy and plan at decision
+   time; planner data is supported via truncated importance weights or search distillation.
+4. **Length bias of sequence-likelihood policies.** An untrained LM policy put ≈99% of its
+   probability on the shortest action (`finish()`; entropy 0.014), so on-policy RL from scratch
+   never received a reward (all advantages zero, no update). Found by a failing test. BC
+   initialisation removes it; `length_norm` is available for RL from scratch.
+5. **Small demonstration sets overfit.** With 20 demonstrations per family (pilot), BC raised
+   held-out imitation accuracy but *increased* validation NLL (4.94 → 5.06). Doubling to 40 per
+   family and halving the learning rate gave NLL 4.83 → 2.11 with accuracy 13.6% → 47.5%.
+6. **The critic trained on demonstrations is uninformative.** Teacher demonstrations succeed ≈90%
+   of the time, so the initial critic learns "high value everywhere" (V(s₀) AUROC 0.25–0.28 on the
+   small validation set, mean V(s₀) 0.76). It keeps training on the agent's own returns during RL.
+7. **Memory.** In the RL phase one experiment process grows to ≈2 GB; running 8 in parallel on a
+   15 GB machine triggered the OOM killer twice. Runs were restarted from scratch (deterministic);
+   `scripts/mem_queue.sh` now admits jobs only when memory is available.
