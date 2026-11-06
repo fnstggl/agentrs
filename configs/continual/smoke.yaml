@@ -1,0 +1,9 @@
+# Offline minutes-scale continual-learning check (tiny scratch model, separate processes).
+inherit: ../models/smoke_scratch.yaml
+root: runs/continual_smoke
+cycles: 2
+episodes_per_cycle: 6
+wm_steps_per_cycle: 2
+eval_tasks_per_family: 1
+policy: {length_norm: 1.0}
+curriculum: {stages: [[click_button, menu], [fill_field]], min_episodes: 2}

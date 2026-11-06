@@ -1,0 +1,15 @@
+# Continual learning on CPU with Pythia-14M. Start from a behaviour-cloned policy
+# (e.g. produced by `agentrs train-bc ... --out runs/ckpt/policy_bc`).
+inherit: ../models/dev_pythia14m.yaml
+root: runs/continual_dev
+seed: 0
+cycles: 6
+episodes_per_cycle: 32
+initial_policy: runs/ckpt/policy_bc
+use_world_model: true
+wm_steps_per_cycle: 20
+eval_tasks_per_family: 3
+rl: {algo: ppo, epochs: 2, policy_optim: {lr: 1.0e-4, total_steps: 100000}}
+gate: {min_improvement: 0.0, max_family_regression: 0.34, max_invalid_rate: 0.3}
+curriculum: {advance_threshold: 0.5, min_episodes: 16, window: 32}
+separate_processes: true
