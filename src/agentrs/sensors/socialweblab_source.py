@@ -61,38 +61,31 @@ class DirectLabClient:
 
 
 class HttpLabClient:
-    """Adapter over ``socialweblab.server.LabClient`` (HTTP or in-process transport) with an observer key."""
+    """Observer client over a ``socialweblab.server`` transport (``HttpTransport`` against a running
+    server, or ``InProcessTransport``) authenticated with an observer API key. Rate-limit refusals
+    (HTTP 429) surface as ``SourceError`` so the scheduler retries with backoff."""
 
-    def __init__(self, lab_client, now_fn=None):
-        self.c = lab_client
-        self._now = now_fn
+    def __init__(self, transport):
+        self.t = transport
         self._last_now: float | None = None
 
-    @staticmethod
-    def _unwrap(res):
-        status, body = res if isinstance(res, tuple) else (200, res)
+    def _get(self, path, **params):
+        status, body = self.t.get(path, **params)
         if status != 200:
-            retry = None
-            if isinstance(body, dict):
-                retry = body.get("retry_after")
+            retry = body.get("retry_after") if isinstance(body, dict) else None
             raise SourceError(f"HTTP {status}: {body}", status, retry)
+        if isinstance(body, dict) and "now" in body:
+            self._last_now = float(body["now"])
         return body
 
     def events(self, since: int, limit: int = 200) -> dict:
-        body = self._unwrap(self.c.events(since, limit))
-        self._last_now = body.get("now", self._last_now)
-        return body
+        return self._get("/api/events", since=since, limit=limit)
 
     def item(self, item_id: int) -> dict:
-        body = self._unwrap(self.c.item(int(item_id)))
-        self._last_now = body.get("now", self._last_now)
-        return body
+        return self._get(f"/api/items/{int(item_id)}")
 
     def now(self) -> float:
-        if self._now:
-            return self._now()
-        if self._last_now is None:
-            self.events(10 ** 12, 1)
+        self.events(10 ** 12, 1)  # the server reports its (possibly virtual) clock with every response
         return float(self._last_now)
 
 
