@@ -46,6 +46,7 @@ from agentrs.temporal.horizon_config import HorizonConfig
 from agentrs.temporal.observation_scheduler import (
     AdaptivePolicy,
     ObservationWorker,
+    SchedulerConfig,
     TemporalObservationScheduler,
 )
 
@@ -61,6 +62,7 @@ class NetworkConfig(BaseModel):
     forecast_horizons: list[float] | None = None  # default: the action's profile horizons
     forecasts_enabled: bool = True
     use_feed_events: bool = True  # False: learn only from scheduled polls (ablation: no event feed)
+    event_coalesce_s: float = 60.0  # event-driven checks of one action are merged within this window
 
 
 class QueueFull(RuntimeError):
@@ -122,7 +124,8 @@ class ObservationSensorNetwork:
         self.dir.mkdir(parents=True, exist_ok=True)
         self.registry = registry
         self.ledger = ledger or DelayedOutcomeLedger(self.dir / "ledger.sqlite")
-        self.scheduler = scheduler or TemporalObservationScheduler(self.dir / "jobs.sqlite")
+        self.scheduler = scheduler or TemporalObservationScheduler(
+            self.dir / "jobs.sqlite", SchedulerConfig(event_coalesce_s=(cfg or NetworkConfig()).event_coalesce_s))
         self.dedup = Deduplicator(self.dir / "dedup.sqlite")
         self.forecaster = forecaster
         self.cfg = cfg or NetworkConfig()

@@ -37,7 +37,10 @@ from agentrs.training.temporal_world_model_trainer import (  # noqa: E402
 MODES = {"fixed": NetworkConfig(scheduling="fixed", forecasts_enabled=False),
          "poll_only": NetworkConfig(scheduling="fixed", forecasts_enabled=False, use_feed_events=False),
          "event": NetworkConfig(scheduling="event", forecasts_enabled=False),
-         "adaptive": NetworkConfig(scheduling="adaptive", forecasts_enabled=True)}
+         "adaptive": NetworkConfig(scheduling="adaptive", forecasts_enabled=True),
+         # follow-up variants, designed after the first run showed per-event checks to be costly:
+         "event_6h": NetworkConfig(scheduling="event", forecasts_enabled=False, event_coalesce_s=6 * 3600),
+         "adaptive_6h": NetworkConfig(scheduling="adaptive", forecasts_enabled=True, event_coalesce_s=6 * 3600)}
 
 
 def main():
@@ -47,9 +50,11 @@ def main():
     ap.add_argument("--train-days", type=float, default=7)
     ap.add_argument("--steps", type=int, default=TUNED["steps"])
     ap.add_argument("--forecaster-steps", type=int, default=300)
+    ap.add_argument("--modes", default="fixed,poll_only,event,adaptive")
+    ap.add_argument("--tag", default="")
     a = ap.parse_args()
     threads()
-    out = RUNS / f"expB_s{a.seed}"
+    out = RUNS / f"expB{a.tag}_s{a.seed}"
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
@@ -69,8 +74,11 @@ def main():
         t = o.effective_action_time()
         return "train" if t < t_train else ("test" if t < t_test else "late")
 
+    modes = {m: MODES[m] for m in a.modes.split(",")}
+    if "fixed" not in modes:
+        modes = {"fixed": MODES["fixed"], **modes}  # the reference labels come from the fixed network
     nets = {m: build_network(out / m, lab, fc if c.forecasts_enabled else None, c, split_fn=split)
-            for m, c in MODES.items()}
+            for m, c in modes.items()}
     wall = dict.fromkeys(nets, 0.0)
     for _ in range(int(a.days * 96)):
         lab.advance(900)
@@ -122,9 +130,9 @@ def main():
                            "brier_gain_per_1000_requests": 1000 * gain / max(1, fetches),
                            "collection_wall_s": wall[m], "train": {k: info[k] for k in ("last_loss", "seconds")}}
         print(m, fetches, kinds, round(ev["mean_brier"], 4), round(gain, 4), flush=True)
-        save_json(f"expB_s{a.seed}.json", res)
+        save_json(f"expB{a.tag}_s{a.seed}.json", res)
     res["wall_s"] = T.s()
-    save_json(f"expB_s{a.seed}.json", res)
+    save_json(f"expB{a.tag}_s{a.seed}.json", res)
 
 
 if __name__ == "__main__":

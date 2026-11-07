@@ -1,0 +1,130 @@
+{
+ "seed": 10,
+ "days": 10,
+ "lab": {
+  "users": 88,
+  "items": 699,
+  "responses": 1247,
+  "reactions": 1980,
+  "views": 8212,
+  "events": 5092,
+  "jobs": 4545,
+  "now": 1768435200.0
+ },
+ "modes": {
+  "fixed": {
+   "observation_requests": 4275,
+   "feed_polls": 5086,
+   "scheduler": {
+    "horizon:cancelled": 12,
+    "horizon:done": 4275,
+    "horizon:pending": 578,
+    "budget_spent": {
+     "swl-feed": 4275.0
+    }
+   },
+   "train_actions": 503,
+   "label_kinds": {
+    "exact": 946,
+    "interval": 0,
+    "right_censored": 563
+   },
+   "mean_interval_width_h": null,
+   "detection_latency_h_median": 0.12049157357878156,
+   "eval": {
+    "mean_brier": 0.14175188479344136,
+    "mean_auroc": 0.7351964801397828,
+    "overall": {
+     "n": 1678,
+     "brier": 0.13662521467267733,
+     "nll": 0.41967383917481804,
+     "auroc": 0.8906145295439316,
+     "ece": 0.077666689579308
+    },
+    "counts": {
+     "responses": {
+      "n": 388,
+      "mae": 1.1002672910232834,
+      "log_mae": 0.5557699651482707
+     },
+     "views": {
+      "n": 388,
+      "mae": 8.41819393955647,
+      "log_mae": 1.1418324134690663
+     }
+    }
+   },
+   "brier_gain_vs_km": 0.02712426267304338,
+   "brier_gain_per_1000_requests": 0.006344856765624183,
+   "collection_wall_s": 0.1,
+   "train": {
+    "last_loss": 1.4187637925148011,
+    "seconds": 123.74258300700058
+   }
+  },
+  "event_6h": {
+   "observation_requests": 3053,
+   "feed_polls": 5086,
+   "scheduler": {
+    "event:cancelled": 4,
+    "horizon:cancelled": 8,
+    "event:done": 1395,
+    "horizon:done": 1658,
+    "horizon:pending": 431,
+    "budget_spent": {
+     "swl-feed": 3053.0
+    }
+   },
+   "train_actions": 503,
+   "label_kinds": {
+    "exact": 946,
+    "interval": 0,
+    "right_censored": 563
+   },
+   "mean_interval_width_h": null,
+   "detection_latency_h_median": 0.12049157357878156,
+   "eval": {
+    "mean_brier": 0.13852561408440767,
+    "mean_auroc": 0.7858534815632843,
+    "overall": {
+     "n": 1678,
+     "brier": 0.13404325856861604,
+     "nll": 0.4151126515301021,
+     "auroc": 0.9018471362686744,
+     "ece": 0.09324518947196621
+    },
+    "counts": {
+     "responses": {
+      "n": 388,
+      "mae": 1.0486706773345373,
+      "log_mae": 0.5357208329312564
+     },
+     "views": {
+      "n": 388,
+      "mae": 10.203823343516785,
+      "log_mae": 1.2367861774404716
+     }
+    }
+   },
+   "brier_gain_vs_km": 0.030350533382077077,
+   "brier_gain_per_1000_requests": 0.009941216305953841,
+   "collection_wall_s": 0.0,
+   "train": {
+    "last_loss": 1.5163023352622986,
+    "seconds": 116.62800943599905
+   }
+  }
+ },
+ "marginal_km": {
+  "mean_brier": 0.16887614746648474,
+  "mean_auroc": 0.5,
+  "overall": {
+   "n": 1678,
+   "brier": 0.1295573535666159,
+   "nll": 0.3956857348900915,
+   "auroc": 0.8912877921873152,
+   "ece": 0.04628084198318802
+  },
+  "counts": {}
+ }
+}
