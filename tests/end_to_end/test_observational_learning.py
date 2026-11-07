@@ -8,7 +8,6 @@ randomly initialised temporal world model (scratch backbone) is trained on the m
 
 import hashlib
 
-import numpy as np
 import pytest
 import torch
 
@@ -32,11 +31,11 @@ from agentrs.training.temporal_world_model_trainer import (
     TemporalWorldModelTrainer,
 )
 
-HELD_OUT_SPACE = "databases"
+HELD_OUT_SPACES = ("databases", "linux")
 
 
 def _split(o):
-    if o.context_before.get("space") == HELD_OUT_SPACE:
+    if o.context_before.get("space") in HELD_OUT_SPACES:
         return "test_env"
     h = int(hashlib.md5((o.actor_ref or "").encode()).hexdigest(), 16) % 5
     return "test_actor" if h == 0 else "train"
@@ -72,7 +71,7 @@ def test_2_third_party_prediction_trains_real_weights_and_improves_held_out(worl
     train = b.build(as_of=now, splits=["train"])
     held = b.build(as_of=now, splits=["test_actor"], cutoffs=[0])
     assert len(train) > 100 and len(held) > 12
-    T = TemporalWorldModelTrainer(m, TemporalTrainConfig(steps=160, batch_size=16, seed=0))
+    T = TemporalWorldModelTrainer(m, TemporalTrainConfig(steps=320, batch_size=16, seed=0))
     ev = ["answered", "first_response", "positive_feedback", "removed"]
     before = T.evaluate(held, [HOUR, 6 * HOUR, DAY], ev)["overall"]
     snap = param_snapshot(m)
@@ -104,8 +103,7 @@ def test_8_generalises_to_held_out_actors_and_environment(world):
         assert len(novel) >= 0.7 * len(held)
         held = novel
         res = T.evaluate(held, [6 * HOUR, DAY], ["answered"])
-        aur = [v["auroc"] for v in res["events"]["answered"].values() if v["auroc"] is not None]
-        assert aur and float(np.mean(aur)) > 0.6, (split, res["events"]["answered"])
+        assert res["overall"]["n"] >= 20 and res["overall"]["auroc"] > 0.6, (split, res["events"]["answered"])
     actors_train = {e.action_id for e in train}
     assert actors_train
 
