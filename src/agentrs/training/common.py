@@ -167,6 +167,10 @@ def build_model(component: str, config: dict) -> nn.Module:
         from agentrs.content.world_model import ContentConditionedWorldModel, ContentWorldModelConfig
 
         return ContentConditionedWorldModel(ContentWorldModelConfig.model_validate(config))
+    if component == "temporal_world_model":
+        from agentrs.temporal.temporal_world_model import TemporalWorldModel, TemporalWorldModelConfig
+
+        return TemporalWorldModel(TemporalWorldModelConfig.model_validate(config))
     if component == "critic":
         from agentrs.models.critic import Critic, CriticConfig
 
