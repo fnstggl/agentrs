@@ -1,0 +1,16 @@
+# Multi-GPU research profile (configured, NOT executed here). One shared forecast service per GPU
+# with bounded queues (never one model copy per sensor); rollout and observer workers are CPU
+# processes that send batched inference requests.
+profile: multi_gpu
+world_model:
+  backbone: {name: Qwen/Qwen3-4B, max_prompt_tokens: 1024, device: cuda, dtype: bfloat16,
+             lora: {r: 32, alpha: 64, dropout: 0.05, target_modules: all-linear}}
+  n_heads: 8
+policy:
+  backbone: {name: Qwen/Qwen3-4B, max_prompt_tokens: 1024, device: cuda, dtype: bfloat16,
+             lora: {r: 32, alpha: 64, dropout: 0.05, target_modules: all-linear}, gradient_checkpointing: true}
+socialweblab: {clock: virtual, n_users: 2000, instances: 8}
+browser: {pool_size: 32, headless: true}
+sensors: {scheduling: adaptive, forecast_batch: 1024, forecast_queue: 262144, services: 2}
+training: {wm_steps: 50000, batch_size: 256, lr: 1.0e-4, rl_lr: 5.0e-6, data_parallel: 4}
+workers: {rollout: 32, observer: 8, learner: 4, evaluator: 2}

@@ -60,6 +60,7 @@ class NetworkConfig(BaseModel):
     max_pages_per_poll: int = 20
     forecast_horizons: list[float] | None = None  # default: the action's profile horizons
     forecasts_enabled: bool = True
+    use_feed_events: bool = True  # False: learn only from scheduled polls (ablation: no event feed)
 
 
 class QueueFull(RuntimeError):
@@ -221,6 +222,8 @@ class ObservationSensorNetwork:
             aid = aid or stable_action_id(sid, item.object_ref)
             if self.ledger.action(aid) is None:
                 self.stats["unknown_object"] += 1
+                return None
+            if not self.cfg.use_feed_events and item.type != "item_deleted":
                 return None
             fresh = self.ledger.record_event(EventRecord(
                 action_id=aid, type=item.type, observed_time=adapter.now(), env_event_time=item.env_event_time,

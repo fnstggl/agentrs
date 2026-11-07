@@ -89,7 +89,7 @@ def select(examples: Sequence[TemporalExample], budget: int, strategy: str, seed
         score = np.asarray(_scores(examples, strategy, model, predictions))
         order = list(np.argsort(-score))
         # half by score, half stratified over the score-ranked remainder (keeps every stratum)
-        top = order[: budget // 2]
+        top = order[: (budget + 1) // 2]
         rest = [i for i in order if i not in set(top)]
         more = _stratified(groups, budget - len(top), rng, order=rest)
         return sorted(set(top) | set(more))

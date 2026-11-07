@@ -1,0 +1,14 @@
+# Single-GPU research profile (configured, NOT executed here: no GPU in this sandbox).
+profile: single_gpu
+world_model:
+  backbone: {name: Qwen/Qwen3-0.6B, max_prompt_tokens: 768, device: cuda, dtype: bfloat16,
+             lora: {r: 16, alpha: 32, dropout: 0.05, target_modules: all-linear}}
+  n_heads: 5
+policy:
+  backbone: {name: Qwen/Qwen3-4B, max_prompt_tokens: 1024, device: cuda, dtype: bfloat16,
+             lora: {r: 16, alpha: 32, dropout: 0.05, target_modules: all-linear}, gradient_checkpointing: true}
+socialweblab: {clock: virtual, n_users: 400, step_s: 600}
+browser: {pool_size: 4, headless: true}
+sensors: {scheduling: adaptive, forecast_batch: 256, forecast_queue: 65536}
+training: {wm_steps: 5000, batch_size: 64, lr: 1.0e-4, rl_lr: 1.0e-5}
+workers: {rollout: 4, observer: 2, learner: 1, evaluator: 1}

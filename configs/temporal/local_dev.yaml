@@ -1,0 +1,12 @@
+# Local development (executed in this repository's CPU sandbox): small models, accelerated lab time.
+profile: local_dev
+world_model:
+  backbone: {name: EleutherAI/pythia-14m, max_prompt_tokens: 320, device: cpu}
+  n_heads: 5
+  grid_size: 24
+policy:
+  backbone: {name: EleutherAI/pythia-14m, max_prompt_tokens: 320, device: cpu}
+socialweblab: {clock: virtual, n_users: 80, step_s: 900}
+sensors: {scheduling: fixed, forecast_batch: 64, forecast_queue: 4096}
+training: {wm_steps: 500, batch_size: 16, lr: 2.0e-4, rl_lr: 3.0e-5, threads_per_process: 1}
+workers: {rollout: 1, observer: 1, learner: 1, evaluator: 1}

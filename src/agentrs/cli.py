@@ -519,6 +519,93 @@ def cmd_data_summary(a) -> int:
     return 0
 
 
+def cmd_lab_serve(a) -> int:
+    """Run SocialWebLab (simulated users) with its HTTP server; prints a test account."""
+    import time as _t
+
+    from agentrs.socialweblab.engine import SocialWebLab
+    from agentrs.socialweblab.server import SocialWebLabServer
+
+    lab = SocialWebLab(a.db, seed=a.seed, n_users=a.users, clock=a.clock)
+    try:
+        lab.create_account(a.account, a.password, spaces=[s["name"] for s in lab.spaces()])
+    except Exception:  # noqa: BLE001 - account already exists in a resumed database
+        pass
+    srv = SocialWebLabServer(lab, port=a.port)
+    srv.start()
+    print(f"SocialWebLab (simulated environment) at {srv.url}  login: {a.account} / {a.password}  clock: {a.clock}")
+    if a.clock == "real":
+        lab.start_worker()
+    t_end = _t.time() + a.duration
+    try:
+        while _t.time() < t_end:
+            if a.clock == "virtual" and a.speedup > 0:
+                lab.advance(a.speedup)
+            _t.sleep(1.0)
+    except KeyboardInterrupt:
+        pass
+    srv.stop()
+    lab.close()
+    return 0
+
+
+def cmd_observe_lab(a) -> int:
+    """Simulate SocialWebLab for N days while the sensor network observes it (optionally forecasting
+    with a temporal world-model checkpoint); prints collection statistics."""
+    from agentrs.sensors.observation_network import NetworkConfig
+    from agentrs.socialweblab.engine import SocialWebLab
+    from agentrs.temporal.system import build_network, run_lab
+    from agentrs.training.common import load_model
+
+    _threads(a)
+    lab = SocialWebLab(f"{a.out}/lab.db", seed=a.seed, n_users=a.users)
+    model = load_model(a.world_model) if a.world_model else None
+    net = build_network(f"{a.out}/net", lab, model, NetworkConfig(scheduling=a.scheduling,
+                                                                    updated_forecasts=bool(model)))
+    st = run_lab(lab, net, a.days * 86400, step_s=a.step)
+    _print({"run": st, "ledger": net.ledger.stats(), "scheduler": net.scheduler.stats(),
+            "forecasts": net.forecaster.stats if net.forecaster else None})
+    return 0
+
+
+def cmd_temporal_train(a) -> int:
+    """Train the temporal world model on a delayed-outcome ledger and evaluate on another split."""
+    from agentrs.sensors.socialweblab_source import lab_temporal_spec
+    from agentrs.temporal.delayed_outcome_ledger import DelayedOutcomeLedger
+    from agentrs.temporal.temporal_world_model import TemporalWorldModel, TemporalWorldModelConfig
+    from agentrs.training.common import OptimConfig
+    from agentrs.training.temporal_world_model_trainer import (
+        TemporalTrainConfig, TemporalTrainingDataBuilder, TemporalWorldModelTrainer)
+
+    _threads(a)
+    b = TemporalTrainingDataBuilder(DelayedOutcomeLedger(a.ledger), lab_temporal_spec())
+    tr = b.build(splits=a.train_split.split(","), cutoffs="observations", max_cutoffs=2)
+    ev = b.build(splits=a.eval_split.split(","), cutoffs=[0])
+    from agentrs.models.backbone import BackboneConfig
+
+    m = TemporalWorldModel(TemporalWorldModelConfig(backbone=BackboneConfig(name=a.model, max_prompt_tokens=320),
+                                                    spec=lab_temporal_spec()))
+    T = TemporalWorldModelTrainer(m, TemporalTrainConfig(steps=a.steps, batch_size=a.batch_size,
+                                                         optim=OptimConfig(lr=a.lr, total_steps=a.steps)))
+    info = T.train(tr)
+    T.save(a.out)
+    _print({"train": {k: v for k, v in info.items()}, "n_train": len(tr), "n_eval": len(ev),
+            "eval": T.evaluate(ev, [3600, 21600, 86400]).get("overall")})
+    return 0
+
+
+def cmd_temporal_forecast(a) -> int:
+    """Forecast the consequences of one action at several horizons with a temporal world model."""
+    from agentrs.temporal.temporal_world_model import TemporalQuery
+    from agentrs.temporal.time_encoding import durations
+    from agentrs.training.common import load_model
+
+    m = load_model(a.world_model)
+    q = TemporalQuery(context=a.context.replace("\\n", "\n"), action=a.action, source_type=a.source_type)
+    _print(m.predict(q, horizons=durations(a.horizons.split(","))).to_dict())
+    return 0
+
+
 # ------------------------------------------------------------------------------- parser
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="agentrs", description=__doc__)
@@ -613,6 +700,43 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--seed", type=int, default=0)
     s.add_argument("--out", required=True)
     s.add_argument("--resume", help="previous --out directory to resume")
+
+    s = add("lab-serve", cmd_lab_serve, "run SocialWebLab (simulated multi-user web app) with its HTTP server")
+    s.add_argument("--db", default="runs/socialweblab/lab.db")
+    s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--users", type=int, default=60)
+    s.add_argument("--clock", default="virtual", choices=["virtual", "real"])
+    s.add_argument("--speedup", type=float, default=0.0, help="virtual seconds advanced per wall second")
+    s.add_argument("--port", type=int, default=8765)
+    s.add_argument("--duration", type=float, default=3600.0, help="wall seconds to serve")
+    s.add_argument("--account", default="tester")
+    s.add_argument("--password", default="tester-pass")
+
+    s = add("observe-lab", cmd_observe_lab, "simulate SocialWebLab while the sensor network observes it")
+    s.add_argument("--out", required=True)
+    s.add_argument("--days", type=float, default=3)
+    s.add_argument("--users", type=int, default=60)
+    s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--step", type=float, default=900.0)
+    s.add_argument("--scheduling", default="fixed", choices=["fixed", "event", "adaptive"])
+    s.add_argument("--world-model", help="temporal world-model checkpoint used for forecasts")
+
+    s = add("temporal-train", cmd_temporal_train, "train the temporal world model from a delayed-outcome ledger")
+    s.add_argument("--ledger", required=True)
+    s.add_argument("--train-split", default="train")
+    s.add_argument("--eval-split", default="test")
+    s.add_argument("--model", default="EleutherAI/pythia-14m")
+    s.add_argument("--steps", type=int, default=300)
+    s.add_argument("--batch-size", type=int, default=16)
+    s.add_argument("--lr", type=float, default=2e-4)
+    s.add_argument("--out", required=True)
+
+    s = add("temporal-forecast", cmd_temporal_forecast, "forecast an action's consequences at several horizons")
+    s.add_argument("--world-model", required=True)
+    s.add_argument("--context", required=True, help="context text (use \\n for new lines)")
+    s.add_argument("--action", required=True, help='e.g. submit(create_post, "How do I ...?")')
+    s.add_argument("--source-type", default="self", choices=["self", "third_party"])
+    s.add_argument("--horizons", default="1m,1h,1d,7d")
 
     s = add("evaluate", cmd_evaluate, "held-out evaluation of a policy or planner")
     s.add_argument("--sets", default="val,test,test_family")
