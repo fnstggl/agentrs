@@ -16,11 +16,12 @@ between them.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import EVENTS, HELD_HORIZONS, HORIZONS, RUNS, Timer, make_wm, save_json, strip_content, threads  # noqa: E402
+from common import EVENTS, HELD_HORIZONS, HORIZONS, RESULTS, RUNS, TUNED, Timer, make_wm, save_json, strip_content, threads  # noqa: E402
 
 from agentrs.evaluation.temporal_baselines import DiscreteHorizonModel, cap_example, persistence_predict_fn  # noqa: E402
 from agentrs.models.backbone import BackboneConfig  # noqa: E402
@@ -68,10 +69,18 @@ def main():
     sets = {"test": test, "test_env": test_env}
     res = {"corpus": a.corpus, "seed": a.seed, "steps": a.steps, "n_train_actions": len(train0),
            "n_train_examples": len(train_upd), "n_test": len(test), "n_test_env": len(test_env), "arms": {}}
+    prev = RESULTS / f"expA_c{a.corpus}_s{a.seed}.json"
+    if prev.exists():  # keep arms already computed (re-running a subset merges)
+        res["arms"] = json.loads(prev.read_text()).get("arms", {})
     cfg = TemporalTrainConfig(steps=a.steps, batch_size=16, seed=a.seed,
                               optim=OptimConfig(lr=a.lr, total_steps=a.steps, schedule="cosine", warmup_steps=30))
-    for arm in a.arms.split(","):
+    tuned_cfg = TemporalTrainConfig(steps=TUNED["steps"], batch_size=16, seed=a.seed, optim=OptimConfig(
+        lr=TUNED["lr"], weight_decay=TUNED["wd"], total_steps=TUNED["steps"], schedule="cosine", warmup_steps=30))
+    base_cfg = cfg
+    for arm_name in a.arms.split(","):
         T0 = Timer()
+        arm = arm_name.removesuffix("_tuned")
+        cfg = tuned_cfg if arm_name.endswith("_tuned") else base_cfg
         if arm == "marginal_km":
             fn = marginal_predict_fn(train0, EVENTS, ["responses", "views"])
             info = {}
@@ -103,8 +112,9 @@ def main():
             if arm == "single_step":
                 fn = persistence_predict_fn(fn, 300.0)
         ev = evaluate(fn, sets_nc if arm == "no_content" else sets)
-        res["arms"][arm] = {"train": info, "eval": ev, "wall_s": T0.s()}
-        print(arm, T0.s(), {k: (round(v["observed_horizons"]["mean_brier"], 4), round(v["observed_horizons"]["mean_auroc"] or 0, 3),
+        res["arms"][arm_name] = {"train": info, "eval": ev, "wall_s": T0.s(),
+                                 "optim": cfg.optim.model_dump(), "steps": cfg.steps}
+        print(arm_name, T0.s(), {k: (round(v["observed_horizons"]["mean_brier"], 4), round(v["observed_horizons"]["mean_auroc"] or 0, 3),
                                 round(v["between_horizons"]["mean_brier"], 4)) for k, v in ev.items()}, flush=True)
         save_json(f"expA_c{a.corpus}_s{a.seed}.json", res)
 

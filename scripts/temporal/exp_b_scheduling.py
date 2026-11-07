@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import shutil  # noqa: E402
 
 import numpy as np  # noqa: E402
-from common import EVENTS, HORIZONS, RUNS, Timer, make_wm, save_json, threads  # noqa: E402
+from common import EVENTS, HORIZONS, RUNS, TUNED, Timer, make_wm, save_json, threads  # noqa: E402
 
 from agentrs.sensors.observation_network import NetworkConfig  # noqa: E402
 from agentrs.sensors.socialweblab_source import lab_temporal_spec  # noqa: E402
@@ -45,7 +45,7 @@ def main():
     ap.add_argument("--seed", type=int, default=10)
     ap.add_argument("--days", type=float, default=10)
     ap.add_argument("--train-days", type=float, default=7)
-    ap.add_argument("--steps", type=int, default=400)
+    ap.add_argument("--steps", type=int, default=TUNED["steps"])
     ap.add_argument("--forecaster-steps", type=int, default=300)
     a = ap.parse_args()
     threads()
@@ -55,7 +55,7 @@ def main():
     out.mkdir(parents=True)
     T = Timer()
     cfg = TemporalTrainConfig(steps=a.steps, batch_size=16, seed=0,
-                              optim=OptimConfig(lr=2e-4, total_steps=a.steps, schedule="cosine", warmup_steps=30))
+                              optim=OptimConfig(lr=TUNED["lr"], weight_decay=TUNED["wd"], total_steps=a.steps, schedule="cosine", warmup_steps=30))
     # forecaster for the adaptive network: trained on an independent corpus (corpus_s0)
     fc = make_wm(0)
     b0 = TemporalTrainingDataBuilder(DelayedOutcomeLedger(RUNS / "corpus_s0" / "net" / "ledger.sqlite"), lab_temporal_spec())

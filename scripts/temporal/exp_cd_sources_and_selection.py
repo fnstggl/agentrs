@@ -21,7 +21,7 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import EVENTS, HORIZONS, RUNS, Timer, make_wm, save_json, threads  # noqa: E402
+from common import EVENTS, HORIZONS, RUNS, TUNED, Timer, make_wm, save_json, threads  # noqa: E402
 
 from agentrs.sensors.information_sampling import coverage, select  # noqa: E402
 from agentrs.sensors.socialweblab_source import lab_temporal_spec  # noqa: E402
@@ -40,7 +40,8 @@ def ev(fn, sets):
 def train_eval(train, sets, steps, seed, name):
     m = make_wm(seed)
     cfg = TemporalTrainConfig(steps=steps, batch_size=16, seed=seed,
-                              optim=OptimConfig(lr=2e-4, total_steps=steps, schedule="cosine", warmup_steps=30))
+                              optim=OptimConfig(lr=TUNED["lr"], weight_decay=TUNED["wd"], total_steps=steps,
+                                                schedule="cosine", warmup_steps=30))
     info = TemporalWorldModelTrainer(m, cfg, name=name).train(train)
     return m, {"n_train": len(train), "train": {k: info.get(k) for k in ("last_loss", "seconds")},
                "eval": ev(model_predict_fn(m), sets)}
@@ -51,7 +52,7 @@ def main():
     ap.add_argument("--exp", choices=["C", "D"], required=True)
     ap.add_argument("--corpus", type=int, default=0)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--steps", type=int, default=500)
+    ap.add_argument("--steps", type=int, default=TUNED["steps"])
     ap.add_argument("--budget", type=int, default=150)
     a = ap.parse_args()
     threads()

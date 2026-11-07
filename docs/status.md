@@ -100,6 +100,26 @@ Chromium). See the bottom of this file for the latest run.
 * Executed: configurations A–E × 2 seeds on all content domains, and B/C/D × 2 seeds on the email
   domain; results in `docs/experiments.md` ("Content learning").
 
+## Temporal world models, realistic web environments, observational learning: implemented, tested, executed
+* Implemented: log-time encoding, horizon profiles, real/virtual clocks with time bases; the
+  `TemporalWorldModel` (cure-model hazards with interval/right censoring and competing risks,
+  negative-binomial count increments, state and continuous heads, ensembles, updated conditional
+  forecasts); insert-only delayed-outcome ledger; durable observation scheduler (leases, retries,
+  budgets, event-driven and adaptive scheduling); reward maturation; progressive world-model
+  updates; SocialWebLab (SQLite multi-user app with forum / help desk / code review, background jobs,
+  virtual or real clock, simulated users, JSON API, HTML/JS frontend, control channel, Chromium env,
+  workflow tasks, delayed-outcome agent task); `RealisticWebEnvironmentAdapter`; source declarations,
+  permission checks, dedup, PII redaction, pseudonymisation, revocation/retention; the
+  `ObservationSensorNetwork` with batched forecasting; information-value sampling; temporal planner;
+  delayed-reward RL; continual orchestrator with promotion gate. See `docs/temporal_learning.md`.
+* Tests: `tests/temporal`, `tests/sensors`, `tests/socialweblab`, `tests/environments`,
+  `tests/end_to_end` (integration tests 1–10).
+* Executed: corpora (3 lab seeds × 14 simulated days), experiments A–F (`results/temporal/`).
+* Not executed / not available here: WebArena, VisualWebArena (need their Docker-hosted sites; no
+  Docker daemon, ~17 GB disk), WorkArena (needs a ServiceNow instance — an external account, not
+  authorised), OpenWebRL (not found on PyPI; GitHub unreachable from this sandbox), any live-web or
+  Reddit source (no platform authorisation), GPU profiles.
+
 ## Known gaps (honest list)
 * No GPU runs; the Qwen3-4B research profile is configured and its code path is the same as the
   executed one, but it was never run.

@@ -63,6 +63,7 @@ class DiscreteHorizonModel(nn.Module):
     def predict_fn(self):
         lh = np.log1p(np.asarray(self.horizons))
 
+        @torch.no_grad()
         def f(examples, horizons):
             out = {n: np.zeros((len(examples), len(horizons))) for n in self.events}
             for s in range(0, len(examples), 64):

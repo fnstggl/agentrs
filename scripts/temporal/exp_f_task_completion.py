@@ -30,7 +30,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
-from common import RUNS, Timer, make_wm, save_json, threads  # noqa: E402
+from common import RUNS, TUNED, Timer, make_wm, save_json, threads  # noqa: E402
 
 from agentrs.agent.belief import BeliefState  # noqa: E402
 from agentrs.agent.temporal_runtime import act_with_delayed_outcome  # noqa: E402
@@ -84,7 +84,7 @@ def main():
     ap.add_argument("--rl-iters", type=int, default=16)
     ap.add_argument("--tasks-per-iter", type=int, default=8)
     ap.add_argument("--group", type=int, default=3)
-    ap.add_argument("--wm-steps", type=int, default=500)
+    ap.add_argument("--wm-steps", type=int, default=TUNED["steps"])
     ap.add_argument("--eval-test", type=int, default=48)
     ap.add_argument("--eval-env", type=int, default=24)
     ap.add_argument("--k", type=int, default=6)
@@ -169,7 +169,7 @@ def main():
     self_ex = b.build(source_types=["self"], cutoffs="observations", max_cutoffs=2)
     third_ex = b.build(source_types=["third_party"], cutoffs="observations", max_cutoffs=2, groups=["forum"])
     wcfg = TemporalTrainConfig(steps=a.wm_steps, batch_size=16, seed=a.seed,
-                               optim=OptimConfig(lr=2e-4, total_steps=a.wm_steps, schedule="cosine", warmup_steps=30))
+                               optim=OptimConfig(lr=TUNED["lr"], weight_decay=TUNED["wd"], total_steps=a.wm_steps, schedule="cosine", warmup_steps=30))
     wms = {}
     for name, data in (("immediate", [cap_example(e, 300.0) for e in self_ex if e.cutoff_elapsed_s == 0]),
                        ("temporal_self", self_ex), ("temporal_all", self_ex + third_ex)):

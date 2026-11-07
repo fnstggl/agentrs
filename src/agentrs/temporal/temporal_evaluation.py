@@ -155,6 +155,8 @@ def evaluate_temporal(predict: PredictFn, examples: Sequence[TemporalExample], h
                           "auroc": auroc(agg_p, agg_y), "ece": expected_calibration_error(agg_p, agg_y)}
     lh = np.log1p(np.asarray(horizons))
     for name in counts:
+        if name not in P.get("count", {}):
+            continue  # this predictor does not model counts
         errs, lerrs = [], []
         for i, ex in enumerate(examples):
             for t, v in count_truth(ex, name):

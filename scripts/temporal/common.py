@@ -19,6 +19,8 @@ RUNS = Path(os.environ.get("AGENTRS_RUNS", ROOT / "runs" / "temporal"))
 RESULTS = ROOT / "results" / "temporal"
 EVENTS = ["first_response", "answered", "positive_feedback", "resolved", "removed"]
 HORIZONS = [300.0, 3600.0, 6 * 3600.0, 86400.0, 3 * 86400.0]
+# chosen on a validation window inside corpus 0's training period (scripts/temporal/tune_temporal.py)
+TUNED = {"lr": 1e-4, "wd": 0.1, "steps": 400}
 HELD_HORIZONS = [1800.0, 3 * 3600.0, 12 * 3600.0, 2 * 86400.0]  # between the observed profile horizons
 
 

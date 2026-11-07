@@ -15,6 +15,7 @@ episode ends at submission; the reward is *pending* until it matures.
 from __future__ import annotations
 
 import random
+import uuid
 from typing import Any, Optional
 
 from agentrs.actions.schema import Action, ActionType
@@ -198,7 +199,7 @@ class SocialWebLabContentEnv(Environment):
                 c = self._client(self.task.private["account"])
                 try:
                     res = c.create_item(space, title.strip() or text[:60], text,
-                                        client_ref=f"{self.task.task_id}:{self.lab.now():.0f}")
+                                        client_ref=f"{self.task.task_id}:{uuid.uuid4().hex}")  # one per attempt
                     self.created_item = int(res["id"] if isinstance(res, dict) else res)
                     self.created_at = self.lab.now()
                     info.update({"created_item_id": self.created_item, "reward_pending": True,

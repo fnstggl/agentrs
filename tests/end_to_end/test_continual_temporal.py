@@ -50,7 +50,7 @@ def test_10_continual_cycles_with_delayed_rewards_and_planning(tmp_path, scratch
     def act(cycle, n):
         out = []
         for i in range(n):
-            t = make_help_task("train", cycle * 100 + i // 2, account=f"agent{i % 2}")
+            t = make_help_task("train", cycle * 100 + i // 2, account="agent0")
             out.append(act_with_delayed_outcome(env, t, actor, net, allow_decline=False))
         return out
 
@@ -71,7 +71,27 @@ def test_10_continual_cycles_with_delayed_rewards_and_planning(tmp_path, scratch
     n2 = sum(a["item_id"] is not None for a in r2["actions"])
     assert r1["rewards"].get("matured", 0) == n1  # declined actions (finish) produce no reward
     assert r1["policy_update"]["n_matured"] == n1
-    assert param_change(cp.policy, pol_snap) > 0 or not r1["policy_update"]["updated"]
+    items = [a["item_id"] for r in (r1, r2) for a in r["actions"]]
+    assert len(set(items)) == len(items)  # every attempt is its own post (no idempotency collisions)
+    # GRPO: an update happens exactly when some task's matured rewards differ (else every advantage is 0)
+    by_task = {}
+    for a in net.ledger.actions("source_type='self'"):
+        rw = [x["value"] for x in net.ledger.rewards(a["action_id"]) if x["objective"] == "help@86400"]
+        if rw:
+            by_task.setdefault(a["context"]["task_id"], []).append(rw[0])
+    varied = any(len(set(v)) > 1 for v in by_task.values())
+    assert bool(r1["policy_update"]["updated"] or r2["policy_update"]["updated"]) == varied
+    # with rewards that do differ within a task (a parity verifier standing in for the environment), the
+    # delayed trainer applies a real, off-policy-corrected update to the stored actions
+    rec = record_matured_rewards(net.ledger, lambda a: ("matured", float(int(a["context"]["object_ref"]) % 2),
+                                                        a["action_time"] + DAY), "parity@test")
+    assert rec.get("matured", 0) >= 4
+    prt2 = DelayedRewardTrainer(cp, net.ledger, DelayedRewardConfig(objective="parity@test", trainer_name="parity"))
+    prt2.version_of.update(prt.version_of)
+    snap2 = param_snapshot(cp.policy)
+    u = prt2.update()
+    assert u["updated"] and param_change(cp.policy, snap2) > 0 and abs(u["token_ratio_mean"] - 1.0) < 0.5
+    assert prt2.update()["n_matured"] == 0  # each matured reward is consumed once
     assert r2["policy_update"]["n_matured"] == n2 and r2["policy_update"]["checkpoint"].startswith("policy-delayed-rl")
     # third-party outcomes were never used as policy rewards; self actions were predicted before execution
     for a in net.ledger.actions("source_type='self'"):

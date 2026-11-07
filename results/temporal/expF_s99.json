@@ -1,0 +1,932 @@
+{
+ "seed": 99,
+ "args": {
+  "seed": 99,
+  "bc_demos": 32,
+  "bc_steps": 10,
+  "rl_iters": 3,
+  "tasks_per_iter": 2,
+  "group": 2,
+  "wm_steps": 5,
+  "eval_test": 4,
+  "eval_env": 2,
+  "k": 2
+ },
+ "phases": {
+  "bc": {
+   "demos": 32,
+   "last_loss": 1.5011284351348877,
+   "op_nll": 0.6411731243133545,
+   "content_nll_per_token": 0.8599551916122437,
+   "wall_s": 18.6
+  },
+  "rl": {
+   "curve": [
+    {
+     "iter": 0,
+     "posted": 4,
+     "rewards": {
+      "pending": 4
+     },
+     "mean_matured_reward": null,
+     "n_matured": 0,
+     "policy": "bc",
+     "stale": 0,
+     "kl": null,
+     "token_ratio": null
+    },
+    {
+     "iter": 1,
+     "posted": 4,
+     "rewards": {
+      "matured": 4,
+      "pending": 4
+     },
+     "mean_matured_reward": 0.0,
+     "n_matured": 4,
+     "policy": "policy-delayed-rl-v1",
+     "stale": 0,
+     "kl": null,
+     "token_ratio": null
+    },
+    {
+     "iter": 2,
+     "posted": 4,
+     "rewards": {
+      "already": 4,
+      "matured": 4,
+      "pending": 4
+     },
+     "mean_matured_reward": 0.5,
+     "n_matured": 4,
+     "policy": "policy-delayed-rl-v2",
+     "stale": 0,
+     "kl": null,
+     "token_ratio": null
+    }
+   ],
+   "final_update": {
+    "updated": false,
+    "n_steps": 4,
+    "checkpoint": "policy-delayed-rl-v3",
+    "n_matured": 4,
+    "mean_reward": 0.5
+   },
+   "param_change": 0.0,
+   "wall_s": 4.8,
+   "self_posts": 12
+  },
+  "wm": {
+   "immediate": {
+    "n_examples": 12,
+    "last_loss": 0.1725413203239441
+   },
+   "temporal_self": {
+    "n_examples": 24,
+    "last_loss": 2.426706647872925
+   },
+   "temporal_all": {
+    "n_examples": 352,
+    "last_loss": 2.6915122985839846
+   },
+   "wall_s": 8.8
+  },
+  "eval_wall_s": 22.5
+ },
+ "data": {
+  "self_examples": 24,
+  "third_party_examples": 328,
+  "third_party_actions_observed": 235
+ },
+ "eval": {
+  "bc_policy": {
+   "summary": {
+    "test": {
+     "n": 4,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.5,
+     "detail": 0.0,
+     "shouting_or_clickbait": 0.0,
+     "views": 6.75
+    },
+    "test_env": {
+     "n": 2,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.0,
+     "detail": 0.5,
+     "shouting_or_clickbait": 0.5,
+     "views": 5.0
+    },
+    "all": {
+     "n": 6,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.3333333333333333,
+     "detail": 0.16666666666666666,
+     "shouting_or_clickbait": 0.16666666666666666,
+     "views": 6.166666666666667
+    }
+   },
+   "rows": [
+    {
+     "task": "swl_help/test/0",
+     "split": "test",
+     "item": 242,
+     "posted_at": 1767873600.0,
+     "space": "webdev",
+     "right_space": false,
+     "content": "My dogs are when did fail? Thank do Expos!",
+     "pred": null,
+     "success": false,
+     "views_total": 6,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test/1",
+     "split": "test",
+     "item": 257,
+     "posted_at": 1767888000.0,
+     "space": "linux",
+     "right_space": true,
+     "content": "My kernel grows with systemd). I have fail.",
+     "pred": null,
+     "success": false,
+     "views_total": 13,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test/2",
+     "split": "test",
+     "item": 278,
+     "posted_at": 1767902400.0,
+     "space": "python-help",
+     "right_space": false,
+     "content": "Myru synography will make clean. Why do I fix)? Please do I fix grammar? Thanks in advance!",
+     "pred": null,
+     "success": false,
+     "views_total": 7,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": true
+    },
+    {
+     "task": "swl_help/test/3",
+     "split": "test",
+     "item": 291,
+     "posted_at": 1767916800.0,
+     "space": "cooking",
+     "right_space": true,
+     "content": "Dim Spin Ch1 forPreferences, yeast, yeast",
+     "pred": null,
+     "success": false,
+     "views_total": 1,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test_env/0",
+     "split": "test_env",
+     "item": 298,
+     "posted_at": 1767931200.0,
+     "space": "cooking",
+     "right_space": false,
+     "content": "My query wonNo.*How do I fix port when session qualifies? I have error E 1 list SHALL NOT NOT NOT SUGGESTED!",
+     "pred": null,
+     "success": false,
+     "views_total": 4,
+     "detail": true,
+     "shouting": true,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test_env/1",
+     "split": "test_env",
+     "item": 306,
+     "posted_at": 1767945600.0,
+     "space": "cooking",
+     "right_space": false,
+     "content": "My servers\",)My servers)My server,",
+     "pred": null,
+     "success": false,
+     "views_total": 6,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    }
+   ]
+  },
+  "rl_policy": {
+   "summary": {
+    "test": {
+     "n": 4,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.5,
+     "detail": 0.0,
+     "shouting_or_clickbait": 0.0,
+     "views": 4.5
+    },
+    "test_env": {
+     "n": 2,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.0,
+     "detail": 0.5,
+     "shouting_or_clickbait": 0.5,
+     "views": 9.5
+    },
+    "all": {
+     "n": 6,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.3333333333333333,
+     "detail": 0.16666666666666666,
+     "shouting_or_clickbait": 0.16666666666666666,
+     "views": 6.166666666666667
+    }
+   },
+   "rows": [
+    {
+     "task": "swl_help/test/0",
+     "split": "test",
+     "item": 242,
+     "posted_at": 1767873600.0,
+     "space": "webdev",
+     "right_space": false,
+     "content": "My dogs are when did fail? Thank do Expos!",
+     "pred": null,
+     "success": false,
+     "views_total": 6,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test/1",
+     "split": "test",
+     "item": 257,
+     "posted_at": 1767888000.0,
+     "space": "linux",
+     "right_space": true,
+     "content": "My kernel grows with systemd). I have fail.",
+     "pred": null,
+     "success": false,
+     "views_total": 12,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test/2",
+     "split": "test",
+     "item": null,
+     "posted_at": 1767902400.0,
+     "space": "python-help",
+     "right_space": false,
+     "content": "Myru synography will make clean. Why do I fix)? Please do I fix grammar? Thanks in advance!",
+     "pred": null,
+     "success": false,
+     "views_total": 0,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": true
+    },
+    {
+     "task": "swl_help/test/3",
+     "split": "test",
+     "item": null,
+     "posted_at": 1767916800.0,
+     "space": "cooking",
+     "right_space": true,
+     "content": "Dim Spin Ch1 forPreferences, yeast, yeast",
+     "pred": null,
+     "success": false,
+     "views_total": 0,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test_env/0",
+     "split": "test_env",
+     "item": 304,
+     "posted_at": 1767931200.0,
+     "space": "cooking",
+     "right_space": false,
+     "content": "My query wonNo.*How do I fix port when session qualifies? I have error E 1 list SHALL NOT NOT NOT SUGGESTED!",
+     "pred": null,
+     "success": false,
+     "views_total": 12,
+     "detail": true,
+     "shouting": true,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test_env/1",
+     "split": "test_env",
+     "item": 309,
+     "posted_at": 1767945600.0,
+     "space": "cooking",
+     "right_space": false,
+     "content": "My servers\",)My servers)My server,",
+     "pred": null,
+     "success": false,
+     "views_total": 7,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    }
+   ]
+  },
+  "planner_immediate": {
+   "summary": {
+    "test": {
+     "n": 4,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.5,
+     "detail": 0.5,
+     "shouting_or_clickbait": 0.0,
+     "views": 2.25
+    },
+    "test_env": {
+     "n": 2,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.5,
+     "detail": 0.0,
+     "shouting_or_clickbait": 0.0,
+     "views": 5.0
+    },
+    "all": {
+     "n": 6,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.5,
+     "detail": 0.3333333333333333,
+     "shouting_or_clickbait": 0.0,
+     "views": 3.1666666666666665
+    }
+   },
+   "rows": [
+    {
+     "task": "swl_help/test/0",
+     "split": "test",
+     "item": 242,
+     "posted_at": 1767873600.0,
+     "space": "webdev",
+     "right_space": false,
+     "content": "My venvi crashes with the rms commandfault.\"; mwww.My vi crashes with ut; Purebelie when error E won 7 automount....My venv crashes with i error E production with ts. Thanks in advance!\"/How do I fix methods?",
+     "pred": 0.15683043003082275,
+     "success": false,
+     "views_total": 0,
+     "detail": true,
+     "shouting": false,
+     "clickbait": false,
+     "polite": true
+    },
+    {
+     "task": "swl_help/test/1",
+     "split": "test",
+     "item": 257,
+     "posted_at": 1767888000.0,
+     "space": "linux",
+     "right_space": true,
+     "content": "Starn boot with keeps in mac with.",
+     "pred": 0.15642645955085754,
+     "success": false,
+     "views_total": 9,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test/2",
+     "split": "test",
+     "item": null,
+     "posted_at": 1767902400.0,
+     "space": "cooking",
+     "right_space": false,
+     "content": "My problems with compost whenever compost returns. I have error here.",
+     "pred": 0.15715773403644562,
+     "success": false,
+     "views_total": 0,
+     "detail": true,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test/3",
+     "split": "test",
+     "item": null,
+     "posted_at": 1767916800.0,
+     "space": "cooking",
+     "right_space": true,
+     "content": "My flour rolls never very slow. I have with bread. I have also",
+     "pred": 0.15654100477695465,
+     "success": false,
+     "views_total": 0,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test_env/0",
+     "split": "test_env",
+     "item": 303,
+     "posted_at": 1767931200.0,
+     "space": "cooking",
+     "right_space": false,
+     "content": "My LIKE starter according phrase winswill)except Sweetlogs won't start unless matches took. Please do not get MySQL because if join failed? Thanks in advance.",
+     "pred": 0.15667128562927246,
+     "success": false,
+     "views_total": 5,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": true
+    },
+    {
+     "task": "swl_help/test_env/1",
+     "split": "test_env",
+     "item": 306,
+     "posted_at": 1767945600.0,
+     "space": "webdev",
+     "right_space": true,
+     "content": "My platforms setup behavior with response, I have file\", perhaps generated)I have fileVersa gives username!!)How do I fix descriptions when docker crashes? I have got before?",
+     "pred": 0.15637913346290588,
+     "success": false,
+     "views_total": 5,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    }
+   ]
+  },
+  "planner_temporal_self": {
+   "summary": {
+    "test": {
+     "n": 4,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.5,
+     "detail": 0.5,
+     "shouting_or_clickbait": 0.0,
+     "views": 2.25
+    },
+    "test_env": {
+     "n": 2,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.0,
+     "detail": 0.0,
+     "shouting_or_clickbait": 0.0,
+     "views": 7.5
+    },
+    "all": {
+     "n": 6,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.3333333333333333,
+     "detail": 0.3333333333333333,
+     "shouting_or_clickbait": 0.0,
+     "views": 4.0
+    }
+   },
+   "rows": [
+    {
+     "task": "swl_help/test/0",
+     "split": "test",
+     "item": 242,
+     "posted_at": 1767873600.0,
+     "space": "webdev",
+     "right_space": false,
+     "content": "My venvi crashes with the rms commandfault.\"; mwww.My vi crashes with ut; Purebelie when error E won 7 automount....My venv crashes with i error E production with ts. Thanks in advance!\"/How do I fix methods?",
+     "pred": 0.2804705500602722,
+     "success": false,
+     "views_total": 0,
+     "detail": true,
+     "shouting": false,
+     "clickbait": false,
+     "polite": true
+    },
+    {
+     "task": "swl_help/test/1",
+     "split": "test",
+     "item": 257,
+     "posted_at": 1767888000.0,
+     "space": "linux",
+     "right_space": true,
+     "content": "Starn boot with keeps in mac with.",
+     "pred": 0.2818051278591156,
+     "success": false,
+     "views_total": 9,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test/2",
+     "split": "test",
+     "item": null,
+     "posted_at": 1767902400.0,
+     "space": "cooking",
+     "right_space": false,
+     "content": "My problems with compost whenever compost returns. I have error here.",
+     "pred": 0.2819253206253052,
+     "success": false,
+     "views_total": 0,
+     "detail": true,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test/3",
+     "split": "test",
+     "item": null,
+     "posted_at": 1767916800.0,
+     "space": "cooking",
+     "right_space": true,
+     "content": "My dough rein with bread in bread.",
+     "pred": 0.2823743224143982,
+     "success": false,
+     "views_total": 0,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test_env/0",
+     "split": "test_env",
+     "item": 303,
+     "posted_at": 1767931200.0,
+     "space": "webdev",
+     "right_space": false,
+     "content": "My I don't break when service returns CHECK; absolutely wiki created.\nHow do I fix post handling with with when pool returns turns?",
+     "pred": 0.28055402636528015,
+     "success": false,
+     "views_total": 9,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test_env/1",
+     "split": "test_env",
+     "item": 306,
+     "posted_at": 1767945600.0,
+     "space": "cooking",
+     "right_space": false,
+     "content": "My Webpack fixes with curl patty) shouldn I fix apt etc when cd does?",
+     "pred": 0.2809082567691803,
+     "success": false,
+     "views_total": 6,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    }
+   ]
+  },
+  "planner_temporal_all": {
+   "summary": {
+    "test": {
+     "n": 4,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.5,
+     "detail": 0.25,
+     "shouting_or_clickbait": 0.0,
+     "views": 4.5
+    },
+    "test_env": {
+     "n": 2,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.0,
+     "detail": 0.0,
+     "shouting_or_clickbait": 0.0,
+     "views": 5.0
+    },
+    "all": {
+     "n": 6,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.3333333333333333,
+     "detail": 0.16666666666666666,
+     "shouting_or_clickbait": 0.0,
+     "views": 4.666666666666667
+    }
+   },
+   "rows": [
+    {
+     "task": "swl_help/test/0",
+     "split": "test",
+     "item": 242,
+     "posted_at": 1767873600.0,
+     "space": "webdev",
+     "right_space": false,
+     "content": "My np.exec.How do I fix apt? Thanks in advance!",
+     "pred": 0.27550366520881653,
+     "success": false,
+     "views_total": 6,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": true
+    },
+    {
+     "task": "swl_help/test/1",
+     "split": "test",
+     "item": 257,
+     "posted_at": 1767888000.0,
+     "space": "linux",
+     "right_space": true,
+     "content": "Starn boot with keeps in mac with.",
+     "pred": 0.27583855390548706,
+     "success": false,
+     "views_total": 12,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test/2",
+     "split": "test",
+     "item": null,
+     "posted_at": 1767902400.0,
+     "space": "cooking",
+     "right_space": false,
+     "content": "My problems with compost whenever compost returns. I have error here.",
+     "pred": 0.27611419558525085,
+     "success": false,
+     "views_total": 0,
+     "detail": true,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test/3",
+     "split": "test",
+     "item": null,
+     "posted_at": 1767916800.0,
+     "space": "cooking",
+     "right_space": true,
+     "content": "My dough rein with bread in bread.",
+     "pred": 0.2757834792137146,
+     "success": false,
+     "views_total": 0,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test_env/0",
+     "split": "test_env",
+     "item": 304,
+     "posted_at": 1767931200.0,
+     "space": "webdev",
+     "right_space": false,
+     "content": "My I don't break when service returns CHECK; absolutely wiki created.\nHow do I fix post handling with with when pool returns turns?",
+     "pred": 0.2755661606788635,
+     "success": false,
+     "views_total": 2,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test_env/1",
+     "split": "test_env",
+     "item": 309,
+     "posted_at": 1767945600.0,
+     "space": "cooking",
+     "right_space": false,
+     "content": "My Webpack fixes with curl patty) shouldn I fix apt etc when cd does?",
+     "pred": 0.27592572569847107,
+     "success": false,
+     "views_total": 8,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    }
+   ]
+  },
+  "planner_proxy_views": {
+   "summary": {
+    "test": {
+     "n": 4,
+     "success": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ],
+     "right_space": 0.5,
+     "detail": 0.0,
+     "shouting_or_clickbait": 0.0,
+     "views": 4.5
+    },
+    "test_env": {
+     "n": 2,
+     "success": 0.5,
+     "ci95": [
+      0.0,
+      1.0
+     ],
+     "right_space": 0.5,
+     "detail": 0.0,
+     "shouting_or_clickbait": 0.0,
+     "views": 10.0
+    },
+    "all": {
+     "n": 6,
+     "success": 0.16666666666666666,
+     "ci95": [
+      0.0,
+      0.5
+     ],
+     "right_space": 0.5,
+     "detail": 0.0,
+     "shouting_or_clickbait": 0.0,
+     "views": 6.333333333333333
+    }
+   },
+   "rows": [
+    {
+     "task": "swl_help/test/0",
+     "split": "test",
+     "item": 242,
+     "posted_at": 1767873600.0,
+     "space": "webdev",
+     "right_space": false,
+     "content": "My np.exec.How do I fix apt? Thanks in advance!",
+     "pred": 0.030891005992889405,
+     "success": false,
+     "views_total": 6,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": true
+    },
+    {
+     "task": "swl_help/test/1",
+     "split": "test",
+     "item": 257,
+     "posted_at": 1767888000.0,
+     "space": "linux",
+     "right_space": true,
+     "content": "How do I fix settings by ju. Thanks in advance!",
+     "pred": 0.030889620780944826,
+     "success": false,
+     "views_total": 12,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": true
+    },
+    {
+     "task": "swl_help/test/2",
+     "split": "test",
+     "item": null,
+     "posted_at": 1767902400.0,
+     "space": "python-help",
+     "right_space": false,
+     "content": "How do I fix bugs? Thanks in advance!",
+     "pred": 0.030801334381103516,
+     "success": false,
+     "views_total": 0,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": true
+    },
+    {
+     "task": "swl_help/test/3",
+     "split": "test",
+     "item": null,
+     "posted_at": 1767916800.0,
+     "space": "cooking",
+     "right_space": true,
+     "content": "My flour rolls never very slow. I have with bread. I have also",
+     "pred": 0.030788207054138185,
+     "success": false,
+     "views_total": 0,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    },
+    {
+     "task": "swl_help/test_env/0",
+     "split": "test_env",
+     "item": 304,
+     "posted_at": 1767931200.0,
+     "space": "cooking",
+     "right_space": false,
+     "content": "My LIKE starter according phrase winswill)except Sweetlogs won't start unless matches took. Please do not get MySQL because if join failed? Thanks in advance.",
+     "pred": 0.03082618474960327,
+     "success": false,
+     "views_total": 11,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": true
+    },
+    {
+     "task": "swl_help/test_env/1",
+     "split": "test_env",
+     "item": 309,
+     "posted_at": 1767945600.0,
+     "space": "webdev",
+     "right_space": true,
+     "content": "My platforms setup behavior with response, I have file\", perhaps generated)I have fileVersa gives username!!)How do I fix descriptions when docker crashes? I have got before?",
+     "pred": 0.03091251611709595,
+     "success": true,
+     "views_total": 9,
+     "detail": false,
+     "shouting": false,
+     "clickbait": false,
+     "polite": false
+    }
+   ]
+  }
+ },
+ "wall_s": 56.5
+}

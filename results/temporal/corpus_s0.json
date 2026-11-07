@@ -1,0 +1,53 @@
+{
+ "seed": 0,
+ "days": 14,
+ "users": 80,
+ "wall_s": 27.9,
+ "lab": {
+  "users": 92,
+  "items": 1080,
+  "responses": 1650,
+  "reactions": 2695,
+  "views": 11338,
+  "events": 7099,
+  "jobs": 6180,
+  "now": 1768780800.0
+ },
+ "ledger": {
+  "actions": 1080,
+  "forecasts": 0,
+  "observations": 7127,
+  "events": 6008,
+  "rewards": 0,
+  "ingest": 0
+ },
+ "network": {
+  "polled_events": 7088,
+  "new_actions": 948,
+  "follow_ups": 6008,
+  "refused": 0,
+  "unknown_object": 0,
+  "duplicates": 0,
+  "observations": 7127,
+  "updated_forecasts": 0,
+  "redacted": 9,
+  "wall_ingest": 6.332249457999296,
+  "wall_observe": 7.238164716997744
+ },
+ "scheduler": {
+  "horizon:cancelled": 19,
+  "horizon:done": 7127,
+  "horizon:pending": 600,
+  "budget_spent": {
+   "swl-feed": 7127.0
+  }
+ },
+ "self_actions": 132,
+ "splits": {
+  "env_other": 287,
+  "late": 125,
+  "test": 99,
+  "test_env": 59,
+  "train": 510
+ }
+}
