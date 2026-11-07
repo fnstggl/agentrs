@@ -132,6 +132,6 @@ Chromium). See the bottom of this file for the latest run.
 
 ## Latest full test run
 
-`python -m pytest -q` → **119 passed** (latest run, incl. 15 content tests; earlier: 104 passed) in 160 s (4 CPU cores shared with running experiments;
+`python -m pytest -q` → **155 passed** (latest run, incl. 36 temporal / sensor / SocialWebLab / end-to-end tests; earlier: 119) in 258 s (4 CPU cores shared with running experiments;
 includes 25 real-Chromium browser tests). `bash scripts/verify_cli_workflows.sh` executed all
 documented CLI workflows successfully.

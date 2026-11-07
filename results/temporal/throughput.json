@@ -1,0 +1,16 @@
+{
+ "simulated_days": 5,
+ "lab_and_sensor_wall_s": 8.082046383000488,
+ "observed_actions": 373,
+ "observed_actions_per_s": 159.32924414840505,
+ "follow_up_events_per_s": 933.7633450627707,
+ "matured_labels_per_s": 996.362941814441,
+ "forecasts_per_s": 166.35793849983878,
+ "horizon_predictions_per_s": 1330.8635079987102,
+ "training_examples_per_s": 74.65351507885357,
+ "gradient_updates_per_hour": 16797.05105568566,
+ "batch_size": 16,
+ "threads": 4,
+ "device": "cpu (4 cores)",
+ "model": "EleutherAI/pythia-14m"
+}

@@ -336,3 +336,21 @@ What each policy proposes on the extra 60 held-out tasks (greedy): B morning 27%
   (it did not here), that imagined training helps, or that anything transfers to an unseen content
   domain. These need a model that can copy and compose strings reliably (the configured GPU profile)
   and much larger evaluations.
+
+## Temporal world models and observational learning (SocialWebLab)
+
+Design, full tables and caveats: [`temporal_learning.md`](temporal_learning.md), section 9; raw
+results in `results/temporal/`. Summary (Pythia-14M, CPU, 80 simulated users, virtual clock):
+
+* **A** A continuous-time world model predicts delayed outcomes far better than a next-observation
+  model (Brier 0.153 vs 0.311) and better than one head per horizon (0.168), ranks outcomes well
+  (AUROC 0.68) but is not better calibrated than a censoring-aware lookup table (0.155).
+* **B** The event feed gives exact event times and 4× lower detection latency. As first configured, event-driven and adaptive scheduling cost *more* requests than fixed polling; coalescing event-triggered checks per 6 h (a follow-up variant designed after that result) cut requests by 29 % at equal accuracy. The adaptive policy never paid for itself.
+* **C** Third-party observations improve prediction in unseen environments / action types (AUROC
+  0.53 → 0.62) but too much of them hurts calibration on our own posts.
+* **D** Diverse (stratified) data transfers better than repetitive volume at a fixed budget.
+* **E** The world model does not recover randomized intervention effects (it ignores audience and
+  timing covariates); its forecasts are observational only.
+* **F** Delayed-reward RL raises verified task success 0.148 → 0.259; a planner using a temporal
+  model trained on own + third-party observations reaches 0.315 (+9.7 points over the same planner
+  with own data only, significant; +5.6 over the RL policy, not significant).

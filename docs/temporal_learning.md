@@ -236,12 +236,21 @@ observations and ≈6,000 follow-up events. Splits by time — train: actions in
 | event (feed + 2 polls + window end) | 4,727 | 946 / 0 / 563 | 0.12 h | 0.145 |
 | adaptive (feed + forecast-driven polls) | 6,900 | 946 / 0 / 563 | 0.12 h | 0.140 |
 
-BFOLLOWUP
+Follow-up (designed *after* the result above, same lab run reproduced deterministically):
+
+| scheduling | observation requests | test Brier |
+|---|---|---|
+| fixed (re-run) | 4,275 | 0.142 |
+| event, checks coalesced per 6 h | **3,053** (−29 %) | **0.139** |
+| adaptive, checks coalesced per 6 h | 5,285 | 0.145 |
 
 * The event feed gives exact event times (no interval censoring) and 4× lower detection latency.
-* **Negative result:** event-driven and adaptive scheduling cost *more* requests than fixed polling,
-  because every reply or vote triggered a check (coalesced only per minute). Prediction quality was
-  the same within noise (0.140–0.145; re-running the same configuration gives ±0.002).
+* **Negative result:** as first configured, event-driven and adaptive scheduling cost *more* requests
+  than fixed polling, because every reply or vote triggered a check (coalesced only per minute).
+  Prediction quality was the same within noise (0.140–0.145; re-running a configuration gives ±0.002).
+* Coalescing event-triggered checks per 6 h made event-driven scheduling the cheapest option (−29 %
+  requests at equal accuracy). The adaptive policy's skip rule rarely fired (it kept ≈3,800 of the
+  fixed horizon checks and added 97), so it never paid for itself here.
 
 ### C. Self experience vs self + third-party observations (3 corpora, same steps)
 
@@ -334,7 +343,18 @@ identical copy of the lab (snapshot restore), posting on the same schedule.
 
 ### Throughput (4 CPU cores, Pythia-14M)
 
-THROUGHPUT
+| quantity | measured |
+|---|---|
+| observed third-party actions ingested (normalise, permission check, dedup, ledger, scheduling) | 159 / s |
+| follow-up events attached | 934 / s |
+| matured labels (scheduled observations executed and stored) | 996 / s |
+| forecasts (batched, 8 horizons each, one model copy) | 166 actions / s = 1,331 horizon predictions / s |
+| temporal world-model training | 75 examples / s, ≈16,800 gradient updates / h (batch 16) |
+| lab + sensors, 5 simulated days with 80 users | 8 s wall |
+| GPU-hours | 0 (no GPU; all temporal experiments together ≈ 9 CPU-core-hours, including the runs discarded after the idempotency bug) |
+
+At this scale observation is never the bottleneck: learning is (≈75 training examples / s vs ≈1,000
+labels / s).
 
 ### What this shows and what it does not
 

@@ -59,7 +59,7 @@ source .venv/bin/activate
 python -m pytest -q
 ```
 
-The full suite (119 tests: unit, learning, safety, integration, browser) takes a few minutes on 4
+The full suite (155 tests: unit, learning, safety, integration, browser, temporal, sensors, end-to-end) takes a few minutes on 4
 CPU cores. Browser tests skip with a reason if Chromium cannot be launched; set
 `AGENTRS_CHROMIUM=/path/to/chrome` or run `playwright install chromium`. Learning tests use a tiny
 randomly initialised model and need no downloads; experiment configs download Pythia from the

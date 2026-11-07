@@ -113,6 +113,60 @@
     "last_loss": 1.5163023352622986,
     "seconds": 116.62800943599905
    }
+  },
+  "adaptive_6h": {
+   "observation_requests": 5285,
+   "feed_polls": 5086,
+   "scheduler": {
+    "event:cancelled": 4,
+    "horizon:cancelled": 12,
+    "adaptive:done": 97,
+    "event:done": 1395,
+    "horizon:done": 3793,
+    "adaptive:pending": 20,
+    "horizon:pending": 573,
+    "budget_spent": {
+     "swl-feed": 5285.0
+    }
+   },
+   "train_actions": 503,
+   "label_kinds": {
+    "exact": 946,
+    "interval": 0,
+    "right_censored": 563
+   },
+   "mean_interval_width_h": null,
+   "detection_latency_h_median": 0.12049157357878156,
+   "eval": {
+    "mean_brier": 0.14532304389733802,
+    "mean_auroc": 0.7151225596512464,
+    "overall": {
+     "n": 1678,
+     "brier": 0.1405467229752242,
+     "nll": 0.4287975321297879,
+     "auroc": 0.8831644920966534,
+     "ece": 0.06685404512071563
+    },
+    "counts": {
+     "responses": {
+      "n": 388,
+      "mae": 1.1338738495124066,
+      "log_mae": 0.5717970204691555
+     },
+     "views": {
+      "n": 388,
+      "mae": 10.543617660702624,
+      "log_mae": 1.2519152321661486
+     }
+    }
+   },
+   "brier_gain_vs_km": 0.02355310356914672,
+   "brier_gain_per_1000_requests": 0.004456594809677714,
+   "collection_wall_s": 9.799999999999981,
+   "train": {
+    "last_loss": 1.419824194908142,
+    "seconds": 132.39409378399978
+   }
   }
  },
  "marginal_km": {
@@ -126,5 +180,6 @@
    "ece": 0.04628084198318802
   },
   "counts": {}
- }
+ },
+ "wall_s": 515.9
 }
