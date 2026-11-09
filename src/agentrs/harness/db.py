@@ -63,6 +63,9 @@ class PlatformAccount(Base):
     allowed_agents: Mapped[list[Any]] = mapped_column(JSON, default=list)
     reauth_by: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     purpose: Mapped[str] = mapped_column(Text, default="")
+    # non-secret connection settings the connector needs (handle, app/installation id, allowed repositories,
+    # channel ids, instance base URL, ...). Secrets never go here.
+    connection: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, server_default="{}")
     created_at: Mapped[float] = mapped_column(Float, default=_now)
     __table_args__ = (UniqueConstraint("provider", "external_id", name="uq_account_provider_external"),)
 

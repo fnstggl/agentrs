@@ -192,7 +192,11 @@ class GitHubState:
               "output": {"title": f"Simulated CI: {conclusion or 'running'}", "summary": "agentrs simulator", "text": None},
               "app": {"id": 15368, "slug": "simulated-ci", "name": "Simulated CI"},
               "check_suite": {"id": self._id()}, "html_url": f"https://github.com/{repo_name}/runs/{self._n}",
-              "details_url": f"https://ci.example/{self._n}", "pull_requests": []}
+              "details_url": f"https://ci.example/{self._n}",
+              # like GitHub: open pull requests in this repository whose head is this commit
+              "pull_requests": [{"number": n, "head": {"ref": i.get("head_ref"), "sha": sha}}
+                                for n, i in repo["issues"].items() if i.get("head_ref") and i.get("state") == "open"
+                                and self.resolve(repo, i["head_ref"]) == sha]}
         repo["check_runs"].append(cr)
         self._deliver("check_run", {"action": "completed" if conclusion else "created", "check_run": cr,
                                     "repository": self.repo_view(repo), "sender": {"login": "simulated-ci[bot]"}},

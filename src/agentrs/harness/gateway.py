@@ -54,9 +54,11 @@ class ToolGateway:
         cfg = self.reg.get(account.provider)
         http = SafeHTTPClient(self.egress, provider=account.provider, provider_domains=cfg.allowed_domains or None,
                               egress_log=self.egress_log, transport=self.transports.get(account.provider))
+        conn = dict(account.connection or {})
         ctx = ConnectorContext(config=cfg, http=http, credentials=self.accounts.credential_handle(account),
-                               account={"id": account.id, "external_id": account.external_id,
-                                        "capabilities": account.capabilities}, base_url=cfg.base_url or "")
+                               account={**conn, "id": account.id, "external_id": account.external_id,
+                                        "capabilities": account.capabilities, "bot_disclosure": account.bot_disclosure},
+                               base_url=conn.get("base_url") or cfg.base_url or "")
         c = self.classes[account.provider](ctx)
         self._connectors[account.id] = c
         return c

@@ -47,6 +47,8 @@ class PermissionsConfig(BaseModel):
     account_quota_per_hour: int = 30
     account_writes_per_day: int = 50
     require_rate_limits: bool = True  # an enabled provider must have non-zero configured limits
+    # per-provider overrides of the account quotas, e.g. our own sandbox: {"socialweblab": {"per_hour": 5000, "per_day": 50000}}
+    provider_quotas: dict[str, dict[str, int]] = Field(default_factory=dict)
 
     @classmethod
     def load(cls, path: str | Path) -> "PermissionsConfig":
@@ -181,11 +183,13 @@ class PermissionEngine:
         if not self.limiter.hit(f"{action.provider}:{account.id}:rpm", lim.requests_per_minute, 60, consume=consume):
             return Decision(outcome="deny", reason="provider rate limit reached", tier=tier, checks=checks + ["rate"])
         if spec.mutates:
-            per_day = lim.posts_per_day if lim.posts_per_day > 0 else self.cfg.account_writes_per_day
-            if not self.limiter.hit(f"{account.id}:writes:day", min(per_day, self.cfg.account_writes_per_day), 86400,
-                                    consume=consume):
+            q = self.cfg.provider_quotas.get(action.provider, {})
+            day_cap = q.get("per_day", self.cfg.account_writes_per_day)
+            per_day = min(lim.posts_per_day, day_cap) if lim.posts_per_day > 0 else day_cap
+            if not self.limiter.hit(f"{account.id}:writes:day", per_day, 86400, consume=consume):
                 return deny("per-account daily write quota reached")
-            if not self.limiter.hit(f"{account.id}:writes:hour", self.cfg.account_quota_per_hour, 3600, consume=consume):
+            if not self.limiter.hit(f"{account.id}:writes:hour", q.get("per_hour", self.cfg.account_quota_per_hour), 3600,
+                                    consume=consume):
                 return deny("per-account hourly quota reached")
         checks.append("rate_ok")
         content = action.content(spec)

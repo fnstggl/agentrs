@@ -47,26 +47,34 @@ class HarnessLearner:
         steps, info = t.collect()
         return {"steps": steps, "info": info}
 
+    def _branch(self) -> DelayedRewardTrainer:
+        """The learner's own training copy (persistent across updates, with its optimiser state)."""
+        if self.trainer_state is None:
+            cp = ContentGeneratingPolicy(copy.deepcopy(self.production.policy), self.production.cfg,
+                                         self.production.checkpoint_id)
+            self.trainer_state = DelayedRewardTrainer(cp, self.ledger, self.rl_cfg, ref=self.reference)
+        self.trainer_state.version_of.update(self._known_checkpoints())
+        return self.trainer_state
+
     def train_candidate(self) -> dict[str, Any]:
-        cand = ContentGeneratingPolicy(copy.deepcopy(self.production.policy), self.production.cfg,
-                                       self.production.checkpoint_id)
-        t = DelayedRewardTrainer(cand, self.ledger, self.rl_cfg, ref=self.reference)
-        t.version_of.update(self._known_checkpoints())
-        snap = param_snapshot(cand.policy)
+        t = self._branch()
+        snap = param_snapshot(t.cp.policy)
         upd = t.update()
         if not upd.get("updated"):
             return {"candidate": None, **{k: v for k, v in upd.items() if not isinstance(v, dict)}}
         self.version += 1
         cid_local = f"harness-policy-v{self.version}"
-        cand.checkpoint_id = cid_local
+        # freeze a copy for serving; the branch keeps training
+        cand = ContentGeneratingPolicy(copy.deepcopy(t.cp.policy), t.cp.cfg, cid_local)
+        cand.policy.eval()
         path = save_checkpoint(self.dir / cid_local, cand.policy, t.rl.trainer, extra={"checkpoint_id": cid_local,
                                                                                       "parent": self.production.checkpoint_id})
         prod = self.registry.production("policy")
+        delta = param_change(t.cp.policy, snap)
         rid = self.registry.register("policy", str(path), parent=prod.id if prod else None,
                                      metrics={"n_steps": upd.get("n_steps"), "mean_reward": upd.get("mean_reward"),
-                                              "param_change": param_change(cand.policy, snap)},
-                                     notes=cid_local)
-        return {"candidate": cand, "registry_id": rid, "checkpoint_id": cid_local, "param_change": param_change(cand.policy, snap),
+                                              "param_change": delta}, notes=cid_local)
+        return {"candidate": cand, "registry_id": rid, "checkpoint_id": cid_local, "param_change": delta,
                 **{k: v for k, v in upd.items() if isinstance(v, (int, float, str, bool, type(None)))}}
 
     def promote_if_better(self, candidate: dict, evaluate: Callable[[str], dict], backend,

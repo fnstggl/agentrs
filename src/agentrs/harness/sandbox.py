@@ -26,7 +26,7 @@ def socialweblab_provisioner(server, secrets: SecretStore, backend: str = "memor
     return provision
 
 
-def enable_sandbox_provider(registry, server_url: str, rpm: float = 600, posts_per_day: float = 500) -> None:
+def enable_sandbox_provider(registry, server_url: str, rpm: float = 6000, posts_per_day: float = 50000) -> None:
     """Enable SocialWebLab (our own sandbox) in a loaded capability registry. External providers stay
     as configured (disabled by default)."""
     p = registry.get("socialweblab")
@@ -54,8 +54,9 @@ def build_sandbox_harness(workdir, lab, server, db_url: str, agent_ids=("sandbox
                       allow_http_for=[host, *extra_domains])
     h = build_harness(db_url, workdir, egress=eg, redis_url=redis_url, secret_key=secret_key or SecretStore.generate_key(),
                       transports=transports,
-                      context_fn=lambda a, t: {"time_base": lab.time_base, "action_time": lab.now(),
-                                               "context_text": "ENV: socialweblab"})
+                      context_fn=lambda a, t: ({"time_base": lab.time_base, "action_time": lab.now(),
+                                                "context_text": "ENV: socialweblab"} if a.provider == "socialweblab"
+                                               else {}))  # real providers use the real clock
     enable_sandbox_provider(h.registry, server.url)
     for aid in agent_ids:
         h.agents.upsert(AgentSpec(id=aid, display_name=aid, role="practice", allowed_capabilities=["socialweblab:*"],

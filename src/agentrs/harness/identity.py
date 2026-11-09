@@ -98,7 +98,8 @@ class PlatformAccountRegistry:
                  capabilities: list[str], credential_refs: dict[str, str], allowed_agents: list[str],
                  purpose: str, oauth_scopes: Optional[list[str]] = None, bot_disclosure: str = "unknown",
                  training_data_permission: str = "not_authorized", rate_limits: Optional[dict] = None,
-                 status: str = "pending", reauth_by: Optional[float] = None, distinct_purpose_ok: bool = False) -> str:
+                 status: str = "pending", reauth_by: Optional[float] = None, distinct_purpose_ok: bool = False,
+                 connection: Optional[dict] = None) -> str:
         for ref in credential_refs.values():
             if not ref.startswith("secret://"):
                 raise AccountError("credentials must be secret references, never raw values")
@@ -116,7 +117,8 @@ class PlatformAccountRegistry:
                                   capabilities=capabilities, credential_refs=credential_refs,
                                   allowed_agents=allowed_agents, purpose=purpose, oauth_scopes=oauth_scopes or [],
                                   bot_disclosure=bot_disclosure, training_data_permission=training_data_permission,
-                                  rate_limits=rate_limits or {}, status=status, reauth_by=reauth_by)
+                                  rate_limits=rate_limits or {}, status=status, reauth_by=reauth_by,
+                                  connection=connection or {})
             s.add(row)
             s.flush()
             return row.id
