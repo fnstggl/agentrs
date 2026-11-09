@@ -29,7 +29,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from agentrs.data.observed_actor_action import ObservedAction, ObservedActorAction, pseudonym
-from agentrs.live.spec import payload
+from agentrs.live.spec import audience_label, payload
 from agentrs.sensors.source_adapter import FollowUp, RawEvent, SourceAdapter, SourceDeclaration, SourceError
 
 APPVIEW = "https://public.api.bsky.app/xrpc"
@@ -274,7 +274,8 @@ class BlueskySource(SourceAdapter):
         created = (prof.get("createdAt") or "")[:4]
         ctx = {"env": "bluesky", "space": kind, "author_followers": int(prof.get("followersCount", 0)),
                "author_posts": int(prof.get("postsCount", 0)), "author_following": int(prof.get("followsCount", 0)),
-               "langs": ",".join(rec.get("langs") or []) or "unknown"}
+               "langs": ",".join(rec.get("langs") or []) or "unknown",
+               "audience": audience_label(int(prof.get("followersCount", 0)), "followers")}
         if domain:
             ctx["domain"] = domain
         if created:

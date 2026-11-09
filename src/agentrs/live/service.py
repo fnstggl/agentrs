@@ -79,8 +79,8 @@ class LiveConfig(BaseModel):
     lr: float = 1e-4
     weight_decay: float = 0.1
     batch_size: int = 16
-    steps_per_update: int = 20
-    max_steps_per_update: int = 80
+    steps_per_update: int = 60
+    max_steps_per_update: int = 200
     min_new_examples: int = 16
     replay_cap: int = 20000
     ingest_every_s: float = 30.0

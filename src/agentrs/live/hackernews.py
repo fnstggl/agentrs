@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from agentrs.data.observed_actor_action import ObservedAction, ObservedActorAction, pseudonym
-from agentrs.live.spec import payload
+from agentrs.live.spec import audience_label, payload
 from agentrs.sensors.source_adapter import FollowUp, RawEvent, SourceAdapter, SourceDeclaration, SourceError
 
 API = "https://hacker-news.firebaseio.com/v0"
@@ -108,6 +108,7 @@ class HackerNewsSource(SourceAdapter):
         karma = self._author_karma(it.get("by", "")) if it.get("by") else None
         if karma is not None:
             ctx["author_karma"] = karma
+            ctx["audience"] = audience_label(karma, "karma")
         return [ObservedActorAction(
             source_id=self.declaration.source_id, provider_object_id=raw.object_ref, actor_type="human",
             actor_ref=pseudonym(str(it.get("by", "")), self.key), action_time=raw.at, action_time_known=True,

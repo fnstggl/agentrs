@@ -41,3 +41,18 @@ def payload(reactions: int, responses: int, shares: int, removed: bool, first_re
     if first_response_at is not None:
         p["occurred_at"]["first_response"] = first_response_at
     return p
+
+
+def audience_label(n: int | None, unit: str) -> str:
+    """Readable order-of-magnitude bucket ("1k-10k followers"): a small LM uses words far more
+    easily than raw digits."""
+    if n is None:
+        return "unknown"
+    edges = [(0, "0"), (10, "1-9"), (100, "10-99"), (1000, "100-999"), (10_000, "1k-10k"), (100_000, "10k-100k"),
+             (1_000_000, "100k-1M")]
+    if n <= 0:
+        return f"no {unit}"
+    for hi, lab in edges[1:]:
+        if n < hi:
+            return f"{lab} {unit}"
+    return f"over 1M {unit}"
