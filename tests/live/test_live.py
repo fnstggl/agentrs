@@ -314,3 +314,32 @@ def test_network_keeps_the_starting_cursor_of_a_live_source(tmp_path):
     assert net.ingest("hackernews")["new_actions"] == 0 and net.cursors["hackernews"] == 100
     listing[:] = [101, 100]
     assert net.ingest("hackernews")["new_actions"] == 1
+
+
+def test_scoring_uses_the_actual_follow_up_time(tmp_path):
+    """A like first seen by a poll made 38 s after the 10-min horizon must count as a positive."""
+    from agentrs.live.prequential import PrequentialScorer, PrequentialStore
+    from agentrs.live.spec import live_spec
+    from agentrs.temporal.delayed_outcome_ledger import ActionRecord, DelayedOutcomeLedger, ObservationRecord
+
+    led = DelayedOutcomeLedger(tmp_path / "l.sqlite")
+    t0 = time.time() - 1000
+    spec = live_spec()
+    for i, liked in enumerate([True, False]):
+        aid = f"a{i}"
+        led.record_action(ActionRecord(action_id=aid, source_id="bluesky", source_type="third_party", actor_type="human",
+                                       env_id="b", time_base="real", action_time=t0, observed_time=t0,
+                                       context_text="c", context={"author_followers": 10}, action_str="post",
+                                       action={"operation": "create_post"}, split="train", group="bsky:text",
+                                       window_end=t0 + 4 * 86400))
+        for kind, p in (("initial", 0.7), ("baseline", 0.3)):
+            hp = {"horizon_s": 600.0, "event_prob": {e: p for e in spec.events}, "count_mean": {c: 1.0 for c in spec.counts}}
+            led.record_forecast(aid, {"horizons": [hp]}, kind, info_cutoff_time=t0, created_time=t0, horizons=[600.0],
+                                kind=kind)
+        led.record_observation(ObservationRecord(action_id=aid, actual_time=t0 + 638, payload=payload(int(liked), 0, 0, False),
+                                                 horizon_label="10m", intended_time=t0 + 600, completeness="complete",
+                                                 source_id="bluesky", idem=f"o{i}", time_base="real"))
+    sc = PrequentialScorer(led, spec, PrequentialStore(tmp_path / "p.sqlite"))
+    sc.update()
+    ys = {r["action_id"]: r["y"] for r in sc.store.q("SELECT * FROM ev WHERE event='positive_feedback'")}
+    assert ys == {"a0": 1, "a1": 0}

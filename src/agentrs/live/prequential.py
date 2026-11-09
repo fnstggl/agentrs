@@ -33,7 +33,7 @@ from agentrs.temporal.time_encoding import describe_duration
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ev (
-  action_id TEXT, source TEXT, stratum TEXT, kind TEXT, event TEXT, horizon_s REAL, action_time REAL,
+  action_id TEXT, source TEXT, stratum TEXT, kind TEXT, event TEXT, horizon_s REAL, at_s REAL, action_time REAL,
   forecast_time REAL, p_model REAL, p_base REAL, y INTEGER, checkpoint TEXT, scored_wall REAL,
   PRIMARY KEY (action_id, event, horizon_s));
 CREATE TABLE IF NOT EXISTS ct (
@@ -172,17 +172,21 @@ class PrequentialScorer:
                 pm, pb = _pred_at(fm["prediction"], h), _pred_at(fb["prediction"], h)
                 if pm is None or pb is None:
                     continue
-                for e in self.spec.events:
-                    y = event_truth(ex, e, h)
-                    if y is None or e not in pm["event_prob"]:
-                        continue
-                    n_ev += self.store.x("INSERT OR IGNORE INTO ev VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                                         (aid, source, stratum, kind, e, h, a["action_time"], fm["created_time"],
-                                          float(pm["event_prob"][e]), float(pb["event_prob"][e]), int(y),
-                                          fm["checkpoint"], now))
                 o = min((o for o in obs if o["elapsed"] >= h * 0.98), key=lambda o: o["elapsed"])
                 if o["elapsed"] > h * 1.5 + 600:
                     continue  # the observation is too late to stand for horizon h
+                # Truth is taken at the moment the follow-up for h was actually made (``at``), not at
+                # exactly h: an occurrence first seen by a slightly late poll is interval-censored
+                # across h and would otherwise be dropped while the negatives were kept.
+                at = o["elapsed"] + 1e-6
+                for e in self.spec.events:
+                    y = event_truth(ex, e, at)
+                    if y is None or e not in pm["event_prob"]:
+                        continue
+                    n_ev += self.store.x("INSERT OR IGNORE INTO ev VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                                         (aid, source, stratum, kind, e, h, o["elapsed"], a["action_time"],
+                                          fm["created_time"], float(pm["event_prob"][e]), float(pb["event_prob"][e]),
+                                          int(y), fm["checkpoint"], now))
                 for c, v in (o["payload"].get("counts") or {}).items():
                     if c not in pm["count_mean"]:
                         continue
