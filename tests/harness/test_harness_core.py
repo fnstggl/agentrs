@@ -349,3 +349,27 @@ def test_postgres_and_redis_backends(tmp_path, scratch_bb):
     finally:
         s.srv.stop()
         s.lab.close()
+
+
+def test_runtime_forecasts_consequences_before_executing(tmp_path, scratch_bb):
+    """Step 5 of the loop: the temporal world model's forecast is stored before the action executes."""
+    from agentrs.sensors.socialweblab_source import lab_temporal_spec
+    from agentrs.temporal.temporal_world_model import TemporalWorldModel, TemporalWorldModelConfig
+
+    s = make_sandbox(tmp_path, scratch_bb)
+    try:
+        rt = s.rts["sandbox_agent_001"]
+        rt.world_model = TemporalWorldModel(TemporalWorldModelConfig(backbone=scratch_bb, n_heads=2,
+                                                                     spec=lab_temporal_spec()))
+        PracticeTaskGenerator(s.h.tasks).generate("train", 0)
+        out = asyncio.run(rt.loop(1))
+        assert out[0]["status"] == "executed"
+        L = s.h.outcomes.ledger
+        a = L.actions("source_type='self'")[0]
+        f = L.forecasts(a["action_id"])
+        assert f and f[0]["created_time"] <= a["action_time"] + 1e-6 and f[0]["info_cutoff_time"] == a["action_time"]
+        hz = f[0]["prediction"]["horizons"]
+        assert [round(x["horizon_s"]) for x in hz] == [3600, 86400] and 0 <= hz[0]["event_prob"]["answered"] <= 1
+    finally:
+        s.srv.stop()
+        s.lab.close()

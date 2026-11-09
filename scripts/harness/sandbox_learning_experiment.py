@@ -101,14 +101,23 @@ def imitation(cp, lab, seed, n_demos, steps, log):
                         "provenance": "scripted teacher (authorised demonstrations)"}
 
 
-async def run_tasks(rts, h, gen, split, n_groups, group, start, checkpoint=None, attempt_base=0):
+async def run_tasks(rts, h, gen, split, n_groups, group, start, checkpoint=None, attempt_base=0, lab=None,
+                    gap_s=600.0):
+    """Agents work in rounds (one task each, concurrently); simulated time passes between rounds, so the
+    agents act over time like real users (and the lab's per-session rate limits refill)."""
     for i in range(n_groups):
         for k in range(group):
             gen.generate(split, start + i, attempt=attempt_base + k)
-    per = (n_groups * group + len(rts) - 1) // len(rts)
-    res = await asyncio.gather(*(rt.loop(per, environments=["socialweblab"], split=split, checkpoint=checkpoint)
-                                 for rt in rts))
-    return [x for r in res for x in r]
+    out = []
+    while True:
+        res = await asyncio.gather(*(rt.loop(1, environments=["socialweblab"], split=split, checkpoint=checkpoint)
+                                     for rt in rts))
+        got = [x for r in res for x in r]
+        if not got:
+            return out
+        out += got
+        if lab is not None:
+            lab.advance(gap_s)
 
 
 async def advance(h, lab, seconds, step=1800.0):
@@ -198,7 +207,7 @@ async def main_async(a):
         since = time.time()
         eval_round["n"] += 1
         await run_tasks(rts, h, gen, split, n_tasks or a.eval_tasks, 1, 0, checkpoint=ck,
-                        attempt_base=10_000 * eval_round["n"])
+                        attempt_base=10_000 * eval_round["n"], lab=lab)
         lab.advance(DAY + 3600)
         h.verification.run()
         with h.db.session() as db:  # this copy of the lab is discarded: stop following its posts
@@ -220,7 +229,7 @@ async def main_async(a):
     task_ix = 0
     for cyc in range(a.cycles):
         tc = time.time()
-        recs = await run_tasks(rts, h, gen, "train", a.groups_per_cycle, a.group, task_ix)
+        recs = await run_tasks(rts, h, gen, "train", a.groups_per_cycle, a.group, task_ix, lab=lab)
         task_ix += a.groups_per_cycle
         fol = await advance(h, lab, DAY / 2)
         ver = h.verification.run()

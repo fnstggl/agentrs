@@ -1,0 +1,797 @@
+{
+ "args": {
+  "seed": 0,
+  "agents": 4,
+  "cycles": 12,
+  "groups_per_cycle": 8,
+  "group": 3,
+  "promote_every": 4,
+  "min_improvement": 0.0,
+  "eval_tasks": 32,
+  "test_tasks": 72,
+  "bc_demos": 400,
+  "bc_steps": 400,
+  "db_url": "postgresql+psycopg://agentrs@127.0.0.1:5433/harness",
+  "redis_url": "redis://127.0.0.1:6380/0",
+  "threads": 3,
+  "model": "EleutherAI/pythia-14m",
+  "results_name": null,
+  "out": "/home/user/agentrs/runs/harness_experiment"
+ },
+ "cycles": [
+  {
+   "cycle": 0,
+   "tasks": 24,
+   "executed": 23,
+   "max_batch": 4,
+   "followups": {
+    "done": 115,
+    "retry": 0,
+    "failed": 0
+   },
+   "verification": {
+    "matured": 0,
+    "pending": 23,
+    "censored": 0,
+    "success": 0
+   },
+   "update": {
+    "updated": false,
+    "n_matured": 0,
+    "mean_reward": null
+   },
+   "production": "bc-v0",
+   "wall_s": 9.426744222640991
+  },
+  {
+   "cycle": 1,
+   "tasks": 24,
+   "executed": 23,
+   "max_batch": 4,
+   "followups": {
+    "done": 138,
+    "retry": 0,
+    "failed": 0
+   },
+   "verification": {
+    "matured": 23,
+    "pending": 23,
+    "censored": 0,
+    "success": 5
+   },
+   "update": {
+    "registry_id": "policy-1794188379-24b7e6",
+    "checkpoint_id": "harness-policy-v1",
+    "param_change": 0.10637427771080095,
+    "updated": true,
+    "n_steps": 23,
+    "checkpoint": "policy-delayed-rl-v1",
+    "n_matured": 23,
+    "mean_reward": 0.21739130434782608,
+    "pg_loss": -0.2457121852785349,
+    "mean_adv": 0.028410477563738823,
+    "token_ratio_mean": 1.0082856863737106,
+    "token_clipfrac": 0.06219451129436493,
+    "content_tokens": 189.5,
+    "seq_logprob_mean": -3.825348138809204,
+    "token_entropy": 0.21039694920182228,
+    "kl_ref": 0.2390456385910511,
+    "grad_norm": 27.98519992828369,
+    "lr": 3e-05,
+    "skipped": 0.0
+   },
+   "production": "bc-v0",
+   "wall_s": 14.311874866485596
+  },
+  {
+   "cycle": 2,
+   "tasks": 24,
+   "executed": 24,
+   "max_batch": 4,
+   "followups": {
+    "done": 143,
+    "retry": 0,
+    "failed": 0
+   },
+   "verification": {
+    "matured": 23,
+    "pending": 24,
+    "censored": 0,
+    "success": 4
+   },
+   "update": {
+    "registry_id": "policy-1794188393-611053",
+    "checkpoint_id": "harness-policy-v2",
+    "param_change": 0.0697444343614738,
+    "updated": true,
+    "n_steps": 23,
+    "checkpoint": "policy-delayed-rl-v2",
+    "n_matured": 23,
+    "mean_reward": 0.17391304347826086,
+    "pg_loss": 0.48671481013298035,
+    "mean_adv": -0.028410479426383972,
+    "token_ratio_mean": 1.0047044903039932,
+    "token_clipfrac": 0.1338768880814314,
+    "content_tokens": 197.5,
+    "seq_logprob_mean": -3.4872310757637024,
+    "token_entropy": 0.20533867180347443,
+    "kl_ref": 0.4245497062802315,
+    "grad_norm": 36.404661417007446,
+    "lr": 3e-05,
+    "skipped": 0.0
+   },
+   "production": "bc-v0",
+   "wall_s": 13.66915225982666
+  },
+  {
+   "cycle": 3,
+   "tasks": 24,
+   "executed": 24,
+   "max_batch": 4,
+   "followups": {
+    "done": 144,
+    "retry": 0,
+    "failed": 0
+   },
+   "verification": {
+    "matured": 24,
+    "pending": 24,
+    "censored": 0,
+    "success": 2
+   },
+   "update": {
+    "registry_id": "policy-1794188406-be7ec6",
+    "checkpoint_id": "harness-policy-v3",
+    "param_change": 0.0679213067413935,
+    "updated": true,
+    "n_steps": 24,
+    "checkpoint": "policy-delayed-rl-v3",
+    "n_matured": 24,
+    "mean_reward": 0.08333333333333333,
+    "pg_loss": -0.33985041081905365,
+    "mean_adv": -1.862645149230957e-09,
+    "token_ratio_mean": 1.021446406841278,
+    "token_clipfrac": 0.09067183174192905,
+    "content_tokens": 172.0,
+    "seq_logprob_mean": -3.8165366649627686,
+    "token_entropy": 0.1977892406284809,
+    "kl_ref": 0.7248375564813614,
+    "grad_norm": 19.111196756362915,
+    "lr": 3e-05,
+    "skipped": 0.0
+   },
+   "production": "bc-v0",
+   "wall_s": 13.75109076499939,
+   "promotion": {
+    "candidate": {
+     "n": 32,
+     "success_rate": 0.03125,
+     "ci95": [
+      0.0,
+      0.09375
+     ]
+    },
+    "production": {
+     "n": 27,
+     "success_rate": 0.07407407407407407,
+     "ci95": [
+      0.0,
+      0.18518518518518517
+     ]
+    },
+    "promoted": false,
+    "reason": "success_rate 0.031 vs production 0.074"
+   }
+  },
+  {
+   "cycle": 4,
+   "tasks": 24,
+   "executed": 22,
+   "max_batch": 4,
+   "followups": {
+    "done": 134,
+    "retry": 0,
+    "failed": 0
+   },
+   "verification": {
+    "matured": 0,
+    "pending": 22,
+    "censored": 0,
+    "success": 0
+   },
+   "update": {
+    "registry_id": "policy-1794188438-16d6fd",
+    "checkpoint_id": "harness-policy-v4",
+    "param_change": 0.1353552114802858,
+    "updated": true,
+    "n_steps": 83,
+    "checkpoint": "policy-delayed-rl-v4",
+    "n_matured": 83,
+    "mean_reward": 0.0963855421686747,
+    "pg_loss": -0.5332920253276825,
+    "mean_adv": 0.0066709347069263455,
+    "token_ratio_mean": 1.0395640134811401,
+    "token_clipfrac": 0.08854844272136689,
+    "content_tokens": 250.8,
+    "seq_logprob_mean": -3.941154754161835,
+    "token_entropy": 0.20155079215764998,
+    "kl_ref": 1.1656518280506134,
+    "grad_norm": 21.642647409439085,
+    "lr": 3.0000000000000004e-05,
+    "skipped": 0.0
+   },
+   "production": "bc-v0",
+   "wall_s": 18.93088984489441
+  },
+  {
+   "cycle": 5,
+   "tasks": 24,
+   "executed": 21,
+   "max_batch": 4,
+   "followups": {
+    "done": 150,
+    "retry": 0,
+    "failed": 0
+   },
+   "verification": {
+    "matured": 22,
+    "pending": 21,
+    "censored": 0,
+    "success": 2
+   },
+   "update": {
+    "registry_id": "policy-1794188452-3977ef",
+    "checkpoint_id": "harness-policy-v5",
+    "param_change": 0.05146889010049448,
+    "updated": true,
+    "n_steps": 22,
+    "checkpoint": "policy-delayed-rl-v5",
+    "n_matured": 22,
+    "mean_reward": 0.09090909090909091,
+    "pg_loss": -0.46575333674748737,
+    "mean_adv": 0.04910453408956528,
+    "token_ratio_mean": 1.0003768801689148,
+    "token_clipfrac": 0.11712287366390228,
+    "content_tokens": 198.33333333333334,
+    "seq_logprob_mean": -3.4273515542348227,
+    "token_entropy": 0.2164543867111206,
+    "kl_ref": 0.8333052198092142,
+    "grad_norm": 41.22158940633138,
+    "lr": 3e-05,
+    "skipped": 0.0
+   },
+   "production": "bc-v0",
+   "wall_s": 14.067463636398315
+  },
+  {
+   "cycle": 6,
+   "tasks": 24,
+   "executed": 24,
+   "max_batch": 4,
+   "followups": {
+    "done": 164,
+    "retry": 0,
+    "failed": 0
+   },
+   "verification": {
+    "matured": 21,
+    "pending": 24,
+    "censored": 0,
+    "success": 1
+   },
+   "update": {
+    "registry_id": "policy-1794188466-1a1867",
+    "checkpoint_id": "harness-policy-v6",
+    "param_change": 0.044954447212441365,
+    "updated": true,
+    "n_steps": 21,
+    "checkpoint": "policy-delayed-rl-v6",
+    "n_matured": 21,
+    "mean_reward": 0.047619047619047616,
+    "pg_loss": 0.09261075655619304,
+    "mean_adv": 0.023092083632946014,
+    "token_ratio_mean": 0.992934783299764,
+    "token_clipfrac": 0.09963990996281306,
+    "content_tokens": 188.66666666666666,
+    "seq_logprob_mean": -5.482016245524089,
+    "token_entropy": 0.22869846721490225,
+    "kl_ref": 2.067938446998596,
+    "grad_norm": 28.216593106587727,
+    "lr": 3e-05,
+    "skipped": 0.0
+   },
+   "production": "bc-v0",
+   "wall_s": 14.005051612854004
+  },
+  {
+   "cycle": 7,
+   "tasks": 24,
+   "executed": 23,
+   "max_batch": 4,
+   "followups": {
+    "done": 163,
+    "retry": 0,
+    "failed": 0
+   },
+   "verification": {
+    "matured": 24,
+    "pending": 23,
+    "censored": 0,
+    "success": 5
+   },
+   "update": {
+    "registry_id": "policy-1794188482-30cb6d",
+    "checkpoint_id": "harness-policy-v7",
+    "param_change": 0.056397508460704876,
+    "updated": true,
+    "n_steps": 24,
+    "checkpoint": "policy-delayed-rl-v7",
+    "n_matured": 24,
+    "mean_reward": 0.20833333333333334,
+    "pg_loss": -1.3804227411746979,
+    "mean_adv": -0.011048523709177971,
+    "token_ratio_mean": 0.9897180497646332,
+    "token_clipfrac": 0.07759835012257099,
+    "content_tokens": 207.0,
+    "seq_logprob_mean": -5.0517271757125854,
+    "token_entropy": 0.22160115838050842,
+    "kl_ref": 1.0976262986660004,
+    "grad_norm": 51.87104034423828,
+    "lr": 3e-05,
+    "skipped": 0.0
+   },
+   "production": "bc-v0",
+   "wall_s": 15.946422338485718,
+   "promotion": {
+    "candidate": {
+     "n": 27,
+     "success_rate": 0.1111111111111111,
+     "ci95": [
+      0.0,
+      0.25925925925925924
+     ]
+    },
+    "production": {
+     "n": 25,
+     "success_rate": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "promoted": true,
+    "reason": "success_rate improved by +0.111"
+   }
+  },
+  {
+   "cycle": 8,
+   "tasks": 24,
+   "executed": 23,
+   "max_batch": 4,
+   "followups": {
+    "done": 162,
+    "retry": 0,
+    "failed": 0
+   },
+   "verification": {
+    "matured": 0,
+    "pending": 23,
+    "censored": 0,
+    "success": 0
+   },
+   "update": {
+    "registry_id": "policy-1794188518-af82a4",
+    "checkpoint_id": "harness-policy-v8",
+    "param_change": 0.112217374793815,
+    "updated": true,
+    "n_steps": 75,
+    "checkpoint": "policy-delayed-rl-v8",
+    "n_matured": 75,
+    "mean_reward": 0.09333333333333334,
+    "pg_loss": -1.08899644613266,
+    "mean_adv": 0.05770303700119257,
+    "token_ratio_mean": 1.0049826323986053,
+    "token_clipfrac": 0.10171698853373527,
+    "content_tokens": 287.8,
+    "seq_logprob_mean": -4.594716930389405,
+    "token_entropy": 0.24397170096635817,
+    "kl_ref": 0.9546580672264099,
+    "grad_norm": 35.12932815551758,
+    "lr": 3.0000000000000004e-05,
+    "skipped": 0.0
+   },
+   "production": "harness-policy-v7",
+   "wall_s": 22.143665075302124
+  },
+  {
+   "cycle": 9,
+   "tasks": 24,
+   "executed": 22,
+   "max_batch": 4,
+   "followups": {
+    "done": 155,
+    "retry": 0,
+    "failed": 0
+   },
+   "verification": {
+    "matured": 23,
+    "pending": 22,
+    "censored": 0,
+    "success": 4
+   },
+   "update": {
+    "registry_id": "policy-1794188533-171190",
+    "checkpoint_id": "harness-policy-v9",
+    "param_change": 0.0430502088528724,
+    "updated": true,
+    "n_steps": 23,
+    "checkpoint": "policy-delayed-rl-v9",
+    "n_matured": 23,
+    "mean_reward": 0.17391304347826086,
+    "pg_loss": 0.7481788992881775,
+    "mean_adv": -0.028410479426383972,
+    "token_ratio_mean": 0.997018575668335,
+    "token_clipfrac": 0.100528534501791,
+    "content_tokens": 180.5,
+    "seq_logprob_mean": -3.8106310963630676,
+    "token_entropy": 0.22630883008241653,
+    "kl_ref": 0.39117128774523735,
+    "grad_norm": 54.62684631347656,
+    "lr": 3e-05,
+    "skipped": 0.0
+   },
+   "production": "harness-policy-v7",
+   "wall_s": 15.248849630355835
+  },
+  {
+   "cycle": 10,
+   "tasks": 24,
+   "executed": 22,
+   "max_batch": 4,
+   "followups": {
+    "done": 153,
+    "retry": 0,
+    "failed": 0
+   },
+   "verification": {
+    "matured": 22,
+    "pending": 22,
+    "censored": 0,
+    "success": 3
+   },
+   "update": {
+    "registry_id": "policy-1794188548-d9fc7d",
+    "checkpoint_id": "harness-policy-v10",
+    "param_change": 0.04308910526235933,
+    "updated": true,
+    "n_steps": 22,
+    "checkpoint": "policy-delayed-rl-v10",
+    "n_matured": 22,
+    "mean_reward": 0.13636363636363635,
+    "pg_loss": -2.658881813287735,
+    "mean_adv": 0.08128421194851398,
+    "token_ratio_mean": 0.9957749992609024,
+    "token_clipfrac": 0.048153048381209373,
+    "content_tokens": 209.5,
+    "seq_logprob_mean": -4.4481701254844666,
+    "token_entropy": 0.17177222482860088,
+    "kl_ref": 0.5325507335364819,
+    "grad_norm": 52.18020582199097,
+    "lr": 3e-05,
+    "skipped": 0.0
+   },
+   "production": "harness-policy-v7",
+   "wall_s": 14.880086183547974
+  },
+  {
+   "cycle": 11,
+   "tasks": 24,
+   "executed": 18,
+   "max_batch": 4,
+   "followups": {
+    "done": 136,
+    "retry": 0,
+    "failed": 0
+   },
+   "verification": {
+    "matured": 22,
+    "pending": 18,
+    "censored": 0,
+    "success": 3
+   },
+   "update": {
+    "registry_id": "policy-1794188562-cd188d",
+    "checkpoint_id": "harness-policy-v11",
+    "param_change": 0.03304566775734028,
+    "updated": true,
+    "n_steps": 22,
+    "checkpoint": "policy-delayed-rl-v11",
+    "n_matured": 22,
+    "mean_reward": 0.13636363636363635,
+    "pg_loss": 0.5208661953608195,
+    "mean_adv": -0.049104531606038414,
+    "token_ratio_mean": 1.0032827258110046,
+    "token_clipfrac": 0.0839066207408905,
+    "content_tokens": 240.33333333333334,
+    "seq_logprob_mean": -5.325567245483398,
+    "token_entropy": 0.18339603145917258,
+    "kl_ref": 0.44582614799340564,
+    "grad_norm": 51.80889129638672,
+    "lr": 3e-05,
+    "skipped": 0.0
+   },
+   "production": "harness-policy-v7",
+   "wall_s": 13.918295860290527,
+   "promotion": {
+    "candidate": {
+     "n": 20,
+     "success_rate": 0.25,
+     "ci95": [
+      0.1,
+      0.45
+     ]
+    },
+    "production": {
+     "n": 23,
+     "success_rate": 0.13043478260869565,
+     "ci95": [
+      0.0,
+      0.2619565217391245
+     ]
+    },
+    "promoted": true,
+    "reason": "success_rate improved by +0.120"
+   }
+  }
+ ],
+ "backends": {
+  "database": "postgresql",
+  "rate_limiter": "redis"
+ },
+ "imitation": {
+  "demos": 400,
+  "steps": 400,
+  "last_loss": 0.8220201730728149,
+  "op_nll": 0.6914459466934204,
+  "content_nll_per_token": 0.1305742710828781,
+  "provenance": "scripted teacher (authorised demonstrations)",
+  "wall_s": 249.63896560668945
+ },
+ "account": {
+  "provisioning_state": "ACTIVE",
+  "history": [
+   "REQUESTED",
+   "POLICY_CHECKED",
+   "AUTHORIZATION_REQUIRED",
+   "CREDENTIALS_CONNECTED",
+   "VERIFIED",
+   "ACTIVE"
+  ]
+ },
+ "rl_wall_s": 227.2132487297058,
+ "final": {
+  "initial_checkpoint": "bc-v0",
+  "final_production": "harness-policy-v11",
+  "last_candidate": "harness-policy-v11",
+  "results": {
+   "bc-v0": {
+    "n": 72,
+    "success_rate": 0.16666666666666666,
+    "ci95": [
+     0.08333333333333333,
+     0.2638888888888889
+    ]
+   },
+   "harness-policy-v11": {
+    "n": 62,
+    "success_rate": 0.20967741935483872,
+    "ci95": [
+     0.11290322580645161,
+     0.3225806451612903
+    ]
+   }
+  },
+  "wall_s": 28.683358669281006
+ },
+ "throughput": {
+  "wall_s": 507.55164337158203,
+  "gateway_actions": 1248,
+  "action_status": {
+   "executed": 1181,
+   "denied": 67
+  },
+  "inference": {
+   "requests": 624,
+   "batches": 174,
+   "max_batch_seen": 4,
+   "compute_s": 65.79188239999712,
+   "rejected": 0
+  },
+  "followup_scheduler": {
+   "horizon:cancelled": 2304,
+   "horizon:done": 1855,
+   "horizon:pending": 297,
+   "budget_spent": {}
+  },
+  "ledger": {
+   "actions": 557,
+   "forecasts": 0,
+   "observations": 1855,
+   "events": 0,
+   "rewards": 557,
+   "ingest": 362
+  },
+  "egress_requests": 3037,
+  "egress_denied": 0,
+  "cpu_cores": 3,
+  "gpu_hours": 0.0,
+  "registry": [
+   {
+    "id": "policy-1794188355-8e83a0",
+    "status": "retired",
+    "notes": "bc-v0",
+    "metrics": {
+     "source": "imitation"
+    }
+   },
+   {
+    "id": "policy-1794188379-24b7e6",
+    "status": "candidate",
+    "notes": "harness-policy-v1",
+    "metrics": {
+     "n_steps": 23,
+     "mean_reward": 0.21739130434782608,
+     "param_change": 0.10637427771080095
+    }
+   },
+   {
+    "id": "policy-1794188393-611053",
+    "status": "candidate",
+    "notes": "harness-policy-v2",
+    "metrics": {
+     "n_steps": 23,
+     "mean_reward": 0.17391304347826086,
+     "param_change": 0.0697444343614738
+    }
+   },
+   {
+    "id": "policy-1794188406-be7ec6",
+    "status": "rejected",
+    "notes": "success_rate 0.031 vs production 0.074",
+    "metrics": {
+     "n_steps": 24,
+     "mean_reward": 0.08333333333333333,
+     "param_change": 0.0679213067413935,
+     "heldout": {
+      "n": 32,
+      "success_rate": 0.03125,
+      "ci95": [
+       0.0,
+       0.09375
+      ]
+     },
+     "production_heldout": {
+      "n": 27,
+      "success_rate": 0.07407407407407407,
+      "ci95": [
+       0.0,
+       0.18518518518518517
+      ]
+     }
+    }
+   },
+   {
+    "id": "policy-1794188438-16d6fd",
+    "status": "candidate",
+    "notes": "harness-policy-v4",
+    "metrics": {
+     "n_steps": 83,
+     "mean_reward": 0.0963855421686747,
+     "param_change": 0.1353552114802858
+    }
+   },
+   {
+    "id": "policy-1794188452-3977ef",
+    "status": "candidate",
+    "notes": "harness-policy-v5",
+    "metrics": {
+     "n_steps": 22,
+     "mean_reward": 0.09090909090909091,
+     "param_change": 0.05146889010049448
+    }
+   },
+   {
+    "id": "policy-1794188466-1a1867",
+    "status": "candidate",
+    "notes": "harness-policy-v6",
+    "metrics": {
+     "n_steps": 21,
+     "mean_reward": 0.047619047619047616,
+     "param_change": 0.044954447212441365
+    }
+   },
+   {
+    "id": "policy-1794188482-30cb6d",
+    "status": "retired",
+    "notes": "harness-policy-v7",
+    "metrics": {
+     "n_steps": 24,
+     "mean_reward": 0.20833333333333334,
+     "param_change": 0.056397508460704876,
+     "heldout": {
+      "n": 27,
+      "success_rate": 0.1111111111111111,
+      "ci95": [
+       0.0,
+       0.25925925925925924
+      ]
+     },
+     "production_heldout": {
+      "n": 25,
+      "success_rate": 0.0,
+      "ci95": [
+       0.0,
+       0.0
+      ]
+     }
+    }
+   },
+   {
+    "id": "policy-1794188518-af82a4",
+    "status": "candidate",
+    "notes": "harness-policy-v8",
+    "metrics": {
+     "n_steps": 75,
+     "mean_reward": 0.09333333333333334,
+     "param_change": 0.112217374793815
+    }
+   },
+   {
+    "id": "policy-1794188533-171190",
+    "status": "candidate",
+    "notes": "harness-policy-v9",
+    "metrics": {
+     "n_steps": 23,
+     "mean_reward": 0.17391304347826086,
+     "param_change": 0.0430502088528724
+    }
+   },
+   {
+    "id": "policy-1794188548-d9fc7d",
+    "status": "candidate",
+    "notes": "harness-policy-v10",
+    "metrics": {
+     "n_steps": 22,
+     "mean_reward": 0.13636363636363635,
+     "param_change": 0.04308910526235933
+    }
+   },
+   {
+    "id": "policy-1794188562-cd188d",
+    "status": "promoted",
+    "notes": "harness-policy-v11",
+    "metrics": {
+     "n_steps": 22,
+     "mean_reward": 0.13636363636363635,
+     "param_change": 0.03304566775734028,
+     "heldout": {
+      "n": 20,
+      "success_rate": 0.25,
+      "ci95": [
+       0.1,
+       0.45
+      ]
+     },
+     "production_heldout": {
+      "n": 23,
+      "success_rate": 0.13043478260869565,
+      "ci95": [
+       0.0,
+       0.2619565217391245
+      ]
+     }
+    }
+   }
+  ]
+ }
+}

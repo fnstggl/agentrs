@@ -17,6 +17,7 @@ the measured results — including the negative ones.
 * Architecture and design rationale: [`docs/architecture.md`](docs/architecture.md)
 * Parameterized semantic action learning (content as part of the action): [`docs/content_learning.md`](docs/content_learning.md)
 * Temporal world models, SocialWebLab, observational learning from other actors: [`docs/temporal_learning.md`](docs/temporal_learning.md)
+* Internet-agent harness (identities, accounts, connectors, gateway, browsers, email, deployment): [`docs/internet_agent.md`](docs/internet_agent.md); operator setup: [`docs/operator_setup.md`](docs/operator_setup.md)
 * Experiments, results, ablations, compute: [`docs/experiments.md`](docs/experiments.md)
 * Phase-by-phase status (implemented / executed / tested / unverified): [`docs/status.md`](docs/status.md)
 * Hardware profiles and resource estimates: [`docs/hardware.md`](docs/hardware.md)
@@ -44,6 +45,7 @@ the measured results — including the negative ones.
 | Temporal world model (multi-horizon, censoring-aware), delayed-outcome ledger, durable observation scheduler, delayed-reward RL, temporal planner, continual orchestrator | `temporal/`, `training/`, `planning/temporal_planner.py` | tested; experiments A–F executed |
 | SocialWebLab: self-hosted multi-user web app (forum, help desk, code review) with real DB, API, HTML/JS UI, background jobs, virtual/real clock, simulated users | `socialweblab/` | tested (incl. real Chromium) |
 | Observation sensor network: authorised sources, permissions, dedup, forecasting of third-party actions, follow-ups | `sensors/` | tested |
+| Internet-agent harness: control plane (PostgreSQL/Redis), account registry + provisioning, OAuth, tool gateway, egress control, permission tiers + approvals, browser pool, email, connectors (Bluesky, Mastodon, GitHub, Discord, X, Instagram; Reddit/LinkedIn gated), shared inference, learner, dashboard, deployment | `harness/`, `deploy/` | tested locally against provider simulators; **no live provider tested** (no credentials) |
 
 ## Quick start (CPU)
 
@@ -59,7 +61,7 @@ source .venv/bin/activate
 python -m pytest -q
 ```
 
-The full suite (155 tests: unit, learning, safety, integration, browser, temporal, sensors, end-to-end) takes a few minutes on 4
+The full suite (207 tests incl. 8 credential-gated live-provider tests: unit, learning, safety, integration, browser, temporal, sensors, harness, end-to-end) takes a few minutes on 4
 CPU cores. Browser tests skip with a reason if Chromium cannot be launched; set
 `AGENTRS_CHROMIUM=/path/to/chrome` or run `playwright install chromium`. Learning tests use a tiny
 randomly initialised model and need no downloads; experiment configs download Pythia from the

@@ -120,6 +120,18 @@ Chromium). See the bottom of this file for the latest run.
   authorised), OpenWebRL (not found on PyPI; GitHub unreachable from this sandbox), any live-web or
   Reddit source (no platform authorisation), GPU profiles.
 
+## Internet-agent harness: implemented, tested locally, not tested against live services
+* Implemented: control plane (PostgreSQL/SQLite, Alembic), secret references, agent identities, platform
+  account registry, provisioning orchestrator (human setup, final denials), OAuth (PKCE), capability
+  registry (all providers off), egress control, permission tiers + approvals + quotas + emergency stop,
+  tool gateway, connectors (Bluesky, Mastodon, GitHub, Discord, X, Instagram; Reddit / LinkedIn gated),
+  provider simulators, isolated browser pool, email, inference gateway, runtime, verification, learner,
+  control API + dashboard, metrics / tracing, Docker / Kubernetes manifests. See `docs/internet_agent.md`.
+* Tests: `tests/harness` (required tests 1–18 + connectors; live-provider tests skip without credentials).
+* Executed: sandbox practice loop on PostgreSQL + Redis (results in `docs/internet_agent.md`).
+* Not executed: any live provider (no operator credentials), Docker Compose (no daemon), Kubernetes,
+  GPU inference, Temporal.io.
+
 ## Known gaps (honest list)
 * No GPU runs; the Qwen3-4B research profile is configured and its code path is the same as the
   executed one, but it was never run.
@@ -132,6 +144,6 @@ Chromium). See the bottom of this file for the latest run.
 
 ## Latest full test run
 
-`python -m pytest -q` → **155 passed** (latest run, incl. 36 temporal / sensor / SocialWebLab / end-to-end tests; earlier: 119) in 258 s (4 CPU cores shared with running experiments;
+`python -m pytest -q` → **199 passed, 8 skipped** (latest run, with PostgreSQL + Redis tests enabled; the skips are live-provider tests without credentials; earlier: 155) in 243 s (4 CPU cores shared with running experiments;
 includes 25 real-Chromium browser tests). `bash scripts/verify_cli_workflows.sh` executed all
 documented CLI workflows successfully.
