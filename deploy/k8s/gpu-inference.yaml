@@ -1,0 +1,29 @@
+# GPU research profile: shared vLLM inference (agents never load weights) — separate from learners.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: inference, namespace: agentrs}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: inference}}
+  template:
+    metadata: {labels: {app: inference}}
+    spec:
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:v0.6.3
+          args: ["--model", "Qwen/Qwen2.5-VL-7B-Instruct", "--max-num-seqs", "64", "--port", "8100"]
+          ports: [{containerPort: 8100}]
+          resources: {limits: {nvidia.com/gpu: 1, memory: 40Gi}}
+---
+apiVersion: batch/v1
+kind: Job
+metadata: {name: learner, namespace: agentrs}
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: learner
+          image: REGISTRY/agentrs:TAG
+          command: ["python", "scripts/harness/sandbox_learning_experiment.py", "--learner-only"]
+          resources: {limits: {nvidia.com/gpu: 4}}

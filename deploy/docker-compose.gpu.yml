@@ -1,0 +1,11 @@
+# Optional: real GPU inference (vLLM OpenAI-compatible server) instead of the mock.
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.gpu.yml up
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.6.3
+    command: ["--model", "Qwen/Qwen2.5-VL-7B-Instruct", "--max-num-seqs", "64", "--port", "8200"]
+    deploy: {resources: {reservations: {devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]}}}
+    volumes: [hf-cache:/root/.cache/huggingface]
+  agent-worker:
+    environment: {AGENTRS_INFERENCE_BACKEND: openai_compatible, AGENTRS_INFERENCE_URL: "http://vllm:8200"}
+volumes: {hf-cache: {}}

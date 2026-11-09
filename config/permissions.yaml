@@ -1,0 +1,17 @@
+permissions:
+  approval_tiers: [3, 4]          # tier 3 needs approval unless the task pre-authorises the exact operation
+  always_human_tiers: [4]         # tier 4 always needs a human
+  require_approval_for: [email:send_external, x:like, bluesky:reply, mastodon:reply]
+  forbidden_operations: [x:direct_message, bluesky:direct_message, mastodon:direct_message, reddit:direct_message]
+  max_content_chars: 5000
+  duplicate_window_s: 604800
+  blocked_patterns: ["(?i)free money", "(?i)crypto giveaway", "(?i)click here to claim", "(?i)dm me for"]
+  account_quota_per_hour: 30
+  account_writes_per_day: 50
+  require_rate_limits: true
+# Generic website connector: only these sites, with these tiers for interactions.
+web_sites:
+  socialweblab-local:
+    start_url: http://127.0.0.1:8765/
+    allowed_prefixes: [http://127.0.0.1:8765/]
+    tier: 1

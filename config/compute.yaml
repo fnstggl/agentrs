@@ -1,0 +1,23 @@
+# Deployment profiles. Only `local` was executed in this repository's sandbox.
+profiles:
+  local:
+    database_url: postgresql+psycopg://agentrs:agentrs@postgres:5432/agentrs
+    redis_url: redis://redis:6379/0
+    object_store: {kind: s3, endpoint_url: http://minio:9000, bucket: agentrs-artifacts}
+    inference: {backend: mock, url: http://inference:8100, max_batch: 16, max_wait_ms: 10}
+    browser_workers: {replicas: 1, max_sessions: 4, cpu: "1", memory: 2Gi}
+    agent_workers: {replicas: 1, concurrent_agents: 4}
+  small_cloud:
+    database_url: ${AGENTRS_DATABASE_URL}      # managed PostgreSQL
+    redis_url: ${AGENTRS_REDIS_URL}            # managed Redis
+    object_store: {kind: s3, bucket: ${AGENTRS_S3_BUCKET}}
+    inference: {backend: openai_compatible, url: ${AGENTRS_INFERENCE_URL}, model: Qwen/Qwen2.5-VL-7B-Instruct}
+    browser_workers: {replicas: 2, max_sessions: 4, cpu: "2", memory: 4Gi}
+    agent_workers: {replicas: 2, concurrent_agents: 16}
+    egress: {pool: nat-static-ip-1}            # one approved static egress IP; no rotation
+  gpu_cluster:
+    inference: {backend: vllm, replicas: 2, gpus_per_replica: 1, model: Qwen/Qwen2.5-VL-7B-Instruct, max_batch: 64}
+    learner: {gpus: 4, world_model_steps_per_cycle: 2000, policy_rl_every_n_matured: 256}
+    browser_workers: {replicas: 8, max_sessions: 8}
+    agent_workers: {replicas: 8, concurrent_agents: 64}
+    note: inference and training are separate processes; agents never hold model weights

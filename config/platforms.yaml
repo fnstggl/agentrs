@@ -1,0 +1,120 @@
+# Provider capability registry. EVERY provider ships disabled with every capability off.
+# The values under `limits` are placeholders, NOT real provider policies. An operator enables a
+# provider/capability only after confirming it from the provider's current official documentation
+# and their own approved developer access, and records the approval in `authorization_ref`.
+# Technical API availability is never authorisation. Missing entries fail closed.
+providers:
+  socialweblab:            # self-hosted sandbox (tier 1); safe to enable in local development
+    enabled: false
+    base_url: http://127.0.0.1:8765
+    allowed_domains: [127.0.0.1, localhost, socialweblab]
+    capabilities: {read_content: false, create_post: false, reply: false, react: false, account_provisioning: false}
+    requirements: {oauth: false, human_account_creation: false, developer_approval: false, bot_disclosure: false,
+                   training_data_authorization: false, programmatic_provisioning: true}
+    training_data_authorized: false
+    limits: {requests_per_minute: 0, posts_per_day: 0, concurrent_sessions: 0}
+  bluesky:
+    enabled: false
+    base_url: https://bsky.social
+    allowed_domains: [bsky.social, .bsky.network, public.api.bsky.app]
+    capabilities: {read_content: false, read_profile: false, create_post: false, reply: false, direct_message: false,
+                   upload_media: false, update_profile: false, account_provisioning: false}
+    requirements: {oauth: false, human_account_creation: true, developer_approval: false, bot_disclosure: true,
+                   training_data_authorization: true}
+    limits: {requests_per_minute: 0, posts_per_day: 0, concurrent_sessions: 0}
+    human_setup_steps:
+      - Create the account yourself on the official Bluesky sign-up page (email verification is done by you).
+      - Label the account as automated (self-label 'bot') and describe the operator in the profile.
+      - Create an app password in Settings -> Privacy and security -> App passwords.
+      - Store it in your secret manager as AGENTRS_SECRET_BLUESKY_APP_PASSWORD and register the handle.
+  mastodon:
+    enabled: false
+    base_url: https://mastodon.example
+    allowed_domains: [mastodon.example]
+    capabilities: {read_content: false, read_profile: false, create_post: false, reply: false, direct_message: false,
+                   read_notifications: false, upload_media: false, account_provisioning: false}
+    requirements: {oauth: true, human_account_creation: true, developer_approval: false, bot_disclosure: true,
+                   training_data_authorization: true}
+    limits: {requests_per_minute: 0, posts_per_day: 0, concurrent_sessions: 0}
+    notes: Each instance has its own rules on automated accounts; read and record the instance's rules before enabling.
+    human_setup_steps:
+      - Confirm the instance's rules allow bot accounts; create the account yourself and tick "This is an automated account".
+      - Authorise the agentrs OAuth application in the browser (the harness registers the app and shows the link).
+  github:
+    enabled: false
+    base_url: https://api.github.com
+    allowed_domains: [api.github.com, github.com]
+    capabilities: {read_repository: false, read_issues: false, create_branch: false, commit: false,
+                   create_pull_request: false, read_checks: false, run_workflow: false, account_provisioning: false}
+    requirements: {oauth: false, human_account_creation: true, developer_approval: false, bot_disclosure: true,
+                   training_data_authorization: true}
+    limits: {requests_per_minute: 0, posts_per_day: 0, concurrent_sessions: 0}
+    human_setup_steps:
+      - Create a GitHub App owned by your organisation with only the repository permissions you approve.
+      - Install it on the specific repositories the agents may touch (not the whole organisation).
+      - Store the App's private key in your secret manager as AGENTRS_SECRET_GITHUB_APP_KEY; register app id + installation id.
+  discord:
+    enabled: false
+    base_url: https://discord.com/api/v10
+    allowed_domains: [discord.com]
+    capabilities: {read_messages: false, send_message: false, respond_interaction: false, account_provisioning: false}
+    requirements: {oauth: true, human_account_creation: true, developer_approval: false, bot_disclosure: true,
+                   training_data_authorization: true}
+    limits: {requests_per_minute: 0, posts_per_day: 0, concurrent_sessions: 0}
+    human_setup_steps:
+      - Create an application and bot user in the Discord Developer Portal; add it only to servers whose admins agree.
+      - Store the bot token as AGENTRS_SECRET_DISCORD_BOT_TOKEN and the public key for interaction signature checks.
+  x:
+    enabled: false
+    base_url: https://api.x.com/2
+    allowed_domains: [api.x.com]
+    capabilities: {read_content: false, create_post: false, reply: false, like: false, direct_message: false,
+                   account_provisioning: false}
+    requirements: {oauth: true, human_account_creation: true, developer_approval: true, bot_disclosure: true,
+                   training_data_authorization: true}
+    limits: {requests_per_minute: 0, posts_per_day: 0, concurrent_sessions: 0}
+    human_setup_steps:
+      - Obtain approved developer access for the account's intended use; mark the account as automated.
+      - Complete the OAuth 2.0 user-context authorisation in the browser; tokens go to the secret store.
+  reddit:
+    enabled: false
+    base_url: https://oauth.reddit.com
+    allowed_domains: [oauth.reddit.com, www.reddit.com]
+    capabilities: {read_content: false, create_post: false, reply: false, direct_message: false, account_provisioning: false}
+    requirements: {oauth: true, human_account_creation: true, developer_approval: true, bot_disclosure: true,
+                   training_data_authorization: true}
+    training_data_authorized: false
+    limits: {requests_per_minute: 0, posts_per_day: 0, concurrent_sessions: 0}
+    notes: Default environment for Reddit-like training is SocialWebLab. API access is not permission to train on content.
+  instagram:
+    enabled: false
+    base_url: https://graph.facebook.com/v21.0
+    allowed_domains: [graph.facebook.com]
+    capabilities: {read_media: false, publish_media: false, read_comments: false, account_provisioning: false}
+    requirements: {oauth: true, human_account_creation: true, developer_approval: true, bot_disclosure: true,
+                   training_data_authorization: true}
+    limits: {requests_per_minute: 0, posts_per_day: 0, concurrent_sessions: 0}
+    notes: Professional (business/creator) accounts only, via an approved Meta app.
+  linkedin:
+    enabled: false
+    base_url: https://api.linkedin.com
+    allowed_domains: [api.linkedin.com]
+    capabilities: {read_profile: false, create_post: false, account_provisioning: false}
+    requirements: {oauth: true, human_account_creation: true, developer_approval: true, bot_disclosure: true,
+                   training_data_authorization: true}
+    limits: {requests_per_minute: 0, posts_per_day: 0, concurrent_sessions: 0}
+  web:
+    enabled: false
+    allowed_domains: []
+    capabilities: {navigate: false, read_page: false, fill: false, click: false, upload_file: false,
+                   download_file: false, screenshot: false}
+    requirements: {oauth: false, human_account_creation: false, developer_approval: false, bot_disclosure: false,
+                   training_data_authorization: true}
+    limits: {requests_per_minute: 0, posts_per_day: 0, concurrent_sessions: 0}
+  email:
+    enabled: false
+    allowed_domains: []
+    capabilities: {read_messages: false, send_transactional: false, send_external: false}
+    requirements: {oauth: true, human_account_creation: true, developer_approval: false, bot_disclosure: true,
+                   training_data_authorization: true}
+    limits: {requests_per_minute: 0, posts_per_day: 0, concurrent_sessions: 0}

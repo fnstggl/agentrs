@@ -1,0 +1,79 @@
+# Small cloud deployment (CPU control plane + workers; managed PostgreSQL/Redis/S3; remote GPU
+# inference endpoint). Apply only after the operator approves provisioning of billable resources.
+apiVersion: v1
+kind: Namespace
+metadata: {name: agentrs}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: agentrs-config, namespace: agentrs}
+data:
+  AGENTRS_PLATFORMS: /app/config/platforms.yaml
+  AGENTRS_PERMISSIONS: /app/config/permissions.yaml
+  AGENTRS_AGENTS: /app/config/agents.yaml
+  AGENTRS_DATA_DIR: /data
+---
+# Secrets come from the cloud secret manager via the External Secrets operator (no values in git).
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata: {name: agentrs-secrets, namespace: agentrs}
+spec:
+  secretStoreRef: {name: cloud-secret-store, kind: ClusterSecretStore}
+  target: {name: agentrs-secrets}
+  dataFrom: [{extract: {key: agentrs/harness}}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: control, namespace: agentrs}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: control}}
+  template:
+    metadata: {labels: {app: control, egress: none}}
+    spec:
+      initContainers:
+        - {name: migrate, image: REGISTRY/agentrs:TAG, args: [migrate], envFrom: [{configMapRef: {name: agentrs-config}}, {secretRef: {name: agentrs-secrets}}]}
+      containers:
+        - name: control
+          image: REGISTRY/agentrs:TAG
+          args: [control, --port, "8000"]
+          envFrom: [{configMapRef: {name: agentrs-config}}, {secretRef: {name: agentrs-secrets}}]
+          ports: [{containerPort: 8000}]
+          readinessProbe: {httpGet: {path: /health, port: 8000}}
+          resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: agent-worker, namespace: agentrs}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: agent-worker}}
+  template:
+    metadata: {labels: {app: agent-worker, egress: approved-internet}}
+    spec:
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: worker
+          image: REGISTRY/agentrs:TAG
+          args: [agent-worker]
+          envFrom: [{configMapRef: {name: agentrs-config}}, {secretRef: {name: agentrs-secrets}}]
+          resources: {requests: {cpu: "1", memory: 2Gi}, limits: {cpu: "2", memory: 4Gi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: false}
+          volumeMounts: [{name: shm, mountPath: /dev/shm}]
+      volumes: [{name: shm, emptyDir: {medium: Memory, sizeLimit: 1Gi}}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: outcome-worker, namespace: agentrs}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: outcome-worker}}
+  template:
+    metadata: {labels: {app: outcome-worker, egress: approved-internet}}
+    spec:
+      containers:
+        - name: worker
+          image: REGISTRY/agentrs:TAG
+          args: [outcome-worker]
+          envFrom: [{configMapRef: {name: agentrs-config}}, {secretRef: {name: agentrs-secrets}}]
+          resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}

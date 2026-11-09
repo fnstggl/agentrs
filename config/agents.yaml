@@ -1,0 +1,39 @@
+# Internal agent identities. Separate from external accounts: many workers may share one properly
+# authorised organisation / bot account where the provider's terms allow it.
+# Capabilities are "<provider>:<capability>" (or "<provider>:*"); max_tier is the highest permission
+# tier the agent can ever use (0 observe, 1 sandbox, 2 reversible owned resources, 3 external
+# publishing / communication, 4 high impact). Agents cannot change these values.
+agents:
+  - id: research_agent_001
+    display_name: Research Agent
+    role: researcher
+    model_checkpoint: current_approved
+    allowed_capabilities: [web:navigate, web:read_page, web:screenshot, github:read_repository, github:read_issues]
+    max_tier: 0
+    action_budget: 100
+  - id: coding_agent_001
+    display_name: Coding Agent
+    role: developer
+    allowed_capabilities: [github:read_repository, github:read_issues, github:create_branch, github:commit,
+                           github:create_pull_request, github:read_checks]
+    max_tier: 2
+    action_budget: 200
+  - id: sandbox_agent_001
+    display_name: Sandbox Practice Agent 1
+    role: practice
+    allowed_capabilities: ["socialweblab:*"]
+    max_tier: 1
+    action_budget: 1000
+  - id: sandbox_agent_002
+    display_name: Sandbox Practice Agent 2
+    role: practice
+    allowed_capabilities: ["socialweblab:*"]
+    max_tier: 1
+    action_budget: 1000
+  - id: comms_agent_001
+    display_name: Communications Agent
+    role: communications
+    allowed_capabilities: [email:read_messages, email:send_transactional, email:send_external,
+                           bluesky:read_content, bluesky:create_post, mastodon:read_content, mastodon:create_post]
+    max_tier: 3   # tier-3 actions still need task-level authorisation or approval
+    action_budget: 50
