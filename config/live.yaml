@@ -1,0 +1,21 @@
+# Live observational learner (python -m agentrs.live run --config config/live.yaml).
+# Reads only public data from official APIs; never posts. Reddit stays off until Reddit has
+# approved Data API access AND AI-model training for this use (see docs/live_learning.md).
+workdir: /data/live
+sources: [hackernews, bluesky]
+bluesky_per_min: 20          # random sample of new English top-level posts
+bluesky_langs: [en]
+horizons: ["10m", "1h", "6h", "1d", "3d"]
+outcome_window: 4d
+model: EleutherAI/pythia-14m
+lr: 1.0e-4
+weight_decay: 0.1
+learn_every_s: 120
+checkpoint_every_s: 600
+snapshot_every_s: 3600
+threads: 4
+# Goals: the service reports progress on each; with stop_when_targets_met it exits when all are met.
+targets:
+  - {source: bluesky, metric: skill, min_value: 0.10, min_n: 5000, window_s: 86400}
+  - {source: hackernews, metric: skill, min_value: 0.10, min_n: 2000, window_s: 259200}
+stop_when_targets_met: false

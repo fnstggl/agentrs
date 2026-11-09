@@ -1,0 +1,23 @@
+# Always-on live observational learner (CPU; ~1-2 GB RAM; a few GB of disk per month).
+#   docker compose -f deploy/live/docker-compose.yml up -d --build
+#   docker compose -f deploy/live/docker-compose.yml logs -f
+#   docker compose -f deploy/live/docker-compose.yml exec live python -m agentrs.live status --workdir /data/live
+# Weights, ledger, job queue and scores live in the named volume and survive restarts / upgrades.
+name: agentrs-live
+services:
+  live:
+    build: {context: ../.., dockerfile: deploy/Dockerfile}
+    entrypoint: ["python", "-m", "agentrs.live"]
+    command: ["run", "--config", "/app/config/live.yaml"]
+    environment:
+      AGENTRS_PSEUDONYM_KEY: "${AGENTRS_PSEUDONYM_KEY:-}"   # optional; otherwise generated in the volume
+      HF_HOME: /data/hf
+    volumes: [live-data:/data]
+    restart: unless-stopped
+    stop_grace_period: 60s   # SIGTERM saves the weights
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time,sys; p='/data/live/status.json'; sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p)<900 else 1)"]
+      interval: 60s
+      start_period: 600s
+volumes:
+  live-data: {}

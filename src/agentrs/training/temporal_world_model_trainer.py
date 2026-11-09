@@ -138,8 +138,11 @@ class TemporalWorldModelTrainer:
         return evaluate_temporal(model_predict_fn(self.model), examples, horizons, events or spec.events, spec.counts)
 
     def progressive_update(self, builder: TemporalTrainingDataBuilder, as_of: dict[str, float],
-                           splits: Sequence[str] = ("train",), force: bool = False, **build_kw) -> dict:
-        changed = builder.ledger.changed_since_ingest(self.name)
+                           splits: Sequence[str] = ("train",), force: bool = False,
+                           changed: Sequence[str] | None = None, steps: int | None = None, **build_kw) -> dict:
+        """``changed``: action ids with new labels, when the caller tracks them (cheaper than
+        ``changed_since_ingest`` on a large ledger); ``steps`` overrides ``progressive_steps``."""
+        changed = list(changed) if changed is not None else builder.ledger.changed_since_ingest(self.name)
         new = builder.build(as_of=as_of, splits=splits, action_ids=changed, **build_kw)
         if len(new) < self.cfg.progressive_min_new and not force:
             return {"trained": False, "new_examples": len(new)}
@@ -147,7 +150,7 @@ class TemporalWorldModelTrainer:
         self.replay = [e for e in self.replay if e.example_id not in keep] + new
         n_new = max(1, int(round(self.cfg.batch_size * (1 - self.cfg.replay_ratio))))
         old = [e for e in self.replay if e.example_id not in keep]
-        steps = self.cfg.progressive_steps
+        steps = steps or self.cfg.progressive_steps
         losses = []
         snap = param_snapshot(self.model)
         self.model.train()

@@ -1,0 +1,22 @@
+# systemd unit for a plain Linux server (no Docker):
+#   sudo cp deploy/live/agentrs-live.service /etc/systemd/system/ && sudo systemctl enable --now agentrs-live
+#   journalctl -u agentrs-live -f
+[Unit]
+Description=agentrs live observational learner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=agentrs
+WorkingDirectory=/opt/agentrs
+ExecStart=/opt/agentrs/.venv/bin/python -m agentrs.live run --config /opt/agentrs/config/live.yaml
+Restart=always
+RestartSec=30
+KillSignal=SIGTERM
+TimeoutStopSec=60
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/data/live /home/agentrs/.cache
+
+[Install]
+WantedBy=multi-user.target

@@ -6,7 +6,7 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY src ./src
 COPY config ./config
-RUN pip install -e ".[harness]" && pip install --index-url https://download.pytorch.org/whl/cpu torch
+RUN pip install -e ".[harness,live]" && pip install --index-url https://download.pytorch.org/whl/cpu torch
 RUN useradd -m agent && mkdir -p /data && chown agent /data
 USER agent
 HEALTHCHECK --interval=15s --timeout=5s --retries=5 CMD python -c "import urllib.request,os;urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\",\"8000\")}/health')" || exit 1

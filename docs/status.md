@@ -147,3 +147,12 @@ Chromium). See the bottom of this file for the latest run.
 `python -m pytest -q` → **199 passed, 8 skipped** (latest run, with PostgreSQL + Redis tests enabled; the skips are live-provider tests without credentials; earlier: 155) in 243 s (4 CPU cores shared with running experiments;
 includes 25 real-Chromium browser tests). `bash scripts/verify_cli_workflows.sh` executed all
 documented CLI workflows successfully.
+
+## Live observational learning on real posts: running (sandbox), deployable
+
+`python -m agentrs.live` forecasts new Hacker News stories and a sample of new Bluesky posts as
+they appear, observes their real outcomes at 10 min – 3 days, updates the temporal world model's
+weights in place every few minutes, persists them, and scores every stored forecast against the
+outcome and a stratified baseline. Reddit is implemented against the official Data API but gated
+off until Reddit approves API access and training use. See [`live_learning.md`](live_learning.md)
+for design, deployment and the first live results.

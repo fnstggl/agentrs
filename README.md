@@ -18,6 +18,7 @@ the measured results — including the negative ones.
 * Parameterized semantic action learning (content as part of the action): [`docs/content_learning.md`](docs/content_learning.md)
 * Temporal world models, SocialWebLab, observational learning from other actors: [`docs/temporal_learning.md`](docs/temporal_learning.md)
 * Internet-agent harness (identities, accounts, connectors, gateway, browsers, email, deployment): [`docs/internet_agent.md`](docs/internet_agent.md); operator setup: [`docs/operator_setup.md`](docs/operator_setup.md)
+* Live observational learning on real new posts (Hacker News, Bluesky; Reddit gated), persistent weights, real-time scoring: [`docs/live_learning.md`](docs/live_learning.md) — `python -m agentrs.live run`
 * Experiments, results, ablations, compute: [`docs/experiments.md`](docs/experiments.md)
 * Phase-by-phase status (implemented / executed / tested / unverified): [`docs/status.md`](docs/status.md)
 * Hardware profiles and resource estimates: [`docs/hardware.md`](docs/hardware.md)
