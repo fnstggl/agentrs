@@ -290,3 +290,27 @@ def test_deleted_posts_are_redacted_and_not_scored(tmp_path):
     a = ll.ledger.action(stable_action_id("fake", "p1"))
     assert a["action"]["content"] is None and not a["training_eligible"]
     assert any(g["op"] == "redact" for g in ll.ledger.governance_log())
+
+
+def test_network_keeps_the_starting_cursor_of_a_live_source(tmp_path):
+    """A live source's first poll returns no events, only a starting point; it must be kept."""
+    from agentrs.sensors.observation_network import ObservationSensorNetwork
+    from agentrs.sensors.source_registry import SourceRegistry
+
+    now = time.time()
+    listing = [100]
+    items = {101: {"id": 101, "type": "story", "by": "a", "time": now, "title": "new", "score": 1}}
+
+    def h(req):
+        if req.url.path.endswith("newstories.json"):
+            return httpx.Response(200, json=listing)
+        if "/item/" in req.url.path:
+            return httpx.Response(200, json=items.get(int(req.url.path.split("/")[-1].split(".")[0])))
+        return httpx.Response(200, json={"karma": 1})
+
+    reg = SourceRegistry(tmp_path / "s.json")
+    reg.register(HackerNewsSource(client=httpx.Client(transport=httpx.MockTransport(h)), pseudonym_key="k"))
+    net = ObservationSensorNetwork(tmp_path, reg)
+    assert net.ingest("hackernews")["new_actions"] == 0 and net.cursors["hackernews"] == 100
+    listing[:] = [101, 100]
+    assert net.ingest("hackernews")["new_actions"] == 1

@@ -408,4 +408,6 @@ class LiveLearner:
             self.write_status()
             if self.state["updates"]:
                 self.save()
-            log.info("stopped; weights saved at %s", self.ckpt)
+                log.info("stopped; weights saved at %s", self.ckpt)
+            else:
+                log.info("stopped before the first weight update (nothing to save)")

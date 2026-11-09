@@ -177,6 +177,9 @@ class ObservationSensorNetwork:
                 break
             pages += 1
             if not raws:
+                if cur != self.cursors.get(source_id, 0):  # e.g. a live source's starting point
+                    self.cursors[source_id] = cur
+                    self._save_cursors()
                 break
             self.stats["polled_events"] += len(raws)
             for raw in raws:
