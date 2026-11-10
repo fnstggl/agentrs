@@ -158,7 +158,47 @@ fine-tune the policy on those outcomes. "Lots of views" must be earned with post
 platform rules forbid fake engagement, vote manipulation, multiple accounts and spam, and the
 harness's policy engine enforces quotas, duplicate-content and disclosure checks.
 
-## First live run (this build sandbox)
+## First live run (this build sandbox, 2026-11-09 22:54 → 2026-11-10 00:41 UTC)
 
-See `results/live/` for the aggregate snapshot written from the run started in the build sandbox
+Real, unrehearsed data: every number below is a forecast made when the post appeared and scored
+after its real outcome was observed. Aggregate snapshot: `results/live/snapshot_2026-11-10.json`
 (no post text or user identifiers are committed).
+
+| | |
+|---|---|
+| posts forecast | 1,739 Bluesky (random 3.1% sample of ~640 new English top-level posts / min; 162 authors skipped for the opt-out label), 74 Hacker News (every new story) |
+| follow-up observations | 2,428 (Bluesky 25 posts per request: 182 requests; HN 209 requests) |
+| weight updates | 47 updates, 1,740 optimizer steps on the same weights (Pythia-14M trunk), 495 CPU-seconds of training; checkpoint `live-wm-v47-s1740`; resumed from checkpoint after each of 3 restarts |
+| deletions propagated | 32 posts deleted by their authors → text redacted, excluded from training and scoring |
+| what happens to a new Bluesky post | 33% get a like within 10 min, 47% within 1 h; 15% / 20% get a reply; 4% / 13% reach 10 engagements; 0.4% / 2% reach 100 |
+
+Scores (Brier: lower is better; skill = 1 − Brier_model / Brier_baseline; 95% interval of the
+Brier difference from a post-level bootstrap):
+
+| forecasts made | source | n outcomes (posts) | Brier model | Brier baseline | skill [95% CI of gain] | AUROC model / baseline |
+|---|---|---|---|---|---|---|
+| after 23:25 (baseline warmed up) | Bluesky | 5,500 (964) | 0.0893 | 0.0970 | +0.08 [+0.003, +0.013] | 0.85 / 0.81 |
+| — of which 10-min horizon only | Bluesky | 4,770 (954) | — | — | baseline better on every event | e.g. "any like" 0.57 / 0.71 |
+| after 23:56 (feature change) | Bluesky | 2,375 (475) | 0.0882 | 0.0740 | −0.19 [−0.020, −0.009] | 0.85 / 0.88 |
+| after 23:56 | Hacker News | 85 (17) | 0.0743 | 0.0564 | too few to tell | 0.79 / 0.79 |
+
+**Reading.** The loop works end to end on live data and the weights do learn: from an untrained
+start the model's calibration quickly became reasonable, and after the audience bucket was added its
+ranking of which posts get a like improved (AUROC 0.46 → 0.62) and it ranks first replies better
+than the baseline in some windows. **But it does not yet beat the simple baseline** — "kind of post ×
+author follower bucket" rates — wherever that baseline already had data: at the 10-minute horizon
+the model is 10–19% worse in Brier. The positive overall skill after 23:25 comes from the 1-hour
+horizon, where the baseline had no 1-hour outcomes yet when those forecasts were made; that is not
+evidence of content understanding. After 1¾ hours and ~1,700 posts, there is no evidence that the
+model knows which *content* does well beyond who posted it and in what format.
+
+Changes made during the run (each is in the git history): Hacker News cursor fix (the source never
+advanced past its first poll); unbiased scoring at the actual follow-up time (earlier rows were
+recomputed; the early scorer dropped positives seen by a slightly late poll); audience-size
+bucket added to the context and 3× more gradient steps per update (at 23:56).
+
+Next steps, in order: (1) **learn the residual over the baseline** (feed the stratum's rate as an
+offset to the hazards so the network only has to learn what the baseline misses — content, timing,
+topic); (2) keep it running for days so 6 h – 3 day outcomes exist and there are tens of thousands
+of posts; (3) a larger trunk (0.4–1 B parameters; the config's `model:`), which is where content
+understanding should come from; (4) only then use it to rank candidate posts for the acting agent.

@@ -19,6 +19,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--workdir", default="runs/live")
     ap.add_argument("--out", default="results/live/snapshot.json")
+    ap.add_argument("--window", action="append", default=[],
+                    help="label=unix_time: also score only forecasts made after that time (repeatable)")
     a = ap.parse_args()
     wd = Path(a.workdir)
     st = json.loads((wd / "status.json").read_text())
@@ -34,6 +36,9 @@ def main() -> None:
         "sources": {k: {kk: vv for kk, vv in v.items() if kk != "errors"} for k, v in st["sources"].items()},
         "deletions_propagated": st["governance"], "targets": st["targets"],
         "scores": sc.report(ci=True), "trend_hourly": sc.trend(3600.0),
+        "windows": {w.split("=")[0]: {"since_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(float(w.split("=")[1]))),
+                                      **sc.report(since_forecast_time=float(w.split("=")[1]), ci=True)}
+                    for w in a.window},
         "trend_15min": sc.trend(900.0),
     }
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)

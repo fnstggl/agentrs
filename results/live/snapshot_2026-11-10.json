@@ -1,0 +1,1496 @@
+{
+ "snapshot_utc": "2026-11-10T00:41:14Z",
+ "first_post_utc": "2026-11-09T22:54:10Z",
+ "uptime_s": 2408,
+ "checkpoint": "live-wm-v47-s1740",
+ "optimizer_steps": 1740,
+ "weight_updates": 47,
+ "learn_cpu_seconds": 495.4,
+ "posts": {
+  "bluesky": {
+   "tracked": 1739,
+   "eligible": 1708
+  },
+  "hackernews": {
+   "tracked": 74,
+   "eligible": 73
+  }
+ },
+ "observations": 2428,
+ "jobs": {
+  "horizon:cancelled": 146,
+  "horizon:done": 2428,
+  "horizon:pending": 6491,
+  "budget_spent": {
+   "hackernews": 96.0,
+   "bluesky": 2332.0
+  }
+ },
+ "sources": {
+  "hackernews": {
+   "requests": 209
+  },
+  "bluesky": {
+   "requests": 182,
+   "sampler": {
+    "messages": 115274,
+    "eligible": 26426,
+    "kept": 837,
+    "deletes": 13,
+    "reconnects": 2,
+    "errors": 2
+   },
+   "keep_prob": 0.0313,
+   "eligible_per_min": 639.3,
+   "stream_alive": true,
+   "skipped_opt_out": 162,
+   "skipped_no_profile": 0
+  }
+ },
+ "deletions_propagated": 32,
+ "targets": [],
+ "scores": {
+  "n_event_rows": 10350,
+  "posts_scored": 1548,
+  "by": {
+   "bluesky": {
+    "engagement_10": {
+     "10m": {
+      "n": 1454,
+      "pos_rate": 0.0406,
+      "brier_model": 0.0432,
+      "brier_base": 0.06841,
+      "skill": 0.3685,
+      "auroc_model": 0.5192394143733674,
+      "auroc_base": 0.6938339104550149,
+      "logloss_model": 0.2118,
+      "logloss_base": 0.2305
+     },
+     "1h": {
+      "n": 538,
+      "pos_rate": 0.0836,
+      "brier_model": 0.08633,
+      "brier_base": 0.25,
+      "skill": 0.6547,
+      "auroc_model": 0.499526707234618,
+      "auroc_base": 0.5,
+      "logloss_model": 0.3486,
+      "logloss_base": 0.6931
+     }
+    },
+    "engagement_100": {
+     "10m": {
+      "n": 1454,
+      "pos_rate": 0.0034,
+      "brier_model": 0.00799,
+      "brier_base": 0.03855,
+      "skill": 0.7926,
+      "auroc_model": 0.39240855762594895,
+      "auroc_base": 0.6543133195307108,
+      "logloss_model": 0.0572,
+      "logloss_base": 0.1218
+     },
+     "1h": {
+      "n": 538,
+      "pos_rate": 0.0112,
+      "brier_model": 0.02567,
+      "brier_base": 0.25,
+      "skill": 0.8973,
+      "auroc_model": 0.3192355889724311,
+      "auroc_base": 0.5,
+      "logloss_model": 0.147,
+      "logloss_base": 0.6931
+     }
+    },
+    "first_response": {
+     "10m": {
+      "n": 1454,
+      "pos_rate": 0.1396,
+      "brier_model": 0.12238,
+      "brier_base": 0.13931,
+      "skill": 0.1215,
+      "auroc_model": 0.5493595271565999,
+      "auroc_base": 0.5632105153315771,
+      "logloss_model": 0.4213,
+      "logloss_base": 0.4462
+     },
+     "1h": {
+      "n": 538,
+      "pos_rate": 0.1729,
+      "brier_model": 0.14624,
+      "brier_base": 0.25,
+      "skill": 0.415,
+      "auroc_model": 0.5062462244774677,
+      "auroc_base": 0.5,
+      "logloss_model": 0.4743,
+      "logloss_base": 0.6931
+     }
+    },
+    "positive_feedback": {
+     "10m": {
+      "n": 1454,
+      "pos_rate": 0.3246,
+      "brier_model": 0.23376,
+      "brier_base": 0.20989,
+      "skill": -0.1137,
+      "auroc_model": 0.5568085712313162,
+      "auroc_base": 0.6387560840898892,
+      "logloss_model": 0.6814,
+      "logloss_base": 0.61
+     },
+     "1h": {
+      "n": 538,
+      "pos_rate": 0.4089,
+      "brier_model": 0.25998,
+      "brier_base": 0.25,
+      "skill": -0.0399,
+      "auroc_model": 0.5388650657518582,
+      "auroc_base": 0.5,
+      "logloss_model": 0.7202,
+      "logloss_base": 0.6931
+     }
+    },
+    "removed": {
+     "10m": {
+      "n": 1454,
+      "pos_rate": 0.0,
+      "brier_model": 0.00467,
+      "brier_base": 0.03583,
+      "skill": 0.8696,
+      "auroc_model": null,
+      "auroc_base": null,
+      "logloss_model": 0.0337,
+      "logloss_base": 0.1061
+     },
+     "1h": {
+      "n": 538,
+      "pos_rate": 0.0,
+      "brier_model": 0.01434,
+      "brier_base": 0.25,
+      "skill": 0.9426,
+      "auroc_model": null,
+      "auroc_base": null,
+      "logloss_model": 0.0867,
+      "logloss_base": 0.6931
+     }
+    }
+   },
+   "hackernews": {
+    "engagement_10": {
+     "10m": {
+      "n": 58,
+      "pos_rate": 0.0172,
+      "brier_model": 0.02227,
+      "brier_base": 0.05399,
+      "skill": 0.5876,
+      "auroc_model": 0.38596491228070173,
+      "auroc_base": 0.34210526315789475,
+      "logloss_model": 0.1206,
+      "logloss_base": 0.1986
+     },
+     "1h": {
+      "n": 20,
+      "pos_rate": 0.15,
+      "brier_model": 0.12773,
+      "brier_base": 0.25,
+      "skill": 0.4891,
+      "auroc_model": 0.6274509803921569,
+      "auroc_base": 0.5,
+      "logloss_model": 0.4492,
+      "logloss_base": 0.6931
+     }
+    },
+    "engagement_100": {
+     "10m": {
+      "n": 58,
+      "pos_rate": 0.0,
+      "brier_model": 0.00498,
+      "brier_base": 0.03684,
+      "skill": 0.8649,
+      "auroc_model": null,
+      "auroc_base": null,
+      "logloss_model": 0.0355,
+      "logloss_base": 0.1195
+     },
+     "1h": {
+      "n": 20,
+      "pos_rate": 0.0,
+      "brier_model": 0.01633,
+      "brier_base": 0.25,
+      "skill": 0.9347,
+      "auroc_model": null,
+      "auroc_base": null,
+      "logloss_model": 0.0979,
+      "logloss_base": 0.6931
+     }
+    },
+    "first_response": {
+     "10m": {
+      "n": 58,
+      "pos_rate": 0.1897,
+      "brier_model": 0.16218,
+      "brier_base": 0.16412,
+      "skill": 0.0118,
+      "auroc_model": 0.5454545454545454,
+      "auroc_base": 0.5183752417794971,
+      "logloss_model": 0.5386,
+      "logloss_base": 0.5104
+     },
+     "1h": {
+      "n": 20,
+      "pos_rate": 0.45,
+      "brier_model": 0.32469,
+      "brier_base": 0.25,
+      "skill": -0.2988,
+      "auroc_model": 0.5555555555555556,
+      "auroc_base": 0.5,
+      "logloss_model": 0.9109,
+      "logloss_base": 0.6931
+     }
+    },
+    "positive_feedback": {
+     "10m": {
+      "n": 58,
+      "pos_rate": 0.2241,
+      "brier_model": 0.20171,
+      "brier_base": 0.21523,
+      "skill": 0.0628,
+      "auroc_model": 0.49401709401709404,
+      "auroc_base": 0.21196581196581196,
+      "logloss_model": 0.5938,
+      "logloss_base": 0.6312
+     },
+     "1h": {
+      "n": 20,
+      "pos_rate": 1.0,
+      "brier_model": 0.55496,
+      "brier_base": 0.25,
+      "skill": -1.2198,
+      "auroc_model": null,
+      "auroc_base": null,
+      "logloss_model": 1.3746,
+      "logloss_base": 0.6931
+     }
+    },
+    "removed": {
+     "10m": {
+      "n": 58,
+      "pos_rate": 0.0,
+      "brier_model": 0.00491,
+      "brier_base": 0.03679,
+      "skill": 0.8666,
+      "auroc_model": null,
+      "auroc_base": null,
+      "logloss_model": 0.0351,
+      "logloss_base": 0.1183
+     },
+     "1h": {
+      "n": 20,
+      "pos_rate": 0.05,
+      "brier_model": 0.06594,
+      "brier_base": 0.25,
+      "skill": 0.7363,
+      "auroc_model": 0.05263157894736842,
+      "auroc_base": 0.5,
+      "logloss_model": 0.4313,
+      "logloss_base": 0.6931
+     }
+    }
+   }
+  },
+  "overall": {
+   "hackernews": {
+    "n": 390,
+    "posts": 63,
+    "brier_model": 0.11478,
+    "brier_base": 0.1395,
+    "skill": 0.1772,
+    "brier_gain_ci95": [
+     0.0048587769128439,
+     0.04646230743652973
+    ],
+    "auroc_model": 0.8074885749896136,
+    "auroc_base": 0.7161404237640216
+   },
+   "bluesky": {
+    "n": 9960,
+    "posts": 1485,
+    "brier_model": 0.08891,
+    "brier_base": 0.13934,
+    "skill": 0.3619,
+    "brier_gain_ci95": [
+     0.04503427904026165,
+     0.0556047256786365
+    ],
+    "auroc_model": 0.7883067733508468,
+    "auroc_base": 0.6734493802045209
+   }
+  },
+  "counts": {
+   "bluesky": {
+    "reactions": {
+     "10m": {
+      "n": 1454,
+      "mean_actual": 2.044,
+      "logmae_model": 0.6259,
+      "logmae_base": 0.4587
+     },
+     "1h": {
+      "n": 538,
+      "mean_actual": 8.087,
+      "logmae_model": 0.7966,
+      "logmae_base": 0.5983
+     }
+    },
+    "responses": {
+     "10m": {
+      "n": 1454,
+      "mean_actual": 0.243,
+      "logmae_model": 0.2857,
+      "logmae_base": 0.1781
+     },
+     "1h": {
+      "n": 538,
+      "mean_actual": 0.955,
+      "logmae_model": 0.4625,
+      "logmae_base": 0.162
+     }
+    },
+    "shares": {
+     "10m": {
+      "n": 1454,
+      "mean_actual": 0.344,
+      "logmae_model": 0.3195,
+      "logmae_base": 0.1812
+     },
+     "1h": {
+      "n": 538,
+      "mean_actual": 1.69,
+      "logmae_model": 0.5678,
+      "logmae_base": 0.2122
+     }
+    }
+   },
+   "hackernews": {
+    "reactions": {
+     "10m": {
+      "n": 58,
+      "mean_actual": 0.569,
+      "logmae_model": 0.549,
+      "logmae_base": 0.3305
+     },
+     "1h": {
+      "n": 20,
+      "mean_actual": 3.75,
+      "logmae_model": 0.6078,
+      "logmae_base": 1.252
+     }
+    },
+    "responses": {
+     "10m": {
+      "n": 58,
+      "mean_actual": 0.224,
+      "logmae_model": 0.2664,
+      "logmae_base": 0.2234
+     },
+     "1h": {
+      "n": 20,
+      "mean_actual": 0.7,
+      "logmae_model": 0.4151,
+      "logmae_base": 0.4015
+     }
+    }
+   }
+  }
+ },
+ "trend_hourly": [
+  {
+   "source": "bluesky",
+   "bucket": 0,
+   "start": 1794264850.7248094,
+   "n": 7470,
+   "brier_model": 0.08934,
+   "brier_base": 0.16107,
+   "skill": 0.4453
+  },
+  {
+   "source": "hackernews",
+   "bucket": 0,
+   "start": 1794264850.7248094,
+   "n": 295,
+   "brier_model": 0.12949,
+   "brier_base": 0.16717,
+   "skill": 0.2254
+  },
+  {
+   "source": "bluesky",
+   "bucket": 1,
+   "start": 1794268450.7248094,
+   "n": 2490,
+   "brier_model": 0.08765,
+   "brier_base": 0.07417,
+   "skill": -0.1817
+  },
+  {
+   "source": "hackernews",
+   "bucket": 1,
+   "start": 1794268450.7248094,
+   "n": 95,
+   "brier_model": 0.06911,
+   "brier_base": 0.05356,
+   "skill": -0.2902
+  }
+ ],
+ "windows": {
+  "after_scoring_fix": {
+   "since_utc": "2026-11-09T23:13:34Z",
+   "n_event_rows": 7405,
+   "posts_scored": 1204,
+   "by": {
+    "bluesky": {
+     "engagement_10": {
+      "10m": {
+       "n": 1137,
+       "pos_rate": 0.0422,
+       "brier_model": 0.04151,
+       "brier_base": 0.0372,
+       "skill": -0.1159,
+       "auroc_model": 0.5584060299969391,
+       "auroc_base": 0.8067607897153352,
+       "logloss_model": 0.2065,
+       "logloss_base": 0.1478
+      },
+      "1h": {
+       "n": 289,
+       "pos_rate": 0.0969,
+       "brier_model": 0.09233,
+       "brier_base": 0.25,
+       "skill": 0.6307,
+       "auroc_model": 0.662287903667214,
+       "auroc_base": 0.5,
+       "logloss_model": 0.3811,
+       "logloss_base": 0.6931
+      }
+     },
+     "engagement_100": {
+      "10m": {
+       "n": 1137,
+       "pos_rate": 0.0035,
+       "brier_model": 0.00354,
+       "brier_base": 0.00351,
+       "skill": -0.0071,
+       "auroc_model": 0.3223742277140335,
+       "auroc_base": 0.744152691968226,
+       "logloss_model": 0.0297,
+       "logloss_base": 0.0227
+      },
+      "1h": {
+       "n": 289,
+       "pos_rate": 0.0208,
+       "brier_model": 0.02043,
+       "brier_base": 0.25,
+       "skill": 0.9183,
+       "auroc_model": 0.598939929328622,
+       "auroc_base": 0.5,
+       "logloss_model": 0.114,
+       "logloss_base": 0.6931
+      }
+     },
+     "first_response": {
+      "10m": {
+       "n": 1137,
+       "pos_rate": 0.1451,
+       "brier_model": 0.12609,
+       "brier_base": 0.12115,
+       "skill": -0.0407,
+       "auroc_model": 0.5861391694725028,
+       "auroc_base": 0.621143534106497,
+       "logloss_model": 0.4328,
+       "logloss_base": 0.4037
+      },
+      "1h": {
+       "n": 289,
+       "pos_rate": 0.1799,
+       "brier_model": 0.1517,
+       "brier_base": 0.25,
+       "skill": 0.3932,
+       "auroc_model": 0.5257221681272314,
+       "auroc_base": 0.5,
+       "logloss_model": 0.4911,
+       "logloss_base": 0.6931
+      }
+     },
+     "positive_feedback": {
+      "10m": {
+       "n": 1137,
+       "pos_rate": 0.3325,
+       "brier_model": 0.23857,
+       "brier_base": 0.1989,
+       "skill": -0.1995,
+       "auroc_model": 0.5576747460805431,
+       "auroc_base": 0.7097196952269416,
+       "logloss_model": 0.6951,
+       "logloss_base": 0.5815
+      },
+      "1h": {
+       "n": 289,
+       "pos_rate": 0.436,
+       "brier_model": 0.26842,
+       "brier_base": 0.25,
+       "skill": -0.0737,
+       "auroc_model": 0.49659168370824813,
+       "auroc_base": 0.5,
+       "logloss_model": 0.7362,
+       "logloss_base": 0.6931
+      }
+     },
+     "removed": {
+      "10m": {
+       "n": 1137,
+       "pos_rate": 0.0,
+       "brier_model": 1e-05,
+       "brier_base": 3e-05,
+       "skill": 0.691,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0015,
+       "logloss_base": 0.0026
+      },
+      "1h": {
+       "n": 289,
+       "pos_rate": 0.0,
+       "brier_model": 4e-05,
+       "brier_base": 0.25,
+       "skill": 0.9998,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0042,
+       "logloss_base": 0.6931
+      }
+     }
+    },
+    "hackernews": {
+     "engagement_10": {
+      "10m": {
+       "n": 45,
+       "pos_rate": 0.0222,
+       "brier_model": 0.02185,
+       "brier_base": 0.02226,
+       "skill": 0.0182,
+       "auroc_model": 0.5,
+       "auroc_base": 0.4431818181818182,
+       "logloss_model": 0.1086,
+       "logloss_base": 0.1132
+      },
+      "1h": {
+       "n": 10,
+       "pos_rate": 0.1,
+       "brier_model": 0.0963,
+       "brier_base": 0.25,
+       "skill": 0.6148,
+       "auroc_model": 0.7777777777777778,
+       "auroc_base": 0.5,
+       "logloss_model": 0.4052,
+       "logloss_base": 0.6931
+      }
+     },
+     "engagement_100": {
+      "10m": {
+       "n": 45,
+       "pos_rate": 0.0,
+       "brier_model": 1e-05,
+       "brier_base": 0.00033,
+       "skill": 0.9829,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0013,
+       "logloss_base": 0.0119
+      },
+      "1h": {
+       "n": 10,
+       "pos_rate": 0.0,
+       "brier_model": 4e-05,
+       "brier_base": 0.25,
+       "skill": 0.9998,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0055,
+       "logloss_base": 0.6931
+      }
+     },
+     "first_response": {
+      "10m": {
+       "n": 45,
+       "pos_rate": 0.1778,
+       "brier_model": 0.15726,
+       "brier_base": 0.14931,
+       "skill": -0.0533,
+       "auroc_model": 0.5202702702702703,
+       "auroc_base": 0.48986486486486486,
+       "logloss_model": 0.5366,
+       "logloss_base": 0.479
+      },
+      "1h": {
+       "n": 10,
+       "pos_rate": 0.4,
+       "brier_model": 0.32223,
+       "brier_base": 0.25,
+       "skill": -0.2889,
+       "auroc_model": 0.3333333333333333,
+       "auroc_base": 0.5,
+       "logloss_model": 0.9439,
+       "logloss_base": 0.6931
+      }
+     },
+     "positive_feedback": {
+      "10m": {
+       "n": 45,
+       "pos_rate": 0.2889,
+       "brier_model": 0.24744,
+       "brier_base": 0.22779,
+       "skill": -0.0863,
+       "auroc_model": 0.3894230769230769,
+       "auroc_base": 0.20192307692307693,
+       "logloss_model": 0.699,
+       "logloss_base": 0.6633
+      },
+      "1h": {
+       "n": 10,
+       "pos_rate": 1.0,
+       "brier_model": 0.53828,
+       "brier_base": 0.25,
+       "skill": -1.1531,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 1.327,
+       "logloss_base": 0.6931
+      }
+     },
+     "removed": {
+      "10m": {
+       "n": 45,
+       "pos_rate": 0.0,
+       "brier_model": 1e-05,
+       "brier_base": 0.00027,
+       "skill": 0.9793,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0013,
+       "logloss_base": 0.0104
+      },
+      "1h": {
+       "n": 10,
+       "pos_rate": 0.1,
+       "brier_model": 0.09979,
+       "brier_base": 0.25,
+       "skill": 0.6008,
+       "auroc_model": 0.1111111111111111,
+       "auroc_base": 0.5,
+       "logloss_model": 0.6743,
+       "logloss_base": 0.6931
+      }
+     }
+    }
+   },
+   "overall": {
+    "hackernews": {
+     "n": 275,
+     "posts": 48,
+     "brier_model": 0.10822,
+     "brier_base": 0.1109,
+     "skill": 0.0241,
+     "brier_gain_ci95": [
+      -0.012071190292736329,
+      0.017796644635079933
+     ],
+     "auroc_model": 0.8446591161447924,
+     "auroc_base": 0.7777592715967133
+    },
+    "bluesky": {
+     "n": 7130,
+     "posts": 1156,
+     "brier_model": 0.08694,
+     "brier_base": 0.1082,
+     "skill": 0.1965,
+     "brier_gain_ci95": [
+      0.016395744421970202,
+      0.02634319922670043
+     ],
+     "auroc_model": 0.8439349586421673,
+     "auroc_base": 0.771406820872482
+    }
+   },
+   "counts": {
+    "bluesky": {
+     "reactions": {
+      "10m": {
+       "n": 1137,
+       "mean_actual": 2.233,
+       "logmae_model": 0.5951,
+       "logmae_base": 0.4771
+      },
+      "1h": {
+       "n": 289,
+       "mean_actual": 13.668,
+       "logmae_model": 0.791,
+       "logmae_base": 0.6981
+      }
+     },
+     "responses": {
+      "10m": {
+       "n": 1137,
+       "mean_actual": 0.253,
+       "logmae_model": 0.1948,
+       "logmae_base": 0.1884
+      },
+      "1h": {
+       "n": 289,
+       "mean_actual": 1.588,
+       "logmae_model": 0.2728,
+       "logmae_base": 0.1854
+      }
+     },
+     "shares": {
+      "10m": {
+       "n": 1137,
+       "mean_actual": 0.36,
+       "logmae_model": 0.2292,
+       "logmae_base": 0.1909
+      },
+      "1h": {
+       "n": 289,
+       "mean_actual": 2.803,
+       "logmae_model": 0.4001,
+       "logmae_base": 0.2701
+      }
+     }
+    },
+    "hackernews": {
+     "reactions": {
+      "10m": {
+       "n": 45,
+       "mean_actual": 0.733,
+       "logmae_model": 0.469,
+       "logmae_base": 0.3962
+      },
+      "1h": {
+       "n": 10,
+       "mean_actual": 4.0,
+       "logmae_model": 0.6843,
+       "logmae_base": 1.329
+      }
+     },
+     "responses": {
+      "10m": {
+       "n": 45,
+       "mean_actual": 0.2,
+       "logmae_model": 0.1882,
+       "logmae_base": 0.2247
+      },
+      "1h": {
+       "n": 10,
+       "mean_actual": 0.4,
+       "logmae_model": 0.3062,
+       "logmae_base": 0.2773
+      }
+     }
+    }
+   }
+  },
+  "after_warmup": {
+   "since_utc": "2026-11-09T23:25:00Z",
+   "n_event_rows": 5705,
+   "posts_scored": 1003,
+   "by": {
+    "bluesky": {
+     "engagement_10": {
+      "10m": {
+       "n": 954,
+       "pos_rate": 0.0419,
+       "brier_model": 0.04137,
+       "brier_base": 0.03671,
+       "skill": -0.1268,
+       "auroc_model": 0.5384846827133479,
+       "auroc_base": 0.8139086433260394,
+       "logloss_model": 0.2091,
+       "logloss_base": 0.1451
+      },
+      "1h": {
+       "n": 146,
+       "pos_rate": 0.1301,
+       "brier_model": 0.12327,
+       "brier_base": 0.25,
+       "skill": 0.5069,
+       "auroc_model": 0.5623704931620389,
+       "auroc_base": 0.5,
+       "logloss_model": 0.487,
+       "logloss_base": 0.6931
+      }
+     },
+     "engagement_100": {
+      "10m": {
+       "n": 954,
+       "pos_rate": 0.0042,
+       "brier_model": 0.00421,
+       "brier_base": 0.00411,
+       "skill": -0.0228,
+       "auroc_model": 0.3844736842105263,
+       "auroc_base": 0.8267105263157895,
+       "logloss_model": 0.0344,
+       "logloss_base": 0.0245
+      },
+      "1h": {
+       "n": 146,
+       "pos_rate": 0.0205,
+       "brier_model": 0.02048,
+       "brier_base": 0.25,
+       "skill": 0.9181,
+       "auroc_model": 0.578088578088578,
+       "auroc_base": 0.5,
+       "logloss_model": 0.1294,
+       "logloss_base": 0.6931
+      }
+     },
+     "first_response": {
+      "10m": {
+       "n": 954,
+       "pos_rate": 0.152,
+       "brier_model": 0.13187,
+       "brier_base": 0.12541,
+       "skill": -0.0515,
+       "auroc_model": 0.5983717659093816,
+       "auroc_base": 0.6368654362559141,
+       "logloss_model": 0.4507,
+       "logloss_base": 0.4137
+      },
+      "1h": {
+       "n": 146,
+       "pos_rate": 0.1986,
+       "brier_model": 0.16698,
+       "brier_base": 0.25,
+       "skill": 0.3321,
+       "auroc_model": 0.577954612437371,
+       "auroc_base": 0.5,
+       "logloss_model": 0.5336,
+       "logloss_base": 0.6931
+      }
+     },
+     "positive_feedback": {
+      "10m": {
+       "n": 954,
+       "pos_rate": 0.3449,
+       "brier_model": 0.24634,
+       "brier_base": 0.20187,
+       "skill": -0.2203,
+       "auroc_model": 0.5657872340425532,
+       "auroc_base": 0.7143246200607902,
+       "logloss_model": 0.7159,
+       "logloss_base": 0.5879
+      },
+      "1h": {
+       "n": 146,
+       "pos_rate": 0.4658,
+       "brier_model": 0.28368,
+       "brier_base": 0.25,
+       "skill": -0.1347,
+       "auroc_model": 0.4769984917043741,
+       "auroc_base": 0.5,
+       "logloss_model": 0.7696,
+       "logloss_base": 0.6931
+      }
+     },
+     "removed": {
+      "10m": {
+       "n": 954,
+       "pos_rate": 0.0,
+       "brier_model": 0.0,
+       "brier_base": 0.0,
+       "skill": 0.4139,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0009,
+       "logloss_base": 0.0011
+      },
+      "1h": {
+       "n": 146,
+       "pos_rate": 0.0,
+       "brier_model": 2e-05,
+       "brier_base": 0.25,
+       "skill": 0.9999,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0025,
+       "logloss_base": 0.6931
+      }
+     }
+    },
+    "hackernews": {
+     "engagement_10": {
+      "10m": {
+       "n": 38,
+       "pos_rate": 0.0263,
+       "brier_model": 0.02585,
+       "brier_base": 0.02572,
+       "skill": -0.005,
+       "auroc_model": 0.43243243243243246,
+       "auroc_base": 0.527027027027027,
+       "logloss_model": 0.1266,
+       "logloss_base": 0.1233
+      },
+      "1h": {
+       "n": 3,
+       "pos_rate": 0.3333,
+       "brier_model": 0.32043,
+       "brier_base": 0.25,
+       "skill": -0.2817,
+       "auroc_model": 0.5,
+       "auroc_base": 0.5,
+       "logloss_model": 1.3157,
+       "logloss_base": 0.6931
+      }
+     },
+     "engagement_100": {
+      "10m": {
+       "n": 38,
+       "pos_rate": 0.0,
+       "brier_model": 0.0,
+       "brier_base": 5e-05,
+       "skill": 0.9888,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0006,
+       "logloss_base": 0.0062
+      },
+      "1h": {
+       "n": 3,
+       "pos_rate": 0.0,
+       "brier_model": 0.0,
+       "brier_base": 0.25,
+       "skill": 1.0,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0015,
+       "logloss_base": 0.6931
+      }
+     },
+     "first_response": {
+      "10m": {
+       "n": 38,
+       "pos_rate": 0.1842,
+       "brier_model": 0.16335,
+       "brier_base": 0.15232,
+       "skill": -0.0724,
+       "auroc_model": 0.5299539170506913,
+       "auroc_base": 0.5023041474654378,
+       "logloss_model": 0.5586,
+       "logloss_base": 0.4859
+      },
+      "1h": {
+       "n": 3,
+       "pos_rate": 0.3333,
+       "brier_model": 0.26817,
+       "brier_base": 0.25,
+       "skill": -0.0727,
+       "auroc_model": 1.0,
+       "auroc_base": 0.5,
+       "logloss_model": 0.7926,
+       "logloss_base": 0.6931
+      }
+     },
+     "positive_feedback": {
+      "10m": {
+       "n": 38,
+       "pos_rate": 0.2895,
+       "brier_model": 0.25196,
+       "brier_base": 0.23444,
+       "skill": -0.0747,
+       "auroc_model": 0.3872053872053872,
+       "auroc_base": 0.13131313131313133,
+       "logloss_model": 0.7079,
+       "logloss_base": 0.682
+      },
+      "1h": {
+       "n": 3,
+       "pos_rate": 1.0,
+       "brier_model": 0.52607,
+       "brier_base": 0.25,
+       "skill": -1.1043,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 1.2922,
+       "logloss_base": 0.6931
+      }
+     },
+     "removed": {
+      "10m": {
+       "n": 38,
+       "pos_rate": 0.0,
+       "brier_model": 0.0,
+       "brier_base": 3e-05,
+       "skill": 0.987,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0005,
+       "logloss_base": 0.0052
+      },
+      "1h": {
+       "n": 3,
+       "pos_rate": 0.3333,
+       "brier_model": 0.33251,
+       "brier_base": 0.25,
+       "skill": -0.33,
+       "auroc_model": 0.5,
+       "auroc_base": 0.5,
+       "logloss_model": 2.2313,
+       "logloss_base": 0.6931
+      }
+     }
+    }
+   },
+   "overall": {
+    "hackernews": {
+     "n": 205,
+     "posts": 39,
+     "brier_model": 0.10295,
+     "brier_base": 0.09477,
+     "skill": -0.0864,
+     "brier_gain_ci95": [
+      -0.024982289053401024,
+      0.006078911849249453
+     ],
+     "auroc_model": 0.818,
+     "auroc_base": 0.7954444444444444
+    },
+    "bluesky": {
+     "n": 5500,
+     "posts": 964,
+     "brier_model": 0.08929,
+     "brier_base": 0.09703,
+     "skill": 0.0798,
+     "brier_gain_ci95": [
+      0.002829243157930742,
+      0.01259912287197515
+     ],
+     "auroc_model": 0.8456069942806526,
+     "auroc_base": 0.8140826301573636
+    }
+   },
+   "counts": {
+    "bluesky": {
+     "reactions": {
+      "10m": {
+       "n": 954,
+       "mean_actual": 2.32,
+       "logmae_model": 0.5957,
+       "logmae_base": 0.4809
+      },
+      "1h": {
+       "n": 146,
+       "mean_actual": 21.082,
+       "logmae_model": 0.8585,
+       "logmae_base": 0.792
+      }
+     },
+     "responses": {
+      "10m": {
+       "n": 954,
+       "mean_actual": 0.273,
+       "logmae_model": 0.1986,
+       "logmae_base": 0.1934
+      },
+      "1h": {
+       "n": 146,
+       "mean_actual": 2.897,
+       "logmae_model": 0.3053,
+       "logmae_base": 0.2242
+      }
+     },
+     "shares": {
+      "10m": {
+       "n": 954,
+       "mean_actual": 0.361,
+       "logmae_model": 0.2293,
+       "logmae_base": 0.193
+      },
+      "1h": {
+       "n": 146,
+       "mean_actual": 4.315,
+       "logmae_model": 0.4704,
+       "logmae_base": 0.3399
+      }
+     }
+    },
+    "hackernews": {
+     "reactions": {
+      "10m": {
+       "n": 38,
+       "mean_actual": 0.789,
+       "logmae_model": 0.4659,
+       "logmae_base": 0.4067
+      },
+      "1h": {
+       "n": 3,
+       "mean_actual": 7.0,
+       "logmae_model": 0.8505,
+       "logmae_base": 1.5787
+      }
+     },
+     "responses": {
+      "10m": {
+       "n": 38,
+       "mean_actual": 0.211,
+       "logmae_model": 0.1897,
+       "logmae_base": 0.2241
+      },
+      "1h": {
+       "n": 3,
+       "mean_actual": 0.333,
+       "logmae_model": 0.2553,
+       "logmae_base": 0.231
+      }
+     }
+    }
+   }
+  },
+  "after_feature_change": {
+   "since_utc": "2026-11-09T23:56:14Z",
+   "n_event_rows": 2460,
+   "posts_scored": 492,
+   "by": {
+    "bluesky": {
+     "engagement_10": {
+      "10m": {
+       "n": 475,
+       "pos_rate": 0.0484,
+       "brier_model": 0.04821,
+       "brier_base": 0.04124,
+       "skill": -0.1689,
+       "auroc_model": 0.5624278568680262,
+       "auroc_base": 0.829213158907272,
+       "logloss_model": 0.2588,
+       "logloss_base": 0.1572
+      }
+     },
+     "engagement_100": {
+      "10m": {
+       "n": 475,
+       "pos_rate": 0.0042,
+       "brier_model": 0.00425,
+       "brier_base": 0.00402,
+       "skill": -0.056,
+       "auroc_model": 0.18181818181818182,
+       "auroc_base": 0.9355179704016914,
+       "logloss_model": 0.0392,
+       "logloss_base": 0.0209
+      }
+     },
+     "first_response": {
+      "10m": {
+       "n": 475,
+       "pos_rate": 0.1495,
+       "brier_model": 0.13082,
+       "brier_base": 0.12104,
+       "skill": -0.0809,
+       "auroc_model": 0.6125366057732534,
+       "auroc_base": 0.6734590712592387,
+       "logloss_model": 0.4567,
+       "logloss_base": 0.3988
+      }
+     },
+     "positive_feedback": {
+      "10m": {
+       "n": 475,
+       "pos_rate": 0.3432,
+       "brier_model": 0.2575,
+       "brier_base": 0.20387,
+       "skill": -0.2631,
+       "auroc_model": 0.6177245556079912,
+       "auroc_base": 0.6766458235016517,
+       "logloss_model": 0.7647,
+       "logloss_base": 0.5961
+      }
+     },
+     "removed": {
+      "10m": {
+       "n": 475,
+       "pos_rate": 0.0,
+       "brier_model": 0.0,
+       "brier_base": 0.0,
+       "skill": 0.4219,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0003,
+       "logloss_base": 0.0003
+      }
+     }
+    },
+    "hackernews": {
+     "engagement_10": {
+      "10m": {
+       "n": 17,
+       "pos_rate": 0.0,
+       "brier_model": 0.00013,
+       "brier_base": 0.00069,
+       "skill": 0.8152,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0078,
+       "logloss_base": 0.0259
+      }
+     },
+     "engagement_100": {
+      "10m": {
+       "n": 17,
+       "pos_rate": 0.0,
+       "brier_model": 0.0,
+       "brier_base": 3e-05,
+       "skill": 0.9972,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0002,
+       "logloss_base": 0.0042
+      }
+     },
+     "first_response": {
+      "10m": {
+       "n": 17,
+       "pos_rate": 0.1765,
+       "brier_model": 0.16106,
+       "brier_base": 0.14794,
+       "skill": -0.0887,
+       "auroc_model": 0.5,
+       "auroc_base": 0.4880952380952381,
+       "logloss_model": 0.5785,
+       "logloss_base": 0.478
+      }
+     },
+     "positive_feedback": {
+      "10m": {
+       "n": 17,
+       "pos_rate": 0.1176,
+       "brier_model": 0.21041,
+       "brier_base": 0.13306,
+       "skill": -0.5813,
+       "auroc_model": 0.36666666666666664,
+       "auroc_base": 0.36666666666666664,
+       "logloss_model": 0.6183,
+       "logloss_base": 0.4464
+      }
+     },
+     "removed": {
+      "10m": {
+       "n": 17,
+       "pos_rate": 0.0,
+       "brier_model": 0.0,
+       "brier_base": 1e-05,
+       "skill": 0.9992,
+       "auroc_model": null,
+       "auroc_base": null,
+       "logloss_model": 0.0001,
+       "logloss_base": 0.0032
+      }
+     }
+    }
+   },
+   "overall": {
+    "hackernews": {
+     "n": 85,
+     "posts": 17,
+     "brier_model": 0.07432,
+     "brier_base": 0.05635,
+     "skill": -0.3189,
+     "brier_gain_ci95": null,
+     "auroc_model": 0.785,
+     "auroc_base": 0.78625
+    },
+    "bluesky": {
+     "n": 2375,
+     "posts": 475,
+     "brier_model": 0.08816,
+     "brier_base": 0.07403,
+     "skill": -0.1908,
+     "brier_gain_ci95": [
+      -0.020083720615651352,
+      -0.009134881558266045
+     ],
+     "auroc_model": 0.8481435797125778,
+     "auroc_base": 0.8848933662260694
+    }
+   },
+   "counts": {
+    "bluesky": {
+     "reactions": {
+      "10m": {
+       "n": 475,
+       "mean_actual": 2.28,
+       "logmae_model": 0.5796,
+       "logmae_base": 0.497
+      }
+     },
+     "responses": {
+      "10m": {
+       "n": 475,
+       "mean_actual": 0.229,
+       "logmae_model": 0.1911,
+       "logmae_base": 0.1912
+      }
+     },
+     "shares": {
+      "10m": {
+       "n": 475,
+       "mean_actual": 0.312,
+       "logmae_model": 0.1931,
+       "logmae_base": 0.1823
+      }
+     }
+    },
+    "hackernews": {
+     "reactions": {
+      "10m": {
+       "n": 17,
+       "mean_actual": 0.118,
+       "logmae_model": 0.3784,
+       "logmae_base": 0.2997
+      }
+     },
+     "responses": {
+      "10m": {
+       "n": 17,
+       "mean_actual": 0.176,
+       "logmae_model": 0.1637,
+       "logmae_base": 0.2037
+      }
+     }
+    }
+   }
+  }
+ },
+ "trend_15min": [
+  {
+   "source": "bluesky",
+   "bucket": 0,
+   "start": 1794264850.7248094,
+   "n": 2170,
+   "brier_model": 0.0958,
+   "brier_base": 0.23413,
+   "skill": 0.5908
+  },
+  {
+   "source": "hackernews",
+   "bucket": 0,
+   "start": 1794264850.7248094,
+   "n": 90,
+   "brier_model": 0.15116,
+   "brier_base": 0.23247,
+   "skill": 0.3498
+  },
+  {
+   "source": "bluesky",
+   "bucket": 1,
+   "start": 1794265750.7248094,
+   "n": 2170,
+   "brier_model": 0.0827,
+   "brier_base": 0.15196,
+   "skill": 0.4558
+  },
+  {
+   "source": "hackernews",
+   "bucket": 1,
+   "start": 1794265750.7248094,
+   "n": 95,
+   "brier_model": 0.10582,
+   "brier_base": 0.14794,
+   "skill": 0.2847
+  },
+  {
+   "source": "bluesky",
+   "bucket": 2,
+   "start": 1794266650.7248094,
+   "n": 2090,
+   "brier_model": 0.09336,
+   "brier_base": 0.13808,
+   "skill": 0.3239
+  },
+  {
+   "source": "hackernews",
+   "bucket": 2,
+   "start": 1794266650.7248094,
+   "n": 30,
+   "brier_model": 0.21451,
+   "brier_base": 0.19779,
+   "skill": -0.0845
+  },
+  {
+   "source": "bluesky",
+   "bucket": 3,
+   "start": 1794267550.7248094,
+   "n": 1040,
+   "brier_model": 0.08163,
+   "brier_base": 0.07381,
+   "skill": -0.1059
+  },
+  {
+   "source": "hackernews",
+   "bucket": 3,
+   "start": 1794267550.7248094,
+   "n": 80,
+   "brier_model": 0.10131,
+   "brier_base": 0.10506,
+   "skill": 0.0357
+  },
+  {
+   "source": "bluesky",
+   "bucket": 4,
+   "start": 1794268450.7248094,
+   "n": 1010,
+   "brier_model": 0.08092,
+   "brier_base": 0.07438,
+   "skill": -0.0878
+  },
+  {
+   "source": "hackernews",
+   "bucket": 4,
+   "start": 1794268450.7248094,
+   "n": 35,
+   "brier_model": 0.05063,
+   "brier_base": 0.04799,
+   "skill": -0.0549
+  },
+  {
+   "source": "bluesky",
+   "bucket": 5,
+   "start": 1794269350.7248094,
+   "n": 1280,
+   "brier_model": 0.08446,
+   "brier_base": 0.07109,
+   "skill": -0.1881
+  },
+  {
+   "source": "hackernews",
+   "bucket": 5,
+   "start": 1794269350.7248094,
+   "n": 55,
+   "brier_model": 0.07002,
+   "brier_base": 0.04599,
+   "skill": -0.5224
+  },
+  {
+   "source": "bluesky",
+   "bucket": 6,
+   "start": 1794270250.7248094,
+   "n": 200,
+   "brier_model": 0.14199,
+   "brier_base": 0.0928,
+   "skill": -0.5301
+  },
+  {
+   "source": "hackernews",
+   "bucket": 6,
+   "start": 1794270250.7248094,
+   "n": 5,
+   "brier_model": 0.18846,
+   "brier_base": 0.17586,
+   "skill": -0.0717
+  }
+ ]
+}
