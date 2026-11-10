@@ -91,6 +91,8 @@ def cap_example(ex: TemporalExample, max_s: float) -> TemporalExample:
             b = min(lab.b_s if lab.kind == "right_censored" else max_s, max_s)
             ev[n] = EventLabel(kind="right_censored", a_s=b, b_s=b, status="pending")
     e.events = ev
+    e.followed_s = {n: min(v, max_s) for n, v in e.followed_s.items()}
+    e.checks_s = {n: [t for t in v if t <= max_s] for n, v in e.checks_s.items()}
     e.counts = {k: [i for i in v if i.b_s <= max_s] for k, v in e.counts.items()}
     e.states = [s for s in e.states if s.h_s <= max_s]
     e.continuous = {k: [o for o in v if o.h_s <= max_s] for k, v in e.continuous.items()}
