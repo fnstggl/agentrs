@@ -342,13 +342,26 @@ What each policy proposes on the extra 60 held-out tasks (greedy): B morning 27%
 Design, full tables and caveats: [`temporal_learning.md`](temporal_learning.md), section 9; raw
 results in `results/temporal/`. Summary (Pythia-14M, CPU, 80 simulated users, virtual clock):
 
+* **Scoring-rule audit.** The held-out scoring rule used for A–E skipped an example whenever its
+  label left the outcome at a horizon open, so being scored depended on the outcome. This inflated
+  positive rates at the 3 d horizon by 0.12–0.18. (The interval-censoring variant of the bug never
+  fired offline: the event feed gives exact times.) Fixed; every affected experiment was rerun with
+  both rules (`temporal_learning.md`, "Scoring-rule audit"). Conclusions below are marked where
+  they change.
 * **A** A continuous-time world model predicts delayed outcomes far better than a next-observation
   model (Brier 0.153 vs 0.311) and better than one head per horizon (0.168), ranks outcomes well
-  (AUROC 0.68) but is not better calibrated than a censoring-aware lookup table (0.155).
-* **B** The event feed gives exact event times and 4× lower detection latency. As first configured, event-driven and adaptive scheduling cost *more* requests than fixed polling; coalescing event-triggered checks per 6 h (a follow-up variant designed after that result) cut requests by 29 % at equal accuracy. The adaptive policy never paid for itself.
+  (AUROC 0.68) but is not better calibrated than a censoring-aware lookup table (0.155). Unchanged
+  with corrected scoring (0.149 vs 0.171 vs 0.153). The advantage over per-horizon heads holds at
+  600 steps but not at 300, under either rule.
+* **B** The event feed gives exact event times and 4× lower detection latency. As first configured, event-driven and adaptive scheduling cost *more* requests than fixed polling; coalescing event-triggered checks per 6 h (a follow-up variant designed after that result) cut requests by 29 % at equal accuracy. The adaptive policy never paid for itself. **With corrected
+  scoring the lookup table (0.131) beats every learned model here (0.132–0.138)**: test posts were
+  followed < 3 d, and the old rule had scored only already-positive posts at 3 d.
 * **C** Third-party observations improve prediction in unseen environments / action types (AUROC
-  0.53 → 0.62) but too much of them hurts calibration on our own posts.
-* **D** Diverse (stratified) data transfers better than repetitive volume at a fixed budget.
+  0.53 → 0.62) but too much of them hurts calibration on our own posts. With corrected scoring the
+  AUROC gain holds but the Brier gain on unseen environments shrinks (to zero in a 200-step rerun).
+* **D** Diverse (stratified) data transfers better than repetitive volume at a fixed budget. The
+  scoring fix does not change the ordering; a 200-step rerun reproduced it in AUROC but not in Brier
+  (all arms within 0.007), under either rule.
 * **E** The world model does not recover randomized intervention effects (it ignores audience and
   timing covariates); its forecasts are observational only.
 * **F** Delayed-reward RL raises verified task success 0.148 → 0.259; a planner using a temporal

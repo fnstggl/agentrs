@@ -1,0 +1,262 @@
+{
+ "seed": 10,
+ "days": 10,
+ "lab": {
+  "users": 88,
+  "items": 699,
+  "responses": 1247,
+  "reactions": 1980,
+  "views": 8212,
+  "events": 5092,
+  "jobs": 4545,
+  "now": 1768435200.0
+ },
+ "modes": {
+  "fixed": {
+   "observation_requests": 4275,
+   "feed_polls": 5086,
+   "scheduler": {
+    "horizon:cancelled": 12,
+    "horizon:done": 4275,
+    "horizon:pending": 578,
+    "budget_spent": {
+     "swl-feed": 4275.0
+    }
+   },
+   "train_actions": 503,
+   "label_kinds": {
+    "exact": 946,
+    "interval": 0,
+    "right_censored": 563
+   },
+   "mean_interval_width_h": null,
+   "detection_latency_h_median": 0.12049157357878156,
+   "eval": {
+    "mean_brier": 0.1375919249761788,
+    "mean_auroc": 0.71376271976146,
+    "overall": {
+     "n": 1440,
+     "brier": 0.13286745162262076,
+     "nll": 0.40918281816761337,
+     "auroc": 0.8761597796586101,
+     "ece": 0.1105566048530919
+    },
+    "counts": {
+     "responses": {
+      "n": 388,
+      "mae": 1.1171112743402738,
+      "log_mae": 0.5634938813859093
+     },
+     "views": {
+      "n": 388,
+      "mae": 8.561812964694198,
+      "log_mae": 1.1558796755969631
+     }
+    },
+    "legacy_rule": {
+     "mean_brier": 0.1431527531819223,
+     "mean_auroc": 0.720813880678508,
+     "overall": {
+      "n": 1678,
+      "brier": 0.13863017524548968,
+      "nll": 0.4248346735045643,
+      "auroc": 0.8864409318459537,
+      "ece": 0.08510044516836639
+     },
+     "counts": {
+      "responses": {
+       "n": 388,
+       "mae": 1.1171112743402738,
+       "log_mae": 0.5634938813859093
+      },
+      "views": {
+       "n": 388,
+       "mae": 8.561812964694198,
+       "log_mae": 1.1558796755969631
+      }
+     }
+    }
+   },
+   "brier_gain_vs_km": -0.006806174988902486,
+   "brier_gain_per_1000_requests": -0.0015920877167023358,
+   "collection_wall_s": 41.60000000000013,
+   "train": {
+    "last_loss": 1.4219793796539306,
+    "seconds": 194.59837058899984
+   }
+  },
+  "poll_only": {
+   "observation_requests": 4275,
+   "feed_polls": 5086,
+   "scheduler": {
+    "horizon:cancelled": 12,
+    "horizon:done": 4275,
+    "horizon:pending": 578,
+    "budget_spent": {
+     "swl-feed": 4275.0
+    }
+   },
+   "train_actions": 503,
+   "label_kinds": {
+    "exact": 599,
+    "interval": 341,
+    "right_censored": 569
+   },
+   "mean_interval_width_h": 2.6279014401388854,
+   "detection_latency_h_median": 0.5207935215367211,
+   "eval": {
+    "mean_brier": 0.13618655163128315,
+    "mean_auroc": 0.734577727856149,
+    "overall": {
+     "n": 1440,
+     "brier": 0.1313098634844555,
+     "nll": 0.40518802224978806,
+     "auroc": 0.8767894030366602,
+     "ece": 0.1042642545211998
+    },
+    "counts": {
+     "responses": {
+      "n": 388,
+      "mae": 1.1065492136443056,
+      "log_mae": 0.5589857150133767
+     },
+     "views": {
+      "n": 388,
+      "mae": 8.715936754323918,
+      "log_mae": 1.158092060774734
+     }
+    },
+    "legacy_rule": {
+     "mean_brier": 0.14220004194605954,
+     "mean_auroc": 0.7494216162193398,
+     "overall": {
+      "n": 1678,
+      "brier": 0.13765959407207157,
+      "nll": 0.42238369012105903,
+      "auroc": 0.8877275414876424,
+      "ece": 0.07425245689268936
+     },
+     "counts": {
+      "responses": {
+       "n": 388,
+       "mae": 1.1065492136443056,
+       "log_mae": 0.5589857150133767
+      },
+      "views": {
+       "n": 388,
+       "mae": 8.715936754323918,
+       "log_mae": 1.158092060774734
+      }
+     }
+    }
+   },
+   "brier_gain_vs_km": -0.005400801644006831,
+   "brier_gain_per_1000_requests": -0.0012633454138027674,
+   "collection_wall_s": 41.20000000000013,
+   "train": {
+    "last_loss": 2.0043577313423158,
+    "seconds": 185.7852679739999
+   }
+  },
+  "event_6h": {
+   "observation_requests": 3053,
+   "feed_polls": 5086,
+   "scheduler": {
+    "event:cancelled": 4,
+    "horizon:cancelled": 8,
+    "event:done": 1395,
+    "horizon:done": 1658,
+    "horizon:pending": 431,
+    "budget_spent": {
+     "swl-feed": 3053.0
+    }
+   },
+   "train_actions": 503,
+   "label_kinds": {
+    "exact": 946,
+    "interval": 0,
+    "right_censored": 563
+   },
+   "mean_interval_width_h": null,
+   "detection_latency_h_median": 0.12049157357878156,
+   "eval": {
+    "mean_brier": 0.13150107150236043,
+    "mean_auroc": 0.7470442743288295,
+    "overall": {
+     "n": 1440,
+     "brier": 0.12646331944102698,
+     "nll": 0.3943280590633706,
+     "auroc": 0.8843609590637634,
+     "ece": 0.10231225771277522
+    },
+    "counts": {
+     "responses": {
+      "n": 388,
+      "mae": 1.0162582618773621,
+      "log_mae": 0.5211659715039576
+     },
+     "views": {
+      "n": 388,
+      "mae": 8.893753746170159,
+      "log_mae": 1.1455190418418892
+     }
+    },
+    "legacy_rule": {
+     "mean_brier": 0.13953077294272848,
+     "mean_auroc": 0.7590690731835515,
+     "overall": {
+      "n": 1678,
+      "brier": 0.1337781720299017,
+      "nll": 0.41360868577254173,
+      "auroc": 0.898070873901218,
+      "ece": 0.07654465954539073
+     },
+     "counts": {
+      "responses": {
+       "n": 388,
+       "mae": 1.0162582618773621,
+       "log_mae": 0.5211659715039576
+      },
+      "views": {
+       "n": 388,
+       "mae": 8.893753746170159,
+       "log_mae": 1.1455190418418892
+      }
+     }
+    }
+   },
+   "brier_gain_vs_km": -0.0007153215150841052,
+   "brier_gain_per_1000_requests": -0.00023430118410877997,
+   "collection_wall_s": 34.800000000000104,
+   "train": {
+    "last_loss": 1.5287737011909486,
+    "seconds": 179.6606945960002
+   }
+  }
+ },
+ "marginal_km": {
+  "mean_brier": 0.13078574998727632,
+  "mean_auroc": 0.5,
+  "overall": {
+   "n": 1440,
+   "brier": 0.12375310416726665,
+   "nll": 0.3744228596177949,
+   "auroc": 0.863991972971742,
+   "ece": 0.03978960685662259
+  },
+  "counts": {},
+  "legacy_rule": {
+   "mean_brier": 0.16887614746648474,
+   "mean_auroc": 0.5,
+   "overall": {
+    "n": 1678,
+    "brier": 0.1295573535666159,
+    "nll": 0.3956857348900915,
+    "auroc": 0.8912877921873152,
+    "ece": 0.04628084198318802
+   },
+   "counts": {}
+  }
+ },
+ "wall_s": 715.5
+}

@@ -35,12 +35,13 @@ from agentrs.temporal.observation_scheduler import (
     SchedulerConfig,
     TemporalObservationScheduler,
 )
-from agentrs.temporal.outcome_labels import build_examples
+from agentrs.temporal.outcome_labels import build_examples, polled_events
 from agentrs.temporal.reward_maturation import (
     RewardSpec,
     mature_reward,
     semi_markov_return,
 )
+from agentrs.temporal.temporal_evaluation import event_truth
 from agentrs.temporal.temporal_world_model import (
     TemporalQuery,
     TemporalSpec,
@@ -238,6 +239,77 @@ def test_labels_exact_interval_censored_precluded_and_no_leakage(tmp_path):
     assert ex.events["resolved"].status == "precluded" and ex.events["resolved"].b_s == 2 * DAY
     L.close_action(a, T0 + 7 * DAY, "window")
     _obs(L, a, 7 * DAY, {"resolved": False, "removed": True}, {"responses": 5}, state="removed")
+
+
+def test_event_truth_scoring_never_depends_on_the_outcome(tmp_path):
+    """Whether an example is scored at h depends only on when it was observed, never on its outcome."""
+    spec = TemporalSpec(events=["first_response", "resolved"])
+    L = DelayedOutcomeLedger(tmp_path / "l.sqlite")
+
+    def act(t):
+        return L.record_action(ActionRecord(source_id="s", source_type="self", actor_type="agent", time_base="virtual:x",
+                                            action_time=t, observed_time=t, action_str='submit(create_post, "q")'))
+
+    def obs(a, t0, t, occurred, at=None):
+        L.record_observation(ObservationRecord(action_id=a, actual_time=t0 + t, payload={
+            "occurred": occurred, "occurred_at": at or {}, "state": "visible"}, idem=f"{a}{t}"))
+
+    # Polling only: resolution is seen at a check, never with its time. Checks at 15 min, 1 h, 1 d.
+    yes, no = act(T0), act(T0 + 10)
+    for a, t0 in ((yes, T0), (no, T0 + 10)):
+        for t in (900, 3600, DAY):
+            obs(a, t0, t, {"resolved": a == yes and t >= 3600, "first_response": True},
+                at={"first_response": t0 + 60})
+    assert polled_events(L, "s") == {"resolved"}  # first_response comes with its time: exact
+    ey, en = (build_examples(L, a, spec)[0] for a in (yes, no))
+    assert ey.events["resolved"].kind == "interval" and (ey.events["resolved"].a_s, ey.events["resolved"].b_s) == (900, 3600)
+    assert en.checks_s["resolved"] == [900, 3600, DAY] and en.followed_s["resolved"] == DAY
+    # 30 min falls between checks: the resolved post would straddle it, so the open one is skipped too
+    # (before the fix: None for the resolved post but 0 for the open one, biasing scores toward 0)
+    assert event_truth(ey, "resolved", 1800) is None and event_truth(en, "resolved", 1800) is None
+    assert event_truth(ey, "resolved", 3600) == 1 and event_truth(en, "resolved", 3600) == 0
+    # past the last check nothing is known about either
+    assert event_truth(ey, "resolved", 2 * DAY) is None and event_truth(en, "resolved", 2 * DAY) is None
+    # an exactly timed event is scored at any horizon inside the follow-up
+    assert event_truth(ey, "first_response", 1800) == 1
+
+    # Exact times, but follow-up ending at different (jittered) times: a post resolved early whose last
+    # check came before h is skipped like an unresolved one (before the fix it was kept as a positive).
+    early, late = act(T0 + 20), act(T0 + 30)
+    obs(early, T0 + 20, 0.95 * DAY, {"first_response": True}, at={"first_response": T0 + 20 + 100})
+    obs(late, T0 + 30, 1.05 * DAY, {"first_response": False})
+    ee, el = (build_examples(L, a, spec)[0] for a in (early, late))
+    assert ee.events["first_response"].kind == "exact" and ee.followed_s["first_response"] == 0.95 * DAY
+    assert event_truth(ee, "first_response", DAY) is None and event_truth(el, "first_response", DAY) == 0
+    assert event_truth(ee, "first_response", 0.5 * DAY) == 1 and event_truth(el, "first_response", 0.5 * DAY) == 0
+
+    # A competing removal ends the follow-up of the other events at the removal time, both outcomes alike.
+    L.record_event(EventRecord(action_id=early, type="item_removed", env_event_time=T0 + 20 + 3600,
+                               observed_time=T0 + 20 + 3600, source_id="s", provider_event_id="rm"))
+    ee = build_examples(L, early, TemporalSpec(events=["first_response", "removed"]))[0]
+    assert ee.followed_s["first_response"] == 3600 and event_truth(ee, "first_response", 7200) is None
+    assert event_truth(ee, "first_response", 1800) == 1 and event_truth(ee, "removed", 7200) == 1
+
+
+def test_event_truth_positive_rate_is_unbiased_under_uneven_follow_up():
+    """Exact event times; follow-up ends at a check jittered +-10 % around h (as the scheduler does).
+    The scored positive rate must match P(T <= h); keeping early positives used to inflate it."""
+    import random
+
+    rng, h, mean_t = random.Random(0), DAY, DAY / math.log(1 / 0.6)  # P(T <= h) = 0.4
+    exs = []
+    for i in range(20000):
+        t, end = rng.expovariate(1 / mean_t), h * rng.uniform(0.9, 1.1)
+        lab = (EventLabel(kind="exact", a_s=t, b_s=t, status="occurred") if t <= end else
+               EventLabel(kind="right_censored", a_s=end, b_s=end, status="pending"))
+        exs.append(TemporalExample(example_id=str(i), action_id=str(i), initial_state="", complete_action="a",
+                                   events={"resolved": lab}, followed_s={"resolved": end}))
+    ys = [y for y in (event_truth(e, "resolved", h) for e in exs) if y is not None]
+    assert abs(sum(ys) / len(ys) - 0.4) < 0.015 and abs(len(ys) / len(exs) - 0.5) < 0.02
+    for e in exs:
+        e.followed_s = {}  # without the follow-up record (old rule): only the label decides
+    old = [y for y in (event_truth(e, "resolved", h) for e in exs) if y is not None]
+    assert sum(old) / len(old) > 0.5
 
 
 def test_reward_maturation_increments_and_semi_markov(tmp_path):

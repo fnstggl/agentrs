@@ -63,6 +63,12 @@ class TemporalExample(BaseModel):
     # cutoff (left truncation of the likelihood). Defaults to the cutoff itself.
     truncation_s: dict[str, float] = Field(default_factory=dict)
     events: dict[str, EventLabel] = Field(default_factory=dict)
+    # Evaluation metadata (not model inputs). Per event: the time up to which the event's status was
+    # followed whatever it turned out to be (last status check, capped at a competing terminal
+    # event), and — only for events this source times by polling — the status-check times. Scoring
+    # uses them so that whether an example is scored at a horizon never depends on its outcome.
+    followed_s: dict[str, float] = Field(default_factory=dict)
+    checks_s: dict[str, list[float]] = Field(default_factory=dict)
     counts: dict[str, list[CountIncrement]] = Field(default_factory=dict)
     states: list[StateObs] = Field(default_factory=list)
     continuous: dict[str, list[ContinuousObs]] = Field(default_factory=dict)

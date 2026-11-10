@@ -1,9 +1,10 @@
 """Held-out evaluation of temporal predictions, with censoring-aware ground truth.
 
-For an event and a horizon h, an example is scored only when its outcome by h is known:
-positive if the event happened at or before h; negative if it was known absent at a time >= h
-(right-censored later than h, or it happened later than h). Pending outcomes before h are skipped,
-never counted as negatives. Counts are scored at the observation times (cumulative = sum of
+For an event and a horizon h, an example is scored only when its observation record settles the
+outcome at h whatever that outcome is (see ``event_truth``): it was followed at least up to h, and
+an event the source only detects by polling was checked at h. The decision to score never depends
+on the outcome, so the scored rows are not biased toward positives or negatives. Pending outcomes
+are never counted as negatives. Counts are scored at the observation times (cumulative = sum of
 increments). Baselines: Kaplan–Meier marginal survival per event (a censoring-aware lookup
 table), the training-set marginal count curve, and any other predict function with the same
 signature.
@@ -30,18 +31,41 @@ PredictFn = Callable[[Sequence[TemporalExample], Sequence[float]], dict]
 
 
 def event_truth(ex: TemporalExample, name: str, h: float) -> int | None:
+    """1 if the event happened by ``h``, 0 if it had not, None if the example is not scored at ``h``.
+
+    An example is scored only when its observation record settles the outcome at ``h`` *whatever
+    the outcome was*, so that being scored never depends on the outcome itself:
+
+    * the event's status was followed at least up to ``h`` (``ex.followed_s``: last status check,
+      capped at a competing terminal event). Otherwise the example is skipped, including when the
+      event happened before follow-up ended — keeping those positives while dropping the examples
+      still pending would bias the scored rows toward positives;
+    * for an event this source times only by polling (``ex.checks_s``), a status check falls at
+      ``h``. Between checks an occurrence would only be known to lie in an interval straddling ``h``,
+      so the example is skipped whether or not the event happened — skipping only the straddling
+      positives, while counting the examples still absent at the next check as negatives, would
+      bias the scored rows toward negatives.
+
+    Examples without this metadata (built by hand) fall back to the label alone: an interval label
+    straddling ``h`` and a right-censored label ending before ``h`` are skipped.
+    """
     lab = ex.events.get(name)
     if lab is None or lab.kind == "none":
         return None
-    if lab.kind == "exact":
-        return 1 if lab.b_s <= h + 1e-6 else 0
-    if lab.kind == "interval":
-        if lab.b_s <= h + 1e-6:
+    tol = 1e-3
+    until = ex.followed_s.get(name)
+    if until is not None and until < h - tol:
+        return None
+    checks = ex.checks_s.get(name)
+    if checks is not None and not any(abs(t - h) <= tol for t in checks):
+        return None
+    if lab.kind in ("exact", "interval"):
+        if lab.b_s <= h + tol:
             return 1
-        if lab.a_s >= h - 1e-6:
+        if lab.kind == "exact" or lab.a_s >= h - tol:
             return 0
         return None
-    return 0 if lab.b_s >= h - 1e-6 else None
+    return 0 if lab.b_s >= h - tol else None
 
 
 def count_truth(ex: TemporalExample, name: str) -> list[tuple[float, float]]:
