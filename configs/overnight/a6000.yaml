@@ -1,0 +1,25 @@
+# Overnight multi-domain economic continual-RL run on one RTX A6000 (48 GB).
+run_dir: /workspace/agentrs/runs/overnight
+hours: 8.0                 # wall-clock budget from first launch (restarts keep the original deadline)
+final_reserve_h: 0.85      # time reserved for final sealed-test evaluations + report
+max_spend_usd: 6.0         # instance-hours budget cap (8 h x $0.536/h = $4.29); account balance is not readable
+policy_model: Qwen/Qwen3-4B
+small_model: Qwen/Qwen3-0.6B
+val_per_family: 2          # 32 families x 2 = 64 validation episodes (promotion / best selection)
+test_per_family: 6         # 32 x 6 = 192 sealed-test episodes (A, B, C only)
+tasks_per_cycle: 16        # domain-balanced; x group_size rollouts each (GRPO groups)
+group_size: 4
+gen_batch: 32
+max_new_tokens: 256
+bc_threshold: 0.5
+bc_demos_per_family: 40
+bc_steps: 120
+bc_lr: 1.0e-4
+rl_lr: 2.0e-5
+ppo_clip: 0.2
+bc_replay_coef: 0.05
+wm_steps_per_cycle: 40
+critic_steps_per_cycle: 30
+eval_every: 2
+promote_tolerance: 0.04
+snapshot_every_min: 30

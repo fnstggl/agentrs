@@ -1,0 +1,15 @@
+# Live HN + Bluesky observational learner for the overnight run (CPU only; read-only public APIs).
+workdir: /workspace/agentrs/runs/overnight/live
+sources: [hackernews, bluesky]
+bluesky_per_min: 20
+bluesky_langs: [en]
+horizons: ["10m", "1h", "6h", "1d", "3d"]
+outcome_window: 4d
+model: EleutherAI/pythia-14m
+lr: 1.0e-4
+weight_decay: 0.1
+learn_every_s: 120
+checkpoint_every_s: 600
+snapshot_every_s: 3600
+threads: 6
+stop_when_targets_met: false
