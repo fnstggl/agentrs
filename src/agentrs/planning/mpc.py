@@ -37,6 +37,7 @@ from agentrs.environments.base import Observation
 from agentrs.models.critic import Critic
 from agentrs.models.policy import LMPolicy
 from agentrs.models.world_model import WorldModel
+from agentrs.device import multinomial
 
 
 class PlannerConfig(BaseModel):
@@ -205,10 +206,10 @@ class MPCPlanner:
             full = torch.full((len(cands),), cfg.epsilon / len(cands))
             for j, n in enumerate(nodes):
                 full[cand_strs.index(n.action.to_str())] += (1 - cfg.epsilon) * probs[j]
-            ci = int(torch.multinomial(full, 1, generator=self.gen))
+            ci = int(multinomial(full, 1, generator=self.gen))
             beh = math.log(float(full[ci]))
         else:
-            j = int(torch.multinomial(probs, 1, generator=self.gen)) if cfg.selection == "softmax" else int(
+            j = int(multinomial(probs, 1, generator=self.gen)) if cfg.selection == "softmax" else int(
                 torch.argmax(probs))
             ci = cand_strs.index(nodes[j].action.to_str())
             beh = math.log(max(float(probs[j]), 1e-12))

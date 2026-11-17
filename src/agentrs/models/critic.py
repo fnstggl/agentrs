@@ -44,6 +44,7 @@ class Critic(nn.Module):
         d = self.backbone.hidden_size
         self.head = nn.Sequential(nn.LayerNorm(d), nn.Linear(d, cfg.head_hidden), nn.GELU(),
                                   nn.Linear(cfg.head_hidden, 1))
+        self.to(self.backbone.device)  # heads live on the backbone's device
 
     def logits(self, belief_prompts: Sequence[str]) -> torch.Tensor:
         h = self.backbone.pooled([value_prompt(p) for p in belief_prompts])

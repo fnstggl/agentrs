@@ -19,7 +19,10 @@ import contextlib
 import fcntl
 import hashlib
 import json
+import os
 import random
+import re
+import shutil
 import time
 from pathlib import Path
 from typing import Optional
@@ -89,6 +92,12 @@ class ExperimentConfig(BaseModel):
     eval_every_iters: int = 5
     exploration_epsilon: float = 0.0
     save_checkpoints: bool = True
+    # Crash safety: every ``rl_checkpoint_every`` RL iterations the full RL state (policy / critic /
+    # world-model weights + optimizer states, replay buffer, RNGs, counters, results so far) is
+    # written atomically to <run>/checkpoints/rl_state. With ``resume`` a re-launched run continues
+    # from the last completed iteration instead of starting over. 0 disables RL-state checkpoints.
+    rl_checkpoint_every: int = 1
+    resume: bool = True
     # Deterministic stages shared by variants with the same seed (BC policy, initial world model,
     # initial critic) are computed once and reused; set to null to disable.
     cache_dir: Optional[str] = "runs/cache"
@@ -251,7 +260,29 @@ class Experiment:
     # ------------------------------------------------------------------ stages
     def run(self) -> dict:
         c = self.cfg
-        t_start = time.time()
+        self._t0, self._wall_prev = time.time(), 0.0
+        state = self._load_rl_state() if (c.resume and c.rl_iterations > 0) else None
+        if state is None:
+            self._run_pre_rl()
+        if c.rl_iterations > 0:
+            self.run_rl(state)
+        modes = ("policy", "planner") if c.use_planning_eval else ("policy",)
+        final = self.evaluate("final", sets=("val", "test", "test_family"), modes=modes)
+        self.results["final"] = final
+        self.results["total_wall_s"] = self._wall_s()
+        self.results["real_env_steps"] = self.real_env_steps
+        self.results["real_episodes"] = self.real_episodes
+        self.results["flops"] = self.flops
+        self._ckpt("policy_final", self.policy)
+        self._ckpt("world_model_final", self.wm)
+        self._ckpt("critic_final", self.critic)
+        self._dump()
+        self.tracker.close()
+        return self.results
+
+    def _run_pre_rl(self) -> None:
+        """Demonstrations, BC, initial world model and critic (each cached per seed)."""
+        c = self.cfg
         demos: list[EpisodeRecord] = []
         if c.use_demos:  # "no observational learning" ablation: no demos for ANY component
             demos = generate_demonstrations(c, self.store)
@@ -291,28 +322,138 @@ class Experiment:
             r, hit = self._cached_stage("critic", self.critic, (c.critic, c.critic_train), lambda: train_critic(
                 self.critic, demo_ts, val_demo, c.critic_train, tracker=self.tracker), "critic_train")
             self.results["critic_initial"] = {k: r[k] for k in ("n_train", "before", "after")}
-        if c.rl_iterations > 0:
-            self.run_rl()
-        modes = ("policy", "planner") if c.use_planning_eval else ("policy",)
-        final = self.evaluate("final", sets=("val", "test", "test_family"), modes=modes)
-        self.results["final"] = final
-        self.results["total_wall_s"] = time.time() - t_start
-        self.results["real_env_steps"] = self.real_env_steps
-        self.results["real_episodes"] = self.real_episodes
-        self.results["flops"] = self.flops
-        self._ckpt("policy_final", self.policy)
-        self._ckpt("world_model_final", self.wm)
-        self._ckpt("critic_final", self.critic)
-        self._dump()
-        self.tracker.close()
-        return self.results
+        if self.wm is not None and not hasattr(self, "wm_trainer"):
+            from agentrs.training.common import GradientTrainer
 
-    def run_rl(self) -> None:
+            self.wm_trainer = GradientTrainer(self.wm, c.wm_train.optim)
+
+    # ------------------------------------------------------------------ RL crash safety
+    def _wall_s(self) -> float:
+        """Wall-clock seconds of this run, including time spent before any resume."""
+        return self._wall_prev + time.time() - self._t0
+
+    @property
+    def _rl_state_dir(self) -> Path:
+        return self.dir / "checkpoints" / "rl_state"
+
+    def _save_rl_state(self, completed: int, trainer: RLTrainer, monitor: ExploitationMonitor,
+                       imagination_on: bool) -> None:
+        """Atomically write everything needed to continue after ``completed`` RL iterations."""
+        import torch
+
+        from agentrs.training.common import rng_state
+
+        final = self._rl_state_dir
+        tmp = final.with_name(final.name + ".tmp")
+        if tmp.exists():
+            shutil.rmtree(tmp)
+        tmp.mkdir(parents=True)
+        save_checkpoint(tmp / "policy", self.policy, trainer.pt, keep_optimizer=True)
+        if self.critic is not None:
+            save_checkpoint(tmp / "critic", self.critic, trainer.ct, keep_optimizer=trainer.ct is not None)
+        if self.wm is not None:
+            save_checkpoint(tmp / "world_model", self.wm, getattr(self, "wm_trainer", None), keep_optimizer=True)
+        rb = self.replay
+        real_order = [rb._order.get(id(t)) for t in rb.real]
+        imag_order = [rb._order.get(id(t)) for t in rb.imagined]
+        prio_real = [rb.priority.get(id(t)) for t in rb.real]
+        prio_imag = [rb.priority.get(id(t)) for t in rb.imagined]
+        torch.save({
+            "completed_iterations": completed,
+            "rl_trainer": {"rng": trainer.rng.getstate(), "updates": trainer.updates},
+            "monitor_history": list(monitor.history),
+            "imagination_on": imagination_on,
+            "rl_rng": self._rl_rng.getstate(),
+            "replay": {"real": rb.real, "imagined": rb.imagined, "real_order": real_order,
+                       "imag_order": imag_order, "prio_real": prio_real, "prio_imag": prio_imag,
+                       "counter": rb._insert_counter, "rng": rb.rng.getstate()},
+            "real_env_steps": self.real_env_steps, "real_episodes": self.real_episodes,
+            "flops": dict(self.flops), "results": self.results, "wall_s": self._wall_s(),
+            "global_rng": rng_state(),
+        }, tmp / "state.pt")
+        (tmp / "DONE").write_text(json.dumps({"completed_iterations": completed, "time": time.time()}))
+        old = final.with_name(final.name + ".old")
+        if old.exists():
+            shutil.rmtree(old)
+        if final.exists():
+            os.replace(final, old)
+        os.replace(tmp, final)
+        if old.exists():
+            shutil.rmtree(old)
+
+    def _load_rl_state(self) -> Optional[dict]:
+        import torch
+
+        d = self._rl_state_dir
+        if not (d / "DONE").exists():  # a crash during the swap leaves the previous state in .old
+            old = d.with_name(d.name + ".old")
+            if (old / "DONE").exists():
+                d = old
+            else:
+                return None
+        return {"dir": d, **torch.load(d / "state.pt", weights_only=False, map_location="cpu")}
+
+    def _restore_rl_state(self, st: dict, trainer: RLTrainer, monitor: ExploitationMonitor) -> None:
+        from agentrs.training.common import GradientTrainer, load_trainer_state, load_weights, set_rng_state
+
+        d: Path = st["dir"]
+        load_weights(d / "policy", self.policy)
+        load_trainer_state(d / "policy", trainer.pt, restore_rng=False)
+        if self.critic is not None:
+            load_weights(d / "critic", self.critic)
+            if trainer.ct is not None and (d / "critic" / "trainer.pt").exists():
+                load_trainer_state(d / "critic", trainer.ct, restore_rng=False)
+        if self.wm is not None:
+            load_weights(d / "world_model", self.wm)
+            self.wm_trainer = GradientTrainer(self.wm, self.cfg.wm_train.optim)
+            if (d / "world_model" / "trainer.pt").exists():
+                load_trainer_state(d / "world_model", self.wm_trainer, restore_rng=False)
+        trainer.rng.setstate(st["rl_trainer"]["rng"])
+        trainer.updates = st["rl_trainer"]["updates"]
+        monitor.history = list(st["monitor_history"])
+        self._rl_rng.setstate(st["rl_rng"])
+        r = st["replay"]
+        rb = self.replay
+        rb.real, rb.imagined = list(r["real"]), list(r["imagined"])
+        rb._order, rb.priority = {}, {}
+        for items, orders, prios in ((rb.real, r["real_order"], r["prio_real"]),
+                                     (rb.imagined, r["imag_order"], r["prio_imag"])):
+            for t, o, pr in zip(items, orders, prios):
+                if o is not None:
+                    rb._order[id(t)] = o
+                if pr is not None:
+                    rb.priority[id(t)] = pr
+        rb._insert_counter = r["counter"]
+        rb.rng.setstate(r["rng"])
+        self.real_env_steps, self.real_episodes = st["real_env_steps"], st["real_episodes"]
+        self.flops = dict(st["flops"])
+        self.results = st["results"]
+        self._wall_prev = st.get("wall_s", 0.0)
+        self._t0 = time.time()
+        self.results.setdefault("resumed_from", []).append(st["completed_iterations"])
+        set_rng_state(st["global_rng"])
+        # experience shards of iterations that ran after the checkpoint are re-collected: drop them
+        pat = re.compile(r"_rl(\d+)_")
+        for part_dir in (self.store.root / p for p in ("real", "imagined")):
+            for shard in part_dir.glob("*.parquet") if part_dir.exists() else []:
+                m = pat.search(shard.name)
+                if m and int(m.group(1)) >= st["completed_iterations"]:
+                    shard.unlink()
+
+    def run_rl(self, state: Optional[dict] = None) -> None:
         c = self.cfg
         trainer = RLTrainer(self.policy, self.critic, c.rl, seed=c.seed)
         monitor = ExploitationMonitor(c.imagination.exploitation_gap)
         imagination_on = c.use_imagination
-        for it in range(c.rl_iterations):
+        start = 0
+        if not hasattr(self, "_t0"):  # run_rl called directly (not via run())
+            self._t0, self._wall_prev = time.time(), 0.0
+        if state is not None:
+            self._restore_rl_state(state, trainer, monitor)
+            start = state["completed_iterations"]
+            imagination_on = state["imagination_on"]
+            print(f"[resume] {self.dir}: continuing RL after {start}/{c.rl_iterations} iterations", flush=True)
+        for it in range(start, c.rl_iterations):
             # ---- collect with a fixed snapshot of the current weights
             if c.rl.algo == "grpo":
                 base = self._rl_rng.sample(self.rl_tasks, max(1, c.episodes_per_iter // c.rl.group_size))
@@ -372,6 +513,8 @@ class Experiment:
             self.tracker.log(stats, step=self.real_env_steps, prefix="rl/")
             if (it + 1) % c.eval_every_iters == 0 and it + 1 < c.rl_iterations:
                 self.evaluate(f"iter{it + 1}", sets=("val",))
+            if c.rl_checkpoint_every and ((it + 1) % c.rl_checkpoint_every == 0 or it + 1 == c.rl_iterations):
+                self._save_rl_state(it + 1, trainer, monitor, imagination_on)
         self.results["rl"] = {"iterations": c.rl_iterations, "imagination_final_enabled": imagination_on}
 
 

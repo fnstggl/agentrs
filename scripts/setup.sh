@@ -3,7 +3,10 @@
 # fetches MiniWoB++ task HTML, and validates the installation.
 #
 #   bash scripts/setup.sh            # CPU torch
-#   TORCH_INDEX=https://download.pytorch.org/whl/cu124 bash scripts/setup.sh   # GPU torch
+#   TORCH_INDEX=https://download.pytorch.org/whl/cu130 TORCH_VERSION=2.14.1 bash scripts/setup.sh   # GPU torch
+#
+# Pick a CUDA build no newer than the host driver supports (nvidia-smi "CUDA Version"):
+# e.g. a CUDA 13.0 driver cannot JIT/run some cu132 code paths, so use cu130 there.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY=${PYTHON:-python3}
@@ -19,7 +22,7 @@ else
   PIP="pip"
 fi
 # torch first, from the CPU (or given) index only, so no CUDA wheels are pulled in
-$PIP install --index-url "${TORCH_INDEX:-https://download.pytorch.org/whl/cpu}" "torch==2.15.0"
+$PIP install --index-url "${TORCH_INDEX:-https://download.pytorch.org/whl/cpu}" "torch==${TORCH_VERSION:-2.15.0}"
 # everything else pinned to the versions this project was developed and tested with
 grep -vE '^(torch|browsergym|-e |agentrs)' requirements.lock.txt > /tmp/agentrs_reqs.txt
 $PIP install -r /tmp/agentrs_reqs.txt

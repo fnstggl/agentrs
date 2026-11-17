@@ -1,0 +1,14 @@
+# Single RTX A6000 (48 GB, Ampere sm_86, bf16) research profile. Same models as research_qwen3.yaml.
+# Gradient checkpointing is off for the policy: with it on, HF disables the KV cache and candidate
+# scoring falls back to full sequences (one prompt copy per candidate), which is far slower.
+# Memory/throughput were measured with scripts/gpu_check.py (see docs/hardware.md).
+policy:
+  backbone: {name: Qwen/Qwen3-4B, dtype: bfloat16, device: cuda, max_prompt_tokens: 1536,
+             lora: {r: 16, alpha: 32, dropout: 0.05, target_modules: all-linear}, gradient_checkpointing: false}
+  vocab_restrict: false
+world_model:
+  backbone: {name: Qwen/Qwen3-0.6B, dtype: bfloat16, device: cuda, max_prompt_tokens: 1536,
+             lora: {r: 16, alpha: 32, dropout: 0.05, target_modules: all-linear}}
+critic:
+  backbone: {name: Qwen/Qwen3-0.6B, dtype: bfloat16, device: cuda, max_prompt_tokens: 1536,
+             lora: {r: 16, alpha: 32, dropout: 0.05, target_modules: all-linear}}

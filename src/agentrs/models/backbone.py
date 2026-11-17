@@ -25,6 +25,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pydantic import ConfigDict, BaseModel, Field
+from agentrs.device import default_device, multinomial, resolve_device
 
 
 class LoraSettings(BaseModel):
@@ -52,7 +53,7 @@ class BackboneConfig(BaseModel):
     name: str = "EleutherAI/pythia-31m"  # HF id, local path, or "scratch"
     revision: Optional[str] = None
     dtype: str = "float32"
-    device: str = "cpu"
+    device: str = Field(default_factory=default_device)  # cpu | cuda[:N] | auto; env AGENTRS_DEVICE
     lora: Optional[LoraSettings] = None
     max_prompt_tokens: int = 768
     head_keep_tokens: int = 64  # when truncating, keep this many leading tokens (goal)
@@ -142,7 +143,7 @@ class LMBackbone(nn.Module):
         self.newline_id = self._encode("\n")[-1]
         self.flops_counter = 0  # 2 * params * tokens forward (approximate)
         self._n_params = sum(p.numel() for p in model.parameters())
-        self.to(cfg.device)
+        self.to(resolve_device(cfg.device))
 
     # ---------------------------------------------------------------- helpers
     @property
@@ -234,9 +235,14 @@ class LMBackbone(nn.Module):
         if vocab_restrict and self._check_hidden_logits():
             vocab_rows = [torch.tensor(sorted({t for c in cs for t in c}) or [0], device=self.device)
                           for cs in cids]
-        if prefix_cache:
+        if prefix_cache and not self._kv_cache_disabled():
             return self._score_cached(prompts, cids, vocab_rows)
         return self._score_full(prompts, cids, vocab_rows)
+
+    def _kv_cache_disabled(self) -> bool:
+        """HF disables the KV cache for gradient-checkpointed forwards in training mode, which the
+        prefix-cached scorer needs; full-sequence scoring is used for those forwards instead."""
+        return (self.cfg.gradient_checkpointing and self.model.training and torch.is_grad_enabled())
 
     def _forward_full(self, prompts, cids):
         """Right-padded prompt+continuation forward. Returns hidden states, ids, spans, owners."""
@@ -441,7 +447,7 @@ class LMBackbone(nn.Module):
             if greedy:
                 nxt = logp.argmax(-1)
             else:
-                nxt = torch.multinomial(logp.exp(), 1, generator=generator).squeeze(-1)
+                nxt = multinomial(logp.exp(), 1, generator=generator).squeeze(-1)
             chosen = logp.gather(-1, nxt[:, None]).squeeze(-1)
             for i in range(n):
                 if not done[i]:

@@ -33,6 +33,7 @@ from agentrs.agent.runtime import Decision
 from agentrs.content.semantic_action import SemanticAction, content_from_generation
 from agentrs.environments.content.env import MODALITY
 from agentrs.models.policy import LMPolicy
+from agentrs.device import multinomial
 
 TERMINATOR = '")'
 
@@ -127,7 +128,7 @@ class ContentPolicyActor:
         if self.mode == "greedy":
             i = int(torch.argmax(lp))
         else:
-            i = int(torch.multinomial(lp.exp(), 1, generator=self.gen))
+            i = int(multinomial(lp.exp(), 1, generator=self.gen))
         a = candidates[i]
         cand_strs = [c.to_str() for c in candidates]
         if a.type != ActionType.SUBMIT:

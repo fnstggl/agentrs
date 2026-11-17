@@ -35,6 +35,25 @@ grows to ≈2.2–3.3 GB RSS during the RL phase (replay, planner generation cac
 fragmentation). On a 15 GB machine more than ~4–5 concurrent runs triggered the OOM killer;
 `scripts/job_pool.sh` (max concurrency, `MALLOC_ARENA_MAX=2`) is the safe launcher.
 
+## Measured on one RTX A6000 (48 GB, sm_86; torch 2.14.1+cu130, driver CUDA 13.0)
+
+Install: `PYTHON=3.12 TORCH_INDEX=https://download.pytorch.org/whl/cu130 TORCH_VERSION=2.14.1 bash scripts/setup.sh`
+(the pinned torch 2.15.0 only ships cu132 wheels, newer than this driver). Run anything on the GPU
+with `AGENTRS_DEVICE=cuda` (or `device: cuda` / `auto` in a backbone config). `scripts/gpu_check.py`
+reproduces the numbers below.
+
+| check | result |
+|---|---|
+| Qwen3-4B bf16 + LoRA r16 (33.0M trainable), `configs/models/a6000_qwen3.yaml` (no grad-ckpt) | BC 1.0 s/step (batch 4), peak 21.3 GB; val NLL 1.16 → 0.76 in 20 steps |
+| same, `research_qwen3.yaml` (grad-ckpt; full-sequence scoring fallback) | 2.2 s/step, peak 12.3 GB |
+| Qwen3-0.6B world model + LoRA | 0.44 s/step, 5.1 GB |
+| LoRA checkpoint | 378 MB; reload reproduces log-probs exactly |
+| generative tool-use rollouts (Qwen3-4B, batch 32, prompts ≤3.5k tokens) | ≈5.4 s per episode (64 lock-step episodes), peak 27.6 GB |
+| behaviour vs re-scored token log-probs (bf16) | mean abs difference 2.3e-4 nats/token |
+
+Gradient checkpointing disables the HF KV cache in training mode; prefix-cached candidate scoring
+then falls back to full-sequence scoring automatically (`LMBackbone._kv_cache_disabled`).
+
 ## Storage (measured)
 
 * Experience: ≈405 bytes per transition in compressed Parquet (observations, candidates,

@@ -26,6 +26,7 @@ from agentrs.agent.runtime import Decision
 from agentrs.content.policy import ContentGeneratingPolicy, generation_prompt
 from agentrs.data.schemas import WMPredictionRecord
 from agentrs.temporal.temporal_world_model import TemporalQuery, TemporalWorldModel
+from agentrs.device import multinomial
 
 
 class TemporalPlannerConfig(BaseModel):
@@ -61,7 +62,7 @@ class TemporalContentPlanner:
         subs = [c for c in candidates if c.type == ActionType.SUBMIT]
         lp = self.cp.op_log_probs([prompt], [candidates])[0]
         K = self.cfg.num_candidates
-        ops = torch.multinomial(lp.exp(), K, replacement=True, generator=self.gen).tolist()
+        ops = multinomial(lp.exp(), K, replacement=True, generator=self.gen).tolist()
         drafts = []
         for i in ops:
             a = candidates[i]

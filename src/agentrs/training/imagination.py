@@ -34,6 +34,7 @@ from agentrs.models.critic import Critic
 from agentrs.models.policy import LMPolicy
 from agentrs.models.world_model import N_EVENTS, WorldModel
 from agentrs.training.world_model import episode_histories
+from agentrs.device import multinomial
 
 
 class ImaginationConfig(BaseModel):
@@ -75,7 +76,7 @@ def imagine_rollouts(policy: LMPolicy, wm: WorldModel, critic: Optional[Critic],
         for h in range(cfg.horizon):
             env_cands = candidates_from_observation(obs, belief.task.goal)
             cands, lp = policy.distribution(belief, belief.augment_candidates(env_cands, obs))
-            i = int(torch.multinomial(lp.exp(), 1, generator=gen))
+            i = int(multinomial(lp.exp(), 1, generator=gen))
             a = cands[i]
             hs = [(x.action, x.outcome) for x in belief.history]
             mean, std = wm.predict_batch_heads(belief.task.goal, obs, [a.to_str()], hs)

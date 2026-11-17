@@ -188,7 +188,7 @@ def test_content_rl_gradients_step_and_checkpoint(bc_policy, tmp_path):
     for e in eps:
         sa = e.transitions[0].semantic_action
         lp, m = cp.content_log_probs([sa.generation_prompt], [sa.token_ids])
-        assert torch.allclose(lp[0][m[0]], torch.tensor(sa.token_logprobs), atol=1e-4)  # exact stored ids
+        assert torch.allclose(lp[0][m[0]].float().cpu(), torch.tensor(sa.token_logprobs), atol=1e-4)  # exact stored ids
     trainer = ContentPolicyRLTrainer(cp, ContentRLConfig(optim=OptimConfig(lr=1e-3, total_steps=10**5), kl_coef=0.0))
     steps, rejected = build_content_rl_steps([e.transitions for e in eps], trainer.cfg)
     assert steps and not rejected

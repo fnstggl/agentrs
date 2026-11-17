@@ -191,6 +191,7 @@ class TemporalWorldModel(ContentConditionedWorldModel):
         self.register_buffer("grid", torch.linspace(0.0, TAU_MAX, cfg.grid_size), persistent=False)
         self.grid_dt = TAU_MAX / (cfg.grid_size - 1)
         self.checkpoint_id = "init"
+        self.to(self.backbone.device)  # heads live on the backbone's device
 
     # ------------------------------------------------------------------ prompts
     def query_prompt(self, q: TemporalQuery, action_text: str | None = None) -> str:

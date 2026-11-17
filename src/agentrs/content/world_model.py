@@ -75,6 +75,7 @@ class ContentConditionedWorldModel(WorldModel):
         with torch.no_grad():
             self.content_heads.b2.fill_(0.0)
         self.encoder = ContentActionEncoder(self.backbone.tokenizer, cfg.chunk_tokens)
+        self.to(self.backbone.device)  # heads live on the backbone's device
 
     # ---------------------------------------------------------------- representations
     def action_prompts(self, goal: str, obs: Observation, action_str: str,

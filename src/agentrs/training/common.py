@@ -103,19 +103,24 @@ class GradientTrainer:
 
 # ---------------------------------------------------------------------------- checkpoints
 def rng_state() -> dict:
-    return {"python": random.getstate(), "numpy": np.random.get_state(), "torch": torch.get_rng_state()}
+    st = {"python": random.getstate(), "numpy": np.random.get_state(), "torch": torch.get_rng_state()}
+    if torch.cuda.is_available() and torch.cuda.is_initialized():
+        st["cuda"] = torch.cuda.get_rng_state_all()
+    return st
 
 
 def set_rng_state(s: dict) -> None:
     random.setstate(s["python"])
     np.random.set_state(s["numpy"])
     torch.set_rng_state(s["torch"])
+    if "cuda" in s and torch.cuda.is_available() and len(s["cuda"]) <= torch.cuda.device_count():
+        torch.cuda.set_rng_state_all(s["cuda"])
 
 
 def seed_everything(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
-    torch.manual_seed(seed)
+    torch.manual_seed(seed)  # also seeds every CUDA device
 
 
 def trainable_state(model: nn.Module) -> dict[str, torch.Tensor]:
@@ -203,7 +208,7 @@ def load_weights(path: str | os.PathLike, model: nn.Module) -> None:
 
 
 def load_trainer_state(path: str | os.PathLike, trainer: GradientTrainer, restore_rng: bool = True) -> None:
-    st = torch.load(Path(path) / "trainer.pt", weights_only=False)
+    st = torch.load(Path(path) / "trainer.pt", weights_only=False, map_location="cpu")
     trainer.load_state_dict(st["trainer"])
     if restore_rng:
         set_rng_state(st["rng"])

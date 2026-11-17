@@ -35,6 +35,7 @@ class DiscreteHorizonModel(nn.Module):
         self.heads = EnsembleHeads(self.backbone.hidden_size, 128, n_heads, len(self.events) * len(self.horizons))
         self.n_heads = n_heads
         self._fmt = TemporalWorldModel.query_prompt
+        self.to(self.backbone.device)  # heads live on the backbone's device
 
     def prompt(self, q: TemporalQuery) -> str:
         lines = [f"SOURCE: {q.source_type} | ACTOR: {q.actor_type}", f"GOAL: {q.goal if q.goal else 'unknown'}",

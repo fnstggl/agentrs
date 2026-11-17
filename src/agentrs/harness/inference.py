@@ -19,6 +19,7 @@ import uuid
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
+from agentrs.device import multinomial
 
 
 class DecideRequest(BaseModel):
@@ -120,7 +121,7 @@ class LocalPolicyBackend(Backend):
                 flat_gp, owner, ops = [], [], []
                 for k, (r, lp) in enumerate(zip(rs, lps)):
                     for _ in range(r.num_samples):
-                        j = int(torch.multinomial(lp.exp(), 1, generator=self.gen)) if r.sample else int(torch.argmax(lp))
+                        j = int(multinomial(lp.exp(), 1, generator=self.gen)) if r.sample else int(torch.argmax(lp))
                         ops.append((j, float(lp[j])))
                         flat_gp.append(generation_prompt(r.prompt, cands[k][j].name or ""))
                         owner.append(k)

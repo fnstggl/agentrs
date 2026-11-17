@@ -17,6 +17,7 @@ MODEL_PRESETS = {
     "dev": "configs/models/dev_pythia14m.yaml",
     "dev31m": "configs/models/dev_pythia31m.yaml",
     "research": "configs/models/research_qwen3.yaml",
+    "a6000": "configs/models/a6000_qwen3.yaml",
 }
 
 

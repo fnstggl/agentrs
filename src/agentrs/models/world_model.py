@@ -130,6 +130,7 @@ class WorldModel(nn.Module):
         # sensible priors: most events are rare
         with torch.no_grad():
             self.heads.b2.fill_(-2.0)
+        self.to(self.backbone.device)  # heads live on the backbone's device
 
     # ---------------------------------------------------------------- inputs
     def prompt(self, goal: str, obs: Observation, action: str, history: Sequence[tuple[str, str]] = ()) -> str:

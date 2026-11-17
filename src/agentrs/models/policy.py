@@ -25,6 +25,7 @@ from agentrs.actions.schema import Action, try_parse_action
 from agentrs.agent.belief import BeliefState, action_text_for_lm
 from agentrs.agent.runtime import Decision
 from agentrs.models.backbone import BackboneConfig, LMBackbone
+from agentrs.device import multinomial
 
 
 class PolicyConfig(BaseModel):
@@ -114,10 +115,10 @@ class PolicyActor:
             beh = 0.0
         elif self.mode == "epsilon" and self.epsilon > 0:
             mix = (1 - self.epsilon) * p + self.epsilon / n
-            i = int(torch.multinomial(mix, 1, generator=self.gen))
+            i = int(multinomial(mix, 1, generator=self.gen))
             beh = float(torch.log(mix[i]))
         else:
-            i = int(torch.multinomial(p, 1, generator=self.gen))
+            i = int(multinomial(p, 1, generator=self.gen))
             beh = float(lp[i])
         return Decision(action=cands[i], candidates=[c.to_str() for c in cands], chosen_index=i,
                         policy_logprob=float(lp[i]), behavior_logprob=beh, selection="policy",
