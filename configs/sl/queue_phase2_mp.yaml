@@ -1,7 +1,7 @@
 # Superlearner Phase 2: Melting Pot lifetime (self-play on 6 substrates) and transfer to held-out substrates;
 # held-out scenarios (unfamiliar background bots) are zero-shot monitors. See docs/superlearner.md.
 runs_root: /workspace/agentrs/runs/sl_mp
-src: /workspace/agentrs-sl-exp/src
+src: /workspace/agentrs-sl-exp-mp/src
 module: agentrs.sl.train
 max_jobs: 4
 max_load: 40
@@ -24,7 +24,7 @@ smoke_set:
   final_reserve_h: 0.0
   learner:
     mb_streams: 8
-  max_episode_steps: 200
+  max_episode_steps: 100
 smoke_timeout_s: 2400
 crash_repeat_limit: 2
 max_starts: 4
@@ -47,8 +47,7 @@ jobs:
     - mp/bach_or_stravinsky_in_the_matrix__repeated
     - mpsc/prisoners_dilemma_in_the_matrix__repeated_0
     - mpsc/coins_0
-    - mpsc/clean_up_2
-- name: T_closed_scratch_s1
+    - name: T_closed_scratch_s1
   config: configs/sl/transfer_mp.yaml
   set:
     seed: 1
@@ -132,4 +131,4 @@ jobs:
     - mp/bach_or_stravinsky_in_the_matrix__repeated
     - mpsc/prisoners_dilemma_in_the_matrix__repeated_0
     - mpsc/coins_0
-    - mpsc/clean_up_2
+    

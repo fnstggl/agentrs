@@ -17,6 +17,7 @@ import os
 import pickle
 import struct
 import subprocess
+import time
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +26,7 @@ from agentrs.sl.world import ActionSpace, Consequence, GoalStatus, Obs, Task, Wo
 
 PY = "/workspace/ext/venv-mp/bin/python"
 SERVER = str(Path(__file__).with_name("mp_server.py"))
+LOGS = Path(os.environ.get("SL_MP_LOG_DIR", "/workspace/agentrs/runs/sl_mp/_server_logs"))
 _POOL: dict = {}
 
 
@@ -32,8 +34,10 @@ class _Server:
     def __init__(self):
         env = {k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "CUDA"))}
         env.update(CUDA_VISIBLE_DEVICES="", OMP_NUM_THREADS="1", TF_CPP_MIN_LOG_LEVEL="3", PYTHONDONTWRITEBYTECODE="1")
+        LOGS.mkdir(parents=True, exist_ok=True)
+        self.log = open(LOGS / f"server_{os.getpid()}_{time.time_ns()}.log", "wb")
         self.p = subprocess.Popen([PY, "-I", SERVER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                  stderr=subprocess.DEVNULL, env=env)
+                                  stderr=self.log, env=env)
         self.key = None
         self.pending = False
 
@@ -71,7 +75,7 @@ def _acquire(key):
     return lst.pop() if lst else None
 
 
-MAX_IDLE = 4  # idle servers kept per (kind, name); extras are shut down
+MAX_IDLE = 2  # idle servers kept per (kind, name); extras are shut down (scenario servers: ~100 threads each)
 
 
 def _release(key, srv):

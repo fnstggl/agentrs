@@ -268,7 +268,8 @@ class SLTrainer:
                "families": {}}
         for fam in families:
             tasks = W.eval_tasks(fam, split, n_tasks)
-            n_w = min(len(tasks), self.cfg.n_worlds)
+            # held-out Melting Pot scenarios run TensorFlow bot populations (~100 threads, ~0.9 GB per server)
+            n_w = min(len(tasks), self.cfg.n_worlds, 2 if fam.startswith("mpsc/") else 10**9)
             r = Runner(self.model, {fam: 1.0}, W.make_world, W.sample_task, n_w, trial_episodes=self.cfg.trial_episodes,
                        split=split, seed=12345, mode=mode, contract=self.rc, device=self.dev,
                        max_episode_steps=self.cfg.max_episode_steps, fixed_tasks=tasks, dt_ref=dict(self.state["dt_ref"]))
@@ -448,7 +449,7 @@ def _diag_world_model(t: SLTrainer, fams) -> dict:
 
     m = t.model
     out = {}
-    for fam in fams:
+    for fam in [f for f in fams if not f.startswith("mpsc/")]:  # scenarios are evaluation-only worlds
         r = Runner(m, {fam: 1.0}, W.make_world, W.sample_task, 4, trial_episodes=t.cfg.trial_episodes, split="val", seed=99,
                    mode="full", contract=t.rc, device=t.dev, max_episode_steps=t.cfg.max_episode_steps)
         try:

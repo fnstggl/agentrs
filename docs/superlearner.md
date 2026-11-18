@@ -110,7 +110,7 @@ The first four Phase 1 pretraining runs (sl-exp-v1/v2) were stopped after 4–20
   prisoners_dilemma_in_the_matrix__repeated, stag_hunt_in_the_matrix__repeated.
 - 4M learner agent-steps; trials of 2 episodes.
 - Zero-shot monitors: the held-out substrates commons_harvest__closed and bach_or_stravinsky_in_the_matrix__repeated,
-  and the held-out scenarios prisoners_dilemma_in_the_matrix__repeated_0, coins_0 and clean_up_2 (the benchmark's
+  and the held-out scenarios prisoners_dilemma_in_the_matrix__repeated_0 and coins_0 (the benchmark's
   background bots as unfamiliar co-players).
 
 **Transfer:** 1M agent-steps on each held-out substrate, scratch vs `life_4000000`, seeds 1–2.

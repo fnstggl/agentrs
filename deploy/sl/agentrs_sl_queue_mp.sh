@@ -4,6 +4,6 @@
 utils=/opt/supervisor-scripts/utils
 . "${utils}/logging.sh"
 . "${utils}/environment.sh"
-cd /workspace/agentrs-sl-exp
-export PYTHONUNBUFFERED=1 PYTHONPATH=/workspace/agentrs-sl-exp/src
+cd /workspace/agentrs-sl-exp-mp
+export PYTHONUNBUFFERED=1 PYTHONPATH=/workspace/agentrs-sl-exp-mp/src
 exec /workspace/agentrs/.venv/bin/python -u scripts/sl_queue.py --queue configs/sl/queue_phase2_mp.yaml 2>&1
