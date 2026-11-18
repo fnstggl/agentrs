@@ -37,9 +37,18 @@ def sh(*a) -> str:
 
 def alive(pid) -> bool:
     try:
-        os.kill(int(pid), 0)
-        return True
+        pid = int(pid)
+        os.kill(pid, 0)
     except (OSError, TypeError, ValueError):
+        return False
+    try:  # an exited child of this queue that has not been reaped yet (zombie) is not running
+        if os.waitpid(pid, os.WNOHANG)[0] == pid:
+            return False
+    except ChildProcessError:
+        pass
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
+    except (OSError, IndexError):
         return False
 
 
