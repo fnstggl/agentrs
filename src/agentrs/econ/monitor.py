@@ -76,6 +76,7 @@ def main(argv=None) -> int:
     run = Path(a.run_dir)
     run.mkdir(parents=True, exist_ok=True)
     restarts = 0
+    spend_strikes = 0
     last_hist = 0.0
     events: list[dict] = []
 
@@ -121,7 +122,12 @@ def main(argv=None) -> int:
         if disk_pct > a.disk_stop_pct and not (run / "STOP").exists():
             (run / "STOP").write_text(f"disk {disk_pct:.1f}%")
             event(f"disk at {disk_pct:.1f}%: STOP requested")
-        if max_spend and dph and spent >= max_spend and not (run / "STOP").exists():
+        # spending rail: only once the trainer has applied a pending NEW_SESSION (otherwise the previous
+        # session's start time would be billed against this session's cap), and confirmed on two reads
+        session_pending = (run / "NEW_SESSION").exists() or (st.get("sessions") and not st.get("session_started_at"))
+        over = bool(max_spend and dph and spent >= max_spend and not session_pending)
+        spend_strikes = spend_strikes + 1 if over else 0
+        if over and spend_strikes >= 2 and not (run / "STOP").exists():
             (run / "STOP").write_text(f"spend ${spent:.2f}")
             event(f"spending cap reached (${spent:.2f}): STOP requested")
         if deadline and t > deadline + a.grace_min * 60 and trainer == "RUNNING":

@@ -125,3 +125,40 @@ cat runs/overnight/report.md                    # written at the end
   matured outcomes and scores it against a running base rate. The 2026 archive is a reduced sample
   with trimmed PR payloads, so outcomes mean "recorded in the archive", and issue→fix links are rarely
   recoverable. None of this data is reward-eligible for the economic policy.
+
+## Asynchronous self-play runtime (`agentrs.selfplay`)
+
+The policy acts by **direct generation**: observation + goal + history + tool schema → Qwen3-4B →
+one complete JSON tool call (tool name, arguments, identifiers, generated text/code), sampled token by
+token at T = 1 with no top-k/top-p and no logit masks (the only constraint is the assistant prefill
+`{"tool": "` and stopping at a newline, both identical at collection and training time), so the
+stored behaviour log-probs are exactly those of the sampling distribution. The candidate-scoring
+policy (`agentrs.models.policy`, up to 40 candidates) is not used by this run; it remains the legacy
+baseline / compatibility path.
+
+`collector: async` (or `<run>/runtime.json`, switchable at a cycle boundary) replaces lock-step
+collection with N persistent logical workers sharing **one** engine over the trainer's own policy
+object (no second copy of Qwen): each worker owns its task, isolated environment instance (on a
+dedicated thread — SQLite objects are thread-bound), history, budgets and timeouts; the engine
+batches whatever requests are waiting (bounded queue = backpressure), records exact sampled ids,
+behaviour log-probs, sampling config and the served policy version; finished episodes are appended
+durably (fsync) to `experience/stream_cycle_NNNN.partial.jsonl`. Schedule per cycle: collect (all
+workers on one fixed policy version) → PPO update → world model + critic → checkpoint → every 2 cycles
+validation + promote/rollback. Samples whose version differs from the learner's are rejected.
+
+`touch runs/overnight/BENCH` runs the end-to-end benchmark (lock-step 64 vs async 1/4/8/16/32 workers,
+180 s each, real environments and weights) at the next cycle boundary, writes `bench.json`, and
+switches to the best async configuration if it beats lock-step by > 10 % actions/h.
+Tests: `tests/selfplay/test_async_runtime.py` (batching, isolation, slow env not blocking others,
+failure containment, version pinning, durable sink, real Qwen3 exact log-probs + non-zero RL gradient).
+
+## Adaptive capacity (`agentrs.capacity`, research pathway, default `capacity_mode: fixed`)
+
+Rank expansion (function-preserving, AdamW moments transferred, checkpoints restore grown shapes
+automatically), bounded expert LoRA adapters with a learned per-domain router (shared core always on;
+router + experts are part of the trainable state and therefore of every GitHub checkpoint),
+consolidation by distilling the routed model into the shared adapter and retiring experts, and an
+`ExpansionAdvisor` that only *proposes* growth from evidence (validation plateau while the policy keeps
+changing; per-family drops = interference). `scripts/capacity_benchmark.py` runs fixed vs expanded-rank
+vs experts from the same checkpoint on identical tasks and update budgets. Tests:
+`tests/selfplay/test_capacity.py`.

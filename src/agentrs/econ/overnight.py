@@ -83,6 +83,11 @@ class RunConfig(BaseModel):
     wm_assist_k: int = 3              # sampled candidates (+ the greedy action) re-ranked by the world model
     final_wm_assist_test: bool = True # one pre-registered WM-assisted run on the sealed test set at the end
     factory_validate_expert: bool = True
+    collector: str = "lockstep"       # lockstep | async; overridden at runtime by <run>/runtime.json
+    async_workers: int = 32
+    async_max_wait_ms: float = 15.0
+    bench_seconds: float = 180.0
+    capacity_mode: str = "fixed"      # fixed | expand_rank | experts (research pathway; see agentrs.capacity)
 
 
 # ---------------------------------------------------------------------------- utilities
@@ -232,6 +237,7 @@ class Run:
             "latest_checkpoint": s.get("latest_checkpoint"), "last_snapshot": s.get("last_snapshot"),
             "errors": s["errors"][-5:], "restarts": s["restarts"], "unique_task_fingerprints": len(s["fingerprints"]),
             "factory": self.factory.coverage() if hasattr(self, "factory") else None,
+            "capacity": {k: v for k, v in (s.get("capacity") or {}).items() if k != "policy_params"},
             "session_started_at": s.get("session_started_at"), "prior_spend_usd": s.get("prior_spend_usd", 0.0),
             **extra})
 
@@ -310,6 +316,15 @@ class Run:
         return final
 
     def load_ckpt(self, path: Path, weights_only: bool = False) -> None:
+        from agentrs.capacity import match_checkpoint_ranks
+
+        for sub, m in (("policy", self.policy.bb), ("critic", self.critic), ("world_model", self.wm)):
+            grown = match_checkpoint_ranks(m, path / sub)  # checkpoints from an expanded-capacity run
+            if grown:
+                self.log(f"{sub}: grew {len(grown)} LoRA layers to match {path.name}")
+                if not weights_only:
+                    tr = {"policy": "pt", "critic": "ct", "world_model": "wt"}[sub]
+                    setattr(self, tr, GradientTrainer(m, getattr(self, tr).cfg))
         load_weights(path / "policy", self.policy.bb)
         load_weights(path / "critic", self.critic)
         load_weights(path / "world_model", self.wm)
@@ -390,8 +405,10 @@ class Run:
         tasks = self.eval_tasks(split, fams, per)
         t0 = now()
         self.status(f"eval:{tag}:{split}", eval_tasks=len(tasks))
-        eps = rollout_batch(tasks, act or (lambda r: self.policy.act(r, greedy=True)),
-                            version or f"v{self.state['version']}", provenance="evaluation")
+        if act is None:
+            eps = self.collect(tasks, None, version or f"v{self.state['version']}", greedy=True, provenance="evaluation")
+        else:
+            eps = rollout_batch(tasks, act, version or f"v{self.state['version']}", provenance="evaluation")
         self.write_episodes(f"eval_{tag}_{split}", eps, "evaluation")
         summ = summarize(eps)
         tr = [e for e in eps if f"{e.domain}/{e.family}" in self.train_fams]
@@ -451,6 +468,69 @@ class Run:
 
         act.wants_ctx = True
         return act
+
+    # ----------------------------------------------------------------- collection runtime
+    def runtime_cfg(self) -> dict:
+        """Collector settings; ``<run>/runtime.json`` can switch them at a cycle boundary (no restart)."""
+        rt = {"collector": self.cfg.collector, "workers": self.cfg.async_workers, "max_wait_ms": self.cfg.async_max_wait_ms}
+        try:
+            rt |= json.loads((self.dir / "runtime.json").read_text())
+        except (OSError, ValueError):
+            pass
+        return rt
+
+    def collect(self, tasks: list, groups: Optional[list], version: str, greedy: bool, provenance: str,
+                sink: Optional[Path] = None) -> list[Episode]:
+        rt = self.runtime_cfg()
+        if rt["collector"] != "async":
+            act = (lambda r: self.policy.act(r, greedy=True)) if greedy else \
+                (lambda r: self.policy.act(r, greedy=False, temperature=1.0))
+            return rollout_batch(tasks, act, version, provenance=provenance, groups=groups)
+        from agentrs.selfplay import WorkUnit
+        from agentrs.selfplay.workers import collect
+
+        units = [WorkUnit(t, groups[i] if groups else None) for i, t in enumerate(tasks)]
+        eps, st = collect(lambda reqs, g: self.policy.act(reqs, greedy=g, temperature=1.0), version, units,
+                          int(rt["workers"]), max_batch=self.policy.gen_batch, max_wait_ms=float(rt["max_wait_ms"]),
+                          greedy=greedy, sink=sink, provenance=provenance)
+        self.state.setdefault("collector_stats", []).append({"cycle": self.state["cycle"], "provenance": provenance,
+                                                             **{k: v for k, v in st.items()}})
+        self.state["collector_stats"] = self.state["collector_stats"][-50:]
+        order = {t.id + "|" + (groups[i] if groups else ""): i for i, t in enumerate(tasks)}
+        return eps if groups else sorted(eps, key=lambda e: order.get(e.task_id + "|", 0))
+
+    def maybe_bench(self) -> None:
+        """``touch <run>/BENCH`` (content: optional JSON {"configs": [["async", 8], ...], "seconds": 180,
+        "apply": true}) runs the end-to-end throughput benchmark at the next cycle boundary with the
+        trainer's own policy weights, then (if ``apply``) switches the collector to the best measured
+        configuration when it beats the lock-step collector."""
+        f = self.dir / "BENCH"
+        if not f.exists():
+            return
+        try:
+            spec = json.loads(f.read_text() or "{}")
+        except ValueError:
+            spec = {}
+        f.unlink()
+        from agentrs.selfplay.bench import run_bench
+
+        configs = [tuple(c) for c in spec.get("configs", [["lockstep", 64], ["async", 1], ["async", 4], ["async", 8],
+                                                           ["async", 16], ["async", 32]])]
+        self.status("bench", configs=configs)
+        self.log(f"BENCH: {configs}, {spec.get('seconds', self.cfg.bench_seconds)} s each")
+        rep = run_bench(self.policy, f"v{self.state['version']}", self.train_fams, configs,
+                        float(spec.get("seconds", self.cfg.bench_seconds)), self.dir / "bench.json",
+                        dph=self.state["config"].get("dph_usd") or 0.0, log=self.log,
+                        store=lambda name, eps: self.write_episodes(name, eps, "benchmark"))
+        self.state.setdefault("benchmarks", []).append(rep)
+        best, base = rep.get("best_async"), rep.get("baseline")
+        if spec.get("apply", True) and best and base and best["actions_per_h"] > 1.1 * base["actions_per_h"]:
+            (self.dir / "runtime.json").write_text(json.dumps({"collector": "async", "workers": best["workers"],
+                                                               "max_wait_ms": self.cfg.async_max_wait_ms,
+                                                               "reason": f"bench: {rep.get('speedup_actions_per_h'):.2f}x actions/h"}))
+            self.log(f"BENCH: switching collector to async x{best['workers']} ({rep['speedup_actions_per_h']:.2f}x actions/h)")
+        torch.cuda.empty_cache()
+        self.save_state()
 
     # ----------------------------------------------------------------- phases
     def phase_baseline(self):
@@ -575,6 +655,7 @@ class Run:
         return picks
 
     def rl_cycle(self):
+        self.maybe_bench()
         c = self.cfg
         cyc = self.state["cycle"] + 1
         version = f"v{self.state['version']}"
@@ -585,13 +666,14 @@ class Run:
             for g in range(c.group_size):
                 group_tasks.append(t)
                 groups.append(f"c{cyc}:{t.id}")
-        self.status("collect", cycle_tasks=len(group_tasks))
-        eps = rollout_batch(group_tasks, lambda r: self.policy.act(r, greedy=False, temperature=1.0), version,
-                            provenance="agent_policy", groups=groups)
+        self.status("collect", cycle_tasks=len(group_tasks), collector=self.runtime_cfg())
+        eps = self.collect(group_tasks, groups, version, greedy=False, provenance="agent_policy",
+                           sink=self.expdir / f"stream_cycle_{cyc:04d}.partial.jsonl")
         t_col = now() - t0
         self.state["sec_per_step"] = t_col / max(1, max(len(e.steps) for e in eps))
         torch.cuda.empty_cache()  # generation KV caches -> free before the gradient phase
         self.write_episodes(f"cycle_{cyc:04d}", eps, "agent_policy")
+        (self.expdir / f"stream_cycle_{cyc:04d}.partial.jsonl").unlink(missing_ok=True)
         cnt = self.state["counters"]
         for e in eps:
             cnt["attempts"] += 1
@@ -660,6 +742,15 @@ class Run:
 
     def promotion_gate(self):
         rec = self.evaluate(f"cycle{self.state['cycle']}", "val")
+        try:
+            from agentrs.capacity import ExpansionAdvisor, param_report
+
+            self.state["capacity"] = {"mode": self.cfg.capacity_mode, "advisor": ExpansionAdvisor().assess(self.state),
+                                      "policy_params": param_report(self.policy.bb)}
+            if self.state["capacity"]["advisor"]["propose"]:
+                self.log(f"capacity advisor PROPOSES expansion (not applied): {self.state['capacity']['advisor']['reasons']}")
+        except Exception as e:  # noqa: BLE001 - advisory only
+            self.log(f"capacity advisor failed: {e}")
         val = rec["train_families"]["rate"]
         prom = self.state["promoted"]
         decision = {"cycle": self.state["cycle"], "version": self.state["version"], "val": val, "promoted_val": prom["val"]}
