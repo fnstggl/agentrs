@@ -22,6 +22,16 @@ import numpy as np
 import torch
 
 
+def wait_for_gpu(gb: float, max_wait_s: float = 4 * 3600, poll_s: float = 60.0) -> float:
+    """Block until ``gb`` GiB of GPU memory are free (or ``max_wait_s`` passes); returns seconds waited."""
+    t0 = time.time()
+    while torch.cuda.is_available() and torch.cuda.mem_get_info()[0] / 2**30 < gb and time.time() - t0 < max_wait_s:
+        print(f"waiting for {gb:.0f} GiB free GPU memory before loading a frozen LM "
+              f"({torch.cuda.mem_get_info()[0] / 2**30:.1f} GiB free)", flush=True)
+        time.sleep(poll_s)
+    return time.time() - t0
+
+
 class FrozenSemanticEncoder:
     def __init__(self, model: str = "Qwen/Qwen3-0.6B", layers: tuple = (0.5, 1.0), device: Optional[str] = None,
                  max_len: int = 384, batch: int = 64, cache_size: int = 200_000, dtype=torch.bfloat16):
@@ -131,6 +141,8 @@ class FrozenLLMActor:
 
         self.name = model
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        if self.device == "cuda":  # shared GPU: never squeeze the running training processes
+            wait_for_gpu(10.0 if "4B" in model else 4.0)
         self.tok = AutoTokenizer.from_pretrained(model)
         self.model = AutoModelForCausalLM.from_pretrained(model, dtype=dtype).to(self.device).eval()
         for p in self.model.parameters():
@@ -152,12 +164,16 @@ class FrozenLLMActor:
             ids[i, :len(s)] = torch.tensor(s)
             att[i, :len(s)] = 1
         ids, att = ids.to(self.device), att.to(self.device)
-        logp = torch.log_softmax(self.model(input_ids=ids, attention_mask=att).logits.float(), -1)
+        # project to the vocabulary only at the option-token positions: full logits for every position of every
+        # option sequence (options x ~1.6k tokens x 152k vocab, plus float copies) peaked at >16 GB
+        h = self.model.get_decoder()(input_ids=ids, attention_mask=att).last_hidden_state
+        head = self.model.get_output_embeddings()
         out = []
         for i, s in enumerate(seqs):
             tgt = torch.tensor(s[len(p_ids):], device=self.device)
             pos = torch.arange(len(p_ids) - 1, len(s) - 1, device=self.device)
-            out.append(float(logp[i, pos, tgt].sum()))
+            logp = torch.log_softmax(head(h[i, pos]).float(), -1)
+            out.append(float(logp[torch.arange(len(tgt), device=self.device), tgt].sum()))
         self.stats["forward_s"] += time.time() - t0
         return np.array(out)
 
