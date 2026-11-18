@@ -5,6 +5,18 @@ Branch `feat/cam-hybrid`, built on `feat/cam-v2`. Experiments run from the froze
 `agentrs_cam_hybrid_queue`; results land in `runs/cam_hybrid/<job>`. These are additional arms: the original
 CAM, CAM-v2/v2.1 and every earlier queue are unchanged.
 
+Snapshot `cam-hybrid-exp-v1.1` (13:36 UTC, while A and B were training) changed only memory behaviour, not learning
+or evaluation:
+- the frozen-LLM actor (arm D) now scores options from hidden states at the option positions only. Full-vocabulary
+  logits had peaked above 16 GB, and its arithmetic is unchanged (test `test_llm_actor_scoring_matches_full_logits_reference`);
+- frozen LMs wait for GPU headroom before loading;
+- the LLM front-end generates in batches of 8;
+- the queue treats an exited, unreaped job as finished.
+
+The first arm D run was stopped after negotiation (1/60) and rerun in full with v1.1.
+
+Report: `PYTHONPATH=src python scripts/hybrid_report.py` writes `runs/cam_hybrid/report.md`.
+
 ## Architecture
 
 ```
