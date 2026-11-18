@@ -421,11 +421,12 @@ def upload(run: Path, ckpt: str, kind: str, repo: str = DEFAULT_REPO, part_mib: 
     man = build_bundle(run, ckpt, work, part_mib, kind, public=public)
     parts_dir = Path(man.pop("parts_dir"))
     stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
-    tag = f"{TAG_PREFIX}{stamp}-{kind}-v{man['policy_version']}"
+    run_name = run.resolve().name
+    tag = f"{TAG_PREFIX}{run_name}-{stamp}-{kind}-v{man['policy_version']}"
     stem = man["tar"]["name"][:-4]
     rel = gh.create_release(tag, f"AGENTRS {kind} checkpoint v{man['policy_version']} (cycle {man['cycle']}, {stamp} UTC)",
                             "Upload in progress (draft). Not usable until published.")
-    man.update({"release_tag": tag, "release_url": rel["html_url"].replace("/releases/tag/untagged-", f"/releases/tag/{tag}#"),
+    man.update({"release_tag": tag, "run_name": run_name, "release_url": rel["html_url"].replace("/releases/tag/untagged-", f"/releases/tag/{tag}#"),
                 "repo": repo, "complete": True,
                 "restore": RESTORE_TXT.format(tag=tag, stem=stem, policy=(man.get("models") or {}).get("policy"),
                                               rev=(man.get("models") or {}).get("policy_revision"))})
@@ -492,21 +493,36 @@ def upload(run: Path, ckpt: str, kind: str, repo: str = DEFAULT_REPO, part_mib: 
 
 
 # ---------------------------------------------------------------------------- restore
-def latest_complete(gh: GitHub, tag: Optional[str] = None, kind: Optional[str] = None) -> dict:
+def release_run(r: dict) -> str:
+    """Run a checkpoint release belongs to: ``ckpt-<run>-<stamp>-...``; legacy tags without the run
+    name: CAM bundles say so in their body, everything else is the Qwen-LoRA ``overnight`` run."""
+    rest = r["tag_name"][len(TAG_PREFIX):]
+    if rest[:1].isdigit():
+        return "cam" if "CAM (no Qwen)" in (r.get("body") or "") else "overnight"
+    return rest.split("-20")[0]
+
+
+def latest_complete(gh: GitHub, tag: Optional[str] = None, kind: Optional[str] = None,
+                    run_name: Optional[str] = None) -> dict:
     rels = [r for r in gh.releases() if not r["draft"] and r["tag_name"].startswith(TAG_PREFIX)
             and any(a["name"] == "MANIFEST.json" for a in r["assets"])]
     if tag:
         rels = [r for r in rels if r["tag_name"] == tag]
     if kind:
         rels = [r for r in rels if f"-{kind}-" in r["tag_name"]]
+    if run_name and not tag:
+        rels = [r for r in rels if release_run(r) == run_name]
     if not rels:
-        raise RuntimeError("no complete checkpoint release found" + (f" for tag {tag}" if tag else ""))
-    return max(rels, key=lambda r: r["created_at"])
+        raise RuntimeError("no complete checkpoint release found" + (f" for tag {tag}" if tag else "")
+                           + (f" for run {run_name}" if run_name else ""))
+    # created_at is the date of the tagged commit; published_at is when the upload was verified + published
+    return max(rels, key=lambda r: r.get("published_at") or r["created_at"])
 
 
-def restore(dest: Path, repo: str = DEFAULT_REPO, tag: Optional[str] = None, kind: Optional[str] = None) -> dict:
+def restore(dest: Path, repo: str = DEFAULT_REPO, tag: Optional[str] = None, kind: Optional[str] = None,
+            run_name: Optional[str] = None) -> dict:
     gh = GitHub(repo)
-    rel = latest_complete(gh, tag, kind)
+    rel = latest_complete(gh, tag, kind, run_name)
     assets = {a["name"]: a for a in rel["assets"]}
     dest.mkdir(parents=True, exist_ok=True)
     pdir = dest / "parts"
@@ -710,6 +726,7 @@ def main(argv=None) -> int:
     ap.add_argument("--dest", default="/tmp/agentrs_restore")
     ap.add_argument("--install-run")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--run-name", help="restore: overnight (Qwen-LoRA) | cam | ... (default: name of --install-run)")
     a = ap.parse_args(argv)
     if a.action == "upload":
         rec = upload(Path(a.run), a.ckpt, a.kind, a.repo, a.part_mib)
@@ -723,11 +740,12 @@ def main(argv=None) -> int:
         return Watcher(Path(a.run), a.repo, a.every_h, a.best_gap_min, a.part_mib).loop(a.interval)
     elif a.action == "list":
         gh = GitHub(a.repo)
-        for r in sorted(gh.releases(), key=lambda r: r["created_at"]):
+        for r in sorted(gh.releases(), key=lambda r: r.get("published_at") or r["created_at"]):
             size = sum(x["size"] for x in r["assets"])
-            print(f"{r['created_at']}  {'DRAFT ' if r['draft'] else ''}{r['tag_name']:<48} {size / 2**30:6.2f} GiB  {r['html_url']}")
+            print(f"{r.get('published_at') or '-':20s}  {'DRAFT ' if r['draft'] else ''}{release_run(r):10s} {r['tag_name']:<52} "
+                  f"{size / 2**30:6.2f} GiB  {r['html_url']}")
     elif a.action == "restore":
-        res = restore(Path(a.dest), a.repo, a.tag)
+        res = restore(Path(a.dest), a.repo, a.tag, run_name=a.run_name or (Path(a.install_run).name if a.install_run else None))
         if a.install_run:
             install_run(Path(res["dir"]), Path(a.install_run), a.force)
         print(json.dumps(res, indent=1))

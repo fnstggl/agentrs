@@ -30,7 +30,7 @@ def main() -> int:
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     t0 = time.time()
-    res = restore(Path(a.dest), tag=a.tag)
+    res = restore(Path(a.dest), tag=a.tag, run_name=Path(a.run).name)
     b = Path(res["dir"])
     info = json.loads((b / "BUNDLE_INFO.json").read_text())
     ck = info["checkpoint"]
