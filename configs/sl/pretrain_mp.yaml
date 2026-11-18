@@ -1,0 +1,13 @@
+# Melting Pot lifetime pretraining: 4M learner agent-steps (shared across all controlled players).
+base: base.yaml
+n_worlds: 16
+trial_episodes: 2
+max_env_steps: 4000000
+max_episode_steps: 1500
+eval_at: [0, 1000000, 2000000, 4000000]
+eval_tasks: 4
+test_tasks: 6
+eval_modes: [full, none]
+lifetime_ckpts: [1000000, 2000000, 4000000]
+gpu_mem_fraction: 0.14
+hours: 10.0

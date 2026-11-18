@@ -4,6 +4,7 @@ runs_root: /workspace/agentrs/runs/sl
 src: /workspace/agentrs-sl-exp/src
 module: agentrs.sl.train
 max_jobs: 8
+max_load: 40
 min_free_mib: 8000
 min_free_disk_gb: 20
 threads: 4

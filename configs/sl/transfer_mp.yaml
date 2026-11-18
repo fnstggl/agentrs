@@ -1,0 +1,12 @@
+# Melting Pot transfer to a held-out substrate: 1M agent-steps, identical for scratch and experienced inits.
+base: base.yaml
+n_worlds: 16
+trial_episodes: 2
+max_env_steps: 1000000
+max_episode_steps: 1500
+eval_at: [0, 100000, 250000, 500000, 1000000]
+eval_tasks: 4
+test_tasks: 6
+eval_modes: [full]
+lifetime_ckpts: []
+hours: 6.0

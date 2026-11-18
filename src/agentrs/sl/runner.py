@@ -260,11 +260,11 @@ class Runner:
             ep_end_rows += rows_
             s.episode += 1
             if s.episode >= self.K:  # trial over: new task
+                s.world.close()  # release external resources (e.g. pooled Melting Pot servers)
                 t = self._next_task()
                 if t is None:
                     s.world = None
                     continue
-                s.world.close()
                 w = self.make_world(t.family)
                 w.initialize_world(t)
                 self.slots[si] = WorldSlot(world=w, task=t, streams=self._controlled(w), trial_id=s.trial_id + 1)
@@ -326,6 +326,12 @@ class Runner:
                 self._compact()
             self._act(False)
         return self.trials_done
+
+    def close(self) -> None:
+        for s in self.slots:
+            if s.world is not None:
+                s.world.close()
+                s.world = None
 
     def _compact(self):
         keep_rows, new_slots, r = [], [], 0

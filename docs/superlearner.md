@@ -85,6 +85,34 @@ Families: N = negotiation, P = product, B = bizdev, V = Vending-Bench. Held-out 
 observation interfaces and task sampling. Frozen-LLM-direct numbers (hybrid arm D) come from 60 episodes per family
 under a different interface.
 
+### Protocol amendment, 2026-11-18 22:15 UTC (before any valid Phase 1 result)
+The first four Phase 1 pretraining runs (sl-exp-v1/v2) were stopped after 4–20 minutes and set aside in
+`runs/sl/_invalid_v2/`.
+- **Cause:** the CAM-world adapter lacked the CAM-v2 collector's per-episode decision cap. Invalid actions do not
+  advance the CAM simulators' clocks, so the policies learned to stall indefinitely and avoid every terminal outcome.
+- **Fix (sl-exp-v3):**
+  - a cap of 2 × `max_steps` decisions, with timeout counted as failure;
+  - −0.02 per decision, and −0.02 more per invalid action;
+  - an automatic reward-contract audit at the start of every run (`strict_audit`). Scripted random and stalling
+    policies must terminate within the cap, and inaction must never earn a positive return.
+- **Unchanged:** the protocol, budgets and criteria above.
+
+## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
+**Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
+- Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
+  substrates: coins, collaborative_cooking__asymmetric, commons_harvest__open, clean_up,
+  prisoners_dilemma_in_the_matrix__repeated, stag_hunt_in_the_matrix__repeated.
+- 4M learner agent-steps; trials of 2 episodes.
+- Zero-shot monitors: the held-out substrates commons_harvest__closed and bach_or_stravinsky_in_the_matrix__repeated,
+  and the held-out scenarios prisoners_dilemma_in_the_matrix__repeated_0, coins_0 and clean_up_2 (the benchmark's
+  background bots as unfamiliar co-players).
+
+**Transfer:** 1M agent-steps on each held-out substrate, scratch vs `life_4000000`, seeds 1–2.
+
+**Measure:** score is the agent's own episode return. Melting Pot defines no binary success.
+
+**Not yet implemented:** archived-opponent populations (Milestone 6). Opponents are concurrent copies of the learner.
+
 ## Crash safety (section 21)
 - `agentrs/runtime_safety.py`:
   - static main-guard check (the original failure);

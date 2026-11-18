@@ -69,8 +69,15 @@ def _acquire(key):
     return lst.pop() if lst else None
 
 
+MAX_IDLE = 4  # idle servers kept per (kind, name); extras are shut down
+
+
 def _release(key, srv):
-    _POOL.setdefault(key, []).append(srv)
+    lst = _POOL.setdefault(key, [])
+    if len(lst) < MAX_IDLE:
+        lst.append(srv)
+    else:
+        srv.close()
 
 
 @atexit.register

@@ -1,0 +1,135 @@
+# Superlearner Phase 2: Melting Pot lifetime (self-play on 6 substrates) and transfer to held-out substrates;
+# held-out scenarios (unfamiliar background bots) are zero-shot monitors. See docs/superlearner.md.
+runs_root: /workspace/agentrs/runs/sl_mp
+src: /workspace/agentrs-sl-exp/src
+module: agentrs.sl.train
+max_jobs: 4
+max_load: 40
+min_free_mib: 8000
+min_free_disk_gb: 20
+threads: 4
+smoke: true
+smoke_set:
+  max_env_steps: 2048
+  n_worlds: 2
+  seg_len: 16
+  eval_tasks: 1
+  test_tasks: 1
+  eval_at:
+  - 0
+  - 1024
+  lifetime_ckpts:
+  - 1024
+  hours: 1.0
+  final_reserve_h: 0.0
+  learner:
+    mb_streams: 8
+  max_episode_steps: 200
+smoke_timeout_s: 2400
+crash_repeat_limit: 2
+max_starts: 4
+gh_backup: true
+backup_every_h: 3
+jobs:
+- name: P_MP6_s1
+  config: configs/sl/pretrain_mp.yaml
+  set:
+    seed: 1
+    families:
+      mp/coins: 1.0
+      mp/collaborative_cooking__asymmetric: 1.0
+      mp/commons_harvest__open: 1.0
+      mp/clean_up: 1.0
+      mp/prisoners_dilemma_in_the_matrix__repeated: 1.0
+      mp/stag_hunt_in_the_matrix__repeated: 1.0
+    heldout_families:
+    - mp/commons_harvest__closed
+    - mp/bach_or_stravinsky_in_the_matrix__repeated
+    - mpsc/prisoners_dilemma_in_the_matrix__repeated_0
+    - mpsc/coins_0
+    - mpsc/clean_up_2
+- name: T_closed_scratch_s1
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 1
+    families:
+      mp/commons_harvest__closed: 1.0
+    heldout_families: []
+- name: T_closed_fromMP6_s1
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 1
+    families:
+      mp/commons_harvest__closed: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_4000000
+  after:
+  - P_MP6_s1
+- name: T_closed_scratch_s2
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 2
+    families:
+      mp/commons_harvest__closed: 1.0
+    heldout_families: []
+- name: T_closed_fromMP6_s2
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 2
+    families:
+      mp/commons_harvest__closed: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_4000000
+  after:
+  - P_MP6_s1
+- name: T_bos_scratch_s1
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 1
+    families:
+      mp/bach_or_stravinsky_in_the_matrix__repeated: 1.0
+    heldout_families: []
+- name: T_bos_fromMP6_s1
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 1
+    families:
+      mp/bach_or_stravinsky_in_the_matrix__repeated: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_4000000
+  after:
+  - P_MP6_s1
+- name: T_bos_scratch_s2
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 2
+    families:
+      mp/bach_or_stravinsky_in_the_matrix__repeated: 1.0
+    heldout_families: []
+- name: T_bos_fromMP6_s2
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 2
+    families:
+      mp/bach_or_stravinsky_in_the_matrix__repeated: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_4000000
+  after:
+  - P_MP6_s1
+- name: P_MP6_s2
+  config: configs/sl/pretrain_mp.yaml
+  set:
+    seed: 2
+    families:
+      mp/coins: 1.0
+      mp/collaborative_cooking__asymmetric: 1.0
+      mp/commons_harvest__open: 1.0
+      mp/clean_up: 1.0
+      mp/prisoners_dilemma_in_the_matrix__repeated: 1.0
+      mp/stag_hunt_in_the_matrix__repeated: 1.0
+    heldout_families:
+    - mp/commons_harvest__closed
+    - mp/bach_or_stravinsky_in_the_matrix__repeated
+    - mpsc/prisoners_dilemma_in_the_matrix__repeated_0
+    - mpsc/coins_0
+    - mpsc/clean_up_2

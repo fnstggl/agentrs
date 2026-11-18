@@ -145,8 +145,9 @@ class Queue:
                 s["watcher_pid"] = None
         running = sum(1 for j in jobs if st[j["name"]]["status"] == "running")
         fm, fd = free_mib(), disk_free_gb(str(self.root))
+        load = os.getloadavg()[0]
         can = (running < q.get("max_jobs", 4) and fm >= q.get("min_free_mib", 8000) and fd >= q.get("min_free_disk_gb", 20)
-               and not (self.root / "QUEUE_STOP").exists())
+               and load <= q.get("max_load", 1e9) and not (self.root / "QUEUE_STOP").exists())
         streak = (st.get("_tick", {}).get("streak", 0) + 1) if can else 0
         started = False
         if can and streak >= 2:
@@ -180,7 +181,7 @@ class Queue:
                          f"GPU free {fm} MiB, disk free {fd:.0f} GB")
                 started = True
                 break
-        st["_tick"] = {"time": time.time(), "running": running, "free_mib": fm, "free_disk_gb": round(fd, 1),
+        st["_tick"] = {"time": time.time(), "running": running, "free_mib": fm, "free_disk_gb": round(fd, 1), "load": round(load, 1),
                        "streak": 0 if started else streak}
         self.save()
         return all(st[j["name"]]["status"] in ("done", "crash_stopped", "smoke_failed") for j in jobs)

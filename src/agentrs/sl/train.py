@@ -34,7 +34,7 @@ from agentrs.sl import worlds as W
 from agentrs.sl.learner import PPO
 from agentrs.sl.model import SLConfig, SLCore
 from agentrs.sl.runner import Runner
-from agentrs.sl.world import RewardContract, RewardSpec
+from agentrs.sl.world import RewardContract, RewardSpec, Task
 
 
 class SLTrainConfig(BaseModel):
@@ -66,6 +66,68 @@ class SLTrainConfig(BaseModel):
     device: str = "auto"
     ckpt_every_s: float = 600.0
     diagnostics: list = Field(default_factory=lambda: ["memory_ablation", "world_model"])
+    strict_audit: bool = True
+
+
+def reward_audit(families: list, rc: RewardContract, max_steps: int, n: int = 12, seed: int = 0) -> dict:
+    """Adversarial reward-contract audit per family with scripted, model-free policies:
+    * ``random``: uniformly random legal actions;
+    * ``stall``: always the first legal option (a degenerate repeat policy, which in practice includes invalid /
+      time-wasting actions).
+    Invariants: every episode of both policies ends within the cap, and the stalling policy never earns a positive
+    return without verified success."""
+    import random as _r
+
+    from agentrs.sl.runner import Runner  # noqa: F401  (contract helper below mirrors the runner)
+    out = {}
+    for fam in families:
+        if not W.resolve(fam):
+            continue
+        res = {}
+        for pol in ("random", "stall"):
+            rng = _r.Random(seed)
+            rets, succ, steps, ended = [], [], [], []
+            for i in range(n):
+                w = W.make_world(fam)
+                w.initialize_world(Task(family=fam, seed=900_000 + i, split="train"))
+                ags = list(getattr(w, "controlled", None) or w.agents())
+                before = {a: w.evaluate_goal(a) for a in ags}
+                ret, k, done = 0.0, 0, False
+                ov = getattr(w, "reward_overrides", None)
+                c = rc if not ov else RewardContract(RewardSpec(**{**rc.s.__dict__, **ov}))
+                while not done and k < max_steps:
+                    for a in ags:
+                        sp = w.available_actions(a)
+                        if sp.kind == "discrete":
+                            act = sp.labels[0] if pol == "stall" else rng.choice(sp.labels)
+                        else:
+                            act = []
+                            while True:
+                                o = sp.allowed(act)
+                                if o == ["END"] or not o:
+                                    break
+                                act.append(o[0] if pol == "stall" else rng.choice(o))
+                        w.execute(a, act)
+                    w.advance_time()
+                    k += 1
+                    cons = w.observe_consequences(ags[0])
+                    after = w.evaluate_goal(ags[0])
+                    ret += c(before[ags[0]], after, cons)
+                    before[ags[0]] = after
+                    done = cons.done
+                rets.append(ret)
+                succ.append(bool(before[ags[0]].success))
+                steps.append(k)
+                ended.append(done)
+                w.close()
+            res[pol] = {"return": float(np.mean(rets)), "success": float(np.mean(succ)), "steps": float(np.mean(steps)),
+                        "ended": float(np.mean(ended))}
+        r, st = res["random"], res["stall"]
+        # invariants: every scripted episode terminates within the cap (no reward for never finishing), and inaction
+        # never earns a positive return (preserving resources may beat destructive random play, which is legitimate)
+        passed = r["ended"] == 1.0 and st["ended"] == 1.0 and (st["return"] <= 0.0 or st["success"] > 0)
+        out[fam] = {**res, "passed": bool(passed)}
+    return out
 
 
 def jdump(p: Path, obj) -> None:
@@ -112,6 +174,12 @@ class SLTrainer:
                           "config": c.model_dump(), "git": git_commit(), "evals": [], "iters_logged": 0,
                           "compute_s": {"collect": 0.0, "learn": 0.0, "eval": 0.0}, "dt_ref": {}, "lifetime_saved": [],
                           "best": None, "restarts": 0}
+            self.state["reward_audit"] = reward_audit(list(c.families) + list(c.heldout_families), self.rc, c.max_episode_steps)
+            bad = {f: a for f, a in self.state["reward_audit"].items() if not a["passed"]}
+            self.log("reward-contract audit: " + ("PASSED" if not bad else f"FAILED {bad}"))
+            if bad and c.strict_audit:
+                self.save_state()
+                raise SystemExit(f"reward-contract audit failed: {sorted(bad)}")
             if c.init_from:
                 self._init_from(Path(c.init_from))
             self._save("initial")
@@ -202,7 +270,10 @@ class SLTrainer:
             r = Runner(self.model, {fam: 1.0}, W.make_world, W.sample_task, n_w, trial_episodes=self.cfg.trial_episodes,
                        split=split, seed=12345, mode=mode, contract=self.rc, device=self.dev,
                        max_episode_steps=self.cfg.max_episode_steps, fixed_tasks=tasks, dt_ref=dict(self.state["dt_ref"]))
-            eps = r.run_trials()
+            try:
+                eps = r.run_trials()
+            finally:
+                r.close()
             curve = []
             for k in range(self.cfg.trial_episodes):
                 ek = [e for e in eps if e["episode"] == k]
@@ -376,9 +447,12 @@ def _diag_world_model(t: SLTrainer, fams) -> dict:
     m = t.model
     out = {}
     for fam in fams:
-        r = Runner(m, {fam: 1.0}, W.make_world, W.sample_task, 16, trial_episodes=t.cfg.trial_episodes, split="val", seed=99,
+        r = Runner(m, {fam: 1.0}, W.make_world, W.sample_task, 4, trial_episodes=t.cfg.trial_episodes, split="val", seed=99,
                    mode="full", contract=t.rc, device=t.dev, max_episode_steps=t.cfg.max_episode_steps)
-        seg = r.collect(32)
+        try:
+            seg = r.collect(32)
+        finally:
+            r.close()
         lp, ent, val, wml = t.learner._replay(seg, torch.arange(r.n), "full", t.dev)
         rew = torch.stack([s["r"] for s in seg["steps"]])
         out[fam] = {"wm_loss": float(wml.mean()), "reward_abs": float(rew.abs().mean()), "value_mean": float(val.mean())}
