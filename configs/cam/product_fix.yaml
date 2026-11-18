@@ -14,7 +14,7 @@ workers: 256
 steps_per_iter: 4096
 lr: 3.0e-4
 epochs: 3
-mb_episodes: 64
+mb_episodes: 32   # 64 -> 32 at iteration 8 (user-approved 08:12 UTC): longer solvent product episodes exceeded the 4.7 GB cap
 target_kl: 0.1
 wm_coef: 1.0
 eval_every: 10
