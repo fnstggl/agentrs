@@ -12,7 +12,7 @@ import torch
 from agentrs.sl.world import Obs
 
 NB = 1 << 16          # hash buckets (0 = padding)
-MAX_TOK, MAX_NUM, MAX_ENT, ENT_F = 64, 48, 32, 16
+MAX_TOK, MAX_NUM, MAX_ENT, ENT_F = 64, 48, 112, 16
 CELL_F = 12           # image cells: 2x2 RGB summary per grid cell
 MAX_CAND, LABEL_IDS = 24, 5
 

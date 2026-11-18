@@ -138,18 +138,24 @@ class SLTrainer:
     def save_state(self) -> None:
         jdump(self.rd / "state.json", self.state)
 
-    def _save(self, name: str) -> None:
-        """Atomic checkpoint: weights, optimizer, model config, RNG states, run state."""
+    def _save(self, name: str, light: bool = False) -> None:
+        """Atomic checkpoint: weights, optimizer, model config, RNG states, run state. ``light`` (milestone and
+        lifetime checkpoints used for evaluation / transfer initialisation): weights, config and state only."""
         tmp = self.ck / f".{name}.tmp"
         if tmp.exists():
             shutil.rmtree(tmp)
         tmp.mkdir()
         torch.save(self.model.state_dict(), tmp / "weights.pt")
-        torch.save(self.learner.state_dict(), tmp / "optimizer.pt")
+        if not light:
+            torch.save(self.learner.state_dict(), tmp / "optimizer.pt")
         rng = {"python": random.getstate(), "numpy": np.random.get_state(), "torch": torch.get_rng_state(),
                "cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None}
         torch.save(rng, tmp / "rng.pt")
         jdump(tmp / "config.json", self.model.cfg_dict())
+        jdump(tmp / "meta.json", {"version": self.state["iter"], "time": time.time(), "phase": self.state["phase"],
+                                  "kind": name, "interactions": self.state["interactions"], "git": self.state.get("git"),
+                                  "models": {"policy": "agentrs.sl.SLCore (superlearner core, trained from scratch)"},
+                                  "light": light})
         jdump(tmp / "state.json", self.state)
         (tmp / "DONE").write_text(str(time.time()))
         dst = self.ck / name
@@ -285,11 +291,11 @@ class SLTrainer:
                             if s["best"] is None or sc > s["best"]["score"]:
                                 s["best"] = {"score": sc, "interactions": s["interactions"], "tag": tag}
                                 self._save("best")
-                self._save(tag)
+                self._save(tag, light=True)
                 self.save_state()
         for m in c.lifetime_ckpts:
             if s["interactions"] >= m and m not in s["lifetime_saved"]:
-                self._save(f"life_{m}")
+                self._save(f"life_{m}", light=True)
                 s["lifetime_saved"].append(m)
                 self.save_state()
 
@@ -382,16 +388,27 @@ def _diag_world_model(t: SLTrainer, fams) -> dict:
 DIAGNOSTICS = {"memory_ablation": _diag_memory_ablation, "world_model": _diag_world_model}
 
 
+def load_config(path: Path) -> dict:
+    """YAML config with an optional ``base:`` file (relative to the config) merged underneath it."""
+    d = yaml.safe_load(path.read_text()) or {}
+    if "base" in d:
+        b = load_config(path.parent / d.pop("base"))
+        for k, v in d.items():
+            b[k] = {**b[k], **v} if isinstance(v, dict) and isinstance(b.get(k), dict) else v
+        d = b
+    return d
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config")
     ap.add_argument("--set", nargs="*", default=[])
     a = ap.parse_args(argv)
-    d = yaml.safe_load(Path(a.config).read_text()) if a.config else {}
-    d = d or {}
+    d = load_config(Path(a.config)) if a.config else {}
     for kv in a.set:
         k, v = kv.split("=", 1)
-        d[k] = yaml.safe_load(v)
+        v = yaml.safe_load(v)
+        d[k] = {**d[k], **v} if isinstance(v, dict) and isinstance(d.get(k), dict) and k not in ("families",) else v
     cfg = SLTrainConfig(**d)
     sp = Path(cfg.run_dir) / "state.json"
     if sp.exists() and json.loads(sp.read_text()).get("phase") == "done":

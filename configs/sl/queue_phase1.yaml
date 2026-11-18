@@ -1,0 +1,461 @@
+# Superlearner Phase 1 (CAM simulators + Vending-Bench). Generated; see docs/superlearner.md.
+# Transfer runs monitor their source families (retention / forgetting); scratch runs monitor negotiation+product.
+runs_root: /workspace/agentrs/runs/sl
+src: /workspace/agentrs-sl-exp/src
+module: agentrs.sl.train
+max_jobs: 8
+min_free_mib: 8000
+min_free_disk_gb: 20
+threads: 4
+smoke: true
+smoke_set:
+  max_env_steps: 512
+  n_worlds: 8
+  seg_len: 16
+  eval_tasks: 2
+  test_tasks: 2
+  eval_at:
+  - 0
+  - 256
+  lifetime_ckpts:
+  - 256
+  hours: 1.0
+  final_reserve_h: 0.0
+  learner:
+    mb_streams: 4
+smoke_timeout_s: 1800
+crash_repeat_limit: 2
+max_starts: 4
+gh_backup: true
+backup_every_h: 3
+jobs:
+- name: P_NPV_s1
+  config: configs/sl/pretrain.yaml
+  set:
+    seed: 1
+    families:
+      cam/negotiation: 1.0
+      cam/product: 1.0
+      ext/vending: 1.0
+    heldout_families:
+    - cam/bizdev
+- name: P_NPB_s1
+  config: configs/sl/pretrain.yaml
+  set:
+    seed: 1
+    families:
+      cam/negotiation: 1.0
+      cam/product: 1.0
+      cam/bizdev: 1.0
+    heldout_families:
+    - ext/vending
+- name: P_NP_s1
+  config: configs/sl/pretrain.yaml
+  set:
+    seed: 1
+    families:
+      cam/negotiation: 1.0
+      cam/product: 1.0
+    heldout_families:
+    - cam/bizdev
+    - ext/vending
+- name: P_N_s1
+  config: configs/sl/pretrain.yaml
+  set:
+    seed: 1
+    families:
+      cam/negotiation: 1.0
+    heldout_families:
+    - cam/bizdev
+    - ext/vending
+- name: T_B_scratch_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+- name: T_V_scratch_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      ext/vending: 1.0
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+- name: T_B_scratch_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 1.0
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+- name: T_V_scratch_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      ext/vending: 1.0
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+- name: T_B_scratch_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      cam/bizdev: 1.0
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+- name: T_V_scratch_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      ext/vending: 1.0
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+- name: A_NPV_gru_s1
+  config: configs/sl/pretrain.yaml
+  set:
+    seed: 1
+    families:
+      cam/negotiation: 1.0
+      cam/product: 1.0
+      ext/vending: 1.0
+    heldout_families:
+    - cam/bizdev
+    mode: gru
+- name: A_NPV_episode_s1
+  config: configs/sl/pretrain.yaml
+  set:
+    seed: 1
+    families:
+      cam/negotiation: 1.0
+      cam/product: 1.0
+      ext/vending: 1.0
+    heldout_families:
+    - cam/bizdev
+    mode: episode
+- name: A_NPV_noskill_s1
+  config: configs/sl/pretrain.yaml
+  set:
+    seed: 1
+    families:
+      cam/negotiation: 1.0
+      cam/product: 1.0
+      ext/vending: 1.0
+    heldout_families:
+    - cam/bizdev
+    model:
+      skills: 1
+- name: A_NPV_nowm_s1
+  config: configs/sl/pretrain.yaml
+  set:
+    seed: 1
+    families:
+      cam/negotiation: 1.0
+      cam/product: 1.0
+      ext/vending: 1.0
+    heldout_families:
+    - cam/bizdev
+    wm_coef: 0.0
+- name: T_B_fromNPV_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPV_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - ext/vending
+  after:
+  - P_NPV_s1
+- name: T_V_fromNPB_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - cam/bizdev
+  after:
+  - P_NPB_s1
+- name: T_B_fromNP_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+  after:
+  - P_NP_s1
+- name: T_V_fromNP_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+  after:
+  - P_NP_s1
+- name: T_B_fromN_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+  after:
+  - P_N_s1
+- name: T_B_fromNPV_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPV_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - ext/vending
+  after:
+  - P_NPV_s1
+- name: T_V_fromNPB_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - cam/bizdev
+  after:
+  - P_NPB_s1
+- name: T_B_fromNP_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+  after:
+  - P_NP_s1
+- name: T_V_fromNP_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+  after:
+  - P_NP_s1
+- name: T_B_fromN_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+  after:
+  - P_N_s1
+- name: T_B_fromNPV_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPV_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - ext/vending
+  after:
+  - P_NPV_s1
+- name: T_V_fromNPB_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - cam/bizdev
+  after:
+  - P_NPB_s1
+- name: T_B_fromNP_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+  after:
+  - P_NP_s1
+- name: T_V_fromNP_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+  after:
+  - P_NP_s1
+- name: T_B_fromN_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+  after:
+  - P_N_s1
+- name: T_V_fromN_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+  after:
+  - P_N_s1
+- name: T_B_fromNPVgru_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/A_NPV_gru_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - ext/vending
+  after:
+  - A_NPV_gru_s1
+- name: T_B_fromNPVepisode_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/A_NPV_episode_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - ext/vending
+  after:
+  - A_NPV_episode_s1
+- name: T_B_fromNPVnoskill_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/A_NPV_noskill_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - ext/vending
+  after:
+  - A_NPV_noskill_s1
+- name: T_B_fromNPVnowm_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/A_NPV_nowm_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - ext/vending
+  after:
+  - A_NPV_nowm_s1
+- name: P_NPV_s2
+  config: configs/sl/pretrain.yaml
+  set:
+    seed: 2
+    families:
+      cam/negotiation: 1.0
+      cam/product: 1.0
+      ext/vending: 1.0
+    heldout_families:
+    - cam/bizdev
+- name: P_NPB_s2
+  config: configs/sl/pretrain.yaml
+  set:
+    seed: 2
+    families:
+      cam/negotiation: 1.0
+      cam/product: 1.0
+      cam/bizdev: 1.0
+    heldout_families:
+    - ext/vending
+- name: T_B_fromNPVs2_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPV_s2/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - ext/vending
+  after:
+  - P_NPV_s2
+- name: T_V_fromNPBs2_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPB_s2/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - cam/bizdev
+  after:
+  - P_NPB_s2

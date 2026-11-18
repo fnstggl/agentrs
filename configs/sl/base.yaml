@@ -1,0 +1,17 @@
+# Superlearner Phase 1 base configuration (shared by every arm; arms override only what they test).
+model: {d: 192, dh: 384, layers: 2, heads: 4, dk: 64, dv: 128, mem_slots: 256, skills: 8, ds: 32, da: 128, ens: 3}
+learner: {lr: 0.0003, epochs: 2, mb_streams: 32, clip: 0.2, ent: 0.01, lam: 0.95, wm: 0.5, target_kl: 0.05}
+reward: {native: 1.0, success: 1.0, shaping: 0.5, time_cost: 0.0, violation: 1.0, gamma: 0.99}
+n_worlds: 128
+seg_len: 32
+trial_episodes: 3          # K episodes of the same task per trial (memory persists across them in mode "full")
+mode: full
+wm_coef: 0.5
+max_episode_steps: 2000
+eval_tasks: 48
+test_tasks: 96
+gpu_mem_fraction: 0.14
+hours: 8.0
+final_reserve_h: 0.5
+ckpt_every_s: 600
+diagnostics: [memory_ablation, world_model]

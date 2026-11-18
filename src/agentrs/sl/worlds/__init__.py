@@ -44,6 +44,10 @@ def _register_builtin() -> None:
 
     for n in ("negotiation", "product", "bizdev"):
         register(f"cam/{n}", cam_worlds.make(n), meta={"source": "AGENTRS CAM simulator", "agents": 1})
+    from agentrs.sl.worlds import vending
+
+    if vending.available():
+        register("ext/vending", vending.VendingWorld, meta={"source": "ProsusAI/vending-bench (Apache-2.0)", "agents": 1})
 
 
 _register_builtin()

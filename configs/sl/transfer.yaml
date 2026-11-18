@@ -1,0 +1,6 @@
+# Transfer / learning-speed arms on a held-out target family: identical for scratch and experienced inits.
+base: base.yaml
+max_env_steps: 300000
+eval_at: [0, 10000, 25000, 50000, 100000, 200000, 300000]
+eval_modes: [full, episode]
+lifetime_ckpts: []

@@ -53,6 +53,7 @@ class Runner:
         self.rng = random.Random(seed)
         self.fixed = list(fixed_tasks) if fixed_tasks else None   # evaluation: exact task list, one trial each
         self.label_cache: dict = {}
+        self._contracts: dict = {}
         self.slots: list = []
         self.trials_done: list = []                   # finished trial records (per stream)
         self.dt_ref = dt_ref if dt_ref is not None else {}
@@ -94,6 +95,18 @@ class Runner:
         s.ep_return = {a: 0.0 for a in s.streams}
         s.goal_feat = {a: featurize(s.task.family, s.world.goal(a)) for a in s.streams}
         return s
+
+    def _contract(self, w) -> RewardContract:
+        ov = getattr(w, "reward_overrides", None)
+        if not ov:
+            return self.rc
+        key = w.family
+        c = self._contracts.get(key)
+        if c is None:
+            from dataclasses import asdict
+            from agentrs.sl.world import RewardSpec
+            c = self._contracts[key] = RewardContract(RewardSpec(**{**asdict(self.rc.s), **ov}))
+        return c
 
     def _labels(self, fam: str, lab: str) -> np.ndarray:
         k = (fam, lab)
@@ -207,7 +220,7 @@ class Runner:
             timeout = s.ep_steps + 1 >= self.max_ep
             if timeout and not cons.done:
                 cons.done = True
-            r = self.rc(s.before[a], after, cons)
+            r = self._contract(s.world)(s.before[a], after, cons)
             s.before[a] = after
             s.ep_return[a] += r
             fam = s.task.family
@@ -216,7 +229,7 @@ class Runner:
                 self.dt_ref[fam] = 0.999 * ref + 0.001 * cons.dt
             dtn = min(20.0, max(0.25, cons.dt / max(ref, 1e-6))) if cons.dt > 0 else 1.0
             rewards.append(r)
-            discs.append(self.rc.s.gamma ** dtn)
+            discs.append(self._contract(s.world).s.gamma ** dtn)
             dones.append(cons.done)
             infos.append((fam, after, cons))
         self.stats["env_s"] += time.time() - t2

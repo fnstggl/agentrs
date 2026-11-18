@@ -1,0 +1,7 @@
+# Lifetime (multi-world) pretraining arms. Fixed budget 2M real interactions; lifetime checkpoints are the
+# experience levels used to initialise transfer runs (the transfer protocol always uses life_2000000).
+base: base.yaml
+max_env_steps: 2000000
+eval_at: [0, 250000, 500000, 1000000, 1500000, 2000000]
+eval_modes: [full, episode, none]
+lifetime_ckpts: [250000, 500000, 1000000, 2000000]
