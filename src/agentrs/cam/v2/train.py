@@ -530,47 +530,9 @@ class Trainer2:
             if (self.ck / "best" / "DONE").exists() and ("best", "test") not in done:
                 self.model.load_state_dict(torch.load(self.ck / "best" / "weights.pt", map_location=self.dev))
                 self.evaluate("best", "test", fams, c.test_episodes)
-            if "counterfactual" not in self.state:
-                self._sync()
-                t0 = time.time()
-                cf = {f: counterfactual_ranking(self.model, f, c.cf_states, 4, self.state["lagrange"].get(f, 0.0), rc=self.rc)
-                      for f in fams}
-                val = [e for e in self.state["evals"] if e["split"] == "val" and e.get("world_model")]
-                col = Collector(self.model, 64, {f: 1.0 for f in c.train_families}, "val", seed0=3_000_000, gen_seed=7,
-                                reward=self.rc, lam=self.state["lagrange"], semantic=self.encoder)
-                eps = col.collect(greedy=True, fixed=[(f, 3_000_000 + i) for f in c.train_families for i in range(64)])
-                clean = open_loop(self.model, eps, self.state["lagrange"])
-                col_t = Collector(self.model, 64, {f: 1.0 for f in c.train_families}, "test", seed0=0, gen_seed=7,
-                                  reward=self.rc, lam=self.state["lagrange"], semantic=self.encoder)
-                ood = open_loop(self.model, col_t.collect(greedy=True, fixed=[(f, 5_000 + i) for f in c.train_families
-                                                                             for i in range(64)]), self.state["lagrange"])
-                bad_model = corrupted(self.model, 0.5)
-                bad = open_loop(bad_model, eps, self.state["lagrange"])
-                cf_bad = counterfactual_ranking(bad_model, "product", max(10, c.cf_states // 3), 4,
-                                                self.state["lagrange"].get("product", 0.0), rc=self.rc) if "product" in fams else None
-                probe = Dreamer(self.model, {"mode": "adaptive", "horizon": 8})
-                probe.set_reliability(clean)
-                probe_bad = Dreamer(bad_model, {"mode": "adaptive", "horizon": 8})
-                probe_bad.set_reliability(bad)
-                self.state["counterfactual"] = cf
-                self.state["planning_diagnosis"] = {
-                    f: {mode: planning_eval(self.model, f, c.cf_states, 4, self.state["lagrange"].get(f, 0.0), mode, rc=self.rc)
-                        for mode in ("actor", "model", "oracle")} for f in c.train_families if f in ("product", "bizdev", "negotiation")}
-                self.log("planning diagnosis (success actor / WM-planner / SIMULATOR-ORACLE planner): " + "; ".join(
-                    f"{f} {d['actor']['success']:.2f} / {d['model']['success']:.2f} / {d['oracle']['success']:.2f}"
-                    for f, d in self.state["planning_diagnosis"].items()))
-                self.state["wm_validation_final"] = {"clean": clean, "heldout_distribution": ood, "corrupted": bad, "corrupted_counterfactual_product": cf_bad,
-                                                     "gate_clean": {"reliability": probe.reliability, "max_h": probe.max_h},
-                                                     "gate_corrupted": {"reliability": probe_bad.reliability, "max_h": probe_bad.max_h},
-                                                     "n_val_evals_with_wm": len(val)}
-                self._sync()
-                self.state["compute_s"]["eval"] += time.time() - t0
-                self.log("counterfactual ranking: " + "; ".join(f"{f} spearman {v['spearman']:.2f} top1 {v['top1_agreement']:.2f} "
-                                                               f"(chance {v['chance_top1']:.2f})" for f, v in cf.items())
-                         + f" | gate clean {probe.reliability:.2f} corrupted {probe_bad.reliability:.2f}")
-                self.save_state()
-            if "hybrid_final" not in self.state:
-                self.hybrid_final()
+            self.save_state()  # training results and sealed tests are on disk before any optional diagnostic
+            self.optional_diagnostic("counterfactual", lambda: self.wm_diagnostics(fams))
+            self.optional_diagnostic("hybrid_final", self.hybrid_final)
             self.state["phase"] = "done"
             self.state["finished_at"] = time.time()
             self.save_state()
@@ -584,7 +546,7 @@ def main(argv=None) -> int:
     ap.add_argument("--config")
     ap.add_argument("--set", nargs="*", default=[])
     a = ap.parse_args(argv)
-    d = yaml.safe_load(Path(a.config).read_text()) if a.config else {}
+    d = (yaml.safe_load(Path(a.config).read_text()) if a.config else {}) or {}
     for kv in a.set:
         k, v = kv.split("=", 1)
         d[k] = yaml.safe_load(v)
@@ -696,6 +658,83 @@ def _hybrid_final(self) -> None:
 
 
 Trainer2.hybrid_final = _hybrid_final
+
+
+
+
+def _wm_diagnostics(self, fams) -> None:
+    """Final world-model diagnostics: counterfactual ranking, planning diagnosis, open-loop validation."""
+    c = self.cfg
+    self._sync()
+    t0 = time.time()
+    cf = {f: counterfactual_ranking(self.model, f, c.cf_states, 4, self.state["lagrange"].get(f, 0.0), rc=self.rc)
+          for f in fams}
+    val = [e for e in self.state["evals"] if e["split"] == "val" and e.get("world_model")]
+    col = Collector(self.model, 64, {f: 1.0 for f in c.train_families}, "val", seed0=3_000_000, gen_seed=7,
+                    reward=self.rc, lam=self.state["lagrange"], semantic=self.encoder)
+    eps = col.collect(greedy=True, fixed=[(f, 3_000_000 + i) for f in c.train_families for i in range(64)])
+    clean = open_loop(self.model, eps, self.state["lagrange"])
+    col_t = Collector(self.model, 64, {f: 1.0 for f in c.train_families}, "test", seed0=0, gen_seed=7,
+                      reward=self.rc, lam=self.state["lagrange"], semantic=self.encoder)
+    ood = open_loop(self.model, col_t.collect(greedy=True, fixed=[(f, 5_000 + i) for f in c.train_families
+                                                                 for i in range(64)]), self.state["lagrange"])
+    bad_model = corrupted(self.model, 0.5)
+    bad = open_loop(bad_model, eps, self.state["lagrange"])
+    cf_bad = counterfactual_ranking(bad_model, "product", max(10, c.cf_states // 3), 4,
+                                    self.state["lagrange"].get("product", 0.0), rc=self.rc) if "product" in fams else None
+    probe = Dreamer(self.model, {"mode": "adaptive", "horizon": 8})
+    probe.set_reliability(clean)
+    probe_bad = Dreamer(bad_model, {"mode": "adaptive", "horizon": 8})
+    probe_bad.set_reliability(bad)
+    self.state["counterfactual"] = cf
+    self.state["planning_diagnosis"] = {
+        f: {mode: planning_eval(self.model, f, c.cf_states, 4, self.state["lagrange"].get(f, 0.0), mode, rc=self.rc)
+            for mode in ("actor", "model", "oracle")} for f in c.train_families if f in ("product", "bizdev", "negotiation")}
+    self.log("planning diagnosis (success actor / WM-planner / SIMULATOR-ORACLE planner): " + "; ".join(
+        f"{f} {d['actor']['success']:.2f} / {d['model']['success']:.2f} / {d['oracle']['success']:.2f}"
+        for f, d in self.state["planning_diagnosis"].items()))
+    self.state["wm_validation_final"] = {"clean": clean, "heldout_distribution": ood, "corrupted": bad, "corrupted_counterfactual_product": cf_bad,
+                                         "gate_clean": {"reliability": probe.reliability, "max_h": probe.max_h},
+                                         "gate_corrupted": {"reliability": probe_bad.reliability, "max_h": probe_bad.max_h},
+                                         "n_val_evals_with_wm": len(val)}
+    self._sync()
+    self.state["compute_s"]["eval"] += time.time() - t0
+    self.log("counterfactual ranking: " + "; ".join(f"{f} spearman {v['spearman']:.2f} top1 {v['top1_agreement']:.2f} "
+                                                   f"(chance {v['chance_top1']:.2f})" for f, v in cf.items())
+             + f" | gate clean {probe.reliability:.2f} corrupted {probe_bad.reliability:.2f}")
+    self.save_state()
+
+
+def _optional_diagnostic(self, key: str, fn) -> None:
+    """Run an optional end-of-run diagnostic without ever endangering completed training.
+
+    Results are persisted by the diagnostic itself (``self.state[key]``). An exception is recorded with its
+    traceback in ``state["diagnostic_errors"]`` and the run continues to completion; the diagnostic is not
+    retried automatically. An attempt interrupted by a process crash is retried on restart at most once
+    (attempts are persisted before each try)."""
+    import traceback
+
+    if key in self.state or key in self.state.get("diagnostic_errors", {}):
+        return
+    att = self.state.setdefault("diagnostic_attempts", {})
+    if att.get(key, 0) >= 2:
+        self.state.setdefault("diagnostic_errors", {})[key] = {"error": "abandoned: interrupted twice", "time": time.time()}
+        self.save_state()
+        self.log(f"diagnostic {key}: abandoned after two interrupted attempts")
+        return
+    att[key] = att.get(key, 0) + 1
+    self.save_state()
+    try:
+        fn()
+    except Exception as e:  # noqa: BLE001 - optional diagnostics must never crash a finished run
+        self.state.setdefault("diagnostic_errors", {})[key] = {
+            "error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()[-4000:], "time": time.time()}
+        self.log(f"diagnostic {key} FAILED (recorded, run continues): {type(e).__name__}: {e}")
+    self.save_state()
+
+
+Trainer2.wm_diagnostics = _wm_diagnostics
+Trainer2.optional_diagnostic = _optional_diagnostic
 
 
 if __name__ == "__main__":
