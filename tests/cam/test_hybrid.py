@@ -116,3 +116,18 @@ def test_llm_actor_scoring_matches_full_logits_reference():
             lp = torch.log_softmax(actor.model(input_ids=ids).logits.float(), -1)[0]
             ref.append(sum(float(lp[len(p_ids) - 1 + k, t]) for k, t in enumerate(o_ids)))
     assert np.allclose(got, ref, atol=1e-3), (got, ref)
+
+
+def test_train_module_main_guard_is_last():
+    """`python -m agentrs.cam.v2.train` runs main() when the guard is reached: everything the trainer uses
+    (e.g. Trainer2.hybrid_final, attached at module level) must be defined before it."""
+    import ast
+    from pathlib import Path
+
+    import agentrs.cam.v2.train as T
+
+    tree = ast.parse(Path(T.__file__).read_text())
+    last = tree.body[-1]
+    assert isinstance(last, ast.If) and "__name__" in ast.unparse(last.test)
+    assert sum(isinstance(n, ast.If) and "__name__" in ast.unparse(n.test) for n in tree.body) == 1
+    assert hasattr(T.Trainer2, "hybrid_final")
