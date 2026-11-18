@@ -50,13 +50,15 @@ class Contract:
     resources reported as fractions of their initial amount / limit. ``constraints``: hard constraints;
     violating one is an *unacceptable terminal state* (distinct from failing to reach the goal in time).
     ``milestones``: verified intermediate achievements — reported and learned from, never counted as
-    success. ``failure_causes``: the enumerated ways an episode can end without success."""
+    success. ``failure_causes``: the enumerated ways an episode can end without success. ``risk_budget``:
+    the externally specified acceptable rate of constraint violations (the constrained-RL target)."""
     clock: str
     horizon: float
     resources: tuple = ()
     constraints: tuple = ()
     milestones: tuple = ()
     failure_causes: tuple = ("deadline",)
+    risk_budget: float = 0.0   # acceptable probability of ending in a hard-constraint violation (task specification)
 
 
 @dataclass

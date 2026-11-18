@@ -218,7 +218,8 @@ class NegotiationEnv(CamEnv):
     def contract(self):
         return Contract(clock="round", horizon=float(self.max_steps), resources=("goodwill",),
                         constraints=("no_walkout",), milestones=self.MILESTONES,
-                        failure_causes=("deadline", "constraint:no_walkout", "abandoned", "agreement_below_target"))
+                        failure_causes=("deadline", "constraint:no_walkout", "abandoned", "agreement_below_target"),
+                        risk_budget=0.25)
 
     def _ua(self):
         return float(self.u_a_all[self._idx(self.agreement)]) if self.agreement is not None else 0.0

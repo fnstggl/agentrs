@@ -254,7 +254,7 @@ class ProductEnv(CamEnv):
 
     def contract(self):
         return Contract(clock="week", horizon=float(WEEKS), resources=("budget",), constraints=("solvent",),
-                        milestones=self.MILESTONES, failure_causes=("deadline", "constraint:solvent"))
+                        milestones=self.MILESTONES, failure_causes=("deadline", "constraint:solvent"), risk_budget=0.25)
 
     def task_status(self):
         act = float(self.active.sum())

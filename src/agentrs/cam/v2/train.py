@@ -337,10 +337,13 @@ class Trainer2:
         if c.lagrangian:
             for f, v in tr.items():
                 from agentrs.cam.envs import ENVS
-                if ENVS[f]().contract().constraints:
+                con = ENVS[f]().contract()
+                if con.constraints:
+                    kappa = c.lagrangian.get("kappa", "contract")
+                    kappa = con.risk_budget if kappa == "contract" else float(kappa)
                     lam[f] = float(np.clip(lam.get(f, c.lagrangian.get("init", 0.0))
-                                           + c.lagrangian.get("lr", 0.5) * (v["violation_rate"] - c.lagrangian.get("kappa", 0.05)),
-                                           0.0, c.lagrangian.get("max", 2.0)))
+                                           + c.lagrangian.get("lr", 0.2) * (v["violation_rate"] - kappa),
+                                           0.0, c.lagrangian.get("max", 1.0)))
         cur = self.state["curriculum"]
         used = dict(cur)
         for fam, cc in c.curriculum.items():

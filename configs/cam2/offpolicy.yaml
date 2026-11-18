@@ -19,7 +19,7 @@ batch_episodes: 48
 learn_start_steps: 4096
 her_p: 0.3
 prot_frac: 0.25
-lagrangian: {kappa: 0.05, lr: 0.5, max: 2.0, probe: 0.5}
+lagrangian: {kappa: contract, lr: 0.2, max: 1.0, probe: 0.5}   # kappa = the task contract's risk budget
 curriculum: {product: {start: 0.1, lo: 0.15, hi: 0.5, up: 1.2, down: 0.85, min: 0.02}}
 archive: {frac: 0.25, cells: 400, investigate: 0.0, rev_start: 0.5}
 eval_every: 10
