@@ -33,9 +33,11 @@ import torch
 from pydantic import BaseModel
 
 from agentrs.econ.core import REGISTRY, load_all, make_task
-from agentrs.econ.learner import (GenPolicy, bc_examples, critic_targets, eval_critic, eval_wm, group_advantages,
-                                  pg_samples, policy_backbone_cfg, ppo_update, small_backbone_cfg, summarize,
-                                  train_bc, train_critic, train_wm, wm_example)
+from agentrs.econ.learner import (HORIZON_LABELS, GenPolicy, bc_examples, critic_targets, eval_critic, eval_wm,
+                                  eval_wm_horizons, group_advantages, pg_samples, policy_backbone_cfg, ppo_update,
+                                  small_backbone_cfg, state_text, summarize, train_bc, train_critic, train_wm,
+                                  wm_example, wm_examples)
+from agentrs.task_factory import TaskFactory
 from agentrs.econ.rollout import Episode, rollout_batch, run_expert
 from agentrs.models.backbone import LMBackbone
 from agentrs.models.critic import Critic, CriticConfig
@@ -76,6 +78,11 @@ class RunConfig(BaseModel):
     seed: int = 0
     backup_target: str = ""
     max_cycles: int = 0               # >0: stop RL after this many cycles (dry runs)
+    wm_horizons: list = [1, 2, 4, 0]     # delayed-consequence heads: +k actions later, 0 = end of task
+    wm_assist_every: int = 6          # matched val comparison: direct policy vs world-model-assisted selection
+    wm_assist_k: int = 3              # sampled candidates (+ the greedy action) re-ranked by the world model
+    final_wm_assist_test: bool = True # one pre-registered WM-assisted run on the sealed test set at the end
+    factory_validate_expert: bool = True
 
 
 # ---------------------------------------------------------------------------- utilities
@@ -136,6 +143,7 @@ class Run:
             self.state = json.loads(sp.read_text())
             self.state["restarts"] = self.state.get("restarts", 0) + 1
             self.log(f"resuming run (restart #{self.state['restarts']}) in phase {self.state['phase']}")
+            self._maybe_new_session(sp)
             # bounded recovery: repeated crashes -> go straight to the final evaluation/report
             if self.state["restarts"] > 6 and self.state["phase"] in ("baseline", "bc", "rl"):
                 self.state["stop_reason"] = f"too many restarts ({self.state['restarts']})"
@@ -163,12 +171,44 @@ class Run:
             self.log(f"new run: deadline in {cfg.hours}h, dph ${dph:.3f}")
         self.state["config"]["dph_usd"] = self.state["config"].get("dph_usd") or cfg.dph_usd
         self._build_models()
+        self.factory = TaskFactory(self.state, self.train_fams, out_dir=self.dir / "factory",
+                                   validate_expert=cfg.factory_validate_expert, seed=cfg.seed)
         self.wm_data: list = []
         self.critic_data: list = []
         self.demo_examples: list = []
         self._rebuild_buffers()
 
     # ----------------------------------------------------------------- infra
+    def _maybe_new_session(self, sp: Path) -> None:
+        """A ``NEW_SESSION`` file (content: hours) starts a new training session of an existing run:
+        same weights, optimizer, replay and curriculum, a fresh wall-clock deadline and restart budget.
+        Consumed once, so supervisor restarts within the session keep its deadline."""
+        f = self.dir / "NEW_SESSION"
+        if not f.exists() or self.state.get("phase") == "done":
+            return
+        try:
+            hours = float(f.read_text().strip() or self.cfg.hours)
+        except ValueError:
+            hours = self.cfg.hours
+        dph = self.state["config"].get("dph_usd") or 0.0
+        prev_start = self.state.get("session_started_at") or self.state["started_at"]
+        last_active = sp.stat().st_mtime
+        prev_spend = max(0.0, last_active - prev_start) / 3600 * dph
+        self.state["prior_spend_usd"] = self.state.get("prior_spend_usd", 0.0) + prev_spend
+        t = now()
+        self.state.setdefault("sessions", []).append({"started_at": t, "hours": hours, "phase_at_start": self.state["phase"],
+                                                      "version_at_start": self.state["version"], "git": git_info(),
+                                                      "previous_session_spend_usd": round(prev_spend, 3)})
+        self.state["session_started_at"] = t
+        self.state["deadline"] = t + hours * 3600
+        self.state["restarts"] = 0
+        self.state["git"] = git_info()
+        self.state["config"] = self.cfg.model_dump() | {"dph_usd": dph}
+        self.save_state()
+        f.unlink()
+        self.log(f"NEW SESSION: {hours} h from now (phase {self.state['phase']}, version {self.state['version']}); "
+                 f"previous sessions ≈ ${self.state['prior_spend_usd']:.2f}")
+
     def _sigterm(self, *_):
         self.stop_requested = True
         self.log("SIGTERM received: will finish the current unit of work, checkpoint and stop")
@@ -191,13 +231,17 @@ class Run:
             "last_eval": s["evals"][-1] if s["evals"] else None, "last_cycle": s["cycles"][-1] if s["cycles"] else None,
             "latest_checkpoint": s.get("latest_checkpoint"), "last_snapshot": s.get("last_snapshot"),
             "errors": s["errors"][-5:], "restarts": s["restarts"], "unique_task_fingerprints": len(s["fingerprints"]),
+            "factory": self.factory.coverage() if hasattr(self, "factory") else None,
+            "session_started_at": s.get("session_started_at"), "prior_spend_usd": s.get("prior_spend_usd", 0.0),
             **extra})
 
     def time_left(self) -> float:
         return self.state["deadline"] - now()
 
     def spent(self) -> float:
-        return (now() - self.state["started_at"]) / 3600 * (self.state["config"].get("dph_usd") or 0.0)
+        """Spend of the current session (the cap applies per session); earlier sessions are in prior_spend_usd."""
+        start = self.state.get("session_started_at") or self.state["started_at"]
+        return (now() - start) / 3600 * (self.state["config"].get("dph_usd") or 0.0)
 
     def should_stop_training(self) -> Optional[str]:
         if self.stop_requested:
@@ -226,10 +270,15 @@ class Run:
         self.ct = GradientTrainer(self.critic, OptimConfig(lr=1e-4, total_steps=10**6))
         self.wt = GradientTrainer(self.wm, OptimConfig(lr=1e-4, total_steps=10**6))
         latest = self.ckdir / "latest"
+        after_bc = self.ckdir / "after_bc"
         if (latest / "DONE").exists():
             self.load_ckpt(latest)
             self.log(f"loaded checkpoint {latest} (version {self.state['version']})")
-        else:
+        elif (after_bc / "DONE").exists() and self.state["phase"] in ("bc", "rl"):
+            # stopped after BC finished but before the RL phase checkpointed: resume from the BC weights
+            self.load_ckpt(after_bc)
+            self.log(f"loaded checkpoint {after_bc} (BC already done; not repeating it)")
+        elif not (self.ckdir / "initial" / "DONE").exists():
             self.save_ckpt("initial", note="pretrained policy (LoRA at init = base model)")
         self.log(f"models ready in {now() - t0:.0f}s; trainable policy params "
                  f"{sum(p.numel() for p in self.policy.bb.parameters() if p.requires_grad) / 1e6:.1f}M")
@@ -315,7 +364,8 @@ class Run:
                 self.log(f"warning: could not read {p}: {e}")
         if self.wm_data:
             self.log(f"rebuilt replay: {len(self.wm_data)} WM / {len(self.critic_data)} critic examples")
-        if self.state.get("bc_families") and self.state["phase"] in ("rl", "final"):
+        if self.state.get("bc_families") and self.state["phase"] in ("bc", "rl", "final") \
+                and (self.ckdir / "after_bc" / "DONE").exists():
             demos = self.demos_for(self.state["bc_families"], self.cfg.bc_demos_per_family)  # deterministic
             self.demo_examples = bc_examples(self.policy, demos)
             self.log(f"regenerated {len(self.demo_examples)} demonstration examples for BC replay")
@@ -324,10 +374,9 @@ class Run:
         for e in eps:
             if e.split != "train":
                 continue  # held-out data never enters training buffers
-            for t in range(len(e.steps)):
-                self.wm_data.append(wm_example(e, t))
+            self.wm_data += wm_examples(e, tuple(self.cfg.wm_horizons))
             self.critic_data += critic_targets([e])
-        self.wm_data = self.wm_data[-30000:]
+        self.wm_data = self.wm_data[-60000:]
         self.critic_data = self.critic_data[-30000:]
 
     # ----------------------------------------------------------------- evaluation
@@ -335,25 +384,26 @@ class Run:
         return [make_task(k, split, i) for k in fams for i in range(per_family)]
 
     def evaluate(self, tag: str, split: str, fams: Optional[list[str]] = None, per_family: Optional[int] = None,
-                 version: Optional[str] = None) -> dict:
+                 version: Optional[str] = None, act=None, mode: str = "direct") -> dict:
         fams = fams or (self.train_fams + self.heldout_fams)
         per = per_family or (self.cfg.test_per_family if split == "test" else self.cfg.val_per_family)
         tasks = self.eval_tasks(split, fams, per)
         t0 = now()
         self.status(f"eval:{tag}:{split}", eval_tasks=len(tasks))
-        eps = rollout_batch(tasks, lambda r: self.policy.act(r, greedy=True), version or f"v{self.state['version']}",
-                            provenance="evaluation")
+        eps = rollout_batch(tasks, act or (lambda r: self.policy.act(r, greedy=True)),
+                            version or f"v{self.state['version']}", provenance="evaluation")
         self.write_episodes(f"eval_{tag}_{split}", eps, "evaluation")
         summ = summarize(eps)
         tr = [e for e in eps if f"{e.domain}/{e.family}" in self.train_fams]
         ho = [e for e in eps if f"{e.domain}/{e.family}" in self.heldout_fams]
-        rec = {"tag": tag, "split": split, "time": now(), "wall_s": now() - t0, "version": self.state["version"],
+        rec = {"tag": tag, "split": split, "mode": mode, "time": now(), "wall_s": now() - t0, "version": self.state["version"],
                "cycle": self.state["cycle"], "summary": summ,
                "train_families": summarize(tr)["overall"] if tr else None,
                "heldout_families": summarize(ho)["overall"] if ho else None}
-        if split == "val" and self.wm_data:
+        if split == "val" and self.wm_data and mode == "direct":
             vdata = [wm_example(e, t) for e in eps for t in range(len(e.steps))]
             rec["world_model"] = eval_wm(self.wm, vdata[:400])
+            rec["world_model_horizons"] = eval_wm_horizons(self.wm, eps, horizons=(1, 2, 4, 0))
             rec["critic"] = eval_critic(self.critic, critic_targets(eps)[:600])
         self.state["evals"].append(rec)
         self.save_state()
@@ -362,6 +412,45 @@ class Run:
                  f"{rec['train_families']['rate'] if tr else None} heldout-fam {rec['heldout_families']['rate'] if ho else None} "
                  f"({now() - t0:.0f}s)")
         return rec
+
+    def wm_assisted_act(self):
+        """MuZero-inspired optional planning, used only in matched evaluations: the policy proposes the
+        greedy action plus ``wm_assist_k`` sampled ones; the learned world model scores each by
+        log P(valid) + log P(task ends in success | state, action) from its delayed-consequence head, and
+        the best is executed. Direct generation stays the default policy; this tests whether the
+        learned consequence model improves verified task success."""
+        k = self.cfg.wm_assist_k
+
+        def act(reqs, ctx):
+            greedy = self.policy.act(reqs, greedy=True)
+            samp = self.policy.act([r for r in reqs for _ in range(k)], greedy=False, temperature=1.0)
+            out = []
+            for i, ((task, ep), g) in enumerate(zip(ctx, greedy)):
+                cands, seen = [], set()
+                for o in [g] + samp[i * k:(i + 1) * k]:
+                    if o["text"] not in seen:
+                        seen.add(o["text"])
+                        cands.append(o)
+                if len(cands) == 1:
+                    out.append(g)
+                    continue
+                t = len(ep.steps)
+                prefill = reqs[i][1]
+                base = state_text(ep, t)
+                pv = [f"{base}\nNEXT ACTION {(prefill + o['text'])[:400]}\nELAPSED_S 0.00\nPREDICT: VALID" for o in cands]
+                # expected real time to the end of the task (not known at decision time): steps left x measured s/step
+                eta = self.state.get("sec_per_step", 15.0) * max(1, min(4, task.max_steps - t))
+                pe = [f"{base}\nNEXT ACTION {(prefill + o['text'])[:400]}\nHORIZON END\nELAPSED_S {eta:.1f}\nPREDICT STATUS:"
+                      for o in cands]
+                with torch.no_grad():
+                    sv = self.wm.score(pv, [[" yes", " no"]] * len(cands))
+                    se = self.wm.score(pe, [HORIZON_LABELS] * len(cands))
+                vals = [float(torch.log_softmax(a.float(), -1)[0] + torch.log_softmax(b.float(), -1)[1]) for a, b in zip(sv, se)]
+                out.append(cands[max(range(len(cands)), key=lambda j: vals[j])])
+            return out
+
+        act.wants_ctx = True
+        return act
 
     # ----------------------------------------------------------------- phases
     def phase_baseline(self):
@@ -393,6 +482,12 @@ class Run:
         return eps
 
     def phase_bc(self):
+        if (self.ckdir / "after_bc" / "DONE").exists() and self.state.get("bc"):
+            self.log("BC already completed (ckpt/after_bc); finishing its evaluations, then RL")
+            if not self.wm_data:
+                demos = self.demos_for(self.state["bc_families"], self.cfg.bc_demos_per_family)
+                self._add_buffers(demos)
+            return self._after_bc_evals()
         rates = self._family_rates("A_pretrained")
         fams = [k for k in self.train_fams if REGISTRY[k].oracle is not None or k.startswith("browser/")]
         bc_fams = [k for k in fams if rates.get(k, 0.0) < self.cfg.bc_threshold]
@@ -424,9 +519,19 @@ class Run:
             self.log(f"WM warm-start loss {l[0]:.3f} -> {sum(l[-10:]) / 10:.3f}")
         self.state["version"] += 1
         self.save_ckpt("after_bc", note="after behaviour cloning")
-        self.evaluate("B_after_bc", "val")
-        self.evaluate("B_after_bc", "test")
-        val = self.state["evals"][-2]["train_families"]["rate"]
+        self._after_bc_evals()
+
+    def _eval_rec(self, tag: str, split: str) -> Optional[dict]:
+        return next((e for e in reversed(self.state["evals"]) if e["tag"] == tag and e["split"] == split), None)
+
+    def _after_bc_evals(self):
+        if not self._eval_rec("B_after_bc", "val"):
+            self.evaluate("B_after_bc", "val")
+        if not self._eval_rec("B_after_bc", "test"):
+            self.evaluate("B_after_bc", "test")
+        if self.stop_requested:
+            return
+        val = self._eval_rec("B_after_bc", "val")["train_families"]["rate"]
         self.state["promoted"] = {"version": self.state["version"], "val": val, "ckpt": "promoted", "cycle": 0}
         self.state["best"] = {"version": self.state["version"], "val": val, "ckpt": "best", "cycle": 0}
         self.save_ckpt("promoted", "promoted after BC")
@@ -436,6 +541,15 @@ class Run:
         self.save_state()
 
     def pick_tasks(self) -> list:
+        """Admitted, validated, curriculum-weighted, domain-balanced fresh training tasks (task factory)."""
+        picks = self.factory.sample(self.cfg.tasks_per_cycle, self.state["cycle"], self.state["train_index"],
+                                    self.state["curriculum"])
+        for t in picks:
+            fp = t.fingerprint()
+            self.state["fingerprints"][fp] = self.state["fingerprints"].get(fp, 0) + 1
+        return picks
+
+    def pick_tasks_legacy(self) -> list:
         rng = random.Random(self.cfg.seed * 7919 + self.state["cycle"])
         cur = self.state["curriculum"]
         picks = []
@@ -475,6 +589,7 @@ class Run:
         eps = rollout_batch(group_tasks, lambda r: self.policy.act(r, greedy=False, temperature=1.0), version,
                             provenance="agent_policy", groups=groups)
         t_col = now() - t0
+        self.state["sec_per_step"] = t_col / max(1, max(len(e.steps) for e in eps))
         torch.cuda.empty_cache()  # generation KV caches -> free before the gradient phase
         self.write_episodes(f"cycle_{cyc:04d}", eps, "agent_policy")
         cnt = self.state["counters"]
@@ -497,8 +612,12 @@ class Run:
         samples = pg_samples(eps, adv)
         self.status("update", samples=len(samples))
         t1 = now()
+        snap = param_snapshot(self.policy.bb)
         st = ppo_update(self.policy, self.pt, samples, version, demo_examples=self.demo_examples,
                         bc_coef=c.bc_replay_coef, clip=c.ppo_clip, epochs=c.ppo_epochs, seed=cyc, log=None)
+        st["policy_lora_change_l2"] = math.sqrt(sum(float((p.detach() - snap[n]).float().pow(2).sum())
+                                                    for n, p in self.policy.bb.named_parameters() if n in snap))
+        del snap
         cnt["policy_updates"] += st["updates"]
         cnt["rejected_stale_samples"] += st["rejected_stale"]
         if st["updates"]:
@@ -523,17 +642,21 @@ class Run:
                "groups": n_groups, "informative_groups": informative, "ppo": st,
                "wm_loss": sum(wl[-10:]) / max(1, len(wl[-10:])) if wl else None,
                "critic_loss": sum(cl[-10:]) / max(1, len(cl[-10:])) if cl else None,
-               "collect_s": t_col, "update_s": t_upd, "aux_s": now() - t2, "rl_lr": self.state["rl_lr"]}
+               "collect_s": t_col, "update_s": t_upd, "aux_s": now() - t2, "rl_lr": self.state["rl_lr"],
+               "factory": self.factory.coverage()}
         self.state["cycles"].append(rec)
         self.log(f"cycle {cyc}: success {rec['success_rate']:.3f} valid {rec['valid_action_rate']:.3f} informative "
                  f"{informative}/{n_groups} groups, {st['samples']} samples, {st['updates']} updates, "
-                 f"mismatch {st['mismatch_first']}, kl {st['kl_approx']:.4f}, clipfrac {st['clipfrac']:.3f} | "
+                 f"mismatch {st['mismatch_first']}, kl {st['kl_approx']:.4f}, clipfrac {st['clipfrac']:.3f}, "
+                 f"dLoRA {st['policy_lora_change_l2']:.4f}, WM {rec['wm_loss']}, critic {rec['critic_loss']} | "
                  f"collect {t_col:.0f}s update {t_upd:.0f}s aux {now() - t2:.0f}s")
         self.save_ckpt("latest")
         self.save_state()
         self.maybe_snapshot()
         if cyc % c.eval_every == 0:
             self.promotion_gate()
+        if c.wm_assist_every and cyc % c.wm_assist_every == 0 and not self.should_stop_training():
+            self.evaluate(f"cycle{cyc}_wm", "val", act=self.wm_assisted_act(), mode="wm_assist")
 
     def promotion_gate(self):
         rec = self.evaluate(f"cycle{self.state['cycle']}", "val")
@@ -598,6 +721,10 @@ class Run:
                 and (self.ckdir / "best" / "DONE").exists() and self.time_left() > -1800:
             self.load_policy_only(self.ckdir / "best")
             self.evaluate("C_best", "test")
+        if self.cfg.final_wm_assist_test and ("C_final_wm", "test") not in done and self.time_left() > -1800:
+            if (self.ckdir / "final" / "DONE").exists():
+                self.load_policy_only(self.ckdir / "final")
+            self.evaluate("C_final_wm", "test", act=self.wm_assisted_act(), mode="wm_assist")
         self.write_report()
         if self.cfg.backup_target:
             try:

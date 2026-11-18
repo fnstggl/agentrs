@@ -31,6 +31,7 @@ class Step:
     error: Optional[str] = None
     elapsed_s: float = 0.0
     finished_generation: bool = True
+    t_wall: float = 0.0              # wall-clock time the action was executed (real elapsed time between steps)
 
 
 @dataclass
@@ -119,7 +120,7 @@ def run_expert(task: Task, oracle: Optional[Callable] = None) -> Episode:
         t1 = time.time()
         out = env.step(action)
         ep.steps.append(Step(prompt="", prefill=prefill, action=action, result=out.observation, valid=out.valid,
-                             error=out.error, elapsed_s=time.time() - t1))
+                             error=out.error, elapsed_s=time.time() - t1, t_wall=t1))
         ep.steps[-1].messages = msgs  # type: ignore[attr-defined]
         hist.append((action, out.observation))
         if env.done:
@@ -152,7 +153,10 @@ def rollout_batch(tasks: list[Task], act_fn: Callable, policy_version: str, prov
         if not active:
             break
         reqs = [render(envs[i], tasks[i], hists[i]) for i in active]
-        outs = act_fn(reqs)
+        if getattr(act_fn, "wants_ctx", False):  # e.g. world-model-assisted selection needs the episode so far
+            outs = act_fn(reqs, [(tasks[i], eps[i]) for i in active])
+        else:
+            outs = act_fn(reqs)
         for i, (msgs, prefill), o in zip(active, reqs, outs):
             action = prefill + o["text"]
             t1 = time.time()
@@ -164,7 +168,8 @@ def rollout_batch(tasks: list[Task], act_fn: Callable, policy_version: str, prov
                 continue
             eps[i].steps.append(Step(prompt=o["prompt"], prefill=prefill, action=action, token_ids=o["ids"],
                                      behavior_logprobs=o["logprobs"], result=res.observation, valid=res.valid,
-                                     error=res.error, elapsed_s=time.time() - t1, finished_generation=o["finished"]))
+                                     error=res.error, elapsed_s=time.time() - t1, finished_generation=o["finished"],
+                                     t_wall=t1))
             hists[i].append((action, res.observation))
         if on_step:
             on_step(step, len(active))

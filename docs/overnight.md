@@ -49,9 +49,63 @@ restarts a stalled trainer (≤3×), creates `STOP` on low disk or spending cap,
 after the deadline. Stop manually with `touch runs/overnight/STOP` (the trainer finishes the cycle,
 evaluates on the sealed test set, writes the report and exits).
 
-**External backups are only as good as the configured target**: `python -m agentrs.backup` supports
-`hf://<repo>` and `rclone:<remote>:<path>` with verified uploads and tested restores, but nothing is
-uploaded unless a target and credentials are configured (`AGENTRS_BACKUP_TARGET`).
+### GitHub checkpoint backups (mandatory destination)
+
+`agentrs_backup` runs `python -m agentrs.gh_backup watch`: an initial checkpoint, then at most every
+3 h (`AGENTRS_GH_BACKUP_EVERY_H`; requirement ≤ 6 h), on every new best validated policy (≥ 45 min
+apart) and the final checkpoint at the end. Each upload is one GitHub Release with a split tar
+(parts ≤ 1.9 GiB, under GitHub's 2 GiB asset limit), `MANIFEST.json` (parts, sizes, sha256, tar
+sha256, model ids + revisions, policy version, training step, timestamp, release URL, restore
+instructions) and `RESTORE.md`. The release is a draft until every asset is verified (GitHub's
+server-side sha256 digest, else re-download), then published. Status: `runs/overnight/gh_backup_status.json`.
+
+The bundle holds the policy LoRA (Qwen3-4B), world-model and critic LoRA weights, AdamW + LR
+scheduler states, RNG states, the run state (curriculum, task indices, counters, evals, promotions,
+task-factory state), all stored trajectories (replay), the HN/Bluesky delayed-outcome ledger,
+forecasts, cursors, prequential scores and observer model, the GitHub observer model, configs and the
+git commit. **The repository is public**, so third-party observer content (post text, author
+pseudonyms, item references, the pseudonymisation key) is redacted from the uploaded copy; everything
+learned (weights/optimizer) and all numeric outcomes are kept. Point `AGENTRS_GH_CKPT_REPO` at a
+private repository the token can access for unredacted backups.
+
+```bash
+python -m agentrs.gh_backup list                                     # all checkpoint releases
+python -m agentrs.gh_backup restore --dest /tmp/r --install-run runs/overnight   # latest complete one
+python scripts/verify_restore.py --run runs/overnight --dest /tmp/rt # download+verify+reload+compare predictions
+```
+
+Legacy targets: `python -m agentrs.backup` (`hf://<repo>`, `rclone:<remote>:<path>`, `AGENTRS_BACKUP_TARGET`).
+
+### Sessions
+
+A run can be continued in a new session (same weights, optimizer, replay, curriculum; new deadline):
+`echo 8 > runs/overnight/NEW_SESSION` before starting the trainer. A run stopped after BC resumes from
+`ckpt/after_bc` without repeating BC. The spending cap applies per session.
+
+## Task factory (`agentrs.task_factory`)
+
+Every training task is admitted by the factory: environment builds, the initial state does **not**
+already satisfy the hidden verifier, the scripted expert solves it in the real environment, and it is
+not a duplicate instance (generator crashes are rejected, not fatal). Each task has a `TaskSpec`
+(domain/family, environment + version hash, generator version, goal, deliverable, initial observation,
+tools with write/terminal flags, rules, observable schema, names of the hidden private keys,
+counterparties, step budget, expert steps, split, seed, provenance/permissions); admitted specs are
+logged to `runs/overnight/factory/admitted_specs.jsonl`. Sampling is domain-balanced, then
+learning-progress weighted per family (mastered families drop to a 3 % floor, unsolved ones get a bonus).
+`python -m agentrs.task_factory.acceptance` runs the acceptance test (real expert actions, verdict flip,
+persisted trajectories, memorised-solution replay across instances).
+
+## Delayed consequences in the economic world model
+
+Besides next-step validity/outcome/result, the world model learns (state, action, horizon, real elapsed
+seconds) → task status at +1/+2/+4 actions and at the end of the task (running/success/failure/
+truncated), only from finished episodes (all labels observed). Validation reports per-horizon accuracy
+vs majority and the Brier score of P(success at end) vs the base rate.
+
+**World-model-assisted action selection** (MuZero-inspired, optional): every `wm_assist_every` cycles
+the same validation tasks are also run with the policy proposing greedy + `wm_assist_k` sampled actions
+re-ranked by log P(valid) + log P(success at end) from the world model; one pre-registered run on the
+sealed test set at the end. Direct generation remains the default; the comparison is reported as is.
 
 ## Inspecting a run
 

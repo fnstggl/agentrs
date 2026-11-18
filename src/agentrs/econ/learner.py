@@ -305,6 +305,76 @@ def train_wm(wm: LMBackbone, trainer: GradientTrainer, data: list[tuple[str, str
     return losses
 
 
+HORIZON_LABELS = [" running", " success", " failure", " truncated"]
+
+
+def _final_label(ep: Episode) -> str:
+    return ("success" if ep.success else "failure") if ep.terminated else "truncated"
+
+
+def _elapsed(ep: Episode, t: int, t2: int) -> float:
+    """Real elapsed seconds from executing action t to the state after action t2 (falls back to summed
+    environment time for old records without wall-clock stamps)."""
+    a, b = ep.steps[t], ep.steps[min(t2, len(ep.steps) - 1)]
+    if a.t_wall and b.t_wall:
+        return max(0.0, b.t_wall - a.t_wall) + b.elapsed_s
+    return sum(s.elapsed_s for s in ep.steps[t:t2 + 1])
+
+
+def wm_horizon_example(ep: Episode, t: int, k: int) -> tuple[str, str]:
+    """Delayed-consequence example: (state, action, horizon, real elapsed time) -> task status k actions
+    later (k = 0: at the end of the episode). Only built from finished episodes, so every label is
+    observed (matured); nothing unobserved is labelled as failure. The continuation after action t is
+    the behaviour policy's, so this is an on-policy consequence / value prediction."""
+    T = len(ep.steps)
+    end = T - 1 if k == 0 else t + k
+    label = _final_label(ep) if end >= T - 1 else "running"
+    end = min(end, T - 1)
+    hz = "END" if k == 0 else f"+{k} steps"
+    prompt = (f"{state_text(ep, t)}\nNEXT ACTION {ep.steps[t].action[:400]}\nHORIZON {hz}\n"
+              f"ELAPSED_S {_elapsed(ep, t, end):.1f}\nPREDICT STATUS:")
+    return prompt, f" {label}"
+
+
+def wm_examples(ep: Episode, horizons=(1, 2, 4, 0)) -> list[tuple[str, str]]:
+    out = []
+    for t in range(len(ep.steps)):
+        out.append(wm_example(ep, t))
+        for k in horizons:  # a finished episode has a matured (observed) label for every horizon
+            out.append(wm_horizon_example(ep, t, k))
+    return out
+
+
+@torch.no_grad()
+def eval_wm_horizons(wm: LMBackbone, eps: Sequence[Episode], horizons=(1, 2, 4, 0), max_per: int = 300,
+                     batch: int = 16) -> dict:
+    """Per-horizon accuracy of the predicted task status vs. the majority baseline, plus the Brier score
+    of P(success) at the end of the task vs. the base rate (held-out episodes)."""
+    wm.eval()
+    out = {}
+    for k in horizons:
+        data = [wm_horizon_example(e, t, k) for e in eps for t in range(len(e.steps))][:max_per]
+        if not data:
+            continue
+        correct, ys, ps = 0, [], []
+        for s in range(0, len(data), batch):
+            b = data[s:s + batch]
+            sc = wm.score([p for p, _ in b], [HORIZON_LABELS] * len(b))
+            for (p, tgt), v in zip(b, sc):
+                pr = torch.softmax(v.float(), -1)
+                correct += int(HORIZON_LABELS[int(torch.argmax(pr))] == tgt)
+                ys.append(tgt)
+                ps.append(float(pr[1]))
+        n = len(data)
+        succ = [1.0 if y == " success" else 0.0 for y in ys]
+        base = sum(succ) / n
+        out["end" if k == 0 else f"+{k}"] = {
+            "n": n, "acc": correct / n, "majority": max(ys.count(x) for x in set(ys)) / n,
+            "brier_success": sum((p - y) ** 2 for p, y in zip(ps, succ)) / n,
+            "brier_base_rate": sum((base - y) ** 2 for y in succ) / n}
+    return out
+
+
 @torch.no_grad()
 def eval_wm(wm: LMBackbone, data: list[tuple[str, str]], batch: int = 16) -> dict:
     """Per-token NLL of the full outcome text, and accuracy of the VALID / OUTCOME predictions vs majority."""

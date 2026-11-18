@@ -49,7 +49,7 @@ TEMPLATES = [
          bugs=[("(page - 1) * size", "page * size"), ("start + size]", "start + size - 1]")],
          gen="(list(range(r.randint(3, 15))), r.randint(1, 3), r.randint(1, 5))"),
     dict(fn="apply_discount", params="price, pct", doc="Return price reduced by pct percent, rounded to 2 decimals.",
-         body="return round(price * (1 - pct / 100), 2)", bugs=[("(1 - pct / 100)", "(1 - pct)"), ("round(", "int(round(")],
+         body="return round(price * (1 - pct / 100), 2)", bugs=[("(1 - pct / 100)", "(1 - pct)"), ("round(price * (1 - pct / 100), 2)", "int(round(price * (1 - pct / 100), 2))")],
          gen="(round(r.uniform(1, 500), 2), r.choice([5, 10, 15, 20, 25, 50]))"),
     dict(fn="word_freq", params="text", doc="Return a dict mapping each lower-cased word of text to its count.",
          body="counts = {}\nfor w in text.lower().split():\n    counts[w] = counts.get(w, 0) + 1\nreturn counts",

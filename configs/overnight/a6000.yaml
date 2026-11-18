@@ -23,3 +23,9 @@ critic_steps_per_cycle: 30
 eval_every: 2
 promote_tolerance: 0.04
 snapshot_every_min: 30
+# --- added for the continual self-play session (task factory, delayed-consequence WM, WM-assist test)
+wm_horizons: [1, 2, 4, 0]     # world-model status heads: +1/+2/+4 actions later and at task end (real elapsed time)
+wm_assist_every: 6            # every 6 cycles: matched val comparison direct vs world-model-assisted action selection
+wm_assist_k: 3
+final_wm_assist_test: true    # one pre-registered WM-assisted run on the sealed test set at the end
+factory_validate_expert: true # admit a generated task only if the scripted expert solves it in the real env

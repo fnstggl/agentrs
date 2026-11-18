@@ -95,13 +95,21 @@ def main(argv=None) -> int:
         du = shutil.disk_usage(run)
         disk_pct = 100 * (du.total - du.free) / du.total
         trainer = supervisor_state("agentrs_trainer")
-        started = st.get("started_at", t)
+        started = st.get("session_started_at") or st.get("started_at", t)  # spend cap / elapsed are per session
         deadline = st.get("deadline")
         dph = (st.get("config") or {}).get("dph_usd") or 0.0
         max_spend = (st.get("config") or {}).get("max_spend_usd")
         spent = (t - started) / 3600 * dph
         hb_age = t - tr.get("heartbeat", t)
         warnings = []
+        ghb = read_json(run / "gh_backup_status.json") or {}
+        gh_last = ghb.get("last_success") or {}
+        gh_age_h = (t - gh_last["uploaded_at"]) / 3600 if gh_last.get("uploaded_at") else None
+        backup_proc = supervisor_state("agentrs_backup")
+        if gh_age_h is None or gh_age_h > 6.25:
+            warnings.append("no verified GitHub checkpoint in the last 6 h" if gh_age_h else "no verified GitHub checkpoint yet")
+        if backup_proc != "RUNNING" and st.get("phase") not in ("done",):
+            warnings.append(f"GitHub backup service is {backup_proc}")
         # ---- safety rails
         if trainer == "RUNNING" and tr and hb_age > a.stale_min * 60 and st.get("phase") not in ("done",):
             if restarts < a.max_trainer_restarts:
@@ -149,7 +157,13 @@ def main(argv=None) -> int:
                           if e["tag"] in ("A_pretrained", "B_after_bc", "C_final", "C_best")},
             "best_checkpoint": st.get("best"), "promoted_checkpoint": st.get("promoted"),
             "latest_local_checkpoint": ckpt,
-            "latest_verified_remote_backup": st.get("final_backup") or "NOT CONFIGURED (no external credentials)",
+            "latest_verified_remote_backup": ({k: gh_last.get(k) for k in ("tag", "url", "kind", "checkpoint", "version", "cycle",
+                                                                          "verified", "verify_method", "tar_bytes")}
+                                              | {"age_h": round(gh_age_h, 2)} if gh_last else "none yet"),
+            "github_backup": {"process": backup_proc, "uploads": len(ghb.get("uploads", [])),
+                              "failures": len(ghb.get("failures", [])), "in_progress": ghb.get("in_progress"),
+                              "last_failure": (ghb.get("failures") or [None])[-1]},
+            "task_factory": tr.get("factory"), "prior_sessions_spend_usd": st.get("prior_spend_usd"),
             "estimated_spend_usd": round(spent, 2), "price_per_hour_usd": dph, "spend_cap_usd": max_spend,
             "hackernews_bluesky_observer": {"process": supervisor_state("agentrs_live"),
                                             **{k: live.get(k) for k in ("uptime_s", "posts", "observations", "updates",
@@ -173,7 +187,11 @@ def main(argv=None) -> int:
               f"- by domain: {json.dumps(by_dom)}",
               f"- latest validation: {json.dumps(status['latest_validation'], default=str)[:600]}",
               f"- best: {status['best_checkpoint']}; promoted: {status['promoted_checkpoint']}",
-              f"- spend ≈ ${status['estimated_spend_usd']} (cap ${max_spend}); remote backup: {status['latest_verified_remote_backup']}",
+              f"- spend this session ≈ ${status['estimated_spend_usd']} (cap ${max_spend}; earlier sessions "
+              f"${st.get('prior_spend_usd', 0):.2f})",
+              f"- GitHub checkpoint backup: {json.dumps(status['latest_verified_remote_backup'], default=str)[:400]}; "
+              f"service {backup_proc}, {status['github_backup']['uploads']} uploads, {status['github_backup']['failures']} failures",
+              f"- task factory: {json.dumps(tr.get('factory'), default=str)[:300]}",
               f"- HN/Bluesky observer: {json.dumps(status['hackernews_bluesky_observer'], default=str)[:600]}",
               f"- GitHub observer: {json.dumps(status['github_observer'], default=str)[:400]}",
               f"- warnings: {warnings}; errors: {[e.get('error', '')[:120] for e in status['errors']]}"]

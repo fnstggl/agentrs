@@ -1,5 +1,6 @@
 #!/bin/bash
-# Install the overnight supervisor programs (autostart=false: start them explicitly).
+# Install the overnight supervisor programs. autostart=true: after an instance stop/start they come back and
+# the trainer resumes from its latest checkpoint (a finished run exits immediately).
 set -euo pipefail
 cd "$(dirname "$0")"
 for p in trainer live monitor github backup; do
