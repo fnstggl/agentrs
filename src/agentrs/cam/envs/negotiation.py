@@ -66,6 +66,18 @@ class NegotiationEnv(CamEnv):
         self.patience0 = self.patience
         self.end_reason = None
 
+    def __getstate__(self):  # the utility tables are a pure function of the hidden parameters: don't serialise them
+        d = self.__dict__.copy()
+        d.pop("u_a_all", None)
+        d.pop("u_c_all", None)
+        return d
+
+    def __setstate__(self, d):
+        self.__dict__.update(d)
+        if "w_a" in d:
+            self.u_a_all = self._u(ALL, self.w_a, self.d_a)
+            self.u_c_all = self._u(ALL, self.w_c, self.d_c)
+
     @staticmethod
     def _u(x, w, d):
         v = np.where(d > 0, x / 10.0, (10 - x) / 10.0)
