@@ -175,6 +175,9 @@ class Collector:
                 o_lp = torch.where(new, olp.gather(-1, o_s[:, None]).squeeze(-1), torch.zeros_like(pb))
                 grams = [S[j]["env"].grammar() for j in live]
                 toks, ids, lps = m.generate_action(fl, gl, opt, grams, greedy=greedy, gen=self.gen)
+                u_taken = None
+                if self.archive is not None and self.archive.investigate > 0:  # INVESTIGATE: world-model disagreement
+                    u_taken = m.ens_pred(fl, m.wm_act_enc(m.ids(toks, cfg.max_act + 2))).var(0).mean(-1).tolist()
                 self.stats["net_s"] += time.time() - t0
                 t1 = time.time()
                 for jj, j in enumerate(live):
@@ -217,7 +220,7 @@ class Collector:
                     s["t"] += 1
                     total += 1
                     if not done and self.archive is not None:
-                        self.archive.offer(ep.family, env, ep, s)
+                        self.archive.offer(ep.family, env, ep, s, u=u_taken[jj] if u_taken else 0.0)
                     if done:
                         if guard:
                             env.done, env.success = True, False
