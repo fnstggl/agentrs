@@ -15,6 +15,14 @@ or evaluation:
 
 The first arm D run was stopped after negotiation (1/60) and rerun in full with v1.1.
 
+Snapshot `cam-hybrid-exp-v1.2` (17:40 UTC) fixes a crash at the end of every run's final phase:
+- Under `python -m`, `main()` ran before `Trainer2.hybrid_final` was attached, so the final phase crashed.
+- The training results and sealed tests had already been saved; the final diagnostics were persisted only after
+  the controls. Both are fixed, and the controls now skip evaluations that are already recorded.
+- Arms A and B (seed 1) were re-queued to run their final controls with v1.2.
+- The CAM-v2.2 queue runs (frozen snapshot `cam2-exp-v22`) hit the same crash after their sealed tests. They were
+  left unchanged.
+
 Report: `PYTHONPATH=src python scripts/hybrid_report.py` writes `runs/cam_hybrid/report.md`.
 
 ## Architecture
