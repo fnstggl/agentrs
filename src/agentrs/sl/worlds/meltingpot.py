@@ -39,14 +39,16 @@ class _Server:
 
     def send(self, msg):
         b = pickle.dumps(msg, protocol=4)
-        self.p.stdin.write(struct.pack("<Q", len(b)) + b)
+        self.p.stdin.write(b"MPSV" + struct.pack("<Q", len(b)) + b)
         self.p.stdin.flush()
 
     def recv(self):
-        h = self.p.stdout.read(8)
-        if len(h) < 8:
-            raise RuntimeError("Melting Pot server died")
-        (n,) = struct.unpack("<Q", h)
+        h = self.p.stdout.read(12)
+        if len(h) < 12:
+            raise RuntimeError(f"Melting Pot server died (exit code {self.p.poll()})")
+        if h[:4] != b"MPSV":
+            raise RuntimeError(f"corrupt frame from Melting Pot server: {h!r}")
+        (n,) = struct.unpack("<Q", h[4:])
         st, val = pickle.loads(self.p.stdout.read(n))
         if st != "ok":
             raise RuntimeError(f"Melting Pot server error: {val}")
@@ -89,6 +91,7 @@ def _shutdown():
 
 class MeltingPotWorld(World):
     reward_overrides = {"native": 1.0, "shaping": 0.0, "success": 0.0, "violation": 0.0}
+    agent_controls_length = False  # episodes end by the substrate's own (stochastic) rule
 
     def __init__(self, kind: str, name: str):
         self.kind, self.name = kind, name

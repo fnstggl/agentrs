@@ -17,22 +17,28 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 import numpy as np  # noqa: E402
 
-OUT = sys.stdout.buffer
+# The protocol uses a private duplicate of the original stdout; file descriptor 1 is pointed at stderr so that any
+# output written by native libraries (TensorFlow, dmlab2d, absl) can never corrupt the frame stream.
+_PROTO_FD = os.dup(1)
+os.dup2(2, 1)
+OUT = os.fdopen(_PROTO_FD, "wb", buffering=0)
 IN = sys.stdin.buffer
-sys.stdout = sys.stderr  # library prints must not corrupt the protocol stream
+sys.stdout = sys.stderr
+MAGIC = b"MPSV"
 
 
 def send(obj):
     b = pickle.dumps(obj, protocol=4)
-    OUT.write(struct.pack("<Q", len(b)) + b)
-    OUT.flush()
+    OUT.write(MAGIC + struct.pack("<Q", len(b)) + b)
 
 
 def recv():
-    h = IN.read(8)
-    if len(h) < 8:
+    h = IN.read(12)
+    if len(h) < 12:
         return None
-    (n,) = struct.unpack("<Q", h)
+    if h[:4] != MAGIC:
+        raise RuntimeError("corrupt request frame")
+    (n,) = struct.unpack("<Q", h[4:])
     return pickle.loads(IN.read(n))
 
 

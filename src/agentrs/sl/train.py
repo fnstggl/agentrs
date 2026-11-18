@@ -95,7 +95,9 @@ def reward_audit(families: list, rc: RewardContract, max_steps: int, n: int = 12
                 ret, k, done = 0.0, 0, False
                 ov = getattr(w, "reward_overrides", None)
                 c = rc if not ov else RewardContract(RewardSpec(**{**rc.s.__dict__, **ov}))
-                while not done and k < max_steps:
+                fixed_len = getattr(w, "agent_controls_length", True) is False
+                cap = min(max_steps, 60) if fixed_len else max_steps
+                while not done and k < cap:
                     for a in ags:
                         sp = w.available_actions(a)
                         if sp.kind == "discrete":
@@ -118,7 +120,7 @@ def reward_audit(families: list, rc: RewardContract, max_steps: int, n: int = 12
                 rets.append(ret)
                 succ.append(bool(before[ags[0]].success))
                 steps.append(k)
-                ended.append(done)
+                ended.append(done or fixed_len)  # episode length outside the agent's control: nothing to exploit
                 w.close()
             res[pol] = {"return": float(np.mean(rets)), "success": float(np.mean(succ)), "steps": float(np.mean(steps)),
                         "ended": float(np.mean(ended))}
