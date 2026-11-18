@@ -61,14 +61,16 @@ def _examples(fam: str, n: int = 3, seed: int = 0):
 class LLMFrontend:
     kind = "llm"
 
-    def __init__(self, model: str = "Qwen/Qwen3-4B", device=None, batch: int = 24, cache_size: int = 100_000):
+    def __init__(self, model: str = "Qwen/Qwen3-4B", device=None, batch: int = 8, cache_size: int = 100_000):
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         self.name = model
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.waited_s = 0.0
         if self.device == "cuda":  # shared GPU: weights + batched generation cache; never squeeze running training
-            need, t0 = (14.0 if "4B" in model else 5.0), time.time()
+            # 4B: ~8 GB weights + generation cache for 8 few-shot prompts; below the queues' 12 GB start threshold so a
+            # waiting final phase gets freed memory before the queue starts another job
+            need, t0 = (11.0 if "4B" in model else 4.0), time.time()
             while torch.cuda.mem_get_info()[0] / 2**30 < need and time.time() - t0 < 4 * 3600:
                 print(f"LLM front-end: waiting for {need:.0f} GiB free GPU memory "
                       f"({torch.cuda.mem_get_info()[0] / 2**30:.1f} GiB free)", flush=True)
