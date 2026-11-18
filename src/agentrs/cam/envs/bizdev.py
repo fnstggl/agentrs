@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from agentrs.cam.envs.base import CamEnv, Grammar, StepResult, nb
+from agentrs.cam.envs.base import CamEnv, Contract, Grammar, Status, StepResult, nb
 
 NP = 5
 PARTNERS = [f"P{i}" for i in range(NP)]
@@ -49,6 +49,8 @@ class BizDevEnv(CamEnv):
         self.pending: list[tuple[int, int, str]] = []  # (due step, partner, reply)
         self.step_no = 0
         self.last_obj: dict[int, str] = {}
+        self.commit_steps: list[int] = []
+        self.replies = 0
 
     def goal_tokens(self):
         return ["GOAL", "SECURE", nb(self.k, 0, 5), "COMMITMENTS", "CAP", nb(self.cap, 0, 20)]
@@ -129,6 +131,7 @@ class BizDevEnv(CamEnv):
             share, excl, fast, _ = (int(v) for v in x.split("|"))
             dec = self._decide(i, share, bool(excl), bool(fast))
             ev["reply"] = True
+            self.replies += 1
             if dec == "COMMITTED":
                 if sum(self.promised) + share > self.cap:
                     dec = "OBJECTION:share"
@@ -136,6 +139,7 @@ class BizDevEnv(CamEnv):
                     self.promised[i] = share
             if dec == "COMMITTED":
                 self.status[i] = "COMMITTED"
+                self.commit_steps.append(self.step_no)
                 self.last_obj.pop(i, None)
                 ev["commit"] = True
             elif dec == "DECLINED":
@@ -151,6 +155,28 @@ class BizDevEnv(CamEnv):
             self.success = bool(n >= self.k and sum(self.promised) <= self.cap)
         return StepResult(elapsed_h=self.rng.uniform(4, 72), events=ev, done=self.done,
                           success=self.success if self.done else None, valid=valid)
+
+    # ------------------------------------------------------------------ task contract
+    MILESTONES = ("researched", "reply", "commit_1", "commit_2")
+
+    def contract(self):
+        return Contract(clock="step", horizon=float(self.max_steps), resources=("share_pool",), constraints=(),
+                        milestones=self.MILESTONES, failure_causes=("deadline",))
+
+    def task_status(self):
+        n = sum(s == "COMMITTED" for s in self.status)
+        ms = {"researched": bool(self.known), "reply": self.replies > 0, "commit_1": n >= 1, "commit_2": n >= 2}
+        return Status(progress=self.progress(), clock=float(self.step_no), time_left=max(0.0, 1 - self.step_no / self.max_steps),
+                      resources={"share_pool": max(0, self.cap - sum(self.promised)) / self.cap}, milestones=ms,
+                      costs={"share_promised": float(sum(self.promised)), "steps": float(self.step_no)})
+
+    def hindsight_goals(self):
+        """Fewer commitments than required (within the cap) verifiably achieved 'secure n commitments'
+        at the step of the n-th commitment."""
+        n = len(self.commit_steps)
+        if not self.done or self.success or n < 1 or sum(self.promised) > self.cap:
+            return []
+        return [(["GOAL", "SECURE", nb(n, 0, 5), "COMMITMENTS", "CAP", nb(self.cap, 0, 20)], self.commit_steps[n - 1])]
 
     def hidden(self):
         return {"want": self.want, "min_share": self.min_share, "anchor": self.anchor, "rival": self.rival}

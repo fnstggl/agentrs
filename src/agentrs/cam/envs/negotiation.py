@@ -14,7 +14,7 @@ import itertools
 
 import numpy as np
 
-from agentrs.cam.envs.base import CamEnv, Grammar, StepResult, nb
+from agentrs.cam.envs.base import CamEnv, Contract, Grammar, Status, StepResult, nb
 
 ISSUES = ["price", "qty", "delivery", "warranty"]
 LEVELS = [f"N{i}" for i in range(11)]
@@ -32,6 +32,7 @@ class NegotiationEnv(CamEnv):
     events = ["counter", "accept", "cp_walk", "agreement", "answer"]
     n_features = 14
     max_steps = 14
+    _shared_attrs = ("u_a_all", "u_c_all")
 
     def reset(self, seed: int, split: str = "train") -> None:
         self._seed(seed, split)
@@ -62,6 +63,8 @@ class NegotiationEnv(CamEnv):
         self.last_agent_uc = None
         self.tft_drop = 0.0
         self.best_cp_ua = 0.0
+        self.patience0 = self.patience
+        self.end_reason = None
 
     @staticmethod
     def _u(x, w, d):
@@ -173,6 +176,7 @@ class NegotiationEnv(CamEnv):
                 if self.patience <= 0 or self.round >= self.cp_deadline + 3:
                     self.last_resp = "LEFT"
                     ev["cp_walk"] = True
+                    self.end_reason = "constraint:no_walkout"
                     self._finish(False)
                 else:
                     thr = self._threshold()
@@ -198,6 +202,7 @@ class NegotiationEnv(CamEnv):
                 return self._out(ev, el, valid=False)
         elif typ == "WALK":
             self.last_resp = "LEFT"
+            self.end_reason = "abandoned"
             self._finish(False)
         if not self.done and self.round >= self.max_steps:
             self._finish(False)
@@ -206,6 +211,46 @@ class NegotiationEnv(CamEnv):
     def _out(self, ev, el, valid=True):
         return StepResult(elapsed_h=el, events=ev, done=self.done, success=self.success if self.done else None,
                           valid=valid)
+
+    # ------------------------------------------------------------------ task contract
+    MILESTONES = ("learned_preference", "counteroffer", "offer_50pct", "offer_80pct", "agreement")
+
+    def contract(self):
+        return Contract(clock="round", horizon=float(self.max_steps), resources=("goodwill",),
+                        constraints=("no_walkout",), milestones=self.MILESTONES,
+                        failure_causes=("deadline", "constraint:no_walkout", "abandoned", "agreement_below_target"))
+
+    def _ua(self):
+        return float(self.u_a_all[self._idx(self.agreement)]) if self.agreement is not None else 0.0
+
+    def task_status(self):
+        mood = 1.0 if self.patience >= 3 else (0.5 if self.patience == 2 else 0.0)  # observable as MOOD
+        ms = {"learned_preference": bool(self.known), "counteroffer": self.last_cp is not None,
+              "offer_50pct": self.best_cp_ua >= 0.5 * self.target, "offer_80pct": self.best_cp_ua >= 0.8 * self.target,
+              "agreement": self.agreement is not None}
+        return Status(progress=self.progress(), clock=float(self.round), time_left=max(0.0, 1 - self.round / self.max_steps),
+                      resources={"goodwill": mood}, milestones=ms,
+                      violated="no_walkout" if self.end_reason == "constraint:no_walkout" else None,
+                      costs={"rounds": float(self.round)})
+
+    def failure_cause(self):
+        if not self.done or self.success:
+            return None
+        if self.end_reason:
+            return self.end_reason
+        return "agreement_below_target" if self.agreement is not None else "deadline"
+
+    def hindsight_goals(self):
+        """An agreement below the target verifiably achieved the same negotiation goal with the target
+        lowered to the agreement's utility (floored to the goal's numeric bin)."""
+        if not self.done or self.success or self.agreement is None:
+            return []
+        u = self._ua()
+        k = int(np.floor(u * 20 + 1e-9))
+        if k <= 0:
+            return []
+        g = self.goal_tokens()
+        return [(g[:-1] + [f"N{k}"], None)]
 
     def hidden(self):
         return {"cp_type": self.cp_type, "w_c": self.w_c.round(3).tolist(), "r_c": round(self.r_c, 3),

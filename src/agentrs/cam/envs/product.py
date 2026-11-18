@@ -18,7 +18,7 @@ import copy
 
 import numpy as np
 
-from agentrs.cam.envs.base import CamEnv, Grammar, StepResult, logb, nb
+from agentrs.cam.envs.base import CamEnv, Contract, Grammar, Status, StepResult, logb, nb
 
 NF, NS, NC = 6, 4, 4
 FEATS = [f"F{i}" for i in range(NF)]
@@ -57,6 +57,9 @@ class ProductEnv(CamEnv):
         self.eff = np.array([0.020, 0.010, 0.014, 0.0]) * g.uniform(0.7, 1.3, size=NC)
         self.week = 0
         self.budget = float(g.uniform(60_000, 120_000))
+        self.budget0 = self.budget
+        self.spent_total = 0.0
+        self.peak_active = 0.0
         self.built = np.zeros(NF, dtype=bool)
         self.building: dict[int, int] = {}
         self.price = 2
@@ -71,6 +74,7 @@ class ProductEnv(CamEnv):
         self.answer = None
         self.target = 1.0
         self.target = max(500.0, self._expert_users() * self.rng.uniform(0.45, 0.7))
+        self.target_full = self.target
         if split == "train" and self.difficulty < 1.0:  # curriculum: easier goals during training only
             self.target = max(50.0, self.target * self.difficulty)
 
@@ -122,6 +126,8 @@ class ProductEnv(CamEnv):
             revenue = float((self.active * PRICES[self.price] / 4.3 * 0.6).sum())
             spent = float(self.spend.sum())
             self.budget += revenue - spent
+            self.spent_total += spent
+            self.peak_active = max(self.peak_active, float(self.active.sum()))
             self.spend_left = np.maximum(0, self.spend_left - 1)
             self.spend = np.where(self.spend_left > 0, self.spend, 0.0)
             self.last = {"signups": float(arrived.sum()), "churn": float(churned.sum()), "revenue": revenue,
@@ -207,6 +213,7 @@ class ProductEnv(CamEnv):
             sens = "HIGH" if self.sens[s] > 0.08 else ("MED" if self.sens[s] > 0.04 else "LOW")
             self.research[s] = (top, sens)
             self.budget -= 2000
+            self.spent_total += 2000
             ev["research_done"] = True
         elif typ == "BUILD":
             f = FEATS.index(action[1])
@@ -215,6 +222,7 @@ class ProductEnv(CamEnv):
             else:
                 self.building[f] = self.rng.randint(2, 4)
                 self.budget -= 15_000
+                self.spent_total += 15_000
         elif typ == "SETPRICE":
             self.price = int(action[1][1])
         elif typ == "CAMPAIGN":
@@ -227,6 +235,7 @@ class ProductEnv(CamEnv):
             else:
                 self.onb += 1
                 self.budget -= 8000
+                self.spent_total += 8000
                 weeks = 2
         elif typ == "WAIT":
             weeks = int(action[1][1])
@@ -239,6 +248,44 @@ class ProductEnv(CamEnv):
 
     def hidden(self):
         return {"sizes": self.sizes.round().tolist(), "target": round(self.target), "sens": self.sens.round(3).tolist()}
+
+    # ------------------------------------------------------------------ task contract
+    MILESTONES = ("researched", "feature_shipped", "users_10pct", "users_25pct", "users_50pct", "retention", "revenue")
+
+    def contract(self):
+        return Contract(clock="week", horizon=float(WEEKS), resources=("budget",), constraints=("solvent",),
+                        milestones=self.MILESTONES, failure_causes=("deadline", "constraint:solvent"))
+
+    def task_status(self):
+        act = float(self.active.sum())
+        churn_rate = self.last["churn"] / max(1.0, act + self.last["churn"])
+        ms = {"researched": bool(self.research), "feature_shipped": bool(self.built.any()),
+              "users_10pct": act >= 0.1 * self.target, "users_25pct": act >= 0.25 * self.target,
+              "users_50pct": act >= 0.5 * self.target, "retention": act >= 50 and churn_rate < 0.05,
+              "revenue": self.last["revenue"] > 0}
+        return Status(progress=self.progress(), clock=float(self.week), time_left=max(0.0, 1 - self.week / WEEKS),
+                      resources={"budget": max(0.0, self.budget) / self.budget0}, milestones=ms,
+                      violated="solvent" if self.budget < 0 else None,
+                      costs={"money": self.spent_total, "weeks": float(self.week)})
+
+    def failure_cause(self):
+        if not self.done or self.success:
+            return None
+        return "constraint:solvent" if self.budget < 0 else "deadline"
+
+    def hindsight_goals(self):
+        """A solvent company that reached the deadline verifiably achieved 'grow to N active users by week
+        26' for N = its final active users (only below the given target; bankruptcy achieves nothing)."""
+        if not self.done or self.success or self.budget < 0 or self.week < WEEKS:
+            return []
+        n = float(self.active.sum())
+        if n < 50:
+            return []
+        return [(["GOAL", "GROW", "USERS", "TARGET", logb(n, 200_000), "BY", "WEEK", nb(WEEKS, 0, 26)], None)]
+
+    def retarget(self, difficulty: float) -> None:
+        if self.split == "train":
+            self.target = max(50.0, self.target_full * min(1.0, difficulty))
 
 
 GRAMMAR = Grammar({"RESEARCH": [SEGS], "BUILD": [FEATS], "SETPRICE": [["P0", "P1", "P2", "P3", "P4", "P5"]],
