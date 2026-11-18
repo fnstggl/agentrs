@@ -188,6 +188,11 @@ class Workers:
                 s["feat"] = feat_after
                 s["t"] += 1
                 total_steps += 1
+                if not res.done and len(ep.steps) >= 2 * env.max_steps:  # hard guard: no environment may run forever
+                    res.done, res.success = True, False
+                    env.done, env.success = True, False
+                    ep.steps[-1].done = True
+                    ep.truncated_by_guard = True
                 if res.done:
                     ep.success = bool(res.success)
                     done_eps.append(ep)

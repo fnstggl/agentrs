@@ -114,3 +114,18 @@ def test_world_model_learning_improves_heldout_prediction(model):
     assert after["feat_mse"] < before["feat_mse"]
     assert after["event_brier"] < before["event_brier"]
     assert after["belief_std"] > 1e-3                # no collapse to a constant representation
+
+
+def test_every_environment_terminates_under_a_repeated_action():
+    """Regression: a greedy policy repeating one (even invalid) action must still reach the step limit."""
+    for name, E in ENVS.items():
+        g = E().grammar()
+        for typ in g.spec:
+            e = E()
+            e.reset(1, "train")
+            a = [typ] + [slots[0] for slots in g.spec[typ]]
+            n = 0
+            while not e.done and n < 5 * e.max_steps:
+                e.step(a)
+                n += 1
+            assert e.done, (name, typ)

@@ -191,8 +191,10 @@ class NegotiationEnv(CamEnv):
                 ev["agreement"] = True
                 self.last_resp = "ACCEPTED"
                 self._finish(True)
-            else:
+            else:  # nothing on the table to accept: invalid, but the round is used up
                 self.last_resp = "REJECTED"
+                if self.round >= self.max_steps:
+                    self._finish(False)
                 return self._out(ev, el, valid=False)
         elif typ == "WALK":
             self.last_resp = "LEFT"
