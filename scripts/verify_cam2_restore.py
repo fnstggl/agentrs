@@ -50,7 +50,7 @@ def main() -> int:
     with gzip.open(shard, "rb") as f:
         eps = pickle.load(f)
     random.Random(0).shuffle(eps)
-    views = [View(e, list(e.goal), len(e.steps)) for e in eps[:16]]
+    views = [View(e, list(e.goal), len(e.steps), goal_sem=e.goal_sem) for e in eps[:16]]
 
     def score(m):
         torch.manual_seed(1)

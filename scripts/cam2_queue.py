@@ -50,7 +50,7 @@ def gpu_cam_procs() -> list[int]:
             continue
         try:
             cmd = (p / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="ignore")
-            if "agentrs.cam.train" not in cmd and "agentrs.cam.v2.train" not in cmd:
+            if "agentrs.cam.train" not in cmd and "agentrs.cam.v2.train" not in cmd and "hybrid_llm_baseline" not in cmd:
                 continue
             env = (p / "environ").read_bytes()
             if b"CUDA_VISIBLE_DEVICES=\0" in env:  # CPU-only process
@@ -100,7 +100,7 @@ def main() -> int:
             s = st.setdefault(j["name"], {"status": "pending", "starts": 0})
             rd = root / j["name"]
             if s["status"] == "running" and not alive(s.get("pid")):
-                if phase(rd) == "done":
+                if phase(rd) == "done" or (j.get("script") and (rd / "result.json").exists()):
                     s.update(status="done", finished_at=time.time())
                     log(f"{j['name']} finished")
                 elif s["starts"] < 3:
@@ -139,15 +139,18 @@ def main() -> int:
                     continue
                 rd = root / j["name"]
                 rd.mkdir(parents=True, exist_ok=True)
-                sets = [f"run_dir={rd}"] + [f"{k}={json.dumps(v)}" for k, v in (j.get("set") or {}).items()]
                 env = {**os.environ, "PYTHONPATH": str(src), "OMP_NUM_THREADS": "6", "MKL_NUM_THREADS": "6",
-                       "PYTHONUNBUFFERED": "1", "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"}
+                       "PYTHONUNBUFFERED": "1", "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True", "HF_HUB_OFFLINE": "1"}
                 env.pop("CUDA_VISIBLE_DEVICES", None)
+                if j.get("script"):  # evaluation-only script job (e.g. the frozen-LLM baseline); done when it writes its output
+                    cmd = [PY, "-u", j["script"], *[str(x).replace("{run_dir}", str(rd)) for x in j.get("args", [])]]
+                else:
+                    sets = [f"run_dir={rd}"] + [f"{k}={json.dumps(v)}" for k, v in (j.get("set") or {}).items()]
+                    cmd = [PY, "-u", "-m", "agentrs.cam.v2.train", "--config", j["config"], "--set", *sets]
                 with open(rd / "stdout.log", "a") as lf:
-                    p = subprocess.Popen([PY, "-u", "-m", "agentrs.cam.v2.train", "--config", j["config"], "--set", *sets],
-                                         cwd=str(src.parent), env=env, stdout=lf, stderr=subprocess.STDOUT, start_new_session=True)
+                    p = subprocess.Popen(cmd, cwd=str(src.parent), env=env, stdout=lf, stderr=subprocess.STDOUT, start_new_session=True)
                 s.update(status="running", pid=p.pid, starts=s["starts"] + 1, started_at=time.time(), run_dir=str(rd))
-                if not (s.get("watcher_pid") and alive(s["watcher_pid"])):
+                if not j.get("script") and not (s.get("watcher_pid") and alive(s["watcher_pid"])):
                     wenv = {**os.environ, "PYTHONPATH": str(MAIN / "src"), "PYTHONUNBUFFERED": "1"}
                     with open(rd / "gh_backup.log", "a") as wf:
                         w = subprocess.Popen(["nice", "-n", "5", PY, "-u", "-m", "agentrs.gh_backup", "watch", "--run", str(rd),

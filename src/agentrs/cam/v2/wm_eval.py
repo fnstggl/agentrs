@@ -53,7 +53,7 @@ def open_loop(m, eps, lam: dict, ks=(1, 2, 4, 8), max_starts: int = 6, seed: int
     m.eval()
     rng = random.Random(seed)
     dev = m.device
-    views = [View(e, list(e.goal), len(e.steps)) for e in eps if e.n_learn > 0]
+    views = [View(e, list(e.goal), len(e.steps), goal_sem=e.goal_sem) for e in eps if e.n_learn > 0]
     out = {f"ret_abs_err_k{k}": [] for k in ks}
     viol_p = {k: [] for k in ks}
     viol_y = {k: [] for k in ks}
@@ -164,13 +164,27 @@ class _Agent:
 
     def __init__(self, m, fam, goal):
         self.m, self.fam = m, fam
-        self.g = m.encode_goal(m.ids([[f"FAM_{fam}"] + goal], 48))
+        if m.semantic:  # natural-language goal through the frozen semantic encoder attached at runtime
+            from agentrs.cam.text.render import goal_text
+
+            v = m.sem_encoder.encode([goal_text(fam, goal, getattr(m, "text_style", "train"), key=("eval", 0, "goal"))])
+            self.g = m.encode_goal(torch.tensor(v, device=m.device))
+        else:
+            self.g = m.encode_goal(m.ids([[f"FAM_{fam}"] + goal], 48))
+        self.t = 0
         self.h, self.z = m.initial(1)
         self.prev, self.el, self.opt, self.first = ["<bos>"], 0.0, 0, True
 
     def observe(self, env):
         m = self.m
-        obs = m.pad_ids([[m.tok[t] for t in [f"FAM_{self.fam}"] + env.obs_tokens()][:m.cfg.max_obs]], m.cfg.max_obs)
+        if m.semantic:
+            from agentrs.cam.text.render import obs_text
+
+            obs = torch.tensor(m.sem_encoder.encode([obs_text(self.fam, env.obs_tokens(), getattr(m, "text_style", "train"),
+                                                              key=("eval", self.t))]), device=m.device)
+            self.t += 1
+        else:
+            obs = m.pad_ids([[m.tok[t] for t in [f"FAM_{self.fam}"] + env.obs_tokens()][:m.cfg.max_obs]], m.cfg.max_obs)
         st = torch.tensor(status_vector(env.contract(), env.task_status())[None], device=m.device)
         self.h, _ = m.img_step(self.h, self.z, m.wm_act_enc(m.ids([self.prev], m.cfg.max_act + 2)))
         e = m.encode_obs(obs, torch.tensor([self.el], device=m.device, dtype=torch.float32), st)

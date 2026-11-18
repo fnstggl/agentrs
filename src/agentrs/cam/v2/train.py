@@ -34,7 +34,7 @@ from agentrs.cam.contract import RewardContract, RewardSpec
 from agentrs.cam.v2.collector import Collector, summarize
 from agentrs.cam.v2.data import Archive, Replay
 from agentrs.cam.v2.dream import Dreamer
-from agentrs.cam.v2.learner import OffPolicy, observe
+from agentrs.cam.v2.learner import OffPolicy, _grammar, decision_logprob, observe, ppo_update, wm_step
 from agentrs.cam.v2.model import CAM2, CAM2Config
 from agentrs.cam.v2.wm_eval import corrupted, counterfactual_ranking, open_loop, planning_eval
 
@@ -76,6 +76,13 @@ class TrainConfig2(BaseModel):
     audit_episodes: int = 30
     init_from: str = ""              # transfer: initialise all CAM-v2 weights from another run's checkpoint dir
     monitor_families: list = []      # evaluated at every gate but never trained (forgetting / transfer curves)
+    # ---- CAM + frozen pretrained semantic foundation (natural-language observations / goals)
+    semantic: dict = {}              # {"model": "Qwen/Qwen3-0.6B", "layers": [0.5, 1.0], "batch": 64}; {} = structured CAM
+    eval_at_interactions: list = []  # milestone evaluations (+ kept checkpoints) at these real-interaction counts
+    eval_heldout_wording: bool = False   # semantic runs: also evaluate on unfamiliar wording of the same situations
+    final_frontends: list = []       # structured runs: deploy on natural language via "parser" / "llm:<model>" front-ends
+    final_reset_evals: bool = False  # arm E: reset CAM components (frozen LM kept) and re-evaluate
+    final_nl_episodes: int = 100     # episodes per family for natural-language / front-end / reset evaluations
 
     @model_validator(mode="after")
     def _no_flow_mapping_typos(self):
@@ -116,7 +123,22 @@ class Trainer2:
         if torch.cuda.is_available():
             torch.cuda.set_per_process_memory_fraction(cfg.gpu_mem_fraction)
         self.dev = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model = CAM2(CAM2Config(**cfg.model)).to(self.dev)
+        self.encoder = None
+        mcfg = dict(cfg.model)
+        if cfg.semantic:
+            from agentrs.cam.hybrid.semantic import FrozenSemanticEncoder, HashingTextEncoder
+
+            if cfg.semantic.get("model") == "hashing-test":  # plumbing tests only
+                self.encoder = HashingTextEncoder(cfg.semantic.get("dim", 96))
+            else:
+                self.encoder = FrozenSemanticEncoder(cfg.semantic.get("model", "Qwen/Qwen3-0.6B"),
+                                                     tuple(cfg.semantic.get("layers", (0.5, 1.0))), device=self.dev,
+                                                     batch=cfg.semantic.get("batch", 64))
+            mcfg.update(obs_source="semantic", sem_dim=self.encoder.dim)
+        self.model = CAM2(CAM2Config(**mcfg)).to(self.dev)
+        if self.encoder is not None:
+            self.model.sem_encoder, self.model.text_style = self.encoder, "train"
+        self.ppo = cfg.learner.get("actor") == "ppo"
         self.learner = OffPolicy(self.model, cfg.learner)
         self.dreamer = Dreamer(self.model, {**cfg.dream, "gamma": cfg.reward.get("gamma", 0.99)}) if cfg.dream else None
         self.rc = RewardContract(RewardSpec(**cfg.reward))
@@ -144,9 +166,11 @@ class Trainer2:
                 self.model.load_state_dict(torch.load(Path(cfg.init_from) / "weights.pt", map_location=self.dev))
                 self.state["init_from"] = cfg.init_from
                 self.log(f"initialised CAM-v2 weights from {cfg.init_from}")
+            if self.encoder is not None:
+                self.state["semantic"] = {**self.encoder.describe(), "fingerprint_start": self.encoder.fingerprint()}
             self.run_audit()
             self.save_state()
-            self.log(f"new CAM-v2 run: {self.model.n_params()}")
+            self.log(f"new CAM-v2 run: {self.model.n_params()}" + (f" | frozen semantic model {self.encoder.describe()}" if self.encoder else ""))
         cur = self.state.setdefault("curriculum", {})
         for fam, cc in cfg.curriculum.items():
             cur.setdefault(fam, float(cc.get("start", 1.0)))
@@ -156,7 +180,8 @@ class Trainer2:
                 self.archive.min_used.setdefault(f, cfg.archive.get("rev_start", 0.5))
         self.collector = Collector(self.model, cfg.workers, cfg.train_families, "train", seed0=self.state["iter"] * 100_000,
                                    gen_seed=cfg.seed + self.state["iter"], reward=self.rc, lam=lam, difficulty=cur,
-                                   archive=self.archive, archive_frac=cfg.archive.get("frac", 0.0), env_version=ENV_VERSION)
+                                   archive=self.archive, archive_frac=cfg.archive.get("frac", 0.0), env_version=ENV_VERSION,
+                                   semantic=self.encoder, store_feat=self.ppo)
         self.rng = random.Random(cfg.seed + 17 * self.state["iter"])
 
     # ------------------------------------------------------------------ infra
@@ -240,15 +265,17 @@ class Trainer2:
               "gpu_mem_gb": torch.cuda.max_memory_allocated() / 2**30 if torch.cuda.is_available() else None})
 
     # ------------------------------------------------------------------ evaluation
-    def evaluate(self, tag: str, split: str, families: list[str], n: int, wm: bool = False, greedy: bool = True) -> dict:
+    def evaluate(self, tag: str, split: str, families: list[str], n: int, wm: bool = False, greedy: bool = True,
+                 style: str = "train", frontend=None) -> dict:
         self._sync()
         t0 = time.time()
         col = Collector(self.model, min(self.cfg.workers, n * len(families)), {f: 1.0 for f in families}, split,
                         seed0=1_000_000 if split == "val" else 0, gen_seed=12345, reward=self.rc, lam=self.state["lagrange"],
-                        env_version=ENV_VERSION)
+                        env_version=ENV_VERSION, semantic=self.encoder, text_style=style, frontend=frontend)
         fixed = [(f, (1_000_000 if split == "val" else 0) + i) for f in families for i in range(n)]
         eps = col.collect(greedy=greedy, version=f"v{self.state['version']}", fixed=fixed)
-        rec = {"tag": tag, "split": split, "greedy": greedy, "iter": self.state["iter"], "version": self.state["version"], "time": time.time(),
+        rec = {"tag": tag, "split": split, "greedy": greedy, "style": style, "frontend": getattr(frontend, "kind", None),
+               "iter": self.state["iter"], "version": self.state["version"], "time": time.time(),
                "by_family": summarize(eps), "env_interactions_so_far": self.state["counters"]["transitions"],
                "compute_s_so_far": dict(self.state["compute_s"])}
         if wm:
@@ -288,6 +315,16 @@ class Trainer2:
         self._sync()
         t1 = time.time()
         self.state["compute_s"]["collect"] += t1 - t0
+        ppo_stats = {}
+        if self.ppo:  # on-policy update from this iteration's episodes (exact stored actor inputs), then drop them
+            ppo_stats = ppo_update(self.learner, eps, self.state["lagrange"], c.learner, self.rng)
+            for e in eps:
+                e.goal_feat = None
+                for s_ in e.steps:
+                    s_.feat = None
+                    s_.__dict__.pop("_adv", None)
+                    s_.__dict__.pop("_ret", None)
+            cnt["grad_updates"] += ppo_stats.get("updates", 0)
         self.replay.add(eps, it)
         new_steps = sum(e.n_learn for e in eps)
         prev_tr = cnt["transitions"]
@@ -311,11 +348,16 @@ class Trainer2:
         lst: dict = {}
         if self.replay.steps() >= c.learn_start_steps:
             for _ in range(c.updates_per_iter):
-                views = self.replay.sample(c.batch_episodes, self.rng, c.her_p, c.prot_frac, shaping=self.rc.spec.shaping)
-                st = self.learner.update(views, self.state["lagrange"], self.rng)
+                if self.ppo:  # world model (and its semantic bridge) from replayed real episodes
+                    st = wm_step(self.learner, self.replay.sample(c.batch_episodes, self.rng, 0.0, c.prot_frac), self.rng)
+                else:
+                    views = self.replay.sample(c.batch_episodes, self.rng, c.her_p, c.prot_frac, shaping=self.rc.spec.shaping)
+                    st = self.learner.update(views, self.state["lagrange"], self.rng)
+                    cnt["grad_updates"] += 1
                 for k, v in st.items():
                     lst.setdefault(k, []).append(v)
-                cnt["grad_updates"] += 1
+        for k, v in ppo_stats.items():
+            lst.setdefault(f"ppo_{k}", []).append(v)
         self._sync()
         t2 = time.time()
         self.state["compute_s"]["learn"] += t2 - t1
@@ -380,6 +422,9 @@ class Trainer2:
                  + (f" | q {L.get('q_loss', 0):.4f} v {L.get('v_loss', 0):.4f} adv {L.get('adv_mean', 0):+.3f} ent {L.get('entropy', 0):.2f}"
                     f" wm(kl {L.get('wm_kl_dyn', 0):.2f} rew {L.get('wm_rew', 0):.4f} ens {L.get('wm_ens', 0):.3f})" if L else " | (warm-up)")
                  + (f" | dream len {rec['dream'].get('dream_len_mean', 0):.2f} kappa {rec['dream'].get('dream_kappa', 0):.2f}" if dst else "")
+                 + (f" | ppo pg {L.get('ppo_pg', 0):.3f} ent {L.get('ppo_entropy', 0):.2f} kl {L.get('ppo_kl', 0):.4f} "
+                    f"clip {L.get('ppo_clipfrac', 0):.2f} mism {L.get('ppo_mismatch', 0):.1e}" if self.ppo else "")
+                 + (f" | sem {self.encoder.stats['forward_s']:.0f}s total" if self.encoder is not None else "")
                  + f" | lam {json.dumps({k: round(v, 2) for k, v in lam.items()})} diff {json.dumps({k: round(v, 3) for k, v in cur.items()})}"
                  + f" | replay {rec['replay']['steps']} reuse {rec['replay']['replay_ratio']:.1f}"
                  + f" | collect {rec['collect_s']}s learn {rec['learn_s']}s dream {rec['dream_s']}s")
@@ -394,7 +439,24 @@ class Trainer2:
                 shutil.rmtree(self.ck / self.state["snapshots"].pop(0), ignore_errors=True)
         if it % c.eval_every == 0:
             self.gate()
+        for th in c.eval_at_interactions:
+            if prev_tr < th <= cnt["transitions"]:
+                self.milestone(th)
         self.save_state()
+
+    def milestone(self, th: int) -> None:
+        """Matched-experience evaluation: validation (training wording; held-out wording for semantic runs) and a
+        kept checkpoint, at a fixed number of real interactions."""
+        fams = list(self.cfg.train_families)
+        rec = self.evaluate(f"m{th}", "val", fams, self.cfg.eval_episodes, wm=True)
+        score, best = self.val_score(rec), self.state["best"]
+        if best is None or score >= best["score"]:
+            self.state["best"] = {"version": self.state["version"], "cycle": self.state["iter"], "score": score, "ckpt": "best",
+                                  "interactions": th}
+            self.save("best", f"best validation at the {th}-interaction milestone")
+        if self.encoder is not None and self.cfg.eval_heldout_wording:
+            self.evaluate(f"m{th}-heldout", "val", fams, self.cfg.eval_episodes, style="heldout")
+        self.save(f"m{th}", f"milestone at {th} real interactions")
 
     def dream_step(self) -> dict:
         c = self.cfg
@@ -446,6 +508,8 @@ class Trainer2:
         if self.state["phase"] == "train":
             if not any(e["tag"] == "untrained" for e in self.state["evals"]):
                 self.evaluate("untrained", "val", list(c.train_families), c.eval_episodes)
+                if self.encoder is not None and c.eval_heldout_wording:
+                    self.evaluate("untrained-heldout", "val", list(c.train_families), c.eval_episodes, style="heldout")
                 self.save("initial", "untrained CAM-v2")
             while not self.stop and self.time_left() > c.final_reserve_h * 3600 and not (self.dir / "STOP").exists() \
                     and self.budget_left():
@@ -473,11 +537,11 @@ class Trainer2:
                       for f in fams}
                 val = [e for e in self.state["evals"] if e["split"] == "val" and e.get("world_model")]
                 col = Collector(self.model, 64, {f: 1.0 for f in c.train_families}, "val", seed0=3_000_000, gen_seed=7,
-                                reward=self.rc, lam=self.state["lagrange"])
+                                reward=self.rc, lam=self.state["lagrange"], semantic=self.encoder)
                 eps = col.collect(greedy=True, fixed=[(f, 3_000_000 + i) for f in c.train_families for i in range(64)])
                 clean = open_loop(self.model, eps, self.state["lagrange"])
                 col_t = Collector(self.model, 64, {f: 1.0 for f in c.train_families}, "test", seed0=0, gen_seed=7,
-                                  reward=self.rc, lam=self.state["lagrange"])
+                                  reward=self.rc, lam=self.state["lagrange"], semantic=self.encoder)
                 ood = open_loop(self.model, col_t.collect(greedy=True, fixed=[(f, 5_000 + i) for f in c.train_families
                                                                              for i in range(64)]), self.state["lagrange"])
                 bad_model = corrupted(self.model, 0.5)
@@ -504,6 +568,8 @@ class Trainer2:
                 self.log("counterfactual ranking: " + "; ".join(f"{f} spearman {v['spearman']:.2f} top1 {v['top1_agreement']:.2f} "
                                                                f"(chance {v['chance_top1']:.2f})" for f, v in cf.items())
                          + f" | gate clean {probe.reliability:.2f} corrupted {probe_bad.reliability:.2f}")
+            if "hybrid_final" not in self.state:
+                self.hybrid_final()
             self.state["phase"] = "done"
             self.state["finished_at"] = time.time()
             self.save_state()
@@ -531,3 +597,97 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+
+def _reinit(mod: torch.nn.Module, seed: int) -> None:
+    torch.manual_seed(seed)
+    for sub_ in mod.modules():
+        if hasattr(sub_, "reset_parameters"):
+            sub_.reset_parameters()
+
+
+def _hybrid_final(self) -> None:
+    """Final controls: frozen-LM integrity, how much CAM changed, CAM-reset (arm E) and natural-language
+    deployment of a structured CAM through text front-ends (arm C)."""
+    c = self.cfg
+    fams = list(c.train_families) + list(c.heldout_families)
+    nn_ = c.final_nl_episodes
+    out = {}
+    trained = {k: v.detach().clone() for k, v in self.model.state_dict().items()}
+    if (self.ck / "initial" / "weights.pt").exists():
+        init = torch.load(self.ck / "initial" / "weights.pt", map_location=self.dev)
+        groups = self.model.groups()
+        names = {id(p): n for n, p in self.model.named_parameters()}
+        out["param_change_vs_initial"] = {
+            g: float(sum(((trained[names[id(p)]] - init[names[id(p)]]).float() ** 2).sum() for p in ps) ** 0.5
+                     / max(1e-9, sum((init[names[id(p)]].float() ** 2).sum() for p in ps) ** 0.5)) for g, ps in groups.items()}
+        # did the action distributions change because of learning? same real states, initial vs trained CAM
+        col = Collector(self.model, 64, {f: 1.0 for f in c.train_families}, "val", seed0=6_000_000, gen_seed=3, reward=self.rc,
+                        lam=self.state["lagrange"], semantic=self.encoder)
+        eps = col.collect(greedy=False, fixed=[(f, 6_000_000 + i) for f in c.train_families for i in range(32)])
+        from agentrs.cam.v2.data import View
+
+        views = [View(e, list(e.goal), len(e.steps), goal_sem=e.goal_sem) for e in eps]
+
+        def lps():
+            torch.manual_seed(5)
+            with torch.no_grad():
+                ob = observe(self.model, views)
+                dec = [(i, t) for i, v in enumerate(views) for t in range(len(v.steps))]
+                k = torch.tensor([ob["pos"][x] for x in dec], device=self.dev)
+                gi = torch.tensor([i for i, _ in dec], device=self.dev)
+                return decision_logprob(self.model, ob["feat"][k], ob["goal"][gi], [views[i].steps[t] for i, t in dec],
+                                        [_grammar(views[i].ep.family) for i, _ in dec])[0]
+        lp_trained = lps()
+        self.model.load_state_dict(init)
+        lp_init = lps()
+        self.model.load_state_dict(trained)
+        out["decision_logprob_change"] = {"mean_abs": float((lp_trained - lp_init).abs().mean()), "decisions": int(lp_trained.numel()),
+                                          "mean_trained": float(lp_trained.mean()), "mean_initial": float(lp_init.mean())}
+    styles = ["train", "heldout"] if self.encoder is not None else ["train"]
+    if c.final_reset_evals:
+        resets = {"reset_all": None}
+        if self.encoder is not None:
+            resets["reset_bridge"] = [self.model.sem_obs, self.model.sem_goal]
+        resets["reset_actor"] = [self.model.act_emb, self.model.opt_emb, self.model.opt_pi, self.model.opt_beta,
+                                 self.model.dec_init, self.model.dec_cell, self.model.dec_out]
+        for name, mods in resets.items():
+            if mods is None:
+                _reinit(self.model, c.seed + 1000)
+            else:
+                for mod in mods:
+                    _reinit(mod, c.seed + 1000)
+            for sp_ in ("val", "test"):
+                for st_ in styles:
+                    self.evaluate(f"{name}-{st_}", sp_, fams, nn_, style=st_)
+            self.model.load_state_dict(trained)
+    if self.encoder is not None:
+        for sp_ in ("val", "test"):
+            if not any(e["tag"] == "final-heldout" and e["split"] == sp_ for e in self.state["evals"]):
+                self.evaluate("final-heldout", sp_, fams, nn_, style="heldout")
+        out["semantic_fingerprint_end"] = self.encoder.fingerprint()
+        out["semantic_model_unchanged"] = out["semantic_fingerprint_end"] == self.state["semantic"]["fingerprint_start"]
+        out["semantic_compute_s"] = self.encoder.stats["forward_s"]
+        out["semantic_stats"] = dict(self.encoder.stats)
+    for fe in c.final_frontends:
+        from agentrs.cam.hybrid.frontend import LLMFrontend, ParserFrontend
+
+        front = ParserFrontend() if fe == "parser" else LLMFrontend(fe.split(":", 1)[1])
+        # the LLM front-end generates per observation (slow on a shared GPU): unfamiliar wording only, fewer episodes
+        combos = [(sp_, st_) for sp_ in ("val", "test") for st_ in ("train", "heldout")] if fe == "parser" else \
+            [("val", "heldout"), ("test", "heldout")]
+        for sp_, st_ in combos:
+            self.evaluate(f"frontend-{fe}-{st_}", sp_, fams, nn_ if fe == "parser" else max(20, nn_ // 3), style=st_, frontend=front)
+        out[f"frontend_{fe}_stats"] = dict(front.stats)
+        del front
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    out["total_compute_s"] = dict(self.state["compute_s"])
+    self.state["hybrid_final"] = out
+    self.save_state()
+    self.log("hybrid final controls: " + json.dumps({k: v for k, v in out.items() if k in ("param_change_vs_initial", "decision_logprob_change",
+                                                                                         "semantic_model_unchanged")}, default=str))
+
+
+Trainer2.hybrid_final = _hybrid_final

@@ -1,0 +1,34 @@
+# CAM + frozen pretrained semantic foundation: shared settings. Arms differ ONLY in the `semantic` block
+# (and the evaluation-only controls). Learner: PPO inside CAM-v2 (RSSM world model trained from replay,
+# contract reward with shaping, product training-goal curriculum, constraint multiplier with the task
+# risk budget, light Go-Explore starts) — chosen because CAM-v2's off-policy learners had not learned
+# negotiation at matched budgets when these runs were configured. Validation/test tasks are unchanged.
+run_dir: /workspace/agentrs/runs/cam_hybrid/hy_A_struct_s1
+seed: 1
+hours: 5.0
+final_reserve_h: 0.7
+train_families: {negotiation: 0.5, product: 0.5}
+heldout_families: [bizdev]
+model: {d: 256, deter: 512, stoch: 16, classes: 16, hidden: 512, layers: 3, heads: 4, n_options: 8, ens: 4}
+workers: 256
+steps_per_iter: 4096
+max_env_steps: 400000
+reward: {mode: contract, gamma: 0.99, shaping: 0.5, time_cost: 0.005}
+learner: {actor: ppo, wm_lr: 3.0e-4, actor_lr: 3.0e-4, critic_lr: 3.0e-4, epochs: 3, mb_episodes: 64, clip: 0.2,
+          target_kl: 0.1, ent_coef: 0.01, lam: 0.95, grad_clip: 1.0}
+updates_per_iter: 16
+batch_episodes: 32
+learn_start_steps: 4096
+replay_capacity: 60000
+her_p: 0.0
+lagrangian: {kappa: contract, lr: 0.2, max: 1.0, probe: 0.5}
+curriculum: {product: {start: 0.1, lo: 0.15, hi: 0.5, up: 1.5, down: 0.85, min: 0.05}}
+archive: {frac: 0.15, cells: 400, investigate: 0.0, rev_start: 0.5}
+eval_every: 100000                 # gating happens at the interaction milestones below
+eval_at_interactions: [10000, 50000, 100000, 200000, 300000, 400000]
+eval_episodes: 200
+test_episodes: 400
+cf_states: 20
+final_reset_evals: true
+final_nl_episodes: 100
+gpu_mem_fraction: 0.30

@@ -22,6 +22,7 @@ from agentrs.cam.contract import RewardContract
 from agentrs.cam.envs import ENVS
 from agentrs.cam.envs.base import status_vector
 from agentrs.cam.v2.data import Archive, Episode, Step
+from agentrs.cam.text.render import goal_text, obs_text
 from agentrs.cam.v2.model import CAM2
 
 
@@ -35,8 +36,14 @@ class Collector:
     def __init__(self, model: CAM2, n: int, families: dict[str, float], split: str = "train", seed0: int = 0,
                  gen_seed: int = 0, reward: Optional[RewardContract] = None, lam: Optional[dict] = None,
                  difficulty: Optional[dict] = None, archive: Optional[Archive] = None, archive_frac: float = 0.0,
-                 env_version: str = ""):
+                 env_version: str = "", semantic=None, text_style: str = "train", frontend=None, store_feat: bool = False):
         self.model, self.n, self.families, self.split = model, n, families, split
+        # natural-language interface: a frozen semantic encoder (semantic CAM) or a text->token front-end for a
+        # structured CAM (rule-based parser or frozen-LLM extraction); texts are rendered from the agent's tokens only
+        self.semantic, self.text_style, self.frontend = semantic, text_style, frontend
+        self.store_feat = store_feat  # PPO: keep the actor's exact inputs for on-policy ratios
+        if model.semantic and semantic is None:
+            raise ValueError("a semantic CAM needs the frozen semantic encoder")
         self.seed_ctr = {f: seed0 for f in families}
         self.rng = random.Random(gen_seed)
         self.gen = torch.Generator(device=model.device).manual_seed(gen_seed)
@@ -66,7 +73,18 @@ class Collector:
         if cell is not None:
             ep.n_prefix = len(cell["steps"])
             s["prefix"] = list(cell["steps"])
+        gt = goal_text(fam, ep.goal, self.text_style, key=(self.split, seed % 4, "goal"))  # 4 wordings per goal
+        if m.semantic:
+            s["goal_in"], s["goal_txt"] = None, gt  # encoded in one batch at the next round
+        elif self.frontend is not None:
+            s["goal_in"] = self.frontend.goal(fam, gt)
+        else:
+            s["goal_in"] = ep.goal
         return s
+
+    def _text_key(self, s):
+        e = s["ep"]
+        return (self.split, e.seed, e.start, len(e.steps))
 
     def _start(self, queue, version):
         if queue is not None:
@@ -118,30 +136,55 @@ class Collector:
             t0 = time.time()
             act = [i for i, s in enumerate(slots) if s is not None]
             S = [slots[i] for i in act]
+            if m.semantic:
+                miss = [s for s in S if s["goal_in"] is None]
+                if miss:
+                    for s, v in zip(miss, self.semantic.encode([s["goal_txt"] for s in miss])):
+                        s["ep"].goal_sem = s["goal_in"] = v
             # inputs: from the replayed archive prefix (burn-in) or from the live environment
-            obs_rows, prev_rows, el, stv, goals = [], [], [], [], []
-            for s in S:
+            obs_rows, prev_rows, el, stv, goals, sems, need, fe = [], [], [], [], [], [], [], []
+            for j, s in enumerate(S):
+                fam = s["ep"].family
                 if s["prefix"]:
                     p = s["prefix"][0]
                     obs_rows.append(list(p.obs))
                     prev_rows.append(list(p.prev_act))
                     el.append(p.elapsed_prev)
                     stv.append(p.status)
+                    sems.append(p.sem)
                 else:
-                    obs_rows.append([m.tok[t] for t in [f"FAM_{s['ep'].family}"] + s["env"].obs_tokens()][:cfg.max_obs])
+                    toks = s["env"].obs_tokens()
+                    obs_rows.append([m.tok[t] for t in [f"FAM_{fam}"] + toks][:cfg.max_obs])
+                    if m.semantic or self.frontend is not None:
+                        txt = obs_text(fam, toks, self.text_style, key=self._text_key(s))
+                        if m.semantic:
+                            need.append((j, txt))
+                        else:  # structured CAM reading text through a front-end (parser / LLM extraction)
+                            fe.append((j, fam, txt))
+                    sems.append(None)
                     prev_rows.append(s["prev_act"])
                     el.append(s["elapsed"])
                     stv.append(status_vector(s["c"], s["st"]))
-                goals.append([f"FAM_{s['ep'].family}"] + s["ep"].goal)
-            obs_ids = m.pad_ids(obs_rows, cfg.max_obs)
+                goals.append(s["goal_in"])
+            if fe:
+                for (j, fam, _), toks in zip(fe, self.frontend.obs_batch([f for _, f, _ in fe], [t for _, _, t in fe])):
+                    obs_rows[j] = [m.tok[t] for t in [f"FAM_{fam}"] + list(toks) if t in m.tok][:cfg.max_obs]
             prev_ids = m.ids(prev_rows, cfg.max_act + 2)
             elt = torch.tensor(el, device=dev, dtype=torch.float32)
             st_t = torch.tensor(np.stack(stv), device=dev, dtype=torch.float32)
-            g = m.encode_goal(m.ids(goals, 48))
+            if m.semantic:
+                if need:
+                    for (j, _), v in zip(need, self.semantic.encode([t for _, t in need])):
+                        sems[j] = v
+                obs_in = torch.tensor(np.stack(sems), device=dev)
+                g = m.encode_goal(torch.tensor(np.stack(goals), device=dev))
+            else:
+                obs_in = m.pad_ids(obs_rows, cfg.max_obs)
+                g = m.encode_goal(m.ids([[f"FAM_{s['ep'].family}"] + list(gl_) for s, gl_ in zip(S, goals)], 48))
             h_prev = torch.stack([s["h"] for s in S])
             z_prev = torch.stack([s["z"] for s in S])
             h, _ = m.img_step(h_prev, z_prev, m.wm_act_enc(prev_ids))
-            e = m.encode_obs(obs_ids, elt, st_t)
+            e = m.encode_obs(obs_in, elt, st_t)
             z = m.sample_z(m.post_logits(h, e), mode=greedy, gen=self.gen)
             feat = m.feat(h, z)
             for j, s in enumerate(S):
@@ -180,6 +223,7 @@ class Collector:
                     u_taken = m.ens_pred(fl, m.wm_act_enc(m.ids(toks, cfg.max_act + 2))).var(0).mean(-1).tolist()
                 self.stats["net_s"] += time.time() - t0
                 t1 = time.time()
+                pend: list = []  # semantic mode: terminal observations / hindsight goals to encode in one batch
                 for jj, j in enumerate(live):
                     s = S[j]
                     env, ep = s["env"], s["ep"]
@@ -213,7 +257,10 @@ class Collector:
                                events=pad(np.array([float(res.events.get(k, False)) for k in env.events], np.float32), cfg.n_events),
                                feat_after=pad(env.features(), cfg.n_feat), status_after=status_vector(s["c"], s1),
                                prog_before=s0.progress, prog_after=s1.progress, done=done, valid=res.valid,
-                               first=bool(first[jj]))
+                               first=bool(first[jj]), sem=sems[j],
+                               feat=fl[jj].to(torch.float16).cpu().numpy() if self.store_feat else None)
+                    if self.store_feat and ep.goal_feat is None:
+                        ep.goal_feat = gl[jj].to(torch.float16).cpu().numpy()
                     ep.steps.append(stp)
                     s["feat"] = stp.feat_after
                     s["st"], s["prev_act"], s["elapsed"], s["opt"] = s1, toks[jj], res.elapsed_h, int(opt[jj])
@@ -232,12 +279,24 @@ class Collector:
                         ep.final = {"time_left": s1.time_left, "resources": dict(s1.resources), "clock": s1.clock}
                         ep.final_obs = [m.tok[t] for t in [f"FAM_{ep.family}"] + env.obs_tokens()][:cfg.max_obs]
                         ep.final_elapsed = float(res.elapsed_h)
+                        if m.semantic:
+                            pend.append((ep, "final", obs_text(ep.family, env.obs_tokens(), self.text_style, key=self._text_key(s))))
                         if self.split == "train" and not succ:
                             ep.hindsight = [(list(gl_), u) for gl_, u in env.hindsight_goals()]
+                            if m.semantic:
+                                for hi, (gl_, _) in enumerate(ep.hindsight):
+                                    pend.append((ep, hi, goal_text(ep.family, gl_, self.text_style, key=(self.split, ep.seed % 4, "goal"))))
                         if s["cell"] is not None and self.archive is not None:
                             self.archive.result(s["cell"], succ)
                         done_eps.append(ep)
                         slots[act[j]] = self._start(queue, version) if want_more() else None
+                if pend:
+                    for (ep_, what, _), v in zip(pend, self.semantic.encode([t for _, _, t in pend])):
+                        if what == "final":
+                            ep_.final_sem = v
+                        else:
+                            gl_, u_ = ep_.hindsight[what][:2]
+                            ep_.hindsight[what] = (gl_, u_, v)
                 self.stats["env_s"] += time.time() - t1
             self.stats["steps"] += len(live)
             self.stats["rounds"] += 1

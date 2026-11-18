@@ -1,0 +1,28 @@
+# CAM + frozen pretrained semantic foundation (additional, independent experiment arms).
+# Runs as EXTRA capacity next to the CAM-v2/v2.1 queues (limit 11 total CAM GPU processes, at least 12 GB free),
+# so it never takes slots the existing queues would use; script jobs (frozen-LLM baseline) count as GPU jobs.
+runs_root: /workspace/agentrs/runs/cam_hybrid
+src: /workspace/agentrs-cam-hybrid-exp/src   # frozen experiment code (tag cam-hybrid-exp-v1)
+max_with_qwen: 3
+max_without_qwen: 11
+min_free_mib: 12000
+start_deadline_utc: "2026-11-18T18:00:00+00:00"
+reserved_programs: []
+jobs:
+  # Arm A: structured CAM (tokens, learned from scratch); at the end also deployed on natural language
+  # through the rule-based parser and frozen-LLM structured extraction (arm C), and reset (arm E control)
+  - {name: hy_A_struct_s1, config: configs/cam_hybrid/base.yaml, set: {seed: 1, final_frontends: [parser, "llm:Qwen/Qwen3-4B"]}}
+  # Arm B: CAM + frozen Qwen3-0.6B hidden-state embeddings of natural-language observations/goals
+  - {name: hy_B_q06_s1, config: configs/cam_hybrid/base.yaml, set: {seed: 1, semantic: {model: Qwen/Qwen3-0.6B, layers: [0.5, 1.0], batch: 64}, eval_heldout_wording: true}}
+  # Arm D: frozen LLM acting directly (same information, same tasks)
+  - {name: hy_D_llm_q4b_val_train, script: scripts/hybrid_llm_baseline.py, args: [--model, Qwen/Qwen3-4B, --split, val, --style, train, --n, "60", --out, "{run_dir}/result.json"]}
+  - {name: hy_A_struct_s2, config: configs/cam_hybrid/base.yaml, set: {seed: 2, final_frontends: [parser]}}
+  - {name: hy_B_q06_s2, config: configs/cam_hybrid/base.yaml, set: {seed: 2, semantic: {model: Qwen/Qwen3-0.6B, layers: [0.5, 1.0], batch: 64}, eval_heldout_wording: true}}
+  - {name: hy_B_q4b_s1, config: configs/cam_hybrid/base.yaml, set: {seed: 1, semantic: {model: Qwen/Qwen3-4B, layers: [0.5, 1.0], batch: 24}, eval_heldout_wording: true, gpu_mem_fraction: 0.40}}
+  - {name: hy_D_llm_q4b_test_heldout, script: scripts/hybrid_llm_baseline.py, args: [--model, Qwen/Qwen3-4B, --split, test, --style, heldout, --n, "60", --out, "{run_dir}/result.json"]}
+  - {name: hy_D_llm_q06_val_train, script: scripts/hybrid_llm_baseline.py, args: [--model, Qwen/Qwen3-0.6B, --split, val, --style, train, --n, "60", --out, "{run_dir}/result.json"]}
+  # business-development transfer: zero-shot + learning speed, scratch vs initialised from the trained arm
+  - {name: hy_A_bizdev_scratch_s1, config: configs/cam_hybrid/base.yaml, set: {seed: 1, train_families: {bizdev: 1.0}, heldout_families: [], curriculum: {}, max_env_steps: 245760, eval_at_interactions: [10000, 50000, 100000, 200000, 245000], final_frontends: []}}
+  - {name: hy_B_bizdev_scratch_s1, config: configs/cam_hybrid/base.yaml, set: {seed: 1, train_families: {bizdev: 1.0}, heldout_families: [], curriculum: {}, max_env_steps: 245760, eval_at_interactions: [10000, 50000, 100000, 200000, 245000], semantic: {model: Qwen/Qwen3-0.6B, layers: [0.5, 1.0], batch: 64}, eval_heldout_wording: true}}
+  - {name: hy_A_bizdev_from_s1, after: hy_A_struct_s1, config: configs/cam_hybrid/base.yaml, set: {seed: 1, train_families: {bizdev: 1.0}, heldout_families: [], monitor_families: [negotiation, product], curriculum: {}, max_env_steps: 245760, eval_at_interactions: [10000, 50000, 100000, 200000, 245000], eval_every: 5, init_from: /workspace/agentrs/runs/cam_hybrid/hy_A_struct_s1/ckpt/best}}
+  - {name: hy_B_bizdev_from_s1, after: hy_B_q06_s1, config: configs/cam_hybrid/base.yaml, set: {seed: 1, train_families: {bizdev: 1.0}, heldout_families: [], monitor_families: [negotiation, product], curriculum: {}, max_env_steps: 245760, eval_at_interactions: [10000, 50000, 100000, 200000, 245000], eval_every: 5, semantic: {model: Qwen/Qwen3-0.6B, layers: [0.5, 1.0], batch: 64}, eval_heldout_wording: true, init_from: /workspace/agentrs/runs/cam_hybrid/hy_B_q06_s1/ckpt/best}}

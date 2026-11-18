@@ -51,6 +51,8 @@ class CAM2Config(BaseModel):
     n_status: int = N_STATUS
     ens: int = 4
     unimix: float = 0.01
+    obs_source: str = "tokens"   # "tokens" (structured, learned from scratch) | "semantic" (frozen pretrained LM vectors)
+    sem_dim: int = 0             # width of the frozen semantic vectors (semantic mode)
     vocab: list = []
 
 
@@ -67,8 +69,15 @@ class CAM2(nn.Module):
         F_ = self.F
         # ---------------- world model
         self.emb = nn.Embedding(V, d, padding_idx=0)
-        self.obs_enc = SeqEncoder(self.emb, d, cfg.layers, cfg.heads, cfg.max_obs)
-        self.goal_enc = SeqEncoder(self.emb, d, 1, cfg.heads, 48)
+        self.semantic = cfg.obs_source == "semantic"
+        if self.semantic:  # trainable semantic bridge from the frozen pretrained LM into CAM (part of the world model)
+            assert cfg.sem_dim > 0, "semantic mode needs sem_dim"
+            self.sem_obs = nn.Sequential(nn.LayerNorm(cfg.sem_dim), nn.Linear(cfg.sem_dim, H), nn.GELU(), nn.Linear(H, d))
+            self.sem_goal = nn.Sequential(nn.LayerNorm(cfg.sem_dim), nn.Linear(cfg.sem_dim, H), nn.GELU(), nn.Linear(H, d))
+            self.obs_enc = self.goal_enc = None
+        else:
+            self.obs_enc = SeqEncoder(self.emb, d, cfg.layers, cfg.heads, cfg.max_obs)
+            self.goal_enc = SeqEncoder(self.emb, d, 1, cfg.heads, 48)
         self.wm_act_enc = SeqEncoder(self.emb, d, 1, cfg.heads, cfg.max_act + 2)
         self.time = nn.Linear(4, 32)
         self.status_in = nn.Linear(len(WM_STATUS_IDX), 32)
@@ -117,7 +126,8 @@ class CAM2(nn.Module):
 
     # ------------------------------------------------------------------ parameter groups
     def groups(self) -> dict[str, list[nn.Parameter]]:
-        wm = [self.emb, self.obs_enc, self.goal_enc, self.wm_act_enc, self.time, self.status_in, self.embed, self.img_in,
+        bridge = [self.sem_obs, self.sem_goal] if self.semantic else [self.obs_enc, self.goal_enc]
+        wm = [self.emb, *bridge, self.wm_act_enc, self.time, self.status_in, self.embed, self.img_in,
               self.gru, self.prior_net, self.post_net, self.h_feat, self.h_status, self.h_rew, self.h_cont, self.h_dt,
               self.h_ev, self.h_viol, self.h_succ, self.h_outcome, self.ens]
         actor = [self.act_emb, self.opt_emb, self.opt_pi, self.opt_beta, self.dec_init, self.dec_cell, self.dec_out]
@@ -141,6 +151,8 @@ class CAM2(nn.Module):
         out = {k: sum(p.numel() for p in v) for k, v in g.items()}
         out["target_copies_not_trained"] = sum(p.numel() for p in self.target.parameters())
         out["trainable"] = sum(out[k] for k in g)
+        if self.semantic:
+            out["semantic_bridge"] = sum(p.numel() for m in (self.sem_obs, self.sem_goal) for p in m.parameters())
         return out
 
     @torch.no_grad()
@@ -171,11 +183,13 @@ class CAM2(nn.Module):
         return out.to(self.device)
 
     # ------------------------------------------------------------------ world model
-    def encode_goal(self, goal_ids):
-        return self.goal_enc(goal_ids)
+    def encode_goal(self, goal):
+        """goal: token ids (structured mode) or frozen semantic vectors (semantic mode)."""
+        return self.sem_goal(goal.float()) if self.semantic else self.goal_enc(goal)
 
-    def encode_obs(self, obs_ids, elapsed_h, status):
-        o = self.obs_enc(obs_ids)
+    def encode_obs(self, obs, elapsed_h, status):
+        """obs: token ids (structured mode) or frozen semantic vectors (semantic mode)."""
+        o = self.sem_obs(obs.float()) if self.semantic else self.obs_enc(obs)
         st = status[:, WM_STATUS_IDX]
         return self.embed(torch.cat([o, self.time(time_feats(elapsed_h)), self.status_in(st)], -1))
 

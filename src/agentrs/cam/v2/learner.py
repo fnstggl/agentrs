@@ -58,25 +58,28 @@ def observe(m: CAM2, views: list[View], gen=None) -> dict:
     """Posterior unroll over complete (possibly hindsight-truncated) episodes: states t = 0..T (T =
     number of steps; state T is the terminal observation). Returns flat rows and per-row tensors."""
     dev = m.device
-    rows, obs, prev, el, stv = [], [], [], [], []
+    rows, obs, prev, el, stv, sem = [], [], [], [], [], []
     for i, v in enumerate(views):
         st = v.steps
         T = len(st)
         for t in range(T + 1):
             if t < T:
                 s = st[t]
-                obs.append(s.obs), prev.append(s.prev_act), el.append(s.elapsed_prev), stv.append(s.status)
+                obs.append(s.obs), prev.append(s.prev_act), el.append(s.elapsed_prev), stv.append(s.status), sem.append(s.sem)
             else:
                 e = v.ep
                 nxt = e.steps[t] if t < len(e.steps) else None
                 if nxt is not None:
                     obs.append(nxt.obs), prev.append(nxt.prev_act), el.append(nxt.elapsed_prev), stv.append(nxt.status)
+                    sem.append(nxt.sem)
                 else:
                     obs.append(e.final_obs or st[-1].obs), prev.append(st[-1].act_tokens), el.append(e.final_elapsed)
                     stv.append(st[-1].status_after)
+                    sem.append(e.final_sem if e.final_sem is not None else st[-1].sem)
             rows.append((i, t))
     pos = {r: k for k, r in enumerate(rows)}
-    e_all = m.encode_obs(m.pad_ids(obs, m.cfg.max_obs), torch.tensor(el, device=dev, dtype=torch.float32),
+    obs_in = torch.tensor(np.stack(sem), device=dev) if m.semantic else m.pad_ids(obs, m.cfg.max_obs)
+    e_all = m.encode_obs(obs_in, torch.tensor(el, device=dev, dtype=torch.float32),
                          torch.tensor(np.stack(stv), device=dev, dtype=torch.float32))
     a_prev = m.wm_act_enc(m.ids(prev, m.cfg.max_act + 2))
     B = len(views)
@@ -98,7 +101,10 @@ def observe(m: CAM2, views: list[View], gen=None) -> dict:
         f = m.feat(h_new, z_new)
         for j, k in enumerate(ks):
             feats[k], priors[k], posts[k] = f[j], pr[j], po[j]
-    goal = m.encode_goal(m.ids([[f"FAM_{v.ep.family}"] + v.goal for v in views], 48))
+    if m.semantic:
+        goal = m.encode_goal(torch.tensor(np.stack([v.goal_sem for v in views]), device=dev))
+    else:
+        goal = m.encode_goal(m.ids([[f"FAM_{v.ep.family}"] + v.goal for v in views], 48))
     return {"rows": rows, "pos": pos, "feat": torch.stack(feats), "prior": torch.stack(priors),
             "post": torch.stack(posts), "e": e_all, "goal": goal}
 
@@ -416,3 +422,92 @@ def _grammar(fam):
     if fam not in _GRAMMARS:
         _GRAMMARS[fam] = ENVS[fam]().grammar()
     return _GRAMMARS[fam]
+
+
+def ppo_update(off: "OffPolicy", eps, lam: dict, cfg: dict, rng: random.Random) -> dict:
+    """On-policy PPO for the CAM-v2 actor and value head (benchmark learner inside the same architecture).
+    The actor's inputs (stop-gradient RSSM features and goal encoding) were stored at collection time, so
+    probability ratios are exact; semi-Markov GAE (discount gamma ** dt per action); archive burn-in prefixes
+    are excluded. The world model is trained separately (``wm_step``) from replay."""
+    m = off.m
+    dev = m.device
+    m.train()
+    data = []
+    for e in eps:
+        st = [s for s in e.steps if s.learn]
+        if not st or st[0].feat is None:
+            continue
+        data.append((e, st))
+    if not data:
+        return {}
+    with torch.no_grad():
+        for e, st in data:
+            f = torch.tensor(np.stack([s.feat for s in st]), device=dev).float()
+            g = torch.tensor(e.goal_feat, device=dev).float()[None].expand(len(st), -1)
+            v = m.value(f, g).cpu().numpy()
+            nxt_v, nxt_a = 0.0, 0.0
+            for k in reversed(range(len(st))):
+                s = st[k]
+                d = 0.0 if s.done else s.disc
+                delta = s.reward(lam.get(e.family, 0.0)) + d * nxt_v - v[k]
+                nxt_a = delta + d * cfg.get("lam", 0.95) * nxt_a
+                s._adv, s._ret = nxt_a, nxt_a + v[k]
+                nxt_v = v[k]
+    advs = np.array([s._adv for _, st in data for s in st])
+    mu, sd = advs.mean(), advs.std() + 1e-8
+    stats = {k: 0.0 for k in ("pg", "entropy", "value", "clipfrac", "kl")}
+    n_mb, stop = 0, False
+    for _ in range(cfg.get("epochs", 3)):
+        order = list(range(len(data)))
+        rng.shuffle(order)
+        for s0 in range(0, len(order), cfg.get("mb_episodes", 64)):
+            mb = [data[i] for i in order[s0:s0 + cfg.get("mb_episodes", 64)]]
+            rows = [(e, s) for e, st in mb for s in st]
+            f = torch.tensor(np.stack([s.feat for _, s in rows]), device=dev).float()
+            g = torch.tensor(np.stack([e.goal_feat for e, _ in rows]), device=dev).float()
+            lp, ent = decision_logprob(m, f, g, [s for _, s in rows], [_grammar(e.family) for e, _ in rows])
+            old = torch.tensor([s.logp_b for _, s in rows], device=dev)
+            A = torch.tensor([(s._adv - mu) / sd for _, s in rows], device=dev, dtype=torch.float32)
+            R = torch.tensor([s._ret for _, s in rows], device=dev, dtype=torch.float32)
+            ratio = torch.exp(lp - old)
+            if n_mb == 0:
+                stats["mismatch"] = float((lp.detach() - old).abs().mean())
+            clip = cfg.get("clip", 0.2)
+            L_pg = -torch.min(ratio * A, ratio.clamp(1 - clip, 1 + clip) * A).mean() - cfg.get("ent_coef", 0.01) * ent.mean()
+            L_v = F.mse_loss(m.value(f, g), R)
+            for name, loss in (("actor", L_pg), ("critic", L_v)):
+                off.opt[name].zero_grad(set_to_none=True)
+            (L_pg + 0.5 * L_v).backward()
+            for name in ("actor", "critic"):
+                torch.nn.utils.clip_grad_norm_([p for gp in off.opt[name].param_groups for p in gp["params"]], cfg.get("grad_clip", 1.0))
+                off.opt[name].step()
+            with torch.no_grad():
+                kl = float((old - lp.detach()).mean())
+            stats["pg"] += float(L_pg)
+            stats["entropy"] += float(ent.mean())
+            stats["value"] += float(L_v)
+            stats["clipfrac"] += float(((ratio - 1).abs() > clip).float().mean())
+            stats["kl"] += kl
+            n_mb += 1
+            if kl > cfg.get("target_kl", 0.1):
+                stop = True
+                break
+        if stop:
+            break
+    for k in ("pg", "entropy", "value", "clipfrac", "kl"):
+        stats[k] /= max(1, n_mb)
+    stats["updates"] = n_mb
+    stats["early_stop"] = float(stop)
+    m.eval()
+    return stats
+
+
+def wm_step(off: "OffPolicy", views, rng: random.Random) -> dict:
+    """World-model-only update on replayed real episodes (used with the PPO learner)."""
+    m = off.m
+    m.train()
+    ob = observe(m, views)
+    W = wm_loss(m, views, ob, rng, off.c.get("free_bits", 1.0))
+    gn = off._step("wm", W["total"])
+    m.eval()
+    return {"wm_grad_norm": gn, **{f"wm_{k}": float(v) for k, v in W.items() if k != "total"}}

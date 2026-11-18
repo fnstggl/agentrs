@@ -51,6 +51,8 @@ class Step:
     valid: bool = True
     learn: bool = True        # False for replayed archive prefixes (belief burn-in only)
     first: bool = False       # first decision of the agent in this episode (no option-termination term)
+    sem: Optional[np.ndarray] = None  # frozen semantic vector of the natural-language observation (semantic mode)
+    feat: Optional[np.ndarray] = None  # PPO: the actor's stop-gradient input at decision time (exact ratios); dropped after the update
 
     def reward(self, lam: float = 0.0) -> float:
         return self.r_shape + self.r_time + self.r_fail + self.r_succ - lam * self.viol
@@ -80,6 +82,9 @@ class Episode:
     truncated_by_guard: bool = False
     final_obs: list = field(default_factory=list)  # observation ids after the last action (terminal state)
     final_elapsed: float = 0.0
+    goal_sem: Optional[np.ndarray] = None    # semantic mode: frozen vector of the natural-language goal
+    goal_feat: Optional[np.ndarray] = None   # PPO: goal encoding used by the actor at collection time
+    final_sem: Optional[np.ndarray] = None   # semantic mode: frozen vector of the terminal observation text
 
     @property
     def n_learn(self) -> int:
@@ -94,6 +99,7 @@ class View:
     upto: int
     relabeled: bool = False
     shaping: float = 0.0   # potential-shaping coefficient of the reward contract (for hindsight views)
+    goal_sem: Optional[np.ndarray] = None  # semantic mode: frozen vector of this view's (possibly hindsight) goal
 
     def rewards(self, lam: float) -> list[float]:
         st = self.ep.steps[:self.upto]
@@ -185,13 +191,15 @@ class Replay:
             e.sampled += 1
             hs = [h for h in e.hindsight]
             if hs and her_p > 0 and rng.random() < her_p:
-                goal, upto = hs[rng.randrange(len(hs))]
+                h = hs[rng.randrange(len(hs))]
+                goal, upto = h[0], h[1]
                 upto = len(e.steps) if upto is None else int(upto)
                 if upto > e.n_prefix:
-                    out.append(View(e, list(goal), upto, relabeled=True, shaping=shaping))
+                    out.append(View(e, list(goal), upto, relabeled=True, shaping=shaping,
+                                    goal_sem=h[2] if len(h) > 2 else None))
                     self.sampled_steps += upto
                     continue
-            out.append(View(e, list(e.goal), len(e.steps)))
+            out.append(View(e, list(e.goal), len(e.steps), goal_sem=e.goal_sem))
             self.sampled_steps += len(e.steps)
         return out
 
