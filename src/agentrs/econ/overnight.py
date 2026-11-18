@@ -88,6 +88,8 @@ class RunConfig(BaseModel):
     async_max_wait_ms: float = 15.0
     bench_seconds: float = 180.0
     capacity_mode: str = "fixed"      # fixed | expand_rank | experts (research pathway; see agentrs.capacity)
+    gpu_mem_fraction: float = 0.0     # >0: hard cap of this process's share of GPU memory (GPU shared with CAM)
+    aux_batch: int = 16               # world-model / critic batch (full-vocabulary logits dominate their memory)
 
 
 # ---------------------------------------------------------------------------- utilities
@@ -175,6 +177,8 @@ class Run:
             self.save_state()
             self.log(f"new run: deadline in {cfg.hours}h, dph ${dph:.3f}")
         self.state["config"]["dph_usd"] = self.state["config"].get("dph_usd") or cfg.dph_usd
+        if cfg.gpu_mem_fraction and torch.cuda.is_available():
+            torch.cuda.set_per_process_memory_fraction(cfg.gpu_mem_fraction)
         self._build_models()
         self.factory = TaskFactory(self.state, self.train_fams, out_dir=self.dir / "factory",
                                    validate_expert=cfg.factory_validate_expert, seed=cfg.seed)
@@ -419,9 +423,9 @@ class Run:
                "heldout_families": summarize(ho)["overall"] if ho else None}
         if split == "val" and self.wm_data and mode == "direct":
             vdata = [wm_example(e, t) for e in eps for t in range(len(e.steps))]
-            rec["world_model"] = eval_wm(self.wm, vdata[:400])
+            rec["world_model"] = eval_wm(self.wm, vdata[:400], batch=self.cfg.aux_batch)
             rec["world_model_horizons"] = eval_wm_horizons(self.wm, eps, horizons=(1, 2, 4, 0))
-            rec["critic"] = eval_critic(self.critic, critic_targets(eps)[:600])
+            rec["critic"] = eval_critic(self.critic, critic_targets(eps)[:600], batch=2 * self.cfg.aux_batch)
         self.state["evals"].append(rec)
         self.save_state()
         o = summ["overall"]
@@ -594,7 +598,7 @@ class Run:
         # world model / critic warm-start on demonstrations (training split only)
         self._add_buffers(demos)
         if self.wm_data:
-            l = train_wm(self.wm, self.wt, self.wm_data, 120, seed=1)
+            l = train_wm(self.wm, self.wt, self.wm_data, 120, batch=self.cfg.aux_batch, seed=1)
             self.state["counters"]["wm_updates"] += len(l)
             self.log(f"WM warm-start loss {l[0]:.3f} -> {sum(l[-10:]) / 10:.3f}")
         self.state["version"] += 1
@@ -709,8 +713,9 @@ class Run:
         # ---- world model + critic on verified training experience
         self._add_buffers(eps)
         t2 = now()
-        wl = train_wm(self.wm, self.wt, self.wm_data, c.wm_steps_per_cycle, seed=cyc) if self.wm_data else []
-        cl = train_critic(self.critic, self.ct, self.critic_data, c.critic_steps_per_cycle, seed=cyc) if self.critic_data else []
+        wl = train_wm(self.wm, self.wt, self.wm_data, c.wm_steps_per_cycle, batch=c.aux_batch, seed=cyc) if self.wm_data else []
+        cl = train_critic(self.critic, self.ct, self.critic_data, c.critic_steps_per_cycle, batch=c.aux_batch,
+                          seed=cyc) if self.critic_data else []
         cnt["wm_updates"] += len(wl)
         cnt["critic_updates"] += len(cl)
         cnt["cycles"] = cyc
