@@ -170,6 +170,23 @@ def main() -> int:
                   + ", ".join(f"{k} {v / 3600:.2f}" for k, v in cs.items())
                   + (f"; dream fallbacks {len(st.get('dream_fallbacks', []))}" if st.get("dream_fallbacks") is not None else "")
                   + f"; phase {st.get('phase')}")
+    md += ["", "## Policy stability", ""]
+    for name, st in S.items():
+        parts = []
+        for fam in ("product", "negotiation", "bizdev"):
+            cv = val_curve(st, fam)
+            if len(cv) >= 3:
+                d = np.abs(np.diff([c[3] for c in cv]))
+                parts.append(f"{fam} mean |Δ val success| between gates {d.mean():.3f} (max {d.max():.3f})")
+        lc = [r.get("learn", {}).get("logp_change_vs_behaviour") for r in st.get("iters", [])]
+        lc = [x for x in lc if x is not None]
+        if lc:
+            parts.append(f"mean log-prob change of replayed decisions vs behaviour policy {np.mean(lc):+.3f}")
+        rb = st.get("rollbacks") or st.get("dream_fallbacks")
+        if rb:
+            parts.append(f"rollbacks/fallbacks {len(rb)}")
+        if parts:
+            md.append(f"- {name}: " + "; ".join(parts))
     md += ["", "## Reward-contract audits", ""]
     for name, st in S.items():
         au = st.get("reward_audit")
