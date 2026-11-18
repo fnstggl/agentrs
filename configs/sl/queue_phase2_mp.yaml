@@ -47,7 +47,7 @@ jobs:
     - mp/bach_or_stravinsky_in_the_matrix__repeated
     - mpsc/prisoners_dilemma_in_the_matrix__repeated_0
     - mpsc/coins_0
-    - name: T_closed_scratch_s1
+- name: T_closed_scratch_s1
   config: configs/sl/transfer_mp.yaml
   set:
     seed: 1
