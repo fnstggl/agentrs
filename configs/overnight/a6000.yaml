@@ -9,7 +9,7 @@ val_per_family: 2          # 32 families x 2 = 64 validation episodes (promotion
 test_per_family: 6         # 32 x 6 = 192 sealed-test episodes (A, B, C only)
 tasks_per_cycle: 16        # domain-balanced; x group_size rollouts each (GRPO groups)
 group_size: 4
-gen_batch: 32
+gen_batch: 8
 max_new_tokens: 256
 bc_threshold: 0.5
 bc_demos_per_family: 40
@@ -25,7 +25,10 @@ promote_tolerance: 0.04
 snapshot_every_min: 30
 # --- added for the continual self-play session (task factory, delayed-consequence WM, WM-assist test)
 wm_horizons: [1, 2, 4, 0]     # world-model status heads: +1/+2/+4 actions later and at task end (real elapsed time)
-wm_assist_every: 6            # every 6 cycles: matched val comparison direct vs world-model-assisted action selection
+wm_assist_every: 0
 wm_assist_k: 3
-final_wm_assist_test: true    # one pre-registered WM-assisted run on the sealed test set at the end
+final_wm_assist_test: false   # already measured at the after-BC weights (0.453 vs 0.688-0.75 direct); 49 min per run
 factory_validate_expert: true # admit a generated task only if the scripted expert solves it in the real env
+# --- GPU shared with the CAM learners (runs/cam, runs/cam_nowm): cap this process and halve generation batch
+gpu_mem_fraction: 0.62
+aux_batch: 8

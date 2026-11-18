@@ -58,6 +58,20 @@ def cgroup_mem() -> dict:
     return {}
 
 
+def cam_status(d: Path) -> dict:
+    st = read_json(d / "state.json") or {}
+    ts = read_json(d / "trainer_status.json") or {}
+    last = (st.get("iters") or [{}])[-1]
+    val = [e for e in st.get("evals", []) if e.get("split") == "val"]
+    return {"phase": st.get("phase"), "iter": st.get("iter"), "version": st.get("version"),
+            "heartbeat_age_s": round(time.time() - ts.get("heartbeat", time.time())),
+            "episodes": (st.get("counters") or {}).get("episodes"), "successes": (st.get("counters") or {}).get("successes"),
+            "updates": (st.get("counters") or {}).get("updates"),
+            "train_success": {k: round(v["rate"], 3) for k, v in (last.get("train") or {}).items()},
+            "last_val": {k: round(v["rate"], 3) for k, v in (val[-1]["by_family"].items() if val else [])},
+            "best": st.get("best")}
+
+
 def supervisor_state(name: str) -> str:
     out = sh(["supervisorctl", "status", name])
     parts = out.split()
@@ -170,6 +184,9 @@ def main(argv=None) -> int:
                               "failures": len(ghb.get("failures", [])), "in_progress": ghb.get("in_progress"),
                               "last_failure": (ghb.get("failures") or [None])[-1]},
             "task_factory": tr.get("factory"), "prior_sessions_spend_usd": st.get("prior_spend_usd"),
+            "cam": {name: cam_status(run.parent / name) for name in ("cam", "cam_nowm", "cam_transfer/scratch",
+                                                                       "cam_transfer/pretrained")
+                    if (run.parent / name / "state.json").exists()},
             "estimated_spend_usd": round(spent, 2), "price_per_hour_usd": dph, "spend_cap_usd": max_spend,
             "hackernews_bluesky_observer": {"process": supervisor_state("agentrs_live"),
                                             **{k: live.get(k) for k in ("uptime_s", "posts", "observations", "updates",
@@ -198,6 +215,7 @@ def main(argv=None) -> int:
               f"- GitHub checkpoint backup: {json.dumps(status['latest_verified_remote_backup'], default=str)[:400]}; "
               f"service {backup_proc}, {status['github_backup']['uploads']} uploads, {status['github_backup']['failures']} failures",
               f"- task factory: {json.dumps(tr.get('factory'), default=str)[:300]}",
+              *[f"- CAM `{k}`: {json.dumps(v, default=str)[:420]}" for k, v in status["cam"].items()],
               f"- HN/Bluesky observer: {json.dumps(status['hackernews_bluesky_observer'], default=str)[:600]}",
               f"- GitHub observer: {json.dumps(status['github_observer'], default=str)[:400]}",
               f"- warnings: {warnings}; errors: {[e.get('error', '')[:120] for e in status['errors']]}"]
