@@ -651,6 +651,16 @@ class Watcher:
         if newest_ck is None:
             return True
         if last is None:
+            # the newest checkpoint may already be on GitHub (uploaded and verified before this session)
+            try:
+                ct = json.loads((self.run / "ckpt" / newest_ck / "meta.json").read_text())["time"]
+            except (OSError, ValueError, KeyError):
+                ct = None
+            prev = [u for u in ups if ct is not None and u.get("checkpoint_time") == ct and u.get("verified")]
+            if prev:
+                last = prev[-1]["uploaded_at"]
+                mine = prev[-1:]
+        if last is None:
             self._do(newest_ck, "initial")
             return True
         best = st.get("best") or {}
