@@ -67,7 +67,7 @@ def main() -> int:
     a = ap.parse_args()
     R = Path(a.runs)
     runs = {"PPO original (cam)": R / "cam", "PPO no-WM (cam_nowm)": R / "cam_nowm", "PPO + product fix (cam_pfix)": R / "cam_pfix"}
-    for root in ("cam2", "cam2_v21"):
+    for root in ("cam2", "cam2_v21", "cam2_v22"):
         for d in sorted((R / root).glob("c*")):
             if (d / "state.json").exists():
                 runs[d.name] = d
