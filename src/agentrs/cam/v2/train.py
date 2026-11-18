@@ -311,7 +311,7 @@ class Trainer2:
         lst: dict = {}
         if self.replay.steps() >= c.learn_start_steps:
             for _ in range(c.updates_per_iter):
-                views = self.replay.sample(c.batch_episodes, self.rng, c.her_p, c.prot_frac)
+                views = self.replay.sample(c.batch_episodes, self.rng, c.her_p, c.prot_frac, shaping=self.rc.spec.shaping)
                 st = self.learner.update(views, self.state["lagrange"], self.rng)
                 for k, v in st.items():
                     lst.setdefault(k, []).append(v)

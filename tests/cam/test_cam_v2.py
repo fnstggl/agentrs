@@ -196,3 +196,24 @@ def test_trainer_checkpoint_resume(tmp_path):
     t2 = Trainer2(cfg)
     assert t2.state["iter"] == 1 and t2.state["restarts"] == 1 and len(t2.replay) == len(t.replay)
     assert all(torch.equal(w[k], v) for k, v in t2.model.state_dict().items())
+
+
+def test_hindsight_shaping_is_potential_based_relative_to_the_achieved_level(model):
+    from agentrs.cam.v2.data import View
+
+    eps = _eps(model, {"product": 1.0}, n=24, seed=5)
+    hs = [e for e in eps if e.hindsight]
+    if not hs:
+        pytest.skip("no solvent deadline episodes in this sample")
+    e = hs[0]
+    v0 = View(e, list(e.hindsight[0][0]), len(e.steps), relabeled=True, shaping=0.0)
+    v1 = View(e, list(e.hindsight[0][0]), len(e.steps), relabeled=True, shaping=0.5)
+    r0, r1 = v0.rewards(0.0), v1.rewards(0.0)
+    # discounted shaping telescopes to -phi'(s0) (= 0 at the start): returns agree up to that constant
+    D, J0, J1 = 1.0, 0.0, 0.0
+    for s, a, b in zip(e.steps, r0, r1):
+        J0 += D * a
+        J1 += D * b
+        D *= s.disc
+    phi0 = min(1.0, e.steps[0].prog_before / max(1e-6, e.steps[-1].prog_after))
+    assert abs((J1 - J0) - (-0.5 * phi0)) < 1e-6

@@ -1,0 +1,30 @@
+# CAM-v2.1 arm A (after the v2.0 diagnosis: AWR never sharpened, entropy ~3.4 vs PPO ~2): off-policy CAM without dreaming (persistent replay, IQL critics + AWR actor on the full
+# structured decision, hindsight goal views, Go-Explore archive starts, Lagrangian constraint
+# multipliers, training-only product-goal curriculum). Validation/test goals are never changed.
+run_dir: /workspace/agentrs/runs/cam2_v21/c21_awr_s1
+seed: 1
+hours: 4.0
+final_reserve_h: 0.3
+train_families: {negotiation: 0.5, product: 0.5}
+heldout_families: [bizdev]
+model: {d: 256, deter: 512, stoch: 16, classes: 16, hidden: 512, layers: 3, heads: 4, n_options: 8, ens: 4}
+workers: 256
+steps_per_iter: 4096
+max_env_steps: 400000          # matched real-interaction budget for every arm (~100 iterations)
+reward: {mode: contract, gamma: 0.99, shaping: 0.5, time_cost: 0.005}   # v2.1: potential shaping (hindsight views shaped consistently)
+learner: {actor: awr, wm_lr: 3.0e-4, actor_lr: 1.0e-4, critic_lr: 3.0e-4, n_step: 3, c_min: 0.3, awr_beta: 3.0, awr_norm: true,
+          expectile: 0.7, polyak: 0.01, ent_coef: 0.003}
+updates_per_iter: 32
+replay_capacity: 60000      # v2.1: recent experience (~10 iterations) + protected successes; 300k anchored AWR to old behaviour
+batch_episodes: 48
+learn_start_steps: 4096
+her_p: 0.3
+prot_frac: 0.25
+lagrangian: {kappa: contract, lr: 0.2, max: 1.0, probe: 0.5}   # kappa = the task contract's risk budget
+curriculum: {product: {start: 0.1, lo: 0.15, hi: 0.5, up: 1.5, down: 0.85, min: 0.05}}
+archive: {frac: 0.25, cells: 400, investigate: 0.0, rev_start: 0.5}
+eval_every: 10
+eval_episodes: 200
+test_episodes: 400
+cf_states: 30
+gpu_mem_fraction: 0.14

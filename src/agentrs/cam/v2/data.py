@@ -93,13 +93,23 @@ class View:
     goal: list
     upto: int
     relabeled: bool = False
+    shaping: float = 0.0   # potential-shaping coefficient of the reward contract (for hindsight views)
 
     def rewards(self, lam: float) -> list[float]:
         st = self.ep.steps[:self.upto]
         if not self.relabeled:
             return [s.reward(lam) for s in st]
-        # hindsight goal: the same time costs, success at the step that achieved it, no shaping/failure charge
-        return [s.r_time + (1.0 if i == len(st) - 1 else 0.0) for i, s in enumerate(st)]
+        # hindsight goal "reach the level actually achieved": the same time costs, success at the step that
+        # achieved it, no failure charge, and potential shaping on progress *relative to the achieved level*
+        # (goals here are thresholds on a progress-proportional quantity, so phi' = min(1, progress / achieved))
+        ach = max(1e-6, st[-1].prog_after)
+        phi = lambda x: min(1.0, x / ach)  # noqa: E731
+        out = []
+        for i, s in enumerate(st):
+            last = i == len(st) - 1
+            sh = self.shaping * (s.disc * (0.0 if last else phi(s.prog_after)) - phi(s.prog_before))
+            out.append(s.r_time + sh + (1.0 if last else 0.0))
+        return out
 
     def dones(self) -> list[bool]:
         st = self.ep.steps[:self.upto]
@@ -166,7 +176,8 @@ class Replay:
             n += len(eps)
         return n
 
-    def sample(self, n: int, rng: random.Random, her_p: float = 0.0, prot_frac: float = 0.25) -> list[View]:
+    def sample(self, n: int, rng: random.Random, her_p: float = 0.0, prot_frac: float = 0.25,
+               shaping: float = 0.0) -> list[View]:
         out = []
         for _ in range(n):
             pool = self.prot if (self.prot and (not self.main or rng.random() < prot_frac)) else self.main
@@ -177,7 +188,7 @@ class Replay:
                 goal, upto = hs[rng.randrange(len(hs))]
                 upto = len(e.steps) if upto is None else int(upto)
                 if upto > e.n_prefix:
-                    out.append(View(e, list(goal), upto, relabeled=True))
+                    out.append(View(e, list(goal), upto, relabeled=True, shaping=shaping))
                     self.sampled_steps += upto
                     continue
             out.append(View(e, list(e.goal), len(e.steps)))

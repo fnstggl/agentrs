@@ -1,0 +1,29 @@
+# CAM-v2.1 experiments (after the v2.0 diagnosis). Same budgets / evaluation protocol as v2.0.
+# First: attribution of the v2.1 learner changes (each variant changes one thing vs c21_awr), then
+# imagination and SAC arms on the v2.1 learner, then second seeds, transfer and component ablations.
+runs_root: /workspace/agentrs/runs/cam2_v21
+src: /workspace/agentrs-cam2-exp-v21/src   # frozen experiment code (tag cam2-exp-v21)
+max_with_qwen: 3
+max_without_qwen: 9
+min_free_mib: 7000
+start_deadline_utc: "2026-11-18T16:00:00+00:00"
+reserved_programs: []
+jobs:
+  - {name: c21_awr_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1}}
+  - {name: c21_awr_beta1_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1, learner: {actor: awr, wm_lr: 3.0e-4, actor_lr: 1.0e-4, critic_lr: 3.0e-4, n_step: 3, c_min: 0.3, awr_beta: 1.0, awr_norm: true, expectile: 0.7, polyak: 0.01, ent_coef: 0.003}}}
+  - {name: c21_awr_replay300k_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1, replay_capacity: 300000}}
+  - {name: c21_awr_noshaping_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1, reward: {mode: contract, gamma: 0.99, shaping: 0.0, time_cost: 0.005}}}
+  - {name: c21_awr_updates64_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1, updates_per_iter: 64}}
+  - {name: c21_dreamD_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1, dream: {mode: adaptive, horizon: 8, updates_per_iter: 16, starts: 256, batch_episodes: 32, start_iter: 5, kappa: 1.0, err_ref: 0.1, err_max: 0.1, u_quantile: 0.8}}}
+  - {name: c21_dreamH1_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1, dream: {mode: fixed, horizon: 1, updates_per_iter: 16, starts: 256, batch_episodes: 32, start_iter: 5, kappa: 1.0}}}
+  - {name: c21_dreamH4_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1, dream: {mode: fixed, horizon: 4, updates_per_iter: 16, starts: 256, batch_episodes: 32, start_iter: 5, kappa: 1.0}}}
+  - {name: c21_sac_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1, learner: {actor: sac, wm_lr: 3.0e-4, actor_lr: 1.0e-4, critic_lr: 3.0e-4, n_step: 3, c_min: 0.3, awr_beta: 3.0, awr_norm: true, expectile: 0.7, polyak: 0.01, ent_coef: 0.003, sac_target_entropy_frac: 0.2}, model: {d: 256, deter: 512, stoch: 16, classes: 16, hidden: 512, layers: 3, heads: 4, n_options: 1, ens: 4}}}
+  - {name: c21_awr_s2, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 2}}
+  - {name: c21_dreamD_s2, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 2, dream: {mode: adaptive, horizon: 8, updates_per_iter: 16, starts: 256, batch_episodes: 32, start_iter: 5, kappa: 1.0, err_ref: 0.1, err_max: 0.1, u_quantile: 0.8}}}
+  - {name: c21_dreamH1_s2, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 2, dream: {mode: fixed, horizon: 1, updates_per_iter: 16, starts: 256, batch_episodes: 32, start_iter: 5, kappa: 1.0}}}
+  - {name: c21_dreamH4_s2, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 2, dream: {mode: fixed, horizon: 4, updates_per_iter: 16, starts: 256, batch_episodes: 32, start_iter: 5, kappa: 1.0}}}
+  - {name: c21_bizdev_scratch_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1, train_families: {bizdev: 1.0}, heldout_families: [], curriculum: {}, max_env_steps: 245760, eval_every: 5}}
+  - {name: c21_bizdev_from_awr_s1, after: c21_awr_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1, train_families: {bizdev: 1.0}, heldout_families: [], monitor_families: [negotiation, product], curriculum: {}, max_env_steps: 245760, eval_every: 5, init_from: /workspace/agentrs/runs/cam2_v21/c21_awr_s1/ckpt/best}}
+  - {name: c21_awr_noher_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1, her_p: 0.0}}
+  - {name: c21_awr_noarchive_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1, archive: {}}}
+  - {name: c21_awr_nolagrange_s1, config: configs/cam2/offpolicy_v21.yaml, set: {seed: 1, lagrangian: {}}}
