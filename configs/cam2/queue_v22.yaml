@@ -2,7 +2,7 @@
 runs_root: /workspace/agentrs/runs/cam2_v22
 src: /workspace/agentrs-cam2-exp-v22/src   # frozen experiment code (tag cam2-exp-v22)
 max_with_qwen: 3
-max_without_qwen: 11
+max_without_qwen: 12
 min_free_mib: 8000
 start_deadline_utc: "2026-11-18T18:00:00+00:00"
 reserved_programs: []

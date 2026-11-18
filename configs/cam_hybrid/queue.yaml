@@ -4,7 +4,7 @@
 runs_root: /workspace/agentrs/runs/cam_hybrid
 src: /workspace/agentrs-cam-hybrid-exp/src   # frozen experiment code (tag cam-hybrid-exp-v1)
 max_with_qwen: 3
-max_without_qwen: 11
+max_without_qwen: 12
 min_free_mib: 12000
 start_deadline_utc: "2026-11-18T18:00:00+00:00"
 reserved_programs: []
