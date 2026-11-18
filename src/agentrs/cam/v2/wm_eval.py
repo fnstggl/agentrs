@@ -287,3 +287,72 @@ def corrupted(m, sigma: float = 0.5, seed: int = 0):
             for p in mod.parameters():
                 p.add_(torch.randn(p.shape, generator=g).to(p.device) * sigma * (p.std() + 1e-3))
     return c
+
+
+@torch.no_grad()
+def planning_eval(m, fam: str, n: int = 40, k: int = 4, lam: float = 0.0, mode: str = "actor",
+                  rc: RewardContract | None = None, seed0: int = 4_000_000) -> dict:
+    """Full-episode success with three deciders on identical validation tasks (diagnosis only):
+    ``actor`` — CAM's greedy policy; ``model`` — choose among {actor's action} ∪ fixed alternatives by the
+    world model's imagined k-step return (learned planning, no hidden information); ``oracle`` — choose by
+    exact simulator rollouts from a copy of the true state (SIMULATOR ORACLE: uses hidden state through the
+    simulator; an upper reference, never a CAM result)."""
+    m.eval()
+    rc = rc or RewardContract()
+    succ, viol, prog = [], [], []
+    for i in range(n):
+        env = ENVS[fam]()
+        env.reset(seed0 + i, "val")
+        ag = _Agent(m, fam, env.goal_tokens())
+        c = env.contract()
+        while not env.done:
+            ag.observe(env)
+            own = ag.act()
+            choice = own
+            if mode != "actor":
+                cands = [own] + [x + ["END"] for x in CANDIDATES[fam](env) if x + ["END"] != own]
+                vals = []
+                for cand in cands:
+                    if mode == "oracle":
+                        e2 = env.snapshot()
+                        e2.reseed(seed0 + i)
+                        a2 = copy.copy(ag)
+                        s0, ret, D, toks = e2.task_status(), 0.0, 1.0, cand
+                        for j in range(k):
+                            if j > 0:
+                                a2.observe(e2)
+                                toks = a2.act()
+                            res = e2.step([x for x in toks if x != "END"])
+                            s1 = e2.task_status()
+                            tr = rc.transition(c, s0, s1, res.done, bool(res.success), lam)
+                            ret += D * tr.reward
+                            D *= tr.discount
+                            s0 = s1
+                            a2.record(toks, res.elapsed_h)
+                            if res.done:
+                                break
+                        vals.append(ret)
+                    else:
+                        h, z, cur, first, toks = ag.h.clone(), ag.z.clone(), ag.opt, False, cand
+                        pv, Dp, alive = 0.0, 1.0, 1.0
+                        for j in range(k):
+                            if j > 0:
+                                f = m.feat(h, z)
+                                logits, beta = m.actor_dists(f, ag.g, torch.tensor([cur], device=m.device))
+                                cur = int(logits.argmax(-1)) if bool(torch.sigmoid(beta)[0] > 0.5) else cur
+                                toks = m.generate_action(f, ag.g, torch.tensor([cur], device=m.device), [_grammar(fam)], greedy=True)[0][0]
+                            h, pr = m.img_step(h, z, m.wm_act_enc(m.ids([toks], m.cfg.max_act + 2)))
+                            z = m.sample_z(pr, mode=True)
+                            H = m.heads(m.feat(h, z), ag.g)
+                            pv += Dp * alive * (float(H["rew"]) - lam * float(torch.sigmoid(H["viol"])))
+                            Dp *= float(0.99 ** torch.expm1(H["dt"].clamp(-3, 5)).clamp(min=0))
+                            alive *= float(torch.sigmoid(H["cont"]))
+                        vals.append(pv)
+                choice = cands[int(np.argmax(vals))]
+            res = env.step([x for x in choice if x != "END"])
+            ag.record(choice, res.elapsed_h)
+        succ.append(bool(env.success))
+        viol.append(env.task_status().violated is not None)
+        prog.append(env.progress())
+    return {"family": fam, "mode": mode, "n": n, "k": k, "success": float(np.mean(succ)), "violation": float(np.mean(viol)),
+            "final_progress": float(np.mean(prog)), "oracle_information": mode == "oracle"}

@@ -155,6 +155,15 @@ def main() -> int:
                       f"(horizon {wv['gate_clean']['max_h']}) vs corrupted {wv['gate_corrupted']['reliability']:.2f}; "
                       f"corrupted return err k1 {wv['corrupted'].get('ret_abs_err_k1', float('nan')):.3f} vs clean "
                       f"{wv['clean'].get('ret_abs_err_k1', float('nan')):.3f}")
+    md += ["", "## Planning diagnosis on validation tasks: CAM actor vs world-model planner vs SIMULATOR-ORACLE planner", ""]
+    for name, st in S.items():
+        pdg = st.get("planning_diagnosis")
+        if pdg:
+            for f, d in pdg.items():
+                md.append(f"- {name} {f}: success actor {d['actor']['success']:.2f} (bankrupt/walk-out {d['actor']['violation']:.2f}), "
+                          f"WM planner {d['model']['success']:.2f} ({d['model']['violation']:.2f}), "
+                          f"simulator-oracle planner [oracle information] {d['oracle']['success']:.2f} ({d['oracle']['violation']:.2f}); "
+                          f"n={d['actor']['n']}, lookahead {d['actor']['k']}")
     md += ["", "## Learning efficiency, replay and imagination", ""]
     for name, st in S.items():
         c = st.get("counters", {})

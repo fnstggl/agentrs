@@ -36,7 +36,7 @@ from agentrs.cam.v2.data import Archive, Replay
 from agentrs.cam.v2.dream import Dreamer
 from agentrs.cam.v2.learner import OffPolicy, observe
 from agentrs.cam.v2.model import CAM2, CAM2Config
-from agentrs.cam.v2.wm_eval import corrupted, counterfactual_ranking, open_loop
+from agentrs.cam.v2.wm_eval import corrupted, counterfactual_ranking, open_loop, planning_eval
 
 ENV_VERSION = "cam-envs-contract-v1"
 
@@ -489,6 +489,12 @@ class Trainer2:
                 probe_bad = Dreamer(bad_model, {"mode": "adaptive", "horizon": 8})
                 probe_bad.set_reliability(bad)
                 self.state["counterfactual"] = cf
+                self.state["planning_diagnosis"] = {
+                    f: {mode: planning_eval(self.model, f, c.cf_states, 4, self.state["lagrange"].get(f, 0.0), mode, rc=self.rc)
+                        for mode in ("actor", "model", "oracle")} for f in c.train_families if f in ("product", "bizdev", "negotiation")}
+                self.log("planning diagnosis (success actor / WM-planner / SIMULATOR-ORACLE planner): " + "; ".join(
+                    f"{f} {d['actor']['success']:.2f} / {d['model']['success']:.2f} / {d['oracle']['success']:.2f}"
+                    for f, d in self.state["planning_diagnosis"].items()))
                 self.state["wm_validation_final"] = {"clean": clean, "heldout_distribution": ood, "corrupted": bad, "corrupted_counterfactual_product": cf_bad,
                                                      "gate_clean": {"reliability": probe.reliability, "max_h": probe.max_h},
                                                      "gate_corrupted": {"reliability": probe_bad.reliability, "max_h": probe_bad.max_h},
