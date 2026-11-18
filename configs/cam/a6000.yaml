@@ -1,0 +1,19 @@
+# CAM continual training on the RTX A6000 (shares the GPU with the Qwen-LoRA baseline run).
+run_dir: /workspace/agentrs/runs/cam
+hours: 5.5
+final_reserve_h: 0.3
+train_families: {negotiation: 0.5, product: 0.5}   # bizdev is never trained here (transfer target)
+heldout_families: [bizdev]
+model: {d: 256, belief: 512, layers: 3, heads: 4, n_options: 8}
+workers: 256
+steps_per_iter: 4096
+lr: 3.0e-4
+epochs: 3
+mb_episodes: 64
+target_kl: 0.1
+wm_coef: 1.0
+eval_every: 10
+eval_episodes: 200
+test_episodes: 400
+gpu_mem_fraction: 0.15
+planning_k: 4
