@@ -2,7 +2,7 @@
 # Every product/negotiation arm: same config (offpolicy.yaml), same 400k real-interaction budget, same
 # evaluation protocol (unchanged full-difficulty validation/test goals); only the named component differs.
 runs_root: /workspace/agentrs/runs/cam2
-src: /workspace/agentrs-cam-v2/src
+src: /workspace/agentrs-cam2-exp/src   # frozen experiment code (tag cam2-exp-v1); development continues in agentrs-cam-v2
 max_with_qwen: 3          # CAM GPU processes allowed while the Qwen-LoRA run is active (= today's load)
 max_without_qwen: 6
 min_free_mib: 7000

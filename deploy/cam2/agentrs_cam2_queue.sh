@@ -4,6 +4,6 @@
 utils=/opt/supervisor-scripts/utils
 . "${utils}/logging.sh"
 . "${utils}/environment.sh"
-cd /workspace/agentrs-cam-v2
-export PYTHONUNBUFFERED=1 PYTHONPATH=/workspace/agentrs-cam-v2/src
+cd /workspace/agentrs-cam2-exp   # frozen experiment code (tag cam2-exp-v1)
+export PYTHONUNBUFFERED=1 PYTHONPATH=/workspace/agentrs-cam2-exp/src
 exec /workspace/agentrs/.venv/bin/python -u scripts/cam2_queue.py --queue configs/cam2/queue.yaml 2>&1
