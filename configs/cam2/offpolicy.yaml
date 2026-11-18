@@ -3,14 +3,14 @@
 # multipliers, training-only product-goal curriculum). Validation/test goals are never changed.
 run_dir: /workspace/agentrs/runs/cam2/offpolicy_s1
 seed: 1
-hours: 3.0
+hours: 4.0
 final_reserve_h: 0.3
 train_families: {negotiation: 0.5, product: 0.5}
 heldout_families: [bizdev]
 model: {d: 256, deter: 512, stoch: 16, classes: 16, hidden: 512, layers: 3, heads: 4, n_options: 8, ens: 4}
 workers: 256
 steps_per_iter: 4096
-max_env_steps: 600000          # matched real-interaction budget for every arm
+max_env_steps: 400000          # matched real-interaction budget for every arm (~100 iterations)
 reward: {mode: contract, gamma: 0.99, shaping: 0.0, time_cost: 0.005}
 learner: {actor: awr, wm_lr: 3.0e-4, actor_lr: 1.0e-4, critic_lr: 3.0e-4, n_step: 3, c_min: 0.3, awr_beta: 1.0, awr_norm: true,
           expectile: 0.7, polyak: 0.01, ent_coef: 0.003}

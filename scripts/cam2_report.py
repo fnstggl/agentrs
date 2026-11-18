@@ -78,7 +78,7 @@ def main() -> int:
           "Success = verified success on the unchanged full-difficulty validation goals (200 episodes per family, greedy). "
           "`viol` = episodes ended by a hard-constraint violation (product: bankruptcy; negotiation: counterparty walk-out; "
           "PPO runs do not record it). Interactions = real environment actions taken by the agent.", ""]
-    budgets = [150_000, 300_000, 600_000]
+    budgets = [100_000, 200_000, 400_000]
     for fam in ("product", "negotiation", "bizdev"):
         rows = []
         for name, st in S.items():
@@ -95,7 +95,7 @@ def main() -> int:
                         f"{f'{f10:,}' if f10 else '–'} | {f'{f30:,}' if f30 else '–'} | {cv[-1][1]:,} | {cv[-1][2] / 3600:.2f} |")
         if rows:
             md += [f"## {fam}: validation success vs real interactions", "",
-                   "| run | ≤150k | ≤300k | ≤600k | best (at interactions) | interactions to ≥10% | to ≥30% | interactions so far | compute h so far |",
+                   "| run | ≤100k | ≤200k | ≤400k | best (at interactions) | interactions to ≥10% | to ≥30% | interactions so far | compute h so far |",
                    "|---|---|---|---|---|---|---|---|---|"] + rows + [""]
     md += ["## Compute-matched view (wall-clock seconds of collect + learn + dream + eval phases on the shared GPU; PPO runs: from their iteration logs)", ""]
     cbud = [0.5, 1.0, 2.0]

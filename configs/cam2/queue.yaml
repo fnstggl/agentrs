@@ -1,5 +1,5 @@
 # CAM-v2 controlled experiments, started in priority order as GPU capacity frees (see scripts/cam2_queue.py).
-# Every product/negotiation arm: same config (offpolicy.yaml), same 600k real-interaction budget, same
+# Every product/negotiation arm: same config (offpolicy.yaml), same 400k real-interaction budget, same
 # evaluation protocol (unchanged full-difficulty validation/test goals); only the named component differs.
 runs_root: /workspace/agentrs/runs/cam2
 src: /workspace/agentrs-cam-v2/src
