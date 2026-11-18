@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from agentrs.cam.audit import audit
 from agentrs.cam.contract import RewardContract, RewardSpec
@@ -74,6 +74,20 @@ class TrainConfig2(BaseModel):
     snapshot_every_min: float = 30.0
     strict_audit: bool = True
     audit_episodes: int = 30
+    init_from: str = ""              # transfer: initialise all CAM-v2 weights from another run's checkpoint dir
+    monitor_families: list = []      # evaluated at every gate but never trained (forgetting / transfer curves)
+
+    @model_validator(mode="after")
+    def _no_flow_mapping_typos(self):
+        def walk(x, path):
+            if isinstance(x, dict):
+                for k, v in x.items():
+                    if isinstance(k, str) and ":" in k:
+                        raise ValueError(f"config key {path}{k!r} contains ':' (YAML needs a space after ':')")
+                    walk(v, f"{path}{k}.")
+        for name in ("model", "learner", "reward", "lagrangian", "curriculum", "archive", "dream", "train_families"):
+            walk(getattr(self, name), f"{name}.")
+        return self
 
 
 def git_commit() -> dict:
@@ -126,6 +140,10 @@ class Trainer2:
                           "lagrange": {}, "curriculum": {}, "restarts": 0, "snapshots": [], "last_snapshot": t0,
                           "models": {"cam2": self.model.cfg.model_dump(exclude={"vocab"}), "qwen": None,
                                      "params": self.model.n_params()}, "dream_fallbacks": []}
+            if cfg.init_from:
+                self.model.load_state_dict(torch.load(Path(cfg.init_from) / "weights.pt", map_location=self.dev))
+                self.state["init_from"] = cfg.init_from
+                self.log(f"initialised CAM-v2 weights from {cfg.init_from}")
             self.run_audit()
             self.save_state()
             self.log(f"new CAM-v2 run: {self.model.n_params()}")
@@ -395,6 +413,8 @@ class Trainer2:
 
     def gate(self) -> None:
         rec = self.evaluate(f"iter{self.state['iter']}", "val", list(self.cfg.train_families), self.cfg.eval_episodes, wm=True)
+        if self.cfg.monitor_families:
+            self.evaluate(f"iter{self.state['iter']}-monitor", "val", list(self.cfg.monitor_families), self.cfg.eval_episodes)
         score = self.val_score(rec)
         best = self.state["best"]
         if best is None or score >= best["score"]:
@@ -436,7 +456,7 @@ class Trainer2:
         if self.state["phase"] == "final":
             self.save("final", "end of training")
             done = {(e["tag"], e["split"]) for e in self.state["evals"]}
-            fams = list(c.train_families) + list(c.heldout_families)
+            fams = list(dict.fromkeys(list(c.train_families) + list(c.heldout_families) + list(c.monitor_families)))
             if ("final", "test") not in done:
                 self.evaluate("final", "test", fams, c.test_episodes)
             if (self.ck / "best" / "DONE").exists() and ("best", "test") not in done:
