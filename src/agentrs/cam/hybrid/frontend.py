@@ -66,6 +66,14 @@ class LLMFrontend:
 
         self.name = model
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.waited_s = 0.0
+        if self.device == "cuda":  # shared GPU: weights + batched generation cache; never squeeze running training
+            need, t0 = (14.0 if "4B" in model else 5.0), time.time()
+            while torch.cuda.mem_get_info()[0] / 2**30 < need and time.time() - t0 < 4 * 3600:
+                print(f"LLM front-end: waiting for {need:.0f} GiB free GPU memory "
+                      f"({torch.cuda.mem_get_info()[0] / 2**30:.1f} GiB free)", flush=True)
+                time.sleep(60)
+            self.waited_s = time.time() - t0
         self.tok = AutoTokenizer.from_pretrained(model)
         self.tok.padding_side = "left"
         if self.tok.pad_token_id is None:
