@@ -93,7 +93,7 @@ class SLTrainer:
         if self.dev.type == "cuda" and c.gpu_mem_fraction < 1:
             torch.cuda.set_per_process_memory_fraction(c.gpu_mem_fraction)
         for f in list(c.families) + list(c.heldout_families):
-            if f not in W.FAMILIES:
+            if not W.resolve(f):
                 raise ValueError(f"unknown world family {f!r}; available: {sorted(W.FAMILIES)}")
         self.model = SLCore(SLConfig(**c.model)).to(self.dev)
         self.learner = PPO(self.model, c.learner)
@@ -362,7 +362,7 @@ def _diag_memory_ablation(t: SLTrainer, fams) -> dict:
     """Adaptation curves on validation tasks with the trained weights frozen, under every adaptation mode."""
     out = {}
     for md in ("full", "gru", "episode", "none"):
-        rec = t.evaluate(f"final-{md}", "val", fams, max(8, t.cfg.eval_tasks // 2), md)
+        rec = t.evaluate(f"final-{md}", "val", fams, max(2, t.cfg.eval_tasks // 2), md)
         out[md] = {f: v["auc_success"] for f, v in rec["families"].items()}
     return out
 

@@ -25,11 +25,29 @@ def default_sampler(name: str):
     return sample
 
 
+def resolve(family: str) -> bool:
+    """Families created on demand: ``mp/<substrate>`` and ``mpsc/<scenario>`` (Melting Pot)."""
+    if family in FAMILIES:
+        return True
+    if family.startswith(("mp/", "mpsc/")):
+        from agentrs.sl.worlds import meltingpot as M
+
+        if not M.available():
+            return False
+        kind, name = ("substrate", family[3:]) if family.startswith("mp/") else ("scenario", family[5:])
+        register(family, lambda k=kind, n=name: M.MeltingPotWorld(k, n),
+                 meta={"source": "google-deepmind/meltingpot 2.4.1 (Apache-2.0)", "kind": kind})
+        return True
+    return False
+
+
 def make_world(family: str):
+    resolve(family)
     return FAMILIES[family]["make"]()
 
 
 def sample_task(family: str, rng: random.Random, split: str) -> Task:
+    resolve(family)
     return FAMILIES[family]["sample"](rng, split)
 
 

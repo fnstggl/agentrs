@@ -108,7 +108,9 @@ class Queue:
     def smoke(self, j: dict) -> bool:
         s = self.st[j["name"]]
         commit = sh("git", "-C", str(self.src.parent), "rev-parse", "HEAD").strip()
-        key = config_hash(commit, (self.src.parent / j["config"]).read_text(), j.get("set") or {}, self.q.get("smoke_set") or {})
+        # the random seed changes no code path: jobs that differ only by seed share one smoke test
+        shape = {k: v for k, v in (j.get("set") or {}).items() if k != "seed"}
+        key = config_hash(commit, (self.src.parent / j["config"]).read_text(), shape, self.q.get("smoke_set") or {})
         cache = self.st.setdefault("_smoke_cache", {})
         if cache.get(key, {}).get("ok"):
             s["smoke"] = cache[key]
