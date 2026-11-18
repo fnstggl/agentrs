@@ -91,3 +91,43 @@ def test_real_frozen_qwen_gets_no_gradients_and_stays_bit_identical():
     assert enc.fingerprint() == fp0
     v1, v2 = enc.encode(["The supplier countered."]), enc.encode(["The supplier countered."])
     assert np.array_equal(v1, v2) and enc.stats["cache_hits"] >= 1
+
+
+def test_llm_actor_scoring_matches_full_logits_reference():
+    """Arm D scores options from hidden states at option positions only; it must equal full-logits scoring."""
+    import pytest
+
+    pytest.importorskip("transformers")
+    from agentrs.cam.hybrid.semantic import FrozenLLMActor
+
+    try:
+        actor = FrozenLLMActor("Qwen/Qwen3-0.6B", device="cpu", dtype=torch.float32)
+    except Exception as e:  # noqa: BLE001 - model not available offline
+        pytest.skip(f"Qwen3-0.6B unavailable: {e}")
+    prefix = "You are a buyer negotiating with a supplier.\\nObservation: the supplier offers N5 N3 N2 N1.\\nNext action:"
+    options = ["ASK", "PROPOSE", "ACCEPT", "WALK"]
+    got = actor._score(prefix, options)
+    p_ids = actor.tok(prefix, add_special_tokens=False)["input_ids"]
+    ref = []
+    with torch.no_grad():
+        for o in options:
+            o_ids = actor.tok(" " + o, add_special_tokens=False)["input_ids"]
+            ids = torch.tensor([p_ids + o_ids])
+            lp = torch.log_softmax(actor.model(input_ids=ids).logits.float(), -1)[0]
+            ref.append(sum(float(lp[len(p_ids) - 1 + k, t]) for k, t in enumerate(o_ids)))
+    assert np.allclose(got, ref, atol=1e-3), (got, ref)
+
+
+def test_train_module_main_guard_is_last():
+    """`python -m agentrs.cam.v2.train` runs main() when the guard is reached: everything the trainer uses
+    (e.g. Trainer2.hybrid_final, attached at module level) must be defined before it."""
+    import ast
+    from pathlib import Path
+
+    import agentrs.cam.v2.train as T
+
+    tree = ast.parse(Path(T.__file__).read_text())
+    last = tree.body[-1]
+    assert isinstance(last, ast.If) and "__name__" in ast.unparse(last.test)
+    assert sum(isinstance(n, ast.If) and "__name__" in ast.unparse(n.test) for n in tree.body) == 1
+    assert hasattr(T.Trainer2, "hybrid_final")

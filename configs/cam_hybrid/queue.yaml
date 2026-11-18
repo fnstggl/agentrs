@@ -6,7 +6,7 @@ src: /workspace/agentrs-cam-hybrid-exp/src   # frozen experiment code (tag cam-h
 max_with_qwen: 3
 max_without_qwen: 12
 min_free_mib: 12000
-start_deadline_utc: "2026-11-18T18:00:00+00:00"
+start_deadline_utc: "2026-11-19T06:00:00+00:00"
 reserved_programs: []
 jobs:
   # Arm A: structured CAM (tokens, learned from scratch); at the end also deployed on natural language

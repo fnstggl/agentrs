@@ -568,6 +568,7 @@ class Trainer2:
                 self.log("counterfactual ranking: " + "; ".join(f"{f} spearman {v['spearman']:.2f} top1 {v['top1_agreement']:.2f} "
                                                                f"(chance {v['chance_top1']:.2f})" for f, v in cf.items())
                          + f" | gate clean {probe.reliability:.2f} corrupted {probe_bad.reliability:.2f}")
+                self.save_state()
             if "hybrid_final" not in self.state:
                 self.hybrid_final()
             self.state["phase"] = "done"
@@ -594,9 +595,6 @@ def main(argv=None) -> int:
         return 0
     return Trainer2(cfg).run()
 
-
-if __name__ == "__main__":
-    raise SystemExit(main())
 
 
 
@@ -646,6 +644,7 @@ def _hybrid_final(self) -> None:
         out["decision_logprob_change"] = {"mean_abs": float((lp_trained - lp_init).abs().mean()), "decisions": int(lp_trained.numel()),
                                           "mean_trained": float(lp_trained.mean()), "mean_initial": float(lp_init.mean())}
     styles = ["train", "heldout"] if self.encoder is not None else ["train"]
+    done = {(e["tag"], e["split"]) for e in self.state["evals"]}
     if c.final_reset_evals:
         resets = {"reset_all": None}
         if self.encoder is not None:
@@ -653,6 +652,8 @@ def _hybrid_final(self) -> None:
         resets["reset_actor"] = [self.model.act_emb, self.model.opt_emb, self.model.opt_pi, self.model.opt_beta,
                                  self.model.dec_init, self.model.dec_cell, self.model.dec_out]
         for name, mods in resets.items():
+            if all((f"{name}-{st_}", sp_) in done for sp_ in ("val", "test") for st_ in styles):
+                continue
             if mods is None:
                 _reinit(self.model, c.seed + 1000)
             else:
@@ -660,7 +661,8 @@ def _hybrid_final(self) -> None:
                     _reinit(mod, c.seed + 1000)
             for sp_ in ("val", "test"):
                 for st_ in styles:
-                    self.evaluate(f"{name}-{st_}", sp_, fams, nn_, style=st_)
+                    if (f"{name}-{st_}", sp_) not in done:
+                        self.evaluate(f"{name}-{st_}", sp_, fams, nn_, style=st_)
             self.model.load_state_dict(trained)
     if self.encoder is not None:
         for sp_ in ("val", "test"):
@@ -673,10 +675,13 @@ def _hybrid_final(self) -> None:
     for fe in c.final_frontends:
         from agentrs.cam.hybrid.frontend import LLMFrontend, ParserFrontend
 
-        front = ParserFrontend() if fe == "parser" else LLMFrontend(fe.split(":", 1)[1])
         # the LLM front-end generates per observation (slow on a shared GPU): unfamiliar wording only, fewer episodes
         combos = [(sp_, st_) for sp_ in ("val", "test") for st_ in ("train", "heldout")] if fe == "parser" else \
             [("val", "heldout"), ("test", "heldout")]
+        combos = [(sp_, st_) for sp_, st_ in combos if (f"frontend-{fe}-{st_}", sp_) not in done]
+        if not combos:
+            continue
+        front = ParserFrontend() if fe == "parser" else LLMFrontend(fe.split(":", 1)[1])
         for sp_, st_ in combos:
             self.evaluate(f"frontend-{fe}-{st_}", sp_, fams, nn_ if fe == "parser" else max(20, nn_ // 3), style=st_, frontend=front)
         out[f"frontend_{fe}_stats"] = dict(front.stats)
@@ -691,3 +696,7 @@ def _hybrid_final(self) -> None:
 
 
 Trainer2.hybrid_final = _hybrid_final
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
