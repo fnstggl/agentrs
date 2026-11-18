@@ -71,6 +71,8 @@ class ProductEnv(CamEnv):
         self.answer = None
         self.target = 1.0
         self.target = max(500.0, self._expert_users() * self.rng.uniform(0.45, 0.7))
+        if split == "train" and self.difficulty < 1.0:  # curriculum: easier goals during training only
+            self.target = max(50.0, self.target * self.difficulty)
 
     # ------------------------------------------------------------------ dynamics
     def _fit(self):

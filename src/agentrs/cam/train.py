@@ -26,7 +26,7 @@ from typing import Optional
 import numpy as np
 import torch
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from agentrs.cam.learner import eval_world_model, update
 from agentrs.cam.model import CAM, CAMConfig
@@ -63,6 +63,23 @@ class TrainConfig(BaseModel):
     gpu_mem_fraction: float = 0.15
     init_from: str = ""            # transfer experiments: start from another run's checkpoint
     planning_k: int = 4
+    # a failed episode pays the step cost of its unused steps (no reward for ending early, e.g. by bankruptcy)
+    fail_horizon_cost: bool = False
+    # training-goal curriculum per family (validation / test always use the full goal), e.g.
+    # {"product": {"start": 0.1, "lo": 0.15, "hi": 0.5, "up": 1.2, "down": 0.85, "min": 0.02}}: after each
+    # iteration, training success above ``hi`` raises the difficulty (x up, max 1), below ``lo`` lowers it
+    curriculum: dict = {}
+
+    @field_validator("curriculum")
+    @classmethod
+    def _check_curriculum(cls, v: dict) -> dict:
+        keys = {"start", "lo", "hi", "up", "down", "min"}
+        for fam, cc in v.items():
+            if not isinstance(cc, dict) or not set(cc) <= keys or not all(isinstance(x, (int, float)) for x in cc.values()):
+                raise ValueError(f"curriculum[{fam!r}] must map {sorted(keys)} to numbers, got {cc!r}")
+            if not 0 < cc.get("start", 1.0) <= 1 or not cc.get("lo", 0.15) < cc.get("hi", 0.5):
+                raise ValueError(f"curriculum[{fam!r}]: need 0 < start <= 1 and lo < hi")
+        return v
 
 
 def git_commit() -> dict:
@@ -112,8 +129,12 @@ class Trainer:
                 self.log(f"initialised CAM weights from {cfg.init_from}")
             self.save_state()
             self.log(f"new CAM run: {self.model.n_params()}")
+        cur = self.state.setdefault("curriculum", {})
+        for fam, cc in cfg.curriculum.items():
+            cur.setdefault(fam, float(cc.get("start", 1.0)))
         self.workers = Workers(self.model, cfg.workers, cfg.train_families, "train", seed0=self.state["iter"] * 100_000,
-                               gamma=cfg.gamma, gen_seed=cfg.seed + self.state["iter"])
+                               gamma=cfg.gamma, gen_seed=cfg.seed + self.state["iter"], difficulty=cur,
+                               fail_horizon_cost=cfg.fail_horizon_cost)
         self.rng = random.Random(cfg.seed + 17 * self.state["iter"])
 
     # ------------------------------------------------------------------ infra
@@ -225,7 +246,17 @@ class Trainer:
             d["episodes"] += v["n"]
             d["successes"] += v["success"]
         ws = self.workers.stats
+        cur = self.state["curriculum"]
+        used = dict(cur)  # difficulty the training episodes of this iteration were generated with
+        for fam, cc in self.cfg.curriculum.items():
+            v = summarize([e for e in eps if e.family == fam]).get(fam)
+            if v and v["n"] >= 20:
+                if v["rate"] > cc.get("hi", 0.5):
+                    cur[fam] = min(1.0, cur[fam] * cc.get("up", 1.2))
+                elif v["rate"] < cc.get("lo", 0.15):
+                    cur[fam] = max(cc.get("min", 0.02), cur[fam] * cc.get("down", 0.85))
         rec = {"iter": it, "time": time.time(), "version_collected": ver, "train": summarize(eps), "update": st,
+               "curriculum_used": used, "curriculum_next": dict(cur),
                "param_change_l2": change, "collect_s": round(t1 - t0, 1), "update_s": round(time.time() - t1, 1),
                "env_s": round(ws["env_s"], 1), "net_s": round(ws["net_s"], 1),
                "mean_batch": float(np.mean(ws["batch"])) if ws["batch"] else 0, "steps_per_s": ws["steps"] / max(1e-9, t1 - t0)}
@@ -238,7 +269,8 @@ class Trainer:
                                             f"info {v['info_action_rate']:.2f})" for k, v in tr.items())
                  + f" | pg {st['pg']:.3f} ent {st['entropy']:.2f} kl {st['kl']:.4f} mism {st['mismatch']:.1e} "
                  f"wm(f {st['feat_nll']:.2f} ev {st['event_bce']:.3f} z {st['latent_cos']:.3f}) upd {st['updates']} "
-                 f"| {rec['steps_per_s']:.0f} steps/s collect {rec['collect_s']}s update {rec['update_s']}s")
+                 f"| {rec['steps_per_s']:.0f} steps/s collect {rec['collect_s']}s update {rec['update_s']}s"
+                 + (" | difficulty " + ", ".join(f"{k} {used[k]:.3f}->{cur[k]:.3f}" for k in cur) if cur else ""))
         self.save("latest")
         if time.time() - self.state.get("last_snapshot", 0) > c.snapshot_every_min * 60:
             name = "snap_" + time.strftime("%H%M")

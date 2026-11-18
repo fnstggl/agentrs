@@ -1,0 +1,26 @@
+# PRODUCT FIX (matched to a6000.yaml except the last two keys): the main run's product policy collapsed
+# to max-spend campaigns that go bankrupt within ~4 weeks (0% success). Every failed episode returned the
+# same shaped value (Φ(terminal) = 0), so the per-action step cost was the only signal among failures and
+# it paid the policy to end episodes early; random exploration reaches the full product target in only
+# ~0.2% of episodes, too rare to counter it. Fix: (1) failed episodes pay the step cost of their unused
+# steps, (2) a training-only curriculum on the product target. Validation / test goals are unchanged.
+run_dir: /workspace/agentrs/runs/cam_pfix
+hours: 4.0
+final_reserve_h: 0.3
+train_families: {negotiation: 0.5, product: 0.5}   # bizdev is never trained here (transfer target)
+heldout_families: [bizdev]
+model: {d: 256, belief: 512, layers: 3, heads: 4, n_options: 8}
+workers: 256
+steps_per_iter: 4096
+lr: 3.0e-4
+epochs: 3
+mb_episodes: 64
+target_kl: 0.1
+wm_coef: 1.0
+eval_every: 10
+eval_episodes: 200
+test_episodes: 400
+gpu_mem_fraction: 0.10
+planning_k: 4
+fail_horizon_cost: true
+curriculum: {product: {start: 0.1, lo: 0.15, hi: 0.5, up: 1.2, down: 0.85, min: 0.02}}

@@ -73,6 +73,9 @@ class CamEnv:
     events: list[str] = []
     n_features = 0
     max_steps = 20
+    # Training-only goal difficulty in (0, 1] set by the curriculum before ``reset``; environments that
+    # support it scale their goal on the ``train`` split only, so validation / test goals never change.
+    difficulty = 1.0
 
     def __init__(self):
         self.rng = random.Random(0)

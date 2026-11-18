@@ -75,3 +75,33 @@ environment-measured progress Φ, −0.005 per action.
 * Actions are structured token sequences from environment grammars; CAM has no open-vocabulary
   natural-language channel and no Qwen semantic bootstrap yet — Qwen plays no role in CAM v1.
 * Simulators are hand-built; success in them is not evidence of real-world adoption or negotiation skill.
+
+## Product-family fix (branch `feat/cam-product-fix`, run `runs/cam_pfix`)
+
+**Diagnosis of the main run** (`scripts/cam_product_diag.py`, `scripts/cam_product_policy.py`). Product
+validation success stayed at 0% in both the full run and the no-world-model ablation. At iteration 160 the
+policy opens with max-budget campaigns ($20k/week) and goes bankrupt in 100% of validation episodes, after
+6.6 weeks when sampling and 3.5 weeks when greedy. Training episodes shrank from 12.8 to about 5 steps by
+iteration 16.
+
+Cause:
+- With Φ(terminal) = 0, every failed episode has the same shaped return, so the per-action step cost was
+  the only signal among failures. It paid the policy to end episodes early, and bankruptcy ends them early.
+- Uniform random play reaches the full target while staying solvent in only 0.2% of episodes, too rare to
+  counter that signal.
+
+The environment is solvable, measured over 300 validation seeds:
+- A policy that knows the hidden market but must act through the real interface: 80%.
+- A heuristic with no hidden information (research every segment, build the top 3 features, $3k/week ads,
+  2 onboarding upgrades): 60%.
+- The oracle policy with $20k/week campaigns: 6%, because 94% of episodes go bankrupt.
+
+**Fix** (`configs/cam/product_fix.yaml`; otherwise identical to `a6000.yaml`):
+1. `fail_horizon_cost`: a failed episode pays the step cost of its unused steps. Ending early is then never
+   cheaper than failing at the deadline, and the step cost only rewards faster successes.
+2. `curriculum.product`: the training target is scaled by a difficulty starting at 0.1. Difficulty rises
+   ×1.2 when training success is above 50% and falls ×0.85 when it is below 15%. Validation and test targets
+   are bit-identical to the main run (tested), so the reported numbers stay comparable.
+
+The run starts when the ablation finishes (`deploy/cam/install_pfix.sh`). It is backed up as
+`ckpt-cam_pfix-*` releases and reported by `scripts/cam_report.py`.

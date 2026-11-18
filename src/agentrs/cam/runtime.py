@@ -75,19 +75,31 @@ def pad(x: np.ndarray, n: int) -> np.ndarray:
 
 class Workers:
     def __init__(self, model: CAM, n: int, families: dict[str, float], split: str = "train", seed0: int = 0,
-                 gamma: float = 0.99, shaping: float = 0.5, step_cost: float = 0.005, gen_seed: int = 0):
+                 gamma: float = 0.99, shaping: float = 0.5, step_cost: float = 0.005, gen_seed: int = 0,
+                 difficulty: Optional[dict[str, float]] = None, fail_horizon_cost: bool = False):
         self.model, self.n, self.families, self.split = model, n, families, split
+        # curriculum (training split only): family -> goal difficulty in (0, 1]; a live dict the trainer updates
+        self.difficulty = difficulty if difficulty is not None else {}
+        # charge a failed episode the step cost of its unused steps, so ending early (e.g. going bankrupt)
+        # is never cheaper than failing at the deadline; the step cost then only rewards faster successes
+        self.fail_horizon_cost = fail_horizon_cost
         self.seed_ctr = {f: seed0 for f in families}
         self.rng = random.Random(gen_seed)
         self.gen = torch.Generator(device=model.device).manual_seed(gen_seed)
         self.gamma, self.shaping, self.step_cost = gamma, shaping, step_cost
         self.stats = {"env_s": 0.0, "net_s": 0.0, "steps": 0, "rounds": 0, "batch": []}
 
+    def _make_env(self, fam: str):
+        env = ENVS[fam]()
+        if self.split == "train":
+            env.difficulty = float(self.difficulty.get(fam, 1.0))
+        return env
+
     def _new_env(self, family: Optional[str] = None):
         fam = family or self.rng.choices(list(self.families), list(self.families.values()))[0]
         s = self.seed_ctr[fam]
         self.seed_ctr[fam] = s + 1
-        env = ENVS[fam]()
+        env = self._make_env(fam)
         env.reset(s, self.split)
         return fam, s, env
 
@@ -110,7 +122,7 @@ class Workers:
                 if not queue:
                     return None
                 fam, seed = queue.pop(0)
-                env = ENVS[fam]()
+                env = self._make_env(fam)
                 env.reset(seed, self.split)
             else:
                 fam, seed, env = self._new_env()
@@ -175,6 +187,8 @@ class Workers:
                 r = self.shaping * (self.gamma * (0.0 if res.done else prog1) - prog0) - self.step_cost
                 if res.done:
                     r += 1.0 if res.success else 0.0
+                    if self.fail_horizon_cost and not res.success:
+                        r -= self.step_cost * max(0, env.max_steps - (len(ep.steps) + 1))
                 feat_after = pad(env.features(), cfg.n_feat)
                 ep.steps.append(CamStep(obs=obs_ids[j][:int((obs_ids[j] != 0).sum())].tolist(),  # ids of obs_t (pre-action)
                                         prev_act=list(s["prev_act"]), elapsed_prev=s["elapsed"], feat_obs=s["feat"],
