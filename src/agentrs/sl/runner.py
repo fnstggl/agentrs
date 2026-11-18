@@ -54,6 +54,8 @@ class Runner:
         self.fixed = list(fixed_tasks) if fixed_tasks else None   # evaluation: exact task list, one trial each
         self.label_cache: dict = {}
         self._contracts: dict = {}
+        self.fam_steps: dict = {}      # agent-steps collected per family
+        self.fam_running: dict = {}    # expected remaining agent-steps of running trials (placeholder: 0)
         self.slots: list = []
         self.trials_done: list = []                   # finished trial records (per stream)
         self.dt_ref = dt_ref if dt_ref is not None else {}
@@ -71,10 +73,16 @@ class Runner:
 
     # ------------------------------------------------------------------ tasks
     def _next_task(self) -> Optional[Task]:
+        """Balanced experience: the next trial goes to the family furthest below its target share of agent-steps
+        (weights are shares of interactions, not of trials; trials of different families differ ~30x in length)."""
         if self.fixed is not None:
             return self.fixed.pop(0) if self.fixed else None
         fams = list(self.families)
-        fam = self.rng.choices(fams, weights=[self.families[f] for f in fams])[0]
+        W = sum(self.families.values())
+        total = sum(self.fam_steps.get(f, 0) for f in fams) + sum(self.fam_running.get(f, 0) for f in fams)
+        deficit = {f: self.families[f] / W * (total + 1) - self.fam_steps.get(f, 0) - self.fam_running.get(f, 0) for f in fams}
+        best = max(deficit.values())
+        fam = self.rng.choice([f for f in fams if deficit[f] >= best - 1e-9])
         return self.sample_task(fam, self.rng, self.split)
 
     def _new_slot(self) -> Optional[WorldSlot]:
@@ -233,6 +241,9 @@ class Runner:
             dones.append(cons.done)
             infos.append((fam, after, cons))
         self.stats["env_s"] += time.time() - t2
+        for si, _ in index:
+            f = self.slots[si].task.family
+            self.fam_steps[f] = self.fam_steps.get(f, 0) + 1
         r_t = torch.tensor(rewards, dtype=torch.float32, device=dev)
         r_feat = torch.stack([symlog(r_t), torch.tensor(dones, dtype=torch.float32, device=dev), torch.ones_like(r_t)], -1)
         st = m.write_memory(st, a_emb, r_feat, use_mem)

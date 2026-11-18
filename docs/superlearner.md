@@ -97,6 +97,12 @@ The first four Phase 1 pretraining runs (sl-exp-v1/v2) were stopped after 4–20
     policies must terminate within the cap, and inaction must never earn a positive return.
 - **Unchanged:** the protocol, budgets and criteria above.
 
+### Protocol amendment 2, 2026-11-18 22:30 UTC (before any valid result)
+- **Cause:** family weights are now shares of *interactions*, not of trials. Under per-trial sampling, Vending-Bench
+  trials (about 1,800 decisions) held about 90% of the N+P+V lifetime's experience.
+- **Fix (sl-exp-v5):** the next trial goes to the family furthest below its target share of agent-steps.
+- **Superseded runs:** the three runs started under v3 were stopped after 2–13 minutes (`runs/sl/_invalid_v3/`).
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
