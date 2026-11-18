@@ -18,7 +18,7 @@ if [ ! -f "$OUT/init/weights.pt" ]; then
   done
   mkdir -p "$OUT/init" && cp "$MAIN/ckpt/best/weights.pt" "$MAIN/ckpt/best/meta.json" "$OUT/init/"
 fi
-COMMON="train_families={\"bizdev\":1.0} heldout_families=[] max_iters=$ITERS eval_every=5 eval_episodes=200 test_episodes=400 planning_k=0 hours=3 gpu_mem_fraction=0.08"
+COMMON="train_families={\"bizdev\":1.0} heldout_families=[] max_iters=$ITERS eval_every=5 eval_episodes=200 test_episodes=400 planning_k=0 hours=3 gpu_mem_fraction=0.14 mb_episodes=32"
 for arm in scratch pretrained; do
   INIT=""
   [ "$arm" = pretrained ] && INIT="init_from=$OUT/init"
