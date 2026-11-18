@@ -12,7 +12,7 @@ workers: 256
 steps_per_iter: 4096
 max_env_steps: 600000          # matched real-interaction budget for every arm
 reward: {mode: contract, gamma: 0.99, shaping: 0.0, time_cost: 0.005}
-learner: {actor: awr, wm_lr: 3.0e-4, actor_lr: 1.0e-4, critic_lr: 3.0e-4, n_step: 3, c_min: 0.3, awr_beta: 3.0,
+learner: {actor: awr, wm_lr: 3.0e-4, actor_lr: 1.0e-4, critic_lr: 3.0e-4, n_step: 3, c_min: 0.3, awr_beta: 1.0, awr_norm: true,
           expectile: 0.7, polyak: 0.01, ent_coef: 0.003}
 updates_per_iter: 32
 batch_episodes: 48

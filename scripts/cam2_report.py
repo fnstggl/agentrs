@@ -22,11 +22,11 @@ def load(d: Path):
         return None
 
 
-def val_curve(st, fam):
+def val_curve(st, fam, greedy: bool = True):
     return [(e["iter"], e["env_interactions_so_far"], sum((e.get("compute_s_so_far") or {}).values()),
              e["by_family"][fam]["rate"], e["by_family"][fam]["final_progress"], e["by_family"][fam].get("violation_rate"))
             for e in st.get("evals", []) if e["split"] == "val" and fam in e["by_family"] and not e.get("planning")
-            and not e["tag"].endswith("-monitor")]
+            and e.get("greedy", True) == greedy and not e["tag"].endswith("-monitor")]
 
 
 def at_budget(curve, budget):
@@ -74,7 +74,13 @@ def main() -> int:
             md += [f"## {fam}: validation success vs real interactions", "",
                    "| run | ≤150k | ≤300k | ≤600k | best (at interactions) | interactions to ≥10% | to ≥30% | interactions so far | compute h so far |",
                    "|---|---|---|---|---|---|---|---|---|"] + rows + [""]
-    md += ["## First verified successes during training (real interactions needed)", ""]
+    md += ["## Sampled (stochastic) policy validation success, CAM-v2 runs (secondary; same tasks)", ""]
+    for name, st in S.items():
+        for fam in ("product", "negotiation", "bizdev"):
+            cv = val_curve(st, fam, greedy=False)
+            if cv:
+                md.append(f"- {name} {fam}: " + " → ".join(f"{c[1] // 1000}k: {c[3]:.3f}" for c in cv))
+    md += ["", "## First verified successes during training (real interactions needed)", ""]
     for name, st in S.items():
         fs = st.get("first_success")
         if fs:

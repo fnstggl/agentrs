@@ -193,10 +193,12 @@ class OffPolicy:
         self.alpha_opt = torch.optim.Adam(list(self.log_alpha.values()), lr=3e-4)
         self._enum: dict = {}
         self.steps = 0
+        self.adv_scale = 1.0   # running std of advantages (AWR weights are scale-free in the reward units)
 
     def state_dict(self) -> dict:
         return {"opt": {k: o.state_dict() for k, o in self.opt.items()}, "alpha_opt": self.alpha_opt.state_dict(),
-                "log_alpha": {k: float(v) for k, v in self.log_alpha.items()}, "steps": self.steps}
+                "log_alpha": {k: float(v.detach()) for k, v in self.log_alpha.items()}, "steps": self.steps,
+                "adv_scale": self.adv_scale}
 
     def load_state_dict(self, d: dict) -> None:
         for k, o in self.opt.items():
@@ -205,6 +207,7 @@ class OffPolicy:
         for k, v in d["log_alpha"].items():
             self.log_alpha[k].data.fill_(v)
         self.steps = d.get("steps", 0)
+        self.adv_scale = d.get("adv_scale", 1.0)
 
     def _step(self, name: str, loss: torch.Tensor) -> float:
         o = self.opt[name]
@@ -310,8 +313,13 @@ class OffPolicy:
         # ---- actor
         with torch.no_grad():
             A = tq - m.value(fd, gd)
-        beta = c.get("awr_beta", 3.0)
-        w = torch.exp(beta * A).clamp(max=c.get("awr_max_w", 50.0))
+            if c.get("awr_norm", True):
+                self.adv_scale = 0.99 * self.adv_scale + 0.01 * float(A.std().clamp(min=1e-4)) if self.steps else float(A.std().clamp(min=1e-4))
+                An = A / self.adv_scale
+            else:
+                An = A
+        beta = c.get("awr_beta", 1.0)
+        w = torch.exp(beta * An).clamp(max=c.get("awr_max_w", 20.0))
         awr_rows = [j for j in range(len(dec)) if j not in set(sac_rows)]
         L_pi = torch.zeros((), device=dev)
         if awr_rows:
@@ -322,7 +330,7 @@ class OffPolicy:
         out["actor_grad_norm"] = self._step("actor", L_pi)
         self.steps += 1
         out.update({"q_loss": float(L_q), "v_loss": float(L_v), "vimg_real_loss": float(L_vimg), "actor_loss": float(L_pi),
-                    "awr_w_mean": float(w.mean()), "adv_mean": float(A.mean()), "q_mean": float(q1.mean()),
+                    "awr_w_mean": float(w.mean()), "awr_w_max": float(w.max()), "adv_mean": float(A.mean()), "adv_scale": self.adv_scale, "q_mean": float(q1.mean()),
                     "target_mean": float(y.mean()), "entropy": float(ent.mean()), "decisions": len(dec),
                     "logp_change_vs_behaviour": float(np.mean([cur_lp[x] - views[x[0]].steps[x[1]].logp_b for x in dec]))})
         m.eval()

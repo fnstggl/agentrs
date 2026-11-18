@@ -240,15 +240,15 @@ class Trainer2:
               "gpu_mem_gb": torch.cuda.max_memory_allocated() / 2**30 if torch.cuda.is_available() else None})
 
     # ------------------------------------------------------------------ evaluation
-    def evaluate(self, tag: str, split: str, families: list[str], n: int, wm: bool = False) -> dict:
+    def evaluate(self, tag: str, split: str, families: list[str], n: int, wm: bool = False, greedy: bool = True) -> dict:
         self._sync()
         t0 = time.time()
         col = Collector(self.model, min(self.cfg.workers, n * len(families)), {f: 1.0 for f in families}, split,
                         seed0=1_000_000 if split == "val" else 0, gen_seed=12345, reward=self.rc, lam=self.state["lagrange"],
                         env_version=ENV_VERSION)
         fixed = [(f, (1_000_000 if split == "val" else 0) + i) for f in families for i in range(n)]
-        eps = col.collect(greedy=True, version=f"v{self.state['version']}", fixed=fixed)
-        rec = {"tag": tag, "split": split, "iter": self.state["iter"], "version": self.state["version"], "time": time.time(),
+        eps = col.collect(greedy=greedy, version=f"v{self.state['version']}", fixed=fixed)
+        rec = {"tag": tag, "split": split, "greedy": greedy, "iter": self.state["iter"], "version": self.state["version"], "time": time.time(),
                "by_family": summarize(eps), "env_interactions_so_far": self.state["counters"]["transitions"],
                "compute_s_so_far": dict(self.state["compute_s"])}
         if wm:
@@ -415,6 +415,7 @@ class Trainer2:
         rec = self.evaluate(f"iter{self.state['iter']}", "val", list(self.cfg.train_families), self.cfg.eval_episodes, wm=True)
         if self.cfg.monitor_families:
             self.evaluate(f"iter{self.state['iter']}-monitor", "val", list(self.cfg.monitor_families), self.cfg.eval_episodes)
+        self.evaluate(f"iter{self.state['iter']}-sampled", "val", list(self.cfg.train_families), self.cfg.eval_episodes, greedy=False)
         score = self.val_score(rec)
         best = self.state["best"]
         if best is None or score >= best["score"]:
