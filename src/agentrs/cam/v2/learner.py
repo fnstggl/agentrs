@@ -318,7 +318,10 @@ class OffPolicy:
         m.update_targets(c.get("polyak", 0.01))
         # ---- actor
         with torch.no_grad():
-            A = tq - m.value(fd, gd)
+            # "q": AWAC-style Q(s,a) - V(s); "return": AWR-style realised (truncated n-step, semi-Markov) return - V(s).
+            # Diagnosis (v2.1): the twin-Q critic barely depends on the action in these structured action spaces
+            # (std of Q across alternative actions ~0.01 vs ~0.15 across states), so Q - V was noise.
+            A = (y if c.get("awr_adv", "q") == "return" else tq) - m.value(fd, gd)
             if c.get("awr_norm", True):
                 self.adv_scale = 0.99 * self.adv_scale + 0.01 * float(A.std().clamp(min=1e-4)) if self.steps else float(A.std().clamp(min=1e-4))
                 An = A / self.adv_scale

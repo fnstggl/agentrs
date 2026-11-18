@@ -1,0 +1,12 @@
+# CAM-v2.2: off-policy AWR with return-based advantages (diagnosed fix), same budgets/protocol as v2.0/v2.1.
+runs_root: /workspace/agentrs/runs/cam2_v22
+src: /workspace/agentrs-cam2-exp-v22/src   # frozen experiment code (tag cam2-exp-v22)
+max_with_qwen: 3
+max_without_qwen: 11
+min_free_mib: 8000
+start_deadline_utc: "2026-11-18T18:00:00+00:00"
+reserved_programs: []
+jobs:
+  - {name: c22_awr_ret_s1, config: configs/cam2/offpolicy_v22.yaml, set: {seed: 1}}
+  - {name: c22_awr_ret_s2, config: configs/cam2/offpolicy_v22.yaml, set: {seed: 2}}
+  - {name: c22_dreamD_s1, config: configs/cam2/offpolicy_v22.yaml, set: {seed: 1, dream: {mode: adaptive, horizon: 8, updates_per_iter: 16, starts: 256, batch_episodes: 32, start_iter: 5, kappa: 1.0, err_ref: 0.1, err_max: 0.1, u_quantile: 0.8}}}
