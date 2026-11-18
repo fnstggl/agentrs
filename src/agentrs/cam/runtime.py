@@ -170,7 +170,9 @@ class Workers:
                 prog1 = env.progress()
                 ev = np.zeros(cfg.n_events, dtype=np.float32)
                 ev[:len(env.events)] = [float(res.events.get(k, False)) for k in env.events]
-                r = self.shaping * (self.gamma * prog1 - prog0) - self.step_cost
+                # potential-based shaping on verified progress with Φ(terminal) = 0, so it cannot change which
+                # policies are optimal: ending with high progress but no verified success earns nothing net
+                r = self.shaping * (self.gamma * (0.0 if res.done else prog1) - prog0) - self.step_cost
                 if res.done:
                     r += 1.0 if res.success else 0.0
                 feat_after = pad(env.features(), cfg.n_feat)
