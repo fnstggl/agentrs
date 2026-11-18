@@ -472,6 +472,10 @@ class Trainer2:
                                 reward=self.rc, lam=self.state["lagrange"])
                 eps = col.collect(greedy=True, fixed=[(f, 3_000_000 + i) for f in c.train_families for i in range(64)])
                 clean = open_loop(self.model, eps, self.state["lagrange"])
+                col_t = Collector(self.model, 64, {f: 1.0 for f in c.train_families}, "test", seed0=0, gen_seed=7,
+                                  reward=self.rc, lam=self.state["lagrange"])
+                ood = open_loop(self.model, col_t.collect(greedy=True, fixed=[(f, 5_000 + i) for f in c.train_families
+                                                                             for i in range(64)]), self.state["lagrange"])
                 bad_model = corrupted(self.model, 0.5)
                 bad = open_loop(bad_model, eps, self.state["lagrange"])
                 cf_bad = counterfactual_ranking(bad_model, "product", max(10, c.cf_states // 3), 4,
@@ -481,7 +485,7 @@ class Trainer2:
                 probe_bad = Dreamer(bad_model, {"mode": "adaptive", "horizon": 8})
                 probe_bad.set_reliability(bad)
                 self.state["counterfactual"] = cf
-                self.state["wm_validation_final"] = {"clean": clean, "corrupted": bad, "corrupted_counterfactual_product": cf_bad,
+                self.state["wm_validation_final"] = {"clean": clean, "heldout_distribution": ood, "corrupted": bad, "corrupted_counterfactual_product": cf_bad,
                                                      "gate_clean": {"reliability": probe.reliability, "max_h": probe.max_h},
                                                      "gate_corrupted": {"reliability": probe_bad.reliability, "max_h": probe_bad.max_h},
                                                      "n_val_evals_with_wm": len(val)}

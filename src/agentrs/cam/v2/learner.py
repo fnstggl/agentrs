@@ -188,7 +188,8 @@ class OffPolicy:
         self.opt = {"wm": torch.optim.AdamW(g["wm"], lr=cfg.get("wm_lr", 3e-4), weight_decay=0.0),
                     "actor": torch.optim.AdamW(g["actor"], lr=cfg.get("actor_lr", 1e-4), weight_decay=0.0),
                     "critic": torch.optim.AdamW(g["critic"], lr=cfg.get("critic_lr", 3e-4), weight_decay=0.0)}
-        self.log_alpha = {f: torch.zeros((), device=m.device, requires_grad=True) for f in ENUMERABLE}
+        a0 = math.log(cfg.get("sac_alpha_init", 0.02))  # temperature on the scale of the contract rewards (~0.01-1)
+        self.log_alpha = {f: torch.full((), a0, device=m.device, requires_grad=True) for f in ENUMERABLE}
         self.alpha_opt = torch.optim.Adam(list(self.log_alpha.values()), lr=3e-4)
         self._enum: dict = {}
         self.steps = 0

@@ -59,6 +59,7 @@ def open_loop(m, eps, lam: dict, ks=(1, 2, 4, 8), max_starts: int = 6, seed: int
     viol_y = {k: [] for k in ks}
     cont_acc = []
     u_list, err1, rare_err, rew_err_by_out = [], [], [], {"success": [], "violation": [], "failure": []}
+    via_p, via_y, risk_p, risk_y = [], [], [], []
     act_freq: dict = {}
     for v in views:
         for s in v.steps:
@@ -74,6 +75,14 @@ def open_loop(m, eps, lam: dict, ks=(1, 2, 4, 8), max_starts: int = 6, seed: int
             rng.shuffle(starts)
             g = ob["goal"][i:i + 1]
             r_real = v.rewards(lam.get(v.ep.family, 0.0))
+            # viability head: P(eventual verified success) and P(eventual constraint violation) vs what happened
+            ks_ = torch.tensor([ob["pos"][(i, t)] for t in range(v.ep.n_prefix, T)], device=dev)
+            if len(ks_):
+                po = torch.softmax(m.heads(ob["feat"][ks_], g.expand(len(ks_), -1))["outcome"], -1)
+                via_p += po[:, 0].tolist()
+                via_y += [float(v.ep.success)] * len(ks_)
+                risk_p += po[:, 1].tolist()
+                risk_y += [float(v.ep.outcome == "violation")] * len(ks_)
             for t in starts[:max_starts]:
                 f = ob["feat"][ob["pos"][(i, t)]][None]
                 h, z = f[:, :m.cfg.deter], f[:, m.cfg.deter:]
@@ -128,6 +137,12 @@ def open_loop(m, eps, lam: dict, ks=(1, 2, 4, 8), max_starts: int = 6, seed: int
     for o, v in rew_err_by_out.items():
         res[f"rew_abs_err_terminal_{o}"] = float(np.mean(v)) if v else float("nan")
     res["n_starts"] = len(out[f"ret_abs_err_k{ks[0]}"])
+    res["viability_success_ece"] = _ece(via_p, via_y)
+    res["viability_success_brier"] = float(np.mean((np.array(via_p) - np.array(via_y)) ** 2)) if via_p else float("nan")
+    res["viability_success_baserate_brier"] = float(np.var(via_y)) if via_y else float("nan")
+    res["violation_risk_ece"] = _ece(risk_p, risk_y)
+    res["violation_risk_brier"] = float(np.mean((np.array(risk_p) - np.array(risk_y)) ** 2)) if risk_p else float("nan")
+    res["violation_risk_baserate_brier"] = float(np.var(risk_y)) if risk_y else float("nan")
     return res
 
 
