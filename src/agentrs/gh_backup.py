@@ -343,7 +343,8 @@ def build_bundle(run: Path, ckpt: str, work: Path, part_mib: int, kind: str, pub
     ck_state = json.loads((stage / "payload" / "ckpt" / ckpt / "state.json").read_text())
     rdst = stage / "payload" / "run"
     for name in ("state.json", "registry.json", "trainer.log", "trainer_status.json", "latest_status.json",
-                 "latest_status.md", "status_history.jsonl", "report.md", "report.json", "gh_backup_status.json"):
+                 "latest_status.md", "status_history.jsonl", "report.md", "report.json", "gh_backup_status.json",
+                 "train.log", "iters.jsonl", "bench.json", "runtime.json"):
         if (run / name).exists():
             _link_or_copy(run / name, rdst / name, copy=True)
     _copy_tree(run / "experience", rdst / "experience")
