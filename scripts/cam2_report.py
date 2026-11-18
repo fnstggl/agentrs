@@ -22,8 +22,28 @@ def load(d: Path):
         return None
 
 
+def ppo_compute(run_dir: Path, st) -> dict:
+    """PPO runs record per-iteration collect/update seconds and per-eval wall seconds: cumulative compute per iteration."""
+    cum, tot = {}, 0.0
+    try:
+        for line in (run_dir / "iters.jsonl").read_text().splitlines():
+            r = json.loads(line)
+            tot += r.get("collect_s", 0) + r.get("update_s", 0)
+            cum[r["iter"]] = tot
+    except (OSError, ValueError):
+        pass
+    ev = {}
+    acc = 0.0
+    for e in st.get("evals", []):
+        acc += e.get("wall_s", 0)
+        ev[e["iter"]] = acc
+    return {i: v + max([a for k, a in ev.items() if k <= i] or [0]) for i, v in cum.items()}
+
+
 def val_curve(st, fam, greedy: bool = True):
-    return [(e["iter"], e["env_interactions_so_far"], sum((e.get("compute_s_so_far") or {}).values()),
+    pc = st.get("_ppo_compute") or {}
+    return [(e["iter"], e["env_interactions_so_far"],
+             sum((e.get("compute_s_so_far") or {}).values()) or pc.get(e["iter"], 0.0),
              e["by_family"][fam]["rate"], e["by_family"][fam]["final_progress"], e["by_family"][fam].get("violation_rate"))
             for e in st.get("evals", []) if e["split"] == "val" and fam in e["by_family"] and not e.get("planning")
             and e.get("greedy", True) == greedy and not e["tag"].endswith("-monitor")]
@@ -51,6 +71,9 @@ def main() -> int:
         runs[d.name] = d
     S = {k: load(v) for k, v in runs.items()}
     S = {k: v for k, v in S.items() if v}
+    for k, st in S.items():
+        if "grad_updates" not in st.get("counters", {}):
+            st["_ppo_compute"] = ppo_compute(runs[k], st)
     md = ["# CAM-v2 experiment report", "",
           "Success = verified success on the unchanged full-difficulty validation goals (200 episodes per family, greedy). "
           "`viol` = episodes ended by a hard-constraint violation (product: bankruptcy; negotiation: counterparty walk-out; "
@@ -74,6 +97,21 @@ def main() -> int:
             md += [f"## {fam}: validation success vs real interactions", "",
                    "| run | ≤150k | ≤300k | ≤600k | best (at interactions) | interactions to ≥10% | to ≥30% | interactions so far | compute h so far |",
                    "|---|---|---|---|---|---|---|---|---|"] + rows + [""]
+    md += ["## Compute-matched view (wall-clock seconds of collect + learn + dream + eval phases on the shared GPU; PPO runs: from their iteration logs)", ""]
+    cbud = [0.5, 1.0, 2.0]
+    for fam in ("product", "negotiation", "bizdev"):
+        rows = []
+        for name, st in S.items():
+            cv = [c for c in val_curve(st, fam) if c[2] > 0]
+            if not cv:
+                continue
+            cells = []
+            for b in cbud:
+                pts = [c for c in cv if c[2] <= b * 3600]
+                cells.append(f"{pts[-1][3]:.3f} ({pts[-1][1] // 1000}k inter.)" if pts else "–")
+            rows.append(f"| {name} | " + " | ".join(cells) + " |")
+        if rows:
+            md += [f"**{fam}**", "", "| run | ≤0.5 h | ≤1 h | ≤2 h |", "|---|---|---|---|"] + rows + [""]
     md += ["## Sampled (stochastic) policy validation success, CAM-v2 runs (secondary; same tasks)", ""]
     for name, st in S.items():
         for fam in ("product", "negotiation", "bizdev"):
