@@ -1,6 +1,8 @@
 # Superlearner Phase 1 (CAM simulators + Vending-Bench). Generated; see docs/superlearner.md (amendment 5: experienced
 # transfers start from life_1000000 once it exists; lifetime-level curve at 250k/500k; 2M level where reached).
 # Transfer runs monitor their source families (retention / forgetting); scratch runs monitor negotiation+product.
+# Amendment 10: T_V15_scratch_s1/s2 (sl-exp-v15 Vending: the operator stays liable for the whole fee contract) test H9;
+# T_V14_scratch_s1/s2 never trained (their smokes failed the reward audit: closure was cheaper than paying).
 # Amendment 9: T_V14_scratch_s1/s2 (sl-exp-v14 Vending: minimum order observed, only valid order quantities) test H9.
 # Amendment 8: T_V13_scratch_s1/s2 (sl-exp-v13 Vending adapter: accrual accounting + world-time dt) test H8; the v10
 # Vending transfer jobs (T_V_from*) are kept but moved to the end of the queue.
@@ -303,6 +305,20 @@ jobs:
     families: *id001
     heldout_families: *id002
   src: /workspace/agentrs-sl-exp-v14/src
+- name: T_V15_scratch_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families: *id001
+    heldout_families: *id002
+  src: /workspace/agentrs-sl-exp-v15/src
+- name: T_V15_scratch_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families: *id001
+    heldout_families: *id002
+  src: /workspace/agentrs-sl-exp-v15/src
 - name: T_B11_fromNPV_s2
   config: configs/sl/transfer.yaml
   set:

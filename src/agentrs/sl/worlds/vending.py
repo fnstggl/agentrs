@@ -38,6 +38,15 @@ dropped) or above the cash balance is refused. The observation now carries each 
 the order grammar offers only quantities that the agent's own quote shows to be valid (quote x quantity at least 1.1 x
 the minimum and at most balance / 1.1; the margin covers the benchmark's small volume discounts). No hidden
 information is used: quotes, minimums and the balance are all visible to the operator.
+
+sl-exp-v15 (amendment 10): the v14 smoke's reward-contract audit failed. With orders now accepted, a policy can spend its
+cash on stock, stop paying the EUR 12 daily spot fee and be closed after 10 unpaid days: the benchmark then stops charging
+fees and keeps the stock at cost in net worth, so closure cost less than holding out to day 30 (audit: terminate -3.54 vs
+stall -3.60, including the violation cost). The benchmark's own score gives a closed run 0, so this was an adapter hole,
+not benchmark behaviour. The adapter now keeps the operator liable for the whole 30-day contract: unpaid fees count as
+owed (the benchmark forgives them once a later fee is paid), and a closed run owes the fees for the rest of the contract.
+Reward, score, progress and success all use this settled value (net worth - fees owed); a run that pays every fee is
+scored exactly as before.
 """
 from __future__ import annotations
 
@@ -99,8 +108,18 @@ class VendingWorld(World):
     def _clock(self) -> float:
         return float(self.e.s["day"] * 1440 + self.e.s["minute"])
 
+    def _fees_owed(self) -> float:
+        """Spot fees owed but not paid under the 30-day contract (sl-exp-v15): every elapsed day's fee, and once the run is
+        over (finished or closed) the fee for every day of the contract."""
+        s, c = self.e.s, self.config
+        days = c.SIM_DAYS if self.e.over else s["day"] - 1
+        return max(0.0, c.DAILY_SPOT_FEE * days - float(s["fees_paid"]))
+
+    def _settled(self) -> float:
+        return self.e.net_worth() - self._fees_owed()
+
     def _accrued(self) -> float:
-        return self.e.net_worth() if self.e.over else self.e.net_worth() + self._in_transit()
+        return self._settled() if self.e.over else self._settled() + self._in_transit()
 
     # ------------------------------------------------------------------ observation
     def observe(self, agent="0") -> Obs:
@@ -108,7 +127,8 @@ class VendingWorld(World):
         nums = {"day": s["day"] / c.SIM_DAYS, "minute": s["minute"] / 1440.0, "balance": s["balance"] / 1000.0,
                 "card_transit": sum(p["amount"] for p in s["pending_card"]) / 1000.0, "reputation": float(s["reputation"]),
                 "unpaid_days": float(s["unpaid_days"]), "units_yesterday": (s["sales_log"][-1]["units"] if s["sales_log"] else 0) / 100.0,
-                "net_worth": self.e.net_worth() / 1000.0, "unread_mail": float(sum(1 for m in s["emails"] if m["folder"] == "inbox" and not m["read"]))}
+                "net_worth": self.e.net_worth() / 1000.0, "unread_mail": float(sum(1 for m in s["emails"] if m["folder"] == "inbox" and not m["read"])),
+                "fees_owed": self._fees_owed() / 1000.0}  # v15: what the operator owes under the contract (from its own history)
         ents = []
         for sl in self.slots:
             m = s["machine"][sl]
@@ -268,7 +288,7 @@ class VendingWorld(World):
 
     def evaluate_goal(self, agent="0") -> GoalStatus:
         s = self.e.s
-        nw = self.e.net_worth()
+        nw = self._settled()
         done = bool(self.e.over)
         terminated = bool(s.get("terminated"))
         return GoalStatus(success=done and not terminated and nw >= TARGET,

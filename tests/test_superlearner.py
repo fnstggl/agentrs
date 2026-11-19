@@ -233,7 +233,8 @@ def test_vending_accrual_reward_and_world_time():
     assert abs(total - (w.e.net_worth() - w.nw0) / 100.0) < 1e-6
 
 
-def test_reward_audit_passes_for_vending_v13():
+def test_reward_audit_passes_for_vending():
+    """At the production audit size (n=12): with n=3 the v14 adapter passed here but failed its smoke (sl-exp-v15)."""
     import pytest
     from agentrs.sl.train import reward_audit
     from agentrs.sl.world import RewardContract
@@ -241,8 +242,35 @@ def test_reward_audit_passes_for_vending_v13():
 
     if not V.available():
         pytest.skip("Vending-Bench engine not installed")
-    res = reward_audit(["ext/vending"], RewardContract(), 2000, n=3)
+    res = reward_audit(["ext/vending"], RewardContract(), 2000, n=12)
     assert res["ext/vending"]["passed"], res
+
+
+def test_vending_v15_closure_never_costs_less_than_paying_the_contract():
+    """sl-exp-v15 (amendment 10): spending all cash on stock and being closed for unpaid fees still owes every fee of the
+    30-day contract, so the settled value of a closed run is net worth minus the unpaid fees of all 30 days."""
+    import random as _r
+
+    import pytest
+    from agentrs.sl.world import Task
+    from agentrs.sl.worlds import vending as V
+
+    if not V.available():
+        pytest.skip("Vending-Bench engine not installed")
+    w = V.VendingWorld()
+    w.initialize_world(Task(family="ext/vending", seed=3, split="val"))
+    fee, days = w.config.DAILY_SPOT_FEE, w.config.SIM_DAYS
+    w.e.s["balance"] = 5.0  # cannot pay the fee: the benchmark closes the run after MAX_UNPAID_DAYS unpaid days
+    ret, k = 0.0, 0
+    while not w.e.over and k < 100:
+        w.execute("0", ["wait"])
+        ret += w.observe_consequences("0").reward
+        k += 1
+    assert w.e.s["terminated"] and w.e.s["fees_paid"] == 0.0
+    g = w.evaluate_goal("0")
+    assert abs(g.score * w.nw0 - (w.e.net_worth() - fee * days)) < 1e-6
+    assert g.violated == "terminated_unpaid_fees" and not g.success
+    assert w.observe("0").numbers["fees_owed"] == pytest.approx(fee * days / 1000.0)
 
 
 def test_vending_v14_offers_only_orders_the_operator_can_see_are_valid():

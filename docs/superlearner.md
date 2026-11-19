@@ -351,6 +351,35 @@ The two defects, both in our adapter (the benchmark is unchanged):
   return.
 - **Disproved if** both are ≤ 0.78.
 
+### Protocol amendment 10, 2026-11-19 11:40 UTC: Vending closure was cheaper than paying (before any v14/v15 result)
+**What happened.** Neither `T_V14_scratch` run trained. Both production smokes stopped at the reward-contract audit
+(12 scripted episodes per policy), which requires that ending an episode early never pays more than failing at the
+deadline. With orders now accepted, the audit's `terminate` policy spent its cash on stock, stopped paying the EUR 12
+daily spot fee and was closed after 10 unpaid days. The benchmark stops charging fees after closure and keeps the stock in
+net worth at cost, so closure cost less than holding out to day 30: −3.54 vs −3.60, even after the −1 violation cost.
+The unit test ran the same audit with 3 episodes and passed; it now uses the production 12.
+
+**Cause.** An adapter hole, not benchmark behaviour: the benchmark's own score gives a closed run 0
+(`reward = balance if completed else 0`). It also forgives unpaid fees once a later fee is paid.
+
+**Fix (`sl-exp-v15`, `sl/worlds/vending.py`; v14's order validity and v13's accrual and world time are kept).**
+- The operator stays liable for the whole 30-day contract. Fees owed = EUR 12 × elapsed days − fees paid, and once the
+  run is over (finished or closed), EUR 12 × 30 − fees paid.
+- Reward, score, progress and success use the settled value: benchmark net worth − fees owed. A run that pays every fee
+  scores exactly as under v13/v14, so the do-nothing reference (0.760) and amendment 8's reachability evidence (a scripted
+  business that pays its fees) are unchanged.
+- The observation adds `fees_owed`, computed from the operator's own payment history.
+- **Audit (12 episodes, production settings):** stall −3.60 (unchanged), terminate −3.54 → −5.54, random −4.89 → −6.93;
+  passed.
+
+**Test.** H9 is unchanged in substance and is now tested with v15, because v14 never produced a result. Runs:
+`T_V15_scratch_s1`, `T_V15_scratch_s2` (v15, otherwise exactly like `T_V13_scratch_s*`, 300k); same thresholds.
+
+**Risk recorded in advance.** Random play now loses more than doing nothing (−6.93 vs −3.60), which strengthens the
+inaction attractor seen in v10–v13. If both v15 seeds again settle on the do-nothing return, H9 is disproved as stated:
+valid orders alone do not make Vending learnable for this learner. Cash management, the remaining obstacle, would then
+need its own hypothesis, not a reward change.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6

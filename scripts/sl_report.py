@@ -301,7 +301,7 @@ def prereg_tests(runs) -> list:
             verdict = "neither confirmed nor disproved (mixed)"
         md += ["", f"H7 verdict: **{verdict}**", ""]
     for hyp, ver, amend, what in (("H8", "13", 8, "the adapter's cash-timed orders and per-call discounting"),
-                                  ("H9", "14", 9, "refused orders (minimum order not observed, invalid quantities offered)")):
+                                  ("H9", "15", 9, "refused orders (minimum order not observed, invalid quantities offered); tested with v15 (amendment 10: v14 never trained, its audit found closure cheaper than paying)")):
         md += _vending_test(runs, hyp, ver, amend, what)
     return md
 
