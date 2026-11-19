@@ -115,6 +115,11 @@ The first four Phase 1 pretraining runs (sl-exp-v1/v2) were stopped after 4–20
 - The reward audit now also runs an early-termination policy, which uses simulator snapshots to end episodes
   whenever any action can. Ending early must never pay more than failing at the deadline. v9 passes on all four
   families (negotiation: −0.56 either way).
+- **Bizdev metric:** its primary metric becomes verified progress (fraction of required partners committed),
+  with threshold 0.5. Every learner so far (original PPO CAM, CAM-v2 PPO arms, superlearner) has 0% bizdev
+  success within these budgets, so a success-based AUC cannot distinguish arms. Success is still reported.
+- **Learning restored:** before restarting, a v9 negotiation-only diagnostic (200k interactions) reached 8–10%
+  validation success, with verified progress rising from 0.29 to 0.53. The original PPO CAM was at 8% at 200k.
 - All v5 Phase 1 runs (CAM families) are superseded and set aside. Phase 1 restarts on sl-exp-v9 with the same
   protocol. Melting Pot (native rewards, no per-decision costs) is unaffected.
 

@@ -26,7 +26,9 @@ def load(d: Path):
 def metric_of(fam: str, overrides: dict) -> str:
     if fam in overrides:
         return overrides[fam]
-    return "score" if fam.startswith(("ext/", "mp/", "mpsc/")) else "success"
+    # cam/bizdev: every learner so far (original PPO CAM, CAM-v2 PPO arms, superlearner) has 0% success within these
+    # budgets, so its primary metric is verified progress (fraction of required partners committed); amendment 3
+    return "score" if fam.startswith(("ext/", "mp/", "mpsc/")) or fam == "cam/bizdev" else "success"
 
 
 def ev_val(st, fam, mode="full", split="val"):
@@ -154,7 +156,7 @@ def main() -> int:
                       f"| {init} | {len(names)} | " + " | ".join(cells) + " | – | – | – |")
         md.append("")
         # interactions to threshold
-        thr = 0.10 if met == "success" else 1.5
+        thr = {"success": 0.10}.get(met) or {"cam/bizdev": 0.5}.get(fam, 1.5)
         md.append(f"Interactions until validation {met} ≥ {thr} (first milestone; per seed): " + "; ".join(
             f"{init}: " + ", ".join(str(next((x for x, v in ev_val(runs[n_], fam) if auc_value(v, met) >= thr), "not reached")) for n_ in names)
             for init, names in sorted(inits.items())))
