@@ -266,6 +266,28 @@ first iterations).
   (it has no scalable goal; its obstacle is the action chain and order accounting): a separate hypothesis, tested
   after H7.
 
+### Results of the amendment 6 and 7 tests (2026-11-19 07:40 UTC, mechanical verdicts from `scripts/sl_report.py`)
+- **H6: CONFIRMED.** Bizdev scratch validation progress at 100k / 300k:
+  - v11 (fixed contract): 0.486 / 0.704, 0.424 / 0.771, 0.454 / 0.738;
+  - v10: 0.009 / 0.000, 0.000 / 0.000, 0.002 / 0.000.
+  - Caveat: on bizdev's harder test distribution (more dependencies and rivalry, tighter cap) v11 reaches only 0.46
+    progress and 0.7% success (`T_B11_scratch_s1`). In-distribution learning does not yet generalise to the shifted
+    distribution.
+- **Product secondary (v11 vs v10): NOT CONFIRMED** (Δ = +0.024). The shaping fix alone does not fix product
+  (amendment 7).
+- **H7: neither confirmed nor disproved (mixed).** Validation at full targets, 300k:
+
+  | Run | Progress | Success | Note |
+  |---|---|---|---|
+  | `D_P11_s1` (control) | 0.024 | 0 | |
+  | `D_P12c_s1` | 0.285 | 0 | final validation at the same budget: 0.323 / 0.014 |
+  | `D_P12c_s2` | 0.439 | 0.035 | |
+
+  - The disproof conditions clearly fail: the curriculum lifts product out of the inaction basin. Training difficulty
+    rose 9–10 times to 0.25–0.39 of the full target, and validation bankruptcy is 13–19% (the agent now takes risks).
+  - The success condition holds in one seed, so full-target success needs a longer budget than 300k.
+  - Test split (B2B-like markets): 0.091 vs 0.040 progress.
+
 ### Protocol amendment 8, 2026-11-19 06:35 UTC: Vending-Bench adapter reward-timing defects (before any v13 result)
 **Cause of Vending's learned inaction.** The discounted objective the learner optimises (γ = 0.99 per step) prefers doing
 nothing. Discounted returns from the start of an episode, 12 validation tasks (`scripts/sl_vending_discount.py`):
