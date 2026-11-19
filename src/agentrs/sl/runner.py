@@ -59,8 +59,10 @@ class Runner:
         self.slots: list = []
         self.trials_done: list = []                   # finished trial records (per stream)
         self.dt_ref = dt_ref if dt_ref is not None else {}
-        for _ in range(n_worlds):
-            s = self._new_slot()
+        self.fam_k: dict = {}           # controlled streams per family (fixed per family)
+        self.class_plan = self._plan_classes(n_worlds) if self.fixed is None else None
+        for i in range(n_worlds):
+            s = self._new_slot(k=self.class_plan[i] if self.class_plan else None)
             if s is None:
                 break
             self.slots.append(s)
@@ -72,21 +74,58 @@ class Runner:
         self.stats = {"env_s": 0.0, "infer_s": 0.0}
 
     # ------------------------------------------------------------------ tasks
-    def _next_task(self) -> Optional[Task]:
+    def _streams_of(self, fam: str) -> int:
+        if fam not in self.fam_k:
+            w = self.make_world(fam)
+            w.initialize_world(self.sample_task(fam, self.rng, self.split))
+            self.fam_k[fam] = len(self._controlled(w))
+            w.close()
+        return self.fam_k[fam]
+
+    def _plan_classes(self, n_worlds: int):
+        """Worlds keep a fixed number of learner streams (the recurrent state has one row per stream). When families
+        differ in player count, world slots are split across player-count classes so that each class gets its target
+        share of agent-steps (slots_c proportional to share_c / players_c, at least one slot per class)."""
+        if len(self.families) < 2:
+            return None
+        ks = {f: self._streams_of(f) for f in self.families}
+        if len(set(ks.values())) < 2:
+            return None
+        W = sum(self.families.values())
+        share = {}
+        for f, k in ks.items():
+            share[k] = share.get(k, 0.0) + self.families[f] / W
+        raw = {k: share[k] / k for k in share}
+        tot = sum(raw.values())
+        alloc = {k: max(1, int(n_worlds * raw[k] / tot)) for k in raw}
+        while sum(alloc.values()) > n_worlds:
+            alloc[max(alloc, key=lambda k: alloc[k])] -= 1
+        rem = sorted(raw, key=lambda k: n_worlds * raw[k] / tot - int(n_worlds * raw[k] / tot), reverse=True)
+        i = 0
+        while sum(alloc.values()) < n_worlds:
+            alloc[rem[i % len(rem)]] += 1
+            i += 1
+        plan = [k for k, n in sorted(alloc.items()) for _ in range(n)]
+        self.class_alloc = alloc
+        return plan
+
+    def _next_task(self, k: Optional[int] = None) -> Optional[Task]:
         """Balanced experience: the next trial goes to the family furthest below its target share of agent-steps
         (weights are shares of interactions, not of trials; trials of different families differ ~30x in length)."""
         if self.fixed is not None:
             return self.fixed.pop(0) if self.fixed else None
         fams = list(self.families)
-        W = sum(self.families.values())
+        if k is not None and self.class_plan:  # stay within the slot's player-count class
+            fams = [f for f in fams if self._streams_of(f) == k]
+        W = sum(self.families[f] for f in fams)
         total = sum(self.fam_steps.get(f, 0) for f in fams) + sum(self.fam_running.get(f, 0) for f in fams)
         deficit = {f: self.families[f] / W * (total + 1) - self.fam_steps.get(f, 0) - self.fam_running.get(f, 0) for f in fams}
         best = max(deficit.values())
         fam = self.rng.choice([f for f in fams if deficit[f] >= best - 1e-9])
         return self.sample_task(fam, self.rng, self.split)
 
-    def _new_slot(self) -> Optional[WorldSlot]:
-        t = self._next_task()
+    def _new_slot(self, k: Optional[int] = None) -> Optional[WorldSlot]:
+        t = self._next_task(k)
         if t is None:
             return None
         w = self.make_world(t.family)
@@ -272,7 +311,7 @@ class Runner:
             s.episode += 1
             if s.episode >= self.K:  # trial over: new task
                 s.world.close()  # release external resources (e.g. pooled Melting Pot servers)
-                t = self._next_task()
+                t = self._next_task(len(s.streams) if self.class_plan else None)
                 if t is None:
                     s.world = None
                     continue
