@@ -76,3 +76,26 @@ def test_production_cli_start_to_finish_with_transfer_init(tmp_path):
     assert p.returncode == 0, p.stdout[-3000:] + p.stderr[-3000:]
     st = json.loads((b / "state.json").read_text())
     assert st["phase"] == "done" and st["init_from"]["loaded"] == st["init_from"]["total"]
+
+
+def test_reward_audit_closes_stalling_and_early_termination_exploits(monkeypatch):
+    """Regression for the v1-v5 contract defects: stalling must end within the cap, and quitting at once must not be
+    a cheaper failure than running out the clock (the audit's early-termination policy uses world snapshots)."""
+    from agentrs.sl.train import reward_audit
+    from agentrs.sl.world import RewardContract, RewardSpec
+    from agentrs.sl.worlds import cam_worlds
+
+    rc = RewardContract(RewardSpec(native=1.0, success=1.0, shaping=0.5, violation=1.0, gamma=0.99))
+    a = reward_audit(["cam/negotiation", "cam/bizdev"], rc, 2000, n=6)
+    assert all(v["passed"] for v in a.values()), a
+    assert abs(a["cam/negotiation"]["terminate"]["return"] - a["cam/negotiation"]["stall"]["return"]) < 0.05
+    # without the failure-budget charge the audit must flag the exploit
+    orig = cam_worlds.CamWorld.observe_consequences
+
+    def no_budget(self, agent="0"):
+        c = orig(self, agent)
+        if c.done and not (self.env.done and self.env.success):
+            c.reward = -cam_worlds.DECISION_COST
+        return c
+    monkeypatch.setattr(cam_worlds.CamWorld, "observe_consequences", no_budget)
+    assert not reward_audit(["cam/negotiation"], rc, 2000, n=6)["cam/negotiation"]["passed"]
