@@ -7,7 +7,7 @@ results depend on:
     optimizer / RNG copies in ``ckpt/initial`` (initial weights are kept);
   * leftovers of interrupted atomic saves (``ckpt/.*.tmp``, ``ckpt/.*.old``) older than one hour;
   * checkpoints of smoke-test runs and of discarded runs (``_smoke*``, ``_invalid*``) - their logs/state are kept;
-  * pytest temporary directories.
+  * pytest temporary directories idle for 6 hours.
 Always kept: ``final``, ``best``, ``initial/weights.pt``, ``life_*`` (transfer initialisations), ``latest`` of
 running runs, every state.json / log / iters.jsonl.
 
@@ -85,7 +85,13 @@ def plan() -> list:
                     if (ck / "initial" / f).exists():
                         out.append((ck / "initial" / f, "initial optimizer/RNG copy (run finished, backed up)"))
     for p in Path("/tmp").glob("pytest-of-*"):
-        out.append((p, "pytest temporary directories"))
+        # only idle ones: a running test session's tmp_path was deleted mid-test (2026-11-19)
+        try:
+            idle = now - max([p.stat().st_mtime] + [f.stat().st_mtime for f in p.rglob("*")])
+        except OSError:
+            continue
+        if idle > 6 * 3600:
+            out.append((p, "idle pytest temporary directories"))
     return out
 
 

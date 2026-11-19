@@ -99,3 +99,54 @@ def test_reward_audit_closes_stalling_and_early_termination_exploits(monkeypatch
         return c
     monkeypatch.setattr(cam_worlds.CamWorld, "observe_consequences", no_budget)
     assert not reward_audit(["cam/negotiation"], rc, 2000, n=6)["cam/negotiation"]["passed"]
+
+
+def test_progress_shaping_telescopes_under_the_runners_discount():
+    """Potential-based shaping is policy-invariant only under the learner's own discount. With shaping as the only
+    reward, the runner's discounted return of every completed episode must equal -Phi(s_0) = 0, whatever the policy
+    did. sl-exp-v1..v10 discounted shaping by raw elapsed hours instead: product (dt ~ 400 h) and bizdev (dt ~ 38 h)
+    episodes then returned strongly negative values for any progress held, so the learner unlearned progress."""
+    from agentrs.sl.world import RewardContract, RewardSpec
+    torch.manual_seed(0)
+    m = SLCore(SLConfig(**TINY))
+    rc = RewardContract(RewardSpec(native=0.0, success=0.0, shaping=1.0, time_cost=0.0, violation=0.0))
+    for fam in ("cam/product", "cam/bizdev", "cam/negotiation"):
+        w = W.make_world(fam)
+        w.initialize_world(W.sample_task(fam, __import__("random").Random(0), "train"))
+        assert w.evaluate_goal().progress == 0.0
+        r = Runner(m, {fam: 1.0}, W.make_world, W.sample_task, 4, trial_episodes=2, seed=3, contract=rc)
+        seg = r.collect(160)
+        r.close()
+        rew = torch.stack([s["r"] for s in seg["steps"]])
+        disc = torch.stack([s["disc"] for s in seg["steps"]]).float()
+        done = torch.stack([s["done"] for s in seg["steps"]])
+        n_ep, worst, progressed = 0, 0.0, 0
+        for k in range(rew.shape[1]):
+            acc, D, nonzero = 0.0, 1.0, False
+            for t in range(rew.shape[0]):
+                acc += D * float(rew[t, k])
+                nonzero |= abs(float(rew[t, k])) > 1e-9
+                D *= float(disc[t, k])
+                if done[t, k]:
+                    worst = max(worst, abs(acc))
+                    n_ep += 1
+                    progressed += nonzero
+                    acc, D, nonzero = 0.0, 1.0, False
+        assert n_ep >= 4, fam
+        assert worst < 1e-4, (fam, worst)
+        if fam != "cam/product":
+            assert progressed > 0, fam  # the check is not vacuous: some episodes made verified progress
+
+
+def test_reward_audit_catches_the_v10_shaping_discount(monkeypatch):
+    from agentrs.sl.train import reward_audit
+    from agentrs.sl.world import RewardContract, RewardSpec
+    rc = RewardContract(RewardSpec())
+    assert reward_audit(["cam/bizdev"], rc, 2000, n=6)["cam/bizdev"]["passed"]
+    orig = RewardContract.components
+
+    def v10(self, before, after, cons, disc):  # the v1-v10 contract: shaping discounted by raw elapsed hours
+        return orig(self, before, after, cons, self.s.gamma ** max(0.0, cons.dt))
+    monkeypatch.setattr(RewardContract, "components", v10)
+    a = reward_audit(["cam/bizdev"], rc, 2000, n=6)["cam/bizdev"]
+    assert not a["passed"] and a["random"]["shaping_telescope_err"] > 1e-3

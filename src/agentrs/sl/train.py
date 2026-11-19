@@ -74,11 +74,15 @@ def reward_audit(families: list, rc: RewardContract, max_steps: int, n: int = 12
     * ``random``: uniformly random legal actions;
     * ``stall``: always the first legal option (a degenerate repeat policy, which in practice includes invalid /
       time-wasting actions).
-    Invariants: every episode of both policies ends within the cap, and the stalling policy never earns a positive
-    return without verified success."""
+    * ``terminate``: ends the episode as soon as any action can.
+    Invariants: every episode ends within the cap; the stalling policy never earns a positive return without verified
+    success; ending early never pays more than failing at the deadline; and the progress shaping telescopes under the
+    learner's discount (sum_t D_t * shaping_t = -shaping * Phi(s_0) on every completed episode of every policy, where
+    D_t is the product of the runner's per-step discounts), i.e. making and holding verified progress is never
+    penalised or rewarded beyond its potential (sl-exp-v11; v1-v10 violated this on long-step worlds)."""
     import random as _r
 
-    from agentrs.sl.runner import Runner  # noqa: F401  (contract helper below mirrors the runner)
+    from agentrs.sl.runner import learner_discount
     out = {}
     for fam in families:
         if not W.resolve(fam):
@@ -86,13 +90,15 @@ def reward_audit(families: list, rc: RewardContract, max_steps: int, n: int = 12
         res = {}
         for pol in ("random", "stall", "terminate"):
             rng = _r.Random(seed)
-            rets, succ, steps, ended = [], [], [], []
+            rets, succ, steps, ended, tele = [], [], [], [], []
+            dt_ref: dict = {}
             for i in range(n):
                 w = W.make_world(fam)
                 w.initialize_world(Task(family=fam, seed=900_000 + i, split="train"))
                 ags = list(getattr(w, "controlled", None) or w.agents())
                 before = {a: w.evaluate_goal(a) for a in ags}
                 ret, k, done = 0.0, 0, False
+                phi0, sh_sum, D = before[ags[0]].progress, 0.0, 1.0
                 ov = getattr(w, "reward_overrides", None)
                 c = rc if not ov else RewardContract(RewardSpec(**{**rc.s.__dict__, **ov}))
                 fixed_len = getattr(w, "agent_controls_length", True) is False
@@ -128,22 +134,29 @@ def reward_audit(families: list, rc: RewardContract, max_steps: int, n: int = 12
                     k += 1
                     cons = w.observe_consequences(ags[0])
                     after = w.evaluate_goal(ags[0])
-                    ret += c(before[ags[0]], after, cons)
+                    disc = learner_discount(c.s.gamma, cons.dt, dt_ref, fam)
+                    comp = c.components(before[ags[0]], after, cons, disc)
+                    ret += c(before[ags[0]], after, cons, disc)
+                    sh_sum += D * comp["shaping"]
+                    D *= disc
                     before[ags[0]] = after
                     done = cons.done
+                if done:
+                    tele.append(abs(sh_sum + c.s.shaping * phi0))
                 rets.append(ret)
                 succ.append(bool(before[ags[0]].success))
                 steps.append(k)
                 ended.append(done or fixed_len)  # episode length outside the agent's control: nothing to exploit
                 w.close()
             res[pol] = {"return": float(np.mean(rets)), "success": float(np.mean(succ)), "steps": float(np.mean(steps)),
-                        "ended": float(np.mean(ended))}
+                        "ended": float(np.mean(ended)), "shaping_telescope_err": float(max(tele) if tele else 0.0)}
         r, st, te = res["random"], res["stall"], res["terminate"]
         # invariants: every scripted episode terminates within the cap (no reward for never finishing), and inaction
         # never earns a positive return (preserving resources may beat destructive random play, which is legitimate)
         # ... and ending episodes as early as possible never pays more than failing at the deadline
         passed = (r["ended"] == 1.0 and st["ended"] == 1.0 and (st["return"] <= 0.0 or st["success"] > 0)
-                  and (te["return"] <= st["return"] + 0.05 or te["success"] > st["success"]))
+                  and (te["return"] <= st["return"] + 0.05 or te["success"] > st["success"])
+                  and max(x["shaping_telescope_err"] for x in res.values()) < 1e-4)
         out[fam] = {**res, "passed": bool(passed)}
     return out
 

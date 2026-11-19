@@ -1,5 +1,7 @@
 # Superlearner Phase 2: Melting Pot lifetime (self-play on 6 substrates) and transfer to held-out substrates;
 # held-out scenarios (unfamiliar background bots) are zero-shot monitors. See docs/superlearner.md.
+# Amendment 5: transfers start from P_MP6_s1's life_1000000 once it exists (4M is not reachable within the 10 h cap);
+# a 2M-level transfer runs only if the lifetime reaches 2M.
 runs_root: /workspace/agentrs/runs/sl_mp
 src: /workspace/agentrs-sl-exp-mp/src
 module: agentrs.sl.train
@@ -7,6 +9,7 @@ max_jobs: 4
 max_load: 40
 min_free_mib: 8000
 min_free_disk_gb: 20
+min_free_pids: 40
 threads: 4
 smoke: true
 smoke_set:
@@ -61,9 +64,9 @@ jobs:
     families:
       mp/commons_harvest__closed: 1.0
     heldout_families: []
-    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_4000000
-  after:
-  - P_MP6_s1
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_1000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_1000000
 - name: T_closed_scratch_s2
   config: configs/sl/transfer_mp.yaml
   set:
@@ -78,9 +81,9 @@ jobs:
     families:
       mp/commons_harvest__closed: 1.0
     heldout_families: []
-    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_4000000
-  after:
-  - P_MP6_s1
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_1000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_1000000
 - name: T_bos_scratch_s1
   config: configs/sl/transfer_mp.yaml
   set:
@@ -95,9 +98,9 @@ jobs:
     families:
       mp/bach_or_stravinsky_in_the_matrix__repeated: 1.0
     heldout_families: []
-    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_4000000
-  after:
-  - P_MP6_s1
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_1000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_1000000
 - name: T_bos_scratch_s2
   config: configs/sl/transfer_mp.yaml
   set:
@@ -112,9 +115,9 @@ jobs:
     families:
       mp/bach_or_stravinsky_in_the_matrix__repeated: 1.0
     heldout_families: []
-    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_4000000
-  after:
-  - P_MP6_s1
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_1000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_1000000
 - name: P_MP6_s2
   config: configs/sl/pretrain_mp.yaml
   set:
@@ -131,4 +134,23 @@ jobs:
     - mp/bach_or_stravinsky_in_the_matrix__repeated
     - mpsc/prisoners_dilemma_in_the_matrix__repeated_0
     - mpsc/coins_0
-    
+- name: T_closed_fromMP6at2M_s1
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 1
+    families:
+      mp/commons_harvest__closed: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_2000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_2000000
+- name: T_bos_fromMP6at2M_s1
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 1
+    families:
+      mp/bach_or_stravinsky_in_the_matrix__repeated: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_2000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_2000000

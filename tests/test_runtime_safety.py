@@ -89,3 +89,43 @@ def test_crash_ledger_stops_a_repeating_failure_with_a_report(tmp_path):
     log.write_text(log.read_text() + "resumed\n" + tb)
     assert led.record(js, tmp_path, log) is True
     assert "same failure occurred 2 times" in (tmp_path / "CRASH_REPORT.md").read_text()
+
+
+def _queue_module():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("sl_queue", Path(__file__).resolve().parents[1] / "scripts" / "sl_queue.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_queue_waits_for_a_checkpoint_then_starts_and_skips_unreachable_ones(tmp_path):
+    """Transfer jobs start once their source checkpoint exists (source still training) and are skipped when the source
+    finished without it (amendment 5)."""
+    import yaml
+    qm = _queue_module()
+    runs = tmp_path / "runs"
+    for name, ph in (("SRC_a", "train"), ("SRC_b", "train")):
+        (runs / name / "ckpt").mkdir(parents=True)
+        (runs / name / "state.json").write_text(json.dumps({"phase": ph}))
+    want_a, want_b = runs / "SRC_a" / "ckpt" / "life_10", runs / "SRC_b" / "ckpt" / "life_20"
+    q = {"runs_root": str(runs), "src": str(Path(__file__).resolve().parents[1] / "src"), "module": "json.tool",
+         "max_jobs": 4, "min_free_mib": 0, "min_free_disk_gb": 0, "smoke": False, "gh_backup": False,
+         "jobs": [{"name": "T_a", "config": "x.yaml", "set": {}, "wait_for": [str(want_a)]},
+                  {"name": "T_b", "config": "x.yaml", "set": {}, "wait_for": [str(want_b)]}]}
+    qp = tmp_path / "q.yaml"
+    qp.write_text(yaml.safe_dump(q))
+    qu = qm.Queue(str(qp))
+    for _ in range(3):
+        qu.tick()
+    assert qu.st["T_a"]["status"] == qu.st["T_b"]["status"] == "pending"   # sources still training, no checkpoints yet
+    want_a.mkdir()
+    (want_a / "weights.pt").write_text("partial")
+    qu.tick(); qu.tick()
+    assert qu.st["T_a"]["status"] == "pending"                              # incomplete checkpoint (no DONE marker)
+    (want_a / "DONE").write_text("1")
+    (runs / "SRC_b" / "state.json").write_text(json.dumps({"phase": "done"}))  # SRC_b finished without life_20
+    qu.tick(); qu.tick()
+    assert qu.st["T_a"]["status"] == "running" and qu.st["T_a"]["starts"] == 1
+    assert qu.st["T_b"]["status"] == "skipped"
+    assert "T_b skipped" in (runs / "queue.log").read_text()

@@ -143,6 +143,85 @@ The first four Phase 1 pretraining runs (sl-exp-v1/v2) were stopped after 4–20
   transfer). Skills stay in the base architecture; their mild deficit is within noise and is tested by
   `A_NPV_noskill_s1`.
 
+### Protocol amendment 5, 2026-11-19 04:30 UTC (before any experienced-transfer result)
+**Problem: the 2M transfer checkpoint is not reachable in time.** Each lifetime has an 8 h wall-clock cap (Phase 2:
+10 h). With 8 Phase 1 and 2 Phase 2 jobs sharing the GPU, training throughput is about 75–83 interactions/s per
+lifetime. Projections at 04:00 UTC:
+
+| Lifetime | Interactions | Hours needed to reach 2M | Hours left |
+|---|---|---|---|
+| P_NPV_s1 | 504k | 6.4 | 5.2 |
+| P_NP_s1 | 459k | 6.5 | 5.6 |
+| P_N_s1 | 303k | 6.8 | 5.8 |
+| P_NPB_s1 | 582k | 5.0 | 5.4 |
+
+- **Phase 1:** `life_2000000`, the checkpoint the transfer protocol required, would not exist for most sources.
+- **Phase 2:** the first milestone evaluation alone (10 families) takes about 78 min per mode, so `P_MP6_s1` cannot
+  reach `life_4000000` within its cap.
+
+The running lifetimes are not changed. The changes below apply only to transfer jobs that have not started:
+- **Primary experience level: `life_1000000`** for every source, in both phases. Every lifetime reaches 1M within its
+  cap, so all breadth arms are compared at equal lifetime experience.
+- **Earlier start:** an experienced-transfer job starts as soon as its source checkpoint exists (queue `wait_for`),
+  instead of after the source lifetime finishes.
+- **Lifetime-level curve:** single-seed transfers from `life_250000` and `life_500000` of the full-breadth source for
+  each target (`T_B_fromNPV{250k,500k}_s1` and `T_V_fromNPB{250k,500k}_s1`).
+- **2M level where reached:** single-seed transfers from `life_2000000` (`T_*_from*2M_s1`, Phase 2
+  `T_*_fromMP6at2M_s1`) run only if the source reaches it. Otherwise the queue marks them `skipped`.
+
+Unchanged: transfer budgets, seeds, evaluation schedule, metrics, success criteria and all code; only the queue
+configuration changed. The queue orchestration moved to its own snapshot (`sl-ops-v11`, worktree
+`/workspace/agentrs-sl-ops`), while jobs still run the frozen experiment code (`sl-exp-v10` for Phase 1, `sl-exp-v8`
+for Phase 2).
+
+### Protocol amendment 6, 2026-11-19 05:00 UTC: reward-contract defect (before any experienced bizdev result)
+**Symptom.** In all three v10 bizdev scratch runs, validation progress (the fraction of required partners committed)
+fell from 0.26 at initialisation to 0.00 by 300k interactions: 0.257 → 0.163 (25k) → 0.004 (100k) → 0.000. The
+trained policy's return (−0.80) is higher than the initial policy's (−1.17), so the collapse is reward-optimal.
+Bizdev progress also fell in every lifetime that trains on bizdev (`P_NPB_s1`: 0.26 → 0.00 at 250k). No lifetime
+has any product success (product was also at 0% for every earlier CAM learner).
+
+**Cause.** The contract's progress shaping, `F = shaping × (γ^dt · Φ(s') − Φ(s))`, used raw elapsed hours as `dt`. The
+learner discounts each step by `γ^(dt / mean dt)` (≈ 0.99). The two discounts must be the same, or the shaping no
+longer telescopes, and holding verified progress `p` for one step then costs `shaping × (0.99 − γ^dt) × p`.
+Measured mean step durations and the resulting cost:
+
+| World | Mean step | Cost per step of holding progress `p` |
+|---|---|---|
+| negotiation | 3–7 h | about 0.01–0.02 × p |
+| bizdev | 38 h | 0.15 × p |
+| product | about 400 h | 0.49 × p (γ^dt ≈ 0) |
+
+Vending-Bench and Melting Pot use no shaping and are unaffected. The reward audit (stall, early-termination and
+random policies) could not see this: their returns were all consistent with the defect.
+
+**Fix (`sl-exp-v11`).**
+- The contract takes the learner's per-step discount explicitly (`RewardContract.components(…, disc)`, with
+  `runner.learner_discount` used by both the runner and the audit).
+- New audit invariant: on every completed episode of every scripted policy, the shaping telescopes under the
+  learner's discount (`Σ_t D_t · F_t = −shaping · Φ(s_0)`).
+- Regression tests: telescoping holds in the production runner for product, bizdev and negotiation, and the audit
+  flags the v10 formula.
+
+**Consequences for the protocol.**
+- **Valid as measured and kept:**
+  - every running v10 job;
+  - the Vending-target transfer series, whose target reward has no shaping;
+  - the negotiation lifetimes, where the bias is small;
+  - the v10 bizdev scratch runs, as the record of the defect.
+- **Bizdev target moves to v11.** All bizdev-target runs (scratch × 3 and every experienced init) run on
+  `sl-exp-v11` as `T_B11_*`. Experienced inits are the v10 lifetimes' `life_*` checkpoints, so both arms learn the
+  target under identical code. The never-started v10 `T_B_from*` jobs are dropped.
+- **Disprovable test (pre-registered).**
+  - **H6:** the shaping-discount mismatch causes the bizdev collapse.
+  - **Prediction:** with v11, every bizdev scratch seed (s1–s3) keeps validation progress ≥ 0.20 at 100k and 300k, against
+    0.004 and 0.000 for v10.
+  - **Disproof:** v11 bizdev progress at 300k < 0.10 in at least 2 of 3 seeds.
+  - **Product (secondary):** `D_P11_s1` vs `D_P10_s1` (product only, 300k, identical configuration). Prediction:
+    v11 validation progress at 300k exceeds v10's by ≥ 0.10.
+- **Lifetimes stay on v10.** `A_NPV_*` and `P_*_s2` stay on v10 so they remain comparable to `P_*_s1`. Lifetimes
+  under the fixed contract are a separate later series.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
@@ -154,6 +233,7 @@ The first four Phase 1 pretraining runs (sl-exp-v1/v2) were stopped after 4–20
   background bots as unfamiliar co-players).
 
 **Transfer:** 1M agent-steps on each held-out substrate, scratch vs `life_4000000`, seeds 1–2.
+Amendment 5 changes this to `life_1000000`.
 
 **Measure:** score is the agent's own episode return. Melting Pot defines no binary success.
 

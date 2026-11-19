@@ -134,11 +134,19 @@ class RewardContract:
     def __init__(self, spec: Optional[RewardSpec] = None):
         self.s = spec or RewardSpec()
 
-    def __call__(self, before: GoalStatus, after: GoalStatus, cons: Consequence) -> float:
+    def components(self, before: GoalStatus, after: GoalStatus, cons: Consequence, disc: float) -> dict:
+        """``disc`` must be the discount the learner applies to this transition (the runner's semi-Markov discount
+        on normalised elapsed time). Shaping is potential-based only under the learner's own discount: with any
+        other discount it no longer telescopes. sl-exp-v1..v10 discounted shaping by raw elapsed hours (gamma**dt),
+        which made holding verified progress cost (0.99 - 0.99**dt) * shaping * progress per step: ~0.15 x progress
+        per bizdev step (dt ~ 38 h) and ~0.5 x progress per product step (dt ~ 400 h). Fixed in sl-exp-v11."""
         s = self.s
-        disc = s.gamma ** max(0.0, cons.dt)
         phi1 = 0.0 if cons.done else after.progress
-        r = s.native * cons.reward + s.shaping * (disc * phi1 - before.progress) - s.time_cost * cons.dt
+        out = {"native": s.native * cons.reward, "shaping": s.shaping * (disc * phi1 - before.progress),
+               "time": -s.time_cost * cons.dt, "terminal": 0.0}
         if cons.done:
-            r += s.success * float(after.success) - s.violation * float(after.violated is not None)
-        return float(r)
+            out["terminal"] = s.success * float(after.success) - s.violation * float(after.violated is not None)
+        return out
+
+    def __call__(self, before: GoalStatus, after: GoalStatus, cons: Consequence, disc: float) -> float:
+        return float(sum(self.components(before, after, cons, disc).values()))

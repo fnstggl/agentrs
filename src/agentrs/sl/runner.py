@@ -39,6 +39,16 @@ class WorldSlot:
     goal_feat: dict = field(default_factory=dict)
 
 
+def learner_discount(gamma: float, dt: float, dt_ref: dict, fam: str) -> float:
+    """Semi-Markov discount of one transition: gamma ** (elapsed time / running mean elapsed time of the family),
+    clipped to [0.25, 20] mean steps. The reward contract's shaping must use this same discount."""
+    ref = dt_ref.setdefault(fam, max(dt, 1e-6) if dt > 0 else 1.0)
+    if dt > 0:
+        dt_ref[fam] = 0.999 * ref + 0.001 * dt
+    dtn = min(20.0, max(0.25, dt / max(ref, 1e-6))) if dt > 0 else 1.0
+    return gamma ** dtn
+
+
 class Runner:
     def __init__(self, model: SLCore, families: dict, make_world: Callable, sample_task: Callable, n_worlds: int,
                  trial_episodes: int = 3, split: str = "train", seed: int = 0, mode: str = "full",
@@ -267,16 +277,13 @@ class Runner:
             timeout = s.ep_steps + 1 >= self.max_ep
             if timeout and not cons.done:
                 cons.done = True
-            r = self._contract(s.world)(s.before[a], after, cons)
+            fam = s.task.family
+            disc = learner_discount(self._contract(s.world).s.gamma, cons.dt, self.dt_ref, fam)
+            r = self._contract(s.world)(s.before[a], after, cons, disc)
             s.before[a] = after
             s.ep_return[a] += r
-            fam = s.task.family
-            ref = self.dt_ref.setdefault(fam, max(cons.dt, 1e-6) if cons.dt > 0 else 1.0)
-            if cons.dt > 0:
-                self.dt_ref[fam] = 0.999 * ref + 0.001 * cons.dt
-            dtn = min(20.0, max(0.25, cons.dt / max(ref, 1e-6))) if cons.dt > 0 else 1.0
             rewards.append(r)
-            discs.append(self._contract(s.world).s.gamma ** dtn)
+            discs.append(disc)
             dones.append(cons.done)
             infos.append((fam, after, cons))
         self.stats["env_s"] += time.time() - t2
