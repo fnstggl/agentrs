@@ -4,6 +4,9 @@
 # a 2M-level transfer runs only if the lifetime reaches 2M.
 # Amendment 12: a third seed pair per held-out substrate (T_closed_*_s3, T_bos_*_s3); the experienced arm starts from the
 # second lifetime, P_MP6_s2 @ 1M, so the estimate also covers lifetime-seed variance.
+# Amendment 15 (sl-ops-v20): H15, breadth vs the nearest single world at equal experience. Two lifetimes on
+# commons_harvest__open alone (P_MP1open_s1/s2, same config and monitors as P_MP6), then T_closed_fromMP1open_s1-s3
+# paired with T_closed_fromMP6_s1-s3 (transfer seeds 1-2 from lifetime s1, seed 3 from lifetime s2).
 runs_root: /workspace/agentrs/runs/sl_mp
 src: /workspace/agentrs-sl-exp-mp/src
 module: agentrs.sl.train
@@ -196,3 +199,55 @@ jobs:
     init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s2/ckpt/life_1000000
   wait_for:
   - /workspace/agentrs/runs/sl_mp/P_MP6_s2/ckpt/life_1000000
+- name: P_MP1open_s1
+  config: configs/sl/pretrain_mp.yaml
+  set:
+    seed: 1
+    families:
+      mp/commons_harvest__open: 1.0
+    heldout_families:
+    - mp/commons_harvest__closed
+    - mp/bach_or_stravinsky_in_the_matrix__repeated
+    - mpsc/prisoners_dilemma_in_the_matrix__repeated_0
+    - mpsc/coins_0
+- name: P_MP1open_s2
+  config: configs/sl/pretrain_mp.yaml
+  set:
+    seed: 2
+    families:
+      mp/commons_harvest__open: 1.0
+    heldout_families:
+    - mp/commons_harvest__closed
+    - mp/bach_or_stravinsky_in_the_matrix__repeated
+    - mpsc/prisoners_dilemma_in_the_matrix__repeated_0
+    - mpsc/coins_0
+- name: T_closed_fromMP1open_s1
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 1
+    families:
+      mp/commons_harvest__closed: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP1open_s1/ckpt/life_1000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP1open_s1/ckpt/life_1000000
+- name: T_closed_fromMP1open_s2
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 2
+    families:
+      mp/commons_harvest__closed: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP1open_s1/ckpt/life_1000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP1open_s1/ckpt/life_1000000
+- name: T_closed_fromMP1open_s3
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 3
+    families:
+      mp/commons_harvest__closed: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP1open_s2/ckpt/life_1000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP1open_s2/ckpt/life_1000000

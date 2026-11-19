@@ -749,6 +749,33 @@ misses it on seed 2. The mechanism check passed.**
 transfers (P_NPV_s2, P_NPB_s2, the original T_V_* Vending transfers). Their configurations are unchanged, and no running
 job is touched.
 
+### Protocol amendment 15, 2026-11-19 22:40 UTC: breadth against the nearest single world, Melting Pot (before any result of these runs)
+**Why.** Whether experience across more worlds transfers better has so far been measured only in CAM. There, with the
+heads kept, the two-world source transferred worse than the one-world source (amendment 11). With the heads reset, it
+led early (H14 tests this). Melting Pot has no single-world arm yet, and its queue is idle. No code change: frozen
+sl-exp-mp, the same configuration as P_MP6.
+
+**Disprovable test (pre-registered): H15.**
+- **Claim:** at equal total experience (1M agent-steps), experience spread over six Melting Pot substrates transfers to
+  the held-out commons_harvest__closed at least as well as experience on its nearest training substrate,
+  commons_harvest__open, alone.
+- **Runs:**
+  - Lifetimes `P_MP1open_s1/s2`: P_MP6's configuration and held-out monitors, but trained on commons_harvest__open
+    only.
+  - Transfers `T_closed_fromMP1open_s1/s2/s3`: transfer seeds 1-2 start from lifetime s1 @ 1M and seed 3 from lifetime
+    s2 @ 1M, exactly as for `T_closed_fromMP6`.
+- **Measures:** paired by transfer seed (1-3), fromMP6 − fromMP1open.
+  - Primary: learning AUC of closed validation score, 0-1M.
+  - Secondary: zero-shot, the 0k validation score in the transfer runs.
+- **Confirmed if** the mean AUC difference is ≥ 0 and the mean zero-shot difference is ≥ −1.0.
+- **Disproved if** both the mean AUC difference and the mean zero-shot difference are ≤ −1.0. The nearest single world
+  would then transfer better than breadth.
+- Anything else is mixed.
+- **Also reported:** each experienced arm against `T_closed_scratch`, and the zero-shot closed and bos monitors of both
+  lifetimes at 0 and 1M.
+- **Power.** Single milestones move by up to 10 points, and the closed score falls late in training in both existing
+  arms. With n = 3, a mixed result is likely unless the effect is large.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
