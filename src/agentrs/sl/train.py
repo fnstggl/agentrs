@@ -84,7 +84,7 @@ def reward_audit(families: list, rc: RewardContract, max_steps: int, n: int = 12
         if not W.resolve(fam):
             continue
         res = {}
-        for pol in ("random", "stall"):
+        for pol in ("random", "stall", "terminate"):
             rng = _r.Random(seed)
             rets, succ, steps, ended = [], [], [], []
             for i in range(n):
@@ -103,12 +103,26 @@ def reward_audit(families: list, rc: RewardContract, max_steps: int, n: int = 12
                         if sp.kind == "discrete":
                             act = sp.labels[0] if pol == "stall" else rng.choice(sp.labels)
                         else:
-                            act = []
-                            while True:
-                                o = sp.allowed(act)
-                                if o == ["END"] or not o:
-                                    break
-                                act.append(o[0] if pol == "stall" else rng.choice(o))
+                            def complete(first):
+                                act_ = [first]
+                                while True:
+                                    o = sp.allowed(act_)
+                                    if o == ["END"] or not o:
+                                        return act_
+                                    act_.append(o[0] if pol != "random" else rng.choice(o))
+                            firsts = sp.allowed([])
+                            act = complete(firsts[0] if pol == "stall" else rng.choice(firsts))
+                            if pol == "terminate" and len(ags) == 1:  # end the episode now whenever any action can
+                                snap = w.save_world_state()
+                                for f0 in firsts:
+                                    cand = complete(f0)
+                                    w.execute(a, cand)
+                                    ends = w.observe_consequences(a).done
+                                    w.restore_world_state(snap)
+                                    snap = w.save_world_state()
+                                    if ends:
+                                        act = cand
+                                        break
                         w.execute(a, act)
                     w.advance_time()
                     k += 1
@@ -124,10 +138,12 @@ def reward_audit(families: list, rc: RewardContract, max_steps: int, n: int = 12
                 w.close()
             res[pol] = {"return": float(np.mean(rets)), "success": float(np.mean(succ)), "steps": float(np.mean(steps)),
                         "ended": float(np.mean(ended))}
-        r, st = res["random"], res["stall"]
+        r, st, te = res["random"], res["stall"], res["terminate"]
         # invariants: every scripted episode terminates within the cap (no reward for never finishing), and inaction
         # never earns a positive return (preserving resources may beat destructive random play, which is legitimate)
-        passed = r["ended"] == 1.0 and st["ended"] == 1.0 and (st["return"] <= 0.0 or st["success"] > 0)
+        # ... and ending episodes as early as possible never pays more than failing at the deadline
+        passed = (r["ended"] == 1.0 and st["ended"] == 1.0 and (st["return"] <= 0.0 or st["success"] > 0)
+                  and (te["return"] <= st["return"] + 0.05 or te["success"] > st["success"]))
         out[fam] = {**res, "passed": bool(passed)}
     return out
 

@@ -103,6 +103,21 @@ The first four Phase 1 pretraining runs (sl-exp-v1/v2) were stopped after 4–20
 - **Fix (sl-exp-v5):** the next trial goes to the family furthest below its target share of agent-steps.
 - **Superseded runs:** the three runs started under v3 were stopped after 2–13 minutes (`runs/sl/_invalid_v3/`).
 
+### Protocol amendment 3, 2026-11-19 00:10 UTC (first results showed a degenerate optimum)
+**The v5 Phase 1 runs learned to end episodes as early as possible.**
+- The negotiation-only lifetime's policy entropy fell from 4.75 to 0.05 within 40k interactions, with one decision
+  per episode. Bizdev ran idle to its limit, and every CAM family scored 0–12% validation success.
+- **Cause:** the CAM adapter charged a cost per decision but not the unused decision budget on failure, so
+  quitting at once was the cheapest failure. The CAM-v2 contract had a failure-horizon cost.
+- Two further defects came to light while fixing it:
+  - some simulators change `max_steps` mid-episode, so the decision budget is now fixed at reset;
+  - CAM world snapshots omitted the adapter's own state.
+- The reward audit now also runs an early-termination policy, which uses simulator snapshots to end episodes
+  whenever any action can. Ending early must never pay more than failing at the deadline. v9 passes on all four
+  families (negotiation: −0.56 either way).
+- All v5 Phase 1 runs (CAM families) are superseded and set aside. Phase 1 restarts on sl-exp-v9 with the same
+  protocol. Melting Pot (native rewards, no per-decision costs) is unaffected.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6

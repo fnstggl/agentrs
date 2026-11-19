@@ -9,7 +9,9 @@ verifier (``task_status``).
 Decision budget (as in the CAM-v2 collector): an episode ends as a failure after 2 x the simulator's ``max_steps``
 decisions. Invalid actions do not advance the simulator clock, so without this cap and a per-decision cost a policy
 can avoid every terminal outcome by stalling (observed in the first Phase 1 runs, which were discarded). Native
-reward: -0.02 per decision, a further -0.02 for an invalid action."""
+reward: -0.02 per decision, a further -0.02 for an invalid action, and on failure the cost of the unused decision
+budget (as the CAM-v2 contract's failure-horizon cost): failing early is never cheaper than failing at the deadline.
+Without it the v3/v5 runs collapsed to ending every negotiation with one decision (sl-exp-v9 fixes it)."""
 from __future__ import annotations
 
 from agentrs.cam.envs import ENVS
@@ -39,6 +41,7 @@ class CamWorld(World):
         self._last = None
         self.n_dec = 0
         self.timed_out = False
+        self.cap = 2 * int(self.env.max_steps)  # fixed at reset: some simulators change max_steps during an episode
 
     def observe(self, agent="0") -> Obs:
         st = self.env.task_status()
@@ -57,13 +60,16 @@ class CamWorld(World):
         toks = [t for t in action if t != "END"]
         self._last = self.env.step(toks)
         self.n_dec += 1
-        if not self.env.done and self.n_dec >= 2 * self.env.max_steps:
+        if not self.env.done and self.n_dec >= self.cap:
             self.timed_out = True
 
     def observe_consequences(self, agent="0") -> Consequence:
         r = self._last
         ev = [f"{k}" for k, v in (r.events or {}).items() if v] if r else []
         cost = DECISION_COST + (INVALID_COST if r is not None and not r.valid else 0.0)
+        ended = bool(self.env.done or self.timed_out)
+        if ended and not (self.env.done and self.env.success):  # failure: pay the unused decision budget
+            cost += DECISION_COST * max(0, self.cap - self.n_dec)
         if r is not None and not r.valid:
             ev.append("invalid")
         return Consequence(reward=-cost, dt=float(r.elapsed_h) if r else 0.0, done=bool(self.env.done or self.timed_out),
@@ -75,10 +81,11 @@ class CamWorld(World):
                           violated=st.violated, score=float(st.progress), time_left=float(st.time_left))
 
     def save_world_state(self):
-        return self.env.snapshot()
+        return (self.env.snapshot(), self.n_dec, self.timed_out, self.cap, self._last)
 
     def restore_world_state(self, state) -> None:
-        self.env = state.snapshot()
+        env, self.n_dec, self.timed_out, self.cap, self._last = state
+        self.env = env.snapshot()
 
 
 def make(name: str):
