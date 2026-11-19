@@ -380,7 +380,7 @@ inaction attractor seen in v10–v13. If both v15 seeds again settle on the do-n
 valid orders alone do not make Vending learnable for this learner. Cash management, the remaining obstacle, would then
 need its own hypothesis, not a reward change.
 
-**H9 result (2026-11-19 15:50 UTC): DISPROVED.** Validation score at 300k: `T_V15_scratch_s1` 0.734, `T_V15_scratch_s2`
+**H9 result (2026-11-19 15:30 UTC): DISPROVED.** Validation score at 300k: `T_V15_scratch_s1` 0.734, `T_V15_scratch_s2`
 0.684 (threshold for confirmation 0.85; for disproval ≤ 0.78). The agents did not settle on inaction: they keep ordering,
 and over 300k the share of validation episodes closed for unpaid fees falls from 0.78 to 0.17 (s1) and 0.41 (s2),
 while the mean return rises from −6.2 to −4.2 and −5.2. That is still below the do-nothing return (−3.60), and neither
@@ -390,7 +390,7 @@ longer budget), not order validity.
 
 ### Protocol amendment 11, 2026-11-19 12:10 UTC: negative transfer to bizdev (before any v16 result)
 **Observation (finished runs only; `scripts/sl_report.py` section 2).** Experienced inits learn bizdev more slowly than
-scratch. Learning AUC of validation score over 0-300k (scratch, 3 seeds: 0.518). Table updated 15:50 UTC with every
+scratch. Learning AUC of validation score over 0-300k (scratch, 3 seeds: 0.518). Table updated 15:30 UTC with every
 seed complete (at 12:10 only fromN s1 and fromNP s1-s2 had finished: −0.133 and −0.210); no v16 run had started.
 
 | Init | Seeds | ΔAUC vs scratch (90% CI) | Score at 0k (scratch 0.258) | Score at 300k (scratch 0.738) | Final test (scratch 0.440) |
@@ -443,7 +443,7 @@ lower values. It now counts only runs that reached the budget, paired by seed.
   curriculum and Vending).
 - **Primary measure:** learning AUC of validation score, 0-300k, paired by seed against `T_B16_scratch`.
 - **Confirmed if** both gated transfer groups have mean ΔAUC ≥ −0.02. **Disproved if** gated fromNP, the only
-  significant ungated deficit (−0.156), stays ≤ −0.10. Anything else is mixed. (Revised 15:50 UTC, before any v16 run
+  significant ungated deficit (−0.156), stays ≤ −0.10. Anything else is mixed. (Revised 15:30 UTC, before any v16 run
   started: the 12:10 rule needed both groups ≤ −0.10, which the complete fromN deficit, −0.071, cannot reach even
   without a gate.)
 - **Mechanism check:** gated transfers start at score ≥ 0.20 at 0k.
@@ -452,6 +452,42 @@ lower values. It now counts only runs that reached the budget, paired by seed.
 - **What the gate cannot fix:** if the experienced representation still learns more slowly once preferences are neutral,
   the cause is in the representation (e.g. lost plasticity), not the action head. H10 is then disproved, and the next
   hypothesis targets plasticity.
+
+### Protocol amendment 12, 2026-11-19 15:41 UTC: forgetting during transfer; third Melting Pot seeds (before any result of these runs)
+**Observation: forgetting (T_B11, every experienced transfer).** Transfer runs train on bizdev alone and monitor their
+source worlds with frozen-split validation. Negotiation success (validation, 0k → 300k):
+
+| Init | s1 | s2 | s3 |
+|---|---|---|---|
+| fromN | 0.660 → 0.188 | 0.674 → 0.049 | 0.667 → 0.215 |
+| fromNP | 0.632 → 0.111 | 0.611 → 0.333 | 0.618 → 0.146 |
+| fromNPV | 0.361 → 0.160 | 0.312 → 0.097 | 0.368 → 0.194 |
+
+300k interactions of bizdev erase most of what 1M interactions built in negotiation. Scratch runs hold 0.00-0.04. A
+continual learner must keep old worlds while it learns new ones; this one does not.
+
+**Disprovable test (pre-registered): H11.**
+- **Claim:** forgetting comes from training on the new world alone, not from a capacity conflict between the worlds.
+  Rehearsing the source world on a small share of interactions keeps it, at little cost to learning the new world.
+- **Runs:** `T_B16_fromNrh_s1/s2`: exactly `T_B16_fromN_s1/s2` (v16, gate on, P_N_s1 @ 1M), except the training mix is
+  bizdev 0.9 and negotiation 0.1. The budget stays 300k interactions in total, so bizdev gets 270k; the learning
+  curve's x-axis counts all interactions (rehearsal is paid for).
+- **Measures:** negotiation validation success at 300k; bizdev learning AUC paired by seed against `T_B16_fromN`.
+- **Confirmed if** negotiation success at 300k ≥ 0.50 in both seeds and the mean bizdev ΔAUC ≥ −0.03. **Disproved if**
+  negotiation success at 300k ≤ 0.30 in both seeds: then 10% rehearsal does not protect the old world, and the conflict is
+  in shared parameters (the next hypothesis would separate them). Anything else is mixed.
+- Rehearsal uses the train split of negotiation tasks; validation uses the validation split, as for every family.
+
+**Third Melting Pot seeds.** The Phase 2 transfers to commons_harvest__closed finished with n = 2 per arm. Both seeds of
+the experienced arm start ahead (0k: 27.7 and 30.6 against 26.3 and 25.6) and then fall below scratch. Validation
+evaluations are noisy (28 episodes; one run moves 32 → 19 → 29 between milestones), so two seeds cannot say whether the
+later deficit is real. Added `T_closed_scratch_s3`, `T_closed_fromMP6_s3`, `T_bos_scratch_s3`, `T_bos_fromMP6_s3`. The
+experienced arm of seed 3 starts from the second lifetime, `P_MP6_s2` @ 1M, so the estimate covers lifetime-seed variance
+too; seeds 1-2 started from `P_MP6_s1`. Thresholds: none pre-registered for Melting Pot (amendment 5); reported as ΔAUC
+with its 90% CI.
+
+**Report.** The training-side memory-ablation diagnostic stores success AUC only. For score-metric families (Melting
+Pot, Vending, bizdev) its zeros carry no information, and the report now says so instead of printing them as results.
 
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):

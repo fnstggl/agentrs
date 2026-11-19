@@ -175,11 +175,12 @@ def main() -> int:
         for init, names in sorted(inits.items()):
             for n_ in names:
                 st = runs[n_]
-                for mf in st["config"].get("heldout_families", []):
+                rehearsed = [f for f in st["config"]["families"] if f != fam]  # source worlds trained alongside (amendment 12)
+                for mf in rehearsed + list(st["config"].get("heldout_families", [])):
                     cv = ev_val(st, mf)
                     if len(cv) >= 2:
                         mm = metric_of(mf, ov)
-                        rows.append(f"- {n_}: {mf} {auc_value(cv[0][1], mm):.3f} → {auc_value(cv[-1][1], mm):.3f} ({mm}, {cv[0][0] // 1000}k → {cv[-1][0] // 1000}k)")
+                        rows.append(f"- {n_}: {mf}{' (rehearsed)' if mf in rehearsed else ''} {auc_value(cv[0][1], mm):.3f} → {auc_value(cv[-1][1], mm):.3f} ({mm}, {cv[0][0] // 1000}k → {cv[-1][0] // 1000}k)")
         if rows:
             md += ["Retention of source families while learning the target (validation, before → after):", ""] + rows + [""]
 
@@ -205,8 +206,14 @@ def main() -> int:
     for name, st in runs.items():
         d = st.get("diagnostics") or {}
         if "memory_ablation" in d:
-            md.append(f"- {name} memory ablation (validation trial AUC by mode): " + "; ".join(
-                f"{md_}: " + ", ".join(f"{f} {v:.3f}" for f, v in fams.items()) for md_, fams in d["memory_ablation"].items()))
+            # The training-side diagnostic stores success AUC. Families scored by `score` (Melting Pot, Vending, bizdev)
+            # have no success signal there, so their zeros say nothing about memory.
+            uninf = {f for fams in d["memory_ablation"].values() for f in fams if metric_of(f, {}) != "success"}
+            info = "; ".join(f"{md_}: " + ", ".join(f"{f} {v:.3f}" for f, v in fams.items() if f not in uninf)
+                             for md_, fams in d["memory_ablation"].items() if any(f not in uninf for f in fams))
+            note = f"not informative for {len(uninf)} score-metric families (success AUC only)" if uninf else ""
+            md.append(f"- {name} memory ablation (validation trial success AUC by mode): "
+                      + (info + (f" ({note})" if note else "") if info else note))
         if "world_model" in d:
             md.append(f"- {name} world model (one-step loss on fresh validation transitions): " + ", ".join(
                 f"{f} {v['wm_loss']:.3f}" for f, v in d["world_model"].items()))
@@ -309,6 +316,7 @@ def prereg_tests(runs) -> list:
                                   ("H9", "15", 9, "refused orders (minimum order not observed, invalid quantities offered); tested with v15 (amendment 10: v14 never trained, its audit found closure cheaper than paying)")):
         md += _vending_test(runs, hyp, ver, amend, what)
     md += _familiarity_test(runs)
+    md += _rehearsal_test(runs)
     return md
 
 
@@ -331,7 +339,7 @@ def _familiarity_test(runs) -> list:
           "not earned in bizdev, are confident and wrong; the v16 familiarity gate removes the negative transfer.** "
           "Learning AUC of validation score (cam/bizdev, mode full, 0-300k), complete runs, paired by seed. Confirmed if "
           "both gated transfer groups (fromN, fromNP) have mean ΔAUC ≥ −0.02 against gated scratch; disproved if gated "
-          "fromNP (the significant ungated deficit, −0.156) stays ≤ −0.10 (criteria revised 15:50 UTC, before any v16 "
+          "fromNP (the significant ungated deficit, −0.156) stays ≤ −0.10 (criteria revised 15:30 UTC, before any v16 "
           "run). Mechanism check: gated transfers start at validation score ≥ 0.20 (0k).", "",
           "| init | seed | 0k score | AUC v16 (gated) | AUC v11 (no gate) | Δ vs v16 scratch | Δ vs v11 same init |",
           "|---|---|---|---|---|---|---|"]
@@ -361,6 +369,56 @@ def _familiarity_test(runs) -> list:
             verdict = "neither confirmed nor disproved (mixed)"
         verdict += " (" + ", ".join(f"{k} mean Δ {m:+.3f}" for k, m in sorted(means.items())) + ")"
     return md + ["", f"H10 verdict: **{verdict}**", ""]
+
+
+def _rehearsal_test(runs) -> list:
+    """H11 (amendment 12): forgetting during transfer comes from training on the new world alone; rehearsing the source
+    world on 10% of interactions keeps it at little cost to learning the new one."""
+    g = {n for n in runs if re.fullmatch(r"T_B16_fromNrh_s\d", n)}
+    if not g:
+        return []
+    fam, src, budget = "cam/bizdev", "cam/negotiation", 300_000
+
+    def auc(n):
+        cv = ev_val(runs[n], fam) if n in runs else []
+        return learning_auc(cv, "score", budget) if cv and max(x for x, _ in cv) >= budget else None
+
+    def kept(n):  # negotiation validation success at the budget milestone (None until reached)
+        cv = ev_val(runs[n], src) if n in runs else []
+        return next((auc_value(v, "success") for x, v in cv if x >= budget), None), (auc_value(cv[0][1], "success") if cv else None)
+
+    def f(x, sg=False):
+        return "–" if x is None else (f"{x:+.3f}" if sg else f"{x:.3f}")
+
+    md = ["**H11 (amendment 12): forgetting during transfer comes from training on the new world alone, not from a capacity "
+          "conflict; rehearsing negotiation on 10% of interactions keeps it.** Negotiation validation success (start → "
+          "300k) and bizdev learning AUC (0-300k, total interactions) of `T_B16_fromNrh` against `T_B16_fromN` (same "
+          "seed, v16, no rehearsal). Confirmed if negotiation success at 300k ≥ 0.50 in both seeds and mean bizdev ΔAUC "
+          "≥ −0.03; disproved if negotiation success at 300k ≤ 0.30 in both seeds.", "",
+          "| seed | negotiation, rehearsal | negotiation, no rehearsal | bizdev AUC, rehearsal | bizdev AUC, no rehearsal | ΔAUC |",
+          "|---|---|---|---|---|---|"]
+    keep, dd = [], []
+    for s in (1, 2):
+        a, b = f"T_B16_fromNrh_s{s}", f"T_B16_fromN_s{s}"
+        if a not in runs:
+            continue
+        (ka, k0a), (kb, k0b) = kept(a), kept(b)
+        aa, ab = auc(a), auc(b)
+        d = None if aa is None or ab is None else aa - ab
+        md.append(f"| {s} | {f(k0a)} → {f(ka)} | {f(k0b)} → {f(kb)} | {f(aa)} | {f(ab)} | {f(d, True)} |")
+        keep.append(ka)
+        dd.append(d)
+    if len(keep) < 2 or any(x is None for x in keep + dd):
+        verdict = f"pending ({sum(x is not None for x in dd)} of 2 seed pairs complete)"
+    elif all(k >= 0.50 for k in keep) and float(np.mean(dd)) >= -0.03:
+        verdict = "CONFIRMED"
+    elif all(k <= 0.30 for k in keep):
+        verdict = "DISPROVED"
+    else:
+        verdict = "neither confirmed nor disproved (mixed)"
+    if dd and all(x is not None for x in dd):
+        verdict += f" (mean ΔAUC {float(np.mean(dd)):+.3f}; negotiation at 300k " + ", ".join(f(k) for k in keep) + ")"
+    return md + ["", f"H11 verdict: **{verdict}**", ""]
 
 
 def _vending_test(runs, hyp, ver, amend, what) -> list:

@@ -1,6 +1,8 @@
 # Superlearner Phase 1 (CAM simulators + Vending-Bench). Generated; see docs/superlearner.md (amendment 5: experienced
 # transfers start from life_1000000 once it exists; lifetime-level curve at 250k/500k; 2M level where reached).
 # Transfer runs monitor their source families (retention / forgetting); scratch runs monitor negotiation+product.
+# Amendment 12: T_B16_fromNrh_s1/s2 (v16, gate on) rehearse negotiation on 10% of interactions while learning bizdev;
+# they test H11 (forgetting comes from training on the new world alone) against T_B16_fromN_s1/s2.
 # Amendment 11: T_B16_scratch/fromN/fromNP s1-s2 (sl-exp-v16: familiarity gate, model.fam_gate_n0 = 4096) test H10
 # (negative transfer to bizdev is caused by confident action preferences not earned in the new world).
 # Amendment 10: T_V15_scratch_s1/s2 (sl-exp-v15 Vending: the operator stays liable for the whole fee contract) test H9;
@@ -393,6 +395,34 @@ jobs:
       fam_gate_n0: 4096
   wait_for:
   - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v16/src
+- name: T_B16_fromNrh_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.1
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: []
+    model:
+      fam_gate_n0: 4096
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v16/src
+- name: T_B16_fromNrh_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.1
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: []
+    model:
+      fam_gate_n0: 4096
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v16/src
 - name: T_B11_fromNPV_s2
   config: configs/sl/transfer.yaml
