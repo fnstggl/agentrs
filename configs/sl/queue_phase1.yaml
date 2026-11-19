@@ -31,6 +31,7 @@ smoke_set:
   final_reserve_h: 0.0
   learner:
     mb_streams: 4
+  max_episode_steps: 200  # budget-only (as Phase 2's smoke): long Vending monitor episodes made transfer smokes take ~36 min
 smoke_timeout_s: 3600  # transfer smokes with a Vending retention monitor take ~35 min (diagnostics on every monitored family)
 crash_repeat_limit: 2
 max_starts: 4
