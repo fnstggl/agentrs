@@ -79,6 +79,7 @@ def main() -> int:
 
     md += prereg_tests(runs)
     md += inaction_check(runs)
+    md += paired_adaptation(root)
 
     # --------------------------------------------------------------- 1. fast adaptation with frozen weights
     md += ["## 1. Fast adaptation inside a task with frozen weights (validation, latest milestone of each lifetime)", "",
@@ -327,6 +328,29 @@ def prereg_tests(runs) -> list:
             verdict = "neither confirmed nor disproved (mixed)"
         md += ["", f"H8 verdict: **{verdict}**", ""]
     return md
+
+
+def paired_adaptation(root: Path) -> list:
+    """Offline paired fast-adaptation evaluations (scripts/sl_adapt_eval.py) stored in <root>/_analysis/adapt_paired."""
+    d = root / "_analysis" / "adapt_paired"
+    files = sorted(d.glob("*.json")) if d.is_dir() else []
+    if not files:
+        return []
+    md = ["## 1b. Fast adaptation, paired by task (offline, frozen weights, scripts/sl_adapt_eval.py)", "",
+          "Many validation tasks, every mode on the same tasks. DiD = mean over tasks of [gain(full) − gain(episode)], "
+          "gain = episode K − episode 1 (memory carried across episodes); last columns compare episode K between modes. "
+          "90% intervals from per-task paired differences.", "",
+          "| checkpoint | family | tasks | full ep1 → epK | episode ep1 → epK | none ep1 → epK | DiD | epK full − episode | epK full − none |",
+          "|---|---|---|---|---|---|---|---|---|"]
+    f = lambda x: "–" if not x else f"{x['mean']:+.3f} ± {x['ci90']:.3f}"
+    for fp in files:
+        r = json.loads(fp.read_text())
+        m = r["modes"]
+        cell = lambda k: f"{m[k]['first']:.3f} → {m[k]['last']:.3f}" if k in m else "–"
+        ck = f"{Path(r['run']).name} @ {Path(r['ckpt']).name}"
+        md.append(f"| {ck} | {r['family']} ({r['metric']}) | {r['tasks']} | {cell('full')} | {cell('episode')} | {cell('none')} | "
+                  f"{f(r.get('did_full_vs_episode'))} | {f(r.get('lastK_full_minus_episode'))} | {f(r.get('lastK_full_minus_none'))} |")
+    return md + [""]
 
 
 def inaction_check(runs) -> list:
