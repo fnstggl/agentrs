@@ -266,6 +266,41 @@ first iterations).
   (it has no scalable goal; its obstacle is the action chain and order accounting): a separate hypothesis, tested
   after H7.
 
+### Protocol amendment 8, 2026-11-19 06:35 UTC: Vending-Bench adapter reward-timing defects (before any v13 result)
+**Cause of Vending's learned inaction.** The discounted objective the learner optimises (γ = 0.99 per step) prefers doing
+nothing. Discounted returns from the start of an episode, 12 validation tasks (`scripts/sl_vending_discount.py`):
+
+| Policy | Score | Discounted return, adapter v1 (sl-exp ≤ v12) | Discounted return, v13 (accrual + world time) |
+|---|---|---|---|
+| wait to the next day, 30 calls | 0.760 | −3.12 | −0.66 |
+| stall: ~20 no-op calls a day (what the trained agents do) | 0.760 | **−0.54** (best) | −0.62 |
+| scripted business (order q160, restock, price ×3) | 1.031 | −2.18 | **−0.41** (best) |
+
+The two defects, both in our adapter (the benchmark is unchanged):
+- **Cash-timed orders.** The benchmark's net worth counts card money in transit but not paid goods in transit, so an
+  order is a loss until delivery 2–12 days (40–240 calls) later.
+- **Per-call discounting.** `dt` was 1 per call, so spreading the €12 daily fee over many cheap calls hid most of it.
+
+**Fix (`sl-exp-v13`, `sl/worlds/vending.py`).**
+- **Accrual accounting:** the per-call reward counts paid, not-yet-due orders at cost. Overdue undelivered orders are
+  written off when due. The terminal call settles at the benchmark's own net worth, so every episode's undiscounted
+  return is still exactly (final − initial net worth) / 100 (tested).
+- **World time:** `dt` = simulated minutes per call (semi-Markov discount by world time, as for the CAM worlds).
+- Success, score, observations and actions are unchanged. v13 also contains v12's curriculum, which is unused here.
+
+**Consequences.**
+- The v10 Vending series stays as the record. Its results are valid as measured: they measure learning to do nothing.
+  Its pre-registered transfer jobs are moved to the end of the queue: kept, but behind every bizdev, curriculum and
+  ablation job.
+- **Disprovable test (pre-registered).**
+  - **H8:** these two defects cause Vending's learned inaction.
+  - **Runs:** `T_V13_scratch_s1`, `T_V13_scratch_s2`, configured exactly like `T_V_scratch_s*` on v13.
+  - **Confirmed if** both seeds reach validation score ≥ 0.85 at 300k, with a learned return different from the
+    do-nothing return.
+  - **Disproved if** both seeds are ≤ 0.78 at 300k (still inaction, although the objective now favours the business).
+- **If confirmed,** a Vending transfer series on v13 (`T_V13_from*`, same sources) replaces the v10 one as the Vending
+  measurement.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6

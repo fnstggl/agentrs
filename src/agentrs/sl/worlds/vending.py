@@ -18,6 +18,19 @@ Adapter assumptions (documented, fixed before any evaluation):
   restocking fill the slot from depot stock. Negotiation by e-mail is not available to the agent.
 * Reward: change in the benchmark's net worth (balance + card in transit + stock at cost) per call, /100.
   Verified success: run completed (not terminated) with final net worth >= 2,500 (start: 1,500).
+
+sl-exp-v13 (amendment 8) fixes two reward-timing defects of this adapter (the benchmark itself is unchanged):
+* Accrual accounting. The benchmark's net worth counts card money in transit but not paid goods in transit, so an order
+  showed up as a loss until delivery 2-12 days later, which under the learner's discount made ordering look like
+  losing most of its value. The per-call reward now counts paid, not-yet-due orders at cost (overdue undelivered
+  orders, e.g. from a defunct supplier, are written off when due), and the terminal call settles at the benchmark's
+  own net worth, so every episode's undiscounted return is still exactly (final - initial net worth) / 100.
+* World time. ``dt`` was 1 per call, so the learner discounted per decision: spreading the EUR 12 daily fee over ~20
+  cheap no-op calls a day hid most of it. ``dt`` is now the simulated minutes the call consumed (semi-Markov discount
+  by world time, as for the CAM worlds).
+With the old reward the discounted return of doing nothing (-0.54) beat that of a scripted business that ends 3%
+above its starting net worth (-2.18); with both fixes the business wins (-0.41 vs -0.62); see
+``scripts/sl_reach_vending.py``.
 """
 from __future__ import annotations
 
@@ -66,7 +79,20 @@ class VendingWorld(World):
         self.last_out = ""
         self.nw0 = self.e.net_worth()
         self._dnw = 0.0
+        self._dt = 1.0
         self._calls = 0
+
+    def _in_transit(self) -> float:
+        """Paid goods not yet delivered and not yet overdue, at cost (accrual accounting, sl-exp-v13)."""
+        d = self.e.s["day"]
+        return float(sum(o.get("amount_paid") or 0.0 for o in self.e.s["orders"].values()
+                         if o["status"] in ("paid", "shipped") and (o.get("delivery_day") is None or o["delivery_day"] >= d)))
+
+    def _clock(self) -> float:
+        return float(self.e.s["day"] * 1440 + self.e.s["minute"])
+
+    def _accrued(self) -> float:
+        return self.e.net_worth() if self.e.over else self.e.net_worth() + self._in_transit()
 
     # ------------------------------------------------------------------ observation
     def observe(self, agent="0") -> Obs:
@@ -159,7 +185,8 @@ class VendingWorld(World):
     def execute(self, agent, action) -> None:
         a = [x for x in action if x != "END"]
         e = self.e
-        before = e.net_worth()
+        before = self._accrued()
+        t0 = self._clock()
         out = ""
         try:
             if a[0] == "wait":
@@ -202,12 +229,13 @@ class VendingWorld(World):
         except Exception as ex:  # noqa: BLE001 - an invalid call is a wasted (time-consuming) action, not a crash
             out = f"error: {type(ex).__name__}"
         self.last_out = out if isinstance(out, str) else str(out)
-        self._dnw = e.net_worth() - before
+        self._dnw = self._accrued() - before
+        self._dt = max(1.0, self._clock() - t0)  # simulated minutes this call consumed
         self._calls += 1
 
     def observe_consequences(self, agent="0") -> Consequence:
         ev = ["refused"] if ("refused" in self.last_out.lower() or "error" in self.last_out.lower()) else []
-        return Consequence(reward=self._dnw / 100.0, dt=1.0, done=bool(self.e.over), events=ev)
+        return Consequence(reward=self._dnw / 100.0, dt=self._dt, done=bool(self.e.over), events=ev)
 
     def evaluate_goal(self, agent="0") -> GoalStatus:
         s = self.e.s

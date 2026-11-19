@@ -1,6 +1,8 @@
 # Superlearner Phase 1 (CAM simulators + Vending-Bench). Generated; see docs/superlearner.md (amendment 5: experienced
 # transfers start from life_1000000 once it exists; lifetime-level curve at 250k/500k; 2M level where reached).
 # Transfer runs monitor their source families (retention / forgetting); scratch runs monitor negotiation+product.
+# Amendment 8: T_V13_scratch_s1/s2 (sl-exp-v13 Vending adapter: accrual accounting + world-time dt) test H8; the v10
+# Vending transfer jobs (T_V_from*) are kept but moved to the end of the queue.
 # Amendment 7: D_P12c_s1/s2 (sl-exp-v12, training-only goal curriculum on product) test H7 against D_P11_s1.
 # Amendment 6: bizdev-target runs (T_B11_*) and the product diagnostic D_P11 use sl-exp-v11 (shaping discounted with the
 # learner's discount); everything else keeps sl-exp-v10. v10 T_B_scratch_s1..3 are kept as the record of the defect.
@@ -87,9 +89,9 @@ jobs:
   config: configs/sl/transfer.yaml
   set:
     seed: 1
-    families:
+    families: &id001
       ext/vending: 1.0
-    heldout_families:
+    heldout_families: &id002
     - cam/negotiation
     - cam/product
 - name: T_B_scratch_s2
@@ -205,6 +207,20 @@ jobs:
         min: 0.02
         window: 256
   src: /workspace/agentrs-sl-exp-v12/src
+- name: T_V13_scratch_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families: *id001
+    heldout_families: *id002
+  src: /workspace/agentrs-sl-exp-v13/src
+- name: T_V13_scratch_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families: *id001
+    heldout_families: *id002
+  src: /workspace/agentrs-sl-exp-v13/src
 - name: T_B11_fromNPV250k_s1
   config: configs/sl/transfer.yaml
   set:
@@ -233,32 +249,6 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_NPV_s1/ckpt/life_500000
   src: /workspace/agentrs-sl-exp-v11/src
-- name: T_V_fromNPB250k_s1
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 1
-    families:
-      ext/vending: 1.0
-    init_from: /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_250000
-    heldout_families:
-    - cam/negotiation
-    - cam/product
-    - cam/bizdev
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_250000
-- name: T_V_fromNPB500k_s1
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 1
-    families:
-      ext/vending: 1.0
-    init_from: /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_500000
-    heldout_families:
-    - cam/negotiation
-    - cam/product
-    - cam/bizdev
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_500000
 - name: T_B11_fromNPV_s1
   config: configs/sl/transfer.yaml
   set:
@@ -273,19 +263,6 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_NPV_s1/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v11/src
-- name: T_V_fromNPB_s1
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 1
-    families:
-      ext/vending: 1.0
-    init_from: /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_1000000
-    heldout_families:
-    - cam/negotiation
-    - cam/product
-    - cam/bizdev
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_1000000
 - name: T_B11_fromNP_s1
   config: configs/sl/transfer.yaml
   set:
@@ -299,18 +276,6 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v11/src
-- name: T_V_fromNP_s1
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 1
-    families:
-      ext/vending: 1.0
-    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
-    heldout_families:
-    - cam/negotiation
-    - cam/product
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
 - name: T_B11_fromN_s1
   config: configs/sl/transfer.yaml
   set:
@@ -337,19 +302,6 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_NPV_s1/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v11/src
-- name: T_V_fromNPB_s2
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 2
-    families:
-      ext/vending: 1.0
-    init_from: /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_1000000
-    heldout_families:
-    - cam/negotiation
-    - cam/product
-    - cam/bizdev
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_1000000
 - name: T_B11_fromNP_s2
   config: configs/sl/transfer.yaml
   set:
@@ -363,18 +315,6 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v11/src
-- name: T_V_fromNP_s2
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 2
-    families:
-      ext/vending: 1.0
-    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
-    heldout_families:
-    - cam/negotiation
-    - cam/product
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
 - name: T_B11_fromN_s2
   config: configs/sl/transfer.yaml
   set:
@@ -401,19 +341,6 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_NPV_s1/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v11/src
-- name: T_V_fromNPB_s3
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 3
-    families:
-      ext/vending: 1.0
-    init_from: /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_1000000
-    heldout_families:
-    - cam/negotiation
-    - cam/product
-    - cam/bizdev
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_1000000
 - name: T_B11_fromNP_s3
   config: configs/sl/transfer.yaml
   set:
@@ -427,18 +354,6 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v11/src
-- name: T_V_fromNP_s3
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 3
-    families:
-      ext/vending: 1.0
-    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
-    heldout_families:
-    - cam/negotiation
-    - cam/product
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
 - name: T_B11_fromN_s3
   config: configs/sl/transfer.yaml
   set:
@@ -451,17 +366,6 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v11/src
-- name: T_V_fromN_s1
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 1
-    families:
-      ext/vending: 1.0
-    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
-    heldout_families:
-    - cam/negotiation
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
 - name: A_NPV_gru_s1
   config: configs/sl/pretrain.yaml
   set:
@@ -623,19 +527,6 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_NPV_s2/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v11/src
-- name: T_V_fromNPBs2_s1
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 1
-    families:
-      ext/vending: 1.0
-    init_from: /workspace/agentrs/runs/sl/P_NPB_s2/ckpt/life_1000000
-    heldout_families:
-    - cam/negotiation
-    - cam/product
-    - cam/bizdev
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_NPB_s2/ckpt/life_1000000
 - name: T_B11_fromNPV2M_s1
   config: configs/sl/transfer.yaml
   set:
@@ -675,6 +566,131 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_2000000
   src: /workspace/agentrs-sl-exp-v11/src
+- name: T_V_fromNPB250k_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_250000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - cam/bizdev
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_250000
+- name: T_V_fromNPB500k_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_500000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - cam/bizdev
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_500000
+- name: T_V_fromNPB_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_1000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - cam/bizdev
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_1000000
+- name: T_V_fromNP_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+- name: T_V_fromNPB_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_1000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - cam/bizdev
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_1000000
+- name: T_V_fromNP_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+- name: T_V_fromNPB_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_1000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - cam/bizdev
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NPB_s1/ckpt/life_1000000
+- name: T_V_fromNP_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+- name: T_V_fromN_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families:
+    - cam/negotiation
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+- name: T_V_fromNPBs2_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      ext/vending: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NPB_s2/ckpt/life_1000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - cam/bizdev
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NPB_s2/ckpt/life_1000000
 - name: T_V_fromNPB2M_s1
   config: configs/sl/transfer.yaml
   set:

@@ -57,7 +57,7 @@ def test_unified_interface_vending_world_runs_and_verifies():
     w.execute("0", ["wait"])
     c = w.observe_consequences("0")
     g = w.evaluate_goal("0")
-    assert c.dt == 1.0 and 0 <= g.progress <= 1 and g.violated is None
+    assert c.dt > 600 and 0 <= g.progress <= 1 and g.violated is None  # v13: dt = simulated minutes (wait = to next day)
 
 
 def test_production_cli_start_to_finish_with_transfer_init(tmp_path):
@@ -193,3 +193,53 @@ def test_goal_curriculum_lowers_training_targets_only_and_adapts_to_training_suc
     cur = {"d": 0.8, "n": 0, "s": 0}
     curriculum_step(cur, spec, [{"difficulty": 0.8, "success": True}] * 4)
     assert cur["d"] == 1.0                                                                    # ceiling: the full goal
+
+
+def test_vending_accrual_reward_and_world_time():
+    """sl-exp-v13 (amendment 8): a paid order is reward-neutral until it is due (goods in transit at cost), every
+    episode's undiscounted return is exactly (final - initial benchmark net worth) / 100, and dt is simulated minutes."""
+    import pytest
+    from agentrs.sl.worlds import vending as V
+    from agentrs.sl.world import Task
+
+    if not V.available():
+        pytest.skip("Vending-Bench engine not installed")
+    w = V.VendingWorld()
+    w.initialize_world(Task("ext/vending", 0, "val"))
+    total, rewards = 0.0, []
+
+    def step(a):
+        nonlocal total
+        w.execute("0", a + ["END"])
+        c = w.observe_consequences("0")
+        total += c.reward
+        rewards.append((a[0], c.reward, c.dt, w.last_out))
+        return c
+
+    step(["search", "snacks"])
+    step(["offers", f"sup:{w.known_sup[0]}"])
+    pid = sorted(p for (s, p) in w.offers if s == w.known_sup[0])[0]
+    c = step(["order", f"sup:{w.known_sup[0]}", f"prod:{pid}", "q160"])
+    assert "order_id" in w.last_out and w.e.net_worth() < w.nw0 - 50   # the benchmark books the order as a loss...
+    assert abs(c.reward) < 1e-6                                          # ...the accrual reward does not
+    assert 0 < rewards[0][2] < 120                                       # a tool call takes minutes of world time
+    c = step(["wait"])
+    assert c.dt > 600                                                    # waiting for the next day takes hours
+    n = 0
+    while not w.e.over and n < 200:
+        c = step(["wait"])
+        n += 1
+    assert w.e.over and c.done
+    assert abs(total - (w.e.net_worth() - w.nw0) / 100.0) < 1e-6
+
+
+def test_reward_audit_passes_for_vending_v13():
+    import pytest
+    from agentrs.sl.train import reward_audit
+    from agentrs.sl.world import RewardContract
+    from agentrs.sl.worlds import vending as V
+
+    if not V.available():
+        pytest.skip("Vending-Bench engine not installed")
+    res = reward_audit(["ext/vending"], RewardContract(), 2000, n=3)
+    assert res["ext/vending"]["passed"], res

@@ -61,11 +61,16 @@ def wait_only(w):
         act(w, ["wait"]); steps += 1
     return w.e.net_worth() / w.nw0, steps, bool(w.e.s.get("terminated"))
 
-N = int(sys.argv[1]) if len(sys.argv) > 1 else 12
-for name, fn in [("wait_only", wait_only)] + [(f"operator_{m}_{q}", (lambda m=m, q=q: (lambda w: operator(w, m, q)))()) for m in ["x1.5", "x2", "x3"] for q in ["q80", "q160"]]:
-    res = []
-    for seed in range(N):
-        w = VendingWorld(); w.initialize_world(Task("ext/vending", seed, "val"))
-        res.append(fn(w))
-    sc = np.array([r[0] for r in res])
-    print(f"{name:20s} score mean {sc.mean():.3f}  min {sc.min():.3f}  max {sc.max():.3f}  success(>=1.667) {np.mean(sc >= 2500/1500):.2f}  steps {np.mean([r[1] for r in res]):.0f}  terminated {np.mean([r[2] for r in res]):.2f}", flush=True)
+def _main():
+    N = int(sys.argv[1]) if len(sys.argv) > 1 else 12
+    for name, fn in [("wait_only", wait_only)] + [(f"operator_{m}_{q}", (lambda m=m, q=q: (lambda w: operator(w, m, q)))()) for m in ["x1.5", "x2", "x3"] for q in ["q80", "q160"]]:
+        res = []
+        for seed in range(N):
+            w = VendingWorld(); w.initialize_world(Task("ext/vending", seed, "val"))
+            res.append(fn(w))
+        sc = np.array([r[0] for r in res])
+        print(f"{name:20s} score mean {sc.mean():.3f}  min {sc.min():.3f}  max {sc.max():.3f}  success(>=1.667) {np.mean(sc >= 2500/1500):.2f}  steps {np.mean([r[1] for r in res]):.0f}  terminated {np.mean([r[2] for r in res]):.2f}", flush=True)
+
+
+if __name__ == "__main__":
+    _main()
