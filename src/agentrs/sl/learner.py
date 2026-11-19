@@ -135,6 +135,8 @@ class PPO:
         v_old = torch.stack([s["v"] for s in steps])
         disc = torch.stack([s["disc"] for s in steps]).float()
         cut = torch.stack([s["trial_end"] for s in steps])
+        if c.get("episode_returns"):  # advantages per episode; memory still persists across a trial's episodes
+            cut = cut | torch.stack([s["done"] for s in steps])
         lp_old = torch.stack([s["lp"] for s in steps])
         adv, ret = gae(r, v_old, disc, cut, seg["boot"], c["lam"])
         adv_n = (adv - adv.mean()) / (adv.std() + 1e-8)

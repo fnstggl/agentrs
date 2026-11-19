@@ -123,6 +123,26 @@ The first four Phase 1 pretraining runs (sl-exp-v1/v2) were stopped after 4–20
 - All v5 Phase 1 runs (CAM families) are superseded and set aside. Phase 1 restarts on sl-exp-v9 with the same
   protocol. Melting Pot (native rewards, no per-decision costs) is unaffected.
 
+### Protocol amendment 4, 2026-11-19 01:30 UTC (before any v9/v10 Phase 1 result)
+**Matched-budget diagnostics on negotiation** (150k interactions, 48 validation tasks):
+
+| Configuration | Validation success | Verified progress |
+|---|---|---|
+| 3-episode trials, trial-level returns, skills (v9 base) | 8.3% | 0.537 |
+| same, no skills | 10.4% | 0.571 |
+| 3-episode trials, per-episode advantages, skills | 12.5% | 0.629 |
+| same, no skills | 23.6% | 0.663 |
+| single-episode trials, no skills (seeds 1 and 2) | 41.7% and 14.6% | 0.734 and 0.609 |
+
+- **Trial-level returns:** with memory kept across a trial's episodes, the return summed over the whole trial
+  slowed mastery (−0.09 progress in both pairs).
+- **Single-episode trials:** their apparent advantage mostly did not replicate across seeds.
+- **New base learner:** `episode_returns: true`. Advantages are computed per episode, while belief and memory still
+  persist across the trial.
+- **Kept under test:** the trial-level (meta-RL) objective remains an ablation (`A_NPV_rl2_s1` and its bizdev
+  transfer). Skills stay in the base architecture; their mild deficit is within noise and is tested by
+  `A_NPV_noskill_s1`.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6

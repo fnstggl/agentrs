@@ -1,6 +1,6 @@
 # Superlearner Phase 1 base configuration (shared by every arm; arms override only what they test).
 model: {d: 192, dh: 384, layers: 2, heads: 4, dk: 64, dv: 128, mem_slots: 256, skills: 8, ds: 32, da: 128, ens: 3}
-learner: {lr: 0.0003, epochs: 2, mb_streams: 32, clip: 0.2, ent: 0.01, lam: 0.95, wm: 0.5, target_kl: 0.05}
+learner: {lr: 0.0003, epochs: 2, mb_streams: 32, clip: 0.2, ent: 0.01, lam: 0.95, wm: 0.5, target_kl: 0.05, episode_returns: true}
 reward: {native: 1.0, success: 1.0, shaping: 0.5, time_cost: 0.0, violation: 1.0, gamma: 0.99}
 n_worlds: 128
 seg_len: 32

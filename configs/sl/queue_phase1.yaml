@@ -168,6 +168,18 @@ jobs:
     heldout_families:
     - cam/bizdev
     wm_coef: 0.0
+- name: A_NPV_rl2_s1
+  config: configs/sl/pretrain.yaml
+  set:
+    seed: 1
+    families:
+      cam/negotiation: 1.0
+      cam/product: 1.0
+      ext/vending: 1.0
+    heldout_families:
+    - cam/bizdev
+    learner:
+      episode_returns: false
 - name: T_B_fromNPV_s1
   config: configs/sl/transfer.yaml
   set:
@@ -460,3 +472,16 @@ jobs:
     - cam/bizdev
   after:
   - P_NPB_s2
+- name: T_B_fromNPVrl2_s1
+  config: configs/sl/transfer.yaml
+  after:
+  - A_NPV_rl2_s1
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/A_NPV_rl2_s1/ckpt/life_2000000
+    heldout_families:
+    - cam/negotiation
+    - cam/product
+    - ext/vending
