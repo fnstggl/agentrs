@@ -31,6 +31,13 @@ sl-exp-v13 (amendment 8) fixes two reward-timing defects of this adapter (the be
 With the old reward the discounted return of doing nothing (-0.54) beat that of a scripted business that ends 3%
 above its starting net worth (-2.18); with both fixes the business wins (-0.41 vs -0.62); see
 ``scripts/sl_reach_vending.py``.
+
+sl-exp-v14 (amendment 9): v13 agents act but 89-92% of their orders were refused. A single-product order below the
+supplier's minimum order value (shown to the operator in the benchmark's ``check_offers`` reply, which this adapter
+dropped) or above the cash balance is refused. The observation now carries each quoted supplier's minimum order, and
+the order grammar offers only quantities that the agent's own quote shows to be valid (quote x quantity at least 1.1 x
+the minimum and at most balance / 1.1; the margin covers the benchmark's small volume discounts). No hidden
+information is used: quotes, minimums and the balance are all visible to the operator.
 """
 from __future__ import annotations
 
@@ -76,6 +83,7 @@ class VendingWorld(World):
         self.e = self.Engine.new(SEEDS[self.task.split] + self.task.seed, path=None)
         self.known_sup: list = []
         self.offers: dict = {}          # (supplier, product) -> unit price
+        self.min_order: dict = {}       # supplier -> minimum order value from its check_offers reply (v14)
         self.last_out = ""
         self.nw0 = self.e.net_worth()
         self._dnw = 0.0
@@ -118,7 +126,7 @@ class VendingWorld(World):
             if pid not in best or price < best[pid][1]:
                 best[pid] = (sid, price)
         for pid, (sid, price) in sorted(best.items()):
-            ents.append((f"offer:{sid}:{pid}", [price]))
+            ents.append((f"offer:{sid}:{pid}", [price, self.min_order.get(sid, 0.0) / 100.0]))
         for o in s["orders"].values():
             if o["status"] in ("paid", "shipped"):
                 ents.append((f"order:{o['supplier_id']}", [max(0, (o.get("delivery_day") or s["day"]) - s["day"]) / 7.0,
@@ -133,6 +141,21 @@ class VendingWorld(World):
     def available_actions(self, agent="0") -> ActionSpace:
         return ActionSpace(kind="sequential", allowed=self._allowed, max_len=7)
 
+    def _valid_orders(self) -> set:
+        """(supplier, product, quantity) orders that the agent's own quotes show to be acceptable: quote x quantity at
+        least 1.1 x the supplier's stated minimum order and at most the cash balance / 1.1."""
+        bal = float(self.e.s["balance"])
+        out = set()
+        for (sid, pid), price in self.offers.items():
+            mn = self.min_order.get(sid)
+            if mn is None:
+                continue
+            for q, n in ORDER_Q.items():
+                tot = price * n
+                if tot >= 1.1 * mn and tot * 1.1 <= bal:
+                    out.add((sid, pid, q))
+        return out
+
     def _slot_parts(self):
         return {loc: sorted({sl.split(":")[1] for sl in self.slots if sl.startswith(loc + ":")}) for loc in self.locs}
 
@@ -141,7 +164,7 @@ class VendingWorld(World):
             acts = ["search", "wait"]
             if self.known_sup:
                 acts += ["offers"]
-            if self.offers:
+            if self._valid_orders():
                 acts += ["order"]
             if any(st["quantity"] > 0 for st in self.e.s["storage"].values()):
                 acts += ["restock"]
@@ -157,12 +180,16 @@ class VendingWorld(World):
         if a == "offers":
             return [f"sup:{x}" for x in self.known_sup] if len(p) == 1 else ["END"]
         if a == "order":
+            v = self._valid_orders()
             if len(p) == 1:
-                return sorted({f"sup:{sid}" for sid, _ in self.offers})
+                return sorted({f"sup:{sid}" for sid, _, _ in v})
             if len(p) == 2:
                 sid = p[1][4:]
-                return [f"prod:{pid}" for (s_, pid) in sorted(self.offers) if s_ == sid]
-            return list(ORDER_Q) if len(p) == 3 else ["END"]
+                return sorted({f"prod:{pid}" for s_, pid, _ in v if s_ == sid})
+            if len(p) == 3:
+                sid, pid = p[1][4:], p[2][5:]
+                return [q for q in ORDER_Q if (sid, pid, q) in v]
+            return ["END"]
         if a == "market":
             if len(p) == 1:
                 return [f"loc:{x}" for x in self.locs]
@@ -200,7 +227,9 @@ class VendingWorld(World):
                 sid = a[1][4:]
                 out = e.tool_check_offers(sid, 60)
                 try:
-                    offers = json.loads(out.split("\n", 1)[0])["offers"]
+                    reply = json.loads(out.split("\n", 1)[0])
+                    offers = reply["offers"]
+                    self.min_order[sid] = float(reply.get("minimum_order") or 0.0)
                     for pid, o in offers.items():
                         self.offers[(sid, pid)] = float(o["unit_price"])
                 except (ValueError, KeyError, TypeError):
@@ -249,11 +278,11 @@ class VendingWorld(World):
 
     def save_world_state(self):
         import copy
-        return copy.deepcopy((self.e.s, self.known_sup, self.offers, self.nw0))
+        return copy.deepcopy((self.e.s, self.known_sup, self.offers, self.nw0, self.min_order))
 
     def restore_world_state(self, state) -> None:
         import copy
-        s, self.known_sup, self.offers, self.nw0 = copy.deepcopy(state)
+        s, self.known_sup, self.offers, self.nw0, self.min_order = copy.deepcopy(state)
         self.e.s = s
 
 

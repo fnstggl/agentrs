@@ -300,11 +300,19 @@ def prereg_tests(runs) -> list:
         else:
             verdict = "neither confirmed nor disproved (mixed)"
         md += ["", f"H7 verdict: **{verdict}**", ""]
-    vv = {n: s for n, s in runs.items() if re.fullmatch(r"T_V13_scratch_s\d", n)}
+    for hyp, ver, amend, what in (("H8", "13", 8, "the adapter's cash-timed orders and per-call discounting"),
+                                  ("H9", "14", 9, "refused orders (minimum order not observed, invalid quantities offered)")):
+        md += _vending_test(runs, hyp, ver, amend, what)
+    return md
+
+
+def _vending_test(runs, hyp, ver, amend, what) -> list:
+    md = []
+    vv = {n: s for n, s in runs.items() if re.fullmatch(rf"T_V{ver}_scratch_s\d", n)}
     if vv:
-        md += ["**H8 (amendment 8): Vending's learned inaction is caused by the adapter's cash-timed orders and per-call "
-               "discounting.** Validation score (ext/vending, mode full; do-nothing = 0.760). Confirmed if both v13 seeds "
-               "reach ≥ 0.85 at 300k with a return different from the do-nothing return; disproved if both are ≤ 0.78.", "",
+        md += [f"**{hyp} (amendment {amend}): Vending's failure is caused by {what}.** Validation score (ext/vending, mode "
+               f"full; do-nothing = 0.760). Confirmed if both v{ver} seeds reach ≥ 0.85 at 300k with a return different from "
+               "the do-nothing return; disproved if both are ≤ 0.78.", "",
                "| run | adapter | 0k | 100k | 300k | return at 300k (do-nothing) |", "|---|---|---|---|---|---|"]
         res = {}
         olds = {n: runs[n] for n in runs if re.fullmatch(r"T_V_scratch_s\d", n)}
@@ -313,20 +321,20 @@ def prereg_tests(runs) -> list:
             e = next((e for e in s.get("evals", []) if e["tag"] == "m300000" and e["split"] == "val" and e["mode"] == "full"), None)
             ret = None if e is None else float(np.mean([c["return"] for c in e["families"]["ext/vending"]["curve"]]))
             stall = ((s.get("reward_audit") or {}).get("ext/vending") or {}).get("stall", {}).get("return")
-            md.append(f"| {n} | {'v13' if n in vv else 'v1 (sl-exp-v10)'} | " + " | ".join("–" if x is None else f"{x:.3f}" for x in v)
+            md.append(f"| {n} | {('v' + ver) if n in vv else 'v1 (sl-exp-v10)'} | " + " | ".join("–" if x is None else f"{x:.3f}" for x in v)
                       + f" | {'–' if ret is None else f'{ret:.3f}'} ({'–' if stall is None else f'{stall:.3f}'}) |")
             if n in vv:
                 res[n] = (v[2], ret, stall)
         done = [r for r in res.values() if r[0] is not None]
         if len(done) < 2:
-            verdict = f"pending ({len(done)}/2 v13 seeds at 300k)"
+            verdict = f"pending ({len(done)}/2 v{ver} seeds at 300k)"
         elif all(sc <= 0.78 for sc, _, _ in done):
             verdict = "DISPROVED"
         elif all(sc >= 0.85 and (st is None or abs(r - st) > 0.05 * max(1.0, abs(st))) for sc, r, st in done):
             verdict = "CONFIRMED"
         else:
             verdict = "neither confirmed nor disproved (mixed)"
-        md += ["", f"H8 verdict: **{verdict}**", ""]
+        md += ["", f"{hyp} verdict: **{verdict}**", ""]
     return md
 
 

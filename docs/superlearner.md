@@ -334,6 +334,23 @@ The two defects, both in our adapter (the benchmark is unchanged):
 - **Information gap.** The benchmark shows that minimum in its `check_offers` reply, but the adapter dropped it from the
   observation. A refused order costs only simulated time.
 
+### Protocol amendment 9, 2026-11-19 10:00 UTC: Vending order validity (before any v14 result)
+**Fix (`sl-exp-v14`, `sl/worlds/vending.py`; v13's accrual accounting and world-time `dt` are kept).**
+- The observation now carries each quoted supplier's minimum order value, from the benchmark's own `check_offers` reply.
+- The order grammar offers only (supplier, product, quantity) choices that the agent's own quote shows to be valid:
+  quote × quantity ≥ 1.1 × minimum and ≤ balance / 1.1. The margin covers the benchmark's small volume discounts.
+- Nothing hidden is used.
+- **Effect on a uniformly random policy** (8 validation tasks): order acceptance 26% → 98%, mean score 0.627 → 0.720.
+  But 6 of 8 episodes now end with the operator terminated for unpaid fees, because valid orders spend the cash. Cash
+  management stays the agent's problem; the grammar removes only orders the benchmark would refuse.
+
+**Disprovable test (pre-registered).**
+- **H9:** Vending fails because most orders are refused for want of information the benchmark gives the operator.
+- **Runs:** `T_V14_scratch_s1`, `T_V14_scratch_s2` (v14, otherwise exactly like `T_V13_scratch_s*`, 300k).
+- **Confirmed if** both seeds reach validation score ≥ 0.85 at 300k with a return different from the do-nothing
+  return.
+- **Disproved if** both are ≤ 0.78.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6

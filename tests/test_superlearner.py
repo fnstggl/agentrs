@@ -218,8 +218,8 @@ def test_vending_accrual_reward_and_world_time():
 
     step(["search", "snacks"])
     step(["offers", f"sup:{w.known_sup[0]}"])
-    pid = sorted(p for (s, p) in w.offers if s == w.known_sup[0])[0]
-    c = step(["order", f"sup:{w.known_sup[0]}", f"prod:{pid}", "q160"])
+    sid, pid, q = sorted(w._valid_orders())[0]  # v14: the grammar offers only orders the quotes show to be valid
+    c = step(["order", f"sup:{sid}", f"prod:{pid}", q])
     assert "order_id" in w.last_out and w.e.net_worth() < w.nw0 - 50   # the benchmark books the order as a loss...
     assert abs(c.reward) < 1e-6                                          # ...the accrual reward does not
     assert 0 < rewards[0][2] < 120                                       # a tool call takes minutes of world time
@@ -243,3 +243,37 @@ def test_reward_audit_passes_for_vending_v13():
         pytest.skip("Vending-Bench engine not installed")
     res = reward_audit(["ext/vending"], RewardContract(), 2000, n=3)
     assert res["ext/vending"]["passed"], res
+
+
+def test_vending_v14_offers_only_orders_the_operator_can_see_are_valid():
+    """sl-exp-v14 (amendment 9): the supplier's stated minimum order is observed, and every order the grammar offers is
+    accepted by the benchmark (v13: 89-92% of the trained agents' orders were refused)."""
+    import random as _r
+
+    import pytest
+    from agentrs.sl.world import Task
+    from agentrs.sl.worlds import vending as V
+
+    if not V.available():
+        pytest.skip("Vending-Bench engine not installed")
+    w = V.VendingWorld()
+    w.initialize_world(Task("ext/vending", 2, "val"))
+    assert "order" not in w._allowed([])                   # nothing quoted yet: no order can be known to be valid
+    w.execute("0", ["search", "snacks", "END"])
+    for sid in list(w.known_sup):
+        w.execute("0", ["offers", f"sup:{sid}", "END"])
+    assert w.min_order and all(v > 0 for v in w.min_order.values())
+    offer_feats = [f for name, f in w.observe("0").entities if name.startswith("offer:")]
+    assert offer_feats and all(len(f) == 2 and f[1] > 0 for f in offer_feats)
+    rng, n, ok = _r.Random(0), 0, 0
+    while n < 25 and "order" in w._allowed([]):
+        path = ["order"]
+        while True:
+            t = rng.choice(w._allowed(path))
+            if t == "END":
+                break
+            path.append(t)
+        w.execute("0", path + ["END"])
+        n += 1
+        ok += "order_id" in w.last_out
+    assert n >= 3 and ok == n, (ok, n, w.last_out)
