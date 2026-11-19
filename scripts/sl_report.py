@@ -77,6 +77,8 @@ def main() -> int:
     md = [f"# Superlearner report: `{root}`", "", f"{len(runs)} runs. Phases: " +
           ", ".join(f"{k} {v}" for k, v in sorted(_count(runs).items())), ""]
 
+    md += prereg_tests(runs)
+
     # --------------------------------------------------------------- 1. fast adaptation with frozen weights
     md += ["## 1. Fast adaptation inside a task with frozen weights (validation, latest milestone of each lifetime)", "",
            "Each task is one trial of K episodes with the same hidden parameters. The table gives the episode-1 → "
@@ -220,6 +222,54 @@ def main() -> int:
     out.write_text("\n".join(md) + "\n")
     print("\n".join(md))
     return 0
+
+
+def _val_at(st, fam, tag, key):
+    e = next((e for e in st.get("evals", []) if e["tag"] == tag and e["split"] == "val" and e["mode"] == "full"
+              and fam in e["families"]), None)
+    return None if e is None else e["families"][fam][key]
+
+
+def prereg_tests(runs) -> list:
+    """Pre-registered hypothesis tests of the protocol amendments (docs/superlearner.md), evaluated mechanically."""
+    md = []
+    old = {n: s for n, s in runs.items() if re.fullmatch(r"T_B_scratch_s\d", n)}
+    new = {n: s for n, s in runs.items() if re.fullmatch(r"T_B11_scratch_s\d", n)}
+    if new or old:
+        md += ["## 0. Pre-registered tests", "",
+               "**H6 (amendment 6): the shaping-discount defect causes the bizdev collapse.** Validation progress "
+               "(cam/bizdev, mode full). Confirmed if every v11 seed is ≥ 0.20 at 100k and at 300k; disproved if at "
+               "least 2 of 3 v11 seeds are < 0.10 at 300k.", "",
+               "| run | code | 0k | 100k | 300k |", "|---|---|---|---|---|"]
+        for n, s in sorted(old.items()) + sorted(new.items()):
+            v = [_val_at(s, "cam/bizdev", tg, "auc_score") for tg in ("m0", "m100000", "m300000")]
+            md.append(f"| {n} | {'v11' if n in new else 'v10'} | " + " | ".join("–" if x is None else f"{x:.3f}" for x in v) + " |")
+        at = {n: (_val_at(s, "cam/bizdev", "m100000", "auc_score"), _val_at(s, "cam/bizdev", "m300000", "auc_score"))
+              for n, s in new.items()}
+        low300 = sum(1 for a, b in at.values() if b is not None and b < 0.10)
+        complete = len(at) == 3 and all(a is not None and b is not None for a, b in at.values())
+        if low300 >= 2:
+            verdict = "DISPROVED"
+        elif complete and all(a >= 0.20 and b >= 0.20 for a, b in at.values()):
+            verdict = "CONFIRMED"
+        elif complete:
+            verdict = "neither confirmed nor disproved (mixed)"
+        else:
+            verdict = f"pending ({sum(b is not None for a, b in at.values())}/3 v11 seeds at 300k)"
+        md += ["", f"H6 verdict: **{verdict}**", ""]
+    dp = {n: runs[n] for n in ("D_P10_s1", "D_P11_s1") if n in runs}
+    if dp:
+        md += ["**Product (amendment 6, secondary):** product-only learning, identical configuration, v10 vs v11 "
+               "contract. Prediction: v11 validation progress at 300k exceeds v10 by ≥ 0.10.", "",
+               "| run | 0k progress | 100k | 300k | 300k success |", "|---|---|---|---|---|"]
+        for n, s in dp.items():
+            v = [_val_at(s, "cam/product", tg, "auc_score") for tg in ("m0", "m100000", "m300000")]
+            sc = _val_at(s, "cam/product", "m300000", "auc_success")
+            md.append(f"| {n} | " + " | ".join("–" if x is None else f"{x:.3f}" for x in v) + f" | {'–' if sc is None else f'{sc:.3f}'} |")
+        a, b = (_val_at(dp[n], "cam/product", "m300000", "auc_score") if n in dp else None for n in ("D_P11_s1", "D_P10_s1"))
+        md += ["", "Product verdict: **" + ("pending" if a is None or b is None else
+                                             ("CONFIRMED" if a - b >= 0.10 else "NOT CONFIRMED") + f" (Δ = {a - b:+.3f})") + "**", ""]
+    return md
 
 
 def _count(runs):
