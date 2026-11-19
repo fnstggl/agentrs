@@ -38,6 +38,20 @@ def final_backed_up(run: Path) -> bool:
     return any(u.get("kind") == "final" and u.get("verified") for u in st.get("uploads", []))
 
 
+def _active(run: Path, now: float) -> bool:
+    """A run (e.g. a smoke test) still in progress: not finished and written to within the last hour."""
+    try:
+        if json.loads((run / "state.json").read_text()).get("phase") == "done":
+            return False
+    except (OSError, ValueError):
+        pass
+    try:
+        newest = max(f.stat().st_mtime for f in run.rglob("*") if f.is_file())
+    except ValueError:
+        return False
+    return now - newest < 3600
+
+
 def plan() -> list:
     out = []
     now = time.time()
@@ -47,7 +61,7 @@ def plan() -> list:
         for run in sorted(p for p in root.iterdir() if p.is_dir()):
             if run.name.startswith(("_smoke", "_invalid")):
                 for ck in run.rglob("ckpt"):
-                    if ck.is_dir():
+                    if ck.is_dir() and not _active(ck.parent, now):
                         out.append((ck, "checkpoints of a smoke-test / discarded run"))
                 continue
             if run.name.startswith("_"):
