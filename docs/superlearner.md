@@ -323,6 +323,17 @@ The two defects, both in our adapter (the benchmark is unchanged):
 - **If confirmed,** a Vending transfer series on v13 (`T_V13_from*`, same sources) replaces the v10 one as the Vending
   measurement.
 
+**H8 result (2026-11-19 09:45 UTC): DISPROVED.** Validation score at 300k: `T_V13_scratch_s1` 0.774, `T_V13_scratch_s2`
+0.758 (v1 adapter: 0.758–0.759). Both are below the 0.78 threshold, so the timing defects are not a sufficient cause.
+- **What changed.** The v13 agents no longer stall. Their returns (−3.68, −3.73) differ from the do-nothing return, and
+  they search, order, restock, price and clear.
+- **Why they still fail** (`best` checkpoints, 8 validation tasks):
+  - 89–92% of their orders are refused;
+  - order quantities are spread almost uniformly over q10–q160;
+  - single-product orders below about q80 fall under every supplier's minimum order value.
+- **Information gap.** The benchmark shows that minimum in its `check_offers` reply, but the adapter dropped it from the
+  observation. A refused order costs only simulated time.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
