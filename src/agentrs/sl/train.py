@@ -324,6 +324,16 @@ class SLTrainer:
         self.state["init_from"] = {"dir": str(d), "loaded": len(loaded), "total": len(own),
                                    "source_state": json.loads((d / "state.json").read_text()).get("interactions") if (d / "state.json").exists() else None}
         self.log(f"initialised {len(loaded)}/{len(own)} tensors from {d}")
+        if self.model.c.fam_gate_n0 > 0 and "fam_n" not in loaded and (d / "state.json").exists():
+            # source trained before v16 (no experience counts): its training interactions split by its family weights
+            src = json.loads((d / "state.json").read_text())
+            fw = src.get("config", {}).get("families") or {}
+            tot = sum(fw.values()) or 1.0
+            fam_n = {f: src.get("interactions", 0) * w / tot for f, w in fw.items()}
+            for f, n in fam_n.items():
+                self.model.add_experience(f, n)
+            self.state["init_from"]["fam_n"] = fam_n
+            self.log(f"familiarity from the source's training mix: { {f: int(n) for f, n in fam_n.items()} }")
 
     # ------------------------------------------------------------------ evaluation
     @torch.no_grad()
@@ -389,8 +399,15 @@ class SLTrainer:
                                  device=self.dev, max_episode_steps=c.max_episode_steps, dt_ref=self.state["dt_ref"])
         t0 = time.time()
         self.model.eval()
+        fs0 = dict(self.runner.fam_steps)
         seg = self.runner.collect(c.seg_len)
         self.model.train()
+        fi = self.state.setdefault("fam_interactions", {})
+        for f, v in self.runner.fam_steps.items():  # per-world experience; v16 familiarity gate (no-op when off)
+            d = v - fs0.get(f, 0)
+            if d:
+                fi[f] = fi.get(f, 0) + d
+                self.model.add_experience(f, d)
         t1 = time.time()
         stats = self.learner.update(seg, self.dev, wm_coef=c.wm_coef)
         t2 = time.time()

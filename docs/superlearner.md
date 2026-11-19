@@ -380,6 +380,79 @@ inaction attractor seen in v10–v13. If both v15 seeds again settle on the do-n
 valid orders alone do not make Vending learnable for this learner. Cash management, the remaining obstacle, would then
 need its own hypothesis, not a reward change.
 
+**H9 result (2026-11-19 15:50 UTC): DISPROVED.** Validation score at 300k: `T_V15_scratch_s1` 0.734, `T_V15_scratch_s2`
+0.684 (threshold for confirmation 0.85; for disproval ≤ 0.78). The agents did not settle on inaction: they keep ordering,
+and over 300k the share of validation episodes closed for unpaid fees falls from 0.78 to 0.17 (s1) and 0.41 (s2),
+while the mean return rises from −6.2 to −4.2 and −5.2. That is still below the do-nothing return (−3.60), and neither
+seed has flattened. Valid orders plus a fee contract that cannot be escaped make Vending a cash-management problem the
+learner is working on but has not solved in 300k. The next Vending hypothesis has to target cash management (or a
+longer budget), not order validity.
+
+### Protocol amendment 11, 2026-11-19 12:10 UTC: negative transfer to bizdev (before any v16 result)
+**Observation (finished runs only; `scripts/sl_report.py` section 2).** Experienced inits learn bizdev more slowly than
+scratch. Learning AUC of validation score over 0-300k (scratch, 3 seeds: 0.518). Table updated 15:50 UTC with every
+seed complete (at 12:10 only fromN s1 and fromNP s1-s2 had finished: −0.133 and −0.210); no v16 run had started.
+
+| Init | Seeds | ΔAUC vs scratch (90% CI) | Score at 0k (scratch 0.258) | Score at 300k (scratch 0.738) | Final test (scratch 0.440) |
+|---|---|---|---|---|---|
+| fromN (P_N_s1 @ 1M) | 3 | −0.071 (−0.166 to +0.024) | 0.020 | 0.758 | 0.436 |
+| fromNP (P_NP_s1 @ 1M) | 3 | −0.156 (−0.247 to −0.066) | 0.015 | 0.701 | 0.417 |
+| fromNPV (P_NPV_s1 @ 1M) | 3 | +0.008 (−0.041 to +0.056) | 0.043 | 0.728 | 0.424 |
+| fromNPV250k | 1 | +0.069 | 0.113 | 0.775 | 0.455 |
+| fromNPV500k | 1 | −0.214 | 0.102 | 0.549 | 0.311 |
+
+Every experienced init starts far below scratch (0.02-0.11 against 0.26). Only fromNP's deficit is significant; all
+inits end near the same final test score.
+
+The report had averaged learning curves over whatever range each run had covered, so runs still in progress counted with
+lower values. It now counts only runs that reached the budget, paired by seed.
+
+**Diagnosis (offline, frozen weights, 48 validation tasks × 3 episodes; `scripts/sl_probe_actions.py`,
+`scripts/sl_probe_temperature.py`).**
+- **Overconfidence on never-trained actions.** At transfer start the fromN policy chooses WAIT 78% of the time, against
+  about 25% for a random init. Its normalised policy entropy is 0.69 (random init: 1.00) and its score 0.02 (random 0.21).
+  Negotiation has no WAIT action, so this is not transferred meaning: the bizdev labels' embedding rows were never
+  trained, and the grown policy query turns their random values into confident, arbitrary preferences.
+- **Mis-transferred shared labels.** Bizdev's PITCH takes the N0-N10 argument labels that negotiation's PROPOSE uses.
+  With every never-trained label row zeroed (an exact retrofit: plain Adam leaves unused rows bit-identical to their
+  initial values; P_N trained 75 of 65,536 rows), fromN's action types are uniform, but it still scores 0.07. Its
+  negotiation-trained preferences over N levels are wrong in bizdev.
+- **v10 learned inaction carried by labels.** For fromNP, zeroing changes nothing (entropy 0.51 → 0.50). Bizdev's WAIT
+  shares its label and word rows with product's WAIT, which P_NP learned to prefer under the v10 shaping defect
+  (amendments 6 and 7).
+- **Softening the preferences recovers random-level play.** Dividing fromN's logits by a temperature T: T = 3 gives
+  entropy 0.96, score 0.15; T = 10 gives 1.00, 0.21-0.24 (random level); T = 30 gives 1.00, 0.285. The representation
+  is not harmful; its confident action preferences are.
+
+**Architecture change (`sl-exp-v16`): a familiarity gate.**
+- Each model counts its training interactions per world, n_f (a checkpointed buffer).
+- Before each action choice, the logits are shrunk toward their mean over the valid options by g = n_f / (n_f + n0).
+  A world never trained in starts with a uniform choice, and preferences strengthen as experience there accumulates.
+- The representation (perception, belief, memory, world model, label embeddings, policy query) is untouched and is
+  free to transfer.
+- The collector records g; the learner's replay reuses it, so PPO log-probs stay exact (tested).
+- **n0 = 4,096:** one training batch (128 worlds × 32 steps). g = 0.5 after the first batch in a world, 0.92 at 50k.
+- **Source lifetimes trained before v16 carry no counts.** Their n_f is reconstructed as interactions × family weight
+  (e.g. P_NP @ 1M: 0.5M each for negotiation and product), so retention monitors on source families keep g ≈ 1.
+- With `fam_gate_n0 = 0` (the default), v16 is identical to v15.
+
+**Disprovable test (pre-registered): H10.**
+- **Claim:** the negative transfer is caused by confident action preferences not earned in the new world.
+- **Runs:** `T_B16_scratch_s1/s2`, `T_B16_fromN_s1/s2`, `T_B16_fromNP_s1/s2`, identical to the `T_B11_*` runs except for
+  the v16 code and `model.fam_gate_n0 = 4096`. The bizdev reward contract is v11's (v12-v15 change only product
+  curriculum and Vending).
+- **Primary measure:** learning AUC of validation score, 0-300k, paired by seed against `T_B16_scratch`.
+- **Confirmed if** both gated transfer groups have mean ΔAUC ≥ −0.02. **Disproved if** gated fromNP, the only
+  significant ungated deficit (−0.156), stays ≤ −0.10. Anything else is mixed. (Revised 15:50 UTC, before any v16 run
+  started: the 12:10 rule needed both groups ≤ −0.10, which the complete fromN deficit, −0.071, cannot reach even
+  without a gate.)
+- **Mechanism check:** gated transfers start at score ≥ 0.20 at 0k.
+- **Also reported:** the gate's cost on scratch (T_B16_scratch vs T_B11_scratch) and each gated transfer vs its ungated
+  twin (same init and seed).
+- **What the gate cannot fix:** if the experienced representation still learns more slowly once preferences are neutral,
+  the cause is in the representation (e.g. lost plasticity), not the action head. H10 is then disproved, and the next
+  hypothesis targets plasticity.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6

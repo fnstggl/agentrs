@@ -129,3 +129,31 @@ def test_queue_waits_for_a_checkpoint_then_starts_and_skips_unreachable_ones(tmp
     assert qu.st["T_a"]["status"] == "running" and qu.st["T_a"]["starts"] == 1
     assert qu.st["T_b"]["status"] == "skipped"
     assert "T_b skipped" in (runs / "queue.log").read_text()
+
+
+def test_queue_starts_a_job_only_when_its_own_footprint_fits_above_the_reserve(tmp_path, monkeypatch):
+    """sl-ops-v16: a job's threads/server processes (``pids_need``) must fit on top of ``min_free_pids``; a job that
+    spawns world servers after launch must not start on the bare reserve."""
+    import yaml
+    qm = _queue_module()
+    runs = tmp_path / "runs"
+    q = {"runs_root": str(runs), "src": str(Path(__file__).resolve().parents[1] / "src"), "module": "json.tool",
+         "max_jobs": 4, "min_free_mib": 0, "min_free_disk_gb": 0, "min_free_pids": 40, "pids_per_job": 16, "smoke": False,
+         "gh_backup": False, "jobs": [{"name": "big", "config": "x.yaml", "set": {}, "pids_need": 60},
+                                      {"name": "small", "config": "x.yaml", "set": {}}]}
+    qp = tmp_path / "q.yaml"
+    qp.write_text(yaml.safe_dump(q))
+    free = {"n": 50}
+    monkeypatch.setattr(qm, "free_pids", lambda: free["n"])
+    qu = qm.Queue(str(qp))
+    for _ in range(3):
+        qu.tick()
+    assert qu.st["big"]["starts"] == 0 and qu.st["small"]["starts"] == 0  # 50 < 40 + 16
+    free["n"] = 70
+    for _ in range(3):
+        qu.tick()
+    assert qu.st["big"]["starts"] == 0 and qu.st["small"]["starts"] >= 1  # 70 >= 56 but < 100
+    free["n"] = 120
+    for _ in range(3):
+        qu.tick()
+    assert qu.st["big"]["starts"] >= 1

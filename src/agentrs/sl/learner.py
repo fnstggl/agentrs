@@ -87,6 +87,7 @@ class PPO:
             ent_a = torch.zeros(R, device=dev)
             a_emb = torch.zeros(R, m.c.da, device=dev)
             qcur = q
+            gate = s["gate"][rows].to(dev) if (m.c.fam_gate_n0 > 0 and "gate" in s) else None  # as at collection (v16)
             for j in range(L):
                 rr = [r for r in range(R) if len(chosen[r]) > j]
                 ids = np.zeros((len(rr), MAX_CAND, LABEL_IDS), np.int64)
@@ -100,6 +101,8 @@ class PPO:
                 rt = torch.as_tensor(rr, device=dev)
                 emb = m.labels(torch.as_tensor(ids, device=dev))
                 logits = torch.einsum("rcd,rd->rc", emb, qcur[rt]) / (m.c.da ** 0.5)
+                if gate is not None:
+                    logits = m.gate_logits(logits, torch.as_tensor(msk, device=dev), gate[rt])
                 logits = logits.masked_fill(~torch.as_tensor(msk, device=dev), -1e9)
                 ls = torch.log_softmax(logits, -1)
                 pk = torch.as_tensor(pick, device=dev)

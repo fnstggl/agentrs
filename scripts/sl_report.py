@@ -132,33 +132,38 @@ def main() -> int:
         fam = list(any_run["config"]["families"])[0]
         met = metric_of(fam, ov)
         budget = any_run["config"]["max_env_steps"]
-        md += [f"### target {fam} (metric: {met}; budget {budget:,} interactions)", ""]
+        md += [f"### T_{tgt}_*: target {fam} (metric: {met}; budget {budget:,} interactions)", ""]
         ms = sorted({x for n_ in sum(inits.values(), []) for x, _ in ev_val(runs[n_], fam)})
         md += ["| init | seeds | " + " | ".join(f"{x // 1000}k" for x in ms) + " | learning AUC | ΔAUC vs scratch (90% CI) | final test |",
                "|---|---|" + "---|" * len(ms) + "---|---|---|"]
         auc = {}
+        # Learning AUC only for runs whose curve reaches the budget: a curve normalised over a shorter range is not
+        # comparable (curves rise, so a run still in progress looks worse). Differences pair runs by seed.
         for init, names in sorted(inits.items(), key=lambda kv: (kv[0] != "scratch", kv[0])):
             vals = {x: [] for x in ms}
-            aucs, tests = [], []
+            aucs, tests = {}, []
             for n_ in names:
                 cv = ev_val(runs[n_], fam)
                 for x, v in cv:
                     vals[x].append(auc_value(v, met))
-                aucs.append(learning_auc(cv, met, budget))
+                if cv and max(x for x, _ in cv) >= budget:
+                    aucs[n_.rsplit("_s", 1)[1]] = learning_auc(cv, met, budget)
                 te = next((e for e in runs[n_].get("evals", []) if e["tag"] == "final" and e["split"] == "test" and fam in e["families"]), None)
                 if te:
                     tests.append(auc_value(te["families"][fam], met))
-            auc[init] = [x for x in aucs if x is not None]
+            auc[init] = {s: x for s, x in aucs.items() if x is not None}
             cells = [f"{np.mean(vals[x]):.3f}" if vals[x] else "–" for x in ms]
             d = "–"
             if init != "scratch" and auc.get("scratch") and auc[init]:
-                k = min(len(auc[init]), len(auc["scratch"]))
-                diffs = [auc[init][i] - auc["scratch"][i] for i in range(k)]
-                d = fmt(ci90(diffs, extra_se=0.01 if met == "success" else 0.0))
-            md.append(f"| {init} | {len(names)} | " + " | ".join(cells) + f" | {np.mean(auc[init]):.3f} | {d} | "
+                both = sorted(set(auc[init]) & set(auc["scratch"]))
+                if both:
+                    d = fmt(ci90([auc[init][s] - auc["scratch"][s] for s in both], extra_se=0.01 if met == "success" else 0.0))
+            seeds = f"{len(auc[init])}/{len(names)}"
+            md.append(f"| {init} | {seeds} | " + " | ".join(cells) + f" | {np.mean(list(auc[init].values())):.3f} | {d} | "
                       + (f"{np.mean(tests):.3f} (n={len(tests)})" if tests else "–") + " |" if auc[init] else
-                      f"| {init} | {len(names)} | " + " | ".join(cells) + " | – | – | – |")
-        md.append("")
+                      f"| {init} | {seeds} | " + " | ".join(cells) + " | – | – | – |")
+        md += ["", "Seeds = runs that reached the budget / runs; milestone columns average every run that reached the "
+               "milestone; ΔAUC pairs complete runs by seed.", ""]
         # interactions to threshold
         thr = {"success": 0.10}.get(met) or {"cam/bizdev": 0.5}.get(fam, 1.5)
         md.append(f"Interactions until validation {met} ≥ {thr} (first milestone; per seed): " + "; ".join(
@@ -303,7 +308,59 @@ def prereg_tests(runs) -> list:
     for hyp, ver, amend, what in (("H8", "13", 8, "the adapter's cash-timed orders and per-call discounting"),
                                   ("H9", "15", 9, "refused orders (minimum order not observed, invalid quantities offered); tested with v15 (amendment 10: v14 never trained, its audit found closure cheaper than paying)")):
         md += _vending_test(runs, hyp, ver, amend, what)
+    md += _familiarity_test(runs)
     return md
+
+
+def _familiarity_test(runs) -> list:
+    """H10 (amendment 11): negative transfer to bizdev is caused by confident action preferences not earned in the new
+    world; the v16 familiarity gate removes it."""
+    g = {n: s for n, s in runs.items() if re.fullmatch(r"T_B16_(scratch|fromN|fromNP)_s\d", n)}
+    if not g:
+        return []
+    fam, budget = "cam/bizdev", 300_000
+
+    def auc(n):
+        cv = ev_val(runs[n], fam) if n in runs else []
+        return learning_auc(cv, "score", budget) if cv and max(x for x, _ in cv) >= budget else None
+
+    def f(x, sg=False):
+        return "–" if x is None else (f"{x:+.3f}" if sg else f"{x:.3f}")
+
+    md = ["**H10 (amendment 11): experienced inits learn bizdev slower than scratch because their action preferences, "
+          "not earned in bizdev, are confident and wrong; the v16 familiarity gate removes the negative transfer.** "
+          "Learning AUC of validation score (cam/bizdev, mode full, 0-300k), complete runs, paired by seed. Confirmed if "
+          "both gated transfer groups (fromN, fromNP) have mean ΔAUC ≥ −0.02 against gated scratch; disproved if gated "
+          "fromNP (the significant ungated deficit, −0.156) stays ≤ −0.10 (criteria revised 15:50 UTC, before any v16 "
+          "run). Mechanism check: gated transfers start at validation score ≥ 0.20 (0k).", "",
+          "| init | seed | 0k score | AUC v16 (gated) | AUC v11 (no gate) | Δ vs v16 scratch | Δ vs v11 same init |",
+          "|---|---|---|---|---|---|---|"]
+    res = {}
+    for init in ("scratch", "fromN", "fromNP"):
+        for s in (1, 2, 3):
+            n16, n11 = f"T_B16_{init}_s{s}", f"T_B11_{init}_s{s}"
+            if n16 not in runs:
+                continue
+            a16, a11, sc = auc(n16), auc(n11), auc(f"T_B16_scratch_s{s}")
+            z = _val_at(runs[n16], fam, "m0", "auc_score")
+            d1 = None if a16 is None or sc is None else a16 - sc
+            d2 = None if a16 is None or a11 is None else a16 - a11
+            md.append(f"| {init} | {s} | {f(z)} | {f(a16)} | {f(a11)} | {f(d1, True) if init != 'scratch' else '–'} | {f(d2, True)} |")
+            if init != "scratch":
+                res.setdefault(init, []).append(d1)
+    done = {k: [x for x in v if x is not None] for k, v in res.items()}
+    if set(done) != {"fromN", "fromNP"} or not all(done.values()):
+        verdict = "pending (" + ", ".join(f"{k}: {len(v)} complete" for k, v in sorted(done.items())) + ")"
+    else:
+        means = {k: float(np.mean(v)) for k, v in done.items()}
+        if all(m >= -0.02 for m in means.values()):
+            verdict = "CONFIRMED"
+        elif means["fromNP"] <= -0.10:
+            verdict = "DISPROVED"
+        else:
+            verdict = "neither confirmed nor disproved (mixed)"
+        verdict += " (" + ", ".join(f"{k} mean Δ {m:+.3f}" for k, m in sorted(means.items())) + ")"
+    return md + ["", f"H10 verdict: **{verdict}**", ""]
 
 
 def _vending_test(runs, hyp, ver, amend, what) -> list:

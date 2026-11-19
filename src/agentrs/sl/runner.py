@@ -210,6 +210,7 @@ class Runner:
         st["z"] = z
         q = m.policy_query(ctx, z)
         v = m.value_of(ctx, z)
+        gate = m.fam_gate([self.slots[si].task.family for si, _ in index])  # v16 familiarity gate (ones when off)
         # slot-by-slot decoding (batched across streams at each slot position)
         prefixes = [[] for _ in range(self.n)]
         cands, chosen = [[] for _ in range(self.n)], [[] for _ in range(self.n)]
@@ -244,7 +245,10 @@ class Runner:
             emb = m.labels(ids_t)                                         # (R, C, da)
             rt = torch.as_tensor(rows, device=dev)
             logits = torch.einsum("rcd,rd->rc", emb, qcur[rt]) / (m.c.da ** 0.5)
-            logits = logits.masked_fill(~torch.as_tensor(msk, device=dev), -1e9)
+            mskt = torch.as_tensor(msk, device=dev)
+            if m.c.fam_gate_n0 > 0:
+                logits = m.gate_logits(logits, mskt, gate[rt])
+            logits = logits.masked_fill(~mskt, -1e9)
             pick = logits.argmax(-1) if self.greedy else torch.distributions.Categorical(logits=logits).sample()
             lp = torch.log_softmax(logits, -1).gather(1, pick[:, None]).squeeze(1)
             lp_a.index_add_(0, rt, lp)
@@ -338,7 +342,7 @@ class Runner:
         out = None
         if rec:
             out = {"feat": feats, "gfeat": gfeats, "flags": flags.cpu(), "newtrial": newtrial, "newep": newep,
-                   "term": term.cpu(), "z": z.cpu(), "cands": cands, "chosen": chosen, "lp": (lp_a + lp_sk).cpu(),
+                   "term": term.cpu(), "z": z.cpu(), "cands": cands, "chosen": chosen, "lp": (lp_a + lp_sk).cpu(), "gate": gate.cpu(),
                    "v": v.cpu(), "r": r_t.cpu(), "disc": torch.tensor(discs), "done": torch.tensor(dones),
                    "trial_end": torch.tensor([bool(self.pending_reset[i]) for i in range(self.n)]),
                    "fam": [self.slots[si].task.family if self.slots[si].world is not None else "" for si, _ in index]}

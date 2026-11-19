@@ -30,6 +30,59 @@ def test_replay_reproduces_collection_logprobs_exactly_in_every_mode():
         assert (val.detach() - torch.stack([s["v"] for s in seg["steps"]])).abs().max() < 1e-4
 
 
+def test_familiarity_gate_uniform_in_unfamiliar_worlds_and_replay_exact():
+    """sl-exp-v16 (amendment 11): with no experience in a world every valid option is equally likely, whatever the
+    weights; with experience the logits are scaled toward their mean by n / (n + n0); the learner's replay reproduces the
+    collection log-probs exactly with the gate on."""
+    torch.manual_seed(0)
+    m = SLCore(SLConfig(**{**TINY, "skills": 1, "fam_gate_n0": 100.0}))  # one skill: log-probs are the action choice only
+    for p_ in m.act_emb.parameters():
+        torch.nn.init.normal_(p_, std=3.0)  # confident, arbitrary label preferences
+    raw = torch.tensor([[4.0, -2.0, 1.0, 0.0]])
+    msk = torch.tensor([[True, True, True, False]])
+    assert torch.allclose(SLCore.gate_logits(raw, msk, torch.zeros(1))[0, :3], torch.full((3,), 1.0))
+    assert torch.allclose(SLCore.gate_logits(raw, msk, torch.ones(1)), raw)
+    assert torch.allclose(m.fam_gate(["cam/negotiation"]), torch.zeros(1))
+    r = Runner(m, {"cam/negotiation": 1.0}, W.make_world, W.sample_task, 4, trial_episodes=2, mode="full", seed=1)
+    seg = r.collect(8)
+    for s in seg["steps"]:  # uniform choice at every sub-decision: log-prob = -sum log(#options)
+        assert (s["gate"] == 0).all()
+    ent = PPO(m, {})._replay(seg, torch.arange(r.n), "full", "cpu")[1]
+    lp = torch.stack([s["lp"] for s in seg["steps"]])
+    assert torch.allclose(-lp, ent.detach(), atol=1e-4)  # uniform: -log p equals the entropy, row by row
+    m.add_experience("cam/negotiation", 300.0)
+    m.add_experience("cam/product", 30.0)
+    assert torch.allclose(m.fam_gate(["cam/negotiation", "cam/product", "cam/bizdev"]),
+                          torch.tensor([0.75, 30.0 / 130.0, 0.0]))
+    r = Runner(m, {"cam/negotiation": 1.0, "cam/product": 1.0}, W.make_world, W.sample_task, 6, trial_episodes=2, mode="full", seed=2)
+    seg = r.collect(16)
+    lp = PPO(m, {})._replay(seg, torch.arange(r.n), "full", "cpu")[0]
+    assert (lp.detach() - torch.stack([s["lp"] for s in seg["steps"]])).abs().max() < 1e-4
+
+
+def test_familiarity_gate_counts_experience_and_inherits_it_from_a_pre_v16_source(tmp_path):
+    env = {**os.environ, "PYTHONPATH": str(SRC), "CUDA_VISIBLE_DEVICES": "", "OMP_NUM_THREADS": "4"}
+    common = ["--set", "n_worlds=4", "seg_len=8", "trial_episodes=2", "max_env_steps=64", "eval_at=[0]", "eval_tasks=2",
+              "test_tasks=2", "lifetime_ckpts=[64]", 'learner={"mb_streams": 2}']
+    a = tmp_path / "pre"
+    p = subprocess.run([sys.executable, "-m", "agentrs.sl.train", *common, f"model={json.dumps(TINY)}", f"run_dir={a}",
+                        'families={"cam/negotiation": 1.0}'], env=env, capture_output=True, text=True, timeout=900)
+    assert p.returncode == 0, p.stdout[-3000:] + p.stderr[-3000:]
+    b = tmp_path / "tr"
+    p = subprocess.run([sys.executable, "-m", "agentrs.sl.train", *common, f"model={json.dumps({**TINY, 'fam_gate_n0': 50.0})}",
+                        f"run_dir={b}", 'families={"cam/bizdev": 1.0}', 'heldout_families=["cam/negotiation"]',
+                        f"init_from={a / 'ckpt' / 'life_64'}"], env=env, capture_output=True, text=True, timeout=900)
+    assert p.returncode == 0, p.stdout[-3000:] + p.stderr[-3000:]
+    st = json.loads((b / "state.json").read_text())
+    assert st["phase"] == "done" and st["init_from"]["fam_n"] == {"cam/negotiation": 64.0}
+    w = torch.load(b / "ckpt" / "final" / "weights.pt", map_location="cpu")
+    m = SLCore(SLConfig(**{**TINY, "fam_gate_n0": 50.0}))
+    m.load_state_dict(w)
+    assert st["fam_interactions"]["cam/bizdev"] >= 64
+    assert torch.allclose(m.fam_gate(["cam/negotiation", "cam/bizdev"]),
+                          torch.tensor([64 / 114, st["fam_interactions"]["cam/bizdev"] / (st["fam_interactions"]["cam/bizdev"] + 50.0)]))
+
+
 def test_memory_persists_across_episodes_only_in_full_mode():
     m = SLCore(SLConfig(**TINY))
     for mode in ("full", "episode"):

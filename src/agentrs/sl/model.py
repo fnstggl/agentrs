@@ -24,7 +24,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from agentrs.sl.featurize import CELL_F, ENT_F, LABEL_IDS, NB
+from agentrs.sl.featurize import CELL_F, ENT_F, LABEL_IDS, NB, hid
 
 
 @dataclass
@@ -42,6 +42,8 @@ class SLConfig:
     ens: int = 3            # world-model ensemble
     grid: int = 16          # max image grid side
     memory: bool = True     # external episodic memory available (architecture flag; per-run adapt modes below)
+    fam_gate_n0: float = 0.0  # sl-exp-v16 familiarity gate: action preferences in world f are scaled by n_f / (n_f + n0),
+                              # n_f = the agent's training interactions in f (0 = off, identical to v15)
 
 
 def clear(st: dict, mask: torch.Tensor, keys, fill: float = 0.0) -> None:
@@ -135,6 +137,8 @@ class SLCore(nn.Module):
         wm_in = dh + c.dv + c.da
         self.wm_next = nn.ModuleList([nn.Sequential(nn.Linear(wm_in, dh), nn.GELU(), nn.Linear(dh, d)) for _ in range(c.ens)])
         self.wm_aux = nn.Sequential(nn.Linear(wm_in, dh), nn.GELU(), nn.Linear(dh, 3))  # reward, done, dt
+        if c.fam_gate_n0 > 0:  # training interactions per world (hashed family id); carried by checkpoints
+            self.register_buffer("fam_n", torch.zeros(NB))
 
     # ------------------------------------------------------------------ pieces
     def encode(self, b: dict) -> torch.Tensor:
@@ -212,6 +216,33 @@ class SLCore(nn.Module):
         hi = self.hi(ctx)
         term_logit = self.term(torch.cat([ctx, self.skill[z]], -1)).squeeze(-1)
         return hi, term_logit
+
+    # ------------------------------------------------------------------ familiarity gate (sl-exp-v16)
+    @staticmethod
+    def fam_index(family: str) -> int:
+        return hid(f"fam|{family}") if family else 0
+
+    def fam_gate(self, families: list) -> torch.Tensor:
+        """(n,) gate in [0, 1] per decision row: n_f / (n_f + n0). Off (all ones) when fam_gate_n0 == 0."""
+        dev = self.goal_tag.device
+        if self.c.fam_gate_n0 <= 0:
+            return torch.ones(len(families), device=dev)
+        n = self.fam_n[torch.tensor([self.fam_index(f) for f in families], dtype=torch.long, device=dev)]
+        return n / (n + self.c.fam_gate_n0)
+
+    @torch.no_grad()
+    def add_experience(self, family: str, n: float) -> None:
+        if self.c.fam_gate_n0 > 0 and family:
+            self.fam_n[self.fam_index(family)] += float(n)
+
+    @staticmethod
+    def gate_logits(raw: torch.Tensor, msk: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
+        """Shrink each row's logits toward their mean over the valid options by g: g = 0 gives a uniform choice, g = 1
+        leaves the logits unchanged. Preferences in a world are earned there: an agent that has never trained in a world
+        holds none, however confident its representation is about similar-looking actions (amendment 11)."""
+        mk = msk.float()
+        mbar = (raw * mk).sum(-1, keepdim=True) / mk.sum(-1, keepdim=True).clamp(min=1.0)
+        return mbar + g[:, None] * (raw - mbar)
 
     def policy_query(self, ctx, z):
         return self.query(torch.cat([ctx, self.skill[z]], -1))

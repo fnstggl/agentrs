@@ -10,6 +10,7 @@ max_load: 40
 min_free_mib: 8000
 min_free_disk_gb: 20
 min_free_pids: 40
+pids_per_job: 60  # transfer: training threads + 16 substrate servers + eval servers, spawned after launch (sl-ops-v16)
 threads: 4
 # Melting Pot servers import TensorFlow, whose default pools are sized to the 48 CPUs (93 compute threads per
 # server); against the container's 1280-thread limit. Jobs started from sl-ops-v15 cap them (servers inherit the env).

@@ -8,7 +8,8 @@ diagnostic errors. Smoke results are cached by (code commit, config file, job ov
 
 A job starts only when: its dependencies are done, fewer than ``max_jobs`` queue jobs run, the GPU has at least
 ``min_free_mib`` free, the disk has at least ``min_free_disk_gb`` free, at least ``min_free_pids`` processes/threads remain under the container limit, and
-capacity persisted for two ticks.
+capacity persisted for two ticks. A job also needs its own footprint free on top of that reserve (``pids_need`` per job,
+default ``pids_per_job``), because some jobs spawn world servers after they start (sl-ops-v16).
 
 On an unexpected exit the job is restarted from its latest checkpoint, unless the same crash signature has
 repeated (``CrashLedger``): then it is stopped with ``CRASH_REPORT.md`` in its run directory.
@@ -195,6 +196,11 @@ class Queue:
                 if any(st.get(dep, {}).get("status") != "done" for dep in (j.get("after") or [])):
                     continue
                 if not all(ckpt_ready(Path(p)) for p in (j.get("wait_for") or [])):
+                    continue
+                # the job's own footprint (training threads, world servers it spawns after start, its backup watcher)
+                # must fit on top of the reserve: a Melting Pot transfer spawns ~20-30 server processes after launch
+                need = q.get("min_free_pids", 40) + int(j.get("pids_need", q.get("pids_per_job", 0)))
+                if free_pids() < need:
                     continue
                 if s["starts"] == 0 and q.get("smoke", True) and not j.get("no_smoke"):
                     if not self.smoke(j):
