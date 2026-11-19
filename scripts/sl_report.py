@@ -72,6 +72,8 @@ def main() -> int:
     ap.add_argument("--metric-for", nargs="*", default=[])
     a = ap.parse_args()
     root = Path(a.root)
+    global ROOT
+    ROOT = root
     ov = dict(x.split("=", 1) for x in a.metric_for)
     runs = {d.name: s for d in sorted(root.iterdir()) if d.is_dir() and not d.name.startswith("_") and (s := load(d))}
     md = [f"# Superlearner report: `{root}`", "", f"{len(runs)} runs. Phases: " +
@@ -317,7 +319,90 @@ def prereg_tests(runs) -> list:
         md += _vending_test(runs, hyp, ver, amend, what)
     md += _familiarity_test(runs)
     md += _rehearsal_test(runs)
+    md += _head_reset_test(runs)
     return md
+
+
+ROOT = Path(".")
+
+
+def _iter_stats(name, lo=3, hi=40):
+    """Mean policy entropy and advantage std over training iterations lo..hi (≈ 8k–165k interactions at seg 4096):
+    the exploration diagnostic of amendment 13. None when the run has not reached iteration hi."""
+    p = ROOT / name / "iters.jsonl"
+    try:
+        rows = [json.loads(x) for x in p.read_text().splitlines() if x.strip()]
+    except (OSError, ValueError):
+        return None
+    sel = [r["learn"] for r in rows if lo <= r.get("iter", 0) <= hi and "learn" in r]
+    if len(sel) < hi - lo + 1:
+        return None
+    return float(np.mean([s["ent"] for s in sel])), float(np.mean([s["adv_std"] for s in sel]))
+
+
+def _head_reset_test(runs) -> list:
+    """H12 (amendment 13): the negative transfer to bizdev lives in the transferred action-selection heads (pointer
+    query, slot decoder, skill selector, termination), whose source preferences collapse exploration in the new world;
+    re-initialising exactly those heads at transfer, keeping perception, belief, memory, skill embeddings, value and
+    world model, removes it."""
+    if not any(re.fullmatch(r"T_B16_from\w+_s\d", n) for n in runs):
+        return []
+    fam, budget = "cam/bizdev", 300_000
+
+    def auc(n):
+        cv = ev_val(runs[n], fam) if n in runs else []
+        return learning_auc(cv, "score", budget) if cv and max(x for x, _ in cv) >= budget else None
+
+    def f(x, sg=False):
+        return "–" if x is None else (f"{x:+.3f}" if sg else f"{x:.3f}")
+
+    md = ["**Exploration diagnostic (amendment 13).** Mean policy entropy and advantage std over training iterations "
+          "3–40 (≈ 8k–165k interactions) of every v16 bizdev transfer.", "",
+          "| run | entropy | advantage std | learning AUC |", "|---|---|---|---|"]
+    for n in sorted(x for x in runs if re.fullmatch(r"T_B16_\w+_s\d", x)):
+        es = _iter_stats(n)
+        md.append(f"| {n} | {f(es[0] if es else None)} | {f(es[1] if es else None)} | {f(auc(n))} |")
+    if not any(re.fullmatch(r"T_B16_from(N|NP)hr_s\d", n) for n in runs):
+        return md + [""]
+    md += ["", "**H12 (amendment 13): the negative transfer to bizdev lives in the transferred action-selection heads, whose "
+           "source preferences collapse exploration in the new world; re-initialising exactly those heads (`query.`, "
+           "`slot.`, `hi.`, `term.`) at transfer removes it.** Learning AUC of validation score (cam/bizdev, mode full, "
+           "0-300k), complete runs paired by seed against `T_B16_scratch` (same v16 code and gate). Confirmed if both "
+           "head-reset groups (fromNhr, fromNPhr) have mean ΔAUC ≥ −0.02; disproved if fromNPhr mean ΔAUC ≤ −0.10 (the "
+           "deficit survives the reset, so it lives in the shared representation, value or world model). Mechanism check: "
+           "head-reset runs' mean entropy over iterations 3–40 ≥ 0.9 × the same seed's scratch.", "",
+           "| init | seed | 0k score | AUC | Δ vs scratch | Δ vs same source, heads kept | entropy / scratch |",
+           "|---|---|---|---|---|---|---|"]
+    res, mech = {}, []
+    for init, kept in (("fromNhr", "fromN"), ("fromNPhr", "fromNP")):
+        for s in (1, 2, 3):
+            n = f"T_B16_{init}_s{s}"
+            if n not in runs:
+                continue
+            a, sc, k = auc(n), auc(f"T_B16_scratch_s{s}"), auc(f"T_B16_{kept}_s{s}")
+            z = _val_at(runs[n], fam, "m0", "auc_score")
+            e, es = _iter_stats(n), _iter_stats(f"T_B16_scratch_s{s}")
+            er = None if not e or not es else e[0] / es[0]
+            d1 = None if a is None or sc is None else a - sc
+            d2 = None if a is None or k is None else a - k
+            md.append(f"| {init} | {s} | {f(z)} | {f(a)} | {f(d1, True)} | {f(d2, True)} | {f(er)} |")
+            res.setdefault(init, []).append(d1)
+            mech.append(er)
+    done = {k: [x for x in v if x is not None] for k, v in res.items()}
+    if set(done) != {"fromNhr", "fromNPhr"} or not all(done.values()) or any(len(v) < 2 for v in done.values()):
+        verdict = "pending (" + ", ".join(f"{k}: {len(v)} complete" for k, v in sorted(done.items())) + ")"
+    else:
+        means = {k: float(np.mean(v)) for k, v in done.items()}
+        if all(m >= -0.02 for m in means.values()):
+            verdict = "CONFIRMED"
+        elif means["fromNPhr"] <= -0.10:
+            verdict = "DISPROVED"
+        else:
+            verdict = "neither confirmed nor disproved (mixed)"
+        verdict += " (" + ", ".join(f"{k} mean Δ {m:+.3f}" for k, m in sorted(means.items())) + ")"
+        mm = [x for x in mech if x is not None]
+        verdict += f"; mechanism check {'passed' if mm and all(x >= 0.9 for x in mm) else 'failed'}"
+    return md + ["", f"H12 verdict: **{verdict}**", ""]
 
 
 def _familiarity_test(runs) -> list:

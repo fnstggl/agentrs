@@ -424,6 +424,64 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v16/src
+# amendment 13, H12: the negative transfer lives in the transferred action-selection heads. Exactly T_B16_fromN/fromNP
+# (frozen v16 code, gate on, same seeds and sources) except those heads keep the run's fresh initialisation (init_reset).
+- name: T_B16_fromNPhr_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    init_reset: ['query.', 'slot.', 'hi.', 'term.']
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v16/src
+- name: T_B16_fromNhr_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    init_reset: ['query.', 'slot.', 'hi.', 'term.']
+    heldout_families: ['cam/negotiation']
+    model:
+      fam_gate_n0: 4096
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v16/src
+- name: T_B16_fromNPhr_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    init_reset: ['query.', 'slot.', 'hi.', 'term.']
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v16/src
+- name: T_B16_fromNhr_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    init_reset: ['query.', 'slot.', 'hi.', 'term.']
+    heldout_families: ['cam/negotiation']
+    model:
+      fam_gate_n0: 4096
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v16/src
 - name: T_B11_fromNPV_s2
   config: configs/sl/transfer.yaml
   set:

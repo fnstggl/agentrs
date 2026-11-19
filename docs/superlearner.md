@@ -489,6 +489,88 @@ with its 90% CI.
 **Report.** The training-side memory-ablation diagnostic stores success AUC only. For score-metric families (Melting
 Pot, Vending, bizdev) its zeros carry no information, and the report now says so instead of printing them as results.
 
+### H10 result, 2026-11-19 19:05 UTC: DISPROVED (mechanical verdict, `scripts/sl_report.py` section 0)
+All six v16 runs complete (300k each). Learning AUC of bizdev validation score, paired by seed against gated scratch:
+
+| Init | s1 AUC (Δ) | s2 AUC (Δ) | Mean Δ | 300k validation | Final test |
+|---|---|---|---|---|---|
+| scratch | 0.508 | 0.576 | – | 0.752 | 0.454 |
+| fromN | 0.449 (−0.058) | 0.360 (−0.216) | −0.137 | 0.791 | 0.448 |
+| fromNP | 0.323 (−0.184) | 0.340 (−0.237) | −0.211 | 0.694 | 0.437 |
+
+- The mechanism check passed: every gated run starts at 0.255 (s1) and 0.257 (s2), the scratch level.
+- Gated vs ungated twin (same init and seed): fromN +0.067 and −0.048, fromNP +0.035 and +0.001, scratch −0.007 and
+  +0.043. The gate changed nothing beyond seed noise.
+- **Why it failed (training logs, `iters.jsonl`).** The gate hides the source's preferences instead of correcting them.
+  - The gradient that reaches the raw logits is scaled by g, so while g is small the wrong preferences barely change.
+  - g reaches 0.5 after one batch, and the preferences return. fromNP's training score falls from 0.24 (iteration 1) to
+    0.02 by iteration 4 (16k), the ungated starting level.
+  - The skill selector and termination are not gated: fromNP's iteration-1 KL is 0.14-0.16 while the pointer choice is
+    uniform (scratch: 0.013).
+- **What did reproduce in every run: exploration collapse.** Mean policy entropy and advantage std over iterations 3-40
+  (8k-165k interactions):
+
+| Run | Entropy | Advantage std | Learning AUC |
+|---|---|---|---|
+| T_B16_scratch_s1 / s2 | 4.02 / 4.13 | 0.13 / 0.20 | 0.508 / 0.576 |
+| T_B16_fromN_s1 / s2 | 3.00 / 2.70 | 0.058 / 0.056 | 0.449 / 0.360 |
+| T_B16_fromNP_s1 / s2 | 2.12 / 2.19 | 0.062 / 0.069 | 0.323 / 0.340 |
+
+  The experienced agents act with low entropy, so their returns hardly vary (advantage std about 0.06) and the policy
+  gradient has little to push on. Once one stumbles on reward (fromN_s1 near 200k, when advantage std jumps to 0.32), it
+  learns faster than scratch: fromN's 300k validation (0.791) beats scratch's (0.752).
+- **Status of H10.** The pre-registered test is disproved: the gate does not remove the negative transfer. Its causal
+  clause (preferences, not representation) is not settled, because the gate never kept the preferences neutral after the
+  first batch. Amendment 13 tests that clause directly.
+
+### Protocol amendment 13, 2026-11-19 19:15 UTC: where the negative transfer lives (before any result of these runs)
+**Pre-run check (offline, frozen weights, 48 bizdev validation tasks, gate disabled so raw preferences show).**
+`init_reset` is a v16 training option, never used before: parameter-name prefixes listed there are not loaded from the
+source, so those tensors keep the run's fresh initialisation, the same initialisation as scratch.
+
+| Weights | Pointer entropy / maximum | Score |
+|---|---|---|
+| scratch init (seed 1) | 1.000 | 0.278 |
+| P_N_s1 @ 1M | 0.670 | 0.023 |
+| P_N_s1 @ 1M, action heads reset | 1.000 | 0.280 |
+| P_NP_s1 @ 1M | 0.607 | 0.019 |
+| P_NP_s1 @ 1M, action heads reset | 1.000 | 0.252 |
+
+**Disprovable test (pre-registered): H12.**
+- **Claim:** the negative transfer to bizdev lives in the transferred action-selection heads, whose source preferences
+  collapse exploration in the new world. The heads are the pointer query (`query.`), slot decoder (`slot.`), skill
+  selector (`hi.`) and termination (`term.`). Everything else transfers without harm: perception, belief, episodic
+  memory, label and skill embeddings, value and world model.
+- **Runs:** `T_B16_fromNhr_s1/s2` (P_N_s1 @ 1M) and `T_B16_fromNPhr_s1/s2` (P_NP_s1 @ 1M).
+  - Exactly `T_B16_fromN` and `T_B16_fromNP` (frozen v16 code, gate on, same seeds and sources), except
+    `init_reset: ['query.', 'slot.', 'hi.', 'term.']`.
+  - No code change; the control is `T_B16_scratch` (same code and gate).
+- **Primary measure:** learning AUC of bizdev validation score, 0-300k, paired by seed against `T_B16_scratch`.
+- **Confirmed if** both head-reset groups have mean ΔAUC ≥ −0.02.
+- **Disproved if** fromNPhr's mean ΔAUC ≤ −0.10. The deficit would then survive fresh heads, so it lives in the shared
+  representation, value or world model, and the next hypothesis targets plasticity there.
+- Anything else is mixed.
+- **Mechanism check:** each head-reset run's mean entropy over iterations 3-40 is ≥ 0.9 × the same seed's scratch.
+- **Also reported:** each head-reset run against its source with heads kept (`T_B16_fromN` and `T_B16_fromNP`, same
+  seed). If a head-reset group's mean ΔAUC exceeds +0.02, the shared representation transfers positively. That reading
+  is exploratory (n = 2), not a verdict.
+- **What a confirmation would change.** Preferences in a new world would have to be re-learned there, not inherited, while
+  the representation stays shared. That is an architecture change for multi-world lifetimes (heads that start fresh on
+  entering a world), to be tested on Melting Pot as well as CAM before it is adopted.
+
+**Melting Pot observations (n = 2 per arm; seed 3 running; no thresholds pre-registered, amendment 5).**
+- **Zero-shot transfer is real in commons_harvest__closed.**
+  - During the P_MP6 lifetimes, which never train on closed, closed validation rises from 24.1 to 30.3 (s1) and from 24.9
+    to 33.3 (s2).
+  - Scratch trained on closed itself reaches 30.0 at 1M.
+- **Training on closed alone then erodes that lead.**
+  - The experienced arm starts at 31.0 and ends at 26.5 at 1M; scratch rises from 24.1 to 30.0. ΔAUC −2.63 (90% CI −3.34
+    to −1.91).
+  - This is not exploration collapse: entropy is 1.6-1.9 against scratch's 1.7-2.1, and KL stays small.
+- **bach_or_stravinsky does not train in either arm.** From about 40k on, entropy sits at its maximum (ln 8 = 2.08) and
+  advantage std is about 0. Its gaps reflect starting weights and evaluation noise (ΔAUC +0.29, 90% CI −0.23 to +0.81;
+  zero-shot during the lifetimes 1.24 → 1.70 and 1.03 → 2.52).
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
