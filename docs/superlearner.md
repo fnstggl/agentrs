@@ -524,7 +524,8 @@ All six v16 runs complete (300k each). Learning AUC of bizdev validation score, 
   first batch. Amendment 13 tests that clause directly.
 
 ### Protocol amendment 13, 2026-11-19 19:15 UTC: where the negative transfer lives (before any result of these runs)
-**Pre-run check (offline, frozen weights, 48 bizdev validation tasks, gate disabled so raw preferences show).**
+**Pre-run check (`scripts/sl_probe_head_reset.py`; offline, frozen weights, 48 bizdev validation tasks, gate disabled
+so raw preferences show).**
 `init_reset` is a v16 training option, never used before: parameter-name prefixes listed there are not loaded from the
 source, so those tensors keep the run's fresh initialisation, the same initialisation as scratch.
 
@@ -570,6 +571,54 @@ source, so those tensors keep the run's fresh initialisation, the same initialis
 - **bach_or_stravinsky does not train in either arm.** From about 40k on, entropy sits at its maximum (ln 8 = 2.08) and
   advantage std is about 0. Its gaps reflect starting weights and evaluation noise (ΔAUC +0.29, 90% CI −0.23 to +0.81;
   zero-shot during the lifetimes 1.24 → 1.70 and 1.03 → 2.52).
+
+### Vending diagnosis, 2026-11-19 19:30 UTC (H9 follow-up; evidence only, no runs launched)
+**Where the v15 agents lose money.** Frozen final weights, 16 validation tasks × 3 episodes. Probe:
+`scripts/sl_probe_vending_ledger.py` (run with the frozen v15 `src` on `PYTHONPATH`) decomposes each episode's settled value.
+
+| Per episode | T_V15_scratch_s1 | T_V15_scratch_s2 | s1 initial weights |
+|---|---|---|---|
+| Spent on delivered stock | 1,410 | 1,405 | 1,236 |
+| Gross revenue (units) | 232 (107) | 74 (32) | 20 (9) |
+| Stock left at cost | 1,169 | 1,248 | 1,174 |
+| Cash balance at end (lowest) | 30 (0.7) | 10 (2.6) | 3 (0.4) |
+| Fees paid / owed | 189 / 171 | 106 / 254 | 144 / 216 |
+| Spoiled / marketing / paid but undelivered | 55 / 24 / 77 | 69 / 1 / 51 | 25 / 51 / 86 |
+| Closed for unpaid fees | 9 of 48 | 23 of 48 | 36 of 48 |
+
+- **Overstocking.** The agents turn about 94% of their cash into stock that mostly never sells.
+- **Losses beyond the €360 of fees** come from spoilage, orders still in transit at the end, and marketing.
+- **Calls go to the wrong actions.** About a third are `offers` (s1); 10% (s1) and 26% (s2) are `clear`, which returns a
+  slot's stock to storage. That is neutral for net worth, but the slot then sells nothing.
+
+**The adapter's reward and the benchmark's objective differ.** The benchmark tells the operator to "maximise your final
+bank balance… Unfinished or bankrupt runs score zero… Inventory is not part of your money score". The adapter scores net
+worth, which counts stock at cost. Under net worth, buying stock costs nothing until it spoils, and in v15 an unpaid fee
+costs the same as a paid one.
+
+**Reachability under both measures (`scripts/sl_reach_vending_money.py`).** A scripted operator uses only the orders
+the agent's own grammar offers. It
+restocks every slot, prices at a fixed multiple of unit cost, and stops ordering by a set day. Results over 6
+validation seeds:
+
+| Policy | Money score (benchmark) | Net worth (adapter) |
+|---|---|---|
+| Do nothing | 1,140 | 1,140 |
+| x3 markup, 30% of cash, 3 products, last order day 10 | 1,138 (1,023-1,344) | 1,496 |
+| x3 markup, 70% of cash, 8 products, last order day 10 | 840 | 1,575 |
+| x2 markup, 30% of cash, 3 products, last order day 10 | 1,091 | 1,383 |
+| v15 learners (s1 / s2) | – | 1,200 / 1,258 (settled 1,029 / 1,004) |
+
+- **Under the adapter's measure there is a large reachable target.** Score 0.92-1.05, against 0.76 for doing nothing and
+  0.67-0.69 for the learners. The v15 learners fail at selling: revenue 74-232 against 400-660 for the scripted operators.
+- **Under the benchmark's own measure, no operator tried beats doing nothing on average.** Profit sits in stock valued at
+  cost. Switching the reward to the money score would recreate a learned-inaction optimum (amendment 7) unless a
+  profitable policy is shown first.
+- **Consequence.** Vending results stay reported as the adapter's settled score, a different quantity from the
+  benchmark's headline number. Business-transfer claims from Vending must say so. No new Vending hypothesis is
+  pre-registered until one has a disproving test with a reachable target under the measure it uses.
+- Earlier reachability scripts (`scripts/sl_reach_vending.py`) predate v14's order validity rules. Their operators now
+  spend about €55 per episode because most orders are refused, so their figures no longer describe the current adapter.
 
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
