@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 import torch
 import torch.nn as nn
@@ -44,6 +44,8 @@ class SLConfig:
     memory: bool = True     # external episodic memory available (architecture flag; per-run adapt modes below)
     fam_gate_n0: float = 0.0  # sl-exp-v16 familiarity gate: action preferences in world f are scaled by n_f / (n_f + n0),
                               # n_f = the agent's training interactions in f (0 = off, identical to v15)
+    head_bank: list = field(default_factory=list)  # sl-exp-v17: worlds with their own action-selection heads (hi, term,
+                              # query, slot); every other world uses the shared ones. [] = identical to v16 (amendment 14)
 
 
 def clear(st: dict, mask: torch.Tensor, keys, fill: float = 0.0) -> None:
@@ -108,6 +110,17 @@ class Perception(nn.Module):
         return self.out(y.squeeze(1))
 
 
+class HeadSet(nn.Module):
+    """One world's action-selection heads, shaped exactly like the shared ones in SLCore (sl-exp-v17 head bank)."""
+
+    def __init__(self, c: SLConfig, ctx: int, dh: int):
+        super().__init__()
+        self.hi = nn.Sequential(nn.Linear(ctx, dh), nn.GELU(), nn.Linear(dh, c.skills))
+        self.term = nn.Sequential(nn.Linear(ctx + c.ds, dh // 2), nn.GELU(), nn.Linear(dh // 2, 1))
+        self.query = nn.Sequential(nn.Linear(ctx + c.ds, dh), nn.GELU(), nn.Linear(dh, c.da))
+        self.slot = nn.GRUCell(c.da, c.da)
+
+
 class SLCore(nn.Module):
     def __init__(self, c: SLConfig):
         super().__init__()
@@ -139,6 +152,8 @@ class SLCore(nn.Module):
         self.wm_aux = nn.Sequential(nn.Linear(wm_in, dh), nn.GELU(), nn.Linear(dh, 3))  # reward, done, dt
         if c.fam_gate_n0 > 0:  # training interactions per world (hashed family id); carried by checkpoints
             self.register_buffer("fam_n", torch.zeros(NB))
+        if c.head_bank:  # created last, so every other tensor draws the same initial values as without a bank (v17)
+            self.bank = nn.ModuleList([HeadSet(c, ctx, dh) for _ in c.head_bank])
 
     # ------------------------------------------------------------------ pieces
     def encode(self, b: dict) -> torch.Tensor:
@@ -212,10 +227,32 @@ class SLCore(nn.Module):
     def context(self, st: dict, goal_e) -> torch.Tensor:
         return torch.cat([st["h"], st["read"], goal_e], -1)
 
-    def skill_dists(self, ctx, z):
-        hi = self.hi(ctx)
-        term_logit = self.term(torch.cat([ctx, self.skill[z]], -1)).squeeze(-1)
+    def skill_dists(self, ctx, z, hix=None):
+        hi = self._heads("hi", hix, ctx)
+        term_logit = self._heads("term", hix, torch.cat([ctx, self.skill[z]], -1)).squeeze(-1)
         return hi, term_logit
+
+    # ------------------------------------------------------------------ per-world action heads (sl-exp-v17)
+    def head_index(self, families: list):
+        """(n,) head set per decision row: 0 = shared heads, k = the k-th world of ``head_bank``. None without a bank."""
+        if not self.c.head_bank:
+            return None
+        pos = {f: k + 1 for k, f in enumerate(self.c.head_bank)}
+        return torch.tensor([pos.get(f, 0) for f in families], dtype=torch.long, device=self.goal_tag.device)
+
+    def _heads(self, name: str, hix, *xs):
+        """Apply head ``name`` row-wise: shared heads, except rows whose world has its own head set in the bank."""
+        out = getattr(self, name)(*xs)
+        if hix is None:
+            return out
+        for k, hs in enumerate(self.bank):
+            sel = (hix == k + 1).nonzero(as_tuple=True)[0]
+            if len(sel):
+                out = out.index_copy(0, sel, getattr(hs, name)(*[x[sel] for x in xs]))
+        return out
+
+    def slot_step(self, pe, q, hix=None):
+        return self._heads("slot", hix, pe, q)
 
     # ------------------------------------------------------------------ familiarity gate (sl-exp-v16)
     @staticmethod
@@ -244,8 +281,8 @@ class SLCore(nn.Module):
         mbar = (raw * mk).sum(-1, keepdim=True) / mk.sum(-1, keepdim=True).clamp(min=1.0)
         return mbar + g[:, None] * (raw - mbar)
 
-    def policy_query(self, ctx, z):
-        return self.query(torch.cat([ctx, self.skill[z]], -1))
+    def policy_query(self, ctx, z, hix=None):
+        return self._heads("query", hix, torch.cat([ctx, self.skill[z]], -1))
 
     def value_of(self, ctx, z):
         return self.value(torch.cat([ctx, self.skill[z]], -1)).squeeze(-1)

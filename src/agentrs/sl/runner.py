@@ -194,7 +194,9 @@ class Runner:
         pre = {k: (v.clone() if torch.is_tensor(v) else v) for k, v in st.items()} if rec else None
         st = m.step_belief(st, ob, ge, flags, use_mem)
         ctx = m.context(st, ge)
-        hi, term_logit = m.skill_dists(ctx, st["z"])
+        fams_rows = [self.slots[si].task.family for si, _ in index]
+        hix = m.head_index(fams_rows)  # v17 per-world heads (None without a bank)
+        hi, term_logit = m.skill_dists(ctx, st["z"], hix)
         force = newep.to(dev)
         if m.c.skills > 1:
             term = torch.bernoulli(torch.sigmoid(term_logit)).bool() | force
@@ -208,9 +210,9 @@ class Runner:
             z = torch.zeros_like(st["z"])
             lp_sk = torch.zeros(self.n, device=dev)
         st["z"] = z
-        q = m.policy_query(ctx, z)
+        q = m.policy_query(ctx, z, hix)
         v = m.value_of(ctx, z)
-        gate = m.fam_gate([self.slots[si].task.family for si, _ in index])  # v16 familiarity gate (ones when off)
+        gate = m.fam_gate(fams_rows)  # v16 familiarity gate (ones when off)
         # slot-by-slot decoding (batched across streams at each slot position)
         prefixes = [[] for _ in range(self.n)]
         cands, chosen = [[] for _ in range(self.n)], [[] for _ in range(self.n)]
@@ -255,7 +257,7 @@ class Runner:
             pe = emb[torch.arange(len(rows), device=dev), pick]
             a_emb.index_add_(0, rt, pe)
             qn = qcur.clone()
-            qn[rt] = m.slot(pe, qcur[rt])
+            qn[rt] = m.slot_step(pe, qcur[rt], None if hix is None else hix[rt])
             qcur = qn
             pk = pick.tolist()
             for r, i in enumerate(rows):
@@ -343,6 +345,7 @@ class Runner:
         if rec:
             out = {"feat": feats, "gfeat": gfeats, "flags": flags.cpu(), "newtrial": newtrial, "newep": newep,
                    "term": term.cpu(), "z": z.cpu(), "cands": cands, "chosen": chosen, "lp": (lp_a + lp_sk).cpu(), "gate": gate.cpu(),
+                   **({"hix": hix.cpu()} if hix is not None else {}),
                    "v": v.cpu(), "r": r_t.cpu(), "disc": torch.tensor(discs), "done": torch.tensor(dones),
                    "trial_end": torch.tensor([bool(self.pending_reset[i]) for i in range(self.n)]),
                    "fam": [self.slots[si].task.family if self.slots[si].world is not None else "" for si, _ in index]}

@@ -482,6 +482,142 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v16/src
+# Amendment 14 (sl-ops-v19): H13 (per-world action heads, v17 head bank) and H14 (replication of the early-transfer
+# observation on new seeds 3-4, frozen v16). Placed ahead of the remaining ablation transfers and pending lifetimes.
+- name: T_B17_fromNbank_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: ['cam/negotiation']
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v17/src
+- name: T_B17_fromNbankrh_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.1
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: []
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v17/src
+- name: T_B17_fromNbank_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: ['cam/negotiation']
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v17/src
+- name: T_B17_fromNbankrh_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.1
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: []
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v17/src
+- name: T_B16_scratch_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      cam/bizdev: 1.0
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+  src: /workspace/agentrs-sl-exp-v16/src
+- name: T_B16_fromNPhr_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    init_reset: ['query.', 'slot.', 'hi.', 'term.']
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v16/src
+- name: T_B16_fromNhr_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    init_reset: ['query.', 'slot.', 'hi.', 'term.']
+    heldout_families: ['cam/negotiation']
+    model:
+      fam_gate_n0: 4096
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v16/src
+- name: T_B16_scratch_s4
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 4
+    families:
+      cam/bizdev: 1.0
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+  src: /workspace/agentrs-sl-exp-v16/src
+- name: T_B16_fromNPhr_s4
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 4
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    init_reset: ['query.', 'slot.', 'hi.', 'term.']
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v16/src
+- name: T_B16_fromNhr_s4
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 4
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    init_reset: ['query.', 'slot.', 'hi.', 'term.']
+    heldout_families: ['cam/negotiation']
+    model:
+      fam_gate_n0: 4096
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v16/src
 - name: T_B11_fromNPV_s2
   config: configs/sl/transfer.yaml
   set:

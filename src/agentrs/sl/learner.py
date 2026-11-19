@@ -64,8 +64,9 @@ class PPO:
             st = m.step_belief(st, ob_all[t], ge_all[t], s["flags"][rows].to(dev), use_mem)
             ctx = m.context(st, ge_all[t])
             z = s["z"][rows].to(dev)
+            hix = s["hix"][rows].to(dev) if (m.c.head_bank and "hix" in s) else None  # head set as at collection (v17)
             if m.c.skills > 1:
-                hi, term_logit = m.skill_dists(ctx, st["z"])
+                hi, term_logit = m.skill_dists(ctx, st["z"], hix)
                 term = s["term"][rows].to(dev)
                 force = s["newep"][rows].to(dev)
                 lsm = torch.log_softmax(hi, -1)
@@ -77,7 +78,7 @@ class PPO:
                 lp_sk = torch.zeros(R, device=dev)
                 ent_sk = torch.zeros(R, device=dev)
             st["z"] = z
-            q = m.policy_query(ctx, z)
+            q = m.policy_query(ctx, z, hix)
             v = m.value_of(ctx, z)
             # slot decisions
             cands = [s["cands"][i] for i in rows]
@@ -111,7 +112,7 @@ class PPO:
                 pe = emb[torch.arange(len(rr), device=dev), pk]
                 a_emb = a_emb.index_add(0, rt, pe)
                 qn = qcur.clone()
-                qn[rt] = m.slot(pe, qcur[rt])
+                qn[rt] = m.slot_step(pe, qcur[rt], None if hix is None else hix[rt])
                 qcur = qn
             # world model on this real transition
             nxt, aux = m.wm(st["h"], st["read"], a_emb)

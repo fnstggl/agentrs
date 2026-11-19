@@ -620,6 +620,135 @@ validation seeds:
 - Earlier reachability scripts (`scripts/sl_reach_vending.py`) predate v14's order validity rules. Their operators now
   spend about €55 per episode because most orders are refused, so their figures no longer describe the current adapter.
 
+### H11 and H12 results, 2026-11-19 22:20 UTC (mechanical verdicts, `scripts/sl_report.py` section 0)
+**H11 (rehearsal keeps the source world without costing the new one): mixed.**
+
+| Seed | Negotiation, rehearsal (start → 300k) | Negotiation, no rehearsal | Bizdev AUC, rehearsal | Bizdev AUC, no rehearsal | ΔAUC |
+|---|---|---|---|---|---|
+| 1 | 0.667 → 0.562 | 0.667 → 0.097 | 0.260 | 0.449 | −0.189 |
+| 2 | 0.674 → 0.479 | 0.674 → 0.153 | 0.228 | 0.360 | −0.132 |
+
+- **Rehearsal keeps negotiation.** It holds at 0.56 and 0.48, against 0.10 and 0.15 without rehearsal. Seed 2 misses the
+  0.50 bar.
+- **Bizdev pays for it.**
+  - Mean ΔAUC is −0.160, against the −0.03 required.
+  - Both rehearsal runs end at the do-nothing return in bizdev (−0.82 and −0.81, against −0.80), with final test 0.136.
+- **Exploration is collapsed.** Entropy over iterations 3-40 is 2.80 and 2.88, against scratch's 4.02 and 4.13.
+  - Rehearsal keeps negotiation's preferences alive in the shared action heads.
+  - Bizdev uses the same action labels, so it inherits them (see H12).
+
+**H12 (the negative transfer lives in the transferred action heads): mixed. fromNPhr meets the confirmation bar; fromNhr
+misses it on seed 2. The mechanism check passed.**
+
+| Init | Seed | AUC | Δ vs scratch | Δ vs same source, heads kept | Entropy / scratch |
+|---|---|---|---|---|---|
+| fromNhr | 1 | 0.512 | +0.004 | +0.063 | 0.96 |
+| fromNhr | 2 | 0.484 | −0.092 | +0.124 | 0.96 |
+| fromNPhr | 1 | 0.498 | −0.010 | +0.175 | 0.98 |
+| fromNPhr | 2 | 0.562 | −0.014 | +0.222 | 0.96 |
+
+- **Resetting the four action heads removes most of the deficit.**
+  - Mean ΔAUC is −0.044 (fromNhr) and −0.012 (fromNPhr), against −0.137 and −0.211 with the heads kept.
+  - Each of the four head-reset runs beats its heads-kept twin, by +0.06 to +0.22.
+- **Why the verdict is mixed, not confirmed.** fromNhr's mean (−0.044) is below the −0.02 bar, because of seed 2 alone.
+  The two scratch seeds differ from each other by 0.068, so n = 2 cannot separate −0.044 from zero.
+- **No positive transfer over the full window.** No head-reset group beats scratch on 0-300k AUC.
+- **The reset costs the source skill.** Negotiation success at the start of the head-reset runs is 0.014-0.035, against
+  0.667-0.674 with the heads kept. The source world's policy lives in those heads.
+- **Exploratory observation (not pre-registered; it generated H14 below).** In all four pairs the head-reset runs lead
+  scratch over the first 50k interactions and trail it over 50k-300k. The two-world source leads the one-world source
+  early in both seeds (+0.031, +0.029).
+
+| Seed | Score AUC 0-50k / 50k-300k: scratch | fromNhr | fromNPhr |
+|---|---|---|---|
+| 1 | 0.257 / 0.558 | 0.299 / 0.554 | 0.330 / 0.531 |
+| 2 | 0.279 / 0.636 | 0.324 / 0.516 | 0.353 / 0.603 |
+
+**Melting Pot with seed 3 (n = 3 per arm; the third experienced run starts from the second lifetime, P_MP6_s2).**
+
+| Substrate | Seed | Scratch AUC | Experienced AUC | Δ |
+|---|---|---|---|---|
+| closed | 1 | 32.00 | 28.94 | −3.06 |
+| closed | 2 | 27.70 | 25.51 | −2.19 |
+| closed | 3 | 26.31 | 27.35 | +1.04 |
+| bos | 1 | 1.76 | 1.74 | −0.02 |
+| bos | 2 | 0.52 | 1.12 | +0.60 |
+| bos | 3 | 1.42 | 1.28 | −0.14 |
+
+- **closed: the deficit is no longer significant.**
+  - ΔAUC is −1.41 (90% CI −3.46 to +0.65), against −2.63 at n = 2.
+  - The seed from the second lifetime gains.
+  - Final test: 25.4 experienced, 24.3 scratch.
+- **bos:** ΔAUC +0.15 (90% CI −0.23 to +0.53); final test 1.36 against 1.02.
+- **Both experienced arms start far ahead.** At 0k, closed is 31.0 against 24.1, and bos 2.24 against 1.08. On these
+  substrates the transferred heads carry useful zero-shot behaviour, unlike bizdev.
+- **Exploration is only mildly reduced on closed.** Entropy over iterations 3-40 is 1.58-1.78 against scratch's
+  1.96-2.04, a ratio of 0.80-0.89. Advantage std is not lower (0.66-0.72 against 0.63-0.66).
+- **Evaluation noise is large.** Single milestones of one run move by up to 10 points (closed, experienced s2: 32.3 →
+  19.1 → 29.4).
+
+### Protocol amendment 14, 2026-11-19 22:35 UTC: per-world action heads (v17) and a replication of early transfer (before any result of these runs)
+**Code: the sl-exp-v17 head bank.**
+- **What it adds.** `model.head_bank` lists worlds that get their own action-selection heads: `hi`, `term`, `query`
+  and `slot`, shaped exactly like the shared ones. Every other world uses the shared heads.
+- **Routing.** Each decision row takes its world's head set. The collector records the choice and the learner replays it,
+  as with the v16 gate.
+- **No change elsewhere.** The bank is created last.
+  - With an empty bank, v17 is v16: the same tensor names and identical initial values for a fixed seed.
+  - With a bank, every other tensor still gets the same initial values.
+  - Rows of a bank world send gradients only to that world's heads; all other rows only to the shared heads.
+  - All three properties are checked.
+- **Effect on transfer.** A transfer source has no bank tensors, so a bank world's heads start fresh, as with
+  `init_reset`, while the other worlds keep the transferred heads.
+- **Assumption.** The agent knows which world it is in: the world's name, not any hidden parameter. The familiarity gate
+  makes the same assumption.
+
+**Disprovable test (pre-registered): H13.**
+- **Claim:** the forgetting of negotiation while learning bizdev, and the bizdev failure under negotiation rehearsal
+  (H11), both come from the two worlds sharing action-selection heads. Giving bizdev its own heads, while negotiation
+  keeps the transferred ones, removes both.
+- **Runs:** v17, gate on, P_N_s1 @ 1M, seeds 1-2, `head_bank: ['cam/bizdev']`.
+  - `T_B17_fromNbank`: bizdev only, with negotiation held out. Negotiation's heads then get no gradient, so any
+    negotiation loss comes from the shared trunk.
+  - `T_B17_fromNbankrh`: bizdev 0.9 and negotiation rehearsal 0.1, as in `T_B16_fromNrh`.
+- **H13a, where forgetting lives.**
+  - **Confirmed if** negotiation validation success at 300k is ≥ 0.40 in both `T_B17_fromNbank` seeds. With shared
+    heads it was 0.097 and 0.153, from starts of 0.667 and 0.674.
+  - **Disproved if** it is ≤ 0.20 in both seeds. Forgetting would then live in the shared trunk (perception, belief,
+    memory, label and skill embeddings, value), which per-world heads cannot protect.
+- **H13b, where the rehearsal conflict lives.**
+  - **Confirmed if** `T_B17_fromNbankrh` keeps negotiation ≥ 0.50 at 300k in both seeds, and its mean bizdev ΔAUC
+    (0-300k, paired by seed against `T_B16_scratch`) is ≥ −0.05.
+  - **Disproved if** the mean bizdev ΔAUC is ≤ −0.15 (it was −0.298 with shared heads). The conflict would then live in
+    the shared trunk or value head.
+- Anything else is mixed.
+- **Mechanism check:** `T_B17_fromNbank`'s mean entropy over iterations 3-40 is ≥ 0.9 × the same seed's scratch.
+- **What a confirmation would change.**
+  - Multi-world lifetimes get per-world heads over a shared trunk, and rehearsal becomes a usable defence against
+    forgetting.
+  - Melting Pot would be next. There the shared heads carry a zero-shot benefit that fresh per-world heads would give
+    up, so the design would also need a rule for when a world inherits heads.
+
+**Disprovable test (pre-registered): H14.** It replicates the exploratory observation above on fresh seeds only.
+- **Claim:** with fresh action heads, experience in other CAM worlds speeds early learning of bizdev, and broader
+  experience speeds it more.
+- **Runs:** frozen v16, exactly the seed 1-2 configurations, on new seeds 3 and 4: `T_B16_scratch`, `T_B16_fromNhr`
+  and `T_B16_fromNPhr`.
+- **Measure:** early learning AUC, the normalised trapezoid area under bizdev validation score over 0-50k interactions
+  (milestones 0, 10k, 25k and 50k). Seeds 1-2 are excluded because they produced the hypothesis.
+- **H14a, experience.**
+  - **Confirmed if** fromNPhr's early AUC exceeds scratch's in both new seeds, with a mean difference ≥ +0.03.
+  - **Disproved if** the mean difference is ≤ 0.
+- **H14b, breadth.**
+  - **Confirmed if** fromNPhr's early AUC exceeds fromNhr's in both new seeds.
+  - **Disproved if** the mean difference is ≤ 0.
+- Anything else is mixed.
+- **Also reported, not tested:** 0-300k AUC and 50k-300k AUC, to check the late deficit.
+
+**Queue order.** The amendment-14 runs go ahead of the remaining A_NPV ablation transfers and the pending lifetimes and
+transfers (P_NPV_s2, P_NPB_s2, the original T_V_* Vending transfers). Their configurations are unchanged, and no running
+job is touched.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
