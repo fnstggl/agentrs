@@ -320,6 +320,8 @@ def prereg_tests(runs) -> list:
     md += _familiarity_test(runs)
     md += _rehearsal_test(runs)
     md += _head_reset_test(runs)
+    md += _head_bank_test(runs)
+    md += _early_transfer_test(runs)
     return md
 
 
@@ -359,7 +361,7 @@ def _head_reset_test(runs) -> list:
     md = ["**Exploration diagnostic (amendment 13).** Mean policy entropy and advantage std over training iterations "
           "3–40 (≈ 8k–165k interactions) of every v16 bizdev transfer.", "",
           "| run | entropy | advantage std | learning AUC |", "|---|---|---|---|"]
-    for n in sorted(x for x in runs if re.fullmatch(r"T_B16_\w+_s\d", x)):
+    for n in sorted(x for x in runs if re.fullmatch(r"T_B1[67]_\w+_s\d", x)):
         es = _iter_stats(n)
         md.append(f"| {n} | {f(es[0] if es else None)} | {f(es[1] if es else None)} | {f(auc(n))} |")
     if not any(re.fullmatch(r"T_B16_from(N|NP)hr_s\d", n) for n in runs):
@@ -455,6 +457,138 @@ def _familiarity_test(runs) -> list:
         verdict += " (" + ", ".join(f"{k} mean Δ {m:+.3f}" for k, m in sorted(means.items())) + ")"
     return md + ["", f"H10 verdict: **{verdict}**", ""]
 
+
+
+def _win_auc(cv, lo, hi, metric="score"):
+    """Normalised trapezoid AUC of a validation curve over [lo, hi] (None unless milestones lo and hi both exist)."""
+    pts = [(x, auc_value(v, metric)) for x, v in cv if lo <= x <= hi]
+    if len(pts) < 2 or pts[0][0] != lo or pts[-1][0] != hi:
+        return None
+    xs, ys = np.array([p[0] for p in pts], float), np.array([p[1] for p in pts], float)
+    return float(np.trapezoid(ys, xs) / (xs[-1] - xs[0]))
+
+
+def _fmt(x, sg=False):
+    return "–" if x is None else (f"{x:+.3f}" if sg else f"{x:.3f}")
+
+
+def _head_bank_test(runs) -> list:
+    """H13 (amendment 14): forgetting of negotiation while learning bizdev, and the bizdev failure under negotiation
+    rehearsal (H11), both come from the two worlds sharing action-selection heads; v17's per-world heads remove both."""
+    if not any(re.fullmatch(r"T_B17_fromNbank(rh)?_s\d", n) for n in runs):
+        return []
+    fam, src, budget = "cam/bizdev", "cam/negotiation", 300_000
+
+    def auc(n):
+        cv = ev_val(runs[n], fam) if n in runs else []
+        return learning_auc(cv, "score", budget) if cv and max(x for x, _ in cv) >= budget else None
+
+    def neg(n):  # negotiation validation success (start, at the budget milestone); None until reached
+        cv = ev_val(runs[n], src) if n in runs else []
+        return (auc_value(cv[0][1], "success") if cv else None), next((auc_value(v, "success") for x, v in cv if x >= budget), None)
+
+    md = ["**H13 (amendment 14): forgetting of negotiation while learning bizdev, and the bizdev failure under negotiation "
+          "rehearsal (H11), both come from the two worlds sharing action-selection heads; giving bizdev its own heads (v17 "
+          "head bank) while negotiation keeps the transferred ones removes both.** H13a: confirmed if `T_B17_fromNbank` "
+          "keeps negotiation validation success ≥ 0.40 at 300k in both seeds; disproved if ≤ 0.20 in both. H13b: confirmed "
+          "if `T_B17_fromNbankrh` keeps negotiation ≥ 0.50 at 300k in both seeds and its mean bizdev ΔAUC (0-300k, paired "
+          "by seed against `T_B16_scratch`) ≥ −0.05; disproved if mean bizdev ΔAUC ≤ −0.15. Mechanism check: "
+          "`T_B17_fromNbank` entropy (iterations 3–40) ≥ 0.9 × same-seed scratch. Shared-head references: `T_B16_fromN` "
+          "(no rehearsal) and `T_B16_fromNrh` (rehearsal).", "",
+          "| run | heads | negotiation start → 300k | bizdev AUC | Δ vs scratch | entropy / scratch |",
+          "|---|---|---|---|---|---|"]
+    res = {}
+    for arm, ref, heads in (("fromNbank", "fromN", "bizdev own"), ("fromNbankrh", "fromNrh", "bizdev own")):
+        for s in (1, 2):
+            sc = f"T_B16_scratch_s{s}"
+            es = _iter_stats(sc)
+            for name, h in ((f"T_B17_{arm}_s{s}", heads), (f"T_B16_{ref}_s{s}", "shared")):
+                if name not in runs:
+                    continue
+                n0, n1 = neg(name)
+                a, b = auc(name), auc(sc)
+                d = None if a is None or b is None else a - b
+                e = _iter_stats(name)
+                er = None if e is None or es is None else e[0] / es[0]
+                md.append(f"| {name} | {h} | {_fmt(n0)} → {_fmt(n1)} | {_fmt(a)} | {_fmt(d, True)} | {_fmt(er)} |")
+                if name.startswith("T_B17_"):
+                    res.setdefault(arm, []).append((n1, d, er))
+    md.append("")
+    bank, bankrh = res.get("fromNbank", []), res.get("fromNbankrh", [])
+    if len(bank) < 2 or any(k is None for k, _, _ in bank):
+        va = f"pending ({sum(k is not None for k, _, _ in bank)} of 2 runs at 300k)"
+    elif all(k >= 0.40 for k, _, _ in bank):
+        va = "CONFIRMED"
+    elif all(k <= 0.20 for k, _, _ in bank):
+        va = "DISPROVED"
+    else:
+        va = "neither confirmed nor disproved (mixed)"
+    mech = ""
+    if len(bank) == 2 and all(er is not None for _, _, er in bank):
+        mech = "; mechanism check " + ("passed" if all(er >= 0.9 for _, _, er in bank) else "failed")
+    if len(bankrh) < 2 or any(k is None or d is None for k, d, _ in bankrh):
+        vb = f"pending ({sum(d is not None for _, d, _ in bankrh)} of 2 runs complete)"
+    else:
+        md_ = float(np.mean([d for _, d, _ in bankrh]))
+        if all(k >= 0.50 for k, _, _ in bankrh) and md_ >= -0.05:
+            vb = "CONFIRMED"
+        elif md_ <= -0.15:
+            vb = "DISPROVED"
+        else:
+            vb = "neither confirmed nor disproved (mixed)"
+        vb += f" (mean bizdev ΔAUC {md_:+.3f}; negotiation at 300k " + ", ".join(f"{k:.3f}" for k, _, _ in bankrh) + ")"
+    if bank and all(k is not None for k, _, _ in bank):
+        va += " (negotiation at 300k " + ", ".join(f"{k:.3f}" for k, _, _ in bank) + ")"
+    md += [f"H13a verdict: **{va}**{mech}", "", f"H13b verdict: **{vb}**", ""]
+    return md
+
+
+def _early_transfer_test(runs) -> list:
+    """H14 (amendment 14): with fresh action heads, experience in other CAM worlds speeds early learning of bizdev (0-50k
+    AUC), and broader experience (negotiation + product) more than negotiation alone. New seeds 3-4 only."""
+    if not any(re.fullmatch(r"T_B16_(scratch|fromNhr|fromNPhr)_s[34]", n) for n in runs):
+        return []
+    fam = "cam/bizdev"
+
+    def w(n, lo, hi):
+        return _win_auc(ev_val(runs[n], fam), lo, hi) if n in runs else None
+
+    md = ["**H14 (amendment 14): with fresh action heads, experience in other CAM worlds speeds early learning of bizdev, "
+          "and broader experience speeds it more.** Early AUC = normalised area under bizdev validation score over 0-50k. "
+          "New seeds 3-4 only (seeds 1-2 produced the hypothesis and are shown for reference). H14a: confirmed if fromNPhr "
+          "> scratch in both new seeds with mean difference ≥ +0.03, disproved if the mean difference ≤ 0. H14b: confirmed "
+          "if fromNPhr > fromNhr in both new seeds, disproved if the mean difference ≤ 0.", "",
+          "| seed | scratch 0-50k / 50-300k | fromNhr 0-50k / 50-300k | fromNPhr 0-50k / 50-300k | fromNPhr − scratch (0-50k) | fromNPhr − fromNhr (0-50k) |",
+          "|---|---|---|---|---|---|"]
+    da, db = [], []
+    for s in (1, 2, 3, 4):
+        e = {i: w(f"T_B16_{i}_s{s}", 0, 50_000) for i in ("scratch", "fromNhr", "fromNPhr")}
+        l = {i: w(f"T_B16_{i}_s{s}", 50_000, 300_000) for i in ("scratch", "fromNhr", "fromNPhr")}
+        if all(v is None for v in e.values()):
+            continue
+        a = None if e["fromNPhr"] is None or e["scratch"] is None else e["fromNPhr"] - e["scratch"]
+        b = None if e["fromNPhr"] is None or e["fromNhr"] is None else e["fromNPhr"] - e["fromNhr"]
+        tag = f"{s}" + (" (reference)" if s < 3 else "")
+        md.append(f"| {tag} | " + " | ".join(f"{_fmt(e[i])} / {_fmt(l[i])}" for i in ("scratch", "fromNhr", "fromNPhr"))
+                  + f" | {_fmt(a, True)} | {_fmt(b, True)} |")
+        if s >= 3:
+            da.append(a)
+            db.append(b)
+    md.append("")
+
+    def verdict(d, both_pos_extra):
+        if len(d) < 2 or any(x is None for x in d):
+            return f"pending ({sum(x is not None for x in d)} of 2 new seeds)"
+        m = float(np.mean(d))
+        if all(x > 0 for x in d) and both_pos_extra(m):
+            return f"CONFIRMED (mean {m:+.3f})"
+        if m <= 0:
+            return f"DISPROVED (mean {m:+.3f})"
+        return f"neither confirmed nor disproved (mixed) (mean {m:+.3f})"
+
+    md += [f"H14a verdict (experience): **{verdict(da, lambda m: m >= 0.03)}**", "",
+           f"H14b verdict (breadth): **{verdict(db, lambda m: True)}**", ""]
+    return md
 
 def _rehearsal_test(runs) -> list:
     """H11 (amendment 12): forgetting during transfer comes from training on the new world alone; rehearsing the source
