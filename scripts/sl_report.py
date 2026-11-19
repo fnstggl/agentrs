@@ -78,6 +78,7 @@ def main() -> int:
           ", ".join(f"{k} {v}" for k, v in sorted(_count(runs).items())), ""]
 
     md += prereg_tests(runs)
+    md += inaction_check(runs)
 
     # --------------------------------------------------------------- 1. fast adaptation with frozen weights
     md += ["## 1. Fast adaptation inside a task with frozen weights (validation, latest milestone of each lifetime)", "",
@@ -269,7 +270,66 @@ def prereg_tests(runs) -> list:
         a, b = (_val_at(dp[n], "cam/product", "m300000", "auc_score") if n in dp else None for n in ("D_P11_s1", "D_P10_s1"))
         md += ["", "Product verdict: **" + ("pending" if a is None or b is None else
                                              ("CONFIRMED" if a - b >= 0.10 else "NOT CONFIRMED") + f" (Δ = {a - b:+.3f})") + "**", ""]
+    dc = {n: s for n, s in runs.items() if re.fullmatch(r"D_P12c_s\d", n)}
+    if dc:
+        md += ["**H7 (amendment 7): product fails because training almost never succeeds; a training-only goal curriculum "
+               "fixes it.** Validation at the full, unchanged targets (cam/product, mode full). Confirmed if every "
+               "curriculum seed has progress ≥ 0.20 and success > 0 at 300k; disproved if every curriculum seed has "
+               "progress < 0.05 at 300k, or if no seed's training difficulty ever rises (success never reached at the "
+               "easiest goals).", "",
+               "| run | curriculum | 0k progress | 100k | 300k | 300k success | training difficulty now (max, rises) |",
+               "|---|---|---|---|---|---|---|"]
+        res = {}
+        for n, s in [(k, runs[k]) for k in ("D_P11_s1",) if k in runs] + sorted(dc.items()):
+            v = [_val_at(s, "cam/product", tg, "auc_score") for tg in ("m0", "m100000", "m300000")]
+            sc = _val_at(s, "cam/product", "m300000", "auc_success")
+            cur = (s.get("curriculum") or {}).get("cam/product")
+            dtxt = "–" if not cur else f"{cur['d']:.3f} ({cur.get('d_max', cur['d']):.3f}, {cur.get('ups', 0)})"
+            md.append(f"| {n} | {'yes' if n in dc else 'no'} | " + " | ".join("–" if x is None else f"{x:.3f}" for x in v)
+                      + f" | {'–' if sc is None else f'{sc:.3f}'} | {dtxt} |")
+            if n in dc:
+                res[n] = (v[2], sc, (cur or {}).get("ups", 0))
+        done = [r for r in res.values() if r[0] is not None]
+        if len(done) < len(res) or not res:
+            verdict = f"pending ({len(done)}/{len(res)} curriculum seeds at 300k)"
+        elif all(p < 0.05 for p, _, _ in done) or all(u == 0 for _, _, u in done):
+            verdict = "DISPROVED"
+        elif all(p >= 0.20 and (sc or 0) > 0 for p, sc, _ in done):
+            verdict = "CONFIRMED"
+        else:
+            verdict = "neither confirmed nor disproved (mixed)"
+        md += ["", f"H7 verdict: **{verdict}**", ""]
     return md
+
+
+def inaction_check(runs) -> list:
+    """Does a learned policy merely reproduce the reward audit's do-nothing ("stall") baseline? A learning curve that
+    ends at the inaction return is not competence (found 2026-11-19 for product and Vending-Bench)."""
+    rows = []
+    for n, s in sorted(runs.items()):
+        aud = s.get("reward_audit") or {}
+        last = next((e for e in reversed(s.get("evals", [])) if e["split"] == "val" and e["mode"] == "full"), None)
+        if last is None:
+            continue
+        cfg = s.get("config") or {}
+        mine = set(cfg.get("families") or {}) | set(cfg.get("heldout_families") or [])
+        for fam, f in sorted(last["families"].items()):
+            if fam not in mine:  # retention monitors of transfer runs are reported in section 2
+                continue
+            st = (aud.get(fam) or {}).get("stall")
+            if not st or not f.get("curve"):
+                continue
+            ret = float(np.mean([c["return"] for c in f["curve"]]))
+            ref = float(st["return"])
+            same = abs(ret - ref) <= 0.05 * max(1.0, abs(ref))
+            kind = "trained" if fam in (cfg.get("families") or {}) else "held out"
+            rows.append(f"| {n} @ {last['tag']} | {fam} ({kind}) | {ret:.3f} | {ref:.3f} | {'**yes**' if same else 'no'} |")
+    if not rows:
+        return []
+    return ["## 0b. Inaction check (validation return vs the audit's do-nothing policy)", "",
+            "A family whose learned return equals the stall policy's return has learned inaction, not the task; its "
+            "score gains (e.g. Vending 0.64 → 0.76 = no longer losing money on random orders) are not competence.", "",
+            "| run | family | learned return | do-nothing return | ≈ inaction |", "|---|---|---|---|---|", *rows, ""]
 
 
 def _count(runs):

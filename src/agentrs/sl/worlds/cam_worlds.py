@@ -34,6 +34,10 @@ class CamWorld(World):
     def initialize_world(self, task: Task) -> None:
         self.task = task
         self.env = ENVS[self.name]()
+        # training-only goal curriculum (sl-exp-v12): simulators with a scalable goal (product's user target) lower it
+        # for train-split tasks only; validation / test tasks never carry a difficulty
+        if task.split == "train" and "difficulty" in task.params:
+            self.env.difficulty = float(task.params["difficulty"])
         self.reset_world()
 
     def reset_world(self) -> None:

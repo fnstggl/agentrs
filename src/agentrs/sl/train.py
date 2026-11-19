@@ -67,6 +67,12 @@ class SLTrainConfig(BaseModel):
     ckpt_every_s: float = 600.0
     diagnostics: list = Field(default_factory=lambda: ["memory_ablation", "world_model"])
     strict_audit: bool = True
+    # Training-only goal curriculum (sl-exp-v12, amendment 7). family -> {init, lo, hi, step, min, window}: training
+    # tasks of the family get params["difficulty"] = d (worlds with a scalable goal lower it, e.g. product's user
+    # target); after every ``window`` training episodes played at the current d, d is multiplied by ``step`` if
+    # their success rate is above ``hi`` and divided by it if below ``lo`` (clipped to [min, 1]). Validation and test
+    # tasks never carry a difficulty: every reported result is at the full, unchanged goal. Empty = disabled.
+    curriculum: dict = Field(default_factory=dict)
 
 
 def reward_audit(families: list, rc: RewardContract, max_steps: int, n: int = 12, seed: int = 0) -> dict:
@@ -174,6 +180,33 @@ def git_commit() -> str:
         return ""
 
 
+CURRICULUM_DEFAULTS = {"init": 0.2, "lo": 0.2, "hi": 0.5, "step": 1.25, "min": 0.02, "window": 256}
+
+
+def curriculum_step(cur: dict, spec: dict, episodes: list) -> Optional[float]:
+    """Update one family's curriculum state with finished training episodes (dicts with ``difficulty`` and
+    ``success``); only episodes played at the current difficulty count. Returns the new difficulty if it changed."""
+    sp = {**CURRICULUM_DEFAULTS, **spec}
+    for e in episodes:
+        if abs(float(e["difficulty"]) - cur["d"]) > 1e-12:
+            continue
+        cur["n"] += 1
+        cur["s"] += int(bool(e["success"]))
+    if cur["n"] < sp["window"]:
+        return None
+    rate = cur["s"] / cur["n"]
+    old = cur["d"]
+    if rate > sp["hi"]:
+        cur["d"] = min(1.0, old * sp["step"])
+    elif rate < sp["lo"]:
+        cur["d"] = max(sp["min"], old / sp["step"])
+    cur["n"], cur["s"] = 0, 0
+    cur["last_rate"] = rate
+    cur["ups"] = cur.get("ups", 0) + int(cur["d"] > old)
+    cur["d_max"] = max(cur.get("d_max", 0.0), cur["d"])
+    return cur["d"] if cur["d"] != old else None
+
+
 class SLTrainer:
     def __init__(self, cfg: SLTrainConfig):
         self.cfg = c = cfg
@@ -216,6 +249,10 @@ class SLTrainer:
             self._save("initial")
             self._save("latest")
             self.save_state()
+        cur = self.state.setdefault("curriculum", {})
+        for fam, spec in c.curriculum.items():
+            if fam not in cur:
+                cur[fam] = {"d": float({**CURRICULUM_DEFAULTS, **spec}["init"]), "n": 0, "s": 0}
         for n, prm in self.model.named_parameters():
             if any(n.startswith(pfx) for pfx in c.freeze):
                 prm.requires_grad_(False)
@@ -332,6 +369,14 @@ class SLTrainer:
         return float(np.mean([v["auc_success"] + 0.1 * v["auc_score"] for f, v in rec["families"].items() if f in self.cfg.families]))
 
     # ------------------------------------------------------------------ training
+    def _sample_task(self, fam: str, rng: random.Random, split: str) -> Task:
+        """Training tasks of curriculum families carry the current goal difficulty (never validation / test)."""
+        t = W.sample_task(fam, rng, split)
+        cur = self.state.get("curriculum", {}).get(fam)
+        if cur is not None and split == "train":
+            t.params = {**t.params, "difficulty": cur["d"]}
+        return t
+
     def budget_left(self) -> bool:
         return (self.state["interactions"] < self.cfg.max_env_steps and not self.stop
                 and time.time() < self.deadline - self.cfg.final_reserve_h * 3600)
@@ -339,7 +384,7 @@ class SLTrainer:
     def train_iter(self) -> None:
         c = self.cfg
         if self.runner is None:
-            self.runner = Runner(self.model, c.families, W.make_world, W.sample_task, c.n_worlds, trial_episodes=c.trial_episodes,
+            self.runner = Runner(self.model, c.families, W.make_world, self._sample_task, c.n_worlds, trial_episodes=c.trial_episodes,
                                  split="train", seed=c.seed * 1000 + self.state["iter"], mode=c.mode, contract=self.rc,
                                  device=self.dev, max_episode_steps=c.max_episode_steps, dt_ref=self.state["dt_ref"])
         t0 = time.time()
@@ -364,9 +409,16 @@ class SLTrainer:
             fs["score"] += e["score"]
         for fs in fam_stats.values():
             fs["score"] /= max(1, fs["episodes"])
+        for fam, cur in self.state.get("curriculum", {}).items():
+            eps = [{"difficulty": e["task"].params.get("difficulty", 1.0), "success": e["success"]} for e in done if e["family"] == fam]
+            new = curriculum_step(cur, c.curriculum.get(fam, {}), eps)
+            if new is not None:
+                self.log(f"curriculum {fam}: training success {cur['last_rate']:.2f} -> difficulty {new:.3f}")
         rec = {"iter": self.state["iter"], "time": time.time(), "interactions": self.state["interactions"], "collect_s": round(t1 - t0, 1),
                "learn_s": round(t2 - t1, 1), "steps_per_s": round(n_new / max(1e-9, t1 - t0), 1), "learn": stats, "train": fam_stats,
                "env_s": round(self.runner.stats["env_s"], 1), "infer_s": round(self.runner.stats["infer_s"], 1)}
+        if self.state.get("curriculum"):
+            rec["curriculum"] = {f: round(v["d"], 4) for f, v in self.state["curriculum"].items()}
         if self.dev.type == "cuda":
             rec["gpu_peak_gb"] = round(torch.cuda.max_memory_allocated() / 2**30, 2)
         with open(self.rd / "iters.jsonl", "a") as f:

@@ -150,3 +150,46 @@ def test_reward_audit_catches_the_v10_shaping_discount(monkeypatch):
     monkeypatch.setattr(RewardContract, "components", v10)
     a = reward_audit(["cam/bizdev"], rc, 2000, n=6)["cam/bizdev"]
     assert not a["passed"] and a["random"]["shaping_telescope_err"] > 1e-3
+
+
+def test_goal_curriculum_lowers_training_targets_only_and_adapts_to_training_success():
+    """sl-exp-v12 (amendment 7): a curriculum family's training tasks carry the current difficulty and product's
+    training target shrinks accordingly; validation / test tasks never do; the update rule raises the difficulty
+    when training success is above ``hi``, lowers it below ``lo``, and ignores episodes played at a stale difficulty."""
+    import random as _r
+
+    from agentrs.sl import worlds as W
+    from agentrs.sl.train import SLTrainer, curriculum_step
+    from agentrs.sl.world import Task
+
+    full = W.make_world("cam/product")
+    full.initialize_world(Task("cam/product", 7, "train"))
+    easy = W.make_world("cam/product")
+    easy.initialize_world(Task("cam/product", 7, "train", params={"difficulty": 0.1}))
+    assert easy.env.target == max(50.0, full.env.target * 0.1) < full.env.target
+    easy.reset_world()  # later episodes of the trial keep the lowered goal
+    assert easy.env.target == max(50.0, full.env.target * 0.1)
+    v_full, v_easy = W.make_world("cam/product"), W.make_world("cam/product")
+    v_full.initialize_world(Task("cam/product", 3, "val"))
+    v_easy.initialize_world(Task("cam/product", 3, "val", params={"difficulty": 0.1}))
+    assert v_easy.env.target == v_full.env.target  # a difficulty on a validation task is ignored
+
+    class T:  # the trainer's task sampler without building a model
+        state = {"curriculum": {"cam/product": {"d": 0.3, "n": 0, "s": 0}}}
+    rng = _r.Random(0)
+    assert SLTrainer._sample_task(T, "cam/product", rng, "train").params["difficulty"] == 0.3
+    assert "difficulty" not in SLTrainer._sample_task(T, "cam/product", rng, "val").params
+    assert "difficulty" not in SLTrainer._sample_task(T, "cam/negotiation", rng, "train").params
+
+    spec = {"lo": 0.2, "hi": 0.5, "step": 2.0, "min": 0.05, "window": 4}
+    cur = {"d": 0.2, "n": 0, "s": 0}
+    assert curriculum_step(cur, spec, [{"difficulty": 0.2, "success": True}] * 3) is None  # window not full
+    assert curriculum_step(cur, spec, [{"difficulty": 0.2, "success": True}]) == 0.4      # 4/4 > hi: harder
+    assert curriculum_step(cur, spec, [{"difficulty": 0.2, "success": False}] * 8) is None  # stale difficulty ignored
+    assert curriculum_step(cur, spec, [{"difficulty": 0.4, "success": False}] * 4) == 0.2   # 0/4 < lo: easier
+    for _ in range(5):
+        curriculum_step(cur, spec, [{"difficulty": cur["d"], "success": False}] * 4)
+    assert cur["d"] == 0.05                                                                   # floor
+    cur = {"d": 0.8, "n": 0, "s": 0}
+    curriculum_step(cur, spec, [{"difficulty": 0.8, "success": True}] * 4)
+    assert cur["d"] == 1.0                                                                    # ceiling: the full goal

@@ -110,7 +110,7 @@ def test_queue_waits_for_a_checkpoint_then_starts_and_skips_unreachable_ones(tmp
         (runs / name / "state.json").write_text(json.dumps({"phase": ph}))
     want_a, want_b = runs / "SRC_a" / "ckpt" / "life_10", runs / "SRC_b" / "ckpt" / "life_20"
     q = {"runs_root": str(runs), "src": str(Path(__file__).resolve().parents[1] / "src"), "module": "json.tool",
-         "max_jobs": 4, "min_free_mib": 0, "min_free_disk_gb": 0, "smoke": False, "gh_backup": False,
+         "max_jobs": 4, "min_free_mib": 0, "min_free_disk_gb": 0, "min_free_pids": 0, "smoke": False, "gh_backup": False,
          "jobs": [{"name": "T_a", "config": "x.yaml", "set": {}, "wait_for": [str(want_a)]},
                   {"name": "T_b", "config": "x.yaml", "set": {}, "wait_for": [str(want_b)]}]}
     qp = tmp_path / "q.yaml"

@@ -222,6 +222,50 @@ random policies) could not see this: their returns were all consistent with the 
 - **Lifetimes stay on v10.** `A_NPV_*` and `P_*_s2` stay on v10 so they remain comparable to `P_*_s1`. Lifetimes
   under the fixed contract are a separate later series.
 
+### Protocol amendment 7, 2026-11-19 06:10 UTC: learned inaction in product and Vending-Bench (before any curriculum result)
+**Finding.** Where a world needs an up-front cost and a coordinated sequence of actions before any payoff, every learner
+converges to the reward audit's do-nothing return. The report now checks this mechanically (section 0b).
+
+| World | Learned validation return | Do-nothing return | Simple scripted policy, same action grammar, no hidden information |
+|---|---|---|---|
+| product (v10 and v11, every lifetime) | −1.04 | −1.04 | research all segments, build the 3 most-requested features, price P2, ad campaigns at B3: **63% success**, 7% bankrupt (100 val tasks); 70 of 217 variants succeed sometimes |
+| Vending-Bench (`T_V_scratch_s1..3`, `P_NPV_s1`) | −3.60 (score 0.759) | −3.60 (score 0.760 = 30 days × €12 fee, no business) | order q160 of 5 cheap products, restock, price ×3: **score 1.03** mean, max 1.22 (12 val tasks) |
+| bizdev v10 | −0.80 | −0.80 | (fixed by v11: v11 learns, −0.08) |
+| negotiation | +0.25 to +0.31 | −0.56 | (learned) |
+
+The scripted policies are test fixtures only (never shown to or imitated by the learner). Product training saw 2
+successes in 17,362 episodes (`D_P11_s1`), so success never reaches the gradient and the learner minimises bankruptcy
+risk by doing nothing. In Vending, orders below a supplier's minimum are refused (single-product orders need q80–q160),
+paid orders leave net worth until delivery 2–12 days later, and selling needs order → delivery → restock into a
+matching slot → price; random exploration never completes the chain (training score never exceeded 0.76 after the
+first iterations).
+
+**Consequences.**
+- **Interpretation of the pre-registered Vending series (kept, valid as measured).** Vending-target learning curves
+  and transfer ΔAUC measure how quickly an init stops losing money (reaches inaction), not business competence.
+  Experienced inits that already do nothing start near 0.72–0.75. Every Vending result is reported with this caveat.
+- **Product in lifetimes** contributes inaction only. NP/NPB/NPV breadth comparisons therefore add worlds the agent
+  never learns, which must be read as such.
+
+**Fix under test (`sl-exp-v12`): a training-only goal curriculum.**
+- Training tasks of a curriculum family carry a difficulty `d`. Product scales its user target by `d` (floor 50 users);
+  the mechanism is CAM-v2's, which the superlearner had not used.
+- After every 256 training episodes at the current `d`, `d` rises ×1.25 if training success is above 50% and falls ÷1.25
+  if below 20% (range [0.02, 1], start 0.2).
+- Validation and test tasks never carry a difficulty, so every reported number is at the full goal. With an empty
+  `curriculum` (the default) v12 behaves exactly like v11.
+
+**Disprovable test (pre-registered).**
+- **H7:** product fails because training almost never succeeds, and the curriculum fixes it.
+- **Runs:** `D_P12c_s1`, `D_P12c_s2` (v12, product only, 300k), configured exactly like `D_P11_s1` (v11, the control)
+  plus the curriculum.
+- **Confirmed if** both seeds reach validation progress ≥ 0.20 and success > 0 at 300k.
+- **Disproved if** both seeds have progress < 0.05 at 300k (still the inaction basin), or no seed's training
+  difficulty ever rises (success not learnable even at the easiest goals).
+- **Next:** if confirmed, the curriculum becomes part of the next lifetime series. Vending needs a different mechanism
+  (it has no scalable goal; its obstacle is the action chain and order accounting): a separate hypothesis, tested
+  after H7.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
