@@ -266,3 +266,82 @@ def test_cam2_real_qwen_replay_logprob_matches_collection(tmp_path):
     assert u["mismatch_text_max"] < 1e-4 and u["replay_mismatch_max"] < 1e-4
     assert r["llm_fingerprint_unchanged"] and r["llm_trainable_params"] == 0
     assert r["cam_checksum_changed"] and r["cam_tensors_changed"] > 0
+
+
+# ============================================================================================== structured actions
+def test_action_templates_fill_slots_from_what_the_actor_has_seen():
+    from crucible.integrations import OMIT, ActionTemplates, EntityMemory
+    mem = EntityMemory()
+    mem.observe(None, {"tool": "market.list", "args": {"title": "x"}}, {"ok": True, "result": {"listing": "lst_000003"}})
+    mem.observe({"time": 0, "bank": {"balances": {"acct_000018": 500}}, "events": [
+        {"type": "market.listing", "actor": "o:rival", "payload": {"id": "lst_000002", "price": 7}}]})
+    tools = {"name": "market.update", "inputSchema": {"type": "object", "required": ["listing"], "properties": {
+        "listing": {"type": "string", "maxLength": 40}, "price_cents": {"type": "integer", "minimum": 0},
+        "status": {"type": "string", "enum": ["active", "closed"]}}}}
+    at = ActionTemplates(mem, "p:me")
+    slots = at.slots(tools)
+    assert [s.param for s in slots] == ["listing", "price_cents", "status"]
+    assert slots[0].options[0].value == "lst_000003" and slots[0].options[0].source == "key"
+    assert slots[1].options[0].value == OMIT and 5 in [o.value for o in slots[1].options]
+    assert [o.value for o in slots[2].options] == [OMIT, "active", "closed"]
+    call = ActionTemplates.build(tools, slots, [0, [o.value for o in slots[1].options].index(5), 0])
+    assert call == {"tool": "market.update", "args": {"listing": "lst_000003", "price_cents": 5}}
+    commit = {"name": "code.commit", "inputSchema": {"type": "object", "required": ["repo", "files"], "properties": {
+        "repo": {"type": "string"}, "files": {"type": "object"}}}}
+    assert at.slots(commit) is None            # free-form content cannot be filled from observations
+
+
+# ============================================================================================== superlearner World
+def test_sl_world_adapter_runs_and_passes_reward_audit():
+    from agentrs.sl import worlds as W
+    from agentrs.sl.train import reward_audit
+    from agentrs.sl.world import RewardContract, RewardSpec, Task
+    import crucible.integrations.agentrs_sl as S
+    assert "crucible/service" in W.FAMILIES and "crucible/revenue/deployed_service" in W.FAMILIES
+    from crucible.goals.contracts import HELDOUT_GOAL_FAMILIES
+    assert not any(f.split("/")[1] in HELDOUT_GOAL_FAMILIES for f in W.FAMILIES if f.startswith("crucible/"))
+    w = W.make_world("crucible/service")
+    w.initialize_world(Task("crucible/service", 3, "val"))
+    sp = w.available_actions("0")
+    first = sp.allowed([])
+    assert first[0] == "wait" and "bank" in first and len(first) <= 24
+    act = ["bank", "transfer"]
+    while sp.allowed(act) != ["END"]:
+        act.append(sp.allowed(act)[0])
+    snap = w.save_world_state()
+    w.execute("0", act)
+    w.advance_time()
+    c1, g1, d1 = w.observe_consequences("0"), w.evaluate_goal("0"), w.world.digest()
+    w.restore_world_state(snap)
+    w.execute("0", act)
+    w.advance_time()
+    assert (w.observe_consequences("0"), w.evaluate_goal("0"), w.world.digest()) == (c1, g1, d1)
+    w.reset_world()                                  # same task, fresh episode from the task's start snapshot
+    assert w.world.now == 0 and w.n_dec == 0
+    res = reward_audit(["crucible/service"], RewardContract(RewardSpec()), max_steps=10, n=2)
+    a = res["crucible/service"]
+    assert a["passed"], a
+    assert all(a[p]["ended"] == 1.0 for p in ("random", "stall", "terminate"))
+
+
+# ============================================================================================== neural RL
+def test_rl_lifetime_learns_online_checkpoints_and_resumes(tmp_path):
+    import torch
+    from crucible.agents.rl import Lifetime, LifetimeConfig
+    cfg = LifetimeConfig(mode="fork", policy="a2c", dt=3600, episode_steps=24, total_steps=48, ckpt_every=1,
+                         a2c={"n_steps": 12}, out_dir=str(tmp_path / "rl"), seed=1)
+    lt = Lifetime(cfg)
+    p0 = [p.detach().clone() for p in lt.net.parameters()]
+    hist = lt.run()
+    assert len(hist) == 2 and lt.learner.updates == 4
+    assert any(not torch.equal(a, b) for a, b in zip(p0, lt.net.parameters()))
+    assert all(set(h) >= {"ret", "progress", "rev7_cents", "listing_price", "service_live"} for h in hist)
+    lt2 = Lifetime.resume(str(tmp_path / "rl" / "ckpt.pt"))
+    assert lt2.steps == 48 and all(torch.equal(a, b) for a, b in zip(lt.net.parameters(), lt2.net.parameters()))
+    lt2.cfg.total_steps = 72
+    lt2.run()
+    assert lt2.steps == 72 and len(lt2.history) == 3
+    rnd = Lifetime(LifetimeConfig(mode="persistent", policy="random", dt=3600, episode_steps=24, total_steps=24,
+                                  out_dir=str(tmp_path / "rnd"), seed=1))
+    h = rnd.run()
+    assert len(h) == 1 and h[0]["actions"] + h[0]["waits"] == 24

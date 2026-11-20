@@ -173,3 +173,17 @@ def test_curriculum_samples_situations_and_adapts():
     p = {k: a.p_success() for k, a in s.arms.items()}
     assert max(p.values()) > 0.5 and min(p.values()) < 0.5
     assert any(e["why"] == "frontier" for e in s.log)
+
+
+def test_candidate_evaluation_protocol_and_paired_compare():
+    from crucible.evaluation.discovery import Budget, Candidate, compare, evaluate_candidate
+    train = [generate_goal("service", "tiny", 11, 0, "dev")]
+    val = [generate_goal("service", "tiny", 12, 0, "dev")]
+    b = Budget(max_days_per_goal=3, max_wall_s=600)
+    ra = evaluate_candidate(Candidate("builder", lambda s: Builder(need="route.shortest")), train, val, seeds=(0, 1), budget=b)
+    rb = evaluate_candidate(Candidate("idle", lambda s: IdlePolicy()), train, val, seeds=(0, 1), budget=b)
+    assert {r["phase"] for r in ra["rows"]} == {"train", "transfer", "retention"}
+    c = compare(ra, rb, "transfer", "progress")
+    assert c["seeds"] == 2 and c["mean_diff"] > 0 and c["verdict"] == "a better"
+    c1 = compare(ra, rb, "transfer", "progress", min_seeds=3)
+    assert c1["verdict"] == "insufficient seeds"

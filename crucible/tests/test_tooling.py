@@ -38,15 +38,29 @@ def cli(*args, capsys=None) -> dict | str:
 
 
 # ====================================================================== shared worlds
+def _world(name, seed, agents, hours):
+    spec = generate({"family": "tiny", "overrides": {"params": {"cost_model": "deterministic"}}}, seed)
+    w = World.create(spec, name)
+    pairs = [(w.system_call("admin.join", {"handle": h, "endowment": 1_000_000})["principal"], pol)
+             for h, pol in agents]
+    run = Runner(w, pairs, dt=3600, seed=1)
+    run.run(hours)
+    return w, run
+
+
+@pytest.fixture(scope="module")
+def builder_world():
+    """Tiny deterministic world with one scripted Builder (alice) on route.shortest, 1.5 days."""
+    w, run = _world("tooling-b", 3, [("alice", Builder(need="route.shortest"))], 36)
+    yield w, run
+    w.close()
+
+
 @pytest.fixture(scope="module")
 def market_world():
-    """Tiny deterministic world: a scripted Builder (alice) and a Composer (bob) on route.shortest, 1.5 days."""
-    spec = generate({"family": "tiny", "overrides": {"params": {"cost_model": "deterministic"}}}, 3)
-    w = World.create(spec, "tooling-w")
-    a = w.system_call("admin.join", {"handle": "alice", "endowment": 1_000_000})["principal"]
-    b = w.system_call("admin.join", {"handle": "bob", "endowment": 1_000_000})["principal"]
-    run = Runner(w, [(a, Builder(need="route.shortest")), (b, Composer(need="route.shortest"))], dt=3600, seed=1)
-    run.run(36)
+    """Tiny deterministic world: a Builder (alice) and a Composer (bob, calls the incumbent from its own code)."""
+    w, run = _world("tooling-m", 3, [("alice", Builder(need="route.shortest")),
+                                     ("bob", Composer(need="route.shortest"))], 30)
     yield w, run
     w.close()
 
@@ -261,8 +275,8 @@ def test_selfplay_short_real_run(tmp_path, capsys):
 
 
 # ====================================================================== counterfactual / emergence / trace
-def test_counterfactual_removing_builder_host_shifts_customers_to_incumbents(market_world):
-    w, _ = market_world
+def test_counterfactual_removing_builder_host_shifts_customers_to_incumbents(builder_world, market_world):
+    w, _ = builder_world
     seq0, dig0 = w.seq, w.digest()
     host = "alice-shorte"
     assert w.modules["consumers"].market_shares(w).get(host, 0) > 0
@@ -278,7 +292,7 @@ def test_counterfactual_removing_builder_host_shifts_customers_to_incumbents(mar
     assert r["applied"][0]["tool"] == "cloud.undeploy"
     assert "revenue o:alice-labs" in r["text"]
     # an upstream removal hurts the composer that depends on it (service calls service)
-    r2 = CF.fork_compare(w, CF.undeploy_host("shorte1"), DAY // 2)
+    r2 = CF.fork_compare(market_world[0], CF.undeploy_host("shorte1"), DAY // 4)
     dep = r2["dependents"]["shorte1"]
     assert "svc:bob-mesh" in dep and dep["svc:bob-mesh"]["delta_ok"] < 0
 
@@ -304,20 +318,26 @@ def test_emergence_metrics_on_short_run(market_world):
     sp = rep["specialization"]
     assert sp["orgs"]["o:alice-labs"]["categories"] == {"api:route.shortest": 1}
     assert sp["summary"]["orgs_with_offerings"] >= 4
-    nov = EM.useful_novelty(w, horizon_s=DAY // 2, hosts=["alice-shorte"])
+    nov = EM.useful_novelty(w, horizon_s=DAY // 4, hosts=["alice-shorte"])
     assert nov["n_candidates"] == 1 and nov["hosts"]["alice-shorte"]["reductions"]["households_served"] > 0
     assert nov["hosts"]["alice-shorte"]["useful"]
 
 
-def test_trace_explains_service_failure_after_unpaid_bills(market_world):
-    w, _ = market_world
+def test_trace_explains_service_failure_after_unpaid_bills(builder_world):
+    w, _ = builder_world
     f = World.from_blob(w.snapshot_blob(), world_id="trace-fork")
     try:
+        # step scheduled jobs one at a time; right after the hourly consumer market has paid the company, an
+        # operator intervention empties its account, so the next compute bill fails
+        last = None
+        while last != "consumers.hour":
+            f.advance_time(f.next_job_time(), max_jobs=1)
+            last = next(e for e in reversed(f.log) if e.type == "proc").payload["proc"]
         bank = f.modules["bank"]
         acct = bank.primary_account(f.state, "o:alice-labs")
-        bal = bank.balance(f.state, acct)
         f.system_call("bank.transfer", {"from_account": acct, "to": bank.primary_account(f.state, "p:alice"),
-                                        "amount": bal, "memo": "drain"}, as_principal="o:alice-labs")
+                                        "amount": bank.balance(f.state, acct), "memo": "drain"},
+                      as_principal="o:alice-labs")
         f.advance_time(f.now + DAY)
         ex = trace.explain(f, "o:alice-labs", since=w.seq)
         kinds = {x["kind"] for x in ex["findings"]}
