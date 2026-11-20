@@ -176,3 +176,23 @@ The world worked; the agent did not. Unlike Qwen3-1.7B (RL_INTEGRATION.md: degen
 calls), the 4B model produced valid calls but stayed in passive information gathering — it never founded a
 company, wrote code or offered anything. This is the expected starting point for experience-driven learning and
 a concrete baseline for CAM-style controllers; it is not a statement about larger models or better prompting.
+
+## 10. Learning-system integrations (details: RL_INTEGRATION.md)
+
+* **CAM 2.0 + frozen Qwen3-0.6B** through the CAM 2.0 `EnvironmentAdapter` (each Crucible tool = one CAM tool
+  whose JSON argument the frozen LLM writes under CAM control): 64 steps, 2 PPO updates on a tiny world;
+  162 of 167 CAM tensors changed, frozen-LLM fingerprint unchanged, text log-prob replay mismatch 0 with
+  `prefix_replay_correction=True`; 17 % of calls accepted, 0 % invalid JSON, 70 % rejected by Crucible's schema
+  validation (`invalid_action`: the untrained CAM's control vectors make the LLM add stray keys). Task success 0.
+* **AGENTRS superlearner**: sl's reward audit (random / stall / terminate probes) passes on three Crucible
+  families; no sl training run was made.
+* **Frozen Qwen3-1.7B** (48 decisions per goal, two goals): progress 0; it repeats one rejected call.
+* **Recurrent A2C over factored primitive tool calls** (start state: a deployed service; 3 seeds; random and idle
+  controls): no learning with all 133 tools; with 50 operational tools in fork episodes, revenue rose from
+  $194/week (first 10 weeks) to $429/week (last 20 of 100) and beat its frozen initial network and random on every
+  seed (+$143 … +$605/week) — by learning to avoid destructive tools — but stayed below doing nothing ($496/week).
+  The positive condition was found after four failed designs and has not been replicated on fresh seeds.
+
+**Bottom line.** The environment is consistent, solvable in several ways, exploit-resistant to the probes run,
+reproducible and fast; none of the learners connected so far improves on simple scripted controls or on doing
+nothing. That is the honest starting point for the research program, not a superlearner result.
