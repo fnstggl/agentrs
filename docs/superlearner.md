@@ -1090,6 +1090,29 @@ the long smokes run later. H18's eight runs go after `P_NPV_s2` and `P_NPB_s2`, 
 No running job is touched; new launches were held with `runs/sl/QUEUE_STOP` from 02:15 UTC until the restart so that
 no smoke test was in flight.
 
+### H17a result, 2026-11-20 04:00 UTC (mechanical verdict, `scripts/sl_report.py` section 0)
+The four rescue runs continued `T_B17_fromNbankrh_s4`'s final weights (negotiation 0.000, all-ASK) for 100k
+interactions. Negotiation validation success per milestone (0 / 25k / 50k / 100k) and, from training logs, the first
+training successes:
+
+| run | negotiation | mean anchor KL | training negotiation successes |
+|---|---|---|---|
+| anchor s1 | 0.000 / 0.062 / 0.000 / 0.000 | 2.96 (2.3-6.0 throughout) | 1 in 100k |
+| anchor s2 | 0.000 / 0.451 / 0.646 / 0.667 | 0.69 (2.5 → 0.02) | from 28k on |
+| control s1 | 0.000 / 0.000 / 0.007 / 0.611 | – | first at 77k, then 37 of 78 at 86k |
+| control s2 | 0.000 / 0.000 / 0.007 / 0.000 | – | none |
+
+- **H17a (rescue): neither confirmed nor disproved (mixed).** Anchor 0.000 and 0.667; control 0.611 and 0.000.
+- **The premise "on-policy rehearsal cannot recover" is wrong.** Control seed 1 recovered without any anchor: one chance
+  success at 77k gave the advantage signal and the policy came back within about 10k interactions. Recovery is a
+  matter of whether a success is sampled, in both arms.
+- **β = 0.05 does not reliably engage the anchor.** In anchor seed 2 the KL to the source fell from 2.5 to 0.02 as
+  negotiation came back; in seed 1 it stayed at 2.3-6.0 for the whole run. With the policy all-ASK and the source 83%
+  ASK, little of that KL sits on the action-type choice that matters; most of it is in the argument slots.
+- Bizdev at 100k is similar in all four (score 0.70-0.75).
+- H17b (prevention, seeds 1-4) is still running and is reported as pre-registered. With n = 2 per arm, H17a cannot
+  separate the anchor from chance; no stronger anchor is proposed on this evidence.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
