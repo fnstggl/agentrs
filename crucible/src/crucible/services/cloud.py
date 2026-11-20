@@ -163,7 +163,7 @@ class Cloud(Module):
                 hook(ctx, dep["host"], payer, price)
         return res
 
-    def execute(self, ctx: Ctx, dep_id: str, ep: str, args, caller, work_scale: float) -> dict:
+    def execute(self, ctx: Ctx, dep_id: str, ep: str, args, caller, work_scale: float, post=None) -> dict:
         """Run one request (no payment). Enforces capacity using the deployment's running CU estimate."""
         st = ctx.state
         dep = st.get("deployments", dep_id)
@@ -172,11 +172,11 @@ class Cloud(Module):
         used = inst["used_cu"] if inst["hour"] == hour else 0.0
         cap = inst["cores"] * CU_PER_CORE_HOUR
         est = dep["cu_est"] * (work_scale / max(1e-9, dep["ws_est"])) if dep["ws_est"] else 0.0
-        if used + est > cap:
+        if used > 0 and used + est > cap:     # the first request of an hour is always attempted
             self._usage(ctx, dep_id, 0, 0.0, 0.0, "overload", 0)
             return {"status": 503, "error": "service overloaded (instance capacity exhausted this hour)"}
         spec = dep["manifest"]["endpoints"][ep]
-        out = self._run(ctx, dep_id, dep, spec["handler"], args, caller)
+        out = self._run(ctx, dep_id, dep, spec["handler"], args, caller, post)
         cu = out["cpu_ms"] * work_scale
         status = 200 if out["ok"] else 500
         err = None if out["ok"] else (out["error"] or {}).get("message", "error")
@@ -185,14 +185,14 @@ class Cloud(Module):
             return {"status": 200, "body": out["result"], "cpu_ms": out["cpu_ms"]}
         return {"status": 500, "error": err, "cpu_ms": out["cpu_ms"]}
 
-    def _run(self, ctx: Ctx, dep_id: str, dep, handler: str, args, caller) -> dict:
+    def _run(self, ctx: Ctx, dep_id: str, dep, handler: str, args, caller, post=None) -> dict:
         from ..sandbox.bridge import run_in_ctx, run_trusted_in_ctx
         entry = dep["manifest"]["entry"]
         mod = entry[:-3] if entry.endswith(".py") else entry
         mod = mod.replace("/", ".")
         if dep["trusted"]:
             fn = self._trusted_fn(ctx, dep_id, dep, mod, handler)
-            return run_trusted_in_ctx(ctx, "cloud.req", fn, args, caller, dep["svc"])
+            return run_trusted_in_ctx(ctx, "cloud.req", fn, args, caller, dep["svc"], post=post)
         code = ctx.world.modules["code"]
         pool = code.sandbox_pool(ctx.world)
         key = f"{ctx.world.world_id}|{dep_id}|{dep['commit']}"
@@ -201,7 +201,7 @@ class Cloud(Module):
             return pool.get(key, lambda: self._files(ctx, dep))
         return run_in_ctx(ctx, "cloud.req", worker, {"kind": "call", "target": f"{mod}:{handler}", "args": args,
                                                      "caller": caller}, dep["svc"],
-                          timeout=float(self.p("request_timeout_s", 5.0)))
+                          timeout=float(self.p("request_timeout_s", 5.0)), post=post)
 
     def _files(self, ctx, dep) -> dict:
         code = ctx.world.modules["code"]

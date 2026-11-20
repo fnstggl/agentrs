@@ -248,9 +248,10 @@ class Consumers(Module):
         qs, cpus, ok, err, over = [], [], 0, 0, 0
         for _ in range(n):
             inp, hidden = need.generate(rng, float(rng.uniform(*self.cfg["size"])))
-            res = cloud.execute(ctx, dep_id, o["endpoint"], inp, "households", need.work_scale)
+            res = cloud.execute(ctx, dep_id, o["endpoint"], inp, "households", need.work_scale,
+                                post=lambda body, inp=inp, hidden=hidden: {"q": float(need.score(inp, hidden, body))})
             if res["status"] == 200:
-                q = need.score(inp, hidden, res["body"])
+                q = float((res["body"] or {}).get("q", 0.0)) if isinstance(res["body"], dict) else 0.0
                 qs.append(q)
                 cpus.append(res.get("cpu_ms", 0.0))
                 ok += 1

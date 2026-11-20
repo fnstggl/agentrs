@@ -197,10 +197,10 @@ class Jobs(Module):
         code = ctx.world.modules["code"]
         rng = ctx.world.rng_for("bounty-tests", bounty)   # hidden, fixed per bounty
         k = int(ctx.world.spec.params.get("bounty_tests", 5))
+        cases = [nd.generate(rng, float(rng.uniform(0.3, 1.0))) for _ in range(k)]
+        outs = code.run_batch(ctx, repo, ref, target, [c[0] for c in cases], ctx.actor, timeout=10, world_access=False)
         scores, cpu = [], 0.0
-        for i in range(k):
-            inp, hidden = nd.generate(rng, float(rng.uniform(0.3, 1.0)))
-            out = code.run_program(ctx, repo, ref, target, inp, ctx.actor, timeout=10, world_access=False)
+        for (inp, hidden), out in zip(cases, outs):
             cpu += out["cpu_ms"]
             scores.append(nd.score(inp, hidden, out["result"]) if out["ok"] else 0.0)
         code.charge_compute(ctx, ctx.actor, cpu, f"bounty {bounty}")

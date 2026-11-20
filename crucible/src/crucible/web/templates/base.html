@@ -30,7 +30,7 @@
   {%- if result.ok %}
   <div class="flash ok" role="status" id="result">
     <p><strong>Done:</strong> <code>{{ result.tool }}</code> succeeded{% if result.summary %} &mdash; {{ result.summary }}{% endif %}.</p>
-    {%- if result.items %}<dl class="kv">{% for k, v in result.items %}<dt>{{ k }}</dt><dd>{{ m.cell(v) }}</dd>{% endfor %}</dl>{% endif %}
+    {%- if result.pairs %}<dl class="kv">{% for k, v in result.pairs %}<dt>{{ k }}</dt><dd>{{ m.cell(v) }}</dd>{% endfor %}</dl>{% endif %}
   </div>
   {%- else %}
   <div class="flash error" role="alert" id="result">

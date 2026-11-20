@@ -1,0 +1,137 @@
+{
+ "machine": {
+  "cpu_count": 48,
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39"
+ },
+ "t": "2026-11-20 22:14:42",
+ "kernel": {
+  "transfers_per_s": 7731.8,
+  "read_cmds_per_s": 19709.2,
+  "events": 66206,
+  "replay_events_per_s": 41814.0,
+  "invariants_ok": true
+ },
+ "sandbox": {
+  "one_shot_program_ms": 90.72,
+  "persistent_call_ms": 0.106
+ },
+ "population": [
+  {
+   "family": "bazaar",
+   "consumers": 1000,
+   "create_s": 0.023,
+   "sim_days_per_wall_s": 1.216,
+   "wall_s_per_sim_day": 0.822,
+   "events_per_sim_day": 2198.2,
+   "snapshot_ms": 6.9,
+   "snapshot_mb": 0.09,
+   "fork_ms": 16.7,
+   "digest_ms": 33.7,
+   "fork_equal": true,
+   "rss_mb": 147.8,
+   "principals": 75
+  },
+  {
+   "family": "bazaar",
+   "consumers": 6000,
+   "create_s": 0.017,
+   "sim_days_per_wall_s": 1.031,
+   "wall_s_per_sim_day": 0.97,
+   "events_per_sim_day": 2350.7,
+   "snapshot_ms": 15.4,
+   "snapshot_mb": 0.27,
+   "fork_ms": 22.5,
+   "digest_ms": 29.5,
+   "fork_equal": true,
+   "rss_mb": 147.8,
+   "principals": 75
+  },
+  {
+   "family": "bazaar",
+   "consumers": 25000,
+   "create_s": 0.021,
+   "sim_days_per_wall_s": 1.011,
+   "wall_s_per_sim_day": 0.989,
+   "events_per_sim_day": 2625.6,
+   "snapshot_ms": 40.9,
+   "snapshot_mb": 0.88,
+   "fork_ms": 55.4,
+   "digest_ms": 24.6,
+   "fork_equal": true,
+   "rss_mb": 147.8,
+   "principals": 75
+  },
+  {
+   "family": "bazaar",
+   "consumers": 100000,
+   "create_s": 0.044,
+   "sim_days_per_wall_s": 0.457,
+   "wall_s_per_sim_day": 2.188,
+   "events_per_sim_day": 3416.8,
+   "snapshot_ms": 162.3,
+   "snapshot_mb": 3.41,
+   "fork_ms": 212.3,
+   "digest_ms": 47.1,
+   "fork_equal": true,
+   "rss_mb": 147.8,
+   "principals": 75
+  }
+ ],
+ "npcs": [
+  {
+   "npc_workers": 50,
+   "create_s": 0.02,
+   "wall_s_per_sim_day": 0.321
+  },
+  {
+   "npc_workers": 500,
+   "create_s": 0.08,
+   "wall_s_per_sim_day": 0.357
+  },
+  {
+   "npc_workers": 2000,
+   "create_s": 0.31,
+   "wall_s_per_sim_day": 0.336
+  }
+ ],
+ "agents": {
+  "agents": 3,
+  "agent_steps": 216,
+  "sim_days": 3,
+  "wall_s": 4.14,
+  "ms_per_agent_step_incl_world": 19.15
+ },
+ "replicas": [
+  {
+   "replicas": 1,
+   "wall_s": 1.59,
+   "aggregate_sim_days_per_wall_s": 0.628,
+   "per_replica_wall_s_per_sim_day": 0.919
+  },
+  {
+   "replicas": 2,
+   "wall_s": 1.64,
+   "aggregate_sim_days_per_wall_s": 1.217,
+   "per_replica_wall_s_per_sim_day": 0.917
+  },
+  {
+   "replicas": 4,
+   "wall_s": 1.58,
+   "aggregate_sim_days_per_wall_s": 2.534,
+   "per_replica_wall_s_per_sim_day": 0.746
+  },
+  {
+   "replicas": 8,
+   "wall_s": 1.38,
+   "aggregate_sim_days_per_wall_s": 5.811,
+   "per_replica_wall_s_per_sim_day": 0.641
+  },
+  {
+   "replicas": 16,
+   "wall_s": 2.33,
+   "aggregate_sim_days_per_wall_s": 6.853,
+   "per_replica_wall_s_per_sim_day": 1.023
+  }
+ ]
+}

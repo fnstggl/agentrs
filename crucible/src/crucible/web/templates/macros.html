@@ -33,7 +33,7 @@
 {%- else -%}
 <div class="field">
   <label for="{{ x.id }}">{{ x.label }}{% if x.required %}<span class="req" aria-hidden="true"> *</span>{% endif %}</label>
-  {%- set req = ' required aria-required="true"' if x.required else '' %}
+
   {%- if x.kind == 'textarea' or x.kind == 'json' %}
   <textarea id="{{ x.id }}" name="{{ x.name }}" rows="{{ x.rows }}"{% if x.required %} required aria-required="true"{% endif %}{% if x.help %} aria-describedby="{{ x.id }}-help"{% endif %}{% if x.kind == 'json' %} class="code" spellcheck="false"{% endif %}>{{ x.value }}</textarea>
   {%- elif x.kind == 'select' %}
@@ -83,7 +83,7 @@
 {%- elif s.kind == 'kv' %}
 <section class="card" aria-labelledby="{{ s.id }}-h" id="{{ s.id }}">
   <h2 id="{{ s.id }}-h">{{ s.title }}</h2>
-  <dl class="kv">{% for k, v in s.items %}<dt>{{ k }}</dt><dd>{{ cell(v) }}</dd>{% endfor %}</dl>
+  <dl class="kv">{% for k, v in s.pairs %}<dt>{{ k }}</dt><dd>{{ cell(v) }}</dd>{% endfor %}</dl>
 </section>
 {%- elif s.kind == 'text' %}
 <section class="card" aria-labelledby="{{ s.id }}-h" id="{{ s.id }}">

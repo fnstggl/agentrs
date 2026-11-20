@@ -190,6 +190,36 @@ class Code(Module):
                          world_access=world_access)
         return out
 
+    def run_batch(self, ctx: Ctx, rid: str, ref: str | None, target: str, inputs: list, principal: str,
+                  timeout: float | None = None, world_access: bool = False, warmup: bool = True) -> list[dict]:
+        """Run `target` on several inputs in ONE sandbox worker (after an unrecorded-for-scoring warm-up call, so
+        CPU budgets measure the algorithm rather than process start-up). Each run is recorded."""
+        from ..sandbox.bridge import run_in_ctx
+        from ..sandbox.runner import Worker
+        if not self.can_read(ctx, rid, principal):
+            raise Forbidden(f"no read access to {rid}")
+        files = self.files_with_deps(ctx, rid, ref, principal)
+        pool = self.sandbox_pool(ctx.world)
+        holder: dict = {}
+
+        def worker():
+            if "w" not in holder:
+                holder["w"] = Worker(files, pool.cfg, "batch").start()
+            return holder["w"]
+        outs = []
+        try:
+            seq = ([inputs[0]] if warmup and inputs else []) + list(inputs)
+            for i, inp in enumerate(seq):
+                o = run_in_ctx(ctx, "code.batch", worker, {"kind": "call", "target": target, "args": inp,
+                                                           "caller": principal}, principal, timeout=timeout,
+                               world_access=world_access)
+                if not (warmup and i == 0):
+                    outs.append(o)
+        finally:
+            if "w" in holder:
+                holder["w"].close()
+        return outs
+
     # ------------------------------------------------------------------ endpoints
     @endpoint("create_repo", S.obj({"name": S.s_str(pattern=NAME, maxLength=40),
                                     "owner": S.s_str("org handle (default: you)", maxLength=40),

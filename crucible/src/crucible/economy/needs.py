@@ -93,15 +93,16 @@ register(Need(
 # =========================================================================== route.shortest
 def _gen_sp(rng, size):
     n = int(50 + 100 * size)
-    edges = set()
-    for v in range(1, n):  # spanning tree keeps it connected
-        u = int(rng.integers(0, v))
-        edges.add((u, v))
-    for _ in range(int(2.5 * n)):
-        u, v = int(rng.integers(0, n)), int(rng.integers(0, n))
-        if u != v:
-            edges.add((min(u, v), max(u, v)))
-    E = [[u, v, int(rng.integers(1, 100))] for u, v in sorted(edges)]
+    vs = np.arange(1, n)
+    us = (rng.random(n - 1) * vs).astype(np.int64)          # spanning tree keeps it connected
+    m = int(2.5 * n)
+    a, b = rng.integers(0, n, m), rng.integers(0, n, m)
+    keep = a != b
+    lo = np.concatenate([us, np.minimum(a, b)[keep]])
+    hi = np.concatenate([vs, np.maximum(a, b)[keep]])
+    pairs = np.unique(lo * n + hi)
+    ws = rng.integers(1, 100, len(pairs))
+    E = [[int(p // n), int(p % n), int(w)] for p, w in zip(pairs, ws)]
     s, t = int(rng.integers(0, n)), int(rng.integers(0, n))
     while t == s:
         t = int(rng.integers(0, n))
@@ -295,12 +296,11 @@ def _gen_knap(rng, size):
 
 
 def _knap_opt(items, cap):
-    best = [0] * (cap + 1)
+    best = np.zeros(cap + 1, np.int64)
     for w, v in items:
-        for c in range(cap, w - 1, -1):
-            if best[c - w] + v > best[c]:
-                best[c] = best[c - w] + v
-    return best[cap]
+        if w <= cap:
+            best[w:] = np.maximum(best[w:], best[:cap + 1 - w] + v)
+    return int(best[cap])
 
 
 def _score_knap(inp, hidden, out):
@@ -440,30 +440,34 @@ _AMOUNT = re.compile(r"\$(\d{1,3}(?:,\d{3})*|\d+)(?:\.(\d{2}))?")
 def _gen_text(rng, size):
     words = ["invoice", "please", "send", "payment", "to", "contact", "regarding", "order", "total", "due", "the",
              "supplier", "account", "for", "services", "rendered", "and", "thanks", "balance", "refund"]
+    names, hosts = ["ana", "bo", "cy", "dee", "eli"], ["mail", "shop", "acme"]
+    ewraps = ["{}", "<{}>", "({}),", "{}.", "mailto:{};"]
+    awraps = ["{}", "({})", "{},", "total:{}", "{}."]
     docs, truth = [], []
     for _ in range(int(4 + 8 * size)):
+        k = int(rng.integers(15, 40))
+        r = rng.random(k)
+        wi = rng.integers(0, len(words), k)
+        ints = rng.integers(0, 10_000_000, (k, 4))
         parts, emails, amounts = [], [], []
-        for _ in range(int(rng.integers(15, 40))):
-            r = rng.random()
-            if r < 0.06:
-                e = f"{rng.choice(['ana', 'bo', 'cy', 'dee', 'eli'])}{int(rng.integers(1, 99))}@{rng.choice(['mail', 'shop', 'acme'])}.crucible"
-                wrap = str(rng.choice(["{}", "<{}>", "({}),", "{}.", "mailto:{};"]))
-                parts.append(wrap.format(e))
+        for j in range(k):
+            if r[j] < 0.06:
+                e = f"{names[ints[j, 0] % 5]}{1 + ints[j, 1] % 98}@{hosts[ints[j, 2] % 3]}.crucible"
+                parts.append(ewraps[ints[j, 3] % 5].format(e))
                 emails.append(e)
-            elif r < 0.12:
-                c = int(rng.integers(100, 9_999_999))
-                txt = f"${c // 100:,}.{c % 100:02d}" if rng.random() < 0.7 else f"${c // 100:,}"
-                if not txt.endswith(f".{c % 100:02d}"):
+            elif r[j] < 0.12:
+                c = 100 + int(ints[j, 0]) % 9_999_900
+                if ints[j, 1] % 10 < 7:
+                    txt = f"${c // 100:,}.{c % 100:02d}"
+                else:
                     c = (c // 100) * 100
-                wrap = str(rng.choice(["{}", "({})", "{},", "total:{}", "{}."]))
-                parts.append(wrap.format(txt))
+                    txt = f"${c // 100:,}"
+                parts.append(awraps[ints[j, 2] % 5].format(txt))
                 amounts.append(c)
-            elif r < 0.14:
-                parts.append(f"user{int(rng.integers(1, 99))}@example")  # distractor: not a valid address
-            elif r < 0.15:
-                parts.append(f"{int(rng.integers(10, 999))}USD")  # distractor: not a $ amount
+            elif r[j] < 0.14:
+                parts.append(f"user{1 + ints[j, 0] % 98}@example")  # distractor: not a valid address
             else:
-                parts.append(str(rng.choice(words)))
+                parts.append(words[wi[j]])
         docs.append(" ".join(parts))
         truth.append({"emails": emails, "amounts_cents": amounts})
     return {"documents": docs}, truth

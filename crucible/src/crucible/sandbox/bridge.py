@@ -51,7 +51,8 @@ def _rpc_fn(ctx: Ctx, principal: str, log: list) -> Callable[[str, dict], tuple[
 
 
 def run_in_ctx(ctx: Ctx, kind: str, worker_fn: Callable[[], Worker], job: dict, principal: str,
-               timeout: float | None = None, close_after: bool = False, world_access: bool = True) -> dict:
+               timeout: float | None = None, close_after: bool = False, world_access: bool = True,
+               post: Callable[[Any], Any] | None = None) -> dict:
     """Run `job` on the worker returned by `worker_fn()` with world access as `principal`; record the outcome."""
     slot, rec = ctx.reserve()
     if rec is not None:
@@ -71,12 +72,16 @@ def run_in_ctx(ctx: Ctx, kind: str, worker_fn: Callable[[], Worker], job: dict, 
     cpu = float(res.get("cpu_ms") or 0.0)
     if res.get("work_lines") is not None:      # deterministic cost model: 1 line = LINE_MS of nominal CPU
         cpu = round(res["work_lines"] * LINE_MS, 4)
-    out = {"ok": bool(res.get("ok")), "result": res.get("result"), "error": res.get("error"),
+    result = res.get("result")
+    if post is not None and res.get("ok"):
+        result = post(result)      # e.g. score the output and record only the score
+    out = {"ok": bool(res.get("ok")), "result": result, "error": res.get("error"),
            "stdout": (res.get("stdout") or "")[:4000], "cpu_ms": cpu, "rpcs": log}
     return ctx.fill(slot, kind, out)
 
 
-def run_trusted_in_ctx(ctx: Ctx, kind: str, fn: Callable[..., Any], args: Any, caller: Any, principal: str) -> dict:
+def run_trusted_in_ctx(ctx: Ctx, kind: str, fn: Callable[..., Any], args: Any, caller: Any, principal: str,
+                       post: Callable[[Any], Any] | None = None) -> dict:
     """Same contract for trusted in-process code (built-in incumbents): measured CPU is recorded."""
     import time
     slot, rec = ctx.reserve()
@@ -96,4 +101,6 @@ def run_trusted_in_ctx(ctx: Ctx, kind: str, fn: Callable[..., Any], args: Any, c
     out["cpu_ms"] = round(lines * LINE_MS, 4) if deterministic else round((time.process_time() - t0) * 1000.0, 4)
     out["stdout"] = ""
     out["rpcs"] = []
+    if post is not None and out["ok"]:
+        out["result"] = post(out["result"])
     return ctx.fill(slot, kind, out)

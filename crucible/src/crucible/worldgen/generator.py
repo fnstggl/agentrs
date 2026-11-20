@@ -76,8 +76,10 @@ def _recipe(rng, *, needs, n_consumers, firms_per_need, tier_range, firm_cash, p
                                      "rd_days": int(rng.integers(5, 20)), "outsource": bool(rng.random() < 0.7)}})
     bounty_cfg = []
     for f in firms[:bounties]:
+        # where quality saturates (sorting), the firm also wants speed: a CPU budget per request
         bounty_cfg.append({"poster": f["handle"], "need": f["need"], "reward": int(rng.integers(100_000, 400_000)),
-                           "min_q": 0.97, "deadline_days": 60})
+                           "min_q": 0.97, "deadline_days": 60,
+                           "max_cpu_ms": 1.0 if f["need"] == "sort.records" else None})
     lend = [{"handle": f"bank{i + 1}", "name": f"Lender {i + 1}", "rate": float(rng.uniform(0.01, 0.03)),
              "max": 3_000_000, "cash": 30_000_000} for i in range(lenders)]
     cons = {"n": int(n_consumers), "needs": {n: float(rng.uniform(0.6, 1.4)) for n in needs},
@@ -201,3 +203,46 @@ def generate(config: dict | str, seed: int = 0) -> WorldSpec:
 def describe(name: str) -> dict:
     f = FAMILIES[name]
     return {"family": name, "split": f.split, "doc": f.doc}
+
+
+# ---------------------------------------------------------------------------- engineering lab (non-economic worlds)
+# A computational engineering laboratory (crucible/worlds/engineering_lab.py): improve the routing controller of a
+# production network; ground truth is executed flow physics on a hidden traffic process. Own module list (no
+# economy modules); the build result carries it as "module_list".
+LAB_MODULES = ["identity", "bank", "admin", "code", "search", "forum", "mail", "docs", "lab"]
+
+
+def _lab_recipe(o, *, lab, params=None):
+    cfg = dict(lab)
+    cfg["engineer_seat"] = o.get("engineer_seat", "eng")
+    cfg["operator"] = dict(o.get("operator", {"handle": "netops", "name": "NetOps", "lead": "netops-lead",
+                                              "cash": 5_000_000}))
+    for k in ("n_nodes", "n_demands", "shocks", "peak_util"):
+        if k in o:
+            cfg[k] = o[k]
+    p = {"max_actions_per_hour": 240, "free_cpu_ms_per_day": 2_000, "dev_compute_cents_per_cpu_s": 20.0,
+         "mail_latency_s": 60}
+    p.update(params or {})
+    return {"modules": {"lab": cfg}, "params": p, "module_list": list(LAB_MODULES)}
+
+
+@family("engineering_lab", "train",
+        "Engineering lab: improve the routing controller of a moderate grid-with-express-links network under "
+        "gravity traffic with one diurnal peak, hotspots and slow drift; measured by executed flow physics.")
+def f_engineering_lab(rng, o):
+    return _lab_recipe(o, lab={"topology": "grid", "traffic": "gravity", "n_nodes": int(rng.integers(14, 21)),
+                               "shortcuts": int(rng.integers(2, 5)), "n_demands": int(rng.integers(30, 46)),
+                               "hotspots": int(rng.integers(1, 3)), "hotspot_mult": [2.5, 4.0],
+                               "peak_util": round(float(rng.uniform(1.0, 1.15)), 3), "drift_sigma": 0.06,
+                               "shock_p": 0.1, "sla_factor": 1.2})
+
+
+@family("engineering_lab_heldout", "test",
+        "Held-out engineering lab: larger scale-free network, datacenter-hub traffic with two daily peaks, "
+        "stronger flash-crowd hotspots and more frequent shocks (topology and traffic generators unseen in train).")
+def f_engineering_lab_heldout(rng, o):
+    return _lab_recipe(o, lab={"topology": "scale_free", "traffic": "hub", "n_nodes": int(rng.integers(28, 41)),
+                               "ba_m": 2, "n_hubs": int(rng.integers(2, 4)), "n_demands": int(rng.integers(60, 81)),
+                               "hotspots": 2, "hotspot_mult": [3.0, 6.0],
+                               "peak_util": round(float(rng.uniform(1.05, 1.25)), 3), "drift_sigma": 0.1,
+                               "shock_p": 0.2, "sla_factor": 1.2})

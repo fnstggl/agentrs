@@ -199,8 +199,8 @@ sys.modules["crucible_sdk"] = sdk
 
 
 def _cpu_ms() -> float:
-    r = resource.getrusage(resource.RUSAGE_SELF)
-    return (r.ru_utime + r.ru_stime) * 1000.0
+    # CLOCK_PROCESS_CPUTIME_ID (ns resolution); getrusage is tick-granular on many kernels
+    return time.process_time() * 1000.0
 
 
 def _resolve(spec: str):
