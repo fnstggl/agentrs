@@ -910,6 +910,50 @@ Corrected 00:19 UTC, before any of these jobs started: the ablation transfers we
 Each of their pre-start smoke tests takes about 37 min (Vending monitors) and blocks the queue loop, so slots would sit
 idle. Only the order changed, not any configuration. No running job is touched.
 
+### H14 result, 2026-11-20 01:45 UTC (mechanical verdicts, `scripts/sl_report.py` section 0)
+All six v16 runs finished at 300k (00:59 to 01:38 UTC). Bizdev validation score, normalised AUC per window; all arms
+have fresh action heads (`init_reset` of `query.`, `slot.`, `hi.`, `term.`) and the same familiarity gate.
+
+| seed | scratch 0-50k / 50-300k / 0-300k | fromNhr 0-50k / 50-300k / 0-300k | fromNPhr 0-50k / 50-300k / 0-300k |
+|---|---|---|---|
+| 3 | 0.277 / 0.592 / 0.540 | 0.302 / 0.585 / 0.538 | 0.326 / 0.557 / 0.518 |
+| 4 | 0.276 / 0.596 / 0.542 | 0.342 / 0.558 / 0.522 | 0.328 / 0.583 / 0.541 |
+
+- **H14a (experience speeds early learning): CONFIRMED.** fromNPhr − scratch over 0-50k is +0.049 and +0.052 on the
+  new seeds (mean +0.050; bar ≥ +0.03, positive in both). Seeds 1-2, which suggested the hypothesis, gave +0.073 and
+  +0.074. Concretely: the experienced agent reaches at 25k the validation score scratch reaches at 50k (0.34-0.37).
+- **H14b (broader experience speeds it more): neither confirmed nor disproved (mixed).** fromNPhr − fromNhr over 0-50k
+  is +0.025 and −0.015 (mean +0.005). On the new seeds the two-world source is not reliably better early than the
+  negotiation-only source.
+
+**The late deficit replicates against independent scratch seeds** (exploratory window, reported by the pre-registered
+test but not itself a criterion). 50k-300k minus same-seed scratch:
+- fromNhr: −0.003, −0.120, −0.007, −0.038 (seeds 1-4);
+- fromNPhr: −0.026, −0.032, −0.035, −0.013.
+- All eight fresh-head pairs are negative, including the four against the new scratch runs, so the late deficit was not
+  an artifact of reusing two scratch runs. It is small (fromNPhr mean −0.027) and scratch overtakes by about 100k.
+- Net over 0-300k: fromNPhr −0.010, −0.014, −0.021, −0.002 (mean −0.012); fromNhr +0.004, −0.092, −0.002, −0.021
+  (mean −0.028).
+
+**What this settles for "does experience help?"** On bizdev, with fresh heads, experience in other CAM worlds is a
+reliable head start worth about 25k interactions in the first 50k, and no gain over a 300k budget: scratch catches up
+by about 100k and ends slightly ahead. Breadth (two source worlds instead of one) adds nothing measurable early.
+
+**Exploratory, from training logs (seeds 1-4, transferred arm / scratch).** In 50k-300k the transferred runs' PPO
+updates move the policy further than scratch's at a similar entropy: per-update KL 1.16-1.49× and clip fraction
+1.22-1.48×, entropy 0.92-1.02×, value loss 0.82-1.11×. Larger steps that are clipped more often are one candidate
+for the late deficit; an offline test on identical data is running.
+
+**Memory ablation transfers (n = 1 each, seed 1; not a pre-registered test).** Bizdev 0-300k AUC from the N+P+V
+ablation lifetimes, against `T_B11_scratch_s1` (0.515):
+- full memory (`T_B11_fromNPV_s1`): 0.541 (+0.026);
+- no cross-episode memory (`fromNPVepisode`): 0.530 (+0.015), the highest score at 300k (0.806);
+- no external memory, GRU only (`fromNPVgru`): 0.312 (−0.203).
+- The GRU run never found the reward-producing behaviour the others found at about 150k (its value loss stayed at
+  0.001-0.004 while the episode run's rose to 0.14-0.19). It peaked at 0.507 at 200k and drifted back to 0.113 at
+  300k; its final bizdev validation return (−0.806) equals the do-nothing policy's (−0.800).
+- One seed per arm cannot separate the memory variants from seed noise; the GRU run's failure is one run.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
