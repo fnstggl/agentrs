@@ -1174,8 +1174,8 @@ world-model loss on (0.5), so the arms differ only in how the source lifetime wa
 | no external memory (GRU) | 0.312 (−0.203) | 0.171 | 0.340 | 0.113 | 0.068 | 0.010 | 2.53 → 2.05 |
 | no world-model loss | 0.163 (−0.352) | 0.270 | 0.142 | 0.074 | 0.036 | 0.0045 | 2.94 → 2.22 |
 
-- **The outcomes are bimodal, not graded.** Five runs found the reward-producing behaviour (value loss rises to
-  0.20-0.23 after about 150k, as in scratch) and end at 0.755-0.806, at or above scratch's 0.704. Two never found it:
+- **The outcomes are bimodal, not graded.** Four experienced runs found the reward-producing behaviour (value loss rises to
+  0.20-0.23 after about 150k, as in scratch) and end at 0.755-0.806, above scratch's 0.704. Two never found it:
   their value loss stays at 0.001-0.010, their training score peaks at 0.50 and 0.29, and they end below where they
   started (no world-model loss: 0.250 at 0k, 0.074 at 300k).
 - **Lower exploration does not predict which runs fail.** Every experienced arm explores less than scratch
