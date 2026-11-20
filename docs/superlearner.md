@@ -776,6 +776,55 @@ sl-exp-mp, the same configuration as P_MP6.
 - **Power.** Single milestones move by up to 10 points, and the closed score falls late in training in both existing
   arms. With n = 3, a mixed result is likely unless the effect is large.
 
+### H13 result, 2026-11-20 00:10 UTC (mechanical verdicts, `scripts/sl_report.py` section 0)
+All four v17 runs finished at 300k (23:43 to 00:00 UTC). Negotiation is validation success; bizdev is the
+0-300k learning AUC of validation score, paired by seed against `T_B16_scratch`.
+
+| run | heads | negotiation 0k → 300k | bizdev Δ vs scratch | entropy / scratch |
+|---|---|---|---|---|
+| T_B17_fromNbank s1 / s2 | bizdev own | 0.667 → 0.188 / 0.674 → 0.354 | −0.036 / −0.018 | 0.994 / 0.991 |
+| T_B16_fromN s1 / s2 (reference) | shared | → 0.097 / → 0.153 | −0.058 / −0.216 | 0.745 / 0.652 |
+| T_B17_fromNbankrh s1 / s2 | bizdev own | → 0.639 / → 0.618 | −0.052 / −0.048 | 0.877 / 0.919 |
+| T_B16_fromNrh s1 / s2 (reference) | shared | → 0.562 / → 0.479 | −0.248 / −0.348 | 0.695 / 0.696 |
+
+- **H13a (own heads alone stop forgetting): neither confirmed nor disproved (mixed).** Negotiation ends at 0.188 and
+  0.354, between the ≤ 0.20 and ≥ 0.40 bars. The mechanism check passed (entropy ≥ 0.99 of scratch).
+  - **Where the remaining forgetting lives.** In `T_B17_fromNbank_s1`, the shared heads that negotiation uses are
+    bit-for-bit unchanged after 300k (relative parameter drift from the source 0.000 for `hi.`, `term.`, `query.`,
+    `slot.`). Negotiation still fell from 0.67 to 0.10 by 50k. The forgetting without rehearsal therefore lives in the
+    shared core whose output those heads read. Relative drift: belief GRU 0.17, memory projections 0.18–0.37,
+    action-embedding MLP 0.16, value 0.16.
+- **H13b (own heads + 10% rehearsal keep negotiation without costing bizdev): CONFIRMED, exactly at the bar.**
+  - Mean bizdev ΔAUC is −0.0499 against the ≥ −0.05 criterion, a margin of 0.0001. Negotiation is kept at 0.639 and
+    0.618 (source 0.667).
+  - With shared heads, the same rehearsal cost −0.298 on average and kept negotiation at 0.56 and 0.48.
+  - Read as: within 0.05 of scratch on the new world while keeping the old one, not "equal to scratch". The two scratch
+    seeds differ by 0.068.
+- **What this settles.** Per-world action heads with 10% rehearsal are the first configuration here that learns a new
+  CAM world at about scratch speed and keeps the old one.
+  - H11's failure (rehearsal stalls bizdev at inaction) came from the shared heads.
+  - Forgetting without rehearsal comes from the shared core.
+  - There is still no positive transfer over the full 0-300k window.
+
+**Exploratory, not pre-registered (from training logs).**
+- **Early lead and late deficit.** 0-50k early AUC minus scratch:
+  - fromNbank: +0.071 / +0.027;
+  - fromNbankrh: +0.028 / −0.016.
+  - Every fresh-head transfer so far (fromNhr, fromNPhr, fromNbank; six pairs) trails scratch over 50k-300k, by
+    0.004 to 0.12. H14's seeds 3-4 report this window.
+- **World-model knowledge transfers, but the policy does not use it.** Mean world-model loss over the first 12
+  iterations on bizdev:
+  - scratch: 0.35–0.55;
+  - sources that include product (fromNP, fromNPhr, fromNPV at 250k, 500k or 1M): 0.03–0.25;
+  - negotiation-only sources: 0.37–0.56, and 2.5–4.9 at iteration 1 against scratch's 1.2.
+  - So product experience predicts bizdev transitions from the start, and negotiation experience does not.
+  - Yet `T_B16_fromNP` (shared heads) had the largest bizdev deficit (−0.21 with the gate), and fromNPhr is only about
+    scratch.
+  - In this architecture the world model is an auxiliary loss on the shared representation. No policy or value
+    computation reads its predictions: no imagination, planning or uncertainty bonus.
+  - **Caveat, not yet checked:** a lower loss could partly reflect lower-variance perception targets in the transferred
+    encoder. A variance-normalised check is next.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
