@@ -165,7 +165,7 @@ Importing the module registers `crucible/<goal family>` for every non-held-out g
 
 ## 6. Neural RL learner without an LLM (`agents/rl.py`)
 
-* **Policy** `FactoredPolicy` (≈0.6 M parameters): hashed observation features (512) -> tanh MLP -> GRUCell(128),
+* **Policy** `FactoredPolicy` (764 k parameters, 524 k of them the hashed-token embedding table): hashed observation features (512) -> tanh MLP -> GRUCell(128),
   whose state is carried through the agent's lifetime (reset per episode in fork mode); the previous action's
   embedding is fed back. Tools and slot options are embedded by an `EmbeddingBag` over hashed tokens (tool name, host,
   endpoint words, read-only flag; option source, kind, lexical id kind, value) plus 4 numeric option features, and
@@ -189,8 +189,8 @@ Importing the module registers `crucible/<goal family>` for every non-held-out g
 Goal `revenue`, world family `tiny`, level 1 (`generate_goal("revenue", "tiny", seed, 1)`: "Earn at least $10,000 of
 independent revenue over a 30-day window, held for 3 consecutive daily checks, within 45 days"; the progress potential
 is the verified 30-day independent revenue / $10,000, so it does not saturate at this world's scale and reflects the
-current revenue rate). Start state: the `deployed_service` prefix with `price_mult = 4` (listing at 16, 20 and 8 cents
-for seeds 0, 1, 2; rivals at 4, 5 and 2 cents). One decision per simulated hour, episodes of 168 decisions (one week).
+current revenue rate). Start state: the `deployed_service` prefix, listing either at `price_mult = 4` x the cheapest
+rival (16, 20 and 8 cents for seeds 0, 1, 2) or at the rival's price (`price_mult = 1`: 4, 5 and 2 cents). One decision per simulated hour, episodes of 168 decisions (one week).
 Seeds 0, 1, 2 change both the world (population, rivals, prices) and the learner's initialisation. Reported metric:
 the verified independent revenue of the agent's company over the 7 days before each episode end (dollars), and the
 episode return under the reward contract. The learner is compared with the random and idle controls on the same
@@ -202,8 +202,8 @@ designed in sequence, each in response to the previous one's measured failure):
 | Run set | Lifetime | Tools available | Start price | Company capital | Learner settings | Planned / compared |
 |---|---|---|---|---|---|---|
 | v1 fork | fork of the start state per episode | all 133 | 4x rival | $4,000 | logit scale 1/8, entropy 0.01, lr 5e-4, running reward normalisation | 200 / {{V1_N}} weeks |
-| v1 persistent | one world | all 133 | 4x rival | $4,000 | as v1 | stopped after 12-24 weeks |
-| v2 persistent | one world | all 133 | 4x rival | $27,000 | as v1 | stopped after 17-37 weeks |
+| v1 persistent | one world | all 133 | 4x rival | $4,000 | as v1 | stopped after 43-90 weeks |
+| v2 persistent | one world | all 133 | 4x rival | $27,000 | as v1 | stopped after 17-39 weeks |
 | v3 fork / persistent | as above | 50 operations tools | 4x rival | $27,000 | lr 1e-3, fixed reward scale 300 | 200 / {{V3_N}} weeks (fork), 15 weeks (persistent) |
 | v4 / v5 fork | fork | 50 operations tools | at the cheapest rival's price | $27,000 | v5 learner: logit scale 1, entropy 0.003, lr 1e-3, reward scale 300; v4: random and idle controls | 100 / {{V5_N}} weeks |
 | v5 frozen | fork | as v4 | as v4 | $27,000 | the v5 network with lr = 0 (same initialisation and sampling seeds, never updated) | 100 / {{V5_N}} weeks |

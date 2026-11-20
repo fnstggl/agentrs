@@ -154,3 +154,25 @@ noise.
 Self-play league (2 simulated days, both seatings, paired worlds): Builder(undercut 0.9, with ads) beat
 Builder(undercut 0.6, no ads) 2–0; mean revenue $102.90 vs $36.15, customers 177 vs 84, market share 50 % vs 24 %;
 Elo 1023 vs 977. See SELF_PLAY.md.
+
+## 9. A general-purpose frozen-LLM agent with a broad objective (`examples/demo_llm_lifetime.py`)
+
+Qwen3-4B (frozen, local, greedy), family `bazaar` seed 11, one decision per simulated hour for 5 simulated days
+(120 decisions), endowment $30,000, objective given verbatim and nothing else: *"Establish and maintain a
+sustainable source of value in this digital economy."* Raw records: `docs/experiments/demo_llm_lifetime.json`
+(+ `.jsonl` trajectory with every action and result).
+
+| measure | value |
+|---|---|
+| tool calls / waits / unparseable | 105 / 15 / 0 |
+| accepted calls | 103 (1 `unknown_tool`, 1 `invalid_action`) |
+| distinct tools used | 4 — `market.browse` ×96, `bank.balance` ×6, `bank.accounts` ×2, `market.listing_update` ×1 (a hallucinated tool named after an event type it saw) |
+| organisations / repositories / deployments created | 0 / 0 / 0 |
+| cash at end | unchanged ($30,000) |
+| prompt / generated tokens | 433,938 / 3,253 (≈3.6k prompt tokens per decision); 292 s generation |
+| world integrity | invariants empty; replay digest-equal |
+
+The world worked; the agent did not. Unlike Qwen3-1.7B (RL_INTEGRATION.md: degenerate repetition of rejected
+calls), the 4B model produced valid calls but stayed in passive information gathering — it never founded a
+company, wrote code or offered anything. This is the expected starting point for experience-driven learning and
+a concrete baseline for CAM-style controllers; it is not a statement about larger models or better prompting.
