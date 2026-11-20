@@ -55,6 +55,10 @@ class TrainSampler:
             self.ids = appworld_ids("train")
         elif env == "fixture":  # unit-test fixture only
             self.families = list(families or ["press:3", "type"])
+        elif env == "crucible":  # Crucible goal instances "<goal>:<world family>:<level>" (envs/crucible_env.py)
+            from agentrs.cam2.envs.crucible_env import DEFAULT_TRAIN_FAMILIES
+
+            self.families = list(families or DEFAULT_TRAIN_FAMILIES)
         self.weights = weights
 
     def __call__(self) -> TaskRef:
@@ -67,6 +71,10 @@ class TrainSampler:
             return TaskRef("appworld", tid.rsplit("_", 1)[0], 0, tid)
         if self.env == "fixture":
             return TaskRef("fixture", self.rng.choice(self.families), self.rng.randrange(0, 10_000))
+        if self.env == "crucible":
+            from agentrs.cam2.envs.crucible_env import SEED_RANGES as CR
+
+            return TaskRef("crucible", self.rng.choice(self.families), self.rng.randrange(*CR["train"]))
         raise ValueError(self.env)
 
 
@@ -82,6 +90,10 @@ def val_tasks(env: str, per_family: int = 8, families: Optional[list] = None, in
         out = [TaskRef("appworld", t.rsplit("_", 1)[0], 0, t) for t in appworld_ids("val")]
     elif env == "fixture":
         out = [TaskRef("fixture", f, 50_000 + i) for f in (families or ["press:3", "type"]) for i in range(per_family)]
+    elif env == "crucible":
+        from agentrs.cam2.envs.crucible_env import DEFAULT_VAL_FAMILIES, SEED_RANGES as CR
+
+        out = [TaskRef("crucible", f, CR["val"][0] + i) for f in (families or DEFAULT_VAL_FAMILIES) for i in range(per_family)]
     else:
         raise ValueError(env)
     return out[:limit] if limit else out

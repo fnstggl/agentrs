@@ -19,24 +19,41 @@ from .runner import Worker
 
 LINE_MS = 0.001   # nominal CPU milliseconds per executed Python line in the deterministic cost model
 _LN = [0]
-_MON_READY = [False]
+_TOOL = [None]
+_OWNER = [None]
+_TOOL_NAME = "crucible-trusted-work"
 
 
 def _lines_on():
+    """Count executed Python lines with a sys.monitoring tool id we own (never a reserved id: 0 debugger,
+    1 coverage, 2 profiler, 5 optimizer - torch and others use those)."""
     import sys
     mon = sys.monitoring
-    if not _MON_READY[0]:
-        if mon.get_tool(5) is None:
-            mon.use_tool_id(5, "crucible-trusted-work")
-        mon.register_callback(5, mon.events.LINE, lambda code, line: _LN.__setitem__(0, _LN[0] + 1))
-        _MON_READY[0] = True
+    tid = _TOOL[0]
+    if tid is None or mon.get_tool(tid) != _TOOL_NAME:
+        tid = next((i for i in (3, 4) if mon.get_tool(i) in (None, _TOOL_NAME)), None)
+        if tid is None:
+            raise RuntimeError("no free sys.monitoring tool id for deterministic work accounting")
+        if mon.get_tool(tid) is None:
+            mon.use_tool_id(tid, _TOOL_NAME)
+        import threading
+
+        def on_line(code, line, _get=threading.get_ident):
+            # events are process-global: count only the measuring thread (background threads such as tqdm's
+            # monitor or a web server would otherwise make the count nondeterministic)
+            if _get() == _OWNER[0]:
+                _LN[0] += 1
+        mon.register_callback(tid, mon.events.LINE, on_line)
+        _TOOL[0] = tid
+    import threading
+    _OWNER[0] = threading.get_ident()
     _LN[0] = 0
-    mon.set_events(5, mon.events.LINE)
+    mon.set_events(tid, mon.events.LINE)
 
 
 def _lines_off() -> int:
     import sys
-    sys.monitoring.set_events(5, 0)
+    sys.monitoring.set_events(_TOOL[0], 0)
     return _LN[0]
 
 

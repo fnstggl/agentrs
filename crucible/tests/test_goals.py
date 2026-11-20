@@ -26,7 +26,10 @@ def tiny_world(seed=1, **ov):
 
 def test_generated_goals_valid_and_distinct():
     gs = goal_suite("train", n_per=1, levels=(0, 2))
-    assert len(gs) == len(GOAL_FAMILIES) * len(families("train")) * 2
+    from crucible.goals.contracts import is_economic
+    econ = [f for f in families("train") if is_economic(f)]
+    assert "engineering_lab" not in econ and len(econ) >= 3
+    assert len(gs) == len(GOAL_FAMILIES) * len(econ) * 2
     assert all(not g.validate() for g in gs)
     assert len({g.id for g in gs}) == len(gs)
     a = generate_goal("revenue", "bazaar", 1, 0)

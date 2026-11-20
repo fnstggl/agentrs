@@ -617,9 +617,14 @@ def report(groups: dict, out_json: str, out_png: str | None = None, last: int = 
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         n = len(groups)
-        fig, axes = plt.subplots(1, n, figsize=(5.2 * n, 3.6), squeeze=False)
-        for ax, (g, G) in zip(axes[0], out["groups"].items()):
+        cols = 2 if n > 2 else n
+        rows = (n + cols - 1) // cols
+        fig, axes = plt.subplots(rows, cols, figsize=(5.6 * cols, 3.5 * rows), squeeze=False)
+        for ax in axes.flat[n:]:
+            ax.set_visible(False)
+        for ax, (g, G) in zip(axes.flat, out["groups"].items()):
             sm = max(1, min(smooth, G.get("episodes_compared", 1) // 4))
+            ends = []
             for pol in ("a2c", "frozen", "random", "idle"):
                 if pol not in G or not G[pol]["curve_mean"]:
                     continue
@@ -628,23 +633,29 @@ def report(groups: dict, out_json: str, out_png: str | None = None, last: int = 
                 lo = np.convolve(G[pol]["curve_min"], np.ones(sm) / sm, mode="valid")
                 hi = np.convolve(G[pol]["curve_max"], np.ones(sm) / sm, mode="valid")
                 x = np.arange(len(m)) + sm
-                ax.fill_between(x, lo, hi, color=c, alpha=0.12, linewidth=0)
+                ax.fill_between(x, lo, hi, color=c, alpha=0.10, linewidth=0)
                 ax.plot(x, m, color=c, linewidth=2, label=f"{pol} ({G[pol]['seeds']} seeds)")
                 if len(m):
-                    ax.annotate(pol, (x[-1], m[-1]), xytext=(4, 0), textcoords="offset points", fontsize=8,
+                    ends.append((float(m[-1]), pol, float(x[-1])))
+            ymax = ax.get_ylim()[1]
+            placed: list = []
+            for y, pol, xe in sorted(ends, reverse=True):      # direct labels only where they do not collide
+                if all(abs(y - q) > 0.06 * ymax for q in placed):
+                    ax.annotate(pol, (xe, y), xytext=(4, 0), textcoords="offset points", fontsize=8,
                                 color="#52514e", va="center")
-            ax.set_title(g, fontsize=10, color="#0b0b0b")
-            ax.set_xlabel("episode (= 1 simulated week)", fontsize=9, color="#52514e")
-            ax.set_ylabel("independent revenue, last 7 days ($)", fontsize=9, color="#52514e")
+                    placed.append(y)
+            ax.set_title(g, fontsize=9.5, color="#0b0b0b")
+            ax.set_xlabel("episode (= 1 simulated week)", fontsize=8.5, color="#52514e")
+            ax.set_ylabel("independent revenue, last 7 days ($)", fontsize=8.5, color="#52514e")
             ax.grid(True, color="#e6e5e1", linewidth=0.6)
             for sp in ("top", "right"):
                 ax.spines[sp].set_visible(False)
             ax.tick_params(labelsize=8, colors="#52514e")
-            ax.legend(fontsize=8, frameon=False, loc="upper left")
+            ax.legend(fontsize=7.5, frameon=False, loc="upper left")
         fig.suptitle("Crucible revenue:tiny:1 from the deployed-service start state; mean over 3 seeds "
                      "(band: min-max over seeds), moving average", fontsize=9, color="#52514e")
         fig.tight_layout()
-        fig.savefig(out_png, dpi=130)
+        fig.savefig(out_png, dpi=100)
         plt.close(fig)
     return out
 

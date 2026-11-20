@@ -318,11 +318,22 @@ def generate_goal(family: str, world_family: str, seed: int, level: int, split: 
     raise last
 
 
+_ECON: dict[str, bool] = {}
+
+
+def is_economic(world_family: str) -> bool:
+    """World families that contain the economy (the `civ` society); economic goals only make sense there."""
+    if world_family not in _ECON:
+        from ..worldgen import generate
+        _ECON[world_family] = any(m["name"] == "civ" for m in generate({"family": world_family}, 0).modules)
+    return _ECON[world_family]
+
+
 def goal_suite(split: str, n_per: int = 2, levels=(0, 1), families=None, world_families=None, seed0: int = 0) -> list[GoalContract]:
     from ..worldgen.generator import families as wfams
     out = []
     for gf in sorted(families or GOAL_FAMILIES):
-        for wf in sorted(world_families or wfams(split)):
+        for wf in sorted(w for w in (world_families or wfams(split)) if is_economic(w)):
             for lvl in levels:
                 for i in range(n_per):
                     out.append(generate_goal(gf, wf, seed0 + 1000 * i + lvl, lvl, split))

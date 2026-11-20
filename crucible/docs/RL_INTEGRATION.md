@@ -161,7 +161,24 @@ Importing the module registers `crucible/<goal family>` for every non-held-out g
   probe; restore-then-repeat reproduces the world digest exactly, tested).
 
 `reward_audit` (sl's adversarial reward-contract audit: random / stall / terminate probes; 12 episodes each, cap 48):
-{{SL_RESULTS}}
+| Family | Probe | Mean return | Success | Steps | Ended within cap | Shaping telescoping error | Passed |
+|---|---|---|---|---|---|---|---|
+| `crucible/service` | random | -0.0525 | 0% | 48 | 100% | 0e+00 | yes |
+| `crucible/service` | stall | +0.0000 | 0% | 48 | 100% | 0e+00 | yes |
+| `crucible/service` | terminate | -0.0058 | 0% | 48 | 100% | 0e+00 | yes |
+| `crucible/revenue` | random | -0.0500 | 0% | 48 | 100% | 0e+00 | yes |
+| `crucible/revenue` | stall | +0.0000 | 0% | 48 | 100% | 0e+00 | yes |
+| `crucible/revenue` | terminate | -0.0058 | 0% | 48 | 100% | 0e+00 | yes |
+| `crucible/revenue/deployed_service` | random | -0.0329 | 0% | 48 | 100% | 1e-18 | yes |
+| `crucible/revenue/deployed_service` | stall | -0.0002 | 0% | 48 | 100% | 2e-18 | yes |
+| `crucible/revenue/deployed_service` | terminate | -0.0006 | 0% | 48 | 100% | 2e-18 | yes |
+
+All three audited families pass (every episode ends within the cap; the stalling policy earns no positive return; ending
+early never pays; the progress shaping telescopes exactly under the learner's discount). Raw result:
+`runs/crucible_sl/reward_audit.json` (32 min on a shared CPU; the `terminate` probe snapshots and
+restores the world for every first-slot option at every decision). No superlearner *training* run on Crucible was
+made (only the adapter and the audit); the structured action space makes these goals very hard for a policy that
+starts uniform (see section 6).
 
 ## 6. Neural RL learner without an LLM (`agents/rl.py`)
 
@@ -173,10 +190,12 @@ Importing the module registers `crucible/<goal family>` for every non-held-out g
   so new tools need no new output units. "wait" is one candidate.
 * **Learning** `A2CLearner`: online advantage actor-critic, GAE(λ=0.95), γ=0.99 per decision (1 simulated hour),
   rollouts of 32 decisions with truncated BPTT, entropy bonus 0.01, value coefficient 0.5, gradient-norm clip 0.5,
-  Adam. Reward = the goal's `RewardContract` signal only, scaled (running return-std normalisation, or a fixed
+  Adam, pointer-logit scale 1/sqrt(64) (defaults, used by runs v1-v3; v5 uses logit scale 1 and entropy 0.003, see
+  below). Reward = the goal's `RewardContract` signal only, scaled (running return-std normalisation, or a fixed
   `reward_scale`).
-* **Controls**: `random` (uniform over the same factored space: uniform tool incl. wait, uniform slot options) and
-  `idle` (always wait).
+* **Controls**: `random` (uniform over the same factored space: uniform tool incl. wait, uniform slot options),
+  `idle` (always wait), and in the final run set the learner's own network frozen at initialisation (`lr=0`).
+* `RLPolicy(checkpoint=...)` runs a trained network as an ordinary Crucible `Policy` (e.g. in `run_goal`).
 * **Checkpoints** (`ckpt.pt`, every 10 episodes and at the end): weights, optimiser, normaliser, recurrent state,
   entity memory, counters, RNG states, world snapshot, reward-contract evaluator state; `Lifetime.resume` continues
   (tested: identical weights after resume, run continues to the new step budget).
@@ -201,12 +220,12 @@ designed in sequence, each in response to the previous one's measured failure):
 
 | Run set | Lifetime | Tools available | Start price | Company capital | Learner settings | Planned / compared |
 |---|---|---|---|---|---|---|
-| v1 fork | fork of the start state per episode | all 133 | 4x rival | $4,000 | logit scale 1/8, entropy 0.01, lr 5e-4, running reward normalisation | 200 / {{V1_N}} weeks |
+| v1 fork | fork of the start state per episode | all 133 | 4x rival | $4,000 | logit scale 1/8, entropy 0.01, lr 5e-4, running reward normalisation | 200 / 83 weeks |
 | v1 persistent | one world | all 133 | 4x rival | $4,000 | as v1 | stopped after 43-90 weeks |
 | v2 persistent | one world | all 133 | 4x rival | $27,000 | as v1 | stopped after 17-39 weeks |
-| v3 fork / persistent | as above | 50 operations tools | 4x rival | $27,000 | lr 1e-3, fixed reward scale 300 | 200 / {{V3_N}} weeks (fork), 15 weeks (persistent) |
-| v4 / v5 fork | fork | 50 operations tools | at the cheapest rival's price | $27,000 | v5 learner: logit scale 1, entropy 0.003, lr 1e-3, reward scale 300; v4: random and idle controls | 100 / {{V5_N}} weeks |
-| v5 frozen | fork | as v4 | as v4 | $27,000 | the v5 network with lr = 0 (same initialisation and sampling seeds, never updated) | 100 / {{V5_N}} weeks |
+| v3 fork / persistent | as above | 50 operations tools | 4x rival | $27,000 | lr 1e-3, fixed reward scale 300 | 200 / 146 weeks (fork), 15 weeks (persistent) |
+| v4 / v5 fork | fork | 50 operations tools | at the cheapest rival's price | $27,000 | v5 learner: logit scale 1, entropy 0.003, lr 1e-3, reward scale 300; v4: random and idle controls | 100 / 100 weeks |
+| v5 frozen | fork | as v4 | as v4 | $27,000 | the v5 network with lr = 0 (same initialisation and sampling seeds, never updated) | 100 / 100 weeks |
 
 "Operations tools" (v3-v5) = the 50 tools of the hosts `market, cloud, bank, biz, ads, support, world`. This is an
 *action-space* restriction of the diagnostic (it names no sequence, tool or argument value; the learner still has to
@@ -215,20 +234,74 @@ find which tools, listings and prices help, and that e.g. `cloud.undeploy`, `clo
 the untrained network (its initial tool distribution is not uniform). Within a panel all runs are compared over the
 same number of episodes (the panel's minimum); "last" = the last 20 of those.
 
-{{RL_RESULTS}}
+### Results
+
+Panels: (a) v1 fork, all tools, 4x price; (b) v3 fork, operations tools, 4x price; (c) v5 learner / v4 controls,
+fork, operations tools, rival price; (d) v3 persistent (a2c, random) with the v2 persistent idle lifetimes as the idle
+control (identical start state; idle never acts, so the tool restriction is irrelevant to it).
+
+| Panel | Weeks compared | Policy | Weekly revenue, first 10 weeks ($, mean of seeds) | Weekly revenue, last 20 weeks ($; s0 / s1 / s2) | Mean | Service live at week end, last 20 (s0 / s1 / s2) | `market.update` calls per week, last 20 |
+|---|---|---|---|---|---|---|---|
+| (a) | 83 | a2c | 25 | 1 / 4 / 66 | 24 | 0.45 / 0.35 / 0.35 | 0.9 / 0.7 / 1.5 |
+| (a) | 83 | random | 29 | 3 / 0 / 84 | 29 | 0.30 / 0.55 / 0.55 | 1.2 / 0.8 / 1.6 |
+| (a) | 83 | idle | 43 | 2 / 0 / 145 | 49 | 1.00 / 1.00 / 1.00 | 0.0 / 0.0 / 0.0 |
+| (b) | 146 | a2c | 18 | 1 / 1 / 87 | 30 | 0.15 / 0.05 / 0.45 | 2.9 / 3.0 / 2.2 |
+| (b) | 146 | random | 27 | 5 / 35 / 42 | 27 | 0.10 / 0.20 / 0.05 | 3.5 / 3.7 / 3.1 |
+| (b) | 146 | idle | 57 | 3 / 0 / 132 | 45 | 1.00 / 1.00 / 1.00 | 0.0 / 0.0 / 0.0 |
+| (c) | 100 | a2c | 194 | 338 / 727 / 224 | 429 | 0.90 / 0.95 / 0.75 | 0.8 / 1.0 / 0.2 |
+| (c) | 100 | frozen | 103 | 98 / 121 / 80 | 100 | 0.05 / 0.10 / 0.15 | 3.1 / 3.2 / 2.3 |
+| (c) | 100 | random | 80 | 108 / 162 / 80 | 117 | 0.05 / 0.10 / 0.05 | 2.6 / 2.7 / 3.8 |
+| (c) | 100 | idle | 485 | 409 / 753 / 325 | 496 | 1.00 / 1.00 / 1.00 | 0.0 / 0.0 / 0.0 |
+| (d) | 15 | a2c | 1 | 0 / 0 / 1 | 0 | 0.00 / 0.00 / 0.00 | 3.2 / 3.1 / 3.0 |
+| (d) | 15 | random | 1 | 0 / 0 / 1 | 0 | 0.00 / 0.00 / 0.00 | 2.6 / 3.8 / 2.5 |
+| (d) | 15 | idle | 38 | 2 / 0 / 137 | 46 | 1.00 / 1.00 / 1.00 | 0.0 / 0.0 / 0.0 |
+
+Paired differences in the last-20-week mean weekly revenue (per seed s0 / s1 / s2): (c) a2c - frozen = +239 / +605 / +143,
+a2c - random = +230 / +564 / +144, a2c - idle = -71 / -26 / -101;
+(b) a2c - random = -4 / -34 / +46, a2c - idle = -2 / +1 / -45.
+
+What this shows:
+
+* **Learning happened only in (c)**, and it is learning to *stop destroying the business*, not better pricing or
+  operations. From the start state where the listed service already earns, the A2C learner's weekly revenue rose from
+  $194 (first 10 weeks, mean of seeds; the frozen copy of the same initial network earned $103) to $429 over weeks
+  81-100. It beat the frozen network and the random policy on every seed (by $143-$605 per week) and kept the service
+  live at the end of 75-95 % of weeks (frozen: 5-15 %). It did so by concentrating on harmless read-only tools (in the
+  last 5 weeks of each seed 30-95 % of its calls went to one or two tools such as `market.inventory`,
+  `bank.statement`, `bank.accounts`) and calling `market.update` far less (0.2-1.0 per week vs 2.3-3.3). It **did not
+  reach the idle control** ($496): it is $26-$101 per week below idle on every seed, i.e. it still occasionally harms
+  the service and never learned a better price than the rival's.
+* **No learning in (a), (b) or (d).** With the badly overpriced start (a, b) the revenue signal only appears after a
+  rare repricing call (probability ~1/2,400 per decision under the initial policy with all tools); after 83 weeks
+  (14k decisions, 540 updates) the v1 learner's tool distribution measured on the start state was still uniform
+  (entropy 4.89 = log 133; logits within +/-0.06). With 50 tools (b) the learner's curve stays between random and
+  idle; an interim check at week 38 showed a2c above random on all seeds, which did not hold at week 146 (-4 / -34 /
+  +46). In single persistent lives (d, and v1/v2 with all tools) every a2c and random lifetime (18 of 18) destroyed its
+  service (undeploy, release, dissolve or closing the listing) within its first three weeks and never recovered; idle
+  lifetimes with $27,000 capital kept running (one seed's revenue grew to ~$1,850/week by week 26), with $4,000 they
+  went bankrupt from compute bills after 13-16 weeks. A single life with irreversible actions and uniform initial
+  exploration gives the learner nothing to learn from after the first mistake.
+* Persistent-world learning, better-than-idle operations, and pricing were therefore **not** demonstrated.
+
 
 ![learning curves](figures/rl_learning_curves.png)
 
 Data: `docs/figures/rl_learning_curves.json` (per-seed curves and summaries); raw per-episode logs and checkpoints
-under `runs/crucible_rl/{v1,v2,v3}/<mode>-<policy>-s<seed>/`.
+under `runs/crucible_rl/{v1,v2,v3,v4,v5}/<mode>-<policy>-s<seed>/` (figure: `python runs/crucible_rl/make_report.py`).
 
 ## 7. Limitations
 
-* **Scale.** One tiny world family, one goal family for the RL experiment, three seeds, at most a few simulated years
-  per run; the CAM 2.0 smoke run is 64 environment steps and 2 PPO updates (plumbing evidence, not learning evidence).
+* **Scale.** One tiny world family, one goal family for the RL experiment, three seeds, 15-146 simulated weeks per
+  run (runs were stopped early to fit the session; planned lengths in the conditions table); the CAM 2.0 smoke run is
+  64 environment steps and 2 PPO updates (plumbing evidence, not learning evidence); no superlearner training run.
+* **The RL run sets were designed sequentially** (v1 -> v5), each after inspecting the previous one's failure
+  (non-viable capital, full tool list, sluggish logits). Only (c) shows learning, with three seeds; it was not
+  replicated with fresh seeds, and its settings were chosen after seeing (a)/(b). Treat it as a positive diagnostic,
+  not a tuned-and-validated result. The learned behaviour (avoid harmful calls) is below the trivial idle policy.
 * **Exploration is the bottleneck for the neural learner.** With ~133 tools and 4-6 slots each, the one call that
   matters (repricing the own listing to a sensible price) has probability ~1/2,400 per decision under the initial
-  policy; destructive calls are about as likely. In a single persistent life an early destructive call (undeploy,
+  policy (~1/700 with the 50 operations tools); destructive calls are about as likely. There is no exploration
+  bonus, model-based planning or prior over tools. In a single persistent life an early destructive call (undeploy,
   release, dissolve, closing the listing) is effectively irreversible for an agent that cannot yet redeploy.
 * **Structured actions cannot write content.** The superlearner and RL adapters cannot produce programs, contracts or
   prose; tools that require such arguments are not offered. Only the LLM policy and CAM 2.0 can call them.

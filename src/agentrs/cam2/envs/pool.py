@@ -27,6 +27,10 @@ def make_adapter(kind: str, kwargs: dict):
         from agentrs.cam2.envs.fixture import LookupFixtureAdapter
 
         return LookupFixtureAdapter(**kwargs)
+    if kind == "crucible":
+        from agentrs.cam2.envs.crucible_env import CrucibleAdapter
+
+        return CrucibleAdapter(**kwargs)
     from agentrs.cam2.envs.unavailable import make_unavailable
 
     return make_unavailable(kind, kwargs)
