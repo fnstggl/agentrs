@@ -83,3 +83,19 @@ def test_anchor_pulls_toward_source():
         r.close()
     assert first >= 0 and all(k >= 0 for k in later)
     assert max(later) > 0  # the policy moved away from the frozen source and the penalty sees it
+
+
+def test_lr_scale_groups():
+    m = SLCore(SLConfig(**MC))
+    plain = PPO(m, {})
+    assert len(plain.opt.param_groups) == 1
+    heads = {"query.": 1.0, "slot.": 1.0, "hi.": 1.0, "term.": 1.0, "bank.": 1.0}
+    ppo = PPO(m, {"lr": 3e-4, "lr_scale": heads, "lr_scale_rest": 0.5})
+    lrs = {}
+    for g in ppo.opt.param_groups:
+        for p in g["params"]:
+            lrs[id(p)] = g["lr"]
+    for n, p in m.named_parameters():
+        want = 3e-4 if n.startswith(tuple(heads)) else 1.5e-4
+        assert abs(lrs[id(p)] - want) < 1e-12, n
+    assert sum(len(g["params"]) for g in ppo.opt.param_groups) == len(list(m.parameters()))

@@ -323,6 +323,8 @@ def prereg_tests(runs) -> list:
     md += _head_bank_test(runs)
     md += _early_transfer_test(runs)
     md += _bank_breadth_test(runs)
+    md += _anchor_test(runs)
+    md += _core_lr_test(runs)
     return md
 
 
@@ -659,6 +661,146 @@ def _bank_breadth_test(runs) -> list:
             v16 = "neither confirmed nor disproved (mixed)"
         v16 += f" (mean NP − N {m:+.3f}; positive in {sum(d > 0 for d in done)} of 4)"
     return md + [f"H13c verdict (replication): **{vc}**", "", f"H16 verdict (breadth with per-world heads): **{v16}**", ""]
+
+def _iters_mean(name, key, lo, hi):
+    """Mean of a learner statistic over training iterations with lo < interactions <= hi (None if not reached)."""
+    try:
+        rows = [json.loads(x) for x in (ROOT / name / "iters.jsonl").read_text().splitlines() if x.strip()]
+    except (OSError, ValueError):
+        return None
+    if not rows or rows[-1].get("interactions", 0) < hi:
+        return None
+    sel = [r["learn"][key] for r in rows if lo < r.get("interactions", 0) <= hi and key in r.get("learn", {})]
+    return float(np.mean(sel)) if sel else None
+
+
+def _anchor_test(runs) -> list:
+    """H17 (amendment 17): rehearsal collapses when the rehearsed world's policy degenerates (all decisions alike, all
+    failures equally costly, zero advantage); a KL anchor to the frozen source policy restores and prevents it."""
+    if not any(n.startswith("T_B18_rescue_") or n.startswith("T_B18_fromNbankanc_") for n in runs):
+        return []
+    fam, src = "cam/bizdev", "cam/negotiation"
+
+    def neg_at(n, x):
+        cv = ev_val(runs[n], src) if n in runs else []
+        return next((auc_value(v, "success") for t, v in cv if t == x), None)
+
+    def neg_curve(n):
+        cv = ev_val(runs[n], src) if n in runs else []
+        return " → ".join(f"{auc_value(v, 'success'):.3f}" for _, v in cv) or "–"
+
+    def auc(n, budget=300_000):
+        cv = ev_val(runs[n], fam) if n in runs else []
+        return learning_auc(cv, "score", budget) if cv and max(x for x, _ in cv) >= budget else None
+
+    md = ["**H17 (amendment 17): on-policy rehearsal cannot recover a degenerate source-world policy (identical returns, "
+          "zero advantage); a KL anchor to the frozen source policy (coefficient 0.05, shared-head decisions) restores and "
+          "prevents it.** H17a (rescue, valid only if `T_B17_fromNbankrh_s4` ends with negotiation ≤ 0.20 at 300k): "
+          "continuing its final weights for 100k, confirmed if the anchor arm reaches negotiation ≥ 0.40 at 100k in both "
+          "seeds while the control stays ≤ 0.20 in both; disproved if the anchor arm is ≤ 0.20 in both. H17b (prevention, "
+          "seeds 1-4): confirmed if `T_B18_fromNbankanc` keeps negotiation ≥ 0.50 at 300k in all four seeds and its mean "
+          "bizdev ΔAUC (0-300k, paired against `T_B16_scratch`) ≥ −0.05; disproved if negotiation ≤ 0.20 at 300k in any "
+          "seed or the mean ΔAUC ≤ −0.15.", "",
+          "| run | negotiation (validation success per milestone) | bizdev score at the last milestone | mean anchor KL |",
+          "|---|---|---|---|"]
+    for n in sorted(x for x in runs if x.startswith("T_B18_rescue_")):
+        cv = ev_val(runs[n], fam)
+        md.append(f"| {n} | {neg_curve(n)} | {_fmt(auc_value(cv[-1][1], 'score') if cv else None)} | "
+                  f"{_fmt(_iters_mean(n, 'anchor_kl', 0, 100_000))} |")
+    md.append("")
+    base = neg_at("T_B17_fromNbankrh_s4", 300_000)
+    resc = {a: [neg_at(f"T_B18_rescue_{a}_s{s}", 100_000) for s in (1, 2)] for a in ("anc", "ctl")}
+    if base is None:
+        va = "pending (T_B17_fromNbankrh_s4 not at 300k)"
+    elif base > 0.20:
+        va = f"not applicable (T_B17_fromNbankrh_s4 ended at negotiation {base:.3f} > 0.20)"
+    elif any(x is None for v in resc.values() for x in v):
+        va = f"pending ({sum(x is not None for v in resc.values() for x in v)} of 4 runs at 100k)"
+    elif all(x >= 0.40 for x in resc["anc"]) and all(x <= 0.20 for x in resc["ctl"]):
+        va = "CONFIRMED"
+    elif all(x <= 0.20 for x in resc["anc"]):
+        va = "DISPROVED"
+    else:
+        va = "neither confirmed nor disproved (mixed)"
+    if base is not None and base <= 0.20 and all(x is not None for v in resc.values() for x in v):
+        va += " (anchor " + ", ".join(f"{x:.3f}" for x in resc["anc"]) + "; control " + ", ".join(f"{x:.3f}" for x in resc["ctl"]) + ")"
+    md += ["| seed | negotiation anchor (per milestone) | no anchor, `T_B17_fromNbankrh` | bizdev AUC anchor (Δ vs scratch) | "
+           "no anchor (Δ) | mean anchor KL 50k-300k |", "|---|---|---|---|---|---|"]
+    prev = []
+    for s_ in (1, 2, 3, 4):
+        a, b, sc = f"T_B18_fromNbankanc_s{s_}", f"T_B17_fromNbankrh_s{s_}", f"T_B16_scratch_s{s_}"
+        if a not in runs:
+            continue
+        aa, ab, asc = auc(a), auc(b), auc(sc)
+        da = None if aa is None or asc is None else aa - asc
+        db = None if ab is None or asc is None else ab - asc
+        md.append(f"| {s_} | {neg_curve(a)} | {neg_curve(b)} | {_fmt(aa)} ({_fmt(da, True)}) | {_fmt(ab)} ({_fmt(db, True)}) | "
+                  f"{_fmt(_iters_mean(a, 'anchor_kl', 50_000, 300_000))} |")
+        prev.append((neg_at(a, 300_000), da))
+    md.append("")
+    if len(prev) < 4 or any(k is None or d is None for k, d in prev):
+        vb = f"pending ({sum(d is not None for _, d in prev)} of 4 runs complete)"
+    else:
+        m = float(np.mean([d for _, d in prev]))
+        if all(k >= 0.50 for k, _ in prev) and m >= -0.05:
+            vb = "CONFIRMED"
+        elif any(k <= 0.20 for k, _ in prev) or m <= -0.15:
+            vb = "DISPROVED"
+        else:
+            vb = "neither confirmed nor disproved (mixed)"
+        vb += f" (mean bizdev ΔAUC {m:+.3f}; negotiation at 300k " + ", ".join(f"{k:.3f}" for k, _ in prev) + ")"
+    return md + [f"H17a verdict (rescue): **{va}**", "", f"H17b verdict (prevention): **{vb}**", ""]
+
+
+def _core_lr_test(runs) -> list:
+    """H18 (amendment 17): the late deficit of fresh-head transfers comes from oversized per-update policy changes of
+    the transferred core at scratch's learning rate; halving the core's learning rate removes it."""
+    if not any(n.startswith("T_B18_fromNPhrcore_") or n.startswith("T_B18_scratchcore_") for n in runs):
+        return []
+    fam, budget = "cam/bizdev", 300_000
+
+    def win(n, lo, hi):
+        return _win_auc(ev_val(runs[n], fam), lo, hi) if n in runs else None
+
+    md = ["**H18 (amendment 17): the late (50k-300k) deficit of fresh-head transfers comes from oversized per-update "
+          "policy changes of the transferred core at scratch's learning rate; halving the learning rate of everything but "
+          "the fresh action heads removes it.** `T_B18_fromNPhrcore` (= `T_B16_fromNPhr`, core lr × 0.5) against "
+          "`T_B16_scratch`, paired by seed 1-4, AUC of bizdev validation score over 50k-300k. Mechanism check: mean "
+          "logged per-update KL over 50k-300k, fromNPhrcore / same-seed scratch ≤ 1.1. Confirmed if the mean late Δ ≥ "
+          "−0.005 and the check passes; disproved if the mean late Δ ≤ −0.027 (no better than `T_B16_fromNPhr`, whose "
+          "mean was −0.027) while the check passes; otherwise mixed. `T_B18_scratchcore` (scratch with the same lr "
+          "scale) is reported to show whether a smaller core step helps any learner.", "",
+          "| seed | late AUC scratch / fromNPhr / fromNPhrcore / scratchcore | fromNPhrcore − scratch (late) | "
+          "fromNPhr − scratch (late) | scratchcore − scratch (late) | early 0-50k scratch / fromNPhrcore | KL ratio core / scratch |",
+          "|---|---|---|---|---|---|---|"]
+    res = []
+    for s_ in (1, 2, 3, 4):
+        sc, fp, fc, scc = (f"T_B16_scratch_s{s_}", f"T_B16_fromNPhr_s{s_}", f"T_B18_fromNPhrcore_s{s_}", f"T_B18_scratchcore_s{s_}")
+        if fc not in runs and scc not in runs:
+            continue
+        L = [win(x, 50_000, budget) for x in (sc, fp, fc, scc)]
+        d = None if L[2] is None or L[0] is None else L[2] - L[0]
+        dp = None if L[1] is None or L[0] is None else L[1] - L[0]
+        ds = None if L[3] is None or L[0] is None else L[3] - L[0]
+        k1, k0 = _iters_mean(fc, "kl", 50_000, budget), _iters_mean(sc, "kl", 50_000, budget)
+        kr = None if k1 is None or not k0 else k1 / k0
+        md.append(f"| {s_} | " + " / ".join(_fmt(x) for x in L) + f" | {_fmt(d, True)} | {_fmt(dp, True)} | {_fmt(ds, True)} | "
+                  f"{_fmt(win(sc, 0, 50_000))} / {_fmt(win(fc, 0, 50_000))} | {_fmt(kr)} |")
+        res.append((d, kr))
+    md.append("")
+    if len(res) < 4 or any(d is None or k is None for d, k in res):
+        v = f"pending ({sum(d is not None for d, _ in res)} of 4 pairs complete)"
+    else:
+        m = float(np.mean([d for d, _ in res]))
+        ok = all(k <= 1.1 for _, k in res)
+        if m >= -0.005 and ok:
+            v = "CONFIRMED"
+        elif m <= -0.027 and ok:
+            v = "DISPROVED"
+        else:
+            v = "neither confirmed nor disproved (mixed)" + ("" if ok else "; mechanism check failed (KL not matched)")
+        v += f" (mean late Δ {m:+.3f}; KL ratios " + ", ".join(f"{k:.2f}" for _, k in res) + ")"
+    return md + [f"H18 verdict: **{v}**", ""]
 
 def _rehearsal_test(runs) -> list:
     """H11 (amendment 12): forgetting during transfer comes from training on the new world alone; rehearsing the source

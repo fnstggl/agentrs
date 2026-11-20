@@ -714,6 +714,154 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v17/src
+- name: T_B18_rescue_anc_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.1
+    init_from: /workspace/agentrs/runs/sl/T_B17_fromNbankrh_s4/ckpt/final
+    anchor_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: []
+    max_env_steps: 100000
+    eval_at: [0, 25000, 50000, 100000]
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+    learner:
+      anchor: 0.05
+  wait_for:
+  - /workspace/agentrs/runs/sl/T_B17_fromNbankrh_s4/ckpt/final
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_rescue_anc_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.1
+    init_from: /workspace/agentrs/runs/sl/T_B17_fromNbankrh_s4/ckpt/final
+    anchor_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: []
+    max_env_steps: 100000
+    eval_at: [0, 25000, 50000, 100000]
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+    learner:
+      anchor: 0.05
+  wait_for:
+  - /workspace/agentrs/runs/sl/T_B17_fromNbankrh_s4/ckpt/final
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_rescue_ctl_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.1
+    init_from: /workspace/agentrs/runs/sl/T_B17_fromNbankrh_s4/ckpt/final
+    anchor_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: []
+    max_env_steps: 100000
+    eval_at: [0, 25000, 50000, 100000]
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+    learner:
+      anchor: 0.0
+  wait_for:
+  - /workspace/agentrs/runs/sl/T_B17_fromNbankrh_s4/ckpt/final
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_rescue_ctl_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.1
+    init_from: /workspace/agentrs/runs/sl/T_B17_fromNbankrh_s4/ckpt/final
+    anchor_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: []
+    max_env_steps: 100000
+    eval_at: [0, 25000, 50000, 100000]
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+    learner:
+      anchor: 0.0
+  wait_for:
+  - /workspace/agentrs/runs/sl/T_B17_fromNbankrh_s4/ckpt/final
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_fromNbankanc_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.1
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: []
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+    learner:
+      anchor: 0.05
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_fromNbankanc_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.1
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: []
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+    learner:
+      anchor: 0.05
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_fromNbankanc_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.1
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: []
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+    learner:
+      anchor: 0.05
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_fromNbankanc_s4
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 4
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.1
+    init_from: /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+    heldout_families: []
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+    learner:
+      anchor: 0.05
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v18/src
 - name: T_B11_fromNPV_s2
   config: configs/sl/transfer.yaml
   set:
@@ -939,6 +1087,126 @@ jobs:
       cam/bizdev: 1.0
     heldout_families:
     - ext/vending
+- name: T_B18_fromNPhrcore_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    init_reset: ['query.', 'slot.', 'hi.', 'term.']
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+    learner:
+      lr_scale: {'query.': 1.0, 'slot.': 1.0, 'hi.': 1.0, 'term.': 1.0}
+      lr_scale_rest: 0.5
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_scratchcore_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 1.0
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+    learner:
+      lr_scale: {'query.': 1.0, 'slot.': 1.0, 'hi.': 1.0, 'term.': 1.0}
+      lr_scale_rest: 0.5
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_fromNPhrcore_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    init_reset: ['query.', 'slot.', 'hi.', 'term.']
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+    learner:
+      lr_scale: {'query.': 1.0, 'slot.': 1.0, 'hi.': 1.0, 'term.': 1.0}
+      lr_scale_rest: 0.5
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_scratchcore_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 1.0
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+    learner:
+      lr_scale: {'query.': 1.0, 'slot.': 1.0, 'hi.': 1.0, 'term.': 1.0}
+      lr_scale_rest: 0.5
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_fromNPhrcore_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    init_reset: ['query.', 'slot.', 'hi.', 'term.']
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+    learner:
+      lr_scale: {'query.': 1.0, 'slot.': 1.0, 'hi.': 1.0, 'term.': 1.0}
+      lr_scale_rest: 0.5
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_scratchcore_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      cam/bizdev: 1.0
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+    learner:
+      lr_scale: {'query.': 1.0, 'slot.': 1.0, 'hi.': 1.0, 'term.': 1.0}
+      lr_scale_rest: 0.5
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_fromNPhrcore_s4
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 4
+    families:
+      cam/bizdev: 1.0
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    init_reset: ['query.', 'slot.', 'hi.', 'term.']
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+    learner:
+      lr_scale: {'query.': 1.0, 'slot.': 1.0, 'hi.': 1.0, 'term.': 1.0}
+      lr_scale_rest: 0.5
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v18/src
+- name: T_B18_scratchcore_s4
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 4
+    families:
+      cam/bizdev: 1.0
+    heldout_families: ['cam/negotiation', 'cam/product']
+    model:
+      fam_gate_n0: 4096
+    learner:
+      lr_scale: {'query.': 1.0, 'slot.': 1.0, 'hi.': 1.0, 'term.': 1.0}
+      lr_scale_rest: 0.5
+  src: /workspace/agentrs-sl-exp-v18/src
 - name: T_B11_fromNPVs2_s1
   config: configs/sl/transfer.yaml
   set:

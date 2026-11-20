@@ -40,7 +40,18 @@ class PPO:
         self.cfg = {"lr": 3e-4, "epochs": 2, "mb_streams": 64, "clip": 0.2, "vclip": 0.2, "ent": 0.01, "vf": 0.5,
                     "lam": 0.95, "wm": 0.5, "max_grad": 1.0, "target_kl": 0.05, "anchor": 0.0, "anchor_clip": 10.0,
                     **(cfg or {})}
-        self.opt = torch.optim.Adam(model.parameters(), lr=self.cfg["lr"], eps=1e-5)
+        # lr_scale (sl-exp-v18): {parameter-name prefix: lr multiplier}; parameters matching no prefix get lr_scale_rest.
+        # Both default to plain Adam over all parameters at lr (identical to earlier versions).
+        scale, rest = dict(self.cfg.get("lr_scale") or {}), float(self.cfg.get("lr_scale_rest", 1.0))
+        if not scale and rest == 1.0:
+            self.opt = torch.optim.Adam(model.parameters(), lr=self.cfg["lr"], eps=1e-5)
+        else:
+            groups: dict = {}
+            for n, p in model.named_parameters():
+                f = next((float(v) for k, v in scale.items() if n.startswith(k)), rest)
+                groups.setdefault(f, []).append(p)
+            self.opt = torch.optim.Adam([{"params": ps, "lr": self.cfg["lr"] * f} for f, ps in sorted(groups.items())],
+                                        lr=self.cfg["lr"], eps=1e-5)
         self.anchor_model = None
         self.anchor_state = None  # the anchor model's own recurrent state per stream, carried across segments
 
