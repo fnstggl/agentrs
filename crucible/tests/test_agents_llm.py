@@ -1,0 +1,133 @@
+"""Learning-agent integrations: frozen-LLM policy (plumbing with a test double; greedy determinism on real Qwen3 when
+available), the CAM 2.0 EnvironmentAdapter protocol (invalid JSON vs task failure, Crucible schema rejections with
+error codes, exact behaviour log-prob replay on real Qwen3-0.6B), the superlearner World adapter (reward audit),
+and the factored neural RL learner (online updates, checkpoint resume)."""
+from __future__ import annotations
+
+import json
+import os
+import sys
+
+import numpy as np
+import pytest
+
+import crucible
+
+crucible.load_all_modules()
+from crucible.agents.base import Runner  # noqa: E402
+from crucible.agents.llm import EchoLLM, LLMPolicy, ReplayLLM, render_tool_list  # noqa: E402
+from crucible.core.kernel import World, WorldSpec  # noqa: E402
+
+AGENTRS_SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+if AGENTRS_SRC not in sys.path:
+    sys.path.insert(0, AGENTRS_SRC)
+
+SPEC = {"family": "test", "seed": 1, "modules": [{"name": "identity"}, {"name": "bank"}, {"name": "admin"}]}
+FENCE = "`" * 3
+
+
+def small_world():
+    w = World.create(WorldSpec.from_dict(SPEC))
+    a = w.system_call("admin.join", {"handle": "alice", "endowment": 10_000})["principal"]
+    w.system_call("admin.join", {"handle": "bob", "endowment": 0})
+    return w, a
+
+
+def _acct(w, owner):
+    return w.modules["bank"].primary_account(w.state, owner)
+
+
+def _gpu_and_model(name: str) -> bool:
+    try:
+        import torch
+        from transformers.utils import cached_file
+        cached_file(name, "config.json", local_files_only=True)
+        return torch.cuda.is_available()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+# ============================================================================================== LLM policy
+def test_llm_policy_plumbing_with_test_double():
+    w, a = small_world()
+    acct = _acct(w, a)
+    replies = [f'Sending money.\n{FENCE}json\n{{"tool": "bank.transfer", "args": {{"from_account": "{acct}", '
+               f'"to": "bob", "amount": 2500}}}}\n{FENCE}',
+               "I am not sure what to do here.",                     # unparseable -> no action, counted
+               '{"tool": "wait", "args": {}}',                       # explicit no-op
+               '<tool_call>{"name": "bank.balance", "arguments": {"account": "' + acct + '"}}</tool_call>']
+    echo = EchoLLM(replies)
+    pol = LLMPolicy(backend=echo, goal="Hold at most $50 in your checking account.", history=3)
+    run = Runner(w, [(a, pol)], dt=60)
+    run.run(4)
+    steps = run.trajs[a].steps
+    assert [s.action["tool"] if s.action else None for s in steps] == ["bank.transfer", None, None, "bank.balance"]
+    assert steps[0].result["ok"] and steps[0].result["result"]["balance"] == 7_500
+    assert steps[3].result["result"]["balance"] == 7_500
+    u = pol.usage()
+    assert u["calls"] == 4 and u["parse_failures"] == 1 and u["waits"] == 1
+    assert u["prompt_tokens"] > 0 and u["gen_tokens"] > 0
+    assert [r["text"] for r in pol.transcript] == replies          # every generated text is recorded
+    assert "parse_error" in pol.transcript[1] and pol.transcript[1]["parse_error"]["code"] == "parse_error"
+    # the prompt carries the goal verbatim, the history with results, and the tool signatures; never admin tools
+    last = echo.seen[-1][1]["content"]
+    assert "Goal: Hold at most $50 in your checking account." in last
+    assert "bank.transfer" in last and "-> ok" in last and "unparseable reply" in last
+    assert "bank.transfer(amount: int, from_account: str, to: str" in last
+    assert "admin.join" not in last and "admin.endow" not in last
+
+
+def test_llm_prompt_summarises_long_tool_lists_and_announces_new_tools():
+    tools = [{"name": f"svc{i // 10}.op{i % 10}", "description": "Does a thing " * 10,
+              "inputSchema": {"type": "object", "properties": {"x": {"type": "integer"}}, "required": ["x"]}}
+             for i in range(120)]
+    txt = render_tool_list(tools, budget_chars=1500, priority=("svc11.op9",))
+    assert len(txt) < 2600 and "svc11.op9(x: int)" in txt and "more tools, names only" in txt
+    assert all(f"op{k}" in txt for k in range(10))                 # every tool still appears (by name)
+    echo = EchoLLM(['{"tool": "wait"}'])
+    pol = LLMPolicy(backend=echo, goal="g", tool_chars=1500)
+    pol.reset("p:x", np.random.default_rng(0))
+    obs = {"time": 0, "principal": "p:x", "events": []}
+    pol.act(obs, tools[:100])
+    assert "Newly available tools" not in echo.seen[-1][1]["content"]
+    pol.act(obs, tools)                                              # 20 tools discovered later
+    msg = echo.seen[-1][1]["content"]
+    assert "Newly available tools: " + ", ".join(sorted(t["name"] for t in tools[100:])) in msg
+    assert "svc10.op0(x: int)" in msg                                # new tools keep their full signature
+    assert pol.transcript[-1]["new_tools"] == sorted(t["name"] for t in tools[100:])
+
+
+def test_llm_transcript_replays_the_trajectory_exactly():
+    def script(msgs):
+        n = msgs[1]["content"].count("\n- ")
+        return '{"tool": "bank.accounts", "args": {}}' if n % 2 == 0 else '{"tool": "world.clock", "args": {}}'
+
+    digests = []
+    for backend in ("echo", "replay"):
+        w, a = small_world()
+        if backend == "echo":
+            pol = LLMPolicy(backend=EchoLLM(script), goal="look around")
+        else:
+            pol = LLMPolicy(backend=ReplayLLM(transcript), goal="look around")
+        Runner(w, [(a, pol)], dt=600).run(6)
+        digests.append(w.digest())
+        transcript = pol.transcript
+    assert digests[0] == digests[1]
+    with pytest.raises(RuntimeError, match="diverged"):              # a different prompt is detected
+        w, a = small_world()
+        Runner(w, [(a, LLMPolicy(backend=ReplayLLM(transcript), goal="another goal"))], dt=600).run(1)
+
+
+@pytest.mark.skipif(not _gpu_and_model("Qwen/Qwen3-0.6B"), reason="needs GPU + local Qwen3-0.6B")
+def test_real_qwen_llm_policy_is_deterministic_and_counts_tokens():
+    from crucible.agents.llm import HFBackend
+    be = HFBackend("Qwen/Qwen3-0.6B", device="cuda")
+    texts = []
+    for _ in range(2):
+        w, a = small_world()
+        pol = LLMPolicy(backend=be, goal="Find out how much money you have.", max_new_tokens=64)
+        Runner(w, [(a, pol)], dt=60).run(2)
+        texts.append([r["text"] for r in pol.transcript])
+        u = pol.usage()
+        assert u["calls"] == 2 and u["prompt_tokens"] > 200 and u["gen_tokens"] > 0
+    assert texts[0] == texts[1]

@@ -148,10 +148,12 @@ class NPCs(Module):
         from ..economy.needs import best_tier, tier_source
         best = max((c.get("rating") or 0 for c in rivals), default=0)
         behind = my_rating is not None and best > my_rating + 0.3
-        if behind and f.get("rd_until") is None and acct:
+        if behind and f.get("rd_until") is None and acct and not f.get("adopted"):
             # adopt licensed technology from the market (e.g. software invented by an agent) if affordable
             lic = [x for x in (self.act(ctx, owner, "market.browse", {"kind": "code", "need": f["need"], "limit": 10}) or [])
                    if x["seller"] != org and x["price_cents"] <= cash // 4]
+            owned = {o_["listing"] for o_ in st.find("orders", "buyer", org)}
+            lic = [x for x in lic if x["listing"] not in owned]
             if lic:
                 x = min(lic, key=lambda x: (x["price_cents"], x["listing"]))
                 o = self.act(ctx, owner, "market.buy", {"listing": x["listing"], "account": acct})

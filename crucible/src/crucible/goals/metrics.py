@@ -204,3 +204,56 @@ def m_repo_commits(world, repo: str) -> float:
 def m_org_active(world, org: str) -> float:
     o = world.state.get("orgs", org)
     return 1.0 if o and o["status"] == "active" else 0.0
+
+
+@metric("quality_margin_vs_incumbents", "EVALUATOR-ONLY. Mean verified quality of the principal's best live service "
+        "for a need minus the best incumbent's, on a hidden battery of requests executed in an isolated fork. "
+        "-1 if the principal has no live listed service for the need.")
+def m_quality_margin(world, org: str, need: str, n: int = 6, seed: int = 0) -> float:
+    import numpy as np
+    from ..core.canonical import digest as _dg
+    from ..economy.needs import NEEDS
+    if world.state.in_tx:
+        raise InvalidAction("evaluator-only metric (not available inside world transactions)")
+    st = world.state
+    if "listings" not in st.tables or need not in NEEDS:
+        return -1.0
+    mine, inc = [], []
+    for lid, l in st.scan("listings"):
+        if l["kind"] != "api" or l["need"] != need or l["status"] != "active":
+            continue
+        if l["seller"] == org:
+            mine.append((l["host"], l["endpoint"]))
+        elif "npc_firms" in st.tables and st.has("npc_firms", l["seller"]):
+            inc.append((l["host"], l["endpoint"]))
+    if not mine:
+        return -1.0
+    nd = NEEDS[need]
+    rng = np.random.default_rng([int(seed), int(_dg(["battery", need, world.spec.seed], 4), 16)])
+    cases = [nd.generate(rng, 0.7) for _ in range(int(n))]
+    f = world.fork(f"eval-{world.seq}-{_dg([org, need], 3)}")
+    try:
+        cloud = f.modules["cloud"]
+
+        def quality(host, ep):
+            out = {"q": 0.0}
+
+            def run(ctx):
+                qs = []
+                dep = cloud.live_deployment(f.state, host)
+                if dep is None or cloud.availability(f.state, dep):
+                    out["q"] = 0.0
+                    return
+                did = f.state.get("hosts", host)["deployment"]
+                for inp, hidden in cases:
+                    r = cloud.execute(ctx, did, ep, inp, "evaluator", nd.work_scale,
+                                      post=lambda b, inp=inp, hidden=hidden: {"q": float(nd.score(inp, hidden, b))})
+                    qs.append(float(r["body"]["q"]) if r["status"] == 200 and isinstance(r.get("body"), dict) else 0.0)
+                out["q"] = sum(qs) / len(qs)
+            f._run_system("evaluator.battery", run)
+            return out["q"]
+        best_mine = max(quality(h, e) for h, e in mine)
+        best_inc = max((quality(h, e) for h, e in inc), default=0.0)
+        return float(best_mine - best_inc)
+    finally:
+        f.close()

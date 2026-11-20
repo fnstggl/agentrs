@@ -186,10 +186,14 @@ class EntityMemory:
         self.tick = 0
         self.version = 0          # bumped on every write; caches below are keyed by it
         self._cache: dict = {}
+        self._alias: dict[str, set] = {}   # last token -> keys (for same-key matching)
 
     def _put_id(self, key: str, v: str) -> None:
         self.version += 1
-        d = self.by_key.setdefault(key, OrderedDict())
+        d = self.by_key.get(key)
+        if d is None:
+            d = self.by_key[key] = OrderedDict()
+            self._alias.setdefault(_last(key), set()).add(key)
         d.pop(v, None)
         d[v] = self.tick
         while len(d) > self.per_key:
@@ -259,10 +263,12 @@ class EntityMemory:
         if len(self._cache) > 4096:
             self._cache = {}
         best: dict[str, int] = {}
-        for k, d in self.by_key.items():
-            if k == param or _last(k) == _last(param):
-                for v, tick in d.items():
-                    best[v] = max(best.get(v, -1), tick)
+        keys = set(self._alias.get(_last(param), ()))
+        if param in self.by_key:
+            keys.add(param)
+        for k in keys:
+            for v, tick in self.by_key[k].items():
+                best[v] = max(best.get(v, -1), tick)
         ranked = sorted(best, key=lambda v: (-best[v], v))
         out = self._cache[ck] = [(v, "key") for v in ranked[:limit]]
         return out
@@ -297,6 +303,9 @@ class EntityMemory:
 
     def load_state_dict(self, s: dict) -> None:
         self.by_key = {k: OrderedDict((a, b) for a, b in v) for k, v in s["by_key"].items()}
+        self._alias = {}
+        for k in self.by_key:
+            self._alias.setdefault(_last(k), set()).add(k)
         self.recent = OrderedDict((a, tuple(b)) for a, b in s["recent"])
         self.numbers = {k: OrderedDict((int(a), b) for a, b in v) for k, v in s["numbers"].items()}
         self.tick = s["tick"]

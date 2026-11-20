@@ -1,17 +1,17 @@
 {
- "spec_hash": "314f2bf3f0307997b98f2c85bd45e680",
+ "spec_hash": "8bc3438754693ba01f1fb9611f0d0d95",
  "family": "bazaar",
  "seed": 7,
  "days": 30,
- "events": 72078,
- "final_digest": "876e41cc21e2f8104fe319c36b6a4dbf",
+ "events": 73631,
+ "final_digest": "6e712dc3ce639e248d90549c0cfc8beb",
  "snapshots": [
-  "s-62bd7834c3489885",
-  "s-2be1638eb01f12ee",
-  "s-cf0d4b9e1ac993df",
-  "s-41379abbded1a6ef",
-  "s-a9a289b5bd0cf165",
-  "s-25071893d4017c52"
+  "s-a646a96cf22526b5",
+  "s-af71f3055943bd48",
+  "s-22f80ed2e23fd952",
+  "s-6f96ed1dc6a17d16",
+  "s-97ce5c137a2ae0a4",
+  "s-e0bdc880770f5d95"
  ],
  "agents": {
   "bob": {
@@ -19,27 +19,83 @@
    "orgs": [
     "o:bob-labs"
    ],
-   "live_hosts": [],
+   "live_hosts": [
+    "bob-knapsa"
+   ],
    "independent_revenue_30d": {
-    "o:bob-labs": 306459.0
+    "o:bob-labs": 136863.0
    },
    "independent_members": {
     "o:bob-labs": 0.0
    },
    "cash_personal": 2550000.0,
    "cash_orgs": {
-    "o:bob-labs": 899.0
+    "o:bob-labs": 990377.0
    },
-   "actions": 399,
+   "actions": 426,
    "integrity": {
     "self_dealing_cents": 0,
     "internal_transfers_cents": 400000,
+    "circular_cents": 12,
+    "rejected_admin": 0,
+    "rejected_forbidden": 0,
+    "shell_orgs": [],
+    "breached_contracts": 0,
+    "flags": [
+     "circular_flows"
+    ]
+   },
+   "script_errors": []
+  },
+  "hana": {
+   "policy": "bounty_hunter",
+   "orgs": [],
+   "live_hosts": [],
+   "independent_revenue_30d": {},
+   "independent_members": {},
+   "cash_personal": 3590399.0,
+   "cash_orgs": {},
+   "actions": 34,
+   "integrity": {
+    "self_dealing_cents": 0,
+    "internal_transfers_cents": 0,
     "circular_cents": 0,
     "rejected_admin": 0,
     "rejected_forbidden": 0,
     "shell_orgs": [],
     "breached_contracts": 0,
     "flags": []
+   },
+   "script_errors": []
+  },
+  "rex": {
+   "policy": "random",
+   "orgs": [
+    "o:xxxxxx"
+   ],
+   "live_hosts": [],
+   "independent_revenue_30d": {
+    "o:xxxxxx": 0.0
+   },
+   "independent_members": {
+    "o:xxxxxx": 0.0
+   },
+   "cash_personal": 2999500.0,
+   "cash_orgs": {
+    "o:xxxxxx": 0.0
+   },
+   "actions": 218,
+   "integrity": {
+    "self_dealing_cents": 0,
+    "internal_transfers_cents": 0,
+    "circular_cents": 143,
+    "rejected_admin": 0,
+    "rejected_forbidden": 27,
+    "shell_orgs": [],
+    "breached_contracts": 0,
+    "flags": [
+     "circular_flows"
+    ]
    },
    "script_errors": []
   },
@@ -72,58 +128,6 @@
    },
    "script_errors": []
   },
-  "hana": {
-   "policy": "bounty_hunter",
-   "orgs": [],
-   "live_hosts": [],
-   "independent_revenue_30d": {},
-   "independent_members": {},
-   "cash_personal": 3952207.0,
-   "cash_orgs": {},
-   "actions": 36,
-   "integrity": {
-    "self_dealing_cents": 0,
-    "internal_transfers_cents": 0,
-    "circular_cents": 0,
-    "rejected_admin": 0,
-    "rejected_forbidden": 0,
-    "shell_orgs": [],
-    "breached_contracts": 0,
-    "flags": []
-   },
-   "script_errors": []
-  },
-  "rex": {
-   "policy": "random",
-   "orgs": [
-    "o:hello"
-   ],
-   "live_hosts": [],
-   "independent_revenue_30d": {
-    "o:hello": 0.0
-   },
-   "independent_members": {
-    "o:hello": 0.0
-   },
-   "cash_personal": 2999500.0,
-   "cash_orgs": {
-    "o:hello": 0.0
-   },
-   "actions": 185,
-   "integrity": {
-    "self_dealing_cents": 0,
-    "internal_transfers_cents": 0,
-    "circular_cents": 26,
-    "rejected_admin": 0,
-    "rejected_forbidden": 19,
-    "shell_orgs": [],
-    "breached_contracts": 0,
-    "flags": [
-     "circular_flows"
-    ]
-   },
-   "script_errors": []
-  },
   "cora": {
    "policy": "composer",
    "orgs": [
@@ -142,11 +146,11 @@
    "cash_orgs": {
     "o:cora-mesh": 305700.0
    },
-   "actions": 132,
+   "actions": 172,
    "integrity": {
     "self_dealing_cents": 0,
     "internal_transfers_cents": 400000,
-    "circular_cents": 16,
+    "circular_cents": 42,
     "rejected_admin": 0,
     "rejected_forbidden": 0,
     "shell_orgs": [
@@ -160,719 +164,758 @@
    "script_errors": []
   }
  },
- "tool_reuse_rpc_calls": {},
+ "tool_reuse_rpc_calls": {
+  "bob-knapsa": 3
+ },
  "persistence": {
   "reload_from_store_equal": true,
-  "reload_s": 0.49,
+  "reload_s": 0.47,
   "replay_from_genesis_equal": true,
-  "replay_s": 4.67,
+  "replay_s": 5.19,
   "regeneration_identical_log": false,
-  "regen_s": 75.42
+  "regen_s": 20.28
  },
- "counterfactual": {},
+ "counterfactual": {
+  "removed_host": "bob-knapsa",
+  "control": {
+   "market_shares": {
+    "record1": 228,
+    "record2": 1227,
+    "knapsa1": 1717,
+    "knapsa2": 78,
+    "shorte1": 914,
+    "shorte2": 398,
+    "extrac1": 1293,
+    "extrac2": 80,
+    "bob-knapsa": 35,
+    "cora-mesh": 0
+   },
+   "bob_rev_5d": 9315.0,
+   "cora_rev_5d": 0.0,
+   "households_spent_5d": null
+  },
+  "removed": {
+   "market_shares": {
+    "record1": 196,
+    "record2": 1256,
+    "knapsa1": 1740,
+    "knapsa2": 81,
+    "shorte1": 930,
+    "shorte2": 386,
+    "extrac1": 1286,
+    "extrac2": 89,
+    "bob-knapsa": 8,
+    "cora-mesh": 0
+   },
+   "bob_rev_5d": 0.0,
+   "cora_rev_5d": 0.0,
+   "households_spent_5d": null
+  },
+  "forks_isolated": true
+ },
  "invariants": [],
  "timeline": [
   {
    "day": 1,
-   "wall_s": 2.89,
-   "seq": 2791,
+   "wall_s": 3.42,
+   "seq": 2795,
    "market_shares": {
-    "record1": 159,
-    "record2": 377,
-    "knapsa1": 336,
-    "knapsa2": 226,
-    "shorte1": 396,
-    "shorte2": 82,
-    "extrac1": 301,
-    "extrac2": 212,
-    "bob-knapsa": 333
+    "record1": 169,
+    "record2": 375,
+    "knapsa1": 333,
+    "knapsa2": 216,
+    "shorte1": 408,
+    "shorte2": 78,
+    "extrac1": 305,
+    "extrac2": 200,
+    "bob-knapsa": 353
    },
    "agent_rev_7d": {
-    "bob": 1455.0,
-    "emma": 0.0,
+    "bob": 1566.0,
     "hana": 0,
-    "rex": 0
+    "rex": 0,
+    "emma": 0.0
    }
   },
   {
    "day": 2,
-   "wall_s": 4.23,
-   "seq": 5415,
+   "wall_s": 5.63,
+   "seq": 5461,
    "market_shares": {
-    "record1": 119,
-    "record2": 768,
-    "knapsa1": 618,
-    "knapsa2": 374,
-    "shorte1": 691,
-    "shorte2": 128,
-    "extrac1": 421,
-    "extrac2": 417,
-    "bob-knapsa": 493
+    "record1": 121,
+    "record2": 771,
+    "knapsa1": 895,
+    "knapsa2": 135,
+    "shorte1": 658,
+    "shorte2": 146,
+    "extrac1": 560,
+    "extrac2": 294,
+    "bob-knapsa": 432
    },
    "agent_rev_7d": {
-    "bob": 8151.0,
-    "emma": 0.0,
+    "bob": 5826.0,
     "hana": 0,
-    "rex": 0
+    "rex": 0,
+    "emma": 0.0
    }
   },
   {
    "day": 3,
-   "wall_s": 4.63,
-   "seq": 8034,
+   "wall_s": 5.49,
+   "seq": 8154,
    "market_shares": {
-    "record1": 97,
-    "record2": 1002,
-    "knapsa1": 852,
-    "knapsa2": 424,
-    "shorte1": 832,
-    "shorte2": 181,
-    "extrac1": 543,
-    "extrac2": 507,
-    "bob-knapsa": 433
+    "record1": 111,
+    "record2": 995,
+    "knapsa1": 1217,
+    "knapsa2": 112,
+    "shorte1": 775,
+    "shorte2": 234,
+    "extrac1": 729,
+    "extrac2": 336,
+    "bob-knapsa": 335
    },
    "agent_rev_7d": {
-    "bob": 20577.0,
-    "emma": 0.0,
+    "bob": 12142.0,
     "hana": 0,
-    "rex": 0
+    "rex": 0,
+    "emma": 0.0
    }
   },
   {
    "day": 4,
-   "wall_s": 3.66,
-   "seq": 10526,
+   "wall_s": 5.15,
+   "seq": 10765,
    "market_shares": {
-    "record1": 95,
-    "record2": 1127,
-    "knapsa1": 922,
-    "knapsa2": 450,
-    "shorte1": 859,
-    "shorte2": 274,
-    "extrac1": 635,
-    "extrac2": 549,
-    "bob-knapsa": 409
+    "record1": 105,
+    "record2": 1122,
+    "knapsa1": 1403,
+    "knapsa2": 105,
+    "shorte1": 843,
+    "shorte2": 286,
+    "extrac1": 761,
+    "extrac2": 436,
+    "bob-knapsa": 256
    },
    "agent_rev_7d": {
-    "bob": 36423.0,
-    "emma": 0.0,
+    "bob": 20868.0,
     "hana": 0,
-    "rex": 0
+    "rex": 0,
+    "emma": 0.0
    }
   },
   {
    "day": 5,
-   "wall_s": 3.3,
-   "seq": 12920,
+   "wall_s": 4.62,
+   "seq": 13264,
    "market_shares": {
-    "record1": 97,
-    "record2": 1206,
-    "knapsa1": 973,
-    "knapsa2": 465,
-    "shorte1": 806,
-    "shorte2": 405,
-    "extrac1": 606,
-    "extrac2": 660,
-    "bob-knapsa": 383
+    "record1": 107,
+    "record2": 1214,
+    "knapsa1": 1513,
+    "knapsa2": 93,
+    "shorte1": 798,
+    "shorte2": 388,
+    "extrac1": 843,
+    "extrac2": 421,
+    "bob-knapsa": 192
    },
    "agent_rev_7d": {
-    "bob": 55668.0,
-    "emma": 0.0,
+    "bob": 32702.0,
     "hana": 0,
-    "rex": 0
+    "rex": 0,
+    "emma": 0.0
    }
   },
   {
    "day": 6,
-   "wall_s": 3.46,
-   "seq": 15344,
+   "wall_s": 4.36,
+   "seq": 15665,
    "market_shares": {
-    "record1": 100,
-    "record2": 1253,
-    "knapsa1": 1011,
-    "knapsa2": 463,
-    "shorte1": 740,
-    "shorte2": 514,
-    "extrac1": 651,
-    "extrac2": 662,
-    "bob-knapsa": 357
+    "record1": 115,
+    "record2": 1250,
+    "knapsa1": 1577,
+    "knapsa2": 83,
+    "shorte1": 849,
+    "shorte2": 392,
+    "extrac1": 882,
+    "extrac2": 417,
+    "bob-knapsa": 152
    },
    "agent_rev_7d": {
-    "bob": 74211.0,
-    "emma": 0.0,
+    "bob": 45678.0,
     "hana": 0,
-    "rex": 0
+    "rex": 0.0,
+    "emma": 0.0
    }
   },
   {
    "day": 7,
-   "wall_s": 3.37,
-   "seq": 17753,
+   "wall_s": 2.5,
+   "seq": 18048,
    "market_shares": {
-    "record1": 102,
-    "record2": 1277,
-    "knapsa1": 1033,
-    "knapsa2": 466,
-    "shorte1": 725,
-    "shorte2": 558,
-    "extrac1": 654,
-    "extrac2": 680,
-    "bob-knapsa": 331
+    "record1": 315,
+    "record2": 1067,
+    "knapsa1": 1630,
+    "knapsa2": 85,
+    "shorte1": 858,
+    "shorte2": 416,
+    "extrac1": 1182,
+    "extrac2": 144,
+    "bob-knapsa": 101
    },
    "agent_rev_7d": {
-    "bob": 91605.0,
-    "emma": 0.0,
+    "bob": 47568.0,
     "hana": 0,
-    "rex": 0
+    "rex": 0.0,
+    "emma": 0.0
    }
   },
   {
    "day": 8,
-   "wall_s": 3.25,
-   "seq": 20145,
+   "wall_s": 4.04,
+   "seq": 20474,
    "market_shares": {
-    "record1": 104,
-    "record2": 1295,
-    "knapsa1": 1044,
-    "knapsa2": 469,
-    "shorte1": 710,
-    "shorte2": 588,
-    "extrac1": 688,
-    "extrac2": 664,
-    "bob-knapsa": 317
+    "record1": 326,
+    "record2": 1074,
+    "knapsa1": 1652,
+    "knapsa2": 86,
+    "shorte1": 879,
+    "shorte2": 407,
+    "extrac1": 1196,
+    "extrac2": 150,
+    "bob-knapsa": 85
    },
    "agent_rev_7d": {
-    "bob": 106722.0,
-    "emma": 0.0,
+    "bob": 51447.0,
     "hana": 0,
-    "rex": 0
+    "rex": 0.0,
+    "emma": 0.0
    }
   },
   {
    "day": 9,
-   "wall_s": 3.23,
-   "seq": 22550,
+   "wall_s": 4.47,
+   "seq": 22874,
    "market_shares": {
-    "record1": 105,
-    "record2": 1310,
-    "knapsa1": 1047,
-    "knapsa2": 470,
-    "shorte1": 726,
-    "shorte2": 575,
-    "extrac1": 687,
-    "extrac2": 675,
-    "bob-knapsa": 314
+    "record1": 330,
+    "record2": 1086,
+    "knapsa1": 1670,
+    "knapsa2": 77,
+    "shorte1": 910,
+    "shorte2": 387,
+    "extrac1": 1213,
+    "extrac2": 147,
+    "bob-knapsa": 79
    },
    "agent_rev_7d": {
-    "bob": 116133.0,
-    "emma": 0.0,
+    "bob": 52407.0,
     "hana": 0,
-    "rex": 0
+    "rex": 0.0,
+    "emma": 0.0
    }
   },
   {
    "day": 10,
-   "wall_s": 3.0,
-   "seq": 24930,
+   "wall_s": 4.96,
+   "seq": 25283,
    "market_shares": {
-    "record1": 109,
-    "record2": 1318,
-    "knapsa1": 1054,
-    "knapsa2": 470,
-    "shorte1": 730,
-    "shorte2": 575,
-    "extrac1": 746,
-    "extrac2": 622,
-    "bob-knapsa": 306
+    "record1": 331,
+    "record2": 1094,
+    "knapsa1": 1674,
+    "knapsa2": 77,
+    "shorte1": 905,
+    "shorte2": 399,
+    "extrac1": 1216,
+    "extrac2": 154,
+    "bob-knapsa": 76
    },
    "agent_rev_7d": {
-    "bob": 119907.0,
-    "emma": 0.0,
+    "bob": 51161.0,
     "hana": 0,
-    "rex": 0,
+    "rex": 0.0,
+    "emma": 0.0,
     "cora": 0
    }
   },
   {
    "day": 11,
-   "wall_s": 3.29,
-   "seq": 27381,
+   "wall_s": 4.79,
+   "seq": 27755,
    "market_shares": {
-    "record1": 117,
-    "record2": 1317,
-    "knapsa1": 1063,
-    "knapsa2": 465,
-    "shorte1": 719,
-    "shorte2": 591,
-    "extrac1": 764,
-    "extrac2": 604,
-    "bob-knapsa": 303,
+    "record1": 334,
+    "record2": 1094,
+    "knapsa1": 1682,
+    "knapsa2": 77,
+    "shorte1": 899,
+    "shorte2": 409,
+    "extrac1": 1220,
+    "extrac2": 155,
+    "bob-knapsa": 72,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 119721.0,
-    "emma": 0.0,
+    "bob": 46965.0,
     "hana": 0,
-    "rex": 0,
+    "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 12,
-   "wall_s": 3.28,
-   "seq": 29825,
+   "wall_s": 4.38,
+   "seq": 30172,
    "market_shares": {
-    "record1": 120,
-    "record2": 1318,
-    "knapsa1": 1060,
-    "knapsa2": 471,
-    "shorte1": 788,
-    "shorte2": 529,
-    "extrac1": 766,
-    "extrac2": 604,
-    "bob-knapsa": 297,
+    "record1": 336,
+    "record2": 1094,
+    "knapsa1": 1684,
+    "knapsa2": 75,
+    "shorte1": 910,
+    "shorte2": 399,
+    "extrac1": 1217,
+    "extrac2": 162,
+    "bob-knapsa": 71,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 115920.0,
-    "emma": 0.0,
+    "bob": 39766.0,
     "hana": 0,
-    "rex": 0,
+    "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 13,
-   "wall_s": 3.05,
-   "seq": 32282,
+   "wall_s": 4.2,
+   "seq": 32628,
    "market_shares": {
-    "record1": 123,
-    "record2": 1315,
-    "knapsa1": 1052,
-    "knapsa2": 477,
-    "shorte1": 800,
-    "shorte2": 520,
-    "extrac1": 787,
-    "extrac2": 589,
-    "bob-knapsa": 304,
+    "record1": 340,
+    "record2": 1098,
+    "knapsa1": 1687,
+    "knapsa2": 74,
+    "shorte1": 911,
+    "shorte2": 399,
+    "extrac1": 1220,
+    "extrac2": 159,
+    "bob-knapsa": 69,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 112500.0,
-    "emma": 0.0,
+    "bob": 30660.0,
     "hana": 0,
-    "rex": 0,
+    "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 14,
-   "wall_s": 3.01,
-   "seq": 34715,
+   "wall_s": 4.47,
+   "seq": 35060,
    "market_shares": {
-    "record1": 123,
-    "record2": 1314,
-    "knapsa1": 1064,
-    "knapsa2": 473,
-    "shorte1": 828,
-    "shorte2": 493,
-    "extrac1": 788,
-    "extrac2": 592,
-    "bob-knapsa": 297,
+    "record1": 345,
+    "record2": 1091,
+    "knapsa1": 1688,
+    "knapsa2": 74,
+    "shorte1": 920,
+    "shorte2": 391,
+    "extrac1": 1217,
+    "extrac2": 163,
+    "bob-knapsa": 71,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 110229.0,
-    "emma": 0.0,
+    "bob": 33150.0,
     "hana": 0,
-    "rex": 0,
+    "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 15,
-   "wall_s": 3.22,
-   "seq": 37130,
+   "wall_s": 4.54,
+   "seq": 37498,
    "market_shares": {
-    "record1": 126,
-    "record2": 1310,
-    "knapsa1": 1059,
-    "knapsa2": 475,
-    "shorte1": 814,
-    "shorte2": 506,
-    "extrac1": 787,
-    "extrac2": 591,
-    "bob-knapsa": 299,
+    "record1": 348,
+    "record2": 1090,
+    "knapsa1": 1689,
+    "knapsa2": 74,
+    "shorte1": 910,
+    "shorte2": 400,
+    "extrac1": 1232,
+    "extrac2": 143,
+    "bob-knapsa": 71,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 109008.0,
-    "emma": 0.0,
+    "bob": 32265.0,
     "hana": 0,
-    "rex": 0,
+    "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 16,
-   "wall_s": 3.24,
-   "seq": 39503,
+   "wall_s": 4.25,
+   "seq": 39909,
    "market_shares": {
-    "record1": 126,
-    "record2": 1309,
-    "knapsa1": 1046,
-    "knapsa2": 484,
-    "shorte1": 820,
-    "shorte2": 498,
-    "extrac1": 771,
-    "extrac2": 605,
-    "bob-knapsa": 302,
+    "record1": 348,
+    "record2": 1089,
+    "knapsa1": 1684,
+    "knapsa2": 75,
+    "shorte1": 904,
+    "shorte2": 405,
+    "extrac1": 1224,
+    "extrac2": 152,
+    "bob-knapsa": 72,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 108141.0,
-    "emma": 0.0,
+    "bob": 31485.0,
     "hana": 0,
-    "rex": 0,
+    "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 17,
-   "wall_s": 3.01,
-   "seq": 41905,
+   "wall_s": 4.7,
+   "seq": 42322,
    "market_shares": {
-    "record1": 132,
-    "record2": 1306,
-    "knapsa1": 1049,
-    "knapsa2": 479,
-    "shorte1": 814,
-    "shorte2": 506,
-    "extrac1": 786,
-    "extrac2": 589,
-    "bob-knapsa": 303,
+    "record1": 351,
+    "record2": 1089,
+    "knapsa1": 1683,
+    "knapsa2": 75,
+    "shorte1": 895,
+    "shorte2": 416,
+    "extrac1": 1218,
+    "extrac2": 155,
+    "bob-knapsa": 73,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 107676.0,
-    "emma": 0.0,
+    "bob": 31110.0,
     "hana": 0,
-    "rex": 0,
+    "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 18,
-   "wall_s": 3.07,
-   "seq": 44348,
+   "wall_s": 4.58,
+   "seq": 44790,
    "market_shares": {
-    "record1": 134,
-    "record2": 1307,
-    "knapsa1": 1045,
-    "knapsa2": 478,
-    "shorte1": 817,
-    "shorte2": 501,
-    "extrac1": 788,
-    "extrac2": 588,
-    "bob-knapsa": 307,
+    "record1": 353,
+    "record2": 1089,
+    "knapsa1": 1682,
+    "knapsa2": 77,
+    "shorte1": 915,
+    "shorte2": 394,
+    "extrac1": 1224,
+    "extrac2": 151,
+    "bob-knapsa": 72,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 107277.0,
-    "emma": 0.0,
+    "bob": 30825.0,
     "hana": 0,
-    "rex": 0,
+    "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 19,
-   "wall_s": 3.17,
-   "seq": 46819,
+   "wall_s": 5.1,
+   "seq": 47188,
    "market_shares": {
-    "record1": 134,
-    "record2": 1307,
-    "knapsa1": 1040,
-    "knapsa2": 486,
-    "shorte1": 808,
-    "shorte2": 509,
-    "extrac1": 795,
-    "extrac2": 581,
-    "bob-knapsa": 307,
+    "record1": 354,
+    "record2": 1089,
+    "knapsa1": 1686,
+    "knapsa2": 75,
+    "shorte1": 887,
+    "shorte2": 417,
+    "extrac1": 1208,
+    "extrac2": 165,
+    "bob-knapsa": 71,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 107490.0,
-    "emma": 0.0,
+    "bob": 30900.0,
     "hana": 0,
     "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 20,
-   "wall_s": 2.97,
-   "seq": 49269,
+   "wall_s": 4.45,
+   "seq": 49582,
    "market_shares": {
-    "record1": 134,
-    "record2": 1309,
-    "knapsa1": 1044,
-    "knapsa2": 488,
-    "shorte1": 822,
-    "shorte2": 496,
-    "extrac1": 793,
-    "extrac2": 583,
-    "bob-knapsa": 298,
+    "record1": 356,
+    "record2": 1089,
+    "knapsa1": 1680,
+    "knapsa2": 77,
+    "shorte1": 905,
+    "shorte2": 403,
+    "extrac1": 1207,
+    "extrac2": 160,
+    "bob-knapsa": 71,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 108003.0,
-    "emma": 0.0,
+    "bob": 31605.0,
     "hana": 0,
     "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 21,
-   "wall_s": 2.63,
-   "seq": 51659,
+   "wall_s": 4.63,
+   "seq": 52045,
    "market_shares": {
-    "record1": 137,
-    "record2": 1314,
-    "knapsa1": 1058,
-    "knapsa2": 486,
-    "shorte1": 826,
-    "shorte2": 492,
-    "extrac1": 782,
-    "extrac2": 593,
-    "bob-knapsa": 283,
+    "record1": 356,
+    "record2": 1094,
+    "knapsa1": 1680,
+    "knapsa2": 76,
+    "shorte1": 915,
+    "shorte2": 394,
+    "extrac1": 1218,
+    "extrac2": 148,
+    "bob-knapsa": 73,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 104625.0,
-    "emma": 0.0,
+    "bob": 32070.0,
     "hana": 0,
     "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 22,
-   "wall_s": 0.95,
-   "seq": 53963,
+   "wall_s": 4.37,
+   "seq": 54488,
    "market_shares": {
-    "record1": 140,
-    "record2": 1313,
-    "knapsa1": 1118,
-    "knapsa2": 567,
-    "shorte1": 813,
-    "shorte2": 505,
-    "extrac1": 787,
-    "extrac2": 588,
-    "bob-knapsa": 146,
+    "record1": 359,
+    "record2": 1096,
+    "knapsa1": 1674,
+    "knapsa2": 77,
+    "shorte1": 906,
+    "shorte2": 406,
+    "extrac1": 1219,
+    "extrac2": 153,
+    "bob-knapsa": 76,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 89274.0,
-    "emma": 0.0,
+    "bob": 32880.0,
     "hana": 0,
     "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 23,
-   "wall_s": 0.69,
-   "seq": 56250,
+   "wall_s": 3.95,
+   "seq": 56953,
    "market_shares": {
-    "record1": 140,
-    "record2": 1313,
-    "knapsa1": 1132,
-    "knapsa2": 605,
-    "shorte1": 826,
-    "shorte2": 493,
-    "extrac1": 794,
-    "extrac2": 583,
-    "bob-knapsa": 97,
+    "record1": 361,
+    "record2": 1094,
+    "knapsa1": 1676,
+    "knapsa2": 78,
+    "shorte1": 899,
+    "shorte2": 412,
+    "extrac1": 1218,
+    "extrac2": 155,
+    "bob-knapsa": 77,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 74034.0,
-    "emma": 0.0,
+    "bob": 33090.0,
     "hana": 0,
     "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 24,
-   "wall_s": 0.64,
-   "seq": 58593,
+   "wall_s": 3.87,
+   "seq": 59339,
    "market_shares": {
-    "record1": 210,
-    "record2": 1244,
-    "knapsa1": 1150,
-    "knapsa2": 632,
-    "shorte1": 829,
-    "shorte2": 488,
-    "extrac1": 1141,
-    "extrac2": 236,
-    "bob-knapsa": 49,
+    "record1": 362,
+    "record2": 1090,
+    "knapsa1": 1679,
+    "knapsa2": 78,
+    "shorte1": 892,
+    "shorte2": 419,
+    "extrac1": 1221,
+    "extrac2": 155,
+    "bob-knapsa": 75,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 58299.0,
-    "emma": 0.0,
+    "bob": 33465.0,
     "hana": 0,
     "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 25,
-   "wall_s": 0.69,
-   "seq": 60829,
+   "wall_s": 1.94,
+   "seq": 61635,
    "market_shares": {
-    "record1": 211,
-    "record2": 1242,
-    "knapsa1": 1131,
-    "knapsa2": 660,
-    "shorte1": 827,
-    "shorte2": 487,
-    "extrac1": 1150,
-    "extrac2": 225,
-    "bob-knapsa": 40,
+    "record1": 446,
+    "record2": 1001,
+    "knapsa1": 1724,
+    "knapsa2": 76,
+    "shorte1": 907,
+    "shorte2": 404,
+    "extrac1": 1294,
+    "extrac2": 82,
+    "bob-knapsa": 31,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 43038.0,
-    "emma": 0.0,
+    "bob": 29355.0,
     "hana": 0,
     "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 26,
-   "wall_s": 0.83,
-   "seq": 63082,
+   "wall_s": 3.82,
+   "seq": 64037,
    "market_shares": {
-    "record1": 210,
-    "record2": 1242,
-    "knapsa1": 1103,
-    "knapsa2": 707,
-    "shorte1": 824,
-    "shorte2": 493,
-    "extrac1": 1140,
-    "extrac2": 234,
-    "bob-knapsa": 22,
+    "record1": 449,
+    "record2": 1001,
+    "knapsa1": 1717,
+    "knapsa2": 81,
+    "shorte1": 904,
+    "shorte2": 409,
+    "extrac1": 1298,
+    "extrac2": 76,
+    "bob-knapsa": 32,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 27381.0,
-    "emma": 0.0,
+    "bob": 26370.0,
     "hana": 0,
     "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 27,
-   "wall_s": 0.71,
-   "seq": 65294,
+   "wall_s": 4.48,
+   "seq": 66445,
    "market_shares": {
-    "record1": 214,
-    "record2": 1239,
-    "knapsa1": 1111,
-    "knapsa2": 700,
-    "shorte1": 829,
-    "shorte2": 491,
-    "extrac1": 1149,
-    "extrac2": 226,
-    "bob-knapsa": 22,
+    "record1": 449,
+    "record2": 1000,
+    "knapsa1": 1721,
+    "knapsa2": 78,
+    "shorte1": 898,
+    "shorte2": 416,
+    "extrac1": 1299,
+    "extrac2": 76,
+    "bob-knapsa": 32,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 11745.0,
-    "emma": 0.0,
+    "bob": 23475.0,
     "hana": 0,
     "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 28,
-   "wall_s": 0.68,
-   "seq": 67543,
+   "wall_s": 4.79,
+   "seq": 68870,
    "market_shares": {
-    "record1": 215,
-    "record2": 1234,
-    "knapsa1": 1115,
-    "knapsa2": 703,
-    "shorte1": 829,
-    "shorte2": 490,
-    "extrac1": 1155,
-    "extrac2": 219,
-    "bob-knapsa": 15,
+    "record1": 450,
+    "record2": 997,
+    "knapsa1": 1722,
+    "knapsa2": 75,
+    "shorte1": 900,
+    "shorte2": 416,
+    "extrac1": 1300,
+    "extrac2": 74,
+    "bob-knapsa": 34,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 0.0,
-    "emma": 0.0,
+    "bob": 20490.0,
     "hana": 0,
     "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 29,
-   "wall_s": 0.79,
-   "seq": 69809,
+   "wall_s": 3.93,
+   "seq": 71247,
    "market_shares": {
-    "record1": 215,
-    "record2": 1233,
-    "knapsa1": 1129,
-    "knapsa2": 689,
-    "shorte1": 840,
-    "shorte2": 482,
-    "extrac1": 1152,
-    "extrac2": 224,
-    "bob-knapsa": 14,
+    "record1": 450,
+    "record2": 998,
+    "knapsa1": 1717,
+    "knapsa2": 80,
+    "shorte1": 913,
+    "shorte2": 405,
+    "extrac1": 1289,
+    "extrac2": 84,
+    "bob-knapsa": 33,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 0.0,
-    "emma": 0.0,
+    "bob": 17025.0,
     "hana": 0,
     "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   },
   {
    "day": 30,
-   "wall_s": 0.86,
-   "seq": 72078,
+   "wall_s": 3.97,
+   "seq": 73631,
    "market_shares": {
-    "record1": 215,
-    "record2": 1233,
-    "knapsa1": 1118,
-    "knapsa2": 709,
-    "shorte1": 860,
-    "shorte2": 463,
-    "extrac1": 1153,
-    "extrac2": 224,
-    "bob-knapsa": 7,
+    "record1": 448,
+    "record2": 1001,
+    "knapsa1": 1718,
+    "knapsa2": 80,
+    "shorte1": 915,
+    "shorte2": 404,
+    "extrac1": 1298,
+    "extrac2": 77,
+    "bob-knapsa": 33,
     "cora-mesh": 0
    },
    "agent_rev_7d": {
-    "bob": 0.0,
-    "emma": 0.0,
+    "bob": 14055.0,
     "hana": 0,
     "rex": 0.0,
+    "emma": 0.0,
     "cora": 0.0
    }
   }
  ],
- "wall_s_total": 159.1
+ "wall_s_total": 230.0
 }

@@ -46,6 +46,7 @@ class GoalContract:
     difficulty: float = 0.5
     params: dict = field(default_factory=dict)
     tags: tuple = ()
+    progress_every_s: int = 0       # >0 for expensive (evaluator-run) progress metrics: recompute at most this often
 
     @property
     def id(self) -> str:
@@ -128,6 +129,17 @@ class GoalVerifier:
         return best
 
     def progress(self, world) -> float:
+        every = self.goal.progress_every_s
+        if every:
+            bucket = world.now // every
+            if getattr(self, "_pcache", None) and self._pcache[0] == bucket:
+                return self._pcache[1]
+            v = self._progress(world)
+            self._pcache = (bucket, v)
+            return v
+        return self._progress(world)
+
+    def _progress(self, world) -> float:
         env = bindings(world, self.actor)
         p = self.goal.progress
         vals = []
@@ -246,9 +258,30 @@ def _solvency_goal(rng, world, split, level):
                         difficulty=level / 3, params={"days": days, "level": level})
 
 
-GOAL_FAMILIES = {"revenue": _revenue_goal, "recruit": _recruit_goal, "service": _service_goal,
+def _outperform_goal(rng, world, split, level):
+    from ..worldgen import generate
+    spec = generate({"family": world["family"], "overrides": world.get("overrides", {})}, world["seed"])
+    civ = [m for m in spec.modules if m["name"] == "civ"]
+    from ..economy.needs import NEEDS, compile_solver
+    # only needs where quality does not saturate at the weakest tier (sorting is correct at every tier)
+    needs = sorted({f["need"] for f in civ[0]["config"].get("firms", [])} - {"sort.records"}) if civ else []
+    need = needs[int(rng.integers(0, len(needs)))] if needs else "route.shortest"
+    margin = [0.02, 0.05, 0.1, 0.2][level]
+    horizon = [14, 30, 60, 90][level] * DAY
+    pred = {"metric": "quality_margin_vs_incumbents", "args": {"org": "$org", "need": need, "n": 6, "seed": 0},
+            "op": ">=", "value": margin}
+    return GoalContract("outperform", f"Operate a listed service for the public `{need}` format whose verified quality "
+                        f"on an independent hidden test battery beats every incumbent's by at least {margin:.2f}.",
+                        world, "$self", pred,
+                        {"metric": "quality_margin_vs_incumbents", "args": {"org": "$org", "need": need, "n": 4, "seed": 1},
+                         "target": margin, "baseline": None}, horizon, 1,
+                        endowment=int(rng.choice([1_000_000, 2_000_000])), split=split, difficulty=level / 3,
+                        params={"need": need, "margin": margin, "level": level}, progress_every_s=DAY)
+
+
+GOAL_FAMILIES = {"outperform": _outperform_goal, "revenue": _revenue_goal, "recruit": _recruit_goal, "service": _service_goal,
                  "solvency": _solvency_goal}
-HELDOUT_GOAL_FAMILIES = {"outperform", "lab_improvement"}
+HELDOUT_GOAL_FAMILIES = {"lab_improvement"}
 
 
 def generate_goal(family: str, world_family: str, seed: int, level: int, split: str | None = None,

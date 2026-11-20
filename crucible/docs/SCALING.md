@@ -1,0 +1,71 @@
+# Performance and scale (measured)
+
+All numbers below were measured on this machine (48 vCPUs, RTX A6000 unused by these benchmarks, Python 3.12,
+Linux 6.8 container with `pids.max = 2816`) by `python -m crucible.bench.run` (raw output:
+`docs/benchmarks/bench.json`), `tests/test_storage.py` and the demo scripts. Other jobs (agents, tests) were
+running concurrently, so treat them as conservative. Nothing here is an extrapolation.
+
+## Kernel
+
+| measure | value |
+|---|---|
+| fully transactional commands (`bank.transfer`: validation, authorisation, journaled transaction, 3–4 events, hash chain) | **7,732 /s** |
+| read commands (recorded `bank.accounts`) | 19,709 /s |
+| event replay from genesis (exact digest check) | 41,814 events/s |
+| storage append, batches of 500 (memory / SQLite / PostgreSQL) | 43k / 81k / 39k events/s |
+| storage append, one event per transaction | 41k / 23k / 1.4k events/s |
+| storage read | 48k / 67k / 50k events/s |
+
+(PostgreSQL ran with fsync off in a throwaway local cluster.)
+
+## World simulation (family `bazaar`, 4 needs, 8 incumbents, real code execution for sampled requests)
+
+| consumers | wall s per simulated day | events per sim-day | snapshot | fork | digest |
+|---|---|---|---|---|---|
+| 1,000 | 0.82 | 2,198 | 7 ms, 0.09 MB | 17 ms | 34 ms |
+| 6,000 | 0.97 | 2,351 | 15 ms, 0.27 MB | 23 ms | 30 ms |
+| 25,000 | 0.99 | 2,626 | 41 ms, 0.88 MB | 55 ms | 25 ms |
+| 100,000 | 2.19 | 3,417 | 162 ms, 3.41 MB | 212 ms | 47 ms |
+
+Every fork was digest-equal to its parent. Cost is dominated by executing and verifying sampled real requests
+(constant per offering), not by population size, until ~100k consumers.
+
+* **NPC workers:** 50 / 500 / 2,000 simulated workers → 0.32 / 0.36 / 0.34 s per simulated day (they are
+  event-driven and cost nothing while idle).
+* **Agents:** 3 scripted agents acting every simulated hour for 3 days: **19 ms per agent step including the world
+  advancing** (216 steps, 4.1 s).
+* **Replicas (independent worlds in processes, 3,000 consumers each, 1 sim-day each, including process start):**
+  1 → 0.63, 2 → 1.22, 4 → 2.53, 8 → 5.81, 16 → 6.85 aggregate simulated days per wall second.
+* **Lifetime demo** (bazaar, 6,000 consumers, 5–6 agents, 30 simulated days, SQLite store with snapshots every
+  5 days): ~3–4.5 s per simulated day while agent-built services are live; 72,078 events; reload from store
+  0.5 s; full replay from genesis 4.7 s.
+
+## Sandbox
+
+| measure | value |
+|---|---|
+| one-shot program (start sandboxed interpreter, apply Landlock+seccomp, run, tear down) | 91 ms |
+| call on a persistent service worker | 0.106 ms |
+
+Service deployments use persistent workers (an LRU pool, default 24 per world), so request-level overhead is
+~0.1 ms plus the program's own work.
+
+## Optimisations made after profiling
+
+1. Demand samples are scored inside the recorded external call, so the event log stores scores, not full outputs
+   (3.6× faster simulated days, much smaller logs).
+2. Vectorised request generators and an O(n·C) numpy knapsack optimum in the verifier.
+3. Search keeps a runtime inverted index validated against state (never trusted blindly).
+4. Fixed thread pools: every worker process runs with BLAS/OpenMP threads = 1; Chromium sessions are capped; the
+   sandbox caps processes per uid (`RLIMIT_NPROC`) and blocks `fork`, so agent code cannot exhaust the container's
+   pid budget — the failure mode that broke earlier AGENTRS experiments.
+
+## Bottlenecks and limits
+
+* Single-world simulation is single-threaded (the kernel serialises commands by design); throughput scales with
+  replicas, not threads. Snapshot/fork are copy-on-snapshot (pickle) — O(state size), ~200 ms at 100k consumers.
+* The in-memory event log keeps up to 2M events by default (`log_retain`), older events are read from the store.
+* Measured CPU accounting adds timing noise; the deterministic cost model counts executed Python lines (slower
+  for Python-heavy code: sys.monitoring LINE events).
+* LLM-backed agents cost far more than the world: see RL_INTEGRATION.md for measured tokens and latency.
+* Browser mode: one Chromium ≈ 80 threads; at most ~2 concurrent browsers are safe in this container.
