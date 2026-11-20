@@ -967,7 +967,8 @@ ablation lifetimes, against `T_B11_scratch_s1` (0.515):
 - **Across all four seeds** of per-world heads + rehearsal: bizdev ΔAUC −0.052, −0.048, −0.028, −0.020 (mean −0.037);
   negotiation kept (0.60-0.64) in three, lost in one. The configuration is the best found for learning a new world
   while keeping the old one, but rehearsal by on-policy RL alone is not reliable; H17 tests the anchor.
-- All four keep the early lead pattern seen elsewhere: 0-50k at or above scratch, 50k-300k below it (−0.03 to −0.07).
+- The early-lead / late-deficit pattern again: 0-50k above scratch in three of four seeds (seed 2: 0.263 vs 0.279),
+  50k-300k below it in all four (−0.033 to −0.069).
 
 ### Protocol amendment 17, 2026-11-20 02:30 UTC: rehearsal collapse and the transferred core's step size (before any result of these runs)
 **Evidence 1: on-policy rehearsal can collapse.** `T_B17_fromNbankrh_s4` (H13c replication, per-world heads + 10%
