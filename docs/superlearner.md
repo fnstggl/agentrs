@@ -985,7 +985,7 @@ product 0.05) finished at 300k. Bizdev learning AUC 0-300k, paired by seed:
   criterion, positive in 3 of 4 seeds. With the new world on its own heads and the source worlds rehearsed, the
   two-world source learns bizdev faster than the negotiation-only source.
 - **Against scratch** the two-world source is −0.016 on average (−0.060 to +0.016), within noise of scratch. In
-  seeds 3 and 4 its late window (50k-300k) is at scratch's level (−0.001, +0.013), against −0.013 to −0.035 for the
+  seeds 3 and 4 its late window (50k-300k) is at scratch's level (−0.001, +0.013), against −0.007 to −0.038 for the
   fresh-head transfers of H14 on the same seeds.
 - **It also keeps negotiation in all four seeds** (0.58-0.65) with half the negotiation rehearsal, including seed 4,
   where the negotiation-only source collapsed. One run each; the collapse mechanism (amendment 17) predicts it can
