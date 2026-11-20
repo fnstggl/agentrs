@@ -1,0 +1,22 @@
+# Crucible dependency lock (versions this implementation was tested with; Python 3.12.15)
+# Install: pip install -r requirements.lock.txt && pip install -e .
+# System: PostgreSQL 16 (tests only), Chromium via `playwright install chromium`, libseccomp, Linux >= 6.7 (Landlock ABI 4)
+numpy==2.5.4
+pyyaml==6.0.3
+fastapi==0.165.0
+starlette==1.10.0
+uvicorn==0.54.0
+jinja2==3.1.6
+httpx==0.28.1
+python-multipart==0.0.34
+playwright==1.44.0
+psycopg==3.3.9
+psycopg-binary==3.3.9
+gymnasium==1.4.0
+pettingzoo==1.27.0
+hypothesis==6.170.17
+pytest==9.2.0
+pytest-timeout==2.4.0
+torch==2.14.1+cu126
+transformers==5.23.0
+matplotlib==3.11.2

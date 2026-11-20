@@ -22,6 +22,9 @@ crucible = "crucible.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+crucible = ["web/templates/*.html", "web/static/*", "dashboard/templates/*.html"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 timeout = 600
