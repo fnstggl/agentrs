@@ -906,7 +906,7 @@ the reference, so they are effectively n = 2. H14's seeds 3-4 bring new scratch 
 2. `T_B17_fromNPbankrh_s1-s4`;
 3. the queued A_NPV ablation transfers (noskill, nowm, rl2);
 4. then P_NPV_s2, P_NPB_s2 and the remaining jobs, unchanged.
-Corrected 00:22 UTC, before any of these jobs started: the ablation transfers were first placed ahead of fromNPbankrh.
+Corrected 00:19 UTC, before any of these jobs started: the ablation transfers were first placed ahead of fromNPbankrh.
 Each of their pre-start smoke tests takes about 37 min (Vending monitors) and blocks the queue loop, so slots would sit
 idle. Only the order changed, not any configuration. No running job is touched.
 
