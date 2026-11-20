@@ -22,6 +22,13 @@ the measured results — including the negative ones.
 * Experiments, results, ablations, compute: [`docs/experiments.md`](docs/experiments.md)
 * Phase-by-phase status (implemented / executed / tested / unverified): [`docs/status.md`](docs/status.md)
 * Hardware profiles and resource estimates: [`docs/hardware.md`](docs/hardware.md)
+* **CAM 2.0** (`src/agentrs/cam2/`): a 65 M-parameter trainable recurrent agent working with a *frozen* Qwen3
+  (semantic features + CAM-controlled generation through learned control vectors, no LoRA), trained by recurrent
+  PPO on BrowserGym/MiniWoB++ and AppWorld, plus an outer learner for architecture / learning-rule search with an
+  adaptive search controller: [`docs/CAM2_ARCHITECTURE.md`](docs/CAM2_ARCHITECTURE.md),
+  [`docs/CAM2_EXPERIMENTS.md`](docs/CAM2_EXPERIMENTS.md) (measured results and reproduction commands),
+  [`docs/CAM2_OUTER_LEARNER.md`](docs/CAM2_OUTER_LEARNER.md), [`docs/CAM2_ENVIRONMENTS.md`](docs/CAM2_ENVIRONMENTS.md),
+  [`docs/CAM2_LIMITATIONS.md`](docs/CAM2_LIMITATIONS.md). Tests: `PYTHONPATH=src python -m pytest tests/cam2`.
 
 ## What is in the box
 

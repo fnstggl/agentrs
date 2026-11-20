@@ -1,0 +1,14 @@
+# CAM 2.0 on AppWorld (train split; official state-based evaluator; JSON arguments written by the frozen LLM under
+# CAM's control vectors). Smoke-scale budget.
+run_dir: runs/cam2/appworld_s0
+env: appworld
+llm: Qwen/Qwen3-1.7B
+workers: 6
+seed: 0
+env_steps: 2500
+max_minutes: 50
+max_steps: 15
+eval_every: 0
+ckpt_every: 2
+cam: {el_goal_cond: false}
+learn: {episodes_per_update: 24, mb_episodes: 12, lr: 5.0e-5, epochs: 2, warmup_steps: 4, wm_coef: 0.5, text_chunk: 8}
