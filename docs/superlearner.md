@@ -1113,6 +1113,52 @@ training successes:
 - H17b (prevention, seeds 1-4) is still running and is reported as pre-registered. With n = 2 per arm, H17a cannot
   separate the anchor from chance; no stronger anchor is proposed on this evidence.
 
+### H17b result, 2026-11-20 05:55 UTC (mechanical verdict, `scripts/sl_report.py` section 0)
+`T_B18_fromNbankanc_s1-s4` (per-world heads + 10% negotiation rehearsal + anchor β = 0.05 to the frozen `P_N_s1`
+policy) finished at 300k. Bizdev AUC windows are paired by seed with `T_B16_scratch` and with the same configuration
+without the anchor (`T_B17_fromNbankrh`):
+
+| seed | negotiation at 300k: anchor (no anchor) | lowest negotiation milestone: anchor (no anchor) | bizdev AUC 0-300k: anchor / no anchor / scratch | 0-50k anchor (scratch) | 50k-300k anchor (scratch) | bizdev score at 300k: anchor / no anchor / scratch |
+|---|---|---|---|---|---|---|
+| 1 | 0.667 (0.639) | 0.583 (0.535) | 0.480 / 0.455 / 0.508 | 0.290 (0.257) | 0.518 (0.558) | 0.653 / 0.720 / 0.771 |
+| 2 | 0.660 (0.618) | 0.438 (0.507) | 0.504 / 0.529 / 0.576 | 0.273 (0.279) | 0.550 (0.636) | 0.727 / 0.766 / 0.734 |
+| 3 | 0.667 (0.604) | 0.299 (0.528) | 0.476 / 0.512 / 0.540 | 0.296 (0.277) | 0.512 (0.592) | 0.697 / 0.769 / 0.771 |
+| 4 | 0.667 (0.000) | 0.424 (0.000) | 0.527 / 0.522 / 0.542 | 0.289 (0.276) | 0.575 (0.596) | 0.727 / 0.699 / 0.771 |
+
+- **H17b (prevention): CONFIRMED at the bar.** Negotiation 0.660-0.667 at 300k in all four seeds (bar ≥ 0.50); mean
+  bizdev ΔAUC vs scratch −0.045 (bar ≥ −0.05; per seed −0.028, −0.072, −0.064, −0.015). The margin is 0.005.
+- **Retention.** The one seed that collapsed without the anchor (seed 4, all-ASK, 0.000 from 100k) kept 0.667 with
+  it. Seeds 3 and 4 dipped (0.299 at 100k, 0.424 at 50k) and came back by the next milestone. The seed with the
+  deepest dip has the highest mean anchor KL in 50k-300k (0.498, against 0.114-0.293 in the others).
+  With one collapse in four control seeds, "the anchor prevents collapse" rests on one seed.
+- **Cost on the new world.** Anchor minus no anchor, bizdev AUC 0-300k: +0.025, −0.025, −0.036, +0.005 (mean −0.008,
+  mixed sign, within seed noise). The single-milestone score at 300k is lower in three of four seeds (mean 0.701,
+  against 0.739 without the anchor and 0.762 for scratch).
+- **The late deficit is unchanged.** 0-50k is at or above scratch in all four seeds (+0.033, −0.006, +0.019, +0.013),
+  while 50k-300k is below scratch in all four (−0.040, −0.086, −0.080, −0.021). Every experienced bizdev arm so far
+  learns the late phase slower than scratch; H18 (transferred-core learning rate ×0.5) tests the step-size explanation.
+- **Where this leaves the transfer question.** Per-world heads + rehearsal + anchor keeps the old world at a
+  bizdev cost that is inside the pre-registered tolerance, but it does not make bizdev faster to learn than scratch
+  over 300k. The positive transfer measured so far is early only (H14a, 0-50k).
+
+**Skill ablation transfer (n = 1, seed 1; not a pre-registered test).** `T_B11_fromNPVnoskill_s1` (from the
+no-skill N+P+V lifetime) against `T_B11_scratch_s1` and the full-architecture `T_B11_fromNPV_s1`:
+
+| run | bizdev 0k | 0-50k | 50k-300k | 0-300k (Δ vs scratch) | 300k |
+|---|---|---|---|---|---|
+| scratch | 0.257 | 0.282 | 0.561 | 0.515 | 0.704 |
+| full N+P+V | 0.044 | 0.243 | 0.600 | 0.541 (+0.026) | 0.755 |
+| no skills | 0.167 | 0.216 | 0.495 | 0.449 (−0.066) | 0.778 |
+
+- The no-skill transfer starts higher (0.167 vs 0.044 at 0k) and ends highest (0.778), but is slower in between
+  (0.296 at 100k, against 0.414 for the full model and 0.486 for scratch). Its source lifetime kept negotiation at
+  0.694 at 0k (full: 0.361).
+- The diagnostics of 00:30 measured the skill hierarchy as nearly inert in the dominant decision (skill changes move
+  first-slot logits by about 0.24 on a spread of 20). A −0.092 AUC gap that skills would have to explain is therefore
+  more likely seed variance than an effect of skills: the three full-model transfers, all from the same source
+  checkpoint (`P_NPV_s1` life_1000000), span bizdev AUC 0.456-0.580 (ΔAUC −0.050 to +0.047) on transfer seed alone,
+  and the no-skill run differs in its source lifetime as well. One seed cannot decide it.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
