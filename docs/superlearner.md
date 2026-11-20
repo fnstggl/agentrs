@@ -1271,7 +1271,7 @@ the single-world lifetimes, so that is about 178k and 167k agent-steps of open e
 - **Cost:** two lifetimes of about 1 h, then three transfers of about 2 h, on the instance's idle Melting Pot slots;
   about 2 GB of disk.
 
-### H18 result, 2026-11-20 11:50 UTC (mechanical verdict, `scripts/sl_report.py` section 0)
+### H18 result, 2026-11-20 11:40 UTC (mechanical verdict, `scripts/sl_report.py` section 0)
 **H18 is DISPROVED.** Halving the transferred core's learning rate did not remove the late deficit. It made the
 deficit against standard scratch larger, because a smaller core step slows every learner, scratch included.
 
