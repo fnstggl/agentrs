@@ -241,11 +241,12 @@ class NPCs(Module):
                 if it.get("status") not in ("open", "in_progress"):
                     continue
                 need = next((lb.split(":", 1)[1] for lb in it.get("labels", []) if lb.startswith("need:")), None)
-                repo = next((lb.split(":", 1)[1] for lb in it.get("labels", []) if lb.startswith("repo:")), None)
+                proj = st.get("iss_projects", it.get("project") or "")
+                repo = (proj or {}).get("repo")
                 if not need or not repo:
-                    self.act(ctx, person, "issues.comment", {"issue": it["issue"], "body": "Please label the issue with need:<format> and repo:<owner/name>."})
+                    self.act(ctx, person, "issues.comment", {"issue": it["issue"], "body": "Please label the issue need:<format> and attach the project to a repository."})
                     continue
-                prog = w.get("progress", {}).get(it["issue"], 0.0) + skill * float(rng.uniform(0.5, 1.5)) / 5.0
+                prog = w.get("progress", {}).get(it["issue"], 0.0) + (0.15 + skill) * float(rng.uniform(0.5, 1.5)) / 2.5
                 if prog < 1.0:
                     ctx.emit("npcs.worker_update", {"person": person, "changes": {"progress": {**w.get("progress", {}), it["issue"]: prog}}},
                              vis="internal")

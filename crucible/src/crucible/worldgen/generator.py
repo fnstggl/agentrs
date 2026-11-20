@@ -23,7 +23,7 @@ from ..core.canonical import digest
 from ..core.kernel import WorldSpec
 
 BASE_MODULES = ["identity", "bank", "admin", "code", "search", "forum", "mail", "docs", "cal", "issues", "support",
-                "ads", "contracts", "business", "jobs", "cloud", "market", "consumers", "npcs", "shocks", "civ"]
+                "ads", "contracts", "business", "jobs", "cloud", "market", "consumers", "npcs", "shocks", "goals", "civ"]
 
 TRAIN_NEEDS = ["sort.records", "route.shortest", "schedule.jobs", "pack.knapsack", "text.extract"]
 HELDOUT_NEEDS = ["route.tsp", "match.stable", "forecast.series"]

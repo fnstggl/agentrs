@@ -623,6 +623,28 @@ class World:
         return ActionResult(False, None, err.as_dict(), [e.seq for e in ctx.events], cost, self.now,
                             tool=tool if isinstance(tool, str) else "")
 
+    def query(self, actor: str, tool: str, args: dict | None = None) -> Any:
+        """Evaluate a read-only endpoint for rendering (web pages, dashboards) WITHOUT recording a command: the
+        transaction is always rolled back, so the world state and event log are unchanged. Raises CrucibleError."""
+        if self.state.in_tx:
+            raise ProtocolError("re-entrant query")
+        p = self.state.get("principals", actor)
+        if p is None or p.get("status") != "active":
+            raise Unauthenticated(f"{actor} is not an active principal")
+        ep = self.resolve(tool, actor)
+        if not ep.read_only or ep.host == "admin":
+            raise Forbidden(f"{tool} is not a read-only query")
+        args = S.with_defaults(ep.params, args or {})
+        errs = S.validate(ep.params, args)
+        if errs:
+            raise InvalidAction("; ".join(errs[:6]))
+        self._begin()
+        try:
+            ctx = Ctx(self, actor, None)
+            return to_jsonable(ep.handler(ctx, **args))
+        finally:
+            self._rollback()
+
     def system_call(self, tool: str, args: dict | None = None, as_principal: str = SYSTEM) -> Any:
         """Research/orchestration code acting with system authority (world setup, interventions). Recorded."""
         out = {}

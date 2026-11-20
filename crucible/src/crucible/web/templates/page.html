@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+{%- for s in sections %}
+{{ m.section(s) }}
+{%- endfor %}
+{% endblock %}

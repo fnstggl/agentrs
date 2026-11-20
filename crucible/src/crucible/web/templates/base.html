@@ -1,0 +1,63 @@
+{%- import "macros.html" as m -%}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} &middot; {{ host }}.crucible</title>
+<link rel="stylesheet" href="{{ static_url }}/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="top">
+  <div class="brand"><a href="{{ home_url }}" id="nav-home">Crucible</a> <span class="host" aria-label="current site">{{ host }}.crucible</span></div>
+  {%- if principal %}
+  <div class="who">Signed in as <a href="{{ me_url }}" id="nav-me">{{ principal }}</a>
+    <form method="post" action="{{ logout_url }}" class="inline" id="logout-form" aria-label="Log out">
+      <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <button type="submit" id="logout">Log out</button>
+    </form>
+  </div>
+  <nav aria-label="Services" class="services"><ul>
+  {%- for s in nav %}
+    <li><a href="{{ s.href }}" id="nav-{{ s.host }}"{% if s.host == host %} aria-current="page"{% endif %}>{{ s.label }}</a></li>
+  {%- endfor %}
+  </ul></nav>
+  {%- endif %}
+</header>
+<main id="main">
+{%- if result %}
+  {%- if result.ok %}
+  <div class="flash ok" role="status" id="result">
+    <p><strong>Done:</strong> <code>{{ result.tool }}</code> succeeded{% if result.summary %} &mdash; {{ result.summary }}{% endif %}.</p>
+    {%- if result.items %}<dl class="kv">{% for k, v in result.items %}<dt>{{ k }}</dt><dd>{{ m.cell(v) }}</dd>{% endfor %}</dl>{% endif %}
+  </div>
+  {%- else %}
+  <div class="flash error" role="alert" id="result">
+    <p><strong>Failed:</strong> <code>{{ result.tool }}</code>: <span id="result-code">{{ result.code }}</span> &mdash; <span id="result-message">{{ result.message }}</span></p>
+    {%- if not result.sent %}<p class="muted">Nothing was sent to the world.</p>{% endif %}
+  </div>
+  {%- endif %}
+{%- endif %}
+{%- for e in errors %}
+  <div class="flash error" role="alert">{{ e }}</div>
+{%- endfor %}
+<h1>{{ title }}</h1>
+{% block content %}{% endblock %}
+</main>
+{%- if principal %}
+<aside class="notifications" aria-labelledby="notif-h" id="notifications">
+  <h2 id="notif-h">Notifications{% if n_new %} <span class="badge" aria-label="{{ n_new }} new">{{ n_new }} new</span>{% endif %}</h2>
+  {%- if notifications %}
+  <ol class="events">
+  {%- for n in notifications %}
+    <li{% if n.new %} class="new"{% endif %}><span class="t">{{ n.time }}</span> <code>{{ n.type }}</code> <span class="by">by {{ n.actor }}</span>: <span class="payload">{{ n.text }}</span></li>
+  {%- endfor %}
+  </ol>
+  {%- else %}<p class="muted">No notifications.</p>{% endif %}
+  <p><a href="{{ notifications_url }}" id="all-notifications">All notifications</a></p>
+</aside>
+{%- endif %}
+<footer class="foot">World <code>{{ world_id }}</code> &middot; time {{ clock }} &middot; event #{{ seq }}</footer>
+</body>
+</html>

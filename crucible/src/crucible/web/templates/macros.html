@@ -1,0 +1,131 @@
+{#- Rendering macros. Every value is autoescaped: nothing here marks content as safe. -#}
+
+{% macro cell(v) -%}
+{%- if v is none -%}<span class="muted">&mdash;</span>
+{%- elif v is string or v is number -%}{{ v }}
+{%- elif v.kind == 'link' -%}<a href="{{ v.href }}"{% if v.id %} id="{{ v.id }}"{% endif %}{% if v.label %} aria-label="{{ v.label }}"{% endif %}>{{ v.text }}</a>
+{%- elif v.kind == 'rich' -%}<span class="rich">{% for s in v.parts %}{% if s is string %}{{ s }}{% else %}<a href="{{ s.href }}">{{ s.text }}</a>{% endif %}{% endfor %}</span>
+{%- elif v.kind == 'pre' -%}<pre{% if v.id %} id="{{ v.id }}"{% endif %}>{{ v.text }}</pre>
+{%- elif v.kind == 'many' -%}{% for x in v.items %}{{ cell(x) }}{% if not loop.last %}{{ v.sep }}{% endif %}{% endfor %}
+{%- elif v.kind == 'form' -%}{{ form(v) }}
+{%- else -%}{{ v }}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro field(f, x) -%}
+{%- if x.kind == 'hidden' -%}
+<input type="hidden" name="{{ x.name }}" value="{{ x.value }}">
+{%- elif x.kind == 'checkbox' -%}
+<div class="field check">
+  <input type="checkbox" id="{{ x.id }}" name="{{ x.name }}" value="true"{% if x.value %} checked{% endif %}{% if x.help %} aria-describedby="{{ x.id }}-help"{% endif %}>
+  <label for="{{ x.id }}">{{ x.label }}</label>
+  {% if x.help %}<small id="{{ x.id }}-help" class="help">{{ x.help }}</small>{% endif %}
+</div>
+{%- elif x.kind == 'pathcontent' -%}
+<fieldset class="field">
+  <legend>{{ x.label }}</legend>
+  <label for="{{ x.id }}-path">File path</label>
+  <input type="text" id="{{ x.id }}-path" name="{{ x.name }}.path" value="{{ x.value[0] }}" required aria-required="true" autocomplete="off">
+  <label for="{{ x.id }}-content">File content</label>
+  <textarea id="{{ x.id }}-content" name="{{ x.name }}.content" rows="14" class="code" spellcheck="false">{{ x.value[1] }}</textarea>
+  {% if x.help %}<small class="help">{{ x.help }}</small>{% endif %}
+</fieldset>
+{%- else -%}
+<div class="field">
+  <label for="{{ x.id }}">{{ x.label }}{% if x.required %}<span class="req" aria-hidden="true"> *</span>{% endif %}</label>
+  {%- set req = ' required aria-required="true"' if x.required else '' %}
+  {%- if x.kind == 'textarea' or x.kind == 'json' %}
+  <textarea id="{{ x.id }}" name="{{ x.name }}" rows="{{ x.rows }}"{% if x.required %} required aria-required="true"{% endif %}{% if x.help %} aria-describedby="{{ x.id }}-help"{% endif %}{% if x.kind == 'json' %} class="code" spellcheck="false"{% endif %}>{{ x.value }}</textarea>
+  {%- elif x.kind == 'select' %}
+  <select id="{{ x.id }}" name="{{ x.name }}"{% if x.required %} required aria-required="true"{% endif %}{% if x.help %} aria-describedby="{{ x.id }}-help"{% endif %}>
+    {%- for ov, ol in x.options %}
+    <option value="{{ ov }}"{% if ov == x.value %} selected{% endif %}>{{ ol }}</option>
+    {%- endfor %}
+  </select>
+  {%- else %}
+  <input type="{{ x.input_type }}" id="{{ x.id }}" name="{{ x.name }}" value="{{ x.value }}"{% if x.required %} required aria-required="true"{% endif %}{% if x.help %} aria-describedby="{{ x.id }}-help"{% endif %}{% for k, v in x.attrs %} {{ k }}="{{ v }}"{% endfor %} autocomplete="off">
+  {%- endif %}
+  {% if x.help %}<small id="{{ x.id }}-help" class="help">{{ x.help }}</small>{% endif %}
+</div>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro form(f) -%}
+<form method="{{ f.method }}" action="{{ f.action }}" id="{{ f.id }}" class="form{% if f.inline %} inline{% endif %}" novalidate{% if f.title %} aria-labelledby="{{ f.id }}-title"{% elif f.label %} aria-label="{{ f.label }}"{% endif %}{% if f.tool %} data-tool="{{ f.tool }}"{% endif %}>
+  {%- if f.title %}<h3 id="{{ f.id }}-title">{{ f.title }}</h3>{% endif %}
+  {%- if f.doc %}<p class="doc">{{ f.doc }}</p>{% endif %}
+  {%- for k, v in f.hidden %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  {%- for x in f.fields %}{{ field(f, x) }}{% endfor %}
+  {%- if f.buttons %}
+  <div class="buttons">{% for name, val, text, aria in f.buttons %}<button type="submit" name="{{ name }}" value="{{ val }}" id="{{ f.id }}-{{ loop.index }}"{% if aria %} aria-label="{{ aria }}"{% endif %}>{{ text }}</button>{% endfor %}</div>
+  {%- else %}
+  <button type="submit" id="{{ f.id }}-submit"{% if f.submit_aria %} aria-label="{{ f.submit_aria }}"{% endif %}>{{ f.submit }}</button>
+  {%- endif %}
+</form>
+{%- endmacro %}
+
+{% macro section(s) -%}
+{%- if s.kind == 'table' %}
+<section class="card" aria-labelledby="{{ s.id }}-h" id="{{ s.id }}">
+  <h2 id="{{ s.id }}-h">{{ s.title }}</h2>
+  {%- if s.note %}<p class="note">{{ s.note }}</p>{% endif %}
+  {%- if s.rows %}
+  <div class="scroll"><table>
+    <thead><tr>{% for c in s.cols %}<th scope="col">{{ c }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {%- for r in s.rows %}
+      <tr>{% for v in r %}<td>{{ cell(v) }}</td>{% endfor %}</tr>
+    {%- endfor %}
+    </tbody>
+  </table></div>
+  {%- else %}<p class="muted">{{ s.empty }}</p>{% endif %}
+</section>
+{%- elif s.kind == 'kv' %}
+<section class="card" aria-labelledby="{{ s.id }}-h" id="{{ s.id }}">
+  <h2 id="{{ s.id }}-h">{{ s.title }}</h2>
+  <dl class="kv">{% for k, v in s.items %}<dt>{{ k }}</dt><dd>{{ cell(v) }}</dd>{% endfor %}</dl>
+</section>
+{%- elif s.kind == 'text' %}
+<section class="card" aria-labelledby="{{ s.id }}-h" id="{{ s.id }}">
+  <h2 id="{{ s.id }}-h">{{ s.title }}</h2>
+  <div class="body">{{ cell(s.body) }}</div>
+</section>
+{%- elif s.kind == 'article' %}
+<article class="card" aria-labelledby="{{ s.id }}-h" id="{{ s.id }}">
+  <h2 id="{{ s.id }}-h">{{ s.title }}</h2>
+  {%- if s.meta %}<p class="meta">{% for m in s.meta %}{{ cell(m) }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>{% endif %}
+  <div class="body">{{ cell(s.body) }}</div>
+  {%- for f in s.forms %}{{ form(f) }}{% endfor %}
+  {%- for c in s.children %}
+  <article class="reply" aria-label="{{ c.label }}" id="{{ c.id }}">
+    <p class="meta">{% for m in c.meta %}{{ cell(m) }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+    <div class="body">{{ cell(c.body) }}</div>
+  </article>
+  {%- endfor %}
+</section>
+{%- elif s.kind == 'form' %}
+<section class="card" id="{{ s.id }}">{{ form(s.form) }}</section>
+{%- elif s.kind == 'forms' %}
+<section class="card" aria-labelledby="{{ s.id }}-h" id="{{ s.id }}">
+  <h2 id="{{ s.id }}-h">{{ s.title }}</h2>
+  {%- if s.note %}<p class="note">{{ s.note }}</p>{% endif %}
+  {%- for f in s.forms %}{{ form(f) }}{% endfor %}
+</section>
+{%- elif s.kind == 'links' %}
+<nav class="card" aria-labelledby="{{ s.id }}-h" id="{{ s.id }}">
+  <h2 id="{{ s.id }}-h">{{ s.title }}</h2>
+  {%- if s.links %}
+  <ul class="links">{% for l in s.links %}<li>{{ cell(l) }}{% if l.desc %} <span class="desc">&mdash; {{ l.desc }}</span>{% endif %}</li>{% endfor %}</ul>
+  {%- else %}<p class="muted">{{ s.empty }}</p>{% endif %}
+</nav>
+{%- elif s.kind == 'tabs' %}
+<nav class="tabs" aria-label="{{ s.title }}" id="{{ s.id }}"><ul>{% for l in s.links %}<li><a href="{{ l.href }}"{% if l.current %} aria-current="page"{% endif %}{% if l.id %} id="{{ l.id }}"{% endif %}>{{ l.text }}</a></li>{% endfor %}</ul></nav>
+{%- elif s.kind == 'note' %}
+<p class="note" id="{{ s.id }}">{{ cell(s.text) }}</p>
+{%- elif s.kind == 'json' %}
+<section class="card" aria-labelledby="{{ s.id }}-h" id="{{ s.id }}">
+  <h2 id="{{ s.id }}-h">{{ s.title }}</h2>
+  <pre class="code">{{ s.text }}</pre>
+</section>
+{%- endif -%}
+{%- endmacro %}

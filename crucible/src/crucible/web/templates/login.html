@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card narrow" aria-labelledby="login-h">
+  <h2 id="login-h">Sign in to {{ world_id }}</h2>
+  {%- if login_error %}<div class="flash error" role="alert" id="login-error">{{ login_error }}</div>{% endif %}
+  <form method="post" action="{{ action }}" id="login-form" novalidate aria-labelledby="login-h">
+    <input type="hidden" name="next" value="{{ next }}">
+    <div class="field">
+      <label for="login-handle">Handle</label>
+      <input type="text" id="login-handle" name="handle" value="{{ handle }}" required aria-required="true" autocomplete="username">
+      <small class="help">Your handle without the <code>p:</code> prefix, e.g. <code>alice</code>.</small>
+    </div>
+    <div class="field">
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" name="password" required aria-required="true" autocomplete="current-password">
+      <small class="help">The password given when you joined (or your API token).</small>
+    </div>
+    <button type="submit" id="login-submit">Sign in</button>
+  </form>
+</section>
+{% endblock %}

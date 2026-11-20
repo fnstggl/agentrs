@@ -212,12 +212,36 @@ def _resolve(spec: str):
     return getattr(mod, fn_name) if fn_name else mod
 
 
+_LINES = [0]
+_MON = None
+
+
+def _count_on():
+    """Deterministic work accounting: count executed Python lines with sys.monitoring (PEP 669)."""
+    global _MON
+    mon = sys.monitoring
+    if _MON is None:
+        mon.use_tool_id(4, "crucible-work")
+        mon.register_callback(4, mon.events.LINE, lambda code, line: _LINES.__setitem__(0, _LINES[0] + 1))
+        _MON = mon
+    _LINES[0] = 0
+    mon.set_events(4, mon.events.LINE)
+
+
+def _count_off() -> int:
+    _MON.set_events(4, 0)
+    return _LINES[0]
+
+
 def _run(job: dict) -> dict:
     out_cap = int(CFG.get("out_bytes", 65536))
     buf = io.StringIO()
     old_out, old_err = sys.stdout, sys.stderr
     sys.stdout = sys.stderr = buf
     c0, w0 = _cpu_ms(), time.perf_counter()
+    counting = bool(CFG.get("count_lines"))
+    if counting:
+        _count_on()
     try:
         kind = job.get("kind", "call")
         if kind == "call":
@@ -239,9 +263,13 @@ def _run(job: dict) -> dict:
         tb = traceback.format_exc(limit=6)
         err = {"type": type(e).__name__, "message": str(e)[:2000], "traceback": tb[-4000:]}
     finally:
+        lines = _count_off() if counting else None
         sys.stdout, sys.stderr = old_out, old_err
-    return {"ok": ok, "result": result, "error": err, "stdout": buf.getvalue()[:out_cap],
-            "cpu_ms": round(_cpu_ms() - c0, 3), "wall_ms": round((time.perf_counter() - w0) * 1000.0, 3)}
+    out = {"ok": ok, "result": result, "error": err, "stdout": buf.getvalue()[:out_cap],
+           "cpu_ms": round(_cpu_ms() - c0, 3), "wall_ms": round((time.perf_counter() - w0) * 1000.0, 3)}
+    if lines is not None:
+        out["work_lines"] = lines
+    return out
 
 
 def _run_tests(folder: str) -> dict:

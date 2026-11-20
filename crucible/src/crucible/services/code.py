@@ -168,7 +168,8 @@ class Code(Module):
                                              f"on this host ({caps}); see docs/SECURITY.md")
             p = world.spec.params
             cfg = SandboxConfig(mem_mb=int(p.get("sandbox_mem_mb", 1024)), job_wall_s=float(p.get("sandbox_job_s", 10)),
-                                allow_weak=bool(p.get("allow_weak_sandbox", False)))
+                                allow_weak=bool(p.get("allow_weak_sandbox", False)),
+                                count_lines=p.get("cost_model") == "deterministic")
             pool = WorkerPool(int(p.get("sandbox_max_workers", 24)), cfg)
             world.runtime["sandbox_pool"] = pool
         return pool

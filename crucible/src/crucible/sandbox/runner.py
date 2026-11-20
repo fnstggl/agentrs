@@ -55,6 +55,7 @@ class SandboxConfig:
     base_dir: str = field(default_factory=lambda: os.environ.get("CRUCIBLE_SANDBOX_DIR", "/var/tmp/crucible-sbx"))
     allow_weak: bool = False
     allow_root: bool = False
+    count_lines: bool = False   # deterministic work accounting (executed Python lines) instead of CPU timing
 
 
 class SandboxUnavailable(RuntimeError):
@@ -180,7 +181,8 @@ class Worker:
         reads.append(pkgs)
         boot_cfg = {"uid": pw.pw_uid, "gid": pw.pw_gid, "read_paths": reads + [os.path.dirname(BOOT)],
                     "sys_path": syspath + [pkgs], "out_bytes": cfg.out_bytes, "allow_root": cfg.allow_root,
-                    "require_landlock": not cfg.allow_weak, "require_seccomp": not cfg.allow_weak}
+                    "require_landlock": not cfg.allow_weak, "require_seccomp": not cfg.allow_weak,
+                    "count_lines": cfg.count_lines}
         env = {"PATH": "/nonexistent", "LANG": "C.UTF-8", "PYTHONHASHSEED": "0", "OMP_NUM_THREADS": "1",
                "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1", "HOME": self.workdir}
         limits = (cfg.mem_mb, cfg.cpu_s, cfg.nproc, cfg.nofile, cfg.fsize_mb)
