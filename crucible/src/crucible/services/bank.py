@@ -171,8 +171,9 @@ class Bank(Module):
         owner = self.account_owner(ctx.state, from_account)
         ident(ctx.world).authorize(ctx, owner, "bank.spend", amount=amount, scope=from_account)
         dst = self.resolve_account(ctx.state, to)
-        if ctx.state.tables["accounts"][dst]["kind"] == "system":
-            raise Forbidden("cannot pay system accounts directly")
+        if ctx.state.tables["accounts"][dst]["owner"] == SYSTEM:
+            # system accounts, the household pool and escrow accounts only move through their own mechanisms
+            raise Forbidden("cannot pay system-operated accounts directly")
         tid = self.move(ctx, from_account, dst, amount, "transfer", memo, ref)
         return {"txn": tid, "balance": ctx.state.tables["accounts"][from_account]["balance"]}
 
