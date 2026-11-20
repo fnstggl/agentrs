@@ -649,6 +649,71 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/P_N_s1/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v17/src
+# amendment 16 (2026-11-20): H16, breadth with per-world heads and split rehearsal (frozen sl-exp-v17)
+- name: T_B17_fromNPbankrh_s1
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 1
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.05
+      cam/product: 0.05
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    heldout_families: []
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v17/src
+- name: T_B17_fromNPbankrh_s2
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 2
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.05
+      cam/product: 0.05
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    heldout_families: []
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v17/src
+- name: T_B17_fromNPbankrh_s3
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 3
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.05
+      cam/product: 0.05
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    heldout_families: []
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v17/src
+- name: T_B17_fromNPbankrh_s4
+  config: configs/sl/transfer.yaml
+  set:
+    seed: 4
+    families:
+      cam/bizdev: 0.9
+      cam/negotiation: 0.05
+      cam/product: 0.05
+    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+    heldout_families: []
+    model:
+      fam_gate_n0: 4096
+      head_bank: ['cam/bizdev']
+  wait_for:
+  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
+  src: /workspace/agentrs-sl-exp-v17/src
 - name: T_B11_fromNPV_s2
   config: configs/sl/transfer.yaml
   set:
@@ -854,71 +919,6 @@ jobs:
   wait_for:
   - /workspace/agentrs/runs/sl/A_NPV_rl2_s1/ckpt/life_1000000
   src: /workspace/agentrs-sl-exp-v11/src
-# amendment 16 (2026-11-20): H16, breadth with per-world heads and split rehearsal (frozen sl-exp-v17)
-- name: T_B17_fromNPbankrh_s1
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 1
-    families:
-      cam/bizdev: 0.9
-      cam/negotiation: 0.05
-      cam/product: 0.05
-    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
-    heldout_families: []
-    model:
-      fam_gate_n0: 4096
-      head_bank: ['cam/bizdev']
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
-  src: /workspace/agentrs-sl-exp-v17/src
-- name: T_B17_fromNPbankrh_s2
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 2
-    families:
-      cam/bizdev: 0.9
-      cam/negotiation: 0.05
-      cam/product: 0.05
-    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
-    heldout_families: []
-    model:
-      fam_gate_n0: 4096
-      head_bank: ['cam/bizdev']
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
-  src: /workspace/agentrs-sl-exp-v17/src
-- name: T_B17_fromNPbankrh_s3
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 3
-    families:
-      cam/bizdev: 0.9
-      cam/negotiation: 0.05
-      cam/product: 0.05
-    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
-    heldout_families: []
-    model:
-      fam_gate_n0: 4096
-      head_bank: ['cam/bizdev']
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
-  src: /workspace/agentrs-sl-exp-v17/src
-- name: T_B17_fromNPbankrh_s4
-  config: configs/sl/transfer.yaml
-  set:
-    seed: 4
-    families:
-      cam/bizdev: 0.9
-      cam/negotiation: 0.05
-      cam/product: 0.05
-    init_from: /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
-    heldout_families: []
-    model:
-      fam_gate_n0: 4096
-      head_bank: ['cam/bizdev']
-  wait_for:
-  - /workspace/agentrs/runs/sl/P_NP_s1/ckpt/life_1000000
-  src: /workspace/agentrs-sl-exp-v17/src
 - name: P_NPV_s2
   config: configs/sl/pretrain.yaml
   set:

@@ -903,10 +903,12 @@ the reference, so they are effectively n = 2. H14's seeds 3-4 bring new scratch 
 
 **Queue order.** After H14's last run (`T_B16_fromNhr_s4`):
 1. `T_B17_fromNbankrh_s3/s4`;
-2. the queued A_NPV ablation transfers (noskill, nowm, rl2);
-3. `T_B17_fromNPbankrh_s1-s4`;
+2. `T_B17_fromNPbankrh_s1-s4`;
+3. the queued A_NPV ablation transfers (noskill, nowm, rl2);
 4. then P_NPV_s2, P_NPB_s2 and the remaining jobs, unchanged.
-No running job is touched.
+Corrected 00:22 UTC, before any of these jobs started: the ablation transfers were first placed ahead of fromNPbankrh.
+Each of their pre-start smoke tests takes about 37 min (Vending monitors) and blocks the queue loop, so slots would sit
+idle. Only the order changed, not any configuration. No running job is touched.
 
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
