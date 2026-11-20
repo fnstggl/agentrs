@@ -1159,6 +1159,38 @@ no-skill N+P+V lifetime) against `T_B11_scratch_s1` and the full-architecture `T
   checkpoint (`P_NPV_s1` life_1000000), span bizdev AUC 0.456-0.580 (ΔAUC −0.050 to +0.047) on transfer seed alone,
   and the no-skill run differs in its source lifetime as well. One seed cannot decide it.
 
+### N+P+V ablation transfers complete, 2026-11-20 09:45 UTC (n = 1 each, seed 1; not a pre-registered test)
+All six bizdev transfers from the 1M-step N+P+V lifetimes have finished (v11 code, heads kept, the H10-era transfer
+design). The no-world-model lifetime trained with `wm_coef: 0`; its transfer, like every other arm, trains with the
+world-model loss on (0.5), so the arms differ only in how the source lifetime was trained.
+
+| source lifetime | bizdev AUC 0-300k (Δ vs `T_B11_scratch_s1`) | 0-50k | 50k-300k | score at 300k | final test | peak value loss after 150k | entropy 30k-60k → 300k |
+|---|---|---|---|---|---|---|---|
+| scratch (no source) | 0.515 | 0.282 | 0.561 | 0.704 | 0.456 | 0.188 | 3.77 → 3.66 |
+| full | 0.541 (+0.026) | 0.243 | 0.600 | 0.755 | 0.439 | 0.226 | 2.78 → 2.46 |
+| no cross-episode memory | 0.530 (+0.015) | 0.192 | 0.598 | 0.806 | 0.456 | 0.215 | 2.54 → 2.41 |
+| trial-level objective (rl2) | 0.455 (−0.060) | 0.147 | 0.516 | 0.755 | 0.429 | 0.198 | 2.72 → 2.64 |
+| no skills | 0.449 (−0.066) | 0.216 | 0.495 | 0.778 | 0.443 | 0.209 | 2.61 → 2.41 |
+| no external memory (GRU) | 0.312 (−0.203) | 0.171 | 0.340 | 0.113 | 0.068 | 0.010 | 2.53 → 2.05 |
+| no world-model loss | 0.163 (−0.352) | 0.270 | 0.142 | 0.074 | 0.036 | 0.0045 | 2.94 → 2.22 |
+
+- **The outcomes are bimodal, not graded.** Five runs found the reward-producing behaviour (value loss rises to
+  0.20-0.23 after about 150k, as in scratch) and end at 0.755-0.806, at or above scratch's 0.704. Two never found it:
+  their value loss stays at 0.001-0.010, their training score peaks at 0.50 and 0.29, and they end below where they
+  started (no world-model loss: 0.250 at 0k, 0.074 at 300k).
+- **Lower exploration does not predict which runs fail.** Every experienced arm explores less than scratch
+  (entropy 2.5-2.9 against 3.8 at 30k-60k, the H10 pattern). The no-world-model run had the highest entropy of the
+  experienced arms at that point (2.94) and still failed.
+- **What this does and does not show.** With one seed per arm and the transfer design already known to give
+  seed-dependent negative transfer (H10; `T_B11_fromNPV500k_s1` −0.214 from the full architecture), a single
+  discovery failure cannot be attributed to the removed component. The three full-architecture transfer seeds span
+  ΔAUC −0.050 to +0.047. Among the runs that did find the reward, the AUC differences (−0.066 to +0.026) are within
+  that seed spread.
+- **Component verdicts at this sample size:** world model, external memory, skills and the trial-level objective are
+  not separable from seed noise in transfer. The two failures, both from sources missing a component, are the only
+  hint. Testing it needs replicate seeds under the current transfer design (per-world heads, v17/v18), which these
+  pre-v16 sources do not support without re-running the lifetimes.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
