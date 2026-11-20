@@ -3,8 +3,9 @@
 Removes only redundant or reproducible checkpoint copies; never results, logs, configs, or the checkpoints that
 results depend on:
   * ``ckpt/m<N>/`` milestone checkpoints (their evaluation results live in state.json; the trainer never reads them);
-  * in finished runs whose final checkpoint is verified on GitHub Releases: ``ckpt/latest`` (same as final) and the
-    optimizer / RNG copies in ``ckpt/initial`` (initial weights are kept);
+  * in finished runs whose final checkpoint is verified on GitHub Releases: ``ckpt/latest`` (same as final), the
+    optimizer / RNG copies in ``ckpt/initial`` (initial weights are kept), and ``ckpt/best`` when its weights are
+    byte-identical to final's (2026-11-20: 13 GB of such duplicates held the queue's disk gate shut);
   * leftovers of interrupted atomic saves (``ckpt/.*.tmp``, ``ckpt/.*.old``) older than one hour;
   * checkpoints of smoke-test runs and of discarded runs (``_smoke*``, ``_invalid*``) - their logs/state are kept;
   * pytest temporary directories idle for 6 hours.
@@ -16,6 +17,7 @@ running runs, every state.json / log / iters.jsonl.
 from __future__ import annotations
 
 import argparse
+import filecmp
 import json
 import shutil
 import time
@@ -81,6 +83,10 @@ def plan() -> list:
             if phase == "done" and final_backed_up(run) and (ck / "final" / "DONE").exists():
                 if (ck / "latest").exists():
                     out.append((ck / "latest", "duplicate of final (final verified on GitHub)"))
+                bw, fw = ck / "best" / "weights.pt", ck / "final" / "weights.pt"
+                if bw.exists() and fw.exists() and filecmp.cmp(bw, fw, shallow=False):
+                    # nothing reads ckpt/best after a run ends (the trainer only writes it); identical weights = duplicate
+                    out.append((ck / "best", "best identical to final (final verified on GitHub)"))
                 for f in ("optimizer.pt", "rng.pt"):
                     if (ck / "initial" / f).exists():
                         out.append((ck / "initial" / f, "initial optimizer/RNG copy (run finished, backed up)"))
