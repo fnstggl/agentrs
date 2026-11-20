@@ -1305,6 +1305,46 @@ deficit is small (about 5% of scratch's late AUC) next to the Melting Pot effect
 further CAM step-size or plasticity runs are planned; CAM capacity goes to the second-seed lifetimes and Vending
 transfers already queued.
 
+### Protocol amendment 19, 2026-11-20 11:45 UTC: does the nearest-world advantage generalize? (before any run of this amendment exists)
+**Why.** H15 rests on one held-out target, commons_harvest__closed. Its two findings are the strongest in the project
+and the most likely to be target-specific:
+- 1M agent-steps of commons_harvest__open give +14.7 learning AUC over scratch (CI excludes zero);
+- 1M agent-steps over six substrates give nothing over scratch and are 16 points behind the nearest world.
+
+Before either finding shapes the design (for instance, choosing source worlds by similarity rather than breadth), it
+needs a second target. The existing second target, bach_or_stravinsky_in_the_matrix__repeated, cannot serve: scratch
+does not learn it within 1M (mean validation score 1.08 at 0k, 0.97 at 1M; per-seed AUC 0.52-1.77), so there is no
+learning to speed up. commons_harvest__partnership is the other commons-harvest substrate in Melting Pot (7 players,
+like open and closed). No source lifetime trained on it, so it is held out for both arms.
+
+**Disprovable tests (pre-registered): H20.**
+- **Runs:** no code change; frozen sl-exp-mp (sl-exp-v8), `transfer_mp.yaml`, the existing 1M lifetime checkpoints.
+  - `T_part_scratch_s1-3`;
+  - `T_part_fromMP1open_s1-3` (seeds 1-2 from `P_MP1open_s1` life_1000000, seed 3 from `P_MP1open_s2`);
+  - `T_part_fromMP6_s1-3` (seeds 1-2 from `P_MP6_s1` life_1000000, seed 3 from `P_MP6_s2`), the same pairing as H15.
+- **Measure:** paired by transfer seed (1-3), learning AUC of partnership validation score over 0-1M.
+- **Validity:** only if scratch learns partnership (mean scratch score at 1M above its mean at 0k); otherwise both
+  verdicts are "not applicable".
+- **H20a (nearest world vs scratch).** Δ = fromMP1open − scratch.
+  - **Confirmed if** the mean Δ ≥ 10% of the mean scratch AUC and Δ > 0 in all three seeds.
+  - **Disproved if** the mean Δ ≤ 0: open experience does not speed up a second commons-harvest variant, and H15's
+    gain is specific to closed.
+  - Anything else is mixed.
+- **H20b (six worlds vs nearest world).** Δ = fromMP6 − fromMP1open.
+  - **Confirmed if** the mean Δ ≤ −10% of the mean scratch AUC and Δ < 0 in all three seeds: the breadth penalty
+    replicates.
+  - **Disproved if** the mean Δ ≥ 0.
+  - Anything else is mixed.
+- **Also reported:** fromMP6 − scratch, zero-shot (0k) scores and the scratch learning curve.
+- **Why relative bars.** Partnership's score scale is not known before the runs. H15's effect was about 50% of the
+  scratch AUC and its per-seed scratch AUC varied by about ±10%, so 10% with a sign condition on every seed is a
+  clear effect that a single noisy seed cannot produce.
+- **Power.** n = 3, with two seeds sharing a source lifetime as in H15; a mixed result is likely unless the effect is
+  as large as H15's.
+- **Cost:** nine transfers of about 2.2 h each on the Melting Pot slots, after H19's jobs; about 4-5 GB of disk after
+  retention. The verdicts are computed by `_mp_generality_test` in `scripts/sl_report.py`, written before any of
+  these runs started.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6

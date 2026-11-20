@@ -10,6 +10,9 @@
 # Amendment 18 (sl-ops-v24): H19, dilution vs interference. Open-only lifetimes stopped at the six-world lifetime's
 # open share at 1M (172,032 agent-steps; P_MP1openD_s1/s2, monitors closed + bos only), then T_closed_fromMP1openD_s1-s3
 # paired with T_closed_fromMP6_s1-s3 (transfer seeds 1-2 from lifetime s1, seed 3 from lifetime s2).
+# Amendment 19 (sl-ops-v25): H20, generality of the nearest-world advantage. Transfers to a second held-out
+# commons-harvest variant, commons_harvest__partnership: T_part_scratch / fromMP1open / fromMP6, seeds 1-3, from the
+# existing 1M lifetime checkpoints (seeds 1-2 from lifetime s1, seed 3 from lifetime s2). After H19's jobs.
 runs_root: /workspace/agentrs/runs/sl_mp
 src: /workspace/agentrs-sl-exp-mp/src
 module: agentrs.sl.train
@@ -308,3 +311,84 @@ jobs:
     init_from: /workspace/agentrs/runs/sl_mp/P_MP1openD_s2/ckpt/life_172032
   wait_for:
   - /workspace/agentrs/runs/sl_mp/P_MP1openD_s2/ckpt/life_172032
+- name: T_part_scratch_s1
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 1
+    families:
+      mp/commons_harvest__partnership: 1.0
+    heldout_families: []
+- name: T_part_fromMP1open_s1
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 1
+    families:
+      mp/commons_harvest__partnership: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP1open_s1/ckpt/life_1000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP1open_s1/ckpt/life_1000000
+- name: T_part_fromMP6_s1
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 1
+    families:
+      mp/commons_harvest__partnership: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_1000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_1000000
+- name: T_part_scratch_s2
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 2
+    families:
+      mp/commons_harvest__partnership: 1.0
+    heldout_families: []
+- name: T_part_fromMP1open_s2
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 2
+    families:
+      mp/commons_harvest__partnership: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP1open_s1/ckpt/life_1000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP1open_s1/ckpt/life_1000000
+- name: T_part_fromMP6_s2
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 2
+    families:
+      mp/commons_harvest__partnership: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_1000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP6_s1/ckpt/life_1000000
+- name: T_part_scratch_s3
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 3
+    families:
+      mp/commons_harvest__partnership: 1.0
+    heldout_families: []
+- name: T_part_fromMP1open_s3
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 3
+    families:
+      mp/commons_harvest__partnership: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP1open_s2/ckpt/life_1000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP1open_s2/ckpt/life_1000000
+- name: T_part_fromMP6_s3
+  config: configs/sl/transfer_mp.yaml
+  set:
+    seed: 3
+    families:
+      mp/commons_harvest__partnership: 1.0
+    heldout_families: []
+    init_from: /workspace/agentrs/runs/sl_mp/P_MP6_s2/ckpt/life_1000000
+  wait_for:
+  - /workspace/agentrs/runs/sl_mp/P_MP6_s2/ckpt/life_1000000

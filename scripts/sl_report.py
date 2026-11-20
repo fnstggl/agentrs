@@ -325,7 +325,7 @@ def prereg_tests(runs) -> list:
     md += _bank_breadth_test(runs)
     md += _anchor_test(runs)
     md += _core_lr_test(runs)
-    mp = _mp_breadth_test(runs) + _mp_dilution_test(runs)
+    mp = _mp_breadth_test(runs) + _mp_dilution_test(runs) + _mp_generality_test(runs)
     if mp and not md:
         md += ["## 0. Pre-registered tests", ""]
     md += mp
@@ -864,6 +864,68 @@ def _mp_dilution_test(runs) -> list:
         m = float(np.mean(ds))
         verdict = ("CONFIRMED" if m >= 5.0 else "DISPROVED" if m <= 1.0 else "neither confirmed nor disproved (mixed)") + f" (mean Δ {m:+.2f})"
     return md + ["", f"H19 verdict (interference vs dilution): **{verdict}**", ""]
+
+
+def _mp_generality_test(runs) -> list:
+    """H20 (amendment 19): the nearest-world advantage generalizes to a second held-out commons-harvest variant,
+    commons_harvest__partnership (H20a), and so does the six-world penalty against it (H20b)."""
+    if not any(n.startswith("T_part_") for n in runs):
+        return []
+    fam, budget = "mp/commons_harvest__partnership", 1_000_000
+
+    def curve(n):
+        return ev_val(runs[n], fam) if n in runs else []
+
+    def auc(n):
+        cv = curve(n)
+        return learning_auc(cv, "score", budget) if cv and max(x for x, _ in cv) >= budget else None
+
+    def at(n, x):
+        return next((auc_value(v, "score") for t, v in curve(n) if t == x), None)
+
+    def g(x, sg=False):
+        return "–" if x is None else (f"{x:+.2f}" if sg else f"{x:.2f}")
+
+    def d(a, b):
+        return None if a is None or b is None else a - b
+
+    md = ["**H20 (amendment 19): the nearest-world advantage is not specific to commons_harvest__closed.** Second "
+          "held-out target commons_harvest__partnership, which no source lifetime trained on; arms scratch, fromMP1open "
+          "(1M open agent-steps) and fromMP6 (1M over six substrates), paired by transfer seed (1-3), learning AUC of "
+          "partnership validation score 0-1M. Valid only if scratch learns (mean scratch score at 1M > at 0k). "
+          "H20a, Δ = fromMP1open − scratch: confirmed if the mean Δ ≥ 0.10 × mean scratch AUC and Δ > 0 in all three "
+          "seeds; disproved if the mean Δ ≤ 0. H20b, Δ = fromMP6 − fromMP1open: confirmed (the breadth penalty "
+          "replicates) if the mean Δ ≤ −0.10 × mean scratch AUC and Δ < 0 in all three seeds; disproved if the mean "
+          "Δ ≥ 0. Anything else mixed.", "",
+          "| seed | AUC scratch / fromMP1open / fromMP6 | fromMP1open − scratch | fromMP6 − fromMP1open | "
+          "fromMP6 − scratch | score 0k → 1M scratch | zero-shot fromMP1open / fromMP6 |", "|---|---|---|---|---|---|---|"]
+    a_, b_, sc, s0, s1 = [], [], [], [], []
+    for sd in (1, 2, 3):
+        a0, a1, a6 = (auc(f"T_part_{arm}_s{sd}") for arm in ("scratch", "fromMP1open", "fromMP6"))
+        z0, z1, z6 = (at(f"T_part_{arm}_s{sd}", 0) for arm in ("scratch", "fromMP1open", "fromMP6"))
+        e0 = at(f"T_part_scratch_s{sd}", budget)
+        if None not in (a0, a1, a6, z0, e0):
+            a_.append(a1 - a0)
+            b_.append(a6 - a1)
+            sc.append(a0)
+            s0.append(z0)
+            s1.append(e0)
+        md.append(f"| {sd} | {g(a0)} / {g(a1)} / {g(a6)} | {g(d(a1, a0), True)} | {g(d(a6, a1), True)} | "
+                  f"{g(d(a6, a0), True)} | {g(z0)} → {g(e0)} | {g(z1)} / {g(z6)} |")
+    if len(a_) < 3:
+        va = vb = f"pending ({len(a_)}/3 seeds complete in all three arms)"
+    elif not np.mean(s1) > np.mean(s0):
+        va = vb = (f"not applicable (scratch does not learn partnership in 1M: mean score {np.mean(s0):.2f} at 0k, "
+                   f"{np.mean(s1):.2f} at 1M)")
+    else:
+        bar = 0.10 * float(np.mean(sc))
+        ma, mb = float(np.mean(a_)), float(np.mean(b_))
+        va = ("CONFIRMED" if ma >= bar and all(x > 0 for x in a_) else "DISPROVED" if ma <= 0
+              else "neither confirmed nor disproved (mixed)") + f" (mean Δ {ma:+.2f}; bar {bar:+.2f})"
+        vb = ("CONFIRMED" if mb <= -bar and all(x < 0 for x in b_) else "DISPROVED" if mb >= 0
+              else "neither confirmed nor disproved (mixed)") + f" (mean Δ {mb:+.2f}; bar {-bar:+.2f})"
+    return md + ["", f"H20a verdict (nearest world vs scratch on partnership): **{va}**", "",
+                 f"H20b verdict (six worlds vs nearest world on partnership): **{vb}**", ""]
 
 
 def _core_lr_test(runs) -> list:
