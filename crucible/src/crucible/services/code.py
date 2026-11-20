@@ -56,7 +56,12 @@ class Code(Module):
         actor = actor or ctx.actor
         if r["visibility"] == "public":
             return True
-        return ident(ctx.world).allowed(ctx, actor, r["owner"], "code.read", scope=rid)
+        return self._licensed(ctx, actor, r["owner"], rid)
+
+    def _licensed(self, ctx, actor, owner, rid) -> bool:
+        """code.read held by the actor or by an organisation it administers (e.g. a purchased licence)."""
+        idm = ident(ctx.world)
+        return any(idm.allowed(ctx, p, owner, "code.read", scope=rid) for p in sorted(ctx.world.principals_of(actor)))
 
     def tree(self, state, rid: str, ref: str | None = None) -> dict[str, str]:
         r = self.repo(state, rid)
@@ -81,8 +86,7 @@ class Code(Module):
             r = ctx.state.get("repos", dep)
             if r is None:
                 raise NotFound(f"dependency {dep} not found")
-            if not ((r["visibility"] == "public" and r["license"] == "open") or
-                    ident(ctx.world).allowed(ctx, actor, r["owner"], "code.read", scope=dep)):
+            if not ((r["visibility"] == "public" and r["license"] == "open") or self._licensed(ctx, actor, r["owner"], dep)):
                 raise Forbidden(f"no licence to use {dep}")
             for p, c in self.files(ctx.state, dep, dep_ref).items():
                 files[f"deps/{dep.split('/', 1)[1].replace('-', '_')}/{p}"] = c
@@ -300,8 +304,7 @@ class Code(Module):
         owner = ident(ctx.world).resolve_handle(ctx.state, owner) if owner else ctx.actor
         if owner != ctx.actor:
             ident(ctx.world).authorize(ctx, owner, "code.write")
-        if not ((r["visibility"] == "public" and r["license"] == "open") or
-                ident(ctx.world).allowed(ctx, ctx.actor, r["owner"], "code.read", scope=repo)):
+        if not ((r["visibility"] == "public" and r["license"] == "open") or self._licensed(ctx, ctx.actor, r["owner"], repo)):
             raise Forbidden("no licence to copy this repository")
         rid = self.create_repo(ctx, owner, name, "private", f"fork of {repo}", "closed")
         files = self.files(ctx.state, repo)

@@ -1215,7 +1215,7 @@ def _register_pages(app: WebApp) -> None:  # noqa: C901 - one place that lists e
         c.add("form", id="mail-search", form=c.get_form(
             "mail-search", c.url("mail", "/search"), [Field("q", "Search your mail", "text", required=True)],
             "Search mail", "Search your mail"))
-        org_boxes = [o["org"] for o in c.orgs()]
+        org_boxes = [o["org"] for o in c.orgs() if o["role"] in ("owner", "admin")]
         if org_boxes:
             c.links("Organisation mailboxes", [Link(o, c.url("mail", "/", mailbox=o)) for o in org_boxes])
 
@@ -1308,10 +1308,10 @@ def _register_pages(app: WebApp) -> None:  # noqa: C901 - one place that lists e
             c.links("Pages", more)
         c.forms("Write", [c.form("forum.post", title=f"New post in {board}", hide={"board": board},
                                  next="/post?id={post}")])
-        c.forms("Follow", [c.form("forum.follow", hide={"target": board}, inline=True, submit="Follow board",
-                                  key="board"),
-                           c.form("forum.unfollow", hide={"target": board}, inline=True, submit="Unfollow board",
-                                  key="board")])
+        c.forms("Follow", [c.form("forum.follow", hide={"target": f"board:{board}"}, inline=True,
+                                  submit="Follow board", key="board"),
+                           c.form("forum.unfollow", hide={"target": f"board:{board}"}, inline=True,
+                                  submit="Unfollow board", key="board")])
 
     @r("forum", "/post")
     def forum_post(c: Ctx):

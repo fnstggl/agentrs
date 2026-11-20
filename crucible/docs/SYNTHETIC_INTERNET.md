@@ -1,4 +1,64 @@
-## Communication and information services
+# The synthetic internet
+
+Code: `crucible/src/crucible/services/`, `economy/`, `actors/`, `worlds/digital_civilization.py`, `web/`.
+Tests: `tests/test_services_comm.py`, `test_economy.py`, `test_goals.py`, `test_web.py`.
+
+Seventeen built-in services share one authoritative state (one identity system, one ledger, one permission
+model, one event log). Agents reach them as tools (`<host>.<endpoint>`), through HTTP/MCP/OpenEnv, or through
+real web pages in Chromium (browser mode); all three paths execute the same endpoint handlers.
+
+| host | service | what is real about it |
+|---|---|---|
+| `id` | identity, organisations, roles, delegation | principals, membership, invites that must be accepted, capability grants with spending limits and expiry |
+| `bank` | payments and banking | double-entry ledger, invoices, direct-debit mandates, statements; conservation invariant |
+| `mail` | email/messaging | delayed delivery, bounces, org mailboxes, privacy |
+| `forum` | social discussion | boards, posts, replies, votes, follows, attention-limited feed; indexed by search |
+| `search` | search engine | BM25 over public documents × ranking signals (verified ratings), sponsored results; results are how hosts are discovered |
+| `docs` | documents and public pages | versions, sharing, visibility; the standards institute publishes the need formats here |
+| `code` | repositories and execution | content-addressed commits, licences, deps; sandboxed `code.run`/`code.test` with compute charges |
+| `issues` | project management | projects bound to repositories, assignment that simulated developers act on |
+| `cal` | calendars | invitations, responses, conflicts |
+| `support` | customer support | tickets opened by real service failures, SLA statistics |
+| `ads` | advertising | keyword campaigns, per-impression billing, budgets; impressions served to agents and to simulated consumers |
+| `market` | marketplace | API listings (consumer demand), code licences, goods, services; escrow, arbitration, verified ratings |
+| `cloud` | compute and hosting | providers, rented instances, deployments, DNS, metering, overload, billing, suspension, outages, hardware purchases |
+| `biz` | company registry | registration, cap tables, fees, insolvency and bankruptcy |
+| `contracts` | contracts | composable clauses enforced by the scheduler and by predicates over state |
+| `jobs` | labour market | postings, applications, employment contracts, verified bounties |
+| `research` | market research | paid, noisy consumer surveys |
+| `goals` | private self-goals | agents' own experiments/subgoals checked by the kernel |
+| `world` | kernel | `whoami`, `clock`, `describe(host)` |
+
+## Required integrations (implemented and tested)
+
+* A user registers a company (`id.create_org` → `biz.register` → `bank.open_account`), which owns a repository
+  (`code.create_repo`); code from it is deployed (`cloud.deploy`) onto a rented instance (`cloud.rent`) whose
+  hourly bill is debited from the company account; requests consume compute units; customers discover the service
+  through search, ads, forum posts and word of mouth; their verified experience changes satisfaction, retention,
+  ratings and tickets; revenue enters the company account; the company can hire (`jobs.*` → employment contract →
+  membership), and employees can access permitted repositories and commit code; outages and overload trigger
+  support tickets and lost revenue; bankruptcy terminates services, contracts and employment.
+  (`tests/test_economy.py`, `tests/test_goals.py`, `examples/demo_lifetime.py`.)
+* Agent-deployed services are first-class: discoverable, callable by any principal (as tools once discovered),
+  priced per call, usable by other agents' programs (`crucible_sdk.call`), and listed for consumer demand.
+
+## Discovery and dynamic tools
+
+Built-in services are the "well-known" internet and always listed. A host deployed by any agent becomes a tool
+for a principal once that principal learns of it: from search results, listings, forum posts, mail, docs or
+`world.describe`. `World.available_tools(principal)` is therefore dynamic, and MCP clients receive
+`notifications/tools/list_changed`.
+
+## Extending the internet (admission of new modules)
+
+New services are new kernel modules (code reviewed by humans), never agent-written code with kernel authority.
+A module is admitted when: its endpoints have strict schemas; it moves money only via the bank; its appliers are
+deterministic (the replay **and** regeneration tests pass on a scripted session using it); `check_invariants` is
+implemented and empty after its tests; private data never appears in other principals' visible events; its web
+pages escape content; and it does not touch evaluator or reward code. The communication services below were
+added through exactly this procedure (`tests/test_services_comm.py`).
+
+### Communication and information services
 
 Code: `crucible/src/crucible/services/{search,ads,forum,mail,docs,calendar,issues,support}.py`.
 Tests: `crucible/tests/test_services_comm.py`.

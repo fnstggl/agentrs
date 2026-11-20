@@ -83,7 +83,8 @@ def _recipe(rng, *, needs, n_consumers, firms_per_need, tier_range, firm_cash, p
     lend = [{"handle": f"bank{i + 1}", "name": f"Lender {i + 1}", "rate": float(rng.uniform(0.01, 0.03)),
              "max": 3_000_000, "cash": 30_000_000} for i in range(lenders)]
     cons = {"n": int(n_consumers), "needs": {n: float(rng.uniform(0.6, 1.4)) for n in needs},
-            "search_rate": search_rate, "wom_rate": wom_rate, "loyalty": list(loyalty), "rate_per_day": list(rate)}
+            "search_rate": search_rate, "wom_rate": wom_rate, "loyalty": list(loyalty), "rate_per_day": list(rate),
+            "rewire": rewire}
     p = {"mail_latency_s": mail_latency, "mail_failure_p": mail_failure, "cu_per_ms": 50.0,
          "max_actions_per_hour": 240}
     p.update(params or {})
@@ -187,7 +188,7 @@ def generate(config: dict | str, seed: int = 0) -> WorldSpec:
     rng = np.random.default_rng(np.random.SeedSequence([int(seed), int(digest(name)[:8], 16)]))
     r = fam.build(rng, ov)
     mods = []
-    for m in BASE_MODULES + list(config.get("extra_modules", [])):
+    for m in r.get("module_list", BASE_MODULES) + list(config.get("extra_modules", [])):
         cfg = copy.deepcopy(r["modules"].get(m, {}))
         if m in ov.get("module_config", {}):
             cfg.update(ov["module_config"][m])

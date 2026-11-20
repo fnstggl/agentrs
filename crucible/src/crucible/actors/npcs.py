@@ -148,6 +148,27 @@ class NPCs(Module):
         from ..economy.needs import best_tier, tier_source
         best = max((c.get("rating") or 0 for c in rivals), default=0)
         behind = my_rating is not None and best > my_rating + 0.3
+        if behind and f.get("rd_until") is None and acct:
+            # adopt licensed technology from the market (e.g. software invented by an agent) if affordable
+            lic = [x for x in (self.act(ctx, owner, "market.browse", {"kind": "code", "need": f["need"], "limit": 10}) or [])
+                   if x["seller"] != org and x["price_cents"] <= cash // 4]
+            if lic:
+                x = min(lic, key=lambda x: (x["price_cents"], x["listing"]))
+                o = self.act(ctx, owner, "market.buy", {"listing": x["listing"], "account": acct})
+                lst = st.get("listings", x["listing"])
+                if o and lst and lst["repo"]:
+                    fk = self.act(ctx, owner, "code.fork", {"repo": lst["repo"], "name": f"lic-{x['listing'][-6:]}",
+                                                            "owner": org})
+                    if fk and dep:
+                        files = self.act(ctx, owner, "code.ls", {"repo": fk["repo"]}) or {}
+                        if any(p_["path"] == "crucible.json" for p_ in files.get("files", [])):
+                            d = self.act(ctx, owner, "cloud.deploy", {"repo": fk["repo"], "host": f["host"],
+                                                                      "instance": dep["instance"]})
+                            if d and d.get("status") == "live":
+                                ctx.emit("npcs.firm_update", {"org": org, "changes": {
+                                    "repo": fk["repo"], "tier": best_tier(f["need"]), "adopted": x["listing"]}},
+                                    vis="internal")
+                                return
         if f["tier"] < best_tier(f["need"]) and behind and f.get("rd_until") is None:
             devs = [w for w in st.find("npc_workers", "employer", org) if w["role"] == "developer"]
             if devs:

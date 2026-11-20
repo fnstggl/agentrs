@@ -8,3 +8,7 @@ artifacts/
 *.egg-info/
 .cache/
 hf_cache/
+
+# Crucible runtime data
+crucible-data/
+crucible/crucible-data/

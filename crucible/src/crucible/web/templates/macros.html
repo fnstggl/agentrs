@@ -51,8 +51,8 @@
 {%- endmacro %}
 
 {% macro form(f) -%}
-<form method="{{ f.method }}" action="{{ f.action }}" id="{{ f.id }}" class="form{% if f.inline %} inline{% endif %}" novalidate{% if f.title %} aria-labelledby="{{ f.id }}-title"{% elif f.label %} aria-label="{{ f.label }}"{% endif %}{% if f.tool %} data-tool="{{ f.tool }}"{% endif %}>
-  {%- if f.title %}<h3 id="{{ f.id }}-title">{{ f.title }}</h3>{% endif %}
+<form method="{{ f.method }}" action="{{ f.action }}" id="{{ f.id }}" class="form{% if f.inline %} inline{% endif %}" novalidate{% if f.title %} aria-labelledby="{{ f.id }}--title"{% elif f.label %} aria-label="{{ f.label }}"{% endif %}{% if f.tool %} data-tool="{{ f.tool }}"{% endif %}>
+  {%- if f.title %}<h3 id="{{ f.id }}--title">{{ f.title }}</h3>{% endif %}
   {%- if f.doc %}<p class="doc">{{ f.doc }}</p>{% endif %}
   {%- for k, v in f.hidden %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
   {%- for x in f.fields %}{{ field(f, x) }}{% endfor %}

@@ -103,7 +103,7 @@ class Consumers(Module):
         st.set_array("c_since", np.zeros(n, np.int32))
         # small-world social graph: ring lattice with random rewiring
         nbr = (np.arange(n)[:, None] + np.array([-3, -2, -1, 1, 2, 3])[None, :]) % n
-        rew = rng.random((n, DEG)) < 0.15
+        rew = rng.random((n, DEG)) < float(c.get("rewire", 0.15))
         nbr[rew] = rng.integers(0, n, int(rew.sum()))
         st.set_array("c_nbr", nbr.astype(np.int32))
 

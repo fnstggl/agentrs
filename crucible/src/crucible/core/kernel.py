@@ -204,6 +204,8 @@ class Ctx:
         self.origin = origin or actor
         self.cmd = cmd
         self.depth = depth
+        # key under which this transaction's external outcomes are recorded: the seq of its first event
+        self.ext_key = world._tx_seq0 + 1
         self.events: list[Event] = []
         self.ext: list[Any] = []
         self._ext_i = 0
@@ -241,6 +243,7 @@ class Ctx:
         if errs:
             raise InvalidAction("; ".join(errs[:5]), tool=tool)
         sub = Ctx(self.world, principal, self.cmd, origin=self.origin, depth=self.depth + 1)
+        sub.ext_key = self.ext_key
         sub.events = self.events
         sub.ext = self.ext
         mark = self.state.savepoint()
@@ -261,7 +264,7 @@ class Ctx:
         Returns (slot, recorded outcome during regeneration or None)."""
         i = len(self.ext)
         self.ext.append(None)
-        return i, self.world._regen_external(self.cmd, i)
+        return i, self.world._regen_external(self.ext_key, i)
 
     def fill(self, slot: int, kind: str, out: Any) -> Any:
         out = to_jsonable(out)
@@ -271,7 +274,7 @@ class Ctx:
     def external(self, kind: str, fn: Callable[[], Any]) -> Any:
         """Run a non-deterministic external computation (sandboxed code, measurement) once and record its
         outcome. During regeneration the recorded outcome is returned instead of re-running `fn`."""
-        rec = self.world._regen_external(self.cmd, len(self.ext))
+        rec = self.world._regen_external(self.ext_key, len(self.ext))
         if rec is not None:
             out = rec
         else:
@@ -590,7 +593,7 @@ class World:
             result = ep.handler(ctx, **args)
             result = to_jsonable(result) if result is not None else None
             if ctx.ext:
-                ctx.emit("ext", {"outcomes": ctx.ext}, vis="internal")
+                ctx.emit("ext", {"outcomes": ctx.ext, "key": ctx.ext_key}, vis="internal")
             if key is not None:
                 ctx.emit("idem", {"id": f"{actor}|{key}", "ok": True, "result": result}, vis="internal")
             self._commit(ctx)
@@ -615,6 +618,7 @@ class World:
             payload["n"] = cmd_no
         if ext:
             payload["ext"] = ext
+            payload["ext_key"] = ctx.ext_key      # same first-seq as the rolled-back transaction
         ctx.emit("cmd.rejected", payload, vis=(actor,) if isinstance(actor, str) else "internal")
         if key is not None and self.state.has("principals", actor):
             ctx.emit("idem", {"id": f"{actor}|{key}", "ok": False, "result": None, "error": err.as_dict()},
@@ -662,7 +666,7 @@ class World:
         try:
             fn(ctx)
             if ctx.ext:
-                ctx.emit("ext", {"outcomes": ctx.ext}, vis="internal")
+                ctx.emit("ext", {"outcomes": ctx.ext, "key": ctx.ext_key}, vis="internal")
             self._commit(ctx)
         except BaseException:
             self._rollback()
@@ -714,7 +718,7 @@ class World:
                 ctx.schedule(job["at"] + job["period"], job["proc"], job["args"], job["prio"], job["period"], key=sid)
             fn(ctx, **job["args"])
             if ctx.ext:
-                ctx.emit("ext", {"outcomes": ctx.ext}, vis="internal")
+                ctx.emit("ext", {"outcomes": ctx.ext, "key": ctx.ext_key}, vis="internal")
             self._commit(ctx)
         except Exception as e:
             ext = list(ctx.ext)
@@ -726,7 +730,7 @@ class World:
             def record(c):
                 c.emit("proc", {"id": sid, "proc": job["proc"], "args": job["args"], "at": job["at"]}, vis="internal")
                 c.emit("proc.failed", {"id": sid, "proc": job["proc"], "error": f"{type(e).__name__}: {e}",
-                                       "ext": ext}, vis="internal")
+                                       "ext": ext, "ext_key": c.ext_key}, vis="internal")
                 c.emit("sched.del", {"id": sid}, vis="internal")
                 if job.get("period"):
                     c.schedule(job["at"] + job["period"], job["proc"], job["args"], job["prio"], job["period"], key=sid)
@@ -942,11 +946,15 @@ class World:
         log is identical to the original (same hashes)."""
         evs = [Event.from_dict(d) for d in events]
         ext_by_cmd: dict[Any, list] = {}
-        for e in evs:
-            if e.type == "ext" and e.cmd is not None:
-                ext_by_cmd.setdefault(e.cmd, []).extend(e.payload["outcomes"])
-            if e.type == "cmd.rejected" and e.payload.get("ext"):
-                ext_by_cmd.setdefault(e.cmd, []).extend(e.payload["ext"])
+        for e in evs:   # recorded external outcomes, keyed by the first seq of their transaction
+            if e.type == "ext":
+                k = e.payload.get("key", e.cmd)
+                if k is not None:
+                    ext_by_cmd.setdefault(k, []).extend(e.payload["outcomes"])
+            if e.type in ("cmd.rejected", "proc.failed") and e.payload.get("ext"):
+                k = e.payload.get("ext_key", e.cmd)
+                if k is not None:
+                    ext_by_cmd.setdefault(k, []).extend(e.payload["ext"])
         w = cls.create(spec, world_id=world_id)
         w._regen = ext_by_cmd
         i = 0

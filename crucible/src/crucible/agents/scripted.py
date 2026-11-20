@@ -171,7 +171,20 @@ class ScriptPolicy(Policy):
             if ok(r):
                 days = r["result"]["days"]
                 over = sum(d.get("overload", 0) for d in days[-1:])
-                if over > 0:
+                full = days[-2] if len(days) > 1 else (days[-1] if days else {})
+                rev_day = full.get("revenue_cents", 0)
+                r0 = yield call("cloud.instances")
+                cur0 = [i for i in (r0 or {}).get("result", []) if i["instance"] == svc["instance"]]
+                cores0 = cur0[0]["cores"] if cur0 else 1
+                price_core_h = cur0[0]["price_core_hour_cents"] if cur0 else 200
+                # scale only if a day's revenue would still cover the bigger instance with margin; else reprice
+                affordable = rev_day > 1.5 * (cores0 + 1) * price_core_h * 24
+                if over > 0 and not affordable and svc.get("listing"):
+                    r5 = yield call("market.view", listing=svc["listing"])
+                    if ok(r5):
+                        yield call("market.update", listing=svc["listing"],
+                                   price_cents=int(r5["result"]["price_cents"] * 1.15) + 1)
+                if over > 0 and affordable:
                     r2 = yield call("cloud.instances")
                     cur = [i for i in (r2 or {}).get("result", []) if i["instance"] == svc["instance"]]
                     cores = (cur[0]["cores"] if cur else 1) + 1
@@ -213,8 +226,10 @@ def cheapest_rival(rivals, need, factor=0.9):
 class Builder(ScriptPolicy):
     name = "builder"
 
-    def __init__(self, need: str | None = None, capital: int = 400_000, undercut: float = 0.9, advertise: bool = True):
+    def __init__(self, need: str | None = None, capital: int = 400_000, undercut: float = 0.9, advertise: bool = True,
+                 license_price: int | None = None):
         self.need, self.capital, self.undercut, self.advertise = need, capital, undercut, advertise
+        self.license_price = license_price
 
     def choose_need(self):
         r = yield call("market.browse", kind="api", sort="rating", limit=30)
@@ -248,6 +263,10 @@ class Builder(ScriptPolicy):
                        text=f"{NEEDS[need].title}, verified quality", hosts=[svc["host"]], ref=svc["listing"] or "")
         yield call("forum.post", board="market", title=f"Launch: {svc['host']}.crucible",
                    body=f"We serve {need} at {price} cents per request. {svc['host']}.crucible")
+        if self.license_price:
+            yield call("market.list", kind="code", title=f"Licence: our {need} solver", price_cents=self.license_price,
+                       seller=org, repo=repo, need=need,
+                       description=f"Source licence for a verified {need} implementation ({NEEDS[need].title}).")
         yield from self.operate(org, acct, svc, repo, need)
 
 

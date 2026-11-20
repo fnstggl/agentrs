@@ -99,11 +99,13 @@ class Market(Module):
                 raise InvalidAction("api listings need a live deployment you operate")
             if endpoint not in dep["manifest"]["endpoints"]:
                 raise InvalidAction(f"{host} has no endpoint {endpoint!r}")
-            if need is not None:
-                from ..economy.needs import NEEDS
-                if need not in NEEDS:
-                    raise InvalidAction(f"unknown need {need!r}")
             hosts = [host]
+        if need is not None:
+            from ..economy.needs import NEEDS
+            if need not in NEEDS:
+                raise InvalidAction(f"unknown need {need!r}")
+        if kind == "api":
+            pass
         elif kind == "code":
             code = ctx.world.modules["code"]
             r = code.repo(st, repo or "")

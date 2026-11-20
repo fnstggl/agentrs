@@ -233,16 +233,17 @@ def route(topology, demands, chunks=3):
     return {"routes": routes}
 '''
 
-INVALID_SOURCE = '''"""A plausible but broken controller: assumes a full mesh and sends every demand over the direct link.
-Wherever src and dst are not adjacent the path is invalid, so the lab drops that demand entirely."""
+INVALID_SOURCE = '''"""A plausible but broken controller: assumes a full mesh and sends every demand over the
+direct link. Wherever src and dst are not adjacent the path is invalid, so the lab drops that demand entirely."""
 
 
 def route(topology, demands):
     return {"routes": {d["id"]: [[[d["src"], d["dst"]], 1.0]] for d in demands}}
 '''
 
-HARNESS_SOURCE = '''"""Installed by the Crucible lab next to your files (not part of your repository): calls your controller once per
-scenario, seeding `random` (and numpy, if imported) with the scenario seed so that runs are reproducible.
+HARNESS_SOURCE = '''"""Installed by the Crucible lab next to your files (not part of your repository): calls your
+controller once per scenario, seeding `random` (and numpy, if imported) with the scenario seed so that runs
+are reproducible.
 Exceptions raised while routing are reported as type and location only (messages could carry the traffic)."""
 import importlib
 import json
@@ -767,8 +768,8 @@ class Lab(Module):
 
     def _run(self, ctx: Ctx, repo: str, ref: str, target: str, principal: str, scenarios: list[dict],
              trusted: bool, recorded: str) -> dict:
-        """Run a controller on scenarios [{"seed", "demands"}]. Returns {"outputs": [output|None], "errors": [...],
-        "load_error", "cpu_ms", "ok"}. `recorded` = "cmd" (bridge: full outcome incl. measured CPU, injected on
+        """Run a controller on scenarios [{"seed", "demands"}]. Returns {"ok", "outputs": [{"ok", "out"|"error"}],
+        "load_error", "error", "cpu_ms"}. `recorded` = "cmd" (bridge: full outcome incl. measured CPU, injected on
         regeneration) or "proc" (only the deterministic part of the outcome is recorded: scheduled processes are
         re-executed during regeneration)."""
         net = self.net(ctx.world)
@@ -927,7 +928,8 @@ class Lab(Module):
         "scenarios": S.s_int("number of fresh traffic snapshots to test on", minimum=1, maximum=48),
         "account": S.s_str("account paying the lab fee (default: your primary account)", maxLength=60),
         "ref": S.s_str("commit (default: head)", maxLength=40),
-        "hours": S.s_arr(S.s_int(minimum=0, maximum=23), "hours of day to sample (default: random)", maxItems=48)},
+        "hours": S.s_arr(S.s_int(minimum=0, maximum=23), "hours of day to sample, one scenario each (overrides "
+                         "scenarios; default: random hours)", maxItems=48)},
         ["repo", "target"]), cost_s=300)
     def ep_experiment(self, ctx, repo, target, scenarios=4, account=None, ref=None, hours=None):
         """Offline test of a controller on freshly sampled demand snapshots of the current traffic process (not
