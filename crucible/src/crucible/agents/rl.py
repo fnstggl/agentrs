@@ -225,6 +225,7 @@ class A2CConfig:
     hid: int = 128
     emb: int = 64
     temperature: float = 1.0
+    reward_scale: float | None = None   # fixed reward multiplier; None = running return-std normalisation
 
 
 class RunningStd:
@@ -254,8 +255,12 @@ class A2CLearner:
         self.updates = 0
 
     def record(self, d: Decision, reward: float) -> None:
-        self.rms.update(reward)
-        self.buf.append((d.logp, d.ent, d.value, reward / max(self.rms.std, 1e-8)))
+        if self.cfg.reward_scale is not None:
+            r = reward * self.cfg.reward_scale
+        else:
+            self.rms.update(reward)
+            r = reward / max(self.rms.std, 1e-8)
+        self.buf.append((d.logp, d.ent, d.value, r))
 
     def ready(self) -> bool:
         return len(self.buf) >= self.cfg.n_steps
@@ -284,7 +289,8 @@ class A2CLearner:
         self.opt.step()
         self.buf = []
         self.updates += 1
-        return {"loss": float(loss), "pol": float(pl), "v": float(vl), "ent": float(ent.mean()), "grad": gn,
+        return {"loss": float(loss.detach()), "pol": float(pl.detach()), "v": float(vl.detach()),
+                "ent": float(ent.detach().mean()), "grad": gn,
                 "adv_abs": float(np.abs(adv).mean())}
 
 
@@ -304,6 +310,7 @@ class LifetimeConfig:
     total_steps: int = 6000
     ckpt_every: int = 10              # episodes
     a2c: dict = field(default_factory=dict)
+    hosts: list | None = None         # optional action-space restriction to these tool hosts (documented condition)
     out_dir: str = "runs/crucible_rl/dev"
     torch_threads: int = 1
 
@@ -395,6 +402,8 @@ class Lifetime:
         obs = self.view.observe()
         self.mem.observe(obs)
         tools = self.view.tools()
+        if cfg.hosts:
+            tools = [t for t in tools if t["name"].split(".", 1)[0] in cfg.hosts]
         if self.learner is not None and self.learner.ready():
             with torch.no_grad():   # bootstrap value of the current observation under the pre-update weights
                 h = self.net.core(obs_features(obs, self.last_result, OBS_DIM), self.pi.prev, self.pi.h)
@@ -548,6 +557,7 @@ def main(argv=None):
     ap.add_argument("--world", default="tiny")
     ap.add_argument("--price-mult", type=float, default=4.0)
     ap.add_argument("--capital", type=int, default=400_000, help="cents moved into the company by the prefix")
+    ap.add_argument("--hosts", default="", help="comma-separated tool hosts the learner may use (default: all)")
     ap.add_argument("--dt", type=int, default=3 * 3600)
     ap.add_argument("--episode-steps", type=int, default=56)
     ap.add_argument("--out", default=None)
@@ -565,7 +575,8 @@ def main(argv=None):
             a2c[k] = json.loads(v)
         cfg = LifetimeConfig(goal_family=a.goal, world_family=a.world, level=a.level, seed=a.seed, mode=a.mode,
                              policy=a.policy, dt=a.dt, episode_steps=a.episode_steps, total_steps=a.steps,
-                             prefix_kw={"price_mult": a.price_mult, "capital": a.capital}, a2c=a2c, out_dir=out)
+                             prefix_kw={"price_mult": a.price_mult, "capital": a.capital}, a2c=a2c, out_dir=out,
+                             hosts=[h for h in a.hosts.split(",") if h] or None)
         Path(out).mkdir(parents=True, exist_ok=True)
         (Path(out) / "episodes.jsonl").write_text("")
         lt = Lifetime(cfg)

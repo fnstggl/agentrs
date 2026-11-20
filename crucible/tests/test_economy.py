@@ -138,3 +138,33 @@ def test_agent_code_never_runs_in_process_even_when_adopted_by_trusted_firm():
     assert not w.state.get("repos", repo)["trusted"]
     w.system_call("cloud.deploy", {"repo": repo, "host": host, "instance": dep["instance"]}, as_principal=owner)
     assert not w.modules["cloud"].live_deployment(w.state, host)["trusted"]
+
+
+def test_bankruptcy_procedure():
+    w = World.create(generate({"family": "tiny", "overrides": {"n_consumers": 300,
+                                                               "params": {"insolvency_grace_s": 2 * DAY}}}, 9))
+    ex, inst = _company(w, "fail", 30_000)
+    w.system_call("admin.join", {"handle": "landlord", "endowment": 0})
+    org = "o:failco"
+    owner_acct = w.modules["bank"].primary_account(w.state, org)
+    r = w.execute("p:fail", {"tool": "contracts.propose", "args": {
+        "parties": [org, "p:landlord"], "as_org": org, "title": "office rent",
+        "clauses": [{"type": "payment", "from": org, "to": "p:landlord", "amount": 5_000_000, "every_s": 30 * DAY,
+                     "count": 12, "start_in_s": 3600}]}})
+    assert r.ok, r.error
+    assert w.execute("p:landlord", {"tool": "contracts.sign", "args": {"contract": r.result["contract"]}}).ok
+    lst = w.execute("p:fail", {"tool": "market.list", "args": {"kind": "api", "title": "x", "price_cents": 2, "seller": org,
+                                                               "host": "failsvc", "endpoint": "solve", "need": "sort.records"}})
+    assert lst.ok
+    w.advance_time(w.now + 6 * DAY)
+    st = w.state
+    assert st.get("companies", org)["status"] == "bankrupt"
+    assert st.get("orgs", org)["status"] == "bankrupt"
+    assert all(st.tables["accounts"][a]["status"] == "frozen" for a in st.find_ids("accounts", "owner", org))
+    assert st.get("instances", inst)["status"] == "terminated"
+    assert st.get("listings", lst.result["listing"])["status"] == "closed"
+    claims = [c for c in st.tables["claims"].values() if c["debtor"] == org]
+    assert claims and all(c["status"] != "open" for c in claims)
+    # the creditor received the liquidation proceeds (whatever cash was left)
+    assert w.modules["bank"].balance(st, w.modules["bank"].primary_account(st, "p:landlord")) >= 0
+    assert w.check_invariants() == []
