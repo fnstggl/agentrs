@@ -545,6 +545,96 @@ class RLPolicy(Policy):
         self.mem.observe(None, action, result)
 
 
+# ============================================================================================== reporting
+POLICY_COLORS = {"a2c": "#2a78d6", "random": "#eb6834", "idle": "#1baf7a"}   # categorical slots 1-3
+
+
+def load_episodes(run_dir: str) -> list:
+    p = Path(run_dir, "episodes.jsonl")
+    return [json.loads(l) for l in p.read_text().splitlines() if l.strip()] if p.exists() else []
+
+
+def report(groups: dict, out_json: str, out_png: str | None = None, last: int = 50, smooth: int = 10) -> dict:
+    """Learning-curve summary. ``groups``: panel label -> {policy: [run dirs (one per seed)]}. Per run: weekly
+    independent revenue (verified metric, 7-day window at each episode end), episode return (RewardContract), share
+    of episodes with the service still live, market.update calls per episode; aggregated over seeds."""
+    out: dict = {"last_episodes": last, "groups": {}}
+    for g, pols in groups.items():
+        G = out["groups"][g] = {}
+        for pol, dirs in pols.items():
+            runs = []
+            for d in dirs:
+                eps = load_episodes(d)
+                if not eps:
+                    continue
+                rev = [e["rev7_cents"] / 100.0 for e in eps]
+                k = min(last, len(eps))
+                runs.append({"dir": str(d), "episodes": len(eps), "steps": eps[-1]["steps"],
+                             "rev7_usd": rev, "ret": [e["ret"] for e in eps],
+                             "rev7_first10": float(np.mean(rev[:10])), "rev7_last": float(np.mean(rev[-k:])),
+                             "ret_last": float(np.mean([e["ret"] for e in eps[-k:]])),
+                             "live_last": float(np.mean([e["service_live"] for e in eps[-k:]])),
+                             "updates_per_ep_last": float(np.mean([e["tools"].get("market.update", 0) for e in eps[-k:]])),
+                             "waits_last": float(np.mean([e["waits"] for e in eps[-k:]])),
+                             "final_price": eps[-1].get("listing_price")})
+            n = min((r["episodes"] for r in runs), default=0)
+            G[pol] = {"seeds": len(runs), "episodes_common": n,
+                      "rev7_last_per_seed": [r["rev7_last"] for r in runs],
+                      "rev7_last_mean": float(np.mean([r["rev7_last"] for r in runs])) if runs else float("nan"),
+                      "rev7_first10_mean": float(np.mean([r["rev7_first10"] for r in runs])) if runs else float("nan"),
+                      "ret_last_per_seed": [r["ret_last"] for r in runs],
+                      "live_last_per_seed": [r["live_last"] for r in runs],
+                      "updates_per_ep_last": [r["updates_per_ep_last"] for r in runs],
+                      "final_price_per_seed": [r["final_price"] for r in runs],
+                      "curve_mean": np.mean([r["rev7_usd"][:n] for r in runs], 0).round(2).tolist() if n else [],
+                      "curve_min": np.min([r["rev7_usd"][:n] for r in runs], 0).round(2).tolist() if n else [],
+                      "curve_max": np.max([r["rev7_usd"][:n] for r in runs], 0).round(2).tolist() if n else []}
+        if "a2c" in G and "random" in G and G["a2c"]["seeds"] == G["random"]["seeds"]:
+            d = [a - b for a, b in zip(G["a2c"]["rev7_last_per_seed"], G["random"]["rev7_last_per_seed"])]
+            G["a2c_minus_random_rev7_last_per_seed"] = d
+            G["a2c_beats_random_all_seeds"] = bool(all(x > 0 for x in d))
+        if "a2c" in G and "idle" in G and G["a2c"]["seeds"] == G["idle"]["seeds"]:
+            d = [a - b for a, b in zip(G["a2c"]["rev7_last_per_seed"], G["idle"]["rev7_last_per_seed"])]
+            G["a2c_minus_idle_rev7_last_per_seed"] = d
+            G["a2c_beats_idle_all_seeds"] = bool(all(x > 0 for x in d))
+    Path(out_json).parent.mkdir(parents=True, exist_ok=True)
+    Path(out_json).write_text(json.dumps(out, indent=1, default=float))
+    if out_png:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        n = len(groups)
+        fig, axes = plt.subplots(1, n, figsize=(5.2 * n, 3.6), squeeze=False)
+        for ax, (g, G) in zip(axes[0], out["groups"].items()):
+            for pol in ("a2c", "random", "idle"):
+                if pol not in G or not G[pol]["curve_mean"]:
+                    continue
+                c = POLICY_COLORS[pol]
+                m = np.convolve(G[pol]["curve_mean"], np.ones(smooth) / smooth, mode="valid")
+                lo = np.convolve(G[pol]["curve_min"], np.ones(smooth) / smooth, mode="valid")
+                hi = np.convolve(G[pol]["curve_max"], np.ones(smooth) / smooth, mode="valid")
+                x = np.arange(len(m)) + smooth
+                ax.fill_between(x, lo, hi, color=c, alpha=0.12, linewidth=0)
+                ax.plot(x, m, color=c, linewidth=2, label=f"{pol} ({G[pol]['seeds']} seeds)")
+                if len(m):
+                    ax.annotate(pol, (x[-1], m[-1]), xytext=(4, 0), textcoords="offset points", fontsize=8,
+                                color="#52514e", va="center")
+            ax.set_title(g, fontsize=10, color="#0b0b0b")
+            ax.set_xlabel("episode (= 1 simulated week)", fontsize=9, color="#52514e")
+            ax.set_ylabel("independent revenue, last 7 days ($)", fontsize=9, color="#52514e")
+            ax.grid(True, color="#e6e5e1", linewidth=0.6)
+            for sp in ("top", "right"):
+                ax.spines[sp].set_visible(False)
+            ax.tick_params(labelsize=8, colors="#52514e")
+            ax.legend(fontsize=8, frameon=False, loc="upper left")
+        fig.suptitle(f"Crucible revenue:tiny:1, deployed-service start state; mean over seeds (band: min-max), "
+                     f"{smooth}-episode moving average", fontsize=9, color="#52514e")
+        fig.tight_layout()
+        fig.savefig(out_png, dpi=130)
+        plt.close(fig)
+    return out
+
+
 # ============================================================================================== CLI
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Online neural RL in a Crucible world (no LLM)")

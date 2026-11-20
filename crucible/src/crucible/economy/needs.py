@@ -528,3 +528,24 @@ def tier_source(need: str, tier: int) -> str:
 
 def best_tier(need: str) -> int:
     return len(NEEDS[need].tiers) - 1
+
+
+_TQ: dict[tuple[str, int], float] = {}
+
+
+def tier_quality(need: str, tier: int, n: int = 4) -> float:
+    """Measured mean verifier score of a reference tier on n seeded inputs (cached). Used by goal generation to
+    check that a generated goal is achievable (executable feasibility check), never by agents."""
+    key = (need, tier)
+    if key not in _TQ:
+        nd = NEEDS[need]
+        fn = compile_solver(tier_source(need, tier))
+        qs = []
+        for k in range(n):
+            inp, hidden = nd.generate(np.random.default_rng([7919, k]), 0.6)
+            try:
+                qs.append(nd.score(inp, hidden, fn(inp, None)))
+            except Exception:  # noqa: BLE001
+                qs.append(0.0)
+        _TQ[key] = float(np.mean(qs))
+    return _TQ[key]

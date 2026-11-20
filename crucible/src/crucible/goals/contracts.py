@@ -259,24 +259,32 @@ def _solvency_goal(rng, world, split, level):
 
 
 def _outperform_goal(rng, world, split, level):
+    from ..economy.needs import best_tier, tier_quality
     from ..worldgen import generate
     spec = generate({"family": world["family"], "overrides": world.get("overrides", {})}, world["seed"])
     civ = [m for m in spec.modules if m["name"] == "civ"]
-    from ..economy.needs import NEEDS, compile_solver
-    # only needs where quality does not saturate at the weakest tier (sorting is correct at every tier)
-    needs = sorted({f["need"] for f in civ[0]["config"].get("firms", [])} - {"sort.records"}) if civ else []
-    need = needs[int(rng.integers(0, len(needs)))] if needs else "route.shortest"
+    firms = civ[0]["config"].get("firms", []) if civ else []
     margin = [0.02, 0.05, 0.1, 0.2][level]
+    # executable feasibility check: the best reference implementation must beat the best incumbent by the margin
+    gaps = {}
+    for need in sorted({f["need"] for f in firms}):
+        inc = max(tier_quality(need, int(f["tier"])) for f in firms if f["need"] == need)
+        gaps[need] = tier_quality(need, best_tier(need)) - inc
+    feasible = sorted(n for n, g in gaps.items() if g >= margin * 1.25)
+    if not feasible:   # no need in this world has headroom: the goal would be unwinnable
+        raise GoalInfeasible(f"no need in {world['family']}/{world['seed']} has headroom {margin}: {gaps}")
+    need = str(feasible[int(rng.integers(0, len(feasible)))])
     horizon = [14, 30, 60, 90][level] * DAY
     pred = {"metric": "quality_margin_vs_incumbents", "args": {"org": "$org", "need": need, "n": 6, "seed": 0},
             "op": ">=", "value": margin}
     return GoalContract("outperform", f"Operate a listed service for the public `{need}` format whose verified quality "
-                        f"on an independent hidden test battery beats every incumbent's by at least {margin:.2f}.",
+                        f"on an independent hidden test battery beats every incumbent's by at least {margin:.3f}.",
                         world, "$self", pred,
                         {"metric": "quality_margin_vs_incumbents", "args": {"org": "$org", "need": need, "n": 4, "seed": 1},
                          "target": margin, "baseline": None}, horizon, 1,
                         endowment=int(rng.choice([1_000_000, 2_000_000])), split=split, difficulty=level / 3,
-                        params={"need": need, "margin": margin, "level": level}, progress_every_s=DAY)
+                        params={"need": need, "margin": margin, "level": level, "headroom": round(gaps.get(need, 0), 4)},
+                        progress_every_s=DAY)
 
 
 GOAL_FAMILIES = {"outperform": _outperform_goal, "revenue": _revenue_goal, "recruit": _recruit_goal, "service": _service_goal,
@@ -284,14 +292,30 @@ GOAL_FAMILIES = {"outperform": _outperform_goal, "revenue": _revenue_goal, "recr
 HELDOUT_GOAL_FAMILIES = {"lab_improvement"}
 
 
+class GoalInfeasible(ValueError):
+    """The (goal family, world) combination cannot be won (fails the executable feasibility check)."""
+
+
 def generate_goal(family: str, world_family: str, seed: int, level: int, split: str | None = None,
-                  overrides: dict | None = None) -> GoalContract:
-    """A goal instance = goal family x difficulty level x world family x seed (each changes the challenge)."""
+                  overrides: dict | None = None, max_tries: int = 20) -> GoalContract:
+    """A goal instance = goal family x difficulty level x world family x seed (each changes the challenge).
+    Infeasible draws are rejected and the world seed is redrawn deterministically (recorded in params)."""
     from ..worldgen.generator import FAMILIES
-    rng = np.random.default_rng([seed, level, int(digest([family, world_family], 4), 16)])
     split = split or FAMILIES[world_family].split
-    world = {"family": world_family, "seed": int(seed), "overrides": copy.deepcopy(overrides or {})}
-    return GOAL_FAMILIES[family](rng, world, split, int(level))
+    last = None
+    for k in range(max_tries):
+        s = int(seed) + 7919 * k
+        rng = np.random.default_rng([s, level, int(digest([family, world_family], 4), 16)])
+        world = {"family": world_family, "seed": s, "overrides": copy.deepcopy(overrides or {})}
+        try:
+            g = GOAL_FAMILIES[family](rng, world, split, int(level))
+        except GoalInfeasible as e:
+            last = e
+            continue
+        g.params["requested_seed"] = int(seed)
+        g.params["redraws"] = k
+        return g
+    raise last
 
 
 def goal_suite(split: str, n_per: int = 2, levels=(0, 1), families=None, world_families=None, seed0: int = 0) -> list[GoalContract]:

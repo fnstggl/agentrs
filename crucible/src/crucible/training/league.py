@@ -376,8 +376,9 @@ class League:
         try:
             seats, agents = {}, []
             for i, pid in enumerate(participants):
+                # neutral seat handles; the policy id is NOT written into the world (person records are public)
                 r = w.system_call("admin.join", {"handle": f"seat{i + 1}", "endowment": self.endowment,
-                                                 "kind": "agent", "controller": pid})
+                                                 "kind": "agent"})
                 seats[pid] = r["principal"]
                 agents.append((r["principal"], self.entries[pid].make()))
             t0 = w.now

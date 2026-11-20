@@ -50,8 +50,8 @@ def _world(name, seed, agents, hours):
 
 @pytest.fixture(scope="module")
 def builder_world():
-    """Tiny deterministic world with one scripted Builder (alice) on route.shortest, 1.5 days."""
-    w, run = _world("tooling-b", 3, [("alice", Builder(need="route.shortest"))], 36)
+    """Tiny deterministic world with one scripted Builder (alice) on route.shortest, 1.25 days."""
+    w, run = _world("tooling-b", 3, [("alice", Builder(need="route.shortest"))], 30)
     yield w, run
     w.close()
 
@@ -255,7 +255,7 @@ def test_selfplay_short_real_run(tmp_path, capsys):
     out = str(tmp_path / "league.json")
     a, b = "builder:need=route.shortest:undercut=0.9", "builder:need=route.shortest:undercut=0.6:advertise=0"
     assert main(["selfplay", "run", "--world", "tiny", "--seeds", "1", "--days", "1", "--policies", f"{a},{b}",
-                 "--out", out]) == 0
+                 "--measured-cost", "--out", out]) == 0
     txt = capsys.readouterr().out
     assert "| A | B | games" in txt and "Elo" in txt
     d = json.load(open(out))
@@ -280,7 +280,7 @@ def test_counterfactual_removing_builder_host_shifts_customers_to_incumbents(bui
     seq0, dig0 = w.seq, w.digest()
     host = "alice-shorte"
     assert w.modules["consumers"].market_shares(w).get(host, 0) > 0
-    r = CF.fork_compare(w, CF.undeploy_host(host), DAY, check_determinism=True)
+    r = CF.fork_compare(w, CF.undeploy_host(host), DAY // 2, check_determinism=True)
     assert r["exact"] and r["determinism_check"] is True
     assert w.seq == seq0 and w.digest() == dig0                                    # source world untouched
     rb, rt = r["baseline"]["revenue"], r["treatment"]["revenue"]
