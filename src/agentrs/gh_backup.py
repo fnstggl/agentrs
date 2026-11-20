@@ -416,7 +416,9 @@ def upload(run: Path, ckpt: str, kind: str, repo: str = DEFAULT_REPO, part_mib: 
            work: Optional[Path] = None) -> dict:
     t0 = time.time()
     gh = GitHub(repo)
-    work = work or (run.resolve().parent / ".gh_backup_work")
+    # per-run staging dir: watchers of runs sharing a parent finished within minutes of each other and wiped each
+    # other's parts (verification caught it; the upload failed and was retried)
+    work = work or (run.resolve().parent / ".gh_backup_work" / run.resolve().name)
     public = not gh.api("GET", "").get("private", False)
     man = build_bundle(run, ckpt, work, part_mib, kind, public=public)
     parts_dir = Path(man.pop("parts_dir"))
