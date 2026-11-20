@@ -322,6 +322,7 @@ def prereg_tests(runs) -> list:
     md += _head_reset_test(runs)
     md += _head_bank_test(runs)
     md += _early_transfer_test(runs)
+    md += _bank_breadth_test(runs)
     return md
 
 
@@ -589,6 +590,75 @@ def _early_transfer_test(runs) -> list:
     md += [f"H14a verdict (experience): **{verdict(da, lambda m: m >= 0.03)}**", "",
            f"H14b verdict (breadth): **{verdict(db, lambda m: True)}**", ""]
     return md
+
+
+def _bank_breadth_test(runs) -> list:
+    """Amendment 16: H13c (H13b on new seeds 3-4) and H16 (breadth with per-world heads: fromNPbankrh vs fromNbankrh,
+    seeds 1-4, bizdev AUC 0-300k)."""
+    if not any(re.fullmatch(r"T_B17_(fromNPbankrh_s\d|fromNbankrh_s[34])", n) for n in runs):
+        return []
+    fam, src, budget = "cam/bizdev", "cam/negotiation", 300_000
+
+    def auc(n):
+        cv = ev_val(runs[n], fam) if n in runs else []
+        return learning_auc(cv, "score", budget) if cv and max(x for x, _ in cv) >= budget else None
+
+    def win(n, lo, hi):
+        return _win_auc(ev_val(runs[n], fam), lo, hi) if n in runs else None
+
+    def neg(n):
+        cv = ev_val(runs[n], src) if n in runs else []
+        return next((auc_value(v, "success") for x, v in cv if x >= budget), None)
+
+    md = ["**H13c and H16 (amendment 16).** H13c: `T_B17_fromNbankrh` on new seeds 3-4 replicates H13b if negotiation "
+          "≥ 0.50 at 300k in both and mean bizdev ΔAUC vs `T_B16_scratch_s3/s4` ≥ −0.05; fails if mean ΔAUC ≤ −0.15 or "
+          "negotiation < 0.50 in both. H16: paired by seed (1-4), bizdev AUC 0-300k of `T_B17_fromNPbankrh` − "
+          "`T_B17_fromNbankrh`; confirmed if mean ≥ +0.02 and positive in ≥ 3 of 4 seeds, disproved if mean ≤ 0.", "",
+          "| seed | scratch AUC | fromNbankrh AUC (Δ vs scratch) | fromNPbankrh AUC (Δ vs scratch) | NP − N | 0-50k scratch / N / NP | "
+          "50k-300k scratch / N / NP | negotiation at 300k N / NP |",
+          "|---|---|---|---|---|---|---|---|"]
+    rep, br = [], []
+    for s_ in (1, 2, 3, 4):
+        sc, nb, npb = f"T_B16_scratch_s{s_}", f"T_B17_fromNbankrh_s{s_}", f"T_B17_fromNPbankrh_s{s_}"
+        if not any(x in runs for x in (nb, npb)):
+            continue
+        a_s, a_n, a_p = auc(sc), auc(nb), auc(npb)
+        dn = None if a_n is None or a_s is None else a_n - a_s
+        dp = None if a_p is None or a_s is None else a_p - a_s
+        d = None if a_n is None or a_p is None else a_p - a_n
+        e = [win(x, 0, 50_000) for x in (sc, nb, npb)]
+        l = [win(x, 50_000, budget) for x in (sc, nb, npb)]
+        md.append(f"| {s_} | {_fmt(a_s)} | {_fmt(a_n)} ({_fmt(dn, True)}) | {_fmt(a_p)} ({_fmt(dp, True)}) | {_fmt(d, True)} | "
+                  + " / ".join(_fmt(x) for x in e) + " | " + " / ".join(_fmt(x) for x in l)
+                  + f" | {_fmt(neg(nb))} / {_fmt(neg(npb))} |")
+        if s_ >= 3:
+            rep.append((neg(nb), dn))
+        br.append(d)
+    md.append("")
+    if len(rep) < 2 or any(k is None or d is None for k, d in rep):
+        vc = f"pending ({sum(d is not None for _, d in rep)} of 2 new seeds complete)"
+    else:
+        m = float(np.mean([d for _, d in rep]))
+        if all(k >= 0.50 for k, _ in rep) and m >= -0.05:
+            vc = "REPLICATES"
+        elif m <= -0.15 or all(k < 0.50 for k, _ in rep):
+            vc = "FAILS TO REPLICATE"
+        else:
+            vc = "neither (mixed)"
+        vc += f" (mean bizdev ΔAUC {m:+.3f}; negotiation at 300k " + ", ".join(f"{k:.3f}" for k, _ in rep) + ")"
+    done = [d for d in br if d is not None]
+    if len(br) < 4 or len(done) < 4:
+        v16 = f"pending ({len(done)} of 4 seed pairs complete)"
+    else:
+        m = float(np.mean(done))
+        if m >= 0.02 and sum(d > 0 for d in done) >= 3:
+            v16 = "CONFIRMED"
+        elif m <= 0:
+            v16 = "DISPROVED"
+        else:
+            v16 = "neither confirmed nor disproved (mixed)"
+        v16 += f" (mean NP − N {m:+.3f}; positive in {sum(d > 0 for d in done)} of 4)"
+    return md + [f"H13c verdict (replication): **{vc}**", "", f"H16 verdict (breadth with per-world heads): **{v16}**", ""]
 
 def _rehearsal_test(runs) -> list:
     """H11 (amendment 12): forgetting during transfer comes from training on the new world alone; rehearsing the source

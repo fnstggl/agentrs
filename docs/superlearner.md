@@ -812,18 +812,101 @@ All four v17 runs finished at 300k (23:43 to 00:00 UTC). Negotiation is validati
   - fromNbankrh: +0.028 / −0.016.
   - Every fresh-head transfer so far (fromNhr, fromNPhr, fromNbank; six pairs) trails scratch over 50k-300k, by
     0.004 to 0.12. H14's seeds 3-4 report this window.
-- **World-model knowledge transfers, but the policy does not use it.** Mean world-model loss over the first 12
+- **Raw world-model loss falls faster after a product-containing source.** Mean world-model loss over the first 12
   iterations on bizdev:
   - scratch: 0.35–0.55;
   - sources that include product (fromNP, fromNPhr, fromNPV at 250k, 500k or 1M): 0.03–0.25;
   - negotiation-only sources: 0.37–0.56, and 2.5–4.9 at iteration 1 against scratch's 1.2.
-  - So product experience predicts bizdev transitions from the start, and negotiation experience does not.
-  - Yet `T_B16_fromNP` (shared heads) had the largest bizdev deficit (−0.21 with the gate), and fromNPhr is only about
-    scratch.
-  - In this architecture the world model is an auxiliary loss on the shared representation. No policy or value
-    computation reads its predictions: no imagination, planning or uncertainty bonus.
-  - **Caveat, not yet checked:** a lower loss could partly reflect lower-variance perception targets in the transferred
-    encoder. A variance-normalised check is next.
+  - The variance-normalised check below shows this is calibration, not knowledge of bizdev dynamics.
+
+### Diagnostics of the transferred core, 2026-11-20 00:30 UTC (evidence only, no runs launched)
+All three checks run on identical bizdev validation transitions: two segments of 16 worlds × 32 steps, collected by a
+fresh-init policy, evaluated by every checkpoint with the frozen v17 code. They are read-only.
+
+**1. Does the world model transfer knowledge of bizdev dynamics? No.**
+
+| checkpoint | next-embedding R² | R² of "next = current" | reward MSE | termination BCE |
+|---|---|---|---|---|
+| fresh init | −43.8 | +0.70 | 0.040 | 0.66 |
+| P_N_s1 @ 1M | −15.6 | +0.62 | 0.073 | 10.9 |
+| P_NP_s1 @ 250k | +0.15 | +0.88 | 0.004 | 0.08 |
+| P_NP_s1 @ 1M | +0.66 | +0.91 | 0.016 | 0.21 |
+| P_NPV_s1 @ 1M | −2.1 | +0.62 | 0.209 | 7.4 |
+| T_B16_scratch_s1 @ 300k (trained on bizdev) | +0.95 | +0.80 | 0.002 | 0.014 |
+
+- The product-containing source predicts the next state worse than simply copying the current state. Its lower early
+  loss comes from calibrated reward and termination predictions: near-zero reward, no termination.
+- The negotiation source and the full NPV source predict termination confidently and wrongly (BCE 7–11).
+- No source carries a bizdev dynamics model a planner could exploit. That argues against expecting a policy that uses
+  the world model to turn transferred experience into speed. The world model stays auxiliary.
+
+**2. Is the late deficit a loss of plasticity? No sign of it.**
+- On bizdev data, the source cores' context has the same or higher effective rank than a fresh network:
+  - entropy rank 36–41 vs fresh 33–37;
+  - 99%-energy rank 213–261 vs 233–248.
+- Dormant context units: 0.1–1.0% (fresh 0.3–0.6%).
+- Core weight norms are within 1% of fresh init.
+- A bizdev-trained network has a much lower rank (18), so transferred cores are not collapsed relative to what bizdev
+  needs.
+- Shrink-and-perturb, the standard fix for warm-start plasticity loss, therefore has no supporting evidence here and is
+  not tested.
+
+**3. Do the learned skills change behaviour? Barely.**
+- In P_N_s1 (negotiation) and T_B16_scratch_s1 (bizdev), the high-level policy uses skills unevenly: entropy 1.5–1.7
+  of 2.08, switch rate 0.02–0.12 per step.
+- The first action slot is near-deterministic (max probability 0.98–0.99; logit spread across candidates about 20).
+  Changing the skill moves those logits by about 0.24, so the mean pairwise Jensen–Shannon divergence between skills'
+  first-slot distributions is 0.0000–0.0001.
+- The skill hierarchy is close to inert in the decision that dominates behaviour. Any "skill transfer" would need a
+  different design. The `noskill` ablation transfer (queued) measures what removing skills costs.
+
+**Statistical caveat on the late deficit.** The six fresh-head pairs reuse the same two scratch runs (seeds 1-2) as
+the reference, so they are effectively n = 2. H14's seeds 3-4 bring new scratch runs.
+
+### Protocol amendment 16, 2026-11-20 00:35 UTC: replicate H13b and test breadth under per-world heads (before any result of these runs)
+**Why.**
+- H13b (per-world heads + 10% rehearsal) is the only configuration so far that keeps the source world and learns the new
+  one within 0.05 of scratch. It passed by 0.0001 on two seeds, so it needs new seeds before it becomes the default
+  transfer protocol.
+- Breadth so far was tested only with heads that carry the source policy (two-world source worse) or are deleted
+  (two-world source better early: H14b reference seeds +0.03, and 0-300k −0.012 vs −0.044).
+- The diagnostics above found one thing the product-containing source carries to bizdev that the negotiation source
+  does not: calibrated reward and termination predictions.
+- No code change: frozen sl-exp-v17.
+
+**Runs (seeds 1-4 share scratch references `T_B16_scratch_s1-s4`, v16 = v17 with an empty bank).**
+- `T_B17_fromNbankrh_s3/s4`: exactly `T_B17_fromNbankrh_s1`'s configuration with new seeds.
+- `T_B17_fromNPbankrh_s1-s4`:
+  - source `P_NP_s1` @ 1M;
+  - families bizdev 0.9, negotiation 0.05, product 0.05;
+  - head bank `['cam/bizdev']` (negotiation and product keep the transferred shared heads);
+  - nothing held out.
+  - Bizdev gets the same 90% of interactions as in fromNbankrh. Rehearsal is split between the two source worlds.
+
+**Disprovable tests (pre-registered).**
+- **H13c (replication of H13b on seeds 3-4).**
+  - **Replicates if** fromNbankrh keeps negotiation ≥ 0.50 at 300k in both new seeds and its mean bizdev ΔAUC (0-300k,
+    paired against `T_B16_scratch_s3/s4`) is ≥ −0.05.
+  - **Fails to replicate if** the mean ΔAUC is ≤ −0.15, or negotiation is < 0.50 at 300k in both new seeds.
+  - Anything else is mixed.
+- **H16 (breadth with per-world heads).**
+  - **Claim:** with the new world on its own heads and rehearsal of the source worlds, a two-world source
+    (negotiation + product) makes bizdev learning at least as fast as a negotiation-only source.
+  - **Measure:** paired by seed (1-4), bizdev learning AUC 0-300k of fromNPbankrh − fromNbankrh.
+  - **Confirmed if** the mean difference is ≥ +0.02 and positive in ≥ 3 of 4 seeds.
+  - **Disproved if** the mean difference is ≤ 0.
+  - Anything else is mixed.
+  - **Also reported, not tested:**
+    - both arms against scratch (n = 4), which is "does experience help?" under the best architecture so far;
+    - early (0-50k) and late (50k-300k) windows;
+    - negotiation retention of fromNPbankrh (it gets half the negotiation rehearsal).
+
+**Queue order.** After H14's last run (`T_B16_fromNhr_s4`):
+1. `T_B17_fromNbankrh_s3/s4`;
+2. the queued A_NPV ablation transfers (noskill, nowm, rl2);
+3. `T_B17_fromNPbankrh_s1-s4`;
+4. then P_NPV_s2, P_NPB_s2 and the remaining jobs, unchanged.
+No running job is touched.
 
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
