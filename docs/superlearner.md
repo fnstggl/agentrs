@@ -954,6 +954,21 @@ ablation lifetimes, against `T_B11_scratch_s1` (0.515):
   300k; its final bizdev validation return (−0.806) equals the do-nothing policy's (−0.800).
 - One seed per arm cannot separate the memory variants from seed noise; the GRU run's failure is one run.
 
+### H13c result, 2026-11-20 02:45 UTC (mechanical verdict, `scripts/sl_report.py` section 0)
+`T_B17_fromNbankrh_s3/s4` (per-world heads + 10% negotiation rehearsal, new seeds) finished at 300k.
+
+| seed | negotiation at 300k | bizdev AUC 0-300k (Δ vs same-seed scratch) | 0-50k / 50k-300k (scratch) |
+|---|---|---|---|
+| 3 | 0.604 | 0.512 (−0.028) | 0.287 / 0.557 (0.277 / 0.592) |
+| 4 | 0.000 | 0.522 (−0.020) | 0.318 / 0.563 (0.276 / 0.596) |
+
+- **H13c (replication of H13b): neither (mixed).** Mean bizdev ΔAUC −0.024 meets the ≥ −0.05 bar, but negotiation is
+  kept in only one of the two new seeds; seed 4 collapsed to 0.000 (all-ASK, amendment 17).
+- **Across all four seeds** of per-world heads + rehearsal: bizdev ΔAUC −0.052, −0.048, −0.028, −0.020 (mean −0.037);
+  negotiation kept (0.60-0.64) in three, lost in one. The configuration is the best found for learning a new world
+  while keeping the old one, but rehearsal by on-policy RL alone is not reliable; H17 tests the anchor.
+- All four keep the early lead pattern seen elsewhere: 0-50k at or above scratch, 50k-300k below it (−0.03 to −0.07).
+
 ### Protocol amendment 17, 2026-11-20 02:30 UTC: rehearsal collapse and the transferred core's step size (before any result of these runs)
 **Evidence 1: on-policy rehearsal can collapse.** `T_B17_fromNbankrh_s4` (H13c replication, per-world heads + 10%
 negotiation rehearsal) kept negotiation at 0.646 at 25k, fell to 0.27 at 50k and to exactly 0.000 at 100k and 200k.
