@@ -325,6 +325,10 @@ def prereg_tests(runs) -> list:
     md += _bank_breadth_test(runs)
     md += _anchor_test(runs)
     md += _core_lr_test(runs)
+    mp = _mp_breadth_test(runs)
+    if mp and not md:
+        md += ["## 0. Pre-registered tests", ""]
+    md += mp
     return md
 
 
@@ -750,6 +754,66 @@ def _anchor_test(runs) -> list:
             vb = "neither confirmed nor disproved (mixed)"
         vb += f" (mean bizdev ΔAUC {m:+.3f}; negotiation at 300k " + ", ".join(f"{k:.3f}" for k, _ in prev) + ")"
     return md + [f"H17a verdict (rescue): **{va}**", "", f"H17b verdict (prevention): **{vb}**", ""]
+
+
+def _mp_breadth_test(runs) -> list:
+    """H15 (amendment 15): at equal total experience (1M agent-steps), six Melting Pot substrates transfer to the
+    held-out commons_harvest__closed at least as well as its nearest training substrate, commons_harvest__open, alone."""
+    if not any(n.startswith("T_closed_fromMP1open_") for n in runs):
+        return []
+    fam, bos, budget = "mp/commons_harvest__closed", "mp/bach_or_stravinsky_in_the_matrix__repeated", 1_000_000
+
+    def curve(n, f=fam):
+        return ev_val(runs[n], f) if n in runs else []
+
+    def auc(n):
+        cv = curve(n)
+        return learning_auc(cv, "score", budget) if cv and max(x for x, _ in cv) >= budget else None
+
+    def at(n, x, f=fam):
+        return next((auc_value(v, "score") for t, v in curve(n, f) if t == x), None)
+
+    def g(x, sg=False):
+        return "–" if x is None else (f"{x:+.2f}" if sg else f"{x:.2f}")
+
+    md = ["**H15 (amendment 15): at equal total experience (1M agent-steps), experience spread over six Melting Pot "
+          "substrates transfers to the held-out commons_harvest__closed at least as well as experience on its nearest "
+          "training substrate, commons_harvest__open, alone.** Paired by transfer seed (1-3), fromMP6 − fromMP1open. "
+          "Primary: learning AUC of closed validation score, 0-1M; secondary: zero-shot (0k validation score in the "
+          "transfer runs). Confirmed if the mean AUC difference is ≥ 0 and the mean zero-shot difference is ≥ −1.0; "
+          "disproved if both are ≤ −1.0; anything else mixed.", "",
+          "| seed | AUC fromMP6 | AUC fromMP1open | AUC scratch | Δ AUC (MP6 − MP1open) | fromMP6 − scratch | "
+          "fromMP1open − scratch | zero-shot fromMP6 | zero-shot fromMP1open | Δ zero-shot |",
+          "|---|---|---|---|---|---|---|---|---|---|"]
+    dA, dZ = [], []
+    for s in (1, 2, 3):
+        a6, a1, a0 = (auc(f"T_closed_{arm}_s{s}") for arm in ("fromMP6", "fromMP1open", "scratch"))
+        z6, z1 = (at(f"T_closed_{arm}_s{s}", 0) for arm in ("fromMP6", "fromMP1open"))
+        da = None if a6 is None or a1 is None else a6 - a1
+        dz = None if z6 is None or z1 is None else z6 - z1
+        if da is not None and dz is not None:
+            dA.append(da)
+            dZ.append(dz)
+        md.append(f"| {s} | {g(a6)} | {g(a1)} | {g(a0)} | {g(da, True)} | "
+                  f"{g(None if a6 is None or a0 is None else a6 - a0, True)} | "
+                  f"{g(None if a1 is None or a0 is None else a1 - a0, True)} | {g(z6)} | {g(z1)} | {g(dz, True)} |")
+    md += ["", "Lifetime held-out monitors (validation score, 0 → 1M):", ""]
+    for n in ("P_MP6_s1", "P_MP6_s2", "P_MP1open_s1", "P_MP1open_s2"):
+        if n in runs:
+            md.append(f"- {n}: closed {g(at(n, 0))} → {g(at(n, budget))}; bos {g(at(n, 0, bos))} → {g(at(n, budget, bos))}")
+    if len(dA) < 3:
+        verdict = (f"pending ({len(dA)}/3 seeds complete in both arms"
+                   + (f"; so far mean Δ AUC {np.mean(dA):+.2f}, Δ zero-shot {np.mean(dZ):+.2f}" if dA else "") + ")")
+    else:
+        mA, mZ = float(np.mean(dA)), float(np.mean(dZ))
+        if mA >= 0 and mZ >= -1.0:
+            verdict = "CONFIRMED"
+        elif mA <= -1.0 and mZ <= -1.0:
+            verdict = "DISPROVED"
+        else:
+            verdict = "neither confirmed nor disproved (mixed)"
+        verdict += f" (mean Δ AUC {mA:+.2f}, mean Δ zero-shot {mZ:+.2f})"
+    return md + ["", f"H15 verdict (breadth vs nearest single world): **{verdict}**", ""]
 
 
 def _core_lr_test(runs) -> list:
