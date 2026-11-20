@@ -1,0 +1,15 @@
+# CAM 2.0 main run (B4: frozen Qwen3-1.7B + 65M-parameter CAM + continual recurrent PPO + world-model auxiliary).
+# MiniWoB++ TRAIN families via BrowserGym (real Chromium); validation = held-out VAL families + val seeds.
+run_dir: runs/cam2/main_s0
+env: miniwob
+llm: Qwen/Qwen3-1.7B
+workers: 16
+seed: 0
+env_steps: 12000
+max_minutes: 45
+max_steps: 10
+eval_every: 10
+eval_per_family: 4
+ckpt_every: 5
+cam: {el_goal_cond: false}
+learn: {episodes_per_update: 64, mb_episodes: 32, lr: 5.0e-5, epochs: 2, warmup_steps: 10, wm_coef: 0.5}

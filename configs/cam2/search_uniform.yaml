@@ -1,0 +1,19 @@
+# Outer-learner arm "uniform". All arms: same seed candidate (= configs/cam2/main.yaml), same ASHA schedule
+# (rung 0: 1200 env steps, rung 1: 3600), same outer-validation tasks (3 per family, 22 families), same budget.
+root: runs/cam2/search/uniform
+env: miniwob
+llm: Qwen/Qwen3-1.7B
+workers: 10
+controller: uniform
+llm_proposals: false
+seed: 0
+b0: 1200
+eta: 3
+max_rung: 1
+origin: scratch
+base: {arch: {el_goal_cond: false}, learn: {lr: 5.0e-5, epochs: 2, wm_coef: 0.5}}
+fixed_learn: {episodes_per_update: 64, mb_episodes: 32, warmup_steps: 10}
+max_steps: 10
+val_per_family: 3
+budget: {gpu_hours: 1.25, wall_hours: 1.4, env_steps: 60000, max_candidates: 8, max_params: 120000000}
+job_minutes_cap: 20
