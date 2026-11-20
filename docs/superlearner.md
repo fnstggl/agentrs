@@ -1271,6 +1271,40 @@ the single-world lifetimes, so that is about 178k and 167k agent-steps of open e
 - **Cost:** two lifetimes of about 1 h, then three transfers of about 2 h, on the instance's idle Melting Pot slots;
   about 2 GB of disk.
 
+### H18 result, 2026-11-20 11:50 UTC (mechanical verdict, `scripts/sl_report.py` section 0)
+**H18 is DISPROVED.** Halving the transferred core's learning rate did not remove the late deficit. It made the
+deficit against standard scratch larger, because a smaller core step slows every learner, scratch included.
+
+| seed | late AUC (50k-300k) scratch / fromNPhr / fromNPhrcore / scratchcore | fromNPhrcore − scratch | fromNPhrcore − scratchcore | KL ratio fromNPhr / scratch | KL ratio fromNPhrcore / scratch |
+|---|---|---|---|---|---|
+| 1 | 0.558 / 0.531 / 0.480 / 0.485 | −0.078 | −0.005 | 1.31 | 1.10 (1.0996) |
+| 2 | 0.636 / 0.603 / 0.546 / 0.586 | −0.090 | −0.040 | 1.09 | 0.96 |
+| 3 | 0.592 / 0.557 / 0.478 / 0.554 | −0.115 | −0.076 | 1.15 | 0.95 |
+| 4 | 0.596 / 0.583 / 0.582 / 0.572 | −0.013 | +0.010 | 1.22 | 1.01 |
+| mean | | **−0.074** | −0.028 [−0.059, +0.004] | 1.19 | 1.00 |
+
+- **The mechanism check passes.** At scratch's learning rate the transfer's per-update KL was 1.09-1.31× scratch's.
+  At half the core rate it is 0.95-1.10× (seed 1 at 1.0996, just inside the 1.1 bar). So the intervention did what
+  it was meant to do to the update size.
+- **The deficit is invariant to the step size.** Against a scratch learner given the same halved core rate
+  (`T_B18_scratchcore`), the transfer is 0.028 behind, the same as the 0.027 deficit at full rate. Oversized
+  per-update changes of the transferred core are not the cause.
+- **A smaller step hurts everyone.** `T_B18_scratchcore` − `T_B16_scratch` late Δ is −0.073, −0.050, −0.039,
+  −0.024 (mean −0.047). The learners here are limited by too little step, not too much.
+- **The early gain survives.** 0-50k AUC fromNPhrcore 0.327 / 0.311 / 0.294 / 0.304 vs scratch 0.257 / 0.279 /
+  0.277 / 0.276, as with full-rate fresh-head transfer.
+- **Logged learner statistics do not point to a third mechanism.** Over 50k-300k, policy entropy (3.7-4.2), value
+  loss, advantage spread and clip fraction are in the same range for transfer and scratch. Scratch's entropy rises
+  from 3.7 to 4.2 after 50k and the transfers' stays near 3.9, a difference too small to build a claim on.
+
+**What this rules out.** With the 00:30 diagnostics (no loss of plasticity: rank, dormant units and weight norms
+match fresh init), the two standard optimisation explanations of warm-start slowdown, too large a step and lost
+plasticity, are both excluded for CAM's late deficit. What remains is the content of the transferred core: a
+negotiation-shaped representation that helps bizdev's first 50k interactions and costs about 0.03 AUC after. That
+deficit is small (about 5% of scratch's late AUC) next to the Melting Pot effects (H15, +14.7 / −16 AUC points), so no
+further CAM step-size or plasticity runs are planned; CAM capacity goes to the second-seed lifetimes and Vending
+transfers already queued.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
