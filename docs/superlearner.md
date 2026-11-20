@@ -1191,7 +1191,7 @@ world-model loss on (0.5), so the arms differ only in how the source lifetime wa
   hint. Testing it needs replicate seeds under the current transfer design (per-world heads, v17/v18), which these
   pre-v16 sources do not support without re-running the lifetimes.
 
-### H15 result, 2026-11-20 10:05 UTC (mechanical verdict, `scripts/sl_report.py` section 0 on `runs/sl_mp`)
+### H15 result, 2026-11-20 10:00 UTC (mechanical verdict, `scripts/sl_report.py` section 0 on `runs/sl_mp`)
 `T_closed_fromMP1open_s1-s3` finished at 1M. Learning AUC of commons_harvest__closed validation score (0-1M) and
 zero-shot score (0k), paired by transfer seed. Seeds 1-2 start from lifetime `P_MP1open_s1` @ 1M, seed 3 from
 `P_MP1open_s2` @ 1M, exactly as for `T_closed_fromMP6`.
@@ -1229,7 +1229,7 @@ zero-shot score (0k), paired by transfer seed. Seeds 1-2 start from lifetime `P_
   six-world lifetime had about 1/6 of its experience on the relevant substrate) or interference from the other
   five. These runs cannot separate the two.
 
-### Protocol amendment 18, 2026-11-20 10:30 UTC: dilution or interference in the Melting Pot breadth penalty (before any run of this amendment exists)
+### Protocol amendment 18, 2026-11-20 10:05 UTC: dilution or interference in the Melting Pot breadth penalty (before any run of this amendment exists)
 **Why.** H15 was disproved: from the six-substrate lifetime, transfer to commons_harvest__closed is at scratch level
 (ΔAUC −1.4), while 1M agent-steps of commons_harvest__open alone give +14.7. These runs cannot tell two explanations
 apart:
