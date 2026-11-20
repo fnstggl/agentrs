@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} &middot; Crucible dashboard</title>
+<style>
+:root { --bg:#f7f7f5; --fg:#1d1d1f; --muted:#6b6b70; --card:#ffffff; --line:#e2e2df; --accent:#2b6cb0;
+        --c1:#2b6cb0; --c2:#c05621; --c3:#2f855a; --c4:#6b46c1; --c5:#b83280; --c6:#718096; --warn:#b7791f; --bad:#c53030; }
+@media (prefers-color-scheme: dark) { :root { --bg:#151517; --fg:#e8e8ea; --muted:#9a9aa2; --card:#1f1f23; --line:#33333a;
+        --accent:#63b3ed; --c1:#63b3ed; --c2:#f6ad55; --c3:#68d391; --c4:#b794f4; --c5:#f687b3; --c6:#a0aec0; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display:flex; flex-wrap:wrap; gap:12px; align-items:baseline; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--card); }
+header .brand { font-weight:700; }
+header nav a { margin-right:10px; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+main { padding:16px; max-width:1400px; margin:0 auto; }
+h1 { font-size:20px; margin:4px 0 12px; } h2 { font-size:16px; margin:20px 0 8px; }
+.muted { color:var(--muted); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:10px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+.card .v { font-size:18px; font-weight:600; font-variant-numeric: tabular-nums; } .card .k { color:var(--muted); font-size:12px; }
+.tbl { overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:8px; }
+table { border-collapse:collapse; width:100%; font-variant-numeric: tabular-nums; }
+th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-weight:600; color:var(--muted); font-size:12px; position:sticky; top:0; background:var(--card); }
+td.num { text-align:right; }
+pre { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px; overflow-x:auto; white-space:pre-wrap; }
+form.filters { display:flex; flex-wrap:wrap; gap:8px; align-items:end; margin:8px 0; }
+form.filters label { display:flex; flex-direction:column; font-size:12px; color:var(--muted); }
+input, select { font:inherit; padding:3px 6px; border:1px solid var(--line); border-radius:4px; background:var(--card); color:var(--fg); }
+.chart { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px; overflow-x:auto; }
+.chart svg { display:block; max-width:100%; height:auto; }
+.chart text { fill:var(--muted); font-size:11px; }
+.sev3 { color:var(--bad); font-weight:600; } .sev2 { color:var(--warn); }
+.redacted { color:var(--muted); font-style:italic; }
+.badge { display:inline-block; padding:0 6px; border-radius:10px; border:1px solid var(--line); font-size:11px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand"><a href="{{ root }}/">Crucible dashboard</a></span>
+  <span class="muted">read-only{% if operator %} &middot; <strong>operator view</strong>{% endif %}</span>
+  {% if wid %}
+  <nav aria-label="World pages">
+    <a href="{{ root }}/w/{{ wid }}">overview</a><a href="{{ root }}/w/{{ wid }}/actors">actors</a><a href="{{ root }}/w/{{ wid }}/orgs">organisations</a><a href="{{ root }}/w/{{ wid }}/economy">economy</a><a href="{{ root }}/w/{{ wid }}/comms">communication</a><a href="{{ root }}/w/{{ wid }}/services">services</a><a href="{{ root }}/w/{{ wid }}/events">events</a><a href="{{ root }}/w/{{ wid }}/trajectories">trajectories</a><a href="{{ root }}/w/{{ wid }}/lineage">lineage</a><a href="{{ root }}/w/{{ wid }}/evaluation">evaluation</a><a href="{{ root }}/w/{{ wid }}/trace">trace</a>
+  </nav>
+  {% endif %}
+  <nav><a href="{{ root }}/experiments">experiments</a></nav>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% import "sections.html" as s %}
+{% block content %}
+<h1>{{ title }}</h1>
+{% if subtitle %}<p class="muted">{{ subtitle }}</p>{% endif %}
+{% for sec in sections %}{{ s.section(sec) }}{% endfor %}
+{% endblock %}

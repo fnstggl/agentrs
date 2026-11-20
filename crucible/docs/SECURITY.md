@@ -52,6 +52,16 @@ bubblewrap/nsjail-style mount namespaces are unavailable. CPU accounting in the 
 time (noisy); in the deterministic cost model native-code work (e.g. numpy) is undercounted (see
 LIMITATIONS.md). Sandboxed programs can read the approved Python/system library files (not secrets).
 
+### In-process ("trusted") execution
+
+For speed, the incumbents' *genesis* code (reference implementations written by world generation) runs
+in-process. Trust is a property of **code provenance**, not of the organisation: a repository stays trusted only
+while every commit to it was written by world generation itself (`code.commit_files(..., trusted=True)` from the
+system context). Any commit through the public tools - including an NPC firm adopting a licensed agent-written
+repository - permanently marks it untrusted, and its deployments run in the sandbox
+(`tests/test_economy.py::test_agent_code_never_runs_in_process_even_when_adopted_by_trusted_firm`). This rule was
+added after the lifetime demonstration showed an NPC firm adopting agent code (it ran in-process before the fix).
+
 ## 3. Network containment
 
 The synthetic internet has no sockets at all: services are kernel endpoints; agent-deployed services are

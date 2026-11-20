@@ -122,3 +122,19 @@ def test_bounty_pays_only_for_measured_quality():
     assert good["accepted"] and good["paid_cents"] > 0
     assert w.state.get("bounties", b)["status"] == "paid"
     assert w.check_invariants() == []
+
+
+def test_agent_code_never_runs_in_process_even_when_adopted_by_trusted_firm():
+    """Provenance, not ownership, decides in-process execution: code touched through public tools is sandboxed."""
+    w = World.create(generate("tiny", 8))
+    firm = sorted(k for k, _ in w.state.scan("npc_firms"))[0]
+    host = w.state.get("npc_firms", firm)["host"]
+    dep = w.modules["cloud"].live_deployment(w.state, host)
+    assert dep["trusted"]                                   # genesis code may run in-process
+    owner = w.state.get("npc_firms", firm)["owner"]
+    repo = w.state.get("npc_firms", firm)["repo"]
+    w.system_call("code.commit", {"repo": repo, "files": {"service.py": "def solve(a, c):\n    return {}\n"}},
+                  as_principal=owner)
+    assert not w.state.get("repos", repo)["trusted"]
+    w.system_call("cloud.deploy", {"repo": repo, "host": host, "instance": dep["instance"]}, as_principal=owner)
+    assert not w.modules["cloud"].live_deployment(w.state, host)["trusted"]

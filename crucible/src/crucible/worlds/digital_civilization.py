@@ -75,7 +75,8 @@ class Civ(Module):
             code = w.modules["code"]
             rid = code.create_repo(ctx, oid, f"{f['need'].replace('.', '-')}-svc", "private",
                                    f"{f['name']} {f['need']} service")
-            code.commit_files(ctx, rid, service_repo_files(f["need"], f["tier"], f["price"]), "initial", owner)
+            code.commit_files(ctx, rid, service_repo_files(f["need"], f["tier"], f["price"]), "initial", owner,
+                              trusted=True)
             inst = ctx.call("cloud.rent", {"provider": f["provider"], "cores": f.get("cores", 1), "account": acct,
                                            "owner": oid}, as_principal=owner)
             ctx.call("cloud.deploy", {"repo": rid, "host": f["host"], "instance": inst["instance"]}, as_principal=owner)

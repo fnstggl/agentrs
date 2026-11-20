@@ -395,7 +395,10 @@ class Cloud(Module):
             old_id = st.get("hosts", host)["deployment"]
             ctx.emit("cloud.dep_status", {"id": old_id, "status": "replaced", "reason": "redeployed"}, vis=(owner,))
         did = st.new_id("dep")
-        trusted = bool(st.get("orgs", owner) and st.get("orgs", owner)["info"].get("trusted_runtime"))
+        # in-process execution only for kernel-authored code (provenance), never because of who owns the repo
+        rep = st.get("repos", repo)
+        trusted = bool(st.get("orgs", owner) and st.get("orgs", owner)["info"].get("trusted_runtime")
+                       and rep.get("trusted") and ref in (None, rep["head"]))
         ctx.emit("cloud.deployment", {"id": did, "host": host, "owner": owner, "repo": repo, "commit": commit,
                                       "instance": instance, "manifest": manifest, "svc": svc, "trusted": trusted},
                  vis=(owner,))

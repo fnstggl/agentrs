@@ -92,7 +92,10 @@ class Code(Module):
                 files[f"deps/{dep.split('/', 1)[1].replace('-', '_')}/{p}"] = c
         return files
 
-    def commit_files(self, ctx: Ctx, rid: str, changes: dict[str, str | None], message: str, author: str) -> str:
+    def commit_files(self, ctx: Ctx, rid: str, changes: dict[str, str | None], message: str, author: str,
+                     trusted: bool = False) -> str:
+        """`trusted=True` only for content written by world generation (kernel-authored reference code). Any other
+        commit marks the repository's provenance untrusted for good, so its code can only ever run sandboxed."""
         r = self.repo(ctx.state, rid)
         tree = self.tree(ctx.state, rid)
         new_blobs = {}
@@ -121,7 +124,7 @@ class Code(Module):
             ctx.emit("code.blob", {"id": b, "content": content}, vis="internal")
         vis = "public" if r["visibility"] == "public" else (r["owner"], author)
         ctx.emit("code.commit", {"id": cid, "repo": rid, "parent": r["head"], "tree": tree, "message": message[:500],
-                                 "author": author, "size": size}, vis=vis)
+                                 "author": author, "size": size, "trusted": bool(trusted and ctx.actor == "sys")}, vis=vis)
         return cid
 
     def create_repo(self, ctx: Ctx, owner: str, name: str, visibility: str = "private", description: str = "",
@@ -372,7 +375,8 @@ class Code(Module):
         st.insert("commits", p["id"], {"repo": p["repo"], "parent": p["parent"], "tree": p["tree"],
                                        "message": p["message"], "author": p["author"], "t": ev.t, "size": p["size"]})
         r = st.tables["repos"][p["repo"]]
-        st.patch("repos", p["repo"], head=p["id"], commits=r["commits"] + 1, size=p["size"])
+        st.patch("repos", p["repo"], head=p["id"], commits=r["commits"] + 1, size=p["size"],
+                 trusted=bool(r.get("trusted", True) and p.get("trusted", False)))
 
     @applier("code.visibility")
     def ap_visibility(self, ev):

@@ -547,6 +547,7 @@ def main(argv=None):
     ap.add_argument("--level", type=int, default=1)
     ap.add_argument("--world", default="tiny")
     ap.add_argument("--price-mult", type=float, default=4.0)
+    ap.add_argument("--capital", type=int, default=400_000, help="cents moved into the company by the prefix")
     ap.add_argument("--dt", type=int, default=3 * 3600)
     ap.add_argument("--episode-steps", type=int, default=56)
     ap.add_argument("--out", default=None)
@@ -564,7 +565,7 @@ def main(argv=None):
             a2c[k] = json.loads(v)
         cfg = LifetimeConfig(goal_family=a.goal, world_family=a.world, level=a.level, seed=a.seed, mode=a.mode,
                              policy=a.policy, dt=a.dt, episode_steps=a.episode_steps, total_steps=a.steps,
-                             prefix_kw={"price_mult": a.price_mult}, a2c=a2c, out_dir=out)
+                             prefix_kw={"price_mult": a.price_mult, "capital": a.capital}, a2c=a2c, out_dir=out)
         Path(out).mkdir(parents=True, exist_ok=True)
         (Path(out) / "episodes.jsonl").write_text("")
         lt = Lifetime(cfg)

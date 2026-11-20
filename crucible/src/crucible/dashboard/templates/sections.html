@@ -1,0 +1,32 @@
+{% macro cell(v) -%}
+{%- if v is mapping and v.href is defined -%}<a href="{{ v.href }}">{{ v.text }}</a>
+{%- elif v is mapping and v.redacted is defined -%}<span class="redacted">{{ v.redacted }}</span>
+{%- elif v is mapping and v.cls is defined -%}<span class="{{ v.cls }}">{{ v.text }}</span>
+{%- elif v is none -%}<span class="muted">-</span>
+{%- else -%}{{ v }}{%- endif -%}
+{%- endmacro %}
+
+{% macro section(sec) %}
+{% if sec.title %}<h2 id="{{ sec.id or '' }}">{{ sec.title }}</h2>{% endif %}
+{% if sec.note %}<p class="muted">{{ sec.note }}</p>{% endif %}
+{% if sec.kind == "cards" %}
+<div class="cards">{% for k, v in sec['items'] %}<div class="card"><div class="v">{{ cell(v) }}</div><div class="k">{{ k }}</div></div>{% endfor %}</div>
+{% elif sec.kind == "table" %}
+<div class="tbl"><table>
+<thead><tr>{% for c in sec.columns %}<th scope="col">{{ c }}</th>{% endfor %}</tr></thead>
+<tbody>{% for row in sec.rows %}<tr>{% for v in row %}<td{% if v is number %} class="num"{% endif %}>{{ cell(v) }}</td>{% endfor %}</tr>{% else %}<tr><td colspan="{{ sec.columns|length }}" class="muted">none</td></tr>{% endfor %}</tbody>
+</table></div>
+{% elif sec.kind == "svg" %}
+<div class="chart">{{ sec.svg }}</div>
+{% elif sec.kind == "pre" %}
+<pre>{{ sec.text }}</pre>
+{% elif sec.kind == "form" %}
+<form class="filters" method="get" action="{{ sec.action }}">
+{% for f in sec.fields %}<label>{{ f.label }}
+{% if f.options %}<select name="{{ f.name }}">{% for o in f.options %}<option value="{{ o }}"{% if o == f.value %} selected{% endif %}>{{ o or "any" }}</option>{% endfor %}</select>
+{% else %}<input name="{{ f.name }}" value="{{ f.value if f.value is not none else '' }}" size="{{ f.size or 14 }}">{% endif %}</label>{% endfor %}
+<button type="submit">apply</button></form>
+{% elif sec.kind == "links" %}
+<ul>{% for text, href in sec['items'] %}<li><a href="{{ href }}">{{ text }}</a></li>{% endfor %}</ul>
+{% endif %}
+{% endmacro %}

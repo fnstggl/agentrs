@@ -98,7 +98,8 @@ def describe_event(ev) -> str:
         if t == "proc.failed":
             return f"process {p.get('proc')} FAILED: {str(p.get('error'))[:100]}"
         if t == "sched.add":
-            return f"scheduled {p.get('proc')} at day {day_of(p.get('at', 0))} ({p.get('id')})" + \
+            at = int(p.get("at", 0))
+            return f"scheduled {p.get('proc')} at day {at // DAY} {(at % DAY) // HOUR:02d}:00 ({p.get('id')})" + \
                    (f" every {p['period']}s" if p.get("period") else "")
         if t == "ads.campaign":
             return f"{p.get('advertiser')} started ad campaign {p.get('id')} on {p.get('keywords')}"
