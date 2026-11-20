@@ -1229,6 +1229,48 @@ zero-shot score (0k), paired by transfer seed. Seeds 1-2 start from lifetime `P_
   six-world lifetime had about 1/6 of its experience on the relevant substrate) or interference from the other
   five. These runs cannot separate the two.
 
+### Protocol amendment 18, 2026-11-20 10:30 UTC: dilution or interference in the Melting Pot breadth penalty (before any run of this amendment exists)
+**Why.** H15 was disproved: from the six-substrate lifetime, transfer to commons_harvest__closed is at scratch level
+(ΔAUC −1.4), while 1M agent-steps of commons_harvest__open alone give +14.7. These runs cannot tell two explanations
+apart:
+- **Dilution:** the six-world lifetime had too little experience on the relevant substrate.
+- **Interference:** experience on the other five substrates removed the transfer that its share of open experience
+  would have given.
+
+The six-world lifetimes record their episodes per substrate. At 1M agent-steps, `P_MP6_s1` had 119 of 764 episodes on
+open and `P_MP6_s2` 112 of 770 (15.6% and 14.5%). An open episode is about 1,490 agent-steps in both the six-world and
+the single-world lifetimes, so that is about 178k and 167k agent-steps of open experience, mean about 172k.
+
+**Disprovable test (pre-registered): H19.**
+- **Claim (interference):** commons_harvest__open experience equal to the six-world lifetime's open share at 1M,
+  without the other five substrates, transfers to the held-out commons_harvest__closed better than the six-world
+  lifetime does.
+- **Runs:** no code change; frozen sl-exp-mp (sl-exp-v8), P_MP1open's configuration.
+  - Lifetimes `P_MP1openD_s1/s2`: commons_harvest__open only, stopped at 172,032 agent-steps (48 iterations of
+    3,584), checkpoint `life_172032`. Held-out monitors closed and bos only: the two Melting Pot scenario monitors
+    are dropped because their servers hold about 98 threads each and the container is near its thread limit. Monitors
+    do not affect training.
+  - Transfers `T_closed_fromMP1openD_s1/s2/s3`: P_MP1open's transfer configuration. Seeds 1-2 start from lifetime s1
+    and seed 3 from lifetime s2, as in H15.
+- **Measure:** paired by transfer seed (1-3), Δ = learning AUC of closed validation score (0-1M) of fromMP1openD
+  minus that of `T_closed_fromMP6`.
+- **Confirmed if** the mean Δ ≥ +5.0, a third of the 1M-open advantage over scratch.
+- **Disproved if** the mean Δ ≤ +1.0. The small open dose alone would then transfer no better than the six-world
+  lifetime, and dilution suffices to explain H15.
+- Anything else is mixed.
+- **Also reported:**
+  - fromMP1openD against `T_closed_scratch` and against `T_closed_fromMP1open` (1M open), which gives a dose-response
+    over 0 / 172k / 1M of open experience;
+  - zero-shot (0k) scores;
+  - the actual open agent-steps of each lifetime.
+- **Confound, stated in advance.** The six-world lifetime made about 745 updates (1M agent-steps in iterations of
+  1,344); the 172k lifetime makes 48. Under the interference claim the extra updates on other substrates are the
+  mechanism, so this is part of what is tested, not a defect of the comparison.
+- **Power.** Per-arm AUC varies by 3-6 points across seeds, so with n = 3 a mixed result is likely unless the effect
+  is large.
+- **Cost:** two lifetimes of about 1 h, then three transfers of about 2 h, on the instance's idle Melting Pot slots;
+  about 2 GB of disk.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6

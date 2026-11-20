@@ -325,7 +325,7 @@ def prereg_tests(runs) -> list:
     md += _bank_breadth_test(runs)
     md += _anchor_test(runs)
     md += _core_lr_test(runs)
-    mp = _mp_breadth_test(runs)
+    mp = _mp_breadth_test(runs) + _mp_dilution_test(runs)
     if mp and not md:
         md += ["## 0. Pre-registered tests", ""]
     md += mp
@@ -814,6 +814,56 @@ def _mp_breadth_test(runs) -> list:
             verdict = "neither confirmed nor disproved (mixed)"
         verdict += f" (mean Δ AUC {mA:+.2f}, mean Δ zero-shot {mZ:+.2f})"
     return md + ["", f"H15 verdict (breadth vs nearest single world): **{verdict}**", ""]
+
+
+def _mp_dilution_test(runs) -> list:
+    """H19 (amendment 18): the six-world lifetime's lack of transfer to commons_harvest__closed is interference, not
+    dilution: open-only experience equal to its open share at 1M (172,032 agent-steps) transfers better."""
+    if not any(n.startswith("T_closed_fromMP1openD_") or n.startswith("P_MP1openD_") for n in runs):
+        return []
+    fam, opn, budget = "mp/commons_harvest__closed", "mp/commons_harvest__open", 1_000_000
+
+    def auc(n):
+        cv = ev_val(runs[n], fam) if n in runs else []
+        return learning_auc(cv, "score", budget) if cv and max(x for x, _ in cv) >= budget else None
+
+    def zs(n):
+        cv = ev_val(runs[n], fam) if n in runs else []
+        return next((auc_value(v, "score") for t, v in cv if t == 0), None)
+
+    def g(x, sg=False):
+        return "–" if x is None else (f"{x:+.2f}" if sg else f"{x:.2f}")
+
+    def d(a, b):
+        return None if a is None or b is None else a - b
+
+    md = ["**H19 (amendment 18): the six-world lifetime's lack of transfer to commons_harvest__closed is interference, "
+          "not dilution: commons_harvest__open experience equal to its open share at 1M (172,032 agent-steps), without "
+          "the other five substrates, transfers better.** Paired by transfer seed (1-3), Δ = learning AUC (closed "
+          "validation score, 0-1M) of fromMP1openD minus fromMP6. Confirmed if the mean Δ ≥ +5.0; disproved if the mean "
+          "Δ ≤ +1.0; anything else mixed.", "",
+          "| seed | AUC open 172k / six worlds / open 1M / scratch | Δ (open 172k − six worlds) | open 172k − scratch | "
+          "open 172k − open 1M | zero-shot open 172k / six worlds / scratch |", "|---|---|---|---|---|---|"]
+    ds = []
+    for sd in (1, 2, 3):
+        aD, a6, a1, a0 = (auc(f"T_closed_{arm}_s{sd}") for arm in ("fromMP1openD", "fromMP6", "fromMP1open", "scratch"))
+        zD, z6, z0 = (zs(f"T_closed_{arm}_s{sd}") for arm in ("fromMP1openD", "fromMP6", "scratch"))
+        if d(aD, a6) is not None:
+            ds.append(aD - a6)
+        md.append(f"| {sd} | {g(aD)} / {g(a6)} / {g(a1)} / {g(a0)} | {g(d(aD, a6), True)} | {g(d(aD, a0), True)} | "
+                  f"{g(d(aD, a1), True)} | {g(zD)} / {g(z6)} / {g(z0)} |")
+    md += ["", "Source lifetimes (open only, so every interaction is an open agent-step):", ""]
+    for n in ("P_MP1openD_s1", "P_MP1openD_s2"):
+        st = runs.get(n)
+        if st:
+            md.append(f"- {n}: {st.get('interactions', 0):,} interactions, phase {st.get('phase')}, "
+                      f"saved {st.get('lifetime_saved')}")
+    if len(ds) < 3:
+        verdict = (f"pending ({len(ds)}/3 seeds complete" + (f"; so far mean Δ {np.mean(ds):+.2f}" if ds else "") + ")")
+    else:
+        m = float(np.mean(ds))
+        verdict = ("CONFIRMED" if m >= 5.0 else "DISPROVED" if m <= 1.0 else "neither confirmed nor disproved (mixed)") + f" (mean Δ {m:+.2f})"
+    return md + ["", f"H19 verdict (interference vs dilution): **{verdict}**", ""]
 
 
 def _core_lr_test(runs) -> list:
