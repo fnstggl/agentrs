@@ -98,11 +98,11 @@ def _v(s: dict, v: Any, path: str, errs: list[str]) -> None:
                 _v(s["items"], x, f"{path}[{i}]", errs)
     if isinstance(v, dict) and (s.get("type") == "object" or "properties" in s):
         props = s.get("properties", {})
-        for k in s.get("required", []):
+        for k in sorted(s.get("required", [])):
             if k not in v:
                 errs.append(f"{path}.{k}: required")
         addl = s.get("additionalProperties", False)
-        for k, x in v.items():
+        for k, x in sorted(v.items(), key=lambda kv: str(kv[0])):
             if k in props:
                 _v(props[k], x, f"{path}.{k}", errs)
             elif addl is False:

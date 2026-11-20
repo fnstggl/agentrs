@@ -137,12 +137,14 @@ class FactoredActor:
     """Maps an observation to one structured action with the network (or uniformly at random / idle)."""
 
     def __init__(self, net, actor: str, memory: EntityMemory, mode: str = "a2c", seed: int = 0,
-                 max_slots: int = 6, temperature: float = 1.0):
+                 max_slots: int = 6, temperature: float = 1.0, logit_scale: float | None = None):
         self.net, self.actor, self.mem, self.mode = net, actor, memory, mode
         self.templates = ActionTemplates(memory, actor, max_slots=max_slots)
         self.gen = torch.Generator().manual_seed(seed)
         self.rng = np.random.default_rng(seed)
         self.temperature = temperature
+        self.scale = (logit_scale if logit_scale is not None else
+                      (1.0 / math.sqrt(net.emb_dim) if net is not None else 1.0)) / temperature
         self.h = torch.zeros(1, net.hid) if net is not None else None
         self.prev = torch.zeros(net.emb_dim) if net is not None else None
 
@@ -184,7 +186,7 @@ class FactoredActor:
         h = self.h[0]
         value = net.v(h).squeeze(-1)
         temb = net.embed([tool_tokens(t) for t, _ in cands])
-        lt = (temb @ net.q_tool(h)) / math.sqrt(net.emb_dim) / self.temperature
+        lt = (temb @ net.q_tool(h)) * self.scale
         lpt = torch.log_softmax(lt, -1)
         i = _sample(lt, greedy, self.gen)
         logp = lpt[i]
@@ -201,7 +203,7 @@ class FactoredActor:
             q = net.q_slot(torch.cat([h, temb[i], pemb + acc]))
             oemb = net.embed([option_tokens(t["name"], s, o) for o in s.options],
                              [option_numeric(o) for o in s.options])
-            lo = (oemb @ q) / math.sqrt(net.emb_dim) / self.temperature
+            lo = (oemb @ q) * self.scale
             lpo = torch.log_softmax(lo, -1)
             j = _sample(lo, greedy, self.gen)
             logp = logp + lpo[j]
@@ -226,6 +228,7 @@ class A2CConfig:
     emb: int = 64
     temperature: float = 1.0
     reward_scale: float | None = None   # fixed reward multiplier; None = running return-std normalisation
+    logit_scale: float = 0.125          # pointer-logit multiplier (0.125 = 1/sqrt(emb), used by runs v1-v4; v5: 1.0)
 
 
 class RunningStd:
@@ -350,7 +353,8 @@ class Lifetime:
         self.acfg = acfg
         self.net = FactoredPolicy(hid=acfg.hid, emb=acfg.emb) if cfg.policy == "a2c" else None
         self.learner = A2CLearner(self.net, acfg) if self.net is not None else None
-        self.pi = FactoredActor(self.net, self.actor, self.mem, cfg.policy, seed=cfg.seed, temperature=acfg.temperature)
+        self.pi = FactoredActor(self.net, self.actor, self.mem, cfg.policy, seed=cfg.seed, temperature=acfg.temperature,
+                                logit_scale=acfg.logit_scale)
         self.contract = RewardContract(self.goal)
         self.view = ActorView(self.world, self.actor)
         self.steps = 0
@@ -493,7 +497,8 @@ class Lifetime:
         self.acfg = A2CConfig(**cfg.a2c)
         self.net = FactoredPolicy(hid=self.acfg.hid, emb=self.acfg.emb) if cfg.policy == "a2c" else None
         self.learner = A2CLearner(self.net, self.acfg) if self.net is not None else None
-        self.pi = FactoredActor(self.net, self.actor, self.mem, cfg.policy, seed=cfg.seed, temperature=self.acfg.temperature)
+        self.pi = FactoredActor(self.net, self.actor, self.mem, cfg.policy, seed=cfg.seed,
+                                temperature=self.acfg.temperature, logit_scale=self.acfg.logit_scale)
         self.pi.rng.bit_generator.state = ck["pi_rng"]
         self.pi.gen.set_state(ck["pi_gen"])
         torch.set_rng_state(ck["torch_rng"])
@@ -517,20 +522,21 @@ class RLPolicy(Policy):
     """A trained `FactoredPolicy` as an ordinary Crucible `Policy` (no learning; for `Runner` / `run_goal`)."""
     name, kind = "rl-factored", "rl"
 
-    def __init__(self, net=None, greedy: bool = False, checkpoint: str | None = None):
+    def __init__(self, net=None, greedy: bool = False, checkpoint: str | None = None, logit_scale: float | None = None):
         if checkpoint is not None:
             ck = torch.load(checkpoint, weights_only=False)
             a = A2CConfig(**ck["cfg"].get("a2c", {}))
             net = FactoredPolicy(hid=a.hid, emb=a.emb)
             net.load_state_dict(ck["net"])
-        self.net, self.greedy = net, greedy
+            logit_scale = a.logit_scale
+        self.net, self.greedy, self.logit_scale = net, greedy, logit_scale
         self.last = None
 
     def reset(self, actor, rng):
         super().reset(actor, rng)
         self.mem = EntityMemory()
         self.pi = FactoredActor(self.net, actor, self.mem, "a2c" if self.net is not None else "random",
-                                seed=int(rng.integers(0, 2**31)))
+                                seed=int(rng.integers(0, 2**31)), logit_scale=self.logit_scale)
         self.last = None
 
     def act(self, obs, tools):

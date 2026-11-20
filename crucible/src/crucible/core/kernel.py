@@ -238,7 +238,7 @@ class Ctx:
         ep = self.world.resolve(tool, principal)
         if ep.host == "admin" and principal != SYSTEM:
             raise Forbidden("admin tools are reserved for the simulator operator")
-        args = S.with_defaults(ep.params, args or {})
+        args = _sorted_keys(S.with_defaults(ep.params, args or {}))
         errs = S.validate(ep.params, args)
         if errs:
             raise InvalidAction("; ".join(errs[:5]), tool=tool)
@@ -575,7 +575,9 @@ class World:
                 raise Forbidden("admin tools are reserved for the simulator operator")
         except CrucibleError as e:
             return self._reject(actor, tool, args, e)
-        args = S.with_defaults(ep.params, args)
+        # canonical argument order: live execution and regeneration (args read back from sorted JSON) must see
+        # identical inputs, or anything that iterates over them (validation messages, handlers) could diverge
+        args = _sorted_keys(S.with_defaults(ep.params, args))
         errs = S.validate(ep.params, args)
         if errs:
             return self._reject(actor, tool, args, InvalidAction("; ".join(errs[:6]), tool=tool))
@@ -1010,6 +1012,14 @@ class World:
 
 def _ap_noop(ev: Event) -> None:
     return None
+
+
+def _sorted_keys(x):
+    if isinstance(x, dict):
+        return {k: _sorted_keys(x[k]) for k in sorted(x, key=str)}
+    if isinstance(x, list):
+        return [_sorted_keys(v) for v in x]
+    return x
 
 
 _MALFORMED = "action must be {'tool': str, 'args': object}"

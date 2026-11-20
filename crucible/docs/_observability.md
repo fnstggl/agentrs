@@ -66,8 +66,17 @@ process runs) with an events-per-second rate measured between two calls. The das
   process run), who scheduled that process (periodic jobs stop there), and recursively the creation events of
   entities referenced in the payload or the command's arguments.
 
-Example (tiny world, Builder drained of cash in a fork): `o:alice-labs is active ...; risks: instance inst_000003
-suspended: payment failed ...; alice-shorte: 31% of consumer requests failed (unavailable ...)`.
+Example (tiny world seed 3; in a fork the scripted Builder's company account is emptied right after the hourly
+consumer market paid it, then 2 days pass):
+
+```
+o:alice-labs is active: cash $0.00, revenue $35.08 in the last 7 days ...; risks: instance inst_000003 suspended:
+payment failed: acct_000018 has $0.00 available, needs $2.00; ...; alice-shorte: 98% of consumer requests failed
+(errors 0, unavailable 4337, overload 0)
+alice-shorte.crucible (route.shortest, operated by o:alice-labs): 116 customers now, peak 155 on day 1; market
+share 30% (rank 2/2); 2 customer-loss episode(s), latest day 3: 97% of requests failed (errors 0, unavailable
+3781, overload 0)
+```
 
 ## 4. Dashboard
 

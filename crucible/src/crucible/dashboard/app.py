@@ -129,7 +129,7 @@ def svg_lines(series: dict[str, list], width: int = 720, height: int = 240, xlab
         x1 = x0 + 1
     if y1 == y0:
         y1 = y0 + 1
-    L, R, T, B = 56, 150, 10, 28
+    L, R, T, B = 56, 150, 24, 28
     pw, ph = width - L - R, height - T - B
 
     def px(x):
@@ -147,7 +147,7 @@ def svg_lines(series: dict[str, list], width: int = 720, height: int = 240, xlab
         parts.append(f'<text x="{px(xv):.1f}" y="{T + ph + 16}" text-anchor="middle">{_e(_short_num(xv))}</text>')
     parts.append(f'<text x="{L + pw / 2:.1f}" y="{height - 2}" text-anchor="middle">{_e(xlabel)}</text>')
     if ylabel:
-        parts.append(f'<text x="4" y="{T + 8}">{_e(ylabel)}</text>')
+        parts.append(f'<text x="4" y="12">{_e(ylabel)}</text>')
     for i, (k, v) in enumerate(ser.items()):
         c = PALETTE[i % len(PALETTE)]
         pts = " ".join(f"{px(x):.1f},{py(y):.1f}" for x, y in v)

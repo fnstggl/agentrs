@@ -583,9 +583,10 @@ def _explain_host(world, host: str, since: int) -> dict:
                                  f"rank {rank} of {len(shares)})", world.now, 1))
     if price is not None and rival_prices:
         cheaper = sum(1 for p in rival_prices.values() if p < price)
-        findings.append(_finding("price", f"price {price}c vs rivals {dict(sorted(rival_prices.items()))} "
-                                 f"({'cheapest' if cheaper == 0 else f'{cheaper} rival(s) cheaper'})", None,
-                                 1 if cheaper == 0 else 2))
+        tied = sum(1 for p in rival_prices.values() if p == price)
+        rel = (f"{cheaper} rival(s) cheaper" if cheaper else "tied for cheapest" if tied else "cheapest")
+        findings.append(_finding("price", f"price {price}c vs rivals {dict(sorted(rival_prices.items()))} ({rel})",
+                                 None, 1 if cheaper == 0 else 2))
     if ratings:
         findings.append(_finding("ratings", f"{len(ratings)} verified ratings, average {rating_avg:.2f}/5",
                                  ratings[-1].get("t"), 1 if rating_avg >= 3.5 else 2))
@@ -657,7 +658,8 @@ def _churn_context(world, host, s, day, owner, listing_ids, rival_hosts, smap) -
     prices = [p for i, p in zip(range(len(s["t"])), s["price"]) if i in set(idx) and p is not None]
     if prices and prices[0] != prices[-1]:
         why.append(f"price changed {prices[0]}c -> {prices[-1]}c")
-    rival_new = [v["host"] for v in smap.values() if v["host"] in rival_hosts and t0 - DAY < v["since"] <= t1]
+    mine_since = min((v["since"] for v in smap.values() if v["host"] == host), default=0)
+    rival_new = [v["host"] for v in smap.values() if v["host"] in rival_hosts and max(t0, mine_since) < v["since"] <= t1]
     if rival_new:
         why.append(f"new rival(s) {rival_new}")
     st = world.state

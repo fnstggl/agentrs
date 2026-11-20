@@ -757,3 +757,19 @@ def test_stats_and_whoami_for_system():
     w = make_world()
     assert w.principal(SYSTEM)["kind"] == "system"
     assert w.execute(SYSTEM, {"tool": "world.whoami", "args": {}}).error["code"] == "unauthenticated"
+
+
+def test_regeneration_independent_of_argument_key_order():
+    """Args read back from sorted JSON must regenerate the same log as the live (insertion-ordered) call."""
+    import crucible
+    crucible.load_all_modules()
+    from crucible.core.kernel import World
+    from crucible.worldgen import generate
+    spec = generate("tiny", 4)
+    w = World.create(spec)
+    w.system_call("admin.join", {"handle": "zed", "endowment": 1000})
+    w.execute("p:zed", {"tool": "contracts.propose", "args": {"title": "t", "text": "x", "parties": [], "clauses": []}})
+    w.execute("p:zed", {"tool": "bank.transfer", "args": {"to": "nobody", "amount": -5, "from_account": "acct_x"}})
+    import json
+    evs = [json.loads(json.dumps(e.to_dict(), sort_keys=True)) for e in w.log]
+    assert World.regenerate(spec, evs).last_hash == w.last_hash

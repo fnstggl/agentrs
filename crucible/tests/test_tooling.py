@@ -381,3 +381,13 @@ def test_dashboard_hides_private_communication_unless_operator():
         assert "TOPSECRET-123" in c.get("/w/priv-w/events?type=mail").text
     assert w.seq == seq and w.digest() == dig
     w.close()
+    with pytest.raises(SystemExit):           # no authentication: loopback only unless explicitly allowed
+        main(["dashboard", "priv-w", "--host", "0.0.0.0", "--store", "memory://"])
+
+
+def test_cli_help_runs_as_module():
+    out = subprocess.run([sys.executable, "-m", "crucible.cli", "--help"], capture_output=True, text=True,
+                         env=dict(os.environ, PYTHONPATH=SRC), timeout=60)
+    assert out.returncode == 0
+    for cmd in ("world", "actor", "experiment", "selfplay", "evaluate", "trace", "report", "dashboard", "serve"):
+        assert cmd in out.stdout
