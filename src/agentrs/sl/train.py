@@ -60,6 +60,9 @@ class SLTrainConfig(BaseModel):
     lifetime_ckpts: list = Field(default_factory=list)       # interaction counts at which to keep a checkpoint
     init_from: Optional[str] = None       # checkpoint dir of a pretrained core (transfer runs)
     init_reset: list = Field(default_factory=list)            # parameter-name prefixes re-initialised after loading
+    # sl-exp-v18 (amendment 17): source of the frozen policy that learner.anchor > 0 keeps the shared-head (rehearsed
+    # source-world) decisions close to; default init_from. Requires a head bank (the new world's own heads).
+    anchor_from: Optional[str] = None
     freeze: list = Field(default_factory=list)                # parameter-name prefixes kept frozen
     wm_coef: float = 0.5
     gpu_mem_fraction: float = 0.15
@@ -249,6 +252,8 @@ class SLTrainer:
             self._save("initial")
             self._save("latest")
             self.save_state()
+        if float(c.learner.get("anchor", 0) or 0) > 0:
+            self._build_anchor()
         cur = self.state.setdefault("curriculum", {})
         for fam, spec in c.curriculum.items():
             if fam not in cur:
@@ -314,6 +319,27 @@ class SLTrainer:
         torch.set_rng_state(rng["torch"])
         if rng.get("cuda") is not None and torch.cuda.is_available():
             torch.cuda.set_rng_state_all(rng["cuda"])
+
+    def _build_anchor(self) -> None:
+        """Frozen copy of the source policy for the learner's anchor penalty (sl-exp-v18). All source tensors are
+        loaded, the action heads included (no ``init_reset``): the anchor is the source policy itself."""
+        c = self.cfg
+        src = Path(c.anchor_from or c.init_from or "")
+        if not (src / "weights.pt").exists():
+            raise ValueError("learner.anchor > 0 needs anchor_from or init_from pointing at a checkpoint with weights.pt")
+        if not self.model.c.head_bank:
+            raise ValueError("learner.anchor > 0 needs model.head_bank: it anchors the shared-head decisions only")
+        am = SLCore(SLConfig(**c.model)).to(self.dev)
+        sd = torch.load(src / "weights.pt", map_location=self.dev)
+        own = am.state_dict()
+        ld = {k: v for k, v in sd.items() if k in own and own[k].shape == v.shape}
+        am.load_state_dict(ld, strict=False)
+        am.eval()
+        for p in am.parameters():
+            p.requires_grad_(False)
+        self.learner.anchor_model = am
+        self.state["anchor"] = {"dir": str(src), "loaded": len(ld), "total": len(own), "coef": float(c.learner["anchor"])}
+        self.log(f"anchor: frozen source policy from {src} ({len(ld)}/{len(own)} tensors), coefficient {c.learner['anchor']}")
 
     def _init_from(self, d: Path) -> None:
         sd = torch.load(d / "weights.pt", map_location=self.dev)

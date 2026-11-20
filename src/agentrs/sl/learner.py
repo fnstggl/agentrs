@@ -35,9 +35,14 @@ def gae(r, v, disc, cut, boot, lam):
 class PPO:
     def __init__(self, model: SLCore, cfg: dict):
         self.m = model
+        # anchor (sl-exp-v18): weight of a KL penalty that keeps the policy on shared-head (rehearsed source-world)
+        # decisions close to a frozen copy of the source policy (``anchor_model``, set by the trainer). 0 = off.
         self.cfg = {"lr": 3e-4, "epochs": 2, "mb_streams": 64, "clip": 0.2, "vclip": 0.2, "ent": 0.01, "vf": 0.5,
-                    "lam": 0.95, "wm": 0.5, "max_grad": 1.0, "target_kl": 0.05, **(cfg or {})}
+                    "lam": 0.95, "wm": 0.5, "max_grad": 1.0, "target_kl": 0.05, "anchor": 0.0, "anchor_clip": 10.0,
+                    **(cfg or {})}
         self.opt = torch.optim.Adam(model.parameters(), lr=self.cfg["lr"], eps=1e-5)
+        self.anchor_model = None
+        self.anchor_state = None  # the anchor model's own recurrent state per stream, carried across segments
 
     def state_dict(self):
         return {"opt": self.opt.state_dict(), "cfg": self.cfg}
@@ -45,12 +50,14 @@ class PPO:
     def load_state_dict(self, d):
         self.opt.load_state_dict(d["opt"])
 
-    def _replay(self, seg, rows, mode, dev):
-        """Recompute the segment for the given stream rows; returns per-step tensors (T, R)."""
-        m = self.m
+    def _replay(self, seg, rows, mode, dev, m=None, start=None, final=None):
+        """Recompute the segment for the given stream rows; returns per-step tensors (T, R).
+        ``m``: model to replay (default the learner's); ``start``: starting recurrent state of all streams (default the
+        segment's, i.e. the collecting model's); ``final``: dict that receives the rows' recurrent state after step T."""
+        m = self.m if m is None else m
         steps = seg["steps"]
         T, R = len(steps), len(rows)
-        st = {k: (v[rows].clone() if torch.is_tensor(v) else v) for k, v in seg["start"].items()}
+        st = {k: (v[rows].clone() if torch.is_tensor(v) else v) for k, v in (seg["start"] if start is None else start).items()}
         st = {k: (v.to(dev) if torch.is_tensor(v) else v) for k, v in st.items()}
         feats = [steps[t]["feat"][i] for t in range(T) for i in rows]
         gfeats = [steps[t]["gfeat"][i] for t in range(T) for i in rows]
@@ -129,7 +136,36 @@ class PPO:
             lps.append(lp_a + lp_sk)
             ents.append(ent_a + 0.1 * ent_sk)
             vals.append(v)
+        if final is not None:
+            final.update({k: (v.detach() if torch.is_tensor(v) else v) for k, v in st.items()})
         return torch.stack(lps), torch.stack(ents), torch.stack(vals), torch.stack(wm_l)
+
+    def _anchor_kl(self, seg, rows, lp, dev, start: dict, advance: bool):
+        """KL penalty toward the frozen source policy on the decisions of ``rows`` made with the shared heads (head
+        index 0, the rehearsed source worlds when the new world has its own heads). k3 estimator on the sampled
+        decisions: exp(d) - d - 1 with d = log pi_src(a) - log pi(a), as in KL-regularised policy optimisation.
+        The source model is replayed from its own recurrent state (carried across segments; a trial start clears it,
+        as at collection). Returns None when the minibatch has no such decision."""
+        steps = seg["steps"]
+        if self.anchor_model is None or "hix" not in steps[0]:
+            return None
+        am = torch.stack([s["hix"][rows] for s in steps]) == 0          # (T, R) shared-head decisions
+        sel = am.any(0)
+        if not bool(sel.any()):
+            return None
+        idx = torch.nonzero(sel).flatten()
+        rr = rows[idx.cpu()] if torch.is_tensor(rows) else torch.as_tensor(rows)[idx.cpu()]
+        fin = {} if advance else None
+        with torch.no_grad():
+            lp_src = self._replay(seg, rr, seg["mode"], dev, m=self.anchor_model, start=start, final=fin)[0]
+        if fin:
+            for k, v in fin.items():
+                if torch.is_tensor(v):
+                    self.anchor_state[k][rr] = v.to(self.anchor_state[k].device)
+        d = (lp_src - lp[:, idx]).clamp(-self.cfg["anchor_clip"], self.cfg["anchor_clip"])
+        k3 = d.exp() - d - 1.0
+        w = am[:, idx].to(dev).float()
+        return (k3 * w).sum() / w.sum().clamp(min=1.0)
 
     def update(self, seg: dict, dev, wm_coef=None) -> dict:
         m, c = self.m, self.cfg
@@ -145,7 +181,12 @@ class PPO:
         adv, ret = gae(r, v_old, disc, cut, seg["boot"], c["lam"])
         adv_n = (adv - adv.mean()) / (adv.std() + 1e-8)
         wm_coef = c["wm"] if wm_coef is None else wm_coef
-        stats = {"pg": [], "vf": [], "ent": [], "wm": [], "kl": [], "clipfrac": [], "mismatch": []}
+        stats = {"pg": [], "vf": [], "ent": [], "wm": [], "kl": [], "clipfrac": [], "mismatch": [], "anchor_kl": []}
+        a_start = None
+        if c["anchor"] > 0 and self.anchor_model is not None:
+            if self.anchor_state is None or self.anchor_state["h"].shape[0] != N:
+                self.anchor_state = self.anchor_model.init_state(N, "cpu")
+            a_start = {k: (v.clone() if torch.is_tensor(v) else v) for k, v in self.anchor_state.items()}
         first = True
         for ep in range(c["epochs"]):
             perm = np.random.permutation(N)
@@ -161,6 +202,11 @@ class PPO:
                 vcl = vo + (val - vo).clamp(-c["vclip"], c["vclip"])
                 vf = torch.max((val - R_) ** 2, (vcl - R_) ** 2).mean()
                 loss = pg + c["vf"] * vf - c["ent"] * ent.mean() + wm_coef * wml.mean()
+                if a_start is not None:
+                    akl = self._anchor_kl(seg, rows, lp, dev, a_start, advance=(ep == 0))
+                    if akl is not None:
+                        loss = loss + c["anchor"] * akl
+                        stats["anchor_kl"].append(float(akl.detach()))
                 self.opt.zero_grad(set_to_none=True)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(m.parameters(), c["max_grad"])
@@ -175,7 +221,7 @@ class PPO:
                 stats["clipfrac"].append(float(((ratio - 1).abs() > c["clip"]).float().mean()))
             if np.mean(stats["kl"][-max(1, N // c["mb_streams"]):]) > c["target_kl"]:
                 break
-        out = {k: float(np.mean(v)) if v else 0.0 for k, v in stats.items()}
+        out = {k: float(np.mean(v)) if v else 0.0 for k, v in stats.items() if v or k != "anchor_kl"}
         out["adv_std"] = float(adv.std())
         out["ret_mean"] = float(ret.mean())
         return out
