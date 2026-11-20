@@ -1191,6 +1191,44 @@ world-model loss on (0.5), so the arms differ only in how the source lifetime wa
   hint. Testing it needs replicate seeds under the current transfer design (per-world heads, v17/v18), which these
   pre-v16 sources do not support without re-running the lifetimes.
 
+### H15 result, 2026-11-20 10:05 UTC (mechanical verdict, `scripts/sl_report.py` section 0 on `runs/sl_mp`)
+`T_closed_fromMP1open_s1-s3` finished at 1M. Learning AUC of commons_harvest__closed validation score (0-1M) and
+zero-shot score (0k), paired by transfer seed. Seeds 1-2 start from lifetime `P_MP1open_s1` @ 1M, seed 3 from
+`P_MP1open_s2` @ 1M, exactly as for `T_closed_fromMP6`.
+
+| seed | AUC six worlds / nearest world / scratch | Δ AUC six − nearest | zero-shot six / nearest / scratch | late 250k-1M: six / nearest / scratch | closed score per milestone, nearest world (0, 100k, 250k, 500k, 1M) |
+|---|---|---|---|---|---|
+| 1 | 28.94 / 41.74 / 32.00 | −12.80 | 27.66 / 42.23 / 26.30 | 28.89 / 44.35 / 32.60 | 42.2, 34.8, 26.8, 47.1, 49.0 |
+| 2 | 25.51 / 50.46 / 27.70 | −24.95 | 30.61 / 49.75 / 25.57 | 23.87 / 58.69 / 28.26 | 49.8, 14.2, 29.0, 63.6, 66.2 |
+| 3 | 27.35 / 37.98 / 26.31 | −10.64 | 34.71 / 15.64 / 20.54 | 25.99 / 39.69 / 26.43 | 15.6, 47.3, 20.2, 53.1, 29.3 |
+
+- **H15: DISPROVED.** Mean Δ AUC −16.13 and mean Δ zero-shot −4.88, both ≤ −1.0. At equal total experience
+  (1M agent-steps), experience on the nearest training substrate alone transfers better to the held-out
+  commons_harvest__closed than experience spread over six substrates.
+- **Against scratch.** Nearest world: ΔAUC +14.73 [90% CI +8.05, +21.40], above scratch in all three seeds and in the
+  late window (250k-1M) in all three; final test 46.9 against scratch's 24.3. Six worlds: ΔAUC −1.41
+  [−3.46, +0.65]; its zero-shot lead (31.0 against 24.1 at 0k) is gone by 250k, and it is below scratch in the late
+  window in all three seeds (−3.71, −4.39, −0.44).
+- **Not only a head start.** Seed 3's source lifetime had lost closed performance by 1M (its monitor fell 23.0 → 15.6),
+  so seed 3 started below scratch (15.6 against 20.5). It was still above scratch at 100k (47.3 against 26.3) and 500k
+  (53.1 against 27.3), and its AUC is +11.68 over scratch.
+- **This is the first measurement in the project where experience beats scratch over the whole learning budget
+  with a 90% interval that excludes zero.** In CAM the positive effect is early only (H14a, 0-50k).
+- **Caveats.**
+  - The nearest-world curves swing by up to 49 points between milestones (seed 2: 49.8 → 14.2 → 63.6).
+  - Two of the three transfer seeds share one source lifetime, and there are only two lifetimes.
+  - The single-world source's own training-substrate score fell while it trained (P_MP1open_s1, open: 24.8 at 0 →
+    20.0 at 1M → 13.3 at 2M), and its closed monitor fell again by 2M (50.4 → 17.8). Whatever transfers is not
+    "better at its own world" by this score. In a commons, a higher harvest rate can deplete the resource, so the
+    score is not a monotone measure of competence.
+  - At equal wall-clock (10 h cap) the single-world lifetimes reached about 3.3M agent-steps, the six-world ones less
+    than 2M (no life_2000000 checkpoint; `T_closed_fromMP6at2M_s1` was skipped).
+- **What it means for the breadth question.** In CAM with per-world heads, a second source world helped a little
+  (H16, +0.021). In Melting Pot, with shared heads and a fixed budget, six worlds instead of the nearest one cost
+  16 AUC points and removed all of the learning-speed transfer. The open question is whether that is dilution (the
+  six-world lifetime had about 1/6 of its experience on the relevant substrate) or interference from the other
+  five. These runs cannot separate the two.
+
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
 - Self-play with parameter sharing (every player is a learner stream with its own belief and memory) on 6
