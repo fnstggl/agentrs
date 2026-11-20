@@ -970,6 +970,33 @@ ablation lifetimes, against `T_B11_scratch_s1` (0.515):
 - The early-lead / late-deficit pattern again: 0-50k above scratch in three of four seeds (seed 2: 0.263 vs 0.279),
   50k-300k below it in all four (−0.033 to −0.069).
 
+### H16 result, 2026-11-20 03:15 UTC (mechanical verdict, `scripts/sl_report.py` section 0)
+All four `T_B17_fromNPbankrh` runs (source `P_NP_s1` @ 1M; bizdev on its own heads; rehearsal negotiation 0.05 +
+product 0.05) finished at 300k. Bizdev learning AUC 0-300k, paired by seed:
+
+| seed | scratch | fromNbankrh (Δ) | fromNPbankrh (Δ) | NP − N | 50k-300k scratch / N / NP | negotiation at 300k N / NP |
+|---|---|---|---|---|---|---|
+| 1 | 0.508 | 0.455 (−0.052) | 0.448 (−0.060) | −0.007 | 0.558 / 0.489 / 0.483 | 0.639 / 0.632 |
+| 2 | 0.576 | 0.529 (−0.048) | 0.554 (−0.023) | +0.025 | 0.636 / 0.582 / 0.597 | 0.618 / 0.639 |
+| 3 | 0.540 | 0.512 (−0.028) | 0.542 (+0.002) | +0.030 | 0.592 / 0.557 / 0.591 | 0.604 / 0.653 |
+| 4 | 0.542 | 0.522 (−0.020) | 0.559 (+0.016) | +0.037 | 0.596 / 0.563 / 0.609 | 0.000 / 0.576 |
+
+- **H16 (breadth with per-world heads): CONFIRMED, at the bar.** Mean NP − N is +0.021 against the ≥ +0.02
+  criterion, positive in 3 of 4 seeds. With the new world on its own heads and the source worlds rehearsed, the
+  two-world source learns bizdev faster than the negotiation-only source.
+- **Against scratch** the two-world source is −0.016 on average (−0.060 to +0.016), within noise of scratch, and the
+  first transfer arm here without a late deficit in two seeds (50k-300k: seeds 3 and 4 at or above scratch).
+- **It also keeps negotiation in all four seeds** (0.58-0.65) with half the negotiation rehearsal, including seed 4,
+  where the negotiation-only source collapsed. One run each; the collapse mechanism (amendment 17) predicts it can
+  happen in either arm.
+- **Caveat on what "breadth" adds.** Product success is 0 in the source and at 300k in every run (score ≤ 0.003):
+  `P_NP_s1` never learned product (learned inaction, amendment 7). The second world contributes experience of a
+  different simulator, not a solved skill, and the diagnostics above found its world model carries reward and
+  termination calibration rather than dynamics. Which of these produces the gain is not tested here.
+- **Answer to "does experience help?" under the best architecture so far:** a broad-experience CAM learns the new
+  world about as fast as scratch over 300k (−0.016) while keeping its old negotiation skill; a narrow one is slower
+  (−0.037). Neither is faster than scratch over the full budget.
+
 ### Protocol amendment 17, 2026-11-20 02:30 UTC: rehearsal collapse and the transferred core's step size (before any result of these runs)
 **Evidence 1: on-policy rehearsal can collapse.** `T_B17_fromNbankrh_s4` (H13c replication, per-world heads + 10%
 negotiation rehearsal) kept negotiation at 0.646 at 25k, fell to 0.27 at 50k and to exactly 0.000 at 100k and 200k.
