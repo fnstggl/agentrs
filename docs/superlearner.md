@@ -942,7 +942,7 @@ by about 100k and ends slightly ahead. Breadth (two source worlds instead of one
 **Exploratory, from training logs (seeds 1-4, transferred arm / scratch).** In 50k-300k the transferred runs' PPO
 updates move the policy further than scratch's at a similar entropy: per-update KL 1.16-1.49× and clip fraction
 1.22-1.48×, entropy 0.92-1.02×, value loss 0.82-1.11×. Larger steps that are clipped more often are one candidate
-for the late deficit; an offline test on identical data is running.
+for the late deficit; the offline test on identical data is in amendment 17.
 
 **Memory ablation transfers (n = 1 each, seed 1; not a pre-registered test).** Bizdev 0-300k AUC from the N+P+V
 ablation lifetimes, against `T_B11_scratch_s1` (0.515):
@@ -953,6 +953,98 @@ ablation lifetimes, against `T_B11_scratch_s1` (0.515):
   0.001-0.004 while the episode run's rose to 0.14-0.19). It peaked at 0.507 at 200k and drifted back to 0.113 at
   300k; its final bizdev validation return (−0.806) equals the do-nothing policy's (−0.800).
 - One seed per arm cannot separate the memory variants from seed noise; the GRU run's failure is one run.
+
+### Protocol amendment 17, 2026-11-20 02:30 UTC: rehearsal collapse and the transferred core's step size (before any result of these runs)
+**Evidence 1: on-policy rehearsal can collapse.** `T_B17_fromNbankrh_s4` (H13c replication, per-world heads + 10%
+negotiation rehearsal) kept negotiation at 0.646 at 25k, fell to 0.27 at 50k and to exactly 0.000 at 100k and 200k.
+Its sibling seeds kept 0.62-0.65. A read-only profile on 96 negotiation validation trials (3,072 sampled decisions,
+dev worktree code, weights copied; `neg_actions.py`, `anc_grad.py`, `anc_scale.py` in the session scratchpad):
+
+| checkpoint | success | ASK / PROPOSE / ACCEPT | invalid | decisions per episode | policy entropy per decision |
+|---|---|---|---|---|---|
+| source `P_N_s1` @ 1M | 0.76 | 0.83 / 0.10 / 0.08 | 0.00 | 10.4 | 1.27 |
+| `T_B17_fromNbankrh_s1` final | 0.70 | 0.83 / 0.10 / 0.07 | 0.00 | 10.4 | 1.07 |
+| `T_B17_fromNbankrh_s3` @ 237k | 0.67 | 0.18 / 0.11 / 0.71 | 0.63 | 9.5 | 1.03 |
+| `T_B17_fromNbankrh_s4` @ 242k | 0.00 | 1.00 / 0.00 / 0.00 | 0.00 | 16.0 | 1.35 |
+
+- **Seed 4 asks on every decision.** It never proposes or accepts, so every negotiation fails with zero progress.
+- **On-policy rehearsal cannot get out of that state.** A failure costs the whole unused decision budget however it
+  ends (by design, so that stalling is never cheaper), so all of seed 4's negotiation episodes have the same return.
+  On mixed training segments its mean |advantage| on negotiation decisions is 0.033, against 0.246 in seed 1 and
+  0.23-0.31 on bizdev decisions.
+- **The entropy bonus does not see it.** The deterministic choice is the action type; the entropy sits in the
+  argument slots (1.35 per decision, above the source's 1.27).
+- **Distance from the source policy does not separate healthy from collapsed runs.** KL from the source policy
+  (k3 estimate on each run's own decisions): seed 1 1.16, seed 3 6.5 (an ACCEPT-heavy strategy with 63% invalid
+  actions), seed 4 2.3.
+- An anchor toward the source still acts on the collapsed policy: with π(ASK) = 1 and π_src(ASK) = 0.83, the
+  forward-KL gradient lowers ASK and raises the source's PROPOSE/ACCEPT, whatever the returns.
+
+**Evidence 2: transferred cores take larger policy steps.** One production PPO update (lr 3e-4, 2 epochs, 32-stream
+minibatches, the run's own Adam state) on identical bizdev data: 64 worlds × 32 steps collected by the same-seed
+`T_B16_scratch` policy at 300k, each model's own log-probabilities (`sens.py`). True KL(old ‖ new) over all streams:
+
+| seed | scratch | fromNhr (Δ own advantages / common advantages) | fromNPhr (own / common) | clip fraction scratch / fromNhr / fromNPhr |
+|---|---|---|---|---|
+| 3 | 0.0074 | 0.0229 (3.1×) / 0.0174 (2.4×) | 0.0235 (3.2×) / 0.0198 (2.7×) | 0.02 / 0.08 / 0.06 |
+| 4 | 0.0088 | 0.0220 (2.5×) / 0.0130 (1.5×) | 0.0184 (2.1×) / 0.0129 (1.5×) | 0.04 / 0.16 / 0.05 |
+
+- "Common advantages" gives every model the scratch model's value estimates, so the advantage signal is identical.
+  The transferred policies still move 1.5-2.7× further: a property of the network, not of the signal.
+- The policy gradient reaching the shared core is 1.3-1.9× scratch's (0.43-0.89 vs 0.33-0.59). Adam's step size is
+  about lr per parameter whatever the gradient scale, so a more sensitive core turns the same step into a larger
+  policy change.
+- At initialisation it is different: transferred models' world-model and value losses make their total gradient
+  2.6-7.4× scratch's (9-26 vs 3.4-3.6), gradient clipping at 1.0 shrinks every step, and the one-update KL is not
+  larger (0.003-0.026 vs 0.004-0.020). The larger steps appear later in training, where the deficit is.
+- Training logs agree in direction (per-update KL 1.16-1.49×, clip fraction 1.22-1.48× in 50k-300k), with a smaller
+  ratio because the logged KL is measured on each minibatch before its own step.
+
+**v18 (tag sl-exp-v18, worktree `agentrs-sl-exp-v18`) = v17 + two opt-in learner options, both off by default.**
+- `learner.anchor` (β) with `anchor_from` (default `init_from`): β × KL penalty toward a frozen copy of the source
+  policy on the decisions made with the shared heads (the rehearsed source worlds when the new world has its own
+  heads; requires `model.head_bank`). k3 estimator on the sampled decisions, d = log π_src − log π clamped to ±10. The
+  source is replayed from its own recurrent state, carried across segments (a trial start clears it, as at
+  collection; after a restart it starts empty for one segment). Tested: with β = 0 updates are bit-identical to v17;
+  an anchor equal to the policy gives KL < 1e-6 across segments (5e-5 without the carried state).
+- `learner.lr_scale` / `lr_scale_rest`: learning-rate multipliers per parameter-name prefix (default: one Adam group
+  at lr, as before).
+- β = 0.05: at β = 1 the anchor's gradient norm is 10-15× the policy gradient's (5.4 vs 0.36 in seed 1, 3.0 vs 0.26
+  in seed 4); 0.05 makes it 0.6-1× the policy gradient, so it can pull without dominating bizdev's updates.
+
+**Disprovable tests (pre-registered).**
+- **H17 (anchor).** Claim: on-policy rehearsal cannot recover a degenerate source-world policy because its returns
+  carry no signal; a KL anchor to the frozen source policy supplies one, restores a collapsed policy and prevents
+  the collapse.
+  - **H17a (rescue).** `T_B18_rescue_{anc,ctl}_s1/s2` continue `T_B17_fromNbankrh_s4`'s final weights for 100k
+    interactions (bizdev 0.9 / negotiation 0.1, same heads), with β = 0.05 (anc) or 0 (ctl, same v18 code).
+    - Valid only if `T_B17_fromNbankrh_s4` ends with negotiation ≤ 0.20 at 300k; otherwise "not applicable".
+    - **Confirmed if** the anchor arm reaches negotiation ≥ 0.40 at 100k in both seeds and the control stays ≤ 0.20 in
+      both. **Disproved if** the anchor arm is ≤ 0.20 in both seeds. Anything else is mixed.
+  - **H17b (prevention).** `T_B18_fromNbankanc_s1-s4` = `T_B17_fromNbankrh` with β = 0.05.
+    - **Confirmed if** negotiation ≥ 0.50 at 300k in all four seeds and the mean bizdev ΔAUC (0-300k, paired against
+      `T_B16_scratch`) ≥ −0.05. **Disproved if** negotiation ≤ 0.20 at 300k in any seed or the mean ΔAUC ≤ −0.15.
+      Anything else is mixed.
+    - Caveat: with one collapse in four unanchored seeds, four anchored seeds without a collapse are weak evidence
+      by themselves (probability 0.32 under no effect); H17a is the sharp test of the mechanism.
+- **H18 (core step size).** Claim: the late (50k-300k) deficit of fresh-head transfers comes from oversized
+  per-update policy changes of the transferred core at scratch's learning rate; halving the learning rate of
+  everything except the fresh action heads (`query.`, `slot.`, `hi.`, `term.`) removes it.
+  - `T_B18_fromNPhrcore_s1-s4` = `T_B16_fromNPhr` with `lr_scale_rest` 0.5, against `T_B16_scratch_s1-s4` (paired by
+    seed; late AUC = bizdev validation score over 50k-300k).
+  - Mechanism check: mean logged per-update KL over 50k-300k, fromNPhrcore / same-seed scratch ≤ 1.1 in every seed.
+  - **Confirmed if** the mean late Δ ≥ −0.005 and the check passes. **Disproved if** the mean late Δ ≤ −0.027 (no
+    better than `T_B16_fromNPhr`'s −0.027) while the check passes. Anything else is mixed.
+  - Control, reported: `T_B18_scratchcore_s1-s4` (scratch with the same learning-rate scale) shows whether a smaller
+    core step helps any learner, in which case a confirmed H18 would not be specific to transfer.
+- Verdicts are computed by `scripts/sl_report.py` (`_anchor_test`, `_core_lr_test`), written before any of these
+  runs started.
+
+**Queue (sl-ops-v23).** H17's eight runs go right after `T_B17_fromNPbankrh_s4`, ahead of the remaining A_NPV
+ablation transfers: their pre-start smoke tests take about 5 minutes instead of 37, so they fill free slots while
+the long smokes run later. H18's eight runs go after `P_NPV_s2` and `P_NPB_s2`, so the second lifetimes start first.
+No running job is touched; new launches were held with `runs/sl/QUEUE_STOP` from 02:15 UTC until the restart so that
+no smoke test was in flight.
 
 ## Phase 2 (Melting Pot), `configs/sl/queue_phase2_mp.yaml`
 **Lifetime** (`P_MP6_s1`, `P_MP6_s2`):
