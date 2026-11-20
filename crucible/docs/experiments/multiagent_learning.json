@@ -1,0 +1,6570 @@
+[
+ {
+  "kind": "compete_learn",
+  "seed": 1,
+  "days": 40,
+  "wall_s": 130.9,
+  "curve": [
+   {
+    "day": 1,
+    "ana": 753.0,
+    "ben": 936.0,
+    "shares": {
+     "shorte1": 247,
+     "knapsa1": 516,
+     "ana-shorte": 70,
+     "ben-shorte": 79
+    }
+   },
+   {
+    "day": 2,
+    "ana": 7350.0,
+    "ben": 7142.0,
+    "shares": {
+     "shorte1": 298,
+     "knapsa1": 841,
+     "ana-shorte": 206,
+     "ben-shorte": 144
+    }
+   },
+   {
+    "day": 3,
+    "ana": 14412.0,
+    "ben": 8847.0,
+    "shares": {
+     "shorte1": 381,
+     "knapsa1": 1054,
+     "ana-shorte": 191,
+     "ben-shorte": 234
+    }
+   },
+   {
+    "day": 4,
+    "ana": 10552.0,
+    "ben": 16608.0,
+    "shares": {
+     "shorte1": 366,
+     "knapsa1": 1188,
+     "ana-shorte": 278,
+     "ben-shorte": 259
+    }
+   },
+   {
+    "day": 5,
+    "ana": 14256.0,
+    "ben": 13878.0,
+    "shares": {
+     "shorte1": 485,
+     "knapsa1": 1261,
+     "ana-shorte": 298,
+     "ben-shorte": 182
+    }
+   },
+   {
+    "day": 6,
+    "ana": 14228.0,
+    "ben": 12567.0,
+    "shares": {
+     "shorte1": 565,
+     "knapsa1": 1300,
+     "ana-shorte": 250,
+     "ben-shorte": 195
+    }
+   },
+   {
+    "day": 7,
+    "ana": 11153.0,
+    "ben": 10915.0,
+    "shares": {
+     "shorte1": 449,
+     "knapsa1": 1331,
+     "ana-shorte": 366,
+     "ben-shorte": 218
+    }
+   },
+   {
+    "day": 8,
+    "ana": 17757.0,
+    "ben": 12312.0,
+    "shares": {
+     "shorte1": 528,
+     "knapsa1": 1354,
+     "ana-shorte": 351,
+     "ben-shorte": 170
+    }
+   },
+   {
+    "day": 9,
+    "ana": 16774.0,
+    "ben": 11888.0,
+    "shares": {
+     "shorte1": 662,
+     "knapsa1": 1367,
+     "ana-shorte": 223,
+     "ben-shorte": 172
+    }
+   },
+   {
+    "day": 10,
+    "ana": 12028.0,
+    "ben": 11386.0,
+    "shares": {
+     "shorte1": 502,
+     "knapsa1": 1379,
+     "ana-shorte": 390,
+     "ben-shorte": 170
+    }
+   },
+   {
+    "day": 11,
+    "ana": 17060.0,
+    "ben": 11109.0,
+    "shares": {
+     "shorte1": 655,
+     "knapsa1": 1383,
+     "ana-shorte": 238,
+     "ben-shorte": 168
+    }
+   },
+   {
+    "day": 12,
+    "ana": 9235.0,
+    "ben": 9512.0,
+    "shares": {
+     "shorte1": 464,
+     "knapsa1": 1386,
+     "ana-shorte": 406,
+     "ben-shorte": 194
+    }
+   },
+   {
+    "day": 13,
+    "ana": 14586.0,
+    "ben": 10833.0,
+    "shares": {
+     "shorte1": 661,
+     "knapsa1": 1386,
+     "ana-shorte": 232,
+     "ben-shorte": 171
+    }
+   },
+   {
+    "day": 14,
+    "ana": 11220.0,
+    "ben": 12008.0,
+    "shares": {
+     "shorte1": 630,
+     "knapsa1": 1385,
+     "ana-shorte": 264,
+     "ben-shorte": 168
+    }
+   },
+   {
+    "day": 15,
+    "ana": 13110.0,
+    "ben": 12432.0,
+    "shares": {
+     "shorte1": 671,
+     "knapsa1": 1388,
+     "ana-shorte": 217,
+     "ben-shorte": 171
+    }
+   },
+   {
+    "day": 16,
+    "ana": 14238.0,
+    "ben": 7954.0,
+    "shares": {
+     "shorte1": 579,
+     "knapsa1": 1385,
+     "ana-shorte": 199,
+     "ben-shorte": 284
+    }
+   },
+   {
+    "day": 17,
+    "ana": 11334.0,
+    "ben": 8552.0,
+    "shares": {
+     "shorte1": 630,
+     "knapsa1": 1385,
+     "ana-shorte": 232,
+     "ben-shorte": 203
+    }
+   },
+   {
+    "day": 18,
+    "ana": 9322.0,
+    "ben": 11038.0,
+    "shares": {
+     "shorte1": 681,
+     "knapsa1": 1389,
+     "ana-shorte": 209,
+     "ben-shorte": 173
+    }
+   },
+   {
+    "day": 19,
+    "ana": 12670.0,
+    "ben": 11016.0,
+    "shares": {
+     "shorte1": 674,
+     "knapsa1": 1392,
+     "ana-shorte": 216,
+     "ben-shorte": 175
+    }
+   },
+   {
+    "day": 20,
+    "ana": 7810.0,
+    "ben": 11026.0,
+    "shares": {
+     "shorte1": 631,
+     "knapsa1": 1392,
+     "ana-shorte": 255,
+     "ben-shorte": 180
+    }
+   },
+   {
+    "day": 21,
+    "ana": 8213.0,
+    "ben": 10426.0,
+    "shares": {
+     "shorte1": 620,
+     "knapsa1": 1396,
+     "ana-shorte": 273,
+     "ben-shorte": 172
+    }
+   },
+   {
+    "day": 22,
+    "ana": 11115.0,
+    "ben": 10791.0,
+    "shares": {
+     "shorte1": 646,
+     "knapsa1": 1396,
+     "ana-shorte": 245,
+     "ben-shorte": 172
+    }
+   },
+   {
+    "day": 23,
+    "ana": 8584.0,
+    "ben": 10280.0,
+    "shares": {
+     "shorte1": 618,
+     "knapsa1": 1395,
+     "ana-shorte": 278,
+     "ben-shorte": 169
+    }
+   },
+   {
+    "day": 24,
+    "ana": 14184.0,
+    "ben": 10721.0,
+    "shares": {
+     "shorte1": 684,
+     "knapsa1": 1393,
+     "ana-shorte": 208,
+     "ben-shorte": 173
+    }
+   },
+   {
+    "day": 25,
+    "ana": 9340.0,
+    "ben": 10759.0,
+    "shares": {
+     "shorte1": 628,
+     "knapsa1": 1396,
+     "ana-shorte": 263,
+     "ben-shorte": 172
+    }
+   },
+   {
+    "day": 26,
+    "ana": 13278.0,
+    "ben": 7371.0,
+    "shares": {
+     "shorte1": 620,
+     "knapsa1": 1396,
+     "ana-shorte": 203,
+     "ben-shorte": 240
+    }
+   },
+   {
+    "day": 27,
+    "ana": 12728.0,
+    "ben": 8735.0,
+    "shares": {
+     "shorte1": 643,
+     "knapsa1": 1395,
+     "ana-shorte": 198,
+     "ben-shorte": 221
+    }
+   },
+   {
+    "day": 28,
+    "ana": 11968.0,
+    "ben": 11496.0,
+    "shares": {
+     "shorte1": 689,
+     "knapsa1": 1394,
+     "ana-shorte": 191,
+     "ben-shorte": 184
+    }
+   },
+   {
+    "day": 29,
+    "ana": 12280.0,
+    "ben": 11280.0,
+    "shares": {
+     "shorte1": 694,
+     "knapsa1": 1396,
+     "ana-shorte": 193,
+     "ben-shorte": 180
+    }
+   },
+   {
+    "day": 30,
+    "ana": 12198.0,
+    "ben": 11586.0,
+    "shares": {
+     "shorte1": 694,
+     "knapsa1": 1397,
+     "ana-shorte": 189,
+     "ben-shorte": 182
+    }
+   },
+   {
+    "day": 31,
+    "ana": 11292.0,
+    "ben": 11274.0,
+    "shares": {
+     "shorte1": 673,
+     "knapsa1": 1397,
+     "ana-shorte": 217,
+     "ben-shorte": 175
+    }
+   },
+   {
+    "day": 32,
+    "ana": 9372.0,
+    "ben": 11464.0,
+    "shares": {
+     "shorte1": 624,
+     "knapsa1": 1393,
+     "ana-shorte": 273,
+     "ben-shorte": 169
+    }
+   },
+   {
+    "day": 33,
+    "ana": 10256.0,
+    "ben": 10512.0,
+    "shares": {
+     "shorte1": 665,
+     "knapsa1": 1394,
+     "ana-shorte": 230,
+     "ben-shorte": 172
+    }
+   },
+   {
+    "day": 34,
+    "ana": 13204.0,
+    "ben": 10760.0,
+    "shares": {
+     "shorte1": 680,
+     "knapsa1": 1393,
+     "ana-shorte": 198,
+     "ben-shorte": 188
+    }
+   },
+   {
+    "day": 35,
+    "ana": 12658.0,
+    "ben": 10210.0,
+    "shares": {
+     "shorte1": 675,
+     "knapsa1": 1396,
+     "ana-shorte": 201,
+     "ben-shorte": 192
+    }
+   },
+   {
+    "day": 36,
+    "ana": 7676.0,
+    "ben": 11662.0,
+    "shares": {
+     "shorte1": 627,
+     "knapsa1": 1396,
+     "ana-shorte": 263,
+     "ben-shorte": 176
+    }
+   },
+   {
+    "day": 37,
+    "ana": 4056.0,
+    "ben": 4264.0,
+    "shares": {
+     "shorte1": 824,
+     "knapsa1": 1394,
+     "ana-shorte": 121,
+     "ben-shorte": 121
+    }
+   },
+   {
+    "day": 38,
+    "ana": 8120.0,
+    "ben": 9060.0,
+    "shares": {
+     "shorte1": 820,
+     "knapsa1": 1394,
+     "ana-shorte": 118,
+     "ben-shorte": 125
+    }
+   },
+   {
+    "day": 39,
+    "ana": 7800.0,
+    "ben": 8267.0,
+    "shares": {
+     "shorte1": 811,
+     "knapsa1": 1395,
+     "ana-shorte": 127,
+     "ben-shorte": 126
+    }
+   },
+   {
+    "day": 40,
+    "ana": 8956.0,
+    "ben": 9636.0,
+    "shares": {
+     "shorte1": 821,
+     "knapsa1": 1395,
+     "ana-shorte": 115,
+     "ben-shorte": 128
+    }
+   }
+  ],
+  "invariants": [],
+  "ana_prices": [
+   4,
+   8,
+   2,
+   8,
+   2,
+   3,
+   8,
+   2,
+   8,
+   1,
+   8,
+   2,
+   6,
+   6,
+   2,
+   8,
+   2,
+   2,
+   3,
+   2,
+   6,
+   2,
+   8,
+   8,
+   8,
+   8,
+   6,
+   3,
+   2,
+   8,
+   6,
+   2,
+   8,
+   8,
+   4,
+   8
+  ],
+  "ana_contrib": null,
+  "ana_weights": [
+   [
+    -0.4236419281049658,
+    0.022402414968236257,
+    -0.11436374115399439,
+    0.0
+   ],
+   [
+    0.3201511078621703,
+    0.7713715312521833,
+    0.5924814107957225,
+    0.0
+   ],
+   [
+    -0.32051935914330576,
+    0.16623354009989752,
+    -0.23030430108357947,
+    0.0
+   ],
+   [
+    -0.39635228446227616,
+    -0.16634090788004738,
+    -0.33058966627477376,
+    0.0
+   ],
+   [
+    -0.483251801927792,
+    -0.038456819786151904,
+    -0.16611708747682807,
+    0.0
+   ],
+   [
+    0.3248929567825749,
+    0.02686966989553408,
+    0.4561304033780801,
+    0.0
+   ],
+   [
+    0.9787213089935946,
+    -0.7820794285496516,
+    -0.20723701818462678,
+    0.0
+   ]
+  ],
+  "ana_log": [],
+  "ben_prices": [
+   8,
+   3,
+   6,
+   6,
+   3,
+   8,
+   8,
+   5,
+   8,
+   3,
+   8,
+   6,
+   6,
+   1,
+   8,
+   6,
+   6,
+   5,
+   6,
+   5,
+   6,
+   5,
+   2,
+   3,
+   6,
+   6,
+   6,
+   6,
+   8,
+   6,
+   4,
+   6,
+   8,
+   6,
+   5,
+   6
+  ],
+  "ben_contrib": null,
+  "ben_weights": [
+   [
+    -0.48212681158097676,
+    -0.10350919693093742,
+    -0.2771133975367528,
+    0.0
+   ],
+   [
+    -0.5749224868044,
+    -0.1147046035146588,
+    -0.3623915984773225,
+    0.0
+   ],
+   [
+    -0.039837239841466185,
+    -0.10234020708579267,
+    0.14525355914089205,
+    0.0
+   ],
+   [
+    -0.4407865045789117,
+    -0.11766611086628173,
+    -0.23803537554833007,
+    0.0
+   ],
+   [
+    -0.12804919452290603,
+    0.11493733230888532,
+    0.043345078898056416,
+    0.0
+   ],
+   [
+    1.0478291939178266,
+    1.1361727261320012,
+    0.43009710201686463,
+    0.0
+   ],
+   [
+    0.6178930434108345,
+    -0.8128899400432164,
+    0.25884463150659254,
+    0.0
+   ]
+  ],
+  "ben_log": []
+ },
+ {
+  "kind": "compete_learn",
+  "seed": 2,
+  "days": 40,
+  "wall_s": 141.1,
+  "curve": [
+   {
+    "day": 1,
+    "ana": 722.0,
+    "ben": 678.0,
+    "shares": {
+     "shorte1": 231,
+     "knapsa1": 562,
+     "ana-shorte": 86,
+     "ben-shorte": 78
+    }
+   },
+   {
+    "day": 2,
+    "ana": 4464.0,
+    "ben": 4844.0,
+    "shares": {
+     "shorte1": 289,
+     "knapsa1": 929,
+     "ana-shorte": 167,
+     "ben-shorte": 208
+    }
+   },
+   {
+    "day": 3,
+    "ana": 6936.0,
+    "ben": 10412.0,
+    "shares": {
+     "shorte1": 325,
+     "knapsa1": 1140,
+     "ana-shorte": 261,
+     "ben-shorte": 227
+    }
+   },
+   {
+    "day": 4,
+    "ana": 13156.0,
+    "ben": 15506.0,
+    "shares": {
+     "shorte1": 440,
+     "knapsa1": 1286,
+     "ana-shorte": 244,
+     "ben-shorte": 221
+    }
+   },
+   {
+    "day": 5,
+    "ana": 12335.0,
+    "ben": 15698.0,
+    "shares": {
+     "shorte1": 422,
+     "knapsa1": 1361,
+     "ana-shorte": 312,
+     "ben-shorte": 218
+    }
+   },
+   {
+    "day": 6,
+    "ana": 9529.0,
+    "ben": 13900.0,
+    "shares": {
+     "shorte1": 441,
+     "knapsa1": 1408,
+     "ana-shorte": 314,
+     "ben-shorte": 223
+    }
+   },
+   {
+    "day": 7,
+    "ana": 16210.0,
+    "ben": 15767.0,
+    "shares": {
+     "shorte1": 562,
+     "knapsa1": 1425,
+     "ana-shorte": 212,
+     "ben-shorte": 223
+    }
+   },
+   {
+    "day": 8,
+    "ana": 14194.0,
+    "ben": 13912.0,
+    "shares": {
+     "shorte1": 567,
+     "knapsa1": 1438,
+     "ana-shorte": 217,
+     "ben-shorte": 223
+    }
+   },
+   {
+    "day": 9,
+    "ana": 4875.0,
+    "ben": 16596.0,
+    "shares": {
+     "shorte1": 495,
+     "knapsa1": 1448,
+     "ana-shorte": 310,
+     "ben-shorte": 210
+    }
+   },
+   {
+    "day": 10,
+    "ana": 5453.0,
+    "ben": 15005.0,
+    "shares": {
+     "shorte1": 475,
+     "knapsa1": 1452,
+     "ana-shorte": 333,
+     "ben-shorte": 215
+    }
+   },
+   {
+    "day": 11,
+    "ana": 13082.0,
+    "ben": 16000.0,
+    "shares": {
+     "shorte1": 574,
+     "knapsa1": 1453,
+     "ana-shorte": 249,
+     "ben-shorte": 203
+    }
+   },
+   {
+    "day": 12,
+    "ana": 12450.0,
+    "ben": 13248.0,
+    "shares": {
+     "shorte1": 578,
+     "knapsa1": 1461,
+     "ana-shorte": 239,
+     "ben-shorte": 212
+    }
+   },
+   {
+    "day": 13,
+    "ana": 14110.0,
+    "ben": 9458.0,
+    "shares": {
+     "shorte1": 561,
+     "knapsa1": 1460,
+     "ana-shorte": 218,
+     "ben-shorte": 250
+    }
+   },
+   {
+    "day": 14,
+    "ana": 7244.0,
+    "ben": 12484.0,
+    "shares": {
+     "shorte1": 469,
+     "knapsa1": 1464,
+     "ana-shorte": 337,
+     "ben-shorte": 221
+    }
+   },
+   {
+    "day": 15,
+    "ana": 13569.0,
+    "ben": 14776.0,
+    "shares": {
+     "shorte1": 588,
+     "knapsa1": 1464,
+     "ana-shorte": 233,
+     "ben-shorte": 205
+    }
+   },
+   {
+    "day": 16,
+    "ana": 14756.0,
+    "ben": 15113.0,
+    "shares": {
+     "shorte1": 593,
+     "knapsa1": 1465,
+     "ana-shorte": 225,
+     "ben-shorte": 211
+    }
+   },
+   {
+    "day": 17,
+    "ana": 12714.0,
+    "ben": 14529.0,
+    "shares": {
+     "shorte1": 584,
+     "knapsa1": 1464,
+     "ana-shorte": 239,
+     "ben-shorte": 207
+    }
+   },
+   {
+    "day": 18,
+    "ana": 13933.0,
+    "ben": 15328.0,
+    "shares": {
+     "shorte1": 612,
+     "knapsa1": 1463,
+     "ana-shorte": 213,
+     "ben-shorte": 204
+    }
+   },
+   {
+    "day": 19,
+    "ana": 16831.0,
+    "ben": 15792.0,
+    "shares": {
+     "shorte1": 625,
+     "knapsa1": 1463,
+     "ana-shorte": 204,
+     "ben-shorte": 198
+    }
+   },
+   {
+    "day": 20,
+    "ana": 15602.0,
+    "ben": 15620.0,
+    "shares": {
+     "shorte1": 620,
+     "knapsa1": 1462,
+     "ana-shorte": 192,
+     "ben-shorte": 214
+    }
+   },
+   {
+    "day": 21,
+    "ana": 13634.0,
+    "ben": 14247.0,
+    "shares": {
+     "shorte1": 606,
+     "knapsa1": 1461,
+     "ana-shorte": 199,
+     "ben-shorte": 222
+    }
+   },
+   {
+    "day": 22,
+    "ana": 11840.0,
+    "ben": 15290.0,
+    "shares": {
+     "shorte1": 627,
+     "knapsa1": 1461,
+     "ana-shorte": 197,
+     "ben-shorte": 205
+    }
+   },
+   {
+    "day": 23,
+    "ana": 10604.0,
+    "ben": 15608.0,
+    "shares": {
+     "shorte1": 617,
+     "knapsa1": 1462,
+     "ana-shorte": 213,
+     "ben-shorte": 200
+    }
+   },
+   {
+    "day": 24,
+    "ana": 12324.0,
+    "ben": 16024.0,
+    "shares": {
+     "shorte1": 620,
+     "knapsa1": 1466,
+     "ana-shorte": 207,
+     "ben-shorte": 204
+    }
+   },
+   {
+    "day": 25,
+    "ana": 14973.0,
+    "ben": 13276.0,
+    "shares": {
+     "shorte1": 611,
+     "knapsa1": 1464,
+     "ana-shorte": 198,
+     "ben-shorte": 219
+    }
+   },
+   {
+    "day": 26,
+    "ana": 15951.0,
+    "ben": 16040.0,
+    "shares": {
+     "shorte1": 640,
+     "knapsa1": 1464,
+     "ana-shorte": 186,
+     "ben-shorte": 204
+    }
+   },
+   {
+    "day": 27,
+    "ana": 14596.0,
+    "ben": 10786.0,
+    "shares": {
+     "shorte1": 578,
+     "knapsa1": 1464,
+     "ana-shorte": 184,
+     "ben-shorte": 266
+    }
+   },
+   {
+    "day": 28,
+    "ana": 12730.0,
+    "ben": 14432.0,
+    "shares": {
+     "shorte1": 620,
+     "knapsa1": 1465,
+     "ana-shorte": 194,
+     "ben-shorte": 216
+    }
+   },
+   {
+    "day": 29,
+    "ana": 14472.0,
+    "ben": 16312.0,
+    "shares": {
+     "shorte1": 639,
+     "knapsa1": 1462,
+     "ana-shorte": 181,
+     "ben-shorte": 209
+    }
+   },
+   {
+    "day": 30,
+    "ana": 13088.0,
+    "ben": 14528.0,
+    "shares": {
+     "shorte1": 626,
+     "knapsa1": 1464,
+     "ana-shorte": 196,
+     "ben-shorte": 208
+    }
+   },
+   {
+    "day": 31,
+    "ana": 12856.0,
+    "ben": 12837.0,
+    "shares": {
+     "shorte1": 618,
+     "knapsa1": 1464,
+     "ana-shorte": 178,
+     "ben-shorte": 233
+    }
+   },
+   {
+    "day": 32,
+    "ana": 11181.0,
+    "ben": 13785.0,
+    "shares": {
+     "shorte1": 584,
+     "knapsa1": 1463,
+     "ana-shorte": 233,
+     "ben-shorte": 210
+    }
+   },
+   {
+    "day": 33,
+    "ana": 8780.0,
+    "ben": 16142.0,
+    "shares": {
+     "shorte1": 559,
+     "knapsa1": 1463,
+     "ana-shorte": 260,
+     "ben-shorte": 206
+    }
+   },
+   {
+    "day": 34,
+    "ana": 10338.0,
+    "ben": 15282.0,
+    "shares": {
+     "shorte1": 579,
+     "knapsa1": 1461,
+     "ana-shorte": 240,
+     "ben-shorte": 206
+    }
+   },
+   {
+    "day": 35,
+    "ana": 12220.0,
+    "ben": 15530.0,
+    "shares": {
+     "shorte1": 625,
+     "knapsa1": 1462,
+     "ana-shorte": 200,
+     "ben-shorte": 201
+    }
+   },
+   {
+    "day": 36,
+    "ana": 15138.0,
+    "ben": 15864.0,
+    "shares": {
+     "shorte1": 639,
+     "knapsa1": 1463,
+     "ana-shorte": 185,
+     "ben-shorte": 202
+    }
+   },
+   {
+    "day": 37,
+    "ana": 13090.0,
+    "ben": 16864.0,
+    "shares": {
+     "shorte1": 638,
+     "knapsa1": 1463,
+     "ana-shorte": 186,
+     "ben-shorte": 202
+    }
+   },
+   {
+    "day": 38,
+    "ana": 15160.0,
+    "ben": 15455.0,
+    "shares": {
+     "shorte1": 630,
+     "knapsa1": 1463,
+     "ana-shorte": 180,
+     "ben-shorte": 215
+    }
+   },
+   {
+    "day": 39,
+    "ana": 13170.0,
+    "ben": 9628.0,
+    "shares": {
+     "shorte1": 577,
+     "knapsa1": 1461,
+     "ana-shorte": 177,
+     "ben-shorte": 272
+    }
+   },
+   {
+    "day": 40,
+    "ana": 13055.0,
+    "ben": 15339.0,
+    "shares": {
+     "shorte1": 631,
+     "knapsa1": 1460,
+     "ana-shorte": 180,
+     "ben-shorte": 218
+    }
+   }
+  ],
+  "invariants": [],
+  "ana_prices": [
+   2,
+   2,
+   6,
+   1,
+   5,
+   5,
+   1,
+   1,
+   3,
+   3,
+   4,
+   1,
+   4,
+   4,
+   3,
+   5,
+   8,
+   5,
+   4,
+   3,
+   4,
+   5,
+   8,
+   6,
+   4,
+   8,
+   4,
+   5,
+   2,
+   2,
+   3,
+   8,
+   5,
+   8,
+   5,
+   5
+  ],
+  "ana_contrib": null,
+  "ana_weights": [
+   [
+    -0.29591010934587436,
+    0.4289560057154374,
+    -0.022980417008274513,
+    0.0
+   ],
+   [
+    -0.5372353071036926,
+    0.12513546716480867,
+    -0.5915453081272325,
+    0.0
+   ],
+   [
+    -0.048266369786071836,
+    -0.050805159740765694,
+    -0.13125083552065483,
+    0.0
+   ],
+   [
+    0.2249310860444581,
+    -0.2497592490501232,
+    0.14045566776614443,
+    0.0
+   ],
+   [
+    0.6233076779492001,
+    -0.6346764220396145,
+    0.6477336824884009,
+    0.0
+   ],
+   [
+    -0.11010576686525715,
+    0.1817513299521689,
+    -0.38066857579069435,
+    0.0
+   ],
+   [
+    0.14327878910723751,
+    0.19939802799808837,
+    0.3382557861923107,
+    0.0
+   ]
+  ],
+  "ana_log": [],
+  "ben_prices": [
+   2,
+   4,
+   6,
+   4,
+   5,
+   4,
+   6,
+   5,
+   8,
+   4,
+   2,
+   4,
+   6,
+   5,
+   8,
+   8,
+   8,
+   4,
+   5,
+   8,
+   8,
+   4,
+   8,
+   2,
+   8,
+   6,
+   4,
+   3,
+   8,
+   6,
+   6,
+   8,
+   8,
+   5,
+   2,
+   5
+  ],
+  "ben_contrib": null,
+  "ben_weights": [
+   [
+    -0.5414196089801442,
+    -0.18448365369823305,
+    -0.3708620299985544,
+    0.0
+   ],
+   [
+    -0.7205710307006337,
+    -0.29858616252688486,
+    -0.7337397395915126,
+    0.0
+   ],
+   [
+    -0.5785643622830711,
+    -0.15699836324022878,
+    -0.4035814451682302,
+    0.0
+   ],
+   [
+    0.4940298937550265,
+    0.08014486358767468,
+    0.09102460923054917,
+    0.0
+   ],
+   [
+    0.1698719180362547,
+    0.287330969121684,
+    0.2761990616942793,
+    0.0
+   ],
+   [
+    0.3892876304155638,
+    0.8342731061382009,
+    0.2702958398362502,
+    0.0
+   ],
+   [
+    0.7873655597570041,
+    -0.5616807593822132,
+    0.870663703997218,
+    0.0
+   ]
+  ],
+  "ben_log": []
+ },
+ {
+  "kind": "compete_learn",
+  "seed": 3,
+  "days": 40,
+  "wall_s": 135.6,
+  "curve": [
+   {
+    "day": 1,
+    "ana": 700.0,
+    "ben": 860.0,
+    "shares": {
+     "shorte1": 235,
+     "knapsa1": 504,
+     "ana-shorte": 84,
+     "ben-shorte": 94
+    }
+   },
+   {
+    "day": 2,
+    "ana": 3622.0,
+    "ben": 5916.0,
+    "shares": {
+     "shorte1": 245,
+     "knapsa1": 808,
+     "ana-shorte": 263,
+     "ben-shorte": 165
+    }
+   },
+   {
+    "day": 3,
+    "ana": 7676.0,
+    "ben": 7552.0,
+    "shares": {
+     "shorte1": 285,
+     "knapsa1": 1019,
+     "ana-shorte": 332,
+     "ben-shorte": 213
+    }
+   },
+   {
+    "day": 4,
+    "ana": 14596.0,
+    "ben": 8096.0,
+    "shares": {
+     "shorte1": 316,
+     "knapsa1": 1148,
+     "ana-shorte": 306,
+     "ben-shorte": 300
+    }
+   },
+   {
+    "day": 5,
+    "ana": 17478.0,
+    "ben": 14458.0,
+    "shares": {
+     "shorte1": 429,
+     "knapsa1": 1224,
+     "ana-shorte": 255,
+     "ben-shorte": 297
+    }
+   },
+   {
+    "day": 6,
+    "ana": 16098.0,
+    "ben": 17670.0,
+    "shares": {
+     "shorte1": 469,
+     "knapsa1": 1280,
+     "ana-shorte": 334,
+     "ben-shorte": 208
+    }
+   },
+   {
+    "day": 7,
+    "ana": 14760.0,
+    "ben": 13976.0,
+    "shares": {
+     "shorte1": 393,
+     "knapsa1": 1320,
+     "ana-shorte": 425,
+     "ben-shorte": 218
+    }
+   },
+   {
+    "day": 8,
+    "ana": 18816.0,
+    "ben": 9521.0,
+    "shares": {
+     "shorte1": 377,
+     "knapsa1": 1337,
+     "ana-shorte": 369,
+     "ben-shorte": 309
+    }
+   },
+   {
+    "day": 9,
+    "ana": 18615.0,
+    "ben": 13011.0,
+    "shares": {
+     "shorte1": 410,
+     "knapsa1": 1348,
+     "ana-shorte": 398,
+     "ben-shorte": 257
+    }
+   },
+   {
+    "day": 10,
+    "ana": 15887.0,
+    "ben": 15156.0,
+    "shares": {
+     "shorte1": 381,
+     "knapsa1": 1358,
+     "ana-shorte": 486,
+     "ben-shorte": 201
+    }
+   },
+   {
+    "day": 11,
+    "ana": 23248.0,
+    "ben": 15415.0,
+    "shares": {
+     "shorte1": 498,
+     "knapsa1": 1363,
+     "ana-shorte": 373,
+     "ben-shorte": 204
+    }
+   },
+   {
+    "day": 12,
+    "ana": 17086.0,
+    "ben": 14143.0,
+    "shares": {
+     "shorte1": 386,
+     "knapsa1": 1366,
+     "ana-shorte": 490,
+     "ben-shorte": 198
+    }
+   },
+   {
+    "day": 13,
+    "ana": 20694.0,
+    "ben": 13590.0,
+    "shares": {
+     "shorte1": 434,
+     "knapsa1": 1371,
+     "ana-shorte": 445,
+     "ben-shorte": 195
+    }
+   },
+   {
+    "day": 14,
+    "ana": 18226.0,
+    "ben": 14841.0,
+    "shares": {
+     "shorte1": 367,
+     "knapsa1": 1371,
+     "ana-shorte": 510,
+     "ben-shorte": 193
+    }
+   },
+   {
+    "day": 15,
+    "ana": 20247.0,
+    "ben": 14813.0,
+    "shares": {
+     "shorte1": 426,
+     "knapsa1": 1373,
+     "ana-shorte": 451,
+     "ben-shorte": 196
+    }
+   },
+   {
+    "day": 16,
+    "ana": 18787.0,
+    "ben": 15076.0,
+    "shares": {
+     "shorte1": 384,
+     "knapsa1": 1373,
+     "ana-shorte": 501,
+     "ben-shorte": 186
+    }
+   },
+   {
+    "day": 17,
+    "ana": 19942.0,
+    "ben": 11868.0,
+    "shares": {
+     "shorte1": 440,
+     "knapsa1": 1371,
+     "ana-shorte": 434,
+     "ben-shorte": 200
+    }
+   },
+   {
+    "day": 18,
+    "ana": 19948.0,
+    "ben": 9328.0,
+    "shares": {
+     "shorte1": 453,
+     "knapsa1": 1373,
+     "ana-shorte": 328,
+     "ben-shorte": 294
+    }
+   },
+   {
+    "day": 19,
+    "ana": 15888.0,
+    "ben": 10769.0,
+    "shares": {
+     "shorte1": 419,
+     "knapsa1": 1377,
+     "ana-shorte": 306,
+     "ben-shorte": 350
+    }
+   },
+   {
+    "day": 20,
+    "ana": 11144.0,
+    "ben": 13254.0,
+    "shares": {
+     "shorte1": 372,
+     "knapsa1": 1377,
+     "ana-shorte": 378,
+     "ben-shorte": 325
+    }
+   },
+   {
+    "day": 21,
+    "ana": 16351.0,
+    "ben": 7008.0,
+    "shares": {
+     "shorte1": 383,
+     "knapsa1": 1375,
+     "ana-shorte": 286,
+     "ben-shorte": 406
+    }
+   },
+   {
+    "day": 22,
+    "ana": 12969.0,
+    "ben": 16976.0,
+    "shares": {
+     "shorte1": 556,
+     "knapsa1": 1378,
+     "ana-shorte": 322,
+     "ben-shorte": 193
+    }
+   },
+   {
+    "day": 23,
+    "ana": 11398.0,
+    "ben": 11950.0,
+    "shares": {
+     "shorte1": 492,
+     "knapsa1": 1374,
+     "ana-shorte": 390,
+     "ben-shorte": 185
+    }
+   },
+   {
+    "day": 24,
+    "ana": 8010.0,
+    "ben": 7006.0,
+    "shares": {
+     "shorte1": 415,
+     "knapsa1": 1378,
+     "ana-shorte": 457,
+     "ben-shorte": 199
+    }
+   },
+   {
+    "day": 25,
+    "ana": 17638.0,
+    "ben": 4679.0,
+    "shares": {
+     "shorte1": 447,
+     "knapsa1": 1379,
+     "ana-shorte": 286,
+     "ben-shorte": 337
+    }
+   },
+   {
+    "day": 26,
+    "ana": 11886.0,
+    "ben": 14392.0,
+    "shares": {
+     "shorte1": 506,
+     "knapsa1": 1386,
+     "ana-shorte": 362,
+     "ben-shorte": 204
+    }
+   },
+   {
+    "day": 27,
+    "ana": 13201.0,
+    "ben": 12509.0,
+    "shares": {
+     "shorte1": 570,
+     "knapsa1": 1383,
+     "ana-shorte": 315,
+     "ben-shorte": 187
+    }
+   },
+   {
+    "day": 28,
+    "ana": 15378.0,
+    "ben": 10743.0,
+    "shares": {
+     "shorte1": 592,
+     "knapsa1": 1387,
+     "ana-shorte": 270,
+     "ben-shorte": 207
+    }
+   },
+   {
+    "day": 29,
+    "ana": 12616.0,
+    "ben": 11505.0,
+    "shares": {
+     "shorte1": 542,
+     "knapsa1": 1386,
+     "ana-shorte": 330,
+     "ben-shorte": 198
+    }
+   },
+   {
+    "day": 30,
+    "ana": 11721.0,
+    "ben": 11292.0,
+    "shares": {
+     "shorte1": 537,
+     "knapsa1": 1386,
+     "ana-shorte": 318,
+     "ben-shorte": 214
+    }
+   },
+   {
+    "day": 31,
+    "ana": 13685.0,
+    "ben": 8881.0,
+    "shares": {
+     "shorte1": 533,
+     "knapsa1": 1387,
+     "ana-shorte": 282,
+     "ben-shorte": 257
+    }
+   },
+   {
+    "day": 32,
+    "ana": 13714.0,
+    "ben": 7472.0,
+    "shares": {
+     "shorte1": 497,
+     "knapsa1": 1389,
+     "ana-shorte": 285,
+     "ben-shorte": 291
+    }
+   },
+   {
+    "day": 33,
+    "ana": 10622.0,
+    "ben": 5384.0,
+    "shares": {
+     "shorte1": 460,
+     "knapsa1": 1389,
+     "ana-shorte": 282,
+     "ben-shorte": 331
+    }
+   },
+   {
+    "day": 34,
+    "ana": 15070.0,
+    "ben": 6542.0,
+    "shares": {
+     "shorte1": 483,
+     "knapsa1": 1388,
+     "ana-shorte": 271,
+     "ben-shorte": 315
+    }
+   },
+   {
+    "day": 35,
+    "ana": 12501.0,
+    "ben": 14150.0,
+    "shares": {
+     "shorte1": 555,
+     "knapsa1": 1385,
+     "ana-shorte": 316,
+     "ben-shorte": 200
+    }
+   },
+   {
+    "day": 36,
+    "ana": 10290.0,
+    "ben": 13015.0,
+    "shares": {
+     "shorte1": 522,
+     "knapsa1": 1389,
+     "ana-shorte": 364,
+     "ben-shorte": 188
+    }
+   },
+   {
+    "day": 37,
+    "ana": 14629.0,
+    "ben": 11670.0,
+    "shares": {
+     "shorte1": 562,
+     "knapsa1": 1389,
+     "ana-shorte": 323,
+     "ben-shorte": 188
+    }
+   },
+   {
+    "day": 38,
+    "ana": 15678.0,
+    "ben": 11810.0,
+    "shares": {
+     "shorte1": 614,
+     "knapsa1": 1390,
+     "ana-shorte": 271,
+     "ben-shorte": 189
+    }
+   },
+   {
+    "day": 39,
+    "ana": 11750.0,
+    "ben": 11860.0,
+    "shares": {
+     "shorte1": 542,
+     "knapsa1": 1394,
+     "ana-shorte": 342,
+     "ben-shorte": 191
+    }
+   },
+   {
+    "day": 40,
+    "ana": 13249.0,
+    "ben": 11745.0,
+    "shares": {
+     "shorte1": 577,
+     "knapsa1": 1392,
+     "ana-shorte": 310,
+     "ben-shorte": 187
+    }
+   }
+  ],
+  "invariants": [],
+  "ana_prices": [
+   1,
+   2,
+   6,
+   6,
+   2,
+   3,
+   3,
+   2,
+   4,
+   2,
+   3,
+   2,
+   3,
+   2,
+   4,
+   8,
+   2,
+   4,
+   3,
+   2,
+   1,
+   8,
+   2,
+   3,
+   6,
+   2,
+   3,
+   4,
+   2,
+   4,
+   3,
+   2,
+   3,
+   6,
+   2,
+   3
+  ],
+  "ana_contrib": null,
+  "ana_weights": [
+   [
+    -0.8180321526173743,
+    0.20889417808335603,
+    -0.3033052542530097,
+    0.0
+   ],
+   [
+    0.6320950380758872,
+    1.2223653652020274,
+    0.24322849299220375,
+    0.0
+   ],
+   [
+    0.8730764812614067,
+    -1.315759515873442,
+    0.3070905384884607,
+    0.0
+   ],
+   [
+    -0.1061532730858745,
+    -0.6021390964668988,
+    -0.3081346113213106,
+    0.0
+   ],
+   [
+    -0.6003490214514138,
+    -0.08023689193505533,
+    -0.10312130508294066,
+    0.0
+   ],
+   [
+    0.14835963440874,
+    0.7117842442843816,
+    0.08342996205360188,
+    0.0
+   ],
+   [
+    -0.12899670659137125,
+    -0.14490828329436933,
+    0.08081217712299474,
+    0.0
+   ]
+  ],
+  "ana_log": [],
+  "ben_prices": [
+   3,
+   2,
+   2,
+   6,
+   6,
+   2,
+   3,
+   5,
+   6,
+   5,
+   5,
+   6,
+   5,
+   8,
+   4,
+   2,
+   3,
+   1,
+   8,
+   5,
+   2,
+   1,
+   6,
+   5,
+   4,
+   5,
+   3,
+   2,
+   1,
+   1,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "ben_contrib": null,
+  "ben_weights": [
+   [
+    -0.957751668037394,
+    0.4701853950294354,
+    -0.41352371371363666,
+    0.0
+   ],
+   [
+    -0.2213383493021243,
+    0.41929459249199874,
+    -0.21621066149946516,
+    0.0
+   ],
+   [
+    -0.09278492396265495,
+    -0.31802541921502947,
+    -0.25904987765430454,
+    0.0
+   ],
+   [
+    -0.37130443419417675,
+    -0.16722294348724756,
+    -0.15453823395031704,
+    0.0
+   ],
+   [
+    1.2204857878681967,
+    -0.4376932448362221,
+    1.0396736632008263,
+    0.0
+   ],
+   [
+    0.8655665474971775,
+    0.3684345511064422,
+    0.058394583288077964,
+    0.0
+   ],
+   [
+    -0.4428729598690234,
+    -0.33497293108937737,
+    -0.05474575967118113,
+    0.0
+   ]
+  ],
+  "ben_log": []
+ },
+ {
+  "kind": "compete_fixed",
+  "seed": 1,
+  "days": 40,
+  "wall_s": 125.7,
+  "curve": [
+   {
+    "day": 1,
+    "ana": 621.0,
+    "ben": 771.0,
+    "shares": {
+     "shorte1": 257,
+     "knapsa1": 501,
+     "ben-shorte": 65,
+     "ana-shorte": 60
+    }
+   },
+   {
+    "day": 2,
+    "ana": 6027.0,
+    "ben": 6027.0,
+    "shares": {
+     "shorte1": 288,
+     "knapsa1": 845,
+     "ben-shorte": 175,
+     "ana-shorte": 194
+    }
+   },
+   {
+    "day": 3,
+    "ana": 12030.0,
+    "ben": 10032.0,
+    "shares": {
+     "shorte1": 294,
+     "knapsa1": 1058,
+     "ben-shorte": 232,
+     "ana-shorte": 286
+    }
+   },
+   {
+    "day": 4,
+    "ana": 15540.0,
+    "ben": 11748.0,
+    "shares": {
+     "shorte1": 324,
+     "knapsa1": 1183,
+     "ben-shorte": 256,
+     "ana-shorte": 330
+    }
+   },
+   {
+    "day": 5,
+    "ana": 17082.0,
+    "ben": 13197.0,
+    "shares": {
+     "shorte1": 326,
+     "knapsa1": 1257,
+     "ben-shorte": 285,
+     "ana-shorte": 359
+    }
+   },
+   {
+    "day": 6,
+    "ana": 18213.0,
+    "ben": 14748.0,
+    "shares": {
+     "shorte1": 323,
+     "knapsa1": 1304,
+     "ben-shorte": 303,
+     "ana-shorte": 384
+    }
+   },
+   {
+    "day": 7,
+    "ana": 18690.0,
+    "ben": 14982.0,
+    "shares": {
+     "shorte1": 334,
+     "knapsa1": 1337,
+     "ben-shorte": 301,
+     "ana-shorte": 394
+    }
+   },
+   {
+    "day": 8,
+    "ana": 19656.0,
+    "ben": 15339.0,
+    "shares": {
+     "shorte1": 319,
+     "knapsa1": 1354,
+     "ben-shorte": 323,
+     "ana-shorte": 397
+    }
+   },
+   {
+    "day": 9,
+    "ana": 19194.0,
+    "ben": 15948.0,
+    "shares": {
+     "shorte1": 329,
+     "knapsa1": 1363,
+     "ben-shorte": 315,
+     "ana-shorte": 399
+    }
+   },
+   {
+    "day": 10,
+    "ana": 19962.0,
+    "ben": 15756.0,
+    "shares": {
+     "shorte1": 330,
+     "knapsa1": 1377,
+     "ben-shorte": 305,
+     "ana-shorte": 413
+    }
+   },
+   {
+    "day": 11,
+    "ana": 20079.0,
+    "ben": 15426.0,
+    "shares": {
+     "shorte1": 323,
+     "knapsa1": 1376,
+     "ben-shorte": 323,
+     "ana-shorte": 408
+    }
+   },
+   {
+    "day": 12,
+    "ana": 19884.0,
+    "ben": 15456.0,
+    "shares": {
+     "shorte1": 330,
+     "knapsa1": 1382,
+     "ben-shorte": 312,
+     "ana-shorte": 415
+    }
+   },
+   {
+    "day": 13,
+    "ana": 18141.0,
+    "ben": 13527.0,
+    "shares": {
+     "shorte1": 331,
+     "knapsa1": 1383,
+     "ben-shorte": 320,
+     "ana-shorte": 405
+    }
+   },
+   {
+    "day": 14,
+    "ana": 16170.0,
+    "ben": 13368.0,
+    "shares": {
+     "shorte1": 316,
+     "knapsa1": 1387,
+     "ben-shorte": 324,
+     "ana-shorte": 417
+    }
+   },
+   {
+    "day": 15,
+    "ana": 17541.0,
+    "ben": 13599.0,
+    "shares": {
+     "shorte1": 317,
+     "knapsa1": 1391,
+     "ben-shorte": 325,
+     "ana-shorte": 414
+    }
+   },
+   {
+    "day": 16,
+    "ana": 15966.0,
+    "ben": 13431.0,
+    "shares": {
+     "shorte1": 316,
+     "knapsa1": 1391,
+     "ben-shorte": 325,
+     "ana-shorte": 416
+    }
+   },
+   {
+    "day": 17,
+    "ana": 16752.0,
+    "ben": 12897.0,
+    "shares": {
+     "shorte1": 318,
+     "knapsa1": 1394,
+     "ben-shorte": 318,
+     "ana-shorte": 420
+    }
+   },
+   {
+    "day": 18,
+    "ana": 16407.0,
+    "ben": 12798.0,
+    "shares": {
+     "shorte1": 306,
+     "knapsa1": 1394,
+     "ben-shorte": 328,
+     "ana-shorte": 424
+    }
+   },
+   {
+    "day": 19,
+    "ana": 16485.0,
+    "ben": 12645.0,
+    "shares": {
+     "shorte1": 308,
+     "knapsa1": 1400,
+     "ben-shorte": 318,
+     "ana-shorte": 434
+    }
+   },
+   {
+    "day": 20,
+    "ana": 16935.0,
+    "ben": 12222.0,
+    "shares": {
+     "shorte1": 318,
+     "knapsa1": 1399,
+     "ben-shorte": 322,
+     "ana-shorte": 419
+    }
+   },
+   {
+    "day": 21,
+    "ana": 16149.0,
+    "ben": 12474.0,
+    "shares": {
+     "shorte1": 326,
+     "knapsa1": 1401,
+     "ben-shorte": 323,
+     "ana-shorte": 413
+    }
+   },
+   {
+    "day": 22,
+    "ana": 16146.0,
+    "ben": 13731.0,
+    "shares": {
+     "shorte1": 300,
+     "knapsa1": 1400,
+     "ben-shorte": 322,
+     "ana-shorte": 436
+    }
+   },
+   {
+    "day": 23,
+    "ana": 17592.0,
+    "ben": 13680.0,
+    "shares": {
+     "shorte1": 310,
+     "knapsa1": 1401,
+     "ben-shorte": 321,
+     "ana-shorte": 430
+    }
+   },
+   {
+    "day": 24,
+    "ana": 17301.0,
+    "ben": 12867.0,
+    "shares": {
+     "shorte1": 309,
+     "knapsa1": 1401,
+     "ben-shorte": 327,
+     "ana-shorte": 420
+    }
+   },
+   {
+    "day": 25,
+    "ana": 16698.0,
+    "ben": 12780.0,
+    "shares": {
+     "shorte1": 304,
+     "knapsa1": 1401,
+     "ben-shorte": 324,
+     "ana-shorte": 431
+    }
+   },
+   {
+    "day": 26,
+    "ana": 16875.0,
+    "ben": 13098.0,
+    "shares": {
+     "shorte1": 300,
+     "knapsa1": 1400,
+     "ben-shorte": 327,
+     "ana-shorte": 434
+    }
+   },
+   {
+    "day": 27,
+    "ana": 16386.0,
+    "ben": 13656.0,
+    "shares": {
+     "shorte1": 313,
+     "knapsa1": 1400,
+     "ben-shorte": 328,
+     "ana-shorte": 419
+    }
+   },
+   {
+    "day": 28,
+    "ana": 16305.0,
+    "ben": 13251.0,
+    "shares": {
+     "shorte1": 314,
+     "knapsa1": 1397,
+     "ben-shorte": 330,
+     "ana-shorte": 418
+    }
+   },
+   {
+    "day": 29,
+    "ana": 16245.0,
+    "ben": 13221.0,
+    "shares": {
+     "shorte1": 312,
+     "knapsa1": 1401,
+     "ben-shorte": 330,
+     "ana-shorte": 420
+    }
+   },
+   {
+    "day": 30,
+    "ana": 16068.0,
+    "ben": 12732.0,
+    "shares": {
+     "shorte1": 312,
+     "knapsa1": 1405,
+     "ben-shorte": 330,
+     "ana-shorte": 418
+    }
+   },
+   {
+    "day": 31,
+    "ana": 16794.0,
+    "ben": 13536.0,
+    "shares": {
+     "shorte1": 350,
+     "knapsa1": 1407,
+     "ben-shorte": 313,
+     "ana-shorte": 397
+    }
+   },
+   {
+    "day": 32,
+    "ana": 15792.0,
+    "ben": 12591.0,
+    "shares": {
+     "shorte1": 374,
+     "knapsa1": 1405,
+     "ben-shorte": 291,
+     "ana-shorte": 396
+    }
+   },
+   {
+    "day": 33,
+    "ana": 15618.0,
+    "ben": 12363.0,
+    "shares": {
+     "shorte1": 373,
+     "knapsa1": 1405,
+     "ben-shorte": 301,
+     "ana-shorte": 384
+    }
+   },
+   {
+    "day": 34,
+    "ana": 15411.0,
+    "ben": 12294.0,
+    "shares": {
+     "shorte1": 372,
+     "knapsa1": 1405,
+     "ben-shorte": 302,
+     "ana-shorte": 384
+    }
+   },
+   {
+    "day": 35,
+    "ana": 15774.0,
+    "ben": 12375.0,
+    "shares": {
+     "shorte1": 375,
+     "knapsa1": 1406,
+     "ben-shorte": 297,
+     "ana-shorte": 387
+    }
+   },
+   {
+    "day": 36,
+    "ana": 16272.0,
+    "ben": 12822.0,
+    "shares": {
+     "shorte1": 369,
+     "knapsa1": 1406,
+     "ben-shorte": 314,
+     "ana-shorte": 381
+    }
+   },
+   {
+    "day": 37,
+    "ana": 15330.0,
+    "ben": 12543.0,
+    "shares": {
+     "shorte1": 386,
+     "knapsa1": 1404,
+     "ben-shorte": 311,
+     "ana-shorte": 368
+    }
+   },
+   {
+    "day": 38,
+    "ana": 15477.0,
+    "ben": 12726.0,
+    "shares": {
+     "shorte1": 369,
+     "knapsa1": 1407,
+     "ben-shorte": 311,
+     "ana-shorte": 385
+    }
+   },
+   {
+    "day": 39,
+    "ana": 16068.0,
+    "ben": 12909.0,
+    "shares": {
+     "shorte1": 389,
+     "knapsa1": 1407,
+     "ben-shorte": 302,
+     "ana-shorte": 374
+    }
+   },
+   {
+    "day": 40,
+    "ana": 15522.0,
+    "ben": 13386.0,
+    "shares": {
+     "shorte1": 390,
+     "knapsa1": 1408,
+     "ben-shorte": 308,
+     "ana-shorte": 364
+    }
+   }
+  ],
+  "invariants": [],
+  "ana_prices": null,
+  "ana_contrib": null,
+  "ana_weights": null,
+  "ana_log": [],
+  "ben_prices": null,
+  "ben_contrib": null,
+  "ben_weights": null,
+  "ben_log": []
+ },
+ {
+  "kind": "compete_fixed",
+  "seed": 2,
+  "days": 40,
+  "wall_s": 136.6,
+  "curve": [
+   {
+    "day": 1,
+    "ana": 734.0,
+    "ben": 612.0,
+    "shares": {
+     "shorte1": 233,
+     "knapsa1": 562,
+     "ana-shorte": 84,
+     "ben-shorte": 74
+    }
+   },
+   {
+    "day": 2,
+    "ana": 5324.0,
+    "ben": 4600.0,
+    "shares": {
+     "shorte1": 257,
+     "knapsa1": 930,
+     "ana-shorte": 200,
+     "ben-shorte": 191
+    }
+   },
+   {
+    "day": 3,
+    "ana": 8160.0,
+    "ben": 8694.0,
+    "shares": {
+     "shorte1": 257,
+     "knapsa1": 1159,
+     "ana-shorte": 238,
+     "ben-shorte": 307
+    }
+   },
+   {
+    "day": 4,
+    "ana": 9128.0,
+    "ben": 11334.0,
+    "shares": {
+     "shorte1": 284,
+     "knapsa1": 1296,
+     "ana-shorte": 279,
+     "ben-shorte": 339
+    }
+   },
+   {
+    "day": 5,
+    "ana": 10472.0,
+    "ben": 11888.0,
+    "shares": {
+     "shorte1": 293,
+     "knapsa1": 1359,
+     "ana-shorte": 307,
+     "ben-shorte": 353
+    }
+   },
+   {
+    "day": 6,
+    "ana": 11572.0,
+    "ben": 12132.0,
+    "shares": {
+     "shorte1": 291,
+     "knapsa1": 1402,
+     "ana-shorte": 324,
+     "ben-shorte": 371
+    }
+   },
+   {
+    "day": 7,
+    "ana": 12164.0,
+    "ben": 12790.0,
+    "shares": {
+     "shorte1": 283,
+     "knapsa1": 1430,
+     "ana-shorte": 342,
+     "ben-shorte": 379
+    }
+   },
+   {
+    "day": 8,
+    "ana": 12574.0,
+    "ben": 12244.0,
+    "shares": {
+     "shorte1": 294,
+     "knapsa1": 1437,
+     "ana-shorte": 358,
+     "ben-shorte": 364
+    }
+   },
+   {
+    "day": 9,
+    "ana": 0.0,
+    "ben": 0.0,
+    "shares": {
+     "shorte1": 348,
+     "knapsa1": 1447,
+     "ana-shorte": 384,
+     "ben-shorte": 289
+    }
+   },
+   {
+    "day": 10,
+    "ana": 13488.0,
+    "ben": 9362.0,
+    "shares": {
+     "shorte1": 280,
+     "knapsa1": 1451,
+     "ana-shorte": 444,
+     "ben-shorte": 301
+    }
+   },
+   {
+    "day": 11,
+    "ana": 15202.0,
+    "ben": 10494.0,
+    "shares": {
+     "shorte1": 286,
+     "knapsa1": 1452,
+     "ana-shorte": 441,
+     "ben-shorte": 298
+    }
+   },
+   {
+    "day": 12,
+    "ana": 15524.0,
+    "ben": 10768.0,
+    "shares": {
+     "shorte1": 287,
+     "knapsa1": 1459,
+     "ana-shorte": 440,
+     "ben-shorte": 297
+    }
+   },
+   {
+    "day": 13,
+    "ana": 15504.0,
+    "ben": 10970.0,
+    "shares": {
+     "shorte1": 277,
+     "knapsa1": 1460,
+     "ana-shorte": 445,
+     "ben-shorte": 302
+    }
+   },
+   {
+    "day": 14,
+    "ana": 15752.0,
+    "ben": 10676.0,
+    "shares": {
+     "shorte1": 272,
+     "knapsa1": 1459,
+     "ana-shorte": 453,
+     "ben-shorte": 300
+    }
+   },
+   {
+    "day": 15,
+    "ana": 16010.0,
+    "ben": 10782.0,
+    "shares": {
+     "shorte1": 272,
+     "knapsa1": 1460,
+     "ana-shorte": 446,
+     "ben-shorte": 305
+    }
+   },
+   {
+    "day": 16,
+    "ana": 15806.0,
+    "ben": 11060.0,
+    "shares": {
+     "shorte1": 264,
+     "knapsa1": 1462,
+     "ana-shorte": 449,
+     "ben-shorte": 314
+    }
+   },
+   {
+    "day": 17,
+    "ana": 15492.0,
+    "ben": 10932.0,
+    "shares": {
+     "shorte1": 281,
+     "knapsa1": 1460,
+     "ana-shorte": 450,
+     "ben-shorte": 296
+    }
+   },
+   {
+    "day": 18,
+    "ana": 16028.0,
+    "ben": 10480.0,
+    "shares": {
+     "shorte1": 273,
+     "knapsa1": 1461,
+     "ana-shorte": 448,
+     "ben-shorte": 305
+    }
+   },
+   {
+    "day": 19,
+    "ana": 15646.0,
+    "ben": 11110.0,
+    "shares": {
+     "shorte1": 271,
+     "knapsa1": 1459,
+     "ana-shorte": 452,
+     "ben-shorte": 304
+    }
+   },
+   {
+    "day": 20,
+    "ana": 16078.0,
+    "ben": 10928.0,
+    "shares": {
+     "shorte1": 253,
+     "knapsa1": 1460,
+     "ana-shorte": 465,
+     "ben-shorte": 309
+    }
+   },
+   {
+    "day": 21,
+    "ana": 16130.0,
+    "ben": 10800.0,
+    "shares": {
+     "shorte1": 258,
+     "knapsa1": 1460,
+     "ana-shorte": 471,
+     "ben-shorte": 299
+    }
+   },
+   {
+    "day": 22,
+    "ana": 15756.0,
+    "ben": 10990.0,
+    "shares": {
+     "shorte1": 270,
+     "knapsa1": 1459,
+     "ana-shorte": 452,
+     "ben-shorte": 307
+    }
+   },
+   {
+    "day": 23,
+    "ana": 15724.0,
+    "ben": 10874.0,
+    "shares": {
+     "shorte1": 274,
+     "knapsa1": 1461,
+     "ana-shorte": 449,
+     "ben-shorte": 306
+    }
+   },
+   {
+    "day": 24,
+    "ana": 16354.0,
+    "ben": 10448.0,
+    "shares": {
+     "shorte1": 265,
+     "knapsa1": 1465,
+     "ana-shorte": 460,
+     "ben-shorte": 305
+    }
+   },
+   {
+    "day": 25,
+    "ana": 15994.0,
+    "ben": 10730.0,
+    "shares": {
+     "shorte1": 278,
+     "knapsa1": 1461,
+     "ana-shorte": 453,
+     "ben-shorte": 298
+    }
+   },
+   {
+    "day": 26,
+    "ana": 15622.0,
+    "ben": 10940.0,
+    "shares": {
+     "shorte1": 269,
+     "knapsa1": 1463,
+     "ana-shorte": 453,
+     "ben-shorte": 306
+    }
+   },
+   {
+    "day": 27,
+    "ana": 15816.0,
+    "ben": 10780.0,
+    "shares": {
+     "shorte1": 274,
+     "knapsa1": 1462,
+     "ana-shorte": 459,
+     "ben-shorte": 294
+    }
+   },
+   {
+    "day": 28,
+    "ana": 16332.0,
+    "ben": 10436.0,
+    "shares": {
+     "shorte1": 265,
+     "knapsa1": 1463,
+     "ana-shorte": 462,
+     "ben-shorte": 303
+    }
+   },
+   {
+    "day": 29,
+    "ana": 16312.0,
+    "ben": 10378.0,
+    "shares": {
+     "shorte1": 270,
+     "knapsa1": 1465,
+     "ana-shorte": 455,
+     "ben-shorte": 304
+    }
+   },
+   {
+    "day": 30,
+    "ana": 16228.0,
+    "ben": 10804.0,
+    "shares": {
+     "shorte1": 263,
+     "knapsa1": 1465,
+     "ana-shorte": 450,
+     "ben-shorte": 317
+    }
+   },
+   {
+    "day": 31,
+    "ana": 15804.0,
+    "ben": 11176.0,
+    "shares": {
+     "shorte1": 272,
+     "knapsa1": 1463,
+     "ana-shorte": 457,
+     "ben-shorte": 302
+    }
+   },
+   {
+    "day": 32,
+    "ana": 15818.0,
+    "ben": 11256.0,
+    "shares": {
+     "shorte1": 265,
+     "knapsa1": 1464,
+     "ana-shorte": 456,
+     "ben-shorte": 308
+    }
+   },
+   {
+    "day": 33,
+    "ana": 15980.0,
+    "ben": 10880.0,
+    "shares": {
+     "shorte1": 270,
+     "knapsa1": 1464,
+     "ana-shorte": 458,
+     "ben-shorte": 300
+    }
+   },
+   {
+    "day": 34,
+    "ana": 15896.0,
+    "ben": 10872.0,
+    "shares": {
+     "shorte1": 257,
+     "knapsa1": 1464,
+     "ana-shorte": 468,
+     "ben-shorte": 303
+    }
+   },
+   {
+    "day": 35,
+    "ana": 16518.0,
+    "ben": 10694.0,
+    "shares": {
+     "shorte1": 261,
+     "knapsa1": 1465,
+     "ana-shorte": 465,
+     "ben-shorte": 302
+    }
+   },
+   {
+    "day": 36,
+    "ana": 16068.0,
+    "ben": 10816.0,
+    "shares": {
+     "shorte1": 275,
+     "knapsa1": 1466,
+     "ana-shorte": 447,
+     "ben-shorte": 304
+    }
+   },
+   {
+    "day": 37,
+    "ana": 16124.0,
+    "ben": 10904.0,
+    "shares": {
+     "shorte1": 272,
+     "knapsa1": 1464,
+     "ana-shorte": 460,
+     "ben-shorte": 296
+    }
+   },
+   {
+    "day": 38,
+    "ana": 16336.0,
+    "ben": 11034.0,
+    "shares": {
+     "shorte1": 259,
+     "knapsa1": 1462,
+     "ana-shorte": 458,
+     "ben-shorte": 312
+    }
+   },
+   {
+    "day": 39,
+    "ana": 16096.0,
+    "ben": 10844.0,
+    "shares": {
+     "shorte1": 255,
+     "knapsa1": 1464,
+     "ana-shorte": 466,
+     "ben-shorte": 306
+    }
+   },
+   {
+    "day": 40,
+    "ana": 15958.0,
+    "ben": 11152.0,
+    "shares": {
+     "shorte1": 258,
+     "knapsa1": 1463,
+     "ana-shorte": 455,
+     "ben-shorte": 314
+    }
+   }
+  ],
+  "invariants": [],
+  "ana_prices": null,
+  "ana_contrib": null,
+  "ana_weights": null,
+  "ana_log": [],
+  "ben_prices": null,
+  "ben_contrib": null,
+  "ben_weights": null,
+  "ben_log": []
+ },
+ {
+  "kind": "compete_fixed",
+  "seed": 3,
+  "days": 40,
+  "wall_s": 138.0,
+  "curve": [
+   {
+    "day": 1,
+    "ana": 684.0,
+    "ben": 564.0,
+    "shares": {
+     "shorte1": 251,
+     "knapsa1": 510,
+     "ben-shorte": 75,
+     "ana-shorte": 76
+    }
+   },
+   {
+    "day": 2,
+    "ana": 4560.0,
+    "ben": 4690.0,
+    "shares": {
+     "shorte1": 315,
+     "knapsa1": 837,
+     "ben-shorte": 183,
+     "ana-shorte": 174
+    }
+   },
+   {
+    "day": 3,
+    "ana": 7374.0,
+    "ben": 6706.0,
+    "shares": {
+     "shorte1": 344,
+     "knapsa1": 1032,
+     "ben-shorte": 242,
+     "ana-shorte": 249
+    }
+   },
+   {
+    "day": 4,
+    "ana": 9648.0,
+    "ben": 8664.0,
+    "shares": {
+     "shorte1": 358,
+     "knapsa1": 1176,
+     "ben-shorte": 268,
+     "ana-shorte": 309
+    }
+   },
+   {
+    "day": 5,
+    "ana": 11374.0,
+    "ben": 9410.0,
+    "shares": {
+     "shorte1": 368,
+     "knapsa1": 1246,
+     "ben-shorte": 288,
+     "ana-shorte": 340
+    }
+   },
+   {
+    "day": 6,
+    "ana": 12430.0,
+    "ben": 10196.0,
+    "shares": {
+     "shorte1": 367,
+     "knapsa1": 1282,
+     "ben-shorte": 295,
+     "ana-shorte": 372
+    }
+   },
+   {
+    "day": 7,
+    "ana": 12928.0,
+    "ben": 10222.0,
+    "shares": {
+     "shorte1": 359,
+     "knapsa1": 1307,
+     "ben-shorte": 317,
+     "ana-shorte": 375
+    }
+   },
+   {
+    "day": 8,
+    "ana": 13188.0,
+    "ben": 10648.0,
+    "shares": {
+     "shorte1": 359,
+     "knapsa1": 1325,
+     "ben-shorte": 312,
+     "ana-shorte": 392
+    }
+   },
+   {
+    "day": 9,
+    "ana": 13608.0,
+    "ben": 10338.0,
+    "shares": {
+     "shorte1": 361,
+     "knapsa1": 1344,
+     "ben-shorte": 306,
+     "ana-shorte": 398
+    }
+   },
+   {
+    "day": 10,
+    "ana": 13590.0,
+    "ben": 10196.0,
+    "shares": {
+     "shorte1": 366,
+     "knapsa1": 1356,
+     "ben-shorte": 312,
+     "ana-shorte": 389
+    }
+   },
+   {
+    "day": 11,
+    "ana": 13578.0,
+    "ben": 10224.0,
+    "shares": {
+     "shorte1": 367,
+     "knapsa1": 1360,
+     "ben-shorte": 313,
+     "ana-shorte": 390
+    }
+   },
+   {
+    "day": 12,
+    "ana": 13500.0,
+    "ben": 10784.0,
+    "shares": {
+     "shorte1": 361,
+     "knapsa1": 1364,
+     "ben-shorte": 320,
+     "ana-shorte": 391
+    }
+   },
+   {
+    "day": 13,
+    "ana": 13418.0,
+    "ben": 10382.0,
+    "shares": {
+     "shorte1": 360,
+     "knapsa1": 1365,
+     "ben-shorte": 305,
+     "ana-shorte": 406
+    }
+   },
+   {
+    "day": 14,
+    "ana": 13684.0,
+    "ben": 10420.0,
+    "shares": {
+     "shorte1": 358,
+     "knapsa1": 1368,
+     "ben-shorte": 324,
+     "ana-shorte": 389
+    }
+   },
+   {
+    "day": 15,
+    "ana": 13570.0,
+    "ben": 10602.0,
+    "shares": {
+     "shorte1": 368,
+     "knapsa1": 1369,
+     "ben-shorte": 309,
+     "ana-shorte": 394
+    }
+   },
+   {
+    "day": 16,
+    "ana": 13966.0,
+    "ben": 10558.0,
+    "shares": {
+     "shorte1": 369,
+     "knapsa1": 1367,
+     "ben-shorte": 310,
+     "ana-shorte": 395
+    }
+   },
+   {
+    "day": 17,
+    "ana": 13516.0,
+    "ben": 10904.0,
+    "shares": {
+     "shorte1": 361,
+     "knapsa1": 1369,
+     "ben-shorte": 318,
+     "ana-shorte": 396
+    }
+   },
+   {
+    "day": 18,
+    "ana": 13350.0,
+    "ben": 10554.0,
+    "shares": {
+     "shorte1": 379,
+     "knapsa1": 1375,
+     "ben-shorte": 313,
+     "ana-shorte": 386
+    }
+   },
+   {
+    "day": 19,
+    "ana": 13682.0,
+    "ben": 10734.0,
+    "shares": {
+     "shorte1": 359,
+     "knapsa1": 1374,
+     "ben-shorte": 326,
+     "ana-shorte": 392
+    }
+   },
+   {
+    "day": 20,
+    "ana": 13796.0,
+    "ben": 10916.0,
+    "shares": {
+     "shorte1": 358,
+     "knapsa1": 1369,
+     "ben-shorte": 319,
+     "ana-shorte": 400
+    }
+   },
+   {
+    "day": 21,
+    "ana": 13980.0,
+    "ben": 10972.0,
+    "shares": {
+     "shorte1": 359,
+     "knapsa1": 1374,
+     "ben-shorte": 303,
+     "ana-shorte": 414
+    }
+   },
+   {
+    "day": 22,
+    "ana": 14282.0,
+    "ben": 10532.0,
+    "shares": {
+     "shorte1": 365,
+     "knapsa1": 1369,
+     "ben-shorte": 306,
+     "ana-shorte": 403
+    }
+   },
+   {
+    "day": 23,
+    "ana": 14144.0,
+    "ben": 10634.0,
+    "shares": {
+     "shorte1": 352,
+     "knapsa1": 1369,
+     "ben-shorte": 310,
+     "ana-shorte": 411
+    }
+   },
+   {
+    "day": 24,
+    "ana": 13982.0,
+    "ben": 10434.0,
+    "shares": {
+     "shorte1": 351,
+     "knapsa1": 1371,
+     "ben-shorte": 311,
+     "ana-shorte": 411
+    }
+   },
+   {
+    "day": 25,
+    "ana": 14010.0,
+    "ben": 10200.0,
+    "shares": {
+     "shorte1": 356,
+     "knapsa1": 1372,
+     "ben-shorte": 308,
+     "ana-shorte": 409
+    }
+   },
+   {
+    "day": 26,
+    "ana": 14176.0,
+    "ben": 10004.0,
+    "shares": {
+     "shorte1": 353,
+     "knapsa1": 1373,
+     "ben-shorte": 309,
+     "ana-shorte": 414
+    }
+   },
+   {
+    "day": 27,
+    "ana": 14520.0,
+    "ben": 10150.0,
+    "shares": {
+     "shorte1": 356,
+     "knapsa1": 1376,
+     "ben-shorte": 310,
+     "ana-shorte": 411
+    }
+   },
+   {
+    "day": 28,
+    "ana": 14450.0,
+    "ben": 10232.0,
+    "shares": {
+     "shorte1": 355,
+     "knapsa1": 1378,
+     "ben-shorte": 304,
+     "ana-shorte": 416
+    }
+   },
+   {
+    "day": 29,
+    "ana": 13792.0,
+    "ben": 10008.0,
+    "shares": {
+     "shorte1": 357,
+     "knapsa1": 1376,
+     "ben-shorte": 299,
+     "ana-shorte": 420
+    }
+   },
+   {
+    "day": 30,
+    "ana": 13256.0,
+    "ben": 9756.0,
+    "shares": {
+     "shorte1": 352,
+     "knapsa1": 1382,
+     "ben-shorte": 303,
+     "ana-shorte": 419
+    }
+   },
+   {
+    "day": 31,
+    "ana": 13306.0,
+    "ben": 9208.0,
+    "shares": {
+     "shorte1": 349,
+     "knapsa1": 1380,
+     "ben-shorte": 303,
+     "ana-shorte": 421
+    }
+   },
+   {
+    "day": 32,
+    "ana": 13110.0,
+    "ben": 9566.0,
+    "shares": {
+     "shorte1": 342,
+     "knapsa1": 1383,
+     "ben-shorte": 310,
+     "ana-shorte": 424
+    }
+   },
+   {
+    "day": 33,
+    "ana": 12936.0,
+    "ben": 9742.0,
+    "shares": {
+     "shorte1": 344,
+     "knapsa1": 1382,
+     "ben-shorte": 313,
+     "ana-shorte": 417
+    }
+   },
+   {
+    "day": 34,
+    "ana": 13098.0,
+    "ben": 9570.0,
+    "shares": {
+     "shorte1": 343,
+     "knapsa1": 1378,
+     "ben-shorte": 313,
+     "ana-shorte": 418
+    }
+   },
+   {
+    "day": 35,
+    "ana": 13198.0,
+    "ben": 9634.0,
+    "shares": {
+     "shorte1": 339,
+     "knapsa1": 1377,
+     "ben-shorte": 311,
+     "ana-shorte": 428
+    }
+   },
+   {
+    "day": 36,
+    "ana": 13512.0,
+    "ben": 9776.0,
+    "shares": {
+     "shorte1": 348,
+     "knapsa1": 1377,
+     "ben-shorte": 309,
+     "ana-shorte": 421
+    }
+   },
+   {
+    "day": 37,
+    "ana": 13696.0,
+    "ben": 9140.0,
+    "shares": {
+     "shorte1": 351,
+     "knapsa1": 1378,
+     "ben-shorte": 303,
+     "ana-shorte": 423
+    }
+   },
+   {
+    "day": 38,
+    "ana": 13034.0,
+    "ben": 9408.0,
+    "shares": {
+     "shorte1": 349,
+     "knapsa1": 1376,
+     "ben-shorte": 305,
+     "ana-shorte": 424
+    }
+   },
+   {
+    "day": 39,
+    "ana": 13140.0,
+    "ben": 9512.0,
+    "shares": {
+     "shorte1": 346,
+     "knapsa1": 1381,
+     "ben-shorte": 315,
+     "ana-shorte": 417
+    }
+   },
+   {
+    "day": 40,
+    "ana": 13462.0,
+    "ben": 9376.0,
+    "shares": {
+     "shorte1": 353,
+     "knapsa1": 1382,
+     "ben-shorte": 309,
+     "ana-shorte": 415
+    }
+   }
+  ],
+  "invariants": [],
+  "ana_prices": null,
+  "ana_contrib": null,
+  "ana_weights": null,
+  "ana_log": [],
+  "ben_prices": null,
+  "ben_contrib": null,
+  "ben_weights": null,
+  "ben_log": []
+ },
+ {
+  "kind": "coop_learn",
+  "seed": 1,
+  "days": 40,
+  "wall_s": 324.5,
+  "curve": [
+   {
+    "day": 1,
+    "ana": 966.0,
+    "ben": 2475.0,
+    "shares": {
+     "shorte1": 288,
+     "knapsa1": 393,
+     "ana-shorte": 104,
+     "ben-knapsa": 130
+    }
+   },
+   {
+    "day": 2,
+    "ana": 10425.0,
+    "ben": 5785.0,
+    "shares": {
+     "shorte1": 357,
+     "knapsa1": 738,
+     "ana-shorte": 362,
+     "ben-knapsa": 227
+    }
+   },
+   {
+    "day": 3,
+    "ana": 22398.0,
+    "ben": 6050.0,
+    "shares": {
+     "shorte1": 393,
+     "knapsa1": 967,
+     "ana-shorte": 528,
+     "ben-knapsa": 266
+    }
+   },
+   {
+    "day": 4,
+    "ana": 27381.0,
+    "ben": 6075.0,
+    "shares": {
+     "shorte1": 419,
+     "knapsa1": 1102,
+     "ana-shorte": 574,
+     "ben-knapsa": 244
+    }
+   },
+   {
+    "day": 5,
+    "ana": 29661.0,
+    "ben": 5725.0,
+    "shares": {
+     "shorte1": 418,
+     "knapsa1": 1197,
+     "ana-shorte": 606,
+     "ben-knapsa": 198
+    }
+   },
+   {
+    "day": 6,
+    "ana": 29925.0,
+    "ben": 6345.0,
+    "shares": {
+     "shorte1": 416,
+     "knapsa1": 1251,
+     "ana-shorte": 630,
+     "ben-knapsa": 161
+    }
+   },
+   {
+    "day": 7,
+    "ana": 31170.0,
+    "ben": 5915.0,
+    "shares": {
+     "shorte1": 417,
+     "knapsa1": 1258,
+     "ana-shorte": 638,
+     "ben-knapsa": 158
+    }
+   },
+   {
+    "day": 8,
+    "ana": 31557.0,
+    "ben": 6240.0,
+    "shares": {
+     "shorte1": 420,
+     "knapsa1": 1275,
+     "ana-shorte": 635,
+     "ben-knapsa": 144
+    }
+   },
+   {
+    "day": 9,
+    "ana": 31512.0,
+    "ben": 6000.0,
+    "shares": {
+     "shorte1": 427,
+     "knapsa1": 1279,
+     "ana-shorte": 625,
+     "ben-knapsa": 139
+    }
+   },
+   {
+    "day": 10,
+    "ana": 31494.0,
+    "ben": 5775.0,
+    "shares": {
+     "shorte1": 413,
+     "knapsa1": 1308,
+     "ana-shorte": 641,
+     "ben-knapsa": 115
+    }
+   },
+   {
+    "day": 11,
+    "ana": 30798.0,
+    "ben": 5500.0,
+    "shares": {
+     "shorte1": 423,
+     "knapsa1": 1317,
+     "ana-shorte": 632,
+     "ben-knapsa": 108
+    }
+   },
+   {
+    "day": 12,
+    "ana": 31110.0,
+    "ben": 5865.0,
+    "shares": {
+     "shorte1": 430,
+     "knapsa1": 1320,
+     "ana-shorte": 626,
+     "ben-knapsa": 102
+    }
+   },
+   {
+    "day": 13,
+    "ana": 31392.0,
+    "ben": 5875.0,
+    "shares": {
+     "shorte1": 429,
+     "knapsa1": 1323,
+     "ana-shorte": 628,
+     "ben-knapsa": 101
+    }
+   },
+   {
+    "day": 14,
+    "ana": 31053.0,
+    "ben": 5640.0,
+    "shares": {
+     "shorte1": 426,
+     "knapsa1": 1321,
+     "ana-shorte": 631,
+     "ben-knapsa": 103
+    }
+   },
+   {
+    "day": 15,
+    "ana": 30867.0,
+    "ben": 5245.0,
+    "shares": {
+     "shorte1": 429,
+     "knapsa1": 1322,
+     "ana-shorte": 632,
+     "ben-knapsa": 106
+    }
+   },
+   {
+    "day": 16,
+    "ana": 31665.0,
+    "ben": 5920.0,
+    "shares": {
+     "shorte1": 427,
+     "knapsa1": 1334,
+     "ana-shorte": 634,
+     "ben-knapsa": 94
+    }
+   },
+   {
+    "day": 17,
+    "ana": 31071.0,
+    "ben": 5440.0,
+    "shares": {
+     "shorte1": 431,
+     "knapsa1": 1345,
+     "ana-shorte": 631,
+     "ben-knapsa": 84
+    }
+   },
+   {
+    "day": 18,
+    "ana": 31077.0,
+    "ben": 5535.0,
+    "shares": {
+     "shorte1": 432,
+     "knapsa1": 1343,
+     "ana-shorte": 628,
+     "ben-knapsa": 85
+    }
+   },
+   {
+    "day": 19,
+    "ana": 31881.0,
+    "ben": 5135.0,
+    "shares": {
+     "shorte1": 426,
+     "knapsa1": 1339,
+     "ana-shorte": 636,
+     "ben-knapsa": 87
+    }
+   },
+   {
+    "day": 20,
+    "ana": 31767.0,
+    "ben": 5505.0,
+    "shares": {
+     "shorte1": 419,
+     "knapsa1": 1339,
+     "ana-shorte": 641,
+     "ben-knapsa": 91
+    }
+   },
+   {
+    "day": 21,
+    "ana": 32013.0,
+    "ben": 5615.0,
+    "shares": {
+     "shorte1": 427,
+     "knapsa1": 1343,
+     "ana-shorte": 633,
+     "ben-knapsa": 88
+    }
+   },
+   {
+    "day": 22,
+    "ana": 31416.0,
+    "ben": 5570.0,
+    "shares": {
+     "shorte1": 412,
+     "knapsa1": 1341,
+     "ana-shorte": 646,
+     "ben-knapsa": 87
+    }
+   },
+   {
+    "day": 23,
+    "ana": 32049.0,
+    "ben": 5510.0,
+    "shares": {
+     "shorte1": 425,
+     "knapsa1": 1343,
+     "ana-shorte": 632,
+     "ben-knapsa": 87
+    }
+   },
+   {
+    "day": 24,
+    "ana": 31260.0,
+    "ben": 5280.0,
+    "shares": {
+     "shorte1": 408,
+     "knapsa1": 1345,
+     "ana-shorte": 647,
+     "ben-knapsa": 83
+    }
+   },
+   {
+    "day": 25,
+    "ana": 32169.0,
+    "ben": 5600.0,
+    "shares": {
+     "shorte1": 418,
+     "knapsa1": 1343,
+     "ana-shorte": 643,
+     "ben-knapsa": 85
+    }
+   },
+   {
+    "day": 26,
+    "ana": 31542.0,
+    "ben": 5610.0,
+    "shares": {
+     "shorte1": 416,
+     "knapsa1": 1340,
+     "ana-shorte": 646,
+     "ben-knapsa": 85
+    }
+   },
+   {
+    "day": 27,
+    "ana": 31671.0,
+    "ben": 5540.0,
+    "shares": {
+     "shorte1": 405,
+     "knapsa1": 1338,
+     "ana-shorte": 656,
+     "ben-knapsa": 89
+    }
+   },
+   {
+    "day": 28,
+    "ana": 31923.0,
+    "ben": 5490.0,
+    "shares": {
+     "shorte1": 410,
+     "knapsa1": 1339,
+     "ana-shorte": 652,
+     "ben-knapsa": 89
+    }
+   },
+   {
+    "day": 29,
+    "ana": 32505.0,
+    "ben": 5555.0,
+    "shares": {
+     "shorte1": 420,
+     "knapsa1": 1338,
+     "ana-shorte": 643,
+     "ben-knapsa": 93
+    }
+   },
+   {
+    "day": 30,
+    "ana": 32016.0,
+    "ben": 5495.0,
+    "shares": {
+     "shorte1": 410,
+     "knapsa1": 1340,
+     "ana-shorte": 651,
+     "ben-knapsa": 91
+    }
+   },
+   {
+    "day": 31,
+    "ana": 31731.0,
+    "ben": 5705.0,
+    "shares": {
+     "shorte1": 421,
+     "knapsa1": 1340,
+     "ana-shorte": 641,
+     "ben-knapsa": 91
+    }
+   },
+   {
+    "day": 32,
+    "ana": 32070.0,
+    "ben": 5440.0,
+    "shares": {
+     "shorte1": 418,
+     "knapsa1": 1336,
+     "ana-shorte": 643,
+     "ben-knapsa": 93
+    }
+   },
+   {
+    "day": 33,
+    "ana": 31848.0,
+    "ben": 5940.0,
+    "shares": {
+     "shorte1": 419,
+     "knapsa1": 1336,
+     "ana-shorte": 641,
+     "ben-knapsa": 94
+    }
+   },
+   {
+    "day": 34,
+    "ana": 31974.0,
+    "ben": 5495.0,
+    "shares": {
+     "shorte1": 419,
+     "knapsa1": 1333,
+     "ana-shorte": 641,
+     "ben-knapsa": 96
+    }
+   },
+   {
+    "day": 35,
+    "ana": 32130.0,
+    "ben": 5855.0,
+    "shares": {
+     "shorte1": 412,
+     "knapsa1": 1334,
+     "ana-shorte": 649,
+     "ben-knapsa": 95
+    }
+   },
+   {
+    "day": 36,
+    "ana": 32043.0,
+    "ben": 5450.0,
+    "shares": {
+     "shorte1": 415,
+     "knapsa1": 1337,
+     "ana-shorte": 648,
+     "ben-knapsa": 92
+    }
+   },
+   {
+    "day": 37,
+    "ana": 31863.0,
+    "ben": 6065.0,
+    "shares": {
+     "shorte1": 419,
+     "knapsa1": 1334,
+     "ana-shorte": 644,
+     "ben-knapsa": 95
+    }
+   },
+   {
+    "day": 38,
+    "ana": 32139.0,
+    "ben": 5385.0,
+    "shares": {
+     "shorte1": 415,
+     "knapsa1": 1339,
+     "ana-shorte": 645,
+     "ben-knapsa": 90
+    }
+   },
+   {
+    "day": 39,
+    "ana": 32214.0,
+    "ben": 5355.0,
+    "shares": {
+     "shorte1": 416,
+     "knapsa1": 1337,
+     "ana-shorte": 648,
+     "ben-knapsa": 92
+    }
+   },
+   {
+    "day": 40,
+    "ana": 32103.0,
+    "ben": 5425.0,
+    "shares": {
+     "shorte1": 410,
+     "knapsa1": 1335,
+     "ana-shorte": 655,
+     "ben-knapsa": 93
+    }
+   }
+  ],
+  "invariants": [],
+  "ana_prices": null,
+  "ana_contrib": [
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000
+  ],
+  "ana_weights": [
+   [
+    -0.8417343729968001,
+    -0.6278683199315077,
+    -0.8417343729968001
+   ],
+   [
+    0.8417343729967997,
+    0.6278683199315077,
+    0.8417343729967997
+   ]
+  ],
+  "ana_log": [],
+  "ben_prices": null,
+  "ben_contrib": [
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   0,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   0,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000
+  ],
+  "ben_weights": [
+   [
+    -0.41391431009903423,
+    -0.28492788934218743,
+    -0.41391431009903423
+   ],
+   [
+    0.4139143100990341,
+    0.2849278893421874,
+    0.4139143100990341
+   ]
+  ],
+  "ben_log": []
+ },
+ {
+  "kind": "coop_learn",
+  "seed": 2,
+  "days": 40,
+  "wall_s": 319.6,
+  "curve": [
+   {
+    "day": 1,
+    "ana": 1226.0,
+    "ben": 928.0,
+    "shares": {
+     "shorte1": 265,
+     "knapsa1": 413,
+     "ana-shorte": 134,
+     "ben-knapsa": 144
+    }
+   },
+   {
+    "day": 2,
+    "ana": 1506.0,
+    "ben": 432.0,
+    "shares": {
+     "shorte1": 347,
+     "knapsa1": 445,
+     "ana-shorte": 283,
+     "ben-knapsa": 466
+    }
+   },
+   {
+    "day": 3,
+    "ana": 11890.0,
+    "ben": 2358.0,
+    "shares": {
+     "shorte1": 428,
+     "knapsa1": 976,
+     "ana-shorte": 357,
+     "ben-knapsa": 237
+    }
+   },
+   {
+    "day": 4,
+    "ana": 14116.0,
+    "ben": 2490.0,
+    "shares": {
+     "shorte1": 466,
+     "knapsa1": 1187,
+     "ana-shorte": 456,
+     "ben-knapsa": 194
+    }
+   },
+   {
+    "day": 5,
+    "ana": 17404.0,
+    "ben": 2282.0,
+    "shares": {
+     "shorte1": 477,
+     "knapsa1": 1281,
+     "ana-shorte": 500,
+     "ben-knapsa": 149
+    }
+   },
+   {
+    "day": 6,
+    "ana": 17848.0,
+    "ben": 2344.0,
+    "shares": {
+     "shorte1": 485,
+     "knapsa1": 1306,
+     "ana-shorte": 518,
+     "ben-knapsa": 140
+    }
+   },
+   {
+    "day": 7,
+    "ana": 18310.0,
+    "ben": 2248.0,
+    "shares": {
+     "shorte1": 481,
+     "knapsa1": 1325,
+     "ana-shorte": 527,
+     "ben-knapsa": 132
+    }
+   },
+   {
+    "day": 8,
+    "ana": 18684.0,
+    "ben": 2210.0,
+    "shares": {
+     "shorte1": 480,
+     "knapsa1": 1341,
+     "ana-shorte": 532,
+     "ben-knapsa": 123
+    }
+   },
+   {
+    "day": 9,
+    "ana": 19150.0,
+    "ben": 2436.0,
+    "shares": {
+     "shorte1": 488,
+     "knapsa1": 1348,
+     "ana-shorte": 534,
+     "ben-knapsa": 116
+    }
+   },
+   {
+    "day": 10,
+    "ana": 19134.0,
+    "ben": 2514.0,
+    "shares": {
+     "shorte1": 483,
+     "knapsa1": 1361,
+     "ana-shorte": 540,
+     "ben-knapsa": 106
+    }
+   },
+   {
+    "day": 11,
+    "ana": 19180.0,
+    "ben": 2180.0,
+    "shares": {
+     "shorte1": 498,
+     "knapsa1": 1364,
+     "ana-shorte": 528,
+     "ben-knapsa": 102
+    }
+   },
+   {
+    "day": 12,
+    "ana": 19248.0,
+    "ben": 2106.0,
+    "shares": {
+     "shorte1": 493,
+     "knapsa1": 1359,
+     "ana-shorte": 535,
+     "ben-knapsa": 107
+    }
+   },
+   {
+    "day": 13,
+    "ana": 19250.0,
+    "ben": 2300.0,
+    "shares": {
+     "shorte1": 494,
+     "knapsa1": 1365,
+     "ana-shorte": 535,
+     "ben-knapsa": 102
+    }
+   },
+   {
+    "day": 14,
+    "ana": 19624.0,
+    "ben": 2268.0,
+    "shares": {
+     "shorte1": 480,
+     "knapsa1": 1355,
+     "ana-shorte": 545,
+     "ben-knapsa": 113
+    }
+   },
+   {
+    "day": 15,
+    "ana": 19640.0,
+    "ben": 2236.0,
+    "shares": {
+     "shorte1": 478,
+     "knapsa1": 1354,
+     "ana-shorte": 549,
+     "ben-knapsa": 110
+    }
+   },
+   {
+    "day": 16,
+    "ana": 19480.0,
+    "ben": 2202.0,
+    "shares": {
+     "shorte1": 487,
+     "knapsa1": 1354,
+     "ana-shorte": 540,
+     "ben-knapsa": 110
+    }
+   },
+   {
+    "day": 17,
+    "ana": 19412.0,
+    "ben": 2400.0,
+    "shares": {
+     "shorte1": 476,
+     "knapsa1": 1358,
+     "ana-shorte": 554,
+     "ben-knapsa": 107
+    }
+   },
+   {
+    "day": 18,
+    "ana": 19408.0,
+    "ben": 2186.0,
+    "shares": {
+     "shorte1": 478,
+     "knapsa1": 1355,
+     "ana-shorte": 549,
+     "ben-knapsa": 110
+    }
+   },
+   {
+    "day": 19,
+    "ana": 19300.0,
+    "ben": 2264.0,
+    "shares": {
+     "shorte1": 479,
+     "knapsa1": 1359,
+     "ana-shorte": 547,
+     "ben-knapsa": 106
+    }
+   },
+   {
+    "day": 20,
+    "ana": 18960.0,
+    "ben": 2216.0,
+    "shares": {
+     "shorte1": 480,
+     "knapsa1": 1349,
+     "ana-shorte": 545,
+     "ben-knapsa": 117
+    }
+   },
+   {
+    "day": 21,
+    "ana": 19718.0,
+    "ben": 2316.0,
+    "shares": {
+     "shorte1": 470,
+     "knapsa1": 1356,
+     "ana-shorte": 556,
+     "ben-knapsa": 110
+    }
+   },
+   {
+    "day": 22,
+    "ana": 19554.0,
+    "ben": 2424.0,
+    "shares": {
+     "shorte1": 475,
+     "knapsa1": 1355,
+     "ana-shorte": 553,
+     "ben-knapsa": 111
+    }
+   },
+   {
+    "day": 23,
+    "ana": 19418.0,
+    "ben": 2514.0,
+    "shares": {
+     "shorte1": 478,
+     "knapsa1": 1357,
+     "ana-shorte": 552,
+     "ben-knapsa": 111
+    }
+   },
+   {
+    "day": 24,
+    "ana": 19430.0,
+    "ben": 2392.0,
+    "shares": {
+     "shorte1": 477,
+     "knapsa1": 1354,
+     "ana-shorte": 555,
+     "ben-knapsa": 114
+    }
+   },
+   {
+    "day": 25,
+    "ana": 19840.0,
+    "ben": 2324.0,
+    "shares": {
+     "shorte1": 470,
+     "knapsa1": 1352,
+     "ana-shorte": 562,
+     "ben-knapsa": 113
+    }
+   },
+   {
+    "day": 26,
+    "ana": 19512.0,
+    "ben": 2166.0,
+    "shares": {
+     "shorte1": 484,
+     "knapsa1": 1358,
+     "ana-shorte": 548,
+     "ben-knapsa": 106
+    }
+   },
+   {
+    "day": 27,
+    "ana": 19642.0,
+    "ben": 2200.0,
+    "shares": {
+     "shorte1": 473,
+     "knapsa1": 1349,
+     "ana-shorte": 558,
+     "ben-knapsa": 112
+    }
+   },
+   {
+    "day": 28,
+    "ana": 19646.0,
+    "ben": 2368.0,
+    "shares": {
+     "shorte1": 467,
+     "knapsa1": 1362,
+     "ana-shorte": 564,
+     "ben-knapsa": 103
+    }
+   },
+   {
+    "day": 29,
+    "ana": 20102.0,
+    "ben": 2270.0,
+    "shares": {
+     "shorte1": 468,
+     "knapsa1": 1343,
+     "ana-shorte": 563,
+     "ben-knapsa": 121
+    }
+   },
+   {
+    "day": 30,
+    "ana": 19484.0,
+    "ben": 2306.0,
+    "shares": {
+     "shorte1": 473,
+     "knapsa1": 1351,
+     "ana-shorte": 557,
+     "ben-knapsa": 115
+    }
+   },
+   {
+    "day": 31,
+    "ana": 19588.0,
+    "ben": 2346.0,
+    "shares": {
+     "shorte1": 476,
+     "knapsa1": 1351,
+     "ana-shorte": 553,
+     "ben-knapsa": 113
+    }
+   },
+   {
+    "day": 32,
+    "ana": 19578.0,
+    "ben": 2492.0,
+    "shares": {
+     "shorte1": 483,
+     "knapsa1": 1360,
+     "ana-shorte": 545,
+     "ben-knapsa": 105
+    }
+   },
+   {
+    "day": 33,
+    "ana": 19722.0,
+    "ben": 2344.0,
+    "shares": {
+     "shorte1": 467,
+     "knapsa1": 1360,
+     "ana-shorte": 561,
+     "ben-knapsa": 103
+    }
+   },
+   {
+    "day": 34,
+    "ana": 19450.0,
+    "ben": 2256.0,
+    "shares": {
+     "shorte1": 475,
+     "knapsa1": 1356,
+     "ana-shorte": 554,
+     "ben-knapsa": 109
+    }
+   },
+   {
+    "day": 35,
+    "ana": 19538.0,
+    "ben": 2492.0,
+    "shares": {
+     "shorte1": 478,
+     "knapsa1": 1344,
+     "ana-shorte": 552,
+     "ben-knapsa": 121
+    }
+   },
+   {
+    "day": 36,
+    "ana": 9192.0,
+    "ben": 1054.0,
+    "shares": {
+     "shorte1": 500,
+     "knapsa1": 1362,
+     "ana-shorte": 530,
+     "ben-knapsa": 101
+    }
+   },
+   {
+    "day": 37,
+    "ana": 18916.0,
+    "ben": 2444.0,
+    "shares": {
+     "shorte1": 484,
+     "knapsa1": 1388,
+     "ana-shorte": 544,
+     "ben-knapsa": 77
+    }
+   },
+   {
+    "day": 38,
+    "ana": 19434.0,
+    "ben": 2226.0,
+    "shares": {
+     "shorte1": 483,
+     "knapsa1": 1385,
+     "ana-shorte": 545,
+     "ben-knapsa": 77
+    }
+   },
+   {
+    "day": 39,
+    "ana": 19326.0,
+    "ben": 2124.0,
+    "shares": {
+     "shorte1": 476,
+     "knapsa1": 1389,
+     "ana-shorte": 551,
+     "ben-knapsa": 73
+    }
+   },
+   {
+    "day": 40,
+    "ana": 19422.0,
+    "ben": 2094.0,
+    "shares": {
+     "shorte1": 482,
+     "knapsa1": 1397,
+     "ana-shorte": 545,
+     "ben-knapsa": 67
+    }
+   }
+  ],
+  "invariants": [],
+  "ana_prices": null,
+  "ana_contrib": [
+   0,
+   0,
+   3000,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "ana_weights": [
+   [
+    0.7328483542627191,
+    0.5041787453474124,
+    0.7328483542627191
+   ],
+   [
+    -0.7328483542627192,
+    -0.5041787453474124,
+    -0.7328483542627192
+   ]
+  ],
+  "ana_log": [],
+  "ben_prices": null,
+  "ben_contrib": [
+   0,
+   3000,
+   3000,
+   0,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   0,
+   0,
+   0,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   0,
+   3000,
+   3000,
+   3000,
+   0,
+   3000,
+   0,
+   3000,
+   3000,
+   0,
+   0,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   0,
+   0,
+   0,
+   3000
+  ],
+  "ben_weights": [
+   [
+    -0.10705861788783391,
+    -0.030854508389338547,
+    -0.10705861788783391
+   ],
+   [
+    0.107058617887834,
+    0.030854508389338568,
+    0.107058617887834
+   ]
+  ],
+  "ben_log": []
+ },
+ {
+  "kind": "coop_learn",
+  "seed": 3,
+  "days": 40,
+  "wall_s": 328.7,
+  "curve": [
+   {
+    "day": 1,
+    "ana": 1376.0,
+    "ben": 1860.0,
+    "shares": {
+     "shorte1": 271,
+     "knapsa1": 395,
+     "ana-shorte": 144,
+     "ben-knapsa": 120
+    }
+   },
+   {
+    "day": 2,
+    "ana": 8020.0,
+    "ben": 5410.0,
+    "shares": {
+     "shorte1": 390,
+     "knapsa1": 679,
+     "ana-shorte": 294,
+     "ben-knapsa": 190
+    }
+   },
+   {
+    "day": 3,
+    "ana": 11962.0,
+    "ben": 5675.0,
+    "shares": {
+     "shorte1": 451,
+     "knapsa1": 848,
+     "ana-shorte": 403,
+     "ben-knapsa": 221
+    }
+   },
+   {
+    "day": 4,
+    "ana": 15264.0,
+    "ben": 5880.0,
+    "shares": {
+     "shorte1": 465,
+     "knapsa1": 1040,
+     "ana-shorte": 483,
+     "ben-knapsa": 164
+    }
+   },
+   {
+    "day": 5,
+    "ana": 17016.0,
+    "ben": 5670.0,
+    "shares": {
+     "shorte1": 469,
+     "knapsa1": 1110,
+     "ana-shorte": 529,
+     "ben-knapsa": 196
+    }
+   },
+   {
+    "day": 6,
+    "ana": 18500.0,
+    "ben": 5640.0,
+    "shares": {
+     "shorte1": 470,
+     "knapsa1": 1209,
+     "ana-shorte": 557,
+     "ben-knapsa": 153
+    }
+   },
+   {
+    "day": 7,
+    "ana": 19284.0,
+    "ben": 5565.0,
+    "shares": {
+     "shorte1": 457,
+     "knapsa1": 1228,
+     "ana-shorte": 588,
+     "ben-knapsa": 163
+    }
+   },
+   {
+    "day": 8,
+    "ana": 19652.0,
+    "ben": 5700.0,
+    "shares": {
+     "shorte1": 480,
+     "knapsa1": 1297,
+     "ana-shorte": 573,
+     "ben-knapsa": 102
+    }
+   },
+   {
+    "day": 9,
+    "ana": 19974.0,
+    "ben": 5605.0,
+    "shares": {
+     "shorte1": 473,
+     "knapsa1": 1303,
+     "ana-shorte": 591,
+     "ben-knapsa": 101
+    }
+   },
+   {
+    "day": 10,
+    "ana": 20232.0,
+    "ben": 5860.0,
+    "shares": {
+     "shorte1": 463,
+     "knapsa1": 1324,
+     "ana-shorte": 607,
+     "ben-knapsa": 86
+    }
+   },
+   {
+    "day": 11,
+    "ana": 20402.0,
+    "ben": 5150.0,
+    "shares": {
+     "shorte1": 486,
+     "knapsa1": 1346,
+     "ana-shorte": 586,
+     "ben-knapsa": 67
+    }
+   },
+   {
+    "day": 12,
+    "ana": 20410.0,
+    "ben": 4680.0,
+    "shares": {
+     "shorte1": 466,
+     "knapsa1": 1348,
+     "ana-shorte": 607,
+     "ben-knapsa": 67
+    }
+   },
+   {
+    "day": 13,
+    "ana": 20312.0,
+    "ben": 4835.0,
+    "shares": {
+     "shorte1": 478,
+     "knapsa1": 1349,
+     "ana-shorte": 596,
+     "ben-knapsa": 66
+    }
+   },
+   {
+    "day": 14,
+    "ana": 20312.0,
+    "ben": 4825.0,
+    "shares": {
+     "shorte1": 464,
+     "knapsa1": 1349,
+     "ana-shorte": 609,
+     "ben-knapsa": 64
+    }
+   },
+   {
+    "day": 15,
+    "ana": 20806.0,
+    "ben": 4800.0,
+    "shares": {
+     "shorte1": 451,
+     "knapsa1": 1344,
+     "ana-shorte": 621,
+     "ben-knapsa": 70
+    }
+   },
+   {
+    "day": 16,
+    "ana": 20946.0,
+    "ben": 4750.0,
+    "shares": {
+     "shorte1": 450,
+     "knapsa1": 1348,
+     "ana-shorte": 623,
+     "ben-knapsa": 65
+    }
+   },
+   {
+    "day": 17,
+    "ana": 20856.0,
+    "ben": 4775.0,
+    "shares": {
+     "shorte1": 448,
+     "knapsa1": 1349,
+     "ana-shorte": 623,
+     "ben-knapsa": 66
+    }
+   },
+   {
+    "day": 18,
+    "ana": 21548.0,
+    "ben": 4860.0,
+    "shares": {
+     "shorte1": 453,
+     "knapsa1": 1349,
+     "ana-shorte": 622,
+     "ben-knapsa": 69
+    }
+   },
+   {
+    "day": 19,
+    "ana": 21254.0,
+    "ben": 4750.0,
+    "shares": {
+     "shorte1": 449,
+     "knapsa1": 1353,
+     "ana-shorte": 626,
+     "ben-knapsa": 64
+    }
+   },
+   {
+    "day": 20,
+    "ana": 20764.0,
+    "ben": 4605.0,
+    "shares": {
+     "shorte1": 457,
+     "knapsa1": 1354,
+     "ana-shorte": 616,
+     "ben-knapsa": 63
+    }
+   },
+   {
+    "day": 21,
+    "ana": 20540.0,
+    "ben": 4790.0,
+    "shares": {
+     "shorte1": 446,
+     "knapsa1": 1347,
+     "ana-shorte": 627,
+     "ben-knapsa": 69
+    }
+   },
+   {
+    "day": 22,
+    "ana": 21242.0,
+    "ben": 4595.0,
+    "shares": {
+     "shorte1": 446,
+     "knapsa1": 1353,
+     "ana-shorte": 624,
+     "ben-knapsa": 66
+    }
+   },
+   {
+    "day": 23,
+    "ana": 21144.0,
+    "ben": 4775.0,
+    "shares": {
+     "shorte1": 441,
+     "knapsa1": 1343,
+     "ana-shorte": 628,
+     "ben-knapsa": 73
+    }
+   },
+   {
+    "day": 24,
+    "ana": 21316.0,
+    "ben": 4715.0,
+    "shares": {
+     "shorte1": 437,
+     "knapsa1": 1350,
+     "ana-shorte": 635,
+     "ben-knapsa": 67
+    }
+   },
+   {
+    "day": 25,
+    "ana": 21094.0,
+    "ben": 4665.0,
+    "shares": {
+     "shorte1": 453,
+     "knapsa1": 1348,
+     "ana-shorte": 622,
+     "ben-knapsa": 67
+    }
+   },
+   {
+    "day": 26,
+    "ana": 21010.0,
+    "ben": 4820.0,
+    "shares": {
+     "shorte1": 442,
+     "knapsa1": 1346,
+     "ana-shorte": 634,
+     "ben-knapsa": 72
+    }
+   },
+   {
+    "day": 27,
+    "ana": 21712.0,
+    "ben": 5025.0,
+    "shares": {
+     "shorte1": 433,
+     "knapsa1": 1352,
+     "ana-shorte": 642,
+     "ben-knapsa": 68
+    }
+   },
+   {
+    "day": 28,
+    "ana": 21652.0,
+    "ben": 4640.0,
+    "shares": {
+     "shorte1": 449,
+     "knapsa1": 1348,
+     "ana-shorte": 625,
+     "ben-knapsa": 68
+    }
+   },
+   {
+    "day": 29,
+    "ana": 20988.0,
+    "ben": 4665.0,
+    "shares": {
+     "shorte1": 439,
+     "knapsa1": 1355,
+     "ana-shorte": 632,
+     "ben-knapsa": 64
+    }
+   },
+   {
+    "day": 30,
+    "ana": 20802.0,
+    "ben": 4795.0,
+    "shares": {
+     "shorte1": 450,
+     "knapsa1": 1356,
+     "ana-shorte": 622,
+     "ben-knapsa": 63
+    }
+   },
+   {
+    "day": 31,
+    "ana": 12364.0,
+    "ben": 3350.0,
+    "shares": {
+     "shorte1": 491,
+     "knapsa1": 1343,
+     "ana-shorte": 581,
+     "ben-knapsa": 75
+    }
+   },
+   {
+    "day": 32,
+    "ana": 20572.0,
+    "ben": 4430.0,
+    "shares": {
+     "shorte1": 446,
+     "knapsa1": 1362,
+     "ana-shorte": 625,
+     "ben-knapsa": 59
+    }
+   },
+   {
+    "day": 33,
+    "ana": 21976.0,
+    "ben": 4310.0,
+    "shares": {
+     "shorte1": 420,
+     "knapsa1": 1360,
+     "ana-shorte": 653,
+     "ben-knapsa": 58
+    }
+   },
+   {
+    "day": 34,
+    "ana": 22670.0,
+    "ben": 4040.0,
+    "shares": {
+     "shorte1": 419,
+     "knapsa1": 1356,
+     "ana-shorte": 653,
+     "ben-knapsa": 61
+    }
+   },
+   {
+    "day": 35,
+    "ana": 22434.0,
+    "ben": 4460.0,
+    "shares": {
+     "shorte1": 424,
+     "knapsa1": 1358,
+     "ana-shorte": 651,
+     "ben-knapsa": 57
+    }
+   },
+   {
+    "day": 36,
+    "ana": 22394.0,
+    "ben": 4085.0,
+    "shares": {
+     "shorte1": 412,
+     "knapsa1": 1359,
+     "ana-shorte": 661,
+     "ben-knapsa": 59
+    }
+   },
+   {
+    "day": 37,
+    "ana": 22514.0,
+    "ben": 4025.0,
+    "shares": {
+     "shorte1": 413,
+     "knapsa1": 1361,
+     "ana-shorte": 663,
+     "ben-knapsa": 56
+    }
+   },
+   {
+    "day": 38,
+    "ana": 22842.0,
+    "ben": 4190.0,
+    "shares": {
+     "shorte1": 417,
+     "knapsa1": 1362,
+     "ana-shorte": 660,
+     "ben-knapsa": 55
+    }
+   },
+   {
+    "day": 39,
+    "ana": 23030.0,
+    "ben": 4235.0,
+    "shares": {
+     "shorte1": 408,
+     "knapsa1": 1364,
+     "ana-shorte": 668,
+     "ben-knapsa": 57
+    }
+   },
+   {
+    "day": 40,
+    "ana": 22656.0,
+    "ben": 4430.0,
+    "shares": {
+     "shorte1": 414,
+     "knapsa1": 1363,
+     "ana-shorte": 660,
+     "ben-knapsa": 56
+    }
+   }
+  ],
+  "invariants": [],
+  "ana_prices": null,
+  "ana_contrib": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "ana_weights": [
+   [
+    0.7517103695579825,
+    0.585760731931289,
+    0.7517103695579825
+   ],
+   [
+    -0.7517103695579826,
+    -0.5857607319312887,
+    -0.7517103695579826
+   ]
+  ],
+  "ana_log": [],
+  "ben_prices": null,
+  "ben_contrib": [
+   0,
+   0,
+   0,
+   3000,
+   3000,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   3000,
+   0,
+   0,
+   0,
+   0,
+   3000,
+   0,
+   0,
+   0,
+   3000,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "ben_weights": [
+   [
+    0.26795761203083085,
+    0.14600001986590125,
+    0.26795761203083085
+   ],
+   [
+    -0.26795761203083085,
+    -0.1460000198659012,
+    -0.26795761203083085
+   ]
+  ],
+  "ben_log": []
+ },
+ {
+  "kind": "coop_contract",
+  "seed": 1,
+  "days": 40,
+  "wall_s": 321.5,
+  "curve": [
+   {
+    "day": 1,
+    "ana": 22314.0,
+    "ben": 5570.0,
+    "shares": {
+     "shorte1": 399,
+     "knapsa1": 1000,
+     "ana-shorte": 517,
+     "ben-knapsa": 247
+    }
+   },
+   {
+    "day": 2,
+    "ana": 28449.0,
+    "ben": 6265.0,
+    "shares": {
+     "shorte1": 401,
+     "knapsa1": 1112,
+     "ana-shorte": 591,
+     "ben-knapsa": 228
+    }
+   },
+   {
+    "day": 3,
+    "ana": 29652.0,
+    "ben": 6055.0,
+    "shares": {
+     "shorte1": 415,
+     "knapsa1": 1190,
+     "ana-shorte": 608,
+     "ben-knapsa": 201
+    }
+   },
+   {
+    "day": 4,
+    "ana": 30735.0,
+    "ben": 6025.0,
+    "shares": {
+     "shorte1": 411,
+     "knapsa1": 1270,
+     "ana-shorte": 634,
+     "ben-knapsa": 141
+    }
+   },
+   {
+    "day": 5,
+    "ana": 32049.0,
+    "ben": 5675.0,
+    "shares": {
+     "shorte1": 418,
+     "knapsa1": 1298,
+     "ana-shorte": 638,
+     "ben-knapsa": 124
+    }
+   },
+   {
+    "day": 6,
+    "ana": 31884.0,
+    "ben": 5445.0,
+    "shares": {
+     "shorte1": 410,
+     "knapsa1": 1317,
+     "ana-shorte": 644,
+     "ben-knapsa": 108
+    }
+   },
+   {
+    "day": 7,
+    "ana": 31605.0,
+    "ben": 6095.0,
+    "shares": {
+     "shorte1": 417,
+     "knapsa1": 1330,
+     "ana-shorte": 640,
+     "ben-knapsa": 96
+    }
+   },
+   {
+    "day": 8,
+    "ana": 32220.0,
+    "ben": 5525.0,
+    "shares": {
+     "shorte1": 416,
+     "knapsa1": 1340,
+     "ana-shorte": 642,
+     "ben-knapsa": 92
+    }
+   },
+   {
+    "day": 9,
+    "ana": 31350.0,
+    "ben": 5625.0,
+    "shares": {
+     "shorte1": 426,
+     "knapsa1": 1346,
+     "ana-shorte": 632,
+     "ben-knapsa": 83
+    }
+   },
+   {
+    "day": 10,
+    "ana": 32379.0,
+    "ben": 5610.0,
+    "shares": {
+     "shorte1": 415,
+     "knapsa1": 1340,
+     "ana-shorte": 643,
+     "ben-knapsa": 88
+    }
+   },
+   {
+    "day": 11,
+    "ana": 31839.0,
+    "ben": 5510.0,
+    "shares": {
+     "shorte1": 420,
+     "knapsa1": 1347,
+     "ana-shorte": 638,
+     "ben-knapsa": 85
+    }
+   },
+   {
+    "day": 12,
+    "ana": 31842.0,
+    "ben": 5445.0,
+    "shares": {
+     "shorte1": 415,
+     "knapsa1": 1345,
+     "ana-shorte": 642,
+     "ben-knapsa": 86
+    }
+   },
+   {
+    "day": 13,
+    "ana": 32187.0,
+    "ben": 5705.0,
+    "shares": {
+     "shorte1": 425,
+     "knapsa1": 1346,
+     "ana-shorte": 636,
+     "ben-knapsa": 83
+    }
+   },
+   {
+    "day": 14,
+    "ana": 32694.0,
+    "ben": 5725.0,
+    "shares": {
+     "shorte1": 407,
+     "knapsa1": 1346,
+     "ana-shorte": 654,
+     "ben-knapsa": 81
+    }
+   },
+   {
+    "day": 15,
+    "ana": 32310.0,
+    "ben": 5460.0,
+    "shares": {
+     "shorte1": 410,
+     "knapsa1": 1343,
+     "ana-shorte": 653,
+     "ben-knapsa": 84
+    }
+   },
+   {
+    "day": 16,
+    "ana": 31374.0,
+    "ben": 5630.0,
+    "shares": {
+     "shorte1": 416,
+     "knapsa1": 1340,
+     "ana-shorte": 647,
+     "ben-knapsa": 86
+    }
+   },
+   {
+    "day": 17,
+    "ana": 31656.0,
+    "ben": 5675.0,
+    "shares": {
+     "shorte1": 424,
+     "knapsa1": 1343,
+     "ana-shorte": 637,
+     "ben-knapsa": 86
+    }
+   },
+   {
+    "day": 18,
+    "ana": 31341.0,
+    "ben": 5595.0,
+    "shares": {
+     "shorte1": 417,
+     "knapsa1": 1344,
+     "ana-shorte": 644,
+     "ben-knapsa": 86
+    }
+   },
+   {
+    "day": 19,
+    "ana": 32304.0,
+    "ben": 5715.0,
+    "shares": {
+     "shorte1": 421,
+     "knapsa1": 1346,
+     "ana-shorte": 642,
+     "ben-knapsa": 85
+    }
+   },
+   {
+    "day": 20,
+    "ana": 32475.0,
+    "ben": 5595.0,
+    "shares": {
+     "shorte1": 429,
+     "knapsa1": 1342,
+     "ana-shorte": 634,
+     "ben-knapsa": 87
+    }
+   },
+   {
+    "day": 21,
+    "ana": 31836.0,
+    "ben": 5650.0,
+    "shares": {
+     "shorte1": 427,
+     "knapsa1": 1344,
+     "ana-shorte": 636,
+     "ben-knapsa": 85
+    }
+   },
+   {
+    "day": 22,
+    "ana": 31977.0,
+    "ben": 5420.0,
+    "shares": {
+     "shorte1": 422,
+     "knapsa1": 1335,
+     "ana-shorte": 642,
+     "ben-knapsa": 90
+    }
+   },
+   {
+    "day": 23,
+    "ana": 31560.0,
+    "ben": 5405.0,
+    "shares": {
+     "shorte1": 432,
+     "knapsa1": 1338,
+     "ana-shorte": 632,
+     "ben-knapsa": 89
+    }
+   },
+   {
+    "day": 24,
+    "ana": 32262.0,
+    "ben": 5840.0,
+    "shares": {
+     "shorte1": 424,
+     "knapsa1": 1339,
+     "ana-shorte": 639,
+     "ben-knapsa": 91
+    }
+   },
+   {
+    "day": 25,
+    "ana": 32412.0,
+    "ben": 5710.0,
+    "shares": {
+     "shorte1": 406,
+     "knapsa1": 1343,
+     "ana-shorte": 658,
+     "ben-knapsa": 87
+    }
+   },
+   {
+    "day": 26,
+    "ana": 32262.0,
+    "ben": 5650.0,
+    "shares": {
+     "shorte1": 415,
+     "knapsa1": 1343,
+     "ana-shorte": 647,
+     "ben-knapsa": 86
+    }
+   },
+   {
+    "day": 27,
+    "ana": 31965.0,
+    "ben": 5885.0,
+    "shares": {
+     "shorte1": 415,
+     "knapsa1": 1346,
+     "ana-shorte": 648,
+     "ben-knapsa": 85
+    }
+   },
+   {
+    "day": 28,
+    "ana": 32238.0,
+    "ben": 5735.0,
+    "shares": {
+     "shorte1": 411,
+     "knapsa1": 1342,
+     "ana-shorte": 652,
+     "ben-knapsa": 87
+    }
+   },
+   {
+    "day": 29,
+    "ana": 32283.0,
+    "ben": 5275.0,
+    "shares": {
+     "shorte1": 403,
+     "knapsa1": 1341,
+     "ana-shorte": 662,
+     "ben-knapsa": 87
+    }
+   },
+   {
+    "day": 30,
+    "ana": 32613.0,
+    "ben": 5935.0,
+    "shares": {
+     "shorte1": 408,
+     "knapsa1": 1338,
+     "ana-shorte": 654,
+     "ben-knapsa": 92
+    }
+   },
+   {
+    "day": 31,
+    "ana": 32034.0,
+    "ben": 5595.0,
+    "shares": {
+     "shorte1": 412,
+     "knapsa1": 1340,
+     "ana-shorte": 649,
+     "ben-knapsa": 90
+    }
+   },
+   {
+    "day": 32,
+    "ana": 32793.0,
+    "ben": 5450.0,
+    "shares": {
+     "shorte1": 419,
+     "knapsa1": 1342,
+     "ana-shorte": 642,
+     "ben-knapsa": 88
+    }
+   },
+   {
+    "day": 33,
+    "ana": 32163.0,
+    "ben": 5690.0,
+    "shares": {
+     "shorte1": 406,
+     "knapsa1": 1343,
+     "ana-shorte": 657,
+     "ben-knapsa": 87
+    }
+   },
+   {
+    "day": 34,
+    "ana": 32028.0,
+    "ben": 6415.0,
+    "shares": {
+     "shorte1": 416,
+     "knapsa1": 1338,
+     "ana-shorte": 648,
+     "ben-knapsa": 91
+    }
+   },
+   {
+    "day": 35,
+    "ana": 31791.0,
+    "ben": 5755.0,
+    "shares": {
+     "shorte1": 413,
+     "knapsa1": 1338,
+     "ana-shorte": 653,
+     "ben-knapsa": 91
+    }
+   },
+   {
+    "day": 36,
+    "ana": 33129.0,
+    "ben": 5510.0,
+    "shares": {
+     "shorte1": 407,
+     "knapsa1": 1343,
+     "ana-shorte": 658,
+     "ben-knapsa": 88
+    }
+   },
+   {
+    "day": 37,
+    "ana": 32721.0,
+    "ben": 5380.0,
+    "shares": {
+     "shorte1": 415,
+     "knapsa1": 1342,
+     "ana-shorte": 651,
+     "ben-knapsa": 88
+    }
+   },
+   {
+    "day": 38,
+    "ana": 32031.0,
+    "ben": 5630.0,
+    "shares": {
+     "shorte1": 419,
+     "knapsa1": 1343,
+     "ana-shorte": 645,
+     "ben-knapsa": 86
+    }
+   },
+   {
+    "day": 39,
+    "ana": 32139.0,
+    "ben": 5870.0,
+    "shares": {
+     "shorte1": 408,
+     "knapsa1": 1342,
+     "ana-shorte": 656,
+     "ben-knapsa": 88
+    }
+   },
+   {
+    "day": 40,
+    "ana": 32958.0,
+    "ben": 5640.0,
+    "shares": {
+     "shorte1": 414,
+     "knapsa1": 1338,
+     "ana-shorte": 651,
+     "ben-knapsa": 88
+    }
+   }
+  ],
+  "invariants": [],
+  "ana_prices": null,
+  "ana_contrib": [
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000
+  ],
+  "ana_weights": [
+   [
+    -0.8441237523506212,
+    -0.6303871087511975,
+    -0.8441237523506212
+   ],
+   [
+    0.844123752350621,
+    0.6303871087511976,
+    0.844123752350621
+   ]
+  ],
+  "ana_log": [],
+  "ben_prices": null,
+  "ben_contrib": [
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   0,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   0,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000
+  ],
+  "ben_weights": [
+   [
+    -0.4361144873833207,
+    -0.2974083239084138,
+    -0.4361144873833207
+   ],
+   [
+    0.4361144873833207,
+    0.2974083239084138,
+    0.4361144873833207
+   ]
+  ],
+  "ben_log": []
+ },
+ {
+  "kind": "coop_contract",
+  "seed": 2,
+  "days": 40,
+  "wall_s": 321.5,
+  "curve": [
+   {
+    "day": 1,
+    "ana": 12382.0,
+    "ben": 2470.0,
+    "shares": {
+     "shorte1": 385,
+     "knapsa1": 918,
+     "ana-shorte": 409,
+     "ben-knapsa": 270
+    }
+   },
+   {
+    "day": 2,
+    "ana": 16464.0,
+    "ben": 2234.0,
+    "shares": {
+     "shorte1": 398,
+     "knapsa1": 1161,
+     "ana-shorte": 526,
+     "ben-knapsa": 204
+    }
+   },
+   {
+    "day": 3,
+    "ana": 19378.0,
+    "ben": 2452.0,
+    "shares": {
+     "shorte1": 401,
+     "knapsa1": 1247,
+     "ana-shorte": 578,
+     "ben-knapsa": 176
+    }
+   },
+   {
+    "day": 4,
+    "ana": 20376.0,
+    "ben": 2238.0,
+    "shares": {
+     "shorte1": 409,
+     "knapsa1": 1295,
+     "ana-shorte": 592,
+     "ben-knapsa": 146
+    }
+   },
+   {
+    "day": 5,
+    "ana": 20718.0,
+    "ben": 2252.0,
+    "shares": {
+     "shorte1": 406,
+     "knapsa1": 1320,
+     "ana-shorte": 609,
+     "ben-knapsa": 135
+    }
+   },
+   {
+    "day": 6,
+    "ana": 21450.0,
+    "ben": 2358.0,
+    "shares": {
+     "shorte1": 397,
+     "knapsa1": 1330,
+     "ana-shorte": 622,
+     "ben-knapsa": 130
+    }
+   },
+   {
+    "day": 7,
+    "ana": 21684.0,
+    "ben": 2412.0,
+    "shares": {
+     "shorte1": 412,
+     "knapsa1": 1346,
+     "ana-shorte": 610,
+     "ben-knapsa": 118
+    }
+   },
+   {
+    "day": 8,
+    "ana": 21878.0,
+    "ben": 2306.0,
+    "shares": {
+     "shorte1": 417,
+     "knapsa1": 1347,
+     "ana-shorte": 606,
+     "ben-knapsa": 118
+    }
+   },
+   {
+    "day": 9,
+    "ana": 21390.0,
+    "ben": 2418.0,
+    "shares": {
+     "shorte1": 416,
+     "knapsa1": 1345,
+     "ana-shorte": 609,
+     "ben-knapsa": 121
+    }
+   },
+   {
+    "day": 10,
+    "ana": 21484.0,
+    "ben": 2300.0,
+    "shares": {
+     "shorte1": 410,
+     "knapsa1": 1348,
+     "ana-shorte": 616,
+     "ben-knapsa": 117
+    }
+   },
+   {
+    "day": 11,
+    "ana": 21766.0,
+    "ben": 2314.0,
+    "shares": {
+     "shorte1": 406,
+     "knapsa1": 1352,
+     "ana-shorte": 621,
+     "ben-knapsa": 115
+    }
+   },
+   {
+    "day": 12,
+    "ana": 21750.0,
+    "ben": 2404.0,
+    "shares": {
+     "shorte1": 401,
+     "knapsa1": 1357,
+     "ana-shorte": 628,
+     "ben-knapsa": 108
+    }
+   },
+   {
+    "day": 13,
+    "ana": 22080.0,
+    "ben": 2208.0,
+    "shares": {
+     "shorte1": 399,
+     "knapsa1": 1356,
+     "ana-shorte": 629,
+     "ben-knapsa": 111
+    }
+   },
+   {
+    "day": 14,
+    "ana": 21578.0,
+    "ben": 2616.0,
+    "shares": {
+     "shorte1": 409,
+     "knapsa1": 1352,
+     "ana-shorte": 618,
+     "ben-knapsa": 116
+    }
+   },
+   {
+    "day": 15,
+    "ana": 21796.0,
+    "ben": 2376.0,
+    "shares": {
+     "shorte1": 402,
+     "knapsa1": 1358,
+     "ana-shorte": 626,
+     "ben-knapsa": 109
+    }
+   },
+   {
+    "day": 16,
+    "ana": 21546.0,
+    "ben": 2322.0,
+    "shares": {
+     "shorte1": 415,
+     "knapsa1": 1344,
+     "ana-shorte": 614,
+     "ben-knapsa": 122
+    }
+   },
+   {
+    "day": 17,
+    "ana": 21976.0,
+    "ben": 2402.0,
+    "shares": {
+     "shorte1": 411,
+     "knapsa1": 1356,
+     "ana-shorte": 618,
+     "ben-knapsa": 109
+    }
+   },
+   {
+    "day": 18,
+    "ana": 21768.0,
+    "ben": 2296.0,
+    "shares": {
+     "shorte1": 389,
+     "knapsa1": 1348,
+     "ana-shorte": 640,
+     "ben-knapsa": 115
+    }
+   },
+   {
+    "day": 19,
+    "ana": 21704.0,
+    "ben": 2412.0,
+    "shares": {
+     "shorte1": 400,
+     "knapsa1": 1350,
+     "ana-shorte": 629,
+     "ben-knapsa": 115
+    }
+   },
+   {
+    "day": 20,
+    "ana": 22254.0,
+    "ben": 2400.0,
+    "shares": {
+     "shorte1": 393,
+     "knapsa1": 1346,
+     "ana-shorte": 637,
+     "ben-knapsa": 120
+    }
+   },
+   {
+    "day": 21,
+    "ana": 21820.0,
+    "ben": 2134.0,
+    "shares": {
+     "shorte1": 402,
+     "knapsa1": 1346,
+     "ana-shorte": 628,
+     "ben-knapsa": 122
+    }
+   },
+   {
+    "day": 22,
+    "ana": 21614.0,
+    "ben": 2350.0,
+    "shares": {
+     "shorte1": 393,
+     "knapsa1": 1357,
+     "ana-shorte": 638,
+     "ben-knapsa": 111
+    }
+   },
+   {
+    "day": 23,
+    "ana": 22290.0,
+    "ben": 2208.0,
+    "shares": {
+     "shorte1": 405,
+     "knapsa1": 1356,
+     "ana-shorte": 624,
+     "ben-knapsa": 108
+    }
+   },
+   {
+    "day": 24,
+    "ana": 21782.0,
+    "ben": 2472.0,
+    "shares": {
+     "shorte1": 403,
+     "knapsa1": 1357,
+     "ana-shorte": 627,
+     "ben-knapsa": 107
+    }
+   },
+   {
+    "day": 25,
+    "ana": 22298.0,
+    "ben": 2342.0,
+    "shares": {
+     "shorte1": 398,
+     "knapsa1": 1354,
+     "ana-shorte": 632,
+     "ben-knapsa": 109
+    }
+   },
+   {
+    "day": 26,
+    "ana": 21808.0,
+    "ben": 2250.0,
+    "shares": {
+     "shorte1": 403,
+     "knapsa1": 1350,
+     "ana-shorte": 626,
+     "ben-knapsa": 118
+    }
+   },
+   {
+    "day": 27,
+    "ana": 22128.0,
+    "ben": 2088.0,
+    "shares": {
+     "shorte1": 400,
+     "knapsa1": 1348,
+     "ana-shorte": 630,
+     "ben-knapsa": 118
+    }
+   },
+   {
+    "day": 28,
+    "ana": 21914.0,
+    "ben": 2168.0,
+    "shares": {
+     "shorte1": 398,
+     "knapsa1": 1347,
+     "ana-shorte": 632,
+     "ben-knapsa": 119
+    }
+   },
+   {
+    "day": 29,
+    "ana": 22472.0,
+    "ben": 2250.0,
+    "shares": {
+     "shorte1": 396,
+     "knapsa1": 1348,
+     "ana-shorte": 633,
+     "ben-knapsa": 118
+    }
+   },
+   {
+    "day": 30,
+    "ana": 21882.0,
+    "ben": 2494.0,
+    "shares": {
+     "shorte1": 394,
+     "knapsa1": 1355,
+     "ana-shorte": 634,
+     "ben-knapsa": 108
+    }
+   },
+   {
+    "day": 31,
+    "ana": 22388.0,
+    "ben": 2398.0,
+    "shares": {
+     "shorte1": 407,
+     "knapsa1": 1348,
+     "ana-shorte": 620,
+     "ben-knapsa": 112
+    }
+   },
+   {
+    "day": 32,
+    "ana": 21904.0,
+    "ben": 2306.0,
+    "shares": {
+     "shorte1": 406,
+     "knapsa1": 1344,
+     "ana-shorte": 621,
+     "ben-knapsa": 121
+    }
+   },
+   {
+    "day": 33,
+    "ana": 22106.0,
+    "ben": 2378.0,
+    "shares": {
+     "shorte1": 407,
+     "knapsa1": 1354,
+     "ana-shorte": 623,
+     "ben-knapsa": 112
+    }
+   },
+   {
+    "day": 34,
+    "ana": 21872.0,
+    "ben": 2414.0,
+    "shares": {
+     "shorte1": 389,
+     "knapsa1": 1355,
+     "ana-shorte": 640,
+     "ben-knapsa": 111
+    }
+   },
+   {
+    "day": 35,
+    "ana": 22116.0,
+    "ben": 2374.0,
+    "shares": {
+     "shorte1": 401,
+     "knapsa1": 1342,
+     "ana-shorte": 629,
+     "ben-knapsa": 122
+    }
+   },
+   {
+    "day": 36,
+    "ana": 21882.0,
+    "ben": 2258.0,
+    "shares": {
+     "shorte1": 397,
+     "knapsa1": 1355,
+     "ana-shorte": 631,
+     "ben-knapsa": 111
+    }
+   },
+   {
+    "day": 37,
+    "ana": 22576.0,
+    "ben": 2288.0,
+    "shares": {
+     "shorte1": 386,
+     "knapsa1": 1347,
+     "ana-shorte": 642,
+     "ben-knapsa": 116
+    }
+   },
+   {
+    "day": 38,
+    "ana": 22320.0,
+    "ben": 2250.0,
+    "shares": {
+     "shorte1": 399,
+     "knapsa1": 1337,
+     "ana-shorte": 629,
+     "ben-knapsa": 123
+    }
+   },
+   {
+    "day": 39,
+    "ana": 22110.0,
+    "ben": 2216.0,
+    "shares": {
+     "shorte1": 390,
+     "knapsa1": 1345,
+     "ana-shorte": 637,
+     "ben-knapsa": 120
+    }
+   },
+   {
+    "day": 40,
+    "ana": 22456.0,
+    "ben": 2308.0,
+    "shares": {
+     "shorte1": 393,
+     "knapsa1": 1350,
+     "ana-shorte": 636,
+     "ben-knapsa": 113
+    }
+   }
+  ],
+  "invariants": [],
+  "ana_prices": null,
+  "ana_contrib": [
+   0,
+   0,
+   3000,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "ana_weights": [
+   [
+    0.7679260389372619,
+    0.5347249013917699,
+    0.7679260389372619
+   ],
+   [
+    -0.7679260389372621,
+    -0.5347249013917694,
+    -0.7679260389372621
+   ]
+  ],
+  "ana_log": [],
+  "ben_prices": null,
+  "ben_contrib": [
+   0,
+   3000,
+   3000,
+   0,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   0,
+   0,
+   0,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   0,
+   3000,
+   3000,
+   3000,
+   0,
+   3000,
+   0,
+   3000,
+   3000,
+   0,
+   0,
+   3000,
+   3000,
+   3000,
+   3000,
+   3000,
+   0,
+   0,
+   0,
+   3000,
+   0,
+   0
+  ],
+  "ben_weights": [
+   [
+    -0.12999865322527365,
+    -0.0434371881289132,
+    -0.12999865322527365
+   ],
+   [
+    0.12999865322527368,
+    0.0434371881289132,
+    0.12999865322527368
+   ]
+  ],
+  "ben_log": []
+ },
+ {
+  "kind": "coop_contract",
+  "seed": 3,
+  "days": 40,
+  "wall_s": 315.0,
+  "curve": [
+   {
+    "day": 1,
+    "ana": 12168.0,
+    "ben": 5600.0,
+    "shares": {
+     "shorte1": 440,
+     "knapsa1": 868,
+     "ana-shorte": 398,
+     "ben-knapsa": 200
+    }
+   },
+   {
+    "day": 2,
+    "ana": 0.0,
+    "ben": 0.0,
+    "shares": {
+     "shorte1": 549,
+     "knapsa1": 869,
+     "ana-shorte": 374,
+     "ben-knapsa": 311
+    }
+   },
+   {
+    "day": 3,
+    "ana": 14544.0,
+    "ben": 5490.0,
+    "shares": {
+     "shorte1": 494,
+     "knapsa1": 1096,
+     "ana-shorte": 492,
+     "ben-knapsa": 192
+    }
+   },
+   {
+    "day": 4,
+    "ana": 17318.0,
+    "ben": 6035.0,
+    "shares": {
+     "shorte1": 495,
+     "knapsa1": 1151,
+     "ana-shorte": 527,
+     "ben-knapsa": 184
+    }
+   },
+   {
+    "day": 5,
+    "ana": 17590.0,
+    "ben": 5980.0,
+    "shares": {
+     "shorte1": 511,
+     "knapsa1": 1158,
+     "ana-shorte": 531,
+     "ben-knapsa": 201
+    }
+   },
+   {
+    "day": 6,
+    "ana": 18062.0,
+    "ben": 5745.0,
+    "shares": {
+     "shorte1": 508,
+     "knapsa1": 1217,
+     "ana-shorte": 548,
+     "ben-knapsa": 149
+    }
+   },
+   {
+    "day": 7,
+    "ana": 18926.0,
+    "ben": 6015.0,
+    "shares": {
+     "shorte1": 509,
+     "knapsa1": 1273,
+     "ana-shorte": 557,
+     "ben-knapsa": 105
+    }
+   },
+   {
+    "day": 8,
+    "ana": 18502.0,
+    "ben": 5445.0,
+    "shares": {
+     "shorte1": 507,
+     "knapsa1": 1333,
+     "ana-shorte": 563,
+     "ben-knapsa": 71
+    }
+   },
+   {
+    "day": 9,
+    "ana": 19180.0,
+    "ben": 4820.0,
+    "shares": {
+     "shorte1": 498,
+     "knapsa1": 1355,
+     "ana-shorte": 575,
+     "ben-knapsa": 57
+    }
+   },
+   {
+    "day": 10,
+    "ana": 19426.0,
+    "ben": 3345.0,
+    "shares": {
+     "shorte1": 497,
+     "knapsa1": 1371,
+     "ana-shorte": 578,
+     "ben-knapsa": 43
+    }
+   },
+   {
+    "day": 11,
+    "ana": 19420.0,
+    "ben": 2895.0,
+    "shares": {
+     "shorte1": 500,
+     "knapsa1": 1383,
+     "ana-shorte": 573,
+     "ben-knapsa": 33
+    }
+   },
+   {
+    "day": 12,
+    "ana": 19724.0,
+    "ben": 3160.0,
+    "shares": {
+     "shorte1": 494,
+     "knapsa1": 1380,
+     "ana-shorte": 578,
+     "ben-knapsa": 33
+    }
+   },
+   {
+    "day": 13,
+    "ana": 19678.0,
+    "ben": 2745.0,
+    "shares": {
+     "shorte1": 496,
+     "knapsa1": 1390,
+     "ana-shorte": 579,
+     "ben-knapsa": 28
+    }
+   },
+   {
+    "day": 14,
+    "ana": 19380.0,
+    "ben": 2870.0,
+    "shares": {
+     "shorte1": 497,
+     "knapsa1": 1384,
+     "ana-shorte": 576,
+     "ben-knapsa": 35
+    }
+   },
+   {
+    "day": 15,
+    "ana": 11032.0,
+    "ben": 1675.0,
+    "shares": {
+     "shorte1": 499,
+     "knapsa1": 1384,
+     "ana-shorte": 575,
+     "ben-knapsa": 32
+    }
+   },
+   {
+    "day": 16,
+    "ana": 20162.0,
+    "ben": 2155.0,
+    "shares": {
+     "shorte1": 473,
+     "knapsa1": 1391,
+     "ana-shorte": 602,
+     "ben-knapsa": 27
+    }
+   },
+   {
+    "day": 17,
+    "ana": 20236.0,
+    "ben": 2065.0,
+    "shares": {
+     "shorte1": 480,
+     "knapsa1": 1396,
+     "ana-shorte": 592,
+     "ben-knapsa": 24
+    }
+   },
+   {
+    "day": 18,
+    "ana": 20532.0,
+    "ben": 1950.0,
+    "shares": {
+     "shorte1": 458,
+     "knapsa1": 1390,
+     "ana-shorte": 614,
+     "ben-knapsa": 25
+    }
+   },
+   {
+    "day": 19,
+    "ana": 20326.0,
+    "ben": 2135.0,
+    "shares": {
+     "shorte1": 461,
+     "knapsa1": 1388,
+     "ana-shorte": 611,
+     "ben-knapsa": 27
+    }
+   },
+   {
+    "day": 20,
+    "ana": 20348.0,
+    "ben": 2395.0,
+    "shares": {
+     "shorte1": 465,
+     "knapsa1": 1392,
+     "ana-shorte": 603,
+     "ben-knapsa": 29
+    }
+   },
+   {
+    "day": 21,
+    "ana": 20632.0,
+    "ben": 2020.0,
+    "shares": {
+     "shorte1": 458,
+     "knapsa1": 1393,
+     "ana-shorte": 613,
+     "ben-knapsa": 26
+    }
+   },
+   {
+    "day": 22,
+    "ana": 21108.0,
+    "ben": 2315.0,
+    "shares": {
+     "shorte1": 452,
+     "knapsa1": 1398,
+     "ana-shorte": 622,
+     "ben-knapsa": 23
+    }
+   },
+   {
+    "day": 23,
+    "ana": 20928.0,
+    "ben": 2255.0,
+    "shares": {
+     "shorte1": 448,
+     "knapsa1": 1392,
+     "ana-shorte": 627,
+     "ben-knapsa": 27
+    }
+   },
+   {
+    "day": 24,
+    "ana": 21290.0,
+    "ben": 2555.0,
+    "shares": {
+     "shorte1": 468,
+     "knapsa1": 1390,
+     "ana-shorte": 606,
+     "ben-knapsa": 30
+    }
+   },
+   {
+    "day": 25,
+    "ana": 21108.0,
+    "ben": 2245.0,
+    "shares": {
+     "shorte1": 460,
+     "knapsa1": 1388,
+     "ana-shorte": 618,
+     "ben-knapsa": 27
+    }
+   },
+   {
+    "day": 26,
+    "ana": 21364.0,
+    "ben": 2495.0,
+    "shares": {
+     "shorte1": 461,
+     "knapsa1": 1383,
+     "ana-shorte": 613,
+     "ben-knapsa": 33
+    }
+   },
+   {
+    "day": 27,
+    "ana": 21104.0,
+    "ben": 2135.0,
+    "shares": {
+     "shorte1": 455,
+     "knapsa1": 1385,
+     "ana-shorte": 618,
+     "ben-knapsa": 28
+    }
+   },
+   {
+    "day": 28,
+    "ana": 21524.0,
+    "ben": 2120.0,
+    "shares": {
+     "shorte1": 443,
+     "knapsa1": 1389,
+     "ana-shorte": 630,
+     "ben-knapsa": 27
+    }
+   },
+   {
+    "day": 29,
+    "ana": 21546.0,
+    "ben": 2545.0,
+    "shares": {
+     "shorte1": 459,
+     "knapsa1": 1390,
+     "ana-shorte": 614,
+     "ben-knapsa": 27
+    }
+   },
+   {
+    "day": 30,
+    "ana": 21186.0,
+    "ben": 2005.0,
+    "shares": {
+     "shorte1": 441,
+     "knapsa1": 1394,
+     "ana-shorte": 633,
+     "ben-knapsa": 23
+    }
+   },
+   {
+    "day": 31,
+    "ana": 21104.0,
+    "ben": 2085.0,
+    "shares": {
+     "shorte1": 455,
+     "knapsa1": 1393,
+     "ana-shorte": 618,
+     "ben-knapsa": 24
+    }
+   },
+   {
+    "day": 32,
+    "ana": 21458.0,
+    "ben": 2190.0,
+    "shares": {
+     "shorte1": 441,
+     "knapsa1": 1395,
+     "ana-shorte": 632,
+     "ben-knapsa": 23
+    }
+   },
+   {
+    "day": 33,
+    "ana": 21354.0,
+    "ben": 2320.0,
+    "shares": {
+     "shorte1": 442,
+     "knapsa1": 1395,
+     "ana-shorte": 632,
+     "ben-knapsa": 23
+    }
+   },
+   {
+    "day": 34,
+    "ana": 21730.0,
+    "ben": 2095.0,
+    "shares": {
+     "shorte1": 439,
+     "knapsa1": 1391,
+     "ana-shorte": 635,
+     "ben-knapsa": 26
+    }
+   },
+   {
+    "day": 35,
+    "ana": 21738.0,
+    "ben": 2030.0,
+    "shares": {
+     "shorte1": 436,
+     "knapsa1": 1391,
+     "ana-shorte": 638,
+     "ben-knapsa": 25
+    }
+   },
+   {
+    "day": 36,
+    "ana": 21158.0,
+    "ben": 2255.0,
+    "shares": {
+     "shorte1": 463,
+     "knapsa1": 1394,
+     "ana-shorte": 612,
+     "ben-knapsa": 21
+    }
+   },
+   {
+    "day": 37,
+    "ana": 21352.0,
+    "ben": 2145.0,
+    "shares": {
+     "shorte1": 446,
+     "knapsa1": 1392,
+     "ana-shorte": 630,
+     "ben-knapsa": 27
+    }
+   },
+   {
+    "day": 38,
+    "ana": 21774.0,
+    "ben": 2175.0,
+    "shares": {
+     "shorte1": 448,
+     "knapsa1": 1394,
+     "ana-shorte": 625,
+     "ben-knapsa": 22
+    }
+   },
+   {
+    "day": 39,
+    "ana": 21538.0,
+    "ben": 2145.0,
+    "shares": {
+     "shorte1": 446,
+     "knapsa1": 1389,
+     "ana-shorte": 630,
+     "ben-knapsa": 26
+    }
+   },
+   {
+    "day": 40,
+    "ana": 21672.0,
+    "ben": 2170.0,
+    "shares": {
+     "shorte1": 444,
+     "knapsa1": 1391,
+     "ana-shorte": 632,
+     "ben-knapsa": 24
+    }
+   }
+  ],
+  "invariants": [],
+  "ana_prices": null,
+  "ana_contrib": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "ana_weights": [
+   [
+    0.7823455338264872,
+    0.5154527787456066,
+    0.7823455338264872
+   ],
+   [
+    -0.7823455338264872,
+    -0.5154527787456067,
+    -0.7823455338264872
+   ]
+  ],
+  "ana_log": [],
+  "ben_prices": null,
+  "ben_contrib": [
+   0,
+   0,
+   0,
+   3000,
+   3000,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   3000,
+   0,
+   0,
+   0,
+   0,
+   3000,
+   0,
+   0,
+   0,
+   3000,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "ben_weights": [
+   [
+    0.17554920713024982,
+    0.21467938130209493,
+    0.17554920713024982
+   ],
+   [
+    -0.17554920713024974,
+    -0.2146793813020949,
+    -0.17554920713024974
+   ]
+  ],
+  "ben_log": []
+ }
+]

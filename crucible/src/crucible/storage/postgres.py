@@ -163,8 +163,15 @@ def open_store(url: str) -> Store:
         from .memory import MemoryStore
         return MemoryStore()
     if url.startswith("sqlite:"):
+        # SQLAlchemy convention: sqlite:///relative/path.db, sqlite:////absolute/path.db, sqlite:///:memory:
         from .sqlite import SQLiteStore
-        return SQLiteStore(url.split("sqlite://", 1)[1] if "sqlite://" in url else url[len("sqlite:"):])
+        if url.startswith("sqlite:///"):
+            path = url[len("sqlite:///"):]
+        elif url.startswith("sqlite://"):
+            path = url[len("sqlite://"):]
+        else:
+            path = url[len("sqlite:"):]
+        return SQLiteStore(path or ":memory:")
     if url.startswith(("postgres://", "postgresql://")):
         return PostgresStore(url)
     raise ValueError(f"unknown store url {url!r}")

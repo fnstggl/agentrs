@@ -4,14 +4,14 @@
  "seed": 7,
  "days": 30,
  "events": 73617,
- "final_digest": "3344c39bfb00f8d7880ef4b06fa17425",
+ "final_digest": "dc8a6794586a1a66470808b31f90e0e9",
  "snapshots": [
   "s-46d6ce8db8c3f057",
-  "s-d80a551ee6645120",
-  "s-07b5666e87a2a68e",
-  "s-97ca7f22a7af3c59",
-  "s-82e4b85fe6cf1df6",
-  "s-cbfd61da7447143a"
+  "s-09cc578e3f5f6c4b",
+  "s-9746c1cd2c7f79d8",
+  "s-8644fc353d477acd",
+  "s-43bd82bb09828b14",
+  "s-e538a6ababeaca99"
  ],
  "agents": {
   "bob": {
@@ -169,57 +169,12 @@
  },
  "persistence": {
   "reload_from_store_equal": true,
-  "reload_s": 1.52,
+  "reload_s": 1.19,
   "replay_from_genesis_equal": true,
-  "replay_s": 19.08,
-  "regeneration_identical_log": false,
-  "regen_s": 50.84,
-  "regeneration_first_divergence": {
-   "seq": 16178,
-   "t_days": 6.291666666666667,
-   "orig": {
-    "type": "cmd.rejected",
-    "actor": "p:rex",
-    "payload": {
-     "actor": "p:rex",
-     "args": {
-      "clauses": [],
-      "parties": [],
-      "text": "o:standards",
-      "title": "rex"
-     },
-     "error": {
-      "code": "invalid_action",
-      "details": {
-       "tool": "contracts.propose"
-      },
-      "message": "args.parties: fewer than 2 items; args.clauses: fewer than 1 items"
-     },
-     "tool": "contracts.propose"
-    }
-   },
-   "regen": {
-    "type": "cmd.rejected",
-    "actor": "p:rex",
-    "payload": {
-     "tool": "contracts.propose",
-     "actor": "p:rex",
-     "args": {
-      "clauses": [],
-      "parties": [],
-      "text": "o:standards",
-      "title": "rex"
-     },
-     "error": {
-      "code": "invalid_action",
-      "message": "args.clauses: fewer than 1 items; args.parties: fewer than 2 items",
-      "details": {
-       "tool": "contracts.propose"
-      }
-     }
-    }
-   }
-  }
+  "replay_s": 11.93,
+  "regeneration_identical_log": true,
+  "regen_s": 34.18,
+  "regeneration_first_divergence": null
  },
  "counterfactual": {
   "removed_host": "bob-knapsa",
@@ -263,7 +218,7 @@
  "timeline": [
   {
    "day": 1,
-   "wall_s": 11.9,
+   "wall_s": 10.26,
    "seq": 2795,
    "market_shares": {
     "record1": 169,
@@ -285,7 +240,7 @@
   },
   {
    "day": 2,
-   "wall_s": 23.01,
+   "wall_s": 15.82,
    "seq": 5450,
    "market_shares": {
     "record1": 116,
@@ -307,7 +262,7 @@
   },
   {
    "day": 3,
-   "wall_s": 21.88,
+   "wall_s": 18.71,
    "seq": 8125,
    "market_shares": {
     "record1": 103,
@@ -329,7 +284,7 @@
   },
   {
    "day": 4,
-   "wall_s": 17.01,
+   "wall_s": 13.78,
    "seq": 10599,
    "market_shares": {
     "record1": 98,
@@ -351,7 +306,7 @@
   },
   {
    "day": 5,
-   "wall_s": 15.89,
+   "wall_s": 10.14,
    "seq": 13049,
    "market_shares": {
     "record1": 102,
@@ -373,7 +328,7 @@
   },
   {
    "day": 6,
-   "wall_s": 15.1,
+   "wall_s": 10.8,
    "seq": 15471,
    "market_shares": {
     "record1": 113,
@@ -395,7 +350,7 @@
   },
   {
    "day": 7,
-   "wall_s": 13.8,
+   "wall_s": 9.92,
    "seq": 17852,
    "market_shares": {
     "record1": 115,
@@ -417,7 +372,7 @@
   },
   {
    "day": 8,
-   "wall_s": 16.22,
+   "wall_s": 10.1,
    "seq": 20263,
    "market_shares": {
     "record1": 122,
@@ -439,7 +394,7 @@
   },
   {
    "day": 9,
-   "wall_s": 13.19,
+   "wall_s": 10.3,
    "seq": 22665,
    "market_shares": {
     "record1": 124,
@@ -461,7 +416,7 @@
   },
   {
    "day": 10,
-   "wall_s": 13.28,
+   "wall_s": 9.26,
    "seq": 25042,
    "market_shares": {
     "record1": 126,
@@ -484,7 +439,7 @@
   },
   {
    "day": 11,
-   "wall_s": 14.51,
+   "wall_s": 8.93,
    "seq": 27525,
    "market_shares": {
     "record1": 128,
@@ -508,7 +463,7 @@
   },
   {
    "day": 12,
-   "wall_s": 16.78,
+   "wall_s": 9.34,
    "seq": 29967,
    "market_shares": {
     "record1": 132,
@@ -532,7 +487,7 @@
   },
   {
    "day": 13,
-   "wall_s": 16.13,
+   "wall_s": 8.68,
    "seq": 32394,
    "market_shares": {
     "record1": 141,
@@ -556,7 +511,7 @@
   },
   {
    "day": 14,
-   "wall_s": 17.37,
+   "wall_s": 8.43,
    "seq": 34834,
    "market_shares": {
     "record1": 142,
@@ -580,7 +535,7 @@
   },
   {
    "day": 15,
-   "wall_s": 19.22,
+   "wall_s": 10.18,
    "seq": 37295,
    "market_shares": {
     "record1": 146,
@@ -604,7 +559,7 @@
   },
   {
    "day": 16,
-   "wall_s": 14.3,
+   "wall_s": 10.3,
    "seq": 39657,
    "market_shares": {
     "record1": 145,
@@ -628,7 +583,7 @@
   },
   {
    "day": 17,
-   "wall_s": 13.19,
+   "wall_s": 11.21,
    "seq": 42079,
    "market_shares": {
     "record1": 146,
@@ -652,7 +607,7 @@
   },
   {
    "day": 18,
-   "wall_s": 10.6,
+   "wall_s": 11.2,
    "seq": 44515,
    "market_shares": {
     "record1": 147,
@@ -676,7 +631,7 @@
   },
   {
    "day": 19,
-   "wall_s": 13.09,
+   "wall_s": 12.89,
    "seq": 46952,
    "market_shares": {
     "record1": 151,
@@ -700,7 +655,7 @@
   },
   {
    "day": 20,
-   "wall_s": 11.45,
+   "wall_s": 12.3,
    "seq": 49382,
    "market_shares": {
     "record1": 153,
@@ -724,7 +679,7 @@
   },
   {
    "day": 21,
-   "wall_s": 14.89,
+   "wall_s": 12.31,
    "seq": 51786,
    "market_shares": {
     "record1": 159,
@@ -748,7 +703,7 @@
   },
   {
    "day": 22,
-   "wall_s": 20.3,
+   "wall_s": 12.61,
    "seq": 54223,
    "market_shares": {
     "record1": 158,
@@ -772,7 +727,7 @@
   },
   {
    "day": 23,
-   "wall_s": 24.29,
+   "wall_s": 12.9,
    "seq": 56656,
    "market_shares": {
     "record1": 159,
@@ -796,7 +751,7 @@
   },
   {
    "day": 24,
-   "wall_s": 25.9,
+   "wall_s": 11.92,
    "seq": 59070,
    "market_shares": {
     "record1": 160,
@@ -820,7 +775,7 @@
   },
   {
    "day": 25,
-   "wall_s": 25.18,
+   "wall_s": 11.02,
    "seq": 61524,
    "market_shares": {
     "record1": 163,
@@ -844,7 +799,7 @@
   },
   {
    "day": 26,
-   "wall_s": 26.6,
+   "wall_s": 12.25,
    "seq": 63941,
    "market_shares": {
     "record1": 162,
@@ -868,7 +823,7 @@
   },
   {
    "day": 27,
-   "wall_s": 23.5,
+   "wall_s": 10.32,
    "seq": 66387,
    "market_shares": {
     "record1": 161,
@@ -892,7 +847,7 @@
   },
   {
    "day": 28,
-   "wall_s": 20.4,
+   "wall_s": 11.41,
    "seq": 68826,
    "market_shares": {
     "record1": 160,
@@ -916,7 +871,7 @@
   },
   {
    "day": 29,
-   "wall_s": 14.38,
+   "wall_s": 11.69,
    "seq": 71214,
    "market_shares": {
     "record1": 159,
@@ -940,7 +895,7 @@
   },
   {
    "day": 30,
-   "wall_s": 15.0,
+   "wall_s": 11.21,
    "seq": 73617,
    "market_shares": {
     "record1": 160,
@@ -963,5 +918,5 @@
    }
   }
  ],
- "wall_s_total": 751.7
+ "wall_s_total": 493.5
 }

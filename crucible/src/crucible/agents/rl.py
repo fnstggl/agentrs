@@ -552,7 +552,7 @@ class RLPolicy(Policy):
 
 
 # ============================================================================================== reporting
-POLICY_COLORS = {"a2c": "#2a78d6", "random": "#eb6834", "idle": "#1baf7a"}   # categorical slots 1-3
+POLICY_COLORS = {"a2c": "#2a78d6", "random": "#eb6834", "idle": "#1baf7a", "frozen": "#eda100"}  # categorical slots 1-4
 
 
 def load_episodes(run_dir: str) -> list:
@@ -567,10 +567,13 @@ def report(groups: dict, out_json: str, out_png: str | None = None, last: int = 
     out: dict = {"last_episodes": last, "groups": {}}
     for g, pols in groups.items():
         G = out["groups"][g] = {}
+        # every run of a panel is truncated to the panel's common episode count (matched comparison)
+        n_common = min((len(load_episodes(d)) for dirs in pols.values() for d in dirs), default=0)
+        G["episodes_compared"] = n_common
         for pol, dirs in pols.items():
             runs = []
             for d in dirs:
-                eps = load_episodes(d)
+                eps = load_episodes(d)[:n_common]
                 if not eps:
                     continue
                 rev = [e["rev7_cents"] / 100.0 for e in eps]
@@ -599,6 +602,10 @@ def report(groups: dict, out_json: str, out_png: str | None = None, last: int = 
             d = [a - b for a, b in zip(G["a2c"]["rev7_last_per_seed"], G["random"]["rev7_last_per_seed"])]
             G["a2c_minus_random_rev7_last_per_seed"] = d
             G["a2c_beats_random_all_seeds"] = bool(all(x > 0 for x in d))
+        if "a2c" in G and "frozen" in G and G["a2c"]["seeds"] == G["frozen"]["seeds"]:
+            d = [a - b for a, b in zip(G["a2c"]["rev7_last_per_seed"], G["frozen"]["rev7_last_per_seed"])]
+            G["a2c_minus_frozen_rev7_last_per_seed"] = d
+            G["a2c_beats_frozen_all_seeds"] = bool(all(x > 0 for x in d))
         if "a2c" in G and "idle" in G and G["a2c"]["seeds"] == G["idle"]["seeds"]:
             d = [a - b for a, b in zip(G["a2c"]["rev7_last_per_seed"], G["idle"]["rev7_last_per_seed"])]
             G["a2c_minus_idle_rev7_last_per_seed"] = d
@@ -612,14 +619,15 @@ def report(groups: dict, out_json: str, out_png: str | None = None, last: int = 
         n = len(groups)
         fig, axes = plt.subplots(1, n, figsize=(5.2 * n, 3.6), squeeze=False)
         for ax, (g, G) in zip(axes[0], out["groups"].items()):
-            for pol in ("a2c", "random", "idle"):
+            sm = max(1, min(smooth, G.get("episodes_compared", 1) // 4))
+            for pol in ("a2c", "frozen", "random", "idle"):
                 if pol not in G or not G[pol]["curve_mean"]:
                     continue
                 c = POLICY_COLORS[pol]
-                m = np.convolve(G[pol]["curve_mean"], np.ones(smooth) / smooth, mode="valid")
-                lo = np.convolve(G[pol]["curve_min"], np.ones(smooth) / smooth, mode="valid")
-                hi = np.convolve(G[pol]["curve_max"], np.ones(smooth) / smooth, mode="valid")
-                x = np.arange(len(m)) + smooth
+                m = np.convolve(G[pol]["curve_mean"], np.ones(sm) / sm, mode="valid")
+                lo = np.convolve(G[pol]["curve_min"], np.ones(sm) / sm, mode="valid")
+                hi = np.convolve(G[pol]["curve_max"], np.ones(sm) / sm, mode="valid")
+                x = np.arange(len(m)) + sm
                 ax.fill_between(x, lo, hi, color=c, alpha=0.12, linewidth=0)
                 ax.plot(x, m, color=c, linewidth=2, label=f"{pol} ({G[pol]['seeds']} seeds)")
                 if len(m):
@@ -633,8 +641,8 @@ def report(groups: dict, out_json: str, out_png: str | None = None, last: int = 
                 ax.spines[sp].set_visible(False)
             ax.tick_params(labelsize=8, colors="#52514e")
             ax.legend(fontsize=8, frameon=False, loc="upper left")
-        fig.suptitle(f"Crucible revenue:tiny:1, deployed-service start state; mean over seeds (band: min-max), "
-                     f"{smooth}-episode moving average", fontsize=9, color="#52514e")
+        fig.suptitle("Crucible revenue:tiny:1 from the deployed-service start state; mean over 3 seeds "
+                     "(band: min-max over seeds), moving average", fontsize=9, color="#52514e")
         fig.tight_layout()
         fig.savefig(out_png, dpi=130)
         plt.close(fig)

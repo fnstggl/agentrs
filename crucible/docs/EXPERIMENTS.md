@@ -64,14 +64,23 @@ available, needs $16.00`), the instance was suspended, terminated on day 23.75, 
 customers returned to incumbents: revenue 0 by day 28. Nothing in the world script anticipated this; it followed
 from billing, capacity and demand mechanics — and it is fully explained by the event log.
 
-**v2 (`demo_lifetime.json`).** With a profitability check before scaling (otherwise reprice):
+**v2–v4 (`demo_lifetime.json` is the v4 run).** With a profitability check before scaling (otherwise reprice):
 * the Builder earned **$1,368.63** independent revenue over the last 30 days and kept its service live;
 * an NPC incumbent (knapsaco2) **bought a licence to the Builder's code and redeployed it** in place of its own
   implementation (diffusion of an agent invention through the market). This exposed a security bug — agent code
   adopted by a "trusted" incumbent ran in-process — fixed by provenance-based trust (SECURITY.md);
 * the Composer's program made 3 brokered calls into the Builder's service (agent→agent tool reuse);
-* persistence: reload from the store **equal** (0.47 s), full replay from genesis **equal** (5.2 s, 73,631 events),
-  invariants empty;
+* persistence: reload from the store **equal**, full replay from genesis **equal**, and — in v4, after two kernel
+  fixes found by this demo (scheduled-process outcomes keyed by transaction start seq; canonical argument key
+  order) — **regeneration of the whole 30-day lifetime from recorded commands reproduces the identical event log**
+  (73,617 events, identical hash chain, 34 s). In v3 regeneration diverged at seq 16,178 (a random agent's rejected
+  `contracts.propose`: the same two validation errors listed in a different order because args read back from
+  sorted JSON had a different key order) — the demo's own divergence report pinpointed it;
+* causal debugging (`crucible trace canonical o:bob-labs`): "bob-knapsa lost customers: 459 on day 1 → 103 on day
+  29; 58 % of consumer requests failed (overload 16,519); costs exceeded revenue over the last 7 days ($293.77 vs
+  $229.14; compute $1,420 total)" — the profitability rule refused to scale, raised prices instead, and overload
+  plus higher prices drove customers away;
+* invariants empty;
 * counterfactual (two forks, deterministic cost model, Builder's service removed in one): Builder's 5-day revenue
   $93.15 (control) vs $0 (removed); its customers moved to incumbents; the canonical world was unchanged.
 
@@ -100,3 +109,48 @@ identical command sequences, identical state digests and identical event hash ch
   (tests and `examples` checks). Recorded outcomes are keyed by transaction start seq so scheduled processes are
   injected too (an earlier gap, fixed). The 30-day lifetime demo's in-process regeneration check: see §3 (v3).
 * Under the deterministic cost model, forks from the same snapshot evolve bit-identically.
+
+## 7. Two learning agents in one world: competition and cooperation (`examples/multiagent_learning.py`)
+
+`tiny` family (2,500 consumers, needs `route.shortest` and `pack.knapsack`, one incumbent each, deterministic
+cost model), 40 simulated days, seeds 1–3, actions every simulated hour. Learners (`agents/learners.py`) start
+from a fixed scripted launch (company, best-tier service, listing) and then learn one daily decision with a
+softmax-linear policy trained online by REINFORCE from consequences they observe (their own `cloud.status`
+revenue, public market prices). Raw output: `docs/experiments/multiagent_learning.json`.
+
+| condition | joint independent revenue, last 10 days ($/day, seeds 1/2/3) | mean | notes |
+|---|---|---|---|
+| competition: two PricingLearners, same market | 190.5 / 271.7 / 233.7 | 232.0 | policy weights moved (‖W‖₁ 6.1–9.0); final prices 8/6, 5/5, 3/5 cents |
+| control: two fixed-price Builders | 285.6 / 270.2 / 227.4 | 261.1 | — |
+| cooperation: two AdLearners, joint campaign (public good) | 376.2 / 206.0 / 255.0 | 279.1 | contribution rate (last 10 days) 1.00 / 0.30 / 0.00 |
+| cooperation + unconditional cost-sharing contract | 380.7 / 244.9 / 236.5 | 287.4 | contribution rate 1.00 / 0.25 / 0.00 |
+
+Findings (n = 3; none of the differences is statistically resolved):
+* Multi-agent learning through real world mechanics runs and is measurable: competitors' prices and the public
+  good contributions respond to experienced consequences; all worlds' invariants held.
+* The pricing learners did **not** beat fixed-price controls (−11 % joint revenue): learning increased price
+  variance without finding better prices within 40 days.
+* In the public-goods game the seed where both learners kept contributing had the highest joint revenue; in the
+  other seeds they free-rode. The unconditional cost-sharing contract did not change contributions — as theory
+  predicts, since unconditional transfers net out and do not change marginal incentives. A contract conditioned
+  on contribution (a deliverable predicate on ad spend) is the natural next experiment; the clause type exists.
+
+## 8. Counterfactuals and self-play (`tests/test_tooling.py`, `crucible counterfactual`, `crucible selfplay run`)
+
+Counterfactual (tiny world, seed 3, deterministic cost model; a Builder's service `alice-shorte` live for 1.25
+days, then removed in one of two forks; a second control fork reached the identical digest, so the comparison is
+exact):
+
+| horizon | o:alice-labs revenue (control → removed) | alice customers | incumbent shorte1 customers | o:shorteco1 revenue |
+|---|---|---|---|---|
+| 12 h | $54.52 → $0 | 218 → 169 | 113 → 158 | +$2.00 |
+| 24 h | $123.84 → $0 | 257 → 169 | 117 → 200 | +$19.28 |
+
+Removing the incumbent `shorte1` instead reduces the requests served by a Composer (`svc:bob-mesh`) that resells
+it — a dependency on another firm's artifact measured causally. Note: after an intervention the forks draw
+different random numbers (draws are keyed by event sequence numbers), so small deltas in unrelated markets are
+noise.
+
+Self-play league (2 simulated days, both seatings, paired worlds): Builder(undercut 0.9, with ads) beat
+Builder(undercut 0.6, no ads) 2–0; mean revenue $102.90 vs $36.15, customers 177 vs 84, market share 50 % vs 24 %;
+Elo 1023 vs 977. See SELF_PLAY.md.

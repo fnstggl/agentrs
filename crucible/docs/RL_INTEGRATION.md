@@ -2,7 +2,7 @@
 
 Code: `crucible/src/crucible/agents/{llm.py, rl.py}`, `crucible/src/crucible/integrations/{__init__.py,
 agentrs_cam2.py, agentrs_sl.py}`, `src/agentrs/cam2/envs/crucible_env.py` (AGENTRS side; `"crucible"` kind in
-`cam2/envs/pool.py` and `cam2/tasks.py`). Tests: `crucible/tests/test_agents_llm.py` (16 tests; 2 need a GPU and the
+`cam2/envs/pool.py` and `cam2/tasks.py`). Tests: `crucible/tests/test_agents_llm.py` (13 tests; 2 need a GPU and the
 locally cached Qwen3-0.6B and are skipped otherwise).
 
 ```
@@ -81,7 +81,17 @@ announcements, exact replay (same world digest) and divergence detection, and on
 determinism (identical texts across two runs) and token accounting.
 
 Measured (Qwen3-1.7B, greedy, `run_goal`, dt = 1 h, first 2 simulated days = 48 decisions per goal):
-{{LLM_RESULTS}}
+| Goal | 48 decisions | Call outcomes | Most frequent tool | Prompt / generated tokens per call | Progress | Generation time per call |
+|---|---|---|---|---|---|---|
+| `service` level 0 (seed 7) | 46 calls, 0 waits, 2 unparseable | invalid_action 46 | goals.check_now x46 | 3284 / 47 | 0.00 (success False) | 6.2 s |
+| `revenue` level 0 (seed 5) | 33 calls, 15 waits, 0 unparseable | invalid_action 33 | ads.create_campaign x33 | 3434 / 47 | 0.00 (success False) | 4.9 s |
+
+Both runs degenerate into repeating one rejected call (`goals.check_now` with the goal's description pasted in as its `goal` argument;
+`ads.create_campaign` with an invented host `example.com`), both rejected as `invalid_action`, although every result is shown back to the model with Crucible's
+error message. The first replies show the model copying the goal text into tool arguments and writing arithmetic
+(`7*24*60*60`) inside JSON (the two parse failures). Raw records: `runs/crucible_llm/eval_Qwen3-1.7B.json`
+(script `runs/crucible_llm/eval_llm.py`). This is a 2-day probe of a small model with a single prompt format, not a
+benchmark result.
 
 ## 4. CAM 2.0 adapter (`integrations/agentrs_cam2.py`, `agentrs/cam2/envs/crucible_env.py`)
 
@@ -186,18 +196,24 @@ the verified independent revenue of the agent's company over the 7 days before e
 episode return under the reward contract. The learner is compared with the random and idle controls on the same
 seeds.
 
-Conditions (all real runs, CPU, one thread per run, run concurrently):
+Conditions (all real runs, CPU, one thread per run, many runs concurrently on a shared machine; the run sets were
+designed in sequence, each in response to the previous one's measured failure):
 
-| Run set | Lifetime | Tools available to the learner | Company capital | Steps per run |
-|---|---|---|---|---|
-| v1 fork | fork of the start state per episode | all 133 | $4,000 | {{V1_STEPS}} |
-| v1 persistent | one world | all 133 | $4,000 | stopped after 12-24 weeks: see below |
-| v2 persistent | one world | all 133 | $27,000 | {{V2_STEPS}} |
-| v3 fork / persistent | as above | 50 tools of the operations hosts (`market, cloud, bank, biz, ads, support, world`) | $27,000 | {{V3_STEPS}} |
+| Run set | Lifetime | Tools available | Start price | Company capital | Learner settings | Planned / compared |
+|---|---|---|---|---|---|---|
+| v1 fork | fork of the start state per episode | all 133 | 4x rival | $4,000 | logit scale 1/8, entropy 0.01, lr 5e-4, running reward normalisation | 200 / {{V1_N}} weeks |
+| v1 persistent | one world | all 133 | 4x rival | $4,000 | as v1 | stopped after 12-24 weeks |
+| v2 persistent | one world | all 133 | 4x rival | $27,000 | as v1 | stopped after 17-37 weeks |
+| v3 fork / persistent | as above | 50 operations tools | 4x rival | $27,000 | lr 1e-3, fixed reward scale 300 | 200 / {{V3_N}} weeks (fork), 15 weeks (persistent) |
+| v4 / v5 fork | fork | 50 operations tools | at the cheapest rival's price | $27,000 | v5 learner: logit scale 1, entropy 0.003, lr 1e-3, reward scale 300; v4: random and idle controls | 100 / {{V5_N}} weeks |
+| v5 frozen | fork | as v4 | as v4 | $27,000 | the v5 network with lr = 0 (same initialisation and sampling seeds, never updated) | 100 / {{V5_N}} weeks |
 
-The v3 host restriction is an *action-space* restriction of the diagnostic (it names no sequence, tool or argument
-value; the learner still has to find which of 50 tools, which listing and which price help, and that `cloud.undeploy`,
-`cloud.release`, `biz.dissolve` or `market.update status=closed` hurt). Full-tool-list results are reported as well.
+"Operations tools" (v3-v5) = the 50 tools of the hosts `market, cloud, bank, biz, ads, support, world`. This is an
+*action-space* restriction of the diagnostic (it names no sequence, tool or argument value; the learner still has to
+find which tools, listings and prices help, and that e.g. `cloud.undeploy`, `cloud.release`, `biz.dissolve` or
+`market.update status=closed` hurt). The frozen-network control separates learning from the initialisation bias of
+the untrained network (its initial tool distribution is not uniform). Within a panel all runs are compared over the
+same number of episodes (the panel's minimum); "last" = the last 20 of those.
 
 {{RL_RESULTS}}
 
