@@ -312,6 +312,7 @@ class Contracts(Module):
                              "accounts": {"type": "object", "additionalProperties": {"type": "string", "maxLength": 40},
                                           "description": "clause index -> account to pay from"}}, ["contract"]), cost_s=60)
     def ep_sign(self, ctx, contract, as_org=None, accounts=None):
+        """Sign a proposed contract (designate accounts for the payment clauses you owe). It activates when all parties signed."""
         party = ctx.actor
         if as_org:
             party = ident(ctx.world).resolve_handle(ctx.state, as_org)
@@ -320,6 +321,7 @@ class Contracts(Module):
 
     @endpoint("reject", S.obj({"contract": S.s_str(maxLength=40), "as_org": S.s_str(maxLength=40)}, ["contract"]))
     def ep_reject(self, ctx, contract, as_org=None):
+        """Reject a contract proposal addressed to you."""
         party = ident(ctx.world).resolve_handle(ctx.state, as_org) if as_org else ctx.actor
         if as_org:
             ident(ctx.world).authorize(ctx, party, "org.admin")
@@ -354,6 +356,7 @@ class Contracts(Module):
     @endpoint("list", S.obj({"status": S.s_enum(["proposed", "active", "terminating", "completed", "breached",
                                                  "terminated", "rejected"])}), read_only=True)
     def ep_list(self, ctx, status=None):
+        """Contracts you are a party to, optionally filtered by status."""
         out = []
         for p in sorted(ctx.world.principals_of(ctx.actor)):
             for row in ctx.state.find("contract_parties", "party", p):
@@ -365,6 +368,7 @@ class Contracts(Module):
 
     @endpoint("view", S.obj({"contract": S.s_str(maxLength=40)}, ["contract"]), read_only=True)
     def ep_view(self, ctx, contract):
+        """Full text and state of a contract you are a party to (breached contracts are public)."""
         c = ctx.state.get("contracts", contract)
         if c is None:
             raise NotFound("no contract")
@@ -374,6 +378,7 @@ class Contracts(Module):
 
     @endpoint("claims", S.obj(), read_only=True)
     def ep_claims(self, ctx):
+        """Open and settled claims (unpaid obligations) where you are debtor or creditor."""
         out = []
         for p in sorted(ctx.world.principals_of(ctx.actor)):
             for f in ("debtor", "creditor"):
@@ -384,6 +389,7 @@ class Contracts(Module):
     @endpoint("settle_claim", S.obj({"claim": S.s_str(maxLength=40), "account": S.s_str(maxLength=40)},
                                     ["claim", "account"]))
     def ep_settle(self, ctx, claim, account):
+        """Pay an open claim you owe from one of your accounts."""
         cl = ctx.state.get("claims", claim)
         if cl is None or cl["status"] != "open":
             raise NotFound("no open claim")

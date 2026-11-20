@@ -54,6 +54,7 @@ class Jobs(Module):
 
     @endpoint("close", S.obj({"posting": S.s_str(maxLength=40)}, ["posting"]))
     def ep_close(self, ctx, posting):
+        """Close a job posting of your organisation."""
         j = ctx.state.get("postings", posting)
         if j is None:
             raise NotFound("no posting")
@@ -66,6 +67,7 @@ class Jobs(Module):
 
     @endpoint("openings", S.obj({"role": S.s_enum(list(ROLES)), "limit": S.s_int(minimum=1, maximum=50)}), read_only=True)
     def ep_openings(self, ctx, role=None, limit=20):
+        """Open job postings, newest first (optionally by role)."""
         rows = []
         for pid in reversed(ctx.state.find_ids("postings", "status", "open")):
             j = ctx.state.tables["postings"][pid]
@@ -79,6 +81,7 @@ class Jobs(Module):
 
     @endpoint("apply", S.obj({"posting": S.s_str(maxLength=40), "note": S.s_str(maxLength=2000)}, ["posting"]), cost_s=120)
     def ep_apply(self, ctx, posting, note=""):
+        """Apply to an open job posting (persons only)."""
         return {"application": self.apply(ctx, posting, ctx.actor, note)}
 
     def apply(self, ctx, posting, applicant, note=""):
@@ -96,6 +99,7 @@ class Jobs(Module):
 
     @endpoint("applications", S.obj({"posting": S.s_str(maxLength=40)}, ["posting"]), read_only=True)
     def ep_applications(self, ctx, posting):
+        """Applications to a posting of an organisation you administer."""
         j = ctx.state.get("postings", posting)
         if j is None:
             raise NotFound("no posting")
@@ -166,6 +170,7 @@ class Jobs(Module):
 
     @endpoint("bounties", S.obj({"need": S.s_str(maxLength=40)}), read_only=True)
     def ep_bounties(self, ctx, need=None):
+        """Open bounties: need format, reward, required quality, deadline, CPU budget."""
         rows = []
         for bid in ctx.state.find_ids("bounties", "status", "open"):
             b = ctx.state.tables["bounties"][bid]

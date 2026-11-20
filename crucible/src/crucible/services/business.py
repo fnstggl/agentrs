@@ -100,6 +100,7 @@ class Business(Module):
     @endpoint("registry", S.obj({"status": S.s_enum(["registered", "bankrupt", "dissolved"]),
                                  "limit": S.s_int(minimum=1, maximum=100)}), read_only=True)
     def ep_registry(self, ctx, status="registered", limit=50):
+        """Public company registry: registered, bankrupt or dissolved companies."""
         rows = []
         for org in ctx.state.find_ids("companies", "status", status)[-limit:]:
             c = ctx.state.tables["companies"][org]

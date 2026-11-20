@@ -73,11 +73,13 @@ class SelfGoals(Module):
 
     @endpoint("mine", S.obj({"status": S.s_enum(["open", "met", "missed"])}), read_only=True)
     def ep_mine(self, ctx, status=None):
+        """Your private self-goals and their outcomes."""
         return [dict(g, id=gid) for gid in ctx.state.find_ids("self_goals", "owner", ctx.actor)
                 for g in [ctx.state.tables["self_goals"][gid]] if status is None or g["status"] == status]
 
     @endpoint("check_now", S.obj({"goal": S.s_str(maxLength=40)}, ["goal"]), read_only=True)
     def ep_check_now(self, ctx, goal):
+        """Evaluate one of your self-goals against the current state (no recording)."""
         g = ctx.state.get("self_goals", goal)
         if g is None or g["owner"] != ctx.actor:
             raise NotFound("no such goal")

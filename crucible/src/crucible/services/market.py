@@ -132,6 +132,7 @@ class Market(Module):
                                "description": S.s_str(maxLength=3000), "status": S.s_enum(["active", "closed"])},
                               ["listing"]))
     def ep_update(self, ctx, listing, price_cents=None, description=None, status=None):
+        """Change a listing's price, description or status (seller's admins)."""
         l = ctx.state.get("listings", listing)
         if l is None:
             raise NotFound("no listing")
@@ -159,6 +160,7 @@ class Market(Module):
                                "sort": S.s_enum(["new", "price", "rating"]), "limit": S.s_int(minimum=1, maximum=30)}),
               read_only=True)
     def ep_browse(self, ctx, kind=None, need=None, sort="new", limit=10):
+        """Browse active listings (by kind, need, price, rating or recency). Seen hosts become known to you."""
         st = ctx.state
         ids = st.find_ids("listings", "need", need) if need else (st.find_ids("listings", "kind", kind) if kind else st.ids("listings"))
         rows = [(lid, st.tables["listings"][lid]) for lid in ids]
@@ -177,6 +179,7 @@ class Market(Module):
 
     @endpoint("view", S.obj({"listing": S.s_str(maxLength=40)}, ["listing"]), read_only=True)
     def ep_view(self, ctx, listing):
+        """Details of a listing with recent verified reviews; its host becomes known to you."""
         l = ctx.state.get("listings", listing)
         if l is None:
             raise NotFound("no listing")
@@ -225,6 +228,7 @@ class Market(Module):
 
     @endpoint("orders", S.obj({"role": S.s_enum(["buyer", "seller"])}), read_only=True)
     def ep_orders(self, ctx, role="buyer"):
+        """Your orders as buyer or seller."""
         out = []
         for p in sorted(ctx.world.principals_of(ctx.actor)):
             for oid in ctx.state.find_ids("orders", role, p):
@@ -240,6 +244,7 @@ class Market(Module):
 
     @endpoint("deliver", S.obj({"order": S.s_str(maxLength=40), "note": S.s_str(maxLength=1000)}, ["order"]))
     def ep_deliver(self, ctx, order, note=""):
+        """Seller marks an order delivered (goods move to the buyer)."""
         o = self._order_for(ctx, order, "seller")
         if o["status"] != "paid":
             raise Conflict(f"order is {o['status']}")
@@ -252,6 +257,7 @@ class Market(Module):
 
     @endpoint("confirm", S.obj({"order": S.s_str(maxLength=40)}, ["order"]))
     def ep_confirm(self, ctx, order):
+        """Buyer confirms delivery; escrow is released to the seller."""
         o = self._order_for(ctx, order, "buyer")
         if o["status"] not in ("delivered", "paid"):
             raise Conflict(f"order is {o['status']}")
@@ -262,6 +268,7 @@ class Market(Module):
 
     @endpoint("dispute", S.obj({"order": S.s_str(maxLength=40), "reason": S.s_str(maxLength=1000)}, ["order", "reason"]))
     def ep_dispute(self, ctx, order, reason):
+        """Buyer disputes an order; unresolved disputes are arbitrated 50/50 after 7 days."""
         o = self._order_for(ctx, order, "buyer")
         if o["status"] not in ("paid", "delivered"):
             raise Conflict(f"order is {o['status']}")
@@ -271,6 +278,7 @@ class Market(Module):
 
     @endpoint("refund", S.obj({"order": S.s_str(maxLength=40)}, ["order"]))
     def ep_refund(self, ctx, order):
+        """Seller refunds an order from escrow."""
         o = self._order_for(ctx, order, "seller")
         if o["status"] not in ("paid", "delivered", "disputed"):
             raise Conflict(f"order is {o['status']}")
@@ -306,6 +314,7 @@ class Market(Module):
 
     @endpoint("inventory", S.obj(), read_only=True)
     def ep_inventory(self, ctx):
+        """Goods held by you or organisations you administer."""
         out = []
         for p in sorted(ctx.world.principals_of(ctx.actor)):
             for iid in ctx.state.find_ids("inventory", "owner", p):

@@ -156,6 +156,7 @@ class Bank(Module):
 
     @endpoint("balance", S.obj({"account": S.s_str(maxLength=40)}, ["account"]), read_only=True)
     def ep_balance(self, ctx, account):
+        """Balance and status of one account you may read (bank.read)."""
         owner = self.account_owner(ctx.state, account)
         ident(ctx.world).authorize(ctx, owner, "bank.read")
         a = ctx.state.tables["accounts"][account]
@@ -180,6 +181,7 @@ class Bank(Module):
     @endpoint("statement", S.obj({"account": S.s_str(maxLength=40), "limit": S.s_int(minimum=1, maximum=500)},
                                  ["account"]), read_only=True)
     def ep_statement(self, ctx, account, limit=50):
+        """Recent ledger entries of an account you may read, newest first."""
         owner = self.account_owner(ctx.state, account)
         ident(ctx.world).authorize(ctx, owner, "bank.read")
         ids = ctx.state.find_ids("acct_txns", "acct", account)[-limit:]
@@ -209,6 +211,7 @@ class Bank(Module):
 
     @endpoint("invoices", S.obj({"role": S.s_enum(["payer", "payee"])}), read_only=True)
     def ep_invoices(self, ctx, role="payer"):
+        """Invoices addressed to you (role=payer) or issued by you (role=payee)."""
         field = "payer" if role == "payer" else "payee_owner"
         out = []
         for owner in sorted(ctx.world.principals_of(ctx.actor)):
@@ -219,6 +222,7 @@ class Bank(Module):
     @endpoint("pay_invoice", S.obj({"invoice": S.s_str(maxLength=40), "from_account": S.s_str(maxLength=40)},
                                    ["invoice", "from_account"]), cost_s=10)
     def ep_pay_invoice(self, ctx, invoice, from_account):
+        """Pay an open invoice addressed to you from one of your accounts."""
         inv = ctx.state.get("invoices", invoice)
         if inv is None or inv["status"] != "open":
             raise NotFound("no open invoice")
@@ -248,6 +252,7 @@ class Bank(Module):
 
     @endpoint("cancel_mandate", S.obj({"mandate": S.s_str(maxLength=40)}, ["mandate"]))
     def ep_cancel_mandate(self, ctx, mandate):
+        """Cancel a direct-debit mandate you granted."""
         m = ctx.state.get("mandates", mandate)
         if m is None:
             raise NotFound("no mandate")

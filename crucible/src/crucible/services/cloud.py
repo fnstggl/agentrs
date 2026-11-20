@@ -279,6 +279,7 @@ class Cloud(Module):
 
     @endpoint("release", S.obj({"instance": S.s_str(maxLength=40)}, ["instance"]))
     def ep_release(self, ctx, instance):
+        """Release (terminate) an instance; services deployed on it stop."""
         inst = ctx.state.get("instances", instance)
         if inst is None or inst["status"] == "terminated":
             raise NotFound("no such instance")
@@ -297,6 +298,7 @@ class Cloud(Module):
 
     @endpoint("instances", S.obj(), read_only=True)
     def ep_instances(self, ctx):
+        """Your rented instances: provider, cores, status, price and compute used this hour."""
         out = []
         hour = ctx.now // 3600
         for owner in sorted(ctx.world.principals_of(ctx.actor)):
@@ -457,6 +459,7 @@ class Cloud(Module):
 
     @endpoint("undeploy", S.obj({"host": S.s_str(maxLength=31)}, ["host"]))
     def ep_undeploy(self, ctx, host):
+        """Stop a service you operate; its host stops answering."""
         h = ctx.state.get("hosts", host)
         if h is None or not h.get("deployment"):
             raise NotFound("no such host")
@@ -488,6 +491,7 @@ class Cloud(Module):
 
     @endpoint("deployments", S.obj(), read_only=True)
     def ep_deployments(self, ctx):
+        """Deployments operated by you or organisations you administer."""
         out = []
         for owner in sorted(ctx.world.principals_of(ctx.actor)):
             for did in ctx.state.find_ids("deployments", "owner", owner):

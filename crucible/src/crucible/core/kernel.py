@@ -481,7 +481,7 @@ class World:
 
     def available_tools(self, principal: str) -> list[dict]:
         """Built-in well-known tools plus every agent-deployed service the principal has discovered."""
-        tools = [e.spec() for _, e in sorted(self.endpoints.items())]
+        tools = [e.spec() for _, e in sorted(self.endpoints.items()) if e.host != "admin" or principal == SYSTEM]
         fn = self.hooks.get("host_endpoints")
         if fn:
             for kid in self.state.find_ids("knowledge", "principal", principal):

@@ -152,6 +152,7 @@ class Identity(Module):
                                        "org": S.s_str("organisation to update instead of yourself", maxLength=40)},
                                       ["bio"]))
     def ep_update_profile(self, ctx, bio, org=None):
+        """Update your public bio (or an organisation's, as its admin)."""
         target = ctx.actor
         if org:
             target = self.resolve_handle(ctx.state, org)
@@ -189,6 +190,7 @@ class Identity(Module):
 
     @endpoint("respond_invite", S.obj({"invite": S.s_str(maxLength=40), "accept": S.s_bool()}, ["invite", "accept"]))
     def ep_respond_invite(self, ctx, invite, accept):
+        """Accept or decline an organisation invitation."""
         inv = ctx.state.get("invites", invite)
         if inv is None or inv["person"] != ctx.actor or inv["status"] != "pending":
             raise NotFound("no such pending invite")
@@ -207,12 +209,14 @@ class Identity(Module):
 
     @endpoint("invites", S.obj(), read_only=True)
     def ep_invites(self, ctx):
+        """Pending organisation invitations addressed to you."""
         return [dict(i, id=iid) for iid in ctx.state.find_ids("invites", "person", ctx.actor)
                 for i in [ctx.state.tables["invites"][iid]] if i["status"] == "pending"]
 
     @endpoint("set_role", S.obj({"org": S.s_str(maxLength=40), "person": S.s_str(maxLength=40),
                                  "role": S.s_enum(list(ROLES))}, ["org", "person", "role"]))
     def ep_set_role(self, ctx, org, person, role):
+        """Owners change a member's role (owner/admin/member)."""
         org = self.resolve_handle(ctx.state, org)
         person = self.resolve_handle(ctx.state, person)
         if self.role(ctx.state, org, ctx.actor) != "owner":
@@ -226,6 +230,7 @@ class Identity(Module):
 
     @endpoint("leave", S.obj({"org": S.s_str(maxLength=40)}, ["org"]))
     def ep_leave(self, ctx, org):
+        """Leave an organisation (the last owner must transfer ownership first)."""
         org = self.resolve_handle(ctx.state, org)
         if not ctx.state.has("members", f"{org}|{ctx.actor}"):
             raise NotFound("not a member")
@@ -237,6 +242,7 @@ class Identity(Module):
 
     @endpoint("remove", S.obj({"org": S.s_str(maxLength=40), "person": S.s_str(maxLength=40)}, ["org", "person"]))
     def ep_remove(self, ctx, org, person):
+        """Remove a non-owner member from an organisation you administer."""
         org = self.resolve_handle(ctx.state, org)
         person = self.resolve_handle(ctx.state, person)
         self.authorize(ctx, org, "org.admin")
@@ -267,6 +273,7 @@ class Identity(Module):
 
     @endpoint("revoke", S.obj({"grant": S.s_str(maxLength=40)}, ["grant"]))
     def ep_revoke(self, ctx, grant):
+        """Revoke a capability grant you (or your organisation) issued."""
         g = ctx.state.get("grants", grant)
         if g is None:
             raise NotFound("no grant")

@@ -122,6 +122,13 @@ def main():
     regen = World.regenerate(spec, store.read_events("canonical"))
     regen_ok = regen.last_hash == final_hash
     t_regen = time.perf_counter() - t
+    first_diff = None
+    if not regen_ok:
+        for a_, b_ in zip(store.read_events("canonical"), regen.log):
+            if a_["hash"] != b_.hash:
+                first_diff = {"seq": a_["seq"], "t_days": a_["t"] / DAY, "orig": {k: a_[k] for k in ("type", "actor", "payload")},
+                              "regen": {"type": b_.type, "actor": b_.actor, "payload": b_.payload}}
+                break
     # counterfactual: remove the Builder's service in one fork
     cf = {}
     bob_hosts = agents["bob"]["live_hosts"]
@@ -145,7 +152,8 @@ def main():
            "final_digest": final_digest, "snapshots": snaps, "agents": agents, "tool_reuse_rpc_calls": reuse,
            "persistence": {"reload_from_store_equal": reload_ok, "reload_s": round(t_reload, 2),
                            "replay_from_genesis_equal": replay_ok, "replay_s": round(t_replay, 2),
-                           "regeneration_identical_log": regen_ok, "regen_s": round(t_regen, 2)},
+                           "regeneration_identical_log": regen_ok, "regen_s": round(t_regen, 2),
+                           "regeneration_first_divergence": first_diff},
            "counterfactual": cf, "invariants": w.check_invariants(), "timeline": timeline,
            "wall_s_total": round(time.perf_counter() - t_all, 1)}
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)

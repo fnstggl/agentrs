@@ -234,6 +234,7 @@ class Code(Module):
                                     "license": S.s_enum(["closed", "open"], "open = anyone may depend on it"),
                                     "description": S.s_str(maxLength=500)}, ["name"]), cost_s=30)
     def ep_create_repo(self, ctx, name, owner=None, visibility="private", license="closed", description=""):
+        """Create a repository for yourself or an organisation (private by default; open licence allows dependents)."""
         owner = ident(ctx.world).resolve_handle(ctx.state, owner) if owner else ctx.actor
         if owner != ctx.actor:
             ident(ctx.world).authorize(ctx, owner, "code.write")
@@ -257,6 +258,7 @@ class Code(Module):
 
     @endpoint("ls", S.obj({"repo": S.s_str(maxLength=81), "ref": S.s_str(maxLength=40)}, ["repo"]), read_only=True)
     def ep_ls(self, ctx, repo, ref=None):
+        """List the files of a repository you can read (head or a given commit)."""
         if not self.can_read(ctx, repo):
             raise Forbidden(f"no read access to {repo}")
         r = self.repo(ctx.state, repo)
@@ -268,6 +270,7 @@ class Code(Module):
     @endpoint("read", S.obj({"repo": S.s_str(maxLength=81), "path": S.s_str(maxLength=120),
                              "ref": S.s_str(maxLength=40)}, ["repo", "path"]), read_only=True)
     def ep_read(self, ctx, repo, path, ref=None):
+        """Read one file of a repository you can read."""
         if not self.can_read(ctx, repo):
             raise Forbidden(f"no read access to {repo}")
         tree = self.tree(ctx.state, repo, ref)
@@ -278,6 +281,7 @@ class Code(Module):
     @endpoint("log", S.obj({"repo": S.s_str(maxLength=81), "limit": S.s_int(minimum=1, maximum=100)}, ["repo"]),
               read_only=True)
     def ep_log(self, ctx, repo, limit=20):
+        """Commit history of a repository you can read."""
         if not self.can_read(ctx, repo):
             raise Forbidden(f"no read access to {repo}")
         out, cid = [], self.repo(ctx.state, repo)["head"]
@@ -318,6 +322,7 @@ class Code(Module):
     @endpoint("set_visibility", S.obj({"repo": S.s_str(maxLength=81), "visibility": S.s_enum(["private", "public"]),
                                        "license": S.s_enum(["closed", "open"])}, ["repo", "visibility"]))
     def ep_set_visibility(self, ctx, repo, visibility, license=None):
+        """Make a repository public/private and set its licence (open or closed)."""
         r = self.repo(ctx.state, repo)
         ident(ctx.world).authorize(ctx, r["owner"], "org.admin" if r["owner"].startswith("o:") else "code.write")
         ctx.emit("code.visibility", {"id": repo, "visibility": visibility, "license": license or r["license"]},

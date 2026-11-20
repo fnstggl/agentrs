@@ -34,6 +34,7 @@ class Admin(Module):
     @endpoint("endow", S.obj({"principal": S.s_str(maxLength=60), "amount": S.s_int(minimum=1)},
                              ["principal", "amount"]))
     def ep_endow(self, ctx, principal, amount):
+        """Operator only: endow a principal from the genesis account (recorded intervention)."""
         bank = ctx.world.modules["bank"]
         aid = bank.resolve_account(ctx.state, principal)
         return {"txn": bank.move(ctx, "acct_genesis", aid, amount, "endowment", "operator endowment")}
@@ -41,6 +42,7 @@ class Admin(Module):
     @endpoint("set_status", S.obj({"principal": S.s_str(maxLength=60), "status": S.s_enum(["active", "suspended"])},
                                   ["principal", "status"]))
     def ep_set_status(self, ctx, principal, status):
+        """Operator only: activate or suspend a principal (recorded intervention)."""
         if not ctx.state.has("principals", principal):
             raise InvalidAction("unknown principal")
         ctx.emit("principal.update", {"id": principal, "changes": {"status": status}}, vis=(principal,))
