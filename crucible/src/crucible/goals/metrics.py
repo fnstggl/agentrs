@@ -257,3 +257,67 @@ def m_quality_margin(world, org: str, need: str, n: int = 6, seed: int = 0) -> f
         return float(best_mine - best_inc)
     finally:
         f.close()
+
+
+# ============================================================================ open-world outcome metrics
+@metric("revenue_from", "Net inflow (cents) to the principal's accounts from one payer's own accounts over a window "
+        "(0 if the payer is a related party).")
+def m_revenue_from(world, principal: str, payer: str, window_s: int = 14 * 86400) -> float:
+    if payer in related_parties(world, principal):
+        return 0.0
+    inflow, outflow = counterparty_flows(world, principal, window_s).get(payer, [0, 0])
+    return float(max(0, inflow - outflow))
+
+
+@metric("loss_events", "Number of operating loss events of one kind (e.g. capacity_overload) an organisation "
+        "recorded over the last complete days of a window.")
+def m_loss_events(world, org: str, kind: str, window_s: int = 7 * 86400) -> float:
+    st = world.state
+    if "ops_days" not in st.tables:
+        return 0.0
+    today = world.now // 86400
+    n = 0
+    for d in range(today - max(1, window_s // 86400), today):
+        r = st.tables["ops_days"].get(f"{org}|{d}")
+        if r:
+            n += int(r["loss_n"].get(kind, 0))
+    return float(n)
+
+
+@metric("capability_adopters", "Independent organisations (unrelated to the principal) that have kept a capability "
+        "published by the principal (or a party related to it) active - adopted after their own trial - for at least "
+        "min_active_s.")
+def m_capability_adopters(world, principal: str, min_active_s: int = 0) -> float:
+    st = world.state
+    if "cap_installs" not in st.tables:
+        return 0.0
+    rel = related_parties(world, principal)
+    mine = {k for k, c in st.scan("capabilities") if c["provider"] in rel}
+    since: dict[str, int] = {}
+    for _, i in st.scan("cap_installs"):
+        if i["capability"] in mine and i["status"] == "active" and i["installer"] not in rel:
+            t = int(i.get("status_t") or i.get("t") or 0)
+            if world.now - t >= min_active_s:
+                since[i["installer"]] = min(t, since.get(i["installer"], t))
+    return float(len(since))
+
+
+@metric("search_best_rank", "1-based rank of the best organic search result owned by the principal (or a related "
+        "party) for a query, among pages on the synthetic internet; 99 when none is in the first 20.")
+def m_search_best_rank(world, principal: str, q: str, kind: str = "page") -> float:
+    from ..services.search import search_module
+    mod = search_module(world)
+    if mod is None:
+        return 99.0
+    rel = related_parties(world, principal)
+    _, organic, _ = mod.search(world, q, kind, 20)
+    for k, r in enumerate(organic):
+        if r["owner"] in rel:
+            return float(k + 1)
+    return 99.0
+
+
+@metric("search_visibility", "1 / search_best_rank (0 when the principal has no page in the first 20 results).")
+def m_search_visibility(world, principal: str, q: str, kind: str = "page") -> float:
+    r = m_search_best_rank(world, principal, q, kind)
+    return 0.0 if r >= 99 else 1.0 / r

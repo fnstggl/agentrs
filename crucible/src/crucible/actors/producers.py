@@ -215,7 +215,9 @@ def procurement_routine(soc, ctx, mid, m, rng):
             m = dict(st.tables["minds"][mid])
         all_offers = sorted((o["price"], oid, o) for oid, o in st.scan("offers")
                             if o["sku"] == sku and o["status"] == "active" and o["seller"] != m["org"])
-        offers = [x for x in all_offers if ind.qty(st, x[2]["fac"], x[2]["sku"]) > 0]
+        cap_price = _affordable_input_price(st, ind, m, sku)
+        offers = [x for x in all_offers if ind.qty(st, x[2]["fac"], x[2]["sku"]) > 0
+                  and (cap_price is None or x[0] <= cap_price)]
         trust = m["trust"]
         offers = sorted(offers, key=lambda x: (x[0] * (1.5 - soc.trust(m, x[2]["seller"])), x[1]))
         got = 0
@@ -227,6 +229,7 @@ def procurement_routine(soc, ctx, mid, m, rng):
             if r:
                 got += q
                 m = soc.update_trust(ctx, mid, m, o["seller"], 0.2, 0.0)
+                m = soc.add_contact(ctx, mid, m, o["seller"])          # trade partners talk to each other
             if got >= ent["qty"]:
                 break
         del trust
@@ -283,6 +286,32 @@ def _substitute(soc, ctx, mid, m, ent, ind, replace=False):
         soc.remember(ctx, mid, m, "substitute", o["seller"], {"from": ent["sku"], "to": o["sku"]})
 
 
+def _affordable_input_price(st, ind, m, sku) -> float | None:
+    """The most this firm can pay per unit of an input and still sell its output at a margin: output price x
+    measured yield, shared over the design's inputs, x 0.85. None if the firm has no priced output yet."""
+    plans = m["routines"].get("production", {}).get("plans", [])
+    for plan in plans:
+        d = st.get("designs", plan["design"])
+        if d is None or not any(x["sku"] == sku for x in d["inputs"]):
+            continue
+        out_sku = f"i:{plan['design']}"
+        prices = [r["price"] for r in st.find("retail", "seller", m["org"]) if r["sku"] == out_sku and r["status"] == "active"]
+        prices += [o["price"] for o in st.find("offers", "seller", m["org"]) if o["sku"] == out_sku and o["status"] == "active"]
+        if not prices:
+            return None
+        runs = [r for _, r in st.scan("runs") if r["owner"] == m["org"] and r["design"] == plan["design"]
+                and r["status"] == "done"][-8:]
+        y = (sum(r["made"] for r in runs) / max(1, sum(r["units"] for r in runs))) if runs else 0.7
+        n_units = sum(x["qty"] for x in d["inputs"])
+        # the price the firm intends to charge: its current price or its cost-plus target, whichever is higher
+        cost = unit_cost_estimate(ind, st, m["org"], plan["design"])
+        markup = (m["routines"].get("retail_pricing") or m["routines"].get("b2b_pricing") or {}).get("markup") \
+            or 1.4 + 0.4 * m["traits"]["risk"]
+        ref = max(max(prices), (cost or 0) * markup)
+        return 0.85 * ref * max(0.3, y) / max(1, n_units)
+    return None
+
+
 def unit_cost_estimate(ind, st, org, design_id) -> float | None:
     """What a good unit of a design costs the firm, from its own records: recent purchase prices of its inputs,
     its measured yield and energy per good unit on recent runs (at the current grid price), and labour."""
@@ -297,7 +326,10 @@ def unit_cost_estimate(ind, st, org, design_id) -> float | None:
     y = made / units
     c = 0.0
     for x in d["inputs"]:
-        paid = [t["price"] for _, t in st.scan("trade_orders") if t["buyer"] == org and t["sku"] == x["sku"]][-5:]
+        # replacement cost: what the input costs on the market now (else what was last paid for it)
+        paid = sorted(o["price"] for _, o in st.scan("offers") if o["sku"] == x["sku"] and o["status"] == "active")[:1]
+        if not paid:
+            paid = [t["price"] for _, t in st.scan("trade_orders") if t["buyer"] == org and t["sku"] == x["sku"]][-5:]
         if paid:
             c += x["qty"] * (sum(paid) / len(paid)) / y
     fac = st.tables["machines"][runs[-1]["machine"]]["facility"]
@@ -318,29 +350,50 @@ def unit_cost(ind, st, d, mach_model) -> float:
     return c
 
 
+def _price_step(p, floor, cost, markup, have, per_day):
+    """One day of cost-plus pricing with inventory feedback: move toward cost x markup; nudge up when stock covers
+    less than a day of sales, down when it covers more than six; never below floor or above 2.5x the target."""
+    target = cost * markup if cost else p
+    cover = have / max(1e-9, per_day) if per_day > 0 else (99.0 if have > 0 else 0.0)
+    if cover < 1 and per_day > 0:
+        p = p * 1.03
+    elif cover > 6:
+        p = p * 0.97
+    p = p + 0.1 * (target - p)
+    return int(max(floor, min(p, 2.5 * target if target else p)))
+
+
 def pricing_routine_b2b(soc, ctx, mid, m, rng):
     st = ctx.state
     ind = ctx.world.modules["industry"]
     caps = ctx.world.modules["caps"]
     cfg = m["routines"].get("b2b_pricing", {})
+    markup = cfg.get("markup") or round(1.25 + 0.3 * m["traits"]["risk"], 3)
     for oid in sorted(st.find_ids("offers", "seller", m["org"])):
         o = st.tables["offers"][oid]
         if o["status"] != "active" or caps.is_delegated(st, m["org"], o["fac"], "make.trade"):
             continue
         have = ind.qty(st, o["fac"], o["sku"])
-        sold = sum(t["qty"] for t in st.find("trade_orders", "offer", oid) if t["t"] >= ctx.now - 3 * DAY)
-        floor = cfg.get("floor", {}).get(o["sku"], 1)
-        uc = unit_cost_estimate(ind, st, m["org"], o["sku"][2:]) if o["sku"].startswith("i:") else None
-        if uc:
-            floor = max(floor, int(uc * cfg.get("min_markup", 1.1)))
-        p = o["price"]
-        if have == 0 and sold > 0:
-            p = int(math.ceil(p * 1.05))
-        elif sold == 0 and have > cfg.get("high_stock", 300):
-            p = max(floor, int(p * 0.96))
-        p = max(p, floor)
+        sold = sum(t["qty"] for t in st.find("trade_orders", "offer", oid) if t["t"] >= ctx.now - 3 * DAY) / 3.0
+        missed = sum(v for d_, v in (o.get("missed") or {}).items() if int(d_) >= ctx.now // DAY - 2) / 3.0
+        cost = _unit_cost_any(ind, st, m, o["sku"])
+        floor = max(cfg.get("floor", {}).get(o["sku"], 1) if not cost else 1, int(cost * 1.1) if cost else 1)
+        p = _price_step(o["price"], floor, cost, markup, have, sold + missed)
         if p != o["price"]:
             soc.act(ctx, m["owner"], "make.offer", {"facility": o["fac"], "sku": o["sku"], "price_cents": p})
+
+
+def _unit_cost_any(ind, st, m, sku):
+    """Unit cost of an item the firm makes: designed items through their recent runs; extracted materials through
+    the energy and labour of recent extraction runs."""
+    if sku.startswith("i:"):
+        return unit_cost_estimate(ind, st, m["org"], sku[2:])
+    runs = [r for _, r in st.scan("runs") if r["owner"] == m["org"] and r["status"] == "done"
+            and (st.get("designs", r["design"]) or {}).get("material") == sku][-8:]
+    made = sum(r["made"] for r in runs)
+    if not made:
+        return None
+    return (sum(r["kwh"] for r in runs) * 15.0 + sum(r["labor_h"] for r in runs) * 1300.0) / made
 
 
 def pricing_routine_retail(soc, ctx, mid, m, rng):
@@ -348,20 +401,17 @@ def pricing_routine_retail(soc, ctx, mid, m, rng):
     ind = ctx.world.modules["industry"]
     caps = ctx.world.modules["caps"]
     cfg = m["routines"].get("retail_pricing", {})
+    markup = cfg.get("markup") or round(1.4 + 0.4 * m["traits"]["risk"], 3)
     for rid in sorted(st.find_ids("retail", "seller", m["org"])):
         r = st.tables["retail"][rid]
         if r["status"] != "active" or caps.is_delegated(st, m["org"], rid, "market.manage"):
             continue
         have = ind.qty(st, r["fac"], r["sku"])
-        floor = cfg.get("floor", 1)
-        uc = unit_cost_estimate(ind, st, m["org"], r["sku"][2:]) if r["sku"].startswith("i:") else None
-        if uc:
-            floor = max(floor, int(uc * cfg.get("min_markup", 1.15)))
-        p = r["price"]
-        if have == 0 and r.get("sold_y", 0) > 0:
-            p = int(math.ceil(p * 1.04))
-        elif r.get("sold_y", 0) == 0 and have > cfg.get("high_stock", 200):
-            p = max(floor, int(p * 0.95))
+        stockouts = sum((st.get("ops_days", f"{m['org']}|{d}") or {"loss_n": {}})["loss_n"].get("stockout", 0)
+                        for d in range(ctx.now // DAY - 2, ctx.now // DAY + 1)) / 3.0
+        cost = _unit_cost_any(ind, st, m, r["sku"])
+        floor = max(cfg.get("floor", 1) if not cost else 1, int(cost * 1.1) if cost else 1)
+        p = _price_step(r["price"], floor, cost, markup, have, r.get("sold_y", 0) + stockouts)
         # competition: a close substitute (attributes within 0.3) that is cheaper pulls the price down
         s = ind.stock(st, r["fac"], r["sku"])
         if s is not None and s["v"]:
@@ -371,7 +421,6 @@ def pricing_routine_retail(soc, ctx, mid, m, rng):
                 s2 = ind.stock(st, r2["fac"], r2["sku"])
                 if s2 and s2["v"] and np.abs(np.array(s2["v"]) - np.array(s["v"])).sum() < 0.3 and s2["qty"] > 0:
                     p = max(floor, int(min(p, r2["price"] * 1.02)))
-        p = max(p, floor)
         if p != r["price"]:
             soc.act(ctx, m["owner"], "make.sell", {"facility": r["fac"], "sku": r["sku"], "price_cents": p})
 

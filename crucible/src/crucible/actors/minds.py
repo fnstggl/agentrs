@@ -57,6 +57,8 @@ LOSS_TEXT = {
     "late_delivery": "{n} shipments arrived late in the last {d} days.",
     "defects": "{n} units failed inspection in the last {d} days (about {v} of wasted output).",
     "energy_curtailment": "Production runs were refused {n} times in the last {d} days because the grid was full.",
+    "capacity_unavailable": "Our compute provider had no free cores {n} times in the last {d} days when our service "
+                            "needed more; we could not scale at the busiest hours.",
 }
 COST_TEXT = "We spend about {v} per day on {k} ({p:.0f}% of our revenue) and would like to spend less."
 SEARCH_WORDS = {"cost:compute": "compute cost instance cores idle capacity cloud scaling",
@@ -72,7 +74,8 @@ SEARCH_WORDS = {"cost:compute": "compute cost instance cores idle capacity cloud
                 "supply_shortfall": "supplier procurement sourcing reliability",
                 "late_delivery": "logistics shipping routing delivery",
                 "defects": "quality inspection defects process",
-                "energy_curtailment": "energy efficiency power grid process"}
+                "energy_curtailment": "energy efficiency power grid process",
+                "capacity_unavailable": "provider capacity full cores unavailable placement migrate scaling peak"}
 
 
 def _beta_mean(t):
@@ -442,6 +445,8 @@ class Society(Module):
             if b is None:
                 continue
             rel, w = self.prior(ctx, m, cid)
+            if w == 0 and m["traits"]["openness"] < self.p("social_proof_openness", 0.25):
+                continue                 # wait for evidence from others before trying something new
             cost = self.daily_cost(st, cid)
             risk = self.risk(m, c)
             gain = (w * rel * rev_day + p0 * stake) / (w + 1.0) if w > 0 else p0 * stake
@@ -456,8 +461,14 @@ class Society(Module):
         if ev <= 0 or rng.random() > 0.6 + 0.4 * m["traits"]["openness"]:
             return
         days = 10 + 2 * int(3 * (1.0 - m["traits"]["risk"]))     # cautious firms run longer trials
+        c = st.tables["capabilities"][cid]
+        # capabilities that change the state of physical resources (maintenance, production, trade) have effects
+        # that outlast a day: use blocks with washout, extended while inconclusive
+        stateful = any(q["cap"] in ("make.maintain", "make.operate", "make.trade", "cloud.deploy") for q in c["requires"])
+        design = {"design": "sequential", "block_days": 4, "washout_days": 2, "max_days": 40, "trial_days": 16} \
+            if stateful and not self.p("trial_design_switchback", False) else {"design": "switchback", "trial_days": days}
         r = self.act(ctx, m["owner"], "caps.install", {"capability": cid, "org": org, "bindings": b, "trial": True,
-                                                        "trial_days": days, "publish_outcome": False})
+                                                        "publish_outcome": False, **design})
         tried = sorted(set(m["tried"]) | {cid})
         stats = dict(m["stats"], trials=m["stats"]["trials"] + (1 if r else 0))
         self.set(ctx, mid, tried=tried, stats=stats)
@@ -502,6 +513,12 @@ class Society(Module):
             share = rng.random() < m["traits"]["share"]
             if share and not self.p("ablate_sharing", False):
                 self.act(ctx, m["owner"], "caps.publish_evidence", {"evidence": i["evidence"]})
+                if "forum" in ctx.world.modules and rng.random() < 0.5 + 0.5 * m["traits"]["sociability"]:
+                    verdict = "worth it" if keep else "not worth it"
+                    self.act(ctx, m["owner"], "forum.post", {
+                        "board": "general", "title": f"Our trial of {c['title'][:60]}: {verdict}",
+                        "body": f"We ran a randomised trial of capability {i['capability']} on our own books: "
+                                f"{effect:+.0f} cents/day (+/- {se:.0f}). Verified outcome: #evidence {i['evidence']}"})
             if not self.p("ablate_sharing", False):
                 m = self.tell_contacts(ctx, mid, m, i["capability"], i["evidence"], keep, rng)
         return m
@@ -660,6 +677,10 @@ class Society(Module):
     def ap_layoff(self, ev):
         return None
 
+    @applier("society.llm_decision")
+    def ap_llm_decision(self, ev):
+        return None
+
 
 # ====================================================================== default routines for digital firms
 def capacity_routine(soc: Society, ctx: Ctx, mid: str, m: dict, rng) -> None:
@@ -673,7 +694,8 @@ def capacity_routine(soc: Society, ctx: Ctx, mid: str, m: dict, rng) -> None:
         if dep is None or dep["status"] != "live":
             continue
         inst = st.get("instances", dep["instance"])
-        if inst is None or inst["status"] != "running" or caps.is_delegated(st, m["org"], dep["instance"], "cloud.manage"):
+        if inst is None or inst["status"] != "running" or caps.is_delegated(st, m["org"], dep["instance"], "cloud.manage") \
+                or caps.is_delegated(st, m["org"], host, "cloud.manage"):
             continue
         met = soc.act(ctx, m["owner"], "cloud.metrics", {"host": host, "hours": 24})
         if not met:

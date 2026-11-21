@@ -271,8 +271,15 @@ class Capabilities(Module):
                      "description": "param -> your resource id (or a value)"},
         "trial": S.s_bool("run as a switchback trial (alternate on/off days) with a world-verified outcome"),
         "trial_days": S.s_int(minimum=4, maximum=60),
+        "design": S.s_enum(["switchback", "washout", "sequential"],
+                           "switchback: random on/off day pairs; washout: random on/off blocks whose first days are "
+                           "not measured (for effects that carry over); sequential: washout blocks, extended while "
+                           "inconclusive (up to max_days)"),
+        "block_days": S.s_int(minimum=2, maximum=10), "washout_days": S.s_int(minimum=0, maximum=5),
+        "max_days": S.s_int(minimum=8, maximum=90),
         "publish_outcome": S.s_bool("make the verified trial outcome public")}, ["capability", "org"]), cost_s=60)
-    def ep_install(self, ctx, capability, org, bindings=None, trial=False, trial_days=None, publish_outcome=False):
+    def ep_install(self, ctx, capability, org, bindings=None, trial=False, trial_days=None, publish_outcome=False,
+                   design="switchback", block_days=3, washout_days=1, max_days=40):
         """Put a capability to work for an organisation you administer: creates the delegated grants and triggers
         the descriptor asks for, bound to your resources, and (unless in trial) the subscription."""
         st = ctx.state
@@ -306,19 +313,27 @@ class Capabilities(Module):
         for t in c["triggers"]:
             trigs.append(wf.create_trigger(ctx, org, ctx.actor, f"{c['host']}.{t['endpoint']}", _bind(t["args"], bindings),
                                            t["every_s"], t["on_event"], 0, None, f"cap {capability}"))
-        schedule = None
+        schedule = use = None
         if trial:
             n = int(trial_days or max(6, c["trial_days"] or 8))
-            n += n % 2
             rng = ctx.rng("trial", org, capability)
-            schedule = []
-            for _ in range(n // 2):        # randomised pairs: one on day and one off day per pair
-                schedule.extend([1, 0] if rng.random() < 0.5 else [0, 1])
+            if design == "switchback":
+                n += n % 2
+                schedule = []
+                for _ in range(n // 2):        # randomised pairs: one on day and one off day per pair
+                    schedule.extend([1, 0] if rng.random() < 0.5 else [0, 1])
+                use = [1] * len(schedule)
+            else:
+                if washout_days >= block_days:
+                    raise InvalidAction("washout_days must be shorter than block_days")
+                schedule, use = self.blocks(rng, max(1, n // (2 * block_days)), block_days, washout_days)
         iid = st.new_id("inst_cap")
         indep = not self.related(ctx.world, org, c["provider"])
         ctx.emit("caps.installed", {"id": iid, "capability": capability, "installer": org, "by": ctx.actor,
                                     "bindings": bindings, "grants": grants, "triggers": trigs, "independent": indep,
-                                    "schedule": schedule, "start_day": ctx.now // DAY + 1,
+                                    "schedule": schedule, "use": use, "start_day": ctx.now // DAY + 1,
+                                    "design": design if trial else None, "block_days": block_days,
+                                    "washout_days": washout_days, "max_days": max_days,
                                     "publish_outcome": bool(publish_outcome)}, vis=(org, c["provider"]))
         for tid in trigs:   # trials begin at the next day boundary; until then nothing runs
             if schedule is not None:
@@ -399,20 +414,42 @@ class Capabilities(Module):
                 for i in ids]
 
     # ------------------------------------------------------------------ daily: trial schedules, billing, outcomes
+    @staticmethod
+    def blocks(rng, pairs: int, block: int, washout: int) -> tuple[list[int], list[int]]:
+        """Randomised on/off blocks; the first `washout` days of every block are not measured."""
+        sched, use = [], []
+        for _ in range(pairs):
+            order = [1, 0] if rng.random() < 0.5 else [0, 1]
+            for flag in order:
+                sched += [flag] * block
+                use += [0] * washout + [1] * (block - washout)
+        return sched, use
+
     def outcome(self, world, i: dict) -> dict:
         ops = world.modules["ops"]
         st = world.state
+        from ..economy.operations import NON_OPERATING, operating_result
         on, off, rev = [], [], []
-        for k, flag in enumerate(i["schedule"] or []):
+        first_on, first_off, later_on, later_off = [], [], [], []
+        sched = i["schedule"] or []
+        use = i.get("use") or [1] * len(sched)
+        for k, flag in enumerate(sched):
             d = i["start_day"] + k
             r = ops.day(st, i["installer"], d)
-            from ..economy.operations import NON_OPERATING, operating_result
-            v = operating_result(r)
-            (on if flag else off).append(v)
+            v = operating_result(r, exclude_inventory=True)
             if r:
                 rev.append(sum(x for kk, x in r["flows"].items() if x > 0 and kk not in NON_OPERATING))
+            switched = k == 0 or sched[k - 1] != flag
+            ((first_on if flag else first_off) if switched else (later_on if flag else later_off)).append(v)
+            if use[k]:
+                (on if flag else off).append(v)
         if not on or not off:
             return {}
+        carry = None
+        if first_on and first_off and later_on and later_off:
+            # effect measured right after a switch vs later in a block: a large gap suggests carry-over
+            carry = round((float(np.mean(later_on)) - float(np.mean(later_off))) -
+                          (float(np.mean(first_on)) - float(np.mean(first_off))), 2)
         mu_on, mu_off = float(np.mean(on)), float(np.mean(off))
         var = (float(np.var(on, ddof=1)) if len(on) > 1 else 0.0) / len(on) + \
               (float(np.var(off, ddof=1)) if len(off) > 1 else 0.0) / len(off)
@@ -421,8 +458,15 @@ class Capabilities(Module):
         return {"effect_per_day": round(mu_on - mu_off, 2), "se": round(se, 2), "days_on": len(on),
                 "days_off": len(off), "mean_on": round(mu_on, 2), "mean_off": round(mu_off, 2),
                 "rel_effect": round((mu_on - mu_off) / mean_rev, 4) if mean_rev > 0 else None,
-                "mean_revenue_per_day": round(mean_rev, 2), "metric": "operating_result_cents_per_day",
-                "design": "randomised switchback (paired days)"}
+                "mean_revenue_per_day": round(mean_rev, 2),
+                "metric": "operating_result_excl_inventory_purchases_cents_per_day",
+                "design": {"switchback": "randomised switchback (paired days)", None: "randomised switchback (paired days)",
+                           "washout": f"randomised blocks of {i.get('block_days')} days, first {i.get('washout_days')} "
+                                      f"not measured", "sequential": "sequential randomised blocks with washout"}
+                .get(i.get("design"), str(i.get("design"))),
+                "days_measured": len(on) + len(off), "days_total": len(sched),
+                "carryover_gap": carry,
+                "carryover_suspected": carry is not None and abs(carry) > 2 * se and len(first_on) >= 2}
 
     @process("daily")
     def pr_daily(self, ctx):
@@ -437,6 +481,15 @@ class Capabilities(Module):
             prov_dep = ctx.world.modules["cloud"].live_deployment(st, c["host"])
             if i["status"] == "trial":
                 k = today - i["start_day"]
+                if k >= len(i["schedule"]) and i.get("design") == "sequential" and \
+                        len(i["schedule"]) + 2 * i["block_days"] <= i["max_days"]:
+                    d = self.outcome(ctx.world, i)
+                    if d and abs(d["effect_per_day"]) < 2 * d["se"]:      # inconclusive: run another pair of blocks
+                        s2, u2 = self.blocks(ctx.rng("trial-ext", iid, len(i["schedule"])), 1, i["block_days"],
+                                             i["washout_days"])
+                        ctx.emit("caps.extend", {"id": iid, "schedule": list(i["schedule"]) + s2,
+                                                 "use": list(i.get("use") or []) + u2}, vis=(i["installer"],))
+                        i = st.tables["cap_installs"][iid]
                 if k >= len(i["schedule"]):
                     data = self.outcome(ctx.world, i)
                     eid = st.new_id("evid")
@@ -713,6 +766,10 @@ class Capabilities(Module):
                  on_today=p["schedule"] is None, evidence=None)
         self.world.state.insert("cap_installs", p.pop("id"), p)
 
+    @applier("caps.extend")
+    def ap_extend(self, ev):
+        self.world.state.patch("cap_installs", ev.payload["id"], schedule=ev.payload["schedule"], use=ev.payload["use"])
+
     @applier("caps.on")
     def ap_on(self, ev):
         self.world.state.patch("cap_installs", ev.payload["id"], on_today=ev.payload["on"])
@@ -720,7 +777,7 @@ class Capabilities(Module):
     @applier("caps.install_status")
     def ap_install_status(self, ev):
         p = ev.payload
-        ch = {"status": p["status"], "reason": p.get("reason", "")}
+        ch = {"status": p["status"], "reason": p.get("reason", ""), "status_t": ev.t}
         if p.get("evidence"):
             ch["evidence"] = p["evidence"]
         if p["status"] in ("removed", "paused", "evaluated"):

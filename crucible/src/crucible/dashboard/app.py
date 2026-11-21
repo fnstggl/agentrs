@@ -12,6 +12,13 @@ fork lineage and snapshots, evaluation (invariants, metrics, emergence), trace /
 `/w/<id>/metrics` in Prometheus text format. `/experiments` shows experiment, evaluation and league JSON files
 (tables and learning / reward curves). JSON mirrors live under `/api/...`.
 
+Open-world views (each tolerates worlds without the relevant modules): `/w/<id>/internet` (web sites, crawled
+pages, host link graph, registered names, traffic by outcome), `/society` (simulated minds, firm goals and stats,
+trust graph), `/markets` (capabilities, emergent markets, categories, problem requests, retail listings, B2B
+offers), `/infrastructure` (compute providers and utilisation, outages, hardware orders, energy grids, freight
+links), `/agents` (active non-NPC persons and their recent commands) and `/open` (the open-endedness census). The
+data builders are shared with the CLI (`crucible internet | society | markets | infrastructure | census W`).
+
 The dashboard never mutates a world: it only serves GET routes, loads worlds itself with `World.load` (no writer
 lease) behind a store wrapper that refuses writes, reads state directly, and follows new events appended by a
 writer process (incremental catch-up with hash-chain verification).
@@ -35,6 +42,12 @@ from ..analytics import DAY, NOISE_TYPES, accounts_of, has_table, hosts_of, mone
 COMM_HOSTS = {"mail", "docs", "cal", "support", "issues", "forum"}
 COMM_PREFIXES = ("mail.", "docs.", "cal.", "support.msg", "issues.", "forum.", "contracts.note")
 PALETTE = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)"]
+OPEN_VIEWS = [("synthetic internet: sites, pages, link graph, names, traffic", "internet"),
+              ("society: simulated minds, firm goals, trust graph", "society"),
+              ("markets: capabilities, emergent markets, problem requests, retail, B2B offers", "markets"),
+              ("infrastructure: compute providers, outages, hardware, energy grids, freight", "infrastructure"),
+              ("agents: active learning agents and their recent commands", "agents"),
+              ("open-world census, capabilities, trials, technology graph", "open")]
 TEMPLATES = os.path.join(os.path.dirname(__file__), "templates")
 
 
@@ -155,6 +168,52 @@ def svg_lines(series: dict[str, list], width: int = 720, height: int = 240, xlab
                      f'</polyline>')
         parts.append(f'<rect x="{L + pw + 10}" y="{T + 4 + 16 * i}" width="10" height="10" fill="{c}"/>')
         parts.append(f'<text x="{L + pw + 24}" y="{T + 13 + 16 * i}">{_e(str(k)[:22])}</text>')
+    parts.append("</svg>")
+    return Markup("".join(parts))
+
+
+def svg_graph(nodes: list[tuple[str, float]], edges: list[tuple[str, str, float]], width: int = 720,
+              height: int = 440, max_nodes: int = 40, gid: str = "g") -> Markup:
+    """Directed graph with nodes on a circle: nodes = [(id, weight)] (radius grows with weight), edges =
+    [(src, dst, weight)] drawn as arrows (width grows with weight). Up to `max_nodes` nodes (heaviest first)."""
+    nodes = sorted(((str(k), float(v)) for k, v in nodes), key=lambda kv: (-kv[1], kv[0]))[:max_nodes]
+    if not nodes:
+        return Markup('<p class="muted">no data</p>')
+    nodes.sort()
+    n = len(nodes)
+    cx, cy = width / 2, height / 2
+    rad = min(width - 260, height - 60) / 2
+    pos, ang = {}, {}
+    for i, (k, _) in enumerate(nodes):
+        a = 2 * math.pi * i / n - math.pi / 2
+        ang[k] = a
+        pos[k] = (cx, cy) if n == 1 else (cx + rad * math.cos(a), cy + rad * math.sin(a))
+    nmax = max(v for _, v in nodes) or 1.0
+    size = {k: 5 + 9 * math.sqrt(max(v, 0) / nmax) for k, v in nodes}
+    es = [(str(s), str(d), float(x)) for s, d, x in edges if str(s) in pos and str(d) in pos and str(s) != str(d)]
+    emax = max((x for _, _, x in es), default=1.0) or 1.0
+    parts = [f'<svg viewBox="0 0 {width} {height}" width="{width}" height="{height}" role="img">',
+             f'<defs><marker id="arr-{_e(gid)}" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" '
+             f'markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--c6)"/></marker></defs>']
+    for s, d, x in es:
+        (x1, y1), (x2, y2) = pos[s], pos[d]
+        dist = math.hypot(x2 - x1, y2 - y1) or 1.0
+        ux, uy = (x2 - x1) / dist, (y2 - y1) / dist
+        a1, a2 = size[s] + 1, size[d] + 3
+        parts.append(f'<line x1="{x1 + ux * a1:.1f}" y1="{y1 + uy * a1:.1f}" x2="{x2 - ux * a2:.1f}" '
+                     f'y2="{y2 - uy * a2:.1f}" stroke="var(--c6)" stroke-opacity="0.7" '
+                     f'stroke-width="{1 + 2.5 * x / emax:.1f}" marker-end="url(#arr-{_e(gid)})">'
+                     f'<title>{_e(s)} -> {_e(d)}: {_e(_short_num(x))}</title></line>')
+    for k, v in nodes:
+        x, y = pos[k]
+        parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{size[k]:.1f}" fill="var(--c1)">'
+                     f'<title>{_e(k)}: {_e(_short_num(v))}</title></circle>')
+        c = math.cos(ang[k]) if n > 1 else 0.0
+        anchor = "start" if c > 0.25 else ("end" if c < -0.25 else "middle")
+        off = size[k] + 4
+        lx = x + (off if anchor == "start" else -off if anchor == "end" else 0)
+        ly = y + (4 if anchor != "middle" else (-off if math.sin(ang[k]) < 0 or n == 1 else off + 10))
+        parts.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}">{_e(k[:28])}</text>')
     parts.append("</svg>")
     return Markup("".join(parts))
 
@@ -560,7 +619,8 @@ def make_app(store=None, *, store_url: str | None = None, worlds=None, world=Non
                  "rows": [[k, v] for k, v in sorted(m.get("kernel", {}).items())]},
                 {"kind": "table", "title": "Contracts / claims / listings / tickets", "columns": ["table", "status", "n"],
                  "rows": [[t, k, v] for t in ("contracts", "claims", "listings", "tickets")
-                          for k, v in sorted(m.get(t, {}).items())]}]
+                          for k, v in sorted(m.get(t, {}).items())]},
+                open_links(wid)]
         sub = f"{m['family']} seed {m['seed']} · spec {m['spec_hash']}" + \
               (f" · forked from {o['parent']['world']}@{o['parent']['seq']}" if o["parent"] else "")
         return page(request, f"World {wid}", secs, wid, sub)
@@ -768,12 +828,310 @@ def make_app(store=None, *, store_url: str | None = None, worlds=None, world=Non
                          "columns": ["id", "by", "day", "title", "tags", "status"],
                          "rows": [[k, r["by"], r["t"] // DAY, r["title"], " ".join(r["tags"]), r["status"]]
                                   for k, r in list(st.scan("ops_requests"))[-50:]]})
+        secs.insert(0, open_links(wid))
         return page(request, "Open world", secs, wid)
 
     @app.get("/api/w/{wid}/open")
     def api_open(wid: str):
         from ..evaluation.open_endedness import census
         return census(W.get(wid))
+
+    # ------------------------------------------------------------------ open-world views (internet, society, ...)
+    def open_links(wid) -> dict:
+        return {"kind": "links", "title": "Open-world views",
+                "items": [(t, f"{root}/w/{wid}/{p}") for t, p in OPEN_VIEWS]}
+
+    def absent(what: str) -> dict:
+        return {"kind": "pre", "text": f"This world has no {what}."}
+
+    @app.get("/w/{wid}/internet", response_class=HTMLResponse)
+    def internet_page(request: Request, wid: str):
+        """Synthetic internet topology: sites, crawled pages, host link graph, registered names, traffic."""
+        from ..cli import internet_view
+        w = W.get(wid)
+        d = internet_view(w)
+        if not d["available"]:
+            return page(request, "Synthetic internet", [absent("synthetic internet (module net absent)"),
+                                                        open_links(wid)], wid)
+        t = d["totals"]
+        secs = [{"kind": "cards", "items": [("sites live / total", f"{t['live_sites']} / {t['sites']}"),
+                                            ("pages crawled", t["pages"]), ("pages indexable", t["pages_indexed"]),
+                                            ("cross-site link edges", t["cross_site_edges"]),
+                                            ("registered names", t["domains"]), ("app DB records", t["records"]),
+                                            ("requests (7 days)", t["requests_7d"])]},
+                {"kind": "table", "title": "Web sites",
+                 "note": "Live deployments whose manifest has a web section; traffic counts every recorded request "
+                         "(agents, browsers and the crawler).",
+                 "columns": ["host", "title", "names", "owner", "provider", "status", "routes", "pages indexed / "
+                             "crawled", "inbound links (hosts)", "outbound", "app DB records", "sessions",
+                             "requests (last day)"],
+                 "rows": [[ent(wid, s["host"]), s["title"], ", ".join(s["names"]), ent(wid, s["owner"]), s["provider"],
+                           s["status"] if s["live"] else {"text": s["status"], "cls": "sev3"}, s["routes"],
+                           f"{s['pages_indexed']} / {s['pages']}", s["inbound_links"], len(s["outbound_hosts"]),
+                           s["records"], s["sessions"],
+                           (f"d{s['last_day']}: " + ", ".join(f"{k} {v}" for k, v in sorted(
+                               s["requests_last_day"].items()))) if s["last_day"] is not None else None]
+                          for s in d["sites"]]},
+                {"kind": "svg", "title": "Link graph (sites; arrows = pages on one host linking to another)",
+                 "svg": svg_graph([(s["host"], 1 + s["inbound_links"]) for s in d["sites"]] +
+                                  [(h, 1) for h in sorted({e["dst"] for e in d["edges"]} | {e["src"] for e in d["edges"]}
+                                                          - {s["host"] for s in d["sites"]})],
+                                  [(e["src"], e["dst"], e["links"]) for e in d["edges"]], gid="web")},
+                {"kind": "table", "title": "Link edges (host to host)", "columns": ["from", "to", "linking pages"],
+                 "rows": [[ent(wid, e["src"]), ent(wid, e["dst"]), e["links"]] for e in d["edges"]]},
+                {"kind": "svg", "title": "Requests per day by site (all outcomes)",
+                 "svg": svg_lines({h: [[int(dd), sum(c.values())] for dd, c in days.items()]
+                                   for h, days in d["traffic"].items()}, ylabel="requests")},
+                {"kind": "table", "title": "Registered names", "columns": ["name", "owner", "points to", "status", "since"],
+                 "rows": [[f"{x['name']}.crucible", ent(wid, x["owner"]), x["host"], x["status"],
+                           _fmt_t(x["t"]) if x["t"] is not None else None] for x in d["domains"]]},
+                {"kind": "table", "title": "Crawled pages", "columns": ["url", "title", "links to", "indexable", "crawled"],
+                 "rows": [[p["url"], p["title"], ", ".join(p["links"]), not p["noindex"], _fmt_t(p["t"])]
+                          for p in d["pages"][:500]]},
+                open_links(wid)]
+        return page(request, "Synthetic internet", secs, wid, f"day {d['day']}")
+
+    @app.get("/api/w/{wid}/internet")
+    def api_internet(wid: str):
+        from ..cli import internet_view
+        return _json(internet_view(W.get(wid)))
+
+    @app.get("/w/{wid}/society", response_class=HTMLResponse)
+    def society_page(request: Request, wid: str):
+        """Simulated minds: counts by kind/role, firms with goals and stats, people, the trust graph."""
+        from ..cli import society_view
+        w = W.get(wid)
+        d = society_view(w)
+        if not d["available"]:
+            return page(request, "Society", [absent("simulated minds (module society absent)"), open_links(wid)], wid)
+
+        def goals(gs):
+            return "; ".join(f"{g.get('kind')}:{g.get('key')} ({g.get('priority')})" for g in gs) or None
+
+        def stats(s):
+            return ", ".join(f"{k} {v}" for k, v in sorted(s.items()) if v) or None
+        secs = [{"kind": "cards", "items": [(f"{k} minds", v) for k, v in d["counts"].items()] +
+                 [("trust relations", len(d["trust"])), ("memory entries", sum(d["memory_kinds"].values()))]},
+                {"kind": "svg", "title": "Minds by kind / role", "svg": svg_bars(list(d["roles"].items()))},
+                {"kind": "table", "title": "Firms", "note": "Goals are acquired by each firm from its own situation; "
+                                                           "they are never handed down by the simulator.",
+                 "columns": ["firm", "name", "role", "owner", "goals", "stats", "contacts", "trusts", "tried",
+                             "risk", "openness", "share"],
+                 "rows": [[ent(wid, f["org"] or f["id"]), f["org_name"], f["role"], ent(wid, f["owner"]), goals(f["goals"]),
+                           stats(f["stats"]), f["contacts"], f["trusted"], f["tried"], f["traits"].get("risk"),
+                           f["traits"].get("openness"), f["traits"].get("share")] for f in d["firms"]]},
+                {"kind": "table", "title": "People", "columns": ["mind", "role", "organisation", "owner", "goals", "stats",
+                                                                 "contacts", "memory", "trusts"],
+                 "rows": [[ent(wid, p["id"]), p["role"], p["org"], p["owner"], goals(p["goals"]), stats(p["stats"]),
+                           p["contacts"], p["memory"], p["trusted"]] for p in d["people"][:300]]},
+                {"kind": "table", "title": "Trust graph (Beta(a, b) per counterparty; most evidence first)",
+                 "columns": ["truster", "trustee", "mean a/(a+b)", "a", "b", "evidence"],
+                 "rows": [[ent(wid, r["truster"]), ent(wid, r["trustee"]), r["mean"], r["a"], r["b"], r["evidence"]]
+                          for r in d["trust"][:500]]}]
+        if d["trust"]:
+            top = d["trust"][:80]
+            deg = Counter([r["truster"] for r in top] + [r["trustee"] for r in top])
+            secs.append({"kind": "svg", "title": "Trust graph (arrow width = mean trust)",
+                         "svg": svg_graph(list(deg.items()), [(r["truster"], r["trustee"], r["mean"] or 0.0)
+                                                              for r in top], gid="trust")})
+        secs += [{"kind": "table", "title": "Recent episodic memory", "note": "Kinds and counterparties only.",
+                  "columns": ["time", "mind", "kind", "with"],
+                  "rows": [[_fmt_t(m["t"]), ent(wid, m["mind"]), m["kind"], m["with"]] for m in d["memory"]]},
+                 open_links(wid)]
+        return page(request, "Society", secs, wid)
+
+    @app.get("/api/w/{wid}/society")
+    def api_society(wid: str):
+        from ..cli import society_view
+        return _json(society_view(W.get(wid)))
+
+    @app.get("/w/{wid}/markets", response_class=HTMLResponse)
+    def markets_page(request: Request, wid: str):
+        """Capabilities, emergent markets, categories, problem requests, retail listings and B2B offers."""
+        from ..cli import markets_view
+        w = W.get(wid)
+        d = markets_view(w)
+        t = d["totals"]
+        secs: list = [{"kind": "cards", "items": [("capabilities (active)", f"{t['capabilities']} ({t['active_capabilities']})"),
+                                                  ("emergent markets", t["markets"]), ("categories", t["categories"]),
+                                                  ("problem requests open / all", f"{t['open_requests']} / {t['requests']}"),
+                                                  ("retail listings", t["retail"]), ("B2B offers", t["offers"])]}]
+        if "capabilities" in w.state.tables:
+            secs += [{"kind": "table", "title": "Capabilities",
+                      "columns": ["capability", "host", "provider", "title", "status", "price / month", "installs (active)",
+                                  "independent adopters", "independent payers", "rating"],
+                      "rows": [[c["capability"], ent(wid, c["host"]), ent(wid, c["provider"]), c["title"], c["status"],
+                                money(c["monthly_cents"]), f"{c['installs']} ({c['active_installs']})",
+                                c["independent_adopters"], c["independent_payers"],
+                                round(c["rating"], 2) if c["rating"] is not None else None] for c in d["capabilities"]]},
+                     {"kind": "table", "title": "Emergent markets (categories with >= 2 independent buyers)",
+                      "columns": ["first capability", "label", "day", "sellers", "buyers"],
+                      "rows": [[m["id"], m["label"], (m.get("t") or 0) // DAY, ", ".join(m["sellers"]),
+                                len(m["buyers"])] for m in d["markets"]]},
+                     {"kind": "table", "title": "Categories (capabilities with independent adopters, clustered)",
+                      "columns": ["label", "capabilities", "sellers", "independent buyers", "first published"],
+                      "rows": [[c["label"], ", ".join(c["capabilities"]), ", ".join(c["sellers"]),
+                                len(c["independent_buyers"]), _fmt_t(c["first_published"])] for c in d["categories"]]}]
+        else:
+            secs.append(absent("capability registry (module caps absent)"))
+        if "ops_requests" in w.state.tables:
+            secs.append({"kind": "table", "title": "Problem requests (newest 100)",
+                         "columns": ["request", "by", "day", "title", "tags", "losses", "budget / month", "responses",
+                                     "status"],
+                         "rows": [[r["id"], ent(wid, r["by"]), r["t"] // DAY, r["title"], " ".join(r["tags"]),
+                                   " ".join(r["losses"]), money(r["budget_cents_month"]), r["responses"], r["status"]]
+                                  for r in reversed(d["requests"][-100:])]})
+        if "retail" in w.state.tables:
+            secs.append({"kind": "table", "title": "Retail listings (industry)",
+                         "columns": ["listing", "seller", "title", "sku", "region", "price", "sold yesterday",
+                                     "sold total", "status"],
+                         "rows": [[r["id"], ent(wid, r["seller"]), r["title"], r["sku"], r["region"], money(r["price"]),
+                                   r["sold_yesterday"], r["sold_total"], r["status"]] for r in d["retail"]]})
+        if "offers" in w.state.tables:
+            secs.append({"kind": "table", "title": "B2B offers (industry)",
+                         "columns": ["offer", "seller", "sku", "region", "price", "missed (7d)", "status", "note"],
+                         "rows": [[o["id"], ent(wid, o["seller"]), o["sku"], o["region"], money(o["price"]),
+                                   o["missed_7d"], o["status"], o["note"]] for o in d["offers"]]})
+        secs.append(open_links(wid))
+        return page(request, "Markets", secs, wid)
+
+    @app.get("/api/w/{wid}/markets")
+    def api_markets(wid: str):
+        from ..cli import markets_view
+        return _json(markets_view(W.get(wid)))
+
+    @app.get("/w/{wid}/infrastructure", response_class=HTMLResponse)
+    def infrastructure_page(request: Request, wid: str):
+        """Compute providers (utilisation, outages, hardware orders), energy grids and freight links."""
+        from ..cli import infrastructure_view
+        w = W.get(wid)
+        d = infrastructure_view(w)
+        cores = sum(p["cores"] for p in d["providers"])
+        used = sum(p["cores_used"] for p in d["providers"])
+        secs: list = [{"kind": "cards", "items": [
+            ("compute providers", len(d["providers"])), ("cores used / total", f"{used} / {cores}"),
+            ("utilisation", f"{100 * used / cores:.0f}%" if cores else None),
+            ("instances running", d["instances"].get("running", 0)),
+            ("providers in outage", sum(1 for p in d["providers"] if p["in_outage"])),
+            ("hardware orders pending", sum(1 for o in d["hw_orders"] if o["status"] != "delivered")),
+            ("energy grids", sum(1 for g in d["grids"] if g["grid"])), ("freight links", len(d["freight"]))]}]
+        if "providers" in w.state.tables:
+            secs += [{"kind": "table", "title": "Compute providers",
+                      "columns": ["provider", "name", "price c/core-h", "cores", "cores used", "instances", "utilisation",
+                                  "reliability", "status", "outages", "in outage"],
+                      "rows": [[ent(wid, p["id"]), p["name"], p["price"], p["cores"], p["cores_used"], p["instances"],
+                                p["utilisation"], p["reliability"], p["status"], p["outages"],
+                                {"text": "yes", "cls": "sev3"} if p["in_outage"] else ""] for p in d["providers"]]},
+                     {"kind": "svg", "title": "Provider utilisation (running cores / capacity, %)",
+                      "svg": svg_bars([(p["id"], 100 * (p["utilisation"] or 0)) for p in d["providers"]],
+                                      fmt=lambda v: f"{v:.0f}%")},
+                     {"kind": "table", "title": "Outages (newest first)", "columns": ["provider", "start", "until", "ongoing"],
+                      "rows": [[o["provider"], _fmt_t(o["start"]), _fmt_t(o["until"]) if o["until"] else None,
+                                {"text": "ongoing", "cls": "sev3"} if o["ongoing"] else ""] for o in d["outages"][:100]]},
+                     {"kind": "table", "title": "Hardware orders", "columns": ["order", "provider", "cores", "ordered",
+                                                                              "eta", "status"],
+                      "rows": [[o["id"], o["provider"], o["cores"], _fmt_t(o["t"]), _fmt_t(o["eta"]), o["status"]]
+                               for o in d["hw_orders"]]}]
+        else:
+            secs.append(absent("compute providers (module cloud absent)"))
+        if "regions" in w.state.tables:
+            secs += [{"kind": "table", "title": "Energy grids",
+                      "columns": ["region", "name", "operator", "capacity kWh/day", "base price c/kWh", "used today",
+                                  "used yesterday", "peak utilisation (14d)"],
+                      "rows": [[g["region"], g["name"], ent(wid, g["owner"]) if g["owner"] else "no grid",
+                                g["capacity_kwh_day"], g["base_price"], round(g["used_today"], 1),
+                                round(g["used_yesterday"], 1), g["peak_utilisation"]] for g in d["grids"]]},
+                     {"kind": "svg", "title": "Grid energy used per day (kWh)",
+                      "svg": svg_lines(d["grid_series"], ylabel="kWh")}]
+        if "links" in w.state.tables:
+            secs += [{"kind": "table", "title": "Freight links",
+                      "columns": ["link", "from", "to", "hours", "cost / unit", "capacity / day", "owner", "used today",
+                                  "utilisation today", "peak utilisation (14d)"],
+                      "rows": [[f["link"], f["a"], f["b"], f["hours"], f["cost"], f["capacity"], f["owner"],
+                                f["used_today"], f["utilisation_today"], f["peak_utilisation"]] for f in d["freight"]]},
+                     {"kind": "svg", "title": "Freight units reserved per day by link",
+                      "svg": svg_lines(d["freight_series"], ylabel="units")}]
+        secs.append(open_links(wid))
+        return page(request, "Infrastructure", secs, wid)
+
+    @app.get("/api/w/{wid}/infrastructure")
+    def api_infrastructure(wid: str):
+        from ..cli import infrastructure_view
+        return _json(infrastructure_view(W.get(wid)))
+
+    def agents(w, limit: int = 100, scan: int = 50_000) -> dict:
+        """Active non-NPC persons (learning agents and humans) and their recent commands. The last-command time
+        comes from the event log (last `scan` events); older activity falls back to the principal's last hour."""
+        st = w.state
+        out: dict = {"agents": [], "recent": [], "scanned_from_seq": max(0, w.seq - scan)}
+        if not has_table(w, "principals"):
+            return out
+        rows: dict[str, dict] = {}
+        for pid, p in st.scan("principals"):
+            if p["kind"] != "person":
+                continue
+            person = st.get("persons", pid) if has_table(w, "persons") else None
+            kind = (person or {}).get("kind") or (p.get("info") or {}).get("kind") or "agent"
+            if kind == "npc":
+                continue
+            orgs_ = sorted(m["org"] for m in st.find("members", "person", pid)) if has_table(w, "members") else []
+            rows[pid] = {"id": pid, "kind": kind, "status": p.get("status"), "actions": p.get("actions", 0),
+                         "time_used_s": p.get("time_used", 0), "created": p.get("created"), "cash": _cash(w, pid),
+                         "orgs": orgs_, "role": ((person or {}).get("info") or {}).get("role"),
+                         "last_cmd_t": p["hour"] * 3600 if p.get("hour") is not None else None,
+                         "last_cmd_exact": False, "last_tool": None, "cmds_window": 0, "rejected_window": 0}
+        recent: list[dict] = []
+        for ev in world_events(w, out["scanned_from_seq"], types=("cmd", "cmd.rejected")):
+            who = ev.payload.get("actor") if ev.type == "cmd.rejected" else ev.actor
+            r = rows.get(who)
+            if r is None:
+                continue
+            ok = ev.type == "cmd"
+            r["cmds_window"] += 1
+            r["rejected_window"] += 0 if ok else 1
+            r.update(last_cmd_t=ev.t, last_cmd_exact=True, last_tool=ev.payload.get("tool"))
+            payload, red = redact(ev.type, ev.payload, ev.vis, operator)
+            recent.append({"seq": ev.seq, "t": ev.t, "actor": who, "tool": ev.payload.get("tool"), "ok": ok,
+                           "args": None if red else payload.get("args"), "redacted": red,
+                           "error": None if ok else (ev.payload.get("error") or {}).get("message")})
+            if len(recent) > 4 * limit:
+                del recent[:-limit]
+        out["agents"] = sorted(rows.values(), key=lambda r: (-(r["last_cmd_t"] or -1), r["id"]))
+        out["recent"] = recent[-int(limit):]
+        return out
+
+    @app.get("/w/{wid}/agents", response_class=HTMLResponse)
+    def agents_page(request: Request, wid: str, limit: int = Query(100, le=2000)):
+        """Active learning agents / humans (non-NPC persons) and their recent commands."""
+        w = W.get(wid)
+        d = agents(w, limit)
+        secs = [{"kind": "cards", "items": [("agents", len(d["agents"])),
+                                            ("actions (all time)", sum(a["actions"] for a in d["agents"])),
+                                            ("commands in window", sum(a["cmds_window"] for a in d["agents"])),
+                                            ("rejected in window", sum(a["rejected_window"] for a in d["agents"]))]},
+                {"kind": "table", "title": "Agents (non-NPC persons)",
+                 "note": f"Window: events after seq {d['scanned_from_seq']}; '~' marks a last-command time known only "
+                         f"to the hour.",
+                 "columns": ["principal", "kind", "status", "actions", "commands (window)", "rejected (window)",
+                             "time used", "cash", "organisations", "last command", "last tool"],
+                 "rows": [[ent(wid, a["id"]), a["kind"], a["status"], a["actions"], a["cmds_window"], a["rejected_window"],
+                           f"{a['time_used_s'] / 3600:.1f}h", money(a["cash"]), ", ".join(a["orgs"]),
+                           (("" if a["last_cmd_exact"] else "~") + _fmt_t(a["last_cmd_t"]))
+                           if a["last_cmd_t"] is not None else None, a["last_tool"]] for a in d["agents"]]},
+                {"kind": "form", "action": f"{root}/w/{wid}/agents", "title": "Recent commands (newest first)",
+                 "fields": [{"name": "limit", "label": "limit", "value": limit, "size": 5}]},
+                {"kind": "table", "columns": ["seq", "time", "actor", "tool", "ok", "arguments / error"],
+                 "rows": [[link(r["seq"], f"/w/{wid}/chain/{r['seq']}"), _fmt_t(r["t"]), ent(wid, r["actor"]), r["tool"],
+                           r["ok"] if r["ok"] else {"text": "rejected", "cls": "sev3"},
+                           {"redacted": "[private communication]"} if r["redacted"] else
+                           (r["error"] if not r["ok"] else json.dumps(r["args"], sort_keys=True, default=str)[:200])]
+                          for r in reversed(d["recent"])]},
+                open_links(wid)]
+        return page(request, "Agents", secs, wid)
+
+    @app.get("/api/w/{wid}/agents")
+    def api_agents(wid: str, limit: int = Query(100, le=10000)):
+        return _json(agents(W.get(wid), limit))
 
     @app.get("/w/{wid}/trace", response_class=HTMLResponse)
     def trace_form(request: Request, wid: str, entity: str = ""):

@@ -9,6 +9,7 @@
     crucible evaluate --policy builder [--split val] [--world-families ...] [--max-days D] [--out f]
     crucible trace W ENTITY [--chain SEQ] | report RESULTS.json | counterfactual W --undeploy HOST --days N
     crucible emergence W | dashboard W [--port 8050] | serve [--port 8000]
+    crucible internet W | society W | markets W | infrastructure W | census W      (read-only open-world views)
 
 Store URLs: memory://, sqlite:///path/to.db, postgresql://... Default: $CRUCIBLE_STORE or
 sqlite:///./crucible-data/crucible.db (the directory is created). Policy specs: ``name[:key=value...]`` with name in
@@ -669,6 +670,393 @@ def cmd_emergence(a) -> int:
     return 0
 
 
+# ====================================================================== open-world views (shared with the dashboard)
+# Pure readers of authoritative state: they never call tools, never emit events and copy everything they return
+# (state records are read-only proxies over live dicts), so they are safe on a world another process is writing.
+WEB_OUTCOMES = ("ok", "static", "not_found", "login_required", "rate_limited", "error", "overload", "unavailable")
+
+
+def _has(w, table: str) -> bool:
+    return table in w.state.tables
+
+
+def _plain(x):
+    """Deep copy of state data into plain JSON types (mapping proxies -> dict, tuples/sets -> list)."""
+    if hasattr(x, "items") and hasattr(x, "keys"):
+        return {k: _plain(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_plain(v) for v in x]
+    if isinstance(x, (set, frozenset)):
+        return sorted(_plain(v) for v in x)
+    if type(x).__module__ == "numpy" and hasattr(x, "item"):
+        return x.item()
+    return x
+
+
+def internet_view(w) -> dict:
+    """The synthetic internet: web sites (deployments whose manifest has a ``web`` section), crawled pages, the
+    host-to-host link graph, registered names, application-database sizes and per-site traffic by outcome."""
+    st = w.state
+    day = w.now // DAY
+    out: dict = {"available": "net" in w.modules and _has(w, "hosts"), "day": day, "sites": [], "pages": [],
+                 "edges": [], "domains": [], "traffic": {}, "totals": {}}
+    if not out["available"]:
+        return out
+    net = w.modules["net"]
+    pages_by_host: dict[str, list] = {}
+    if _has(w, "web_pages"):
+        for url, p in st.scan("web_pages"):
+            pages_by_host.setdefault(p["host"], []).append(url)
+            out["pages"].append({"url": url, "host": p["host"], "title": p.get("title", ""),
+                                 "links": list(p.get("links") or []), "noindex": bool(p.get("noindex")),
+                                 "chars": p.get("chars"), "t": p.get("t")})
+    edge_n: dict[tuple, int] = {}
+    if _has(w, "web_links"):
+        for _, lk in st.scan("web_links"):
+            if lk["src_host"] != lk["dst"]:
+                edge_n[(lk["src_host"], lk["dst"])] = edge_n.get((lk["src_host"], lk["dst"]), 0) + 1
+    inbound: dict[str, set] = {}
+    outbound: dict[str, set] = {}
+    for s, d in edge_n:
+        inbound.setdefault(d, set()).add(s)
+        outbound.setdefault(s, set()).add(d)
+    out["edges"] = [{"src": s, "dst": d, "links": n}
+                    for (s, d), n in sorted(edge_n.items(), key=lambda kv: (-kv[1], kv[0]))]
+    names: dict[str, list] = {}
+    if _has(w, "domains"):
+        for name, dm in st.scan("domains"):
+            out["domains"].append({"name": name, "owner": dm["owner"], "host": dm.get("host"),
+                                   "status": dm.get("status"), "t": dm.get("t")})
+            if dm.get("host"):
+                names.setdefault(dm["host"], []).append(name)
+    traffic: dict[str, dict[int, dict]] = {}
+    if _has(w, "web_days"):
+        for _, r in st.scan("web_days"):
+            traffic.setdefault(r["host"], {})[int(r["day"])] = {k: int(v) for k, v in r.items()
+                                                                if k not in ("host", "day")}
+    for host, rec in st.scan("hosts"):
+        dep = st.get("deployments", rec["deployment"]) if rec.get("deployment") and _has(w, "deployments") else None
+        man = dep.get("manifest") if dep is not None else None
+        if not isinstance(man, dict) or "web" not in man:
+            continue
+        web = man["web"] if isinstance(man["web"], dict) else {}
+        _, live = net.web_dep(st, host)
+        inst = st.get("instances", dep["instance"]) if dep.get("instance") and _has(w, "instances") else None
+        days = traffic.get(host, {})
+        last_day = max(days) if days else None
+        week: dict[str, int] = {}
+        for d, c in days.items():
+            if d >= day - 6:
+                for k, v in c.items():
+                    week[k] = week.get(k, 0) + v
+        pages = pages_by_host.get(host, [])
+        sessions = st.find("web_sessions", "host", host) if _has(w, "web_sessions") else []
+        out["sites"].append({
+            "host": host, "url": f"http://{host}.crucible/", "names": sorted(names.get(host, [])),
+            "title": str(web.get("title", "")), "owner": rec["owner"], "deployment": rec["deployment"],
+            "status": dep["status"], "live": live is not None, "repo": dep.get("repo"),
+            "provider": inst["provider"] if inst else None, "instance": dep.get("instance"),
+            "routes": len(web.get("routes") or {}), "login": web.get("login"), "rate_per_min": web.get("rate_per_min"),
+            "pages": len(pages), "pages_indexed": sum(1 for u in pages if not st.tables["web_pages"][u].get("noindex")),
+            "inbound_hosts": sorted(inbound.get(host, ())), "inbound_links": len(inbound.get(host, ())),
+            "outbound_hosts": sorted(outbound.get(host, ())),
+            "records": len(st.find_ids("app_docs", "ns", host)) if _has(w, "app_docs") else 0,
+            "sessions": len(sessions), "logged_in": sum(1 for s in sessions if s.get("login")),
+            "last_day": last_day, "requests_last_day": dict(days.get(last_day, {})) if last_day is not None else {},
+            "requests_7d": week})
+        out["traffic"][host] = {str(d): c for d, c in sorted(days.items())}
+    out["sites"].sort(key=lambda s: (not s["live"], -s["inbound_links"], s["host"]))
+    out["totals"] = {"sites": len(out["sites"]), "live_sites": sum(1 for s in out["sites"] if s["live"]),
+                     "pages": len(out["pages"]), "pages_indexed": sum(1 for p in out["pages"] if not p["noindex"]),
+                     "cross_site_edges": len(out["edges"]), "domains": len(out["domains"]),
+                     "records": sum(s["records"] for s in out["sites"]),
+                     "requests_7d": sum(sum(s["requests_7d"].values()) for s in out["sites"])}
+    return out
+
+
+def society_view(w, recent_memory: int = 40) -> dict:
+    """Simulated minds (module `society`): counts by kind and role, firms with their self-acquired goals and
+    statistics, people, the trust graph (Beta(a, b) per counterparty) and recent episodic memory (kinds only)."""
+    st = w.state
+    out: dict = {"available": _has(w, "minds"), "counts": {}, "roles": {}, "firms": [], "people": [], "trust": [],
+                 "memory": [], "memory_kinds": {}}
+    if not out["available"]:
+        return out
+    mem: list[dict] = []
+    kinds: dict[str, int] = {}
+    roles: dict[str, int] = {}
+    mkinds: dict[str, int] = {}
+    for mid, m in st.scan("minds"):
+        kinds[m["kind"]] = kinds.get(m["kind"], 0) + 1
+        rk = f"{m['kind']}/{m.get('role') or '-'}"
+        roles[rk] = roles.get(rk, 0) + 1
+        org = m.get("org")
+        o = st.get("orgs", org) if org and _has(w, "orgs") else None
+        tr = m.get("trust") or {}
+        memory = list(m.get("memory") or [])
+        row = {"id": mid, "kind": m["kind"], "org": org, "org_name": o["name"] if o else None, "owner": m.get("owner"),
+               "role": m.get("role") or "", "traits": _plain(m.get("traits") or {}),
+               "goals": _plain(m.get("goals") or []),
+               "stats": _plain(m.get("stats") or {}), "contacts": len(m.get("contacts") or []), "memory": len(memory),
+               "trusted": len(tr), "tried": len(m.get("tried") or []), "beliefs": len(m.get("beliefs") or {})}
+        (out["firms"] if m["kind"] == "firm" else out["people"]).append(row)
+        for who, ab in sorted(tr.items()):
+            a, b = float(ab[0]), float(ab[1])
+            out["trust"].append({"truster": mid, "trustee": who, "a": a, "b": b,
+                                 "mean": round(a / (a + b), 3) if a + b > 0 else None,
+                                 "evidence": round(a + b - 2.0, 3)})
+        for e in memory:
+            mkinds[str(e.get("kind"))] = mkinds.get(str(e.get("kind")), 0) + 1
+        for e in memory[-5:]:
+            mem.append({"mind": mid, "t": e.get("t"), "kind": e.get("kind"), "with": e.get("with")})
+    out["counts"] = dict(sorted(kinds.items()))
+    out["roles"] = dict(sorted(roles.items()))
+    out["memory_kinds"] = dict(sorted(mkinds.items(), key=lambda kv: -kv[1]))
+    out["trust"].sort(key=lambda r: (-r["evidence"], r["truster"], r["trustee"]))
+    out["memory"] = sorted(mem, key=lambda x: (-(x["t"] or 0), x["mind"]))[:recent_memory]
+    return out
+
+
+def markets_view(w, limit: int = 200) -> dict:
+    """Capabilities and their adoption, emergent capability markets, categories, problem requests and (in
+    industrial worlds) retail listings and B2B offers."""
+    st = w.state
+    out: dict = {"capabilities": [], "markets": [], "categories": [], "requests": [], "retail": [], "offers": [],
+                 "totals": {}}
+    if _has(w, "capabilities") and "caps" in w.modules:
+        caps = w.modules["caps"]
+        out["capabilities"] = [_plain(caps.summary(w, k)) for k in st.ids("capabilities")]
+        out["markets"] = _plain(caps.graph(w)["markets"])
+        out["categories"] = _plain(caps.categories(w, 1))
+    if _has(w, "ops_requests"):
+        reqs = []
+        for k, r in st.scan("ops_requests"):
+            reqs.append({"id": k, "by": r["by"], "t": r.get("t", 0), "title": r.get("title", ""),
+                         "tags": list(r.get("tags") or []), "status": r.get("status"),
+                         "budget_cents_month": r.get("budget_cents_month"),
+                         "losses": sorted((r.get("evidence") or {}).get("losses") or {}),
+                         "responses": len(st.find_ids("ops_responses", "request", k))
+                         if _has(w, "ops_responses") else 0})
+        out["requests"] = sorted(reqs, key=lambda r: (r["t"], r["id"]))[-limit:]
+    if _has(w, "retail"):
+        out["retail"] = [{"id": k, "seller": r["seller"], "sku": r.get("sku"), "title": r.get("title"),
+                          "region": r.get("region"), "price": r.get("price"), "status": r.get("status"),
+                          "sold_total": r.get("sold_total", 0), "sold_yesterday": r.get("sold_y", 0)}
+                         for k, r in st.scan("retail")][-limit:]
+    if _has(w, "offers"):
+        out["offers"] = [{"id": k, "seller": r["seller"], "sku": r.get("sku"), "region": r.get("region"),
+                          "price": r.get("price"), "status": r.get("status"), "note": r.get("note", ""),
+                          "missed_7d": sum((r.get("missed") or {}).values())} for k, r in st.scan("offers")][-limit:]
+    out["totals"] = {"capabilities": len(out["capabilities"]),
+                     "active_capabilities": sum(1 for c in out["capabilities"] if c["status"] == "active"),
+                     "markets": len(out["markets"]), "categories": len(out["categories"]),
+                     "requests": st.count("ops_requests") if _has(w, "ops_requests") else 0,
+                     "open_requests": len(st.find_ids("ops_requests", "status", "open"))
+                     if _has(w, "ops_requests") else 0,
+                     "retail": len(out["retail"]), "offers": len(out["offers"])}
+    return out
+
+
+def infrastructure_view(w, days: int = 14) -> dict:
+    """Compute providers (capacity, utilisation by running instances, outages, hardware orders) and, in industrial
+    worlds, energy grids per region and freight links with their daily usage."""
+    st = w.state
+    day = w.now // DAY
+    out: dict = {"day": day, "providers": [], "outages": [], "hw_orders": [], "instances": {}, "grids": [],
+                 "grid_series": {}, "freight": [], "freight_series": {}}
+    if _has(w, "providers"):
+        used: dict[str, int] = {}
+        n_inst: dict[str, int] = {}
+        if _has(w, "instances"):
+            for _, i in st.scan("instances"):
+                out["instances"][i["status"]] = out["instances"].get(i["status"], 0) + 1
+                if i["status"] == "running":
+                    used[i["provider"]] = used.get(i["provider"], 0) + int(i["cores"])
+                    n_inst[i["provider"]] = n_inst.get(i["provider"], 0) + 1
+        for pid, p in st.scan("providers"):
+            cores = int(p.get("cores") or 0)
+            o_start, o_until = p.get("outage_start", 0), p.get("outage_until", 0)
+            out["providers"].append({"id": pid, "name": p.get("name"), "price": p.get("price"), "cores": cores,
+                                     "cores_used": used.get(pid, 0), "instances": n_inst.get(pid, 0),
+                                     "utilisation": round(used.get(pid, 0) / cores, 3) if cores else None,
+                                     "reliability": p.get("reliability"), "status": p.get("status"),
+                                     "outages": len(p.get("outages") or []), "in_outage": o_start <= w.now < o_until})
+            for s in p.get("outages") or []:
+                out["outages"].append({"provider": pid, "start": s, "until": o_until if s == o_start else None,
+                                       "ongoing": s == o_start and o_start <= w.now < o_until})
+        out["outages"].sort(key=lambda o: (-o["start"], o["provider"]))
+    if _has(w, "hw_orders"):
+        out["hw_orders"] = [{"id": k, "provider": o["provider"], "cores": o["cores"], "eta": o.get("eta"),
+                             "status": o.get("status"), "t": o.get("t")} for k, o in st.scan("hw_orders")]
+    if _has(w, "regions"):
+        used_by: dict[str, dict[int, float]] = {}
+        if _has(w, "grid_days"):
+            for _, g in st.scan("grid_days"):
+                if int(g["day"]) >= day - days:
+                    used_by.setdefault(g["region"], {})[int(g["day"])] = float(g.get("used", 0.0))
+        for rid, r in st.scan("regions"):
+            g = r.get("grid")
+            u = used_by.get(rid, {})
+            cap = float(g["capacity"]) if g else 0.0
+            out["grids"].append({"region": rid, "name": r.get("name"), "grid": g is not None,
+                                 "owner": g["owner"] if g else None, "capacity_kwh_day": cap or None,
+                                 "base_price": g["base_price"] if g else None, "used_today": u.get(day, 0.0),
+                                 "used_yesterday": u.get(day - 1, 0.0),
+                                 "peak_utilisation": round(max(u.values()) / cap, 3) if u and cap else None})
+            out["grid_series"][rid] = [[d, v] for d, v in sorted(u.items())]
+    if _has(w, "links"):
+        used_l: dict[str, dict[int, float]] = {}
+        if _has(w, "link_days"):
+            for _, r in st.scan("link_days"):
+                if int(r["day"]) >= day - days:
+                    used_l.setdefault(r["link"], {})[int(r["day"])] = float(r.get("used", 0))
+        for lid, l in st.scan("links"):
+            u = used_l.get(lid, {})
+            cap = float(l.get("capacity") or 0)
+            out["freight"].append({"link": lid, "a": l.get("a"), "b": l.get("b"), "hours": l.get("hours"),
+                                   "cost": l.get("cost"), "capacity": l.get("capacity"), "owner": l.get("owner"),
+                                   "used_today": u.get(day, 0), "utilisation_today": round(u.get(day, 0) / cap, 3)
+                                   if cap else None,
+                                   "peak_utilisation": round(max(u.values()) / cap, 3) if u and cap else None})
+            out["freight_series"][lid] = [[d, v] for d, v in sorted(u.items())]
+    return out
+
+
+def _view_world(a, fn):
+    with _server(a, readonly=True) as srv:
+        return fn(srv.world(a.world))
+
+
+def _render_internet(d: dict) -> str:
+    if not d["available"]:
+        return "this world has no synthetic internet (module net absent)"
+    t = d["totals"]
+    L = [f"{t['live_sites']}/{t['sites']} sites live, {t['pages']} pages crawled ({t['pages_indexed']} indexable), "
+         f"{t['cross_site_edges']} cross-site link edges, {t['domains']} registered names, {t['records']} app records, "
+         f"{t['requests_7d']} requests in 7 days", "",
+         "sites:", _table([[s["host"], s["title"], s["owner"], s["provider"], s["status"],
+                            f"{s['pages_indexed']}/{s['pages']}", s["inbound_links"], s["records"],
+                            " ".join(f"{k}={v}" for k, v in sorted(s["requests_last_day"].items()))]
+                           for s in d["sites"]],
+                          ["host", "title", "owner", "provider", "status", "indexed/pages", "inbound", "records",
+                           "requests (last day)"])]
+    if d["edges"]:
+        L += ["", "link edges:", _table([[e["src"], e["dst"], e["links"]] for e in d["edges"]], ["from", "to", "links"])]
+    if d["domains"]:
+        L += ["", "registered names:", _table([[x["name"], x["owner"], x["host"], x["status"]] for x in d["domains"]],
+                                              ["name", "owner", "host", "status"])]
+    if d["pages"]:
+        L += ["", "pages:", _table([[p["url"], p["title"][:50], len(p["links"]), "noindex" if p["noindex"] else "",
+                                     _fmt_t(p["t"] or 0)] for p in d["pages"]],
+                                   ["url", "title", "links", "", "crawled"])]
+    return "\n".join(L)
+
+
+def _render_society(d: dict) -> str:
+    if not d["available"]:
+        return "this world has no simulated minds (module society absent)"
+    L = ["minds: " + ", ".join(f"{k} {v}" for k, v in d["counts"].items()),
+         "roles: " + ", ".join(f"{k} {v}" for k, v in d["roles"].items()), "",
+         "firms:", _table([[f["id"], f["role"], f["owner"], "; ".join(f"{g['kind']}:{g['key']}" for g in f["goals"]),
+                            f["stats"].get("trials", 0), f["stats"].get("adopted", 0), f["stats"].get("requests", 0),
+                            f["contacts"], f["trusted"]] for f in d["firms"]],
+                          ["firm", "role", "owner", "goals", "trials", "adopted", "requests", "contacts", "trusts"])]
+    if d["trust"]:
+        L += ["", "trust (most evidence first):",
+              _table([[r["truster"], r["trustee"], r["mean"], r["evidence"]] for r in d["trust"][:40]],
+                     ["truster", "trustee", "mean a/(a+b)", "evidence"])]
+    if d["memory_kinds"]:
+        L += ["", "memory: " + ", ".join(f"{k} {v}" for k, v in d["memory_kinds"].items())]
+    return "\n".join(L)
+
+
+def _render_markets(d: dict) -> str:
+    from .analytics import money
+    t = d["totals"]
+    L = [f"{t['capabilities']} capabilities ({t['active_capabilities']} active), {t['markets']} emergent markets, "
+         f"{t['categories']} categories, {t['open_requests']}/{t['requests']} problem requests open, "
+         f"{t['retail']} retail listings, {t['offers']} B2B offers"]
+    if d["capabilities"]:
+        L += ["", "capabilities:", _table([[c["capability"], c["host"], c["provider"], c["title"][:40], c["status"],
+                                            c["independent_adopters"], c["independent_payers"]]
+                                           for c in d["capabilities"]],
+                                          ["capability", "host", "provider", "title", "status", "adopters", "payers"])]
+    if d["markets"]:
+        L += ["", "emergent markets:", _table([[m["id"], m["label"], (m.get("t") or 0) // DAY, len(m["sellers"]),
+                                                len(m["buyers"])] for m in d["markets"]],
+                                              ["first capability", "label", "day", "sellers", "buyers"])]
+    if d["categories"]:
+        L += ["", "categories:", _table([[c["label"], len(c["capabilities"]), len(c["sellers"]),
+                                          len(c["independent_buyers"])] for c in d["categories"]],
+                                        ["label", "capabilities", "sellers", "independent buyers"])]
+    if d["requests"]:
+        L += ["", "problem requests (newest last):",
+              _table([[r["id"], r["by"], r["t"] // DAY, r["title"][:50], " ".join(r["tags"]), r["responses"],
+                       r["status"]]
+                      for r in d["requests"][-30:]], ["request", "by", "day", "title", "tags", "responses", "status"])]
+    if d["retail"]:
+        L += ["", "retail listings:", _table([[r["id"], r["seller"], r["title"], r["region"], money(r["price"]),
+                                               r["sold_total"], r["status"]] for r in d["retail"]],
+                                             ["listing", "seller", "title", "region", "price", "sold", "status"])]
+    if d["offers"]:
+        L += ["", "B2B offers:", _table([[o["id"], o["seller"], o["sku"], o["region"], money(o["price"]), o["status"]]
+                                         for o in d["offers"]], ["offer", "seller", "sku", "region", "price", "status"])]
+    return "\n".join(L)
+
+
+def _render_infrastructure(d: dict) -> str:
+    L = []
+    if d["providers"]:
+        L += ["compute providers:", _table([[p["id"], p["name"], p["price"], f"{p['cores_used']}/{p['cores']}",
+                                             p["utilisation"], p["status"], p["outages"],
+                                             "yes" if p["in_outage"] else ""] for p in d["providers"]],
+                                           ["provider", "name", "price c/core-h", "cores used", "utilisation", "status",
+                                            "outages", "in outage"])]
+    if d["hw_orders"]:
+        L += ["", "hardware orders:", _table([[o["id"], o["provider"], o["cores"], _fmt_t(o["eta"] or 0), o["status"]]
+                                              for o in d["hw_orders"]], ["order", "provider", "cores", "eta", "status"])]
+    if d["grids"]:
+        L += ["", "energy grids:", _table([[g["region"], g["owner"], g["capacity_kwh_day"], g["used_today"],
+                                            g["used_yesterday"], g["peak_utilisation"]] for g in d["grids"]],
+                                          ["region", "operator", "capacity kWh/day", "used today", "used yesterday",
+                                           "peak utilisation"])]
+    if d["freight"]:
+        L += ["", "freight links:", _table([[f["link"], f["hours"], f["cost"], f["capacity"], f["used_today"],
+                                             f["peak_utilisation"]] for f in d["freight"]],
+                                           ["link", "hours", "cost/unit", "capacity/day", "used today", "peak utilisation"])]
+    return "\n".join(L) or "no infrastructure tables in this world"
+
+
+def cmd_internet(a) -> int:
+    d = _view_world(a, internet_view)
+    _out(a, d, _render_internet(d))
+    return 0
+
+
+def cmd_society(a) -> int:
+    d = _view_world(a, society_view)
+    _out(a, d, _render_society(d))
+    return 0
+
+
+def cmd_markets(a) -> int:
+    d = _view_world(a, markets_view)
+    _out(a, d, _render_markets(d))
+    return 0
+
+
+def cmd_infrastructure(a) -> int:
+    d = _view_world(a, infrastructure_view)
+    _out(a, d, _render_infrastructure(d))
+    return 0
+
+
+def cmd_census(a) -> int:
+    from .evaluation.open_endedness import census
+    _out(a, _view_world(a, census))           # always JSON
+    return 0
+
+
 # ====================================================================== servers
 def cmd_dashboard(a) -> int:
     import uvicorn
@@ -851,6 +1239,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--since", type=int, default=0)
     p.add_argument("--out", default=None)
     p.set_defaults(func=cmd_emergence)
+
+    # open-world views (read-only)
+    for name, fn, hlp in [("internet", cmd_internet, "synthetic internet: sites, pages, link graph, names, traffic"),
+                          ("society", cmd_society, "simulated minds: kinds, roles, firm goals and stats, trust"),
+                          ("markets", cmd_markets, "capabilities, emergent markets, problem requests, retail, offers"),
+                          ("infrastructure", cmd_infrastructure, "compute providers, hardware, energy grids, freight"),
+                          ("census", cmd_census, "open-endedness census (JSON)")]:
+        p = sub.add_parser(name, parents=[common], help=hlp)
+        p.add_argument("world")
+        p.set_defaults(func=fn)
 
     # servers
     p = sub.add_parser("dashboard", parents=[common], help="read-only researcher dashboard (loopback)")

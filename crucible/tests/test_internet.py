@@ -274,3 +274,27 @@ def test_browser_critic_validates_a_generated_site_in_chromium():
     finally:
         stop()
     assert rep["accepted"], [c for c in rep["checks"] if not c["ok"]]
+
+
+def test_async_runner_interleaves_agents_on_independent_clocks_reproducibly():
+    from crucible.agents.base import AsyncRunner
+    from crucible.agents.scripted import RandomPolicy
+
+    def run():
+        w = World.create(generate({"family": "open_digital", "overrides": {"n_consumers": 200}}, 4))
+        agents = []
+        for k in range(12):
+            w.system_call("admin.join", {"handle": f"r{k}", "endowment": 10_000})
+            agents.append((f"p:r{k}", RandomPolicy()))
+        ar = AsyncRunner(w, agents, seed=3, think_mean_s=900)
+        n = ar.run_until(w.now + 6 * 3600)
+        return w, ar, n
+    w1, ar1, n1 = run()
+    w2, ar2, n2 = run()
+    assert n1 > 12 and ar1.schedule == ar2.schedule and w1.digest() == w2.digest()
+    times = [t for t, _, _ in ar1.schedule]
+    assert len(set(times)) > len(times) // 3                       # actions spread over time, not in lockstep rounds
+    per_agent = {}
+    for t, a, _ in ar1.schedule:
+        per_agent.setdefault(a, []).append(t)
+    assert len({len(v) for v in per_agent.values()}) > 1             # agents act at different rates

@@ -126,7 +126,7 @@ class Shoppers(Module):
         a = np.where(valid, aware, 0)
         h = reg_hops[st.arrays["s_region"][idx][:, None], a]
         ok = valid & live[a] & (avail[a] > 0) & (h <= 1)
-        u = 10.0 * np.einsum("nkd,nd->nk", attr[a], st.arrays["s_w"][idx]) \
+        u = float(c.get("value_scale", 14.0)) * np.einsum("nkd,nd->nk", attr[a], st.arrays["s_w"][idx]) \
             - st.arrays["s_beta"][idx][:, None] * price[a] / float(c["price_scale"]) \
             - float(c["hop_penalty"]) * h + rng.gumbel(0, 0.6, a.shape).astype(np.float32)
         u = np.where(ok | (valid & live[a] & (h <= 1)), u, -1e9)    # sold-out items are still wanted (stockout)

@@ -1,0 +1,109 @@
+{
+ "days": 45,
+ "rows": [
+  {
+   "seed": 1,
+   "ablate_sharing": false,
+   "late_majority": [
+    "o:recordco2",
+    "o:recordco3",
+    "o:shorteco2",
+    "o:shorteco3"
+   ],
+   "late_tried": [
+    "o:recordco3"
+   ],
+   "late_adopted": [],
+   "all_adopted": [
+    "o:shorteco1"
+   ],
+   "public_outcomes": 2,
+   "beliefs_from_others": 4
+  },
+  {
+   "seed": 1,
+   "ablate_sharing": true,
+   "late_majority": [
+    "o:recordco2",
+    "o:recordco3",
+    "o:shorteco2",
+    "o:shorteco3"
+   ],
+   "late_tried": [],
+   "late_adopted": [],
+   "all_adopted": [
+    "o:shorteco1"
+   ],
+   "public_outcomes": 0,
+   "beliefs_from_others": 0
+  },
+  {
+   "seed": 2,
+   "ablate_sharing": false,
+   "late_majority": [
+    "o:recordco2",
+    "o:recordco3",
+    "o:shorteco2",
+    "o:shorteco3"
+   ],
+   "late_tried": [
+    "o:recordco2"
+   ],
+   "late_adopted": [],
+   "all_adopted": [
+    "o:shorteco1"
+   ],
+   "public_outcomes": 2,
+   "beliefs_from_others": 4
+  },
+  {
+   "seed": 2,
+   "ablate_sharing": true,
+   "late_majority": [
+    "o:recordco2",
+    "o:recordco3",
+    "o:shorteco2",
+    "o:shorteco3"
+   ],
+   "late_tried": [],
+   "late_adopted": [],
+   "all_adopted": [
+    "o:shorteco1"
+   ],
+   "public_outcomes": 0,
+   "beliefs_from_others": 0
+  },
+  {
+   "seed": 3,
+   "ablate_sharing": false,
+   "late_majority": [
+    "o:recordco2",
+    "o:recordco3",
+    "o:shorteco2",
+    "o:shorteco3"
+   ],
+   "late_tried": [],
+   "late_adopted": [],
+   "all_adopted": [],
+   "public_outcomes": 2,
+   "beliefs_from_others": 4
+  },
+  {
+   "seed": 3,
+   "ablate_sharing": true,
+   "late_majority": [
+    "o:recordco2",
+    "o:recordco3",
+    "o:shorteco2",
+    "o:shorteco3"
+   ],
+   "late_tried": [],
+   "late_adopted": [],
+   "all_adopted": [
+    "o:shorteco1"
+   ],
+   "public_outcomes": 0,
+   "beliefs_from_others": 0
+  }
+ ]
+}

@@ -33,10 +33,16 @@ NON_OPERATING = frozenset({"endowment", "transfer", "liquidation", "distribution
 SYSTEM_OWNERS = frozenset({SYSTEM, "households", ""})
 
 
-def operating_result(day_rec: dict | None) -> int:
+INVENTORY = frozenset({"purchase", "freight"})
+
+
+def operating_result(day_rec: dict | None, exclude_inventory: bool = False) -> int:
+    """Daily operating result. With `exclude_inventory`, buying inputs (and shipping them) is not counted: it
+    converts cash into stock rather than consuming it, and its lumpiness otherwise dominates daily variance."""
     if not day_rec:
         return 0
-    return int(sum(v for k, v in day_rec["flows"].items() if k not in NON_OPERATING))
+    skip = NON_OPERATING | INVENTORY if exclude_inventory else NON_OPERATING
+    return int(sum(v for k, v in day_rec["flows"].items() if k not in skip))
 
 
 @register_module
@@ -77,7 +83,10 @@ class Ops(Module):
             if d == 0:
                 continue
             r = self._rec(owner, day)
-            r["flows"][kind] = r["flows"].get(kind, 0) + d
+            k = kind
+            if kind == "purchase" and d > 0:      # a business-to-business trade is revenue for the seller
+                k = "b2b_sales"
+            r["flows"][k] = r["flows"].get(k, 0) + d
             st.put("ops_days", f"{owner}|{day}", r)
 
     @applier("ops.loss")

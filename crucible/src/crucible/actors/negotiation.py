@@ -183,7 +183,13 @@ def deal_reply(soc, ctx, deal, mind):
     if rng.random() > 0.35 + 0.65 * m["traits"]["sociability"] and d["round"] == 0 and not soc.p("always_reply", False):
         soc.remember(ctx, mind, m, "ignored_offer", d["from"], {"deal": deal})
         return                                           # ignored (attention elsewhere); the offer expires
-    action, terms, msg = decide(soc, ctx, mind, m, me, d, rng)
+    from . import llm_minds
+    out = llm_minds.llm_decide(soc, ctx, mind, m, me, d, rng) if llm_minds.wants_llm(ctx.world, m) else None
+    if out is not None:
+        action, terms, msg, meta = out
+        llm_minds.record(soc, ctx, mind, meta)
+    else:
+        action, terms, msg = decide(soc, ctx, mind, m, me, d, rng)
     actor = m["owner"]
     try:
         args = {"deal": deal, "action": action, "message": msg}

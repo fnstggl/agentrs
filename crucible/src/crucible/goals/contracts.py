@@ -352,4 +352,9 @@ def instantiate(goal: GoalContract, handle: str = "agent", store=None, strict: b
     spec = generate({"family": goal.world["family"], "overrides": goal.world.get("overrides", {})}, goal.world["seed"])
     w = World.create(spec, world_id=f"{goal.id}-{handle}", store=store, strict=strict)
     r = w.system_call("admin.join", {"handle": handle, "endowment": goal.endowment, "kind": "agent"})
+    warm = int(goal.world.get("warmup_s", 0))
+    if warm:   # the world runs (the agent idle) until the opportunity the goal was mined from exists
+        from ..agents.base import Runner
+        from ..agents.scripted import IdlePolicy
+        Runner(w, [(r["principal"], IdlePolicy())], dt=3600, record=False).run(warm // 3600)
     return w, r["principal"]

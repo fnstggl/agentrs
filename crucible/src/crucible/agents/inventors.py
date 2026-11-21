@@ -36,8 +36,9 @@ def _demand(r):
 def tick(args, caller):
     """Size the instance for the next hourly demand batch: same hour yesterday (and the day before), scaled by
     recent growth, with a safety margin. Overloaded hours are extrapolated from the served/turned-away ratio."""
-    host, inst = args["host"], args["instance"]
+    host = args["host"]
     m = sdk.call("cloud.metrics", host=host, hours=50)
+    inst = m["instance"]                      # wherever the service currently runs
     hrs = {r["hour"]: r for r in m["hours"]}
     now_h = max(hrs)
     cur = max(1, m["cores"])
@@ -171,14 +172,13 @@ class CapacityInventor(_AppMixin, ScriptPolicy):
         r = yield call("caps.publish", host=self.host, title="Autoscaler: right-size your instance every hour",
                        description="Your service's demand changes during the day. This capability reads your "
                                    "service's hourly metrics and resizes its instance before each hour so peaks are "
-                                   "served and idle cores are released at night. Needs cloud.manage on the "
-                                   "instance and analytics.read on the host.",
+                                   "served and idle cores are released at night. Needs cloud.manage and "
+                                   "analytics.read on the service.",
                        tags=["capacity", "overload", "scaling", "instance", "demand", "peak"],
-                       params={"host": {"kind": "host"}, "instance": {"kind": "instance"}},
-                       requires=[{"cap": "cloud.manage", "scope": "$instance"},
+                       params={"host": {"kind": "host"}},
+                       requires=[{"cap": "cloud.manage", "scope": "$host"},
                                  {"cap": "analytics.read", "scope": "$host"}],
-                       triggers=[{"endpoint": "tick", "every_s": 3600,
-                                  "args": {"host": "$host", "instance": "$instance"}}],
+                       triggers=[{"endpoint": "tick", "every_s": 3600, "args": {"host": "$host"}}],
                        open_source=self.open_source)
         if not ok(r):
             return
@@ -410,5 +410,143 @@ class ProcessResearcher(_AppMixin, ScriptPolicy):
             yield call("make.publish_process", org=org, model=model, speed=sp, temp=tp, price_cents=self.price,
                        note=f"Operating point for {model} from a {len(results)}-point designed experiment: "
                             f"higher yield and less energy per good unit than common settings.")
+        while True:
+            yield from self.wait(24)
+
+
+PLACEMENT = """import math
+import crucible_sdk as sdk
+
+
+def _demand(r):
+    if not r:
+        return 0.0
+    served = r["ok"] + r["errors"]
+    return r["cu"] * (served + r["overload"]) / served if served else 0.0
+
+
+def tick(args, caller):
+    \"\"\"Placement: when the service will need more cores next hour than its provider has free, move it to the
+    cheapest provider that can host the forecast (rent there, redeploy, release the old instance); then size it.\"\"\"
+    host = args["host"]
+    m = sdk.call("cloud.metrics", host=host, hours=50)
+    hrs = {r["hour"]: r for r in m["hours"]}
+    now_h = max(hrs)
+    cur = max(1, m["cores"])
+    per_core = m["capacity_cu_per_hour"] / cur
+    fc = max(_demand(hrs.get(now_h + 1 - 24)), 0.9 * _demand(hrs.get(now_h + 1 - 48))) * MARGIN
+    need = max(1, min(32, int(math.ceil(fc / per_core)))) if fc > 0 else cur
+    provs = {p["provider"]: p for p in sdk.call("cloud.providers")}
+    here = provs.get(m["provider"])
+    moved = None
+    if need > cur and here is not None and here["cores_free"] < need - cur:
+        options = sorted((p["price_core_hour_cents"], name) for name, p in provs.items()
+                         if name != m["provider"] and p["cores_free"] >= need and not p["in_outage"])
+        if options and options[0][0] <= MAX_PREMIUM * m["price_core_hour_cents"]:
+            new = sdk.call("cloud.rent", provider=options[0][1], cores=need, account=args["account"],
+                           owner=m["owner"])["instance"]
+            sdk.call("cloud.deploy", repo=m["repo"], host=host, instance=new)
+            sdk.call("cloud.release", instance=m["instance"])
+            moved = options[0][1]
+            return {"moved_to": moved, "cores": need}
+    if need != cur:
+        try:
+            sdk.call("cloud.resize", instance=m["instance"], cores=need)
+        except sdk.WorldError:
+            return {"cores": cur, "resize_failed": True}
+    return {"cores": need, "moved_to": moved}
+"""
+
+
+class PlacementBroker(_AppMixin, ScriptPolicy):
+    """Second-order control: answers reports that a provider ran out of capacity, with a service that sizes a
+    customer's deployment and moves it to another provider when its own is full at the moment it needs to grow.
+    It needs more delegation than an autoscaler (deploy rights on the service, spending on one account)."""
+    name = "placement_broker"
+    kind = "scripted"
+
+    def __init__(self, capital=300_000, price_per_call=40, margin=1.15, max_premium=1.6, host="placer",
+                 open_source=False):
+        self.capital, self.price, self.margin, self.max_premium = capital, price_per_call, margin, max_premium
+        self.host, self.open_source = host, open_source
+
+    def script(self):
+        reqs = []
+        while not reqs:
+            reqs = yield from self.find_requests(["capacity_unavailable"])
+            if not reqs:
+                yield from self.wait(6)
+        org, acct, _ = yield from self.found_company("place", self.capital)
+        if acct is None:
+            return
+        src = PLACEMENT.replace("MARGIN", repr(float(self.margin))).replace("MAX_PREMIUM", repr(float(self.max_premium)))
+        files = {"crucible.json": manifest({"tick": {"handler": "tick", "price_cents": int(self.price),
+                                                     "doc": "Size the service and move it if its provider is full.",
+                                                     "params": {"type": "object", "additionalProperties": True}}},
+                                           "Capacity-aware placement across providers"), "service.py": src}
+        app = yield from self.deploy_app(org, acct, "placer", files, self.host)
+        if app is None:
+            return
+        r = yield call("caps.publish", host=self.host,
+                       title="Placement broker: never be stuck on a full provider at peak",
+                       description="When your provider has no free cores at the hour your service needs to grow, "
+                                   "this capability rents capacity at the cheapest provider that has it, moves your "
+                                   "service there and releases the old instance; otherwise it sizes your instance "
+                                   "hour by hour. Needs cloud.manage, cloud.deploy and analytics.read on the "
+                                   "service and bank.spend on the account that pays for compute.",
+                       tags=["capacity", "provider", "full", "unavailable", "placement", "migrate", "peak", "cores"],
+                       params={"host": {"kind": "host"}, "account": {"kind": "account"}},
+                       requires=[{"cap": "cloud.manage", "scope": "$host"}, {"cap": "cloud.deploy", "scope": "$host"},
+                                 {"cap": "analytics.read", "scope": "$host"},
+                                 {"cap": "bank.spend", "scope": "$account", "limit": 2_000_000}],
+                       triggers=[{"endpoint": "tick", "every_s": 3600, "args": {"host": "$host", "account": "$account"}}],
+                       open_source=self.open_source)
+        if not ok(r):
+            return
+        self.capability = r["result"]["capability"]
+        text = f"Capability {self.capability} moves your service to a provider with free capacity when yours is full."
+        yield from self.answer(reqs, self.capability, text)
+        while True:
+            yield from self.wait(24)
+            reqs = yield from self.find_requests(["capacity_unavailable"])
+            yield from self.answer(reqs, self.capability, text)
+
+
+SITE_SRC = r'''
+import html
+PAGES = PAGES_JSON
+
+def page(req, caller):
+    key = req["params"].get("slug", "")
+    title, body = PAGES.get(key, PAGES[""])
+    links = "".join("<li><a href='/p/%s'>%s</a></li>" % (k, html.escape(v[0])) for k, v in sorted(PAGES.items()) if k)
+    return {"html": "<!doctype html><html><head><title>%s</title></head><body><h1>%s</h1><p>%s</p><ul>%s</ul>"
+                    "</body></html>" % (html.escape(title), html.escape(title), html.escape(body), links)}
+'''
+
+
+class SiteAuthor(_AppMixin, ScriptPolicy):
+    """Competent control for visibility tasks: publishes a small, honest web site about a topic on the synthetic
+    internet (a guide page per keyword) and leaves it to the crawler and the search index."""
+    name = "site_author"
+    kind = "scripted"
+
+    def __init__(self, topic: str, capital=150_000, host=None):
+        self.topic, self.capital, self.host = topic, capital, host
+
+    def script(self):
+        org, acct, _ = yield from self.found_company("guides", self.capital)
+        if acct is None:
+            return
+        words = [w for w in self.topic.split() if w.isalpha()][:6]
+        pages = {"": (f"Guide: {' '.join(words[:3])}", f"A practical guide to {self.topic}. " * 3)}
+        for wd in words:
+            pages[wd] = (f"{wd.title()} explained", f"How {wd} relates to {self.topic}: causes, measurement, options.")
+        files = {"crucible.json": json.dumps({"entry": "service.py", "web": {
+            "title": pages[""][0], "routes": {"GET /": "page", "GET /p/{slug}": "page"}}}),
+            "service.py": SITE_SRC.replace("PAGES_JSON", repr(pages))}
+        host = self.host or f"{self.handle}-guides"[:30]
+        app = yield from self.deploy_app(org, acct, "guides", files, host)
+        self.site = app
         while True:
             yield from self.wait(24)

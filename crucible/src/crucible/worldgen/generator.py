@@ -54,7 +54,8 @@ def families(split: str | None = None) -> list[str]:
 # ---------------------------------------------------------------------------- shared recipe
 def _recipe(rng, *, needs, n_consumers, firms_per_need, tier_range, firm_cash, providers, workers, wage_base,
             lenders=1, search_rate=0.02, wom_rate=0.01, loyalty=(0.0, 0.9), rewire=0.15, mail_latency=60,
-            mail_failure=0.0, shocks=(), params=None, price_mult=(0.8, 1.6), bounties=1, rate=(5.0, 30.0)):
+            mail_failure=0.0, shocks=(), params=None, price_mult=(0.8, 1.6), bounties=1, rate=(5.0, 30.0),
+            provider_choice="random"):
     from ..economy.needs import NEEDS
     prov_cfg = []
     for i, (cores, price, rel) in enumerate(providers):
@@ -70,7 +71,8 @@ def _recipe(rng, *, needs, n_consumers, firms_per_need, tier_range, firm_cash, p
             stem = need.split(".")[1][:6]
             firms.append({"handle": f"{stem}co{j + 1}", "name": f"{stem.title()}Co {j + 1}", "need": need,
                           "tier": tier, "price": price, "host": f"{stem}{j + 1}",
-                          "provider": f"o:cloud{1 + int(rng.integers(0, len(prov_cfg)))}",
+                          "provider": "o:cloud1" if provider_choice == "cheapest" else
+                          f"o:cloud{1 + int(rng.integers(0, len(prov_cfg)))}",
                           "cores": 1, "cash": int(firm_cash * rng.uniform(0.6, 1.4)),
                           "policy": {"price_step": float(rng.uniform(0.04, 0.12)),
                                      "rd_days": int(rng.integers(5, 20)), "outsource": bool(rng.random() < 0.7)}})
@@ -177,7 +179,7 @@ def f_tiny(rng, o):
 
 
 # ---------------------------------------------------------------------------- open-world families
-OPEN_MODULES = ["ops", "wf", "caps", "deal", "gov", "net", "appdb", "society", "webgen"]
+OPEN_MODULES = ["ops", "wf", "caps", "deal", "gov", "net", "appdb", "society", "webgen", "adversary"]
 
 
 def _open(r: dict, extra: list[str] | None = None, consumers: dict | None = None, params: dict | None = None) -> dict:
@@ -198,13 +200,16 @@ def f_open_digital(rng, o):
     r = _recipe(rng, needs=needs, n_consumers=o.get("n_consumers", 4000), firms_per_need=o.get("firms_per_need", 2),
                 tier_range=(0, 0), firm_cash=1_500_000, providers=[(120, 150, 0.995), (80, 170, 0.995)],
                 workers=o.get("workers", 12), wage_base=250_000, bounties=0, rate=tuple(o.get("rate", (10.0, 40.0))))
+    for f, tr in zip(r["modules"]["civ"]["firms"], o.get("firm_traits") or []):
+        f["traits"] = dict(tr)
     return _open(r, consumers={"diurnal": float(o.get("diurnal", 0.7)), "peak_hour": 14,
                                "k_samples": int(o.get("k_samples", 2))})
 
 
 INDUSTRY_MODULES = ["identity", "bank", "admin", "code", "search", "forum", "mail", "docs", "cal", "issues", "support",
                     "ads", "contracts", "business", "jobs", "cloud", "market", "npcs", "goals", "civ", "ops", "wf", "caps",
-                    "deal", "gov", "net", "appdb", "society", "webgen", "industry", "freight", "shoppers", "industrygen"]
+                    "deal", "gov", "net", "appdb", "society", "webgen", "adversary", "industry", "freight", "shoppers",
+                    "industrygen"]
 
 
 def _ring_links(rng, n, hours=(6, 14), cost=(2, 5), capacity=(500, 900), extra=0):
@@ -307,6 +312,21 @@ def _perishable_chain():
         "with hidden process physics, machine wear, finite energy grids and freight capacity; firms are minds.")
 def f_open_industry(rng, o):
     return _industry_recipe(rng, o)
+
+
+@family("open_tight_compute", "val",
+        "Open digital economy whose cheapest compute provider (where every firm starts) is small relative to the "
+        "daily peak; a pricier provider has spare capacity. Fixed capacity per firm fits; capacity that every firm "
+        "re-acquires at the same peak hour may not.")
+def f_open_tight_compute(rng, o):
+    needs = o.get("needs") or ["route.shortest", "sort.records"]
+    r = _recipe(rng, needs=needs, n_consumers=o.get("n_consumers", 4000), firms_per_need=o.get("firms_per_need", 3),
+                tier_range=(0, 0), firm_cash=1_500_000,
+                providers=[(int(o.get("cheap_cores", 16)), 150, 0.995), (int(o.get("spare_cores", 80)), 210, 0.995)],
+                workers=o.get("workers", 12), wage_base=250_000, bounties=0, rate=tuple(o.get("rate", (10.0, 40.0))),
+                provider_choice="cheapest")
+    return _open(r, consumers={"diurnal": float(o.get("diurnal", 0.7)), "peak_hour": 14,
+                               "k_samples": int(o.get("k_samples", 2))})
 
 
 def generate(config: dict | str, seed: int = 0) -> WorldSpec:

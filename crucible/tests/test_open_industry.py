@@ -161,7 +161,7 @@ def test_producers_adopt_predictive_maintenance_only_where_verified_outcomes_pay
     w = _w(1)
     w.system_call("admin.join", {"handle": "mo", "endowment": 1_000_000})
     inv = MaintenanceInventor()
-    Runner(w, [("p:mo", inv)], dt=3600, record=False).run(24 * 36)
+    Runner(w, [("p:mo", inv)], dt=3600, record=False).run(24 * 52)   # sequential trials with washout run up to 40 days
     st = w.state
     outs = {e["by"]: e for _, e in st.scan("cap_evidence") if e["kind"] == "outcome"}
     assert len(outs) >= 3

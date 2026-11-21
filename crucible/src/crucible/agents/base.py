@@ -137,3 +137,92 @@ def _compact(obs: dict) -> dict:
     if len(out.get("events", [])) > 30:
         out["events"] = out["events"][-30:]
     return out
+
+
+class AsyncRunner:
+    """Concurrent agents on independent clocks.
+
+    Each agent is scheduled at its own next wake-up time: after acting, it sleeps for the action's duration
+    (`cost_s` of the tool) plus its think time (``think_s(agent, rng)`` - default exponential with the agent's mean
+    `think_mean_s`). World processes (demand, billing, simulated people, deliveries...) run between wake-ups at
+    their scheduled times. Agents waking at the same second act in a seeded permutation, so runs are
+    reproducible; the realised schedule is recorded in `self.schedule` [(t, actor, tool or None)].
+
+    Agents whose policies share a `batch_group` object with an ``act_batch([(policy, obs, tools)]) -> [action]``
+    method are decided together when they wake at the same time (e.g. one batched LLM forward pass).
+    """
+
+    def __init__(self, world: World, agents: Iterable[tuple[str, Policy]], seed: int = 0, think_mean_s: float = 600.0,
+                 think_s=None, max_events: int = 30):
+        import heapq as _hq
+        self._hq = _hq
+        self.world = world
+        self.agents = list(agents)
+        self.rng = np.random.default_rng(seed)
+        self.think_mean_s = think_mean_s
+        self.think_s = think_s
+        self.max_events = max_events
+        self.cursor = {a: world.seq for a, _ in self.agents}
+        self.schedule: list[tuple[int, str, str | None]] = []
+        self.heap: list[tuple[int, int, int]] = []
+        for i, (a, p) in enumerate(self.agents):
+            p.reset(a, np.random.default_rng([seed, i]))
+            self._hq.heappush(self.heap, (world.now + int(self.rng.integers(0, max(1, int(think_mean_s)))), i, i))
+        self._n = len(self.agents)
+
+    def _think(self, actor: str) -> int:
+        if self.think_s is not None:
+            return int(self.think_s(actor, self.rng))
+        return int(1 + self.rng.exponential(self.think_mean_s))
+
+    def observe(self, actor: str) -> dict:
+        obs = self.world.observe(actor)
+        evs, dropped = self.world.visible_events(actor, self.cursor[actor], limit=self.max_events)
+        self.cursor[actor] = self.world.seq
+        obs["events"] = [{"seq": e.seq, "t": e.t, "type": e.type, "actor": e.actor, "payload": e.payload}
+                         for e in evs if not (e.type == "cmd" and e.actor == actor)]
+        obs["events_dropped"] = dropped
+        return obs
+
+    def run_until(self, t_end: int) -> int:
+        """Advance to simulated time `t_end`, letting every agent act whenever it is awake. Returns actions taken."""
+        n_actions = 0
+        while self.heap and self.heap[0][0] <= t_end:
+            t = self.heap[0][0]
+            due = []
+            while self.heap and self.heap[0][0] == t:
+                due.append(self._hq.heappop(self.heap))
+            if t > self.world.now:
+                self.world.advance_time(t)
+            order = self.rng.permutation(len(due))
+            batch: dict[int, list] = {}
+            for j in order:
+                _, _, i = due[j]
+                actor, pol = self.agents[i]
+                obs = self.observe(actor)
+                tools = self.world.available_tools(actor)
+                grp = getattr(pol, "batch_group", None)
+                if grp is not None:
+                    batch.setdefault(id(grp), [grp, []])[1].append((i, pol, obs, tools))
+                    continue
+                n_actions += self._step(i, actor, pol, pol.act(obs, tools))
+            for grp, items in batch.values():
+                acts = grp.act_batch([(p, o, tl) for _, p, o, tl in items])
+                for (i, pol, _, _), a in zip(items, acts):
+                    n_actions += self._step(i, self.agents[i][0], pol, a)
+        if t_end > self.world.now:
+            self.world.advance_time(t_end)
+        return n_actions
+
+    def _step(self, i, actor, pol, action) -> int:
+        cost = 0
+        acted = 0
+        if action is not None:
+            r = self.world.execute(actor, action)
+            pol.observe_result(action, r.to_dict())
+            cost = r.cost_s
+            acted = 1
+        self.schedule.append((self.world.now, actor, action.get("tool") if action else None))
+        self._n += 1
+        self._hq.heappush(self.heap, (self.world.now + max(1, cost) + self._think(actor), self._n, i))
+        return acted

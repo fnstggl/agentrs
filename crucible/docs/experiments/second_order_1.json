@@ -1,0 +1,5173 @@
+{
+ "family": "open_tight_compute",
+ "seed": 1,
+ "cheap_cores": 40,
+ "fork_day": 1,
+ "days": 70,
+ "controls": {
+  "ada": "CapacityInventor (scripted)",
+  "bea": "PlacementBroker (scripted)"
+ },
+ "stages_factual": {
+  "1_first_overload_report": {
+   "t": 171000,
+   "day": 1.9791666666666667,
+   "by": "o:recordco1",
+   "request": "req_000008"
+  },
+  "2_autoscaler_published": {
+   "day": 2.625,
+   "capability": "cap_000001"
+  },
+  "3_autoscaling_adopters_at_end": [
+   {
+    "firm": "o:shorteco1",
+    "capability": "cap_000001"
+   },
+   {
+    "firm": "o:shorteco2",
+    "capability": "cap_000001"
+   }
+  ],
+  "5_first_capacity_unavailable_loss_day": 4,
+  "6_first_capacity_unavailable_report": {
+   "t": 516600,
+   "day": 5.979166666666667,
+   "by": "o:shorteco3",
+   "request": "req_000015"
+  },
+  "7_placement_published": {
+   "day": 6.708333333333333,
+   "capability": "cap_000004"
+  },
+  "8_placement_trials": [
+   {
+    "day": 34.979166666666664,
+    "firm": "o:recordco1",
+    "status": "removed"
+   },
+   {
+    "day": 36.979166666666664,
+    "firm": "o:recordco3",
+    "status": "removed"
+   },
+   {
+    "day": 41.979166666666664,
+    "firm": "o:shorteco1",
+    "status": "trial"
+   },
+   {
+    "day": 46.979166666666664,
+    "firm": "o:shorteco3",
+    "status": "trial"
+   }
+  ],
+  "9_migrations": [
+   {
+    "day": 35.3125,
+    "firm": "o:recordco1",
+    "host": "record1",
+    "to": "o:cloud2",
+    "by": "svc:placer"
+   }
+  ],
+  "10_provider_reactions": {
+   "hardware_orders": [
+    [
+     "o:cloud1",
+     10
+    ],
+    [
+     "o:cloud1",
+     12
+    ]
+   ],
+   "prices": {
+    "o:cloud1": 153,
+    "o:cloud2": 105
+   }
+  },
+  "trial_evidence": [
+   {
+    "capability": "cap_000002",
+    "host": "autoscale32",
+    "firm": "o:recordco3",
+    "effect_per_day": -7561.0,
+    "se": 5144.08,
+    "design": "randomised switchback (paired days)",
+    "days_total": 10,
+    "carryover_suspected": false,
+    "independent": true
+   },
+   {
+    "capability": "cap_000002",
+    "host": "autoscale32",
+    "firm": "o:shorteco1",
+    "effect_per_day": 3859.0,
+    "se": 1079.27,
+    "design": "randomised switchback (paired days)",
+    "days_total": 10,
+    "carryover_suspected": false,
+    "independent": true
+   },
+   {
+    "capability": "cap_000001",
+    "host": "autoscale",
+    "firm": "o:recordco2",
+    "effect_per_day": -1688.5,
+    "se": 5000.78,
+    "design": "randomised switchback (paired days)",
+    "days_total": 12,
+    "carryover_suspected": true,
+    "independent": true
+   },
+   {
+    "capability": "cap_000002",
+    "host": "autoscale32",
+    "firm": "o:shorteco3",
+    "effect_per_day": -943.33,
+    "se": 2140.18,
+    "design": "randomised switchback (paired days)",
+    "days_total": 12,
+    "carryover_suspected": false,
+    "independent": true
+   },
+   {
+    "capability": "cap_000001",
+    "host": "autoscale",
+    "firm": "o:recordco1",
+    "effect_per_day": -6011.43,
+    "se": 5432.14,
+    "design": "randomised switchback (paired days)",
+    "days_total": 14,
+    "carryover_suspected": true,
+    "independent": true
+   },
+   {
+    "capability": "cap_000002",
+    "host": "autoscale32",
+    "firm": "o:shorteco2",
+    "effect_per_day": -342.14,
+    "se": 3049.73,
+    "design": "randomised switchback (paired days)",
+    "days_total": 14,
+    "carryover_suspected": false,
+    "independent": true
+   },
+   {
+    "capability": "cap_000003",
+    "host": "autoscale54",
+    "firm": "o:recordco3",
+    "effect_per_day": -1009.4,
+    "se": 2864.12,
+    "design": "randomised switchback (paired days)",
+    "days_total": 10,
+    "carryover_suspected": true,
+    "independent": true
+   },
+   {
+    "capability": "cap_000003",
+    "host": "autoscale54",
+    "firm": "o:shorteco1",
+    "effect_per_day": -1328.8,
+    "se": 1606.09,
+    "design": "randomised switchback (paired days)",
+    "days_total": 10,
+    "carryover_suspected": false,
+    "independent": true
+   },
+   {
+    "capability": "cap_000002",
+    "host": "autoscale32",
+    "firm": "o:recordco2",
+    "effect_per_day": -4083.83,
+    "se": 5263.4,
+    "design": "randomised switchback (paired days)",
+    "days_total": 12,
+    "carryover_suspected": false,
+    "independent": true
+   },
+   {
+    "capability": "cap_000003",
+    "host": "autoscale54",
+    "firm": "o:shorteco3",
+    "effect_per_day": -1571.33,
+    "se": 1649.21,
+    "design": "randomised switchback (paired days)",
+    "days_total": 12,
+    "carryover_suspected": false,
+    "independent": true
+   },
+   {
+    "capability": "cap_000003",
+    "host": "autoscale54",
+    "firm": "o:recordco1",
+    "effect_per_day": 179.71,
+    "se": 6793.87,
+    "design": "randomised switchback (paired days)",
+    "days_total": 14,
+    "carryover_suspected": true,
+    "independent": true
+   },
+   {
+    "capability": "cap_000003",
+    "host": "autoscale54",
+    "firm": "o:shorteco2",
+    "effect_per_day": 2511.29,
+    "se": 1182.19,
+    "design": "randomised switchback (paired days)",
+    "days_total": 14,
+    "carryover_suspected": false,
+    "independent": true
+   },
+   {
+    "capability": "cap_000001",
+    "host": "autoscale",
+    "firm": "o:recordco3",
+    "effect_per_day": -6118.2,
+    "se": 2922.67,
+    "design": "randomised switchback (paired days)",
+    "days_total": 10,
+    "carryover_suspected": true,
+    "independent": true
+   },
+   {
+    "capability": "cap_000001",
+    "host": "autoscale",
+    "firm": "o:shorteco1",
+    "effect_per_day": 3482.0,
+    "se": 2129.41,
+    "design": "randomised switchback (paired days)",
+    "days_total": 10,
+    "carryover_suspected": false,
+    "independent": true
+   },
+   {
+    "capability": "cap_000003",
+    "host": "autoscale54",
+    "firm": "o:recordco2",
+    "effect_per_day": 50136.0,
+    "se": 46813.27,
+    "design": "randomised switchback (paired days)",
+    "days_total": 12,
+    "carryover_suspected": true,
+    "independent": true
+   },
+   {
+    "capability": "cap_000001",
+    "host": "autoscale",
+    "firm": "o:shorteco3",
+    "effect_per_day": -713.67,
+    "se": 1218.1,
+    "design": "randomised switchback (paired days)",
+    "days_total": 12,
+    "carryover_suspected": false,
+    "independent": true
+   },
+   {
+    "capability": "cap_000004",
+    "host": "placer",
+    "firm": "o:recordco1",
+    "effect_per_day": -11845.5,
+    "se": 2732.31,
+    "design": "sequential randomised blocks with washout",
+    "days_total": 16,
+    "carryover_suspected": true,
+    "independent": true
+   },
+   {
+    "capability": "cap_000004",
+    "host": "placer",
+    "firm": "o:recordco3",
+    "effect_per_day": -18874.5,
+    "se": 2163.67,
+    "design": "sequential randomised blocks with washout",
+    "days_total": 16,
+    "carryover_suspected": false,
+    "independent": true
+   },
+   {
+    "capability": "cap_000001",
+    "host": "autoscale",
+    "firm": "o:shorteco2",
+    "effect_per_day": 2402.86,
+    "se": 1052.61,
+    "design": "randomised switchback (paired days)",
+    "days_total": 14,
+    "carryover_suspected": true,
+    "independent": true
+   },
+   {
+    "capability": "cap_000002",
+    "host": "autoscale32",
+    "firm": "o:recordco1",
+    "effect_per_day": -1067.14,
+    "se": 1936.78,
+    "design": "randomised switchback (paired days)",
+    "days_total": 14,
+    "carryover_suspected": false,
+    "independent": true
+   }
+  ],
+  "final_installs": [
+   [
+    "o:recordco1",
+    "autoscale",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:recordco1",
+    "autoscale32",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:recordco1",
+    "autoscale54",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:recordco1",
+    "placer",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:recordco2",
+    "autoscale",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:recordco2",
+    "autoscale32",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:recordco2",
+    "autoscale54",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:recordco3",
+    "autoscale",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:recordco3",
+    "autoscale32",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:recordco3",
+    "autoscale54",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:recordco3",
+    "placer",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:shorteco1",
+    "autoscale",
+    "active",
+    "adopted"
+   ],
+   [
+    "o:shorteco1",
+    "autoscale32",
+    "removed",
+    "the service stopped working"
+   ],
+   [
+    "o:shorteco1",
+    "autoscale54",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:shorteco1",
+    "placer",
+    "trial",
+    ""
+   ],
+   [
+    "o:shorteco2",
+    "autoscale",
+    "active",
+    "adopted"
+   ],
+   [
+    "o:shorteco2",
+    "autoscale32",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:shorteco2",
+    "autoscale54",
+    "removed",
+    "the service stopped working"
+   ],
+   [
+    "o:shorteco3",
+    "autoscale",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:shorteco3",
+    "autoscale32",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:shorteco3",
+    "autoscale54",
+    "removed",
+    "trial did not pay"
+   ],
+   [
+    "o:shorteco3",
+    "placer",
+    "trial",
+    ""
+   ]
+  ],
+  "11_entrants": [
+   [
+    "autoscale32",
+    "autoscale"
+   ],
+   [
+    "autoscale54",
+    "autoscale"
+   ]
+  ],
+  "11_markets": [
+   {
+    "label": "analytics autoscaler before",
+    "sellers": [
+     "o:ada-scale"
+    ],
+    "buyers": [
+     "o:recordco1",
+     "o:recordco2"
+    ],
+    "t": 345300,
+    "id": "cap_000001"
+   }
+  ]
+ },
+ "stages_counterfactual": {
+  "1_first_overload_report": {
+   "t": 171000,
+   "day": 1.9791666666666667,
+   "by": "o:recordco1",
+   "request": "req_000008"
+  },
+  "3_autoscaling_adopters_at_end": [],
+  "5_first_capacity_unavailable_loss_day": null,
+  "6_first_capacity_unavailable_report": null,
+  "9_migrations": [],
+  "10_provider_reactions": {
+   "hardware_orders": [],
+   "prices": {
+    "o:cloud1": 75,
+    "o:cloud2": 105
+   }
+  },
+  "trial_evidence": [],
+  "final_installs": [],
+  "11_entrants": [],
+  "11_markets": []
+ },
+ "summary": {
+  "factual": {
+   "capacity_unavailable_events": 535,
+   "overload_events": 941279,
+   "requests_served": 4910764,
+   "firm_operating_result": 5489614,
+   "firm_revenue": 13631021,
+   "firm_compute_spend": 7153695
+  },
+  "counterfactual": {
+   "capacity_unavailable_events": 0,
+   "overload_events": 2866336,
+   "requests_served": 3293474,
+   "firm_operating_result": 9870844,
+   "firm_revenue": 12344044,
+   "firm_compute_spend": 2473200
+  }
+ },
+ "regeneration_identical": true,
+ "events": 251189,
+ "wall_s": 316.5,
+ "timeline": [
+  {
+   "factual": {
+    "day": 1,
+    "unavailable": 0,
+    "overload": 18475,
+    "operating": 74991,
+    "served": 25433,
+    "compute_spend": 21600,
+    "revenue": 96591,
+    "providers": {
+     "o:cloud1": {
+      "price": 140,
+      "cores": 40,
+      "used": 7
+     },
+     "o:cloud2": {
+      "price": 196,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 1,
+    "unavailable": 0,
+    "overload": 18471,
+    "operating": 74963,
+    "served": 25602,
+    "compute_spend": 21600,
+    "revenue": 96563,
+    "providers": {
+     "o:cloud1": {
+      "price": 140,
+      "cores": 40,
+      "used": 6
+     },
+     "o:cloud2": {
+      "price": 196,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 2,
+    "unavailable": 0,
+    "overload": 26258,
+    "operating": 104658,
+    "served": 33202,
+    "compute_spend": 25200,
+    "revenue": 129858,
+    "providers": {
+     "o:cloud1": {
+      "price": 135,
+      "cores": 40,
+      "used": 9
+     },
+     "o:cloud2": {
+      "price": 190,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 2,
+    "unavailable": 0,
+    "overload": 27937,
+    "operating": 100478,
+    "served": 33482,
+    "compute_spend": 21600,
+    "revenue": 122078,
+    "providers": {
+     "o:cloud1": {
+      "price": 135,
+      "cores": 40,
+      "used": 8
+     },
+     "o:cloud2": {
+      "price": 190,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 3,
+    "unavailable": 0,
+    "overload": 17070,
+    "operating": 71535,
+    "served": 54327,
+    "compute_spend": 87900,
+    "revenue": 159435,
+    "providers": {
+     "o:cloud1": {
+      "price": 135,
+      "cores": 40,
+      "used": 19
+     },
+     "o:cloud2": {
+      "price": 184,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 3,
+    "unavailable": 0,
+    "overload": 33648,
+    "operating": 114755,
+    "served": 38690,
+    "compute_spend": 28800,
+    "revenue": 143555,
+    "providers": {
+     "o:cloud1": {
+      "price": 130,
+      "cores": 40,
+      "used": 9
+     },
+     "o:cloud2": {
+      "price": 184,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 4,
+    "unavailable": 10,
+    "overload": 13293,
+    "operating": 76740,
+    "served": 64707,
+    "compute_spend": 106650,
+    "revenue": 183135,
+    "providers": {
+     "o:cloud1": {
+      "price": 135,
+      "cores": 40,
+      "used": 23
+     },
+     "o:cloud2": {
+      "price": 178,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 4,
+    "unavailable": 0,
+    "overload": 36716,
+    "operating": 125709,
+    "served": 42402,
+    "compute_spend": 32400,
+    "revenue": 158109,
+    "providers": {
+     "o:cloud1": {
+      "price": 126,
+      "cores": 40,
+      "used": 9
+     },
+     "o:cloud2": {
+      "price": 178,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 5,
+    "unavailable": 24,
+    "overload": 14715,
+    "operating": 72660,
+    "served": 66993,
+    "compute_spend": 111000,
+    "revenue": 182976,
+    "providers": {
+     "o:cloud1": {
+      "price": 135,
+      "cores": 40,
+      "used": 24
+     },
+     "o:cloud2": {
+      "price": 172,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 5,
+    "unavailable": 0,
+    "overload": 38607,
+    "operating": 133744,
+    "served": 44572,
+    "compute_spend": 32400,
+    "revenue": 166144,
+    "providers": {
+     "o:cloud1": {
+      "price": 122,
+      "cores": 40,
+      "used": 9
+     },
+     "o:cloud2": {
+      "price": 172,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 6,
+    "unavailable": 2,
+    "overload": 21238,
+    "operating": 81557,
+    "served": 64671,
+    "compute_spend": 104100,
+    "revenue": 185615,
+    "providers": {
+     "o:cloud1": {
+      "price": 135,
+      "cores": 40,
+      "used": 30
+     },
+     "o:cloud2": {
+      "price": 166,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 6,
+    "unavailable": 0,
+    "overload": 39604,
+    "operating": 139708,
+    "served": 46054,
+    "compute_spend": 32400,
+    "revenue": 172108,
+    "providers": {
+     "o:cloud1": {
+      "price": 118,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 166,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 7,
+    "unavailable": 0,
+    "overload": 21248,
+    "operating": 107309,
+    "served": 66098,
+    "compute_spend": 85500,
+    "revenue": 192809,
+    "providers": {
+     "o:cloud1": {
+      "price": 135,
+      "cores": 40,
+      "used": 29
+     },
+     "o:cloud2": {
+      "price": 161,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 7,
+    "unavailable": 0,
+    "overload": 40102,
+    "operating": 137652,
+    "served": 46329,
+    "compute_spend": 36000,
+    "revenue": 173652,
+    "providers": {
+     "o:cloud1": {
+      "price": 114,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 161,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 8,
+    "unavailable": 26,
+    "overload": 14681,
+    "operating": 83080,
+    "served": 73805,
+    "compute_spend": 115050,
+    "revenue": 197437,
+    "providers": {
+     "o:cloud1": {
+      "price": 146,
+      "cores": 40,
+      "used": 40
+     },
+     "o:cloud2": {
+      "price": 156,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 8,
+    "unavailable": 0,
+    "overload": 40813,
+    "operating": 138959,
+    "served": 46769,
+    "compute_spend": 36000,
+    "revenue": 174959,
+    "providers": {
+     "o:cloud1": {
+      "price": 110,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 156,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 9,
+    "unavailable": 30,
+    "overload": 13833,
+    "operating": 83563,
+    "served": 74741,
+    "compute_spend": 117000,
+    "revenue": 199753,
+    "providers": {
+     "o:cloud1": {
+      "price": 158,
+      "cores": 40,
+      "used": 39
+     },
+     "o:cloud2": {
+      "price": 151,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 9,
+    "unavailable": 0,
+    "overload": 40770,
+    "operating": 140915,
+    "served": 47282,
+    "compute_spend": 36000,
+    "revenue": 176915,
+    "providers": {
+     "o:cloud1": {
+      "price": 106,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 151,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 10,
+    "unavailable": 4,
+    "overload": 13105,
+    "operating": 76017,
+    "served": 76052,
+    "compute_spend": 127650,
+    "revenue": 203646,
+    "providers": {
+     "o:cloud1": {
+      "price": 171,
+      "cores": 40,
+      "used": 40
+     },
+     "o:cloud2": {
+      "price": 146,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 10,
+    "unavailable": 0,
+    "overload": 40976,
+    "operating": 141285,
+    "served": 47265,
+    "compute_spend": 36000,
+    "revenue": 177285,
+    "providers": {
+     "o:cloud1": {
+      "price": 102,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 146,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 11,
+    "unavailable": 35,
+    "overload": 14104,
+    "operating": 85290,
+    "served": 75081,
+    "compute_spend": 117600,
+    "revenue": 201966,
+    "providers": {
+     "o:cloud1": {
+      "price": 185,
+      "cores": 40,
+      "used": 39
+     },
+     "o:cloud2": {
+      "price": 141,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 11,
+    "unavailable": 0,
+    "overload": 41481,
+    "operating": 141778,
+    "served": 47311,
+    "compute_spend": 36000,
+    "revenue": 177778,
+    "providers": {
+     "o:cloud1": {
+      "price": 98,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 141,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 12,
+    "unavailable": 2,
+    "overload": 14852,
+    "operating": 72452,
+    "served": 74528,
+    "compute_spend": 125400,
+    "revenue": 197852,
+    "providers": {
+     "o:cloud1": {
+      "price": 200,
+      "cores": 40,
+      "used": 40
+     },
+     "o:cloud2": {
+      "price": 136,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 12,
+    "unavailable": 0,
+    "overload": 41124,
+    "operating": 142770,
+    "served": 47589,
+    "compute_spend": 36000,
+    "revenue": 178770,
+    "providers": {
+     "o:cloud1": {
+      "price": 95,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 136,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 13,
+    "unavailable": 33,
+    "overload": 16415,
+    "operating": 66929,
+    "served": 73204,
+    "compute_spend": 121800,
+    "revenue": 188009,
+    "providers": {
+     "o:cloud1": {
+      "price": 217,
+      "cores": 40,
+      "used": 40
+     },
+     "o:cloud2": {
+      "price": 131,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 13,
+    "unavailable": 0,
+    "overload": 41720,
+    "operating": 143587,
+    "served": 47686,
+    "compute_spend": 36000,
+    "revenue": 179587,
+    "providers": {
+     "o:cloud1": {
+      "price": 92,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 131,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 14,
+    "unavailable": 24,
+    "overload": 14246,
+    "operating": 71703,
+    "served": 75795,
+    "compute_spend": 126600,
+    "revenue": 197793,
+    "providers": {
+     "o:cloud1": {
+      "price": 235,
+      "cores": 40,
+      "used": 40
+     },
+     "o:cloud2": {
+      "price": 127,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 14,
+    "unavailable": 0,
+    "overload": 41707,
+    "operating": 143154,
+    "served": 47814,
+    "compute_spend": 36000,
+    "revenue": 179154,
+    "providers": {
+     "o:cloud1": {
+      "price": 89,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 127,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 15,
+    "unavailable": 34,
+    "overload": 15732,
+    "operating": 62888,
+    "served": 73642,
+    "compute_spend": 129600,
+    "revenue": 191858,
+    "providers": {
+     "o:cloud1": {
+      "price": 254,
+      "cores": 40,
+      "used": 40
+     },
+     "o:cloud2": {
+      "price": 123,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 15,
+    "unavailable": 0,
+    "overload": 41500,
+    "operating": 142746,
+    "served": 47691,
+    "compute_spend": 36000,
+    "revenue": 178746,
+    "providers": {
+     "o:cloud1": {
+      "price": 86,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 123,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 16,
+    "unavailable": 30,
+    "overload": 14699,
+    "operating": 83577,
+    "served": 75105,
+    "compute_spend": 117300,
+    "revenue": 200157,
+    "providers": {
+     "o:cloud1": {
+      "price": 275,
+      "cores": 40,
+      "used": 40
+     },
+     "o:cloud2": {
+      "price": 119,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 16,
+    "unavailable": 0,
+    "overload": 41585,
+    "operating": 144491,
+    "served": 48191,
+    "compute_spend": 36000,
+    "revenue": 180491,
+    "providers": {
+     "o:cloud1": {
+      "price": 83,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 119,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 17,
+    "unavailable": 30,
+    "overload": 14546,
+    "operating": 76475,
+    "served": 75145,
+    "compute_spend": 126900,
+    "revenue": 202745,
+    "providers": {
+     "o:cloud1": {
+      "price": 275,
+      "cores": 50,
+      "used": 41
+     },
+     "o:cloud2": {
+      "price": 115,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 17,
+    "unavailable": 0,
+    "overload": 42090,
+    "operating": 142939,
+    "served": 47755,
+    "compute_spend": 36000,
+    "revenue": 178939,
+    "providers": {
+     "o:cloud1": {
+      "price": 80,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 115,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 18,
+    "unavailable": 9,
+    "overload": 12723,
+    "operating": 69537,
+    "served": 77169,
+    "compute_spend": 133950,
+    "revenue": 203298,
+    "providers": {
+     "o:cloud1": {
+      "price": 275,
+      "cores": 50,
+      "used": 38
+     },
+     "o:cloud2": {
+      "price": 111,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 18,
+    "unavailable": 0,
+    "overload": 41765,
+    "operating": 141284,
+    "served": 47318,
+    "compute_spend": 36000,
+    "revenue": 177284,
+    "providers": {
+     "o:cloud1": {
+      "price": 77,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 111,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 19,
+    "unavailable": 0,
+    "overload": 14801,
+    "operating": 80508,
+    "served": 74274,
+    "compute_spend": 123750,
+    "revenue": 204258,
+    "providers": {
+     "o:cloud1": {
+      "price": 275,
+      "cores": 50,
+      "used": 41
+     },
+     "o:cloud2": {
+      "price": 107,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 19,
+    "unavailable": 0,
+    "overload": 41731,
+    "operating": 143299,
+    "served": 47815,
+    "compute_spend": 36000,
+    "revenue": 179299,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 107,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 20,
+    "unavailable": 25,
+    "overload": 10313,
+    "operating": 59005,
+    "served": 79298,
+    "compute_spend": 148350,
+    "revenue": 206830,
+    "providers": {
+     "o:cloud1": {
+      "price": 275,
+      "cores": 50,
+      "used": 41
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 20,
+    "unavailable": 0,
+    "overload": 41534,
+    "operating": 143260,
+    "served": 47980,
+    "compute_spend": 36000,
+    "revenue": 179260,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 21,
+    "unavailable": 21,
+    "overload": 9301,
+    "operating": 56169,
+    "served": 80219,
+    "compute_spend": 151200,
+    "revenue": 206949,
+    "providers": {
+     "o:cloud1": {
+      "price": 298,
+      "cores": 50,
+      "used": 50
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 21,
+    "unavailable": 0,
+    "overload": 41917,
+    "operating": 141767,
+    "served": 47297,
+    "compute_spend": 36000,
+    "revenue": 177767,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 22,
+    "unavailable": 13,
+    "overload": 9095,
+    "operating": 42182,
+    "served": 80740,
+    "compute_spend": 163950,
+    "revenue": 205922,
+    "providers": {
+     "o:cloud1": {
+      "price": 322,
+      "cores": 50,
+      "used": 50
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 22,
+    "unavailable": 0,
+    "overload": 41989,
+    "operating": 142896,
+    "served": 47562,
+    "compute_spend": 36000,
+    "revenue": 178896,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 23,
+    "unavailable": 14,
+    "overload": 14357,
+    "operating": 73385,
+    "served": 75304,
+    "compute_spend": 129450,
+    "revenue": 202541,
+    "providers": {
+     "o:cloud1": {
+      "price": 322,
+      "cores": 50,
+      "used": 34
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 23,
+    "unavailable": 0,
+    "overload": 42238,
+    "operating": 143507,
+    "served": 47813,
+    "compute_spend": 36000,
+    "revenue": 179507,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 24,
+    "unavailable": 39,
+    "overload": 9175,
+    "operating": 69818,
+    "served": 80093,
+    "compute_spend": 136500,
+    "revenue": 205499,
+    "providers": {
+     "o:cloud1": {
+      "price": 322,
+      "cores": 50,
+      "used": 26
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 24,
+    "unavailable": 0,
+    "overload": 41283,
+    "operating": 143417,
+    "served": 48020,
+    "compute_spend": 36000,
+    "revenue": 179417,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 25,
+    "unavailable": 0,
+    "overload": 23082,
+    "operating": 80920,
+    "served": 67027,
+    "compute_spend": 105150,
+    "revenue": 186070,
+    "providers": {
+     "o:cloud1": {
+      "price": 322,
+      "cores": 50,
+      "used": 28
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 25,
+    "unavailable": 0,
+    "overload": 42272,
+    "operating": 145418,
+    "served": 48269,
+    "compute_spend": 36000,
+    "revenue": 181418,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 26,
+    "unavailable": 40,
+    "overload": 6736,
+    "operating": 65406,
+    "served": 83411,
+    "compute_spend": 145950,
+    "revenue": 210426,
+    "providers": {
+     "o:cloud1": {
+      "price": 348,
+      "cores": 50,
+      "used": 50
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 26,
+    "unavailable": 0,
+    "overload": 41731,
+    "operating": 142496,
+    "served": 47609,
+    "compute_spend": 36000,
+    "revenue": 178496,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 27,
+    "unavailable": 4,
+    "overload": 9271,
+    "operating": 47215,
+    "served": 80803,
+    "compute_spend": 163650,
+    "revenue": 210865,
+    "providers": {
+     "o:cloud1": {
+      "price": 376,
+      "cores": 50,
+      "used": 50
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 27,
+    "unavailable": 0,
+    "overload": 41411,
+    "operating": 143586,
+    "served": 47949,
+    "compute_spend": 36000,
+    "revenue": 179586,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 28,
+    "unavailable": 10,
+    "overload": 11771,
+    "operating": 64044,
+    "served": 77877,
+    "compute_spend": 143850,
+    "revenue": 207684,
+    "providers": {
+     "o:cloud1": {
+      "price": 407,
+      "cores": 50,
+      "used": 45
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 28,
+    "unavailable": 0,
+    "overload": 41591,
+    "operating": 144513,
+    "served": 48282,
+    "compute_spend": 36000,
+    "revenue": 180513,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 29,
+    "unavailable": 13,
+    "overload": 11246,
+    "operating": 69584,
+    "served": 78250,
+    "compute_spend": 134700,
+    "revenue": 203984,
+    "providers": {
+     "o:cloud1": {
+      "price": 407,
+      "cores": 50,
+      "used": 43
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 29,
+    "unavailable": 0,
+    "overload": 41897,
+    "operating": 143064,
+    "served": 47736,
+    "compute_spend": 36000,
+    "revenue": 179064,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 30,
+    "unavailable": 0,
+    "overload": 11392,
+    "operating": 72104,
+    "served": 78224,
+    "compute_spend": 136350,
+    "revenue": 208454,
+    "providers": {
+     "o:cloud1": {
+      "price": 407,
+      "cores": 50,
+      "used": 44
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 30,
+    "unavailable": 0,
+    "overload": 41907,
+    "operating": 144505,
+    "served": 48271,
+    "compute_spend": 36000,
+    "revenue": 180505,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 31,
+    "unavailable": 30,
+    "overload": 12316,
+    "operating": 57616,
+    "served": 77783,
+    "compute_spend": 141300,
+    "revenue": 198196,
+    "providers": {
+     "o:cloud1": {
+      "price": 440,
+      "cores": 50,
+      "used": 50
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 31,
+    "unavailable": 0,
+    "overload": 41855,
+    "operating": 144601,
+    "served": 48223,
+    "compute_spend": 36000,
+    "revenue": 180601,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 32,
+    "unavailable": 21,
+    "overload": 10179,
+    "operating": 61405,
+    "served": 79818,
+    "compute_spend": 148500,
+    "revenue": 209365,
+    "providers": {
+     "o:cloud1": {
+      "price": 440,
+      "cores": 50,
+      "used": 43
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 32,
+    "unavailable": 0,
+    "overload": 42178,
+    "operating": 144290,
+    "served": 48026,
+    "compute_spend": 36000,
+    "revenue": 180290,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 33,
+    "unavailable": 0,
+    "overload": 14831,
+    "operating": -194598,
+    "served": 74443,
+    "compute_spend": 139050,
+    "revenue": 194452,
+    "providers": {
+     "o:cloud1": {
+      "price": 440,
+      "cores": 50,
+      "used": 47
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 33,
+    "unavailable": 0,
+    "overload": 41784,
+    "operating": 145212,
+    "served": 48195,
+    "compute_spend": 36000,
+    "revenue": 181212,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 34,
+    "unavailable": 11,
+    "overload": 11648,
+    "operating": 63303,
+    "served": 77798,
+    "compute_spend": 141150,
+    "revenue": 204222,
+    "providers": {
+     "o:cloud1": {
+      "price": 476,
+      "cores": 50,
+      "used": 47
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   },
+   "counterfactual": {
+    "day": 34,
+    "unavailable": 0,
+    "overload": 41972,
+    "operating": 142088,
+    "served": 47417,
+    "compute_spend": 36000,
+    "revenue": 178088,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 35,
+    "unavailable": 1,
+    "overload": 5548,
+    "operating": 46497,
+    "served": 84590,
+    "compute_spend": 162330,
+    "revenue": 208797,
+    "providers": {
+     "o:cloud1": {
+      "price": 476,
+      "cores": 62,
+      "used": 30
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 6
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 35,
+    "unavailable": 0,
+    "overload": 41788,
+    "operating": 144101,
+    "served": 47969,
+    "compute_spend": 36000,
+    "revenue": 180101,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 36,
+    "unavailable": 0,
+    "overload": 4521,
+    "operating": 99207,
+    "served": 74390,
+    "compute_spend": 102555,
+    "revenue": 201552,
+    "providers": {
+     "o:cloud1": {
+      "price": 461,
+      "cores": 62,
+      "used": 12
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 9
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 36,
+    "unavailable": 0,
+    "overload": 42112,
+    "operating": 142246,
+    "served": 47386,
+    "compute_spend": 36000,
+    "revenue": 178246,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 37,
+    "unavailable": 0,
+    "overload": 9734,
+    "operating": 114475,
+    "served": 70309,
+    "compute_spend": 79740,
+    "revenue": 194194,
+    "providers": {
+     "o:cloud1": {
+      "price": 447,
+      "cores": 62,
+      "used": 15
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 11
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 37,
+    "unavailable": 0,
+    "overload": 41467,
+    "operating": 144153,
+    "served": 48132,
+    "compute_spend": 36000,
+    "revenue": 180153,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 38,
+    "unavailable": 0,
+    "overload": 4733,
+    "operating": 111121,
+    "served": 77329,
+    "compute_spend": 95100,
+    "revenue": 206221,
+    "providers": {
+     "o:cloud1": {
+      "price": 433,
+      "cores": 62,
+      "used": 13
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 10
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 38,
+    "unavailable": 0,
+    "overload": 41693,
+    "operating": 142811,
+    "served": 47687,
+    "compute_spend": 36000,
+    "revenue": 178811,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 39,
+    "unavailable": 0,
+    "overload": 17802,
+    "operating": 125534,
+    "served": 63116,
+    "compute_spend": 63000,
+    "revenue": 188534,
+    "providers": {
+     "o:cloud1": {
+      "price": 420,
+      "cores": 62,
+      "used": 16
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 11
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 39,
+    "unavailable": 0,
+    "overload": 41829,
+    "operating": 141925,
+    "served": 47725,
+    "compute_spend": 36000,
+    "revenue": 177925,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 40,
+    "unavailable": 0,
+    "overload": 15253,
+    "operating": 118177,
+    "served": 64595,
+    "compute_spend": 77070,
+    "revenue": 195247,
+    "providers": {
+     "o:cloud1": {
+      "price": 407,
+      "cores": 62,
+      "used": 18
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 12
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 40,
+    "unavailable": 0,
+    "overload": 42054,
+    "operating": 143372,
+    "served": 47927,
+    "compute_spend": 36000,
+    "revenue": 179372,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 41,
+    "unavailable": 0,
+    "overload": 12433,
+    "operating": 106800,
+    "served": 68172,
+    "compute_spend": 89190,
+    "revenue": 195990,
+    "providers": {
+     "o:cloud1": {
+      "price": 394,
+      "cores": 62,
+      "used": 12
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 13
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 41,
+    "unavailable": 0,
+    "overload": 41834,
+    "operating": 144612,
+    "served": 48123,
+    "compute_spend": 36000,
+    "revenue": 180612,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 42,
+    "unavailable": 0,
+    "overload": 9007,
+    "operating": 106381,
+    "served": 72796,
+    "compute_spend": 95310,
+    "revenue": 201691,
+    "providers": {
+     "o:cloud1": {
+      "price": 382,
+      "cores": 62,
+      "used": 13
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 14
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 42,
+    "unavailable": 0,
+    "overload": 41350,
+    "operating": 144177,
+    "served": 48021,
+    "compute_spend": 36000,
+    "revenue": 180177,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 43,
+    "unavailable": 0,
+    "overload": 7498,
+    "operating": 96735,
+    "served": 74346,
+    "compute_spend": 106980,
+    "revenue": 203715,
+    "providers": {
+     "o:cloud1": {
+      "price": 370,
+      "cores": 62,
+      "used": 12
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 15
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 43,
+    "unavailable": 0,
+    "overload": 41857,
+    "operating": 141994,
+    "served": 47500,
+    "compute_spend": 36000,
+    "revenue": 177994,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 44,
+    "unavailable": 0,
+    "overload": 7852,
+    "operating": 88807,
+    "served": 74236,
+    "compute_spend": 112650,
+    "revenue": 201457,
+    "providers": {
+     "o:cloud1": {
+      "price": 358,
+      "cores": 62,
+      "used": 12
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 16
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 44,
+    "unavailable": 0,
+    "overload": 41495,
+    "operating": 144039,
+    "served": 47955,
+    "compute_spend": 36000,
+    "revenue": 180039,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 45,
+    "unavailable": 0,
+    "overload": 12667,
+    "operating": 120943,
+    "served": 69028,
+    "compute_spend": 78570,
+    "revenue": 199513,
+    "providers": {
+     "o:cloud1": {
+      "price": 347,
+      "cores": 62,
+      "used": 14
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 17
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 45,
+    "unavailable": 0,
+    "overload": 41951,
+    "operating": 144256,
+    "served": 48088,
+    "compute_spend": 36000,
+    "revenue": 180256,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 46,
+    "unavailable": 0,
+    "overload": 11790,
+    "operating": 114108,
+    "served": 71112,
+    "compute_spend": 87690,
+    "revenue": 201798,
+    "providers": {
+     "o:cloud1": {
+      "price": 336,
+      "cores": 62,
+      "used": 15
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 18
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 46,
+    "unavailable": 0,
+    "overload": 41942,
+    "operating": 143284,
+    "served": 47899,
+    "compute_spend": 36000,
+    "revenue": 179284,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 47,
+    "unavailable": 0,
+    "overload": 3718,
+    "operating": 101257,
+    "served": 78364,
+    "compute_spend": 105360,
+    "revenue": 206617,
+    "providers": {
+     "o:cloud1": {
+      "price": 325,
+      "cores": 62,
+      "used": 15
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 14
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 47,
+    "unavailable": 0,
+    "overload": 41955,
+    "operating": 143681,
+    "served": 47900,
+    "compute_spend": 36000,
+    "revenue": 179681,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 48,
+    "unavailable": 0,
+    "overload": 7522,
+    "operating": 92229,
+    "served": 75939,
+    "compute_spend": 108720,
+    "revenue": 200949,
+    "providers": {
+     "o:cloud1": {
+      "price": 315,
+      "cores": 62,
+      "used": 17
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 12
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 48,
+    "unavailable": 0,
+    "overload": 42244,
+    "operating": 144186,
+    "served": 48051,
+    "compute_spend": 36000,
+    "revenue": 180186,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 49,
+    "unavailable": 0,
+    "overload": 5137,
+    "operating": 84173,
+    "served": 77885,
+    "compute_spend": 119835,
+    "revenue": 204008,
+    "providers": {
+     "o:cloud1": {
+      "price": 305,
+      "cores": 62,
+      "used": 11
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 7
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 49,
+    "unavailable": 0,
+    "overload": 41827,
+    "operating": 143951,
+    "served": 48122,
+    "compute_spend": 36000,
+    "revenue": 179951,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 50,
+    "unavailable": 0,
+    "overload": 5294,
+    "operating": 88473,
+    "served": 83694,
+    "compute_spend": 119025,
+    "revenue": 207498,
+    "providers": {
+     "o:cloud1": {
+      "price": 295,
+      "cores": 62,
+      "used": 11
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 9
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 50,
+    "unavailable": 0,
+    "overload": 41844,
+    "operating": 143700,
+    "served": 47784,
+    "compute_spend": 36000,
+    "revenue": 179700,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 51,
+    "unavailable": 0,
+    "overload": 21628,
+    "operating": 109629,
+    "served": 68502,
+    "compute_spend": 86730,
+    "revenue": 196359,
+    "providers": {
+     "o:cloud1": {
+      "price": 286,
+      "cores": 62,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 10
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 51,
+    "unavailable": 0,
+    "overload": 41869,
+    "operating": 144565,
+    "served": 48001,
+    "compute_spend": 36000,
+    "revenue": 180565,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 52,
+    "unavailable": 0,
+    "overload": 17209,
+    "operating": 101675,
+    "served": 72998,
+    "compute_spend": 96900,
+    "revenue": 198575,
+    "providers": {
+     "o:cloud1": {
+      "price": 277,
+      "cores": 62,
+      "used": 14
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 10
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 52,
+    "unavailable": 0,
+    "overload": 41642,
+    "operating": 143668,
+    "served": 47890,
+    "compute_spend": 36000,
+    "revenue": 179668,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 53,
+    "unavailable": 0,
+    "overload": 23476,
+    "operating": 125053,
+    "served": 66385,
+    "compute_spend": 72000,
+    "revenue": 197053,
+    "providers": {
+     "o:cloud1": {
+      "price": 268,
+      "cores": 62,
+      "used": 15
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 11
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 53,
+    "unavailable": 0,
+    "overload": 41935,
+    "operating": 143179,
+    "served": 47647,
+    "compute_spend": 36000,
+    "revenue": 179179,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 54,
+    "unavailable": 0,
+    "overload": 22512,
+    "operating": 119124,
+    "served": 67170,
+    "compute_spend": 76170,
+    "revenue": 195294,
+    "providers": {
+     "o:cloud1": {
+      "price": 259,
+      "cores": 62,
+      "used": 15
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 12
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 54,
+    "unavailable": 0,
+    "overload": 41581,
+    "operating": 144550,
+    "served": 48070,
+    "compute_spend": 36000,
+    "revenue": 180550,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 55,
+    "unavailable": 0,
+    "overload": 22409,
+    "operating": 113483,
+    "served": 67355,
+    "compute_spend": 81240,
+    "revenue": 194723,
+    "providers": {
+     "o:cloud1": {
+      "price": 251,
+      "cores": 62,
+      "used": 17
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 12
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 55,
+    "unavailable": 0,
+    "overload": 41835,
+    "operating": 145607,
+    "served": 48494,
+    "compute_spend": 36000,
+    "revenue": 181607,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 56,
+    "unavailable": 0,
+    "overload": 20988,
+    "operating": 108148,
+    "served": 68899,
+    "compute_spend": 85590,
+    "revenue": 193738,
+    "providers": {
+     "o:cloud1": {
+      "price": 243,
+      "cores": 62,
+      "used": 19
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 12
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 56,
+    "unavailable": 0,
+    "overload": 41655,
+    "operating": 144275,
+    "served": 47960,
+    "compute_spend": 36000,
+    "revenue": 180275,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 57,
+    "unavailable": 0,
+    "overload": 18670,
+    "operating": 107973,
+    "served": 70956,
+    "compute_spend": 92940,
+    "revenue": 200913,
+    "providers": {
+     "o:cloud1": {
+      "price": 235,
+      "cores": 62,
+      "used": 20
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 13
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 57,
+    "unavailable": 0,
+    "overload": 42192,
+    "operating": 144359,
+    "served": 48074,
+    "compute_spend": 36000,
+    "revenue": 180359,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 58,
+    "unavailable": 0,
+    "overload": 16168,
+    "operating": 104823,
+    "served": 73881,
+    "compute_spend": 98460,
+    "revenue": 203283,
+    "providers": {
+     "o:cloud1": {
+      "price": 227,
+      "cores": 62,
+      "used": 20
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 13
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 58,
+    "unavailable": 0,
+    "overload": 41986,
+    "operating": 144780,
+    "served": 48198,
+    "compute_spend": 36000,
+    "revenue": 180780,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 59,
+    "unavailable": 0,
+    "overload": 17003,
+    "operating": 100018,
+    "served": 72529,
+    "compute_spend": 97260,
+    "revenue": 197278,
+    "providers": {
+     "o:cloud1": {
+      "price": 220,
+      "cores": 62,
+      "used": 21
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 14
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 59,
+    "unavailable": 0,
+    "overload": 42037,
+    "operating": 145470,
+    "served": 48477,
+    "compute_spend": 36000,
+    "revenue": 181470,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 60,
+    "unavailable": 0,
+    "overload": 15639,
+    "operating": 95046,
+    "served": 73383,
+    "compute_spend": 104730,
+    "revenue": 199776,
+    "providers": {
+     "o:cloud1": {
+      "price": 213,
+      "cores": 62,
+      "used": 21
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 14
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 60,
+    "unavailable": 0,
+    "overload": 41762,
+    "operating": 144692,
+    "served": 48047,
+    "compute_spend": 36000,
+    "revenue": 180692,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 61,
+    "unavailable": 0,
+    "overload": 14692,
+    "operating": 108868,
+    "served": 62512,
+    "compute_spend": 75330,
+    "revenue": 184198,
+    "providers": {
+     "o:cloud1": {
+      "price": 206,
+      "cores": 62,
+      "used": 6
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 15
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 61,
+    "unavailable": 0,
+    "overload": 42055,
+    "operating": 144884,
+    "served": 48236,
+    "compute_spend": 36000,
+    "revenue": 180884,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 62,
+    "unavailable": 0,
+    "overload": 14464,
+    "operating": 136729,
+    "served": 63073,
+    "compute_spend": 54300,
+    "revenue": 191029,
+    "providers": {
+     "o:cloud1": {
+      "price": 199,
+      "cores": 62,
+      "used": 5
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 16
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 62,
+    "unavailable": 0,
+    "overload": 41559,
+    "operating": 145223,
+    "served": 48383,
+    "compute_spend": 36000,
+    "revenue": 181223,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 63,
+    "unavailable": 0,
+    "overload": 19212,
+    "operating": 128510,
+    "served": 58970,
+    "compute_spend": 54870,
+    "revenue": 183380,
+    "providers": {
+     "o:cloud1": {
+      "price": 193,
+      "cores": 62,
+      "used": 6
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 16
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 63,
+    "unavailable": 0,
+    "overload": 41917,
+    "operating": 144309,
+    "served": 48171,
+    "compute_spend": 36000,
+    "revenue": 180309,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 64,
+    "unavailable": 0,
+    "overload": 17119,
+    "operating": 130378,
+    "served": 60310,
+    "compute_spend": 57870,
+    "revenue": 188248,
+    "providers": {
+     "o:cloud1": {
+      "price": 187,
+      "cores": 62,
+      "used": 6
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 16
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 64,
+    "unavailable": 0,
+    "overload": 42000,
+    "operating": 144173,
+    "served": 48056,
+    "compute_spend": 36000,
+    "revenue": 180173,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 65,
+    "unavailable": 0,
+    "overload": 16537,
+    "operating": 133633,
+    "served": 62176,
+    "compute_spend": 58320,
+    "revenue": 191953,
+    "providers": {
+     "o:cloud1": {
+      "price": 181,
+      "cores": 62,
+      "used": 6
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 17
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 65,
+    "unavailable": 0,
+    "overload": 42258,
+    "operating": 142919,
+    "served": 47789,
+    "compute_spend": 36000,
+    "revenue": 178919,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 66,
+    "unavailable": 0,
+    "overload": 13633,
+    "operating": 132345,
+    "served": 64638,
+    "compute_spend": 60840,
+    "revenue": 193185,
+    "providers": {
+     "o:cloud1": {
+      "price": 175,
+      "cores": 62,
+      "used": 6
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 18
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 66,
+    "unavailable": 0,
+    "overload": 41928,
+    "operating": 144424,
+    "served": 48091,
+    "compute_spend": 36000,
+    "revenue": 180424,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 67,
+    "unavailable": 0,
+    "overload": 14382,
+    "operating": -369161,
+    "served": 64755,
+    "compute_spend": 60810,
+    "revenue": 191649,
+    "providers": {
+     "o:cloud1": {
+      "price": 169,
+      "cores": 62,
+      "used": 5
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 19
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 67,
+    "unavailable": 0,
+    "overload": 41631,
+    "operating": 144485,
+    "served": 48092,
+    "compute_spend": 36000,
+    "revenue": 180485,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 68,
+    "unavailable": 0,
+    "overload": 13921,
+    "operating": -113338,
+    "served": 59682,
+    "compute_spend": 51210,
+    "revenue": 187872,
+    "providers": {
+     "o:cloud1": {
+      "price": 163,
+      "cores": 62,
+      "used": 5
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 68,
+    "unavailable": 0,
+    "overload": 41963,
+    "operating": 143284,
+    "served": 47716,
+    "compute_spend": 36000,
+    "revenue": 179284,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 69,
+    "unavailable": 0,
+    "overload": 119,
+    "operating": 155470,
+    "served": 43816,
+    "compute_spend": 16050,
+    "revenue": 171520,
+    "providers": {
+     "o:cloud1": {
+      "price": 158,
+      "cores": 62,
+      "used": 5
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 69,
+    "unavailable": 0,
+    "overload": 41627,
+    "operating": 143662,
+    "served": 47842,
+    "compute_spend": 36000,
+    "revenue": 179662,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 70,
+    "unavailable": 0,
+    "overload": 242,
+    "operating": 157264,
+    "served": 43813,
+    "compute_spend": 15300,
+    "revenue": 172564,
+    "providers": {
+     "o:cloud1": {
+      "price": 153,
+      "cores": 62,
+      "used": 5
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": [
+      "record1"
+     ]
+    }
+   },
+   "counterfactual": {
+    "day": 70,
+    "unavailable": 0,
+    "overload": 41756,
+    "operating": 143012,
+    "served": 47705,
+    "compute_spend": 36000,
+    "revenue": 179012,
+    "providers": {
+     "o:cloud1": {
+      "price": 75,
+      "cores": 40,
+      "used": 10
+     },
+     "o:cloud2": {
+      "price": 105,
+      "cores": 80,
+      "used": 0
+     }
+    },
+    "hosts_on": {
+     "o:cloud1": [
+      "record1",
+      "record2",
+      "record3",
+      "shorte1",
+      "shorte2",
+      "shorte3"
+     ],
+     "o:cloud2": []
+    }
+   }
+  }
+ ]
+}

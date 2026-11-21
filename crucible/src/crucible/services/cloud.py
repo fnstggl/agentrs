@@ -289,7 +289,9 @@ class Cloud(Module):
         ident(ctx.world).authorize(ctx, acct_owner, "bank.spend", scope=account)
         used = sum(i["cores"] for i in st.find("instances", "provider", provider) if i["status"] == "running")
         if used + cores > prov["cores"]:
-            raise CapacityExceeded(f"{provider} has {prov['cores'] - used} free cores")
+            ops = ctx.world.hooks.get("ops")
+            raise CapacityExceeded(f"{provider} has {prov['cores'] - used} free cores",
+                                   persist=[ops.loss_event(owner, "capacity_unavailable", 0, 1, provider)] if ops else [])
         first = prov["price"] * cores
         bank.move(ctx, account, bank.primary_account(st, provider), first, "compute", f"first hour {cores} cores",
                   ref=provider)
@@ -307,13 +309,19 @@ class Cloud(Module):
         inst = st.get("instances", instance)
         if inst is None or inst["status"] != "running":
             raise NotFound("no running instance " + instance)
-        ident(ctx.world).authorize(ctx, inst["owner"], "cloud.manage", scope=instance)
+        hosts_on = [d["host"] for d in st.find("deployments", "instance", instance) if d["status"] == "live"]
+        if not any(ident(ctx.world).allowed(ctx, ctx.actor, inst["owner"], "cloud.manage", scope=h, record=True)
+                   for h in hosts_on):
+            ident(ctx.world).authorize(ctx, inst["owner"], "cloud.manage", scope=instance)
         if cores == inst["cores"]:
             return {"instance": instance, "cores": cores, "changed": False}
         prov = st.get("providers", inst["provider"])
         used = sum(i["cores"] for i in st.find("instances", "provider", inst["provider"]) if i["status"] == "running")
         if cores > inst["cores"] and used - inst["cores"] + cores > prov["cores"]:
-            raise CapacityExceeded(f"{inst['provider']} has {prov['cores'] - used} free cores")
+            ops = ctx.world.hooks.get("ops")
+            raise CapacityExceeded(f"{inst['provider']} has {prov['cores'] - used} free cores",
+                                   persist=[ops.loss_event(inst["owner"], "capacity_unavailable", 0, 1, instance)]
+                                   if ops else [])
         ctx.emit("cloud.resize", {"id": instance, "cores": int(cores), "from": inst["cores"]},
                  vis=(inst["owner"], inst["provider"]))
         return {"instance": instance, "cores": int(cores), "changed": True,
@@ -338,7 +346,9 @@ class Cloud(Module):
                                                                                  "overload", "cu", "revenue_cents")}
                                                                if r else {"ok": 0, "errors": 0, "unavailable": 0,
                                                                           "overload": 0, "cu": 0.0, "revenue_cents": 0})})
-        return {"host": host, "instance": dep["instance"] if dep else None,
+        return {"host": host, "instance": dep["instance"] if dep else None, "owner": h["owner"],
+                "provider": inst["provider"] if inst else None, "repo": dep["repo"] if dep else None,
+                "commit": dep["commit"] if dep else None,
                 "cores": inst["cores"] if inst else 0, "price_core_hour_cents": inst["price"] if inst else None,
                 "capacity_cu_per_hour": (inst["cores"] * CU_PER_CORE_HOUR) if inst else 0, "hours": rows}
 
@@ -441,7 +451,7 @@ class Cloud(Module):
         code = ctx.world.modules["code"]
         r = code.repo(st, repo)
         owner = r["owner"]
-        ident(ctx.world).authorize(ctx, owner, "cloud.deploy")
+        ident(ctx.world).authorize(ctx, owner, "cloud.deploy", scope=host)
         inst = st.get("instances", instance)
         if inst is None or inst["owner"] != owner or inst["status"] != "running":
             raise Forbidden("deploy onto a running instance owned by the repository owner")

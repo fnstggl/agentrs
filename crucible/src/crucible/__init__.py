@@ -8,7 +8,7 @@ def load_all_modules() -> None:
     from .economy import consumers, operations, industry, shoppers  # noqa: F401
     from .actors import npcs, minds  # noqa: F401
     from .worlds import digital_civilization, open_industry  # noqa: F401
-    from .worldgen import sitegen  # noqa: F401
+    from .worldgen import sitegen, adversarial  # noqa: F401
     from .goals import selfgoals  # noqa: F401
     try:
         from .worlds import engineering_lab  # noqa: F401
