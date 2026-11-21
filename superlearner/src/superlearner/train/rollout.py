@@ -106,7 +106,7 @@ def worker_main(conn, wid: int, wcfg: dict) -> None:
             if op == "quit":
                 break
             if op == "weights":
-                model.load_state_dict(msg[1])
+                model.load_state_dict({k: torch.from_numpy(np.asarray(v)) for k, v in msg[1].items()})
                 conn.send(("ok", None))
             elif op == "sync":
                 d = msg[1]
@@ -157,7 +157,8 @@ class RolloutPool:
                 raise RuntimeError(f"rollout worker: {out}")
 
     def set_weights(self, state_dict: dict) -> None:
-        self._all(("weights", {k: v.detach().cpu() for k, v in state_dict.items()}))
+        # numpy arrays are pickled by value; torch tensors would go through /dev/shm, which a confined run cannot use
+        self._all(("weights", {k: v.detach().cpu().numpy() for k, v in state_dict.items()}))
 
     def sync(self, mem_new: list, library: dict | None, reset: bool = False) -> None:
         self._all(("sync", {"mem_new": mem_new, "library": library, "reset": reset}))

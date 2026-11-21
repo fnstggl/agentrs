@@ -1,0 +1,25 @@
+# Inner-learner baseline: frozen Qwen3-14B (served by `superlearner llm-serve`) + trainable CAM controller,
+# demonstration warm start, then recurrent PPO with GAE under an adaptive curriculum.
+#   superlearner llm-serve &        (once; owns the GPU model)
+#   superlearner train --config configs/inner_baseline.yaml
+name: inner_baseline
+seed: 0
+device: auto
+workers: 24
+iters: 60
+episodes_per_iter: 144
+eval_every: 5
+eval_episodes: 78
+eval_split: curriculum
+ckpt_every: 5
+traj_per_iter: 2
+llm: {kind: remote}
+model: {}                      # default controller: d=384, 6 layers, 19.7M trainable parameters
+agent: {llm_budget: 2, gen_budget: 8}
+core: {max_decisions: 40}
+algo: {name: ppo, lr: 0.0001, epochs: 3, minibatch_eps: 24, gamma: 0.995, lam: 0.95, clip: 0.2, ent_coef: 0.01,
+       vf_coef: 0.5, target_kl: 0.05, max_grad_norm: 1.0}
+curriculum:
+  adaptive: true
+  world_families: [tiny, bazaar]
+demos: {episodes: 156, bc_epochs: 20, bc_lr: 0.0003, max_per_arm: 8}

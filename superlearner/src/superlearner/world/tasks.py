@@ -259,6 +259,36 @@ def build(spec: TaskSpec, handle: str = "agent"):
     return goal, world, actor, info
 
 
+_BUILDABLE: dict = {}
+
+
+def buildable(spec: TaskSpec) -> bool:
+    """Whether the task's world can be generated. A few seeds of some world families fail inside Crucible's own
+    world generation (an incumbent cannot afford its genesis bounty); such seeds are skipped when fixed
+    evaluation lists are made, so every list has the intended number of runnable tasks."""
+    key = (spec.world_family, spec.seed, spec.family, spec.level)
+    if key not in _BUILDABLE:
+        try:
+            from crucible.goals.contracts import instantiate
+            instantiate(build_goal(spec), "probe")
+            _BUILDABLE[key] = True
+        except Exception:  # noqa: BLE001
+            _BUILDABLE[key] = False
+    return _BUILDABLE[key]
+
+
+def task_list(arms: list[str], world_families: list[str], n: int, split: str, offset: int = 0) -> list[TaskSpec]:
+    """A fixed list of `n` buildable tasks: arms (``family/level/start``) cycled over world families."""
+    out, i = [], 0
+    while len(out) < n and i < 20 * n + 100:
+        fam, lvl, start = arms[len(out) % len(arms)].split("/")
+        spec = task(fam, world_families[(len(out) // len(arms)) % len(world_families)], offset + i, split, int(lvl), start)
+        i += 1
+        if buildable(spec):
+            out.append(spec)
+    return out
+
+
 # ------------------------------------------------------------------------------------------------ locked final set
 def lock_final(path: str, specs: list[TaskSpec]) -> str:
     """Write the locked final evaluation list with a SHA-256 seal and make the file read-only."""

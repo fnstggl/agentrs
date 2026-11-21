@@ -1,0 +1,23 @@
+# Inner learner on the task arms that need no LLM-written content (the frozen LLM still supplies text embeddings).
+#   superlearner train --config configs/inner_nollm.yaml
+base: inner_baseline.yaml
+name: inner_nollm
+workers: 20
+iters: 30
+episodes_per_iter: 120
+eval_every: 3
+eval_episodes: 64
+agent: {use_llm: false}
+curriculum:
+  adaptive: true
+  world_families: [tiny, bazaar]
+  arms:
+    - {family: found}
+    - {family: fund, prereq: [found/0/scratch]}
+    - {family: list, start: deployed}
+    - {family: deploy, start: coded, prereq: [fund/0/scratch]}
+    - {family: service, start: listed}
+    - {family: repair, prereq: [service/0/listed]}
+    - {family: service, start: deployed, prereq: [list/0/deployed]}
+    - {family: service, start: coded, prereq: [deploy/0/coded, service/0/deployed]}
+demos: {episodes: 96, bc_epochs: 20, bc_lr: 0.0003, max_per_arm: 8}

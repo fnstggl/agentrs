@@ -22,11 +22,12 @@ AUTHKEY = b"superlearner-env"
 
 
 def serve_hub(socket_path: str, eval_tasks: list | None = None, cfg: dict | None = None, eval_cfg: dict | None = None,
-              allow=("train", "curriculum"), ready=None) -> None:
+              allow=("train", "curriculum"), ready=None, results_path: str | None = None, budget: dict | None = None) -> None:
     if os.path.exists(socket_path):
         os.unlink(socket_path)
     os.makedirs(os.path.dirname(os.path.abspath(socket_path)) or ".", exist_ok=True)
     ctx = mp.get_context("fork")
+    shared = {"train_decisions": ctx.Value("q", 0), "train_episodes": ctx.Value("q", 0)}
     children = []
     with Listener(socket_path, family="AF_UNIX", authkey=AUTHKEY) as lst:
         os.chmod(socket_path, 0o666)
@@ -37,17 +38,20 @@ def serve_hub(socket_path: str, eval_tasks: list | None = None, cfg: dict | None
                 conn = lst.accept()
             except (OSError, EOFError):
                 continue
-            p = ctx.Process(target=_serve_entry, args=(conn, tuple(allow), eval_tasks, cfg, eval_cfg), daemon=True)
+            p = ctx.Process(target=_serve_entry, args=(conn, tuple(allow), eval_tasks, cfg, eval_cfg, results_path,
+                                                       shared, budget), daemon=True)
             p.start()
             conn.close()
             children = [c for c in children if c.is_alive()] + [p]
 
 
-def start_hub(socket_path: str, eval_tasks: list | None = None, cfg: dict | None = None, eval_cfg: dict | None = None):
+def start_hub(socket_path: str, eval_tasks: list | None = None, cfg: dict | None = None, eval_cfg: dict | None = None,
+              results_path: str | None = None, budget: dict | None = None):
     """Start the hub in a child process; returns the process once the socket is accepting."""
     ctx = mp.get_context("fork")
     ready = ctx.Event()
-    p = ctx.Process(target=serve_hub, args=(socket_path, eval_tasks, cfg, eval_cfg, ("train", "curriculum"), ready))
+    p = ctx.Process(target=serve_hub, args=(socket_path, eval_tasks, cfg, eval_cfg, ("train", "curriculum"), ready,
+                                            results_path, budget))
     p.start()
     if not ready.wait(30):
         p.terminate()

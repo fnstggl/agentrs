@@ -1,0 +1,25 @@
+# Smallest end-to-end Meta-Researcher run (minutes, CPU only): one round, tiny budgets. For checking that the whole
+# loop executes - candidate trees, confinement, env hub, trusted results, comparison, ledger, surrogate update.
+#   superlearner meta-search --config configs/meta_smoke.yaml
+name: meta_smoke
+seed: 0
+rounds: 1
+pool: 3
+per_round: 1
+selection: surrogate
+sources: {rule_space: 2, llm: 0, learned_rule: 1}
+max_parallel: 2
+inner:
+  workers: 4
+  model: {d: 64, layers: 2, heads: 4, ff: 128, bag_dim: 32, hid: 64}
+  core: {max_decisions: 12}
+  curriculum:
+    world_families: [tiny]
+    arms: [{family: found}, {family: service, start: listed}]
+  demos: {episodes: 12, bc_epochs: 10, max_per_arm: 2}
+eval_arms: [found/0/scratch, service/0/listed]
+eval_world_families: [tiny]
+stages:
+  screen: {seeds: [1], iters: 2, episodes_per_iter: 8, budget: 400, eval_n: 4, timeout_s: 600}
+  develop: {seeds: [1, 2], iters: 2, episodes_per_iter: 8, budget: 400, eval_n: 4, timeout_s: 600}
+  confirm: {seeds: [1, 2, 3], iters: 2, episodes_per_iter: 8, budget: 400, eval_n: 4, timeout_s: 600}

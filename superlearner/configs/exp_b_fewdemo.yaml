@@ -1,0 +1,10 @@
+# Experiment B (few-demonstration regime): a weak warm start (2 verified demonstrations per task arm), then
+# recurrent PPO. The same architecture is evaluated before and after RL on held-out task instances.
+base: inner_nollm.yaml
+name: exp_b_fewdemo
+iters: 30
+episodes_per_iter: 120
+eval_every: 5
+eval_episodes: 80
+algo: {name: ppo, lr: 0.00003, epochs: 4, minibatch_eps: 12, clip: 0.1, target_kl: 0.03, critic_warmup: 2, ent_coef: 0.003}
+demos: {episodes: 200, bc_epochs: 60, bc_lr: 0.0003, max_per_arm: 2}

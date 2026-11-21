@@ -33,6 +33,7 @@ class Server:
         self.llm = CachedLLM(model, cache_path)
         self.socket_path = socket_path
         self.jobs: queue.Queue = queue.Queue()
+        self.fast: queue.Queue = queue.Queue()
         self.stop = threading.Event()
         self.t0 = time.time()
         self.batches: list[int] = []
@@ -70,7 +71,7 @@ class Server:
                     self.batches.append(len(group))
                     continue
                 req, reply = first
-                if req["op"] == "embed":
+                if req["op"] == "embed":       # (normally served by the fast thread; kept for completeness)
                     reply({"vecs": self.llm.embed(list(req["texts"])).astype(np.float16)})
                 elif req["op"] == "info":
                     reply({"model": self.llm.name, "fingerprint": self.llm.fingerprint(), "stats": self.llm.usage(),
@@ -82,6 +83,24 @@ class Server:
             except Exception as e:  # noqa: BLE001 - a bad request must not kill the server
                 for _, reply in group:
                     reply({"error": f"{type(e).__name__}: {e}"})
+
+    def _fast_loop(self) -> None:
+        """Embeddings and status requests, served while a (long) generation may be running."""
+        while not self.stop.is_set():
+            try:
+                req, reply = self.fast.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            try:
+                if req["op"] == "embed":
+                    reply({"vecs": self.llm.embed(list(req["texts"])).astype(np.float16)})
+                else:
+                    reply({"model": self.llm.name, "fingerprint": self.llm.fingerprint(), "stats": self.llm.usage(),
+                           "emb_ns": self.llm.name + "#" + getattr(self.llm.inner, "EMB_TAG", "v1"),
+                           "uptime_s": time.time() - self.t0, "test_double": self.llm.is_test_double,
+                           "mean_batch": float(np.mean(self.batches)) if self.batches else 0.0})
+            except Exception as e:  # noqa: BLE001
+                reply({"error": f"{type(e).__name__}: {e}"})
 
     @staticmethod
     def _gkey(req: dict) -> tuple:
@@ -101,7 +120,7 @@ class Server:
                 req = conn.recv()
                 if not isinstance(req, dict) or req.get("op") == "bye":
                     break
-                self.jobs.put((req, reply))
+                (self.fast if req.get("op") in ("embed", "info") else self.jobs).put((req, reply))
         except (EOFError, OSError):
             pass
         finally:
@@ -112,6 +131,7 @@ class Server:
             os.unlink(self.socket_path)
         os.makedirs(os.path.dirname(os.path.abspath(self.socket_path)) or ".", exist_ok=True)
         threading.Thread(target=self._gpu_loop, daemon=True).start()
+        threading.Thread(target=self._fast_loop, daemon=True).start()
         with Listener(self.socket_path, family="AF_UNIX", authkey=AUTHKEY) as lst:
             print(f"llm server ready: model={self.llm.name} socket={self.socket_path}", flush=True)
             while not self.stop.is_set():

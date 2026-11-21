@@ -155,13 +155,9 @@ class Knowledge:
     def observe(self, obs: dict | None = None, action: dict | None = None, result: dict | None = None,
                 now: int = 0) -> None:
         self.ents.observe(obs, action, result)
+        self._budget = 8                      # at most this many documents are kept from one result
         if result is not None and result.get("ok"):
             self._collect_docs(result.get("result"), (action or {}).get("tool", result.get("tool", "")), now)
-        if obs:
-            for e in (obs.get("events") or [])[-20:]:
-                pl = e.get("payload")
-                if isinstance(pl, dict):
-                    self._collect_docs(pl, "event:" + str(e.get("type", "")), now, depth=1)
 
     def _collect_docs(self, x: Any, source: str, now: int, depth: int = 0) -> None:
         if depth > 4 or x is None:
@@ -172,8 +168,9 @@ class Knowledge:
             return
         if not isinstance(x, dict):
             return
-        texts = [(k, v) for k, v in x.items() if k in _TEXT_FIELDS and isinstance(v, str) and len(v) >= 24]
-        if texts:
+        texts = [(k, v) for k, v in x.items() if k in _TEXT_FIELDS and isinstance(v, str) and len(v) >= 40]
+        if texts and self._budget > 0:
+            self._budget -= 1
             self.add_doc(x, source, now)
         for k, v in x.items():
             if isinstance(v, (dict, list)):

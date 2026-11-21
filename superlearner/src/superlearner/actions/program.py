@@ -180,6 +180,7 @@ class Interpreter:
                  library=None, max_ops: int = 16, max_loop: int = 8, max_depth: int = 4):
         self.call, self.wait, self.gen, self.code, self.library = call, wait, gen, code, library
         self.max_ops, self.max_loop, self.max_depth = max_ops, max_loop, max_depth
+        self._ops = 0
 
     # ------------------------------------------------------------------ expressions
     def _ref(self, path: str, env: dict):

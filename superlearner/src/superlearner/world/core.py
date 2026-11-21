@@ -197,16 +197,34 @@ class SessionCore:
 
 
 # ================================================================================================ remote form
+def _append(path: str, rec: dict) -> None:
+    import fcntl
+    import json
+    with open(path, "a") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        f.write(json.dumps(rec, default=str) + "\n")
+        f.flush()
+        fcntl.flock(f, fcntl.LOCK_UN)
+
+
 def serve(conn, allow_splits: tuple = ("train", "curriculum"), eval_tasks: list | None = None,
-          cfg: dict | None = None, eval_cfg: dict | None = None) -> None:
+          cfg: dict | None = None, eval_cfg: dict | None = None, results_path: str | None = None,
+          shared: dict | None = None, budget: dict | None = None) -> None:
     """Run sessions for a learner at the other end of `conn` (a `multiprocessing.connection`). TRUSTED process.
 
     ``("reset", {"spec": {...}})`` starts a task of an allowed split chosen by the learner (training tasks).
     ``("reset", {"eval": i})`` starts the i-th task of the server's own evaluation list; the learner is never
     told its seed. Every other message is a `SessionCore` method call: ``(name, args)``.
+
+    With `results_path`, every finished episode's evaluator summary is appended to that file by THIS process
+    (the learner cannot write there), stamped with the number of training decisions the hub has served so far
+    (`shared` counters across all connections). Learning curves used for comparing algorithms are computed from
+    that file only. `budget` = {"train_decisions": n} makes the hub refuse new training tasks once n training
+    decisions have been served, so no learner can use more experience than its budget.
     """
     core: SessionCore | None = None
     results: list = []
+    kind, eval_index = "train", None
     while True:
         try:
             msg = conn.recv()
@@ -219,24 +237,42 @@ def serve(conn, allow_splits: tuple = ("train", "curriculum"), eval_tasks: list 
                 break
             if op == "reset":
                 if "eval" in a:
-                    spec = eval_tasks[int(a["eval"])]
+                    eval_index = int(a["eval"])
+                    spec = eval_tasks[eval_index]
                     core = SessionCore(spec, CoreConfig(**(eval_cfg or cfg or {})))
+                    kind = "eval"
                 else:
                     spec = TaskSpec.from_dict(a["spec"])
                     check_split(spec)
                     if spec.split not in allow_splits:
                         raise PermissionError(f"split {spec.split!r} cannot be requested by a learner")
+                    if budget and shared is not None and shared["train_decisions"].value >= budget.get("train_decisions", 1 << 62):
+                        raise PermissionError("training budget exhausted")
                     core = SessionCore(spec, CoreConfig(**(cfg or {})))
+                    kind, eval_index = "train", None
                 conn.send(("ok", core.info()))
             elif op == "n_eval":
                 conn.send(("ok", len(eval_tasks or [])))
+            elif op == "budget":
+                used = shared["train_decisions"].value if shared is not None else 0
+                conn.send(("ok", {"train_decisions_used": used, "train_decisions": (budget or {}).get("train_decisions")}))
             elif op in ("info", "observe", "tools", "end_decision", "summary"):
                 out = getattr(core, op)()
                 if op == "summary":
                     results.append(out)
+                    stamp = 0
+                    if shared is not None:
+                        with shared["train_decisions"].get_lock():
+                            if kind == "train":
+                                shared["train_decisions"].value += int(out["decisions"])
+                                shared["train_episodes"].value += 1
+                            stamp = shared["train_decisions"].value
+                    if results_path:
+                        _append(results_path, {"kind": kind, "eval_index": eval_index, "stamp": stamp, "t": time.time(),
+                                               "summary": out})
                     out = dict(out)
                     if core.spec.split not in allow_splits:      # never reveal held-out task identities
-                        out["task"] = f"eval#{len(results) - 1}"
+                        out["task"] = f"eval#{eval_index}"
                 conn.send(("ok", out))
             elif op == "execute":
                 conn.send(("ok", core.execute(a[0], a[1])))
@@ -269,6 +305,9 @@ class RemoteCore:
 
     def n_eval(self) -> int:
         return self._rpc("n_eval")
+
+    def budget(self) -> dict:
+        return self._rpc("budget")
 
     def info(self) -> dict:
         return self._info
@@ -309,7 +348,7 @@ def spawn_env_server(allow_splits=("train", "curriculum"), eval_tasks=None, cfg=
     return p, RemoteCore(parent)
 
 
-def _serve_entry(conn, allow, eval_tasks, cfg, eval_cfg):
+def _serve_entry(conn, allow, eval_tasks, cfg, eval_cfg, results_path=None, shared=None, budget=None):
     for v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
         os.environ[v] = "1"
-    serve(conn, allow, eval_tasks, cfg, eval_cfg)
+    serve(conn, allow, eval_tasks, cfg, eval_cfg, results_path, shared, budget)

@@ -331,7 +331,8 @@ class HFModel(LLM):
         g = torch.Generator().manual_seed(20261121)
         self.proj = (torch.randn(hid, EMB_DIM, generator=g) / np.sqrt(EMB_DIM)).to(device=device, dtype=torch.float32)
         self._fp: str | None = None
-        self.lock = threading.Lock()
+        self.lock = threading.Lock()          # generation
+        self.emb_lock = threading.Lock()      # embeddings (may run while a generation is in progress)
 
     def fingerprint(self) -> str:
         if self._fp is None:
@@ -354,7 +355,7 @@ class HFModel(LLM):
         ids = self.tok(self._template(messages, think), return_tensors="pt", add_special_tokens=False)["input_ids"][0]
         truncated = False
         if think:
-            max_new_tokens = max_new_tokens + 1500          # room for the reasoning, which is discarded
+            max_new_tokens = max_new_tokens + 1000          # room for the reasoning, which is discarded
         room = self.max_context - max_new_tokens
         if len(ids) > room:
             ids = torch.cat([ids[: room // 3], ids[-(room - room // 3):]])
@@ -383,11 +384,11 @@ class HFModel(LLM):
         torch = self.torch
         t0 = time.time()
         if think:
-            max_new_tokens = max_new_tokens + 1500
+            max_new_tokens = max_new_tokens + 1000
         room = self.max_context - max_new_tokens
         texts = [self._template(m, think) for m in batch]
-        self.tok.padding_side = "left"
-        enc = self.tok(texts, return_tensors="pt", padding=True, add_special_tokens=False, truncation=True, max_length=room)
+        enc = self.tok(texts, return_tensors="pt", padding=True, add_special_tokens=False, truncation=True, max_length=room,
+                       padding_side="left")
         enc = {k: v.to(self.device) for k, v in enc.items()}
         kw = dict(max_new_tokens=max_new_tokens, pad_token_id=self.tok.pad_token_id or self.tok.eos_token_id)
         with self.lock, torch.no_grad():
@@ -424,10 +425,10 @@ class HFModel(LLM):
         out = []
         for i in range(0, len(texts), 16):
             batch = [self.EMB_TEMPLATE.replace("{t}", (t if t else " ")[:1500]) for t in texts[i:i + 16]]
-            self.tok.padding_side = "left"
-            enc = self.tok(batch, return_tensors="pt", padding=True, truncation=True, max_length=self.embed_tokens + 16)
+            enc = self.tok(batch, return_tensors="pt", padding=True, truncation=True, max_length=self.embed_tokens + 16,
+                           padding_side="left")
             enc = {k: v.to(self.device) for k, v in enc.items()}
-            with self.lock, torch.no_grad():
+            with self.emb_lock, torch.no_grad():
                 hs = self.model(**enc, output_hidden_states=True).hidden_states[self.EMB_LAYER]
             out.append(hs[:, -1].float())
         return torch.cat(out) if out else torch.zeros(0, self.model.config.hidden_size, device=self.device)

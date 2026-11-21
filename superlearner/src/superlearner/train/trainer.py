@@ -34,7 +34,7 @@ from ..algo.ppo import bc_update, flat_params
 from ..cam.memory import EpisodicMemory
 from ..cam.model import CAMController, EmbStore, ModelConfig
 from ..grounding.toolsmith import ToolLibrary
-from ..world.tasks import SPLITS, TaskSpec, task
+from ..world.tasks import SPLITS, TaskSpec, task, task_list
 from .curriculum import Curriculum
 from .rollout import LocalPool, RolloutPool
 
@@ -149,7 +149,9 @@ class Trainer:
         self.llm_usage: dict = {}
         wcfg = {"llm": c["llm"], "model": c["model"], "agent": c["agent"], "core": c["core"],
                 "env_socket": c.get("env_socket")}
-        self.pool = pool or (RolloutPool(c["workers"], wcfg) if c["workers"] > 0 else LocalPool(wcfg))
+        start = "fork" if (os.environ.get("SUPERLEARNER_ISOLATED") or self.device == "cpu") else "spawn"
+        self.pool = pool or (RolloutPool(c["workers"], wcfg, start) if c["workers"] > 0 else LocalPool(wcfg))
+        self._errors_logged = 0
         self.theta0 = flat_params(self.model).clone()
         if resume and os.path.exists(os.path.join(run_dir, "ckpt", "latest.pt")):
             self.load(os.path.join(run_dir, "ckpt", "latest.pt"))
@@ -183,6 +185,11 @@ class Trainer:
             self.llm_usage[e.get("wid", 0)] = u
         self.memory.items = self.memory.items[-self.memory.capacity:]
         self.memory._mat = None
+        if len(self.pool.errors) > self._errors_logged:
+            with open(os.path.join(self.dir, "errors.log"), "a") as f:
+                for e in self.pool.errors[self._errors_logged:]:
+                    f.write(f"--- iter {self.iter}\n{e}\n")
+            self._errors_logged = len(self.pool.errors)
         return good
 
     def sync_workers(self) -> None:
@@ -220,6 +227,7 @@ class Trainer:
         t0 = time.time()
         eps = self.absorb(self.pool.run(jobs))
         ok = [e for e in eps if e["summary"]["success"]]
+        n_verified = len(ok)
         cap = int(self.cfg["demos"].get("max_per_arm") or 0)
         if cap:
             cnt: dict = {}
@@ -231,11 +239,13 @@ class Trainer:
                     kept.append(e)
             ok = kept
         self.demos = ok
-        prov = {"teacher": "train/demos.py:script_auto", "requested": n, "ran": len(eps), "verified_successful": len(ok),
+        prov = {"teacher": "train/demos.py:script_auto", "requested": n, "ran": len(eps), "verified_successful": n_verified,
+                "kept": len(ok), "max_per_arm": cap,
                 "summary_all": summarize(eps), "by_arm_kept": summarize(ok).get("by_arm_n", {}),
                 "misses": sum(len(e["summary"]["teacher"]["misses"]) for e in ok), "wall_s": round(time.time() - t0, 1),
                 "tasks": [e["summary"]["task"] for e in ok]}
-        pickle.dump({"episodes": ok, "provenance": prov}, open(os.path.join(self.dir, "demos.pkl"), "wb"))
+        pickle.dump({"episodes": ok, "provenance": prov, "emb": self.store.items_since(0)},
+                    open(os.path.join(self.dir, "demos.pkl"), "wb"))
         self.log("metrics.jsonl", {"phase": "demos", **{k: v for k, v in prov.items() if k != "tasks"}})
         return prov
 
@@ -260,11 +270,7 @@ class Trainer:
         fams = [f for f in (self.cfg.get("eval_world_families") or self.cfg["curriculum"].get("world_families")
                             or SPLITS[split][2]) if f in SPLITS[split][2]] or list(SPLITS[split][2])
         arms = arms or [a.key for a in self.curriculum.arms]
-        out = []
-        for i in range(n):
-            fam, lvl, start = arms[i % len(arms)].split("/")
-            out.append(task(fam, fams[(i // len(arms)) % len(fams)], offset + 1000 + i, split, int(lvl), start))
-        return out
+        return task_list(arms, fams, n, split, offset + 1000)
 
     def evaluate(self, tasks: list[TaskSpec], mode: str = "greedy", tag: str = "eval", agent: dict | None = None,
                  save: bool = True) -> dict:
@@ -280,6 +286,21 @@ class Trainer:
         if save:
             self.log("eval.jsonl", res)
             self.save_traj(f"{tag}_iter{self.iter:04d}", [e for e in eps if any("human" in d for d in e["decisions"])][:4])
+        return res
+
+    def evaluate_hub(self, tag: str = "eval") -> dict:
+        """Evaluation when worlds live on the trusted env hub: tasks are started by index, never by spec."""
+        n = int(self.cfg.get("hub_eval_n", 0))
+        if n <= 0:
+            return {}
+        self.sync_workers()
+        t0 = time.time()
+        jobs = [{"eval": i, "mode": "greedy", "seed": 10_000 + i, "episode_id": f"{tag}{i}", "learn": False,
+                 "keep_decisions": False, "tag": tag} for i in range(n)]
+        res = summarize(self.absorb(self.pool.run(jobs)))
+        res.update(mode="greedy", tag=tag, iter=self.iter, env_decisions=self.env_decisions, wall_s=round(time.time() - t0, 1))
+        self.wall["eval_s"] += time.time() - t0
+        self.log("eval.jsonl", res)
         return res
 
     # ------------------------------------------------------------------ training
@@ -320,7 +341,7 @@ class Trainer:
         if self.iter == 0 and c["demos"].get("episodes") and not self.demos:
             prov = self.collect_demos(int(c["demos"]["episodes"]))
             if verbose:
-                print(f"demos: {prov['verified_successful']}/{prov['ran']} verified; kept by arm {prov['by_arm_kept']}", flush=True)
+                print(f"demos: {prov['verified_successful']}/{prov['ran']} verified, {prov['kept']} kept; by arm {prov['by_arm_kept']}", flush=True)
             for m in self.pretrain_bc(int(c["demos"].get("bc_epochs", 0))):
                 if verbose and (m["epoch"] % 5 == 0):
                     print(f"bc epoch {m['epoch']}: nll {m['bc_nll']:.3f}", flush=True)
@@ -385,7 +406,10 @@ class Trainer:
         torch.set_rng_state(ck["torch_rng"])
         demos = os.path.join(self.dir, "demos.pkl")
         if os.path.exists(demos):
-            self.demos = pickle.load(open(demos, "rb"))["episodes"]
+            d = pickle.load(open(demos, "rb"))
+            self.demos = d["episodes"]
+            for k, v in d.get("emb", []):
+                self.store.put(k, v)
         return ck
 
     def close(self) -> None:

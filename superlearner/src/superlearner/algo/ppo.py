@@ -27,7 +27,7 @@ from . import rule as R
 from .base import Algorithm, register
 
 DEFAULTS = {"lr": 1e-4, "epochs": 3, "minibatch_eps": 32, "max_grad_norm": 1.0, "target_kl": 0.05,
-            "weight_decay": 0.0, "boot_p": 0.8, "bc_coef": 0.0, "seed": 0}
+            "weight_decay": 0.0, "boot_p": 0.8, "bc_coef": 0.0, "seed": 0, "critic_warmup": 0}
 
 
 def flat_params(model) -> torch.Tensor:
@@ -66,6 +66,7 @@ class PPO(Algorithm):
         self.rng = np.random.default_rng(c["seed"])
         self.n_updates = 0
         self.n_steps = 0
+        self.n_calls = 0
 
     # hooks a subclass (or a candidate) can override without touching the loop
     def advantages(self, b):
@@ -73,10 +74,21 @@ class PPO(Algorithm):
         return R.advantages(t["reward"], t["value_old"], t["done"], t["trunc"], t["valid"], self.rule)
 
     def loss(self, out, b, adv, ret, boot):
+        if self.n_calls <= self.c["critic_warmup"]:
+            # critic warm-up: the first updates fit the value ensemble and the success predictor to the acting
+            # policy's returns and leave the policy alone, so that the first policy updates use real advantages
+            vl = R.value_loss(out["values"], ret, b.t["value_old"], b.t["valid"], self.rule, boot)
+            al, _ = R.aux_loss(out, b, self.rule)
+            with torch.no_grad():
+                kl = float(((b.t["logp_old"] - out["logp"]) * b.t["valid"]).sum() / b.t["valid"].sum().clamp(min=1))
+            return self.rule.vf_coef * vl + self.rule.succ_coef * al, {"kl": kl, "clip_frac": 0.0, "pol_loss": 0.0,
+                                                                         "v_loss": float(vl.detach()), "entropy": 0.0,
+                                                                         "aux_loss": float(al.detach())}
         return R.total_loss(out, b, adv, ret, self.rule, boot)
 
     def update(self, episodes, store, demos=None):
         model, c, dev = self.model, self.c, self.device
+        self.n_calls += 1
         model.train()
         model.set_table(store.tensor(dev))
         mbs = make_minibatches(episodes, store, dev, c["minibatch_eps"], self.rng)
@@ -139,12 +151,13 @@ class PPO(Algorithm):
         return m
 
     def state_dict(self):
-        return {"opt": self.opt.state_dict(), "n_updates": self.n_updates, "n_steps": self.n_steps,
+        return {"opt": self.opt.state_dict(), "n_updates": self.n_updates, "n_steps": self.n_steps, "n_calls": self.n_calls,
                 "rng": self.rng.bit_generator.state}
 
     def load_state_dict(self, s):
         self.opt.load_state_dict(s["opt"])
         self.n_updates, self.n_steps = s.get("n_updates", 0), s.get("n_steps", 0)
+        self.n_calls = s.get("n_calls", 0)
         if "rng" in s:
             self.rng.bit_generator.state = s["rng"]
 

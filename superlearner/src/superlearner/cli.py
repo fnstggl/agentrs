@@ -165,14 +165,11 @@ def cmd_inspect(a) -> int:
 
 
 def cmd_lock_final(a) -> int:
-    from .world.tasks import FINAL_FAMILIES, lock_final, task
+    from .world.tasks import FINAL_FAMILIES, lock_final, task_list
     arms = [("found", 0, "scratch"), ("fund", 0, "scratch"), ("apicall", 0, "scratch"), ("list", 0, "deployed"),
             ("deploy", 0, "coded"), ("service", 0, "listed"), ("service", 0, "deployed"), ("service", 0, "coded"),
             ("repair", 0, "scratch"), ("code", 0, "scratch"), ("deploy", 0, "scratch"), ("service", 0, "scratch")]
-    specs = []
-    for i in range(a.n):
-        fam, lvl, start = arms[i % len(arms)]
-        specs.append(task(fam, FINAL_FAMILIES[(i // len(arms)) % len(FINAL_FAMILIES)], 700_000 + i, "final", lvl, start))
+    specs = task_list([f"{f}/{l}/{s}" for f, l, s in arms], list(FINAL_FAMILIES), a.n, "final", 700_000)
     print(f"wrote {len(specs)} tasks to {a.out}; seal {lock_final(a.out, specs)}")
     return 0
 

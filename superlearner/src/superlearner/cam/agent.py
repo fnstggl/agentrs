@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -47,6 +48,7 @@ from crucible.integrations import obs_features  # noqa: E402
 
 DAY = 86400
 AUX_DIM = 16
+_DIGITS = re.compile(r"\d+")
 
 
 @dataclass
@@ -64,7 +66,7 @@ class AgentConfig:
     max_lib_heads: int = 12
     propose_tokens: int = 700
     gen_tokens: int = 1200
-    think_entries: bool = True     # let the frozen LLM reason before writing a file entry
+    think_entries: bool = True     # let the frozen LLM reason before writing a structured document entry
 
 
 class Chooser:
@@ -283,7 +285,15 @@ class CAMAgent:
                            max_ops=14)
 
     # ================================================================== frozen LLM
+    def _recent_docs(self, k: int = 4) -> list:
+        docs = list(self.know.docs.values())[-k:][::-1]
+        for d in docs:
+            self._ek(d.text)
+        return docs
+
     def _focus_docs(self, k: int = 5) -> list:
+        """Documents a language-model-written value could be based on: the most similar to the goal interleaved
+        with the most recently read (embeds every remembered document, so it is only called when needed)."""
         docs = list(self.know.docs.values())
         if not docs:
             return []
@@ -366,8 +376,13 @@ class CAMAgent:
         names = list(dict.fromkeys(names))[:6]
         done: dict = {}
         for n in names:
-            g = self.llm.generate(P.gen_entry_messages(base, param, names, done, n), self.cfg.gen_tokens, variant,
-                                  self.cfg.think_entries)
+            # structured documents (a manifest, a config) must match a documented format exactly: the frozen model
+            # may reason before writing those. Other entries (source code) are written directly.
+            think = self.cfg.think_entries and n.rsplit(".", 1)[-1].lower() in ("json", "yaml", "yml", "toml")
+            msgs = P.gen_entry_messages(base, param, names, done, n)
+            g = self.llm.generate(msgs, self.cfg.gen_tokens, variant, think)
+            if think and not g.text.strip():              # the reasoning used up its budget: write directly
+                g = self.llm.generate(msgs, self.cfg.gen_tokens, variant, False)
             txt = g.text.strip()
             if txt.startswith("```"):                     # a fenced block: keep what is inside the fence
                 body = txt.split("\n", 1)[1] if "\n" in txt else ""
@@ -444,10 +459,10 @@ class CAMAgent:
             it.add(F.C_HIST, toks, [(len(steps) - i) / cfg.history, float(s.ok), F.symlog(s.cost_s) / 12.0, min(s.n_calls, 8) / 8.0], ek)
         lo = self.last_out
         if lo is not None and not lo.ok:
-            fb = self.know.alias_text(lo.feedback)[:300]
+            fb = _DIGITS.sub("0", self.know.alias_text(lo.feedback)[:240])
             it.add(F.C_ERR, [f"FC:{lo.fclass}", f"T:{lo.tool}", f"TF:{lo.tool}:{lo.fclass}",
                              f"EC:{(lo.error or {}).get('code', '')}"], [1.0], self._ek(fb) if fb else 0)
-        for r, d in enumerate(self._focus_docs(cfg.ctx_docs)):
+        for r, d in enumerate(self._recent_docs(cfg.ctx_docs)):
             it.add(F.C_DOC, [f"DS:{d.source}"], [r / max(1, cfg.ctx_docs), min(1.0, (self.now - d.t) / DAY)], d.key)
         for i, s in enumerate(wm.draft[:cfg.ctx_draft]):
             name = s.get("call") if s.get("_kind") == "call" else f"<{s.get('_kind')}>"

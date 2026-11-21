@@ -1,0 +1,4 @@
+# Experiment B (strong warm start): 16 verified demonstrations per task arm, then recurrent PPO.
+base: exp_b_fewdemo.yaml
+name: exp_b_strong
+demos: {episodes: 200, bc_epochs: 60, bc_lr: 0.0003, max_per_arm: 16}
