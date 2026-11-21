@@ -177,7 +177,7 @@ def f_tiny(rng, o):
 
 
 # ---------------------------------------------------------------------------- open-world families
-OPEN_MODULES = ["ops", "wf", "caps", "deal", "gov", "society"]
+OPEN_MODULES = ["ops", "wf", "caps", "deal", "gov", "net", "appdb", "society", "webgen"]
 
 
 def _open(r: dict, extra: list[str] | None = None, consumers: dict | None = None, params: dict | None = None) -> dict:
@@ -204,7 +204,7 @@ def f_open_digital(rng, o):
 
 INDUSTRY_MODULES = ["identity", "bank", "admin", "code", "search", "forum", "mail", "docs", "cal", "issues", "support",
                     "ads", "contracts", "business", "jobs", "cloud", "market", "npcs", "goals", "civ", "ops", "wf", "caps",
-                    "deal", "gov", "society", "industry", "freight", "shoppers", "industrygen"]
+                    "deal", "gov", "net", "appdb", "society", "webgen", "industry", "freight", "shoppers", "industrygen"]
 
 
 def _ring_links(rng, n, hours=(6, 14), cost=(2, 5), capacity=(500, 900), extra=0):

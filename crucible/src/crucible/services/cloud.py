@@ -180,7 +180,24 @@ class Cloud(Module):
             self._usage(ctx, dep_id, 0, 0.0, 0.0, "overload", 0)
             return {"status": 503, "error": "service overloaded (instance capacity exhausted this hour)"}
         spec = dep["manifest"]["endpoints"][ep]
-        out = self._run(ctx, dep_id, dep, spec["handler"], args, caller, post)
+        return self.execute_handler(ctx, dep_id, spec["handler"], args, caller, work_scale, post, _checked=True)
+
+    def execute_handler(self, ctx: Ctx, dep_id: str, handler: str, args, caller, work_scale: float, post=None,
+                        _checked: bool = False) -> dict:
+        """Run one named handler of a deployment (endpoints and web routes alike) with capacity enforcement and
+        metering."""
+        st = ctx.state
+        dep = st.get("deployments", dep_id)
+        if not _checked:
+            inst = st.get("instances", dep["instance"])
+            hour = ctx.now // 3600
+            used = inst["used_cu"] if inst["hour"] == hour else 0.0
+            cap = inst["cores"] * CU_PER_CORE_HOUR
+            est = dep["cu_est"] * (work_scale / max(1e-9, dep["ws_est"])) if dep["ws_est"] else 0.0
+            if used > 0 and used + est > cap:
+                self._usage(ctx, dep_id, 0, 0.0, 0.0, "overload", 0)
+                return {"status": 503, "error": "service overloaded (instance capacity exhausted this hour)"}
+        out = self._run(ctx, dep_id, dep, handler, args, caller, post)
         cu = out["cpu_ms"] * work_scale
         status = 200 if out["ok"] else 500
         err = None if out["ok"] else (out["error"] or {}).get("message", "error")
@@ -478,15 +495,15 @@ class Cloud(Module):
             m = json.loads(raw)
         except json.JSONDecodeError as e:
             raise InvalidAction(f"crucible.json: {e}")
-        if not isinstance(m, dict) or not isinstance(m.get("endpoints"), dict) or not m["endpoints"]:
-            raise InvalidAction("crucible.json needs an 'endpoints' object")
+        if not isinstance(m, dict) or not isinstance(m.get("endpoints", {}), dict) or not (m.get("endpoints") or m.get("web")):
+            raise InvalidAction("crucible.json needs an 'endpoints' object or a 'web' section")
         entry = m.get("entry", "service.py")
         if not isinstance(entry, str) or not re.fullmatch(ENTRY, entry):
             raise InvalidAction("bad entry")
         if (entry if entry.endswith(".py") else entry + ".py") not in files:
             raise InvalidAction(f"entry {entry} not in repository")
         eps = {}
-        for name, spec in m["endpoints"].items():
+        for name, spec in (m.get("endpoints") or {}).items():
             if not re.fullmatch(EP_NAME, name) or not isinstance(spec, dict):
                 raise InvalidAction(f"bad endpoint {name!r}")
             handler = spec.get("handler", name)
@@ -503,7 +520,37 @@ class Cloud(Module):
                          "price_cents": price}
         if len(eps) > 20:
             raise InvalidAction("at most 20 endpoints")
-        return {"entry": entry, "endpoints": eps, "description": str(m.get("description", ""))[:500]}
+        out = {"entry": entry, "endpoints": eps, "description": str(m.get("description", ""))[:500]}
+        if m.get("web") is not None:
+            out["web"] = self.validate_web(m["web"], files)
+        return out
+
+    def validate_web(self, web, files: dict) -> dict:
+        """The web section of a manifest: routes "METHOD /path/{param}" -> handler, static files, rate limit."""
+        if not isinstance(web, dict):
+            raise InvalidAction("web must be an object")
+        routes = {}
+        for key, handler in (web.get("routes") or {}).items():
+            mt = re.fullmatch(r"(GET|POST) (/[A-Za-z0-9_./{}-]*)", str(key))
+            if not mt or not isinstance(handler, str) or not re.fullmatch(HANDLER, handler):
+                raise InvalidAction(f"bad web route {key!r}")
+            if mt.group(2).startswith("/_"):
+                raise InvalidAction("paths starting with /_ are reserved")
+            routes[key] = handler
+        if not routes:
+            raise InvalidAction("web needs at least one route")
+        if len(routes) > 60:
+            raise InvalidAction("at most 60 web routes")
+        static = {}
+        for path, fname in (web.get("static") or {}).items():
+            if not re.fullmatch(r"/[A-Za-z0-9_./-]{1,80}", str(path)) or fname not in files:
+                raise InvalidAction(f"bad static file {path!r}")
+            static[path] = fname
+        rate = int(web.get("rate_per_min", 120))
+        if not 1 <= rate <= 10_000:
+            raise InvalidAction("rate_per_min must be 1..10000")
+        return {"routes": routes, "static": static, "rate_per_min": rate, "title": str(web.get("title", ""))[:120],
+                "login": str(web.get("login", "optional")) if web.get("login") in ("optional", "required") else "optional"}
 
     @endpoint("undeploy", S.obj({"host": S.s_str(maxLength=31)}, ["host"]))
     def ep_undeploy(self, ctx, host):

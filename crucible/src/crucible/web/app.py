@@ -755,6 +755,11 @@ class WebApp:
                 return self._login(c, form) if req.method == "POST" else self._login_page(c)
             if session is None:
                 return self._to_login(c)
+            net = w.modules.get("net")
+            if net is not None and host not in self.routes and host not in HIDDEN_HOSTS:
+                target = net.resolve_host(w.state, host)
+                if target is not None and net.web_dep(w.state, target)[1] is not None:
+                    return self._webapp(c, host, path, form)
             if not self._host_exists(w, host):
                 return self.render(c, status=404, title=f"{host}.crucible not found",
                                    errors=[f"There is no service at {host}.crucible (DNS lookup failed)."])
@@ -773,6 +778,53 @@ class WebApp:
                     return self.render(c)
             return self.render(c, status=404, title="Page not found",
                                errors=[f"No page {path} on {host}.crucible."])
+
+    def _webapp(self, c: Ctx, host: str, path: str, form: dict[str, list[str]] | None) -> Response:
+        """A web application on the synthetic internet: every request is the visitor's `net.fetch` command, so the
+        browser and the API see the same application with the same recorded effects."""
+        w = c.w
+        g = lambda k: ((form or {}).get(k) or [""])[-1]  # noqa: E731
+        if path == "/_login":
+            back = c.qp.get("return") or g("return") or "/"
+            if not back.startswith("/") or back.startswith("//"):
+                back = "/"
+            if c.req.method == "POST":
+                if g("_csrf") != c.session.csrf:
+                    return self.render(c, status=403, title="Forbidden", errors=["Bad CSRF token."])
+                w.execute(c.p, {"tool": "net.login", "args": {"site": host}})
+                self.b.after_write(w)
+                return _redirect(c.url(host, back))
+            c.title = f"Log in to {host}.crucible"
+            c.add("form", id="applogin", form=Form(
+                id="applogin", action=c.url(host, "/_login"), title=f"{host}.crucible wants to know who you are",
+                doc="The site learns your principal id and nothing else.", submit=f"Log in as {c.p}",
+                hidden=[("return", back), ("_csrf", c.session.csrf)]))
+            return self.render(c)
+        url = f"http://{host}.crucible{path}" + (f"?{c.req.url.query}" if c.req.url.query else "")
+        args: dict[str, Any] = {"url": url, "method": c.req.method if c.req.method in ("GET", "POST") else "GET"}
+        if args["method"] == "POST":
+            args["form"] = {k: (v[-1] if v else "") for k, v in (form or {}).items() if not k.startswith("_")}
+        r = w.execute(c.p, {"tool": "net.fetch", "args": args})
+        self.b.after_write(w)
+        if not r.ok:
+            return self.render(c, status=400, title=f"{host}.crucible", errors=[r.error.get("message", "error")])
+        res = r.result
+        if res.get("login_required"):
+            return _redirect(c.url(host, "/_login", **{"return": path}))
+        if res.get("location"):
+            loc = str(res["location"])
+            if loc.startswith("/") and not loc.startswith("//"):
+                loc = c.url(host, loc)
+            elif not (urlsplit(loc).hostname or "").endswith(".crucible"):
+                loc = c.url(host, "/")
+            return _redirect(loc)
+        headers = {"Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+                                              "connect-src 'self'; object-src 'none'; base-uri 'none'; "
+                                              "frame-ancestors 'none'; img-src 'self' data:; "
+                                              "style-src 'self' 'unsafe-inline'",
+                   "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"}
+        return Response(content=res["body"], status_code=int(res["status"]), media_type=res["content_type"],
+                        headers=headers)
 
     def _host_exists(self, w: World, host: str) -> bool:
         if host in HIDDEN_HOSTS:

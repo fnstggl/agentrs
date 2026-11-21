@@ -164,12 +164,21 @@ class BrowserSession:
             self._ctx.set_default_timeout(timeout_ms)
             self._ctx.route("**/*", self._route)
             self.page = self._ctx.new_page()
+            self.console_errors: list[str] = []
+            self.console_log: list[dict] = []       # {"text", "url"}: errors with the script URL they came from
+            self.page.on("console", lambda m: self._console(m.text, (m.location or {}).get("url", ""))
+                         if m.type == "error" else None)
+            self.page.on("pageerror", lambda e: self._console(str(e), ""))
         except Exception:
             self._pw.stop()
             raise
         self._closed = False
         if start:
             self.goto(start)
+
+    def _console(self, text: str, url: str) -> None:
+        self.console_errors.append(text[:300])
+        self.console_log.append({"text": text[:300], "url": url, "page": self.page.url})
 
     # ------------------------------------------------------------------ network control
     def _allowed(self, url: str) -> bool:

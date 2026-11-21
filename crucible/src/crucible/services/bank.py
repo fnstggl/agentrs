@@ -209,6 +209,18 @@ class Bank(Module):
                  vis=(payer, payee_owner))
         return {"invoice": iid}
 
+    @endpoint("invoice_status", S.obj({"invoice": S.s_str(maxLength=40)}, ["invoice"]), read_only=True)
+    def ep_invoice_status(self, ctx, invoice):
+        """Status of an invoice for its payer, its payee, or a holder of `bank.read` on the payee (e.g. the payee's
+        web shop checking whether an order was paid)."""
+        inv = ctx.state.get("invoices", invoice)
+        if inv is None:
+            raise NotFound("no invoice")
+        if ctx.actor != inv["payer"]:
+            ident(ctx.world).authorize(ctx, inv["payee_owner"], "bank.read")
+        return {"invoice": invoice, "status": inv["status"], "amount": inv["amount"], "payer": inv["payer"],
+                "ref": inv.get("ref")}
+
     @endpoint("invoices", S.obj({"role": S.s_enum(["payer", "payee"])}), read_only=True)
     def ep_invoices(self, ctx, role="payer"):
         """Invoices addressed to you (role=payer) or issued by you (role=payee)."""
