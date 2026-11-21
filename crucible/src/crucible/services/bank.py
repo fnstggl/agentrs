@@ -290,6 +290,8 @@ class Bank(Module):
             a = st.tables["accounts"][acct]
             st.patch("accounts", acct, balance=a["balance"] + d)
             st.insert("acct_txns", f"{p['id']}|{acct}", {"acct": acct, "txn": p["id"], "amount": d, "t": ev.t})
+        for fn in self.world.hooks.get("txn_observers", ()):   # derived per-owner accounting (ops module)
+            fn(ev)
 
     @applier("bank.account_status")
     def ap_status(self, ev):

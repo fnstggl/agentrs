@@ -61,7 +61,7 @@ def _rpc_fn(ctx: Ctx, principal: str, log: list) -> Callable[[str, dict], tuple[
     def rpc(tool: str, args: dict) -> tuple[bool, Any]:
         log.append({"tool": tool, "args": args})
         try:
-            return True, ctx.call(tool, args, as_principal=principal)
+            return True, ctx.call(tool, args, as_principal=principal, brokered=True)
         except CrucibleError as e:
             return False, e.as_dict()
     return rpc
@@ -75,7 +75,7 @@ def run_in_ctx(ctx: Ctx, kind: str, worker_fn: Callable[[], Worker], job: dict, 
     if rec is not None:
         for r in rec.get("rpcs", []):
             try:
-                ctx.call(r["tool"], r["args"], as_principal=principal)
+                ctx.call(r["tool"], r["args"], as_principal=principal, brokered=True)
             except CrucibleError:
                 pass
         return ctx.fill(slot, kind, rec)

@@ -85,7 +85,13 @@ class Civ(Module):
                                                           f"Keywords: {' '.join(NEEDS[f['need']].keywords)}",
                                            "price_cents": f["price"], "seller": oid, "host": f["host"],
                                            "endpoint": "solve", "need": f["need"]}, as_principal=owner)
-            npcs.add_firm(ctx, oid, owner, f["need"], f["host"], lst["listing"], rid, f["tier"], f.get("policy"))
+            if cfg.get("firm_minds") and "society" in w.modules:
+                soc = w.modules["society"]
+                soc.add_mind(ctx, oid, "firm", oid, owner, f.get("traits") or soc.draw_traits(rng),
+                             role="service", extra={"routines": {"capacity": {}, "pricing": {
+                                 "step": f.get("policy", {}).get("price_step", 0.06)}, "staffing": {}}})
+            else:
+                npcs.add_firm(ctx, oid, owner, f["need"], f["host"], lst["listing"], rid, f["tier"], f.get("policy"))
         # labour pool
         for i in range(int(cfg.get("workers", 0))):
             role = str(rng.choice(["developer", "support", "sales", "developer", "support"]))

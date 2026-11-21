@@ -176,6 +176,31 @@ def f_tiny(rng, o):
                    wage_base=200_000, bounties=o.get("bounties", 1))
 
 
+# ---------------------------------------------------------------------------- open-world families
+OPEN_MODULES = ["ops", "wf", "caps", "society"]
+
+
+def _open(r: dict, extra: list[str] | None = None, consumers: dict | None = None, params: dict | None = None) -> dict:
+    """Turn a recipe into an open-world recipe: firms run by Tier-2 minds, the capability substrate installed."""
+    r["module_list"] = BASE_MODULES + OPEN_MODULES + list(extra or [])
+    r["modules"]["civ"]["firm_minds"] = True
+    r["modules"]["consumers"].update(consumers or {})
+    r["params"].update({"cost_model": "deterministic", **(params or {})})
+    return r
+
+
+@family("open_digital", "train",
+        "Open digital economy: service firms are run by minds that measure their own books, publish problems and "
+        "adopt (or reject) software others invent; demand follows a daily cycle, so fixed capacity is wasteful.")
+def f_open_digital(rng, o):
+    needs = o.get("needs") or list(rng.choice(["sort.records", "route.shortest", "text.extract"], size=2,
+                                              replace=False))
+    r = _recipe(rng, needs=needs, n_consumers=o.get("n_consumers", 4000), firms_per_need=o.get("firms_per_need", 2),
+                tier_range=(0, 0), firm_cash=1_500_000, providers=[(120, 150, 0.995), (80, 170, 0.995)],
+                workers=o.get("workers", 12), wage_base=250_000, bounties=0, rate=tuple(o.get("rate", (10.0, 40.0))))
+    return _open(r, consumers={"diurnal": float(o.get("diurnal", 0.7)), "peak_hour": 14})
+
+
 def generate(config: dict | str, seed: int = 0) -> WorldSpec:
     """Build a WorldSpec from {"family": name, "overrides": {...}, "modules": [...] (optional extra modules)}."""
     if isinstance(config, str):

@@ -136,7 +136,8 @@ class Market(Module):
         l = ctx.state.get("listings", listing)
         if l is None:
             raise NotFound("no listing")
-        ident(ctx.world).authorize(ctx, l["seller"], "org.admin")
+        # owners/admins always may; a delegate needs `market.manage` scoped to this listing (e.g. a pricing service)
+        ident(ctx.world).authorize(ctx, l["seller"], "market.manage", scope=listing)
         ch = {k: v for k, v in (("price", price_cents), ("description", description), ("status", status)) if v is not None}
         if not ch:
             raise InvalidAction("nothing to change")

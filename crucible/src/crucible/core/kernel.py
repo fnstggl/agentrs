@@ -225,13 +225,16 @@ class Ctx:
     def fail(self, exc: type[CrucibleError], msg: str, **details) -> None:
         raise exc(msg, **details)
 
-    def call(self, tool: str, args: dict | None = None, as_principal: str | None = None) -> Any:
+    def call(self, tool: str, args: dict | None = None, as_principal: str | None = None, brokered: bool = False) -> Any:
         """Nested call inside the current transaction (services calling services, system calling modules).
 
         If the callee fails, its partial effects are rolled back to a savepoint and the error propagates.
+        `brokered=True` is used only by the sandbox broker: a running program always acts as its own service
+        principal (fixed by its deployment), whoever called the service.
         """
         principal = as_principal or self.actor
-        if principal != self.actor and self.actor != SYSTEM and not self.world.may_act_as(self.actor, principal):
+        if principal != self.actor and self.actor != SYSTEM and not brokered and \
+                not self.world.may_act_as(self.actor, principal):
             raise Forbidden(f"{self.actor} cannot act as {principal}")
         if self.depth >= 8:
             raise InvalidAction("call depth limit exceeded")
@@ -255,6 +258,23 @@ class Ctx:
             del self.events[n_ev:]          # drop events emitted by the failed sub-call
             self.world.seq = seq0
             # keep external outcomes: they happened and regeneration must see them in the same order
+            raise
+        finally:
+            self._rng_n += sub._rng_n + 1000
+
+    def run_as(self, principal: str, fn: Callable[..., Any], *args, **kw) -> Any:
+        """Module-internal: run `fn(sub_ctx, ...)` acting as `principal` inside this transaction. If it raises a
+        CrucibleError its partial effects are rolled back to a savepoint and the error propagates."""
+        sub = Ctx(self.world, principal, self.cmd, origin=self.origin, depth=self.depth + 1)
+        sub.ext_key, sub.events, sub.ext = self.ext_key, self.events, self.ext
+        mark = self.state.savepoint()
+        n_ev, seq0 = len(self.events), self.world.seq
+        try:
+            return fn(sub, *args, **kw)
+        except CrucibleError:
+            self.state.rollback_to(mark)
+            del self.events[n_ev:]
+            self.world.seq = seq0
             raise
         finally:
             self._rng_n += sub._rng_n + 1000

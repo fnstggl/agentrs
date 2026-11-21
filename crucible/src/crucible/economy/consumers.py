@@ -156,6 +156,10 @@ class Consumers(Module):
         wtp = st.array("c_wtp")
         hh = bank.balance(st, "acct_households")
         k_samples = int(self.cfg["k_samples"])
+        amp = float(self.cfg.get("diurnal", 0.0))
+        diurnal = 1.0 + amp * math.cos(2 * math.pi * ((ctx.now // 3600) % 24 - float(self.cfg.get("peak_hour", 14))) / 24.0) \
+            if amp else 1.0
+        ops = world.hooks.get("ops")
         slots = {}
         for slot in sorted(offers):
             o = offers[slot]
@@ -165,7 +169,7 @@ class Consumers(Module):
                 continue
             price = max(1, o["price"])
             elastic = np.clip(2.0 - price / np.maximum(wtp[cust], 0.01), 0.0, 1.0)
-            lam = float((rate[cust] * elastic).sum() / 24.0)
+            lam = float((rate[cust] * elastic).sum() / 24.0) * diurnal
             R = int(rng.poisson(lam)) if lam > 0 else 0
             R = min(R, int(hh // price))
             summ = {"slot": slot, "requests": R, "ok": 0, "errors": 0, "unavailable": 0, "overload": 0,
@@ -184,6 +188,13 @@ class Consumers(Module):
                         if dep is not None:
                             cloud.record_revenue(ctx, st.get("hosts", o["host"])["deployment"], cents)
             slots[str(slot)] = summ
+            if ops is not None and R > 0:     # demand that arrived but could not be served is a measured loss
+                if summ["overload"]:
+                    ops.record_loss(ctx, o["seller"], "capacity_overload", summ["overload"] * price, summ["overload"],
+                                    resource=o["host"])
+                if summ["unavailable"]:
+                    ops.record_loss(ctx, o["seller"], "service_unavailable", summ["unavailable"] * price,
+                                    summ["unavailable"], resource=o["host"])
         # who searches, and what they see (search engine and sponsored results are real world mechanisms)
         search = world.modules.get("search")
         seen: dict[str, list[int]] = {}

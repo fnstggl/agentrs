@@ -43,6 +43,7 @@ class Cloud(Module):
         st.declare_table("deployments", index=("owner", "host", "status", "instance"))
         st.declare_table("svc_days", index=("host",))
         st.declare_table("hw_orders", index=("provider",))
+        st.declare_table("svc_hours", index=("host",))       # hourly operational metrics (pruned after 7 days)
         world.hooks["host_endpoints"] = self._host_endpoints
         world.hooks["is_host"] = self.is_host
         world.hooks["host_owner"] = lambda state, host: (state.get("hosts", host) or {}).get("owner")
@@ -154,6 +155,9 @@ class Cloud(Module):
                 except CrucibleError as e:
                     return {"status": 402, "error": e.message}
         res = self.execute(ctx, dep_id, ep, args, caller, float(self.p("cu_per_ms", 50.0)))
+        obs = ctx.world.hooks.get("on_service_call")
+        if obs is not None:
+            obs(ctx, caller, dep["host"], ep, res["status"], price)
         if res["status"] != 200 and price > 0 and src != dst:
             bank.move(ctx, dst, src, price, "refund", f"failed call {dep['host']}.{ep}", ref=f"svc:{dep['host']}")
         elif res["status"] == 200 and price > 0:
@@ -276,6 +280,50 @@ class Cloud(Module):
         ctx.emit("cloud.instance", {"id": iid, "owner": owner, "provider": provider, "cores": cores,
                                     "price": prov["price"], "account": account}, vis=(owner, provider))
         return {"instance": iid, "price_core_hour_cents": prov["price"], "capacity_cu_per_hour": cores * CU_PER_CORE_HOUR}
+
+    @endpoint("resize", S.obj({"instance": S.s_str(maxLength=40), "cores": S.s_int(minimum=1, maximum=64)},
+                              ["instance", "cores"]), cost_s=10)
+    def ep_resize(self, ctx, instance, cores):
+        """Change the number of cores of a running instance (takes effect immediately; billed hourly at the
+        instance's price). Needs `cloud.manage` on the instance owner (scope: the instance id) unless you own it."""
+        st = ctx.state
+        inst = st.get("instances", instance)
+        if inst is None or inst["status"] != "running":
+            raise NotFound("no running instance " + instance)
+        ident(ctx.world).authorize(ctx, inst["owner"], "cloud.manage", scope=instance)
+        if cores == inst["cores"]:
+            return {"instance": instance, "cores": cores, "changed": False}
+        prov = st.get("providers", inst["provider"])
+        used = sum(i["cores"] for i in st.find("instances", "provider", inst["provider"]) if i["status"] == "running")
+        if cores > inst["cores"] and used - inst["cores"] + cores > prov["cores"]:
+            raise CapacityExceeded(f"{inst['provider']} has {prov['cores'] - used} free cores")
+        ctx.emit("cloud.resize", {"id": instance, "cores": int(cores), "from": inst["cores"]},
+                 vis=(inst["owner"], inst["provider"]))
+        return {"instance": instance, "cores": int(cores), "changed": True,
+                "capacity_cu_per_hour": int(cores) * CU_PER_CORE_HOUR}
+
+    @endpoint("metrics", S.obj({"host": S.s_str(maxLength=31), "hours": S.s_int(minimum=1, maximum=168)}, ["host"]),
+              read_only=True)
+    def ep_metrics(self, ctx, host, hours=24):
+        """Hourly operational metrics of a service (ok/errors/overload/unavailable requests, compute units used,
+        revenue) plus its instance's current cores and hourly capacity. Needs `analytics.read` on the operator."""
+        h = ctx.state.get("hosts", host)
+        if h is None:
+            raise NotFound("no such host")
+        ident(ctx.world).authorize(ctx, h["owner"], "analytics.read", scope=host)
+        dep = ctx.state.get("deployments", h["deployment"]) if h.get("deployment") else None
+        inst = ctx.state.get("instances", dep["instance"]) if dep else None
+        now_h = ctx.now // 3600
+        rows = []
+        for hr in range(now_h - hours + 1, now_h + 1):
+            r = ctx.state.get("svc_hours", f"{host}|{hr}")
+            rows.append({"hour": hr, "hour_of_day": hr % 24, **({k: r[k] for k in ("ok", "errors", "unavailable",
+                                                                                 "overload", "cu", "revenue_cents")}
+                                                               if r else {"ok": 0, "errors": 0, "unavailable": 0,
+                                                                          "overload": 0, "cu": 0.0, "revenue_cents": 0})})
+        return {"host": host, "instance": dep["instance"] if dep else None,
+                "cores": inst["cores"] if inst else 0, "price_core_hour_cents": inst["price"] if inst else None,
+                "capacity_cu_per_hour": (inst["cores"] * CU_PER_CORE_HOUR) if inst else 0, "hours": rows}
 
     @endpoint("release", S.obj({"instance": S.s_str(maxLength=40)}, ["instance"]))
     def ep_release(self, ctx, instance):
@@ -540,6 +588,8 @@ class Cloud(Module):
 
     @process("daily")
     def pr_daily(self, ctx):
+        if ctx.state.count("svc_hours"):
+            ctx.emit("cloud.prune_hours", {"before": ctx.now // 3600 - 7 * 24}, vis="internal")
         rng = ctx.rng("outages")
         for pid, p in ctx.state.scan("providers"):
             if p["status"] != "active":
@@ -655,6 +705,19 @@ class Cloud(Module):
         r["cpu_ms"] = round(r["cpu_ms"] + p["cpu_ms"], 4)
         r["cu"] = round(r["cu"] + p["cu"], 3)
         st.put("svc_days", key, r)
+        h = self._hour_rec(st, dep["host"], hour)
+        if p["outcome"] in ("ok", "error"):
+            h["ok" if p["outcome"] == "ok" else "errors"] += p["n"]
+        elif p["outcome"] in ("unavailable", "overload"):
+            h[p["outcome"]] += 1
+        h["cu"] = round(h["cu"] + p["cu"], 3)
+        st.put("svc_hours", f"{dep['host']}|{hour}", h)
+
+    @staticmethod
+    def _hour_rec(st, host, hour):
+        return dict(st.tables["svc_hours"].get(f"{host}|{hour}") or
+                    {"host": host, "hour": hour, "ok": 0, "errors": 0, "unavailable": 0, "overload": 0, "cu": 0.0,
+                     "revenue_cents": 0})
 
     @applier("cloud.usage_bulk")
     def ap_usage_bulk(self, ev):
@@ -676,6 +739,11 @@ class Cloud(Module):
         r["requests"] += p["ok"] + p["errors"] + p["unavailable"] + p["overload"]
         r["cu"] = round(r["cu"] + p["cu"], 3)
         st.put("svc_days", key, r)
+        h = self._hour_rec(st, dep["host"], hour)
+        for k in ("ok", "errors", "unavailable", "overload"):
+            h[k] += p[k]
+        h["cu"] = round(h["cu"] + p["cu"], 3)
+        st.put("svc_hours", f"{dep['host']}|{hour}", h)
 
     @applier("cloud.revenue")
     def ap_revenue(self, ev):
@@ -687,6 +755,19 @@ class Cloud(Module):
                                                    "revenue_cents": 0})
         r["revenue_cents"] += ev.payload["cents"]
         st.put("svc_days", key, r)
+        h = self._hour_rec(st, dep["host"], ev.t // 3600)
+        h["revenue_cents"] += ev.payload["cents"]
+        st.put("svc_hours", f"{dep['host']}|{ev.t // 3600}", h)
+
+    @applier("cloud.prune_hours")
+    def ap_prune_hours(self, ev):
+        st = self.world.state
+        for k in [k for k, r in st.tables["svc_hours"].items() if r["hour"] < ev.payload["before"]]:
+            st.delete("svc_hours", k)
+
+    @applier("cloud.resize")
+    def ap_resize(self, ev):
+        self.world.state.patch("instances", ev.payload["id"], cores=ev.payload["cores"])
 
     @applier("cloud.hw_order")
     def ap_hw_order(self, ev):
