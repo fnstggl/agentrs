@@ -33,7 +33,7 @@ import numpy as np
 import torch
 
 from .. import ensure_crucible
-from ..actions.program import Interpreter, ProgramError, parse_program, strip_internal
+from ..actions.program import Interpreter, ProgramError, parse_program
 from ..grounding.executor import GroundedExecutor, Outcome
 from ..grounding.knowledge import CapabilityIndex, Knowledge, alias_kind, tool_doc, tool_full_doc
 from ..grounding.toolsmith import ToolLibrary, macro_from_trace

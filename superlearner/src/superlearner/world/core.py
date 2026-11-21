@@ -27,7 +27,7 @@ from __future__ import annotations
 import os
 import time
 import traceback
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 from .. import ensure_crucible
 from .tasks import TaskSpec, build, check_split

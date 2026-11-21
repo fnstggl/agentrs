@@ -71,6 +71,7 @@ class PPO(Algorithm):
         self.n_steps = 0
         self.n_calls = 0
         self.buffer: list[dict] = []          # the agent's own verified-successful episodes (used only if the rule replays)
+        self.n_policy_steps = 0               # optimiser steps that could move the policy (critic warm-up excluded)
         self.lr_scale = 1.0                   # adapted from the measured KL (halved on a rollback, slowly restored)
         self.rollbacks = 0
 
@@ -145,6 +146,7 @@ class PPO(Algorithm):
             torch.nn.utils.clip_grad_norm_(model.parameters(), self.c["max_grad_norm"])
             self.opt.step()
             self.n_updates += 1
+            self.n_policy_steps += 1
             losses.append(float(loss.detach()))
         model.eval()
         return {"replay_loss": float(np.mean(losses)) if losses else 0.0, "replay_steps": len(losses),
@@ -155,7 +157,7 @@ class PPO(Algorithm):
         Adam state makes the very first steps move every weight by the full learning rate, whatever the gradient;
         after a warm start that alone can wreck the policy), times the KL-adapted scale."""
         w = int(self.c["lr_warmup_steps"])
-        lr = self.c["lr"] * self.lr_scale * (min(1.0, (self.n_updates + 1) / w) if w > 0 else 1.0)
+        lr = self.c["lr"] * self.lr_scale * (min(1.0, (self.n_policy_steps + 1) / w) if w > 0 else 1.0)
         for g in self.opt.param_groups:
             g["lr"] = lr
         return lr
@@ -209,6 +211,8 @@ class PPO(Algorithm):
                 torch.nn.utils.clip_grad_norm_(model.parameters(), c["max_grad_norm"])
                 self.opt.step()
                 self.n_updates += 1
+                if self.n_calls > c["critic_warmup"]:
+                    self.n_policy_steps += 1
                 info["loss"] = float(loss.detach())
                 if guard:
                     # trust region with rollback: measure the divergence this step caused on its own minibatch; a
@@ -253,7 +257,7 @@ class PPO(Algorithm):
 
     def state_dict(self):
         return {"opt": self.opt.state_dict(), "n_updates": self.n_updates, "n_steps": self.n_steps, "n_calls": self.n_calls,
-                "lr_scale": self.lr_scale, "rollbacks": self.rollbacks,
+                "lr_scale": self.lr_scale, "rollbacks": self.rollbacks, "n_policy_steps": self.n_policy_steps,
                 "rng": self.rng.bit_generator.state}
 
     def load_state_dict(self, s):
@@ -261,6 +265,7 @@ class PPO(Algorithm):
         self.n_updates, self.n_steps = s.get("n_updates", 0), s.get("n_steps", 0)
         self.n_calls = s.get("n_calls", 0)
         self.lr_scale, self.rollbacks = s.get("lr_scale", 1.0), s.get("rollbacks", 0)
+        self.n_policy_steps = s.get("n_policy_steps", 0)
         if "rng" in s:
             self.rng.bit_generator.state = s["rng"]
 

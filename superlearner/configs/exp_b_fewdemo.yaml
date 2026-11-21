@@ -1,13 +1,14 @@
 # Experiment B, few-demonstration regime: a weak warm start (2 verified demonstrations per task arm), then RL.
 # This file is the PPO-ALONE arm; exp_b_fewdemo_sil.yaml is identical except for the replay of own successes.
-# The same architecture is evaluated before and after RL on held-out task instances.
+# The same architecture is evaluated before and after RL on held-out task instances. Episodic memory and
+# tool-making are OFF here so that any change in behaviour comes from the weights (see docs/RESULTS.md).
 base: inner_nollm.yaml
 name: exp_b_fewdemo
 iters: 30
 episodes_per_iter: 120
 eval_every: 5
-eval_episodes: 80
-agent: {use_llm: false, affinity_tokens: true}
+eval_episodes: 64
+agent: {use_llm: false, affinity_tokens: true, use_memory: false, use_tools: false}
 curriculum: {gate: false}
 algo: {name: ppo, lr: 0.00005, epochs: 3, minibatch_eps: 8, clip: 0.1, target_kl: 0.03, critic_warmup: 1, lr_warmup_steps: 40, ent_coef: 0.003,
        detach_critic: true}

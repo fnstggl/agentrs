@@ -21,7 +21,7 @@ inner:
   workers: 4
   eval_every: 2
   model: {d: 128, layers: 2, heads: 4, ff: 256, bag_dim: 48, hid: 128}
-  agent: {use_llm: false, affinity_tokens: true}
+  agent: {use_llm: false, affinity_tokens: true, use_memory: false, use_tools: false}
   core: {max_decisions: 20}
   algo: {name: ppo, lr: 0.0001, epochs: 3, minibatch_eps: 16, clip: 0.1, target_kl: 0.03, critic_warmup: 1, lr_warmup_steps: 40, detach_critic: true, ent_coef: 0.003}
   curriculum:

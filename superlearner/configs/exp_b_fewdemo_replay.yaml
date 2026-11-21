@@ -1,0 +1,7 @@
+# Experiment B, few-demonstration regime, REPLAY ONLY: the policy learns only by imitating the accepted actions of
+# its own verified-successful episodes (the on-policy policy-gradient term has weight 0; the critic is still
+# trained). Same seeds, warm start, tasks and budgets as the other two arms.
+base: exp_b_fewdemo.yaml
+name: exp_b_fewdemo_replay
+algo: {name: ppo_sil, lr: 0.00005, epochs: 3, minibatch_eps: 8, clip: 0.1, target_kl: 0.03, critic_warmup: 1, lr_warmup_steps: 40, ent_coef: 0.003,
+       detach_critic: true, pol_coef: 0.0, sil_steps: 16, sil_batch: 8, sil_mode: filtered, sil_coef: 1.0, replay_episodes: 1500}

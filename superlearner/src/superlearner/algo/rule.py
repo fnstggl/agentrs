@@ -33,6 +33,7 @@ class RuleConfig:
     vf_coef: float = 0.5
     ent_coef: float = 0.01
     succ_coef: float = 0.1
+    pol_coef: float = 1.0          # weight of the on-policy policy-gradient term (0: the policy learns from replay only)
     adv_norm: bool = True
     value_clip: float = 0.0
     huber: float = 0.0
@@ -115,7 +116,7 @@ def total_loss(out, batch, adv, ret, cfg: RuleConfig, boot=None):
     vl = value_loss(out["values"], ret, t["value_old"], t["valid"], cfg, boot)
     el = entropy_loss(out["ent"], t["valid"], cfg)
     al, _ = aux_loss(out, batch, cfg)
-    loss = pl + cfg.vf_coef * vl + cfg.ent_coef * el + cfg.succ_coef * al
+    loss = cfg.pol_coef * pl + cfg.vf_coef * vl + cfg.ent_coef * cfg.pol_coef * el + cfg.succ_coef * al
     info.update(pol_loss=float(pl.detach()), v_loss=float(vl.detach()), entropy=float(-el.detach()), aux_loss=float(al.detach()))
     return loss, info
 

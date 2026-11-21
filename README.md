@@ -15,6 +15,7 @@ It does **not** assume the hypothesis is true. See [`docs/experiments.md`](docs/
 the measured results — including the negative ones.
 
 * Architecture and design rationale: [`docs/architecture.md`](docs/architecture.md)
+* CAM Superlearner 4.0 (a learning agent in Crucible worlds and a Meta-Researcher that searches for better learning rules): [`superlearner/README.md`](superlearner/README.md)
 * Parameterized semantic action learning (content as part of the action): [`docs/content_learning.md`](docs/content_learning.md)
 * Temporal world models, SocialWebLab, observational learning from other actors: [`docs/temporal_learning.md`](docs/temporal_learning.md)
 * Internet-agent harness (identities, accounts, connectors, gateway, browsers, email, deployment): [`docs/internet_agent.md`](docs/internet_agent.md); operator setup: [`docs/operator_setup.md`](docs/operator_setup.md)

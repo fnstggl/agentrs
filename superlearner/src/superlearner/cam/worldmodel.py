@@ -136,7 +136,8 @@ def evaluate_model(wm: WorldModel, data: dict, train: dict | None = None, device
     nll_model = float(F.binary_cross_entropy_with_logits(out["ok"], d["ok"]))
     nll_base = float(-(d["ok"] * np.log(p_ok + eps) + (1 - d["ok"]) * np.log(1 - p_ok + eps)).mean())
     return {"n": int(len(d["ok"])),
-            "ok_accuracy": float((ok_pred == d["ok"]).float().mean()), "ok_accuracy_base_rate": max(p_ok, 1 - p_ok),
+            "ok_accuracy": float((ok_pred == d["ok"]).float().mean()),
+            "ok_accuracy_base_rate": float((d["ok"] == float(p_ok >= 0.5)).float().mean()),
             "ok_nll": nll_model, "ok_nll_base_rate": nll_base,
             "fclass_accuracy": float((out["fclass"].argmax(-1) == d["fclass"]).float().mean()),
             "fclass_accuracy_majority": float((d["fclass"] == maj).float().mean()),

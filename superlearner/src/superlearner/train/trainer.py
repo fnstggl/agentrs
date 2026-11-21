@@ -34,7 +34,7 @@ from ..algo.ppo import bc_update, flat_params
 from ..cam.memory import EpisodicMemory
 from ..cam.model import CAMController, EmbStore, ModelConfig
 from ..grounding.toolsmith import ToolLibrary
-from ..world.tasks import SPLITS, TaskSpec, task, task_list
+from ..world.tasks import SPLITS, TaskSpec, task_list
 from .curriculum import Curriculum
 from .rollout import LocalPool, RolloutPool
 
@@ -369,6 +369,21 @@ class Trainer:
         self.log("metrics.jsonl", {"phase": "init_from", "path": path, "demo_episodes": len(self.demos)})
         self.save("bc.pt")
 
+    def eval_round(self, verbose: bool = True) -> dict:
+        """Held-out evaluation of the current controller: greedy (tag ``eval``) and, with `eval_sample`, also by
+        sampling from the policy as in training (tag ``eval_sample``) - the stochastic policy is what RL optimises,
+        and its argmax can be stuck where its samples are not."""
+        tasks = self.eval_tasks(self.cfg["eval_episodes"])
+        r = self.evaluate(tasks)
+        line = f"eval @{self.iter}: success {r['success']:.3f} valid {r['valid_rate']:.2f}"
+        if self.cfg.get("eval_sample", True):
+            rs = self.evaluate(tasks, "sample", "eval_sample")
+            line += f" | sampled {rs['success']:.3f} valid {rs['valid_rate']:.2f}"
+            r["sampled"] = rs
+        if verbose:
+            print(line + f" {r['by_arm']}", flush=True)
+        return r
+
     def safe_update(self, eps: list[dict]) -> dict:
         """`algo.update`, surviving a GPU out-of-memory error caused by OTHER processes on a shared GPU: the weights
         and optimiser are restored to their state before the update, cached GPU memory is released, and the same
@@ -408,9 +423,7 @@ class Trainer:
                     print(f"bc epoch {m['epoch']}: nll {m['bc_nll']:.3f}", flush=True)
             self.save("bc.pt")
         if self.iter == 0 and c["eval_every"]:
-            r = self.evaluate(self.eval_tasks(c["eval_episodes"]))
-            if verbose:
-                print(f"eval @0: success {r['success']:.3f} valid {r['valid_rate']:.2f} {r['by_arm']}", flush=True)
+            self.eval_round(verbose)
         end = c["iters"] if iters is None else self.iter + iters
         while self.iter < end:
             rec = self.train_iter()
@@ -419,9 +432,7 @@ class Trainer:
                       f"ret {rec.get('train_return', 0):.3f} kl {rec.get('kl', 0):.4f} ent {rec.get('entropy', 0):.2f} "
                       f"dθ {rec.get('param_delta', 0):.3f} roll {rec['rollout_s']}s upd {rec['update_s']}s", flush=True)
             if c["eval_every"] and self.iter % c["eval_every"] == 0:
-                r = self.evaluate(self.eval_tasks(c["eval_episodes"]))
-                if verbose:
-                    print(f"eval @{self.iter}: success {r['success']:.3f} valid {r['valid_rate']:.2f} {r['by_arm']}", flush=True)
+                self.eval_round(verbose)
             if c["ckpt_every"] and self.iter % c["ckpt_every"] == 0:
                 self.save()
         self.save()

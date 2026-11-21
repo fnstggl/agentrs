@@ -488,7 +488,7 @@ def exp_worldmodel(a) -> int:
             for k, v in d["emb"]:
                 tr.store.put(k, v)
             eps += d["episodes"]
-        if len(eps) < 20:
+        if len(eps) < 8:
             raise SystemExit("this run stored no training episodes (set store_episodes_iters in its config)")
         rng = np.random.default_rng(0)
         idx = rng.permutation(len(eps))
