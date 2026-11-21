@@ -88,6 +88,11 @@ class Identity(Module):
     def authorize(self, ctx: Ctx, owner: str, cap: str, amount: int = 0, scope: str | None = None) -> None:
         if not self.allowed(ctx, ctx.actor, owner, cap, amount, scope, record=True):
             raise Forbidden(f"{ctx.actor} lacks {cap} on {owner}" + (f" ({scope})" if scope else ""))
+        # institutional rules: an organisation's constitution may require a decision before acting in its name
+        gov = ctx.world.hooks.get("gov_check")
+        if gov is not None and owner.startswith("o:") and ctx.actor != SYSTEM and not ctx.read_only and ctx.tool \
+                and not ctx.tool.startswith("gov."):
+            gov(ctx, owner, ctx.tool, ctx.tool_args or {})
 
     def allowed(self, ctx: Ctx, actor: str, owner: str, cap: str, amount: int = 0, scope: str | None = None,
                 record: bool = False) -> bool:

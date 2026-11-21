@@ -68,6 +68,10 @@ class Civ(Module):
         for p in cfg.get("providers", []):
             oid, owner, acct = org_with_owner(p["handle"], p["name"], "company", p.get("cash", 5_000_000), sector="compute")
             cloud.add_provider(ctx, oid, p["name"], p["price"], p["cores"], p["reliability"])
+            if cfg.get("firm_minds") and "society" in w.modules:
+                soc = w.modules["society"]
+                soc.add_mind(ctx, oid, "firm", oid, owner, soc.draw_traits(rng), role="provider",
+                             extra={"routines": {"provider": {"floor": int(p["price"] * 0.5)}}})
         # incumbent firms
         for f in cfg.get("firms", []):
             oid, owner, acct = org_with_owner(f["handle"], f["name"], "company", f.get("cash", 2_000_000),
@@ -89,7 +93,8 @@ class Civ(Module):
                 soc = w.modules["society"]
                 soc.add_mind(ctx, oid, "firm", oid, owner, f.get("traits") or soc.draw_traits(rng),
                              role="service", extra={"routines": {"capacity": {}, "pricing": {
-                                 "step": f.get("policy", {}).get("price_step", 0.06)}, "staffing": {}}})
+                                 "step": f.get("policy", {}).get("price_step", 0.06)}, "staffing": {},
+                                 "forum_reader": {}}})
             else:
                 npcs.add_firm(ctx, oid, owner, f["need"], f["host"], lst["listing"], rid, f["tier"], f.get("policy"))
         # labour pool
@@ -100,7 +105,17 @@ class Civ(Module):
             acct = bank.open_account(ctx, person, "checking")
             bank.move(ctx, "acct_genesis", acct, int(rng.integers(20_000, 200_000)), "endowment", "savings")
             base = cfg.get("wage_base", 300_000)
-            npcs.add_worker(ctx, person, {role: skill}, int(base * (0.6 + 0.8 * skill) * rng.uniform(0.85, 1.15)), role)
+            res = int(base * (0.6 + 0.8 * skill) * rng.uniform(0.85, 1.15))
+            npcs.add_worker(ctx, person, {role: skill}, res, role)
+            if "society" in w.modules:
+                soc = w.modules["society"]
+                soc.add_mind(ctx, person, "person", None, person, soc.draw_traits(rng), role=role,
+                             extra={"reservation": res, "greed": round(float(rng.uniform(0.03, 0.3)), 3),
+                                    "affinity": {}, "employer": None, "skill": round(skill, 3),
+                                    "effort_cost": int(res * 0.5),
+                                    "routines": {"forum_reader": {},
+                                                 **({"entrepreneur": {"min_cash": 150_000}}
+                                                    if cfg.get("entrepreneurs", True) else {})}})
         # lenders
         for L in cfg.get("lenders", []):
             oid, owner, acct = org_with_owner(L["handle"], L["name"], "company", L.get("cash", 20_000_000), sector="finance")

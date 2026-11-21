@@ -210,6 +210,10 @@ class Ctx:
         self.ext: list[Any] = []
         self._ext_i = 0
         self._rng_n = 0
+        self.tool: str | None = None          # the tool this context is running (for institutional rules)
+        self.tool_args: dict | None = None
+        self.read_only = False
+        self.gov_approved: str | None = None  # set while executing an approved governance proposal
 
     @property
     def now(self) -> int:
@@ -249,6 +253,7 @@ class Ctx:
         sub.ext_key = self.ext_key
         sub.events = self.events
         sub.ext = self.ext
+        sub.tool, sub.tool_args, sub.read_only, sub.gov_approved = tool, args, ep.read_only, self.gov_approved
         mark = self.state.savepoint()
         n_ev, seq0, n_ext = len(self.events), self.world.seq, len(self.ext)
         try:
@@ -270,6 +275,8 @@ class Ctx:
         CrucibleError its partial effects are rolled back to a savepoint and the error propagates."""
         sub = Ctx(self.world, principal, self.cmd, origin=self.origin, depth=self.depth + 1)
         sub.ext_key, sub.events, sub.ext = self.ext_key, self.events, self.ext
+        sub.tool, sub.tool_args, sub.read_only, sub.gov_approved = self.tool, self.tool_args, self.read_only, \
+            self.gov_approved
         mark = self.state.savepoint()
         n_ev, seq0 = len(self.events), self.world.seq
         try:
@@ -613,6 +620,7 @@ class World:
         cmd_no = self.state.meta_get("cmd_counter", 0) + 1
         self._begin()
         ctx = Ctx(self, actor, cmd_no)
+        ctx.tool, ctx.tool_args, ctx.read_only = tool, args, ep.read_only
         try:
             ctx.emit("cmd", {"n": cmd_no, "tool": tool, "args": args, "key": key, "cost_s": ep.cost_s})
             result = ep.handler(ctx, **args)

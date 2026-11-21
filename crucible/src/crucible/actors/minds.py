@@ -89,10 +89,49 @@ class Society(Module):
         st.declare_table("minds", index=("kind", "org"))
         world.hooks["society"] = self
         register_default_routines(world)
+        from .dynamics import register_dynamics
+        register_dynamics(world)
         world.hooks.setdefault("layoff", _layoff)
+        from . import negotiation as neg
+        prev_o = world.hooks.get("on_deal_offered")
+
+        def offered(ctx, did, recipient):
+            if prev_o:
+                prev_o(ctx, did, recipient)
+            neg.on_deal_offered(self, ctx, did, recipient)
+        world.hooks["on_deal_offered"] = offered
+        prev_b = world.hooks.get("on_breach")
+
+        def breach(ctx, cid, who):
+            if prev_b:
+                prev_b(ctx, cid, who)
+            neg.on_breach(self, ctx, cid, who)
+        world.hooks["on_breach"] = breach
+        prev_g = world.hooks.get("on_gov_proposal")
+
+        def gprop(ctx, pid, voter):
+            if prev_g:
+                prev_g(ctx, pid, voter)
+            neg.on_gov_proposal(self, ctx, pid, voter)
+        world.hooks["on_gov_proposal"] = gprop
 
     def genesis(self, ctx):
         ctx.schedule(ctx.now + DAY - 1800, "society.firms", {}, prio=78, period=DAY, key="society.firms")
+        ctx.schedule(ctx.now + DAY - 3600, "society.people", {}, prio=77, period=DAY, key="society.people")
+
+    @process("people")
+    def pr_people(self, ctx):
+        """Daily cycle of simulated people: their own routines (looking for opportunities, reading)."""
+        st = ctx.state
+        rng = ctx.rng("society-people")
+        routines = ctx.world.hooks.get("mind_routines", {})
+        for mid in sorted(st.find_ids("minds", "kind", "person")):
+            m = dict(st.tables["minds"][mid])
+            for name in sorted(m["routines"]):
+                fn = routines.get(name)
+                if fn is not None:
+                    fn(self, ctx, mid, m, rng)
+                    m = dict(st.tables["minds"][mid])
 
     def p(self, key, default):
         return self.config.get(key, self.world.spec.params.get(key, default))
@@ -571,6 +610,22 @@ class Society(Module):
                 self.remember(ctx, mid, m, "dropped", c["provider"], {"capability": i["capability"], "day": today})
                 m = dict(st.tables["minds"][mid])
         return m
+
+    @process("deal_reply")
+    def pr_deal_reply(self, ctx, deal, mind):
+        from . import negotiation as neg
+        st = ctx.state
+        m = st.get("minds", mind)
+        if m is not None and m["kind"] == "person" and "npc_workers" in st.tables and st.has("npc_workers", mind):
+            emp = st.tables["npc_workers"][mind]["employer"]
+            if emp != m.get("employer"):
+                self.set(ctx, mind, employer=emp)
+        neg.deal_reply(self, ctx, deal, mind)
+
+    @process("gov_vote")
+    def pr_gov_vote(self, ctx, proposal, mind):
+        from . import negotiation as neg
+        neg.gov_vote(self, ctx, proposal, mind)
 
     # ------------------------------------------------------------------ appliers
     @applier("society.add")

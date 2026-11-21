@@ -198,6 +198,12 @@ def procurement_routine(soc, ctx, mid, m, rng):
                        and s["sku"] == sku and s["payer"] != m["org"]) if "shipments" in st.tables else 0
         if have + transit >= ent["reorder"]:
             continue
+        cheaper = [x for x in _equivalent(ind, st, sku, tol=0.3) if x[2]["seller"] != m["org"]]
+        cur = sorted(o["price"] for _, o in st.scan("offers") if o["sku"] == sku and o["status"] == "active")
+        if cheaper and cur and cheaper[0][0] < 0.85 * cur[0] and cfg.get("substitute", True) and \
+                ctx.now - ent.get("substituted_t", -10 * DAY) > 10 * DAY:
+            _substitute(soc, ctx, mid, m, dict(ent, substituted_t=ctx.now), ind, replace=True)
+            m = dict(st.tables["minds"][mid])
         all_offers = sorted((o["price"], oid, o) for oid, o in st.scan("offers")
                             if o["sku"] == sku and o["status"] == "active" and o["seller"] != m["org"])
         offers = [x for x in all_offers if ind.qty(st, x[2]["fac"], x[2]["sku"]) > 0]
@@ -228,10 +234,11 @@ def procurement_routine(soc, ctx, mid, m, rng):
                 _substitute(soc, ctx, mid, m, ent, ind)
 
 
-def _substitute(soc, ctx, mid, m, ent, ind):
-    """Input substitution: rewrite the designs that consume `ent['sku']` to use an equivalent available item."""
+def _substitute(soc, ctx, mid, m, ent, ind, replace=False):
+    """Input substitution: rewrite the designs that consume `ent['sku']` to use an equivalent available item
+    (`replace`: drop the old input and plan - a switch for cost, not a fallback for a shortage)."""
     st = ctx.state
-    eq = _equivalent(ind, st, ent["sku"])
+    eq = _equivalent(ind, st, ent["sku"], tol=0.3 if replace else 0.6)
     if not eq:
         return
     _, oid, o = eq[0]
@@ -254,8 +261,13 @@ def _substitute(soc, ctx, mid, m, ent, ind):
                 if rt["sku"] == f"i:{plan['design']}" and rt["status"] == "active":
                     soc.act(ctx, m["owner"], "make.sell", {"facility": rt["fac"], "sku": r["sku"],
                                                           "price_cents": rt["price"], "title": rt["title"]})
+    if changed and replace:
+        old_designs = {p["design"] for p in plans if any(x["sku"] == ent["sku"] for x in
+                                                         (st.get("designs", p["design"]) or {}).get("inputs", []))}
+        plans = [p for p in plans if p["design"] not in old_designs]
     if changed:
-        inputs = list(m["routines"]["procurement"]["inputs"]) + [dict(ent, sku=o["sku"])]
+        inputs = [x for x in m["routines"]["procurement"]["inputs"] if not (replace and x["sku"] == ent["sku"])] + \
+            [dict(ent, sku=o["sku"])]
         routines = dict(m["routines"], production=dict(m["routines"]["production"], plans=plans),
                         procurement=dict(m["routines"]["procurement"], inputs=inputs))
         soc.set(ctx, mid, routines=routines)
@@ -373,10 +385,54 @@ def grid_routine(soc, ctx, mid, m, rng):
                 bank.move(ctx, acct, "acct_external", add * 50, "capital", f"grid expansion {rid}")
 
 
+def process_learning_routine(soc, ctx, mid, m, rng):
+    """Every few days, look at published process knowledge for the machine models we run. Compare its verified
+    evidence (yield, energy per good unit) with our own recent runs of that model; buy and apply it when the
+    expected saving over 60 days beats its price (trust-weighted)."""
+    st = ctx.state
+    ind = ctx.world.modules["industry"]
+    if soc.p("ablate_diffusion", False) or rng.random() > 0.35:
+        return
+    plans = m["routines"].get("production", {}).get("plans", [])
+    done = set(m["routines"].get("process_learning", {}).get("applied", []))
+    for plan in plans:
+        mach = st.get("machines", plan["machine"])
+        d = st.get("designs", plan["design"])
+        if mach is None or d is None or d["owner"] != m["org"]:
+            continue
+        own = ind.run_evidence(st, m["org"], mach["model"], d["speed"], d["temp"], tol=0.02)
+        if not own["runs"] or own["yield"] is None:
+            continue
+        for nid, n in sorted(st.scan("process_notes")):
+            if n["model"] != mach["model"] or n["owner"] == m["org"] or nid in done:
+                continue
+            ev = n["evidence"]
+            if not ev["yield"] or ev["runs"] < 1:
+                continue
+            units_day = max(1.0, own["units"] / max(1, own["runs"]))
+            kwh_price = 12.0
+            unit_val = 100.0
+            saving = units_day * ((ev["yield"] - own["yield"]) * unit_val +
+                                  max(0.0, (own["kwh_per_good_unit"] or 0) - (ev["kwh_per_good_unit"] or 0))
+                                  * kwh_price * own["yield"])
+            tr = soc.trust(m, n["owner"])
+            if saving * 60 * (0.5 + tr) <= n["price"] or saving <= 0:
+                continue
+            r = soc.act(ctx, m["owner"], "make.buy_process", {"note": nid, "org": m["org"]})
+            if r:
+                soc.act(ctx, m["owner"], "make.tune", {"design": plan["design"], "speed": r["speed"], "temp": r["temp"]})
+                done.add(nid)
+                cfg = dict(m["routines"].get("process_learning", {}), applied=sorted(done))
+                soc.set(ctx, mid, routines=dict(m["routines"], process_learning=cfg))
+                soc.remember(ctx, mid, m, "learned_process", n["owner"], {"note": nid, "expected_saving_day": round(saving, 1)})
+                m = dict(st.tables["minds"][mid])
+                break
+
+
 def register_producer_routines(world) -> None:
     rt = world.hooks.setdefault("mind_routines", {})
     for k, f in [("maintenance", maintenance_routine), ("procurement", procurement_routine),
                  ("production", production_routine), ("b2b_pricing", pricing_routine_b2b),
                  ("retail_pricing", pricing_routine_retail), ("operators", operators_routine),
-                 ("grid", grid_routine)]:
+                 ("grid", grid_routine), ("process_learning", process_learning_routine)]:
         rt.setdefault(k, f)

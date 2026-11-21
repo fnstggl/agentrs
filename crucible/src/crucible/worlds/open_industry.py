@@ -70,7 +70,8 @@ class IndustryGen(Module):
             mach = ind.add_machine(ctx, oid, fac, mdl, wear=float(rng.uniform(0.0, 0.2)))
             for _ in range(int(f.get("machines", 1)) - 1):
                 ind.add_machine(ctx, oid, fac, mdl, wear=float(rng.uniform(0.0, 0.2)))
-            routines = {"maintenance": {"every_h": int(f.get("maint_every_h", rng.integers(50, 130)))}, "operators": {}}
+            routines = {"maintenance": {"every_h": int(f.get("maint_every_h", rng.integers(50, 130)))}, "operators": {},
+                        "forum_reader": {}, "process_learning": {}}
             if f["op"] == "extract":
                 site = ind.add_site(ctx, oid, regions[f["region"] % len(regions)], mats[f["material"]],
                                     int(f.get("reserve", 400_000)), int(f.get("rate", 600)))

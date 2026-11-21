@@ -100,7 +100,8 @@ class Industry(Module):
                        ("designs", ("owner",)), ("stock", ("fac", "owner", "sku")), ("runs", ("machine", "owner", "status")),
                        ("offers", ("seller", "sku", "status")), ("trade_orders", ("buyer", "seller", "offer")),
                        ("standing", ("buyer", "offer", "status")), ("retail", ("seller", "sku", "status")),
-                       ("grid_days", ("region",)), ("labor_days", ("org",)), ("design_rights", ("holder", "design"))]:
+                       ("grid_days", ("region",)), ("labor_days", ("org",)), ("design_rights", ("holder", "design")),
+                       ("process_notes", ("owner", "model")), ("note_rights", ("holder", "note"))]:
             st.declare_table(t, index=idx)
         world.hooks["industry"] = self
         from ..actors.producers import register_producer_routines
@@ -108,6 +109,7 @@ class Industry(Module):
         ro = world.hooks.setdefault("resource_owner", {})
         ro["facility"] = lambda st_, rid: (st_.get("facilities", rid) or {}).get("owner")
         ro["machine"] = lambda st_, rid: (st_.get("machines", rid) or {}).get("owner")
+        ro["design"] = lambda st_, rid: (st_.get("designs", rid) or {}).get("owner")
         prev = world.hooks.get("resource_lister")
 
         def lister(st_, org):
@@ -548,6 +550,97 @@ class Industry(Module):
                     "owner", "name", "op", "inputs", "site", "form", "speed", "temp", "stage", "public")}})
         return out
 
+    @endpoint("tune", S.obj({"design": S.s_str(maxLength=40), "speed": S.s_num(minimum=0, maximum=1),
+                             "temp": S.s_num(minimum=0, maximum=1)}, ["design", "speed", "temp"]), cost_s=30)
+    def ep_tune(self, ctx, design, speed, temp):
+        """Change a design's default operating point (affects runs started afterwards; the item type is the
+        same). Needs make.operate on the design's owner (scope: the design)."""
+        d = ctx.state.get("designs", design)
+        if d is None:
+            raise NotFound("no design " + design)
+        ident(ctx.world).authorize(ctx, d["owner"], "make.operate", scope=design)
+        ctx.emit("make.tuned", {"id": design, "speed": float(speed), "temp": float(temp), "from": [d["speed"], d["temp"]]},
+                 vis=(d["owner"],))
+        return {"design": design, "speed": float(speed), "temp": float(temp)}
+
+    # ------------------------------------------------------------------ process knowledge (a tradeable artifact)
+    def run_evidence(self, st, owner, model, speed, temp, tol=0.05) -> dict:
+        """Verified evidence from the owner's own completed runs on `model` near an operating point."""
+        made = units = 0
+        kwh = 0.0
+        n = 0
+        for _, r in st.scan("runs"):
+            if r["owner"] != owner or r["status"] != "done":
+                continue
+            m = st.tables["machines"].get(r["machine"])
+            if m is None or m["model"] != model or abs(r["speed"] - speed) > tol or abs(r["temp"] - temp) > tol:
+                continue
+            made += r["made"]
+            units += r["units"]
+            kwh += r["kwh"]
+            n += 1
+        return {"runs": n, "units": units, "yield": round(made / units, 4) if units else None,
+                "kwh_per_good_unit": round(kwh / made, 4) if made else None}
+
+    @endpoint("publish_process", S.obj({"org": S.s_str(maxLength=40), "model": S.s_str(maxLength=20),
+                                        "speed": S.s_num(minimum=0, maximum=1), "temp": S.s_num(minimum=0, maximum=1),
+                                        "price_cents": S.s_int(minimum=0, maximum=100_000_000),
+                                        "note": S.s_str(maxLength=2000)}, ["org", "model", "speed", "temp"]),
+              cost_s=60)
+    def ep_publish_process(self, ctx, org, model, speed, temp, price_cents=0, note=""):
+        """Publish (and optionally sell) process knowledge: an operating point for a machine model, with the
+        evidence of your own runs at that point attached and verified by the world. Buyers see the evidence,
+        not the parameters, until they buy."""
+        st = ctx.state
+        org = ident(ctx.world).resolve_handle(st, org)
+        ident(ctx.world).authorize(ctx, org, "org.admin")
+        if model not in self.phys["models"]:
+            raise NotFound("no model " + model)
+        ev = self.run_evidence(st, org, model, float(speed), float(temp))
+        if not ev["runs"]:
+            raise InvalidAction("publish only what you have run: no completed runs of yours near that point")
+        nid = st.new_id("pnote")
+        ctx.emit("make.process_note", {"id": nid, "owner": org, "model": model, "speed": float(speed),
+                                       "temp": float(temp), "price": int(price_cents), "note": note[:2000],
+                                       "evidence": ev}, vis="public")
+        from ..services.search import index
+        index(ctx, nid, "process", f"Process for {model}", f"{note} yield {ev['yield']} energy {ev['kwh_per_good_unit']}",
+              org, ref=nid)
+        return {"note": nid, "evidence": ev}
+
+    @endpoint("process_notes", S.obj({"model": S.s_str(maxLength=20)}), read_only=True)
+    def ep_process_notes(self, ctx, model=None):
+        """Published process knowledge with its verified evidence (parameters only for notes you hold)."""
+        st = ctx.state
+        mine = ctx.world.principals_of(ctx.actor)
+        out = []
+        for nid, n in st.scan("process_notes"):
+            if model and n["model"] != model:
+                continue
+            held = n["owner"] in mine or n["price"] == 0 or any(st.has("note_rights", f"{p}|{nid}") for p in mine)
+            out.append({"note": nid, "owner": n["owner"], "model": n["model"], "price_cents": n["price"],
+                        "evidence": n["evidence"], "note_text": n["note"], "buyers": n["buyers"],
+                        **({"speed": n["speed"], "temp": n["temp"]} if held else {})})
+        return out
+
+    @endpoint("buy_process", S.obj({"note": S.s_str(maxLength=40), "org": S.s_str(maxLength=40),
+                                    "account": S.s_str(maxLength=40)}, ["note", "org"]), cost_s=60)
+    def ep_buy_process(self, ctx, note, org, account=None):
+        """Buy process knowledge for your organisation (reveals its operating point)."""
+        st = ctx.state
+        n = st.get("process_notes", note)
+        if n is None:
+            raise NotFound("no note")
+        org = ident(ctx.world).resolve_handle(st, org)
+        ident(ctx.world).authorize(ctx, org, "org.admin")
+        if st.has("note_rights", f"{org}|{note}"):
+            raise Conflict("already bought")
+        if n["owner"] == org:
+            raise InvalidAction("it is yours")
+        self._pay(ctx, org, account, n["owner"], n["price"], "licence", f"process knowledge {note}")
+        ctx.emit("make.note_right", {"holder": org, "note": note, "price": n["price"]}, vis=(org, n["owner"]))
+        return {"note": note, "model": n["model"], "speed": n["speed"], "temp": n["temp"]}
+
     # ------------------------------------------------------------------ production runs
     @endpoint("run", S.obj({"machine": S.s_str(maxLength=40), "design": S.s_str(maxLength=40),
                             "units": S.s_int(minimum=1, maximum=5000),
@@ -626,11 +719,17 @@ class Industry(Module):
         ctx.schedule(ctx.now + dur, "industry.finish", {"run": rid}, prio=32)
         return {"run": rid, "finishes": ctx.now + dur, "kwh": round(kwh, 1), "operator_hours": round(need_h, 2)}
 
-    def operators(self, st, org) -> int:
-        if "npc_workers" not in st.tables:
-            return 0
-        n = sum(1 for _, w in st.scan("npc_workers") if w["employer"] == org and w["role"] == "operator")
-        return n + int((st.meta.get("own_operators") or {}).get(org, 0))
+    def operators(self, st, org) -> float:
+        """Effective operator staffing: employed operators plus founding staff, times the effort the
+        organisation's institutions elicit (1.0 for salaried staff; see `gov.effort`)."""
+        n = 0
+        if "npc_workers" in st.tables:
+            n = sum(1 for _, w in st.scan("npc_workers") if w["employer"] == org and w["role"] == "operator")
+        n += int((st.meta.get("own_operators") or {}).get(org, 0))
+        gov = self.world.hooks.get("gov")
+        if gov is not None and n:
+            return n * gov.effort(st, org, max(1, len(st.find_ids("members", "org", org))))
+        return float(n)
 
     @process("finish")
     def pr_finish(self, ctx, run):
@@ -997,6 +1096,24 @@ class Industry(Module):
     def ap_repaired(self, ev):
         self.world.state.patch("machines", ev.payload["id"], status="ok", wear=0.05, hours_since_maint=0.0,
                                busy_until=ev.payload["until"], broken_at=None)
+
+    @applier("make.tuned")
+    def ap_tuned(self, ev):
+        self.world.state.patch("designs", ev.payload["id"], speed=ev.payload["speed"], temp=ev.payload["temp"])
+
+    @applier("make.process_note")
+    def ap_process_note(self, ev):
+        p = dict(ev.payload)
+        p.update(t=ev.t, buyers=0)
+        self.world.state.insert("process_notes", p.pop("id"), p)
+
+    @applier("make.note_right")
+    def ap_note_right(self, ev):
+        st = self.world.state
+        p = ev.payload
+        st.put("note_rights", f"{p['holder']}|{p['note']}", {"holder": p["holder"], "note": p["note"], "t": ev.t})
+        n = st.tables["process_notes"][p["note"]]
+        st.patch("process_notes", p["note"], buyers=n["buyers"] + 1)
 
     @applier("make.design")
     def ap_design(self, ev):

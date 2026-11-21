@@ -178,13 +178,14 @@ class Contracts(Module):
                 ctx.schedule(ctx.now + cl["due_in_s"], "contracts.check", {"contract": cid, "clause": i}, prio=36,
                              key=f"chk|{cid}|{i}")
 
-    def end(self, ctx: Ctx, cid: str, status: str, reason: str) -> None:
+    def end(self, ctx: Ctx, cid: str, status: str, reason: str, by: str | None = None) -> None:
         st = ctx.state
         c = st.get("contracts", cid)
         if c["status"] not in ("active", "terminating", "proposed"):
             return
         was_active = c["status"] in ("active", "terminating")
-        ctx.emit("contracts.status", {"id": cid, "status": status, "reason": reason[:300]},
+        ctx.emit("contracts.status", {"id": cid, "status": status, "reason": reason[:300],
+                                      **({"by": by} if by else {})},
                  vis="public" if status == "breached" else tuple(c["parties"]))
         for i, cl in enumerate(c["clauses"]):
             ctx.unschedule(f"pay|{cid}|{i}")
@@ -228,7 +229,7 @@ class Contracts(Module):
             bank.move(ctx, src, dst, cl["amount"], "contract", f"{c['title']} (clause {clause})", ref=contract)
         except CrucibleError as e:
             self.add_claim(ctx, cl["from"], cl["to"], cl["amount"], f"contract {contract} clause {clause}")
-            self.end(ctx, contract, "breached", f"payment failed: {e.message}")
+            self.end(ctx, contract, "breached", f"payment failed: {e.message}", by=cl["from"])
             self._penalties(ctx, contract)
             return
         ctx.emit("contracts.paid", {"id": contract, "clause": clause, "n": paid + 1}, vis=tuple(c["parties"]))
@@ -248,7 +249,7 @@ class Contracts(Module):
         ok = evaluate_predicate(ctx.world, cl["predicate"])
         ctx.emit("contracts.deliverable", {"id": contract, "clause": clause, "ok": ok}, vis=tuple(c["parties"]))
         if not ok:
-            self.end(ctx, contract, "breached", f"deliverable {clause} not met")
+            self.end(ctx, contract, "breached", f"deliverable {clause} not met", by=cl["by"])
             self._penalties(ctx, contract, only=clause)
         else:
             self._maybe_complete(ctx, contract)
@@ -425,7 +426,8 @@ class Contracts(Module):
     @applier("contracts.status")
     def ap_status(self, ev):
         self.world.state.patch("contracts", ev.payload["id"], status=ev.payload["status"],
-                               status_reason=ev.payload["reason"], updated=ev.t)
+                               status_reason=ev.payload["reason"], updated=ev.t,
+                               **({"breached_by": ev.payload["by"]} if ev.payload.get("by") else {}))
 
     @applier("contracts.paid")
     def ap_paid(self, ev):

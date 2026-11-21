@@ -306,3 +306,109 @@ class MaintenanceInventor(_AppMixin, ScriptPolicy):
             yield from self.wait(24)
             reqs = yield from self.find_requests(["machine_downtime", "defects"])
             yield from self.answer(reqs, self.capability, text)
+
+
+class ProcessResearcher(_AppMixin, ScriptPolicy):
+    """Industrial R&D control: when producers publicly report defects, breakdowns, energy costs or curtailment, it
+    founds a lab, hires operators, buys machines of the models it wants to understand, runs a designed experiment
+    over the (speed, temperature) space on cheap inputs, keeps the operating point with the lowest energy per good
+    unit among high-yield points, and sells that knowledge (`make.publish_process`). Experiments cost money, energy,
+    labour and time, and measurements are noisy."""
+    name = "process_researcher"
+    kind = "scripted"
+
+    def __init__(self, models=("form-A", "form-B"), capital=4_000_000, price=60_000, region="r1", grid=(0.2, 0.5, 0.8),
+                 units=12):
+        self.models, self.capital, self.price, self.region = list(models), capital, price, region
+        self.grid, self.units = list(grid), units
+        self.findings = {}
+
+    def script(self):
+        reqs = []
+        while not reqs:
+            reqs = yield from self.find_requests(["defects", "machine_downtime", "energy_curtailment"])
+            reqs += [q for q in ((yield call("ops.requests", status="open", limit=100)) or {}).get("result", [])
+                     if "cost-energy" in q.get("tags", [])]
+            if not reqs:
+                yield from self.wait(6)
+        org, acct, _ = yield from self.found_company("lab", self.capital)
+        if acct is None:
+            return
+        r = yield call("make.build_facility", org=org, region=self.region, name="R&D lab")
+        if not ok(r):
+            return
+        fac = r["result"]["facility"]
+        # staff: post a job and hire the first applicants
+        yield call("jobs.post", org=org, title="Process technician", role="operator", salary_cents_month=260_000,
+                   description="Run experiments on our machines.")
+        hired = 0
+        for _ in range(72):
+            r = yield call("jobs.openings", role="operator", limit=50)
+            mine = [p for p in (r or {}).get("result", []) if p.get("org") == org] if ok(r) else []
+            for p in mine:
+                ra = yield call("jobs.applications", posting=p["posting"])
+                for a in (ra or {}).get("result", []) if ok(ra) else []:
+                    if a.get("status") == "applied" and hired < 2:
+                        rr = yield call("jobs.offer", application=f"{p['posting']}|{a['applicant']}",
+                                        salary_cents_month=260_000)
+                        hired += 1 if ok(rr) else 0
+            if hired >= 2:
+                break
+            yield None
+        machines = {}
+        for model in self.models:
+            r = yield call("make.buy_machine", facility=fac, model=model)
+            if ok(r):
+                machines[model] = r["result"]["due"]
+        # inputs: the cheapest material on offer
+        r = yield call("make.offers", stage="material")
+        offers = sorted((o for o in (r or {}).get("result", []) if o["available"] > 0), key=lambda o: o["price_cents"])
+        if not offers:
+            return
+        mat = offers[0]["sku"]
+        need = self.units * len(self.grid) ** 2 * len(self.models) + 40
+        got = 0
+        for o in offers:
+            if o["sku"] != mat or got >= need:
+                continue
+            q = min(o["available"], need - got)
+            rr = yield call("make.order", offer=o["offer"], qty=q, to_facility=fac)
+            got += q if ok(rr) else 0
+        while True:                                 # wait for deliveries
+            r = yield call("make.machines", org=org)
+            if ok(r) and len(r["result"]) >= len(machines):
+                break
+            yield from self.wait(6)
+        mach_by_model = {m["model"]: m["machine"] for m in r["result"]}
+        r = yield call("make.design", org=org, name="probe", op="form", inputs=[{"sku": mat, "qty": 1}], form="sheet")
+        if not ok(r):
+            return
+        probe = r["result"]["design"]
+        for model, mid in mach_by_model.items():
+            results = []
+            for sp in self.grid:
+                for tp in self.grid:
+                    while True:
+                        rr = yield call("make.run", machine=mid, design=probe, units=self.units, speed=sp, temp=tp)
+                        if ok(rr):
+                            break
+                        yield from self.wait(2)
+                    run_id = rr["result"]["run"]
+                    while True:
+                        yield from self.wait(1)
+                        r2 = yield call("make.runs", org=org, limit=60)
+                        run = next((x for x in (r2 or {}).get("result", []) if x["run"] == run_id), None) if ok(r2) else None
+                        if run and run["status"] != "running":
+                            break
+                    y = run["made"] / max(1, run["units"])
+                    e = run["kwh"] / max(1, run["made"]) if run["made"] else 99.0
+                    results.append((sp, tp, y, e))
+            top = max(r_[2] for r_ in results)
+            good = [r_ for r_ in results if r_[2] >= 0.9 * top]
+            sp, tp, y, e = min(good, key=lambda r_: r_[3])
+            self.findings[model] = {"speed": sp, "temp": tp, "yield": y, "kwh_per_good_unit": e, "grid": results}
+            yield call("make.publish_process", org=org, model=model, speed=sp, temp=tp, price_cents=self.price,
+                       note=f"Operating point for {model} from a {len(results)}-point designed experiment: "
+                            f"higher yield and less energy per good unit than common settings.")
+        while True:
+            yield from self.wait(24)

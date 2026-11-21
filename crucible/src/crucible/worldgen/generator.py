@@ -177,7 +177,7 @@ def f_tiny(rng, o):
 
 
 # ---------------------------------------------------------------------------- open-world families
-OPEN_MODULES = ["ops", "wf", "caps", "society"]
+OPEN_MODULES = ["ops", "wf", "caps", "deal", "gov", "society"]
 
 
 def _open(r: dict, extra: list[str] | None = None, consumers: dict | None = None, params: dict | None = None) -> dict:
@@ -198,12 +198,13 @@ def f_open_digital(rng, o):
     r = _recipe(rng, needs=needs, n_consumers=o.get("n_consumers", 4000), firms_per_need=o.get("firms_per_need", 2),
                 tier_range=(0, 0), firm_cash=1_500_000, providers=[(120, 150, 0.995), (80, 170, 0.995)],
                 workers=o.get("workers", 12), wage_base=250_000, bounties=0, rate=tuple(o.get("rate", (10.0, 40.0))))
-    return _open(r, consumers={"diurnal": float(o.get("diurnal", 0.7)), "peak_hour": 14})
+    return _open(r, consumers={"diurnal": float(o.get("diurnal", 0.7)), "peak_hour": 14,
+                               "k_samples": int(o.get("k_samples", 2))})
 
 
 INDUSTRY_MODULES = ["identity", "bank", "admin", "code", "search", "forum", "mail", "docs", "cal", "issues", "support",
                     "ads", "contracts", "business", "jobs", "cloud", "market", "npcs", "goals", "civ", "ops", "wf", "caps",
-                    "society", "industry", "freight", "shoppers", "industrygen"]
+                    "deal", "gov", "society", "industry", "freight", "shoppers", "industrygen"]
 
 
 def _ring_links(rng, n, hours=(6, 14), cost=(2, 5), capacity=(500, 900), extra=0):
@@ -229,9 +230,76 @@ def _industry_recipe(rng, o, *, regions=4, materials=6, grid_kwh=(6000, 9000), k
     r["modules"]["industrygen"] = {"grid_kwh": [int(rng.integers(*grid_kwh)) for _ in range(regions)],
                                    "kwh_price": kwh_price, "grid_expand": grid_expand,
                                    **({"chain": chain} if chain else {})}
+    r["modules"]["civ"]["firm_minds"] = True
     r["module_list"] = list(INDUSTRY_MODULES)
     r["params"].update({"cost_model": "deterministic", **(params or {})})
     return r
+
+
+def _mixed(rng, o, **kw):
+    """A digital economy and an industrial economy in one world, sharing people, money, compute and institutions."""
+    d = f_open_digital(rng, o)
+    i = _industry_recipe(rng, o, **kw)
+    mods = dict(d["modules"])
+    for k in ("industry", "freight", "shoppers", "industrygen"):
+        mods[k] = i["modules"][k]
+    mods["civ"]["worker_roles"] = ["operator", "operator", "developer", "support", "sales"]
+    mods["civ"]["workers"] = int(o.get("workers", 30))
+    r = {"modules": mods, "params": {**i["params"], **d["params"]}, "rewire": d["rewire"]}
+    r["module_list"] = BASE_MODULES + OPEN_MODULES + ["industry", "freight", "shoppers", "industrygen"]
+    return r
+
+
+@family("open_mixed", "train",
+        "Mixed open civilisation: service firms with daily demand cycles, a multi-tier industrial supply chain, "
+        "households buying both, shared labour, compute, money, negotiation and institutions.")
+def f_open_mixed(rng, o):
+    return _mixed(rng, o)
+
+
+@family("open_scarce_energy", "val",
+        "Industrial world whose regional grids are small and slow to expand: energy is the binding constraint, so "
+        "process efficiency (and where production happens) decides who can produce.")
+def f_open_scarce_energy(rng, o):
+    return _industry_recipe(rng, o, grid_kwh=(1500, 2600), kwh_price=18.0, grid_expand=False)
+
+
+@family("open_fragile_suppliers", "val",
+        "Industrial world with a long, thinly connected freight network (one link of low capacity) and a single "
+        "shared supplier: upstream failures propagate downstream.")
+def f_open_fragile(rng, o):
+    links = _ring_links(rng, 4, hours=(10, 20), capacity=(150, 300))
+    return _industry_recipe(rng, o, links=links)
+
+
+@family("open_weak_institutions", "test",
+        "HELD-OUT MECHANISM: no public reputation and unenforceable claims (breaches leave no public record); trust "
+        "can only be built privately. Otherwise a mixed civilisation.")
+def f_open_weak(rng, o):
+    r = _mixed(rng, o)
+    r["params"]["public_reputation"] = False
+    return r
+
+
+@family("open_perishable", "test",
+        "HELD-OUT MECHANISM: components and products perish (a share of stock is lost every day) and freight is "
+        "slow, so inventory policy and logistics dominate; unseen chain topology (both assemblers share a supplier "
+        "set with a third component maker).")
+def f_open_perishable(rng, o):
+    chain = _perishable_chain()
+    return _industry_recipe(rng, o, industry={"decay": 0.06}, chain=chain,
+                            links=_ring_links(rng, 4, hours=(16, 30), capacity=(400, 700)))
+
+
+def _perishable_chain():
+    from ..worlds.open_industry import default_chain
+    ch = default_chain(4)
+    ch.insert(4, {"handle": "forge3", "name": "Fibre Works", "role": "components", "op": "form", "region": 3,
+                  "material": 1, "form": "fiber", "product_name": "fibre", "price": 280, "operators": 3})
+    for f in ch:
+        if f["handle"] == "assem2":
+            f["components"] = ["forge1", "forge2", "forge3"]
+    return ch
 
 
 @family("open_industry", "train",
