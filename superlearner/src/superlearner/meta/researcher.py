@@ -472,6 +472,130 @@ class MetaResearcher:
                           f"{self.cfg['primary']} diff {d.get('diff', float('nan')):+.4f} ci {d.get('ci')} "
                           f"| {r['hypothesis'][:110]} {('| ' + r['reject_reason'][:120]) if r['reject_reason'] else ''}", flush=True)
 
+    # ------------------------------------------------------------------ full-feedback rounds (Experiment F)
+    def screen_only(self, prop: dict) -> dict:
+        """Implement, verify, self-test and screen one proposal (one seed). No later stages, no promotion."""
+        cid = f"f{prop.get('round', self.round_n):03d}-{prop['id']}"
+        t0 = time.time()
+        rec = {"candidate": cid, "proposal": prop["id"], "source": prop["source"], "slots": prop["slots"],
+               "hypothesis": prop["hypothesis"][:300], "valid": False, "effect": None, "reject_reason": ""}
+        try:
+            cand = self.make_candidate(cid, prop["changes"])
+            open(os.path.join(cand["path"], "proposal.diff"), "w").write(prop.get("diff", ""))
+            okv, why = verify(cand["path"])
+            if not okv:
+                rec["reject_reason"] = why
+                return rec
+            st = self.run_one(cid, "screen", 0, selftest=True)
+            if not st["ok"]:
+                bad = [k for k, v in (st["untrusted"].get("checks") or {}).items() if not v]
+                rec["reject_reason"] = f"self-test failed: {bad or st['untrusted'].get('error') or 'crashed'}"[:300]
+                return rec
+            base = self.baseline("screen")
+            runs = self.run_stage(cid, "screen")
+            good = {s_: m for s_, m in runs.items() if m.get("ok")}
+            if len(good) < len(runs):
+                bad = next(m for m in runs.values() if not m.get("ok"))
+                rec["reject_reason"] = ("training run failed: " + str(bad.get("untrusted", {}).get("error") or "timeout or too little experience"))[:300]
+                return rec
+            prim = self.cfg["primary"]
+            rec.update(valid=True, effect=float(np.mean([good[s_][prim] - base[s_][prim] for s_ in good])),
+                       measures={s_: {k: m[k] for k in ("aulc_eval", "final_eval", "first_eval", "aulc_train", "train_decisions", "wall_s")} for s_, m in good.items()})
+        except Exception as e:  # noqa: BLE001
+            rec["reject_reason"] = f"{type(e).__name__}: {e}"[:300]
+        finally:
+            rec["wall_s"] = round(time.time() - t0, 1)
+        return rec
+
+    def full_feedback_round(self, k: int = 1) -> dict:
+        """Screen EVERY proposal of the pool, and record what each selection strategy would have picked.
+
+        The surrogate chooses before any outcome of this round is known and afterwards learns only from its own
+        picks (as in normal operation). Because all outcomes are measured, its picks can be compared with uniform
+        random selection (the pool mean) and with the best proposal of the pool on exactly the same candidates."""
+        diag = self.diagnose()
+        pool = self.propose_pool(diag)
+        mu, sd, pv = self.surrogate.predict(pool)
+        fitted = bool(self.surrogate.models)
+        picks = self.surrogate.select(pool, k, rng=self.rng)
+        with cf.ThreadPoolExecutor(max_workers=max(1, len(pool))) as ex:
+            res = list(ex.map(self.screen_only, pool))
+        penalty = -float(self.cfg["screen_margin"])                    # an invalid candidate wastes the experiment
+        vals = [r["effect"] if r["valid"] else penalty for r in res]
+        rec = {"kind": "full_feedback", "round": self.round_n, "surrogate_fitted": fitted, "k": k,
+               "pool": [dict(r, predicted=float(mu[i]), spread=float(sd[i]), p_valid=float(pv[i]), value=vals[i]) for i, r in enumerate(res)],
+               "surrogate_picks": [pool[i]["id"] for i in picks], "value_surrogate": float(np.mean([vals[i] for i in picks])),
+               "value_random_expected": float(np.mean(vals)), "value_best": float(np.max(vals)),
+               "valid_fraction": float(np.mean([r["valid"] for r in res])), "diagnosis_tags": diag.get("tags")}
+        with self._lock:
+            self.ledger.append(rec)
+            for i in picks:                                                # the meta-policy learns from what it chose
+                self.surrogate.add(pool[i], res[i]["effect"], res[i]["valid"])
+            fit = self.surrogate.fit()
+            for i, p in enumerate(pool):                                   # the learned-rule search uses every evaluation
+                if p["source"] == "learned_rule":
+                    self.learned.tell(p["id"], res[i]["effect"] if res[i]["valid"] else None)
+            step = self.learned.step()
+            if step:
+                self.ledger.append({"kind": "learned_rule_update", "round": self.round_n, **step})
+            self.ledger.append({"kind": "meta_update", "round": self.round_n, "surrogate": fit, "loo": self.surrogate.loo_report()})
+            self._pools = getattr(self, "_pools", {})
+            for i, p in enumerate(pool):
+                if res[i]["valid"]:
+                    self._pools[p["id"]] = (p, res[i]["effect"])
+            self.round_n += 1
+            self.save_state()
+        return rec
+
+    def run_full_feedback(self, rounds: int, k: int = 1, develop_top: int = 2, verbose: bool = True) -> dict:
+        self.prepare_demos()
+        for _ in range(rounds):
+            r = self.full_feedback_round(k)
+            if verbose:
+                print(f"round {r['round']}: pool {len(r['pool'])} valid {r['valid_fraction']:.2f} | surrogate pick {r['value_surrogate']:+.4f} "
+                      f"(fitted={r['surrogate_fitted']}) random {r['value_random_expected']:+.4f} best {r['value_best']:+.4f}", flush=True)
+        # the best screened candidates go through development and confirmation (the promotion pipeline)
+        top = sorted(getattr(self, "_pools", {}).values(), key=lambda pe: -pe[1])[:develop_top]
+        out = []
+        for prop, eff in top:
+            if eff <= 0:
+                continue
+            prop = dict(prop, round=self.round_n)
+            rec = self.experiment(prop)
+            out.append(rec)
+            if verbose:
+                d = rec.get("comparison", {}).get(self.cfg["primary"], {})
+                print(f"follow-up {rec['candidate']} [{rec['source']}] screen effect {eff:+.4f} -> {rec['decision']} at {rec['stage_reached']}: "
+                      f"diff {d.get('diff', float('nan')):+.4f} ci {d.get('ci')} n={d.get('n_cand')}", flush=True)
+            self.round_n += 1
+            self.save_state()
+        return self.selection_report()
+
+    def selection_report(self) -> dict:
+        """Experiment F: learned selection against uniform random selection on identical pools."""
+        rounds = self.ledger.entries("full_feedback")
+        if not rounds:
+            return {}
+        rows = [{"round": r["round"], "fitted": r["surrogate_fitted"], "surrogate": r["value_surrogate"],
+                 "random": r["value_random_expected"], "best": r["value_best"], "n": len(r["pool"])} for r in rounds]
+        fitted = [r for r in rows if r["fitted"]]
+        rng = np.random.default_rng(0)
+
+        def boot(xs):
+            xs = np.asarray(xs, float)
+            if len(xs) < 2:
+                return [float("nan"), float("nan")]
+            b = xs[rng.integers(0, len(xs), size=(4000, len(xs)))].mean(1)
+            return [float(np.percentile(b, 2.5)), float(np.percentile(b, 97.5))]
+        d_all = [r["surrogate"] - r["random"] for r in rows]
+        d_fit = [r["surrogate"] - r["random"] for r in fitted]
+        return {"rounds": rows, "candidates_screened": int(sum(r["n"] for r in rows)),
+                "advantage_over_random_all_rounds": {"mean": float(np.mean(d_all)), "ci95": boot(d_all), "n": len(d_all)},
+                "advantage_over_random_once_fitted": {"mean": float(np.mean(d_fit)) if d_fit else None, "ci95": boot(d_fit), "n": len(d_fit)},
+                "regret_vs_best": {"surrogate": float(np.mean([r["best"] - r["surrogate"] for r in rows])),
+                                   "random": float(np.mean([r["best"] - r["random"] for r in rows]))},
+                "established": bool(len(d_fit) >= 5 and boot(d_fit)[0] > 0), "surrogate_loo": self.surrogate.loo_report()}
+
     def report(self) -> dict:
         exps = self.ledger.experiments()
         dec: dict[str, int] = {}
@@ -501,7 +625,12 @@ def main(a) -> int:
         else:
             print(f"note: no LLM server at {spec['socket']}; running without LLM-written proposals")
     mr = MetaResearcher(cfg, rd, llm, resume=a.resume)
-    mr.run(a.rounds)
+    if getattr(a, "full_feedback", False):
+        sel = mr.run_full_feedback(int(a.rounds or cfg.get("rounds", 4)), int(cfg.get("per_round", 1)), int(cfg.get("develop_top", 2)))
+        json.dump(sel, open(os.path.join(rd, "selection_report.json"), "w"), indent=1, default=str)
+        print(json.dumps({k: v for k, v in sel.items() if k != "rounds"}, indent=1, default=str))
+    else:
+        mr.run(a.rounds)
     rep = mr.report()
     json.dump(rep, open(os.path.join(rd, "report.json"), "w"), indent=1, default=str)
     print(json.dumps({k: rep[k] for k in ("champion", "rounds", "experiments", "decisions", "surrogate")}, indent=1, default=str))

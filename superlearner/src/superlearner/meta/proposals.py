@@ -317,11 +317,75 @@ def aux_loss(out, batch, cfg: RuleConfig):
     return _mean(per, t["valid"]), {}
 '''
 
-SLOT_TABLE = {"adv": (ADV, "advantages"), "pol": (POL, "policy_loss"), "val": (VAL, "value_loss"), "tot": (TOT, "total_loss")}
+REP = {
+    "none": ("no replay: learn only from the current iteration's episodes (the baseline)", {}, '''
+REPLAY_STEPS = 0
+REPLAY_COEF = 1.0
+REPLAY_BATCH = 8
+
+
+def replay_loss(out, batch, ret, cfg: RuleConfig):
+    t = batch.t
+    wv = t["valid"].to(out["logp"].dtype)
+    w = wv * t["ok"]
+    v = out["values"].mean(-1)
+    return -(out["logp"] * w).sum() / w.sum().clamp(min=1.0) + 0.5 * (((ret - v) ** 2) * wv).sum() / wv.sum().clamp(min=1.0)
+'''),
+    "filtered": ("verified successes are rare and each on-policy update uses them once; replaying the agent's own "
+                 "successful episodes and imitating the actions the world accepted extracts more learning from "
+                 "each of them", {"steps": (4, 24), "coef": (0.3, 1.5)}, '''
+REPLAY_STEPS = int({steps})
+REPLAY_COEF = {coef}
+REPLAY_BATCH = 8
+
+
+def replay_loss(out, batch, ret, cfg: RuleConfig):
+    t = batch.t
+    wv = t["valid"].to(out["logp"].dtype)
+    w = wv * t["ok"]
+    v = out["values"].mean(-1)
+    return -(out["logp"] * w).sum() / w.sum().clamp(min=1.0) + 0.5 * (((ret - v) ** 2) * wv).sum() / wv.sum().clamp(min=1.0)
+'''),
+    "advantage": ("replaying successes only where they beat the critic's expectation (weight max(R - V, 0)) "
+                  "concentrates the replay on what the policy has not yet absorbed", {"steps": (4, 24), "coef": (0.3, 1.5)}, '''
+REPLAY_STEPS = int({steps})
+REPLAY_COEF = {coef}
+REPLAY_BATCH = 8
+
+
+def replay_loss(out, batch, ret, cfg: RuleConfig):
+    t = batch.t
+    w = t["valid"].to(out["logp"].dtype)
+    v = out["values"].mean(-1)
+    gap = (ret - v.detach()).clamp(min=0.0)
+    return -(out["logp"] * gap * w).sum() / w.sum().clamp(min=1.0) + 0.5 * ((((ret - v).clamp(min=0.0)) ** 2) * w).sum() / w.sum().clamp(min=1.0)
+'''),
+    "short_first": ("among successful episodes the shorter ones waste fewer decisions; weighting replayed episodes "
+                    "by inverse length teaches the efficient way to succeed", {"steps": (4, 24), "coef": (0.3, 1.5), "k": (0.5, 2.0)}, '''
+REPLAY_STEPS = int({steps})
+REPLAY_COEF = {coef}
+REPLAY_BATCH = 8
+
+
+def replay_loss(out, batch, ret, cfg: RuleConfig):
+    t = batch.t
+    wv = t["valid"].to(out["logp"].dtype)
+    length = wv.sum(1, keepdim=True).clamp(min=1.0)
+    ew = (length.min() / length) ** {k}
+    w = wv * t["ok"] * ew
+    v = out["values"].mean(-1)
+    return -(out["logp"] * w).sum() / w.sum().clamp(min=1.0) + 0.5 * (((ret - v) ** 2) * wv).sum() / wv.sum().clamp(min=1.0)
+'''),
+}
+
+SLOT_TABLE = {"adv": (ADV, "advantages"), "pol": (POL, "policy_loss"), "val": (VAL, "value_loss"), "tot": (TOT, "total_loss"),
+              "rep": (REP, "replay_loss")}
+SLOT_ORDER = ("adv", "pol", "val", "tot", "rep")
 CONST_RANGES = {"gamma": (0.98, 0.999), "lam": (0.8, 0.99), "clip": (0.1, 0.4), "vf_coef": (0.25, 1.0),
                 "ent_coef": (0.0, 0.05), "succ_coef": (0.0, 0.3)}
 BASE_CONSTS = {"gamma": 0.995, "lam": 0.95, "clip": 0.2, "vf_coef": 0.5, "ent_coef": 0.01, "succ_coef": 0.1}
-BASE_GENOME = {"adv": ["gae", {}], "pol": ["ppo_clip", {}], "val": ["mse", {}], "tot": ["sum", {}], "consts": dict(BASE_CONSTS)}
+BASE_GENOME = {"adv": ["gae", {}], "pol": ["ppo_clip", {}], "val": ["mse", {}], "tot": ["sum", {}], "rep": ["none", {}],
+               "consts": dict(BASE_CONSTS)}
 
 
 def _sample_params(spec: dict, rng) -> dict:
@@ -330,20 +394,22 @@ def _sample_params(spec: dict, rng) -> dict:
 
 def render_rule(genome: dict) -> str:
     parts, why = [], []
-    for slot in ("adv", "pol", "val", "tot"):
+    genome = dict(genome)
+    genome.setdefault("rep", ["none", {}])
+    for slot in SLOT_ORDER:
         table, _ = SLOT_TABLE[slot]
         name, params = genome[slot]
         why.append(f"{slot}={name}{params or ''}")
         parts.append(table[name][2].format(**params) if params else table[name][2].format())
     doc = "Composition: " + "; ".join(why) + "."
     return HEADER.format(doc=doc, **genome["consts"]) + "\n".join(p.strip("\n") + "\n\n" for p in parts[:3]) \
-        + FIXED.strip("\n") + "\n\n\n" + parts[3].strip("\n") + "\n"
+        + FIXED.strip("\n") + "\n\n\n" + parts[3].strip("\n") + "\n\n\n" + parts[4].strip("\n") + "\n"
 
 
 def genome_hypothesis(genome: dict, base: dict) -> tuple[str, list[str]]:
     reasons, slots = [], []
-    for slot in ("adv", "pol", "val", "tot"):
-        if genome[slot] != base[slot]:
+    for slot in SLOT_ORDER:
+        if genome.get(slot, ["none", {}]) != base.get(slot, ["none", {}]):
             table, fn = SLOT_TABLE[slot]
             reasons.append(f"{fn} -> {genome[slot][0]} {genome[slot][1]}: {table[genome[slot][0]][0]}")
             slots.append(fn)
@@ -363,8 +429,9 @@ class RuleSpace:
         g = copy.deepcopy(genome)
         r = self.rng
         k = r.random()
+        g.setdefault("rep", ["none", {}])
         if k < 0.7:
-            slot = ("adv", "pol", "val", "tot")[int(r.integers(0, 4))]
+            slot = SLOT_ORDER[int(r.integers(0, len(SLOT_ORDER)))]
             table, _ = SLOT_TABLE[slot]
             if g[slot][1] and r.random() < 0.35:              # perturb the fragment's own constants
                 spec = table[g[slot][0]][1]
@@ -383,8 +450,8 @@ class RuleSpace:
 
     def crossover(self, a: dict, b: dict) -> dict:
         g = copy.deepcopy(a)
-        for slot in ("adv", "pol", "val", "tot"):
-            if self.rng.random() < 0.5:
+        for slot in SLOT_ORDER:
+            if self.rng.random() < 0.5 and slot in b:
                 g[slot] = copy.deepcopy(b[slot])
         return g
 
@@ -447,7 +514,7 @@ def render_learned(phi: np.ndarray, consts: dict | None = None) -> str:
     return (HEADER.format(doc="Learned rule: a meta-network weights the policy gradient per decision; its "
                               "parameters PHI were found by an evolution strategy over inner training runs.", **c)
             + body.strip("\n") + "\n\n\n" + VAL["mse"][2].strip("\n") + "\n\n" + FIXED.strip("\n") + "\n\n\n"
-            + TOT["sum"][2].strip("\n") + "\n")
+            + TOT["sum"][2].strip("\n") + "\n\n\n" + REP["none"][2].strip("\n") + "\n")
 
 
 class LearnedRule:
@@ -553,7 +620,7 @@ def splice_function(src: str, name: str, new_code: str) -> str:
 
 
 class LLMProposer:
-    FUNCTIONS = ("advantages", "policy_loss", "value_loss", "total_loss")
+    FUNCTIONS = ("advantages", "policy_loss", "value_loss", "total_loss", "replay_loss")
 
     def __init__(self, llm, seed: int = 0, think: bool = True, max_tokens: int = 1400):
         self.llm, self.think, self.max_tokens = llm, think, max_tokens

@@ -10,6 +10,8 @@ All tensors are [B, T] (episodes x decisions) with `valid` marking real decision
     entropy_loss(ent, valid, cfg)                             -> scalar                   exploration
     aux_loss(out, batch, cfg)                                 -> (scalar, info)           representation learning
     total_loss(out, batch, adv, ret, cfg, boot)               -> (scalar, info)
+    replay_loss(out, batch, ret, cfg)                         -> scalar                   learning from replayed episodes
+    REPLAY_STEPS, REPLAY_COEF, REPLAY_BATCH                   how much replay (0 steps = none; the baseline)
 
 The baseline rule is recurrent PPO with generalised advantage estimation (Schulman et al.): clipped surrogate
 objective, an ensemble critic regressed on GAE returns (each member on a bootstrap subset of episodes), an entropy
@@ -116,3 +118,18 @@ def total_loss(out, batch, adv, ret, cfg: RuleConfig, boot=None):
     loss = pl + cfg.vf_coef * vl + cfg.ent_coef * el + cfg.succ_coef * al
     info.update(pol_loss=float(pl.detach()), v_loss=float(vl.detach()), entropy=float(-el.detach()), aux_loss=float(al.detach()))
     return loss, info
+
+
+# Replay of the agent's own verified-successful episodes (see algo/ppo.py). The baseline rule uses none.
+REPLAY_STEPS = 0
+REPLAY_COEF = 1.0
+REPLAY_BATCH = 8
+
+
+def replay_loss(out, batch, ret, cfg: RuleConfig):
+    """Loss on replayed successful episodes: imitate the actions the world accepted, fit the critic to the return."""
+    t = batch.t
+    wv = t["valid"].to(out["logp"].dtype)
+    w = wv * t["ok"]
+    v = out["values"].mean(-1)
+    return -(out["logp"] * w).sum() / w.sum().clamp(min=1.0) + 0.5 * (((ret - v) ** 2) * wv).sum() / wv.sum().clamp(min=1.0)

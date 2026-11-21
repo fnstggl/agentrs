@@ -186,6 +186,9 @@ def _prime(ag, st: dict) -> None:
             st["acct"] = r.get("account")
         elif t == "code.create_repo":
             st["repo"] = r.get("repo")
+            guess = str(h["args"].get("name", "")).replace("-", ".")     # what my own repository is called
+            if re.fullmatch(r"[a-z]+\.[a-z]+", guess):
+                st["need"] = guess
         elif t == "cloud.rent":
             st["inst"] = r.get("instance")
         elif t == "cloud.deploy":
@@ -193,8 +196,6 @@ def _prime(ag, st: dict) -> None:
         elif t == "market.list":
             st["listing"] = r.get("listing")
             st["need"] = h["args"].get("need")
-        if t == "code.commit" and "need" not in st:
-            st["need"] = None
 
 
 def script_build(ag, rng, upto: str):

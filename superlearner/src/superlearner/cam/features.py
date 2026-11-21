@@ -129,6 +129,9 @@ class SlotContext:
     draft_args: dict | None = None            # arguments the current draft suggests for this tool
     prev_args: dict | None = None             # arguments of the last successful call of this tool (memory)
     docs: list = field(default_factory=list)  # focus documents, most relevant first
+    affinity: bool = False                    # mark options that lexically match the goal or things the actor owns
+    goal_words: frozenset = frozenset()
+    mine_words: frozenset = frozenset()
     llm: bool = True
     fresh_n: int = 0
     gen_variants: int = 2
@@ -277,7 +280,14 @@ def build_slots(tool: str, schema: dict, sc: SlotContext) -> list[Slot] | None:
     return out
 
 
-def slot_items(tool: str, slot: Slot, index: int) -> tuple[Items, Items]:
+_WORDS = re.compile(r"[a-z]{3,}")
+
+
+def words(x: Any) -> frozenset:
+    return frozenset(_WORDS.findall(str(x).lower()))
+
+
+def slot_items(tool: str, slot: Slot, index: int, sc: "SlotContext | None" = None) -> tuple[Items, Items]:
     """(parameter item, option items) for one slot."""
     par = Items()
     par.add(P_SLOT, [f"P:{slot.param}", f"PT:{tool}.{slot.param}", f"K:{slot.kind}", "REQ" if slot.required else "OPT"],
@@ -301,6 +311,14 @@ def slot_items(tool: str, slot: Slot, index: int) -> tuple[Items, Items]:
         if o.source == "gen":
             toks.append(f"GV:{o.variant}")
             toks.append(f"GR:{min(o.rank, 4)}")
+        if sc is not None and sc.affinity and isinstance(v, str) and o.source not in ("omit", "gen", "fresh", "text"):
+            # generic lexical affinity: does this value share words with the goal, or with something the actor owns?
+            w = words(v)
+            if w and w <= sc.goal_words:
+                toks.append("AFF:goal")
+            if w and not o.mine and len(w & sc.mine_words) >= max(1, len(w) - 0) and w <= sc.mine_words:
+                toks.append("AFF:mine")
+        toks = toks[:T_TOK]
         num = [min(o.rank, 8) / 8.0, float(o.source == "omit"), symlog(v) / 12.0 if isnum else 0.0,
                float(o.source in ("key", "seen")), float(o.source == "draft"), float(o.source == "prev"),
                float(o.source == "gen"), float(o.variant), float(o.mine), o.xform if o.nkey else 0.0]

@@ -73,7 +73,7 @@ DEFAULT_ARMS = [
 class Curriculum:
     def __init__(self, arms: list[dict] | None = None, world_families: list[str] | None = None, split: str = "train",
                  seed: int = 0, ema: float = 0.1, unlock: float = 0.3, mastered: float = 0.9, floor: float = 0.05,
-                 c_unc: float = 0.5, c_v: float = 0.5, c_nov: float = 0.3, adaptive: bool = True):
+                 c_unc: float = 0.5, c_v: float = 0.5, c_nov: float = 0.3, adaptive: bool = True, gate: bool = True):
         self.arms = [Arm(a["family"], int(a.get("level", 0)), a.get("start", "scratch"), tuple(a.get("prereq", ())))
                      for a in (arms or DEFAULT_ARMS)]
         self.by_key = {a.key: a for a in self.arms}
@@ -82,9 +82,12 @@ class Curriculum:
         self.rng = np.random.default_rng(seed)
         self.ema, self.unlock, self.mastered, self.floor = ema, unlock, mastered, floor
         self.c_unc, self.c_v, self.c_nov, self.adaptive = c_unc, c_v, c_nov, adaptive
+        self.gate = gate              # False: prerequisites do not lock arms (use when a warm start already covers them)
         self.counter = 0
 
     def eligible(self, a: Arm) -> bool:
+        if not self.gate:
+            return True
         return all(self.by_key[p].succ >= self.unlock for p in a.prereq if p in self.by_key)
 
     def weights(self) -> np.ndarray:

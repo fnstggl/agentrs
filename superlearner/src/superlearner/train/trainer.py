@@ -137,7 +137,7 @@ class Trainer:
                                    dict({k: v for k, v in c["algo"].items() if k != "name"}, seed=c["seed"]), self.device)
         cc = dict(c["curriculum"])
         self.curriculum = Curriculum(cc.get("arms"), cc.get("world_families"), "train", c["seed"],
-                                     adaptive=cc.get("adaptive", True))
+                                     adaptive=cc.get("adaptive", True), gate=cc.get("gate", True))
         self.memory = EpisodicMemory()
         self.library = ToolLibrary()
         self.mem_synced = 0
@@ -256,7 +256,8 @@ class Trainer:
         out = []
         for ep in range(epochs):
             m = bc_update(self.model, opt, self.demos, self.store, self.device,
-                          int(self.cfg["algo"].get("minibatch_eps", 32)), self.algo.rule, rng=self.rng)
+                          int(self.cfg["demos"].get("bc_minibatch_eps") or self.cfg["algo"].get("minibatch_eps", 32)),
+                          self.algo.rule, rng=self.rng)
             m.update(phase="bc", epoch=ep, demo_episodes=len(self.demos),
                      param_dist_from_init=float((flat_params(self.model) - self.theta0).norm()))
             self.log("metrics.jsonl", m)
@@ -345,9 +346,34 @@ class Trainer:
         self.log("metrics.jsonl", rec)
         return rec
 
+    def init_from(self, path: str) -> None:
+        """Start from another run's warm-start checkpoint (weights, frozen-embedding store, memory, demonstrations)
+        with fresh counters and a fresh optimiser, so that several runs can branch from the SAME warm start."""
+        self.load(path, optimizer=False)
+        self.iter = self.env_decisions = self.episodes = 0
+        self.wall = {"rollout_s": 0.0, "update_s": 0.0, "eval_s": 0.0}
+        from .curriculum import Curriculum
+        cc = dict(self.cfg["curriculum"])
+        self.curriculum = Curriculum(cc.get("arms"), cc.get("world_families"), "train", self.cfg["seed"],
+                                     adaptive=cc.get("adaptive", True), gate=cc.get("gate", True))
+        self.rng = np.random.default_rng(self.cfg["seed"])
+        demos = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(path))), "demos.pkl")
+        if os.path.exists(demos):
+            d = pickle.load(open(demos, "rb"))
+            self.demos = d["episodes"]
+            for k, v in d.get("emb", []):
+                self.store.put(k, v)
+            pickle.dump(d, open(os.path.join(self.dir, "demos.pkl"), "wb"))
+        self.log("metrics.jsonl", {"phase": "init_from", "path": path, "demo_episodes": len(self.demos)})
+        self.save("bc.pt")
+
     def run(self, iters: int | None = None, verbose: bool = True) -> None:
         c = self.cfg
-        if self.iter == 0 and c["demos"].get("episodes") and not self.demos:
+        if self.iter == 0 and c.get("init_from") and not os.path.exists(os.path.join(self.dir, "ckpt", "bc.pt")):
+            self.init_from(c["init_from"])
+            if verbose:
+                print(f"initialised from {c['init_from']} ({len(self.demos)} demonstrations)", flush=True)
+        elif self.iter == 0 and c["demos"].get("episodes") and not self.demos:
             prov = self.collect_demos(int(c["demos"]["episodes"]))
             if verbose:
                 print(f"demos: {prov['verified_successful']}/{prov['ran']} verified, {prov['kept']} kept; by arm {prov['by_arm_kept']}", flush=True)

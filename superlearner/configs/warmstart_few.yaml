@@ -1,0 +1,6 @@
+# Warm start only (no RL): 2 verified demonstrations per arm, 60 cloning epochs. Other runs branch from its bc.pt.
+#   superlearner train --config configs/warmstart_few.yaml --name warm_s0 --set seed=0
+base: exp_b_fewdemo.yaml
+name: warm
+iters: 0
+eval_every: 5

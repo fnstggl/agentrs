@@ -18,20 +18,21 @@ inner:
   workers: 6
   eval_every: 2
   model: {d: 128, layers: 2, heads: 4, ff: 256, bag_dim: 48, hid: 128}
-  agent: {use_llm: false}
-  core: {max_decisions: 24}
-  algo: {name: ppo, lr: 0.0001, epochs: 3, minibatch_eps: 16, target_kl: 0.05, critic_warmup: 1}
+  agent: {use_llm: false, affinity_tokens: true}
+  core: {max_decisions: 20}
+  algo: {name: ppo, lr: 0.0001, epochs: 3, minibatch_eps: 16, clip: 0.1, target_kl: 0.03, critic_warmup: 1, detach_critic: true, ent_coef: 0.003}
   curriculum:
     adaptive: true
+    gate: false
     world_families: [tiny, bazaar]
     arms:
       - {family: found}
-      - {family: fund, prereq: [found/0/scratch]}
+      - {family: fund}
       - {family: list, start: deployed}
       - {family: deploy, start: coded}
       - {family: service, start: listed}
       - {family: repair}
-  demos: {episodes: 96, bc_epochs: 40, bc_lr: 0.0005, max_per_arm: 2}
+  demos: {episodes: 96, bc_epochs: 60, bc_lr: 0.0005, max_per_arm: 2, bc_minibatch_eps: 3}
 eval_arms: [found/0/scratch, fund/0/scratch, list/0/deployed, deploy/0/coded, service/0/listed, repair/0/scratch]
 eval_world_families: [tiny, bazaar, entrenched_incumbents]
 stages:

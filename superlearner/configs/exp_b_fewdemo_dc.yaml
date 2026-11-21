@@ -1,5 +1,0 @@
-# Experiment B, few-demonstration regime, with the critic detached from the controller's state (fitting the critic
-# cannot move the policy). Same seeds, demonstrations, tasks and budgets as exp_b_fewdemo.
-base: exp_b_fewdemo.yaml
-name: exp_b_fewdemo_dc
-algo: {name: ppo, lr: 0.00003, epochs: 4, minibatch_eps: 12, clip: 0.1, target_kl: 0.03, critic_warmup: 2, ent_coef: 0.003, detach_critic: true}

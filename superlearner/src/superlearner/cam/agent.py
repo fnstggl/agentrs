@@ -67,6 +67,7 @@ class AgentConfig:
     propose_tokens: int = 700
     gen_tokens: int = 1200
     think_entries: bool = True     # let the frozen LLM reason before writing a structured document entry
+    affinity_tokens: bool = False     # option feature: lexical match with the goal / with things the actor owns
     plan_with_world_model: str = ""   # path of a trained world model: one-step lookahead re-ranks the head choice
     plan_beta_ok: float = 1.0
     plan_beta_gain: float = 1.0
@@ -535,8 +536,13 @@ class CAMAgent:
                 break
         prev = wm.last_ok_args.get(tool) or self.mem_args.get(tool)
         llm_ok = self.cfg.use_llm and wm.n_gen < self.cfg.gen_budget
-        return F.SlotContext(self.actor, self.know, self.mine, dargs, prev, self._focus_docs(5) if llm_ok else [],
-                             llm_ok, wm.fresh_n)
+        sc = F.SlotContext(self.actor, self.know, self.mine, dargs, prev, self._focus_docs(5) if llm_ok else [],
+                           llm=llm_ok, fresh_n=wm.fresh_n)
+        if self.cfg.affinity_tokens:
+            sc.affinity = True
+            sc.goal_words = F.words(self.goal)
+            sc.mine_words = frozenset(w for m in self.mine for w in F.words(m))
+        return sc
 
     # ================================================================== one decision
     @torch.no_grad()
@@ -600,7 +606,7 @@ class CAMAgent:
             else:
                 prev_sum, n_prev, gen_err = None, 0, ""
                 for j, slot in enumerate(slots):
-                    par, opts = F.slot_items(tool_name, slot, j)
+                    par, opts = F.slot_items(tool_name, slot, j, sc)
                     self._flush()
                     pa, oa = par.arrays(), opts.arrays()
                     if m is not None:

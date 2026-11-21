@@ -18,8 +18,8 @@ import torch
 import torch.nn as nn
 
 SOURCES = ("rule_space", "llm", "learned_rule", "manual")
-SLOTS = ("advantages", "policy_loss", "value_loss", "entropy_loss", "aux_loss", "total_loss", "model", "curriculum",
-         "other")
+SLOTS = ("advantages", "policy_loss", "value_loss", "entropy_loss", "aux_loss", "total_loss", "replay_loss", "model",
+         "curriculum", "other")
 N_STRUCT = len(SOURCES) + len(SLOTS) + 4
 
 

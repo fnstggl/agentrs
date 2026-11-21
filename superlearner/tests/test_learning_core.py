@@ -140,4 +140,6 @@ def test_sil_algorithm_keeps_a_replay_buffer_of_successful_episodes(rollouts):
     algo = make("ppo_sil", m, {"epochs": 1, "minibatch_eps": 4, "sil_steps": 1}, "cpu")
     fake = [dict(e, summary=dict(e["summary"], success=(i == 0))) for i, e in enumerate(eps)]
     out = algo.update(fake, store)
-    assert out["replay_episodes"] == 1 and np.isfinite(out["sil_loss"])
+    assert out["replay_episodes"] == 1 and out["replay_steps"] == 1 and np.isfinite(out["replay_loss"])
+    plain = make("ppo", copy.deepcopy(model), {"epochs": 1, "minibatch_eps": 4}, "cpu")
+    assert plain.update(fake, store)["replay_steps"] == 0          # the baseline rule replays nothing

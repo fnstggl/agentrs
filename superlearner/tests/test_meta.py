@@ -70,12 +70,14 @@ def _numeric_check(mod) -> float:
            "values": torch.randn(Bn, T, K, requires_grad=True), "succ_logit": torch.randn(Bn, T, requires_grad=True)}
     b = _B()
     b.t = {"logp_old": logp.detach() + 0.05 * torch.randn(Bn, T), "valid": valid, "value_old": value,
-           "success": torch.tensor([1.0, 0.0, 1.0])}
+           "success": torch.tensor([1.0, 0.0, 1.0]), "ok": (torch.rand(Bn, T) > 0.3).float()}
     loss, info = mod.total_loss(out, b, adv, ret, cfg, torch.ones(Bn, K))
-    loss.backward()
+    rl = mod.replay_loss(out, b, ret, cfg)
+    assert torch.isfinite(rl) and isinstance(mod.REPLAY_STEPS, int) and mod.REPLAY_STEPS >= 0
+    (loss + 0.0 * rl).backward()
     assert torch.isfinite(loss) and torch.isfinite(adv).all() and adv.shape == reward.shape
     assert logp.grad.abs().sum() > 0 and out["values"].grad.abs().sum() > 0 and "kl" in info
-    return float(loss)
+    return float(loss.detach())
 
 
 def test_every_fragment_of_the_rule_program_space_renders_to_a_working_learning_rule():
@@ -87,7 +89,7 @@ def test_every_fragment_of_the_rule_program_space_renders_to_a_working_learning_
             g[slot] = [name, P._sample_params(spec, rs.rng)]
             _numeric_check(_load(P.render_rule(g), f"rule_{slot}_{name}"))
             n += 1
-    assert n == sum(len(t) for t, _ in P.SLOT_TABLE.values()) >= 19
+    assert n == sum(len(t) for t, _ in P.SLOT_TABLE.values()) >= 23
     # the baseline genome reproduces the hand-written baseline rule numerically
     from superlearner.algo import rule as R
     assert abs(_numeric_check(_load(P.render_rule(P.BASE_GENOME), "rule_base")) - _numeric_check(R)) < 1e-5

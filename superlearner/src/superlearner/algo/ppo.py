@@ -27,7 +27,8 @@ from . import rule as R
 from .base import Algorithm, register
 
 DEFAULTS = {"lr": 1e-4, "epochs": 3, "minibatch_eps": 32, "max_grad_norm": 1.0, "target_kl": 0.05,
-            "weight_decay": 0.0, "boot_p": 0.8, "bc_coef": 0.0, "seed": 0, "critic_warmup": 0, "detach_critic": False}
+            "weight_decay": 0.0, "boot_p": 0.8, "bc_coef": 0.0, "seed": 0, "critic_warmup": 0, "detach_critic": False,
+            "sil_steps": None, "sil_coef": None, "sil_batch": None, "sil_mode": "rule", "replay_episodes": 1500}
 
 
 def flat_params(model) -> torch.Tensor:
@@ -68,6 +69,7 @@ class PPO(Algorithm):
         self.n_updates = 0
         self.n_steps = 0
         self.n_calls = 0
+        self.buffer: list[dict] = []          # the agent's own verified-successful episodes (used only if the rule replays)
 
     # hooks a subclass (or a candidate) can override without touching the loop
     def advantages(self, b):
@@ -87,7 +89,68 @@ class PPO(Algorithm):
                                                                          "aux_loss": float(al.detach())}
         return R.total_loss(out, b, adv, ret, self.rule, boot)
 
+    # ------------------------------------------------------------------ replay of own successes
+    def replay_settings(self) -> tuple[int, float, int]:
+        c = self.c
+        steps = c["sil_steps"] if c["sil_steps"] is not None else getattr(R, "REPLAY_STEPS", 0)
+        coef = c["sil_coef"] if c["sil_coef"] is not None else getattr(R, "REPLAY_COEF", 1.0)
+        batch = c["sil_batch"] if c["sil_batch"] is not None else getattr(R, "REPLAY_BATCH", c["minibatch_eps"])
+        return int(steps), float(coef), int(batch)
+
+    def _sample_replay(self, n: int) -> list[dict]:
+        by: dict = {}
+        for e in self.buffer:
+            by.setdefault(tuple(e["summary"].get("arm", ())), []).append(e)
+        arms = sorted(by)
+        out = []
+        for _ in range(min(n, len(self.buffer))):
+            lst = by[arms[int(self.rng.integers(0, len(arms)))]]          # every task arm equally likely
+            out.append(lst[int(self.rng.integers(0, len(lst)))])
+        return out
+
+    def replay(self, episodes, store) -> dict:
+        """Extra gradient steps on episodes from the buffer of the agent's own verified successes. How many, and
+        with which loss, is part of the learning rule (`rule.REPLAY_*`, `rule.replay_loss`)."""
+        steps, coef, nb = self.replay_settings()
+        self.buffer += [e for e in episodes if e["summary"].get("success")]
+        self.buffer = self.buffer[-int(self.c["replay_episodes"]):]
+        if steps <= 0 or not self.buffer or self.n_calls <= self.c["critic_warmup"]:
+            return {"replay_steps": 0, "replay_episodes": len(self.buffer)}
+        model, dev = self.model, self.device
+        model.train()
+        mc = R.RuleConfig(**dict(self.rule.to_dict(), lam=1.0))
+        losses = []
+        for _ in range(steps):
+            part = self._sample_replay(nb)
+            b = make_minibatches(part, store, dev, len(part), self.rng)[0]
+            t = b.t
+            out = evaluate(model, b)
+            _, ret = R.advantages(t["reward"], torch.zeros_like(t["reward"]), t["done"], t["trunc"], t["valid"], mc)
+            if self.c["sil_mode"] == "advantage":
+                w = t["valid"].float()
+                v = out["values"].mean(-1)
+                gap = (ret - v.detach()).clamp(min=0)
+                loss = (-(out["logp"] * gap) * w).sum() / w.sum().clamp(min=1) \
+                    + 0.5 * ((((ret - v).clamp(min=0)) ** 2) * w).sum() / w.sum().clamp(min=1)
+            else:
+                loss = R.replay_loss(out, b, ret, self.rule)
+            if not torch.isfinite(loss):
+                continue
+            self.opt.zero_grad(set_to_none=True)
+            (coef * loss).backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), self.c["max_grad_norm"])
+            self.opt.step()
+            losses.append(float(loss.detach()))
+        model.eval()
+        return {"replay_loss": float(np.mean(losses)) if losses else 0.0, "replay_steps": len(losses),
+                "replay_episodes": len(self.buffer), "replay_arms": len({tuple(e["summary"].get("arm", ())) for e in self.buffer})}
+
     def update(self, episodes, store, demos=None):
+        m = self._update_on_policy(episodes, store, demos)
+        m.update(self.replay(episodes, store))
+        return m
+
+    def _update_on_policy(self, episodes, store, demos=None):
         model, c, dev = self.model, self.c, self.device
         self.n_calls += 1
         model.train()

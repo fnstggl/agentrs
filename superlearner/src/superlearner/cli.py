@@ -205,7 +205,10 @@ def main(argv=None) -> int:
     p.add_argument("--verbose", action="store_true"); p.set_defaults(fn=cmd_inspect)
     p = sub.add_parser("lock-final"); p.add_argument("--out", required=True); p.add_argument("--n", type=int, default=96); p.set_defaults(fn=cmd_lock_final)
     p = sub.add_parser("meta-search"); p.add_argument("--config", required=True); p.add_argument("--run-dir"); p.add_argument("--rounds", type=int)
-    p.add_argument("--resume", action="store_true"); p.set_defaults(fn=cmd_meta)
+    p.add_argument("--resume", action="store_true")
+    p.add_argument("--full-feedback", action="store_true",
+                   help="screen every proposal of every pool (Experiment F), then develop and confirm the best")
+    p.set_defaults(fn=cmd_meta)
     p = sub.add_parser("experiment"); p.add_argument("name"); p.add_argument("--config"); p.add_argument("--run-dir"); p.add_argument("--checkpoint")
     p.add_argument("--episodes", type=int); p.add_argument("--workers", type=int); p.set_defaults(fn=cmd_experiment)
     a = ap.parse_args(argv)

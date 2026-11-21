@@ -1,0 +1,76 @@
+# Training: warm start, reinforcement learning, curriculum, evaluation
+
+## Pipeline
+
+```
+curriculum.sample ──> tasks ──> rollout workers (CPU) ──> episodes ──> algorithm.update (GPU) ──> new weights
+      ^                                  |                                   |
+      └── evaluator summaries ───────────┘                     metrics.jsonl, checkpoints, eval.jsonl, traj/
+```
+
+One *decision record* (written by `CAMAgent.step`) holds everything needed to learn from it: the context, head and
+option items, the choices, the log-probability, the value ensemble's mean and spread, the reward, termination and
+truncation flags. One *episode summary* (written by the trusted core) holds the verified outcome and counts.
+Readable trajectories (`traj/*.json.gz`: observation, action, arguments, outcome, failure class, feedback, reward,
+head probabilities, LLM usage) are kept for sampled episodes and shown by `superlearner inspect-trajectory`.
+With `store_episodes_iters: k` the last k iterations' full decision records are kept in `replay/` (used by the
+world-model experiment).
+
+## Warm start
+
+`train/demos.py`: scripted teachers act through the controller's own heads and options (so a demonstration is a
+sequence of choices the controller could have made), executed for real; where a script needs code it chooses "let
+the frozen LLM write this from the format document", and the real LLM output is what gets judged. Only episodes
+the evaluator verified as successful are kept; provenance (script, seeds, misses, counts) is stored with them.
+Demonstrations come from training-split worlds in a seed range not used by rollouts. `bc_update` maximises the
+likelihood of the demonstrated choices.
+
+## Reinforcement learning
+
+* `algo/rule.py` — the learning rule: GAE (terminal: bootstrap 0; truncated: bootstrap from the critic's own last
+  value), clipped surrogate, ensemble critic on bootstrap subsets, entropy bonus, success-prediction auxiliary loss.
+* `algo/ppo.py` — recurrent PPO over whole episodes with exact likelihood recomputation, advantage normalisation,
+  gradient clipping, AdamW, KL early stopping, non-finite guards with weight restoration, optional critic warm-up
+  (`critic_warmup`) and detached critic (`detach_critic`: the value ensemble reads the controller's state without
+  sending gradients into it).
+* `algo/sil.py` — PPO plus a replay buffer of the agent's own verified-successful episodes; `filtered` mode
+  imitates the accepted actions of those episodes, sampling task arms uniformly.
+
+Every update reports the loss terms, gradient norm, KL, clip fraction, explained variance of the critic and the
+L2 norm of the parameter change; `param_dist_from_init` and `weights_changed` are logged per iteration.
+
+Unit tests (`tests/test_learning_core.py`): GAE against a reference implementation with padding, termination and
+truncation; recomputed log-probability equals the acting-time one; a PPO update moves the weights, stays finite and
+changes the likelihood of recorded actions; gradients reach every component; cloning raises demonstrated
+likelihood; the replay variant keeps successful episodes.
+
+## Curriculum (`train/curriculum.py`)
+
+Arms are (task family, level, start state). Sampling weight = floor + learning progress + binomial uncertainty +
+critic-ensemble spread + novelty. Arms unlock when their prerequisites reach a success threshold; mastered arms
+keep a reduced weight (rehearsal); when an arm mostly fails with prerequisite / permission / reference errors,
+part of its weight moves to its prerequisites. Worlds are drawn with a fresh seed every time.
+
+## Evaluation and splits
+
+| Split | Seeds | World families | Used for |
+|---|---|---|---|
+| train | 10,000,000+ | tiny, bazaar, cheap_compute_closed_markets, expensive_compute_open_distribution | rollouts, demonstrations (5,000,000 offset) |
+| curriculum | 5,000,000+ | same | in-training evaluation curve |
+| select | 1,000,000+ | + entrenched_incumbents, fragmented_networks | algorithm selection (Meta-Researcher), before/after comparisons |
+| final | < 1,000,000 | + labor_rich_fragile_infra, novel_needs | sealed list for final reports |
+
+Evaluation is greedy, with memory read-only, on fixed task lists (unbuildable world seeds are skipped
+deterministically). Success is the task predicate on authoritative state. Reported with Wilson 95% intervals.
+
+## Checkpoints and resuming
+
+A checkpoint holds the weights, optimiser and algorithm state, the frozen-embedding store, episodic memory, tool
+library, curriculum state, counters, random states, the configuration and code hashes. `superlearner resume`
+continues a run from `ckpt/latest.pt`. `Trainer.load(weights=..., memory=...)` restores the two separately, which is
+how the "weights restored / memory reset" and "memory preserved / weights reset" comparisons are run.
+
+## Costs that are recorded
+
+Per iteration: rollout seconds, update seconds, environment decisions, episodes. Per run: LLM calls, tokens
+generated by the model, tokens served from cache, embedding requests. Per episode: simulator seconds, world events.

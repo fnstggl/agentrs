@@ -92,7 +92,7 @@ def _loss(wm: WorldModel, d: dict, idx) -> tuple[torch.Tensor, dict]:
     l_g = F.mse_loss(out["gain"], d["gain"][idx])
     hn = d["has_next"][idx]
     l_n = ((1 - F.cosine_similarity(out["next"], d["next"][idx], dim=-1)) * hn).sum() / hn.sum().clamp(min=1)
-    return l_ok + l_fc + 5 * l_r + l_g + l_n, {"ok": float(l_ok), "fclass": float(l_fc), "reward": float(l_r), "gain": float(l_g), "next": float(l_n)}
+    return l_ok + l_fc + 5 * l_r + l_g + l_n, {"ok": float(l_ok.detach()), "fclass": float(l_fc.detach()), "reward": float(l_r.detach()), "gain": float(l_g.detach()), "next": float(l_n.detach())}
 
 
 def fit(wm: WorldModel, data: dict, epochs: int = 30, lr: float = 1e-3, batch: int = 512, seed: int = 0, device="cpu") -> list[dict]:
