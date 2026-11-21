@@ -91,17 +91,17 @@ def create_candidate(dest: str, changes: dict[str, str], base_pkg: str = PKG) ->
     base = tree_hashes(base_pkg)
     rec = {"path": dest, "pkg": pkg, "editable_hash": h["editable"], "protected_hash": h["protected"],
            "base_editable_hash": base["editable"], "changed": sorted(r for r in h["files"] if h["files"][r] != base["files"].get(r)),
-           "protected_ok": h["protected"] == tree_hashes(PKG)["protected"], "created": time.time()}
+           "protected_ok": h["protected"] == base["protected"], "created": time.time()}
     json.dump(rec, open(os.path.join(dest, "candidate.json"), "w"), indent=1)
     return rec
 
 
-def verify(dest: str) -> tuple[bool, str]:
-    """A candidate may run only if its protected files are byte-identical to the champion tree's."""
+def verify(dest: str, base_pkg: str = PKG) -> tuple[bool, str]:
+    """A candidate may run only if its protected files are byte-identical to the evaluator's tree (`base_pkg`)."""
     pkg = os.path.join(dest, "src", "superlearner")
     if not os.path.isdir(pkg):
         return False, "no source tree"
-    h, base = tree_hashes(pkg), tree_hashes(PKG)
+    h, base = tree_hashes(pkg), tree_hashes(base_pkg)
     if h["protected"] != base["protected"]:
         bad = sorted(r for r in set(h["files"]) | set(base["files"])
                      if not is_editable(r) and h["files"].get(r) != base["files"].get(r))

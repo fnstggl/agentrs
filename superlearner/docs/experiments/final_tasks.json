@@ -1,0 +1,774 @@
+{
+ "seal": "8c20b6e98b41e55d8a18fda2e03512926b92170a9335c607a20811591b8e0eeb",
+ "n": 96,
+ "tasks": [
+  {
+   "family": "found",
+   "level": 0,
+   "seed": 700000,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "fund",
+   "level": 0,
+   "seed": 700001,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "apicall",
+   "level": 0,
+   "seed": 700002,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "list",
+   "level": 0,
+   "seed": 700003,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "tiny"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700004,
+   "split": "final",
+   "start": "coded",
+   "world_family": "tiny"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700005,
+   "split": "final",
+   "start": "listed",
+   "world_family": "tiny"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700006,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "tiny"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700007,
+   "split": "final",
+   "start": "coded",
+   "world_family": "tiny"
+  },
+  {
+   "family": "repair",
+   "level": 0,
+   "seed": 700008,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "code",
+   "level": 0,
+   "seed": 700009,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700010,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700011,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "found",
+   "level": 0,
+   "seed": 700012,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "fund",
+   "level": 0,
+   "seed": 700013,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "apicall",
+   "level": 0,
+   "seed": 700014,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "list",
+   "level": 0,
+   "seed": 700015,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700016,
+   "split": "final",
+   "start": "coded",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700017,
+   "split": "final",
+   "start": "listed",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700018,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700019,
+   "split": "final",
+   "start": "coded",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "repair",
+   "level": 0,
+   "seed": 700020,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "code",
+   "level": 0,
+   "seed": 700021,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700022,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700023,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "found",
+   "level": 0,
+   "seed": 700024,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "cheap_compute_closed_markets"
+  },
+  {
+   "family": "fund",
+   "level": 0,
+   "seed": 700025,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "cheap_compute_closed_markets"
+  },
+  {
+   "family": "apicall",
+   "level": 0,
+   "seed": 700026,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "cheap_compute_closed_markets"
+  },
+  {
+   "family": "list",
+   "level": 0,
+   "seed": 700027,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "cheap_compute_closed_markets"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700028,
+   "split": "final",
+   "start": "coded",
+   "world_family": "cheap_compute_closed_markets"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700029,
+   "split": "final",
+   "start": "listed",
+   "world_family": "cheap_compute_closed_markets"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700030,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "cheap_compute_closed_markets"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700031,
+   "split": "final",
+   "start": "coded",
+   "world_family": "cheap_compute_closed_markets"
+  },
+  {
+   "family": "repair",
+   "level": 0,
+   "seed": 700032,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "cheap_compute_closed_markets"
+  },
+  {
+   "family": "code",
+   "level": 0,
+   "seed": 700033,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "cheap_compute_closed_markets"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700034,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "cheap_compute_closed_markets"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700035,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "cheap_compute_closed_markets"
+  },
+  {
+   "family": "found",
+   "level": 0,
+   "seed": 700036,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "expensive_compute_open_distribution"
+  },
+  {
+   "family": "fund",
+   "level": 0,
+   "seed": 700037,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "expensive_compute_open_distribution"
+  },
+  {
+   "family": "apicall",
+   "level": 0,
+   "seed": 700038,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "expensive_compute_open_distribution"
+  },
+  {
+   "family": "list",
+   "level": 0,
+   "seed": 700039,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "expensive_compute_open_distribution"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700040,
+   "split": "final",
+   "start": "coded",
+   "world_family": "expensive_compute_open_distribution"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700041,
+   "split": "final",
+   "start": "listed",
+   "world_family": "expensive_compute_open_distribution"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700042,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "expensive_compute_open_distribution"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700043,
+   "split": "final",
+   "start": "coded",
+   "world_family": "expensive_compute_open_distribution"
+  },
+  {
+   "family": "repair",
+   "level": 0,
+   "seed": 700044,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "expensive_compute_open_distribution"
+  },
+  {
+   "family": "code",
+   "level": 0,
+   "seed": 700045,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "expensive_compute_open_distribution"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700046,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "expensive_compute_open_distribution"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700047,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "expensive_compute_open_distribution"
+  },
+  {
+   "family": "found",
+   "level": 0,
+   "seed": 700048,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "labor_rich_fragile_infra"
+  },
+  {
+   "family": "fund",
+   "level": 0,
+   "seed": 700049,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "labor_rich_fragile_infra"
+  },
+  {
+   "family": "apicall",
+   "level": 0,
+   "seed": 700050,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "labor_rich_fragile_infra"
+  },
+  {
+   "family": "list",
+   "level": 0,
+   "seed": 700051,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "labor_rich_fragile_infra"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700052,
+   "split": "final",
+   "start": "coded",
+   "world_family": "labor_rich_fragile_infra"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700053,
+   "split": "final",
+   "start": "listed",
+   "world_family": "labor_rich_fragile_infra"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700054,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "labor_rich_fragile_infra"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700055,
+   "split": "final",
+   "start": "coded",
+   "world_family": "labor_rich_fragile_infra"
+  },
+  {
+   "family": "repair",
+   "level": 0,
+   "seed": 700056,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "labor_rich_fragile_infra"
+  },
+  {
+   "family": "code",
+   "level": 0,
+   "seed": 700057,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "labor_rich_fragile_infra"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700058,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "labor_rich_fragile_infra"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700059,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "labor_rich_fragile_infra"
+  },
+  {
+   "family": "found",
+   "level": 0,
+   "seed": 700060,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "novel_needs"
+  },
+  {
+   "family": "fund",
+   "level": 0,
+   "seed": 700061,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "novel_needs"
+  },
+  {
+   "family": "apicall",
+   "level": 0,
+   "seed": 700062,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "novel_needs"
+  },
+  {
+   "family": "list",
+   "level": 0,
+   "seed": 700063,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "novel_needs"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700064,
+   "split": "final",
+   "start": "coded",
+   "world_family": "novel_needs"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700065,
+   "split": "final",
+   "start": "listed",
+   "world_family": "novel_needs"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700066,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "novel_needs"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700067,
+   "split": "final",
+   "start": "coded",
+   "world_family": "novel_needs"
+  },
+  {
+   "family": "repair",
+   "level": 0,
+   "seed": 700068,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "novel_needs"
+  },
+  {
+   "family": "code",
+   "level": 0,
+   "seed": 700069,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "novel_needs"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700070,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "novel_needs"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700071,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "novel_needs"
+  },
+  {
+   "family": "found",
+   "level": 0,
+   "seed": 700072,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "fund",
+   "level": 0,
+   "seed": 700073,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "apicall",
+   "level": 0,
+   "seed": 700074,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "list",
+   "level": 0,
+   "seed": 700075,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "tiny"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700076,
+   "split": "final",
+   "start": "coded",
+   "world_family": "tiny"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700077,
+   "split": "final",
+   "start": "listed",
+   "world_family": "tiny"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700078,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "tiny"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700079,
+   "split": "final",
+   "start": "coded",
+   "world_family": "tiny"
+  },
+  {
+   "family": "repair",
+   "level": 0,
+   "seed": 700080,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "code",
+   "level": 0,
+   "seed": 700081,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700082,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700083,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "tiny"
+  },
+  {
+   "family": "found",
+   "level": 0,
+   "seed": 700084,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "fund",
+   "level": 0,
+   "seed": 700085,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "apicall",
+   "level": 0,
+   "seed": 700086,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "list",
+   "level": 0,
+   "seed": 700087,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700088,
+   "split": "final",
+   "start": "coded",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700089,
+   "split": "final",
+   "start": "listed",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700090,
+   "split": "final",
+   "start": "deployed",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700091,
+   "split": "final",
+   "start": "coded",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "repair",
+   "level": 0,
+   "seed": 700092,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "code",
+   "level": 0,
+   "seed": 700093,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "deploy",
+   "level": 0,
+   "seed": 700094,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  },
+  {
+   "family": "service",
+   "level": 0,
+   "seed": 700095,
+   "split": "final",
+   "start": "scratch",
+   "world_family": "bazaar"
+  }
+ ]
+}

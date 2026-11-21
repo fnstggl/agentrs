@@ -349,6 +349,12 @@ def spawn_env_server(allow_splits=("train", "curriculum"), eval_tasks=None, cfg=
 
 
 def _serve_entry(conn, allow, eval_tasks, cfg, eval_cfg, results_path=None, shared=None, budget=None):
+    try:
+        import ctypes
+        import signal
+        ctypes.CDLL(None).prctl(1, signal.SIGKILL)        # die with the hub
+    except Exception:  # noqa: BLE001
+        pass
     for v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
         os.environ[v] = "1"
     serve(conn, allow, eval_tasks, cfg, eval_cfg, results_path, shared, budget)

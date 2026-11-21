@@ -76,7 +76,18 @@ def run_job(agent, job: dict, wcfg: dict, hub=None) -> dict:
     return ep
 
 
+def die_with_parent() -> None:
+    """Ask the kernel to kill this process when its parent dies, so that stopping a run never leaves workers."""
+    try:
+        import ctypes
+        import signal
+        ctypes.CDLL(None).prctl(1, signal.SIGKILL)        # PR_SET_PDEATHSIG
+    except Exception:  # noqa: BLE001 - not on Linux, or not permitted: workers still exit on a closed pipe
+        pass
+
+
 def worker_main(conn, wid: int, wcfg: dict) -> None:
+    die_with_parent()
     for v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
         os.environ[v] = "1"
     import torch
@@ -139,13 +150,26 @@ class RolloutPool:
         self.ctx = mp.get_context(start)
         self.wcfg = wcfg
         self.conns, self.procs = [], []
-        for i in range(n_workers):
-            a, b = self.ctx.Pipe()
-            p = self.ctx.Process(target=worker_main, args=(b, i, wcfg), daemon=True)
-            p.start()
-            b.close()
-            self.conns.append(a)
-            self.procs.append(p)
+        # Workers must come up single-threaded: a freshly spawned interpreter starts one BLAS thread per core
+        # while importing numpy (before any code of ours runs), and dozens of workers doing that at once exhaust
+        # the container's thread limit. The variables are set for the children and restored for this process.
+        keys = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS")
+        saved = {k: os.environ.get(k) for k in keys}
+        os.environ.update({k: "1" for k in keys})
+        try:
+            for i in range(n_workers):
+                a, b = self.ctx.Pipe()
+                p = self.ctx.Process(target=worker_main, args=(b, i, wcfg), daemon=True)
+                p.start()
+                b.close()
+                self.conns.append(a)
+                self.procs.append(p)
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
         self.errors: list[str] = []
 
     def _all(self, msg) -> None:

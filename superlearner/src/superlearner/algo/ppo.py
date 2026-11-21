@@ -28,7 +28,8 @@ from .base import Algorithm, register
 
 DEFAULTS = {"lr": 1e-4, "epochs": 3, "minibatch_eps": 32, "max_grad_norm": 1.0, "target_kl": 0.05,
             "weight_decay": 0.0, "boot_p": 0.8, "bc_coef": 0.0, "seed": 0, "critic_warmup": 0, "detach_critic": False,
-            "sil_steps": None, "sil_coef": None, "sil_batch": None, "sil_mode": "rule", "replay_episodes": 1500}
+            "sil_steps": None, "sil_coef": None, "sil_batch": None, "sil_mode": "rule", "replay_episodes": 1500,
+            "lr_warmup_steps": 0, "kl_rollback": True}
 
 
 def flat_params(model) -> torch.Tensor:
@@ -70,6 +71,8 @@ class PPO(Algorithm):
         self.n_steps = 0
         self.n_calls = 0
         self.buffer: list[dict] = []          # the agent's own verified-successful episodes (used only if the rule replays)
+        self.lr_scale = 1.0                   # adapted from the measured KL (halved on a rollback, slowly restored)
+        self.rollbacks = 0
 
     # hooks a subclass (or a candidate) can override without touching the loop
     def advantages(self, b):
@@ -136,14 +139,26 @@ class PPO(Algorithm):
                 loss = R.replay_loss(out, b, ret, self.rule)
             if not torch.isfinite(loss):
                 continue
+            self.set_lr()
             self.opt.zero_grad(set_to_none=True)
             (coef * loss).backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), self.c["max_grad_norm"])
             self.opt.step()
+            self.n_updates += 1
             losses.append(float(loss.detach()))
         model.eval()
         return {"replay_loss": float(np.mean(losses)) if losses else 0.0, "replay_steps": len(losses),
                 "replay_episodes": len(self.buffer), "replay_arms": len({tuple(e["summary"].get("arm", ())) for e in self.buffer})}
+
+    def set_lr(self) -> float:
+        """Learning rate of the next optimiser step: linear warm-up over the first `lr_warmup_steps` steps (a fresh
+        Adam state makes the very first steps move every weight by the full learning rate, whatever the gradient;
+        after a warm start that alone can wreck the policy), times the KL-adapted scale."""
+        w = int(self.c["lr_warmup_steps"])
+        lr = self.c["lr"] * self.lr_scale * (min(1.0, (self.n_updates + 1) / w) if w > 0 else 1.0)
+        for g in self.opt.param_groups:
+            g["lr"] = lr
+        return lr
 
     def update(self, episodes, store, demos=None):
         m = self._update_on_policy(episodes, store, demos)
@@ -168,7 +183,7 @@ class PPO(Algorithm):
             for p in prep:
                 p[1] = (p[1] - mu) / sd
         before = flat_params(model)
-        infos, gns, stop, nonfinite = [], [], False, 0
+        infos, gns, stop, nonfinite, rolled = [], [], False, 0, 0
         demo_mbs = make_minibatches(demos, store, dev, c["minibatch_eps"], self.rng) if (demos and c["bc_coef"] > 0) else []
         for ep in range(c["epochs"]):
             for i in self.rng.permutation(len(prep)):
@@ -185,6 +200,9 @@ class PPO(Algorithm):
                 if not torch.isfinite(loss):
                     nonfinite += 1
                     continue
+                guard = bool(c["target_kl"]) and bool(c["kl_rollback"]) and self.n_calls > c["critic_warmup"]
+                prev = [p_.detach().clone() for p_ in model.parameters()] if guard else None
+                self.set_lr()
                 self.opt.zero_grad(set_to_none=True)
                 loss.backward()
                 gns.append(grad_norm(model))
@@ -192,6 +210,23 @@ class PPO(Algorithm):
                 self.opt.step()
                 self.n_updates += 1
                 info["loss"] = float(loss.detach())
+                if guard:
+                    # trust region with rollback: measure the divergence this step caused on its own minibatch; a
+                    # step that left the region is undone, the learning rate is halved, and the update ends
+                    with torch.no_grad():
+                        new = evaluate(model, b)["logp"]
+                        w_ = b.t["valid"].float()
+                        kl_after = float(((b.t["logp_old"] - new) * w_).sum() / w_.sum().clamp(min=1))
+                    info["kl"] = kl_after
+                    if not np.isfinite(kl_after) or kl_after > 1.5 * c["target_kl"]:
+                        with torch.no_grad():
+                            for p_, q_ in zip(model.parameters(), prev):
+                                p_.copy_(q_)
+                        self.lr_scale = max(self.lr_scale * 0.5, 1e-3)
+                        self.rollbacks += 1
+                        rolled += 1
+                        stop = True
+                        break
                 infos.append(info)
                 if c["target_kl"] and info["kl"] > 1.5 * c["target_kl"]:
                     stop = True
@@ -209,19 +244,23 @@ class PPO(Algorithm):
         self.n_steps += steps
         model.eval()
         m = {k: float(np.mean([i[k] for i in infos if k in i])) for k in (infos[0] if infos else {})}
+        if not rolled and infos and c["target_kl"] and max(i["kl"] for i in infos) < 0.5 * c["target_kl"]:
+            self.lr_scale = min(1.0, self.lr_scale * 1.25)        # well inside the region: restore the step size
         m.update(grad_norm=float(np.mean(gns)) if gns else 0.0, explained_variance=ev, decisions=steps,
-                 grad_steps=len(infos), early_stop=bool(stop), nonfinite=nonfinite,
+                 grad_steps=len(infos), early_stop=bool(stop), nonfinite=nonfinite, rollbacks=rolled, lr_scale=self.lr_scale,
                  param_delta=float((after - before).norm()), param_norm=float(after.norm()))
         return m
 
     def state_dict(self):
         return {"opt": self.opt.state_dict(), "n_updates": self.n_updates, "n_steps": self.n_steps, "n_calls": self.n_calls,
+                "lr_scale": self.lr_scale, "rollbacks": self.rollbacks,
                 "rng": self.rng.bit_generator.state}
 
     def load_state_dict(self, s):
         self.opt.load_state_dict(s["opt"])
         self.n_updates, self.n_steps = s.get("n_updates", 0), s.get("n_steps", 0)
         self.n_calls = s.get("n_calls", 0)
+        self.lr_scale, self.rollbacks = s.get("lr_scale", 1.0), s.get("rollbacks", 0)
         if "rng" in s:
             self.rng.bit_generator.state = s["rng"]
 

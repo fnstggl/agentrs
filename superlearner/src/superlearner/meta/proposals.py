@@ -622,7 +622,9 @@ def splice_function(src: str, name: str, new_code: str) -> str:
 class LLMProposer:
     FUNCTIONS = ("advantages", "policy_loss", "value_loss", "total_loss", "replay_loss")
 
-    def __init__(self, llm, seed: int = 0, think: bool = True, max_tokens: int = 1400):
+    def __init__(self, llm, seed: int = 0, think: bool = False, max_tokens: int = 900):
+        # reasoning mode is off by default: with it the 14B model regularly spent its whole token budget reasoning
+        # about the function and returned nothing (measured: 2,400 tokens, about ten minutes, empty answer)
         self.llm, self.think, self.max_tokens = llm, think, max_tokens
         self.rng = np.random.default_rng(seed)
         self.n = 0
@@ -651,6 +653,10 @@ class LLMProposer:
             new_src = splice_function(src, fn, v["code"])
         except (SyntaxError, ValueError, KeyError) as e:
             self.failures.append({"function": fn, "error": f"{type(e).__name__}: {e}", "code": v["code"][:600],
+                                  "hypothesis": str(v.get("hypothesis"))[:300]})
+            return None
+        if ast.dump(ast.parse(new_src)) == ast.dump(ast.parse(src)):
+            self.failures.append({"function": fn, "error": "the returned function is identical to the current one",
                                   "hypothesis": str(v.get("hypothesis"))[:300]})
             return None
         return make_proposal("llm", str(v.get("hypothesis", ""))[:600], str(v.get("expected", ""))[:400],

@@ -51,6 +51,16 @@ def _trainer(ckpt_path: str | None, cfg: dict | None = None, run_dir: str | None
     return tr, ck
 
 
+def heldout_tasks(tr, n: int, offset: int = 3000) -> list:
+    """Held-out comparison set: unseen seeds; half the worlds from families the controller trained in, half from
+    world families it never saw (entrenched incumbents, fragmented networks)."""
+    from .world.tasks import task_list
+    arms = [x.key for x in tr.curriculum.arms]
+    trained = tr.cfg["curriculum"].get("world_families") or ["tiny", "bazaar"]
+    fams = [f for pair in zip(trained, ["entrenched_incumbents", "fragmented_networks"]) for f in pair]
+    return task_list(arms, fams, n, "select", offset)
+
+
 def _row(r: dict) -> dict:
     return {k: r.get(k) for k in ("episodes", "success", "success_ci", "progress", "valid_rate", "decisions", "calls",
                                   "failures", "llm_propose", "llm_gen", "by_arm", "wall_s")}
@@ -130,7 +140,7 @@ def exp_baselines(a) -> int:
     tr, ck = _trainer(a.checkpoint, workers=a.workers)
     n = a.episodes or 64
     try:
-        tasks = tr.eval_tasks(n, "select")
+        tasks = heldout_tasks(tr, n)
         res: dict = {"checkpoint": a.checkpoint, "tasks": {"n": len(tasks), "split": "select", "arms": sorted({"/".join(map(str, t.arm)) for t in tasks}),
                                                            "world_families": sorted({t.world_family for t in tasks})},
                      "core": tr.cfg["core"], "conditions": {}}
@@ -168,7 +178,9 @@ def exp_baselines(a) -> int:
             # 2: frozen LLM with the grounding layer, no neural controller
             c["2 frozen LLM + grounding, no learning"] = _row(tr.evaluate(tasks, "llm", "b2_llm_grounded", agent={"use_llm": True, "llm_budget": 6}, save=False))
             # 1: frozen LLM alone through Crucible's original interface
-            c["1 frozen LLM alone"] = _row(run_raw_llm(tasks[: min(len(tasks), 32)], tr.cfg["llm"], tr.cfg["core"]))
+            raw_core = dict(tr.cfg["core"], max_decisions=min(24, int(tr.cfg["core"].get("max_decisions", 40))))
+            c["1 frozen LLM alone"] = _row(run_raw_llm(tasks[: min(len(tasks), 16)], tr.cfg["llm"], raw_core, threads=3))
+            c["1 frozen LLM alone"]["note"] = "first 16 tasks, 24 decisions each (one tool call per decision)"
         res["llm"] = tr.llm_totals()
     finally:
         tr.close()
@@ -189,7 +201,7 @@ def exp_b(a) -> int:
     tr, _ = _trainer(os.path.join(run, "ckpt", "latest.pt"), workers=a.workers)
     n = a.episodes or 96
     try:
-        tasks = tr.eval_tasks(n, "select")
+        tasks = heldout_tasks(tr, n)
         after = tr.evaluate(tasks, "greedy", "expB_after", save=False)
         th_after = flat_params(tr.model).clone()
         tr.load(os.path.join(run, "ckpt", "bc.pt"))
@@ -211,7 +223,8 @@ def exp_b(a) -> int:
     k1, n1, k0, n0 = round(after["success"] * after["episodes"]), after["episodes"], round(before["success"] * before["episodes"]), before["episodes"]
     rng = np.random.default_rng(0)
     boots = rng.binomial(n1, k1 / n1, 20000) / n1 - rng.binomial(n0, k0 / n0, 20000) / n0
-    res = {"run": run, "tasks": {"n": len(tasks), "split": "select (unseen seeds; includes world families not trained on)"},
+    res = {"run": run, "tasks": {"n": len(tasks), "split": "select: unseen seeds; half the worlds from families never trained on",
+                                  "world_families": sorted({t.world_family for t in tasks})},
            "before_rl": _row(before), "after_rl": _row(after),
            "difference": {"success": after["success"] - before["success"],
                           "ci95_bootstrap": [float(np.percentile(boots, 2.5)), float(np.percentile(boots, 97.5))],
@@ -225,6 +238,92 @@ def exp_b(a) -> int:
            "cost": rep["cost"]}
     print(json.dumps({k: res[k] for k in ("before_rl", "after_rl", "difference")}, indent=1, default=str)[:2500])
     _save("exp_b_" + os.path.basename(os.path.normpath(run)), res)
+    return 0
+
+
+def exp_b_multi(a) -> int:
+    """Experiment B over several seeds: every seed has ONE warm-start checkpoint from which the arms branch.
+
+    For each seed the warm start and each arm's final checkpoint are evaluated greedily on the same held-out task
+    list (unseen seeds, half of the worlds from unfamiliar families). Reported: success before and after RL per
+    arm, paired differences over seeds with bootstrap intervals, the in-training learning curves and their AULC,
+    experience used, and how far the weights moved."""
+    import torch
+    from .cli import RUNS
+    from .meta.compare import compare
+    from .train.report import aulc, read_jsonl
+    arms = {"PPO alone": "exp_b_fewdemo", "PPO + replay of own successes": "exp_b_fewdemo_sil"}
+    seeds = [int(x) for x in str(getattr(a, "seeds", None) or "0,1,2").split(",")]
+    warm0 = os.path.join(RUNS, f"warm_s{seeds[0]}", "ckpt", "bc.pt")
+    tr, _ = _trainer(warm0, workers=a.workers)
+    n = a.episodes or 96
+    res: dict = {"arms": arms, "seeds": seeds, "per_seed": {}, "tasks": {}}
+    try:
+        tasks = heldout_tasks(tr, n)
+        res["tasks"] = {"n": len(tasks), "split": "select: unseen seeds", "world_families": sorted({t.world_family for t in tasks}),
+                        "arms": sorted({"/".join(map(str, t.arm)) for t in tasks})}
+        for sd in seeds:
+            warm = os.path.join(RUNS, f"warm_s{sd}", "ckpt", "bc.pt")
+            tr.load(warm)
+            before = tr.evaluate(tasks, "greedy", f"B_before_s{sd}", save=False)
+            sd_b = torch.load(warm, map_location="cpu", weights_only=False)["model"]
+            row = {"before_rl": _row(before), "arms": {}}
+            for label, name in arms.items():
+                run = os.path.join(RUNS, f"{name}_s{sd}")
+                ck = os.path.join(run, "ckpt", "latest.pt")
+                if not os.path.exists(ck):
+                    continue
+                tr.load(ck)
+                after = tr.evaluate(tasks, "greedy", f"B_after_{name}_s{sd}", save=False)
+                sd_a = torch.load(ck, map_location="cpu", weights_only=False)
+                d2 = b2 = 0.0
+                groups: dict = {}
+                for k in sd_a["model"]:
+                    d = (sd_a["model"][k].float() - sd_b[k].float())
+                    d2 += float((d ** 2).sum())
+                    b2 += float((sd_b[k].float() ** 2).sum())
+                    g = groups.setdefault(k.split(".")[0], [0.0, 0.0])
+                    g[0] += float((d ** 2).sum())
+                    g[1] += float((sd_b[k].float() ** 2).sum())
+                ev = [e for e in read_jsonl(os.path.join(run, "eval.jsonl")) if e.get("tag") == "eval"]
+                rl = [m for m in read_jsonl(os.path.join(run, "metrics.jsonl")) if m.get("phase") == "rl"]
+                row["arms"][label] = {"after_rl": _row(after), "delta_success": after["success"] - before["success"],
+                                      "in_training_curve": [(e["env_decisions"], round(e["success"], 4)) for e in ev],
+                                      "aulc_in_training": aulc([e["env_decisions"] for e in ev], [e["success"] for e in ev]),
+                                      "env_decisions": sd_a["env_decisions"], "episodes": sd_a["episodes"], "rl_iterations": sd_a["iter"],
+                                      "weights_l2_distance_from_warm_start": d2 ** 0.5, "relative_change": (d2 / max(b2, 1e-12)) ** 0.5,
+                                      "relative_change_by_component": {g: round((v[0] / max(v[1], 1e-12)) ** 0.5, 4) for g, v in groups.items()},
+                                      "updates_that_changed_weights": int(sum(bool(m.get("weights_changed")) for m in rl)),
+                                      "rollout_s": round(sum(m.get("rollout_s", 0) for m in rl)), "update_s": round(sum(m.get("update_s", 0) for m in rl)),
+                                      "replay_steps": int(sum(m.get("replay_steps", 0) for m in rl))}
+            res["per_seed"][sd] = row
+            print(f"seed {sd}: before {before['success']:.3f} | " + " | ".join(
+                f"{l}: {r['after_rl']['success']:.3f} ({r['delta_success']:+.3f})" for l, r in row["arms"].items()), flush=True)
+    finally:
+        tr.close()
+    ok = [sd for sd in seeds if len(res["per_seed"].get(sd, {}).get("arms", {})) == len(arms)]
+    agg: dict = {"seeds_complete": ok}
+    if ok:
+        bef = {sd: res["per_seed"][sd]["before_rl"]["success"] for sd in ok}
+        for label in arms:
+            aft = {sd: res["per_seed"][sd]["arms"][label]["after_rl"]["success"] for sd in ok}
+            agg[f"{label}: after - before (held-out success)"] = compare(aft, bef)
+        l1, l2 = list(arms)
+        agg[f"{l2} - {l1}: held-out success after RL"] = compare(
+            {sd: res["per_seed"][sd]["arms"][l2]["after_rl"]["success"] for sd in ok},
+            {sd: res["per_seed"][sd]["arms"][l1]["after_rl"]["success"] for sd in ok})
+        agg[f"{l2} - {l1}: AULC of the in-training curve"] = compare(
+            {sd: res["per_seed"][sd]["arms"][l2]["aulc_in_training"] for sd in ok},
+            {sd: res["per_seed"][sd]["arms"][l1]["aulc_in_training"] for sd in ok})
+        by_arm: dict = {}
+        for sd in ok:
+            for cond, r in (("before", res["per_seed"][sd]["before_rl"]),) + tuple((l, res["per_seed"][sd]["arms"][l]["after_rl"]) for l in arms):
+                for arm, v in r["by_arm"].items():
+                    by_arm.setdefault(arm, {}).setdefault(cond, []).append(v)
+        agg["mean_success_by_task_arm"] = {arm: {c: round(float(np.mean(v)), 3) for c, v in d.items()} for arm, d in sorted(by_arm.items())}
+    res["aggregate"] = agg
+    print(json.dumps(agg, indent=1, default=str)[:3000])
+    _save("exp_b_multi", res)
     return 0
 
 
@@ -259,7 +358,8 @@ def exp_c(a) -> int:
                 continue
             tr.load(ck)
             tr.curriculum.world_families = [f for f in new_fams if f in ("entrenched_incumbents", "fragmented_networks")] or new_fams
-            tr.curriculum.split = "curriculum"        # adaptation experience comes from seeds not used for evaluation
+            tr.curriculum.split = "select"            # the unfamiliar families exist only in the held-out splits;
+            tr.curriculum.counter = 500_000           # adaptation uses a seed range far from the evaluation lists
             curve = [{"decisions": 0, "success": tr.evaluate(adapt_eval, "greedy", "expC_adapt", save=False)["success"]}]
             d0 = tr.env_decisions
             for _ in range(int(getattr(a, "adapt_iters", None) or 4)):
@@ -280,51 +380,63 @@ def _tasks(arms, fams, n, split, offset):
 
 # ================================================================================================ D
 def exp_d(a) -> int:
-    """Retention: learn skill set A, then train only on unrelated tasks B, then test A again. Three strategies are
-    compared as competing hypotheses: no protection, rehearsal of A at a low rate, and a behaviour-cloning
-    regulariser on A's demonstrations."""
+    """Retention: learn skill set A, then train only on unrelated tasks B, then test A again.
+
+    Phase A is run once; four strategies for phase B branch from the same checkpoint and are compared as competing
+    hypotheses: no protection; replay of the agent's own earlier successes (the buffer filled in phase A is kept);
+    rehearsal (A tasks sampled at a low rate); a behaviour-cloning regulariser on A's demonstrations."""
+    import copy as _copy
     from .cli import RUNS, load_config
+    from .train.curriculum import Curriculum
     from .train.trainer import merge
     base = load_config(a.config)
-    A = [{"family": "found"}, {"family": "fund", "prereq": ["found/0/scratch"]}, {"family": "list", "start": "deployed"}]
+    A = [{"family": "found"}, {"family": "fund"}, {"family": "list", "start": "deployed"}]
     Bset = [{"family": "repair"}, {"family": "deploy", "start": "coded"}, {"family": "service", "start": "listed"}]
     armsA = ["found/0/scratch", "fund/0/scratch", "list/0/deployed"]
     armsB = ["repair/0/scratch", "deploy/0/coded", "service/0/listed"]
     itersA, itersB = int(base.get("retention_iters_a", 8)), int(base.get("retention_iters_b", 10))
-    out: dict = {"skill_set_A": armsA, "unrelated_set_B": armsB, "strategies": {}}
-    for name, phase_b_arms, algo_extra in (
-            ("no protection", Bset, {}),
-            ("rehearsal (A sampled at low rate)", Bset + A, {}),
-            ("demonstration regulariser on A (bc_coef 0.5)", Bset, {"bc_coef": 0.5})):
-        cfg = merge(base, {"name": "exp_d", "curriculum": {"arms": A, "adaptive": True}, "eval_every": 0, "ckpt_every": 0})
-        tr, _ = _trainer(None, cfg, os.path.join(a.run_dir or os.path.join(RUNS, "exp_d"), name.split(" ")[0]), a.workers)
-        try:
-            tr.collect_demos(int(cfg["demos"]["episodes"]), A + Bset)
-            demosA = [e for e in tr.demos if "/".join(map(str, e["summary"]["arm"])) in armsA]
-            tr.pretrain_bc(int(cfg["demos"]["bc_epochs"]))
-            tA, tB = tr.eval_tasks(a.episodes or 48, "select", armsA), tr.eval_tasks(a.episodes or 48, "select", armsB)
-            for _ in range(itersA):
-                tr.train_iter()
-            a1, b1 = tr.evaluate(tA, "greedy", "D_A_after_A", save=False), tr.evaluate(tB, "greedy", "D_B_after_A", save=False)
-            from .train.curriculum import Curriculum
-            cur = Curriculum(phase_b_arms, cfg["curriculum"].get("world_families"), "train", cfg["seed"] + 1)
-            cur.counter = tr.curriculum.counter + 100_000
-            if len(phase_b_arms) > len(Bset):                      # rehearsal: A arms get a small fixed share
-                cur.adaptive = False
+    cfg = merge(base, {"name": "exp_d", "curriculum": {"arms": A, "adaptive": True, "gate": False}, "eval_every": 0, "ckpt_every": 0})
+    rd = a.run_dir or os.path.join(RUNS, "exp_d")
+    tr, _ = _trainer(None, cfg, rd, a.workers)
+    out: dict = {"skill_set_A": armsA, "unrelated_set_B": armsB, "iterations": {"A": itersA, "B": itersB}, "strategies": {}}
+    try:
+        tr.collect_demos(int(cfg["demos"]["episodes"]), A)             # demonstrations for A only: B is learned by RL
+        demosA = list(tr.demos)
+        tr.pretrain_bc(int(cfg["demos"]["bc_epochs"]))
+        n = a.episodes or 48
+        tA, tB = tr.eval_tasks(n, "select", armsA), tr.eval_tasks(n, "select", armsB)
+        a0 = tr.evaluate(tA, "greedy", "D_A_warm", save=False)
+        for _ in range(itersA):
+            tr.train_iter()
+        a1, b1 = tr.evaluate(tA, "greedy", "D_A_after_A", save=False), tr.evaluate(tB, "greedy", "D_B_after_A", save=False)
+        out["phase_A"] = {"A_at_warm_start": _row(a0), "A_after_learning_A": _row(a1), "B_before_any_B_training": _row(b1)}
+        print(f"phase A: A {a0['success']:.3f} -> {a1['success']:.3f}; B (untrained) {b1['success']:.3f}", flush=True)
+        ck = tr.save("after_A.pt")
+        buf = list(getattr(tr.algo, "buffer", []))
+        counter = tr.curriculum.counter
+        for name, arms_b, keep_buffer, extra in (
+                ("no protection", Bset, False, {}),
+                ("replay of own earlier successes", Bset, True, {}),
+                ("rehearsal (A sampled at a low rate)", Bset + A, False, {}),
+                ("demonstration regulariser on A (bc_coef 0.5)", Bset, False, {"bc_coef": 0.5})):
+            tr.load(ck)
+            tr.algo.buffer = list(buf) if keep_buffer else []
+            tr.algo.c.update({"bc_coef": 0.0}, **extra)
+            cur = Curriculum(arms_b, cfg["curriculum"].get("world_families"), "train", cfg["seed"] + 1, gate=False)
+            cur.counter = counter + 200_000
+            if len(arms_b) > len(Bset):
                 w = np.array([1.0] * len(Bset) + [0.15] * len(A))
                 cur.weights = lambda w=w: w / w.sum()
             tr.curriculum = cur
-            tr.demos = demosA if algo_extra.get("bc_coef") else []
-            tr.algo.c.update(algo_extra)
+            tr.demos = _copy.copy(demosA) if extra.get("bc_coef") else []
             for _ in range(itersB):
                 tr.train_iter()
             a2, b2 = tr.evaluate(tA, "greedy", "D_A_after_B", save=False), tr.evaluate(tB, "greedy", "D_B_after_B", save=False)
-        finally:
-            tr.close()
-        out["strategies"][name] = {"A_after_learning_A": _row(a1), "B_after_learning_A": _row(b1), "A_after_training_on_B": _row(a2),
-                                   "B_after_training_on_B": _row(b2), "forgetting_on_A": a1["success"] - a2["success"],
-                                   "gain_on_B": b2["success"] - b1["success"]}
-        print(f"{name:48s} A: {a1['success']:.3f} -> {a2['success']:.3f}   B: {b1['success']:.3f} -> {b2['success']:.3f}")
+            out["strategies"][name] = {"A_after_training_on_B": _row(a2), "B_after_training_on_B": _row(b2),
+                                       "forgetting_on_A": a1["success"] - a2["success"], "gain_on_B": b2["success"] - b1["success"]}
+            print(f"{name:48s} A: {a1['success']:.3f} -> {a2['success']:.3f}   B: {b1['success']:.3f} -> {b2['success']:.3f}", flush=True)
+    finally:
+        tr.close()
     _save("exp_d_retention", out)
     return 0
 
@@ -471,8 +583,8 @@ def exp_meta_summary(a, name: str) -> int:
 
 def run_experiment(name: str, a) -> int:
     name = name.lower()
-    fn = {"baselines": exp_baselines, "a": exp_a, "b": exp_b, "c": exp_c, "d": exp_d, "worldmodel": exp_worldmodel,
-          "selfplay": exp_selfplay}.get(name)
+    fn = {"baselines": exp_baselines, "a": exp_a, "b": exp_b, "b_multi": exp_b_multi, "c": exp_c, "d": exp_d,
+          "worldmodel": exp_worldmodel, "selfplay": exp_selfplay}.get(name)
     if fn is not None:
         return fn(a)
     if name in ("e", "f"):

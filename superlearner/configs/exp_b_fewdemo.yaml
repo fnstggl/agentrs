@@ -9,7 +9,7 @@ eval_every: 5
 eval_episodes: 80
 agent: {use_llm: false, affinity_tokens: true}
 curriculum: {gate: false}
-algo: {name: ppo, lr: 0.00005, epochs: 3, minibatch_eps: 8, clip: 0.1, target_kl: 0.03, critic_warmup: 1, ent_coef: 0.003,
+algo: {name: ppo, lr: 0.00005, epochs: 3, minibatch_eps: 8, clip: 0.1, target_kl: 0.03, critic_warmup: 1, lr_warmup_steps: 40, ent_coef: 0.003,
        detach_critic: true}
 demos: {episodes: 200, bc_epochs: 60, bc_lr: 0.0003, max_per_arm: 2}
 store_episodes_iters: 4

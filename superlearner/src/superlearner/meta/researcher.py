@@ -92,11 +92,20 @@ class MetaResearcher:
         self._lock = threading.RLock()                               # ledger / state / surrogate
         self._base_lock = threading.Lock()
         self.state_path = os.path.join(self.dir, "state.json")
+        # the base tree every candidate (and the champion's own runs) is built from: frozen when the search starts,
+        # so that editing the repository during a search cannot make compared runs use different code
+        self.base_pkg = os.path.join(self.dir, "base_src", "superlearner")
+        if not os.path.isdir(self.base_pkg):
+            import shutil
+            shutil.copytree(PKG, self.base_pkg, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         if resume and os.path.exists(self.state_path):
             self.load_state()
         else:
             json.dump(self.cfg, open(os.path.join(self.dir, "config.json"), "w"), indent=1)
-            json.dump({"code": code_hashes(), "git": git_commit(), "isolation": self.isolation, "started": time.time()},
+            from .workspace import tree_hashes
+            bh = tree_hashes(self.base_pkg)
+            json.dump({"code": code_hashes(), "git": git_commit(), "isolation": self.isolation, "started": time.time(),
+                       "base_tree": {"editable": bh["editable"], "protected": bh["protected"]}},
                       open(os.path.join(self.dir, "meta.json"), "w"), indent=1, default=str)
 
     # ------------------------------------------------------------------ state
@@ -156,7 +165,7 @@ class MetaResearcher:
         return os.path.join(self.dir, "candidates", cid)
 
     def make_candidate(self, cid: str, changes: dict) -> dict:
-        rec = create_candidate(self.candidate_dir(cid), changes)
+        rec = create_candidate(self.candidate_dir(cid), changes, self.base_pkg)
         for dp, dns, fns in os.walk(rec["path"]):          # readable by the unprivileged account, not writable
             os.chmod(dp, 0o755)
             for fn in fns:
@@ -366,7 +375,7 @@ class MetaResearcher:
         open(os.path.join(cand["path"], "proposal.diff"), "w").write(prop.get("diff", ""))
         json.dump({k: v for k, v in prop.items() if k != "changes"}, open(os.path.join(cand["path"], "proposal.json"), "w"), indent=1, default=str)
         rec.update(editable_hash=cand["editable_hash"], protected_hash=cand["protected_hash"], changed_files=cand["changed"])
-        okv, why = verify(cand["path"])
+        okv, why = verify(cand["path"], self.base_pkg)
         if not okv:
             rec["reject_reason"] = why
             return self._finish(rec, prop, None, False, t0)
@@ -482,7 +491,7 @@ class MetaResearcher:
         try:
             cand = self.make_candidate(cid, prop["changes"])
             open(os.path.join(cand["path"], "proposal.diff"), "w").write(prop.get("diff", ""))
-            okv, why = verify(cand["path"])
+            okv, why = verify(cand["path"], self.base_pkg)
             if not okv:
                 rec["reject_reason"] = why
                 return rec

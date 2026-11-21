@@ -1,26 +1,29 @@
 # The Meta-Researcher's search for a better learning rule.
-#   superlearner meta-search --config configs/meta_search.yaml [--rounds N] [--resume]
+#   superlearner meta-search --config configs/meta_search.yaml --full-feedback [--rounds N] [--resume]
+# (--full-feedback screens every proposal of every pool, which is what Experiment F needs; without it only the
+#  selected proposals are evaluated, through all stages)
 # Inner task: a small controller (hash text embeddings, CPU, confined) is warm-started from two verified
 # demonstrations per arm and then trained by the candidate's algorithm on six task arms that need no LLM-written
 # content. Every candidate gets the same seeds, demonstrations, experience budget (enforced by the env hub),
 # evaluation tasks (held-out seeds, one unfamiliar world family) and hardware.
 name: meta_search
 seed: 0
-rounds: 8
-pool: 8
+rounds: 6
+pool: 6
 per_round: 1
+develop_top: 2
 selection: surrogate
-sources: {rule_space: 5, llm: 2, learned_rule: 1}
-max_parallel: 4
+sources: {rule_space: 3, llm: 2, learned_rule: 1}
+max_parallel: 3
 primary: aulc_eval
 screen_margin: 0.03
 inner:
-  workers: 6
+  workers: 4
   eval_every: 2
   model: {d: 128, layers: 2, heads: 4, ff: 256, bag_dim: 48, hid: 128}
   agent: {use_llm: false, affinity_tokens: true}
   core: {max_decisions: 20}
-  algo: {name: ppo, lr: 0.0001, epochs: 3, minibatch_eps: 16, clip: 0.1, target_kl: 0.03, critic_warmup: 1, detach_critic: true, ent_coef: 0.003}
+  algo: {name: ppo, lr: 0.0001, epochs: 3, minibatch_eps: 16, clip: 0.1, target_kl: 0.03, critic_warmup: 1, lr_warmup_steps: 40, detach_critic: true, ent_coef: 0.003}
   curriculum:
     adaptive: true
     gate: false

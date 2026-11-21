@@ -143,3 +143,21 @@ def test_sil_algorithm_keeps_a_replay_buffer_of_successful_episodes(rollouts):
     assert out["replay_episodes"] == 1 and out["replay_steps"] == 1 and np.isfinite(out["replay_loss"])
     plain = make("ppo", copy.deepcopy(model), {"epochs": 1, "minibatch_eps": 4}, "cpu")
     assert plain.update(fake, store)["replay_steps"] == 0          # the baseline rule replays nothing
+
+
+def test_a_step_that_leaves_the_trust_region_is_rolled_back_and_the_learning_rate_is_halved(rollouts):
+    model, store, eps = rollouts
+    import copy
+    m = copy.deepcopy(model)
+    algo = make("ppo", m, {"lr": 0.05, "epochs": 2, "minibatch_eps": 4, "target_kl": 0.01}, "cpu")     # an absurd step size
+    policy_before = {k: v.clone() for k, v in m.state_dict().items() if k.startswith(("head_", "arg_", "encoder"))}
+    out = algo.update(eps, store)
+    assert out["rollbacks"] == 1 and out["early_stop"] and out["lr_scale"] == 0.5
+    b = collate([e["decisions"] for e in eps], store)
+    with torch.no_grad():
+        new = evaluate(m, b, store)["logp"]
+    v = b.t["valid"]
+    assert float((b.t["logp_old"][v] - new[v]).mean()) <= 0.015 + 1e-6            # the acting policy is still inside the region
+    assert all(torch.equal(v_, m.state_dict()[k]) for k, v_ in policy_before.items())   # the bad step was undone exactly
+    warm = make("ppo", copy.deepcopy(model), {"lr": 1e-3, "lr_warmup_steps": 10, "epochs": 1, "minibatch_eps": 4, "target_kl": 0.0}, "cpu")
+    assert abs(warm.set_lr() - 1e-4) < 1e-12                                       # first step: a tenth of the learning rate

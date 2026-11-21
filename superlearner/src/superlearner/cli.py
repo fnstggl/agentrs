@@ -134,8 +134,23 @@ def cmd_evaluate(a) -> int:
 
 
 def cmd_report(a) -> int:
+    rd = run_dir_of(a.experiment)
+    if not os.path.isdir(rd) and os.path.isdir(os.path.join(RUNS, "meta", a.experiment)):
+        rd = os.path.join(RUNS, "meta", a.experiment)
+    if os.path.exists(os.path.join(rd, "ledger.jsonl")):         # a Meta-Researcher run
+        from .meta.ledger import Ledger
+        led = Ledger(os.path.join(rd, "ledger.jsonl"))
+        out = {"run_dir": rd, "experiments": led.table(),
+               "full_feedback_rounds": [{k: r[k] for k in ("round", "surrogate_fitted", "value_surrogate", "value_random_expected",
+                                                            "value_best", "valid_fraction")} for r in led.entries("full_feedback")],
+               "promotions": led.entries("promotion"), "llm_proposals_rejected": len(led.entries("proposal_rejected"))}
+        for f in ("selection_report.json", "report.json"):
+            if os.path.exists(os.path.join(rd, f)):
+                out[f.replace(".json", "")] = json.load(open(os.path.join(rd, f)))
+        print(json.dumps(out, indent=1, default=str))
+        return 0
     from .train.report import report
-    rep = report(run_dir_of(a.experiment))
+    rep = report(rd)
     print(json.dumps(rep, indent=1, default=str) if a.json else rep["text"])
     return 0
 
@@ -210,7 +225,9 @@ def main(argv=None) -> int:
                    help="screen every proposal of every pool (Experiment F), then develop and confirm the best")
     p.set_defaults(fn=cmd_meta)
     p = sub.add_parser("experiment"); p.add_argument("name"); p.add_argument("--config"); p.add_argument("--run-dir"); p.add_argument("--checkpoint")
-    p.add_argument("--episodes", type=int); p.add_argument("--workers", type=int); p.set_defaults(fn=cmd_experiment)
+    p.add_argument("--episodes", type=int); p.add_argument("--workers", type=int); p.add_argument("--seeds")
+    p.add_argument("--days", type=float); p.add_argument("--adapt-iters", type=int, dest="adapt_iters")
+    p.add_argument("--no-llm", action="store_true", dest="no_llm"); p.set_defaults(fn=cmd_experiment)
     a = ap.parse_args(argv)
     return int(a.fn(a) or 0)
 

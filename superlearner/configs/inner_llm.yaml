@@ -1,0 +1,15 @@
+# Inner learner WITH LLM-written content: all thirteen task arms, including writing a service's code, deploying it
+# from scratch and operating it. Used for Experiment A (real actions). Needs `superlearner llm-serve`.
+base: inner_baseline.yaml
+name: inner_llm
+workers: 16
+iters: 6
+episodes_per_iter: 96
+eval_every: 3
+eval_episodes: 52
+agent: {use_llm: true, llm_budget: 2, gen_budget: 6, affinity_tokens: true}
+core: {max_decisions: 40}
+curriculum: {adaptive: true, gate: false, world_families: [tiny, bazaar]}
+algo: {name: ppo_sil, lr: 0.00005, epochs: 3, minibatch_eps: 8, clip: 0.1, target_kl: 0.03, critic_warmup: 1, lr_warmup_steps: 40, ent_coef: 0.003,
+       detach_critic: true, sil_steps: 16, sil_batch: 8, sil_mode: filtered, sil_coef: 1.0}
+demos: {episodes: 390, bc_epochs: 60, bc_lr: 0.0003, max_per_arm: 12}

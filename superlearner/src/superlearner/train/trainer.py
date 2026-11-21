@@ -284,6 +284,8 @@ class Trainer:
         res.update(mode=mode, tag=tag, iter=self.iter, env_decisions=self.env_decisions, wall_s=round(time.time() - t0, 1),
                    errors=len(self.pool.errors))
         self.wall["eval_s"] += time.time() - t0
+        if self.device != "cpu":
+            torch.cuda.empty_cache()
         if save:
             self.log("eval.jsonl", res)
             self.save_traj(f"{tag}_iter{self.iter:04d}", [e for e in eps if any("human" in d for d in e["decisions"])][:4])
@@ -330,7 +332,7 @@ class Trainer:
                 os.unlink(old_p)
         t0 = time.time()
         before = flat_params(self.model).clone()
-        m = self.algo.update(eps, self.store, self.demos or None) if eps else {}
+        m = self.safe_update(eps) if eps else {}
         t_upd = time.time() - t0
         self.iter += 1
         self.env_decisions += sum(len(e["decisions"]) for e in eps)
@@ -366,6 +368,30 @@ class Trainer:
             pickle.dump(d, open(os.path.join(self.dir, "demos.pkl"), "wb"))
         self.log("metrics.jsonl", {"phase": "init_from", "path": path, "demo_episodes": len(self.demos)})
         self.save("bc.pt")
+
+    def safe_update(self, eps: list[dict]) -> dict:
+        """`algo.update`, surviving a GPU out-of-memory error caused by OTHER processes on a shared GPU: the weights
+        and optimiser are restored to their state before the update, cached GPU memory is released, and the same
+        update is tried again after a pause. The number of retries is logged."""
+        if self.device == "cpu":
+            return self.algo.update(eps, self.store, self.demos or None)
+        snap_m = {k: v.detach().cpu().clone() for k, v in self.model.state_dict().items()}
+        snap_a = pickle.dumps(self.algo.state_dict())
+        buf = list(getattr(self.algo, "buffer", []))
+        for attempt in range(8):
+            try:
+                m = self.algo.update(eps, self.store, self.demos or None)
+                m["oom_retries"] = attempt
+                torch.cuda.empty_cache()
+                return m
+            except torch.OutOfMemoryError:
+                self.model.load_state_dict(snap_m)
+                self.algo.load_state_dict(pickle.loads(snap_a))
+                if hasattr(self.algo, "buffer"):
+                    self.algo.buffer = list(buf)
+                torch.cuda.empty_cache()
+                time.sleep(float(self.rng.uniform(5, 30)))
+        raise RuntimeError("GPU out of memory in 8 attempts")
 
     def run(self, iters: int | None = None, verbose: bool = True) -> None:
         c = self.cfg
@@ -438,7 +464,7 @@ class Trainer:
         self.iter, self.env_decisions, self.episodes = ck["iter"], ck["env_decisions"], ck["episodes"]
         self.wall = ck.get("wall", self.wall)
         self.rng.bit_generator.state = ck["rng"]
-        torch.set_rng_state(ck["torch_rng"])
+        torch.set_rng_state(ck["torch_rng"].cpu())
         demos = os.path.join(self.dir, "demos.pkl")
         if os.path.exists(demos):
             d = pickle.load(open(demos, "rb"))

@@ -1,0 +1,11 @@
+# Experiment D (retention). `superlearner experiment d --config configs/exp_d.yaml`
+# Phase A: found / fund / list (warm start from 4 demonstrations per arm, then RL). Phase B: repair / deploy /
+# service only (no demonstrations for B). Then A is tested again under four retention strategies.
+base: exp_b_fewdemo_sil.yaml
+name: exp_d
+workers: 20
+episodes_per_iter: 96
+demos: {episodes: 120, bc_epochs: 60, bc_lr: 0.0003, max_per_arm: 4}
+retention_iters_a: 6
+retention_iters_b: 10
+store_episodes_iters: 0
