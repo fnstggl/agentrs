@@ -1,0 +1,22 @@
+# CPU-only smoke run: no language model (hash embeddings), tiny controller, two easy task arms.
+# superlearner train --config configs/smoke_cpu.yaml
+name: smoke_cpu
+seed: 0
+device: cpu
+workers: 0
+iters: 3
+episodes_per_iter: 8
+eval_every: 3
+eval_episodes: 4
+ckpt_every: 1
+llm: {kind: none}
+model: {d: 64, layers: 2, heads: 4, ff: 128, bag_dim: 32, hid: 64}
+agent: {use_llm: false}
+core: {max_decisions: 8}
+algo: {name: ppo, lr: 0.0003, epochs: 2, minibatch_eps: 4}
+curriculum:
+  world_families: [tiny]
+  arms:
+    - {family: found}
+    - {family: fund, prereq: [found/0/scratch]}
+demos: {episodes: 8, bc_epochs: 3}
