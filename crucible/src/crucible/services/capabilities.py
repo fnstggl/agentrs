@@ -113,10 +113,14 @@ class Capabilities(Module):
     def is_delegated(self, st, org: str, resource: str, day: int | None = None) -> bool:
         """True if an installed capability currently operates `resource` for `org` (its trigger is active today).
         Organisations' own default routines stand down on delegated resources."""
+        cont = self.world.hooks.get("resource_container")
+        container = cont(st, resource) if cont else None      # e.g. the facility a machine stands in
         for iid in st.find_ids("cap_installs", "installer", org):
             i = st.tables["cap_installs"][iid]
-            if i["status"] in ("active", "trial") and i["on_today"] and resource in i["bindings"].values():
-                return True
+            if i["status"] in ("active", "trial") and i["on_today"]:
+                vals = set(map(str, i["bindings"].values()))
+                if resource in vals or (container is not None and container in vals):
+                    return True
         return False
 
     # ------------------------------------------------------------------ publish / discover

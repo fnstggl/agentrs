@@ -234,3 +234,75 @@ class PeakPricingInventor(_AppMixin, ScriptPolicy):
             yield from self.wait(24)
             reqs = yield from self.find_requests(["capacity_overload"])
             yield from self.answer(reqs, self.capability, text)
+
+
+MAINTENANCE = """import crucible_sdk as sdk
+
+THRESH = THRESH_VALUE
+
+
+def tick(args, caller):
+    \"\"\"Predictive maintenance: repair broken machines; maintain idle machines whose vibration (a noisy wear
+    signal) is above a threshold.\"\"\"
+    fac = args["facility"]
+    now = sdk.call("world.clock")["time"]
+    acted = []
+    for m in sdk.call("make.machines", facility=fac):
+        if m["status"] == "broken":
+            sdk.call("make.repair", machine=m["machine"])
+            acted.append(["repair", m["machine"]])
+            continue
+        if m["status"] != "ok" or m["busy_until"] > now:
+            continue
+        t = sdk.call("make.telemetry", machine=m["machine"])
+        if t["vibration"] > THRESH and t["hours_since_maintenance"] > 8:
+            sdk.call("make.maintain", machine=m["machine"])
+            acted.append(["maintain", m["machine"]])
+    return {"acted": acted}
+"""
+
+
+class MaintenanceInventor(_AppMixin, ScriptPolicy):
+    """Reads requests whose evidence shows machine downtime or defects and offers predictive maintenance."""
+    name = "maintenance_inventor"
+    kind = "scripted"
+
+    def __init__(self, capital=300_000, price_per_call=15, threshold=0.32, host="predmaint"):
+        self.capital, self.price, self.threshold, self.host = capital, price_per_call, threshold, host
+
+    def script(self):
+        reqs = []
+        while not reqs:
+            reqs = yield from self.find_requests(["machine_downtime", "defects"])
+            if not reqs:
+                yield from self.wait(6)
+        org, acct, _ = yield from self.found_company("maint", self.capital)
+        if acct is None:
+            return
+        files = {"crucible.json": manifest({"tick": {"handler": "tick", "price_cents": int(self.price),
+                                                     "doc": "Check the facility's machines; maintain worn ones.",
+                                                     "params": {"type": "object", "additionalProperties": True}}},
+                                           "Predictive maintenance"),
+                 "service.py": MAINTENANCE.replace("THRESH_VALUE", repr(float(self.threshold)))}
+        app = yield from self.deploy_app(org, acct, "predmaint", files, self.host)
+        if app is None:
+            return
+        r = yield call("caps.publish", host=self.host, title="Predictive maintenance from machine telemetry",
+                       description="Watches the vibration telemetry of every machine in your facility every hour, "
+                                   "maintains machines before they break down and repairs broken ones at once. "
+                                   "Fewer breakdowns, less machine downtime, fewer defects. Needs make.read and "
+                                   "make.maintain on the facility.",
+                       tags=["maintenance", "machine", "downtime", "breakdown", "failure", "predictive", "defects"],
+                       params={"facility": {"kind": "facility"}},
+                       requires=[{"cap": "make.read", "scope": "$facility"},
+                                 {"cap": "make.maintain", "scope": "$facility"}],
+                       triggers=[{"endpoint": "tick", "every_s": 3600, "args": {"facility": "$facility"}}])
+        if not ok(r):
+            return
+        self.capability = r["result"]["capability"]
+        text = f"Capability {self.capability}: telemetry-driven maintenance for your machines. Trial it on your books."
+        yield from self.answer(reqs, self.capability, text)
+        while True:
+            yield from self.wait(24)
+            reqs = yield from self.find_requests(["machine_downtime", "defects"])
+            yield from self.answer(reqs, self.capability, text)

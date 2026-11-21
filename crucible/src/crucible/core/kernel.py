@@ -253,11 +253,14 @@ class Ctx:
         n_ev, seq0, n_ext = len(self.events), self.world.seq, len(self.ext)
         try:
             return ep.handler(sub, **args)
-        except CrucibleError:
+        except CrucibleError as e:
             self.state.rollback_to(mark)
             del self.events[n_ev:]          # drop events emitted by the failed sub-call
             self.world.seq = seq0
             # keep external outcomes: they happened and regeneration must see them in the same order
+            for t, payload, vis in e.persist:   # facts about the refusal itself survive (once) in the caller
+                self.emit(t, payload, vis)
+            e.persist = []
             raise
         finally:
             self._rng_n += sub._rng_n + 1000
@@ -642,6 +645,9 @@ class World:
             payload["ext"] = ext
             payload["ext_key"] = ctx.ext_key      # same first-seq as the rolled-back transaction
         ctx.emit("cmd.rejected", payload, vis=(actor,) if isinstance(actor, str) else "internal")
+        for t, p_, v_ in getattr(err, "persist", []):
+            if t in self.appliers:
+                ctx.emit(t, p_, v_)
         if key is not None and self.state.has("principals", actor):
             ctx.emit("idem", {"id": f"{actor}|{key}", "ok": False, "result": None, "error": err.as_dict()},
                      vis="internal")

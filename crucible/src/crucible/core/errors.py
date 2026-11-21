@@ -9,6 +9,7 @@ class CrucibleError(Exception):
     def __init__(self, message: str = "", **details):
         super().__init__(message)
         self.message = message
+        self.persist = details.pop("persist", None) or []   # events that must survive the rollback (e.g. a loss)
         self.details = details
 
     def as_dict(self) -> dict:

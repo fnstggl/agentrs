@@ -94,7 +94,7 @@ class Civ(Module):
                 npcs.add_firm(ctx, oid, owner, f["need"], f["host"], lst["listing"], rid, f["tier"], f.get("policy"))
         # labour pool
         for i in range(int(cfg.get("workers", 0))):
-            role = str(rng.choice(["developer", "support", "sales", "developer", "support"]))
+            role = str(rng.choice(cfg.get("worker_roles") or ["developer", "support", "sales", "developer", "support"]))
             skill = float(np.clip(rng.beta(2, 2.5), 0.05, 0.99))
             person = idm.create_person(ctx, f"worker-{i:03d}", f"Worker {i}", "npc", {"role": role})
             acct = bank.open_account(ctx, person, "checking")

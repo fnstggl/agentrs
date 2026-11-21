@@ -96,6 +96,11 @@ class Ops(Module):
         ctx.emit("ops.loss", {"owner": owner, "kind": kind, "cents": int(max(0, cents)), "n": int(n),
                               "resource": resource}, vis=(owner,))
 
+    def loss_event(self, owner: str, kind: str, cents: int, n: int = 1, resource: str | None = None) -> tuple:
+        """A loss record to attach to a refusal (`CrucibleError(..., persist=[...])`): it survives the rollback."""
+        return ("ops.loss", {"owner": owner, "kind": kind, "cents": int(max(0, cents)), "n": int(n),
+                             "resource": resource}, (owner,))
+
     def day(self, st, owner: str, day: int) -> dict | None:
         return st.get("ops_days", f"{owner}|{day}")
 

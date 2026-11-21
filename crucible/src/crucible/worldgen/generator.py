@@ -201,6 +201,46 @@ def f_open_digital(rng, o):
     return _open(r, consumers={"diurnal": float(o.get("diurnal", 0.7)), "peak_hour": 14})
 
 
+INDUSTRY_MODULES = ["identity", "bank", "admin", "code", "search", "forum", "mail", "docs", "cal", "issues", "support",
+                    "ads", "contracts", "business", "jobs", "cloud", "market", "npcs", "goals", "civ", "ops", "wf", "caps",
+                    "society", "industry", "freight", "shoppers", "industrygen"]
+
+
+def _ring_links(rng, n, hours=(6, 14), cost=(2, 5), capacity=(500, 900), extra=0):
+    links = [{"a": f"r{i}", "b": f"r{(i + 1) % n}", "hours": int(rng.integers(*hours)), "cost": int(rng.integers(*cost)),
+              "capacity": int(rng.integers(*capacity))} for i in range(n)]
+    for _ in range(extra):
+        a, b = rng.choice(n, 2, replace=False)
+        links.append({"a": f"r{a}", "b": f"r{b}", "hours": int(rng.integers(*hours)) + 6, "cost": int(rng.integers(*cost)) + 2,
+                      "capacity": int(rng.integers(*capacity)) // 2})
+    return links
+
+
+def _industry_recipe(rng, o, *, regions=4, materials=6, grid_kwh=(6000, 9000), kwh_price=10.0, links=None,
+                     shoppers=None, chain=None, params=None, workers=24, providers=((60, 150, 0.995),),
+                     industry=None, grid_expand=True):
+    r = _recipe(rng, needs=[], n_consumers=0, firms_per_need=0, tier_range=(0, 0), firm_cash=0,
+                providers=list(providers), workers=o.get("workers", workers), wage_base=220_000, bounties=0)
+    r["modules"]["civ"]["worker_roles"] = ["operator", "operator", "operator", "developer"]
+    r["modules"]["civ"]["needs"] = []
+    r["modules"]["industry"] = {"regions": regions, "materials": materials, **(industry or {})}
+    r["modules"]["freight"] = {"links": links if links is not None else _ring_links(rng, regions)}
+    r["modules"]["shoppers"] = {"n": int(o.get("n_shoppers", 20000)), **(shoppers or {})}
+    r["modules"]["industrygen"] = {"grid_kwh": [int(rng.integers(*grid_kwh)) for _ in range(regions)],
+                                   "kwh_price": kwh_price, "grid_expand": grid_expand,
+                                   **({"chain": chain} if chain else {})}
+    r["module_list"] = list(INDUSTRY_MODULES)
+    r["params"].update({"cost_model": "deterministic", **(params or {})})
+    return r
+
+
+@family("open_industry", "train",
+        "Industrial open world: a multi-tier supply chain (mines -> component makers -> assemblers -> households) "
+        "with hidden process physics, machine wear, finite energy grids and freight capacity; firms are minds.")
+def f_open_industry(rng, o):
+    return _industry_recipe(rng, o)
+
+
 def generate(config: dict | str, seed: int = 0) -> WorldSpec:
     """Build a WorldSpec from {"family": name, "overrides": {...}, "modules": [...] (optional extra modules)}."""
     if isinstance(config, str):
