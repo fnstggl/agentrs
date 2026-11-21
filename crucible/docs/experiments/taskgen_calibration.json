@@ -2167,5 +2167,150 @@
    }
   }
  },
- "calibration_wall_s": 1754.6
+ "calibration_wall_s": 1754.6,
+ "calibration_llm_interface": {
+  "tool_order": "interleave",
+  "tool_chars": 24000,
+  "max_context": 32768,
+  "decision_every_s": 10800
+ },
+ "calibration_llm": {
+  "rows": [
+   {
+    "goal": "g-491d1305bedd",
+    "family": "adoption",
+    "member": "llm:Qwen3-4B",
+    "success": false,
+    "days_to_success": null,
+    "progress": 0.0,
+    "wall_s": 1179.7,
+    "failure": {
+     "categories": [
+      "no_action",
+      "invalid_actions",
+      "no_organisation",
+      "no_artifact"
+     ],
+     "primary": "no_action",
+     "commands": 200,
+     "rejected": 200,
+     "orgs": 0,
+     "deployments": 0,
+     "capabilities": 0,
+     "pages": 0
+    },
+    "usage": {
+     "calls": 240,
+     "prompt_tokens": 2013025,
+     "gen_tokens": 16165,
+     "parse_failures": 0,
+     "gen_s": 1122.1237180233002
+    }
+   },
+   {
+    "goal": "g-d5480f2190d7",
+    "family": "visibility",
+    "member": "llm:Qwen3-4B",
+    "success": false,
+    "days_to_success": null,
+    "progress": 0.0,
+    "wall_s": 273.4,
+    "failure": {
+     "categories": [
+      "no_action",
+      "invalid_actions",
+      "no_organisation",
+      "no_artifact"
+     ],
+     "primary": "no_action",
+     "commands": 56,
+     "rejected": 56,
+     "orgs": 0,
+     "deployments": 0,
+     "capabilities": 0,
+     "pages": 0
+    },
+    "usage": {
+     "calls": 56,
+     "prompt_tokens": 456106,
+     "gen_tokens": 5039,
+     "parse_failures": 0,
+     "gen_s": 260.29729747772217
+    }
+   },
+   {
+    "goal": "g-18477dfb7baf",
+    "family": "visibility",
+    "member": "llm:Qwen3-4B",
+    "success": false,
+    "days_to_success": null,
+    "progress": 0.0,
+    "wall_s": 275.7,
+    "failure": {
+     "categories": [
+      "no_action",
+      "invalid_actions",
+      "no_organisation",
+      "no_artifact"
+     ],
+     "primary": "no_action",
+     "commands": 56,
+     "rejected": 56,
+     "orgs": 0,
+     "deployments": 0,
+     "capabilities": 0,
+     "pages": 0
+    },
+    "usage": {
+     "calls": 56,
+     "prompt_tokens": 456675,
+     "gen_tokens": 5088,
+     "parse_failures": 0,
+     "gen_s": 262.23328399658203
+    }
+   },
+   {
+    "goal": "g-af3220bed819",
+    "family": "visibility",
+    "member": "llm:Qwen3-4B",
+    "success": false,
+    "days_to_success": null,
+    "progress": 0.0,
+    "wall_s": 271.4,
+    "failure": {
+     "categories": [
+      "no_action",
+      "invalid_actions",
+      "no_organisation",
+      "no_artifact"
+     ],
+     "primary": "no_action",
+     "commands": 56,
+     "rejected": 56,
+     "orgs": 0,
+     "deployments": 0,
+     "capabilities": 0,
+     "pages": 0
+    },
+    "usage": {
+     "calls": 56,
+     "prompt_tokens": 456132,
+     "gen_tokens": 5089,
+     "parse_failures": 0,
+     "gen_s": 262.06308913230896
+    }
+   }
+  ],
+  "summary": {
+   "llm:Qwen3-4B": {
+    "runs": 4,
+    "successes": 0,
+    "failures": {
+     "no_action": 4
+    },
+    "success_rate": 0.0
+   }
+  }
+ },
+ "calibration_llm_wall_s": 2032.1
 }

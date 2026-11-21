@@ -10,7 +10,7 @@ Test suite: `cd crucible && python -m pytest -q` — see the bottom of this file
 
 ## Crucible 3.0: synthetic open internet (branch `feat/crucible-internet`, based on `feat/crucible-open-world` 58c9b8b)
 
-Baseline at branch start: 268 tests passed. The last full run on this branch is recorded at the end of this section. Architecture:
+Baseline at branch start: 268 tests passed. Last full run on this branch: **305 passed** (644 s, nothing deselected). Architecture:
 [docs/INTERNET_ARCHITECTURE.md](docs/INTERNET_ARCHITECTURE.md); fidelity: [docs/WORLD_FIDELITY.md](docs/WORLD_FIDELITY.md);
 second-order: [docs/SECOND_ORDER_EMERGENCE.md](docs/SECOND_ORDER_EMERGENCE.md); evaluation:
 [docs/LONG_HORIZON_EVALUATION.md](docs/LONG_HORIZON_EVALUATION.md); results: docs/EXPERIMENTS.md (Crucible 3.0 section).
@@ -55,7 +55,40 @@ Bugs found and fixed on this branch:
 
 ### Acceptance criteria (Part 33), not redefined
 
-ACCEPTANCE_TABLE_PLACEHOLDER
+| # | criterion | status | evidence |
+|---|---|---|---|
+| 1 | A real browser can navigate a functioning synthetic internet | **met** | real Chromium: login, consent, forms, the browser critic, and the hermetic resolver (`test_internet.py`, `test_internet_adversarial.py`) |
+| 2 | Interconnected persistent services | **met** | one kernel: sites use identity login, bank invoices, per-app storage; the crawler links sites; everything persists in snapshots and replays |
+| 3 | Agents discover websites without a complete site list | **met** | crawler from seeds and mentions, link graph, web search index (`test_crawler_*`); the visibility tasks are scored by search rank |
+| 4 | Agents write and deploy entirely new websites | **met** | agent web apps (`test_agent_web_app_*`), SiteAuthor, the EvidenceAggregator live page |
+| 5 | Agent-created services expose functional APIs | **met** | capability endpoints, web JSON routes, the NPC innovators' generated controllers |
+| 6 | Other agents discover and use these services | **met** | firms find capabilities through requests and search, then trial and adopt them; an LLM agent called an NPC-invented controller it found |
+| 7 | Cross-service workflows produce real state changes | **met** | the placement broker rents, redeploys and releases across providers under delegated grants; invoices are paid and reported by sites |
+| 8 | Concurrent autonomous actors | **met** (kernel); **not measured** at LLM scale | AsyncRunner test; 200 reasoning-free agents at 2,431 actions/s; firm minds and NPC people in every run; concurrent LLM agents not run |
+| 9 | Persistent independent goals | **met** | firm minds' dynamic goals and books; NPC innovators' and entrepreneurs' routines persist in state |
+| 10 | New technologies can be invented and adopted | **met** | autoscaler and placement adopted after trials (SECOND_ORDER_EMERGENCE.md); NPC invention implemented, though none of its versions was adopted |
+| 11 | New market opportunities emerge from prior actions | **met** | the placement opportunity exists only after autoscaling; imitating entrants in emergent capability markets |
+| 12 | At least one second-order problem emerges from an invention through reusable mechanics | **met** (one mechanism family, scripted controls) | 3-seed demonstration plus the Part 21 suite: 3 loss kinds occur only with the invention, in every seed |
+| 13 | Technological improvements propagate between independent organisations | **met** | open-source forks with `improves` lineage; propagation-off removes markets and competition in every seed |
+| 14 | Social relationships and negotiations affect real decisions | **met** | breach records lead to refusals and trust in memory (open-world demo 3); LLM social actors decide within grounded bounds |
+| 15 | Institutions and organisations can evolve | **met** | a governed amendment passed by simulated members' votes (demo C, 30% rule); companies are founded, exit and wind up |
+| 16 | Information is partially observable and propagates through working channels | **met**, with weak downstream effect | private books and evidence; sharing ablations change beliefs and trials; demo D changed beliefs and one decision; no consistent effect on adoption |
+| 17 | The economy supports multiple viable long-term strategies | **partially met** | several strategies are viable in need-format worlds (v1 strategy matrix); in the open-world runs the successful scripted agents form one strategy cluster; industrial viability depends on the seed |
+| 18 | The world remains dynamic across long simulated lifetimes | **partially met** | 4 x 120 days: live every week, structural change every week but one, replay identical. Change thins after about week 9 and output falls to 46-68%, because exited firms' markets are not re-entered |
+| 19 | Strong agents can interact without artificial restrictions to narrow strategies | **met** | the agent gets every tool (191) with no strategy constraint; limits are the per-actor action rate and the sandbox. Two interface confounds (tool-list truncation, context truncation) were found and fixed |
+| 20 | Complex objectives can be independently verified | **met** | the GoalVerifier reads metrics from state; the 8-check task validation; near-miss and binding mutations |
+| 21 | Tasks include genuinely long-horizon, multi-stage problems | **met**, small set | adoption tasks need publish, deploy, independent trials and 3 days kept (competent control: 17 of 30 days); the explicit $100k/month objective; only 4 of 14 mined tasks were accepted |
+| 22 | Task difficulty is calibrated against competent agents, not only random ones | **met** | a competent control is required as the feasibility witness; panel calibration; difficulty from controls; the selection effect is documented |
+| 23 | The simulator remains model-agnostic | **met** | scripted, RL, CAM 2.0 and LLM policies all use the same tool interface |
+| 24 | Existing CAM and superlearner adapters remain functional | **met** | `test_agents_llm.py` (13 passed, including real-Qwen CAM 2.0 replay log-prob and the superlearner world adapter) |
+| 25 | Multiple RL policies can participate in one world | **met** | v1 multi-agent learning experiment and RL integration tests (unchanged, passing) |
+| 26 | Snapshots, forks and replay remain correct | **met** | every demo regenerates or replays identically; a payload-aliasing bug was caught by the hash chain and fixed |
+| 27 | Agent code cannot modify protected simulator infrastructure | **met** (process sandbox); VM-grade **blocked** here | sandbox and security tests; minimum-isolation fails closed |
+| 28 | Browser and API interactions preserve authoritative semantics | **met** | the Chromium session's commands, replayed through the API, give an identical digest |
+| 29 | Performance and scaling claims are measured | **met** | SCALING.md, `docs/benchmarks/internet.json`; LLM scale not claimed |
+| 30 | Critical demonstrations are reproducible from a clean checkout | **met** (short horizon) | a fresh clone of `6d539ce` ran the second-order demo (6 days, same stages, regeneration identical) and 21 tests |
+| 31 | The full regression suite passes | **met** | last full run on this branch: **305 passed** (644 s), including the real-Chromium, sandbox, SQLite and real-Qwen GPU tests |
+| 32 | Known limitations are honestly documented | **met** | LIMITATIONS.md, WORLD_FIDELITY.md, negative results in EXPERIMENTS.md |
 
 ## Open world (branch `feat/crucible-open-world`, based on `feat/crucible` 8b81276)
 

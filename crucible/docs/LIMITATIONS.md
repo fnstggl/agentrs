@@ -94,7 +94,7 @@ The full list with code locations is in `docs/OPEN_ENDEDNESS_AUDIT.md` §5. In s
   provider exhaustion -> placement), with scripted competent controls on both sides, in 3 seeds. It has not
   been shown with learned or LLM inventors, or in other domains.
 * **Most open-world "discoveries" are made by scripted controls.** NPC innovators invent and iterate, but none of
-  their versions was adopted in the recorded runs. The frozen LLM agents built nothing in the final challenge.
+  their versions was adopted in the recorded runs. The frozen LLM agents (Qwen3-4B, Qwen3-14B) built nothing in the final challenge (8 runs).
 * **Trials are imprecise.** Neither trial design recovers maintenance effects reliably against matched
   counterfactuals (sign agreement 0.44-0.50). In-world firms face the same difficulty; the numbers are
   documented rather than tuned away.
@@ -118,7 +118,10 @@ The full list with code locations is in `docs/OPEN_ENDEDNESS_AUDIT.md` §5. In s
   * The first attempt was confounded by the interface. With a 9,000-character tool budget, alphabetical order
     gave full signatures only to the first services (`ads`, `bank`, `caps`...). All three runs then fixated on
     advertising tools.
-  * The rerun used interleaved ordering and a 24,000-character budget.
+  * The rerun used interleaved ordering and a 24,000-character budget. A second confound followed: the
+    backend's 8k context truncated the tool list in the middle. It was fixed with a 32k context.
+  * On the corrected interface no model founded an organisation or built anything. All runs perseverated on one
+    action. Scaffolded or frontier agents were not tried.
 * **Liveness checks were too weak.** "Demand served > 0" missed a collapse to about 0.1% of normal. The weekly
   process-failure count caught it. Thresholds should be relative to recent levels.
 * **Isolation is not VM-grade here.** Workloads that require VM-grade isolation are refused, not run.
