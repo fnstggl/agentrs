@@ -303,3 +303,205 @@ diffusion or entrepreneurial entry made no measurable difference at this scale (
 the reason is visible in the census - no firm held beliefs from others in any run (firms had few contacts), so
 the channel was inactive rather than shown to be useless. Two seeds are too few for small effects; the runner
 accepts more seeds.
+
+## Crucible 3.0 experiments (branch `feat/crucible-internet`)
+
+All numbers come from the scripts named, run on this machine. The JSON outputs are in `docs/experiments/`.
+*Controls* are scripted competent agents. Their success is evidence about the **world**, not about learning.
+Several runs happened while other experiments shared the CPU and GPU, so wall times are upper bounds.
+
+### Second-order emergence (`examples/demo_second_order.py`, seeds 1-3, 70 days)
+
+Full write-up: [SECOND_ORDER_EMERGENCE.md](SECOND_ORDER_EMERGENCE.md).
+
+* An autoscaler synchronised the adopters' scale-ups and exhausted the small cheap provider.
+* Firms suffered `capacity_unavailable` losses from day 4 in every factual world and never in the matched
+  counterfactuals.
+* A placement broker that answers that report class was published 0.5-0.7 days after the first report. It was
+  trialled by 4-5 firms and adopted by 0, 2 and 1 firms in seeds 1-3. It moved services to the other provider in
+  seeds 1 and 3.
+* The cheap provider's price peaked at 407-440 (from 140) and it bought 22 cores.
+* Autoscaling raised requests served by 30-49%, but lowered the firms' total operating result. Compute spend rose
+  2.2-2.9x.
+
+### Part 21 suite: open-endedness measures under counterfactual conditions (`examples/open_internet_suite.py 45 1 2 3`)
+
+`open_tight_compute`, controls `ada` (CapacityInventor, open source) and `bea` (PlacementBroker), 1 warm-up day,
+45 days, 3 seeds per condition (1,324 s wall). Means over seeds:
+
+| measure | factual | invention removed | communication off | demand (problem reports) off | propagation off |
+|---|---|---|---|---|---|
+| 1 useful capabilities (independent positive trial > 2 se) | 1.33 | 0 | 0.67 | 0 | 1.33 |
+| 2 independent adopters | 2.0 | 0 | 2.33 | 0 | 1.33 |
+| 3 new markets (capability markets + new orgs with independent revenue) | 5.0 | 0 | 5.0 | 0 | 3.0 |
+| 4 second-order loss kinds (temporal candidates) | 3 | 0 | 3 | 0 | 3 |
+| 6 beliefs formed from others' evidence | 0.33 | 0 | 0 | 0 | 1.0 |
+| 7 coordination (accepted deals, contracts, independent delegations) | 24.0 | 0 | 25.3 | 0 | 18.3 |
+| 8 contested problem classes | 1.0 | 0 | 1.0 | 0 | 0 |
+| 11 reports solved (reporter kept an offered capability, losses below reported rate) | 0.67 | 0 | 2.67 | 0 | 1.33 |
+| requests served | 3.32M | 2.26M | 3.39M | 2.25M | 3.43M |
+| operating result of all firm minds (incl. compute providers) | -0.30M | -0.72M | +0.03M | -0.73M | -0.41M |
+
+**Established by the counterfactual.** The rule is: factual minus condition is greater than 0 in *every* paired
+seed.
+* **Invention removed:** the following all depend on the invention:
+  * useful capabilities, adoption, markets and competition;
+  * coordination, strategy diversity, and within-lifetime revenue growth;
+  * second-order opportunities. Three loss kinds occur only with the invention, in all 3 seeds:
+    `capacity_unavailable`, `dependency_failure` (services whose autoscaler or placement dependency failed) and
+    `service_unavailable` (outages during migrations and resizes).
+* **Problem reports off** gives the same pattern, because both controls act only on public reports. This is the
+  same confound found in the open-world ablations.
+* **Propagation off** (no technique diffusion, no imitating entrants): new markets (5 vs 3) and contested classes
+  (1 vs 0) depend on it.
+* **Communication off:** no measure differed consistently. In these worlds the sharing channels do not drive
+  adoption. Firms decide on their own trials.
+
+Measure 15 is the slope of weekly independent revenue. For scripted agents it reflects business growth, not
+learning.
+
+### NPC invention (19E) (`tests/test_npc_innovation.py`, `actors/innovators.py`)
+
+In `open_tight_compute` seed 1, with no agents at all, two simulated developers with savings did the following
+within 15 days:
+* found the problem that most firms reported (idle compute cost);
+* generated controller programs from the grammar (forecast x margin x floor x ceiling x growth [x placement
+  premium]);
+* founded organisations, deployed the code, published capabilities and answered the reports.
+
+Every firm trialled the v1 controllers. Most removed them ("trial did not pay"; effects -1,544 to +1,340
+cents/day, all within about 1 se). Both innovators then shipped mutated v2 versions that declare they improve
+v1, and new trials started. After 30 days no version had been adopted.
+
+### Diffusion ablation (19F) (`examples/diffusion_test.py 45 1 2 3`)
+
+See SECOND_ORDER_EMERGENCE.md.
+* Sharing on: 2 public outcomes and 4 beliefs from others per seed; late-majority trials in seeds 1 and 2.
+* Sharing ablated: 0 public outcomes, 0 beliefs, 0 late-majority trials.
+* No late-majority adoption in either arm.
+
+### Trial designs vs matched counterfactuals (19D) (`examples/trial_methods.py`, `docs/experiments/trial_methods_operating_result.json`)
+
+Predictive maintenance in `open_industry`, seeds 1-3, 50 days. Each trial is compared with the matched
+counterfactual effect of the same installation (`evaluation/causal.py`):
+
+| design | trials | bias (cents/day) | RMSE | sign agreement | mean days |
+|---|---|---|---|---|---|
+| sequential blocks with washout | 12 | +1,022 | 41,889 | 0.50 | 35.3 |
+| paired-day switchback | 18 | -8,759 | 24,454 | 0.44 | 11.6 |
+
+Neither design recovers these effects reliably. Washout removes most of the bias, at the cost of variance and
+time.
+
+### Synthetic internet benchmarks
+
+See SCALING.md and `docs/benchmarks/internet.json`.
+* API fetch: 1.6 ms.
+* Chromium page: 125 ms.
+* 200 reasoning-free agents on independent clocks: 2,431 actions per wall second.
+
+### Domain D, information systems (`examples/demo_information.py 40 1 2 3`)
+
+World: `open_digital`. Two early adopters publish their trial outcomes but rarely post. Four cautious
+late-majority firms try something only once others hold verified evidence about it.
+
+`ivy` (EvidenceAggregator, a scripted control) does two things:
+* runs a live page on the synthetic internet, rendered from the public evidence registry;
+* posts a daily forum digest with checkable `#evidence` references.
+
+The counterfactual forks the same world with `ivy` idle. The public outcomes were one strongly negative trial
+(about -31,000 to -42,000 cents/day) and one small positive one.
+
+| seed | late beliefs from others (factual / counterfactual) | late trials (factual / counterfactual) | late adoptions |
+|---|---|---|---|
+| 1 | 0 / 4 | recordco3 / recordco3 | none / none |
+| 2 | 4 / 0 | none / recordco3 (day 37) | none / none |
+| 3 | 4 / 0 | none / none | none / none |
+
+* In seeds 2 and 3, the digest gave all four cautious firms a belief they did not otherwise have. Each belief
+  carried the negative evidence (rel = -1.7).
+* In seed 2 that changed a decision: the uninformed firm tried the capability; the informed one did not.
+* In seed 1 the counterfactual firms formed beliefs from an early adopter's own forum post. The factual firms
+  formed none, although a post with `#evidence` existed. Firms read a bounded number of recent posts; why they
+  missed it was not diagnosed.
+
+So the new channel changed beliefs and one decision. Because the shared evidence was negative, it *prevented*
+trials rather than causing them.
+
+The aggregator had no business model. Its 120,000-cent capital paid for compute until about day 35. Then its
+instance was suspended for non-payment and terminated, and its page returned 404 by day 40. The page left the
+index, so the information system died with its funding.
+
+### Domain C, social organisation (`examples/demo_social_org.py 30 1 2 3`)
+
+World: `open_industry`. The forge with the most operators is made a worker cooperative by a system
+intervention, so the check is replay, not regeneration:
+* 13 members;
+* profit shared equally;
+* amendments need a members' vote.
+
+At day 2 the founder proposes switching to labour-based sharing; the counterfactual has no proposal. Two
+constitutions were compared.
+
+| amendment rule | seed | votes for/against (13 members) | outcome | effective operators | units made (factual / counterfactual) | operating result (factual / counterfactual) |
+|---|---|---|---|---|---|---|
+| 50% of all members | 1 | 6 / 3 | rejected | 3.88 | 1,646 / 1,497 | +883k / +727k |
+| 50% of all members | 2 | 4 / 4 | rejected | 3.88 | 859 / 1,152 | -20k / +47k |
+| 50% of all members | 3 | 5 / 1 | rejected | 3.88 | 947 / 843 | -415k / -394k |
+| 30% of all members | 1 | 4 / 2 | executed | 6.90 | 1,789 / 1,497 | +905k / +727k |
+| 30% of all members | 2 | 4 / 3 | executed | 6.90 | 1,961 / 1,152 | +78k / +47k |
+| 30% of all members | 3 | 5 / 1 | executed | 6.90 | 679 / 843 | -61k / -394k |
+
+**Institutional design mattered.** Under an absolute-majority rule, abstentions count against a proposal. A
+reform that most voters supported failed in all three seeds. Under the 30% rule it passed in all three. Once it
+passed, the cooperative's operating result was higher than in the counterfactual in all three seeds. Units made
+were higher in two seeds and lower in seed 3.
+
+**The performance effect is not independent evidence.**
+* It comes from the stylised effort formula (WORLD_FIDELITY.md).
+* It also exposes an inconsistency. Under the labour basis the cooperative distributed **nothing** to members,
+  because these members record no labour hours, yet the formula raised their effort.
+* Effort should depend on what members are actually paid. This is recorded as a known limitation and not fixed
+  in this run.
+
+The differences under the rejected-proposal rule are run-to-run divergence after the fork, not effects. Their
+size, up to -25% units in seed 2, shows how noisy single comparisons in this world are.
+
+### Part 24: 120-day worlds with weekly liveness checks (`examples/long_run.py 120 ...`)
+
+Each world had everything enabled at once:
+* firm minds, 2 NPC innovators and entrepreneurs;
+* 3 generated web apps and adversarial content;
+* two scripted controls (an inventor and a placement broker).
+
+The table is for the runs made after the two bugs below were fixed. Every week passed every liveness check:
+daily processes ran, demand was served, no process failed, invariants held.
+
+| world | events | wall s | replay identical | weeks with no structural change | served in week 17 / median of weeks 2-8 | capabilities | installs (active / total) | firms exited | loss kinds | firm-sector operating result (cents) | retail units |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| open_tight_compute s1 | 418,587 | 174 | yes | 0 of 17 | 0.58 | 9 | 3 / 32 | 3 | 4 | +3.46M | - |
+| open_tight_compute s2 | 431,986 | 180 | yes | 1 | 0.62 | 10 | 2 / 38 | 3 | 4 | +1.52M | - |
+| open_mixed s1 | 426,836 | 215 | yes | 1 | 0.46 | 10 | 0 / 43 | 3 | 7 | +18.21M | 5,520 |
+| open_mixed s2 | 408,060 | 210 | yes | 1 | 0.68 | 8 | 0 / 35 | 3 | 7 | -11.83M | 836 |
+
+No run met the "evolution stopped" rule, which is two consecutive weeks without structural change. But the
+change thinned out after about week 9: most later weeks changed only install statuses or contracts. Every world
+ended with lower output than its middle period. In the compute worlds, the three record-label firms exhausted
+their cash: they had scaled to 9-16 cores while the cheap provider's price was high. They were suspended for
+non-payment and wound up. **Nobody entered the need-format market they left.** Entrepreneurs enter emergent
+*capability* markets, and innovators build controllers, so a vacated consumer market stays empty. That is a
+missing mechanism. In `open_mixed` seed 2 the industrial chain stalled on supply shortfalls (54k events), the
+sector lost money and households bought few goods. Seed 1 of the same family was profitable. The industrial
+calibration works for some seeds, not all.
+
+Two bugs were found by these runs and fixed before the table above:
+
+1. **Dead services persisted.** A firm whose instance was terminated for non-payment kept a dead service and an
+   open listing for the rest of the run. That produced 2.6M `service_unavailable` events and 40% less output.
+   Firms now restart the service or wind up.
+2. **Consumer demand crashed after wind-ups.** Once firms wound up, closing the offerings with the highest
+   consumer slots crashed the hourly consumer process (`IndexError`) for the rest of the run. Demand fell to
+   about 0.1% of normal. "Demand served > 0" still passed; the weekly process-failure count caught it.
+
+The pre-fix run is kept outside the repository; the regression tests for both bugs are in
+`tests/test_firm_recovery.py`.

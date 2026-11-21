@@ -652,6 +652,36 @@ def cmd_counterfactual(a) -> int:
     return 0
 
 
+def cmd_tasks(a) -> int:
+    """Mine outcome-only tasks from a materialised world; optionally validate them (Part 17)."""
+    from .goals import taskgen
+    w, actor, world, opps = taskgen.mine_world(a.family, a.seed, int(a.warmup_days * 86400))
+    goals = taskgen.propose(opps, world)
+    if a.only:
+        goals = [g for g in goals if g.family == a.only]
+    rows = []
+    for g in goals:
+        row = {"id": g.id, "family": g.family, "split": g.split, "description": g.description}
+        if a.action == "validate":
+            r = taskgen.TaskValidator(run_random=not a.no_random).validate(g)
+            row.update(verdict=r.verdict, reasons=r.reasons, difficulty=r.difficulty,
+                       controls={k: v["success"] for k, v in r.controls.items()})
+        rows.append(row)
+    _out(a, {"world": world, "opportunities": opps, "tasks": rows},
+         "\n".join(f"{r['id']} {r['family']:<12} {r.get('verdict', r['split']):<9} {r['description'][:90]}"
+                   + (f"  {r['reasons']}" if r.get("reasons") else "") for r in rows))
+    return 0
+
+
+def cmd_openeval(a) -> int:
+    """The Part 21 measures of a stored world (read-only)."""
+    from .evaluation.open_internet import measure
+    with _server(a, readonly=True) as srv:
+        rep = measure(srv.world(a.world), int(a.since_days * 86400))
+    _out(a, rep, "\n".join(f"{k}: {v.get('value') if isinstance(v, dict) else v}" for k, v in rep.items()))
+    return 0
+
+
 def cmd_emergence(a) -> int:
     from .evaluation.emergence import emergence_report
     with _server(a, readonly=True) as srv:
@@ -1239,6 +1269,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--since", type=int, default=0)
     p.add_argument("--out", default=None)
     p.set_defaults(func=cmd_emergence)
+
+    p = sub.add_parser("tasks", parents=[common], help="mine outcome-only tasks from a world; validate them")
+    p.add_argument("action", choices=["mine", "validate"])
+    p.add_argument("--family", default="open_tight_compute")
+    p.add_argument("--seed", type=int, default=2)
+    p.add_argument("--warmup-days", type=float, default=3)
+    p.add_argument("--only", default=None, help="one task family (relieve_loss, adoption, visibility)")
+    p.add_argument("--no-random", action="store_true", help="skip the random-policy shortcut check")
+    p.set_defaults(func=cmd_tasks)
+    p = sub.add_parser("openeval", parents=[common], help="open-endedness measures (Part 21) of a stored world")
+    p.add_argument("world")
+    p.add_argument("--since-days", type=float, default=0)
+    p.set_defaults(func=cmd_openeval)
 
     # open-world views (read-only)
     for name, fn, hlp in [("internet", cmd_internet, "synthetic internet: sites, pages, link graph, names, traffic"),

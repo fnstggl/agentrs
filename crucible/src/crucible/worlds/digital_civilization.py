@@ -97,7 +97,8 @@ class Civ(Module):
                                  "forum_reader": {}}})
             else:
                 npcs.add_firm(ctx, oid, owner, f["need"], f["host"], lst["listing"], rid, f["tier"], f.get("policy"))
-        # labour pool
+        # labour pool (the first `innovators` developers also run the NPC invention routine, with extra savings)
+        n_innov = int(cfg.get("innovators", 0))
         for i in range(int(cfg.get("workers", 0))):
             role = str(rng.choice(cfg.get("worker_roles") or ["developer", "support", "sales", "developer", "support"]))
             skill = float(np.clip(rng.beta(2, 2.5), 0.05, 0.99))
@@ -107,6 +108,10 @@ class Civ(Module):
             base = cfg.get("wage_base", 300_000)
             res = int(base * (0.6 + 0.8 * skill) * rng.uniform(0.85, 1.15))
             npcs.add_worker(ctx, person, {role: skill}, res, role)
+            innov = role == "developer" and n_innov > 0
+            if innov:
+                n_innov -= 1
+                bank.move(ctx, "acct_genesis", acct, int(cfg.get("innovator_cash", 400_000)), "endowment", "savings")
             if "society" in w.modules:
                 soc = w.modules["society"]
                 soc.add_mind(ctx, person, "person", None, person, soc.draw_traits(rng), role=role,
@@ -115,7 +120,8 @@ class Civ(Module):
                                     "effort_cost": int(res * 0.5),
                                     "routines": {"forum_reader": {},
                                                  **({"entrepreneur": {"min_cash": 150_000}}
-                                                    if cfg.get("entrepreneurs", True) else {})}})
+                                                    if cfg.get("entrepreneurs", True) else {}),
+                                                 **({"innovator": {"min_cash": 150_000}} if innov else {})}})
         # lenders
         for L in cfg.get("lenders", []):
             oid, owner, acct = org_with_owner(L["handle"], L["name"], "company", L.get("cash", 20_000_000), sector="finance")

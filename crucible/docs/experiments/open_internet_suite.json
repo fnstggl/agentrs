@@ -1,0 +1,3299 @@
+{
+ "runs": [
+  {
+   "condition": "factual",
+   "seed": 1,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 2,
+     "capabilities": {
+      "cap_000002": [
+       "o:shorteco1"
+      ],
+      "cap_000003": [
+       "o:shorteco2"
+      ]
+     },
+     "published": 4
+    },
+    "2_independent_adoption": {
+     "value": 1,
+     "active_installs": 1,
+     "kept_14_days": 0,
+     "tried": 6
+    },
+    "3_new_markets": {
+     "value": 5,
+     "capability_markets": 1,
+     "improvement_entrants": 2,
+     "new_orgs_with_independent_revenue": 4
+    },
+    "4_second_order_opportunities": {
+     "value": 3,
+     "kinds": [
+      "capacity_unavailable",
+      "dependency_failure",
+      "service_unavailable"
+     ],
+     "first_day": {
+      "capacity_unavailable": 4,
+      "dependency_failure": 4,
+      "service_unavailable": 36
+     }
+    },
+    "5_persistence_of_technological_change": {
+     "value": 1.0,
+     "adopted": 1,
+     "still_active": 1,
+     "median_active_days": 5.020833333333333
+    },
+    "6_information_propagation": {
+     "value": 0,
+     "beliefs_from_others": 0,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 20,
+     "deals_accepted": 0,
+     "contracts": 4,
+     "independent_delegations": 16
+    },
+    "8_strategic_competition": {
+     "contested_classes": 1,
+     "hhi": {
+      "autoscale": 0.336,
+      "placer": 1.0
+     },
+     "provider_price_changes": 48,
+     "value": 1
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.5,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 4,
+     "result_first_window": 239639,
+     "result_last_window": -96618
+    },
+    "11_novel_problem_solving": {
+     "value": 2,
+     "solved": [
+      {
+       "request": "req_000021",
+       "by": "o:shorteco1",
+       "kind": "capacity_overload",
+       "reported_per_7d": 1750.0,
+       "last_7d": 1573
+      },
+      {
+       "request": "req_000021",
+       "by": "o:shorteco1",
+       "kind": "capacity_unavailable",
+       "reported_per_7d": 19.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000021",
+       "by": "o:shorteco1",
+       "kind": "dependency_failure",
+       "reported_per_7d": 19.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000025",
+       "by": "o:shorteco1",
+       "kind": "capacity_unavailable",
+       "reported_per_7d": 11.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000025",
+       "by": "o:shorteco1",
+       "kind": "dependency_failure",
+       "reported_per_7d": 10.0,
+       "last_7d": 0
+      }
+     ]
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 1,
+     "successful_agents": [
+      "p:ada",
+      "p:bea"
+     ],
+     "mean_pairwise_js": 0.0,
+     "cluster_sizes": [
+      2
+     ]
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 2,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        1950,
+        1530,
+        150,
+        210,
+        4800,
+        5040
+       ],
+       "slope_per_week": 723.4
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        960,
+        4800
+       ],
+       "slope_per_week": 768.0
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 3239306,
+     "firm_operating_result": 683813,
+     "loss_events": {
+      "capacity_overload": 587795,
+      "capacity_unavailable": 535,
+      "dependency_failure": 534,
+      "service_unavailable": 88591
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "factual",
+   "seed": 2,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 1,
+     "capabilities": {
+      "cap_000002": [
+       "o:shorteco3"
+      ]
+     },
+     "published": 4
+    },
+    "2_independent_adoption": {
+     "value": 2,
+     "active_installs": 2,
+     "kept_14_days": 1,
+     "tried": 6
+    },
+    "3_new_markets": {
+     "value": 5,
+     "capability_markets": 1,
+     "improvement_entrants": 2,
+     "new_orgs_with_independent_revenue": 4
+    },
+    "4_second_order_opportunities": {
+     "value": 3,
+     "kinds": [
+      "capacity_unavailable",
+      "dependency_failure",
+      "service_unavailable"
+     ],
+     "first_day": {
+      "capacity_unavailable": 4,
+      "dependency_failure": 4,
+      "service_unavailable": 25
+     }
+    },
+    "5_persistence_of_technological_change": {
+     "value": 1.0,
+     "adopted": 2,
+     "still_active": 2,
+     "median_active_days": 20.020833333333332
+    },
+    "6_information_propagation": {
+     "value": 1,
+     "beliefs_from_others": 1,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 30,
+     "deals_accepted": 0,
+     "contracts": 6,
+     "independent_delegations": 24
+    },
+    "8_strategic_competition": {
+     "contested_classes": 1,
+     "hhi": {
+      "autoscale": 0.342,
+      "placer": 1.0
+     },
+     "provider_price_changes": 51,
+     "value": 1
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.5,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 4,
+     "result_first_window": -264705,
+     "result_last_window": -793098
+    },
+    "11_novel_problem_solving": {
+     "value": 0,
+     "solved": []
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 1,
+     "successful_agents": [
+      "p:ada",
+      "p:bea"
+     ],
+     "mean_pairwise_js": 0.0028,
+     "cluster_sizes": [
+      2
+     ]
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 1,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        4740,
+        5460,
+        450,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": -1158.0
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        3840,
+        10160
+       ],
+       "slope_per_week": 1780.6
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 3203200,
+     "firm_operating_result": -1395055,
+     "loss_events": {
+      "capacity_overload": 601952,
+      "capacity_unavailable": 450,
+      "dependency_failure": 436,
+      "service_unavailable": 367120
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "factual",
+   "seed": 3,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 1,
+     "capabilities": {
+      "cap_000002": [
+       "o:shorteco1"
+      ]
+     },
+     "published": 4
+    },
+    "2_independent_adoption": {
+     "value": 3,
+     "active_installs": 3,
+     "kept_14_days": 1,
+     "tried": 6
+    },
+    "3_new_markets": {
+     "value": 5,
+     "capability_markets": 1,
+     "improvement_entrants": 2,
+     "new_orgs_with_independent_revenue": 4
+    },
+    "4_second_order_opportunities": {
+     "value": 3,
+     "kinds": [
+      "capacity_unavailable",
+      "dependency_failure",
+      "service_unavailable"
+     ],
+     "first_day": {
+      "capacity_unavailable": 4,
+      "dependency_failure": 4,
+      "service_unavailable": 34
+     }
+    },
+    "5_persistence_of_technological_change": {
+     "value": 1.0,
+     "adopted": 3,
+     "still_active": 3,
+     "median_active_days": 13.020833333333334
+    },
+    "6_information_propagation": {
+     "value": 0,
+     "beliefs_from_others": 0,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": 1.4826388888888888
+    },
+    "7_social_coordination": {
+     "value": 22,
+     "deals_accepted": 0,
+     "contracts": 0,
+     "independent_delegations": 22
+    },
+    "8_strategic_competition": {
+     "contested_classes": 1,
+     "hhi": {
+      "autoscale": 0.336,
+      "placer": 1.0
+     },
+     "provider_price_changes": 52,
+     "value": 1
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.375,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 3,
+     "result_first_window": -77302,
+     "result_last_window": -216409
+    },
+    "11_novel_problem_solving": {
+     "value": 0,
+     "solved": []
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 1,
+     "successful_agents": [
+      "p:ada",
+      "p:bea"
+     ],
+     "mean_pairwise_js": 0.0026,
+     "cluster_sizes": [
+      2
+     ]
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 1,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        3270,
+        3600,
+        630,
+        1440,
+        3600,
+        2880
+       ],
+       "slope_per_week": -32.6
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        3840,
+        2880
+       ],
+       "slope_per_week": 740.6
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 3505660,
+     "firm_operating_result": -200352,
+     "loss_events": {
+      "capacity_overload": 474789,
+      "capacity_unavailable": 401,
+      "dependency_failure": 426,
+      "service_unavailable": 141000
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "invention_removed",
+   "seed": 1,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 0,
+     "capabilities": {},
+     "published": 0
+    },
+    "2_independent_adoption": {
+     "value": 0,
+     "active_installs": 0,
+     "kept_14_days": 0,
+     "tried": 0
+    },
+    "3_new_markets": {
+     "value": 0,
+     "capability_markets": 0,
+     "improvement_entrants": 0,
+     "new_orgs_with_independent_revenue": 0
+    },
+    "4_second_order_opportunities": {
+     "value": 0,
+     "kinds": [],
+     "first_day": {}
+    },
+    "5_persistence_of_technological_change": {
+     "value": null,
+     "adopted": 0,
+     "still_active": 0,
+     "median_active_days": null
+    },
+    "6_information_propagation": {
+     "value": 0,
+     "beliefs_from_others": 0,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 0,
+     "deals_accepted": 0,
+     "contracts": 0,
+     "independent_delegations": 0
+    },
+    "8_strategic_competition": {
+     "contested_classes": 0,
+     "hhi": {},
+     "provider_price_changes": 39,
+     "value": 0
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.375,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 3,
+     "result_first_window": -126708,
+     "result_last_window": 96850
+    },
+    "11_novel_problem_solving": {
+     "value": 0,
+     "solved": []
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 0,
+     "successful_agents": []
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 0,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 2099273,
+     "firm_operating_result": 88963,
+     "loss_events": {
+      "capacity_overload": 1820814
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "invention_removed",
+   "seed": 2,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 0,
+     "capabilities": {},
+     "published": 0
+    },
+    "2_independent_adoption": {
+     "value": 0,
+     "active_installs": 0,
+     "kept_14_days": 0,
+     "tried": 0
+    },
+    "3_new_markets": {
+     "value": 0,
+     "capability_markets": 0,
+     "improvement_entrants": 0,
+     "new_orgs_with_independent_revenue": 0
+    },
+    "4_second_order_opportunities": {
+     "value": 0,
+     "kinds": [],
+     "first_day": {}
+    },
+    "5_persistence_of_technological_change": {
+     "value": null,
+     "adopted": 0,
+     "still_active": 0,
+     "median_active_days": null
+    },
+    "6_information_propagation": {
+     "value": 0,
+     "beliefs_from_others": 0,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 0,
+     "deals_accepted": 0,
+     "contracts": 0,
+     "independent_delegations": 0
+    },
+    "8_strategic_competition": {
+     "contested_classes": 0,
+     "hhi": {},
+     "provider_price_changes": 39,
+     "value": 0
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.375,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 3,
+     "result_first_window": -604685,
+     "result_last_window": -435059
+    },
+    "11_novel_problem_solving": {
+     "value": 0,
+     "solved": []
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 0,
+     "successful_agents": []
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 0,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 2189757,
+     "firm_operating_result": -1570372,
+     "loss_events": {
+      "capacity_overload": 1980784
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "invention_removed",
+   "seed": 3,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 0,
+     "capabilities": {},
+     "published": 0
+    },
+    "2_independent_adoption": {
+     "value": 0,
+     "active_installs": 0,
+     "kept_14_days": 0,
+     "tried": 0
+    },
+    "3_new_markets": {
+     "value": 0,
+     "capability_markets": 0,
+     "improvement_entrants": 0,
+     "new_orgs_with_independent_revenue": 0
+    },
+    "4_second_order_opportunities": {
+     "value": 0,
+     "kinds": [],
+     "first_day": {}
+    },
+    "5_persistence_of_technological_change": {
+     "value": null,
+     "adopted": 0,
+     "still_active": 0,
+     "median_active_days": null
+    },
+    "6_information_propagation": {
+     "value": 0,
+     "beliefs_from_others": 0,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 0,
+     "deals_accepted": 0,
+     "contracts": 0,
+     "independent_delegations": 0
+    },
+    "8_strategic_competition": {
+     "contested_classes": 0,
+     "hhi": {},
+     "provider_price_changes": 39,
+     "value": 0
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.375,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 3,
+     "result_first_window": -342381,
+     "result_last_window": -150769
+    },
+    "11_novel_problem_solving": {
+     "value": 0,
+     "solved": []
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 0,
+     "successful_agents": []
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 0,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 2480845,
+     "firm_operating_result": -691914,
+     "loss_events": {
+      "capacity_overload": 1633433
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "communication_off",
+   "seed": 1,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 1,
+     "capabilities": {
+      "cap_000002": [
+       "o:recordco1",
+       "o:recordco3",
+       "o:shorteco3"
+      ]
+     },
+     "published": 4
+    },
+    "2_independent_adoption": {
+     "value": 4,
+     "active_installs": 4,
+     "kept_14_days": 3,
+     "tried": 6
+    },
+    "3_new_markets": {
+     "value": 5,
+     "capability_markets": 1,
+     "improvement_entrants": 2,
+     "new_orgs_with_independent_revenue": 4
+    },
+    "4_second_order_opportunities": {
+     "value": 3,
+     "kinds": [
+      "capacity_unavailable",
+      "dependency_failure",
+      "service_unavailable"
+     ],
+     "first_day": {
+      "capacity_unavailable": 5,
+      "dependency_failure": 5,
+      "service_unavailable": 42
+     }
+    },
+    "5_persistence_of_technological_change": {
+     "value": 1.0,
+     "adopted": 4,
+     "still_active": 4,
+     "median_active_days": 20.020833333333332
+    },
+    "6_information_propagation": {
+     "value": 0,
+     "beliefs_from_others": 0,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 24,
+     "deals_accepted": 0,
+     "contracts": 0,
+     "independent_delegations": 24
+    },
+    "8_strategic_competition": {
+     "contested_classes": 1,
+     "hhi": {
+      "autoscale": 0.336,
+      "placer": 1.0
+     },
+     "provider_price_changes": 43,
+     "value": 1
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.5,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 4,
+     "result_first_window": 179115,
+     "result_last_window": -40664
+    },
+    "11_novel_problem_solving": {
+     "value": 0,
+     "solved": []
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 1,
+     "successful_agents": [
+      "p:ada",
+      "p:bea"
+     ],
+     "mean_pairwise_js": 0.0034,
+     "cluster_sizes": [
+      2
+     ]
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 0,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        4500,
+        2940,
+        180,
+        0,
+        0,
+        2160
+       ],
+       "slope_per_week": -591.4
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 3391485,
+     "firm_operating_result": 618037,
+     "loss_events": {
+      "capacity_overload": 470653,
+      "capacity_unavailable": 807,
+      "dependency_failure": 802,
+      "service_unavailable": 56252
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "communication_off",
+   "seed": 2,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 0,
+     "capabilities": {},
+     "published": 4
+    },
+    "2_independent_adoption": {
+     "value": 1,
+     "active_installs": 1,
+     "kept_14_days": 0,
+     "tried": 6
+    },
+    "3_new_markets": {
+     "value": 5,
+     "capability_markets": 1,
+     "improvement_entrants": 2,
+     "new_orgs_with_independent_revenue": 4
+    },
+    "4_second_order_opportunities": {
+     "value": 3,
+     "kinds": [
+      "capacity_unavailable",
+      "dependency_failure",
+      "service_unavailable"
+     ],
+     "first_day": {
+      "capacity_unavailable": 3,
+      "dependency_failure": 3,
+      "service_unavailable": 23
+     }
+    },
+    "5_persistence_of_technological_change": {
+     "value": 1.0,
+     "adopted": 1,
+     "still_active": 1,
+     "median_active_days": 1.0208333333333333
+    },
+    "6_information_propagation": {
+     "value": 0,
+     "beliefs_from_others": 0,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 32,
+     "deals_accepted": 0,
+     "contracts": 10,
+     "independent_delegations": 22
+    },
+    "8_strategic_competition": {
+     "contested_classes": 1,
+     "hhi": {
+      "autoscale": 0.333,
+      "placer": 1.0
+     },
+     "provider_price_changes": 45,
+     "value": 1
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.5,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 4,
+     "result_first_window": -233115,
+     "result_last_window": -261982
+    },
+    "11_novel_problem_solving": {
+     "value": 3,
+     "solved": [
+      {
+       "request": "req_000021",
+       "by": "o:shorteco2",
+       "kind": "capacity_unavailable",
+       "reported_per_7d": 8.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000021",
+       "by": "o:shorteco2",
+       "kind": "dependency_failure",
+       "reported_per_7d": 8.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000021",
+       "by": "o:shorteco2",
+       "kind": "capacity_overload",
+       "reported_per_7d": 2617.0,
+       "last_7d": 1579
+      },
+      {
+       "request": "req_000028",
+       "by": "o:shorteco2",
+       "kind": "capacity_overload",
+       "reported_per_7d": 2540.0,
+       "last_7d": 1579
+      },
+      {
+       "request": "req_000028",
+       "by": "o:shorteco2",
+       "kind": "capacity_unavailable",
+       "reported_per_7d": 3.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000028",
+       "by": "o:shorteco2",
+       "kind": "dependency_failure",
+       "reported_per_7d": 3.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000037",
+       "by": "o:shorteco2",
+       "kind": "capacity_unavailable",
+       "reported_per_7d": 1.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000037",
+       "by": "o:shorteco2",
+       "kind": "dependency_failure",
+       "reported_per_7d": 1.0,
+       "last_7d": 0
+      }
+     ]
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 1,
+     "successful_agents": [
+      "p:ada",
+      "p:bea"
+     ],
+     "mean_pairwise_js": 0.0029,
+     "cluster_sizes": [
+      2
+     ]
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 2,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        2220,
+        4380,
+        900,
+        720,
+        3270,
+        3600
+       ],
+       "slope_per_week": 96.9
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        4800
+       ],
+       "slope_per_week": 685.7
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 3281731,
+     "firm_operating_result": -754596,
+     "loss_events": {
+      "capacity_overload": 605911,
+      "capacity_unavailable": 563,
+      "dependency_failure": 592,
+      "service_unavailable": 285520
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "communication_off",
+   "seed": 3,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 1,
+     "capabilities": {
+      "cap_000001": [
+       "o:shorteco1",
+       "o:shorteco3"
+      ]
+     },
+     "published": 4
+    },
+    "2_independent_adoption": {
+     "value": 2,
+     "active_installs": 2,
+     "kept_14_days": 2,
+     "tried": 5
+    },
+    "3_new_markets": {
+     "value": 5,
+     "capability_markets": 1,
+     "improvement_entrants": 2,
+     "new_orgs_with_independent_revenue": 4
+    },
+    "4_second_order_opportunities": {
+     "value": 3,
+     "kinds": [
+      "capacity_unavailable",
+      "dependency_failure",
+      "service_unavailable"
+     ],
+     "first_day": {
+      "capacity_unavailable": 3,
+      "dependency_failure": 3,
+      "service_unavailable": 33
+     }
+    },
+    "5_persistence_of_technological_change": {
+     "value": 1.0,
+     "adopted": 2,
+     "still_active": 2,
+     "median_active_days": 31.020833333333332
+    },
+    "6_information_propagation": {
+     "value": 0,
+     "beliefs_from_others": 0,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 20,
+     "deals_accepted": 0,
+     "contracts": 2,
+     "independent_delegations": 18
+    },
+    "8_strategic_competition": {
+     "contested_classes": 1,
+     "hhi": {
+      "autoscale": 0.333,
+      "placer": 1.0
+     },
+     "provider_price_changes": 40,
+     "value": 1
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.5,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 4,
+     "result_first_window": -30677,
+     "result_last_window": 50695
+    },
+    "11_novel_problem_solving": {
+     "value": 5,
+     "solved": [
+      {
+       "request": "req_000020",
+       "by": "o:shorteco1",
+       "kind": "capacity_overload",
+       "reported_per_7d": 4837.0,
+       "last_7d": 524
+      },
+      {
+       "request": "req_000020",
+       "by": "o:shorteco1",
+       "kind": "capacity_unavailable",
+       "reported_per_7d": 9.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000020",
+       "by": "o:shorteco1",
+       "kind": "dependency_failure",
+       "reported_per_7d": 9.0,
+       "last_7d": 5
+      },
+      {
+       "request": "req_000022",
+       "by": "o:shorteco3",
+       "kind": "capacity_unavailable",
+       "reported_per_7d": 19.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000022",
+       "by": "o:shorteco3",
+       "kind": "dependency_failure",
+       "reported_per_7d": 19.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000022",
+       "by": "o:shorteco3",
+       "kind": "capacity_overload",
+       "reported_per_7d": 2576.0,
+       "last_7d": 716
+      },
+      {
+       "request": "req_000026",
+       "by": "o:shorteco1",
+       "kind": "capacity_overload",
+       "reported_per_7d": 559.0,
+       "last_7d": 524
+      },
+      {
+       "request": "req_000027",
+       "by": "o:shorteco3",
+       "kind": "capacity_overload",
+       "reported_per_7d": 1232.0,
+       "last_7d": 716
+      },
+      {
+       "request": "req_000027",
+       "by": "o:shorteco3",
+       "kind": "capacity_unavailable",
+       "reported_per_7d": 1.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000027",
+       "by": "o:shorteco3",
+       "kind": "dependency_failure",
+       "reported_per_7d": 1.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000034",
+       "by": "o:shorteco1",
+       "kind": "capacity_overload",
+       "reported_per_7d": 527.0,
+       "last_7d": 524
+      }
+     ]
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 1,
+     "successful_agents": [
+      "p:ada",
+      "p:bea"
+     ],
+     "mean_pairwise_js": 0.0033,
+     "cluster_sizes": [
+      2
+     ]
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 2,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        5820,
+        7050,
+        7470,
+        10020,
+        10050,
+        10080
+       ],
+       "slope_per_week": 938.6
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        7680
+       ],
+       "slope_per_week": 1097.1
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 3500429,
+     "firm_operating_result": 237872,
+     "loss_events": {
+      "capacity_overload": 489436,
+      "capacity_unavailable": 367,
+      "dependency_failure": 399,
+      "service_unavailable": 130811
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "demand_off",
+   "seed": 1,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 0,
+     "capabilities": {},
+     "published": 0
+    },
+    "2_independent_adoption": {
+     "value": 0,
+     "active_installs": 0,
+     "kept_14_days": 0,
+     "tried": 0
+    },
+    "3_new_markets": {
+     "value": 0,
+     "capability_markets": 0,
+     "improvement_entrants": 0,
+     "new_orgs_with_independent_revenue": 0
+    },
+    "4_second_order_opportunities": {
+     "value": 0,
+     "kinds": [],
+     "first_day": {}
+    },
+    "5_persistence_of_technological_change": {
+     "value": null,
+     "adopted": 0,
+     "still_active": 0,
+     "median_active_days": null
+    },
+    "6_information_propagation": {
+     "value": 0,
+     "beliefs_from_others": 0,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 0,
+     "deals_accepted": 0,
+     "contracts": 0,
+     "independent_delegations": 0
+    },
+    "8_strategic_competition": {
+     "contested_classes": 0,
+     "hhi": {},
+     "provider_price_changes": 39,
+     "value": 0
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.375,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 3,
+     "result_first_window": -130768,
+     "result_last_window": 90660
+    },
+    "11_novel_problem_solving": {
+     "value": 0,
+     "solved": []
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 0,
+     "successful_agents": []
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 0,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 2089542,
+     "firm_operating_result": 64919,
+     "loss_events": {
+      "capacity_overload": 1821463
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "demand_off",
+   "seed": 2,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 0,
+     "capabilities": {},
+     "published": 0
+    },
+    "2_independent_adoption": {
+     "value": 0,
+     "active_installs": 0,
+     "kept_14_days": 0,
+     "tried": 0
+    },
+    "3_new_markets": {
+     "value": 0,
+     "capability_markets": 0,
+     "improvement_entrants": 0,
+     "new_orgs_with_independent_revenue": 0
+    },
+    "4_second_order_opportunities": {
+     "value": 0,
+     "kinds": [],
+     "first_day": {}
+    },
+    "5_persistence_of_technological_change": {
+     "value": null,
+     "adopted": 0,
+     "still_active": 0,
+     "median_active_days": null
+    },
+    "6_information_propagation": {
+     "value": 0,
+     "beliefs_from_others": 0,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 0,
+     "deals_accepted": 0,
+     "contracts": 0,
+     "independent_delegations": 0
+    },
+    "8_strategic_competition": {
+     "contested_classes": 0,
+     "hhi": {},
+     "provider_price_changes": 39,
+     "value": 0
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.375,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 3,
+     "result_first_window": -601989,
+     "result_last_window": -427956
+    },
+    "11_novel_problem_solving": {
+     "value": 0,
+     "solved": []
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 0,
+     "successful_agents": []
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 0,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 2190682,
+     "firm_operating_result": -1563273,
+     "loss_events": {
+      "capacity_overload": 1974488
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "demand_off",
+   "seed": 3,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 0,
+     "capabilities": {},
+     "published": 0
+    },
+    "2_independent_adoption": {
+     "value": 0,
+     "active_installs": 0,
+     "kept_14_days": 0,
+     "tried": 0
+    },
+    "3_new_markets": {
+     "value": 0,
+     "capability_markets": 0,
+     "improvement_entrants": 0,
+     "new_orgs_with_independent_revenue": 0
+    },
+    "4_second_order_opportunities": {
+     "value": 0,
+     "kinds": [],
+     "first_day": {}
+    },
+    "5_persistence_of_technological_change": {
+     "value": null,
+     "adopted": 0,
+     "still_active": 0,
+     "median_active_days": null
+    },
+    "6_information_propagation": {
+     "value": 0,
+     "beliefs_from_others": 0,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 0,
+     "deals_accepted": 0,
+     "contracts": 0,
+     "independent_delegations": 0
+    },
+    "8_strategic_competition": {
+     "contested_classes": 0,
+     "hhi": {},
+     "provider_price_changes": 39,
+     "value": 0
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.375,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 3,
+     "result_first_window": -322386,
+     "result_last_window": -156313
+    },
+    "11_novel_problem_solving": {
+     "value": 0,
+     "solved": []
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 0,
+     "successful_agents": []
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 0,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 2471984,
+     "firm_operating_result": -676974,
+     "loss_events": {
+      "capacity_overload": 1633038
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "propagation_off",
+   "seed": 1,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 1,
+     "capabilities": {
+      "cap_000002": [
+       "o:shorteco3"
+      ]
+     },
+     "published": 2
+    },
+    "2_independent_adoption": {
+     "value": 1,
+     "active_installs": 1,
+     "kept_14_days": 0,
+     "tried": 6
+    },
+    "3_new_markets": {
+     "value": 3,
+     "capability_markets": 1,
+     "improvement_entrants": 0,
+     "new_orgs_with_independent_revenue": 2
+    },
+    "4_second_order_opportunities": {
+     "value": 3,
+     "kinds": [
+      "capacity_unavailable",
+      "dependency_failure",
+      "service_unavailable"
+     ],
+     "first_day": {
+      "capacity_unavailable": 4,
+      "dependency_failure": 4,
+      "service_unavailable": 42
+     }
+    },
+    "5_persistence_of_technological_change": {
+     "value": 1.0,
+     "adopted": 1,
+     "still_active": 1,
+     "median_active_days": 6.020833333333333
+    },
+    "6_information_propagation": {
+     "value": 3,
+     "beliefs_from_others": 3,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 21,
+     "deals_accepted": 0,
+     "contracts": 5,
+     "independent_delegations": 16
+    },
+    "8_strategic_competition": {
+     "contested_classes": 0,
+     "hhi": {
+      "autoscale": 1.0,
+      "placer": 1.0
+     },
+     "provider_price_changes": 59,
+     "value": 0
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.375,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 3,
+     "result_first_window": 144168,
+     "result_last_window": 108820
+    },
+    "11_novel_problem_solving": {
+     "value": 0,
+     "solved": []
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 1,
+     "successful_agents": [
+      "p:ada",
+      "p:bea"
+     ],
+     "mean_pairwise_js": 0.0023,
+     "cluster_sizes": [
+      2
+     ]
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 1,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        5100,
+        8070,
+        5820,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": -1586.6
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        16320,
+        20160,
+        19200
+       ],
+       "slope_per_week": 4937.1
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 3429293,
+     "firm_operating_result": 568965,
+     "loss_events": {
+      "capacity_overload": 456682,
+      "capacity_unavailable": 301,
+      "dependency_failure": 277,
+      "service_unavailable": 31384
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "propagation_off",
+   "seed": 2,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 1,
+     "capabilities": {
+      "cap_000002": [
+       "o:shorteco2"
+      ]
+     },
+     "published": 2
+    },
+    "2_independent_adoption": {
+     "value": 1,
+     "active_installs": 1,
+     "kept_14_days": 0,
+     "tried": 6
+    },
+    "3_new_markets": {
+     "value": 3,
+     "capability_markets": 1,
+     "improvement_entrants": 0,
+     "new_orgs_with_independent_revenue": 2
+    },
+    "4_second_order_opportunities": {
+     "value": 3,
+     "kinds": [
+      "capacity_unavailable",
+      "dependency_failure",
+      "service_unavailable"
+     ],
+     "first_day": {
+      "capacity_unavailable": 4,
+      "dependency_failure": 4,
+      "service_unavailable": 24
+     }
+    },
+    "5_persistence_of_technological_change": {
+     "value": 1.0,
+     "adopted": 1,
+     "still_active": 1,
+     "median_active_days": 6.020833333333333
+    },
+    "6_information_propagation": {
+     "value": 0,
+     "beliefs_from_others": 0,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 18,
+     "deals_accepted": 0,
+     "contracts": 6,
+     "independent_delegations": 12
+    },
+    "8_strategic_competition": {
+     "contested_classes": 0,
+     "hhi": {
+      "autoscale": 1.0,
+      "placer": 1.0
+     },
+     "provider_price_changes": 57,
+     "value": 0
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.375,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 3,
+     "result_first_window": -290589,
+     "result_last_window": -818886
+    },
+    "11_novel_problem_solving": {
+     "value": 1,
+     "solved": [
+      {
+       "request": "req_000020",
+       "by": "o:shorteco2",
+       "kind": "capacity_overload",
+       "reported_per_7d": 3347.0,
+       "last_7d": 1347
+      },
+      {
+       "request": "req_000020",
+       "by": "o:shorteco2",
+       "kind": "capacity_unavailable",
+       "reported_per_7d": 3.0,
+       "last_7d": 0
+      }
+     ]
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 1,
+     "successful_agents": [
+      "p:ada",
+      "p:bea"
+     ],
+     "mean_pairwise_js": 0.0021,
+     "cluster_sizes": [
+      2
+     ]
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 1,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        4710,
+        8940,
+        7740,
+        180,
+        0,
+        0
+       ],
+       "slope_per_week": -1655.1
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        11520,
+        21120,
+        12480
+       ],
+       "slope_per_week": 3922.3
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 3308137,
+     "firm_operating_result": -1477262,
+     "loss_events": {
+      "capacity_overload": 554775,
+      "capacity_unavailable": 333,
+      "dependency_failure": 301,
+      "service_unavailable": 316181
+     }
+    }
+   },
+   "invariants": []
+  },
+  {
+   "condition": "propagation_off",
+   "seed": 3,
+   "measures": {
+    "t0_day": 1,
+    "day": 46,
+    "1_new_useful_capability_creation": {
+     "value": 2,
+     "capabilities": {
+      "cap_000001": [
+       "o:shorteco3"
+      ],
+      "cap_000002": [
+       "o:shorteco1"
+      ]
+     },
+     "published": 2
+    },
+    "2_independent_adoption": {
+     "value": 2,
+     "active_installs": 2,
+     "kept_14_days": 1,
+     "tried": 6
+    },
+    "3_new_markets": {
+     "value": 3,
+     "capability_markets": 1,
+     "improvement_entrants": 0,
+     "new_orgs_with_independent_revenue": 2
+    },
+    "4_second_order_opportunities": {
+     "value": 3,
+     "kinds": [
+      "capacity_unavailable",
+      "dependency_failure",
+      "service_unavailable"
+     ],
+     "first_day": {
+      "capacity_unavailable": 4,
+      "dependency_failure": 4,
+      "service_unavailable": 41
+     }
+    },
+    "5_persistence_of_technological_change": {
+     "value": 1.0,
+     "adopted": 2,
+     "still_active": 2,
+     "median_active_days": 19.020833333333332
+    },
+    "6_information_propagation": {
+     "value": 0,
+     "beliefs_from_others": 0,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": 1.9826388888888888
+    },
+    "7_social_coordination": {
+     "value": 16,
+     "deals_accepted": 0,
+     "contracts": 2,
+     "independent_delegations": 14
+    },
+    "8_strategic_competition": {
+     "contested_classes": 0,
+     "hhi": {
+      "autoscale": 1.0,
+      "placer": 1.0
+     },
+     "provider_price_changes": 49,
+     "value": 0
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.375,
+     "firms": 8,
+     "active": 8,
+     "firms_with_positive_recent_result": 3,
+     "result_first_window": -103981,
+     "result_last_window": -243668
+    },
+    "11_novel_problem_solving": {
+     "value": 3,
+     "solved": [
+      {
+       "request": "req_000019",
+       "by": "o:shorteco1",
+       "kind": "capacity_unavailable",
+       "reported_per_7d": 15.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000019",
+       "by": "o:shorteco1",
+       "kind": "dependency_failure",
+       "reported_per_7d": 10.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000019",
+       "by": "o:shorteco1",
+       "kind": "capacity_overload",
+       "reported_per_7d": 13311.0,
+       "last_7d": 3296
+      },
+      {
+       "request": "req_000022",
+       "by": "o:shorteco2",
+       "kind": "capacity_unavailable",
+       "reported_per_7d": 34.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000022",
+       "by": "o:shorteco2",
+       "kind": "dependency_failure",
+       "reported_per_7d": 31.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000022",
+       "by": "o:shorteco2",
+       "kind": "capacity_overload",
+       "reported_per_7d": 16328.0,
+       "last_7d": 198
+      },
+      {
+       "request": "req_000027",
+       "by": "o:shorteco2",
+       "kind": "capacity_unavailable",
+       "reported_per_7d": 1.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000027",
+       "by": "o:shorteco2",
+       "kind": "dependency_failure",
+       "reported_per_7d": 1.0,
+       "last_7d": 0
+      },
+      {
+       "request": "req_000027",
+       "by": "o:shorteco2",
+       "kind": "capacity_overload",
+       "reported_per_7d": 2944.0,
+       "last_7d": 198
+      }
+     ]
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 1,
+     "successful_agents": [
+      "p:ada",
+      "p:bea"
+     ],
+     "mean_pairwise_js": 0.0022,
+     "cluster_sizes": [
+      2
+     ]
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 1,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        6180,
+        7260,
+        2250,
+        2820,
+        5040,
+        5040
+       ],
+       "slope_per_week": -336.9
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        15360,
+        14400,
+        14400
+       ],
+       "slope_per_week": 3730.3
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 3545040,
+     "firm_operating_result": -308197,
+     "loss_events": {
+      "capacity_overload": 507143,
+      "capacity_unavailable": 270,
+      "dependency_failure": 235,
+      "service_unavailable": 65446
+     }
+    }
+   },
+   "invariants": []
+  }
+ ],
+ "summary": {
+  "factual": {
+   "1_new_useful_capability_creation": {
+    "mean": 1.333,
+    "values": [
+     2.0,
+     1.0,
+     1.0
+    ]
+   },
+   "2_independent_adoption": {
+    "mean": 2.0,
+    "values": [
+     1.0,
+     2.0,
+     3.0
+    ]
+   },
+   "3_new_markets": {
+    "mean": 5.0,
+    "values": [
+     5.0,
+     5.0,
+     5.0
+    ]
+   },
+   "4_second_order_opportunities": {
+    "mean": 3.0,
+    "values": [
+     3.0,
+     3.0,
+     3.0
+    ]
+   },
+   "5_persistence_of_technological_change": {
+    "mean": 1.0,
+    "values": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "6_information_propagation": {
+    "mean": 0.333,
+    "values": [
+     0.0,
+     1.0,
+     0.0
+    ]
+   },
+   "7_social_coordination": {
+    "mean": 24.0,
+    "values": [
+     20.0,
+     30.0,
+     22.0
+    ]
+   },
+   "8_strategic_competition": {
+    "mean": 1.0,
+    "values": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "9_institutional_evolution": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "10_long_term_economic_viability": {
+    "mean": 0.458,
+    "values": [
+     0.5,
+     0.5,
+     0.375
+    ]
+   },
+   "11_novel_problem_solving": {
+    "mean": 0.667,
+    "values": [
+     2.0,
+     0.0,
+     0.0
+    ]
+   },
+   "14_diversity_of_successful_strategies": {
+    "mean": 1.0,
+    "values": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "15_agent_learning_within_lifetime": {
+    "mean": 1.333,
+    "values": [
+     2.0,
+     1.0,
+     1.0
+    ]
+   },
+   "outcomes.requests_served": {
+    "mean": 3316055.333,
+    "values": [
+     3239306,
+     3203200,
+     3505660
+    ]
+   },
+   "outcomes.firm_operating_result": {
+    "mean": -303864.667,
+    "values": [
+     683813,
+     -1395055,
+     -200352
+    ]
+   }
+  },
+  "invention_removed": {
+   "1_new_useful_capability_creation": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "2_independent_adoption": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "3_new_markets": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "4_second_order_opportunities": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "5_persistence_of_technological_change": {
+    "mean": null,
+    "values": [
+     null,
+     null,
+     null
+    ]
+   },
+   "6_information_propagation": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "7_social_coordination": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "8_strategic_competition": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "9_institutional_evolution": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "10_long_term_economic_viability": {
+    "mean": 0.375,
+    "values": [
+     0.375,
+     0.375,
+     0.375
+    ]
+   },
+   "11_novel_problem_solving": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "14_diversity_of_successful_strategies": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "15_agent_learning_within_lifetime": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "outcomes.requests_served": {
+    "mean": 2256625.0,
+    "values": [
+     2099273,
+     2189757,
+     2480845
+    ]
+   },
+   "outcomes.firm_operating_result": {
+    "mean": -724441.0,
+    "values": [
+     88963,
+     -1570372,
+     -691914
+    ]
+   }
+  },
+  "communication_off": {
+   "1_new_useful_capability_creation": {
+    "mean": 0.667,
+    "values": [
+     1.0,
+     0.0,
+     1.0
+    ]
+   },
+   "2_independent_adoption": {
+    "mean": 2.333,
+    "values": [
+     4.0,
+     1.0,
+     2.0
+    ]
+   },
+   "3_new_markets": {
+    "mean": 5.0,
+    "values": [
+     5.0,
+     5.0,
+     5.0
+    ]
+   },
+   "4_second_order_opportunities": {
+    "mean": 3.0,
+    "values": [
+     3.0,
+     3.0,
+     3.0
+    ]
+   },
+   "5_persistence_of_technological_change": {
+    "mean": 1.0,
+    "values": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "6_information_propagation": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "7_social_coordination": {
+    "mean": 25.333,
+    "values": [
+     24.0,
+     32.0,
+     20.0
+    ]
+   },
+   "8_strategic_competition": {
+    "mean": 1.0,
+    "values": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "9_institutional_evolution": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "10_long_term_economic_viability": {
+    "mean": 0.5,
+    "values": [
+     0.5,
+     0.5,
+     0.5
+    ]
+   },
+   "11_novel_problem_solving": {
+    "mean": 2.667,
+    "values": [
+     0.0,
+     3.0,
+     5.0
+    ]
+   },
+   "14_diversity_of_successful_strategies": {
+    "mean": 1.0,
+    "values": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "15_agent_learning_within_lifetime": {
+    "mean": 1.333,
+    "values": [
+     0.0,
+     2.0,
+     2.0
+    ]
+   },
+   "outcomes.requests_served": {
+    "mean": 3391215.0,
+    "values": [
+     3391485,
+     3281731,
+     3500429
+    ]
+   },
+   "outcomes.firm_operating_result": {
+    "mean": 33771.0,
+    "values": [
+     618037,
+     -754596,
+     237872
+    ]
+   }
+  },
+  "demand_off": {
+   "1_new_useful_capability_creation": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "2_independent_adoption": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "3_new_markets": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "4_second_order_opportunities": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "5_persistence_of_technological_change": {
+    "mean": null,
+    "values": [
+     null,
+     null,
+     null
+    ]
+   },
+   "6_information_propagation": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "7_social_coordination": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "8_strategic_competition": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "9_institutional_evolution": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "10_long_term_economic_viability": {
+    "mean": 0.375,
+    "values": [
+     0.375,
+     0.375,
+     0.375
+    ]
+   },
+   "11_novel_problem_solving": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "14_diversity_of_successful_strategies": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "15_agent_learning_within_lifetime": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "outcomes.requests_served": {
+    "mean": 2250736.0,
+    "values": [
+     2089542,
+     2190682,
+     2471984
+    ]
+   },
+   "outcomes.firm_operating_result": {
+    "mean": -725109.333,
+    "values": [
+     64919,
+     -1563273,
+     -676974
+    ]
+   }
+  },
+  "propagation_off": {
+   "1_new_useful_capability_creation": {
+    "mean": 1.333,
+    "values": [
+     1.0,
+     1.0,
+     2.0
+    ]
+   },
+   "2_independent_adoption": {
+    "mean": 1.333,
+    "values": [
+     1.0,
+     1.0,
+     2.0
+    ]
+   },
+   "3_new_markets": {
+    "mean": 3.0,
+    "values": [
+     3.0,
+     3.0,
+     3.0
+    ]
+   },
+   "4_second_order_opportunities": {
+    "mean": 3.0,
+    "values": [
+     3.0,
+     3.0,
+     3.0
+    ]
+   },
+   "5_persistence_of_technological_change": {
+    "mean": 1.0,
+    "values": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "6_information_propagation": {
+    "mean": 1.0,
+    "values": [
+     3.0,
+     0.0,
+     0.0
+    ]
+   },
+   "7_social_coordination": {
+    "mean": 18.333,
+    "values": [
+     21.0,
+     18.0,
+     16.0
+    ]
+   },
+   "8_strategic_competition": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "9_institutional_evolution": {
+    "mean": 0.0,
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "10_long_term_economic_viability": {
+    "mean": 0.375,
+    "values": [
+     0.375,
+     0.375,
+     0.375
+    ]
+   },
+   "11_novel_problem_solving": {
+    "mean": 1.333,
+    "values": [
+     0.0,
+     1.0,
+     3.0
+    ]
+   },
+   "14_diversity_of_successful_strategies": {
+    "mean": 1.0,
+    "values": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "15_agent_learning_within_lifetime": {
+    "mean": 1.0,
+    "values": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "outcomes.requests_served": {
+    "mean": 3427490.0,
+    "values": [
+     3429293,
+     3308137,
+     3545040
+    ]
+   },
+   "outcomes.firm_operating_result": {
+    "mean": -405498.0,
+    "values": [
+     568965,
+     -1477262,
+     -308197
+    ]
+   }
+  }
+ },
+ "differences": {
+  "invention_removed": {
+   "1_new_useful_capability_creation": {
+    "mean_factual_minus_condition": 1.333,
+    "sd": 0.577,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "2_independent_adoption": {
+    "mean_factual_minus_condition": 2.0,
+    "sd": 1.0,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "3_new_markets": {
+    "mean_factual_minus_condition": 5.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "4_second_order_opportunities": {
+    "mean_factual_minus_condition": 3.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "6_information_propagation": {
+    "mean_factual_minus_condition": 0.333,
+    "sd": 0.577,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "7_social_coordination": {
+    "mean_factual_minus_condition": 24.0,
+    "sd": 5.292,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "8_strategic_competition": {
+    "mean_factual_minus_condition": 1.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "9_institutional_evolution": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "10_long_term_economic_viability": {
+    "mean_factual_minus_condition": 0.083,
+    "sd": 0.072,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "11_novel_problem_solving": {
+    "mean_factual_minus_condition": 0.667,
+    "sd": 1.155,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "14_diversity_of_successful_strategies": {
+    "mean_factual_minus_condition": 1.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "15_agent_learning_within_lifetime": {
+    "mean_factual_minus_condition": 1.333,
+    "sd": 0.577,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "outcomes.requests_served": {
+    "mean_factual_minus_condition": 1059430.333,
+    "sd": 70035.155,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "outcomes.firm_operating_result": {
+    "mean_factual_minus_condition": 420576.333,
+    "sd": 218589.131,
+    "n": 3,
+    "positive_in_every_seed": true
+   }
+  },
+  "communication_off": {
+   "1_new_useful_capability_creation": {
+    "mean_factual_minus_condition": 0.667,
+    "sd": 0.577,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "2_independent_adoption": {
+    "mean_factual_minus_condition": -0.333,
+    "sd": 2.309,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "3_new_markets": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "4_second_order_opportunities": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "5_persistence_of_technological_change": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "6_information_propagation": {
+    "mean_factual_minus_condition": 0.333,
+    "sd": 0.577,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "7_social_coordination": {
+    "mean_factual_minus_condition": -1.333,
+    "sd": 3.055,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "8_strategic_competition": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "9_institutional_evolution": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "10_long_term_economic_viability": {
+    "mean_factual_minus_condition": -0.042,
+    "sd": 0.072,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "11_novel_problem_solving": {
+    "mean_factual_minus_condition": -2.0,
+    "sd": 3.606,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "14_diversity_of_successful_strategies": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "15_agent_learning_within_lifetime": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 1.732,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "outcomes.requests_served": {
+    "mean_factual_minus_condition": -75159.667,
+    "sd": 78759.136,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "outcomes.firm_operating_result": {
+    "mean_factual_minus_condition": -337635.667,
+    "sd": 363703.833,
+    "n": 3,
+    "positive_in_every_seed": false
+   }
+  },
+  "demand_off": {
+   "1_new_useful_capability_creation": {
+    "mean_factual_minus_condition": 1.333,
+    "sd": 0.577,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "2_independent_adoption": {
+    "mean_factual_minus_condition": 2.0,
+    "sd": 1.0,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "3_new_markets": {
+    "mean_factual_minus_condition": 5.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "4_second_order_opportunities": {
+    "mean_factual_minus_condition": 3.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "6_information_propagation": {
+    "mean_factual_minus_condition": 0.333,
+    "sd": 0.577,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "7_social_coordination": {
+    "mean_factual_minus_condition": 24.0,
+    "sd": 5.292,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "8_strategic_competition": {
+    "mean_factual_minus_condition": 1.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "9_institutional_evolution": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "10_long_term_economic_viability": {
+    "mean_factual_minus_condition": 0.083,
+    "sd": 0.072,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "11_novel_problem_solving": {
+    "mean_factual_minus_condition": 0.667,
+    "sd": 1.155,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "14_diversity_of_successful_strategies": {
+    "mean_factual_minus_condition": 1.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "15_agent_learning_within_lifetime": {
+    "mean_factual_minus_condition": 1.333,
+    "sd": 0.577,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "outcomes.requests_served": {
+    "mean_factual_minus_condition": 1065319.333,
+    "sd": 73892.432,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "outcomes.firm_operating_result": {
+    "mean_factual_minus_condition": 421244.667,
+    "sd": 230384.898,
+    "n": 3,
+    "positive_in_every_seed": true
+   }
+  },
+  "propagation_off": {
+   "1_new_useful_capability_creation": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 1.0,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "2_independent_adoption": {
+    "mean_factual_minus_condition": 0.667,
+    "sd": 0.577,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "3_new_markets": {
+    "mean_factual_minus_condition": 2.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "4_second_order_opportunities": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "5_persistence_of_technological_change": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "6_information_propagation": {
+    "mean_factual_minus_condition": -0.667,
+    "sd": 2.082,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "7_social_coordination": {
+    "mean_factual_minus_condition": 5.667,
+    "sd": 6.506,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "8_strategic_competition": {
+    "mean_factual_minus_condition": 1.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": true
+   },
+   "9_institutional_evolution": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "10_long_term_economic_viability": {
+    "mean_factual_minus_condition": 0.083,
+    "sd": 0.072,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "11_novel_problem_solving": {
+    "mean_factual_minus_condition": -0.667,
+    "sd": 2.517,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "14_diversity_of_successful_strategies": {
+    "mean_factual_minus_condition": 0.0,
+    "sd": 0.0,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "15_agent_learning_within_lifetime": {
+    "mean_factual_minus_condition": 0.333,
+    "sd": 0.577,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "outcomes.requests_served": {
+    "mean_factual_minus_condition": -111434.667,
+    "sd": 75513.455,
+    "n": 3,
+    "positive_in_every_seed": false
+   },
+   "outcomes.firm_operating_result": {
+    "mean_factual_minus_condition": 101633.333,
+    "sd": 17184.217,
+    "n": 3,
+    "positive_in_every_seed": true
+   }
+  }
+ },
+ "second_order_established": {
+  "1": [
+   "capacity_unavailable",
+   "dependency_failure",
+   "service_unavailable"
+  ],
+  "2": [
+   "capacity_unavailable",
+   "dependency_failure",
+   "service_unavailable"
+  ],
+  "3": [
+   "capacity_unavailable",
+   "dependency_failure",
+   "service_unavailable"
+  ]
+ },
+ "complexity_dependence": {
+  "invention_removed": [
+   "14_diversity_of_successful_strategies",
+   "15_agent_learning_within_lifetime",
+   "1_new_useful_capability_creation",
+   "2_independent_adoption",
+   "3_new_markets",
+   "4_second_order_opportunities",
+   "7_social_coordination",
+   "8_strategic_competition"
+  ],
+  "communication_off": [],
+  "demand_off": [
+   "14_diversity_of_successful_strategies",
+   "15_agent_learning_within_lifetime",
+   "1_new_useful_capability_creation",
+   "2_independent_adoption",
+   "3_new_markets",
+   "4_second_order_opportunities",
+   "7_social_coordination",
+   "8_strategic_competition"
+  ],
+  "propagation_off": [
+   "3_new_markets",
+   "8_strategic_competition"
+  ]
+ },
+ "config": {
+  "family": "open_tight_compute",
+  "days": 45,
+  "seeds": [
+   1,
+   2,
+   3
+  ],
+  "warmup_days": 1,
+  "agents": {
+   "ada": "CapacityInventor (scripted)",
+   "bea": "PlacementBroker (scripted)"
+  },
+  "wall_s": 1324.4
+ },
+ "note": "differences/complexity_dependence recomputed from the stored per-seed values with the every-seed rule"
+}

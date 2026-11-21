@@ -36,6 +36,19 @@ def test_worker_refuses_to_start_under_an_unavailable_backend(monkeypatch):
     assert "unavailable" in str(e.value)
 
 
+def test_workloads_requiring_vm_isolation_fail_closed_on_a_process_sandbox(monkeypatch):
+    monkeypatch.delenv("CRUCIBLE_SANDBOX_BACKEND", raising=False)
+    monkeypatch.setenv("CRUCIBLE_MIN_ISOLATION", "vm")
+    with pytest.raises(backends.SandboxUnavailable) as e:
+        Worker({"m.py": "x = 1\n"}, SandboxConfig()).start()
+    assert "requires 'vm' isolation" in str(e.value)
+    monkeypatch.setenv("CRUCIBLE_MIN_ISOLATION", "process")
+    w = Worker({"m.py": "x = 1\n"}, SandboxConfig()).start()          # the process level is met: it starts
+    w.close()
+    with pytest.raises(backends.SandboxUnavailable):
+        backends.enforce_min_isolation("landlock-seccomp", "kernel-of-my-choice")
+
+
 def _world():
     w = World.create(generate({"family": "open_digital", "overrides": {"n_consumers": 300}}, 4))
     w.system_call("admin.join", {"handle": "eve", "endowment": 3_000_000})

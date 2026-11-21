@@ -94,6 +94,8 @@ class Society(Module):
         register_default_routines(world)
         from .dynamics import register_dynamics
         register_dynamics(world)
+        from .innovators import register_innovators
+        register_innovators(world)
         world.hooks.setdefault("layoff", _layoff)
         from . import negotiation as neg
         prev_o = world.hooks.get("on_deal_offered")
@@ -691,6 +693,9 @@ def capacity_routine(soc: Society, ctx: Ctx, mid: str, m: dict, rng) -> None:
     for host in sorted(st.find_ids("hosts", "owner", m["org"])):
         h = st.tables["hosts"][host]
         dep = st.get("deployments", h["deployment"]) if h.get("deployment") else None
+        if dep is not None and dep["status"] == "stopped" and not soc.p("ablate_recovery", False):
+            _recover_or_exit(soc, ctx, m, host, dep)
+            continue
         if dep is None or dep["status"] != "live":
             continue
         inst = st.get("instances", dep["instance"])
@@ -708,6 +713,26 @@ def capacity_routine(soc: Society, ctx: Ctx, mid: str, m: dict, rng) -> None:
             soc.act(ctx, m["owner"], "cloud.resize", {"instance": dep["instance"], "cores": min(64, inst["cores"] + 1)})
         elif inst["cores"] > 1 and peak < 0.4 * cap * (inst["cores"] - 1) / inst["cores"] and over == 0:
             soc.act(ctx, m["owner"], "cloud.resize", {"instance": dep["instance"], "cores": inst["cores"] - 1})
+
+
+def _recover_or_exit(soc, ctx, m, host, dep) -> None:
+    """A firm whose service lost its instance (e.g. suspended for non-payment, then terminated) either restarts it
+    on one core at the cheapest provider with room - if it can pay for a week of it - or winds the company up.
+    Without this, a firm could sit for months with a dead service and an open listing (found in a 120-day run)."""
+    st = ctx.state
+    bank = ctx.world.modules["bank"]
+    acct = bank.primary_account(st, m["org"])
+    cash = bank.balance(st, acct) if acct else 0
+    provs = sorted((p["price"], k) for k, p in st.scan("providers") if p["status"] == "active" and
+                   p["cores"] - sum(i["cores"] for i in st.find("instances", "provider", k) if i["status"] == "running") >= 1)
+    if provs and acct and cash >= provs[0][0] * 24 * 7:
+        inst = soc.act(ctx, m["owner"], "cloud.rent", {"provider": provs[0][1], "cores": 1, "account": acct,
+                                                      "owner": m["org"]})
+        if inst:
+            soc.act(ctx, m["owner"], "cloud.deploy", {"repo": dep["repo"], "host": host, "instance": inst["instance"]})
+        return
+    if st.get("companies", m["org"]) and st.tables["companies"][m["org"]]["status"] == "registered":
+        soc.act(ctx, m["owner"], "biz.dissolve", {"org": m["org"]})
 
 
 def pricing_routine(soc: Society, ctx: Ctx, mid: str, m: dict, rng) -> None:

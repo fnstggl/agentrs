@@ -1,0 +1,187 @@
+{
+ "seal": "c8698abc863827b48b197f3da95a23edf9978686abb13840058d79b9de4e63bf",
+ "tasks": [
+  {
+   "id": "g-af3220bed819",
+   "family": "visibility",
+   "description": "Firms with 'capacity_overload' problems search the synthetic web for \"overload capacity scaling\". Within 7 days, own a page that ranks in the top 3 organic results for that query.",
+   "world": {
+    "family": "open_digital",
+    "seed": 4,
+    "overrides": {},
+    "warmup_s": 259200
+   },
+   "principal": "$self",
+   "success": {
+    "metric": "search_best_rank",
+    "args": {
+     "principal": "$org",
+     "q": "overload capacity scaling"
+    },
+    "op": "<=",
+    "value": 3
+   },
+   "progress": {
+    "metric": "search_visibility",
+    "args": {
+     "principal": "$org",
+     "q": "overload capacity scaling"
+    },
+    "target": 0.3333333333333333
+   },
+   "horizon_s": 604800,
+   "sustain_checks": 1,
+   "endowment": 1000000,
+   "budget": {},
+   "split": "heldout",
+   "difficulty": 0.5,
+   "params": {
+    "source": {
+     "kind": "search_topic",
+     "loss": "capacity_overload",
+     "q": "overload capacity scaling",
+     "reporters": [
+      "o:recordco1",
+      "o:recordco2"
+     ]
+    },
+    "loss": "capacity_overload",
+    "q": "overload capacity scaling"
+   },
+   "tags": [
+    "mined",
+    "open_world",
+    "internet"
+   ]
+  }
+ ],
+ "reports": [
+  {
+   "goal": {
+    "id": "g-af3220bed819",
+    "family": "visibility",
+    "description": "Firms with 'capacity_overload' problems search the synthetic web for \"overload capacity scaling\". Within 7 days, own a page that ranks in the top 3 organic results for that query.",
+    "world": {
+     "family": "open_digital",
+     "seed": 4,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "metric": "search_best_rank",
+     "args": {
+      "principal": "$org",
+      "q": "overload capacity scaling"
+     },
+     "op": "<=",
+     "value": 3
+    },
+    "progress": {
+     "metric": "search_visibility",
+     "args": {
+      "principal": "$org",
+      "q": "overload capacity scaling"
+     },
+     "target": 0.3333333333333333
+    },
+    "horizon_s": 604800,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "heldout",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "search_topic",
+      "loss": "capacity_overload",
+      "q": "overload capacity scaling",
+      "reporters": [
+       "o:recordco1",
+       "o:recordco2"
+      ]
+     },
+     "loss": "capacity_overload",
+     "q": "overload capacity scaling"
+    },
+    "tags": [
+     "mined",
+     "open_world",
+     "internet"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 22680,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      99.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": true,
+     "witness": "site_author",
+     "controls": [
+      "site_author"
+     ]
+    },
+    "near_miss": {
+     "ok": true,
+     "threshold": [
+      {
+       "metric": "search_best_rank",
+       "achieved": 1.0,
+       "mutated_to": -0.5,
+       "still_true": false
+      }
+     ],
+     "binding": {
+      "swapped_to": "o:cloud1",
+      "still_true": false
+     }
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "site_author": {
+     "success": true,
+     "days_to_success": 1.0,
+     "progress": 1.0,
+     "final_progress": 1.0
+    }
+   },
+   "difficulty": 0.486,
+   "verdict": "accepted",
+   "reasons": []
+  }
+ ]
+}

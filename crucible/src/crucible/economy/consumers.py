@@ -310,6 +310,9 @@ class Consumers(Module):
         nbr = st.arrays["c_nbr"]
         public = {int(k): v for k, v in p["public"].items()}
         n_slots = max([s for s in public] + [int(k) for k in p["slots"]] + [-1]) + 1
+        # slots that closed still appear in consumers' current provider and awareness sets: size the per-slot
+        # arrays to cover them (an offering closing at the top of the slot range used to crash every hour)
+        n_slots = max(n_slots, int(prov.max(initial=-1)) + 1, int(aware.max(initial=-1)) + 1)
         price = np.zeros(n_slots + 1, np.float32)
         rating = np.full(n_slots + 1, 3.0, np.float32)
         conf = np.zeros(n_slots + 1, np.float32)

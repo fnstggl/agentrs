@@ -103,3 +103,45 @@ the evaluator.
 * **Isolation backends** (`sandbox/backends.py`): `detect()` reports what the host provides; requesting an
   unavailable backend (gVisor, bubblewrap, Firecracker) raises `SandboxUnavailable`; there is no fallback to
   weaker isolation. On this host only the default Landlock/seccomp process sandbox is available - not VM-grade.
+
+## Synthetic internet surfaces (feat/crucible-internet, Crucible 3.0)
+
+* **Operating modes are separate** (`crucible/modes.py`).
+  * **Mode A (synthetic training)** is the only mode used for training. The browser resolves only `*.crucible`
+    (`MAP * ~NOTFOUND`) and routes every other request to a block. Sandboxed programs have no network.
+  * **Mode B (offline grounding)** reads local, read-only reference files. `load_reference` refuses network
+    locations.
+  * **Mode C (supervised real-world evaluation)** is refused unless the operator sets
+    `CRUCIBLE_MODE_C_APPROVAL=<evaluation>:<token>` *and* a human approval callback accepts each action. The
+    `RealWorldGateway` only gates; it performs nothing itself.
+  * Worlds cannot reach the environment or the gateway, so no in-world policy can approve its own escalation.
+  * Tested: `tests/test_internet_adversarial.py::test_operating_modes_are_separated_and_mode_c_is_refused_by_default`,
+    `::test_hermetic_browser_cannot_reach_outside_hosts`.
+* **Web applications run as their service principal, inside the sandbox.**
+  * Route handlers get a request dictionary and return a response. They cannot read other applications' `appdb`
+    namespaces.
+  * A site learns a visitor's identity only after the visitor consents (`net.login`).
+  * Every request is a recorded `net.fetch` command, rate-limited per actor and per site.
+* **Adversarial content is data.**
+  * Injection pages, a fraudulent capability, spam and false documentation are generated in-world
+    (`worldgen/adversarial.py`). None of it is addressed to, or read by, the operator's session.
+  * Text an agent reads cannot change verifiers, metrics or the evaluator. Those are evaluator-side objects, and
+    metrics read authoritative state only.
+  * `evaluation/trust_boundary.assess` reports payments, grants and installs that went to adversary principals,
+    and calls of tools that appeared only in injected text.
+  * A naive reader policy is caught and a careful one is not. No simulated firm kept the fraudulent capability
+    active after 40 days, and spam without verifiable references never became a belief
+    (`tests/test_internet_adversarial.py`).
+* **Minimum isolation fails closed** (19H). A workload can require an isolation level through
+  `CRUCIBLE_MIN_ISOLATION` or `SandboxConfig.min_isolation`; the levels are
+  `process < namespaces < user-space-kernel < vm`. If the selected backend does not provide that level, the
+  worker refuses to start with `SandboxUnavailable` and names the backends that would. It never falls back to a
+  weaker level.
+  * On this host only `landlock-seccomp` is available (`process`), so any `vm` requirement is refused (tested in
+    `tests/test_open_security.py`).
+  * **Crucible does not provide VM-grade isolation here.**
+* **Kernel contract found by testing.** An emitted event payload must never be mutated afterwards.
+  * The NPC innovator routine first stored a dictionary that it kept mutating. Replaying the log then broke the
+    hash chain, so the kernel's integrity check caught it.
+  * The routine now stores deep copies, and its test asserts exact replay and regeneration.
+  * The kernel does not defensively copy payloads, for speed. New routines must follow the contract.

@@ -89,3 +89,28 @@ digital-economy day is dominated by executing sampled requests of incumbent serv
 line-counting cost model (~11 ms per request for the route-finding incumbents), which is why open families sample 2
 requests per offering per hour. Long run: 90 simulated days of `open_mixed` (295k events) in 136 s wall, replayed
 from SQLite with an identical digest.
+
+## Synthetic internet (measured; `python crucible/examples/bench_internet.py`, docs/benchmarks/internet.json)
+
+Same container, under load from other experiments (LLM inference on the GPU and three simulations).
+
+| Measure | Result |
+|---|---|
+| `net.fetch` GET of a generated site via the API | 1.59 ms per request, 631 per wall second. Includes advancing the world 20 simulated s per request, which keeps the agent under its 240 actions/hour limit |
+| Same page in real Chromium (hermetic resolver, through the front end) | first load 292 ms, then 125 ms mean: about 79x the API cost for the same recorded command |
+| 10 / 50 / 200 scripted agents on independent clocks (AsyncRunner, 6 simulated hours) | 1,325 / 2,338 / 2,431 actions per wall second |
+
+* The concurrent agents above are **reasoning-free readers**. They measure the kernel and scheduler, not LLM
+  scale.
+* LLM decisions cost what the model costs. In the final challenge (A6000, bf16, prompts of about 4.6k tokens),
+  Qwen3-4B took about 3.5 s of generation per decision (`usage` in `docs/experiments/final_challenge_*.json`).
+* A world with hundreds of concurrently *reasoning* LLM agents was not run.
+* Statistical consumers (thousands per world) are reported separately from agents and minds.
+
+Validation and calibration costs (Part 17/18; open_tight_compute, 3-day warm-up):
+
+| Task | Cost |
+|---|---|
+| Visibility task | about 43 s (idle + random + competent forks, 7 days) |
+| Loss-relief task | about 139 s (21 days) |
+| Adoption task | about 163 s (30 days) |

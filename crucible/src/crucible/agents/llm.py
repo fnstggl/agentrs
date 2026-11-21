@@ -174,12 +174,23 @@ def render_actor_observation(obs: Any, last_result: dict | None = None, max_even
     return R.render_observation(o, max_events=max_events, payload_chars=payload_chars, show_tools=False)
 
 
-def render_tool_list(tools: list[dict], budget_chars: int = 9000, priority: tuple = (), description_chars: int = 70) -> str:
+def render_tool_list(tools: list[dict], budget_chars: int = 9000, priority: tuple = (), description_chars: int = 70,
+                     order: str = "alpha") -> str:
     """Compact tool list within a character budget. Full lines (signature + short description) for `priority`
-    tools first, then the others alphabetically; when the budget is reached the remaining tools are listed by
-    name only, grouped by host (their signatures can be requested by calling them: errors name the arguments)."""
+    tools first, then the others - alphabetically (``order="alpha"``) or interleaved across hosts
+    (``order="interleave"``: every host's first tool, then every host's second, ...), so that a small budget does
+    not give full signatures only to the alphabetically first services. When the budget is reached the remaining
+    tools are listed by name only, grouped by host (their signatures can be requested by calling them: errors name
+    the arguments)."""
     by = {t["name"]: t for t in tools}
-    order = [n for n in priority if n in by] + sorted(n for n in by if n not in set(priority))
+    rest_names = sorted(n for n in by if n not in set(priority))
+    if order == "interleave":
+        hosts: dict[str, list[str]] = {}
+        for n in rest_names:
+            hosts.setdefault(n.partition(".")[0], []).append(n)
+        rest_names = [lst[i] for i in range(max((len(v) for v in hosts.values()), default=0))
+                      for _, lst in sorted(hosts.items()) if i < len(lst)]
+    order = [n for n in priority if n in by] + rest_names
     full, rest, used = [], [], 0
     for n in order:
         line = R.render_tool(by[n], description_chars)
@@ -206,13 +217,14 @@ class LLMPolicy(Policy):
     def __init__(self, model: str = "Qwen/Qwen3-1.7B", device: str = "cuda", max_new_tokens: int = 256,
                  temperature: float = 0.0, history: int = 6, system_prompt: str | None = None, goal: str = "",
                  backend: Any = None, tool_chars: int = 9000, max_events: int = 25, payload_chars: int = 200,
-                 record_prompts: bool = False, seed: int = 0):
+                 record_prompts: bool = False, seed: int = 0, tool_order: str = "alpha"):
         self.model_name = getattr(backend, "name", model)
         self._backend, self._backend_args = backend, (model, device)
         self.max_new_tokens, self.temperature, self.k_hist = max_new_tokens, temperature, history
         self.system_prompt = DEFAULT_SYSTEM_PROMPT if system_prompt is None else system_prompt
         self.goal = goal
         self.tool_chars, self.max_events, self.payload_chars = tool_chars, max_events, payload_chars
+        self.tool_order = tool_order
         self.record_prompts, self.seed = record_prompts, seed
         self.name = f"llm:{self.model_name}"
         self.transcript: list[dict] = []
@@ -264,7 +276,8 @@ class LLMPolicy(Policy):
                                                                  self.payload_chars))
         if new:
             parts.append("Newly available tools: " + ", ".join(new))
-        parts.append(f"Tools ({len(tools)}):\n" + render_tool_list(tools, self.tool_chars, tuple(new) + tuple(recent)))
+        parts.append(f"Tools ({len(tools)}):\n" + render_tool_list(tools, self.tool_chars, tuple(new) + tuple(recent),
+                                                                  order=self.tool_order))
         parts.append("Your next action (one JSON tool call):")
         return [{"role": "system", "content": self.system_prompt}, {"role": "user", "content": "\n\n".join(parts)}], new
 

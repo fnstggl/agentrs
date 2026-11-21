@@ -1,0 +1,288 @@
+{
+ "days": 30,
+ "rows": [
+  {
+   "seed": 1,
+   "threshold": 0.5,
+   "cooperative": "o:forge1",
+   "members": 13,
+   "fork_day": 2,
+   "proposal": {
+    "id": "prop_000001",
+    "status": "rejected",
+    "votes_for": 6,
+    "votes_against": 3
+   },
+   "before": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 0,
+    "units_made": 0,
+    "operating_result": 0,
+    "distributed_to_members": 0
+   },
+   "factual": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 49,
+    "units_made": 1646,
+    "operating_result": 883465,
+    "distributed_to_members": 363233
+   },
+   "counterfactual": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 45,
+    "units_made": 1497,
+    "operating_result": 726831,
+    "distributed_to_members": 390689
+   },
+   "replay_identical": true
+  },
+  {
+   "seed": 2,
+   "threshold": 0.5,
+   "cooperative": "o:forge1",
+   "members": 13,
+   "fork_day": 2,
+   "proposal": {
+    "id": "prop_000001",
+    "status": "rejected",
+    "votes_for": 4,
+    "votes_against": 4
+   },
+   "before": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 0,
+    "units_made": 0,
+    "operating_result": 0,
+    "distributed_to_members": 0
+   },
+   "factual": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 17,
+    "units_made": 859,
+    "operating_result": -19709,
+    "distributed_to_members": 0
+   },
+   "counterfactual": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 23,
+    "units_made": 1152,
+    "operating_result": 46655,
+    "distributed_to_members": 23322
+   },
+   "replay_identical": true
+  },
+  {
+   "seed": 3,
+   "threshold": 0.5,
+   "cooperative": "o:forge1",
+   "members": 13,
+   "fork_day": 2,
+   "proposal": {
+    "id": "prop_000001",
+    "status": "rejected",
+    "votes_for": 5,
+    "votes_against": 1
+   },
+   "before": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 0,
+    "units_made": 0,
+    "operating_result": 0,
+    "distributed_to_members": 0
+   },
+   "factual": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 40,
+    "units_made": 947,
+    "operating_result": -414688,
+    "distributed_to_members": 0
+   },
+   "counterfactual": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 40,
+    "units_made": 843,
+    "operating_result": -393883,
+    "distributed_to_members": 0
+   },
+   "replay_identical": true
+  },
+  {
+   "seed": 1,
+   "threshold": 0.3,
+   "cooperative": "o:forge1",
+   "members": 13,
+   "fork_day": 2,
+   "proposal": {
+    "id": "prop_000001",
+    "status": "executed",
+    "votes_for": 4,
+    "votes_against": 2
+   },
+   "before": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 0,
+    "units_made": 0,
+    "operating_result": 0,
+    "distributed_to_members": 0
+   },
+   "factual": {
+    "effective_operators": 6.9,
+    "constitution": {
+     "basis": "labor",
+     "share": 0.5
+    },
+    "runs": 46,
+    "units_made": 1789,
+    "operating_result": 904718,
+    "distributed_to_members": 0
+   },
+   "counterfactual": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 45,
+    "units_made": 1497,
+    "operating_result": 726831,
+    "distributed_to_members": 390689
+   },
+   "replay_identical": true
+  },
+  {
+   "seed": 2,
+   "threshold": 0.3,
+   "cooperative": "o:forge1",
+   "members": 13,
+   "fork_day": 2,
+   "proposal": {
+    "id": "prop_000001",
+    "status": "executed",
+    "votes_for": 4,
+    "votes_against": 3
+   },
+   "before": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 0,
+    "units_made": 0,
+    "operating_result": 0,
+    "distributed_to_members": 0
+   },
+   "factual": {
+    "effective_operators": 6.9,
+    "constitution": {
+     "basis": "labor",
+     "share": 0.5
+    },
+    "runs": 24,
+    "units_made": 1961,
+    "operating_result": 77560,
+    "distributed_to_members": 0
+   },
+   "counterfactual": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 23,
+    "units_made": 1152,
+    "operating_result": 46655,
+    "distributed_to_members": 23322
+   },
+   "replay_identical": true
+  },
+  {
+   "seed": 3,
+   "threshold": 0.3,
+   "cooperative": "o:forge1",
+   "members": 13,
+   "fork_day": 2,
+   "proposal": {
+    "id": "prop_000001",
+    "status": "executed",
+    "votes_for": 5,
+    "votes_against": 1
+   },
+   "before": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 0,
+    "units_made": 0,
+    "operating_result": 0,
+    "distributed_to_members": 0
+   },
+   "factual": {
+    "effective_operators": 6.9,
+    "constitution": {
+     "basis": "labor",
+     "share": 0.5
+    },
+    "runs": 23,
+    "units_made": 679,
+    "operating_result": -61255,
+    "distributed_to_members": 0
+   },
+   "counterfactual": {
+    "effective_operators": 3.877,
+    "constitution": {
+     "basis": "equal",
+     "share": 0.5
+    },
+    "runs": 40,
+    "units_made": 843,
+    "operating_result": -393883,
+    "distributed_to_members": 0
+   },
+   "replay_identical": true
+  }
+ ],
+ "wall_s": 20.6
+}

@@ -1,0 +1,37 @@
+{
+ "api_fetch": {
+  "site": "recipebox",
+  "n": 300,
+  "per_s": 630.6,
+  "mean_ms": 1.59
+ },
+ "chromium_page_load": {
+  "first_ms": 291.5,
+  "n": 20,
+  "mean_ms": 124.6,
+  "overhead_vs_api": 78.6
+ },
+ "async_agents": [
+  {
+   "agents": 10,
+   "sim_hours": 6,
+   "actions": 370,
+   "wall_s": 0.28,
+   "actions_per_wall_s": 1325.0
+  },
+  {
+   "agents": 50,
+   "sim_hours": 6,
+   "actions": 1806,
+   "wall_s": 0.77,
+   "actions_per_wall_s": 2337.6
+  },
+  {
+   "agents": 200,
+   "sim_hours": 6,
+   "actions": 7216,
+   "wall_s": 2.97,
+   "actions_per_wall_s": 2430.5
+  }
+ ]
+}

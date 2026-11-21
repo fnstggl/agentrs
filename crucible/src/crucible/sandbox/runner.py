@@ -197,7 +197,8 @@ class Worker:
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
         backend = getattr(cfg, "backend", None) or os.environ.get("CRUCIBLE_SANDBOX_BACKEND") or "landlock-seccomp"
-        from .backends import require, wrap
+        from .backends import enforce_min_isolation, require, wrap
+        enforce_min_isolation(backend, getattr(cfg, "min_isolation", None) or os.environ.get("CRUCIBLE_MIN_ISOLATION"))
         if backend != "landlock-seccomp":
             require(backend)                      # never a silent fallback to weaker isolation
         argv = wrap(backend, [sys.executable, "-I", "-S", "-B", BOOT, self.workdir, json.dumps(boot_cfg)], self.workdir)

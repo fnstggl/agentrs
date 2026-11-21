@@ -1,0 +1,243 @@
+{
+ "days": 40,
+ "rows": [
+  {
+   "seed": 1,
+   "days": 40,
+   "late_majority": [
+    "o:recordco2",
+    "o:recordco3",
+    "o:shorteco2",
+    "o:shorteco3"
+   ],
+   "factual": {
+    "late_beliefs_from_others": {
+     "o:recordco2": 0,
+     "o:recordco3": 0,
+     "o:shorteco2": 0,
+     "o:shorteco3": 0
+    },
+    "late_tried": [
+     "o:recordco3"
+    ],
+    "first_late_trial_day": 34.98,
+    "adopted": [
+     "o:shorteco1"
+    ],
+    "late_adopted": [],
+    "forum_posts_with_evidence": 1,
+    "public_outcomes": 2,
+    "operating_result_late": 2992674,
+    "operating_result_all": 4181236,
+    "public_outcome_effects": [
+     -31062,
+     5802
+    ],
+    "late_belief_rel": {
+     "o:recordco2": [],
+     "o:recordco3": [],
+     "o:shorteco2": [],
+     "o:shorteco3": []
+    },
+    "page_status": 404
+   },
+   "counterfactual": {
+    "late_beliefs_from_others": {
+     "o:recordco2": 1,
+     "o:recordco3": 1,
+     "o:shorteco2": 1,
+     "o:shorteco3": 1
+    },
+    "late_tried": [
+     "o:recordco3"
+    ],
+    "first_late_trial_day": 33.98,
+    "adopted": [],
+    "late_adopted": [],
+    "forum_posts_with_evidence": 1,
+    "public_outcomes": 2,
+    "operating_result_late": 3645573,
+    "operating_result_all": 4137522,
+    "public_outcome_effects": [
+     -31013,
+     581
+    ],
+    "late_belief_rel": {
+     "o:recordco2": [
+      -2.0627
+     ],
+     "o:recordco3": [
+      -2.0627
+     ],
+     "o:shorteco2": [
+      -2.0627
+     ],
+     "o:shorteco3": [
+      -2.0627
+     ]
+    },
+    "page_status": 404
+   },
+   "aggregator_posts": 1,
+   "aggregator_pages_crawled": [],
+   "regeneration_identical": true
+  },
+  {
+   "seed": 2,
+   "days": 40,
+   "late_majority": [
+    "o:recordco2",
+    "o:recordco3",
+    "o:shorteco2",
+    "o:shorteco3"
+   ],
+   "factual": {
+    "late_beliefs_from_others": {
+     "o:recordco2": 1,
+     "o:recordco3": 1,
+     "o:shorteco2": 1,
+     "o:shorteco3": 1
+    },
+    "late_tried": [],
+    "first_late_trial_day": null,
+    "adopted": [
+     "o:shorteco1"
+    ],
+    "late_adopted": [],
+    "forum_posts_with_evidence": 3,
+    "public_outcomes": 2,
+    "operating_result_late": 2950863,
+    "operating_result_all": 2822894,
+    "public_outcome_effects": [
+     -32362,
+     4331
+    ],
+    "late_belief_rel": {
+     "o:recordco2": [
+      -1.7223
+     ],
+     "o:recordco3": [
+      -1.7223
+     ],
+     "o:shorteco2": [
+      -1.7223
+     ],
+     "o:shorteco3": [
+      -1.7223
+     ]
+    },
+    "page_status": 404
+   },
+   "counterfactual": {
+    "late_beliefs_from_others": {
+     "o:recordco2": 0,
+     "o:recordco3": 0,
+     "o:shorteco2": 0,
+     "o:shorteco3": 0
+    },
+    "late_tried": [
+     "o:recordco3"
+    ],
+    "first_late_trial_day": 36.98,
+    "adopted": [],
+    "late_adopted": [],
+    "forum_posts_with_evidence": 0,
+    "public_outcomes": 2,
+    "operating_result_late": 2961364,
+    "operating_result_all": 2762786,
+    "public_outcome_effects": [
+     -42080,
+     686
+    ],
+    "late_belief_rel": {
+     "o:recordco2": [],
+     "o:recordco3": [],
+     "o:shorteco2": [],
+     "o:shorteco3": []
+    },
+    "page_status": 404
+   },
+   "aggregator_posts": 1,
+   "aggregator_pages_crawled": [],
+   "regeneration_identical": true
+  },
+  {
+   "seed": 3,
+   "days": 40,
+   "late_majority": [
+    "o:recordco2",
+    "o:recordco3",
+    "o:shorteco2",
+    "o:shorteco3"
+   ],
+   "factual": {
+    "late_beliefs_from_others": {
+     "o:recordco2": 1,
+     "o:recordco3": 1,
+     "o:shorteco2": 1,
+     "o:shorteco3": 1
+    },
+    "late_tried": [],
+    "first_late_trial_day": null,
+    "adopted": [],
+    "late_adopted": [],
+    "forum_posts_with_evidence": 3,
+    "public_outcomes": 2,
+    "operating_result_late": 1725436,
+    "operating_result_all": 818186,
+    "public_outcome_effects": [
+     -30537,
+     308
+    ],
+    "late_belief_rel": {
+     "o:recordco2": [
+      -1.6643
+     ],
+     "o:recordco3": [
+      -1.6643
+     ],
+     "o:shorteco2": [
+      -1.6643
+     ],
+     "o:shorteco3": [
+      -1.6643
+     ]
+    },
+    "page_status": 404
+   },
+   "counterfactual": {
+    "late_beliefs_from_others": {
+     "o:recordco2": 0,
+     "o:recordco3": 0,
+     "o:shorteco2": 0,
+     "o:shorteco3": 0
+    },
+    "late_tried": [],
+    "first_late_trial_day": null,
+    "adopted": [
+     "o:shorteco1"
+    ],
+    "late_adopted": [],
+    "forum_posts_with_evidence": 0,
+    "public_outcomes": 2,
+    "operating_result_late": 1606856,
+    "operating_result_all": 967842,
+    "public_outcome_effects": [
+     -30665,
+     2605
+    ],
+    "late_belief_rel": {
+     "o:recordco2": [],
+     "o:recordco3": [],
+     "o:shorteco2": [],
+     "o:shorteco3": []
+    },
+    "page_status": 404
+   },
+   "aggregator_posts": 1,
+   "aggregator_pages_crawled": [],
+   "regeneration_identical": true
+  }
+ ],
+ "wall_s": 500.0
+}

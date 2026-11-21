@@ -1,0 +1,2171 @@
+{
+ "mined": [
+  {
+   "world": "open_tight_compute:2",
+   "opportunities": 5,
+   "tasks": 5,
+   "families": [
+    "adoption",
+    "relieve_loss",
+    "visibility"
+   ]
+  },
+  {
+   "world": "open_tight_compute:3",
+   "opportunities": 5,
+   "tasks": 5,
+   "families": [
+    "adoption",
+    "relieve_loss",
+    "visibility"
+   ]
+  },
+  {
+   "world": "open_digital:4",
+   "opportunities": 4,
+   "tasks": 4,
+   "families": [
+    "adoption",
+    "relieve_loss",
+    "visibility"
+   ]
+  }
+ ],
+ "validation": [
+  {
+   "goal": {
+    "id": "g-167df8e0e75f",
+    "family": "relieve_loss",
+    "description": "o:recordco1 publicly reported 7314 'capacity_overload' loss events in 2 days. Within 21 days, have it pay your organisation at least $20 over 14 days while its 'capacity_overload' events over the last 7 days are at most 17919 (its reported rate was 25599/7 days), and it is still operating.",
+    "world": {
+     "family": "open_tight_compute",
+     "seed": 2,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "all": [
+      {
+       "metric": "revenue_from",
+       "args": {
+        "principal": "$org",
+        "payer": "o:recordco1",
+        "window_s": 1209600
+       },
+       "op": ">=",
+       "value": 2000
+      },
+      {
+       "metric": "loss_events",
+       "args": {
+        "org": "o:recordco1",
+        "kind": "capacity_overload",
+        "window_s": 604800
+       },
+       "op": "<=",
+       "value": 17919
+      },
+      {
+       "metric": "org_status_active",
+       "args": {
+        "org": "o:recordco1"
+       },
+       "op": ">=",
+       "value": 1
+      }
+     ]
+    },
+    "progress": {
+     "metric": "revenue_from",
+     "args": {
+      "principal": "$org",
+      "payer": "o:recordco1",
+      "window_s": 1209600
+     },
+     "target": 2000
+    },
+    "horizon_s": 1814400,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "train",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "reported_loss",
+      "request": "req_000011",
+      "by": "o:recordco1",
+      "loss": "capacity_overload",
+      "events": 7314,
+      "days": 2,
+      "t": 257400
+     },
+     "loss": "capacity_overload",
+     "payer": "o:recordco1",
+     "limit": 17919
+    },
+    "tags": [
+     "mined",
+     "open_world"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 25200,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      0.0,
+      15323.0,
+      1.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": false,
+     "witness": null,
+     "controls": [
+      "inventor:capacity_overload"
+     ]
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "inventor:capacity_overload": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.18,
+     "final_progress": 0.105
+    }
+   },
+   "difficulty": null,
+   "verdict": "rejected",
+   "reasons": [
+    "no feasibility witness (impossible or beyond the competent controls)"
+   ]
+  },
+  {
+   "goal": {
+    "id": "g-d09402888c2f",
+    "family": "relieve_loss",
+    "description": "o:recordco2 publicly reported 10996 'capacity_overload' loss events in 2 days. Within 21 days, have it pay your organisation at least $20 over 14 days while its 'capacity_overload' events over the last 7 days are at most 26940 (its reported rate was 38486/7 days), and it is still operating.",
+    "world": {
+     "family": "open_tight_compute",
+     "seed": 2,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "all": [
+      {
+       "metric": "revenue_from",
+       "args": {
+        "principal": "$org",
+        "payer": "o:recordco2",
+        "window_s": 1209600
+       },
+       "op": ">=",
+       "value": 2000
+      },
+      {
+       "metric": "loss_events",
+       "args": {
+        "org": "o:recordco2",
+        "kind": "capacity_overload",
+        "window_s": 604800
+       },
+       "op": "<=",
+       "value": 26940
+      },
+      {
+       "metric": "org_status_active",
+       "args": {
+        "org": "o:recordco2"
+       },
+       "op": ">=",
+       "value": 1
+      }
+     ]
+    },
+    "progress": {
+     "metric": "revenue_from",
+     "args": {
+      "principal": "$org",
+      "payer": "o:recordco2",
+      "window_s": 1209600
+     },
+     "target": 2000
+    },
+    "horizon_s": 1814400,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "train",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "reported_loss",
+      "request": "req_000012",
+      "by": "o:recordco2",
+      "loss": "capacity_overload",
+      "events": 10996,
+      "days": 2,
+      "t": 257400
+     },
+     "loss": "capacity_overload",
+     "payer": "o:recordco2",
+     "limit": 26940
+    },
+    "tags": [
+     "mined",
+     "open_world"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 25200,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      0.0,
+      23295.0,
+      1.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": false,
+     "witness": null,
+     "controls": [
+      "inventor:capacity_overload"
+     ]
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "inventor:capacity_overload": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.15,
+     "final_progress": 0.075
+    }
+   },
+   "difficulty": null,
+   "verdict": "rejected",
+   "reasons": [
+    "no feasibility witness (impossible or beyond the competent controls)"
+   ]
+  },
+  {
+   "goal": {
+    "id": "g-aae403340213",
+    "family": "relieve_loss",
+    "description": "o:recordco3 publicly reported 9537 'capacity_overload' loss events in 2 days. Within 21 days, have it pay your organisation at least $20 over 14 days while its 'capacity_overload' events over the last 7 days are at most 23365 (its reported rate was 33380/7 days), and it is still operating.",
+    "world": {
+     "family": "open_tight_compute",
+     "seed": 2,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "all": [
+      {
+       "metric": "revenue_from",
+       "args": {
+        "principal": "$org",
+        "payer": "o:recordco3",
+        "window_s": 1209600
+       },
+       "op": ">=",
+       "value": 2000
+      },
+      {
+       "metric": "loss_events",
+       "args": {
+        "org": "o:recordco3",
+        "kind": "capacity_overload",
+        "window_s": 604800
+       },
+       "op": "<=",
+       "value": 23365
+      },
+      {
+       "metric": "org_status_active",
+       "args": {
+        "org": "o:recordco3"
+       },
+       "op": ">=",
+       "value": 1
+      }
+     ]
+    },
+    "progress": {
+     "metric": "revenue_from",
+     "args": {
+      "principal": "$org",
+      "payer": "o:recordco3",
+      "window_s": 1209600
+     },
+     "target": 2000
+    },
+    "horizon_s": 1814400,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "train",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "reported_loss",
+      "request": "req_000013",
+      "by": "o:recordco3",
+      "loss": "capacity_overload",
+      "events": 9537,
+      "days": 2,
+      "t": 257400
+     },
+     "loss": "capacity_overload",
+     "payer": "o:recordco3",
+     "limit": 23365
+    },
+    "tags": [
+     "mined",
+     "open_world"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 25200,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      0.0,
+      19372.0,
+      1.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": false,
+     "witness": null,
+     "controls": [
+      "inventor:capacity_overload"
+     ]
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "inventor:capacity_overload": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    }
+   },
+   "difficulty": null,
+   "verdict": "rejected",
+   "reasons": [
+    "no feasibility witness (impossible or beyond the competent controls)"
+   ]
+  },
+  {
+   "goal": {
+    "id": "g-491d1305bedd",
+    "family": "adoption",
+    "description": "3 firms report 'capacity_overload' losses. Within 30 days, have at least one independent organisation keep something you published active (after its own trial) for 3 days.",
+    "world": {
+     "family": "open_tight_compute",
+     "seed": 2,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "metric": "capability_adopters",
+     "args": {
+      "principal": "$org",
+      "min_active_s": 259200
+     },
+     "op": ">=",
+     "value": 1
+    },
+    "progress": {
+     "metric": "capability_adopters",
+     "args": {
+      "principal": "$org",
+      "min_active_s": 0
+     },
+     "target": 1
+    },
+    "horizon_s": 2592000,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "train",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "shared_problem",
+      "loss": "capacity_overload",
+      "reporters": [
+       "o:recordco1",
+       "o:recordco2",
+       "o:recordco3"
+      ]
+     },
+     "loss": "capacity_overload"
+    },
+    "tags": [
+     "mined",
+     "open_world"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 25200,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      0.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": true,
+     "witness": "inventor:capacity_overload",
+     "controls": [
+      "inventor:capacity_overload"
+     ]
+    },
+    "near_miss": {
+     "ok": true,
+     "threshold": [
+      {
+       "metric": "capability_adopters",
+       "achieved": 1.0,
+       "mutated_to": 2.5,
+       "still_true": false
+      }
+     ],
+     "binding": {
+      "swapped_to": "o:cloud1",
+      "still_true": false
+     }
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "inventor:capacity_overload": {
+     "success": true,
+     "days_to_success": 17.0,
+     "progress": 1.0,
+     "final_progress": 1.0
+    }
+   },
+   "difficulty": 0.74,
+   "verdict": "accepted",
+   "reasons": []
+  },
+  {
+   "goal": {
+    "id": "g-d5480f2190d7",
+    "family": "visibility",
+    "description": "Firms with 'capacity_overload' problems search the synthetic web for \"overload capacity scaling\". Within 7 days, own a page that ranks in the top 3 organic results for that query.",
+    "world": {
+     "family": "open_tight_compute",
+     "seed": 2,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "metric": "search_best_rank",
+     "args": {
+      "principal": "$org",
+      "q": "overload capacity scaling"
+     },
+     "op": "<=",
+     "value": 3
+    },
+    "progress": {
+     "metric": "search_visibility",
+     "args": {
+      "principal": "$org",
+      "q": "overload capacity scaling"
+     },
+     "target": 0.3333333333333333
+    },
+    "horizon_s": 604800,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "train",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "search_topic",
+      "loss": "capacity_overload",
+      "q": "overload capacity scaling",
+      "reporters": [
+       "o:recordco1",
+       "o:recordco2",
+       "o:recordco3"
+      ]
+     },
+     "loss": "capacity_overload",
+     "q": "overload capacity scaling"
+    },
+    "tags": [
+     "mined",
+     "open_world",
+     "internet"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 25200,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      99.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": true,
+     "witness": "site_author",
+     "controls": [
+      "site_author"
+     ]
+    },
+    "near_miss": {
+     "ok": true,
+     "threshold": [
+      {
+       "metric": "search_best_rank",
+       "achieved": 1.0,
+       "mutated_to": -0.5,
+       "still_true": false
+      }
+     ],
+     "binding": {
+      "swapped_to": "o:cloud1",
+      "still_true": false
+     }
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "site_author": {
+     "success": true,
+     "days_to_success": 1.0,
+     "progress": 1.0,
+     "final_progress": 1.0
+    }
+   },
+   "difficulty": 0.486,
+   "verdict": "accepted",
+   "reasons": []
+  },
+  {
+   "goal": {
+    "id": "g-3e1e558fbf2d",
+    "family": "relieve_loss",
+    "description": "o:recordco1 publicly reported 6627 'capacity_overload' loss events in 2 days. Within 21 days, have it pay your organisation at least $20 over 14 days while its 'capacity_overload' events over the last 7 days are at most 16236 (its reported rate was 23194/7 days), and it is still operating.",
+    "world": {
+     "family": "open_tight_compute",
+     "seed": 3,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "all": [
+      {
+       "metric": "revenue_from",
+       "args": {
+        "principal": "$org",
+        "payer": "o:recordco1",
+        "window_s": 1209600
+       },
+       "op": ">=",
+       "value": 2000
+      },
+      {
+       "metric": "loss_events",
+       "args": {
+        "org": "o:recordco1",
+        "kind": "capacity_overload",
+        "window_s": 604800
+       },
+       "op": "<=",
+       "value": 16236
+      },
+      {
+       "metric": "org_status_active",
+       "args": {
+        "org": "o:recordco1"
+       },
+       "op": ">=",
+       "value": 1
+      }
+     ]
+    },
+    "progress": {
+     "metric": "revenue_from",
+     "args": {
+      "principal": "$org",
+      "payer": "o:recordco1",
+      "window_s": 1209600
+     },
+     "target": 2000
+    },
+    "horizon_s": 1814400,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "train",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "reported_loss",
+      "request": "req_000013",
+      "by": "o:recordco1",
+      "loss": "capacity_overload",
+      "events": 6627,
+      "days": 2,
+      "t": 257400
+     },
+     "loss": "capacity_overload",
+     "payer": "o:recordco1",
+     "limit": 16236
+    },
+    "tags": [
+     "mined",
+     "open_world"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 25200,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      0.0,
+      14042.0,
+      1.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": false,
+     "witness": null,
+     "controls": [
+      "inventor:capacity_overload"
+     ]
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "inventor:capacity_overload": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.075,
+     "final_progress": 0.03
+    }
+   },
+   "difficulty": null,
+   "verdict": "rejected",
+   "reasons": [
+    "no feasibility witness (impossible or beyond the competent controls)"
+   ]
+  },
+  {
+   "goal": {
+    "id": "g-d258774c01a9",
+    "family": "relieve_loss",
+    "description": "o:recordco2 publicly reported 8084 'capacity_overload' loss events in 2 days. Within 21 days, have it pay your organisation at least $20 over 14 days while its 'capacity_overload' events over the last 7 days are at most 19805 (its reported rate was 28294/7 days), and it is still operating.",
+    "world": {
+     "family": "open_tight_compute",
+     "seed": 3,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "all": [
+      {
+       "metric": "revenue_from",
+       "args": {
+        "principal": "$org",
+        "payer": "o:recordco2",
+        "window_s": 1209600
+       },
+       "op": ">=",
+       "value": 2000
+      },
+      {
+       "metric": "loss_events",
+       "args": {
+        "org": "o:recordco2",
+        "kind": "capacity_overload",
+        "window_s": 604800
+       },
+       "op": "<=",
+       "value": 19805
+      },
+      {
+       "metric": "org_status_active",
+       "args": {
+        "org": "o:recordco2"
+       },
+       "op": ">=",
+       "value": 1
+      }
+     ]
+    },
+    "progress": {
+     "metric": "revenue_from",
+     "args": {
+      "principal": "$org",
+      "payer": "o:recordco2",
+      "window_s": 1209600
+     },
+     "target": 2000
+    },
+    "horizon_s": 1814400,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "train",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "reported_loss",
+      "request": "req_000014",
+      "by": "o:recordco2",
+      "loss": "capacity_overload",
+      "events": 8084,
+      "days": 2,
+      "t": 257400
+     },
+     "loss": "capacity_overload",
+     "payer": "o:recordco2",
+     "limit": 19805
+    },
+    "tags": [
+     "mined",
+     "open_world"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 25200,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      0.0,
+      15779.0,
+      1.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": false,
+     "witness": null,
+     "controls": [
+      "inventor:capacity_overload"
+     ]
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "inventor:capacity_overload": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    }
+   },
+   "difficulty": null,
+   "verdict": "rejected",
+   "reasons": [
+    "no feasibility witness (impossible or beyond the competent controls)"
+   ]
+  },
+  {
+   "goal": {
+    "id": "g-e31f31192121",
+    "family": "relieve_loss",
+    "description": "o:recordco3 publicly reported 8188 'capacity_overload' loss events in 2 days. Within 21 days, have it pay your organisation at least $20 over 14 days while its 'capacity_overload' events over the last 7 days are at most 20060 (its reported rate was 28658/7 days), and it is still operating.",
+    "world": {
+     "family": "open_tight_compute",
+     "seed": 3,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "all": [
+      {
+       "metric": "revenue_from",
+       "args": {
+        "principal": "$org",
+        "payer": "o:recordco3",
+        "window_s": 1209600
+       },
+       "op": ">=",
+       "value": 2000
+      },
+      {
+       "metric": "loss_events",
+       "args": {
+        "org": "o:recordco3",
+        "kind": "capacity_overload",
+        "window_s": 604800
+       },
+       "op": "<=",
+       "value": 20060
+      },
+      {
+       "metric": "org_status_active",
+       "args": {
+        "org": "o:recordco3"
+       },
+       "op": ">=",
+       "value": 1
+      }
+     ]
+    },
+    "progress": {
+     "metric": "revenue_from",
+     "args": {
+      "principal": "$org",
+      "payer": "o:recordco3",
+      "window_s": 1209600
+     },
+     "target": 2000
+    },
+    "horizon_s": 1814400,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "train",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "reported_loss",
+      "request": "req_000015",
+      "by": "o:recordco3",
+      "loss": "capacity_overload",
+      "events": 8188,
+      "days": 2,
+      "t": 257400
+     },
+     "loss": "capacity_overload",
+     "payer": "o:recordco3",
+     "limit": 20060
+    },
+    "tags": [
+     "mined",
+     "open_world"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 25200,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      0.0,
+      17952.0,
+      1.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": false,
+     "witness": null,
+     "controls": [
+      "inventor:capacity_overload"
+     ]
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "inventor:capacity_overload": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.105,
+     "final_progress": 0.045
+    }
+   },
+   "difficulty": null,
+   "verdict": "rejected",
+   "reasons": [
+    "no feasibility witness (impossible or beyond the competent controls)"
+   ]
+  },
+  {
+   "goal": {
+    "id": "g-5cf33f2df2a1",
+    "family": "adoption",
+    "description": "3 firms report 'capacity_overload' losses. Within 30 days, have at least one independent organisation keep something you published active (after its own trial) for 3 days.",
+    "world": {
+     "family": "open_tight_compute",
+     "seed": 3,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "metric": "capability_adopters",
+     "args": {
+      "principal": "$org",
+      "min_active_s": 259200
+     },
+     "op": ">=",
+     "value": 1
+    },
+    "progress": {
+     "metric": "capability_adopters",
+     "args": {
+      "principal": "$org",
+      "min_active_s": 0
+     },
+     "target": 1
+    },
+    "horizon_s": 2592000,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "train",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "shared_problem",
+      "loss": "capacity_overload",
+      "reporters": [
+       "o:recordco1",
+       "o:recordco2",
+       "o:recordco3"
+      ]
+     },
+     "loss": "capacity_overload"
+    },
+    "tags": [
+     "mined",
+     "open_world"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 25200,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      0.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": false,
+     "witness": null,
+     "controls": [
+      "inventor:capacity_overload"
+     ]
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "inventor:capacity_overload": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    }
+   },
+   "difficulty": null,
+   "verdict": "rejected",
+   "reasons": [
+    "no feasibility witness (impossible or beyond the competent controls)"
+   ]
+  },
+  {
+   "goal": {
+    "id": "g-18477dfb7baf",
+    "family": "visibility",
+    "description": "Firms with 'capacity_overload' problems search the synthetic web for \"overload capacity scaling\". Within 7 days, own a page that ranks in the top 3 organic results for that query.",
+    "world": {
+     "family": "open_tight_compute",
+     "seed": 3,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "metric": "search_best_rank",
+     "args": {
+      "principal": "$org",
+      "q": "overload capacity scaling"
+     },
+     "op": "<=",
+     "value": 3
+    },
+    "progress": {
+     "metric": "search_visibility",
+     "args": {
+      "principal": "$org",
+      "q": "overload capacity scaling"
+     },
+     "target": 0.3333333333333333
+    },
+    "horizon_s": 604800,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "train",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "search_topic",
+      "loss": "capacity_overload",
+      "q": "overload capacity scaling",
+      "reporters": [
+       "o:recordco1",
+       "o:recordco2",
+       "o:recordco3"
+      ]
+     },
+     "loss": "capacity_overload",
+     "q": "overload capacity scaling"
+    },
+    "tags": [
+     "mined",
+     "open_world",
+     "internet"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 25200,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      99.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": true,
+     "witness": "site_author",
+     "controls": [
+      "site_author"
+     ]
+    },
+    "near_miss": {
+     "ok": true,
+     "threshold": [
+      {
+       "metric": "search_best_rank",
+       "achieved": 1.0,
+       "mutated_to": -0.5,
+       "still_true": false
+      }
+     ],
+     "binding": {
+      "swapped_to": "o:cloud1",
+      "still_true": false
+     }
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "site_author": {
+     "success": true,
+     "days_to_success": 1.0,
+     "progress": 1.0,
+     "final_progress": 1.0
+    }
+   },
+   "difficulty": 0.486,
+   "verdict": "accepted",
+   "reasons": []
+  },
+  {
+   "goal": {
+    "id": "g-8ca27daede4f",
+    "family": "relieve_loss",
+    "description": "o:recordco1 publicly reported 18985 'capacity_overload' loss events in 2 days. Within 21 days, have it pay your organisation at least $20 over 14 days while its 'capacity_overload' events over the last 7 days are at most 46513 (its reported rate was 66448/7 days), and it is still operating.",
+    "world": {
+     "family": "open_digital",
+     "seed": 4,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "all": [
+      {
+       "metric": "revenue_from",
+       "args": {
+        "principal": "$org",
+        "payer": "o:recordco1",
+        "window_s": 1209600
+       },
+       "op": ">=",
+       "value": 2000
+      },
+      {
+       "metric": "loss_events",
+       "args": {
+        "org": "o:recordco1",
+        "kind": "capacity_overload",
+        "window_s": 604800
+       },
+       "op": "<=",
+       "value": 46513
+      },
+      {
+       "metric": "org_status_active",
+       "args": {
+        "org": "o:recordco1"
+       },
+       "op": ">=",
+       "value": 1
+      }
+     ]
+    },
+    "progress": {
+     "metric": "revenue_from",
+     "args": {
+      "principal": "$org",
+      "payer": "o:recordco1",
+      "window_s": 1209600
+     },
+     "target": 2000
+    },
+    "horizon_s": 1814400,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "heldout",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "reported_loss",
+      "request": "req_000009",
+      "by": "o:recordco1",
+      "loss": "capacity_overload",
+      "events": 18985,
+      "days": 2,
+      "t": 257400
+     },
+     "loss": "capacity_overload",
+     "payer": "o:recordco1",
+     "limit": 46513
+    },
+    "tags": [
+     "mined",
+     "open_world"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 22680,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      0.0,
+      36355.0,
+      1.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": false,
+     "witness": null,
+     "controls": [
+      "inventor:capacity_overload"
+     ]
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "inventor:capacity_overload": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 1.0,
+     "final_progress": 0.72
+    }
+   },
+   "difficulty": null,
+   "verdict": "rejected",
+   "reasons": [
+    "no feasibility witness (impossible or beyond the competent controls)"
+   ]
+  },
+  {
+   "goal": {
+    "id": "g-6a0ba03f2443",
+    "family": "relieve_loss",
+    "description": "o:recordco2 publicly reported 18365 'capacity_overload' loss events in 2 days. Within 21 days, have it pay your organisation at least $20 over 14 days while its 'capacity_overload' events over the last 7 days are at most 44994 (its reported rate was 64278/7 days), and it is still operating.",
+    "world": {
+     "family": "open_digital",
+     "seed": 4,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "all": [
+      {
+       "metric": "revenue_from",
+       "args": {
+        "principal": "$org",
+        "payer": "o:recordco2",
+        "window_s": 1209600
+       },
+       "op": ">=",
+       "value": 2000
+      },
+      {
+       "metric": "loss_events",
+       "args": {
+        "org": "o:recordco2",
+        "kind": "capacity_overload",
+        "window_s": 604800
+       },
+       "op": "<=",
+       "value": 44994
+      },
+      {
+       "metric": "org_status_active",
+       "args": {
+        "org": "o:recordco2"
+       },
+       "op": ">=",
+       "value": 1
+      }
+     ]
+    },
+    "progress": {
+     "metric": "revenue_from",
+     "args": {
+      "principal": "$org",
+      "payer": "o:recordco2",
+      "window_s": 1209600
+     },
+     "target": 2000
+    },
+    "horizon_s": 1814400,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "heldout",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "reported_loss",
+      "request": "req_000010",
+      "by": "o:recordco2",
+      "loss": "capacity_overload",
+      "events": 18365,
+      "days": 2,
+      "t": 257400
+     },
+     "loss": "capacity_overload",
+     "payer": "o:recordco2",
+     "limit": 44994
+    },
+    "tags": [
+     "mined",
+     "open_world"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 22680,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      0.0,
+      38701.0,
+      1.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": true,
+     "witness": "inventor:capacity_overload",
+     "controls": [
+      "inventor:capacity_overload"
+     ]
+    },
+    "near_miss": {
+     "ok": false,
+     "threshold": [
+      {
+       "metric": "revenue_from",
+       "achieved": 2160.0,
+       "mutated_to": 3241.0,
+       "still_true": false
+      },
+      {
+       "metric": "loss_events",
+       "achieved": 44956.0,
+       "mutated_to": 22477.0,
+       "still_true": false
+      },
+      {
+       "metric": "org_status_active",
+       "achieved": 1.0,
+       "mutated_to": 2.5,
+       "still_true": false
+      }
+     ],
+     "binding": {
+      "swapped_to": "o:cloud1",
+      "still_true": true
+     }
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "inventor:capacity_overload": {
+     "success": true,
+     "days_to_success": 8.0,
+     "progress": 1.0,
+     "final_progress": 1.0
+    }
+   },
+   "difficulty": 0.629,
+   "verdict": "rejected",
+   "reasons": [
+    "outcome not attributable: true for an unrelated organisation"
+   ]
+  },
+  {
+   "goal": {
+    "id": "g-edbb7de61369",
+    "family": "adoption",
+    "description": "2 firms report 'capacity_overload' losses. Within 30 days, have at least one independent organisation keep something you published active (after its own trial) for 3 days.",
+    "world": {
+     "family": "open_digital",
+     "seed": 4,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "metric": "capability_adopters",
+     "args": {
+      "principal": "$org",
+      "min_active_s": 259200
+     },
+     "op": ">=",
+     "value": 1
+    },
+    "progress": {
+     "metric": "capability_adopters",
+     "args": {
+      "principal": "$org",
+      "min_active_s": 0
+     },
+     "target": 1
+    },
+    "horizon_s": 2592000,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "heldout",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "shared_problem",
+      "loss": "capacity_overload",
+      "reporters": [
+       "o:recordco1",
+       "o:recordco2"
+      ]
+     },
+     "loss": "capacity_overload"
+    },
+    "tags": [
+     "mined",
+     "open_world"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 22680,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      0.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": false,
+     "witness": null,
+     "controls": [
+      "inventor:capacity_overload"
+     ]
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "inventor:capacity_overload": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    }
+   },
+   "difficulty": null,
+   "verdict": "rejected",
+   "reasons": [
+    "no feasibility witness (impossible or beyond the competent controls)"
+   ]
+  },
+  {
+   "goal": {
+    "id": "g-af3220bed819",
+    "family": "visibility",
+    "description": "Firms with 'capacity_overload' problems search the synthetic web for \"overload capacity scaling\". Within 7 days, own a page that ranks in the top 3 organic results for that query.",
+    "world": {
+     "family": "open_digital",
+     "seed": 4,
+     "overrides": {},
+     "warmup_s": 259200
+    },
+    "principal": "$self",
+    "success": {
+     "metric": "search_best_rank",
+     "args": {
+      "principal": "$org",
+      "q": "overload capacity scaling"
+     },
+     "op": "<=",
+     "value": 3
+    },
+    "progress": {
+     "metric": "search_visibility",
+     "args": {
+      "principal": "$org",
+      "q": "overload capacity scaling"
+     },
+     "target": 0.3333333333333333
+    },
+    "horizon_s": 604800,
+    "sustain_checks": 1,
+    "endowment": 1000000,
+    "budget": {},
+    "split": "heldout",
+    "difficulty": 0.5,
+    "params": {
+     "source": {
+      "kind": "search_topic",
+      "loss": "capacity_overload",
+      "q": "overload capacity scaling",
+      "reporters": [
+       "o:recordco1",
+       "o:recordco2"
+      ]
+     },
+     "loss": "capacity_overload",
+     "q": "overload capacity scaling"
+    },
+    "tags": [
+     "mined",
+     "open_world",
+     "internet"
+    ]
+   },
+   "checks": {
+    "well_formed": {
+     "ok": true,
+     "errors": []
+    },
+    "prerequisites": {
+     "ok": true,
+     "missing_modules": [],
+     "absent_entities": [],
+     "source_present": true,
+     "missing_tools": [],
+     "min_week_of_compute_cents": 22680,
+     "endowment": 1000000
+    },
+    "measurable": {
+     "ok": true,
+     "start_values": [
+      99.0
+     ]
+    },
+    "not_already_satisfied": {
+     "ok": true
+    },
+    "no_shortcut": {
+     "ok": true
+    },
+    "feasible": {
+     "ok": true,
+     "witness": "site_author",
+     "controls": [
+      "site_author"
+     ]
+    },
+    "near_miss": {
+     "ok": true,
+     "threshold": [
+      {
+       "metric": "search_best_rank",
+       "achieved": 1.0,
+       "mutated_to": -0.5,
+       "still_true": false
+      }
+     ],
+     "binding": {
+      "swapped_to": "o:cloud1",
+      "still_true": false
+     }
+    }
+   },
+   "controls": {
+    "idle": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "random": {
+     "success": false,
+     "days_to_success": null,
+     "progress": 0.0,
+     "final_progress": 0.0
+    },
+    "site_author": {
+     "success": true,
+     "days_to_success": 1.0,
+     "progress": 1.0,
+     "final_progress": 1.0
+    }
+   },
+   "difficulty": 0.486,
+   "verdict": "accepted",
+   "reasons": []
+  }
+ ],
+ "heldout_seal": "c8698abc863827b48b197f3da95a23edf9978686abb13840058d79b9de4e63bf",
+ "summary": {
+  "proposed": 14,
+  "accepted": 4,
+  "rejected_by_reason": {
+   "no feasibility witness (impossible or beyond the competent controls)": 9,
+   "outcome not attributable": 1
+  }
+ },
+ "calibration": {
+  "rows": [
+   {
+    "goal": "g-491d1305bedd",
+    "family": "adoption",
+    "member": "idle",
+    "success": false,
+    "days_to_success": null,
+    "progress": 0.0,
+    "wall_s": 57.4,
+    "failure": {
+     "categories": [
+      "no_action",
+      "no_organisation",
+      "no_artifact"
+     ],
+     "primary": "no_action",
+     "commands": 0,
+     "rejected": 0,
+     "orgs": 0,
+     "deployments": 0,
+     "capabilities": 0,
+     "pages": 0
+    }
+   },
+   {
+    "goal": "g-491d1305bedd",
+    "family": "adoption",
+    "member": "random",
+    "success": false,
+    "days_to_success": null,
+    "progress": 0.0,
+    "wall_s": 58.2,
+    "failure": {
+     "categories": [
+      "invalid_actions",
+      "no_artifact"
+     ],
+     "primary": "invalid_actions",
+     "commands": 720,
+     "rejected": 549,
+     "orgs": 2,
+     "deployments": 0,
+     "capabilities": 0,
+     "pages": 0
+    }
+   },
+   {
+    "goal": "g-491d1305bedd",
+    "family": "adoption",
+    "member": "competent",
+    "success": true,
+    "days_to_success": 17.0,
+    "progress": 1.0,
+    "wall_s": 34.2
+   },
+   {
+    "goal": "g-d5480f2190d7",
+    "family": "visibility",
+    "member": "idle",
+    "success": false,
+    "days_to_success": null,
+    "progress": 0.0,
+    "wall_s": 13.1,
+    "failure": {
+     "categories": [
+      "no_action",
+      "no_organisation",
+      "no_artifact"
+     ],
+     "primary": "no_action",
+     "commands": 0,
+     "rejected": 0,
+     "orgs": 0,
+     "deployments": 0,
+     "capabilities": 0,
+     "pages": 0
+    }
+   },
+   {
+    "goal": "g-d5480f2190d7",
+    "family": "visibility",
+    "member": "random",
+    "success": false,
+    "days_to_success": null,
+    "progress": 0.0,
+    "wall_s": 13.3,
+    "failure": {
+     "categories": [
+      "invalid_actions",
+      "no_organisation",
+      "no_artifact"
+     ],
+     "primary": "invalid_actions",
+     "commands": 168,
+     "rejected": 129,
+     "orgs": 0,
+     "deployments": 0,
+     "capabilities": 0,
+     "pages": 0
+    }
+   },
+   {
+    "goal": "g-d5480f2190d7",
+    "family": "visibility",
+    "member": "competent",
+    "success": true,
+    "days_to_success": 1.0,
+    "progress": 1.0,
+    "wall_s": 2.7
+   },
+   {
+    "goal": "g-18477dfb7baf",
+    "family": "visibility",
+    "member": "idle",
+    "success": false,
+    "days_to_success": null,
+    "progress": 0.0,
+    "wall_s": 12.8,
+    "failure": {
+     "categories": [
+      "no_action",
+      "no_organisation",
+      "no_artifact"
+     ],
+     "primary": "no_action",
+     "commands": 0,
+     "rejected": 0,
+     "orgs": 0,
+     "deployments": 0,
+     "capabilities": 0,
+     "pages": 0
+    }
+   },
+   {
+    "goal": "g-18477dfb7baf",
+    "family": "visibility",
+    "member": "random",
+    "success": false,
+    "days_to_success": null,
+    "progress": 0.0,
+    "wall_s": 13.0,
+    "failure": {
+     "categories": [
+      "invalid_actions",
+      "no_organisation",
+      "no_artifact"
+     ],
+     "primary": "invalid_actions",
+     "commands": 168,
+     "rejected": 129,
+     "orgs": 0,
+     "deployments": 0,
+     "capabilities": 0,
+     "pages": 0
+    }
+   },
+   {
+    "goal": "g-18477dfb7baf",
+    "family": "visibility",
+    "member": "competent",
+    "success": true,
+    "days_to_success": 1.0,
+    "progress": 1.0,
+    "wall_s": 2.8
+   },
+   {
+    "goal": "g-af3220bed819",
+    "family": "visibility",
+    "member": "idle",
+    "success": false,
+    "days_to_success": null,
+    "progress": 0.0,
+    "wall_s": 8.8,
+    "failure": {
+     "categories": [
+      "no_action",
+      "no_organisation",
+      "no_artifact"
+     ],
+     "primary": "no_action",
+     "commands": 0,
+     "rejected": 0,
+     "orgs": 0,
+     "deployments": 0,
+     "capabilities": 0,
+     "pages": 0
+    }
+   },
+   {
+    "goal": "g-af3220bed819",
+    "family": "visibility",
+    "member": "random",
+    "success": false,
+    "days_to_success": null,
+    "progress": 0.0,
+    "wall_s": 8.6,
+    "failure": {
+     "categories": [
+      "invalid_actions",
+      "no_organisation",
+      "no_artifact"
+     ],
+     "primary": "invalid_actions",
+     "commands": 168,
+     "rejected": 129,
+     "orgs": 0,
+     "deployments": 0,
+     "capabilities": 0,
+     "pages": 0
+    }
+   },
+   {
+    "goal": "g-af3220bed819",
+    "family": "visibility",
+    "member": "competent",
+    "success": true,
+    "days_to_success": 1.0,
+    "progress": 1.0,
+    "wall_s": 2.1
+   }
+  ],
+  "summary": {
+   "idle": {
+    "runs": 4,
+    "successes": 0,
+    "failures": {
+     "no_action": 4
+    },
+    "success_rate": 0.0
+   },
+   "random": {
+    "runs": 4,
+    "successes": 0,
+    "failures": {
+     "invalid_actions": 4
+    },
+    "success_rate": 0.0
+   },
+   "competent": {
+    "runs": 4,
+    "successes": 4,
+    "failures": {},
+    "success_rate": 1.0
+   }
+  }
+ },
+ "calibration_wall_s": 1754.6
+}

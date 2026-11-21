@@ -1,0 +1,7545 @@
+{
+ "days": 120,
+ "runs": [
+  {
+   "family": "open_tight_compute",
+   "seed": 1,
+   "days": 120,
+   "weeks": [
+    {
+     "week": 1,
+     "day": 7,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "markets",
+      "orgs_active",
+      "loss_kinds",
+      "request_tags",
+      "contracts",
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 23413,
+      "event_types": 71,
+      "requests_served": 336715,
+      "process_failures": {},
+      "ops_daily_runs": 6,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        3746
+       ],
+       [
+        "sched.add",
+        2565
+       ],
+       [
+        "ctr",
+        2544
+       ],
+       [
+        "proc",
+        2538
+       ],
+       [
+        "sched.del",
+        2538
+       ],
+       [
+        "cloud.usage",
+        2341
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 4,
+      "installs_by_status": {
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 17,
+      "orgs_inactive": 0,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 12,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 158,
+       "o:cloud2": 166
+      },
+      "provider_cores": {
+       "o:cloud1": 40,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 6
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 2,
+     "day": 14,
+     "changed": [
+      "installs_by_status",
+      "contracts",
+      "provider_cores"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27575,
+      "event_types": 47,
+      "requests_served": 485359,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4159
+       ],
+       [
+        "sched.add",
+        3123
+       ],
+       [
+        "sched.del",
+        3120
+       ],
+       [
+        "proc",
+        3119
+       ],
+       [
+        "ctr",
+        3118
+       ],
+       [
+        "cloud.usage",
+        2598
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 4,
+      "installs_by_status": {
+       "trial": 6,
+       "removed": 1
+      },
+      "markets": 1,
+      "orgs_active": 17,
+      "orgs_inactive": 0,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 16,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 158,
+       "o:cloud2": 131
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 7
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 3,
+     "day": 21,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "contracts"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27688,
+      "event_types": 55,
+      "requests_served": 532337,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4353
+       ],
+       [
+        "sched.add",
+        3126
+       ],
+       [
+        "sched.del",
+        3124
+       ],
+       [
+        "proc",
+        3120
+       ],
+       [
+        "ctr",
+        3115
+       ],
+       [
+        "cloud.usage",
+        2670
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 5,
+      "installs_by_status": {
+       "removed": 5,
+       "active": 1,
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 17,
+      "orgs_inactive": 0,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 20,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 217,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 11
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 4,
+     "day": 28,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "orgs_active",
+      "provider_cores"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 29247,
+      "event_types": 52,
+      "requests_served": 530742,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4652
+       ],
+       [
+        "ctr",
+        3270
+       ],
+       [
+        "sched.del",
+        3262
+       ],
+       [
+        "proc",
+        3260
+       ],
+       [
+        "sched.add",
+        3260
+       ],
+       [
+        "cloud.usage",
+        2790
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 6,
+      "installs_by_status": {
+       "removed": 7,
+       "active": 1,
+       "evaluated": 1,
+       "trial": 4
+      },
+      "markets": 1,
+      "orgs_active": 18,
+      "orgs_inactive": 0,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 20,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 217,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 11
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 5,
+     "day": 35,
+     "changed": [
+      "capabilities",
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 28367,
+      "event_types": 51,
+      "requests_served": 529282,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4736
+       ],
+       [
+        "ctr",
+        3154
+       ],
+       [
+        "sched.del",
+        3145
+       ],
+       [
+        "sched.add",
+        3145
+       ],
+       [
+        "proc",
+        3141
+       ],
+       [
+        "cloud.usage",
+        2694
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 7,
+      "installs_by_status": {
+       "removed": 10,
+       "active": 1,
+       "evaluated": 2,
+       "trial": 4
+      },
+      "markets": 1,
+      "orgs_active": 18,
+      "orgs_inactive": 0,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 20,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 217,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 12
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 6,
+     "day": 42,
+     "changed": [
+      "installs_by_status",
+      "loss_kinds",
+      "request_tags",
+      "contracts"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 29443,
+      "event_types": 49,
+      "requests_served": 522479,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4838
+       ],
+       [
+        "sched.add",
+        3242
+       ],
+       [
+        "sched.del",
+        3241
+       ],
+       [
+        "ctr",
+        3239
+       ],
+       [
+        "proc",
+        3238
+       ],
+       [
+        "cloud.usage",
+        2766
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 7,
+      "installs_by_status": {
+       "removed": 13,
+       "active": 1,
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 18,
+      "orgs_inactive": 0,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 21,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 217,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 2,
+      "contacts": 13
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 7,
+     "day": 49,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 28815,
+      "event_types": 45,
+      "requests_served": 539530,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4727
+       ],
+       [
+        "sched.del",
+        3240
+       ],
+       [
+        "sched.add",
+        3238
+       ],
+       [
+        "ctr",
+        3237
+       ],
+       [
+        "proc",
+        3236
+       ],
+       [
+        "cloud.usage",
+        2742
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 7,
+      "installs_by_status": {
+       "removed": 16,
+       "active": 1,
+       "evaluated": 1,
+       "trial": 5
+      },
+      "markets": 1,
+      "orgs_active": 18,
+      "orgs_inactive": 0,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 21,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 217,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 5,
+      "contacts": 14
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 8,
+     "day": 56,
+     "changed": [
+      "installs_by_status",
+      "orgs_active",
+      "orgs_inactive",
+      "loss_kinds",
+      "request_tags"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 28007,
+      "event_types": 49,
+      "requests_served": 497034,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4371
+       ],
+       [
+        "ctr",
+        3194
+       ],
+       [
+        "sched.add",
+        3190
+       ],
+       [
+        "sched.del",
+        3189
+       ],
+       [
+        "proc",
+        3187
+       ],
+       [
+        "cloud.usage",
+        2546
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 7,
+      "installs_by_status": {
+       "removed": 18,
+       "active": 1,
+       "evaluated": 2,
+       "trial": 4
+      },
+      "markets": 1,
+      "orgs_active": 17,
+      "orgs_inactive": 1,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing",
+       "service_unavailable"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 21,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 217,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 5,
+      "contacts": 15
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 9,
+     "day": 63,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "orgs_active",
+      "orgs_inactive"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27432,
+      "event_types": 55,
+      "requests_served": 459073,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4210
+       ],
+       [
+        "sched.del",
+        3191
+       ],
+       [
+        "sched.add",
+        3190
+       ],
+       [
+        "proc",
+        3188
+       ],
+       [
+        "ctr",
+        3188
+       ],
+       [
+        "cloud.usage",
+        2240
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 8,
+      "installs_by_status": {
+       "removed": 21,
+       "active": 1,
+       "evaluated": 1,
+       "trial": 4
+      },
+      "markets": 1,
+      "orgs_active": 16,
+      "orgs_inactive": 2,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing",
+       "service_unavailable"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 21,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 217,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 4,
+      "contacts": 15
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 10,
+     "day": 70,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 25414,
+      "event_types": 46,
+      "requests_served": 393163,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        3695
+       ],
+       [
+        "sched.del",
+        3072
+       ],
+       [
+        "ctr",
+        3072
+       ],
+       [
+        "proc",
+        3069
+       ],
+       [
+        "sched.add",
+        3069
+       ],
+       [
+        "support.open",
+        1951
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 8,
+      "installs_by_status": {
+       "removed": 23,
+       "active": 1,
+       "evaluated": 1,
+       "trial": 3
+      },
+      "markets": 1,
+      "orgs_active": 16,
+      "orgs_inactive": 2,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing",
+       "service_unavailable"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 21,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 196,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 4,
+      "contacts": 15
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 11,
+     "day": 77,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "orgs_active",
+      "orgs_inactive"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 21247,
+      "event_types": 56,
+      "requests_served": 302496,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        3223
+       ],
+       [
+        "ctr",
+        2951
+       ],
+       [
+        "sched.del",
+        2950
+       ],
+       [
+        "sched.add",
+        2949
+       ],
+       [
+        "proc",
+        2948
+       ],
+       [
+        "cloud.usage",
+        1447
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 9,
+      "installs_by_status": {
+       "removed": 25,
+       "evaluated": 1,
+       "trial": 3
+      },
+      "markets": 1,
+      "orgs_active": 15,
+      "orgs_inactive": 3,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing",
+       "service_unavailable"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 21,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 156,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 4,
+      "contacts": 15
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 12,
+     "day": 84,
+     "changed": [
+      "installs_by_status",
+      "contracts",
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 19242,
+      "event_types": 48,
+      "requests_served": 299977,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "sched.add",
+        2902
+       ],
+       [
+        "proc",
+        2901
+       ],
+       [
+        "sched.del",
+        2901
+       ],
+       [
+        "ctr",
+        2900
+       ],
+       [
+        "bank.txn",
+        2791
+       ],
+       [
+        "cloud.usage",
+        1274
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 9,
+      "installs_by_status": {
+       "removed": 25,
+       "evaluated": 2,
+       "trial": 3
+      },
+      "markets": 1,
+      "orgs_active": 15,
+      "orgs_inactive": 3,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing",
+       "service_unavailable"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 23,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 123,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 16,
+      "beliefs_from_others": 4,
+      "contacts": 15
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 13,
+     "day": 91,
+     "changed": [
+      "installs_by_status",
+      "contracts"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 19649,
+      "event_types": 48,
+      "requests_served": 297325,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "ctr",
+        2951
+       ],
+       [
+        "sched.add",
+        2950
+       ],
+       [
+        "proc",
+        2949
+       ],
+       [
+        "sched.del",
+        2949
+       ],
+       [
+        "bank.txn",
+        2366
+       ],
+       [
+        "cloud.usage",
+        1366
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 9,
+      "installs_by_status": {
+       "removed": 25,
+       "evaluated": 2,
+       "trial": 1,
+       "active": 2
+      },
+      "markets": 1,
+      "orgs_active": 15,
+      "orgs_inactive": 3,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing",
+       "service_unavailable"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 24,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 96,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 16,
+      "beliefs_from_others": 4,
+      "contacts": 15
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 14,
+     "day": 98,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 20692,
+      "event_types": 43,
+      "requests_served": 306340,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "sched.del",
+        2948
+       ],
+       [
+        "sched.add",
+        2948
+       ],
+       [
+        "ctr",
+        2948
+       ],
+       [
+        "proc",
+        2947
+       ],
+       [
+        "bank.txn",
+        2386
+       ],
+       [
+        "cloud.usage",
+        1534
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 9,
+      "installs_by_status": {
+       "removed": 26,
+       "evaluated": 2,
+       "active": 2,
+       "trial": 1
+      },
+      "markets": 1,
+      "orgs_active": 15,
+      "orgs_inactive": 3,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing",
+       "service_unavailable"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 24,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 16,
+      "beliefs_from_others": 4,
+      "contacts": 15
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 15,
+     "day": 105,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 20692,
+      "event_types": 38,
+      "requests_served": 305110,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "ctr",
+        3046
+       ],
+       [
+        "sched.add",
+        3045
+       ],
+       [
+        "proc",
+        3044
+       ],
+       [
+        "sched.del",
+        3044
+       ],
+       [
+        "bank.txn",
+        2272
+       ],
+       [
+        "cloud.usage",
+        1486
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 9,
+      "installs_by_status": {
+       "removed": 26,
+       "evaluated": 2,
+       "active": 2,
+       "trial": 2
+      },
+      "markets": 1,
+      "orgs_active": 15,
+      "orgs_inactive": 3,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing",
+       "service_unavailable"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 24,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 16,
+      "beliefs_from_others": 4,
+      "contacts": 16
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 16,
+     "day": 112,
+     "changed": [
+      "installs_by_status",
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 21095,
+      "event_types": 42,
+      "requests_served": 307390,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "ctr",
+        3117
+       ],
+       [
+        "sched.add",
+        3116
+       ],
+       [
+        "proc",
+        3115
+       ],
+       [
+        "sched.del",
+        3115
+       ],
+       [
+        "bank.txn",
+        2250
+       ],
+       [
+        "cloud.usage",
+        1500
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 9,
+      "installs_by_status": {
+       "removed": 26,
+       "evaluated": 2,
+       "active": 3,
+       "trial": 1
+      },
+      "markets": 1,
+      "orgs_active": 15,
+      "orgs_inactive": 3,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing",
+       "service_unavailable"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 24,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 14,
+      "beliefs_from_others": 4,
+      "contacts": 16
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 17,
+     "day": 119,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 20483,
+      "event_types": 37,
+      "requests_served": 307808,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "sched.del",
+        2997
+       ],
+       [
+        "ctr",
+        2997
+       ],
+       [
+        "proc",
+        2996
+       ],
+       [
+        "sched.add",
+        2996
+       ],
+       [
+        "bank.txn",
+        2032
+       ],
+       [
+        "cloud.usage",
+        1512
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 9,
+      "installs_by_status": {
+       "removed": 27,
+       "evaluated": 2,
+       "active": 3
+      },
+      "markets": 1,
+      "orgs_active": 15,
+      "orgs_inactive": 3,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing",
+       "service_unavailable"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 24,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 62,
+       "o:cloud2": 80
+      },
+      "web_pages": 14,
+      "beliefs_from_others": 4,
+      "contacts": 16
+     },
+     "invariant_errors": []
+    }
+   ],
+   "evolution_stopped": null,
+   "measures": {
+    "t0_day": 0,
+    "day": 119,
+    "1_new_useful_capability_creation": {
+     "value": 1,
+     "capabilities": {
+      "cap_000002": [
+       "o:shorteco1"
+      ]
+     },
+     "published": 9
+    },
+    "2_independent_adoption": {
+     "value": 3,
+     "active_installs": 3,
+     "kept_14_days": 2,
+     "tried": 6
+    },
+    "3_new_markets": {
+     "value": 5,
+     "capability_markets": 1,
+     "improvement_entrants": 4,
+     "new_orgs_with_independent_revenue": 4
+    },
+    "4_second_order_opportunities": {
+     "value": 3,
+     "kinds": [
+      "capacity_unavailable",
+      "dependency_failure",
+      "service_unavailable"
+     ],
+     "first_day": {
+      "capacity_unavailable": 3,
+      "dependency_failure": 40,
+      "service_unavailable": 51
+     }
+    },
+    "5_persistence_of_technological_change": {
+     "value": 1.0,
+     "adopted": 3,
+     "still_active": 3,
+     "median_active_days": 29.020833333333332
+    },
+    "6_information_propagation": {
+     "value": 4,
+     "beliefs_from_others": 4,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": 9.98263888888889
+    },
+    "7_social_coordination": {
+     "value": 11,
+     "deals_accepted": 0,
+     "contracts": 1,
+     "independent_delegations": 10
+    },
+    "8_strategic_competition": {
+     "contested_classes": 0,
+     "hhi": {
+      "autoscale": 1.0,
+      "placer": 1.0,
+      "turbooptim": 1.0,
+      "worker-002-sizin1": 1.0,
+      "worker-007-sizin1": 1.0
+     },
+     "provider_price_changes": 61,
+     "value": 0
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.375,
+     "firms": 8,
+     "active": 5,
+     "firms_with_positive_recent_result": 3,
+     "result_first_window": 275489,
+     "result_last_window": 975848
+    },
+    "11_novel_problem_solving": {
+     "value": 2,
+     "solved": [
+      {
+       "request": "req_000042",
+       "by": "o:shorteco3",
+       "kind": "capacity_overload",
+       "reported_per_7d": 2944.0,
+       "last_7d": 88
+      },
+      {
+       "request": "req_000048",
+       "by": "o:shorteco2",
+       "kind": "capacity_overload",
+       "reported_per_7d": 447.0,
+       "last_7d": 121
+      }
+     ]
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 1,
+     "successful_agents": [
+      "p:ada",
+      "p:bea"
+     ],
+     "mean_pairwise_js": 0.0001,
+     "cluster_sizes": [
+      2
+     ]
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 1,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1290,
+        2400,
+        2160,
+        1440,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": -26.5
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3840,
+        2880,
+        4800,
+        960,
+        2880,
+        3840,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 112.9
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 6952907,
+     "firm_operating_result": 3456617,
+     "loss_events": {
+      "capacity_overload": 1066371,
+      "capacity_unavailable": 322,
+      "dependency_failure": 44,
+      "service_unavailable": 274463
+     }
+    }
+   },
+   "events": 418587,
+   "wall_s": 173.8,
+   "replay_identical": true
+  },
+  {
+   "family": "open_tight_compute",
+   "seed": 2,
+   "days": 120,
+   "weeks": [
+    {
+     "week": 1,
+     "day": 7,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "markets",
+      "orgs_active",
+      "loss_kinds",
+      "request_tags",
+      "contracts",
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 24517,
+      "event_types": 71,
+      "requests_served": 306847,
+      "process_failures": {},
+      "ops_daily_runs": 6,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        3770
+       ],
+       [
+        "sched.add",
+        2642
+       ],
+       [
+        "ctr",
+        2617
+       ],
+       [
+        "proc",
+        2612
+       ],
+       [
+        "sched.del",
+        2612
+       ],
+       [
+        "cloud.usage",
+        2369
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 4,
+      "installs_by_status": {
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 17,
+      "orgs_inactive": 0,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-fee",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 17,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 140,
+       "o:cloud2": 166
+      },
+      "provider_cores": {
+       "o:cloud1": 40,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 6
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 2,
+     "day": 14,
+     "changed": [
+      "installs_by_status",
+      "request_tags",
+      "contracts"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27733,
+      "event_types": 40,
+      "requests_served": 508128,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4208
+       ],
+       [
+        "proc",
+        3122
+       ],
+       [
+        "sched.del",
+        3122
+       ],
+       [
+        "sched.add",
+        3120
+       ],
+       [
+        "ctr",
+        3115
+       ],
+       [
+        "cloud.usage",
+        2646
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 4,
+      "installs_by_status": {
+       "trial": 5,
+       "evaluated": 1
+      },
+      "markets": 1,
+      "orgs_active": 17,
+      "orgs_inactive": 0,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 21,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 194,
+       "o:cloud2": 131
+      },
+      "provider_cores": {
+       "o:cloud1": 40,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 6
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 3,
+     "day": 21,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "provider_cores"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27510,
+      "event_types": 50,
+      "requests_served": 517166,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4208
+       ],
+       [
+        "sched.del",
+        3098
+       ],
+       [
+        "sched.add",
+        3097
+       ],
+       [
+        "proc",
+        3092
+       ],
+       [
+        "ctr",
+        3091
+       ],
+       [
+        "cloud.usage",
+        2598
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 5,
+      "installs_by_status": {
+       "removed": 6,
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 17,
+      "orgs_inactive": 0,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 21,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 246,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 12
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 4,
+     "day": 28,
+     "changed": [
+      "capabilities",
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27103,
+      "event_types": 47,
+      "requests_served": 520377,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4160
+       ],
+       [
+        "sched.del",
+        3117
+       ],
+       [
+        "sched.add",
+        3117
+       ],
+       [
+        "proc",
+        3115
+       ],
+       [
+        "ctr",
+        3115
+       ],
+       [
+        "cloud.usage",
+        2574
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 6,
+      "installs_by_status": {
+       "removed": 8,
+       "evaluated": 2,
+       "trial": 4
+      },
+      "markets": 1,
+      "orgs_active": 17,
+      "orgs_inactive": 0,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 21,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 246,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 12
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 5,
+     "day": 35,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27120,
+      "event_types": 42,
+      "requests_served": 517201,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4279
+       ],
+       [
+        "ctr",
+        3051
+       ],
+       [
+        "sched.del",
+        3048
+       ],
+       [
+        "sched.add",
+        3048
+       ],
+       [
+        "proc",
+        3044
+       ],
+       [
+        "cloud.usage",
+        2574
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 6,
+      "installs_by_status": {
+       "removed": 12,
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 17,
+      "orgs_inactive": 0,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 21,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 246,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 13
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 6,
+     "day": 42,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "markets",
+      "orgs_active",
+      "loss_kinds",
+      "request_tags"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27480,
+      "event_types": 55,
+      "requests_served": 547693,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4411
+       ],
+       [
+        "ctr",
+        3124
+       ],
+       [
+        "sched.del",
+        3119
+       ],
+       [
+        "sched.add",
+        3119
+       ],
+       [
+        "proc",
+        3116
+       ],
+       [
+        "cloud.usage",
+        2600
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 8,
+      "installs_by_status": {
+       "removed": 15,
+       "evaluated": 1,
+       "trial": 5
+      },
+      "markets": 2,
+      "orgs_active": 18,
+      "orgs_inactive": 0,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 21,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 266,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 13
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 7,
+     "day": 49,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "orgs_active",
+      "orgs_inactive",
+      "loss_kinds"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 26829,
+      "event_types": 56,
+      "requests_served": 481157,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4190
+       ],
+       [
+        "sched.del",
+        3095
+       ],
+       [
+        "sched.add",
+        3094
+       ],
+       [
+        "ctr",
+        3093
+       ],
+       [
+        "proc",
+        3091
+       ],
+       [
+        "cloud.usage",
+        2329
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 9,
+      "installs_by_status": {
+       "removed": 18,
+       "evaluated": 2,
+       "trial": 4
+      },
+      "markets": 2,
+      "orgs_active": 17,
+      "orgs_inactive": 1,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 21,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 266,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 13
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 8,
+     "day": 56,
+     "changed": [
+      "capabilities",
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 26463,
+      "event_types": 49,
+      "requests_served": 458034,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4053
+       ],
+       [
+        "ctr",
+        3118
+       ],
+       [
+        "sched.del",
+        3117
+       ],
+       [
+        "sched.add",
+        3117
+       ],
+       [
+        "proc",
+        3115
+       ],
+       [
+        "cloud.usage",
+        2161
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 20,
+       "evaluated": 2,
+       "trial": 4
+      },
+      "markets": 2,
+      "orgs_active": 17,
+      "orgs_inactive": 1,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 21,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 266,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 3,
+      "contacts": 13
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 9,
+     "day": 63,
+     "changed": [
+      "installs_by_status",
+      "orgs_active",
+      "orgs_inactive",
+      "contracts"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 25944,
+      "event_types": 56,
+      "requests_served": 384341,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        3680
+       ],
+       [
+        "sched.add",
+        3127
+       ],
+       [
+        "sched.del",
+        3123
+       ],
+       [
+        "ctr",
+        3121
+       ],
+       [
+        "proc",
+        3120
+       ],
+       [
+        "support.open",
+        2461
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 23,
+       "evaluated": 1,
+       "trial": 5
+      },
+      "markets": 2,
+      "orgs_active": 16,
+      "orgs_inactive": 2,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 26,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 226,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 2,
+      "contacts": 13
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 10,
+     "day": 70,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 25991,
+      "event_types": 46,
+      "requests_served": 383535,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        3535
+       ],
+       [
+        "ctr",
+        3168
+       ],
+       [
+        "sched.add",
+        3166
+       ],
+       [
+        "sched.del",
+        3165
+       ],
+       [
+        "proc",
+        3164
+       ],
+       [
+        "support.open",
+        2385
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 24,
+       "evaluated": 3,
+       "active": 2,
+       "trial": 2
+      },
+      "markets": 2,
+      "orgs_active": 16,
+      "orgs_inactive": 2,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 26,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 186,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 2,
+      "contacts": 13
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 11,
+     "day": 77,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27943,
+      "event_types": 40,
+      "requests_served": 509840,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        3847
+       ],
+       [
+        "sched.add",
+        3431
+       ],
+       [
+        "ctr",
+        3429
+       ],
+       [
+        "sched.del",
+        3428
+       ],
+       [
+        "proc",
+        3427
+       ],
+       [
+        "cloud.usage",
+        2118
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 25,
+       "evaluated": 2,
+       "active": 2,
+       "trial": 4
+      },
+      "markets": 2,
+      "orgs_active": 16,
+      "orgs_inactive": 2,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 26,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 186,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 2,
+      "contacts": 14
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 12,
+     "day": 84,
+     "changed": [
+      "installs_by_status",
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27800,
+      "event_types": 46,
+      "requests_served": 513403,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        3679
+       ],
+       [
+        "sched.del",
+        3455
+       ],
+       [
+        "sched.add",
+        3455
+       ],
+       [
+        "ctr",
+        3452
+       ],
+       [
+        "proc",
+        3451
+       ],
+       [
+        "cloud.usage",
+        2066
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 29,
+       "evaluated": 2,
+       "active": 2,
+       "trial": 3
+      },
+      "markets": 2,
+      "orgs_active": 16,
+      "orgs_inactive": 2,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 26,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 186,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 16,
+      "beliefs_from_others": 2,
+      "contacts": 16
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 13,
+     "day": 91,
+     "changed": [
+      "installs_by_status",
+      "orgs_active",
+      "orgs_inactive"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 26996,
+      "event_types": 50,
+      "requests_served": 337615,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "sched.del",
+        3433
+       ],
+       [
+        "ctr",
+        3433
+       ],
+       [
+        "proc",
+        3431
+       ],
+       [
+        "sched.add",
+        3430
+       ],
+       [
+        "bank.txn",
+        2942
+       ],
+       [
+        "support.open",
+        1990
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 29,
+       "evaluated": 3,
+       "active": 2,
+       "trial": 3
+      },
+      "markets": 2,
+      "orgs_active": 15,
+      "orgs_inactive": 3,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 26,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 152,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 16,
+      "beliefs_from_others": 2,
+      "contacts": 17
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 14,
+     "day": 98,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 21949,
+      "event_types": 49,
+      "requests_served": 319636,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "sched.del",
+        3217
+       ],
+       [
+        "sched.add",
+        3214
+       ],
+       [
+        "ctr",
+        3214
+       ],
+       [
+        "proc",
+        3213
+       ],
+       [
+        "bank.txn",
+        2607
+       ],
+       [
+        "cloud.usage",
+        1510
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 32,
+       "evaluated": 3,
+       "active": 2,
+       "trial": 1
+      },
+      "markets": 2,
+      "orgs_active": 15,
+      "orgs_inactive": 3,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 26,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 120,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 16,
+      "beliefs_from_others": 2,
+      "contacts": 17
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 15,
+     "day": 105,
+     "changed": [
+      "contracts"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 20758,
+      "event_types": 44,
+      "requests_served": 317340,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "sched.add",
+        3117
+       ],
+       [
+        "ctr",
+        3117
+       ],
+       [
+        "proc",
+        3116
+       ],
+       [
+        "sched.del",
+        3116
+       ],
+       [
+        "bank.txn",
+        2371
+       ],
+       [
+        "cloud.usage",
+        1414
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 32,
+       "evaluated": 3,
+       "active": 2,
+       "trial": 1
+      },
+      "markets": 2,
+      "orgs_active": 15,
+      "orgs_inactive": 3,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 27,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 94,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 16,
+      "beliefs_from_others": 2,
+      "contacts": 17
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 16,
+     "day": 112,
+     "changed": [
+      "installs_by_status",
+      "contracts",
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 20434,
+      "event_types": 50,
+      "requests_served": 316786,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "sched.del",
+        3094
+       ],
+       [
+        "sched.add",
+        3093
+       ],
+       [
+        "ctr",
+        3093
+       ],
+       [
+        "proc",
+        3092
+       ],
+       [
+        "bank.txn",
+        2326
+       ],
+       [
+        "cloud.usage",
+        1404
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 33,
+       "evaluated": 3,
+       "active": 2
+      },
+      "markets": 2,
+      "orgs_active": 15,
+      "orgs_inactive": 3,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 28,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 14,
+      "beliefs_from_others": 1,
+      "contacts": 17
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 17,
+     "day": 119,
+     "changed": [],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 19331,
+      "event_types": 37,
+      "requests_served": 318682,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "ctr",
+        2950
+       ],
+       [
+        "proc",
+        2948
+       ],
+       [
+        "sched.del",
+        2948
+       ],
+       [
+        "sched.add",
+        2948
+       ],
+       [
+        "bank.txn",
+        2034
+       ],
+       [
+        "cloud.usage",
+        1344
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 33,
+       "evaluated": 3,
+       "active": 2
+      },
+      "markets": 2,
+      "orgs_active": 15,
+      "orgs_inactive": 3,
+      "designs": 0,
+      "loss_kinds": [
+       "capacity_overload",
+       "capacity_unavailable",
+       "dependency_failure",
+       "service_unavailable"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-fee",
+       "cost-hardware",
+       "cost-opex",
+       "host",
+       "instance",
+       "listing"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 28,
+      "machines": 0,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 50,
+       "o:cloud2": 80
+      },
+      "web_pages": 14,
+      "beliefs_from_others": 1,
+      "contacts": 17
+     },
+     "invariant_errors": []
+    }
+   ],
+   "evolution_stopped": null,
+   "measures": {
+    "t0_day": 0,
+    "day": 119,
+    "1_new_useful_capability_creation": {
+     "value": 1,
+     "capabilities": {
+      "cap_000009": [
+       "o:shorteco2"
+      ]
+     },
+     "published": 10
+    },
+    "2_independent_adoption": {
+     "value": 2,
+     "active_installs": 2,
+     "kept_14_days": 2,
+     "tried": 6
+    },
+    "3_new_markets": {
+     "value": 5,
+     "capability_markets": 2,
+     "improvement_entrants": 5,
+     "new_orgs_with_independent_revenue": 3
+    },
+    "4_second_order_opportunities": {
+     "value": 3,
+     "kinds": [
+      "capacity_unavailable",
+      "dependency_failure",
+      "service_unavailable"
+     ],
+     "first_day": {
+      "capacity_unavailable": 35,
+      "dependency_failure": 35,
+      "service_unavailable": 43
+     }
+    },
+    "5_persistence_of_technological_change": {
+     "value": 1.0,
+     "adopted": 2,
+     "still_active": 2,
+     "median_active_days": 51.020833333333336
+    },
+    "6_information_propagation": {
+     "value": 1,
+     "beliefs_from_others": 1,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": 28.482638888888886
+    },
+    "7_social_coordination": {
+     "value": 11,
+     "deals_accepted": 0,
+     "contracts": 1,
+     "independent_delegations": 10
+    },
+    "8_strategic_competition": {
+     "contested_classes": 0,
+     "hhi": {
+      "autoscale": 1.0,
+      "worker-000-sizin1": 1.0,
+      "worker-002-sizin1": 1.0
+     },
+     "provider_price_changes": 69,
+     "value": 0
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.5,
+     "firms": 8,
+     "active": 5,
+     "firms_with_positive_recent_result": 4,
+     "result_first_window": -125795,
+     "result_last_window": 923448
+    },
+    "11_novel_problem_solving": {
+     "value": 1,
+     "solved": [
+      {
+       "request": "req_000034",
+       "by": "o:shorteco1",
+       "kind": "capacity_unavailable",
+       "reported_per_7d": 1.0,
+       "last_7d": 0
+      }
+     ]
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 1,
+     "successful_agents": [
+      "p:ada"
+     ],
+     "mean_pairwise_js": 0.0,
+     "cluster_sizes": [
+      1
+     ]
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 1,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1020,
+        780,
+        0,
+        0,
+        0,
+        2160,
+        3600,
+        7200,
+        2820,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 130.9
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 7258540,
+     "firm_operating_result": 1518880,
+     "loss_events": {
+      "capacity_overload": 2098540,
+      "capacity_unavailable": 47,
+      "dependency_failure": 77,
+      "service_unavailable": 319323
+     }
+    }
+   },
+   "events": 431986,
+   "wall_s": 180.1,
+   "replay_identical": true
+  },
+  {
+   "family": "open_mixed",
+   "seed": 1,
+   "days": 120,
+   "weeks": [
+    {
+     "week": 1,
+     "day": 7,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "markets",
+      "orgs_active",
+      "loss_kinds",
+      "request_tags",
+      "contracts",
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 23941,
+      "event_types": 98,
+      "requests_served": 194221,
+      "process_failures": {},
+      "ops_daily_runs": 6,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        3772
+       ],
+       [
+        "sched.add",
+        2611
+       ],
+       [
+        "proc",
+        2574
+       ],
+       [
+        "sched.del",
+        2574
+       ],
+       [
+        "ctr",
+        2554
+       ],
+       [
+        "cloud.usage",
+        2365
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 3,
+      "installs_by_status": {
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 25,
+      "orgs_inactive": 0,
+      "designs": 6,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "stockout"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-fee",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 17,
+      "machines": 7,
+      "provider_prices": {
+       "o:cloud1": 118,
+       "o:cloud2": 134
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 12
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 2,
+     "day": 14,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "orgs_active",
+      "loss_kinds",
+      "request_tags",
+      "contracts"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27348,
+      "event_types": 72,
+      "requests_served": 333291,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4240
+       ],
+       [
+        "sched.del",
+        3182
+       ],
+       [
+        "sched.add",
+        3182
+       ],
+       [
+        "proc",
+        3181
+       ],
+       [
+        "ctr",
+        3130
+       ],
+       [
+        "cloud.usage",
+        2598
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 4,
+      "installs_by_status": {
+       "removed": 1,
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 6,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 7,
+      "provider_prices": {
+       "o:cloud1": 92,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 13
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 3,
+     "day": 21,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "designs",
+      "machines"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27744,
+      "event_types": 67,
+      "requests_served": 316690,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4338
+       ],
+       [
+        "sched.add",
+        3175
+       ],
+       [
+        "sched.del",
+        3174
+       ],
+       [
+        "proc",
+        3169
+       ],
+       [
+        "ctr",
+        3111
+       ],
+       [
+        "cloud.usage",
+        2598
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 5,
+      "installs_by_status": {
+       "removed": 6,
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 13,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 19
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 4,
+     "day": 28,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "machines"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27703,
+      "event_types": 64,
+      "requests_served": 320185,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4304
+       ],
+       [
+        "sched.add",
+        3207
+       ],
+       [
+        "sched.del",
+        3205
+       ],
+       [
+        "proc",
+        3203
+       ],
+       [
+        "ctr",
+        3131
+       ],
+       [
+        "cloud.usage",
+        2598
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 6,
+      "installs_by_status": {
+       "removed": 8,
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 15,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 19
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 5,
+     "day": 35,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 28117,
+      "event_types": 56,
+      "requests_served": 334378,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4470
+       ],
+       [
+        "sched.del",
+        3228
+       ],
+       [
+        "sched.add",
+        3225
+       ],
+       [
+        "proc",
+        3224
+       ],
+       [
+        "ctr",
+        3136
+       ],
+       [
+        "cloud.usage",
+        2622
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 6,
+      "installs_by_status": {
+       "removed": 12,
+       "evaluated": 1,
+       "trial": 5
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 15,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 20
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 6,
+     "day": 42,
+     "changed": [
+      "capabilities",
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27099,
+      "event_types": 61,
+      "requests_served": 358349,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4367
+       ],
+       [
+        "sched.add",
+        3146
+       ],
+       [
+        "sched.del",
+        3143
+       ],
+       [
+        "proc",
+        3141
+       ],
+       [
+        "ctr",
+        3057
+       ],
+       [
+        "cloud.usage",
+        2574
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 7,
+      "installs_by_status": {
+       "removed": 14,
+       "evaluated": 1,
+       "trial": 5
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 15,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 7,
+     "day": 49,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27254,
+      "event_types": 56,
+      "requests_served": 345838,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4427
+       ],
+       [
+        "sched.add",
+        3176
+       ],
+       [
+        "sched.del",
+        3175
+       ],
+       [
+        "proc",
+        3170
+       ],
+       [
+        "ctr",
+        3082
+       ],
+       [
+        "cloud.usage",
+        2550
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 7,
+      "installs_by_status": {
+       "removed": 19,
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 15,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 8,
+     "day": 56,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "machines"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27076,
+      "event_types": 63,
+      "requests_served": 344657,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4325
+       ],
+       [
+        "sched.del",
+        3202
+       ],
+       [
+        "proc",
+        3200
+       ],
+       [
+        "sched.add",
+        3198
+       ],
+       [
+        "ctr",
+        3109
+       ],
+       [
+        "cloud.usage",
+        2526
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 9,
+      "installs_by_status": {
+       "removed": 21,
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 16,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 9,
+     "day": 63,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27513,
+      "event_types": 53,
+      "requests_served": 358489,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4613
+       ],
+       [
+        "sched.del",
+        3223
+       ],
+       [
+        "sched.add",
+        3223
+       ],
+       [
+        "proc",
+        3220
+       ],
+       [
+        "ctr",
+        3130
+       ],
+       [
+        "cloud.usage",
+        2574
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 9,
+      "installs_by_status": {
+       "removed": 24,
+       "evaluated": 2,
+       "trial": 3
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 16,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 2,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 10,
+     "day": 70,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27408,
+      "event_types": 55,
+      "requests_served": 332966,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4432
+       ],
+       [
+        "sched.add",
+        3174
+       ],
+       [
+        "sched.del",
+        3173
+       ],
+       [
+        "proc",
+        3170
+       ],
+       [
+        "ctr",
+        3084
+       ],
+       [
+        "cloud.usage",
+        2550
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 9,
+      "installs_by_status": {
+       "removed": 27,
+       "evaluated": 2,
+       "trial": 4
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 16,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 1,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 11,
+     "day": 77,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27764,
+      "event_types": 54,
+      "requests_served": 317812,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4447
+       ],
+       [
+        "sched.add",
+        3197
+       ],
+       [
+        "sched.del",
+        3194
+       ],
+       [
+        "proc",
+        3191
+       ],
+       [
+        "ctr",
+        3108
+       ],
+       [
+        "cloud.usage",
+        2574
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 9,
+      "installs_by_status": {
+       "removed": 30,
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 16,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 2,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 12,
+     "day": 84,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "orgs_active",
+      "orgs_inactive",
+      "loss_kinds",
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 26533,
+      "event_types": 70,
+      "requests_served": 294686,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4271
+       ],
+       [
+        "sched.del",
+        3056
+       ],
+       [
+        "proc",
+        3051
+       ],
+       [
+        "sched.add",
+        3047
+       ],
+       [
+        "ctr",
+        2961
+       ],
+       [
+        "cloud.usage",
+        2391
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 35,
+       "trial": 3
+      },
+      "markets": 1,
+      "orgs_active": 25,
+      "orgs_inactive": 1,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 16,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 17,
+      "beliefs_from_others": 2,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 13,
+     "day": 91,
+     "changed": [
+      "installs_by_status",
+      "orgs_active",
+      "orgs_inactive"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 23792,
+      "event_types": 60,
+      "requests_served": 224378,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        3213
+       ],
+       [
+        "sched.add",
+        2839
+       ],
+       [
+        "sched.del",
+        2832
+       ],
+       [
+        "proc",
+        2831
+       ],
+       [
+        "ctr",
+        2748
+       ],
+       [
+        "cloud.usage",
+        1841
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 36,
+       "trial": 4
+      },
+      "markets": 1,
+      "orgs_active": 24,
+      "orgs_inactive": 2,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 16,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 17,
+      "beliefs_from_others": 2,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 14,
+     "day": 98,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 22961,
+      "event_types": 57,
+      "requests_served": 229398,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        3010
+       ],
+       [
+        "sched.del",
+        2851
+       ],
+       [
+        "sched.add",
+        2851
+       ],
+       [
+        "proc",
+        2848
+       ],
+       [
+        "ctr",
+        2770
+       ],
+       [
+        "cloud.usage",
+        1713
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 39,
+       "evaluated": 1,
+       "trial": 2
+      },
+      "markets": 1,
+      "orgs_active": 24,
+      "orgs_inactive": 2,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 16,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 17,
+      "beliefs_from_others": 2,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 15,
+     "day": 105,
+     "changed": [
+      "installs_by_status",
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 21798,
+      "event_types": 56,
+      "requests_served": 257705,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "sched.del",
+        2723
+       ],
+       [
+        "proc",
+        2722
+       ],
+       [
+        "sched.add",
+        2720
+       ],
+       [
+        "bank.txn",
+        2675
+       ],
+       [
+        "ctr",
+        2625
+       ],
+       [
+        "cloud.usage",
+        1627
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 40,
+       "trial": 3
+      },
+      "markets": 1,
+      "orgs_active": 24,
+      "orgs_inactive": 2,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 16,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 16,
+      "beliefs_from_others": 2,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 16,
+     "day": 112,
+     "changed": [
+      "installs_by_status",
+      "orgs_active",
+      "orgs_inactive",
+      "loss_kinds",
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 17586,
+      "event_types": 59,
+      "requests_served": 154770,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "sched.del",
+        2593
+       ],
+       [
+        "sched.add",
+        2592
+       ],
+       [
+        "proc",
+        2591
+       ],
+       [
+        "ctr",
+        2506
+       ],
+       [
+        "bank.txn",
+        2203
+       ],
+       [
+        "cloud.usage",
+        1161
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 42,
+       "evaluated": 1
+      },
+      "markets": 1,
+      "orgs_active": 23,
+      "orgs_inactive": 3,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "dependency_failure",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 16,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 14,
+      "beliefs_from_others": 2,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 17,
+     "day": 119,
+     "changed": [],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 15114,
+      "event_types": 40,
+      "requests_served": 154044,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "proc",
+        2383
+       ],
+       [
+        "sched.del",
+        2383
+       ],
+       [
+        "sched.add",
+        2381
+       ],
+       [
+        "ctr",
+        2289
+       ],
+       [
+        "bank.txn",
+        1840
+       ],
+       [
+        "cloud.usage",
+        1008
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 10,
+      "installs_by_status": {
+       "removed": 42,
+       "evaluated": 1
+      },
+      "markets": 1,
+      "orgs_active": 23,
+      "orgs_inactive": 3,
+      "designs": 8,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "dependency_failure",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 18,
+      "machines": 16,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 14,
+      "beliefs_from_others": 2,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    }
+   ],
+   "evolution_stopped": null,
+   "measures": {
+    "t0_day": 0,
+    "day": 119,
+    "1_new_useful_capability_creation": {
+     "value": 0,
+     "capabilities": {},
+     "published": 10
+    },
+    "2_independent_adoption": {
+     "value": 0,
+     "active_installs": 0,
+     "kept_14_days": 0,
+     "tried": 6
+    },
+    "3_new_markets": {
+     "value": 4,
+     "capability_markets": 1,
+     "improvement_entrants": 6,
+     "new_orgs_with_independent_revenue": 3
+    },
+    "4_second_order_opportunities": {
+     "value": 5,
+     "kinds": [
+      "dependency_failure",
+      "machine_downtime",
+      "service_unavailable",
+      "stockout",
+      "supply_shortfall"
+     ],
+     "first_day": {
+      "dependency_failure": 106,
+      "machine_downtime": 6,
+      "service_unavailable": 79,
+      "stockout": 5,
+      "supply_shortfall": 7
+     }
+    },
+    "5_persistence_of_technological_change": {
+     "value": null,
+     "adopted": 0,
+     "still_active": 0,
+     "median_active_days": null
+    },
+    "6_information_propagation": {
+     "value": 2,
+     "beliefs_from_others": 2,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": null
+    },
+    "7_social_coordination": {
+     "value": 2,
+     "deals_accepted": 0,
+     "contracts": 0,
+     "independent_delegations": 2
+    },
+    "8_strategic_competition": {
+     "contested_classes": 0,
+     "hhi": {
+      "autoscale": 1.0,
+      "worker-000-sizin1": 1.0,
+      "worker-001-sizin1": 1.0
+     },
+     "provider_price_changes": 40,
+     "value": 0
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.667,
+     "firms": 15,
+     "active": 12,
+     "firms_with_positive_recent_result": 10,
+     "result_first_window": -1581444,
+     "result_last_window": 4470245
+    },
+    "11_novel_problem_solving": {
+     "value": 0,
+     "solved": []
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 1,
+     "successful_agents": [
+      "p:ada"
+     ],
+     "mean_pairwise_js": 0.0,
+     "cluster_sizes": [
+      1
+     ]
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 0,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        5040,
+        3600,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": -54.7
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 4872221,
+     "firm_operating_result": 18208896,
+     "loss_events": {
+      "capacity_overload": 1339882,
+      "defects": 43181,
+      "dependency_failure": 12,
+      "machine_downtime": 5255,
+      "service_unavailable": 203556,
+      "stockout": 2100,
+      "supply_shortfall": 9057
+     },
+     "retail_units_sold": 5520
+    }
+   },
+   "events": 426836,
+   "wall_s": 215.0,
+   "replay_identical": true
+  },
+  {
+   "family": "open_mixed",
+   "seed": 2,
+   "days": 120,
+   "weeks": [
+    {
+     "week": 1,
+     "day": 7,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "markets",
+      "orgs_active",
+      "loss_kinds",
+      "request_tags",
+      "contracts",
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 23691,
+      "event_types": 98,
+      "requests_served": 225788,
+      "process_failures": {},
+      "ops_daily_runs": 6,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        3851
+       ],
+       [
+        "sched.add",
+        2627
+       ],
+       [
+        "proc",
+        2593
+       ],
+       [
+        "sched.del",
+        2593
+       ],
+       [
+        "ctr",
+        2580
+       ],
+       [
+        "cloud.usage",
+        2340
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 4,
+      "installs_by_status": {
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 6,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 9,
+      "machines": 7,
+      "provider_prices": {
+       "o:cloud1": 118,
+       "o:cloud2": 134
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 11
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 2,
+     "day": 14,
+     "changed": [
+      "installs_by_status",
+      "designs",
+      "loss_kinds",
+      "request_tags",
+      "contracts"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27720,
+      "event_types": 62,
+      "requests_served": 351722,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4292
+       ],
+       [
+        "sched.add",
+        3172
+       ],
+       [
+        "sched.del",
+        3171
+       ],
+       [
+        "proc",
+        3170
+       ],
+       [
+        "ctr",
+        3134
+       ],
+       [
+        "cloud.usage",
+        2662
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 4,
+      "installs_by_status": {
+       "trial": 4,
+       "removed": 1,
+       "evaluated": 1
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 13,
+      "machines": 7,
+      "provider_prices": {
+       "o:cloud1": 92,
+       "o:cloud2": 105
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 14
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 3,
+     "day": 21,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "machines"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 26921,
+      "event_types": 70,
+      "requests_served": 347630,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4315
+       ],
+       [
+        "sched.add",
+        3121
+       ],
+       [
+        "sched.del",
+        3119
+       ],
+       [
+        "proc",
+        3114
+       ],
+       [
+        "ctr",
+        3082
+       ],
+       [
+        "cloud.usage",
+        2550
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 5,
+      "installs_by_status": {
+       "removed": 6,
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 13,
+      "machines": 8,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 20
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 4,
+     "day": 28,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "machines"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27524,
+      "event_types": 64,
+      "requests_served": 361877,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4299
+       ],
+       [
+        "sched.add",
+        3178
+       ],
+       [
+        "sched.del",
+        3176
+       ],
+       [
+        "proc",
+        3175
+       ],
+       [
+        "ctr",
+        3156
+       ],
+       [
+        "cloud.usage",
+        2646
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 6,
+      "installs_by_status": {
+       "removed": 7,
+       "active": 1,
+       "evaluated": 1,
+       "trial": 5
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 13,
+      "machines": 10,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 20
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 5,
+     "day": 35,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 29061,
+      "event_types": 59,
+      "requests_served": 370403,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4541
+       ],
+       [
+        "sched.del",
+        3292
+       ],
+       [
+        "proc",
+        3288
+       ],
+       [
+        "sched.add",
+        3287
+       ],
+       [
+        "ctr",
+        3285
+       ],
+       [
+        "cloud.usage",
+        2790
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 6,
+      "installs_by_status": {
+       "removed": 10,
+       "active": 1,
+       "evaluated": 1,
+       "trial": 5
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 13,
+      "machines": 10,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 6,
+     "day": 42,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "machines"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 28495,
+      "event_types": 60,
+      "requests_served": 370267,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4482
+       ],
+       [
+        "sched.del",
+        3307
+       ],
+       [
+        "sched.add",
+        3304
+       ],
+       [
+        "proc",
+        3303
+       ],
+       [
+        "ctr",
+        3299
+       ],
+       [
+        "cloud.usage",
+        2742
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 7,
+      "installs_by_status": {
+       "removed": 14,
+       "active": 1,
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 13,
+      "machines": 11,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 0,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 7,
+     "day": 49,
+     "changed": [
+      "installs_by_status",
+      "request_tags"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 28600,
+      "event_types": 48,
+      "requests_served": 364272,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4646
+       ],
+       [
+        "sched.del",
+        3279
+       ],
+       [
+        "sched.add",
+        3276
+       ],
+       [
+        "ctr",
+        3275
+       ],
+       [
+        "proc",
+        3274
+       ],
+       [
+        "cloud.usage",
+        2742
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 7,
+      "installs_by_status": {
+       "removed": 18,
+       "active": 1,
+       "trial": 5
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 13,
+      "machines": 11,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 4,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 8,
+     "day": 56,
+     "changed": [
+      "installs_by_status",
+      "contracts"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 29044,
+      "event_types": 46,
+      "requests_served": 363100,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4718
+       ],
+       [
+        "ctr",
+        3254
+       ],
+       [
+        "sched.add",
+        3253
+       ],
+       [
+        "sched.del",
+        3251
+       ],
+       [
+        "proc",
+        3249
+       ],
+       [
+        "cloud.usage",
+        2814
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 7,
+      "installs_by_status": {
+       "removed": 20,
+       "active": 1,
+       "evaluated": 1,
+       "trial": 5
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 14,
+      "machines": 11,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 6,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 9,
+     "day": 63,
+     "changed": [
+      "capabilities",
+      "installs_by_status",
+      "contracts"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 28626,
+      "event_types": 59,
+      "requests_served": 367241,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4695
+       ],
+       [
+        "sched.add",
+        3280
+       ],
+       [
+        "sched.del",
+        3279
+       ],
+       [
+        "proc",
+        3276
+       ],
+       [
+        "ctr",
+        3276
+       ],
+       [
+        "cloud.usage",
+        2718
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 8,
+      "installs_by_status": {
+       "removed": 23,
+       "active": 1,
+       "evaluated": 1,
+       "trial": 5
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 15,
+      "machines": 11,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 6,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 10,
+     "day": 70,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 28973,
+      "event_types": 48,
+      "requests_served": 364160,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4646
+       ],
+       [
+        "ctr",
+        3304
+       ],
+       [
+        "sched.add",
+        3303
+       ],
+       [
+        "sched.del",
+        3301
+       ],
+       [
+        "proc",
+        3297
+       ],
+       [
+        "cloud.usage",
+        2766
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 8,
+      "installs_by_status": {
+       "removed": 27,
+       "active": 1,
+       "trial": 6
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 15,
+      "machines": 11,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 5,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 11,
+     "day": 77,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 27008,
+      "event_types": 39,
+      "requests_served": 369817,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        4406
+       ],
+       [
+        "ctr",
+        3085
+       ],
+       [
+        "sched.del",
+        3083
+       ],
+       [
+        "proc",
+        3081
+       ],
+       [
+        "sched.add",
+        3081
+       ],
+       [
+        "cloud.usage",
+        2670
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 8,
+      "installs_by_status": {
+       "removed": 29,
+       "active": 1,
+       "trial": 4
+      },
+      "markets": 1,
+      "orgs_active": 26,
+      "orgs_inactive": 0,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 15,
+      "machines": 11,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 18,
+      "beliefs_from_others": 5,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 12,
+     "day": 84,
+     "changed": [
+      "installs_by_status",
+      "orgs_active",
+      "orgs_inactive",
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 24131,
+      "event_types": 53,
+      "requests_served": 324751,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        3916
+       ],
+       [
+        "sched.del",
+        2753
+       ],
+       [
+        "proc",
+        2747
+       ],
+       [
+        "sched.add",
+        2746
+       ],
+       [
+        "ctr",
+        2745
+       ],
+       [
+        "cloud.usage",
+        2281
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 8,
+      "installs_by_status": {
+       "removed": 33,
+       "active": 1,
+       "trial": 1
+      },
+      "markets": 1,
+      "orgs_active": 25,
+      "orgs_inactive": 1,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 15,
+      "machines": 11,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 17,
+      "beliefs_from_others": 5,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 13,
+     "day": 91,
+     "changed": [
+      "installs_by_status",
+      "orgs_active",
+      "orgs_inactive",
+      "loss_kinds"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 18572,
+      "event_types": 44,
+      "requests_served": 303513,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        2577
+       ],
+       [
+        "ctr",
+        2389
+       ],
+       [
+        "sched.del",
+        2387
+       ],
+       [
+        "proc",
+        2386
+       ],
+       [
+        "sched.add",
+        2386
+       ],
+       [
+        "cloud.usage",
+        1620
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 8,
+      "installs_by_status": {
+       "removed": 34,
+       "trial": 1
+      },
+      "markets": 1,
+      "orgs_active": 24,
+      "orgs_inactive": 2,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "dependency_failure",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 15,
+      "machines": 11,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 17,
+      "beliefs_from_others": 5,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 14,
+     "day": 98,
+     "changed": [
+      "installs_by_status"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 16765,
+      "event_types": 40,
+      "requests_served": 339281,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "bank.txn",
+        2266
+       ],
+       [
+        "ctr",
+        2243
+       ],
+       [
+        "sched.del",
+        2242
+       ],
+       [
+        "proc",
+        2241
+       ],
+       [
+        "sched.add",
+        2241
+       ],
+       [
+        "cloud.usage",
+        1449
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 8,
+      "installs_by_status": {
+       "removed": 35
+      },
+      "markets": 1,
+      "orgs_active": 24,
+      "orgs_inactive": 2,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "dependency_failure",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 15,
+      "machines": 11,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 17,
+      "beliefs_from_others": 5,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 15,
+     "day": 105,
+     "changed": [
+      "orgs_active",
+      "orgs_inactive",
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 15760,
+      "event_types": 38,
+      "requests_served": 284153,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "proc",
+        2121
+       ],
+       [
+        "sched.del",
+        2121
+       ],
+       [
+        "sched.add",
+        2121
+       ],
+       [
+        "ctr",
+        2121
+       ],
+       [
+        "bank.txn",
+        1828
+       ],
+       [
+        "cloud.usage",
+        1268
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 8,
+      "installs_by_status": {
+       "removed": 35
+      },
+      "markets": 1,
+      "orgs_active": 23,
+      "orgs_inactive": 3,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "dependency_failure",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 15,
+      "machines": 11,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 16,
+      "beliefs_from_others": 5,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 16,
+     "day": 112,
+     "changed": [
+      "web_pages"
+     ],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 13882,
+      "event_types": 31,
+      "requests_served": 246522,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "proc",
+        2121
+       ],
+       [
+        "sched.del",
+        2121
+       ],
+       [
+        "sched.add",
+        2121
+       ],
+       [
+        "ctr",
+        2121
+       ],
+       [
+        "bank.txn",
+        1665
+       ],
+       [
+        "cloud.usage",
+        1068
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 8,
+      "installs_by_status": {
+       "removed": 35
+      },
+      "markets": 1,
+      "orgs_active": 23,
+      "orgs_inactive": 3,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "dependency_failure",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 15,
+      "machines": 11,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 14,
+      "beliefs_from_others": 5,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    },
+    {
+     "week": 17,
+     "day": 119,
+     "changed": [],
+     "liveness": {
+      "daily_processes_ok": true,
+      "no_process_failures": true,
+      "demand_served": true,
+      "events": true,
+      "invariants_ok": true
+     },
+     "activity": {
+      "events": 13209,
+      "event_types": 27,
+      "requests_served": 247162,
+      "process_failures": {},
+      "ops_daily_runs": 7,
+      "society_people_runs": 7,
+      "society_firms_runs": 7,
+      "top_types": [
+       [
+        "proc",
+        2121
+       ],
+       [
+        "sched.del",
+        2121
+       ],
+       [
+        "sched.add",
+        2121
+       ],
+       [
+        "ctr",
+        2121
+       ],
+       [
+        "bank.txn",
+        1367
+       ],
+       [
+        "cloud.usage",
+        1008
+       ]
+      ]
+     },
+     "snapshot": {
+      "capabilities": 8,
+      "installs_by_status": {
+       "removed": 35
+      },
+      "markets": 1,
+      "orgs_active": 23,
+      "orgs_inactive": 3,
+      "designs": 9,
+      "loss_kinds": [
+       "capacity_overload",
+       "defects",
+       "dependency_failure",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout",
+       "supply_shortfall"
+      ],
+      "request_tags": [
+       "account",
+       "capacity_overload",
+       "cost-compute",
+       "cost-contract",
+       "cost-energy",
+       "cost-fee",
+       "cost-machine",
+       "cost-maintenance",
+       "cost-opex",
+       "cost-purchase",
+       "facility",
+       "host",
+       "instance",
+       "listing",
+       "machine",
+       "machine_downtime",
+       "service_unavailable",
+       "stockout"
+      ],
+      "deps": 0,
+      "deals": 0,
+      "contracts": 15,
+      "machines": 11,
+      "provider_prices": {
+       "o:cloud1": 75,
+       "o:cloud2": 85
+      },
+      "provider_cores": {
+       "o:cloud1": 120,
+       "o:cloud2": 80
+      },
+      "web_pages": 14,
+      "beliefs_from_others": 5,
+      "contacts": 21
+     },
+     "invariant_errors": []
+    }
+   ],
+   "evolution_stopped": null,
+   "measures": {
+    "t0_day": 0,
+    "day": 119,
+    "1_new_useful_capability_creation": {
+     "value": 0,
+     "capabilities": {},
+     "published": 8
+    },
+    "2_independent_adoption": {
+     "value": 0,
+     "active_installs": 0,
+     "kept_14_days": 0,
+     "tried": 6
+    },
+    "3_new_markets": {
+     "value": 4,
+     "capability_markets": 1,
+     "improvement_entrants": 4,
+     "new_orgs_with_independent_revenue": 3
+    },
+    "4_second_order_opportunities": {
+     "value": 5,
+     "kinds": [
+      "dependency_failure",
+      "machine_downtime",
+      "service_unavailable",
+      "stockout",
+      "supply_shortfall"
+     ],
+     "first_day": {
+      "dependency_failure": 84,
+      "machine_downtime": 6,
+      "service_unavailable": 11,
+      "stockout": 9,
+      "supply_shortfall": 7
+     }
+    },
+    "5_persistence_of_technological_change": {
+     "value": null,
+     "adopted": 0,
+     "still_active": 0,
+     "median_active_days": null
+    },
+    "6_information_propagation": {
+     "value": 5,
+     "beliefs_from_others": 5,
+     "evidence_messages": 0,
+     "median_days_public_evidence_to_next_trial": 2.982638888888889
+    },
+    "7_social_coordination": {
+     "value": 0,
+     "deals_accepted": 0,
+     "contracts": 0,
+     "independent_delegations": 0
+    },
+    "8_strategic_competition": {
+     "contested_classes": 0,
+     "hhi": {
+      "autoscale": 1.0,
+      "worker-003-sizin1": 1.0,
+      "worker-004-sizin1": 1.0
+     },
+     "provider_price_changes": 40,
+     "value": 0
+    },
+    "9_institutional_evolution": {
+     "value": 0,
+     "proposals_decided": 0,
+     "passed": 0,
+     "constitutions": 0
+    },
+    "10_long_term_economic_viability": {
+     "value": 0.2,
+     "firms": 15,
+     "active": 12,
+     "firms_with_positive_recent_result": 3,
+     "result_first_window": -1234090,
+     "result_last_window": -235728
+    },
+    "11_novel_problem_solving": {
+     "value": 0,
+     "solved": []
+    },
+    "14_diversity_of_successful_strategies": {
+     "value": 1,
+     "successful_agents": [
+      "p:ada"
+     ],
+     "mean_pairwise_js": 0.0,
+     "cluster_sizes": [
+      1
+     ]
+    },
+    "15_agent_learning_within_lifetime": {
+     "value": 0,
+     "agents": {
+      "p:ada": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        720,
+        2160,
+        2160,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": -33.5
+      },
+      "p:bea": {
+       "weekly_independent_revenue": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "slope_per_week": 0.0
+      }
+     }
+    },
+    "12_causal_impact_of_invented_artifacts": {
+     "value": null,
+     "requires": "ablate(): invention_removed"
+    },
+    "13_transfer_across_world_structures": {
+     "value": null,
+     "requires": "transfer(): several world families"
+    },
+    "outcomes": {
+     "requests_served": 5602264,
+     "firm_operating_result": -11828896,
+     "loss_events": {
+      "capacity_overload": 835515,
+      "defects": 7457,
+      "dependency_failure": 20,
+      "machine_downtime": 373,
+      "service_unavailable": 149015,
+      "stockout": 8103,
+      "supply_shortfall": 54350
+     },
+     "retail_units_sold": 836
+    }
+   },
+   "events": 408060,
+   "wall_s": 209.7,
+   "replay_identical": true
+  }
+ ]
+}

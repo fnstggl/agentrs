@@ -82,3 +82,43 @@ The full list with code locations is in `docs/OPEN_ENDEDNESS_AUDIT.md` §5. In s
   shared evidence.
 * **Isolation**: only Landlock/seccomp/rlimits on this host; gVisor, bubblewrap and Firecracker backends are wired
   but unavailable here (no runsc, no bwrap, no user namespaces, no /dev/kvm) and are refused, not emulated.
+
+## Crucible 3.0 (feat/crucible-internet)
+
+* **The synthetic internet has no browsing population.** Simulated people and firms read the forum, mail and the
+  capability registry. They do not visit web sites. Web traffic comes from agents, the crawler and site seeding.
+  Audience-type goals therefore depend on agents.
+* **Sites are server-rendered.** There are no cross-site cookies, TLS, CDN or DNS hierarchy. All generated sites
+  share one template; agent-written sites are arbitrary code.
+* **Second-order emergence has one mechanism family.** It was shown for compute capacity (autoscaling ->
+  provider exhaustion -> placement), with scripted competent controls on both sides, in 3 seeds. It has not
+  been shown with learned or LLM inventors, or in other domains.
+* **Most open-world "discoveries" are made by scripted controls.** NPC innovators invent and iterate, but none of
+  their versions was adopted in the recorded runs. The frozen LLM agents built nothing in the final challenge.
+* **Trials are imprecise.** Neither trial design recovers maintenance effects reliably against matched
+  counterfactuals (sign agreement 0.44-0.50). In-world firms face the same difficulty; the numbers are
+  documented rather than tuned away.
+* **The industrial sector is only partly calibrated.** One of three seeds is clearly viable; the other two are
+  marginal.
+* **Stylised social mechanics.**
+  * Effort under profit sharing is a formula, and it rewarded a labour-based rule that paid members nothing
+    (demo C). This is an inconsistency, not fixed.
+  * Simulated voters decide from trust in the proposer, not from their payoffs.
+* **Information channels.**
+  * Ablating communication changed beliefs and trials, but no measure in the Part 21 suite differed
+    consistently.
+  * The evidence-aggregator site died when its capital ran out.
+* **Task generation is narrow.**
+  * There are three mined task families. All 7 `relieve_loss` tasks were rejected in the three validated worlds:
+    6 had no feasibility witness and 1 was not attributable. Only 4 of 14 mined tasks were accepted.
+  * Validation cannot tell "impossible" from "beyond the competent controls".
+  * Difficulty is estimated from one competent control per family.
+* **LLM evaluation is small.** One world seed, a 15-day horizon, a decision every 3 simulated hours, Qwen3-4B
+  and Qwen3-14B only. No API frontier models were run.
+  * The first attempt was confounded by the interface. With a 9,000-character tool budget, alphabetical order
+    gave full signatures only to the first services (`ads`, `bank`, `caps`...). All three runs then fixated on
+    advertising tools.
+  * The rerun used interleaved ordering and a 24,000-character budget.
+* **Liveness checks were too weak.** "Demand served > 0" missed a collapse to about 0.1% of normal. The weekly
+  process-failure count caught it. Thresholds should be relative to recent levels.
+* **Isolation is not VM-grade here.** Workloads that require VM-grade isolation are refused, not run.

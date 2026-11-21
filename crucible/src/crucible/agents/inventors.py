@@ -550,3 +550,64 @@ class SiteAuthor(_AppMixin, ScriptPolicy):
         self.site = app
         while True:
             yield from self.wait(24)
+
+
+DIGEST_SRC = r'''
+import html
+import crucible_sdk as sdk
+
+
+def page(req, caller):
+    rows = []
+    for c in sdk.call("caps.list", limit=50):
+        ev = [e for e in sdk.call("caps.evidence", capability=c["capability"]) if e["kind"] == "outcome" and e["public"]]
+        for e in ev:
+            d = e["data"]
+            rows.append("<tr><td>%s</td><td>%s</td><td>%+.0f</td><td>%.0f</td><td>%s</td></tr>" % (
+                html.escape(c["title"][:60]), html.escape(e["by"]), float(d.get("effect_per_day") or 0),
+                float(d.get("se") or 0), html.escape(e["evidence"])))
+    return {"html": "<!doctype html><html><head><title>Verified trial outcomes</title></head><body>"
+                    "<h1>Verified trial outcomes of published capabilities</h1><table><tr><th>capability</th>"
+                    "<th>firm</th><th>effect (cents/day)</th><th>se</th><th>evidence</th></tr>" + "".join(rows) +
+                    "</table></body></html>"}
+'''
+
+
+class EvidenceAggregator(_AppMixin, ScriptPolicy):
+    """Information-system control: collects *public, verified* trial outcomes of every capability and distributes
+    them - a live web page on the synthetic internet (rendered from the evidence registry at request time) and a
+    daily forum digest carrying `#evidence <id>` references that any reader can check. It never invents claims:
+    each line points at a registry record."""
+    name = "evidence_aggregator"
+    kind = "scripted"
+
+    def __init__(self, capital=120_000, host="trialwatch", every_h=24):
+        self.capital, self.host, self.every_h = capital, host, every_h
+
+    def script(self):
+        org, acct, _ = yield from self.found_company("watch", self.capital)
+        if acct is None:
+            return
+        files = {"crucible.json": json.dumps({"entry": "service.py", "web": {
+            "title": "Trial watch", "routes": {"GET /": "page"}}}), "service.py": DIGEST_SRC}
+        self.site = yield from self.deploy_app(org, acct, "trialwatch", files, self.host)
+        posted: set = set()
+        self.posts = 0
+        while True:
+            r = yield call("caps.list", limit=100)
+            new = []
+            for c in (r or {}).get("result", []) if ok(r) else []:
+                e = yield call("caps.evidence", capability=c["capability"])
+                for x in (e or {}).get("result", []) if ok(e) else []:
+                    if x["kind"] == "outcome" and x["public"] and x["verified"] and x["evidence"] not in posted:
+                        new.append((c, x))
+            if new:
+                body = "\n".join(f"{c['title'][:50]}: {x['by']} measured {float(x['data'].get('effect_per_day') or 0):+.0f} "
+                                 f"cents/day (se {float(x['data'].get('se') or 0):.0f}). #evidence {x['evidence']}"
+                                 for c, x in new[:8])
+                p = yield call("forum.post", board="general", title=f"Trial watch: {len(new[:8])} verified outcomes",
+                               body=body + f"\nAll outcomes: http://{self.host}.crucible/")
+                if ok(p):
+                    posted.update(x["evidence"] for _, x in new[:8])
+                    self.posts += 1
+            yield from self.wait(self.every_h)

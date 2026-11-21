@@ -144,3 +144,29 @@ volumes load freight links.
    backend layer refuses unavailable backends; it does not provide them.
 8. Knowledge truth/outdatedness is only modelled for verifiable evidence (trial outcomes, breaches); there is no
    general model of incorrect-but-believed claims beyond unverifiable text being ignored.
+
+## 6. Crucible 3.0 addendum: the 2.0 weaknesses (Part 19), status after this branch
+
+| | weakness | what was done | status |
+|---|---|---|---|
+| A | no lasting adoption in the 90-day run | Diagnosed as mostly a *genuine economic outcome* plus short or noisy trials (see below). Firms that overload at peak (short-format services) adopt autoscaling; firms whose losses are small relative to the compute it costs reject it on their own books. Adoption persisted in the second-order runs (autoscaler at 1-2 firms, placement at 1-2 firms in seeds 2-3) and in the 120-day run. No adoption was forced. | partly resolved: adoption occurs where it pays; it stays rare |
+| B | no second-order problem | Synchronised autoscaling exhausts a small provider: `capacity_unavailable` losses, reports of them, a placement broker answering them, migrations, provider price and hardware reactions. Established against matched counterfactuals in 3 seeds (demo) and by the Part 21 suite: 3 loss kinds occur only with the invention. | resolved for one mechanism family, with scripted controls |
+| C | industrial firms lose money structurally | Fixes: replacement-cost unit cost; cost-plus pricing with inventory feedback; affordability caps on procurement; B2B sales counted as revenue (they had been booked as purchases); household value scale. | partly resolved: seed 1 viable, seeds 2-3 marginal (throughput-limited) |
+| D | delayed effects distort trials | Sequential randomised blocks with washout for stateful capabilities; carryover diagnostics; an inventory-excluding metric; a matched-counterfactual evaluator; validation against it. | implemented and validated: neither design recovers maintenance effects reliably (documented) |
+| E | NPC invention weak | `actors/innovators.py`: simulated developers identify a shared reported problem, generate controller programs from a grammar, deploy and publish them, read their trial evidence and ship mutated versions. Tested, including exact replay. | implemented: invention and iteration occur; no NPC invention was adopted in the runs so far |
+| F | inert information ablation | Late-majority social proof and forum `#evidence` posts. Ablating sharing removes the public outcomes, the beliefs from others and the late-majority trials (diffusion test). An evidence-aggregator site plus forum digest gives cautious firms beliefs they otherwise lack (demo D). | resolved for beliefs and trials; no measurable effect on *adoption* |
+| G | no LLM social actors | `actors/llm_minds.py`: an optional LLM decides inside grounded bounds (it cannot accept against a reservation or invent outcomes); decisions are recorded and replay exactly. | implemented and tested with a test backend; not run at scale |
+| H | isolation not VM-grade | Pluggable backends, plus minimum-isolation enforcement that fails closed (`CRUCIBLE_MIN_ISOLATION`). | layer tested; VM-grade isolation BLOCKED on this host, and not claimed |
+
+Finding from the 120-day runs (Part 24): firms whose service instance was terminated for non-payment kept their
+listings and a dead service for months. Every day they recorded `service_unavailable` losses, and requests served
+fell by about 40% after week 9. Firm minds now restart a terminated service when they can pay for a week of
+compute, and wind the company up otherwise (`minds._recover_or_exit`, ablatable with `ablate_recovery`).
+
+Winding firms up then exposed a latent bug. When the offerings with the highest consumer slots closed, the hourly
+demand process crashed every hour. Consumers' provider and awareness arrays still referenced the closed slots.
+No firm was served for the rest of the run: about 460 requests per week instead of about 300,000. The liveness
+checks did not flag it at first, because "demand served > 0" was still true. Fixed in `economy/consumers.py`,
+with a regression test in `tests/test_firm_recovery.py`. Lesson: a liveness check needs thresholds relative to
+recent levels, not only "> 0". `long_run.py` also records `process_failures` every week, and they were present
+here.

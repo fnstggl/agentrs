@@ -8,6 +8,55 @@ Never TESTED without a passing test; never BENCHMARKED without a measurement.
 Branch `feat/crucible` (based on `feat/crucible-design`, with `feat/cam-2` merged for the AGENTRS adapter).
 Test suite: `cd crucible && python -m pytest -q` — see the bottom of this file for the last full run.
 
+## Crucible 3.0: synthetic open internet (branch `feat/crucible-internet`, based on `feat/crucible-open-world` 58c9b8b)
+
+Baseline at branch start: 268 tests passed. The last full run on this branch is recorded at the end of this section. Architecture:
+[docs/INTERNET_ARCHITECTURE.md](docs/INTERNET_ARCHITECTURE.md); fidelity: [docs/WORLD_FIDELITY.md](docs/WORLD_FIDELITY.md);
+second-order: [docs/SECOND_ORDER_EMERGENCE.md](docs/SECOND_ORDER_EMERGENCE.md); evaluation:
+[docs/LONG_HORIZON_EVALUATION.md](docs/LONG_HORIZON_EVALUATION.md); results: docs/EXPERIMENTS.md (Crucible 3.0 section).
+
+| component | status | evidence |
+|---|---|---|
+| internet fabric: names, `net.fetch` as one recorded command, web apps as sandboxed route handlers, server-side sessions, consent login, per-app database, rate limits, failures | TESTED | `test_internet.py` |
+| crawler, link graph, link-ranked index, `noindex`/login pages excluded | TESTED | `test_internet.py` |
+| real Chromium with hermetic resolver; browser = API equivalence | TESTED | `test_internet.py::test_real_chromium_*`, `test_internet_adversarial.py::test_hermetic_*` |
+| schema-first site generator (12 themes), API and browser site critics, critic rejects a faking site | TESTED | `test_internet.py` |
+| AsyncRunner (independent clocks, batch groups) | TESTED, BENCHMARKED | `test_internet.py::test_async_runner_*`; SCALING.md |
+| LLM social actors grounded in recorded state | TESTED (test backend) | `test_internet_society.py`; not run with a real model at scale |
+| adversarial content and trust-boundary assessment | TESTED | `test_internet_adversarial.py` |
+| operating modes A/B/C (Mode C refused by default) | TESTED | `test_internet_adversarial.py::test_operating_modes_*` |
+| second-order mechanism (capacity exhaustion, persisted refusals, placement broker) | TESTED (mechanics), IMPLEMENTED (3-seed demonstration) | `demo_second_order.py`; SECOND_ORDER_EMERGENCE.md |
+| trial designs: sequential with washout, carryover diagnostics; matched-counterfactual evaluator | TESTED | `test_open_industry.py`; `trial_methods.py` validation (both designs inaccurate for maintenance, documented) |
+| industrial calibration fixes (replacement cost, pricing, affordability, B2B accounting) | TESTED (behaviour), INCOMPLETE (seeds 2-3 marginal) | `test_open_industry.py` |
+| NPC invention (grammar-generated controllers, deploy, evidence-driven iteration) | TESTED | `test_npc_innovation.py` (incl. exact replay) |
+| firm recovery-or-exit after losing its service | TESTED | `test_firm_recovery.py` |
+| outcome metrics for open worlds; goal warm-up | TESTED | `test_taskgen.py` |
+| task mining, 8-check validation, sealed held-out set, CLI `crucible tasks` | TESTED | `test_taskgen.py` |
+| calibration panel with failure categories | TESTED | `test_calibration.py`; `taskgen_calibration.py` |
+| Part 21 suite (`evaluation/open_internet`, 15 measures, 4 counterfactual conditions), CLI `crucible openeval` | IMPLEMENTED with recorded results | `open_internet_suite.py`; EXPERIMENTS.md |
+| domain demos: A digital (second-order), B industrial (open-world demo 2), C social organisation, D information systems, E infrastructure (placement) | IMPLEMENTED with recorded results | `demo_social_org.py`, `demo_information.py`, `demo_second_order.py` |
+| long-run liveness harness | IMPLEMENTED | `long_run.py` |
+| minimum-isolation policy (fail closed) | TESTED; VM-grade BLOCKED on this host | `test_open_security.py` |
+| internet benchmarks | BENCHMARKED | `docs/benchmarks/internet.json` |
+| final challenge (broad and explicit objectives, Qwen3-4B and Qwen3-14B) | IMPLEMENTED with recorded results | `final_challenge.py`; EXPERIMENTS.md |
+
+Bugs found and fixed on this branch:
+* **Aliased state broke replay.** The NPC innovator mutated a dictionary after emitting it, and the replay hash
+  chain broke. Fixed, and the kernel contract is now documented.
+* **The aggregator page failed on missing effect values.** Fixed.
+* **Firms kept dead services on open listings for months.** Fixed by recovery-or-exit.
+* **Closing the highest-slot offerings crashed consumer demand.** Once the firms that the recovery fix wound up
+  closed their listings, the hourly consumer demand process raised an `IndexError` every hour, and the whole
+  digital economy stopped being served. Closed slots were still referenced by consumers' provider and
+  awareness arrays. Fixed, with a regression test that fails without the fix.
+* **Industrial B2B sales were booked as purchases.** Fixed.
+* **The visibility task's progress was inverted.** Fixed.
+* **The predictive-maintenance test outran sequential trials.** Its horizon was extended.
+
+### Acceptance criteria (Part 33), not redefined
+
+ACCEPTANCE_TABLE_PLACEHOLDER
+
 ## Open world (branch `feat/crucible-open-world`, based on `feat/crucible` 8b81276)
 
 Baseline before any change: 222 tests passed (226 s). Last full run on this branch: **268 passed** (392 s). The open-world layer is additive: legacy families, tests and

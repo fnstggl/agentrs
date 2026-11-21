@@ -84,3 +84,25 @@ def require(backend: str) -> None:
         raise SandboxUnavailable(f"unknown sandbox backend {backend!r}")
     if not info["available"]:
         raise SandboxUnavailable(f"sandbox backend {backend!r} unavailable on this host: {info['reason']}")
+
+
+LEVELS = ["process", "namespaces", "user-space-kernel", "vm"]
+LEVEL_OF = {"landlock-seccomp": "process", "bubblewrap": "namespaces", "gvisor": "user-space-kernel",
+            "firecracker": "vm"}
+
+
+def enforce_min_isolation(backend: str, minimum: str | None) -> None:
+    """Fail closed when a workload requires stronger isolation than the selected backend provides
+    (``CRUCIBLE_MIN_ISOLATION`` or the sandbox config's ``min_isolation``: process | namespaces |
+    user-space-kernel | vm). Never upgrades or downgrades silently: the caller must select a backend that meets
+    the requirement *and* is available here."""
+    if not minimum:
+        return
+    if minimum not in LEVELS:
+        raise SandboxUnavailable(f"unknown isolation level {minimum!r}; one of {LEVELS}")
+    have = LEVEL_OF.get(backend)
+    if have is None or LEVELS.index(have) < LEVELS.index(minimum):
+        best = [b for b, lv in LEVEL_OF.items() if LEVELS.index(lv) >= LEVELS.index(minimum)
+                and detect().get(b, {}).get("available")]
+        raise SandboxUnavailable(f"workload requires {minimum!r} isolation; backend {backend!r} provides {have!r}"
+                                 + (f"; available here: {best}" if best else "; no backend on this host provides it"))
