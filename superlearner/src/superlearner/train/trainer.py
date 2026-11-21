@@ -47,7 +47,7 @@ DEFAULT_CFG = {
     "algo": {"name": "ppo"},
     "curriculum": {"arms": None, "adaptive": True, "world_families": ["tiny", "bazaar"]},
     "demos": {"episodes": 0, "bc_epochs": 0, "bc_lr": 3e-4, "max_per_arm": 0},
-    "memory": {"enabled": True}, "temperature": 1.0,
+    "memory": {"enabled": True}, "temperature": 1.0, "store_episodes_iters": 0,
 }
 
 
@@ -318,6 +318,15 @@ class Trainer:
             self.curriculum.update(e["summary"], float(np.mean([d["vstd"] for d in e["decisions"]])) if e["decisions"] else 0.0)
             self.log("episodes.jsonl", dict(e["summary"], iter=self.iter))
         self.save_traj(f"train_iter{self.iter:04d}", [e for e in eps if "human" in e["decisions"][0]][: c["traj_per_iter"]])
+        keep = int(c.get("store_episodes_iters", 0))
+        if keep and eps:       # training-format trajectory store: the last `keep` iterations, with every decision record
+            os.makedirs(os.path.join(self.dir, "replay"), exist_ok=True)
+            with gzip.open(os.path.join(self.dir, "replay", f"iter{self.iter:04d}.pkl.gz"), "wb") as f:
+                pickle.dump({"episodes": [{"summary": e["summary"], "decisions": e["decisions"]} for e in eps],
+                             "emb": self.store.items_since(0), "iter": self.iter}, f)
+            old_p = os.path.join(self.dir, "replay", f"iter{self.iter - keep:04d}.pkl.gz")
+            if os.path.exists(old_p):
+                os.unlink(old_p)
         t0 = time.time()
         before = flat_params(self.model).clone()
         m = self.algo.update(eps, self.store, self.demos or None) if eps else {}

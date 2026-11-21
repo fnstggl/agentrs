@@ -1,0 +1,40 @@
+# The Meta-Researcher's search for a better learning rule.
+#   superlearner meta-search --config configs/meta_search.yaml [--rounds N] [--resume]
+# Inner task: a small controller (hash text embeddings, CPU, confined) is warm-started from two verified
+# demonstrations per arm and then trained by the candidate's algorithm on six task arms that need no LLM-written
+# content. Every candidate gets the same seeds, demonstrations, experience budget (enforced by the env hub),
+# evaluation tasks (held-out seeds, one unfamiliar world family) and hardware.
+name: meta_search
+seed: 0
+rounds: 8
+pool: 8
+per_round: 1
+selection: surrogate
+sources: {rule_space: 5, llm: 2, learned_rule: 1}
+max_parallel: 4
+primary: aulc_eval
+screen_margin: 0.03
+inner:
+  workers: 6
+  eval_every: 2
+  model: {d: 128, layers: 2, heads: 4, ff: 256, bag_dim: 48, hid: 128}
+  agent: {use_llm: false}
+  core: {max_decisions: 24}
+  algo: {name: ppo, lr: 0.0001, epochs: 3, minibatch_eps: 16, target_kl: 0.05, critic_warmup: 1}
+  curriculum:
+    adaptive: true
+    world_families: [tiny, bazaar]
+    arms:
+      - {family: found}
+      - {family: fund, prereq: [found/0/scratch]}
+      - {family: list, start: deployed}
+      - {family: deploy, start: coded}
+      - {family: service, start: listed}
+      - {family: repair}
+  demos: {episodes: 96, bc_epochs: 40, bc_lr: 0.0005, max_per_arm: 2}
+eval_arms: [found/0/scratch, fund/0/scratch, list/0/deployed, deploy/0/coded, service/0/listed, repair/0/scratch]
+eval_world_families: [tiny, bazaar, entrenched_incumbents]
+stages:
+  screen: {seeds: [1], iters: 10, episodes_per_iter: 40, budget: 6000, eval_n: 24, timeout_s: 2400}
+  develop: {seeds: [1, 2, 3], iters: 10, episodes_per_iter: 40, budget: 6000, eval_n: 24, timeout_s: 2400}
+  confirm: {seeds: [1, 2, 3, 4, 5, 6], iters: 10, episodes_per_iter: 40, budget: 6000, eval_n: 36, timeout_s: 3000}

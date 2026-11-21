@@ -140,6 +140,12 @@ def evaluate(model: CAMController, batch: Batch, store: EmbStore | None = None) 
     has = (ch >= 0).to(alp.dtype)
     logp_a = (alp.gather(2, ch.clamp(min=0).unsqueeze(-1)).squeeze(-1) * has).sum(1)
     ent_a = (masked_entropy(al, omask) * has).sum(1) / has.sum(1).clamp(min=1)
-    return {"logp": (logp_h + logp_a).view(B, T), "logp_head": logp_h.view(B, T), "logp_args": logp_a.view(B, T),
-            "ent": (ent_h + ent_a).view(B, T), "ent_head": ent_h.view(B, T),
-            "values": model.values(z).view(B, T, -1), "succ_logit": model.p_success(z).view(B, T), "z": z.view(B, T, -1)}
+    # With `model.detach_critic` the value ensemble and the success predictor read the controller's state without
+    # sending gradients back into it: fitting the critic can then never move the policy.
+    zc = z.detach() if getattr(model, "detach_critic", False) else z
+    d = oe.shape[-1]
+    e_args = (oe.gather(2, ch.clamp(min=0).view(N, -1, 1, 1).expand(N, ch.shape[1], 1, d)).squeeze(2) * has.unsqueeze(-1)).sum(1) \
+        / has.sum(1, keepdim=True).clamp(min=1)
+    return {"c": c, "e_head": e_head.view(B, T, -1), "e_args": e_args.view(B, T, -1),"logp": (logp_h + logp_a).view(B, T), "logp_head": logp_h.view(B, T), "logp_args": logp_a.view(B, T),
+            "ent": (ent_h + ent_a).view(B, T), "ent_head": ent_h.view(B, T), "head_logp_all": hlp.view(B, T, -1),
+            "values": model.values(zc).view(B, T, -1), "succ_logit": model.p_success(zc).view(B, T), "z": z.view(B, T, -1)}

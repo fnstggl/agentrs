@@ -29,6 +29,7 @@ import hashlib
 import json
 import os
 import pickle
+import threading
 import time
 
 import numpy as np
@@ -87,6 +88,9 @@ class MetaResearcher:
                          "measures": {}, "promoted_at": 0}
         self.round_n = 0
         self.isolation = require_isolation()          # fail closed: no confinement, no candidate execution
+        self._sem = threading.Semaphore(int(c["max_parallel"]))     # confined training runs in flight
+        self._lock = threading.RLock()                               # ledger / state / surrogate
+        self._base_lock = threading.Lock()
         self.state_path = os.path.join(self.dir, "state.json")
         if resume and os.path.exists(self.state_path):
             self.load_state()
@@ -182,12 +186,14 @@ class MetaResearcher:
         job_path = os.path.join(work, "job.json")
         json.dump(job, open(job_path, "w"), indent=1)
         t0 = time.time()
+        self._sem.acquire()
         try:
             extra = (os.path.dirname(self.cfg["demos_path"]),) if self.cfg.get("demos_path") else ()
             res = run_isolated("superlearner.meta.candidate_run", [job_path], os.path.join(cdir, "src"), work,
                                timeout_s=300 if selftest else float(st["timeout_s"]), gpu=False, extra_read=extra,
                                log_path=os.path.join(work, "log.txt"))
         finally:
+            self._sem.release()
             hub.terminate()
             hub.join(timeout=10)
             try:
@@ -249,18 +255,19 @@ class MetaResearcher:
     def baseline(self, stage: str, seeds: list[int] | None = None) -> dict:
         """Champion measurements for a stage (run once per seed, cached, re-used for every comparison)."""
         seeds = list(seeds if seeds is not None else self.cfg["stages"][stage]["seeds"])
-        cid = self.champion["id"]
-        if not os.path.isdir(os.path.join(self.candidate_dir(cid), "src")):
-            self.make_candidate(cid, self.champion["changes"])
-        have = self.champion["measures"].setdefault(stage, {})
-        need = [s for s in seeds if s not in have]
-        if need:
-            for s, m in self.run_stage(cid, stage, need).items():
-                have[s] = m
-                self.ledger.append({"kind": "baseline_run", "candidate": cid, "stage": stage, "seed": s,
-                                    "measures": {k: v for k, v in m.items() if k not in ("eval_curve",)}})
-            self.save_state()
-        return {s: have[s] for s in seeds}
+        with self._base_lock:
+            cid = self.champion["id"]
+            if not os.path.isdir(os.path.join(self.candidate_dir(cid), "src")):
+                self.make_candidate(cid, self.champion["changes"])
+            have = self.champion["measures"].setdefault(stage, {})
+            need = [s for s in seeds if s not in have]
+            if need:
+                for s, m in self.run_stage(cid, stage, need).items():
+                    have[s] = m
+                    self.ledger.append({"kind": "baseline_run", "candidate": cid, "stage": stage, "seed": s,
+                                        "measures": {k: v for k, v in m.items() if k not in ("eval_curve",)}})
+                self.save_state()
+            return {s: have[s] for s in seeds}
 
     # ------------------------------------------------------------------ A: diagnose
     def diagnose(self) -> dict:
@@ -344,7 +351,7 @@ class MetaResearcher:
 
     # ------------------------------------------------------------------ C-H: one experiment
     def experiment(self, prop: dict) -> dict:
-        cid = f"c{self.round_n:03d}-{prop['id']}"
+        cid = f"c{prop.get('round', self.round_n):03d}-{prop['id']}"
         t0 = time.time()
         rec = {"kind": "experiment", "candidate": cid, "proposal": prop["id"], "round": self.round_n,
                "parent": self.champion["id"], "source": prop["source"], "hypothesis": prop["hypothesis"],
@@ -403,7 +410,11 @@ class MetaResearcher:
                 v = verdict(cmp[prim], cmp["final_eval"], self.cfg["promote_margin"], self.cfg["max_final_drop"])
                 rec["decision"] = {"improved": "promoted", "harmful": "harmful"}.get(v, "inconclusive")
                 if rec["decision"] == "promoted":
-                    self._promote(cid, prop, runs)
+                    with self._lock:
+                        if self.champion["id"] == rec["parent"]:       # the champion it beat is still the champion
+                            self._promote(cid, prop, runs)
+                        else:
+                            rec["decision"] = "improved_over_previous_champion"
         return self._finish(rec, prop, effect, True, t0)
 
     def _promote(self, cid: str, prop: dict, confirm_runs: dict) -> None:
@@ -414,6 +425,10 @@ class MetaResearcher:
         self.ledger.append({"kind": "promotion", "round": self.round_n, "new_champion": cid, "previous": old})
 
     def _finish(self, rec: dict, prop: dict, effect: float | None, valid: bool, t0: float) -> dict:
+        with self._lock:
+            return self._finish_locked(rec, prop, effect, valid, t0)
+
+    def _finish_locked(self, rec: dict, prop: dict, effect: float | None, valid: bool, t0: float) -> dict:
         rec["wall_s"] = round(time.time() - t0, 1)
         rec["effect"] = effect
         self.ledger.append(rec)
@@ -439,7 +454,9 @@ class MetaResearcher:
                             "pool": [{"id": p["id"], "source": p["source"], "slots": p["slots"], "hypothesis": p["hypothesis"][:200],
                                       "predicted": float(mu[i]), "spread": float(sd[i]), "p_valid": float(pv[i])} for i, p in enumerate(pool)],
                             "chosen": [pool[i]["id"] for i in chosen], "diagnosis_tags": diag.get("tags")})
-        out = [self.experiment(pool[i]) for i in chosen]
+        # the chosen candidates are evaluated side by side; confined runs share `max_parallel` slots
+        with cf.ThreadPoolExecutor(max_workers=max(1, len(chosen))) as ex:
+            out = list(ex.map(lambda i: self.experiment(pool[i]), chosen))
         self.round_n += 1
         self.save_state()
         return out

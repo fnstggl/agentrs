@@ -27,7 +27,7 @@ from . import rule as R
 from .base import Algorithm, register
 
 DEFAULTS = {"lr": 1e-4, "epochs": 3, "minibatch_eps": 32, "max_grad_norm": 1.0, "target_kl": 0.05,
-            "weight_decay": 0.0, "boot_p": 0.8, "bc_coef": 0.0, "seed": 0, "critic_warmup": 0}
+            "weight_decay": 0.0, "boot_p": 0.8, "bc_coef": 0.0, "seed": 0, "critic_warmup": 0, "detach_critic": False}
 
 
 def flat_params(model) -> torch.Tensor:
@@ -64,6 +64,7 @@ class PPO(Algorithm):
         self.rule = R.RuleConfig(**{k: c[k] for k in R.RuleConfig().to_dict() if k in c})
         self.opt = torch.optim.AdamW(model.parameters(), lr=c["lr"], weight_decay=c["weight_decay"])
         self.rng = np.random.default_rng(c["seed"])
+        model.detach_critic = bool(c["detach_critic"])
         self.n_updates = 0
         self.n_steps = 0
         self.n_calls = 0

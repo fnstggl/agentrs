@@ -1,0 +1,7 @@
+# Experiment B, few-demonstration regime, PPO plus replay of the agent's own verified successes (filtered
+# self-imitation), critic detached. Same seeds, demonstrations, tasks and budgets as exp_b_fewdemo.
+base: exp_b_fewdemo.yaml
+name: exp_b_fewdemo_sil
+algo: {name: ppo_sil, lr: 0.00005, epochs: 3, minibatch_eps: 8, clip: 0.1, target_kl: 0.03, critic_warmup: 1, ent_coef: 0.003,
+       detach_critic: true, sil_steps: 16, sil_batch: 8, sil_mode: filtered, sil_coef: 1.0, replay_episodes: 1500}
+store_episodes_iters: 4

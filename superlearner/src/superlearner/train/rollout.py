@@ -175,6 +175,9 @@ class RolloutPool:
                 j = pending.pop()
                 c.send(("run", jobs[j]))
                 busy[c] = j
+            if not busy:                    # every worker has died: fail the remaining jobs instead of waiting forever
+                self.errors.append(f"no live workers; {len(pending)} job(s) not run")
+                break
             for c in mp_wait(list(busy)):
                 j = busy.pop(c)
                 try:

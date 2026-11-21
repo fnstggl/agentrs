@@ -67,6 +67,9 @@ class AgentConfig:
     propose_tokens: int = 700
     gen_tokens: int = 1200
     think_entries: bool = True     # let the frozen LLM reason before writing a structured document entry
+    plan_with_world_model: str = ""   # path of a trained world model: one-step lookahead re-ranks the head choice
+    plan_beta_ok: float = 1.0
+    plan_beta_gain: float = 1.0
 
 
 class Chooser:
@@ -145,6 +148,18 @@ class CAMAgent:
         self._pending: dict[int, str] = {}
         self.state = None
         self.human = False          # also record a readable trace of every decision (for inspection)
+
+    def _world_model(self):
+        path = self.cfg.plan_with_world_model
+        if not path:
+            return None
+        if getattr(self, "_wm_path", None) != path:
+            from .worldmodel import WorldModel
+            ck = torch.load(path, map_location=self.device, weights_only=False)
+            wm = WorldModel(ck["d"])
+            wm.load_state_dict(ck["wm"])
+            self._wm, self._wm_path = wm.to(self.device).eval(), path
+        return self._wm
 
     # ================================================================== embeddings
     def _ek(self, text: str) -> int:
@@ -545,6 +560,9 @@ class CAMAgent:
             hl = m.head_logits(z, he, torch.ones(1, len(heads), dtype=torch.bool, device=self.device))[0]
             lsm = torch.log_softmax(hl, -1)
             hlog = hl.cpu().numpy()
+            wm = self._world_model()
+            if wm is not None:          # hypothetical one-step rollouts in latent space, before acting
+                hlog = (lsm + wm.plan_bonus(z, he, self.cfg.plan_beta_ok, self.cfg.plan_beta_gain)).cpu().numpy()
             vals = m.values(z)[0]
             rec["value"], rec["vstd"] = float(vals.mean()), float(vals.std())
             rec["p_succ"] = float(torch.sigmoid(m.p_success(z))[0])
