@@ -119,6 +119,19 @@ def summarize(eps: list[dict]) -> dict:
             "by_arm_n": {a: len(v) for a, v in sorted(by.items())}}
 
 
+def gpu_retry(fn, tries: int = 30, lo: float = 5.0, hi: float = 30.0):
+    """Call `fn`; when the (shared) GPU is out of memory, release cached blocks, wait a little and try again."""
+    import random
+    for i in range(tries):
+        try:
+            return fn()
+        except torch.OutOfMemoryError:
+            torch.cuda.empty_cache()
+            if i == tries - 1:
+                raise
+            time.sleep(random.uniform(lo, hi))
+
+
 class Trainer:
     def __init__(self, cfg: dict, run_dir: str, resume: bool = False, pool=None):
         self.cfg = merge(DEFAULT_CFG, cfg)
@@ -155,6 +168,7 @@ class Trainer:
         self.theta0 = flat_params(self.model).clone()
         if resume and os.path.exists(os.path.join(run_dir, "ckpt", "latest.pt")):
             self.load(os.path.join(run_dir, "ckpt", "latest.pt"))
+            self._trim_logs()
         else:
             json.dump(self.cfg, open(os.path.join(run_dir, "config.json"), "w"), indent=1)
             json.dump({"code": code_hashes(), "git": git_commit(), "torch": torch.__version__, "device": self.device,
@@ -162,6 +176,29 @@ class Trainer:
                       open(os.path.join(run_dir, "meta.json"), "w"), indent=1)
 
     # ------------------------------------------------------------------ plumbing
+    def _trim_logs(self) -> None:
+        """After resuming from a checkpoint: records of iterations that ran after that checkpoint (and were lost
+        with the interrupted process) are moved to ``<log>.interrupted`` so that curves contain each iteration once."""
+        for name, late in (("metrics.jsonl", lambda r: r.get("phase") == "rl" and r.get("iter", 0) > self.iter),
+                           ("eval.jsonl", lambda r: r.get("iter", 0) > self.iter),
+                           ("episodes.jsonl", lambda r: r.get("iter", -1) >= self.iter)):
+            path = os.path.join(self.dir, name)
+            if not os.path.exists(path):
+                continue
+            keep, drop = [], []
+            for line in open(path):
+                try:
+                    (drop if late(json.loads(line)) else keep).append(line)
+                except ValueError:
+                    drop.append(line)
+            if drop:
+                with open(path + ".interrupted", "a") as f:
+                    f.writelines(drop)
+                tmp = path + ".tmp"
+                with open(tmp, "w") as f:
+                    f.writelines(keep)
+                os.replace(tmp, path)
+
     def log(self, name: str, rec: dict) -> None:
         with open(os.path.join(self.dir, name), "a") as f:
             f.write(json.dumps(rec, default=str) + "\n")
@@ -400,8 +437,10 @@ class Trainer:
                 torch.cuda.empty_cache()
                 return m
             except torch.OutOfMemoryError:
-                self.model.load_state_dict(snap_m)
-                self.algo.load_state_dict(pickle.loads(snap_a))
+                def restore():
+                    self.model.load_state_dict(snap_m)
+                    self.algo.load_state_dict(pickle.loads(snap_a))
+                gpu_retry(restore)                      # the restore itself allocates a little; the GPU may be full
                 if hasattr(self.algo, "buffer"):
                     self.algo.buffer = list(buf)
                 torch.cuda.empty_cache()
@@ -447,15 +486,28 @@ class Trainer:
               "env_decisions": self.env_decisions, "episodes": self.episodes, "wall": self.wall, "cfg": self.cfg,
               "rng": self.rng.bit_generator.state, "torch_rng": torch.get_rng_state(), "theta0": self.theta0.cpu(),
               "code": code_hashes(), "demos_n": len(self.demos)}
+        buf = list(getattr(self.algo, "buffer", []) or [])
+        ck["replay_n"] = len(buf)
         path = os.path.join(self.dir, "ckpt", name or f"iter_{self.iter:04d}.pt")
         torch.save(ck, path)
+        # the buffer of the agent's own verified successes belongs to the learner's state: without it a resumed
+        # run that replays would start from an empty buffer. One copy next to the checkpoint a run resumes from.
+        resume_from = path if name is not None else os.path.join(self.dir, "ckpt", "latest.pt")
         if name is None:
-            torch.save(ck, os.path.join(self.dir, "ckpt", "latest.pt"))
+            torch.save(ck, resume_from)
+        if hasattr(self.algo, "buffer"):
+            tmp = resume_from + ".replay.pkl.gz.tmp"
+            with gzip.open(tmp, "wb", compresslevel=1) as f:
+                pickle.dump({"iter": self.iter, "episodes": buf}, f)
+            os.replace(tmp, resume_from + ".replay.pkl.gz")
         return path
 
     def load(self, path: str, weights: bool = True, memory: bool = True, optimizer: bool = True) -> dict:
         """Restore a checkpoint. `weights` / `memory` can be restored separately (for the ablations that keep one
-        and reset the other)."""
+        and reset the other). Waits and retries if a shared GPU is momentarily full."""
+        return gpu_retry(lambda: self._load(path, weights, memory, optimizer))
+
+    def _load(self, path: str, weights: bool = True, memory: bool = True, optimizer: bool = True) -> dict:
         ck = torch.load(path, map_location=self.device, weights_only=False)
         for k, row in zip(ck["store_keys"], ck["store_mat"]):
             if int(k) != 0:
@@ -464,6 +516,12 @@ class Trainer:
             self.model.load_state_dict(ck["model"])
             if optimizer and ck.get("algo_name") == self.algo.name:
                 self.algo.load_state_dict(ck["algo"])
+                bp = path + ".replay.pkl.gz"
+                if hasattr(self.algo, "buffer") and os.path.exists(bp):
+                    with gzip.open(bp, "rb") as f:
+                        b = pickle.load(f)
+                    if b.get("iter") == ck["iter"]:
+                        self.algo.buffer = list(b["episodes"])
             self.theta0 = ck["theta0"].to(self.device)
         if memory:
             self.memory.load_state_dict(ck["memory"])

@@ -13,6 +13,7 @@ inner:
   workers: 4
   model: {d: 64, layers: 2, heads: 4, ff: 128, bag_dim: 32, hid: 64}
   core: {max_decisions: 12}
+  algo: {name: ppo, critic_warmup: 1, detach_critic: true}     # the settings the real search uses (self-test must pass with them)
   curriculum:
     world_families: [tiny]
     arms: [{family: found}, {family: service, start: listed}]

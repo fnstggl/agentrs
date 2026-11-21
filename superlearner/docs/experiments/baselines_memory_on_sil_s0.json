@@ -1,0 +1,224 @@
+{
+ "checkpoint": "runs/memory_on_sil_s0/ckpt/latest.pt",
+ "tasks": {
+  "n": 64,
+  "split": "select",
+  "arms": [
+   "deploy/0/coded",
+   "found/0/scratch",
+   "fund/0/scratch",
+   "list/0/deployed",
+   "repair/0/scratch",
+   "service/0/coded",
+   "service/0/deployed",
+   "service/0/listed"
+  ],
+  "world_families": [
+   "bazaar",
+   "entrenched_incumbents",
+   "fragmented_networks",
+   "tiny"
+  ]
+ },
+ "core": {
+  "max_decisions": 40
+ },
+ "conditions": {
+  "4 CAM after RL": {
+   "episodes": 64,
+   "success": 0.421875,
+   "success_ci": [
+    0.3087,
+    0.5439
+   ],
+   "progress": 0.536875,
+   "valid_rate": 0.306,
+   "decisions": 766,
+   "calls": 500,
+   "failures": {
+    "syntax": 38,
+    "nonexistent_resource": 45,
+    "loop_blocked": 241,
+    "permission": 23
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 0.625,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 0.25,
+    "repair/0/scratch": 0.125,
+    "service/0/coded": 0.25,
+    "service/0/deployed": 0.125,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 166.3
+  },
+  "5 weights restored, memory reset": {
+   "episodes": 64,
+   "success": 0.703125,
+   "success_ci": [
+    0.5823,
+    0.801
+   ],
+   "progress": 0.7112499999999999,
+   "valid_rate": 0.35807860262008734,
+   "decisions": 627,
+   "calls": 458,
+   "failures": {
+    "syntax": 130,
+    "nonexistent_resource": 32,
+    "loop_blocked": 128,
+    "permission": 4
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 1.0,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 1.0,
+    "repair/0/scratch": 0.125,
+    "service/0/coded": 1.0,
+    "service/0/deployed": 0.5,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 164.3
+  },
+  "3 warm-started CAM before RL": {
+   "episodes": 64,
+   "success": 0.65625,
+   "success_ci": [
+    0.534,
+    0.7608
+   ],
+   "progress": 0.67715625,
+   "valid_rate": 0.36989247311827955,
+   "decisions": 636,
+   "calls": 465,
+   "failures": {
+    "syntax": 129,
+    "nonexistent_resource": 32,
+    "loop_blocked": 128,
+    "permission": 4
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 1.0,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 0.875,
+    "repair/0/scratch": 0.125,
+    "service/0/coded": 1.0,
+    "service/0/deployed": 0.25,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 132.8
+  },
+  "6 memory preserved, weights reset": {
+   "episodes": 64,
+   "success": 0.0,
+   "success_ci": [
+    0.0,
+    0.0566
+   ],
+   "progress": 0.2266875,
+   "valid_rate": 0.012269938650306749,
+   "decisions": 1936,
+   "calls": 163,
+   "failures": {
+    "syntax": 106,
+    "nonexistent_resource": 55
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 0.0,
+    "found/0/scratch": 0.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 0.0,
+    "repair/0/scratch": 0.0,
+    "service/0/coded": 0.0,
+    "service/0/deployed": 0.0,
+    "service/0/listed": 0.0
+   },
+   "wall_s": 77.1
+  },
+  "7 scripted control": {
+   "episodes": 64,
+   "success": 1.0,
+   "success_ci": [
+    0.9434,
+    1.0
+   ],
+   "progress": 1.0,
+   "valid_rate": 1.0,
+   "decisions": 253,
+   "calls": 216,
+   "failures": {},
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 1.0,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 1.0,
+    "list/0/deployed": 1.0,
+    "repair/0/scratch": 1.0,
+    "service/0/coded": 1.0,
+    "service/0/deployed": 1.0,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 57.7
+  },
+  "0 uniform random (same action space)": {
+   "episodes": 64,
+   "success": 0.015625,
+   "success_ci": [
+    0.0028,
+    0.0833
+   ],
+   "progress": 0.22065624999999997,
+   "valid_rate": 0.31342668863261947,
+   "decisions": 2462,
+   "calls": 2428,
+   "failures": {
+    "syntax": 125,
+    "nonexistent_resource": 1391,
+    "permission": 125,
+    "unknown_tool": 17,
+    "prerequisite": 7,
+    "loop_blocked": 1,
+    "runtime": 1
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 0.0,
+    "found/0/scratch": 0.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 0.0,
+    "repair/0/scratch": 0.0,
+    "service/0/coded": 0.0,
+    "service/0/deployed": 0.0,
+    "service/0/listed": 0.125
+   },
+   "wall_s": 410.5
+  }
+ },
+ "param_distance_rl_vs_warm_start": 0.6898778676986694,
+ "memory_items": 374,
+ "library_tools": 0,
+ "llm": {
+  "gen_calls": 0,
+  "gen_cache_hits": 0,
+  "prompt_tokens": 0,
+  "gen_tokens": 0,
+  "served_tokens": 0,
+  "embed_texts": 65162,
+  "embed_cache_hits": 64629,
+  "gen_wall_s": 0.0,
+  "server_requests": 501
+ }
+}

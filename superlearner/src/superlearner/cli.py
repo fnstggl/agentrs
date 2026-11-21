@@ -228,6 +228,10 @@ def main(argv=None) -> int:
     p.add_argument("--episodes", type=int); p.add_argument("--workers", type=int); p.add_argument("--seeds")
     p.add_argument("--days", type=float); p.add_argument("--adapt-iters", type=int, dest="adapt_iters")
     p.add_argument("--no-llm", action="store_true", dest="no_llm"); p.set_defaults(fn=cmd_experiment)
+    p = sub.add_parser("jobs", help="run a list of jobs under GPU / CPU limits, skipping finished ones (restartable)")
+    p.add_argument("file"); p.add_argument("--max-gpu", type=int, dest="max_gpu"); p.add_argument("--max-cpu", type=int, dest="max_cpu")
+    p.add_argument("--log-dir", dest="log_dir"); p.add_argument("--only"); p.add_argument("--dry", action="store_true")
+    p.set_defaults(fn=lambda a: __import__("superlearner.jobs", fromlist=["main"]).main(a))
     a = ap.parse_args(argv)
     return int(a.fn(a) or 0)
 

@@ -1,0 +1,8 @@
+# Experiment A warm start: all thirteen arms including the ones that need LLM-written services; cloning only
+# (12 teacher attempts per arm, verified successes kept). RL iterations can be added with `superlearner resume`.
+#   superlearner train --config configs/exp_a_warm.yaml        (needs `superlearner llm-serve`)
+base: inner_llm.yaml
+name: exp_a_warm
+workers: 12
+iters: 0
+demos: {episodes: 156, bc_epochs: 60, bc_lr: 0.0003, max_per_arm: 12}

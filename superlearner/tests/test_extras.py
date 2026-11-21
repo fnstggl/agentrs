@@ -122,11 +122,24 @@ def test_resume_continues_from_the_checkpoint_with_the_same_counters_and_weights
     tr = Trainer(cfg, d, resume=True)
     try:
         assert tr.iter == 2 and tr.env_decisions == ck["env_decisions"] and len(tr.demos) > 0
+        assert len(tr.algo.buffer) == ck["replay_n"]            # the replay buffer is part of the resumed state
+        assert os.path.exists(os.path.join(d, "ckpt", "latest.pt.replay.pkl.gz"))
         for k, v in tr.model.state_dict().items():
             assert torch.equal(v.cpu(), ck["model"][k])
         assert tr.curriculum.counter == ck["curriculum"]["counter"]
         tr.run(iters=1)
         assert tr.iter == 3
+    finally:
+        tr.close()
+    # resuming again from the iteration-2 checkpoint (as after a crash during iteration 3): iteration 3's records
+    # are set aside, so the curve has every iteration once
+    import shutil
+    shutil.copy(os.path.join(d, "ckpt", "iter_0002.pt"), os.path.join(d, "ckpt", "latest.pt"))
+    tr = Trainer(cfg, d, resume=True)
+    try:
+        rl = [json.loads(l) for l in open(os.path.join(d, "metrics.jsonl"))]
+        assert tr.iter == 2 and [r["iter"] for r in rl if r.get("phase") == "rl"] == [1, 2]
+        assert os.path.exists(os.path.join(d, "metrics.jsonl.interrupted"))
     finally:
         tr.close()
     # weights and memory can be restored separately (for the ablations)
@@ -162,3 +175,28 @@ def test_cli_commands_run(smoke_run, tmp_path):
     assert "seal" in cli("lock-final", "--out", lock, "--n", "6")
     rep = json.loads(cli("doctor", "--quick"))
     assert rep["checks"]["end_to_end_cpu"]["ok"] and rep["hardware"]["cpu_count"] > 0
+
+
+def test_job_queue_limits_dependencies_and_restart(tmp_path):
+    """The experiment queue: respects the CPU limit, runs dependents after their dependency, blocks dependents of a
+    failed job, and on a second invocation skips jobs whose result already exists."""
+    import json as _json
+    from superlearner.jobs import run_jobs
+    d = str(tmp_path)
+    mark = lambda n: os.path.join(d, n + ".done")          # noqa: E731
+    stamp = "import sys,time; open(sys.argv[1]+'.t0','w').write(str(time.time())); time.sleep(0.6); open(sys.argv[1],'w').write(str(time.time()))"
+    spec = {"max_gpu": 1, "max_cpu": 4, "jobs": [
+        {"name": "a", "cmd": ["python", "-c", stamp, mark("a")], "cpu": 3, "gpu": 1, "done": mark("a")},
+        {"name": "b", "cmd": ["python", "-c", stamp, mark("b")], "cpu": 3, "done": mark("b")},
+        {"name": "c", "cmd": ["python", "-c", stamp, mark("c")], "cpu": 1, "after": ["a"], "done": mark("c")},
+        {"name": "bad", "cmd": ["python", "-c", "raise SystemExit(3)"], "cpu": 1, "retries": 0},
+        {"name": "after_bad", "cmd": ["python", "-c", "print(1)"], "cpu": 1, "after": ["bad"]}]}
+    st = run_jobs(spec, log_dir=os.path.join(d, "q"), poll_s=0.1, verbose=False)
+    assert [st[n]["state"] for n in ("a", "b", "c", "bad", "after_bad")] == ["done", "done", "done", "failed", "blocked"]
+    t = lambda n, suf="": float(open(mark(n) + suf).read())          # noqa: E731
+    assert t("b", ".t0") >= t("a")                      # a and b together need 6 CPU > 4: b waited for a
+    assert t("c", ".t0") >= t("a")                      # c depends on a
+    assert _json.load(open(os.path.join(d, "q", "status.json")))["jobs"]["bad"]["returncode"] == 3
+    first = t("a")
+    st2 = run_jobs(dict(spec, jobs=spec["jobs"][:3]), log_dir=os.path.join(d, "q"), poll_s=0.1, verbose=False)
+    assert all(s["state"] == "done" and s["attempts"] == 0 for s in st2.values()) and t("a") == first

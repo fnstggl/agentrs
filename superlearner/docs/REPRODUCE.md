@@ -32,46 +32,50 @@ for s in 0 1 2; do python -m superlearner train --config configs/warmstart_few.y
 
 # Experiment B: PPO alone and PPO + replay of own successes, branching from the same warm start
 for s in 0 1 2; do for arm in exp_b_fewdemo exp_b_fewdemo_sil; do
-  python -m superlearner train --config configs/$arm.yaml --name ${arm}_s$s --set seed=$s \
-      --set iters=16 --set episodes_per_iter=96 --set eval_every=4 --set ckpt_every=4 \
+  python -m superlearner train --config configs/$arm.yaml --name ${arm}_s$s --set seed=$s --set workers=14 \
+      --set iters=12 --set episodes_per_iter=96 --set eval_every=4 --set ckpt_every=4 \
       --set "init_from=\"runs/warm_s$s/ckpt/bc.pt\""
 done; done
 python -m superlearner experiment b_multi --seeds 0,1,2            # -> docs/experiments/exp_b_multi.json
+python -m superlearner experiment final --seeds 0,1,2              # sealed final list, once -> exp_final.json
 
 python -m superlearner report --experiment exp_b_fewdemo_sil_s0
-python -m superlearner inspect-trajectory --trajectory runs/exp_b_fewdemo_sil_s0/traj/eval_iter0016.json.gz
+python -m superlearner inspect-trajectory --trajectory runs/exp_b_fewdemo_sil_s0/traj/eval_iter0012.json.gz
 python -m superlearner resume --experiment exp_b_fewdemo_sil_s0 --iters 4
 
-# Part 5 comparison (seven conditions), transfer, retention, world model, self-play
+# Part 5 comparison, transfer, retention, world model, self-play
 python -m superlearner experiment baselines --checkpoint runs/exp_b_fewdemo_sil_s0/ckpt/latest.pt
+python -m superlearner experiment baselines --checkpoint <a run trained with memory on>/ckpt/latest.pt --no-llm
 python -m superlearner experiment c --checkpoint runs/exp_b_fewdemo_sil_s0/ckpt/latest.pt
 python -m superlearner experiment d --config configs/exp_d.yaml
 python -m superlearner experiment worldmodel --run-dir runs/exp_b_fewdemo_sil_s0
 python -m superlearner experiment selfplay --checkpoint runs/exp_b_fewdemo_sil_s0/ckpt/latest.pt --days 12
 
-# Experiment A: all thirteen arms including LLM-written services
-python -m superlearner train --config configs/inner_llm.yaml
-python -m superlearner experiment a --checkpoint runs/inner_llm/ckpt/latest.pt
+# Experiment A: all thirteen arms including LLM-written services (cloning only; `resume` adds RL iterations)
+python -m superlearner train --config configs/exp_a_warm.yaml
+python -m superlearner experiment a --checkpoint runs/exp_a_warm/ckpt/bc.pt --episodes 16
 
-# sealed final list (already committed as docs/experiments/final_tasks.json; re-creating it gives the same seal)
+# the sealed final list is committed as docs/experiments/final_tasks.json; re-creating it gives the same seal
 python -m superlearner lock-final --out /tmp/final_tasks.json --n 96
-python -m superlearner evaluate --checkpoint runs/inner_llm/ckpt/latest.pt --final docs/experiments/final_tasks.json
 ```
+
+The memory ablation of the Part 5 comparison used the archived run `runs/archive/expb_v4_memory_confound/
+exp_b_fewdemo_sil_s0` (same configuration as `exp_b_fewdemo_sil` with `use_memory: true, use_tools: true`).
 
 ## 3. Meta-Researcher
 
 ```bash
-# Experiments E and F in one run: six rounds in which every proposal of the pool is screened (confined, CPU),
-# then the two best screened candidates go through development (3 seeds) and confirmation (6 seeds)
-python -m superlearner meta-search --config configs/meta_search.yaml --full-feedback --run-dir runs/meta/search1
-python -m superlearner meta-search --config configs/meta_search.yaml --full-feedback --run-dir runs/meta/search1 --resume --rounds 2
-python -m superlearner report --experiment runs/meta/search1
-python -m superlearner experiment e --run-dir runs/meta/search1     # -> docs/experiments/exp_e_meta.json
+# Experiments E and F in one run: four rounds in which every proposal of a pool of six is screened (confined, CPU,
+# one seed), then the best screened candidate goes through development (3 seeds) and confirmation (5 seeds)
+python -m superlearner meta-search --config configs/meta_search.yaml --full-feedback --run-dir runs/meta/search2
+python -m superlearner meta-search --config configs/meta_search.yaml --full-feedback --run-dir runs/meta/search2 --resume --rounds 2
+python -m superlearner report --experiment runs/meta/search2
+python -m superlearner experiment e --run-dir runs/meta/search2     # -> docs/experiments/exp_e_meta.json
 ```
 
-Each candidate's directory (`runs/meta/search1/candidates/<id>/`) holds its full source tree, `proposal.json`,
+Each candidate's directory (`runs/meta/search2/candidates/<id>/`) holds its full source tree, `proposal.json`,
 `proposal.diff`, per-run job files, logs and checkpoints; the trusted results are in
-`runs/meta/search1/trusted/<id>/`; the ledger is `runs/meta/search1/ledger.jsonl`.
+`runs/meta/search2/trusted/<id>/`; the ledger is `runs/meta/search2/ledger.jsonl`.
 
 ## What is and is not deterministic
 

@@ -38,7 +38,48 @@ class Server:
         self.t0 = time.time()
         self.batches: list[int] = []
 
-    MAX_BATCH = 8
+    # A batch is limited both by its size and by its estimated tokens: the attention cache of a 14B model costs
+    # about 0.16 MB per token and sequence, so eight 7,000-token prompts would need 9 GB on a GPU that the training
+    # runs share. Cached GPU blocks are released after every batch for the same reason.
+    MAX_BATCH = int(os.environ.get("SUPERLEARNER_LLM_MAX_BATCH", 8))
+    MAX_BATCH_TOKENS = int(os.environ.get("SUPERLEARNER_LLM_MAX_BATCH_TOKENS", 14000))
+
+    @staticmethod
+    def _est_tokens(req: dict) -> int:
+        chars = sum(len(str(m.get("content", ""))) for m in req.get("messages", []))
+        return chars // 3 + int(req.get("max_new_tokens", 512)) + (1000 if req.get("think") else 0)
+
+    @staticmethod
+    def _release() -> None:
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:  # noqa: BLE001 - a test double has no GPU
+            pass
+
+    def _generate_group(self, group: list) -> list:
+        """Batched generation; if the GPU is out of memory (other processes share it), release and go one by one."""
+        n, v, th = self._gkey(group[0][0])
+        try:
+            return self.llm.generate_many([(r["messages"], n, v, th) for r, _ in group])
+        except Exception as e:  # noqa: BLE001
+            if "out of memory" not in str(e).lower() or len(group) == 1:
+                raise
+            self._release()
+            self.oom_splits = getattr(self, "oom_splits", 0) + 1
+            out = []
+            for r, _ in group:
+                for attempt in range(6):
+                    try:
+                        out += self.llm.generate_many([(r["messages"], n, v, th)])
+                        break
+                    except Exception as e2:  # noqa: BLE001
+                        if "out of memory" not in str(e2).lower() or attempt == 5:
+                            raise
+                        self._release()
+                        time.sleep(10)
+            return out
 
     def _gpu_loop(self) -> None:
         """One thread owns the model. Waiting generation requests with the same decoding settings are answered
@@ -52,23 +93,29 @@ class Server:
             if first[0].get("op") == "generate":
                 time.sleep(0.05)                       # let concurrent requests arrive
                 key = self._gkey(first[0])
+                tokens = self._est_tokens(first[0])
                 keep = []
                 while len(group) < self.MAX_BATCH:
                     try:
                         j = self.jobs.get_nowait()
                     except queue.Empty:
                         break
-                    (group if (j[0].get("op") == "generate" and self._gkey(j[0]) == key) else keep).append(j)
+                    fits = tokens + self._est_tokens(j[0]) <= self.MAX_BATCH_TOKENS
+                    if j[0].get("op") == "generate" and self._gkey(j[0]) == key and fits:
+                        group.append(j)
+                        tokens += self._est_tokens(j[0])
+                    else:
+                        keep.append(j)
                 for j in keep:
                     self.jobs.put(j)
             try:
                 if first[0]["op"] == "generate":
-                    n, v, th = self._gkey(first[0])
-                    gs = self.llm.generate_many([(r["messages"], n, v, th) for r, _ in group])
+                    gs = self._generate_group(group)
                     for (_, reply), g in zip(group, gs):
                         reply({"text": g.text, "prompt_tokens": g.prompt_tokens, "gen_tokens": g.gen_tokens,
                                "wall_s": g.wall_s, "cached": g.cached})
                     self.batches.append(len(group))
+                    self._release()
                     continue
                 req, reply = first
                 if req["op"] == "embed":       # (normally served by the fast thread; kept for completeness)
@@ -165,13 +212,32 @@ class RemoteLLM(LLM):
                 self.cache = Cache(self.cache_path, readonly=True)
         return self._conn
 
+    RECONNECT_S = float(os.environ.get("SUPERLEARNER_LLM_RECONNECT_S", 600))
+
     def _ask(self, req: dict) -> dict:
+        """One request. Requests are idempotent (answers are cached by content), so when the connection breaks -
+        the server was restarted - the client waits for the socket to come back and asks again."""
         self.stats["server_requests"] += 1
-        c = self._c()
-        c.send(req)
-        if not c.poll(self.timeout_s):
-            raise TimeoutError(f"llm server did not answer within {self.timeout_s}s")
-        out = c.recv()
+        deadline = time.time() + self.RECONNECT_S
+        while True:
+            try:
+                c = self._c()
+                c.send(req)
+                if not c.poll(self.timeout_s):
+                    raise TimeoutError(f"llm server did not answer within {self.timeout_s}s")
+                out = c.recv()
+                break
+            except (EOFError, OSError) as e:                 # includes ConnectionError, BrokenPipeError, FileNotFoundError
+                if isinstance(e, TimeoutError) or time.time() > deadline:
+                    raise
+                try:
+                    if self._conn is not None:
+                        self._conn.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                self._conn = None
+                self.stats["reconnects"] = self.stats.get("reconnects", 0) + 1
+                time.sleep(5)
         if "error" in out:
             raise RuntimeError(f"llm server: {out['error']}")
         return out

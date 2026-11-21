@@ -1,0 +1,121 @@
+{
+ "run": "runs/exp_b_fewdemo_sil_s0",
+ "train_transitions": 3096,
+ "heldout_transitions": 667,
+ "heldout_episodes": 75,
+ "train_loss_first_last": [
+  {
+   "ok": 0.5483138259375125,
+   "fclass": 1.8415505205321987,
+   "reward": 0.26482226944092935,
+   "gain": 0.8139258897273731,
+   "next": 0.5392466072734321,
+   "epoch": 0
+  },
+  {
+   "ok": 0.13189760783268498,
+   "fclass": 0.41318570970718865,
+   "reward": 0.13270350445533602,
+   "gain": 0.4149487408248645,
+   "next": 0.04722310985782658,
+   "epoch": 39
+  }
+ ],
+ "heldout": {
+  "n": 667,
+  "ok_accuracy": 0.940030038356781,
+  "ok_accuracy_base_rate": 0.7466267347335815,
+  "ok_nll": 0.17616388201713562,
+  "ok_nll_base_rate": 0.5915375351905823,
+  "fclass_accuracy": 0.8290854692459106,
+  "fclass_accuracy_majority": 0.7466267347335815,
+  "reward_mse": 0.16506820917129517,
+  "reward_mse_mean_predictor": 0.21974240243434906,
+  "gain_mse": 0.6252789497375488,
+  "gain_mse_mean_predictor": 0.8622155785560608,
+  "next_latent_cosine": 0.9377129077911377,
+  "next_latent_cosine_mean_predictor": 0.5999864339828491
+ },
+ "train_fit": {
+  "n": 3096,
+  "ok_accuracy": 0.9521964192390442,
+  "ok_accuracy_base_rate": 0.6411498785018921,
+  "ok_nll": 0.13195733726024628,
+  "ok_nll_base_rate": 0.6527517437934875,
+  "fclass_accuracy": 0.8452842831611633,
+  "fclass_accuracy_majority": 0.6411498785018921,
+  "reward_mse": 0.12270444631576538,
+  "reward_mse_mean_predictor": 0.17144866287708282,
+  "gain_mse": 0.4033374488353729,
+  "gain_mse_mean_predictor": 0.6603727340698242,
+  "next_latent_cosine": 0.9520728588104248,
+  "next_latent_cosine_mean_predictor": 0.6195641756057739
+ },
+ "parameters": 1057166,
+ "planning": {
+  "model_free": {
+   "episodes": 64,
+   "success": 0.765625,
+   "success_ci": [
+    0.6487,
+    0.8525
+   ],
+   "progress": 0.79096875,
+   "valid_rate": 0.4,
+   "decisions": 597,
+   "calls": 490,
+   "failures": {
+    "syntax": 114,
+    "nonexistent_resource": 32,
+    "loop_blocked": 147,
+    "permission": 1
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 1.0,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 1.0,
+    "repair/0/scratch": 0.125,
+    "service/0/coded": 1.0,
+    "service/0/deployed": 1.0,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 361.1
+  },
+  "with_one_step_lookahead": {
+   "episodes": 64,
+   "success": 0.796875,
+   "success_ci": [
+    0.6829,
+    0.8773
+   ],
+   "progress": 0.796875,
+   "valid_rate": 0.4195519348268839,
+   "decisions": 593,
+   "calls": 491,
+   "failures": {
+    "syntax": 69,
+    "nonexistent_resource": 19,
+    "permission": 141,
+    "loop_blocked": 56
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 1.0,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 1.0,
+    "repair/0/scratch": 0.375,
+    "service/0/coded": 1.0,
+    "service/0/deployed": 1.0,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 364.6
+  },
+  "difference": 0.03125,
+  "note": "same tasks, same environment decisions budget; lookahead adds one world-model forward per decision"
+ }
+}

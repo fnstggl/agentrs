@@ -176,10 +176,20 @@ class MetaResearcher:
         cdir = self.candidate_dir(cid)
         tag = "selftest" if selftest else f"{stage}_s{seed}"
         work = os.path.join(cdir, "work", tag)
-        os.makedirs(work, exist_ok=True)
         tdir = os.path.join(self.dir, "trusted", cid)
         os.makedirs(tdir, exist_ok=True)
         results = os.path.join(tdir, f"{tag}.jsonl")
+        done = os.path.join(tdir, f"{tag}.measures.json")
+        if os.path.exists(done):
+            # this exact run (same candidate tree, stage settings and seed) finished before the search was
+            # interrupted: its trusted measures are reused instead of spending the experience again
+            out = json.load(open(done))
+            if out.get("ok") and out.get("tree") == self._tree_id(cid) and out.get("stage_cfg") == self.cfg["stages"][stage]:
+                out["reused"] = True
+                return out
+        if os.path.isdir(work) and os.listdir(work):
+            os.replace(work, work + f".old{int(time.time())}")           # an interrupted attempt: set aside, start clean
+        os.makedirs(work, exist_ok=True)
         if os.path.exists(results):
             os.replace(results, results + f".old{int(time.time())}")     # never silently mix two runs
         sock = os.path.join(self.dir, "sock", hashlib.sha1(f"{cid}{tag}".encode()).hexdigest()[:12] + ".sock")
@@ -215,13 +225,25 @@ class MetaResearcher:
                                                            "update_s", "rollout_s", "worker_errors", "params")}
         if selftest:
             out["ok"] = bool(res["returncode"] == 0 and untrusted.get("ok"))
+            if out["ok"]:
+                json.dump(dict(out, tree=self._tree_id(cid), stage_cfg=self.cfg["stages"][stage]), open(done, "w"), default=str)
             return out
         m = run_measures(load_trusted(results), budget)
         out.update(m)
         out["ok"] = bool(res["returncode"] == 0 and m["train_decisions"] >= 0.5 * min(budget, int(st["iters"]) * int(st["episodes_per_iter"]) * 4)
                          and m["eval_rounds"] >= 2)
         out["diag"] = self._diagnostics(os.path.join(work, "run", "metrics.jsonl"))
+        if out["ok"]:
+            json.dump(dict(out, tree=self._tree_id(cid), stage_cfg=self.cfg["stages"][stage]), open(done, "w"), default=str)
         return out
+
+    def _tree_id(self, cid: str) -> str:
+        """Hash of a candidate's source tree (editable and protected parts), to tie stored measures to the code."""
+        try:
+            c = json.load(open(os.path.join(self.candidate_dir(cid), "candidate.json")))
+            return f"{c.get('editable_hash')}:{c.get('protected_hash')}"
+        except (OSError, ValueError):
+            return ""
 
     @staticmethod
     def _diagnostics(path: str) -> dict:
@@ -268,6 +290,10 @@ class MetaResearcher:
             if not os.path.isdir(os.path.join(self.candidate_dir(cid), "src")):
                 self.make_candidate(cid, self.champion["changes"])
             have = self.champion["measures"].setdefault(stage, {})
+            for other, runs in self.champion["measures"].items():       # identical settings: reuse the same seed's run
+                if other != stage and self.same_settings(other, stage):
+                    for s_, m_ in runs.items():
+                        have.setdefault(int(s_), m_)
             need = [s for s in seeds if s not in have]
             if need:
                 for s, m in self.run_stage(cid, stage, need).items():
@@ -276,6 +302,13 @@ class MetaResearcher:
                                         "measures": {k: v for k, v in m.items() if k not in ("eval_curve",)}})
                 self.save_state()
             return {s: have[s] for s in seeds}
+
+    def same_settings(self, a: str, b: str) -> bool:
+        """Two stages whose runs are interchangeable (everything equal except which seeds they use)."""
+        sa, sb = dict(self.cfg["stages"][a]), dict(self.cfg["stages"][b])
+        sa.pop("seeds", None)
+        sb.pop("seeds", None)
+        return sa == sb
 
     # ------------------------------------------------------------------ A: diagnose
     def diagnose(self) -> dict:
@@ -358,8 +391,12 @@ class MetaResearcher:
         return self.surrogate.select(pool, k, rng=self.rng)
 
     # ------------------------------------------------------------------ C-H: one experiment
-    def experiment(self, prop: dict) -> dict:
-        cid = f"c{prop.get('round', self.round_n):03d}-{prop['id']}"
+    def experiment(self, prop: dict, cid: str | None = None, known: dict | None = None) -> dict:
+        """Take one proposal through verify, self-test, screening, development and confirmation.
+        `cid` + `known` continue a candidate that was already screened (its tree exists, its screen runs are given)."""
+        existing = cid is not None
+        cid = cid or f"c{prop.get('round', self.round_n):03d}-{prop['id']}"
+        have: dict = {"screen": {int(k): v for k, v in (known or {}).items()}}
         t0 = time.time()
         rec = {"kind": "experiment", "candidate": cid, "proposal": prop["id"], "round": self.round_n,
                "parent": self.champion["id"], "source": prop["source"], "hypothesis": prop["hypothesis"],
@@ -367,7 +404,8 @@ class MetaResearcher:
                "lines_changed": prop["lines_changed"], "genome": prop.get("genome"), "stage_reached": "implement",
                "decision": "rejected_invalid", "reject_reason": "", "comparison": {}, "stages": {}}
         try:
-            cand = self.make_candidate(cid, prop["changes"])
+            cand = json.load(open(os.path.join(self.candidate_dir(cid), "candidate.json"))) if existing \
+                else self.make_candidate(cid, prop["changes"])
         except Exception as e:  # noqa: BLE001
             rec["reject_reason"] = f"could not create candidate: {type(e).__name__}: {e}"
             return self._finish(rec, prop, None, False, t0)
@@ -379,17 +417,26 @@ class MetaResearcher:
             rec["reject_reason"] = why
             return self._finish(rec, prop, None, False, t0)
         rec["stage_reached"] = "verify"
-        st = self.run_one(cid, "screen", 0, selftest=True)
-        rec["stages"]["selftest"] = st
-        if not st["ok"]:
-            bad = [k for k, v in (st["untrusted"].get("checks") or {}).items() if not v]
-            rec["reject_reason"] = f"self-test failed: {bad or st['untrusted'].get('error') or 'crashed'}"[:400]
-            return self._finish(rec, prop, None, False, t0)
+        if not existing:
+            st = self.run_one(cid, "screen", 0, selftest=True)
+            rec["stages"]["selftest"] = st
+            if not st["ok"]:
+                bad = [k for k, v in (st["untrusted"].get("checks") or {}).items() if not v]
+                rec["reject_reason"] = f"self-test failed: {bad or st['untrusted'].get('error') or 'crashed'}"[:400]
+                return self._finish(rec, prop, None, False, t0)
         prim = self.cfg["primary"]
         effect = None
         for stage in ("screen", "develop", "confirm"):
             base = self.baseline(stage)
-            runs = self.run_stage(cid, stage)
+            seeds = list(self.cfg["stages"][stage]["seeds"])
+            runs = {}
+            for other, done in have.items():                 # a seed already run under identical settings is reused
+                if other == stage or self.same_settings(other, stage):
+                    runs.update({s_: m_ for s_, m_ in done.items() if s_ in seeds})
+            todo = [s_ for s_ in seeds if s_ not in runs]
+            if todo:
+                runs.update(self.run_stage(cid, stage, todo))
+            have[stage] = dict(runs)
             good = {s: m for s, m in runs.items() if m.get("ok")}
             rec["stages"][stage] = {s: {k: v for k, v in m.items() if k not in ("eval_curve", "diag")} for s, m in runs.items()}
             rec["stage_reached"] = stage
@@ -499,13 +546,15 @@ class MetaResearcher:
                 bad = [k for k, v in (st["untrusted"].get("checks") or {}).items() if not v]
                 rec["reject_reason"] = f"self-test failed: {bad or st['untrusted'].get('error') or 'crashed'}"[:300]
                 return rec
-            base = self.baseline("screen")
             runs = self.run_stage(cid, "screen")
             good = {s_: m for s_, m in runs.items() if m.get("ok")}
             if len(good) < len(runs):
                 bad = next(m for m in runs.values() if not m.get("ok"))
                 rec["reject_reason"] = ("training run failed: " + str(bad.get("untrusted", {}).get("error") or "timeout or too little experience"))[:300]
                 return rec
+            base = self.baseline("screen")               # cached; in the first round it runs alongside the candidates
+            if not all(base[s_].get("ok") for s_ in good):
+                raise RuntimeError("the champion's own run failed; no comparison is possible")
             prim = self.cfg["primary"]
             rec.update(valid=True, effect=float(np.mean([good[s_][prim] - base[s_][prim] for s_ in good])),
                        measures={s_: {k: m[k] for k in ("aulc_eval", "final_eval", "first_eval", "aulc_train", "train_decisions", "wall_s")} for s_, m in good.items()})
@@ -526,8 +575,10 @@ class MetaResearcher:
         mu, sd, pv = self.surrogate.predict(pool)
         fitted = bool(self.surrogate.models)
         picks = self.surrogate.select(pool, k, rng=self.rng)
-        with cf.ThreadPoolExecutor(max_workers=max(1, len(pool))) as ex:
+        with cf.ThreadPoolExecutor(max_workers=max(1, len(pool)) + 1) as ex:
+            fb = ex.submit(self.baseline, "screen")       # the champion's run shares the round's parallel slots
             res = list(ex.map(self.screen_only, pool))
+            fb.result()
         penalty = -float(self.cfg["screen_margin"])                    # an invalid candidate wastes the experiment
         vals = [r["effect"] if r["valid"] else penalty for r in res]
         rec = {"kind": "full_feedback", "round": self.round_n, "surrogate_fitted": fitted, "k": k,
@@ -549,27 +600,38 @@ class MetaResearcher:
             self.ledger.append({"kind": "meta_update", "round": self.round_n, "surrogate": fit, "loo": self.surrogate.loo_report()})
             self._pools = getattr(self, "_pools", {})
             for i, p in enumerate(pool):
+                json.dump(p, open(os.path.join(self.candidate_dir(res[i]["candidate"]), "proposal_full.json"), "w"), default=str) \
+                    if os.path.isdir(self.candidate_dir(res[i]["candidate"])) else None
                 if res[i]["valid"]:
-                    self._pools[p["id"]] = (p, res[i]["effect"])
+                    self._pools[p["id"]] = (p, res[i])
             self.round_n += 1
             self.save_state()
         return rec
 
     def run_full_feedback(self, rounds: int, k: int = 1, develop_top: int = 2, verbose: bool = True) -> dict:
         self.prepare_demos()
+        if not getattr(self, "_pools", None):                 # after a restart: rebuild the screened pool from disk
+            self._pools = {}
+            for fr in self.ledger.entries("full_feedback"):
+                for e in fr["pool"]:
+                    pf = os.path.join(self.candidate_dir(e["candidate"]), "proposal_full.json")
+                    if e.get("valid") and os.path.exists(pf):
+                        self._pools[e["proposal"]] = (json.load(open(pf)), e)
         for _ in range(rounds):
             r = self.full_feedback_round(k)
             if verbose:
                 print(f"round {r['round']}: pool {len(r['pool'])} valid {r['valid_fraction']:.2f} | surrogate pick {r['value_surrogate']:+.4f} "
                       f"(fitted={r['surrogate_fitted']}) random {r['value_random_expected']:+.4f} best {r['value_best']:+.4f}", flush=True)
         # the best screened candidates go through development and confirmation (the promotion pipeline)
-        top = sorted(getattr(self, "_pools", {}).values(), key=lambda pe: -pe[1])[:develop_top]
+        top = sorted(getattr(self, "_pools", {}).values(), key=lambda pe: -pe[1]["effect"])[:develop_top]
         out = []
-        for prop, eff in top:
+        for prop, scr in top:
+            eff = scr["effect"]
             if eff <= 0:
                 continue
-            prop = dict(prop, round=self.round_n)
-            rec = self.experiment(prop)
+            # the screened candidate continues: same source tree, its screening run counts as that seed's run
+            known = {int(s_): dict(m_, ok=True) for s_, m_ in (scr.get("measures") or {}).items()}
+            rec = self.experiment(dict(prop, round=self.round_n), cid=scr["candidate"], known=known)
             out.append(rec)
             if verbose:
                 d = rec.get("comparison", {}).get(self.cfg["primary"], {})
@@ -634,7 +696,13 @@ def main(a) -> int:
             print(f"note: no LLM server at {spec['socket']}; running without LLM-written proposals")
     mr = MetaResearcher(cfg, rd, llm, resume=a.resume)
     if getattr(a, "full_feedback", False):
-        sel = mr.run_full_feedback(int(a.rounds or cfg.get("rounds", 4)), int(cfg.get("per_round", 1)), int(cfg.get("develop_top", 2)))
+        total = int(cfg.get("rounds", 4))
+        done = len(mr.ledger.entries("full_feedback"))
+        # --rounds N: N more rounds. Without it: the configured total, minus the rounds a resumed search already has
+        todo = int(a.rounds) if a.rounds else max(0, total - done)
+        if done:
+            print(f"resuming: {done} screening rounds in the ledger, {todo} to run", flush=True)
+        sel = mr.run_full_feedback(todo, int(cfg.get("per_round", 1)), int(cfg.get("develop_top", 2)))
         json.dump(sel, open(os.path.join(rd, "selection_report.json"), "w"), indent=1, default=str)
         print(json.dumps({k: v for k, v in sel.items() if k != "rounds"}, indent=1, default=str))
     else:

@@ -72,6 +72,9 @@ def selftest(job: dict) -> dict:
     ck["no_nonfinite_losses"] = m.get("nonfinite", 0) == 0
     model.train()
     ev2 = evaluate(model, b, store)
+    if hasattr(algo, "n_calls") and isinstance(getattr(algo, "c", None), dict):
+        # a critic-only warm-up phase deliberately sends no gradient to the policy; test the loss used after it
+        algo.n_calls = max(int(algo.n_calls), int(algo.c.get("critic_warmup", 0) or 0) + 1)
     loss, _ = (algo.loss(ev2, b, adv, ret, None) if hasattr(algo, "loss") else R.total_loss(ev2, b, adv, ret, algo.rule))
     model.zero_grad()
     loss.backward()

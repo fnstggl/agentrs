@@ -62,6 +62,19 @@ under `runs/` (not committed); archived ones under `runs/archive/`. The curated 
    update. Cause: a fresh Adam state moves every weight by the full learning rate on its first steps. Fix: linear
    learning-rate warm-up (40 steps) and a KL check after every step with rollback and learning-rate halving.
 
+4. `archive/expb_v4_memory_confound` (warm-up and rollback added): still 0.650 → 0.388, 0.775 → 0.500 (PPO) and
+   0.600 → 0.512 (PPO + replay) at iteration 4. In the PPO seed-1 run every policy step of iterations 2–4 had been
+   rolled back, so the weights that scored 0.500 were the warm-start weights that had scored 0.775. Direct test,
+   same checkpoint, same 80 tasks: **0.5125 with the episodic memory and tool library accumulated during training,
+   0.7625 with them reset.** The drop in all four attempts was (at least largely) memory and agent-made tools
+   entering the context of a policy that had been cloned without them, not RL damaging the weights. Experiment B
+   now runs with memory and tool-making off; memory is studied separately.
+   Also found here: the warm-up counted the 36 critic-only steps, so the first policy step was at 93% of the
+   learning rate and was rolled back in every update until the KL-adapted scale reached 1/8–1/16. Fixed (warm-up
+   counts policy steps).
+   Also: greedy evaluation of `fund` is 0.0 while the same policy sampled succeeds 0.50–0.75 of the time (the
+   argmax repeats one failing call; samples get past it). Evaluation now reports greedy and sampled success.
+
 ## Infrastructure incidents
 
 * Rollouts first ran at 0.55 s per decision instead of ~0.03 s: every failure message and every listing was a new
@@ -85,3 +98,52 @@ under `runs/` (not committed); archived ones under `runs/archive/`. The curated 
 * Confined champion baseline, first inner configuration: cloning had not converged (loss 9.4 → 7.0 in 40
   one-step epochs), held-out success 0.17 flat. With 240 cloning steps: warm start 0.58, PPO flat at 0.58
   (AULC 0.538), 6 of 10 updates stopped early on KL, explained variance of the critic ≤ 0.
+* `runs/meta/search1` (kept as a record, not used for results): the champion's screening run finished (AULC 0.696,
+  held-out success 0.67 → 0.71), then all six candidates of the first pool were rejected by the confined self-test
+  with the same failing check, "gradients reach policy and value". The check was wrong, not the candidates: it
+  measured the loss of the first update, which under the configured critic-only warm-up deliberately sends no
+  gradient to the policy. The self-test now tests the loss used after the warm-up; the search was restarted from
+  scratch as `runs/meta/search2` (new frozen source snapshot, new champion baseline). The smoke configuration now
+  uses the same warm-up settings so the test suite covers this path.
+* GPU contention again (15:00): with the 32 GB language-model server, three Experiment B trainers, the Experiment A
+  cloning run and three experiment processes on one 46 GB card, the transfer and retention experiments died of
+  out-of-memory — the retention run inside the code that restores the weights after a failed update (a 2 MB
+  allocation). Restores and checkpoint loads now wait and retry; experiments that only evaluate keep their
+  controller on the CPU. Both experiments were rerun from the start (logs of the failed attempts:
+  `runs/x_c_oom.log`, `runs/x_d_oom.log`).
+* `runs/meta/search2` (kept, not used): the champion's screening run needed more than its 2,400 s wall-clock limit
+  because the host was running eight other jobs (load average 42; 313 of 400 training episodes after 1,974 s; the
+  same run had taken 1,376 s an hour earlier). A wall-clock limit that depends on host load would have invalidated
+  the baseline, so the search was stopped before the limit and restarted as `runs/meta/search3` with a smaller
+  per-run budget (8 iterations of 32 episodes, 4,000 decisions) and a 5,400 s limit that only catches runaway
+  candidates. The experience budget, enforced by the env hub, is what makes runs comparable; wall time is recorded.
+* `exp_b_fewdemo_sil_s1` (PPO + replay, seed 1) died of the same GPU out-of-memory during its tenth update
+  (15:27). It was resumed from its iteration-8 checkpoint with the retrying restore; iteration 9 was therefore run
+  twice (the first attempt's record is kept in `metrics_before_oom_resume.jsonl`, the curve uses the second).
+
+## Outage and recovery (2026-11-21, 15:44 → 21:35)
+
+* The GPU instance ran out of credit at 15:44; every process stopped. On return (21:35): the filesystem was intact,
+  no process had survived, the GPU was empty. State found on disk: five of the six Experiment B runs complete
+  (12 iterations, checkpoints); `exp_b_fewdemo_sil_s1` at iteration 9 of 12; world-model and memory-ablation results
+  saved; the transfer, retention, Part 5 and Experiment A runs interrupted before writing their results; the
+  third meta-search attempt interrupted during its champion baseline.
+* Two faults of the code that the interruption exposed:
+  1. The replay buffer of a run's own successes was not part of its checkpoints, so a resumed "PPO + replay" run
+     would have continued with an empty buffer. Checkpoints now store it (`latest.pt.replay.pkl.gz`), and a resumed
+     run moves the log records of iterations after its checkpoint to `*.interrupted`. Because the interrupted
+     seed-1 replay run could not be resumed faithfully, it was archived
+     (`runs/archive/exp_b_fewdemo_sil_s1_interrupted_at_iter9`) and run again from its warm start.
+  2. Experiments wrote their results only at the very end. They now write every finished part to
+     `runs/partial/` and continue from there; the meta-search stores the trusted measures of every finished
+     confined run and reuses them when it is started again on the same directory.
+* Scheduling. Before the outage nine jobs shared one GPU with the language-model server, whose memory had grown from
+  31 to 35 GB (attention caches of batched 7,000-token prompts). Now: the server limits a batch by estimated tokens
+  and releases cached GPU memory after every batch (28.5 GB after loading); clients reconnect if the server is
+  restarted; evaluation-only experiments stay on the CPU; and all remaining work is one queue
+  (`configs/queue_experiments.yaml`, `superlearner jobs`) that admits at most two GPU-training jobs and 46 rollout
+  workers at a time and skips jobs whose results exist.
+* Retention experiment: phase A and two of the four phase-B strategies had finished and printed their success rates
+  (all exactly 48/48 or 0/48) before the outage. Those parts were entered into the partial-results file from the
+  kept log (`runs/x_d.log`), marked as such, instead of being run again; the other two strategies were run after
+  the outage from the saved phase-A checkpoint.

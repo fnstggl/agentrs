@@ -1,0 +1,74 @@
+# Everything after the warm starts, as one restartable queue:
+#   superlearner llm-serve --model Qwen/Qwen3-14B &          (once; wait for "llm server ready")
+#   superlearner jobs configs/queue_experiments.yaml
+# Jobs whose `done` file exists are skipped, so the same command continues after an interruption; the experiment
+# scripts themselves continue from checkpoints (`train --resume`), partial results (runs/partial/) and stored
+# meta-search runs. `gpu: 1` marks jobs that train on the GPU; at most `max_gpu` of them run next to the
+# language-model server. `cpu` is the number of rollout workers.
+max_gpu: 2
+max_cpu: 46
+env: {PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"}
+jobs:
+  - name: meta_search                       # Experiments E and F (CPU, confined; up to 6 runs x 4 workers)
+    cmd: python -m superlearner meta-search --config configs/meta_search.yaml --full-feedback --run-dir runs/meta/search4 --resume
+    cpu: 22
+    retries: 2
+    done: runs/meta/search4/report.json
+  - name: b_sil_s1                          # Experiment B, the one arm that was lost (PPO + replay, seed 1)
+    cmd: python -m superlearner train --config configs/exp_b_fewdemo_sil.yaml --name exp_b_fewdemo_sil_s1 --resume --set seed=1 --set workers=14 --set iters=12 --set episodes_per_iter=96 --set eval_every=4 --set ckpt_every=2 --set init_from="runs/warm_s1/ckpt/bc.pt"
+    gpu: 1
+    cpu: 14
+    retries: 2
+    done: runs/exp_b_fewdemo_sil_s1/ckpt/iter_0012.pt
+  - name: c_transfer
+    cmd: python -m superlearner experiment c --checkpoint runs/exp_b_fewdemo_sil_s0/ckpt/latest.pt --workers 10
+    gpu: 1
+    cpu: 10
+    retries: 2
+    done: docs/experiments/exp_c_exp_b_fewdemo_sil_s0.json
+  - name: baselines                         # Part 5 (evaluation only: CPU; two conditions use the language model)
+    cmd: python -m superlearner experiment baselines --checkpoint runs/exp_b_fewdemo_sil_s0/ckpt/latest.pt --workers 8
+    cpu: 8
+    retries: 2
+    done: docs/experiments/baselines_exp_b_fewdemo_sil_s0.json
+  - name: d_retention
+    cmd: python -m superlearner experiment d --config configs/exp_d.yaml --workers 12
+    gpu: 1
+    cpu: 12
+    retries: 2
+    done: docs/experiments/exp_d_retention.json
+  - name: b_multi
+    cmd: python -m superlearner experiment b_multi --seeds 0,1,2 --workers 14
+    cpu: 14
+    retries: 2
+    after: [b_sil_s1]
+    done: docs/experiments/exp_b_multi.json
+  - name: a_real_actions                    # Experiment A (evaluation only; language-model bound)
+    cmd: python -m superlearner experiment a --checkpoint runs/exp_a_warm/ckpt/bc.pt --episodes 16 --workers 8
+    cpu: 8
+    retries: 2
+    done: docs/experiments/exp_a_real_actions.json
+  - name: final_sealed
+    cmd: python -m superlearner experiment final --seeds 0,1,2 --workers 14
+    cpu: 14
+    retries: 2
+    after: [b_multi]
+    done: docs/experiments/exp_final.json
+  - name: d_clone
+    cmd: python -m superlearner experiment d_clone --workers 8
+    gpu: 1
+    cpu: 8
+    retries: 2
+    after: [d_retention]
+    done: docs/experiments/exp_d_clone.json
+  - name: selfplay
+    cmd: python -m superlearner experiment selfplay --checkpoint runs/exp_b_fewdemo_sil_s0/ckpt/latest.pt --days 12
+    gpu: 1
+    cpu: 4
+    retries: 2
+    done: docs/experiments/exp_selfplay.json
+  - name: meta_summary
+    cmd: python -m superlearner experiment e --run-dir runs/meta/search4
+    cpu: 1
+    after: [meta_search]
+    done: docs/experiments/exp_e_meta.json

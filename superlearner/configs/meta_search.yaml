@@ -8,13 +8,13 @@
 # evaluation tasks (held-out seeds, one unfamiliar world family) and hardware.
 name: meta_search
 seed: 0
-rounds: 6
+rounds: 4
 pool: 6
-per_round: 1
-develop_top: 2
+per_round: 2
+develop_top: 1
 selection: surrogate
 sources: {rule_space: 3, llm: 2, learned_rule: 1}
-max_parallel: 3
+max_parallel: 6
 primary: aulc_eval
 screen_margin: 0.03
 inner:
@@ -39,6 +39,9 @@ inner:
 eval_arms: [found/0/scratch, fund/0/scratch, list/0/deployed, deploy/0/coded, service/0/listed, repair/0/scratch]
 eval_world_families: [tiny, bazaar, entrenched_incumbents]
 stages:
-  screen: {seeds: [1], iters: 10, episodes_per_iter: 40, budget: 6000, eval_n: 24, timeout_s: 2400}
-  develop: {seeds: [1, 2, 3], iters: 10, episodes_per_iter: 40, budget: 6000, eval_n: 24, timeout_s: 2400}
-  confirm: {seeds: [1, 2, 3, 4, 5, 6], iters: 10, episodes_per_iter: 40, budget: 6000, eval_n: 36, timeout_s: 3000}
+  # the three stages use identical run settings, so a seed that was run at an earlier stage is reused.
+  # timeout_s is generous on purpose: wall time depends on what else the host is doing and is recorded as a measure;
+  # the experience budget (decisions, enforced by the env hub) is what makes runs comparable.
+  screen: {seeds: [1], iters: 8, episodes_per_iter: 32, budget: 4000, eval_n: 24, timeout_s: 5400}
+  develop: {seeds: [1, 2, 3], iters: 8, episodes_per_iter: 32, budget: 4000, eval_n: 24, timeout_s: 5400}
+  confirm: {seeds: [1, 2, 3, 4, 5], iters: 8, episodes_per_iter: 32, budget: 4000, eval_n: 24, timeout_s: 5400}

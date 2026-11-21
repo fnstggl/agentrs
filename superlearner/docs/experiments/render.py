@@ -33,10 +33,19 @@ def b_multi():
         for sd, r in d["per_seed"].items():
             print(f"| {sd} | {pct(r['before_rl']['success'])} {ci(r['before_rl']['success_ci'])} | " + " | ".join(
                 f"{pct(r['arms'][a]['after_rl']['success'])} {ci(r['arms'][a]['after_rl']['success_ci'])} ({100 * r['arms'][a]['delta_success']:+.0f})" if a in r["arms"] else "-" for a in arms) + " |")
+        if all("before_rl_sampled" in r for r in d["per_seed"].values()):
+            print("\nSampled actions (same tasks):\n\n| seed | warm start (before RL) | " + " | ".join(arms) + " |\n|---|---|" + "---|" * len(arms))
+            for sd, r in d["per_seed"].items():
+                print(f"| {sd} | {pct(r['before_rl_sampled']['success'])} {ci(r['before_rl_sampled']['success_ci'])} | " + " | ".join(
+                    f"{pct(r['arms'][a]['after_rl_sampled']['success'])} {ci(r['arms'][a]['after_rl_sampled']['success_ci'])} ({100 * r['arms'][a]['delta_success_sampled']:+.0f})" if a in r["arms"] else "-" for a in arms) + " |")
         print()
         for k, v in d["aggregate"].items():
             if isinstance(v, dict) and "diff" in v:
                 print(f"* {k}: {100 * v['diff']:+.1f} points, 95% CI [{100 * v['ci'][0]:+.1f}, {100 * v['ci'][1]:+.1f}], P(>0) {v['p_improve']:.2f}, n={v['n_cand']} seeds, established={v.get('established')}")
+        for k, v in d["aggregate"].items():
+            if isinstance(v, dict) and "tasks_gained" in v:
+                print(f"* {k}: {100 * v['diff']:+.1f} points, 95% CI [{100 * v['ci'][0]:+.1f}, {100 * v['ci'][1]:+.1f}] (bootstrap over seeds and tasks), "
+                      f"{v['n_pairs']} task pairs: {v['tasks_gained']} gained, {v['tasks_lost']} lost, {v['tasks_unchanged']} unchanged, established={v['established']}")
         print("\n| task arm | before | " + " | ".join(arms) + " |\n|---|---|" + "---|" * len(arms))
         for arm, v in d["aggregate"].get("mean_success_by_task_arm", {}).items():
             print(f"| {arm} | {pct(v.get('before'))} | " + " | ".join(pct(v.get(a)) for a in arms) + " |")
@@ -84,6 +93,17 @@ def exp_d():
         print()
 
 
+def exp_d_clone():
+    for name, d in load("exp_d_clone.json"):
+        print(f"### Experiment D, supervised variant ({name}): A {pct(d['before']['A']['success'])}, B {pct(d['before']['B']['success'])} before; "
+              f"demonstrations A {d['demonstrations']['A']}, B {d['demonstrations']['B']}\n")
+        print("| phase-B training | A afterwards | forgetting on A | B afterwards | gain on B | weights moved (L2) |\n|---|---|---|---|---|---|")
+        for k, r in d["strategies"].items():
+            print(f"| {k} | {pct(r['A_after']['success'])} {ci(r['A_after']['success_ci'])} | {100 * r['forgetting_on_A']:+.0f} | "
+                  f"{pct(r['B_after']['success'])} {ci(r['B_after']['success_ci'])} | {100 * r['gain_on_B']:+.0f} | {r['weights_moved_l2']:.2f} of {r['weights_norm']:.1f} |")
+        print()
+
+
 def exp_a():
     for name, d in load("exp_a_real_actions.json"):
         print(f"### Experiment A ({name}): building and operating a service from scratch, {len(d['tasks'])} tasks\n")
@@ -121,16 +141,60 @@ def selfplay():
 
 
 def meta():
-    for name, d in load("exp_e_meta.json") + load("exp_f_meta.json"):
-        print(f"### Meta-Researcher ({name}): {d['experiments']} staged experiments\n\n| candidate | source | function(s) | decision | stage | AULC difference [95% CI] | seeds | hypothesis |\n|---|---|---|---|---|---|---|---|")
+    for name, d in load("exp_e_meta.json"):
+        print(f"### Meta-Researcher ({name}): {d['candidates_screened']} candidates screened ({d['valid_screened']} valid), {d['experiments']} taken further\n")
+        print("champion baseline runs: " + "; ".join(f"{b['stage']} seed {b['seed']}: AULC {b['aulc_eval']:.3f}, held-out {b['first_eval']:.2f} -> {b['final_eval']:.2f}" for b in d["champion_baseline_runs"]) + "\n")
+        print("| round | candidate | source | function(s) | changed lines | valid | AULC - champion (1 seed) | picked | hypothesis / rejection |\n|---|---|---|---|---|---|---|---|---|")
+        for x in d["screened"]:
+            print(f"| {x['round']} | {x['candidate']} | {x['source']} | {', '.join(x['slots'])} | {x['diff_lines']} | {'yes' if x['valid'] else 'no'} | "
+                  f"{'-' if x['effect_aulc'] is None else format(x['effect_aulc'], '+.3f')} | {'yes' if x['picked_by_surrogate'] else ''} | "
+                  f"{(x['hypothesis'] if x['valid'] else x['reject_reason'] + ' / ' + x['hypothesis'])[:150].replace('|', '/')} |")
+        print("\n| source | proposed | valid | mean effect | best effect |\n|---|---|---|---|---|")
+        for k, g in d["by_source"].items():
+            print(f"| {k} | {g['n']} | {g['valid']} | {'-' if g['mean_effect'] is None else format(g['mean_effect'], '+.3f')} | {'-' if g['best_effect'] is None else format(g['best_effect'], '+.3f')} |")
+        print("\n| candidate | source | function(s) | decision | stage | AULC difference [95% CI] | seeds | hypothesis |\n|---|---|---|---|---|---|---|---|")
         for r in d["table"]:
             c = r.get("ci")
             print(f"| {r['candidate']} | {r['source']} | {r['target']} | {r['decision']} | {r['stage']} | "
                   f"{'-' if r.get('diff_aulc') is None else format(r['diff_aulc'], '+.3f')} {'' if not c else '[%+.3f, %+.3f]' % tuple(c)} | {r.get('n')} | {r['hypothesis'][:90]} |")
+        print("\n| round | surrogate fitted | value of surrogate picks | pool mean (random) | best of pool | valid fraction |\n|---|---|---|---|---|---|")
+        for r in d["rounds"]:
+            print(f"| {r['round']} | {r['surrogate_fitted']} | {r['value_surrogate']:+.3f} | {r['value_random_expected']:+.3f} | {r['value_best']:+.3f} | {r['valid_fraction']:.2f} |")
+        so, sf = d.get("selection_online") or {}, d.get("selection_offline_full_feedback") or {}
+        if so:
+            a_ = so["advantage_over_random_all_rounds"]
+            f_ = so["advantage_over_random_once_fitted"]
+            print(f"\nonline selection (learns from its own picks): advantage over random, all rounds {a_['mean']:+.4f} {a_['ci95']} n={a_['n']}; "
+                  f"once fitted {f_['mean']} {f_['ci95']} n={f_['n']}; established={so['established']}; leave-one-out {so.get('surrogate_loo')}")
+        if sf.get("rounds"):
+            a_ = sf["advantage_over_random"]
+            print(f"\noffline replay with full feedback: advantage over random {a_['mean']:+.4f} {a_['ci95']} over {a_['n_rounds']} rounds; "
+                  f"mean rank correlation predicted vs measured {sf['mean_spearman']}; established={sf['established']}")
+            for r in sf["rounds"]:
+                print(f"  round {r['round']}: trained on {r['trained_on']}, picked {r['picked']:+.3f}, random {r['random']:+.3f}, best {r['best']:+.3f}, spearman {r['spearman_predicted_vs_measured']}")
         print()
 
 
-ALL = {"b": b_multi, "baselines": baselines, "c": exp_c, "d": exp_d, "a": exp_a, "worldmodel": worldmodel, "selfplay": selfplay, "meta": meta}
+def final():
+    for name, d in load("exp_final.json"):
+        t, g = d["tasks"], d["aggregate"]
+        print(f"### Sealed final list ({name}, seal {d['seal'][:12]}): learner `{d['learner']}` ({d['selection_rule'][:120]})\n")
+        print(f"{t['attempted']} of {t['sealed']} sealed tasks attempted (arms {t['arms_attempted']}); not attempted: {t['arms_not_attempted']}\n")
+        print("| seed | before RL (greedy) | after RL (greedy) | before RL (sampled) | after RL (sampled) |\n|---|---|---|---|---|")
+        for sd, r in d["per_seed"].items():
+            print(f"| {sd} | {pct(r['before_rl']['success'])} {ci(r['before_rl']['success_ci'])} | {pct(r['after_rl']['success'])} {ci(r['after_rl']['success_ci'])} | "
+                  f"{pct(r['before_rl_sampled']['success'])} {ci(r['before_rl_sampled']['success_ci'])} | {pct(r['after_rl_sampled']['success'])} {ci(r['after_rl_sampled']['success_ci'])} |")
+        for k in ("after - before (greedy)", "after - before (sampled)"):
+            v = g[k]
+            print(f"\n* {k}: {100 * v['diff']:+.1f} points, 95% CI [{100 * v['ci'][0]:+.1f}, {100 * v['ci'][1]:+.1f}], {v['n_pairs']} task pairs: "
+                  f"{v['tasks_gained']} gained, {v['tasks_lost']} lost; established={v['established']}")
+        print("\n| world family | n | before | after |\n|---|---|---|---|")
+        for k, v in g["by_world_family"].items():
+            print(f"| {k} | {v['n']} | {pct(v['before'])} | {pct(v['after'])} |")
+        print()
+
+
+ALL = {"b": b_multi, "baselines": baselines, "c": exp_c, "d": exp_d, "a": exp_a, "worldmodel": worldmodel, "selfplay": selfplay, "meta": meta, "final": final, "d_clone": exp_d_clone}
 
 if __name__ == "__main__":
     for k in (sys.argv[1:] or list(ALL)):
