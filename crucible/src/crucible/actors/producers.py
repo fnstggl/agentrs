@@ -53,8 +53,7 @@ def production_routine(soc, ctx, mid, m, rng):
         mach = st.get("machines", plan["machine"])
         if mach is None or mach["status"] != "ok" or mach["busy_until"] > ctx.now + 3600:
             continue
-        if caps.is_delegated(st, m["org"], plan["machine"]) and plan.get("respect_delegation", True) and \
-                cfg.get("delegated_ops", False):
+        if caps.is_delegated(st, m["org"], plan["machine"], "make.operate"):
             continue
         did = plan["design"]
         d = st.get("designs", did)
@@ -66,7 +65,8 @@ def production_routine(soc, ctx, mid, m, rng):
         missed = sum(sum(v for d_, v in o.get("missed", {}).items() if int(d_) >= today - 2)
                      for o in st.find("offers", "seller", m["org"]) if o["sku"] == out_sku) / 3.0
         consumed = plan.get("downstream_per_day", 0)
-        target = max(plan.get("min_stock", 50), (sold + missed + consumed) * plan.get("target_days", 3))
+        target = max(plan.get("min_stock", 50) if sold + missed == 0 else 20,
+                     (sold + missed + consumed) * plan.get("target_days", 3))
         short = int(target - have)
         if short <= 0:
             continue
@@ -150,7 +150,7 @@ def maintenance_routine(soc, ctx, mid, m, rng):
     every = m["routines"].get("maintenance", {}).get("every_h", 150)
     for mach_id in sorted(st.find_ids("machines", "owner", m["org"])):
         mach = st.tables["machines"][mach_id]
-        if caps.is_delegated(st, m["org"], mach_id):
+        if caps.is_delegated(st, m["org"], mach_id, "make.maintain"):
             continue
         if mach["status"] == "broken":
             soc.act(ctx, m["owner"], "make.repair", {"machine": mach_id})
@@ -188,7 +188,7 @@ def procurement_routine(soc, ctx, mid, m, rng):
     caps = ctx.world.modules["caps"]
     cfg = m["routines"].get("procurement", {})
     for ent in cfg.get("inputs", []):
-        if caps.is_delegated(st, m["org"], ent["fac"]):
+        if caps.is_delegated(st, m["org"], ent["fac"], "make.trade"):
             continue
         sku = ent["sku"]
         have = ind.qty(st, ent["fac"], sku)
@@ -196,7 +196,16 @@ def procurement_routine(soc, ctx, mid, m, rng):
                       and s["to"] == ent["fac"] and s["sku"] == sku) if "shipments" in st.tables else 0
         transit += sum(s["qty"] for _, s in st.scan("shipments") if s["status"] == "in_transit" and s["to"] == ent["fac"]
                        and s["sku"] == sku and s["payer"] != m["org"]) if "shipments" in st.tables else 0
-        if have + transit >= ent["reorder"]:
+        # demand-driven reorder point and quantity: what our runs consumed over the last week
+        used = 0
+        for _, r in st.scan("runs"):
+            if r["owner"] == m["org"] and r["t0"] >= ctx.now - 7 * DAY:
+                used += sum(x[1] for x in r["inputs"] if x[0] == sku)
+        per_day = used / 7.0
+        reorder = max(ent.get("min_reorder", 40), min(ent["reorder"], per_day * 3)) if used else ent["reorder"]
+        order_qty = int(max(ent.get("min_qty", 60), min(ent["qty"], per_day * 5))) if used else ent["qty"]
+        ent = dict(ent, qty=order_qty)
+        if have + transit >= reorder:
             continue
         cheaper = [x for x in _equivalent(ind, st, sku, tol=0.3) if x[2]["seller"] != m["org"]]
         cur = sorted(o["price"] for _, o in st.scan("offers") if o["sku"] == sku and o["status"] == "active")
@@ -274,6 +283,32 @@ def _substitute(soc, ctx, mid, m, ent, ind, replace=False):
         soc.remember(ctx, mid, m, "substitute", o["seller"], {"from": ent["sku"], "to": o["sku"]})
 
 
+def unit_cost_estimate(ind, st, org, design_id) -> float | None:
+    """What a good unit of a design costs the firm, from its own records: recent purchase prices of its inputs,
+    its measured yield and energy per good unit on recent runs (at the current grid price), and labour."""
+    d = st.get("designs", design_id)
+    if d is None:
+        return None
+    runs = [r for _, r in st.scan("runs") if r["owner"] == org and r["design"] == design_id and r["status"] == "done"][-8:]
+    made = sum(r["made"] for r in runs)
+    units = sum(r["units"] for r in runs)
+    if not made:
+        return None
+    y = made / units
+    c = 0.0
+    for x in d["inputs"]:
+        paid = [t["price"] for _, t in st.scan("trade_orders") if t["buyer"] == org and t["sku"] == x["sku"]][-5:]
+        if paid:
+            c += x["qty"] * (sum(paid) / len(paid)) / y
+    fac = st.tables["machines"][runs[-1]["machine"]]["facility"]
+    region = st.tables["facilities"][fac]["region"]
+    g = st.tables["regions"][region].get("grid")
+    kwh = sum(r["kwh"] for r in runs) / made
+    c += kwh * (g["base_price"] * 1.5 if g else 10.0)
+    c += sum(r["labor_h"] for r in runs) / made * 1300.0
+    return c
+
+
 def unit_cost(ind, st, d, mach_model) -> float:
     mdl = ind.phys["models"][mach_model]
     c = mdl["energy_kwh"] * 10.0 + mdl["labor_h_per_h"] * 1200.0 / ind.throughput(mdl, d["speed"]) + 15
@@ -290,16 +325,20 @@ def pricing_routine_b2b(soc, ctx, mid, m, rng):
     cfg = m["routines"].get("b2b_pricing", {})
     for oid in sorted(st.find_ids("offers", "seller", m["org"])):
         o = st.tables["offers"][oid]
-        if o["status"] != "active" or caps.is_delegated(st, m["org"], o["fac"]) and cfg.get("delegable"):
+        if o["status"] != "active" or caps.is_delegated(st, m["org"], o["fac"], "make.trade"):
             continue
         have = ind.qty(st, o["fac"], o["sku"])
         sold = sum(t["qty"] for t in st.find("trade_orders", "offer", oid) if t["t"] >= ctx.now - 3 * DAY)
         floor = cfg.get("floor", {}).get(o["sku"], 1)
+        uc = unit_cost_estimate(ind, st, m["org"], o["sku"][2:]) if o["sku"].startswith("i:") else None
+        if uc:
+            floor = max(floor, int(uc * cfg.get("min_markup", 1.1)))
         p = o["price"]
         if have == 0 and sold > 0:
             p = int(math.ceil(p * 1.05))
         elif sold == 0 and have > cfg.get("high_stock", 300):
             p = max(floor, int(p * 0.96))
+        p = max(p, floor)
         if p != o["price"]:
             soc.act(ctx, m["owner"], "make.offer", {"facility": o["fac"], "sku": o["sku"], "price_cents": p})
 
@@ -311,10 +350,13 @@ def pricing_routine_retail(soc, ctx, mid, m, rng):
     cfg = m["routines"].get("retail_pricing", {})
     for rid in sorted(st.find_ids("retail", "seller", m["org"])):
         r = st.tables["retail"][rid]
-        if r["status"] != "active" or caps.is_delegated(st, m["org"], rid):
+        if r["status"] != "active" or caps.is_delegated(st, m["org"], rid, "market.manage"):
             continue
         have = ind.qty(st, r["fac"], r["sku"])
         floor = cfg.get("floor", 1)
+        uc = unit_cost_estimate(ind, st, m["org"], r["sku"][2:]) if r["sku"].startswith("i:") else None
+        if uc:
+            floor = max(floor, int(uc * cfg.get("min_markup", 1.15)))
         p = r["price"]
         if have == 0 and r.get("sold_y", 0) > 0:
             p = int(math.ceil(p * 1.04))
@@ -329,6 +371,7 @@ def pricing_routine_retail(soc, ctx, mid, m, rng):
                 s2 = ind.stock(st, r2["fac"], r2["sku"])
                 if s2 and s2["v"] and np.abs(np.array(s2["v"]) - np.array(s["v"])).sum() < 0.3 and s2["qty"] > 0:
                     p = max(floor, int(min(p, r2["price"] * 1.02)))
+        p = max(p, floor)
         if p != r["price"]:
             soc.act(ctx, m["owner"], "make.sell", {"facility": r["fac"], "sku": r["sku"], "price_cents": p})
 

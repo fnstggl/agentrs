@@ -69,3 +69,23 @@ Service deployments use persistent workers (an LRU pool, default 24 per world), 
   for Python-heavy code: sys.monitoring LINE events).
 * LLM-backed agents cost far more than the world: see RL_INTEGRATION.md for measured tokens and latency.
 * Browser mode: one Chromium ≈ 80 threads; at most ~2 concurrent browsers are safe in this container.
+
+## Open-world mechanisms (measured; `python -m crucible.bench.run --only open`)
+
+From `docs/benchmarks/bench.json` (`open` section), this machine:
+
+| measurement | value |
+|---|---|
+| capability publish | 0.19 ms |
+| 20 triggers firing every 10 min for a simulated day (2,880 fires) | 0.60 s |
+| 5-step flow runs | ~9,800 / s |
+| deal proposals | ~3,900 / s |
+| `open_industry`: simulated day / events per day / snapshot / fork / replay | 0.033 s / 1,254 / 671 kB / 41 ms / 39.7k events/s |
+| `open_mixed` (2,000 API consumers, 20,000 households): simulated day / snapshot / fork / replay | 1.28 s / 801 kB / 58 ms / 21.3k events/s |
+| Tier-2 minds: 56 / 506 / 2,006 minds - simulated day | 0.31 / 0.39 / 0.44 s |
+
+Minds are cheap (about 0.07 ms per mind per day: thousands of active simulated actors are practical); the cost of a
+digital-economy day is dominated by executing sampled requests of incumbent services under the deterministic
+line-counting cost model (~11 ms per request for the route-finding incumbents), which is why open families sample 2
+requests per offering per hour. Long run: 90 simulated days of `open_mixed` (295k events) in 136 s wall, replayed
+from SQLite with an identical digest.

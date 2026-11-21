@@ -1,0 +1,328 @@
+{
+ "family": "open_fragile_suppliers",
+ "seed": 1,
+ "fork_day": 8,
+ "days": 40,
+ "shared_supplier": "o:forge1",
+ "summary": {
+  "base": {
+   "downstream_stockouts": 1417,
+   "downstream_supply_shortfall": 2930,
+   "retail_sold": 1827,
+   "substitutions": 2,
+   "chain_operating_total": 1665979,
+   "maintenance_adopters": []
+  },
+  "failure": {
+   "downstream_stockouts": 3471,
+   "downstream_supply_shortfall": 13387,
+   "retail_sold": 639,
+   "substitutions": 1,
+   "chain_operating_total": -436068,
+   "maintenance_adopters": []
+  },
+  "maintenance": {
+   "downstream_stockouts": 1363,
+   "downstream_supply_shortfall": 3002,
+   "retail_sold": 2087,
+   "substitutions": 1,
+   "chain_operating_total": 2027208,
+   "maintenance_adopters": [
+    "o:assem1",
+    "o:forge2"
+   ]
+  },
+  "failure+maintenance": {
+   "downstream_stockouts": 3419,
+   "downstream_supply_shortfall": 15817,
+   "retail_sold": 690,
+   "substitutions": 1,
+   "chain_operating_total": -287872,
+   "maintenance_adopters": [
+    "o:assem2",
+    "o:forge2"
+   ]
+  }
+ },
+ "detail": {
+  "base": {
+   "operating": {
+    "o:assem1": -210430,
+    "o:assem2": -276339,
+    "o:forge1": 30707,
+    "o:forge2": -277119,
+    "o:mine1": 812300,
+    "o:mine2": 1586860
+   },
+   "losses": {
+    "o:assem1": {
+     "defects": 454,
+     "stockout": 558,
+     "supply_shortfall": 844,
+     "late_delivery": 5
+    },
+    "o:assem2": {
+     "defects": 380,
+     "stockout": 859,
+     "late_delivery": 2,
+     "supply_shortfall": 2086
+    },
+    "o:forge1": {
+     "defects": 1760,
+     "machine_downtime": 758,
+     "supply_shortfall": 2044,
+     "late_delivery": 2
+    },
+    "o:forge2": {
+     "defects": 2273,
+     "supply_shortfall": 2766,
+     "machine_downtime": 106
+    },
+    "o:mine1": {
+     "defects": 3585,
+     "machine_downtime": 212
+    },
+    "o:mine2": {
+     "defects": 4967,
+     "machine_downtime": 406
+    }
+   },
+   "trade_edges": {
+    "o:forge1->o:assem2": 1468,
+    "o:forge2->o:assem2": 1328,
+    "o:mine1->o:forge1": 9806,
+    "o:mine2->o:forge2": 9919,
+    "o:forge1->o:assem1": 1132,
+    "o:forge2->o:assem1": 1016,
+    "o:mine2->o:forge1": 1101
+   },
+   "retail_sold": 1827,
+   "substitutions": [
+    {
+     "t": 1294200,
+     "kind": "substitute",
+     "with": "o:mine2",
+     "data": {
+      "from": "m:kaulite",
+      "to": "m:zivenite"
+     },
+     "firm": "o:forge1"
+    },
+    {
+     "t": 1467000,
+     "kind": "substitute",
+     "with": "o:mine2",
+     "data": {
+      "from": "m:kaulite",
+      "to": "m:zivenite"
+     },
+     "firm": "o:forge1"
+    }
+   ],
+   "maintenance_adopters": []
+  },
+  "failure": {
+   "operating": {
+    "o:assem1": -270981,
+    "o:assem2": -3072,
+    "o:forge1": -235400,
+    "o:forge2": -123152,
+    "o:mine1": 255969,
+    "o:mine2": -59432
+   },
+   "losses": {
+    "o:assem1": {
+     "defects": 102,
+     "stockout": 1406,
+     "supply_shortfall": 6510,
+     "machine_downtime": 55
+    },
+    "o:assem2": {
+     "defects": 60,
+     "late_delivery": 1,
+     "stockout": 2065,
+     "supply_shortfall": 6877
+    },
+    "o:forge1": {
+     "defects": 471,
+     "machine_downtime": 654,
+     "supply_shortfall": 1800
+    },
+    "o:forge2": {
+     "defects": 324,
+     "supply_shortfall": 600,
+     "machine_downtime": 37
+    },
+    "o:mine1": {
+     "defects": 1799,
+     "machine_downtime": 153
+    },
+    "o:mine2": {
+     "defects": 439,
+     "machine_downtime": 29
+    }
+   },
+   "trade_edges": {
+    "o:forge1->o:assem2": 323,
+    "o:forge2->o:assem2": 134,
+    "o:mine1->o:forge1": 3107,
+    "o:mine2->o:forge2": 614,
+    "o:forge2->o:assem1": 125,
+    "o:mine1->o:forge2": 1336,
+    "o:forge1->o:assem1": 422
+   },
+   "retail_sold": 639,
+   "substitutions": [
+    {
+     "t": 1121400,
+     "kind": "substitute",
+     "with": "o:mine1",
+     "data": {
+      "from": "m:zivenite",
+      "to": "m:kaulite"
+     },
+     "firm": "o:forge2"
+    }
+   ],
+   "maintenance_adopters": []
+  },
+  "maintenance": {
+   "operating": {
+    "o:assem1": -552338,
+    "o:assem2": -431093,
+    "o:forge1": 332117,
+    "o:forge2": -535351,
+    "o:mine1": 1376445,
+    "o:mine2": 1837428
+   },
+   "losses": {
+    "o:assem1": {
+     "defects": 505,
+     "stockout": 377,
+     "supply_shortfall": 876,
+     "machine_downtime": 40,
+     "late_delivery": 1
+    },
+    "o:assem2": {
+     "defects": 369,
+     "stockout": 986,
+     "late_delivery": 8,
+     "supply_shortfall": 2126
+    },
+    "o:forge1": {
+     "defects": 1884,
+     "machine_downtime": 558,
+     "supply_shortfall": 1800
+    },
+    "o:forge2": {
+     "defects": 1999,
+     "machine_downtime": 87,
+     "supply_shortfall": 2159
+    },
+    "o:mine1": {
+     "defects": 3270,
+     "machine_downtime": 263
+    },
+    "o:mine2": {
+     "defects": 4764,
+     "machine_downtime": 399
+    }
+   },
+   "trade_edges": {
+    "o:forge1->o:assem2": 1322,
+    "o:forge2->o:assem2": 1352,
+    "o:mine1->o:forge1": 9806,
+    "o:mine2->o:forge2": 10789,
+    "o:forge1->o:assem1": 1405,
+    "o:forge2->o:assem1": 1512,
+    "o:mine2->o:forge1": 1203
+   },
+   "retail_sold": 2087,
+   "substitutions": [
+    {
+     "t": 1207800,
+     "kind": "substitute",
+     "with": "o:mine2",
+     "data": {
+      "from": "m:kaulite",
+      "to": "m:zivenite"
+     },
+     "firm": "o:forge1"
+    }
+   ],
+   "maintenance_adopters": [
+    "o:assem1",
+    "o:forge2"
+   ]
+  },
+  "failure+maintenance": {
+   "operating": {
+    "o:assem1": -72635,
+    "o:assem2": -105190,
+    "o:forge1": -175134,
+    "o:forge2": -67010,
+    "o:mine1": 225719,
+    "o:mine2": -93622
+   },
+   "losses": {
+    "o:assem1": {
+     "defects": 128,
+     "stockout": 1254,
+     "supply_shortfall": 6519
+    },
+    "o:assem2": {
+     "defects": 74,
+     "stockout": 2165,
+     "late_delivery": 1,
+     "supply_shortfall": 9298
+    },
+    "o:forge1": {
+     "defects": 511,
+     "machine_downtime": 644
+    },
+    "o:forge2": {
+     "defects": 242,
+     "machine_downtime": 35,
+     "supply_shortfall": 600,
+     "dependency_failure": 11
+    },
+    "o:mine1": {
+     "defects": 1743,
+     "machine_downtime": 107
+    },
+    "o:mine2": {
+     "defects": 277,
+     "machine_downtime": 29,
+     "dependency_failure": 5
+    }
+   },
+   "trade_edges": {
+    "o:forge1->o:assem2": 327,
+    "o:forge2->o:assem2": 112,
+    "o:mine1->o:forge1": 3459,
+    "o:mine2->o:forge2": 450,
+    "o:forge1->o:assem1": 391,
+    "o:forge2->o:assem1": 119,
+    "o:mine1->o:forge2": 803
+   },
+   "retail_sold": 690,
+   "substitutions": [
+    {
+     "t": 1035000,
+     "kind": "substitute",
+     "with": "o:mine1",
+     "data": {
+      "from": "m:zivenite",
+      "to": "m:kaulite"
+     },
+     "firm": "o:forge2"
+    }
+   ],
+   "maintenance_adopters": [
+    "o:assem2",
+    "o:forge2"
+   ]
+  }
+ },
+ "wall_s": 12.9
+}

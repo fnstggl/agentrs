@@ -322,10 +322,13 @@ _ECON: dict[str, bool] = {}
 
 
 def is_economic(world_family: str) -> bool:
-    """World families that contain the economy (the `civ` society); economic goals only make sense there."""
+    """World families that contain the need-format economy (the `civ` society and its `consumers`); the goal
+    families here (need-based revenue, outperforming incumbents, ...) only make sense there. Industrial open worlds
+    have a society but no need-format demand and are excluded."""
     if world_family not in _ECON:
         from ..worldgen import generate
-        _ECON[world_family] = any(m["name"] == "civ" for m in generate({"family": world_family}, 0).modules)
+        names = {m["name"] for m in generate({"family": world_family}, 0).modules}
+        _ECON[world_family] = "civ" in names and "consumers" in names
     return _ECON[world_family]
 
 

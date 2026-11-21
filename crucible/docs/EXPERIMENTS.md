@@ -196,3 +196,110 @@ a concrete baseline for CAM-style controllers; it is not a statement about large
 **Bottom line.** The environment is consistent, solvable in several ways, exploit-resistant to the probes run,
 reproducible and fast; none of the learners connected so far improves on simple scripted controls or on doing
 nothing. That is the honest starting point for the research program, not a superlearner result.
+
+## Open-world experiments (branch `feat/crucible-open-world`)
+
+All numbers below were produced by the scripts named, on this machine, with the code at the commit that adds this
+section; JSON with full timelines is in `docs/experiments/open_*.json`. Every run uses the deterministic cost
+model; every factual branch was regenerated from its event log and found identical. Agents labelled *controls* are
+scripted competent agents (they encode developer knowledge); their success is evidence about the **world**
+(that it admits these inventions and that independent actors respond to them), not about learning.
+
+### Demonstration 1 - new product categories during a lifetime (`examples/demo_open_invention.py 1 40`)
+
+Fork at the first public problem report; factual = inventor control, counterfactual = the same agent idle; 40 days.
+
+*Capacity automation (`open_digital`, 6 service firms).* Firms whose services overloaded at their daily peak
+reported it publicly on day 1. The inventor wrote an hourly forecasting autoscaler that operates other firms'
+instances through delegated `cloud.manage`, published it, and answered the requests. 10 randomised switchback
+trials were run by independent firms; verified effects ranged from -1,754 +/- 782 to +7,389 +/- 1,790 cents/day.
+Firms without the problem trialled it (via contacts' evidence) and rejected it. Three overload-prone firms ended
+with autoscaling active - one with the inventor's capability, two with **cheaper copies published by simulated
+entrepreneurs** who forked the open-source invention once it had independent buyers (an emergent market recorded
+by the registry). Against the counterfactual, the firm sector's compute spend fell 26% (1.20M vs 1.61M cents)
+while overload losses rose (172k vs 16k cents: the forecaster under-provisions some peaks); the firm sector's total
+operating result was +665k cents over 40 days, with large redistribution between competitors. The inventor earned
+72k cents. Regeneration identical (146k events).
+
+*Predictive maintenance (`open_industry`).* The inventor's service reads machine telemetry and maintains worn
+machines. Six producers trialled it; every verified effect was negative or within noise (e.g. forge1
+-43,808 +/- 37,867 cents/day) and no firm adopted it. An earlier run of this case reported adoptions; that result
+was produced by a delegation bug (installing the capability made firms stop procurement on "on" days, which
+inflated their measured operating result) and is withdrawn.
+
+### Demonstration 2 - endogenous technological change (`examples/demo_open_techchange.py 1 45`)
+
+`open_scarce_energy` (small grids that do not expand). Stages detected from state against a counterfactual fork:
+1. bottleneck - an assembler publicly reported energy costs on day 2;
+2. improvement - the research control hired staff, bought two forming machines and ran a 9-point designed
+   experiment per model (real runs, energy and labour; noisy yields), then sold the operating points with
+   world-verified evidence;
+3. adoption - both component makers' minds compared that evidence with their own runs and bought and applied it
+   (days 14 and 15);
+4. efficiency - energy per good unit after adoption vs the counterfactual: forge1 3.30 vs 4.51 kWh (-27%), forge2
+   0.64 vs 1.34 kWh (-52%); yields 0.68 vs 0.60 and 0.68 vs 0.52;
+5. market - after publication: units made 24,273 vs 20,327 (+19%), retail units sold 2,108 vs 1,680 (+25%), grid
+   curtailments 166 vs 186; chain operating result +1.96M vs +0.47M cents;
+6. responses - upstream miners invested in more machines (3 orders each) in response to unfilled orders;
+7. new problem reports present only in the factual branch: `cost-licence` (firms now report the cost of licences).
+No competitor imitated the process during the run. Regeneration identical (61k events).
+
+### Demonstration 3 - autonomous social negotiation (`examples/demo_open_negotiation.py 1`)
+
+Offers from an agent's organisation to simulated people (private reservation wages, greed, patience):
+generous (2x reservation) accepted; lowball (0.05x) rejected; three near misses: one ignored until it expired, two
+countered at +92% and +82% of the offer and the agent accepted the counteroffers (binding contracts); a request to
+hand over `org.admin` to a firm for 5,000 cents rejected. A second organisation that broke a salary agreement
+acquired a public breach record and claim; three identical generous offers (3x reservation) it then made were
+rejected, ignored, rejected, while the same offers from the clean organisation were accepted, ignored, ignored
+(small sample). The victim's trust in the breacher: Beta(1.3, 5.75).
+
+### Demonstration 4 - supply chain under constraints (`examples/demo_open_supplychain.py 1 40`)
+
+`open_fragile_suppliers`, four forks at day 8. The chain that formed (trade edges): mine1->forge1, mine2->forge2,
+**mine2->forge1** (an input substitution the firms made themselves), forge1->assem1/2, forge2->assem1/2.
+
+| branch | downstream stockouts | downstream supply shortfall | retail units | chain operating result |
+|---|---|---|---|---|
+| base | 1,417 | 2,930 | 1,827 | +1.67M |
+| shared supplier fails (all machines, parts take 7 days) | 3,471 | 13,387 | 639 | -0.44M |
+| predictive maintenance available | 1,363 | 3,002 | 2,087 | +2.03M |
+| failure + maintenance | 3,419 | 15,817 | 690 | -0.29M |
+
+The supplier failure propagates downstream (4.6x shortfalls, -65% retail). Where firms adopted the maintenance
+capability (assem1, forge2 in the base-world fork), the chain did better (+22% operating result, +14% retail); it
+mitigated the failure only slightly. Adoption differed between forks because trials are noisy.
+
+### Demonstration 5 - long-running civilisation (`examples/demo_open_civilization.py 1 90`)
+
+`open_mixed`, 90 simulated days, 3 controls + 1 idle agent, persisted in SQLite and replayed from the store
+(identical digest, 295k events, 136 s wall). Final census: 97 problem requests (18 distinct tags), 68 responses,
+4 capabilities (2 entrant copies), 24 verified trials and **no lasting adoption** (no trial significant), 2
+emergent capability markets while trials ran, 631 production runs, 39.5k units made, 36.4k units traded between
+firms, 2,841 retail units, 18 machines (from 7 - investment), 5 organisations created after genesis, 1 bankrupt;
+firm sector operating result -6.1M cents. Knowledge diffusion was minimal (no evidence messages: firms had few
+contacts) and the research control never completed its experiments in this world. A previous 90-day run stalled
+after day 25 because of two bugs (a crash in the simulated people's cycle and over-broad delegation); both are
+fixed and the stall did not recur.
+
+### Ablations (`examples/open_ablations.py 30 1 2`)
+
+`open_mixed` (2,500 API consumers, 20,000 households), agents: capacity inventor (open source) and maintenance inventor, 30 days, seeds 1 and 2, means over seeds (715.2 s wall):
+
+| ablation | verified trials | active installs (day 30) | emergent capability markets | organisations created | retail units | firm-sector operating result |
+|---|---|---|---|---|---|---|
+| none | 14.5 | 0.0 | 2.0 | 4.0 | 1201.0 | -3.79M |
+| ablate_adoption | 0.0 | 0.0 | 0.0 | 0.0 | 1140.0 | -4.67M |
+| ablate_sharing | 14.0 | 0.5 | 2.0 | 4.0 | 1290.0 | -3.86M |
+| ablate_requests | 0.0 | 0.0 | 0.0 | 0.0 | 1140.0 | -4.67M |
+| ablate_entry | 11.5 | 0.0 | 2.0 | 2.0 | 1311.0 | -3.84M |
+| ablate_diffusion | 15.5 | 1.0 | 2.0 | 4.0 | 1249.0 | -3.75M |
+
+Switching off the adoption engine or problem requests removes capability trials, emergent markets and the
+entrants that follow them, and the firm sector does worse (-4.67M vs -3.79M cents over 30 days). The two
+ablations are identical because the inventor controls act only on public problem reports: in these worlds the
+request channel is a necessary link between a problem and its invention. Ablating evidence sharing, process
+diffusion or entrepreneurial entry made no measurable difference at this scale (2 seeds, 30 days); for sharing
+the reason is visible in the census - no firm held beliefs from others in any run (firms had few contacts), so
+the channel was inactive rather than shown to be useless. Two seeds are too few for small effects; the runner
+accepts more seeds.

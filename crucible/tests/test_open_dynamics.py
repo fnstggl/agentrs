@@ -44,8 +44,8 @@ def test_families_differ_causally_not_cosmetically():
             for k, v in r["loss_n"].items():
                 losses[k] = losses.get(k, 0) + v
         out[fam] = losses
-    # perishability destroys stock (more supply shortfalls); scarce energy refuses runs (curtailment)
-    assert out["open_perishable"].get("supply_shortfall", 0) > out["open_industry"].get("supply_shortfall", 0)
+    # perishability destroys stock; scarce energy refuses runs (curtailment) - different mechanisms, not parameters
+    assert out["open_perishable"].get("spoilage", 0) > 0 and out["open_industry"].get("spoilage", 0) == 0
     assert out["open_scarce_energy"].get("energy_curtailment", 0) >= out["open_industry"].get("energy_curtailment", 0)
 
 

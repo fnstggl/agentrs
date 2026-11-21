@@ -110,16 +110,22 @@ class Capabilities(Module):
         from ..goals.metrics import related_parties
         return b in related_parties(world, a)
 
-    def is_delegated(self, st, org: str, resource: str, day: int | None = None) -> bool:
-        """True if an installed capability currently operates `resource` for `org` (its trigger is active today).
-        Organisations' own default routines stand down on delegated resources."""
+    def is_delegated(self, st, org: str, resource: str, cap: str | None = None) -> bool:
+        """True if an installed capability currently operates `resource` for `org` (its trigger is active today)
+        with a delegated capability matching `cap` (e.g. "make.maintain"; None = any). Organisations' own default
+        routines stand down only for what they delegated."""
         cont = self.world.hooks.get("resource_container")
         container = cont(st, resource) if cont else None      # e.g. the facility a machine stands in
         for iid in st.find_ids("cap_installs", "installer", org):
             i = st.tables["cap_installs"][iid]
             if i["status"] in ("active", "trial") and i["on_today"]:
-                vals = set(map(str, i["bindings"].values()))
-                if resource in vals or (container is not None and container in vals):
+                c = st.tables["capabilities"][i["capability"]]
+                scopes = []
+                for r in c["requires"]:
+                    if cap is not None and r["cap"] != cap and not (r["cap"].endswith(".*") and cap.startswith(r["cap"][:-1])):
+                        continue
+                    scopes.append("*" if r["scope"] == "*" else str(i["bindings"].get(r["scope"][1:], "")))
+                if "*" in scopes or resource in scopes or (container is not None and container in scopes):
                     return True
         return False
 
@@ -173,7 +179,8 @@ class Capabilities(Module):
                           "args": t.get("args", {})})
         if improves is not None and not st.has("capabilities", improves):
             raise NotFound("improves: no capability " + improves)
-        prev = [c for c in st.find("capabilities", "host", host) if c["status"] == "active"]
+        prev = [{"id": k} for k in st.find_ids("capabilities", "host", host)
+                if st.tables["capabilities"][k]["status"] == "active"]
         cid = st.new_id("cap")
         ctx.emit("caps.published", {
             "id": cid, "provider": owner, "host": host, "title": title, "description": description,
@@ -713,7 +720,7 @@ class Capabilities(Module):
     @applier("caps.install_status")
     def ap_install_status(self, ev):
         p = ev.payload
-        ch = {"status": p["status"]}
+        ch = {"status": p["status"], "reason": p.get("reason", "")}
         if p.get("evidence"):
             ch["evidence"] = p["evidence"]
         if p["status"] in ("removed", "paused", "evaluated"):

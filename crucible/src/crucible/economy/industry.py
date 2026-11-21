@@ -427,6 +427,8 @@ class Industry(Module):
         m = self._machine(ctx, machine, "make.maintain")
         if m["status"] != "broken":
             raise Conflict("machine is not broken")
+        if (m.get("repair_blocked_until") or 0) > ctx.now:
+            raise Conflict(f"spare parts arrive at {m['repair_blocked_until']}")
         mdl = self.phys["models"][m["model"]]
         self._pay(ctx, m["owner"], None, None, mdl["repair_cost"], "maintenance", f"repair {machine}")
         until = ctx.now + mdl["repair_h"] * 3600
@@ -1008,6 +1010,9 @@ class Industry(Module):
                     lost = int(s["qty"] * decay)
                     if lost:
                         ctx.emit("make.stock_take", {"fac": s["fac"], "sku": s["sku"], "qty": lost}, vis=(s["owner"],))
+                        ops = ctx.world.hooks.get("ops")
+                        if ops is not None:
+                            ops.record_loss(ctx, s["owner"], "spoilage", 0, lost, resource=s["fac"])
 
     # ------------------------------------------------------------------ appliers
     @process("grid_expand")
@@ -1096,6 +1101,17 @@ class Industry(Module):
     def ap_repaired(self, ev):
         self.world.state.patch("machines", ev.payload["id"], status="ok", wear=0.05, hours_since_maint=0.0,
                                busy_until=ev.payload["until"], broken_at=None)
+
+    def force_breakdown(self, ctx, machine: str, parts_days: int = 0) -> None:
+        """Operator intervention for controlled experiments (a supplier failure): the machine breaks now and,
+        with `parts_days`, cannot be repaired before spare parts arrive."""
+        ctx.emit("make.broken", {"id": machine, "blocked_until": ctx.now + int(parts_days) * DAY}, vis="internal")
+
+    @applier("make.broken")
+    def ap_broken(self, ev):
+        m = self.world.state.tables["machines"][ev.payload["id"]]
+        self.world.state.patch("machines", ev.payload["id"], status="broken", broken_at=ev.t,
+                               breakdowns=m["breakdowns"] + 1, repair_blocked_until=ev.payload.get("blocked_until"))
 
     @applier("make.tuned")
     def ap_tuned(self, ev):

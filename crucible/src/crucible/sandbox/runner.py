@@ -196,7 +196,12 @@ class Worker:
             resource.setrlimit(resource.RLIMIT_FSIZE, (fsize * 2**20, fsize * 2**20))
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
-        self.proc = subprocess.Popen([sys.executable, "-I", "-S", "-B", BOOT, self.workdir, json.dumps(boot_cfg)],
+        backend = getattr(cfg, "backend", None) or os.environ.get("CRUCIBLE_SANDBOX_BACKEND") or "landlock-seccomp"
+        from .backends import require, wrap
+        if backend != "landlock-seccomp":
+            require(backend)                      # never a silent fallback to weaker isolation
+        argv = wrap(backend, [sys.executable, "-I", "-S", "-B", BOOT, self.workdir, json.dumps(boot_cfg)], self.workdir)
+        self.proc = subprocess.Popen(argv,
                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                      env=env, cwd="/", preexec_fn=pre, start_new_session=True, close_fds=True)
         msg = self._read_msg(time.monotonic() + 30)

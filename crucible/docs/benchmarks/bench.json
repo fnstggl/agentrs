@@ -133,5 +133,58 @@
    "aggregate_sim_days_per_wall_s": 6.853,
    "per_replica_wall_s_per_sim_day": 1.023
   }
- ]
+ ],
+ "open": {
+  "capability_publish_ms": 0.183,
+  "trigger_fires_per_day": 2880,
+  "simulated_day_with_triggers_s": 0.597,
+  "flow_5_steps_per_s": 10009.0,
+  "deal_proposals_per_s": 3842.8,
+  "deal_replies_and_day_s": 1.241,
+  "open_industry": {
+   "sim_day_s": 0.039,
+   "events_per_day": 1254,
+   "minds": 32,
+   "runs": 5,
+   "retail_units": 114,
+   "snapshot_ms": 31.2,
+   "snapshot_kb": 670.7,
+   "fork_ms": 46.2,
+   "replay_events_per_s": 38959,
+   "replay_identical": true
+  },
+  "open_mixed": {
+   "sim_day_s": 1.346,
+   "events_per_day": 2322,
+   "minds": 43,
+   "runs": 5,
+   "retail_units": 88,
+   "snapshot_ms": 40.8,
+   "snapshot_kb": 801.0,
+   "fork_ms": 60.9,
+   "replay_events_per_s": 22175,
+   "replay_identical": true
+  },
+  "minds_scaling": [
+   {
+    "minds": 56,
+    "genesis_s": 0.02,
+    "sim_day_s": 0.306,
+    "snapshot_kb": 57.6
+   },
+   {
+    "minds": 506,
+    "genesis_s": 0.15,
+    "sim_day_s": 0.386,
+    "snapshot_kb": 128.4
+   },
+   {
+    "minds": 2006,
+    "genesis_s": 0.57,
+    "sim_day_s": 0.437,
+    "snapshot_kb": 347.2
+   }
+  ],
+  "rss_mb": 136.1
+ }
 }

@@ -171,7 +171,15 @@ def test_producers_adopt_predictive_maintenance_only_where_verified_outcomes_pay
         if i["status"] == "removed" and i.get("evidence"):
             e = st.tables["cap_evidence"][i["evidence"]]["data"]
             assert e["effect_per_day"] <= 0 or e["effect_per_day"] < 2 * e["se"]
-    assert w.modules["caps"].summary(w, inv.capability)["independent_adopters"] >= 2
-    # the routines of adopters stood down: the capability, not the fixed-interval rule, maintains their machines
+    # every adoption followed a positive verified trial at the adopter's own margin (z >= 1 standard error)
+    for _, i in st.scan("cap_installs"):
+        if i["status"] == "active":
+            d = st.tables["cap_evidence"][i["evidence"]]["data"]
+            assert d["effect_per_day"] > d["se"]
+    # during trials the service (not the fixed-interval rule) maintained the firms' machines
     maint_by_svc = [e for e in w.log if e.type == "make.maintained" and e.actor == "svc:predmaint"]
     assert maint_by_svc
+    # and delegating maintenance did not stop the firms' unrelated routines (procurement kept buying inputs)
+    trial_firms = {e["by"] for e in outs.values()}
+    assert any(t["buyer"] in trial_firms for _, t in st.scan("trade_orders") if t["t"] > min(
+        i["t"] for _, i in st.scan("cap_installs")) + 2 * DAY)

@@ -237,3 +237,16 @@ def test_regeneration_of_an_open_world_with_triggers_and_sandboxed_services_is_e
     evs = [e.to_dict() for e in w.log]
     w2 = World.regenerate(w.spec, evs)
     assert w2.seq == w.seq and w2.last_hash == w.last_hash and w2.digest() == w.digest()
+
+
+def test_republishing_a_capability_supersedes_the_previous_version():
+    w = _world(n_consumers=300)
+    ex = _agent(w, "vic")
+    org, acct = _org(w, ex, "vic")
+    files = {"crucible.json": _manifest({"tick": {"handler": "tick"}}), "service.py": "def tick(args, caller):\n    return {}\n"}
+    _deploy(w, ex, org, acct, "versioned", files)
+    a = ex("caps.publish", host="versioned", title="v1", description="first").result["capability"]
+    r = ex("caps.publish", host="versioned", title="v2", description="second")
+    assert r.ok, r.error
+    assert r.result["supersedes"] == [a]
+    assert w.state.tables["capabilities"][a]["status"] == "superseded"

@@ -728,9 +728,52 @@ def make_app(store=None, *, store_url: str | None = None, worlds=None, world=Non
         else:
             secs.append({"kind": "links", "items": [("compute emergence metrics (log scan)",
                                                      f"{root}/w/{wid}/evaluation?emergence=1")]})
+        secs.append({"kind": "links", "items": [("open-world census, capabilities, trials, markets",
+                                                 f"{root}/w/{wid}/open")]})
         secs.append({"kind": "pre", "title": "Metrics snapshot (JSON)",
                      "text": json.dumps(ev["metrics"], indent=1, sort_keys=True, default=str)})
         return page(request, "Evaluation", secs, wid)
+
+    @app.get("/w/{wid}/open", response_class=HTMLResponse)
+    def open_page(request: Request, wid: str):
+        """Open-world structure: the independent census, capabilities and their verified trials, problem
+        requests, emergent markets and the observed technology graph (read-only)."""
+        from ..evaluation.open_endedness import census
+        w = W.get(wid)
+        st = w.state
+        c = census(w)
+        secs = [{"kind": "pre", "title": "Census (independent, from authoritative state)",
+                 "text": json.dumps(c, indent=1, default=str)}]
+        if "capabilities" in st.tables:
+            caps = w.modules["caps"]
+            secs.append({"kind": "table", "title": "Capabilities", "columns": ["id", "host", "provider", "title",
+                                                                             "independent adopters", "payers", "status"],
+                         "rows": [[s_["capability"], s_["host"], s_["provider"], s_["title"], s_["independent_adopters"],
+                                   s_["independent_payers"], s_["status"]] for s_ in
+                                  (caps.summary(w, k) for k in st.ids("capabilities"))]})
+            secs.append({"kind": "table", "title": "Verified trial outcomes (Mode B)",
+                         "columns": ["evidence", "capability", "installer", "effect/day", "se", "rel", "public"],
+                         "rows": [[k, e["capability"], e["by"], e["data"].get("effect_per_day"), e["data"].get("se"),
+                                   e["data"].get("rel_effect"), e["public"]] for k, e in st.scan("cap_evidence")
+                                  if e["kind"] == "outcome"]})
+            g = caps.graph(w)
+            secs.append({"kind": "table", "title": "Technology graph edges",
+                         "columns": ["kind", "from", "to"], "rows": [[e["kind"], e["src"], e["dst"]] for e in g["edges"]]})
+            secs.append({"kind": "table", "title": "Emergent markets", "columns": ["first capability", "label", "day",
+                                                                                 "sellers", "buyers"],
+                         "rows": [[m["id"], m["label"], m["t"] // DAY, len(m["sellers"]), len(m["buyers"])]
+                                  for m in g["markets"]]})
+        if "ops_requests" in st.tables:
+            secs.append({"kind": "table", "title": "Problem requests (newest 50)",
+                         "columns": ["id", "by", "day", "title", "tags", "status"],
+                         "rows": [[k, r["by"], r["t"] // DAY, r["title"], " ".join(r["tags"]), r["status"]]
+                                  for k, r in list(st.scan("ops_requests"))[-50:]]})
+        return page(request, "Open world", secs, wid)
+
+    @app.get("/api/w/{wid}/open")
+    def api_open(wid: str):
+        from ..evaluation.open_endedness import census
+        return census(W.get(wid))
 
     @app.get("/w/{wid}/trace", response_class=HTMLResponse)
     def trace_form(request: Request, wid: str, entity: str = ""):

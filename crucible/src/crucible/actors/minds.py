@@ -258,8 +258,10 @@ class Society(Module):
         m = self.update_goals(ctx, mid, m, W, cash, rev_day)
         # 1. default routines on resources that are not delegated
         for name, routine in sorted(ctx.world.hooks.get("mind_routines", {}).items()):
+            m = dict(st.tables["minds"][mid])          # each routine sees the effects of the previous ones
             if name in m["routines"]:
                 routine(self, ctx, mid, m, rng)
+        m = dict(st.tables["minds"][mid])
         if self.p("ablate_adoption", False):
             return
         attention = int(m["traits"]["attention"])
@@ -585,29 +587,43 @@ class Society(Module):
         return None
 
     def monitor(self, ctx, mid, m, W):
+        """Watch installed capabilities. A transient outage of the provider (its triggers paused after repeated
+        failures) is tolerated: resume once the service answers again, at a cost in trust. Drop it after three
+        outage episodes within 30 days, or if it has been down for two days."""
         st = ctx.state
         org = m["org"]
-        today = ctx.now // DAY
+        cloud = ctx.world.modules["cloud"]
         for iid in sorted(st.find_ids("cap_installs", "installer", org)):
             i = st.tables["cap_installs"][iid]
             if i["status"] != "active":
                 continue
             c = st.tables["capabilities"][i["capability"]]
-            if c["status"] == "superseded":
-                newer = [x for x in st.find("capabilities", "host", c["host"]) if x["status"] == "active"]
-                if newer:
-                    continue
-            fails = 0
-            for t in i["triggers"]:
-                tr = st.get("wf_triggers", t)
-                if tr and tr.get("last") and not tr["last"]["ok"]:
-                    fails += tr["fails_in_row"]
-                if tr and tr["status"] == "paused" and i["status"] == "active":
-                    fails += 10
-            if fails >= 6 or ctx.world.modules["cloud"].live_deployment(st, c["host"]) is None:
+            dep = cloud.live_deployment(st, c["host"])
+            up = dep is not None and cloud.availability(st, dep) is None
+            paused = [t for t in i["triggers"] if (st.get("wf_triggers", t) or {}).get("status") == "paused"]
+            episodes = [e for e in m["memory"] if e["kind"] == "outage" and e["data"].get("capability") == i["capability"]
+                        and e["t"] > ctx.now - 30 * DAY]
+            if paused and up:
+                for t in paused:
+                    self.act(ctx, m["owner"], "wf.resume", {"trigger": t})
+                m = self.update_trust(ctx, mid, m, c["provider"], 0.0, 0.3)
+                self.remember(ctx, mid, m, "outage", c["provider"], {"capability": i["capability"]})
+                m = dict(st.tables["minds"][mid])
+                episodes.append(True)
+            down_since = (m.get("down_since") or {}).get(iid)
+            if not up and down_since is None:
+                self.set(ctx, mid, down_since=dict(m.get("down_since") or {}, **{iid: ctx.now}))
+                m = dict(st.tables["minds"][mid])
+            elif up and down_since is not None:
+                ds = dict(m.get("down_since") or {})
+                ds.pop(iid, None)
+                self.set(ctx, mid, down_since=ds)
+                m = dict(st.tables["minds"][mid])
+            long_down = not up and down_since is not None and ctx.now - down_since > 2 * DAY
+            if len(episodes) >= 3 or long_down:
                 self.act(ctx, m["owner"], "caps.uninstall", {"install": iid, "reason": "the service stopped working"})
                 m = self.update_trust(ctx, mid, m, c["provider"], 0.0, 1.0)
-                self.remember(ctx, mid, m, "dropped", c["provider"], {"capability": i["capability"], "day": today})
+                self.remember(ctx, mid, m, "dropped", c["provider"], {"capability": i["capability"]})
                 m = dict(st.tables["minds"][mid])
         return m
 
@@ -657,7 +673,7 @@ def capacity_routine(soc: Society, ctx: Ctx, mid: str, m: dict, rng) -> None:
         if dep is None or dep["status"] != "live":
             continue
         inst = st.get("instances", dep["instance"])
-        if inst is None or inst["status"] != "running" or caps.is_delegated(st, m["org"], dep["instance"]):
+        if inst is None or inst["status"] != "running" or caps.is_delegated(st, m["org"], dep["instance"], "cloud.manage"):
             continue
         met = soc.act(ctx, m["owner"], "cloud.metrics", {"host": host, "hours": 24})
         if not met:
@@ -678,7 +694,7 @@ def pricing_routine(soc: Society, ctx: Ctx, mid: str, m: dict, rng) -> None:
     caps = ctx.world.modules["caps"]
     for lid in sorted(st.find_ids("listings", "seller", m["org"])):
         l = st.tables["listings"][lid]
-        if l["status"] != "active" or l["kind"] != "api" or caps.is_delegated(st, m["org"], lid):
+        if l["status"] != "active" or l["kind"] != "api" or caps.is_delegated(st, m["org"], lid, "market.manage"):
             continue
         step = m["routines"].get("pricing", {}).get("step", 0.06)
         rivals = [x for x in (soc.act(ctx, m["owner"], "market.browse", {"need": l["need"], "sort": "price",

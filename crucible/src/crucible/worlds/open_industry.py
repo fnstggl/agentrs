@@ -65,7 +65,7 @@ class IndustryGen(Module):
             fac = ind.add_facility(ctx, oid, regions[f["region"] % len(regions)], f["name"])
             facs[f["handle"]] = fac
             ctx.emit("make.own_operators", {"org": oid, "n": int(f.get("operators", 3))}, vis="internal")
-            sp, tp = (round(float(rng.uniform(0.15, 0.95)), 2) for _ in range(2))
+            sp, tp = (round(float(rng.uniform(0.25, 0.85)), 2) for _ in range(2))
             mdl = f"{f['op']}-{'AB'[int(rng.integers(0, 2))]}"
             mach = ind.add_machine(ctx, oid, fac, mdl, wear=float(rng.uniform(0.0, 0.2)))
             for _ in range(int(f.get("machines", 1)) - 1):

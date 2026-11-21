@@ -177,6 +177,8 @@ def deal_reply(soc, ctx, deal, mind):
         return
     m = dict(m)
     me = d["to"]
+    if soc.p("ablate_negotiation", False):
+        return
     rng = ctx.rng("deal-reply", deal)
     if rng.random() > 0.35 + 0.65 * m["traits"]["sociability"] and d["round"] == 0 and not soc.p("always_reply", False):
         soc.remember(ctx, mind, m, "ignored_offer", d["from"], {"deal": deal})

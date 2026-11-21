@@ -36,7 +36,7 @@ class Shoppers(Module):
         st = world.state
         st.declare_table("shop_slots", index=("slot",))
         st.declare_table("shop_days")
-        self.cfg = {"n": 20000, "rate": [0.005, 0.03], "beta": [0.5, 1.8], "u0": [3.5, 1.2], "price_scale": 1000.0,
+        self.cfg = {"n": 20000, "rate": [0.005, 0.03], "beta": [0.5, 1.8], "u0": [3.5, 1.2], "price_scale": 2500.0,
                     "hop_penalty": 1.5, "discover": 0.15, "wom": 0.08, "income_per_day_cents": 2_000_000,
                     "worker_spend": 0.3}
         self.cfg.update(self.config)

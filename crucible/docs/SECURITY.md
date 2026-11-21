@@ -86,3 +86,20 @@ Content created by agents (posts, mail, docs, code, listings) is never executed 
 interpreted as instructions to the operator. LLM-backed actors receive it as observation text; prompt injection
 can therefore influence *their* in-world behaviour (a realistic phenomenon), but never the kernel, the ledger or
 the evaluator.
+
+## Open-world surfaces (feat/crucible-open-world)
+
+* **Delegation is scoped and revocable.** Installing a capability creates `id.grant`s from the installer to the
+  service principal with the scopes the descriptor declares, bound to resources the installer owns; uninstalling
+  revokes them (invariant checked). A service can act on another organisation's resources only within those grants
+  (tested: a service with `cloud.manage` on one instance cannot resize another).
+* **Brokered identity.** A sandboxed program's RPCs always run as its own service principal (`Ctx.call(...,
+  brokered=True)` is used only by the broker), so callers cannot lend it their authority and it cannot act as them.
+* **Institutional rules are enforced at authorisation** (`identity.authorize` -> `gov.check`): owners, admins and
+  delegates alike are refused governed actions unless a proposal was approved or a delegated budget covers them.
+* **Operator tools** (`admin.*`) remain unreachable from agents, services, triggers and flows (tested).
+* **Private state of simulated minds** (reservation wages, beliefs, trust) is written only in internal events and
+  exposed by no tool (tested).
+* **Isolation backends** (`sandbox/backends.py`): `detect()` reports what the host provides; requesting an
+  unavailable backend (gVisor, bubblewrap, Firecracker) raises `SandboxUnavailable`; there is no fallback to
+  weaker isolation. On this host only the default Landlock/seccomp process sandbox is available - not VM-grade.

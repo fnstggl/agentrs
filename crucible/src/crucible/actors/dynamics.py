@@ -85,7 +85,7 @@ def entrepreneur_routine(soc, ctx, mid, m, rng):
             open_src = repo is not None and repo["visibility"] == "public" and repo["license"] == "open"
             if not open_src:
                 continue
-            score = buyers / (1 + sellers)
+            score = buyers / (1 + len(sellers))
             if best is None or score > best[0]:
                 best = (score, cid, c, dep)
     if best is None:

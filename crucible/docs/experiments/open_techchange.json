@@ -1,0 +1,3279 @@
+{
+ "family": "open_scarce_energy",
+ "seed": 1,
+ "days": 45,
+ "fork_t": 172800,
+ "chain": {
+  "bottleneck": {
+   "t": 171000,
+   "by": "o:assem1",
+   "tags": [
+    "account",
+    "cost-energy",
+    "facility",
+    "machine"
+   ]
+  },
+  "improvement_published": {
+   "t": 964800,
+   "notes": {
+    "pnote_000001": {
+     "model": "form-A",
+     "evidence": {
+      "runs": 1,
+      "units": 12,
+      "yield": 0.9167,
+      "kwh_per_good_unit": 0.4691
+     },
+     "buyers": 1
+    },
+    "pnote_000002": {
+     "model": "form-B",
+     "evidence": {
+      "runs": 1,
+      "units": 12,
+      "yield": 0.9167,
+      "kwh_per_good_unit": 2.4536
+     },
+     "buyers": 1
+    }
+   },
+   "researcher_findings": {
+    "form-A": {
+     "speed": 0.2,
+     "temp": 0.2,
+     "yield": 0.9166666666666666,
+     "kwh_per_good_unit": 0.4690909090909091
+    },
+    "form-B": {
+     "speed": 0.5,
+     "temp": 0.5,
+     "yield": 0.9166666666666666,
+     "kwh_per_good_unit": 2.4536363636363636
+    }
+   }
+  },
+  "adoption": [
+   {
+    "t": 1207800,
+    "firm": "o:forge2",
+    "note": "pnote_000001"
+   },
+   {
+    "t": 1294200,
+    "firm": "o:forge1",
+    "note": "pnote_000002"
+   }
+  ],
+  "efficiency_of_adopters": {
+   "o:forge1": {
+    "before": {
+     "units": 726,
+     "made": 441,
+     "yield": 0.6074,
+     "kwh_per_good_unit": 4.4298
+    },
+    "after": {
+     "units": 3753,
+     "made": 2562,
+     "yield": 0.6827,
+     "kwh_per_good_unit": 3.2952
+    },
+    "counterfactual_after": {
+     "units": 2765,
+     "made": 1649,
+     "yield": 0.5964,
+     "kwh_per_good_unit": 4.512
+    }
+   },
+   "o:forge2": {
+    "before": {
+     "units": 843,
+     "made": 458,
+     "yield": 0.5433,
+     "kwh_per_good_unit": 1.2726
+    },
+    "after": {
+     "units": 3407,
+     "made": 2300,
+     "yield": 0.6751,
+     "kwh_per_good_unit": 0.6369
+    },
+    "counterfactual_after": {
+     "units": 3525,
+     "made": 1821,
+     "yield": 0.5166,
+     "kwh_per_good_unit": 1.3384
+    }
+   }
+  },
+  "market": {
+   "curtailment_after_publication": {
+    "factual": 166,
+    "counterfactual": 186
+   },
+   "units_made_after_publication": {
+    "factual": 24273,
+    "counterfactual": 20327
+   },
+   "retail_units_sold": {
+    "factual": 2108,
+    "counterfactual": 1680
+   },
+   "operating_after_publication": {
+    "factual": {
+     "o:assem1": -479972,
+     "o:assem2": -316477,
+     "o:forge1": 52391,
+     "o:forge2": 292648,
+     "o:mine1": 1871633,
+     "o:mine2": 536886
+    },
+    "counterfactual": {
+     "o:assem1": -56507,
+     "o:assem2": -824909,
+     "o:forge1": 190443,
+     "o:forge2": -262089,
+     "o:mine1": 980375,
+     "o:mine2": 444381
+    }
+   }
+  },
+  "responses_of_others": [
+   {
+    "firm": "o:mine1",
+    "t": 1035000,
+    "kind": "invest",
+    "with": null,
+    "data": {
+     "design": "d_000001",
+     "sold": 252.7,
+     "missed": 417.3
+    }
+   },
+   {
+    "firm": "o:mine1",
+    "t": 1467000,
+    "kind": "invest",
+    "with": null,
+    "data": {
+     "design": "d_000001",
+     "sold": 251.3,
+     "missed": 348.7
+    }
+   },
+   {
+    "firm": "o:mine1",
+    "t": 1899000,
+    "kind": "invest",
+    "with": null,
+    "data": {
+     "design": "d_000001",
+     "sold": 390.7,
+     "missed": 311.7
+    }
+   },
+   {
+    "firm": "o:mine2",
+    "t": 1035000,
+    "kind": "invest",
+    "with": null,
+    "data": {
+     "design": "d_000002",
+     "sold": 175.3,
+     "missed": 469.0
+    }
+   },
+   {
+    "firm": "o:mine2",
+    "t": 1467000,
+    "kind": "invest",
+    "with": null,
+    "data": {
+     "design": "d_000002",
+     "sold": 251.0,
+     "missed": 347.0
+    }
+   },
+   {
+    "firm": "o:mine2",
+    "t": 1899000,
+    "kind": "invest",
+    "with": null,
+    "data": {
+     "design": "d_000002",
+     "sold": 422.3,
+     "missed": 369.0
+    }
+   }
+  ],
+  "new_problem_reports_only_in_factual": [
+   "cost-licence"
+  ]
+ },
+ "regeneration_identical": true,
+ "events": 60931,
+ "wall_s": 6.3,
+ "timeline": [
+  {
+   "factual": {
+    "day": 2,
+    "operating": {
+     "o:assem1": 16830,
+     "o:assem2": 29919,
+     "o:forge1": 0,
+     "o:forge2": 0,
+     "o:mine1": 14695,
+     "o:mine2": 0
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1530,
+      "sold": 11
+     },
+     "ret_000002": {
+      "price": 1500,
+      "sold": 20
+     }
+    },
+    "offers": {
+     "off_000001": 70,
+     "off_000002": 80,
+     "off_000003": 320,
+     "off_000004": 300
+    },
+    "grid": {
+     "r0": 0,
+     "r1": 178.3,
+     "r2": 0,
+     "r3": 4.5
+    }
+   },
+   "counterfactual": {
+    "day": 2,
+    "operating": {
+     "o:assem1": 13770,
+     "o:assem2": 22500,
+     "o:forge1": 0,
+     "o:forge2": 0,
+     "o:mine1": 0,
+     "o:mine2": 0
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1530,
+      "sold": 9
+     },
+     "ret_000002": {
+      "price": 1500,
+      "sold": 15
+     }
+    },
+    "offers": {
+     "off_000001": 70,
+     "off_000002": 80,
+     "off_000003": 320,
+     "off_000004": 300
+    },
+    "grid": {
+     "r0": 0,
+     "r1": 0,
+     "r2": 0,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 3,
+    "operating": {
+     "o:assem1": 36010,
+     "o:assem2": 36825,
+     "o:forge1": 0,
+     "o:forge2": 0,
+     "o:mine1": -697,
+     "o:mine2": 0
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1530,
+      "sold": 24
+     },
+     "ret_000002": {
+      "price": 1500,
+      "sold": 25
+     }
+    },
+    "offers": {
+     "off_000001": 70,
+     "off_000002": 80,
+     "off_000003": 320,
+     "off_000004": 300
+    },
+    "grid": {
+     "r0": 39.4,
+     "r1": 38.7,
+     "r2": 0,
+     "r3": 37.5
+    }
+   },
+   "counterfactual": {
+    "day": 3,
+    "operating": {
+     "o:assem1": 36048,
+     "o:assem2": 36857,
+     "o:forge1": 0,
+     "o:forge2": 0,
+     "o:mine1": 0,
+     "o:mine2": 0
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1530,
+      "sold": 24
+     },
+     "ret_000002": {
+      "price": 1500,
+      "sold": 25
+     }
+    },
+    "offers": {
+     "off_000001": 70,
+     "off_000002": 80,
+     "off_000003": 320,
+     "off_000004": 300
+    },
+    "grid": {
+     "r0": 37.3,
+     "r1": 0,
+     "r2": 0,
+     "r3": 35.7
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 4,
+    "operating": {
+     "o:assem1": -30485,
+     "o:assem2": -15811,
+     "o:forge1": 63281,
+     "o:forge2": 66538,
+     "o:mine1": -142,
+     "o:mine2": 0
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1530,
+      "sold": 26
+     },
+     "ret_000002": {
+      "price": 1500,
+      "sold": 39
+     }
+    },
+    "offers": {
+     "off_000001": 70,
+     "off_000002": 80,
+     "off_000003": 320,
+     "off_000004": 300
+    },
+    "grid": {
+     "r0": 45.8,
+     "r1": 518.0,
+     "r2": 112.0,
+     "r3": 29.4
+    }
+   },
+   "counterfactual": {
+    "day": 4,
+    "operating": {
+     "o:assem1": -35096,
+     "o:assem2": -12823,
+     "o:forge1": 61075,
+     "o:forge2": 64635,
+     "o:mine1": 0,
+     "o:mine2": 0
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1530,
+      "sold": 22
+     },
+     "ret_000002": {
+      "price": 1500,
+      "sold": 39
+     }
+    },
+    "offers": {
+     "off_000001": 70,
+     "off_000002": 80,
+     "off_000003": 320,
+     "off_000004": 300
+    },
+    "grid": {
+     "r0": 30.9,
+     "r1": 511.3,
+     "r2": 102.3,
+     "r3": 35.7
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 5,
+    "operating": {
+     "o:assem1": 34423,
+     "o:assem2": 61198,
+     "o:forge1": -3514,
+     "o:forge2": -760,
+     "o:mine1": -47,
+     "o:mine2": 0
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1530,
+      "sold": 23
+     },
+     "ret_000002": {
+      "price": 1500,
+      "sold": 42
+     }
+    },
+    "offers": {
+     "off_000001": 70,
+     "off_000002": 80,
+     "off_000003": 473,
+     "off_000004": 300
+    },
+    "grid": {
+     "r0": 42.6,
+     "r1": 196.3,
+     "r2": 42.2,
+     "r3": 99.9
+    }
+   },
+   "counterfactual": {
+    "day": 5,
+    "operating": {
+     "o:assem1": 50484,
+     "o:assem2": 61166,
+     "o:forge1": -1943,
+     "o:forge2": -760,
+     "o:mine1": 0,
+     "o:mine2": 0
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1530,
+      "sold": 34
+     },
+     "ret_000002": {
+      "price": 1500,
+      "sold": 42
+     }
+    },
+    "offers": {
+     "off_000001": 70,
+     "off_000002": 80,
+     "off_000003": 466,
+     "off_000004": 300
+    },
+    "grid": {
+     "r0": 85.2,
+     "r1": 107.6,
+     "r2": 42.2,
+     "r3": 101.7
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 6,
+    "operating": {
+     "o:assem1": -66245,
+     "o:assem2": 30285,
+     "o:forge1": 88663,
+     "o:forge2": 33526,
+     "o:mine1": 12821,
+     "o:mine2": 8803
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1530,
+      "sold": 44
+     },
+     "ret_000002": {
+      "price": 1500,
+      "sold": 50
+     }
+    },
+    "offers": {
+     "off_000001": 74,
+     "off_000002": 84,
+     "off_000003": 497,
+     "off_000004": 315
+    },
+    "grid": {
+     "r0": 76.7,
+     "r1": 683.0,
+     "r2": 838.3,
+     "r3": 6.2
+    }
+   },
+   "counterfactual": {
+    "day": 6,
+    "operating": {
+     "o:assem1": -97461,
+     "o:assem2": 43428,
+     "o:forge1": 75653,
+     "o:forge2": 57418,
+     "o:mine1": 15697,
+     "o:mine2": 0
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1530,
+      "sold": 31
+     },
+     "ret_000002": {
+      "price": 1500,
+      "sold": 44
+     }
+    },
+    "offers": {
+     "off_000001": 74,
+     "off_000002": 80,
+     "off_000003": 490,
+     "off_000004": 315
+    },
+    "grid": {
+     "r0": 49.0,
+     "r1": 747.6,
+     "r2": 62.9,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 7,
+    "operating": {
+     "o:assem1": 57787,
+     "o:assem2": -14342,
+     "o:forge1": 26327,
+     "o:forge2": 23495,
+     "o:mine1": 11003,
+     "o:mine2": -1363
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1530,
+      "sold": 39
+     },
+     "ret_000002": {
+      "price": 1560,
+      "sold": 48
+     }
+    },
+    "offers": {
+     "off_000001": 78,
+     "off_000002": 89,
+     "off_000003": 736,
+     "off_000004": 453
+    },
+    "grid": {
+     "r0": 104.4,
+     "r1": 521.5,
+     "r2": 765.7,
+     "r3": 28.6
+    }
+   },
+   "counterfactual": {
+    "day": 7,
+    "operating": {
+     "o:assem1": 54997,
+     "o:assem2": -10806,
+     "o:forge1": 34494,
+     "o:forge2": -8661,
+     "o:mine1": 11028,
+     "o:mine2": 9200
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1530,
+      "sold": 37
+     },
+     "ret_000002": {
+      "price": 1560,
+      "sold": 43
+     }
+    },
+    "offers": {
+     "off_000001": 78,
+     "off_000002": 84,
+     "off_000003": 722,
+     "off_000004": 331
+    },
+    "grid": {
+     "r0": 89.5,
+     "r1": 605.0,
+     "r2": 800.3,
+     "r3": 8.9
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 8,
+    "operating": {
+     "o:assem1": -15939,
+     "o:assem2": 45353,
+     "o:forge1": 26105,
+     "o:forge2": 12027,
+     "o:mine1": 11701,
+     "o:mine2": -2419
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1756,
+      "sold": 38
+     },
+     "ret_000002": {
+      "price": 1623,
+      "sold": 30
+     }
+    },
+    "offers": {
+     "off_000001": 82,
+     "off_000002": 94,
+     "off_000003": 773,
+     "off_000004": 476
+    },
+    "grid": {
+     "r0": 73.5,
+     "r1": 518.8,
+     "r2": 742.2,
+     "r3": 80.3
+    }
+   },
+   "counterfactual": {
+    "day": 8,
+    "operating": {
+     "o:assem1": -16592,
+     "o:assem2": 13606,
+     "o:forge1": 32450,
+     "o:forge2": 9950,
+     "o:mine1": 12674,
+     "o:mine2": -494
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1642,
+      "sold": 43
+     },
+     "ret_000002": {
+      "price": 1623,
+      "sold": 9
+     }
+    },
+    "offers": {
+     "off_000001": 82,
+     "off_000002": 89,
+     "off_000003": 759,
+     "off_000004": 480
+    },
+    "grid": {
+     "r0": 90.5,
+     "r1": 537.7,
+     "r2": 753.2,
+     "r3": 24.1
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 9,
+    "operating": {
+     "o:assem1": 27067,
+     "o:assem2": 92013,
+     "o:forge1": 14204,
+     "o:forge2": 421,
+     "o:mine1": 11115,
+     "o:mine2": -1396
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1989,
+      "sold": 44
+     },
+     "ret_000002": {
+      "price": 1623,
+      "sold": 57
+     }
+    },
+    "offers": {
+     "off_000001": 87,
+     "off_000002": 99,
+     "off_000003": 836,
+     "off_000004": 500
+    },
+    "grid": {
+     "r0": 62.8,
+     "r1": 494.6,
+     "r2": 744.3,
+     "r3": 27.7
+    }
+   },
+   "counterfactual": {
+    "day": 9,
+    "operating": {
+     "o:assem1": 4295,
+     "o:assem2": 33633,
+     "o:forge1": -53539,
+     "o:forge2": 5802,
+     "o:mine1": 11448,
+     "o:mine2": -617
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 1879,
+      "sold": 41
+     },
+     "ret_000002": {
+      "price": 1688,
+      "sold": 21
+     }
+    },
+    "offers": {
+     "off_000001": 87,
+     "off_000002": 94,
+     "off_000003": 797,
+     "off_000004": 504
+    },
+    "grid": {
+     "r0": 77.7,
+     "r1": 491.9,
+     "r2": 749.8,
+     "r3": 25.0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 10,
+    "operating": {
+     "o:assem1": 74377,
+     "o:assem2": 43821,
+     "o:forge1": -91785,
+     "o:forge2": 7112,
+     "o:mine1": 11367,
+     "o:mine2": -2241
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 2152,
+      "sold": 49
+     },
+     "ret_000002": {
+      "price": 1688,
+      "sold": 27
+     }
+    },
+    "offers": {
+     "off_000001": 92,
+     "off_000002": 104,
+     "off_000003": 878,
+     "off_000004": 525
+    },
+    "grid": {
+     "r0": 31.9,
+     "r1": 541.2,
+     "r2": 738.0,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 10,
+    "operating": {
+     "o:assem1": 44539,
+     "o:assem2": 37136,
+     "o:forge1": -79947,
+     "o:forge2": 5669,
+     "o:mine1": 11543,
+     "o:mine2": -62080
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 2046,
+      "sold": 38
+     },
+     "ret_000002": {
+      "price": 1756,
+      "sold": 22
+     }
+    },
+    "offers": {
+     "off_000001": 92,
+     "off_000002": 99,
+     "off_000003": 837,
+     "off_000004": 530
+    },
+    "grid": {
+     "r0": 65.0,
+     "r1": 236.3,
+     "r2": 36.0,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 11,
+    "operating": {
+     "o:assem1": 30713,
+     "o:assem2": 0,
+     "o:forge1": -52623,
+     "o:forge2": -1342,
+     "o:mine1": -43914,
+     "o:mine2": -228
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 2499,
+      "sold": 38
+     },
+     "ret_000002": {
+      "price": 1688,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 97,
+     "off_000002": 110,
+     "off_000003": 922,
+     "off_000004": 552
+    },
+    "grid": {
+     "r0": 29.8,
+     "r1": 105.8,
+     "r2": 743.6,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 11,
+    "operating": {
+     "o:assem1": 64417,
+     "o:assem2": 0,
+     "o:forge1": -21485,
+     "o:forge2": 14727,
+     "o:mine1": 12212,
+     "o:mine2": -13881
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 2202,
+      "sold": 39
+     },
+     "ret_000002": {
+      "price": 1756,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 97,
+     "off_000002": 104,
+     "off_000003": 879,
+     "off_000004": 557
+    },
+    "grid": {
+     "r0": 29.8,
+     "r1": 491.9,
+     "r2": 696.5,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 12,
+    "operating": {
+     "o:assem1": 16854,
+     "o:assem2": 0,
+     "o:forge1": -4352,
+     "o:forge2": 2597,
+     "o:mine1": 0,
+     "o:mine2": -2623
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 2613,
+      "sold": 13
+     },
+     "ret_000002": {
+      "price": 1688,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 102,
+     "off_000002": 116,
+     "off_000003": 969,
+     "off_000004": 580
+    },
+    "grid": {
+     "r0": 40.5,
+     "r1": 383.8,
+     "r2": 732.5,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 12,
+    "operating": {
+     "o:assem1": 28752,
+     "o:assem2": 0,
+     "o:forge1": 36079,
+     "o:forge2": -19064,
+     "o:mine1": 11220,
+     "o:mine2": 3613
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 2417,
+      "sold": 41
+     },
+     "ret_000002": {
+      "price": 1756,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 102,
+     "off_000002": 110,
+     "off_000003": 923,
+     "off_000004": 585
+    },
+    "grid": {
+     "r0": 0,
+     "r1": 707.2,
+     "r2": 756.0,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 13,
+    "operating": {
+     "o:assem1": -21132,
+     "o:assem2": 0,
+     "o:forge1": 56025,
+     "o:forge2": -55671,
+     "o:mine1": -4291,
+     "o:mine2": -1949
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 2868,
+      "sold": 19
+     },
+     "ret_000002": {
+      "price": 1688,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 108,
+     "off_000002": 122,
+     "off_000003": 1018,
+     "off_000004": 609
+    },
+    "grid": {
+     "r0": 4.3,
+     "r1": 236.3,
+     "r2": 18.1,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 13,
+    "operating": {
+     "o:assem1": -28586,
+     "o:assem2": 0,
+     "o:forge1": -33343,
+     "o:forge2": 3474,
+     "o:mine1": 5556,
+     "o:mine2": 2721
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 2703,
+      "sold": 23
+     },
+     "ret_000002": {
+      "price": 1756,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 108,
+     "off_000002": 116,
+     "off_000003": 970,
+     "off_000004": 615
+    },
+    "grid": {
+     "r0": 38.3,
+     "r1": 226.0,
+     "r2": 750.5,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 14,
+    "operating": {
+     "o:assem1": -5610,
+     "o:assem2": 0,
+     "o:forge1": -88523,
+     "o:forge2": 10889,
+     "o:mine1": 19364,
+     "o:mine2": -38505
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 2983,
+      "sold": 2
+     },
+     "ret_000002": {
+      "price": 1688,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 114,
+     "off_000002": 129,
+     "off_000003": 1069,
+     "off_000004": 640
+    },
+    "grid": {
+     "r0": 21.3,
+     "r1": 486.0,
+     "r2": 1393.1,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 14,
+    "operating": {
+     "o:assem1": -12298,
+     "o:assem2": 0,
+     "o:forge1": 54149,
+     "o:forge2": 2811,
+     "o:mine1": -4291,
+     "o:mine2": 3883
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 2900,
+      "sold": 24
+     },
+     "ret_000002": {
+      "price": 1756,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 114,
+     "off_000002": 122,
+     "off_000003": 1019,
+     "off_000004": 646
+    },
+    "grid": {
+     "r0": 39.4,
+     "r1": 236.3,
+     "r2": 750.5,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 15,
+    "operating": {
+     "o:assem1": -55197,
+     "o:assem2": 0,
+     "o:forge1": 56243,
+     "o:forge2": -46235,
+     "o:mine1": 16641,
+     "o:mine2": 4707
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 3197,
+      "sold": 10
+     },
+     "ret_000002": {
+      "price": 1688,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 120,
+     "off_000002": 136,
+     "off_000003": 1123,
+     "off_000004": 672
+    },
+    "grid": {
+     "r0": 31.9,
+     "r1": 588.0,
+     "r2": 1453.3,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 15,
+    "operating": {
+     "o:assem1": 24391,
+     "o:assem2": 0,
+     "o:forge1": -29818,
+     "o:forge2": 5028,
+     "o:mine1": 17240,
+     "o:mine2": -24519
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 3046,
+      "sold": 16
+     },
+     "ret_000002": {
+      "price": 1756,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 120,
+     "off_000002": 129,
+     "off_000003": 1070,
+     "off_000004": 679
+    },
+    "grid": {
+     "r0": 38.3,
+     "r1": 644.6,
+     "r2": 1436.7,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 16,
+    "operating": {
+     "o:assem1": -32024,
+     "o:assem2": 0,
+     "o:forge1": -66621,
+     "o:forge2": -82604,
+     "o:mine1": 31954,
+     "o:mine2": 4879
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 3771,
+      "sold": 11
+     },
+     "ret_000002": {
+      "price": 1688,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 126,
+     "off_000002": 143,
+     "off_000003": 1180,
+     "off_000004": 706
+    },
+    "grid": {
+     "r0": 17.0,
+     "r1": 540.7,
+     "r2": 1393.1,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 16,
+    "operating": {
+     "o:assem1": -11542,
+     "o:assem2": 0,
+     "o:forge1": 31532,
+     "o:forge2": -26936,
+     "o:mine1": 32122,
+     "o:mine2": -3944
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 3168,
+      "sold": 27
+     },
+     "ret_000002": {
+      "price": 1756,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 126,
+     "off_000002": 136,
+     "off_000003": 1124,
+     "off_000004": 732
+    },
+    "grid": {
+     "r0": 35.1,
+     "r1": 803.4,
+     "r2": 1494.7,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 17,
+    "operating": {
+     "o:assem1": 37211,
+     "o:assem2": -77880,
+     "o:forge1": 31960,
+     "o:forge2": -1513,
+     "o:mine1": 31078,
+     "o:mine2": -41247
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 3922,
+      "sold": 10
+     },
+     "ret_000002": {
+      "price": 1688,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 133,
+     "off_000002": 143,
+     "off_000003": 1239,
+     "off_000004": 742
+    },
+    "grid": {
+     "r0": 27.7,
+     "r1": 727.5,
+     "r2": 1476.9,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 17,
+    "operating": {
+     "o:assem1": 24451,
+     "o:assem2": -103408,
+     "o:forge1": 69986,
+     "o:forge2": -49589,
+     "o:mine1": -36754,
+     "o:mine2": -62218
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 3369,
+      "sold": 18
+     },
+     "ret_000002": {
+      "price": 1756,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 133,
+     "off_000002": 143,
+     "off_000003": 1181,
+     "off_000004": 769
+    },
+    "grid": {
+     "r0": 20.2,
+     "r1": 529.6,
+     "r2": 757.4,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 18,
+    "operating": {
+     "o:assem1": -12296,
+     "o:assem2": -156114,
+     "o:forge1": 105283,
+     "o:forge2": -80727,
+     "o:mine1": 32638,
+     "o:mine2": 41639
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4079,
+      "sold": 12
+     },
+     "ret_000002": {
+      "price": 1780,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 140,
+     "off_000002": 151,
+     "off_000003": 1301,
+     "off_000004": 780
+    },
+    "grid": {
+     "r0": 0,
+     "r1": 848.9,
+     "r2": 1453.3,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 18,
+    "operating": {
+     "o:assem1": -12257,
+     "o:assem2": 0,
+     "o:forge1": -29287,
+     "o:forge2": 22442,
+     "o:mine1": 20125,
+     "o:mine2": -18452
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 3504,
+      "sold": 10
+     },
+     "ret_000002": {
+      "price": 1756,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 140,
+     "off_000002": 151,
+     "off_000003": 1181,
+     "off_000004": 808
+    },
+    "grid": {
+     "r0": 31.9,
+     "r1": 486.6,
+     "r2": 1445.7,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 19,
+    "operating": {
+     "o:assem1": -1536,
+     "o:assem2": -81900,
+     "o:forge1": -46593,
+     "o:forge2": 40711,
+     "o:mine1": 33194,
+     "o:mine2": 4716
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4079,
+      "sold": 0
+     },
+     "ret_000002": {
+      "price": 1963,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 147,
+     "off_000002": 159,
+     "off_000003": 1301,
+     "off_000004": 819
+    },
+    "grid": {
+     "r0": 85.2,
+     "r1": 680.2,
+     "r2": 1337.2,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 19,
+    "operating": {
+     "o:assem1": -109815,
+     "o:assem2": 0,
+     "o:forge1": 13224,
+     "o:forge2": -64389,
+     "o:mine1": 20128,
+     "o:mine2": 2651
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 3710,
+      "sold": 14
+     },
+     "ret_000002": {
+      "price": 1756,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 147,
+     "off_000002": 159,
+     "off_000003": 1241,
+     "off_000004": 849
+    },
+    "grid": {
+     "r0": 44.7,
+     "r1": 617.7,
+     "r2": 1495.4,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 20,
+    "operating": {
+     "o:assem1": -130393,
+     "o:assem2": -72123,
+     "o:forge1": 47896,
+     "o:forge2": 148471,
+     "o:mine1": -31127,
+     "o:mine2": -88202
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4333,
+      "sold": 33
+     },
+     "ret_000002": {
+      "price": 2084,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 155,
+     "off_000002": 167,
+     "off_000003": 1301,
+     "off_000004": 860
+    },
+    "grid": {
+     "r0": 0,
+     "r1": 626.2,
+     "r2": 1424.5,
+     "r3": 93.7
+    }
+   },
+   "counterfactual": {
+    "day": 20,
+    "operating": {
+     "o:assem1": 3094,
+     "o:assem2": 0,
+     "o:forge1": -37552,
+     "o:forge2": 49629,
+     "o:mine1": -34732,
+     "o:mine2": -85853
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 3859,
+      "sold": 22
+     },
+     "ret_000002": {
+      "price": 1756,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 155,
+     "off_000002": 167,
+     "off_000003": 1241,
+     "off_000004": 892
+    },
+    "grid": {
+     "r0": 70.3,
+     "r1": 647.3,
+     "r2": 1449.8,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 21,
+    "operating": {
+     "o:assem1": 38479,
+     "o:assem2": 119489,
+     "o:forge1": -58103,
+     "o:forge2": -49721,
+     "o:mine1": 43915,
+     "o:mine2": -3610
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4333,
+      "sold": 9
+     },
+     "ret_000002": {
+      "price": 2114,
+      "sold": 58
+     }
+    },
+    "offers": {
+     "off_000001": 163,
+     "off_000002": 176,
+     "off_000003": 1301,
+     "off_000004": 860
+    },
+    "grid": {
+     "r0": 28.8,
+     "r1": 714.0,
+     "r2": 1455.4,
+     "r3": 76.7
+    }
+   },
+   "counterfactual": {
+    "day": 21,
+    "operating": {
+     "o:assem1": -67879,
+     "o:assem2": 0,
+     "o:forge1": -34852,
+     "o:forge2": -10872,
+     "o:mine1": -28430,
+     "o:mine2": 11084
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4141,
+      "sold": 15
+     },
+     "ret_000002": {
+      "price": 1756,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 163,
+     "off_000002": 176,
+     "off_000003": 1304,
+     "off_000004": 937
+    },
+    "grid": {
+     "r0": 27.7,
+     "r1": 548.4,
+     "r2": 1503.7,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 22,
+    "operating": {
+     "o:assem1": 64132,
+     "o:assem2": -183968,
+     "o:forge1": 118436,
+     "o:forge2": 57488,
+     "o:mine1": 43283,
+     "o:mine2": 16063
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4244,
+      "sold": 15
+     },
+     "ret_000002": {
+      "price": 2649,
+      "sold": 52
+     }
+    },
+    "offers": {
+     "off_000001": 172,
+     "off_000002": 185,
+     "off_000003": 1301,
+     "off_000004": 860
+    },
+    "grid": {
+     "r0": 47.9,
+     "r1": 727.4,
+     "r2": 1483.8,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 22,
+    "operating": {
+     "o:assem1": 73788,
+     "o:assem2": -97448,
+     "o:forge1": -42616,
+     "o:forge2": 44572,
+     "o:mine1": 29671,
+     "o:mine2": 8539
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4289,
+      "sold": 20
+     },
+     "ret_000002": {
+      "price": 1872,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 172,
+     "off_000002": 185,
+     "off_000003": 1304,
+     "off_000004": 984
+    },
+    "grid": {
+     "r0": 0,
+     "r1": 660.8,
+     "r2": 1502.5,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 23,
+    "operating": {
+     "o:assem1": -179319,
+     "o:assem2": 59818,
+     "o:forge1": 41100,
+     "o:forge2": 35503,
+     "o:mine1": 49682,
+     "o:mine2": 21339
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4512,
+      "sold": 24
+     },
+     "ret_000002": {
+      "price": 2755,
+      "sold": 23
+     }
+    },
+    "offers": {
+     "off_000001": 181,
+     "off_000002": 195,
+     "off_000003": 1301,
+     "off_000004": 903
+    },
+    "grid": {
+     "r0": 56.4,
+     "r1": 734.2,
+     "r2": 1486.3,
+     "r3": 61.6
+    }
+   },
+   "counterfactual": {
+    "day": 23,
+    "operating": {
+     "o:assem1": 50777,
+     "o:assem2": -77441,
+     "o:forge1": -63133,
+     "o:forge2": 19387,
+     "o:mine1": 50573,
+     "o:mine2": 11990
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4461,
+      "sold": 12
+     },
+     "ret_000002": {
+      "price": 2038,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 181,
+     "off_000002": 195,
+     "off_000003": 1304,
+     "off_000004": 1034
+    },
+    "grid": {
+     "r0": 38.3,
+     "r1": 643.3,
+     "r2": 1504.6,
+     "r3": 92.8
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 24,
+    "operating": {
+     "o:assem1": 102586,
+     "o:assem2": -197970,
+     "o:forge1": 177112,
+     "o:forge2": 30738,
+     "o:mine1": 48443,
+     "o:mine2": 16050
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4512,
+      "sold": 23
+     },
+     "ret_000002": {
+      "price": 3137,
+      "sold": 49
+     }
+    },
+    "offers": {
+     "off_000001": 191,
+     "off_000002": 205,
+     "off_000003": 1301,
+     "off_000004": 949
+    },
+    "grid": {
+     "r0": 66.0,
+     "r1": 711.7,
+     "r2": 1504.0,
+     "r3": 59.8
+    }
+   },
+   "counterfactual": {
+    "day": 24,
+    "operating": {
+     "o:assem1": -192886,
+     "o:assem2": 143460,
+     "o:forge1": 130220,
+     "o:forge2": 26131,
+     "o:mine1": 51508,
+     "o:mine2": 7093
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4461,
+      "sold": 20
+     },
+     "ret_000002": {
+      "price": 2120,
+      "sold": 71
+     }
+    },
+    "offers": {
+     "off_000001": 191,
+     "off_000002": 205,
+     "off_000003": 1304,
+     "off_000004": 1086
+    },
+    "grid": {
+     "r0": 62.8,
+     "r1": 982.4,
+     "r2": 1500.6,
+     "r3": 68.7
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 25,
+    "operating": {
+     "o:assem1": -74762,
+     "o:assem2": 117582,
+     "o:forge1": 53771,
+     "o:forge2": -57973,
+     "o:mine1": 51513,
+     "o:mine2": 15909
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4767,
+      "sold": 25
+     },
+     "ret_000002": {
+      "price": 3263,
+      "sold": 38
+     }
+    },
+    "offers": {
+     "off_000001": 201,
+     "off_000002": 216,
+     "off_000003": 1367,
+     "off_000004": 997
+    },
+    "grid": {
+     "r0": 0,
+     "r1": 711.1,
+     "r2": 1501.0,
+     "r3": 90.1
+    }
+   },
+   "counterfactual": {
+    "day": 25,
+    "operating": {
+     "o:assem1": 54988,
+     "o:assem2": -57976,
+     "o:forge1": 102753,
+     "o:forge2": 48625,
+     "o:mine1": -10250,
+     "o:mine2": -176018
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4575,
+      "sold": 25
+     },
+     "ret_000002": {
+      "price": 2306,
+      "sold": 52
+     }
+    },
+    "offers": {
+     "off_000001": 201,
+     "off_000002": 216,
+     "off_000003": 1304,
+     "off_000004": 1141
+    },
+    "grid": {
+     "r0": 63.9,
+     "r1": 764.4,
+     "r2": 1404.2,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 26,
+    "operating": {
+     "o:assem1": 56513,
+     "o:assem2": -93551,
+     "o:forge1": 88268,
+     "o:forge2": 37251,
+     "o:mine1": -18550,
+     "o:mine2": 14144
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4767,
+      "sold": 12
+     },
+     "ret_000002": {
+      "price": 3811,
+      "sold": 47
+     }
+    },
+    "offers": {
+     "off_000001": 212,
+     "off_000002": 227,
+     "off_000003": 1436,
+     "off_000004": 1047
+    },
+    "grid": {
+     "r0": 38.3,
+     "r1": 630.7,
+     "r2": 1502.4,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 26,
+    "operating": {
+     "o:assem1": -123729,
+     "o:assem2": 6918,
+     "o:forge1": 134206,
+     "o:forge2": -68297,
+     "o:mine1": 53174,
+     "o:mine2": 34837
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4650,
+      "sold": 19
+     },
+     "ret_000002": {
+      "price": 2399,
+      "sold": 3
+     }
+    },
+    "offers": {
+     "off_000001": 212,
+     "off_000002": 227,
+     "off_000003": 1370,
+     "off_000004": 1199
+    },
+    "grid": {
+     "r0": 21.3,
+     "r1": 769.8,
+     "r2": 1421.2,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 27,
+    "operating": {
+     "o:assem1": -6285,
+     "o:assem2": 56442,
+     "o:forge1": -146252,
+     "o:forge2": 45152,
+     "o:mine1": 58477,
+     "o:mine2": 11129
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4767,
+      "sold": 20
+     },
+     "ret_000002": {
+      "price": 3964,
+      "sold": 15
+     }
+    },
+    "offers": {
+     "off_000001": 223,
+     "off_000002": 239,
+     "off_000003": 1436,
+     "off_000004": 1100
+    },
+    "grid": {
+     "r0": 61.8,
+     "r1": 711.7,
+     "r2": 1496.8,
+     "r3": 40.1
+    }
+   },
+   "counterfactual": {
+    "day": 27,
+    "operating": {
+     "o:assem1": 16607,
+     "o:assem2": 0,
+     "o:forge1": -144734,
+     "o:forge2": 6130,
+     "o:mine1": 55654,
+     "o:mine2": 29819
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4804,
+      "sold": 21
+     },
+     "ret_000002": {
+      "price": 2399,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 223,
+     "off_000002": 239,
+     "off_000003": 1370,
+     "off_000004": 1259
+    },
+    "grid": {
+     "r0": 39.4,
+     "r1": 766.1,
+     "r2": 1502.3,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 28,
+    "operating": {
+     "o:assem1": -225666,
+     "o:assem2": 129992,
+     "o:forge1": 151106,
+     "o:forge2": 33871,
+     "o:mine1": 58591,
+     "o:mine2": -62118
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4837,
+      "sold": 18
+     },
+     "ret_000002": {
+      "price": 4123,
+      "sold": 33
+     }
+    },
+    "offers": {
+     "off_000001": 235,
+     "off_000002": 251,
+     "off_000003": 1508,
+     "off_000004": 1155
+    },
+    "grid": {
+     "r0": 30.9,
+     "r1": 697.6,
+     "r2": 1482.7,
+     "r3": 45.5
+    }
+   },
+   "counterfactual": {
+    "day": 28,
+    "operating": {
+     "o:assem1": 109782,
+     "o:assem2": -67986,
+     "o:forge1": -63649,
+     "o:forge2": -12323,
+     "o:mine1": -9975,
+     "o:mine2": 40093
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4804,
+      "sold": 23
+     },
+     "ret_000002": {
+      "price": 2618,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 235,
+     "off_000002": 251,
+     "off_000003": 1370,
+     "off_000004": 1322
+    },
+    "grid": {
+     "r0": 39.4,
+     "r1": 705.2,
+     "r2": 1417.8,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 29,
+    "operating": {
+     "o:assem1": 129428,
+     "o:assem2": 11189,
+     "o:forge1": -47672,
+     "o:forge2": 36603,
+     "o:mine1": 52130,
+     "o:mine2": -72414
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4837,
+      "sold": 27
+     },
+     "ret_000002": {
+      "price": 4288,
+      "sold": 47
+     }
+    },
+    "offers": {
+     "off_000001": 247,
+     "off_000002": 264,
+     "off_000003": 1584,
+     "off_000004": 1213
+    },
+    "grid": {
+     "r0": 65.0,
+     "r1": 702.7,
+     "r2": 1471.1,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 29,
+    "operating": {
+     "o:assem1": -18060,
+     "o:assem2": -868,
+     "o:forge1": -55695,
+     "o:forge2": -7409,
+     "o:mine1": -10477,
+     "o:mine2": 29081
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4804,
+      "sold": 10
+     },
+     "ret_000002": {
+      "price": 2618,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 247,
+     "off_000002": 264,
+     "off_000003": 1370,
+     "off_000004": 1389
+    },
+    "grid": {
+     "r0": 0,
+     "r1": 354.0,
+     "r2": 1504.4,
+     "r3": 48.2
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 30,
+    "operating": {
+     "o:assem1": 70787,
+     "o:assem2": -1093,
+     "o:forge1": -88618,
+     "o:forge2": -111027,
+     "o:mine1": 73960,
+     "o:mine2": 35669
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4837,
+      "sold": 20
+     },
+     "ret_000002": {
+      "price": 4288,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 260,
+     "off_000002": 278,
+     "off_000003": 1584,
+     "off_000004": 1274
+    },
+    "grid": {
+     "r0": 26.6,
+     "r1": 733.6,
+     "r2": 1503.2,
+     "r3": 60.7
+    }
+   },
+   "counterfactual": {
+    "day": 30,
+    "operating": {
+     "o:assem1": 76442,
+     "o:assem2": -125619,
+     "o:forge1": 133811,
+     "o:forge2": -131877,
+     "o:mine1": 69009,
+     "o:mine2": 35216
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4804,
+      "sold": 16
+     },
+     "ret_000002": {
+      "price": 3233,
+      "sold": 41
+     }
+    },
+    "offers": {
+     "off_000001": 260,
+     "off_000002": 278,
+     "off_000003": 1388,
+     "off_000004": 1459
+    },
+    "grid": {
+     "r0": 23.4,
+     "r1": 1111.5,
+     "r2": 1504.6,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 31,
+    "operating": {
+     "o:assem1": -34051,
+     "o:assem2": -154512,
+     "o:forge1": 140654,
+     "o:forge2": 19159,
+     "o:mine1": 78763,
+     "o:mine2": 52619
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4862,
+      "sold": 17
+     },
+     "ret_000002": {
+      "price": 4288,
+      "sold": 36
+     }
+    },
+    "offers": {
+     "off_000001": 273,
+     "off_000002": 292,
+     "off_000003": 1664,
+     "off_000004": 1338
+    },
+    "grid": {
+     "r0": 19.2,
+     "r1": 738.1,
+     "r2": 1496.2,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 31,
+    "operating": {
+     "o:assem1": 81054,
+     "o:assem2": -119687,
+     "o:forge1": -162040,
+     "o:forge2": 66008,
+     "o:mine1": 81710,
+     "o:mine2": -62357
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4804,
+      "sold": 17
+     },
+     "ret_000002": {
+      "price": 3596,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 273,
+     "off_000002": 292,
+     "off_000003": 1388,
+     "off_000004": 1532
+    },
+    "grid": {
+     "r0": 34.1,
+     "r1": 362.4,
+     "r2": 1500.8,
+     "r3": 2.7
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 32,
+    "operating": {
+     "o:assem1": 110828,
+     "o:assem2": -81490,
+     "o:forge1": -91055,
+     "o:forge2": 74017,
+     "o:mine1": 76933,
+     "o:mine2": 48740
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4886,
+      "sold": 23
+     },
+     "ret_000002": {
+      "price": 4460,
+      "sold": 20
+     }
+    },
+    "offers": {
+     "off_000001": 287,
+     "off_000002": 307,
+     "off_000003": 1664,
+     "off_000004": 1405
+    },
+    "grid": {
+     "r0": 55.4,
+     "r1": 711.1,
+     "r2": 1503.3,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 32,
+    "operating": {
+     "o:assem1": -37490,
+     "o:assem2": 6870,
+     "o:forge1": 0,
+     "o:forge2": 15402,
+     "o:mine1": -6690,
+     "o:mine2": 35087
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4804,
+      "sold": 12
+     },
+     "ret_000002": {
+      "price": 3740,
+      "sold": 2
+     }
+    },
+    "offers": {
+     "off_000001": 273,
+     "off_000002": 307,
+     "off_000003": 1429,
+     "off_000004": 1609
+    },
+    "grid": {
+     "r0": 8.5,
+     "r1": 362.4,
+     "r2": 1504.8,
+     "r3": 17.9
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 33,
+    "operating": {
+     "o:assem1": -209888,
+     "o:assem2": -1931,
+     "o:forge1": 154946,
+     "o:forge2": -87352,
+     "o:mine1": 87200,
+     "o:mine2": -28184
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4935,
+      "sold": 25
+     },
+     "ret_000002": {
+      "price": 4460,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 302,
+     "off_000002": 323,
+     "off_000003": 1664,
+     "off_000004": 1405
+    },
+    "grid": {
+     "r0": 50.0,
+     "r1": 733.6,
+     "r2": 1496.0,
+     "r3": 107.1
+    }
+   },
+   "counterfactual": {
+    "day": 33,
+    "operating": {
+     "o:assem1": 57379,
+     "o:assem2": 47993,
+     "o:forge1": 0,
+     "o:forge2": -86146,
+     "o:mine1": -6690,
+     "o:mine2": 42070
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4804,
+      "sold": 12
+     },
+     "ret_000002": {
+      "price": 3890,
+      "sold": 13
+     }
+    },
+    "offers": {
+     "off_000001": 273,
+     "off_000002": 323,
+     "off_000003": 1429,
+     "off_000004": 1609
+    },
+    "grid": {
+     "r0": 14.9,
+     "r1": 362.4,
+     "r2": 1501.7,
+     "r3": 34.8
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 34,
+    "operating": {
+     "o:assem1": -168186,
+     "o:assem2": 147099,
+     "o:forge1": -176620,
+     "o:forge2": 199047,
+     "o:mine1": 88592,
+     "o:mine2": 37131
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4930,
+      "sold": 23
+     },
+     "ret_000002": {
+      "price": 4460,
+      "sold": 33
+     }
+    },
+    "offers": {
+     "off_000001": 318,
+     "off_000002": 340,
+     "off_000003": 1664,
+     "off_000004": 1476
+    },
+    "grid": {
+     "r0": 38.3,
+     "r1": 722.4,
+     "r2": 1499.0,
+     "r3": 4.5
+    }
+   },
+   "counterfactual": {
+    "day": 34,
+    "operating": {
+     "o:assem1": 41370,
+     "o:assem2": -19498,
+     "o:forge1": 0,
+     "o:forge2": 61314,
+     "o:mine1": 0,
+     "o:mine2": -44587
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4804,
+      "sold": 21
+     },
+     "ret_000002": {
+      "price": 4046,
+      "sold": 29
+     }
+    },
+    "offers": {
+     "off_000001": 273,
+     "off_000002": 340,
+     "off_000003": 1429,
+     "off_000004": 1609
+    },
+    "grid": {
+     "r0": 0,
+     "r1": 0,
+     "r2": 1486.8,
+     "r3": 20.5
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 35,
+    "operating": {
+     "o:assem1": 127297,
+     "o:assem2": 159404,
+     "o:forge1": -88722,
+     "o:forge2": -93771,
+     "o:mine1": 82032,
+     "o:mine2": -32221
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4859,
+      "sold": 26
+     },
+     "ret_000002": {
+      "price": 4460,
+      "sold": 46
+     }
+    },
+    "offers": {
+     "off_000001": 334,
+     "off_000002": 357,
+     "off_000003": 1664,
+     "off_000004": 1550
+    },
+    "grid": {
+     "r0": 49.0,
+     "r1": 362.4,
+     "r2": 1487.8,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 35,
+    "operating": {
+     "o:assem1": 9608,
+     "o:assem2": 51971,
+     "o:forge1": 0,
+     "o:forge2": -69700,
+     "o:mine1": 0,
+     "o:mine2": -44904
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4997,
+      "sold": 2
+     },
+     "ret_000002": {
+      "price": 4208,
+      "sold": 13
+     }
+    },
+    "offers": {
+     "off_000001": 262,
+     "off_000002": 357,
+     "off_000003": 1429,
+     "off_000004": 1609
+    },
+    "grid": {
+     "r0": 0,
+     "r1": 0,
+     "r2": 1478.5,
+     "r3": 34.8
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 36,
+    "operating": {
+     "o:assem1": 125490,
+     "o:assem2": 8468,
+     "o:forge1": -95190,
+     "o:forge2": -84133,
+     "o:mine1": 88500,
+     "o:mine2": -51177
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4990,
+      "sold": 26
+     },
+     "ret_000002": {
+      "price": 4639,
+      "sold": 10
+     }
+    },
+    "offers": {
+     "off_000001": 351,
+     "off_000002": 375,
+     "off_000003": 1664,
+     "off_000004": 1628
+    },
+    "grid": {
+     "r0": 46.9,
+     "r1": 362.4,
+     "r2": 1473.2,
+     "r3": 26.8
+    }
+   },
+   "counterfactual": {
+    "day": 36,
+    "operating": {
+     "o:assem1": -1844,
+     "o:assem2": -91418,
+     "o:forge1": 0,
+     "o:forge2": 94898,
+     "o:mine1": 0,
+     "o:mine2": 65984
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 4997,
+      "sold": 0
+     },
+     "ret_000002": {
+      "price": 4377,
+      "sold": 27
+     }
+    },
+    "offers": {
+     "off_000001": 251,
+     "off_000002": 375,
+     "off_000003": 1429,
+     "off_000004": 1609
+    },
+    "grid": {
+     "r0": 102.2,
+     "r1": 0,
+     "r2": 1477.9,
+     "r3": 38.4
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 37,
+    "operating": {
+     "o:assem1": -198716,
+     "o:assem2": -17172,
+     "o:forge1": 306251,
+     "o:forge2": -4444,
+     "o:mine1": -20479,
+     "o:mine2": 79010
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5209,
+      "sold": 24
+     },
+     "ret_000002": {
+      "price": 4825,
+      "sold": 22
+     }
+    },
+    "offers": {
+     "off_000001": 351,
+     "off_000002": 394,
+     "off_000003": 1664,
+     "off_000004": 1710
+    },
+    "grid": {
+     "r0": 36.2,
+     "r1": 929.9,
+     "r2": 1502.6,
+     "r3": 21.4
+    }
+   },
+   "counterfactual": {
+    "day": 37,
+    "operating": {
+     "o:assem1": -265699,
+     "o:assem2": 108219,
+     "o:forge1": 165367,
+     "o:forge2": 27119,
+     "o:mine1": 0,
+     "o:mine2": 67850
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5039,
+      "sold": 21
+     },
+     "ret_000002": {
+      "price": 4553,
+      "sold": 25
+     }
+    },
+    "offers": {
+     "off_000001": 240,
+     "off_000002": 394,
+     "off_000003": 1429,
+     "off_000004": 1609
+    },
+    "grid": {
+     "r0": 0,
+     "r1": 457.4,
+     "r2": 1504.6,
+     "r3": 66.9
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 38,
+    "operating": {
+     "o:assem1": -104920,
+     "o:assem2": 71652,
+     "o:forge1": -167427,
+     "o:forge2": 144058,
+     "o:mine1": 101124,
+     "o:mine2": -50115
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5500,
+      "sold": 20
+     },
+     "ret_000002": {
+      "price": 5018,
+      "sold": 15
+     }
+    },
+    "offers": {
+     "off_000001": 369,
+     "off_000002": 414,
+     "off_000003": 1664,
+     "off_000004": 1796
+    },
+    "grid": {
+     "r0": 26.6,
+     "r1": 360.8,
+     "r2": 1470.2,
+     "r3": 40.1
+    }
+   },
+   "counterfactual": {
+    "day": 38,
+    "operating": {
+     "o:assem1": 129747,
+     "o:assem2": -238015,
+     "o:forge1": 180817,
+     "o:forge2": 885,
+     "o:mine1": 58080,
+     "o:mine2": 83522
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5039,
+      "sold": 26
+     },
+     "ret_000002": {
+      "price": 4817,
+      "sold": 30
+     }
+    },
+    "offers": {
+     "off_000001": 240,
+     "off_000002": 414,
+     "off_000003": 1429,
+     "off_000004": 1690
+    },
+    "grid": {
+     "r0": 70.3,
+     "r1": 325.6,
+     "r2": 1503.0,
+     "r3": 5.3
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 39,
+    "operating": {
+     "o:assem1": 109309,
+     "o:assem2": -200932,
+     "o:forge1": 254478,
+     "o:forge2": -38171,
+     "o:mine1": -68257,
+     "o:mine2": 83618
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5685,
+      "sold": 20
+     },
+     "ret_000002": {
+      "price": 5219,
+      "sold": 31
+     }
+    },
+    "offers": {
+     "off_000001": 369,
+     "off_000002": 435,
+     "off_000003": 1664,
+     "off_000004": 1886
+    },
+    "grid": {
+     "r0": 38.3,
+     "r1": 923.2,
+     "r2": 1504.9,
+     "r3": 25.0
+    }
+   },
+   "counterfactual": {
+    "day": 39,
+    "operating": {
+     "o:assem1": -64796,
+     "o:assem2": 71660,
+     "o:forge1": 9534,
+     "o:forge2": -162444,
+     "o:mine1": 90828,
+     "o:mine2": 76907
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5489,
+      "sold": 14
+     },
+     "ret_000002": {
+      "price": 4908,
+      "sold": 15
+     }
+    },
+    "offers": {
+     "off_000001": 240,
+     "off_000002": 435,
+     "off_000003": 1501,
+     "off_000004": 1775
+    },
+    "grid": {
+     "r0": 5.3,
+     "r1": 919.5,
+     "r2": 1502.5,
+     "r3": 33.0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 40,
+    "operating": {
+     "o:assem1": 113048,
+     "o:assem2": -79366,
+     "o:forge1": -222304,
+     "o:forge2": 52801,
+     "o:mine1": 202654,
+     "o:mine2": 85772
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5685,
+      "sold": 20
+     },
+     "ret_000002": {
+      "price": 5428,
+      "sold": 20
+     }
+    },
+    "offers": {
+     "off_000001": 388,
+     "off_000002": 457,
+     "off_000003": 1664,
+     "off_000004": 1981
+    },
+    "grid": {
+     "r0": 36.2,
+     "r1": 927.6,
+     "r2": 1502.7,
+     "r3": 44.6
+    }
+   },
+   "counterfactual": {
+    "day": 40,
+    "operating": {
+     "o:assem1": 65733,
+     "o:assem2": -33967,
+     "o:forge1": -218672,
+     "o:forge2": 58136,
+     "o:mine1": 126855,
+     "o:mine2": -2018
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5397,
+      "sold": 12
+     },
+     "ret_000002": {
+      "price": 4908,
+      "sold": 30
+     }
+    },
+    "offers": {
+     "off_000001": 252,
+     "off_000002": 457,
+     "off_000003": 1501,
+     "off_000004": 1864
+    },
+    "grid": {
+     "r0": 7.5,
+     "r1": 873.7,
+     "r2": 1502.0,
+     "r3": 0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 41,
+    "operating": {
+     "o:assem1": 141127,
+     "o:assem2": 215560,
+     "o:forge1": -275320,
+     "o:forge2": -77891,
+     "o:mine1": 121350,
+     "o:mine2": -36390
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5654,
+      "sold": 25
+     },
+     "ret_000002": {
+      "price": 5428,
+      "sold": 40
+     }
+    },
+    "offers": {
+     "off_000001": 408,
+     "off_000002": 480,
+     "off_000003": 1664,
+     "off_000004": 1981
+    },
+    "grid": {
+     "r0": 55.4,
+     "r1": 362.4,
+     "r2": 1472.3,
+     "r3": 86.5
+    }
+   },
+   "counterfactual": {
+    "day": 41,
+    "operating": {
+     "o:assem1": -78995,
+     "o:assem2": 38878,
+     "o:forge1": -80484,
+     "o:forge2": 34349,
+     "o:mine1": 62307,
+     "o:mine2": 53487
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5759,
+      "sold": 12
+     },
+     "ret_000002": {
+      "price": 5105,
+      "sold": 8
+     }
+    },
+    "offers": {
+     "off_000001": 265,
+     "off_000002": 480,
+     "off_000003": 1501,
+     "off_000004": 1958
+    },
+    "grid": {
+     "r0": 12.8,
+     "r1": 873.7,
+     "r2": 1494.4,
+     "r3": 21.4
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 42,
+    "operating": {
+     "o:assem1": -381745,
+     "o:assem2": -75744,
+     "o:forge1": 605506,
+     "o:forge2": -31447,
+     "o:mine1": -7807,
+     "o:mine2": 114559
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 6308,
+      "sold": 22
+     },
+     "ret_000002": {
+      "price": 5503,
+      "sold": 40
+     }
+    },
+    "offers": {
+     "off_000001": 408,
+     "off_000002": 504,
+     "off_000003": 1748,
+     "off_000004": 2081
+    },
+    "grid": {
+     "r0": 41.5,
+     "r1": 735.9,
+     "r2": 1503.0,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 42,
+    "operating": {
+     "o:assem1": 74483,
+     "o:assem2": 96079,
+     "o:forge1": -142540,
+     "o:forge2": -134201,
+     "o:mine1": 50561,
+     "o:mine2": 90125
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5759,
+      "sold": 13
+     },
+     "ret_000002": {
+      "price": 5310,
+      "sold": 19
+     }
+    },
+    "offers": {
+     "off_000001": 279,
+     "off_000002": 504,
+     "off_000003": 1520,
+     "off_000004": 1958
+    },
+    "grid": {
+     "r0": 21.3,
+     "r1": 360.8,
+     "r2": 1501.7,
+     "r3": 50.9
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 43,
+    "operating": {
+     "o:assem1": 106967,
+     "o:assem2": -119590,
+     "o:forge1": -255764,
+     "o:forge2": 72349,
+     "o:mine1": 235942,
+     "o:mine2": 118285
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 6308,
+      "sold": 17
+     },
+     "ret_000002": {
+      "price": 5724,
+      "sold": 21
+     }
+    },
+    "offers": {
+     "off_000001": 408,
+     "off_000002": 530,
+     "off_000003": 1748,
+     "off_000004": 2186
+    },
+    "grid": {
+     "r0": 14.9,
+     "r1": 933.8,
+     "r2": 1504.6,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 43,
+    "operating": {
+     "o:assem1": 63138,
+     "o:assem2": -103008,
+     "o:forge1": 252708,
+     "o:forge2": -96428,
+     "o:mine1": -19664,
+     "o:mine2": -19365
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5452,
+      "sold": 11
+     },
+     "ret_000002": {
+      "price": 5310,
+      "sold": 30
+     }
+    },
+    "offers": {
+     "off_000001": 279,
+     "off_000002": 530,
+     "off_000003": 1524,
+     "off_000004": 1958
+    },
+    "grid": {
+     "r0": 11.7,
+     "r1": 780.5,
+     "r2": 1500.8,
+     "r3": 48.2
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 44,
+    "operating": {
+     "o:assem1": 138009,
+     "o:assem2": -1818,
+     "o:forge1": -165548,
+     "o:forge2": -147349,
+     "o:mine1": 145788,
+     "o:mine2": 103092
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 6308,
+      "sold": 22
+     },
+     "ret_000002": {
+      "price": 5724,
+      "sold": 0
+     }
+    },
+    "offers": {
+     "off_000001": 429,
+     "off_000002": 557,
+     "off_000003": 1748,
+     "off_000004": 2186
+    },
+    "grid": {
+     "r0": 42.6,
+     "r1": 931.6,
+     "r2": 1505.0,
+     "r3": 100.8
+    }
+   },
+   "counterfactual": {
+    "day": 44,
+    "operating": {
+     "o:assem1": 91897,
+     "o:assem2": -241300,
+     "o:forge1": -167400,
+     "o:forge2": 178734,
+     "o:mine1": 160710,
+     "o:mine2": 133173
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5549,
+      "sold": 17
+     },
+     "ret_000002": {
+      "price": 5310,
+      "sold": 21
+     }
+    },
+    "offers": {
+     "off_000001": 279,
+     "off_000002": 557,
+     "off_000003": 1582,
+     "off_000004": 1999
+    },
+    "grid": {
+     "r0": 43.7,
+     "r1": 362.4,
+     "r2": 1416.4,
+     "r3": 20.5
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 45,
+    "operating": {
+     "o:assem1": -241914,
+     "o:assem2": 178366,
+     "o:forge1": -199337,
+     "o:forge2": 313449,
+     "o:mine1": 119007,
+     "o:mine2": 12399
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 6530,
+      "sold": 21
+     },
+     "ret_000002": {
+      "price": 6094,
+      "sold": 43
+     }
+    },
+    "offers": {
+     "off_000001": 451,
+     "off_000002": 585,
+     "off_000003": 1748,
+     "off_000004": 2296
+    },
+    "grid": {
+     "r0": 31.9,
+     "r1": 362.4,
+     "r2": 1484.4,
+     "r3": 0
+    }
+   },
+   "counterfactual": {
+    "day": 45,
+    "operating": {
+     "o:assem1": -263698,
+     "o:assem2": 147780,
+     "o:forge1": 166122,
+     "o:forge2": 10716,
+     "o:mine1": -10209,
+     "o:mine2": 136608
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 6101,
+      "sold": 20
+     },
+     "ret_000002": {
+      "price": 5310,
+      "sold": 28
+     }
+    },
+    "offers": {
+     "off_000001": 279,
+     "off_000002": 585,
+     "off_000003": 1614,
+     "off_000004": 2099
+    },
+    "grid": {
+     "r0": 46.9,
+     "r1": 1129.3,
+     "r2": 1503.7,
+     "r3": 50.0
+    }
+   }
+  },
+  {
+   "factual": {
+    "day": 46,
+    "operating": {
+     "o:assem1": 84890,
+     "o:assem2": 5616,
+     "o:forge1": 0,
+     "o:forge2": -10135,
+     "o:mine1": -6690,
+     "o:mine2": 124400
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 6318,
+      "sold": 13
+     },
+     "ret_000002": {
+      "price": 6321,
+      "sold": 27
+     }
+    },
+    "offers": {
+     "off_000001": 451,
+     "off_000002": 615,
+     "off_000003": 1704,
+     "off_000004": 2411
+    },
+    "grid": {
+     "r0": 0,
+     "r1": 362.4,
+     "r2": 1500.6,
+     "r3": 27.7
+    }
+   },
+   "counterfactual": {
+    "day": 46,
+    "operating": {
+     "o:assem1": 91169,
+     "o:assem2": -167098,
+     "o:forge1": 37235,
+     "o:forge2": -112931,
+     "o:mine1": 99294,
+     "o:mine2": -2936
+    },
+    "retail": {
+     "ret_000001": {
+      "price": 5966,
+      "sold": 15
+     },
+     "ret_000002": {
+      "price": 5310,
+      "sold": 23
+     }
+    },
+    "offers": {
+     "off_000001": 279,
+     "off_000002": 615,
+     "off_000003": 1614,
+     "off_000004": 2200
+    },
+    "grid": {
+     "r0": 19.2,
+     "r1": 872.0,
+     "r2": 1502.2,
+     "r3": 17.9
+    }
+   }
+  }
+ ]
+}

@@ -15,7 +15,7 @@ from ..core.kernel import SYSTEM, Module, applier, endpoint, process, register_m
 from .identity import ident
 
 BOUNTY_ESCROW = "acct_bounties"
-ROLES = ("developer", "support", "ops", "sales", "analyst", "general")
+ROLES = ("developer", "support", "ops", "sales", "analyst", "general", "operator")
 
 
 @register_module

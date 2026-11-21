@@ -8,6 +8,80 @@ Never TESTED without a passing test; never BENCHMARKED without a measurement.
 Branch `feat/crucible` (based on `feat/crucible-design`, with `feat/cam-2` merged for the AGENTRS adapter).
 Test suite: `cd crucible && python -m pytest -q` — see the bottom of this file for the last full run.
 
+## Open world (branch `feat/crucible-open-world`, based on `feat/crucible` 8b81276)
+
+Baseline before any change: 222 tests passed (226 s). Last full run on this branch: **268 passed** (392 s). The open-world layer is additive: legacy families, tests and
+results are unchanged; open families are new (`open_digital`, `open_industry`, `open_mixed` [train],
+`open_scarce_energy`, `open_fragile_suppliers` [val], `open_weak_institutions`, `open_perishable` [test, held-out
+mechanisms]). Design and audit: `ARCHITECTURE.md` (open-world layer), `docs/OPEN_ENDEDNESS_AUDIT.md`.
+
+| component | status | evidence |
+|---|---|---|
+| operations journal (P&L by ledger kind, derived in the bank applier) | TESTED | `test_open_substrate.py::test_operating_journal_*` (recomputed from raw ledger; exact replay) |
+| loss journal (overload, outage, dependency failure, downtime, defects, stockout, supply shortfall, late delivery, curtailment) | TESTED | substrate, industry and family tests; refusal facts survive rollback (`persist`) |
+| problem requests with verified evidence, responses | TESTED | substrate tests, demonstrations 1-2 |
+| triggers (schedule/event, act as owner, re-checked authority, pause after failures) | TESTED | `test_triggers_run_as_owner_*` |
+| typed flows (references, conditions, foreach, atomic), async jobs, public flows | TESTED | `test_flows_pass_typed_data_*` |
+| capability registry: publish/versioning, search, view, install as scoped delegation, uninstall revokes | TESTED | `test_capability_install_creates_scoped_delegation_*`, `test_republishing_*` |
+| verification Mode A (tester-written suites in the sandbox, provenance) | TESTED | `test_executable_test_suite_records_mode_a_*` |
+| verification Mode B (randomised switchback trials computed from the installer's journal) | TESTED | adoption tests; demonstrations 1, 4 |
+| verification Mode C (independent adopters/payers; related parties excluded) | TESTED | `test_related_party_installs_never_count_*` |
+| verification Mode D (reviews by users only; attribute preferences of households) | IMPLEMENTED | review endpoint; shoppers |
+| observed technology graph, descriptive categories, emergent market registry | TESTED | dynamics test (market with >= 2 independent buyers), census |
+| Tier-2 firm minds: dynamic goals, adoption engine, sharing/withholding evidence, monitoring with outage tolerance | TESTED | adoption tests (digital and industrial), demonstrations |
+| Tier-2 person minds: reservation wages, greed, patience, trust, memory, contacts, attention | TESTED | `test_open_society.py` |
+| negotiation service (offers, counters, threads, binding contracts), reputation from contract outcomes | TESTED | `test_open_society.py` (6 scenarios), demonstration 3 |
+| governance (constitutions in authorisation, votes, approvals, delegated budgets, governed amendment, profit sharing, incentive-based effort) | TESTED | `test_open_institutions.py` |
+| production economy (hidden physics, designs, machines with wear/telemetry/maintenance, licences, runs, process knowledge, energy grids, freight, B2B trade, standing orders, retail) | TESTED | `test_open_industry.py` (conservation, physics, grid, freight, licences, regeneration) |
+| household goods demand over continuous attributes | TESTED | `test_households_buy_by_attributes_*` |
+| producer routines (production, maintenance, demand-driven procurement, substitution for shortage and cost, cost-plus pricing, capacity investment, operators) | TESTED (behaviour), INCOMPLETE (calibration) | industry tests; calibration limits in `docs/LIMITATIONS.md` |
+| endogenous dynamics: compute pricing/investment, grid expansion, entrepreneurs entering emergent markets by forking open source, forum knowledge | TESTED | `test_open_dynamics.py` |
+| open world families with held-out mechanisms | TESTED | `test_open_families_have_partitions_with_held_out_mechanisms`, per-family runs |
+| independent census of open-ended structure, ablation runner | IMPLEMENTED | `evaluation/open_endedness.py`; `docs/experiments/open_ablations.json` |
+| sandbox backend layer (detect, refuse unavailable; gVisor/bubblewrap/Firecracker wrappers) | TESTED (layer), BLOCKED (stronger backends on this host) | `test_open_security.py`; host has no KVM, runsc, bwrap or user namespaces |
+| security of new surfaces (delegation scope, governance not bypassable by delegates, services cannot use operator tools or act for others, minds private) | TESTED | `test_open_security.py`, substrate tests |
+| benchmarks of open mechanisms (publish, triggers, flows, deals, worlds, snapshot/fork/replay, minds scaling) | BENCHMARKED | `docs/benchmarks/bench.json` (`open`), `docs/SCALING.md` |
+| Tier-3 LLM minds inside the society | DESIGNED | not built on this branch (agents may be LLMs; NPCs are Tier 2) |
+| runtime developer-module extension with versioned migration | DESIGNED | not built |
+| demonstrations 1-5 | IMPLEMENTED (scripts) with recorded results | `examples/demo_open_*.py`, `docs/experiments/open_*.json`, `docs/EXPERIMENTS.md` |
+
+Bugs found and fixed while building (all with tests or demonstrations that exposed them): a sandboxed service's
+own RPCs failed for any caller other than its operator (kernel `brokered` calls); the jobs service had no
+`operator` role, so industrial hiring silently failed; routines of one mind overwrote each other's updates (stale
+snapshot); capability re-publication failed; delegation made firms stand down routines unrelated to what they
+delegated (a maintenance capability stopped their procurement) - scoped by delegated capability now; the
+entrepreneur routine crashed the people cycle (type error) for most of a 90-day run before it was found.
+
+### Acceptance criteria of the open-world task (Part 39)
+
+| # | criterion | status |
+|---|---|---|
+| 1 | existing functionality preserved | met: the 222 original tests still pass (see last full run below) |
+| 2 | agent-created capabilities not limited to the 8 needs | met: autoscaling, peak pricing, predictive maintenance, process knowledge |
+| 3 | new useful product categories arise during a lifetime | met (descriptive categories/markets recorded during runs; demonstration 1) |
+| 4 | independent actors discover and adopt them | met (requests, search, contacts; verified trials) |
+| 5 | adoption grounded in value, preferences or verified outcomes | met (Mode B trials from the installer's own journal; related parties excluded) |
+| 6 | new markets created without developer intervention | met (`caps_markets`; entrants) |
+| 7 | new software interacts with existing services | met (delegated operation of cloud, market and production resources) |
+| 8 | agent technologies alter economic and production outcomes | met (counterfactual forks, demonstrations 1, 2, 4) |
+| 9 | technologies composable into new capabilities | partially met: composition supported (service calls, flows, designs); deep observed composition chains not demonstrated |
+| 10 | multi-stage production under scarcity | met (mines -> components -> products; grids, freight, machines) |
+| 11 | actors negotiate and decide independently | met (demonstration 3; tests) |
+| 12 | organisations cooperate/compete through commitments | met (contracts, deals, governance, B2B trade) |
+| 13 | relationships and reputation have persistent consequences | met (breach -> refusals; trust in memory) |
+| 14 | institutions change through in-world actions | met (governed amendment, proposals) |
+| 15 | knowledge and capabilities spread | met (evidence sharing, forking, process knowledge purchases) |
+| 16 | inventions create subsequent needs/opportunities | partially met: mechanisms exist (dependency failures, entry, investment); entry and upstream investment observed; no new *problem category* observed in recorded runs |
+| 17 | world evolves without developer-authored task sequences | met (no scripted shocks in open demos) |
+| 18 | agent behaviour changes future opportunity structure | met (entrants into markets created by an agent's invention; counterfactuals) |
+| 19 | reproducible, snapshotable, forkable | met (regeneration identical in every demonstration; replay from store of a 90-day run) |
+| 20 | security boundaries enforced | met for the tested surfaces; VM-grade isolation BLOCKED on this host |
+| 21 | multiple agent architectures can access the world | met (all new functionality is ordinary tools: MCP/HTTP/Gym/PettingZoo/browser adapters unchanged) |
+| 22 | long-running civilisation experiments execute | met (90 simulated days, demonstration 5) |
+| 23 | independent counterfactual tests show causal effects | met (demonstrations 1, 2, 4) |
+| 24 | new functionality covered by tests | met (open test files listed above) |
+| 25 | documented for researchers | met (architecture, audit, experiments, limitations, this ledger) |
+
 ## Core
 
 | component | status | evidence |

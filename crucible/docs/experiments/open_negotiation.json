@@ -1,0 +1,184 @@
+{
+ "seed": 1,
+ "scenarios": {
+  "generous": {
+   "to": "p:worker-000",
+   "offered_x_reservation": 2.0,
+   "deal": "deal_000001",
+   "thread": [
+    {
+     "deal": "deal_000001",
+     "from": "o:adaco",
+     "status": "accepted",
+     "round": 0,
+     "message": "We would like you to join us.",
+     "payment": 102849
+    }
+   ],
+   "final": "accepted"
+  },
+  "lowball": {
+   "to": "p:worker-001",
+   "offered_x_reservation": 0.05,
+   "deal": "deal_000002",
+   "thread": [
+    {
+     "deal": "deal_000002",
+     "from": "o:adaco",
+     "status": "rejected",
+     "round": 0,
+     "message": "We would like you to join us.",
+     "payment": 3283
+    }
+   ],
+   "final": "rejected"
+  },
+  "near_miss_a": {
+   "to": "p:worker-002",
+   "offered_x_reservation": 0.95,
+   "deal": "deal_000003",
+   "thread": [
+    {
+     "deal": "deal_000003",
+     "from": "o:adaco",
+     "status": "expired",
+     "round": 0,
+     "message": "We would like you to join us.",
+     "payment": 52648
+    }
+   ],
+   "final": "expired"
+  },
+  "near_miss_b": {
+   "to": "p:worker-003",
+   "offered_x_reservation": 0.95,
+   "deal": "deal_000004",
+   "agent_accepted_counter": true,
+   "thread": [
+    {
+     "deal": "deal_000004",
+     "from": "o:adaco",
+     "status": "countered",
+     "round": 0,
+     "message": "We would like you to join us.",
+     "payment": 40712
+    },
+    {
+     "deal": "deal_000008",
+     "from": "p:worker-003",
+     "status": "accepted",
+     "round": 1,
+     "message": "We could do it at 78309 cents per period.",
+     "payment": 78309
+    }
+   ],
+   "final": "accepted"
+  },
+  "near_miss_c": {
+   "to": "p:worker-004",
+   "offered_x_reservation": 1.05,
+   "deal": "deal_000005",
+   "agent_accepted_counter": true,
+   "thread": [
+    {
+     "deal": "deal_000005",
+     "from": "o:adaco",
+     "status": "countered",
+     "round": 0,
+     "message": "We would like you to join us.",
+     "payment": 55908
+    },
+    {
+     "deal": "deal_000007",
+     "from": "p:worker-004",
+     "status": "accepted",
+     "round": 1,
+     "message": "We could do it at 101928 cents per period.",
+     "payment": 101928
+    }
+   ],
+   "final": "accepted"
+  },
+  "against_interest": {
+   "to": "o:extracco1",
+   "deal": "deal_000006",
+   "thread": [
+    {
+     "deal": "deal_000006",
+     "from": "o:adaco",
+     "status": "rejected",
+     "round": 0,
+     "message": "Hand us admin rights.",
+     "payment": 5000
+    }
+   ],
+   "final": "rejected"
+  },
+  "breach_then_offer": {
+   "first": [
+    {
+     "deal": "deal_000009",
+     "from": "o:adashell",
+     "status": "accepted",
+     "round": 0,
+     "message": "",
+     "payment": 141578
+    }
+   ],
+   "reputation_after_breach": {
+    "principal": "o:adashell",
+    "contracts_completed": 0,
+    "contracts_breached_by": 1,
+    "contracts_active": 0,
+    "claims_owed": 1,
+    "deals_made": 1,
+    "deals_accepted_by_others": 1,
+    "deals_rejected_by_others": 0,
+    "debts_written_off": 0,
+    "age_days": 10.0,
+    "breaches_public": [
+     {
+      "contract": "ctr_000004",
+      "t": 892800
+     }
+    ]
+   },
+   "victim_trust": [
+    1.3,
+    5.75
+   ],
+   "offers_from_breacher": [
+    "rejected",
+    "expired",
+    "rejected"
+   ],
+   "same_offers_from_clean_org": [
+    "accepted",
+    "expired",
+    "expired"
+   ],
+   "final": "see offers"
+  },
+  "long_term": {
+   "contract": "ctr_000001",
+   "status": "active",
+   "trust_of_employee": [
+    1.3,
+    1.0
+   ],
+   "reputation": {
+    "principal": "o:adaco",
+    "contracts_completed": 0,
+    "contracts_breached_by": 0,
+    "contracts_active": 4,
+    "claims_owed": 0,
+    "deals_made": 9,
+    "deals_accepted_by_others": 2,
+    "deals_rejected_by_others": 2,
+    "debts_written_off": 0,
+    "age_days": 42.0,
+    "breaches_public": []
+   }
+  }
+ }
+}

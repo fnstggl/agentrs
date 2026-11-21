@@ -1,0 +1,1797 @@
+{
+ "runs": [
+  {
+   "flag": "none",
+   "seed": 1,
+   "census": {
+    "t": 2592000,
+    "day": 30,
+    "events": 120375,
+    "capabilities": {
+     "published": 4,
+     "active": 4,
+     "with_independent_adopters": 0,
+     "with_independent_payers": 4,
+     "installs": 19,
+     "active_installs": 0,
+     "trials_verified": 15,
+     "trials_positive_significant": 0,
+     "days_first_request_to_first_adoption": null
+    },
+    "technology": {
+     "nodes": 4,
+     "call_edges": 0,
+     "uses_edges": 4,
+     "improvement_edges": 2,
+     "longest_composition_chain": 0,
+     "emergent_capability_markets": 2,
+     "categories": [
+      "analytics autoscaler before",
+      "before break breakdown"
+     ]
+    },
+    "problems": {
+     "requests": 38,
+     "responses": 25,
+     "distinct_tags": [
+      "account",
+      "capacity_overload",
+      "cost-compute",
+      "cost-energy",
+      "cost-fee",
+      "cost-machine",
+      "cost-maintenance",
+      "cost-opex",
+      "cost-purchase",
+      "facility",
+      "host",
+      "instance",
+      "listing",
+      "machine",
+      "machine_downtime",
+      "stockout"
+     ]
+    },
+    "losses_events": {
+     "defects": 7394,
+     "supply_shortfall": 8150,
+     "stockout": 1052,
+     "machine_downtime": 538,
+     "capacity_overload": 297454
+    },
+    "industry": {
+     "designs": 8,
+     "runs": 213,
+     "units_made": 16499,
+     "b2b_trades": 83,
+     "b2b_units": 15703,
+     "retail_units_sold": 1185,
+     "product_clusters_selling": 1,
+     "machines": 14,
+     "process_notes": 0,
+     "process_notes_sold": 0,
+     "substitutions": 1
+    },
+    "knowledge": {
+     "minds": 39,
+     "firms": 15,
+     "people": 24,
+     "evidence_messages_sent": 0,
+     "beliefs_from_others": 0,
+     "processes_learned": 0,
+     "mean_contacts": 0.49
+    },
+    "institutions": {
+     "contracts": {
+      "active": 1,
+      "rejected": 17
+     },
+     "deals": {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     "constitutions": 0,
+     "proposals_decided": 0
+    },
+    "organisations": {
+     "total": 23,
+     "created_after_genesis": 4,
+     "dissolved_or_bankrupt": 0
+    },
+    "economy": {
+     "firm_operating_result_total": -4213561,
+     "api_requests_served": 1351001
+    }
+   }
+  },
+  {
+   "flag": "none",
+   "seed": 2,
+   "census": {
+    "t": 2592000,
+    "day": 30,
+    "events": 116442,
+    "capabilities": {
+     "published": 4,
+     "active": 4,
+     "with_independent_adopters": 0,
+     "with_independent_payers": 4,
+     "installs": 19,
+     "active_installs": 0,
+     "trials_verified": 14,
+     "trials_positive_significant": 0,
+     "days_first_request_to_first_adoption": null
+    },
+    "technology": {
+     "nodes": 4,
+     "call_edges": 0,
+     "uses_edges": 5,
+     "improvement_edges": 2,
+     "longest_composition_chain": 0,
+     "emergent_capability_markets": 2,
+     "categories": [
+      "analytics autoscaler before",
+      "before break breakdown"
+     ]
+    },
+    "problems": {
+     "requests": 40,
+     "responses": 24,
+     "distinct_tags": [
+      "account",
+      "capacity_overload",
+      "cost-compute",
+      "cost-energy",
+      "cost-fee",
+      "cost-machine",
+      "cost-maintenance",
+      "cost-opex",
+      "cost-purchase",
+      "facility",
+      "host",
+      "instance",
+      "listing",
+      "machine",
+      "machine_downtime",
+      "stockout"
+     ]
+    },
+    "losses_events": {
+     "defects": 9887,
+     "supply_shortfall": 4791,
+     "stockout": 525,
+     "machine_downtime": 470,
+     "capacity_overload": 214604
+    },
+    "industry": {
+     "designs": 12,
+     "runs": 147,
+     "units_made": 15110,
+     "b2b_trades": 65,
+     "b2b_units": 14273,
+     "retail_units_sold": 1217,
+     "product_clusters_selling": 1,
+     "machines": 10,
+     "process_notes": 0,
+     "process_notes_sold": 0,
+     "substitutions": 3
+    },
+    "knowledge": {
+     "minds": 39,
+     "firms": 15,
+     "people": 24,
+     "evidence_messages_sent": 0,
+     "beliefs_from_others": 0,
+     "processes_learned": 0,
+     "mean_contacts": 0.49
+    },
+    "institutions": {
+     "contracts": {
+      "rejected": 10,
+      "terminating": 1
+     },
+     "deals": {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     "constitutions": 0,
+     "proposals_decided": 0
+    },
+    "organisations": {
+     "total": 23,
+     "created_after_genesis": 4,
+     "dissolved_or_bankrupt": 0
+    },
+    "economy": {
+     "firm_operating_result_total": -3369399,
+     "api_requests_served": 1449141
+    }
+   }
+  },
+  {
+   "flag": "ablate_adoption",
+   "seed": 1,
+   "census": {
+    "t": 2592000,
+    "day": 30,
+    "events": 84603,
+    "capabilities": {
+     "published": 0,
+     "active": 0,
+     "with_independent_adopters": 0,
+     "with_independent_payers": 0,
+     "installs": 0,
+     "active_installs": 0,
+     "trials_verified": 0,
+     "trials_positive_significant": 0,
+     "days_first_request_to_first_adoption": null
+    },
+    "technology": {
+     "nodes": 0,
+     "call_edges": 0,
+     "uses_edges": 0,
+     "improvement_edges": 0,
+     "longest_composition_chain": 0,
+     "emergent_capability_markets": 0,
+     "categories": []
+    },
+    "problems": {
+     "requests": 0,
+     "responses": 0,
+     "distinct_tags": []
+    },
+    "losses_events": {
+     "defects": 7723,
+     "supply_shortfall": 4021,
+     "stockout": 1070,
+     "machine_downtime": 749,
+     "capacity_overload": 882101,
+     "service_unavailable": 48270
+    },
+    "industry": {
+     "designs": 6,
+     "runs": 204,
+     "units_made": 15350,
+     "b2b_trades": 88,
+     "b2b_units": 15148,
+     "retail_units_sold": 1209,
+     "product_clusters_selling": 1,
+     "machines": 15,
+     "process_notes": 0,
+     "process_notes_sold": 0,
+     "substitutions": 0
+    },
+    "knowledge": {
+     "minds": 39,
+     "firms": 15,
+     "people": 24,
+     "evidence_messages_sent": 0,
+     "beliefs_from_others": 0,
+     "processes_learned": 0,
+     "mean_contacts": 0.0
+    },
+    "institutions": {
+     "contracts": {
+      "rejected": 18
+     },
+     "deals": {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     "constitutions": 0,
+     "proposals_decided": 0
+    },
+    "organisations": {
+     "total": 19,
+     "created_after_genesis": 0,
+     "dissolved_or_bankrupt": 0
+    },
+    "economy": {
+     "firm_operating_result_total": -5122169,
+     "api_requests_served": 716179
+    }
+   }
+  },
+  {
+   "flag": "ablate_adoption",
+   "seed": 2,
+   "census": {
+    "t": 2592000,
+    "day": 30,
+    "events": 80336,
+    "capabilities": {
+     "published": 0,
+     "active": 0,
+     "with_independent_adopters": 0,
+     "with_independent_payers": 0,
+     "installs": 0,
+     "active_installs": 0,
+     "trials_verified": 0,
+     "trials_positive_significant": 0,
+     "days_first_request_to_first_adoption": null
+    },
+    "technology": {
+     "nodes": 0,
+     "call_edges": 0,
+     "uses_edges": 0,
+     "improvement_edges": 0,
+     "longest_composition_chain": 0,
+     "emergent_capability_markets": 0,
+     "categories": []
+    },
+    "problems": {
+     "requests": 0,
+     "responses": 0,
+     "distinct_tags": []
+    },
+    "losses_events": {
+     "defects": 8156,
+     "supply_shortfall": 7595,
+     "stockout": 735,
+     "machine_downtime": 581,
+     "capacity_overload": 548839,
+     "service_unavailable": 23426
+    },
+    "industry": {
+     "designs": 10,
+     "runs": 118,
+     "units_made": 10923,
+     "b2b_trades": 57,
+     "b2b_units": 10392,
+     "retail_units_sold": 1071,
+     "product_clusters_selling": 1,
+     "machines": 9,
+     "process_notes": 0,
+     "process_notes_sold": 0,
+     "substitutions": 2
+    },
+    "knowledge": {
+     "minds": 39,
+     "firms": 15,
+     "people": 24,
+     "evidence_messages_sent": 0,
+     "beliefs_from_others": 0,
+     "processes_learned": 0,
+     "mean_contacts": 0.0
+    },
+    "institutions": {
+     "contracts": {
+      "active": 2,
+      "rejected": 13
+     },
+     "deals": {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     "constitutions": 0,
+     "proposals_decided": 0
+    },
+    "organisations": {
+     "total": 19,
+     "created_after_genesis": 0,
+     "dissolved_or_bankrupt": 0
+    },
+    "economy": {
+     "firm_operating_result_total": -4208405,
+     "api_requests_served": 1087978
+    }
+   }
+  },
+  {
+   "flag": "ablate_sharing",
+   "seed": 1,
+   "census": {
+    "t": 2592000,
+    "day": 30,
+    "events": 120859,
+    "capabilities": {
+     "published": 4,
+     "active": 4,
+     "with_independent_adopters": 1,
+     "with_independent_payers": 4,
+     "installs": 21,
+     "active_installs": 1,
+     "trials_verified": 15,
+     "trials_positive_significant": 1,
+     "days_first_request_to_first_adoption": 11.0
+    },
+    "technology": {
+     "nodes": 4,
+     "call_edges": 0,
+     "uses_edges": 7,
+     "improvement_edges": 2,
+     "longest_composition_chain": 0,
+     "emergent_capability_markets": 2,
+     "categories": [
+      "analytics autoscaler before",
+      "before break breakdown"
+     ]
+    },
+    "problems": {
+     "requests": 40,
+     "responses": 24,
+     "distinct_tags": [
+      "account",
+      "capacity_overload",
+      "cost-compute",
+      "cost-energy",
+      "cost-fee",
+      "cost-machine",
+      "cost-maintenance",
+      "cost-opex",
+      "cost-purchase",
+      "facility",
+      "host",
+      "instance",
+      "listing",
+      "machine",
+      "machine_downtime",
+      "service_unavailable",
+      "stockout"
+     ]
+    },
+    "losses_events": {
+     "defects": 6832,
+     "stockout": 1066,
+     "supply_shortfall": 4960,
+     "machine_downtime": 629,
+     "dependency_failure": 60,
+     "capacity_overload": 280017,
+     "service_unavailable": 34528
+    },
+    "industry": {
+     "designs": 6,
+     "runs": 200,
+     "units_made": 16347,
+     "b2b_trades": 87,
+     "b2b_units": 16081,
+     "retail_units_sold": 1406,
+     "product_clusters_selling": 1,
+     "machines": 15,
+     "process_notes": 0,
+     "process_notes_sold": 0,
+     "substitutions": 0
+    },
+    "knowledge": {
+     "minds": 39,
+     "firms": 15,
+     "people": 24,
+     "evidence_messages_sent": 0,
+     "beliefs_from_others": 0,
+     "processes_learned": 0,
+     "mean_contacts": 0.54
+    },
+    "institutions": {
+     "contracts": {
+      "active": 2,
+      "proposed": 2,
+      "rejected": 22
+     },
+     "deals": {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     "constitutions": 0,
+     "proposals_decided": 0
+    },
+    "organisations": {
+     "total": 23,
+     "created_after_genesis": 4,
+     "dissolved_or_bankrupt": 0
+    },
+    "economy": {
+     "firm_operating_result_total": -4172667,
+     "api_requests_served": 1334370
+    }
+   }
+  },
+  {
+   "flag": "ablate_sharing",
+   "seed": 2,
+   "census": {
+    "t": 2592000,
+    "day": 30,
+    "events": 117381,
+    "capabilities": {
+     "published": 4,
+     "active": 4,
+     "with_independent_adopters": 0,
+     "with_independent_payers": 4,
+     "installs": 20,
+     "active_installs": 0,
+     "trials_verified": 13,
+     "trials_positive_significant": 0,
+     "days_first_request_to_first_adoption": null
+    },
+    "technology": {
+     "nodes": 4,
+     "call_edges": 0,
+     "uses_edges": 8,
+     "improvement_edges": 2,
+     "longest_composition_chain": 0,
+     "emergent_capability_markets": 2,
+     "categories": [
+      "analytics autoscaler before",
+      "before break breakdown"
+     ]
+    },
+    "problems": {
+     "requests": 40,
+     "responses": 25,
+     "distinct_tags": [
+      "account",
+      "capacity_overload",
+      "cost-compute",
+      "cost-energy",
+      "cost-fee",
+      "cost-machine",
+      "cost-maintenance",
+      "cost-opex",
+      "cost-purchase",
+      "facility",
+      "host",
+      "instance",
+      "listing",
+      "machine",
+      "machine_downtime",
+      "stockout"
+     ]
+    },
+    "losses_events": {
+     "defects": 8498,
+     "supply_shortfall": 7659,
+     "stockout": 669,
+     "machine_downtime": 425,
+     "capacity_overload": 209681,
+     "service_unavailable": 16975
+    },
+    "industry": {
+     "designs": 8,
+     "runs": 115,
+     "units_made": 12288,
+     "b2b_trades": 56,
+     "b2b_units": 11636,
+     "retail_units_sold": 1174,
+     "product_clusters_selling": 1,
+     "machines": 10,
+     "process_notes": 0,
+     "process_notes_sold": 0,
+     "substitutions": 1
+    },
+    "knowledge": {
+     "minds": 39,
+     "firms": 15,
+     "people": 24,
+     "evidence_messages_sent": 0,
+     "beliefs_from_others": 0,
+     "processes_learned": 0,
+     "mean_contacts": 0.51
+    },
+    "institutions": {
+     "contracts": {
+      "active": 1,
+      "proposed": 1,
+      "rejected": 11,
+      "terminating": 1
+     },
+     "deals": {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     "constitutions": 0,
+     "proposals_decided": 0
+    },
+    "organisations": {
+     "total": 23,
+     "created_after_genesis": 4,
+     "dissolved_or_bankrupt": 0
+    },
+    "economy": {
+     "firm_operating_result_total": -3557073,
+     "api_requests_served": 1436633
+    }
+   }
+  },
+  {
+   "flag": "ablate_requests",
+   "seed": 1,
+   "census": {
+    "t": 2592000,
+    "day": 30,
+    "events": 84603,
+    "capabilities": {
+     "published": 0,
+     "active": 0,
+     "with_independent_adopters": 0,
+     "with_independent_payers": 0,
+     "installs": 0,
+     "active_installs": 0,
+     "trials_verified": 0,
+     "trials_positive_significant": 0,
+     "days_first_request_to_first_adoption": null
+    },
+    "technology": {
+     "nodes": 0,
+     "call_edges": 0,
+     "uses_edges": 0,
+     "improvement_edges": 0,
+     "longest_composition_chain": 0,
+     "emergent_capability_markets": 0,
+     "categories": []
+    },
+    "problems": {
+     "requests": 0,
+     "responses": 0,
+     "distinct_tags": []
+    },
+    "losses_events": {
+     "defects": 7723,
+     "supply_shortfall": 4021,
+     "stockout": 1070,
+     "machine_downtime": 749,
+     "capacity_overload": 882101,
+     "service_unavailable": 48270
+    },
+    "industry": {
+     "designs": 6,
+     "runs": 204,
+     "units_made": 15350,
+     "b2b_trades": 88,
+     "b2b_units": 15148,
+     "retail_units_sold": 1209,
+     "product_clusters_selling": 1,
+     "machines": 15,
+     "process_notes": 0,
+     "process_notes_sold": 0,
+     "substitutions": 0
+    },
+    "knowledge": {
+     "minds": 39,
+     "firms": 15,
+     "people": 24,
+     "evidence_messages_sent": 0,
+     "beliefs_from_others": 0,
+     "processes_learned": 0,
+     "mean_contacts": 0.0
+    },
+    "institutions": {
+     "contracts": {
+      "rejected": 18
+     },
+     "deals": {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     "constitutions": 0,
+     "proposals_decided": 0
+    },
+    "organisations": {
+     "total": 19,
+     "created_after_genesis": 0,
+     "dissolved_or_bankrupt": 0
+    },
+    "economy": {
+     "firm_operating_result_total": -5122169,
+     "api_requests_served": 716179
+    }
+   }
+  },
+  {
+   "flag": "ablate_requests",
+   "seed": 2,
+   "census": {
+    "t": 2592000,
+    "day": 30,
+    "events": 80336,
+    "capabilities": {
+     "published": 0,
+     "active": 0,
+     "with_independent_adopters": 0,
+     "with_independent_payers": 0,
+     "installs": 0,
+     "active_installs": 0,
+     "trials_verified": 0,
+     "trials_positive_significant": 0,
+     "days_first_request_to_first_adoption": null
+    },
+    "technology": {
+     "nodes": 0,
+     "call_edges": 0,
+     "uses_edges": 0,
+     "improvement_edges": 0,
+     "longest_composition_chain": 0,
+     "emergent_capability_markets": 0,
+     "categories": []
+    },
+    "problems": {
+     "requests": 0,
+     "responses": 0,
+     "distinct_tags": []
+    },
+    "losses_events": {
+     "defects": 8156,
+     "supply_shortfall": 7595,
+     "stockout": 735,
+     "machine_downtime": 581,
+     "capacity_overload": 548839,
+     "service_unavailable": 23426
+    },
+    "industry": {
+     "designs": 10,
+     "runs": 118,
+     "units_made": 10923,
+     "b2b_trades": 57,
+     "b2b_units": 10392,
+     "retail_units_sold": 1071,
+     "product_clusters_selling": 1,
+     "machines": 9,
+     "process_notes": 0,
+     "process_notes_sold": 0,
+     "substitutions": 2
+    },
+    "knowledge": {
+     "minds": 39,
+     "firms": 15,
+     "people": 24,
+     "evidence_messages_sent": 0,
+     "beliefs_from_others": 0,
+     "processes_learned": 0,
+     "mean_contacts": 0.0
+    },
+    "institutions": {
+     "contracts": {
+      "active": 2,
+      "rejected": 13
+     },
+     "deals": {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     "constitutions": 0,
+     "proposals_decided": 0
+    },
+    "organisations": {
+     "total": 19,
+     "created_after_genesis": 0,
+     "dissolved_or_bankrupt": 0
+    },
+    "economy": {
+     "firm_operating_result_total": -4208405,
+     "api_requests_served": 1087978
+    }
+   }
+  },
+  {
+   "flag": "ablate_entry",
+   "seed": 1,
+   "census": {
+    "t": 2592000,
+    "day": 30,
+    "events": 105053,
+    "capabilities": {
+     "published": 2,
+     "active": 2,
+     "with_independent_adopters": 0,
+     "with_independent_payers": 2,
+     "installs": 12,
+     "active_installs": 0,
+     "trials_verified": 12,
+     "trials_positive_significant": 0,
+     "days_first_request_to_first_adoption": null
+    },
+    "technology": {
+     "nodes": 2,
+     "call_edges": 0,
+     "uses_edges": 0,
+     "improvement_edges": 0,
+     "longest_composition_chain": 0,
+     "emergent_capability_markets": 2,
+     "categories": [
+      "analytics autoscaler before",
+      "before break breakdown"
+     ]
+    },
+    "problems": {
+     "requests": 38,
+     "responses": 24,
+     "distinct_tags": [
+      "account",
+      "capacity_overload",
+      "cost-compute",
+      "cost-energy",
+      "cost-fee",
+      "cost-machine",
+      "cost-maintenance",
+      "cost-opex",
+      "cost-purchase",
+      "facility",
+      "host",
+      "instance",
+      "listing",
+      "machine",
+      "machine_downtime",
+      "stockout"
+     ]
+    },
+    "losses_events": {
+     "defects": 6963,
+     "stockout": 934,
+     "supply_shortfall": 6882,
+     "machine_downtime": 734,
+     "capacity_overload": 248553
+    },
+    "industry": {
+     "designs": 6,
+     "runs": 209,
+     "units_made": 16140,
+     "b2b_trades": 88,
+     "b2b_units": 15910,
+     "retail_units_sold": 1347,
+     "product_clusters_selling": 1,
+     "machines": 15,
+     "process_notes": 0,
+     "process_notes_sold": 0,
+     "substitutions": 0
+    },
+    "knowledge": {
+     "minds": 39,
+     "firms": 15,
+     "people": 24,
+     "evidence_messages_sent": 0,
+     "beliefs_from_others": 0,
+     "processes_learned": 0,
+     "mean_contacts": 0.31
+    },
+    "institutions": {
+     "contracts": {
+      "rejected": 18
+     },
+     "deals": {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     "constitutions": 0,
+     "proposals_decided": 0
+    },
+    "organisations": {
+     "total": 21,
+     "created_after_genesis": 2,
+     "dissolved_or_bankrupt": 0
+    },
+    "economy": {
+     "firm_operating_result_total": -4226465,
+     "api_requests_served": 1402542
+    }
+   }
+  },
+  {
+   "flag": "ablate_entry",
+   "seed": 2,
+   "census": {
+    "t": 2592000,
+    "day": 30,
+    "events": 103601,
+    "capabilities": {
+     "published": 2,
+     "active": 2,
+     "with_independent_adopters": 0,
+     "with_independent_payers": 2,
+     "installs": 12,
+     "active_installs": 0,
+     "trials_verified": 11,
+     "trials_positive_significant": 0,
+     "days_first_request_to_first_adoption": null
+    },
+    "technology": {
+     "nodes": 2,
+     "call_edges": 0,
+     "uses_edges": 1,
+     "improvement_edges": 0,
+     "longest_composition_chain": 0,
+     "emergent_capability_markets": 2,
+     "categories": [
+      "analytics autoscaler before",
+      "before break breakdown"
+     ]
+    },
+    "problems": {
+     "requests": 40,
+     "responses": 25,
+     "distinct_tags": [
+      "account",
+      "capacity_overload",
+      "cost-compute",
+      "cost-energy",
+      "cost-fee",
+      "cost-freight",
+      "cost-machine",
+      "cost-maintenance",
+      "cost-opex",
+      "cost-purchase",
+      "facility",
+      "host",
+      "instance",
+      "listing",
+      "machine",
+      "machine_downtime",
+      "stockout"
+     ]
+    },
+    "losses_events": {
+     "defects": 7283,
+     "supply_shortfall": 10002,
+     "stockout": 520,
+     "machine_downtime": 455,
+     "late_delivery": 1,
+     "capacity_overload": 183173
+    },
+    "industry": {
+     "designs": 11,
+     "runs": 123,
+     "units_made": 12595,
+     "b2b_trades": 54,
+     "b2b_units": 11253,
+     "retail_units_sold": 1275,
+     "product_clusters_selling": 1,
+     "machines": 10,
+     "process_notes": 0,
+     "process_notes_sold": 0,
+     "substitutions": 2
+    },
+    "knowledge": {
+     "minds": 39,
+     "firms": 15,
+     "people": 24,
+     "evidence_messages_sent": 0,
+     "beliefs_from_others": 0,
+     "processes_learned": 0,
+     "mean_contacts": 0.31
+    },
+    "institutions": {
+     "contracts": {
+      "active": 1,
+      "rejected": 8
+     },
+     "deals": {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     "constitutions": 0,
+     "proposals_decided": 0
+    },
+    "organisations": {
+     "total": 21,
+     "created_after_genesis": 2,
+     "dissolved_or_bankrupt": 0
+    },
+    "economy": {
+     "firm_operating_result_total": -3443985,
+     "api_requests_served": 1476691
+    }
+   }
+  },
+  {
+   "flag": "ablate_diffusion",
+   "seed": 1,
+   "census": {
+    "t": 2592000,
+    "day": 30,
+    "events": 120739,
+    "capabilities": {
+     "published": 4,
+     "active": 4,
+     "with_independent_adopters": 0,
+     "with_independent_payers": 4,
+     "installs": 20,
+     "active_installs": 0,
+     "trials_verified": 16,
+     "trials_positive_significant": 0,
+     "days_first_request_to_first_adoption": null
+    },
+    "technology": {
+     "nodes": 4,
+     "call_edges": 0,
+     "uses_edges": 4,
+     "improvement_edges": 2,
+     "longest_composition_chain": 0,
+     "emergent_capability_markets": 2,
+     "categories": [
+      "analytics autoscaler before",
+      "before break breakdown"
+     ]
+    },
+    "problems": {
+     "requests": 38,
+     "responses": 22,
+     "distinct_tags": [
+      "account",
+      "capacity_overload",
+      "cost-compute",
+      "cost-energy",
+      "cost-fee",
+      "cost-machine",
+      "cost-maintenance",
+      "cost-opex",
+      "cost-purchase",
+      "facility",
+      "host",
+      "instance",
+      "listing",
+      "machine",
+      "machine_downtime",
+      "stockout"
+     ]
+    },
+    "losses_events": {
+     "defects": 6424,
+     "stockout": 1199,
+     "supply_shortfall": 6843,
+     "machine_downtime": 418,
+     "capacity_overload": 290048
+    },
+    "industry": {
+     "designs": 11,
+     "runs": 192,
+     "units_made": 14980,
+     "b2b_trades": 78,
+     "b2b_units": 13569,
+     "retail_units_sold": 1184,
+     "product_clusters_selling": 1,
+     "machines": 16,
+     "process_notes": 0,
+     "process_notes_sold": 0,
+     "substitutions": 2
+    },
+    "knowledge": {
+     "minds": 39,
+     "firms": 15,
+     "people": 24,
+     "evidence_messages_sent": 0,
+     "beliefs_from_others": 0,
+     "processes_learned": 0,
+     "mean_contacts": 0.51
+    },
+    "institutions": {
+     "contracts": {
+      "active": 1,
+      "rejected": 17
+     },
+     "deals": {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     "constitutions": 0,
+     "proposals_decided": 0
+    },
+    "organisations": {
+     "total": 23,
+     "created_after_genesis": 4,
+     "dissolved_or_bankrupt": 0
+    },
+    "economy": {
+     "firm_operating_result_total": -4286815,
+     "api_requests_served": 1358684
+    }
+   }
+  },
+  {
+   "flag": "ablate_diffusion",
+   "seed": 2,
+   "census": {
+    "t": 2592000,
+    "day": 30,
+    "events": 122454,
+    "capabilities": {
+     "published": 4,
+     "active": 4,
+     "with_independent_adopters": 1,
+     "with_independent_payers": 4,
+     "installs": 21,
+     "active_installs": 2,
+     "trials_verified": 15,
+     "trials_positive_significant": 0,
+     "days_first_request_to_first_adoption": 7.0
+    },
+    "technology": {
+     "nodes": 4,
+     "call_edges": 0,
+     "uses_edges": 9,
+     "improvement_edges": 2,
+     "longest_composition_chain": 0,
+     "emergent_capability_markets": 2,
+     "categories": [
+      "analytics autoscaler before",
+      "before break breakdown"
+     ]
+    },
+    "problems": {
+     "requests": 40,
+     "responses": 26,
+     "distinct_tags": [
+      "account",
+      "capacity_overload",
+      "cost-compute",
+      "cost-energy",
+      "cost-fee",
+      "cost-machine",
+      "cost-maintenance",
+      "cost-opex",
+      "cost-purchase",
+      "facility",
+      "host",
+      "instance",
+      "listing",
+      "machine",
+      "machine_downtime",
+      "stockout"
+     ]
+    },
+    "losses_events": {
+     "defects": 8551,
+     "supply_shortfall": 9454,
+     "stockout": 516,
+     "dependency_failure": 32,
+     "machine_downtime": 290,
+     "capacity_overload": 193355,
+     "service_unavailable": 2214
+    },
+    "industry": {
+     "designs": 10,
+     "runs": 128,
+     "units_made": 13998,
+     "b2b_trades": 56,
+     "b2b_units": 12072,
+     "retail_units_sold": 1314,
+     "product_clusters_selling": 1,
+     "machines": 10,
+     "process_notes": 0,
+     "process_notes_sold": 0,
+     "substitutions": 2
+    },
+    "knowledge": {
+     "minds": 39,
+     "firms": 15,
+     "people": 24,
+     "evidence_messages_sent": 0,
+     "beliefs_from_others": 0,
+     "processes_learned": 0,
+     "mean_contacts": 0.54
+    },
+    "institutions": {
+     "contracts": {
+      "active": 1,
+      "proposed": 1,
+      "rejected": 10,
+      "terminating": 1
+     },
+     "deals": {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     "constitutions": 0,
+     "proposals_decided": 0
+    },
+    "organisations": {
+     "total": 23,
+     "created_after_genesis": 4,
+     "dissolved_or_bankrupt": 0
+    },
+    "economy": {
+     "firm_operating_result_total": -3210990,
+     "api_requests_served": 1466306
+    }
+   }
+  }
+ ],
+ "summary": {
+  "none": {
+   "capabilities.active_installs": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "capabilities.trials_verified": {
+    "mean": 14.5,
+    "sd": 0.71,
+    "values": [
+     15,
+     14
+    ]
+   },
+   "capabilities.days_first_request_to_first_adoption": {
+    "mean": null,
+    "sd": null,
+    "values": [
+     null,
+     null
+    ]
+   },
+   "technology.emergent_capability_markets": {
+    "mean": 2.0,
+    "sd": 0.0,
+    "values": [
+     2,
+     2
+    ]
+   },
+   "industry.retail_units_sold": {
+    "mean": 1201.0,
+    "sd": 22.63,
+    "values": [
+     1185,
+     1217
+    ]
+   },
+   "industry.process_notes_sold": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "knowledge.beliefs_from_others": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "economy.firm_operating_result_total": {
+    "mean": -3791480.0,
+    "sd": 596912.67,
+    "values": [
+     -4213561,
+     -3369399
+    ]
+   },
+   "organisations.created_after_genesis": {
+    "mean": 4.0,
+    "sd": 0.0,
+    "values": [
+     4,
+     4
+    ]
+   },
+   "institutions.deals": {
+    "mean": null,
+    "sd": null,
+    "values": [
+     {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     }
+    ]
+   }
+  },
+  "ablate_adoption": {
+   "capabilities.active_installs": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "capabilities.trials_verified": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "capabilities.days_first_request_to_first_adoption": {
+    "mean": null,
+    "sd": null,
+    "values": [
+     null,
+     null
+    ]
+   },
+   "technology.emergent_capability_markets": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "industry.retail_units_sold": {
+    "mean": 1140.0,
+    "sd": 97.58,
+    "values": [
+     1209,
+     1071
+    ]
+   },
+   "industry.process_notes_sold": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "knowledge.beliefs_from_others": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "economy.firm_operating_result_total": {
+    "mean": -4665287.0,
+    "sd": 646128.72,
+    "values": [
+     -5122169,
+     -4208405
+    ]
+   },
+   "organisations.created_after_genesis": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "institutions.deals": {
+    "mean": null,
+    "sd": null,
+    "values": [
+     {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     }
+    ]
+   }
+  },
+  "ablate_sharing": {
+   "capabilities.active_installs": {
+    "mean": 0.5,
+    "sd": 0.71,
+    "values": [
+     1,
+     0
+    ]
+   },
+   "capabilities.trials_verified": {
+    "mean": 14.0,
+    "sd": 1.41,
+    "values": [
+     15,
+     13
+    ]
+   },
+   "capabilities.days_first_request_to_first_adoption": {
+    "mean": 11.0,
+    "sd": null,
+    "values": [
+     11.0,
+     null
+    ]
+   },
+   "technology.emergent_capability_markets": {
+    "mean": 2.0,
+    "sd": 0.0,
+    "values": [
+     2,
+     2
+    ]
+   },
+   "industry.retail_units_sold": {
+    "mean": 1290.0,
+    "sd": 164.05,
+    "values": [
+     1406,
+     1174
+    ]
+   },
+   "industry.process_notes_sold": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "knowledge.beliefs_from_others": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "economy.firm_operating_result_total": {
+    "mean": -3864870.0,
+    "sd": 435290.69,
+    "values": [
+     -4172667,
+     -3557073
+    ]
+   },
+   "organisations.created_after_genesis": {
+    "mean": 4.0,
+    "sd": 0.0,
+    "values": [
+     4,
+     4
+    ]
+   },
+   "institutions.deals": {
+    "mean": null,
+    "sd": null,
+    "values": [
+     {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     }
+    ]
+   }
+  },
+  "ablate_requests": {
+   "capabilities.active_installs": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "capabilities.trials_verified": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "capabilities.days_first_request_to_first_adoption": {
+    "mean": null,
+    "sd": null,
+    "values": [
+     null,
+     null
+    ]
+   },
+   "technology.emergent_capability_markets": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "industry.retail_units_sold": {
+    "mean": 1140.0,
+    "sd": 97.58,
+    "values": [
+     1209,
+     1071
+    ]
+   },
+   "industry.process_notes_sold": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "knowledge.beliefs_from_others": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "economy.firm_operating_result_total": {
+    "mean": -4665287.0,
+    "sd": 646128.72,
+    "values": [
+     -5122169,
+     -4208405
+    ]
+   },
+   "organisations.created_after_genesis": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "institutions.deals": {
+    "mean": null,
+    "sd": null,
+    "values": [
+     {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     }
+    ]
+   }
+  },
+  "ablate_entry": {
+   "capabilities.active_installs": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "capabilities.trials_verified": {
+    "mean": 11.5,
+    "sd": 0.71,
+    "values": [
+     12,
+     11
+    ]
+   },
+   "capabilities.days_first_request_to_first_adoption": {
+    "mean": null,
+    "sd": null,
+    "values": [
+     null,
+     null
+    ]
+   },
+   "technology.emergent_capability_markets": {
+    "mean": 2.0,
+    "sd": 0.0,
+    "values": [
+     2,
+     2
+    ]
+   },
+   "industry.retail_units_sold": {
+    "mean": 1311.0,
+    "sd": 50.91,
+    "values": [
+     1347,
+     1275
+    ]
+   },
+   "industry.process_notes_sold": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "knowledge.beliefs_from_others": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "economy.firm_operating_result_total": {
+    "mean": -3835225.0,
+    "sd": 553296.91,
+    "values": [
+     -4226465,
+     -3443985
+    ]
+   },
+   "organisations.created_after_genesis": {
+    "mean": 2.0,
+    "sd": 0.0,
+    "values": [
+     2,
+     2
+    ]
+   },
+   "institutions.deals": {
+    "mean": null,
+    "sd": null,
+    "values": [
+     {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     }
+    ]
+   }
+  },
+  "ablate_diffusion": {
+   "capabilities.active_installs": {
+    "mean": 1.0,
+    "sd": 1.41,
+    "values": [
+     0,
+     2
+    ]
+   },
+   "capabilities.trials_verified": {
+    "mean": 15.5,
+    "sd": 0.71,
+    "values": [
+     16,
+     15
+    ]
+   },
+   "capabilities.days_first_request_to_first_adoption": {
+    "mean": 7.0,
+    "sd": null,
+    "values": [
+     null,
+     7.0
+    ]
+   },
+   "technology.emergent_capability_markets": {
+    "mean": 2.0,
+    "sd": 0.0,
+    "values": [
+     2,
+     2
+    ]
+   },
+   "industry.retail_units_sold": {
+    "mean": 1249.0,
+    "sd": 91.92,
+    "values": [
+     1184,
+     1314
+    ]
+   },
+   "industry.process_notes_sold": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "knowledge.beliefs_from_others": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "values": [
+     0,
+     0
+    ]
+   },
+   "economy.firm_operating_result_total": {
+    "mean": -3748902.5,
+    "sd": 760723.15,
+    "values": [
+     -4286815,
+     -3210990
+    ]
+   },
+   "organisations.created_after_genesis": {
+    "mean": 4.0,
+    "sd": 0.0,
+    "values": [
+     4,
+     4
+    ]
+   },
+   "institutions.deals": {
+    "mean": null,
+    "sd": null,
+    "values": [
+     {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     },
+     {
+      "accepted": 0,
+      "rejected": 0,
+      "countered": 0,
+      "expired": 0,
+      "open": 0
+     }
+    ]
+   }
+  }
+ },
+ "config": {
+  "family": "open_mixed",
+  "days": 30,
+  "seeds": [
+   1,
+   2
+  ],
+  "wall_s": 715.2
+ }
+}

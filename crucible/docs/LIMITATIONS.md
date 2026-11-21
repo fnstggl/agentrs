@@ -59,3 +59,26 @@ Everything below was observed or follows directly from how the code works.
 
 * No learner has yet been shown to acquire a broad strategy (start a business, recruit) from experience. The
   scripted controls succeed; the frozen LLM and CAM results are reported in RL_INTEGRATION.md / EXPERIMENTS.md.
+
+## Open-world layer (feat/crucible-open-world)
+
+The full list with code locations is in `docs/OPEN_ENDEDNESS_AUDIT.md` §5. In short:
+
+* **Simulated actors are Tier 2 (rule-based, utility-driven).** No LLM-driven NPC minds were built; free text in
+  offers and messages does not influence NPC decisions (only structured terms and verifiable references do).
+* **Verification of usefulness is limited by noise and design.** Switchback trials use the installer's daily
+  operating result; lumpy business purchases make it noisy, lagged effects carry over between on/off days, and
+  10-16 day trials miss modest real gains. There is no universal usefulness evaluator, by design.
+* **Calibration of the industrial economy.** Downstream assemblers run deficits in several seeds and the firm
+  sector's total operating result in the 90-day mixed run is negative; prices are cost-plus with simple
+  adjustments; the economy runs but is not in a sustainable steady state.
+* **Fixed mechanism vocabulary**: 5 production operations, 4 forms, 4 property and 4 attribute dimensions, contract
+  clause types, governance rule types, loss mechanism labels. New *kinds* of mechanism need developer code; there
+  is no runtime developer-module extension interface or schema migration on this branch.
+* **NPC entrepreneurs imitate (fork open source); they do not invent.** NPC developers only implement legacy needs.
+* **Secondary needs**: mechanisms for them exist (dependency failures, compute/grid/freight load); in the recorded
+  runs the observed secondary effects were competitive entry and upstream investment, not new problem categories.
+* **Knowledge diffusion depends on contacts**, which form only through dealings; in the long mixed run few firms
+  shared evidence.
+* **Isolation**: only Landlock/seccomp/rlimits on this host; gVisor, bubblewrap and Firecracker backends are wired
+  but unavailable here (no runsc, no bwrap, no user namespaces, no /dev/kvm) and are refused, not emulated.

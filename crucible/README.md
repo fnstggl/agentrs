@@ -62,3 +62,26 @@ cd crucible && python -m pytest -q             # unit, property, integration, sa
 This is a research platform. It is not evidence that a superlearner exists: the first experiments establish that
 the world is consistent, solvable in several ways, resistant to the obvious reward exploits, reproducible and fast
 enough for experimentation — and they report learner failures honestly (docs/EXPERIMENTS.md).
+
+
+## Open world (branch `feat/crucible-open-world`)
+
+Open families (`open_digital`, `open_industry`, `open_mixed`, `open_scarce_energy`, `open_fragile_suppliers`,
+held-out `open_weak_institutions`, `open_perishable`) replace "eight problem formats" as the boundary of value with
+outcome-based demand: firms run by Tier-2 minds measure their own books, publish problems, and adopt software or
+process knowledge invented by agents only when randomised trials on their own operations show it pays. Agents can
+also negotiate binding agreements with simulated people, constitute organisations with enforced governance, and
+build in a production economy with hidden physics, energy, freight and household demand over item attributes.
+
+```bash
+cd crucible && python -m pytest -q tests/test_open_*.py
+PYTHONPATH=crucible/src python crucible/examples/demo_open_invention.py 1 40      # demonstration 1
+PYTHONPATH=crucible/src python crucible/examples/demo_open_techchange.py 1 45     # demonstration 2
+PYTHONPATH=crucible/src python crucible/examples/demo_open_negotiation.py 1       # demonstration 3
+PYTHONPATH=crucible/src python crucible/examples/demo_open_supplychain.py 1 40    # demonstration 4
+PYTHONPATH=crucible/src python crucible/examples/demo_open_civilization.py 1 90   # demonstration 5
+PYTHONPATH=crucible/src python crucible/examples/open_ablations.py 30 1 2
+```
+
+Read `ARCHITECTURE.md` (open-world layer), `docs/OPEN_ENDEDNESS_AUDIT.md`, `docs/EXPERIMENTS.md` and
+`IMPLEMENTATION_STATUS.md` (open-world ledger and acceptance criteria).

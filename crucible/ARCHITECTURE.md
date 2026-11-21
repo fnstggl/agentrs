@@ -87,3 +87,44 @@ AGENTRS reaches it through `integrations/` and `src/agentrs/cam2/envs/crucible_e
 World lifetime (until stopped or forked) ≠ agent lifetime (the learner's own checkpoints and memory) ≠ trial
 (an evaluation exposure) ≠ episode (a training segmentation; in `reset_mode="continue"` the world persists) ≠
 rollout. Agents can leave and return; the world keeps running (AGENT_API.md, RL_INTEGRATION.md).
+
+## Open-world layer (branch `feat/crucible-open-world`)
+
+The open-world layer removes the assumption that value comes from a fixed list of problem formats. It is built
+entirely as ordinary event-sourced modules on the unchanged kernel; legacy families are unaffected.
+
+```
+ mechanisms record measured consequences            organisations decide from their own books
+ ───────────────────────────────────────            ─────────────────────────────────────────
+ bank ledger ──observer──▶ ops journal ◀── losses (overload, outage, downtime, defects, stockouts, ...)
+                                │
+                     Tier-2 minds (society): goals ─▶ public requests (ops.request) ─▶ agents read them
+                                │                                                      │ write code, deploy
+                                ▼                                                      ▼
+            caps.install: id.grant (scoped) + wf triggers + payments  ◀── caps.publish (descriptor of a live service)
+                                │
+             randomised switchback trial ─▶ world-computed outcome evidence (Mode B) ─▶ adopt / uninstall
+                                │                                         │
+                    share evidence (mail, forum) ─▶ other minds' beliefs   └▶ categories / markets / tech graph
+```
+
+| module | host | file | role |
+|---|---|---|---|
+| `ops` | `ops` | `economy/operations.py` | daily P&L by ledger kind (derived from the bank applier), loss journal, problem requests and responses |
+| `wf` | `wf` | `services/workflows.py` | triggers (schedule/event) acting as their owner; typed flows with references, conditions, iteration; async jobs |
+| `caps` | `caps` | `services/capabilities.py` | capability descriptors, installation as scoped delegation, switchback trials, evidence (Modes A-D), observed composition graph, descriptive categories and markets |
+| `deal` | `deal` | `services/deals.py` | offers/counteroffers compiled into contracts; reputation from contract outcomes |
+| `gov` | `gov` | `services/governance.py` | constitutions enforced in `identity.authorize`; proposals, votes, approvals, delegated budgets, profit sharing |
+| `society` | - | `actors/minds.py`, `negotiation.py`, `producers.py`, `dynamics.py` | Tier-2 minds of firms and people: routines, adoption engine, negotiation, voting, entry, knowledge |
+| `industry` | `make` | `economy/industry.py` | materials, sites, machines (wear, telemetry, maintenance), designs and licences, production runs, process knowledge, B2B trade, standing orders, retail, energy grids |
+| `freight` | `freight` | `economy/industry.py` | links with transit time, cost and daily capacity; congestion delays and pricing |
+| `shoppers` | - | `economy/shoppers.py` | households with preferences over item attributes; awareness, word of mouth, budget |
+| `industrygen` | - | `worlds/open_industry.py` | genesis of a multi-tier supply chain run by minds |
+
+Kernel additions (all backward compatible): `Ctx.run_as` (module-internal acting as another principal with
+savepoint semantics), `Ctx.call(..., brokered=True)` (a sandboxed program always acts as its own service principal,
+whoever called it - this fixed a latent bug where any non-operator caller made a service's own RPCs fail), the
+`tool`/`tool_args`/`read_only`/`gov_approved` context fields used by institutional rules, and `persist` on errors:
+facts about a refusal (e.g. an energy-curtailment loss) survive the rollback of the refused action exactly once.
+The sandbox gained a backend layer (`sandbox/backends.py`) that adds an outer isolation layer when the host can
+provide one and refuses otherwise.
