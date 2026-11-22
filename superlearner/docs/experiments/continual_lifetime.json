@@ -1,0 +1,444 @@
+{
+ "conditions": {
+  "frozen_memory": {
+   "seeds": [
+    0
+   ],
+   "phases": [
+    "start",
+    "capital",
+    "operate",
+    "launch",
+    "build",
+    "shift"
+   ],
+   "matrix_mean": [
+    [
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.5
+    ],
+    [
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.5
+    ],
+    [
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.5
+    ],
+    [
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.5
+    ],
+    [
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.5
+    ],
+    [
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.5
+    ]
+   ],
+   "matrix_by_seed": [
+    [
+     [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
+     [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
+     [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
+     [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
+     [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
+     [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ]
+    ]
+   ],
+   "matrix_sampled_by_seed": [
+    [
+     [
+      1.0,
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     [
+      1.0,
+      0.0,
+      null,
+      null,
+      null,
+      null
+     ],
+     [
+      1.0,
+      0.0,
+      0.0,
+      null,
+      null,
+      null
+     ],
+     [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      null,
+      null
+     ],
+     [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      null
+     ],
+     [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.4791666666666667
+     ]
+    ]
+   ],
+   "final_by_phase": [
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.5
+   ],
+   "final_mean": {
+    "mean": 0.25,
+    "by_seed": [
+     0.25
+    ]
+   },
+   "final_mean_sampled": {
+    "mean": 0.2465277777777778,
+    "by_seed": [
+     0.2465277777777778
+    ]
+   },
+   "final_mean_taught": {
+    "mean": 0.2,
+    "by_seed": [
+     0.2
+    ]
+   },
+   "forgetting": {
+    "mean": 0.0,
+    "by_phase": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "by_seed": [
+     0.0
+    ]
+   },
+   "acquisition": {
+    "mean": 0.16666666666666666,
+    "by_phase": [
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "by_seed": [
+     0.16666666666666666
+    ]
+   },
+   "right_after_learning": {
+    "mean": 0.25,
+    "by_phase": [
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.5
+    ]
+   },
+   "zero_shot_before_training": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.5
+   ],
+   "shift": {
+    "before": 0.5,
+    "after": 0.5,
+    "by_seed": [
+     [
+      0.5,
+      0.5
+     ]
+    ]
+   },
+   "unseen_worlds_final": {
+    "mean": 0.25,
+    "by_seed": [
+     0.25
+    ]
+   },
+   "final_mean_memory_off": {
+    "mean": 0.25,
+    "by_seed": [
+     0.25
+    ]
+   },
+   "memory_items_final": 1745.0,
+   "tools_final": 9.0,
+   "train_first_iter": [
+    0.9434,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.4479
+   ],
+   "train_mean": [
+    0.918475,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.4479
+   ],
+   "env_decisions": 51861.0,
+   "episodes": 1651.0,
+   "wall_s": {
+    "rollout_s": 47.07350277900696,
+    "update_s": 45.07426142692566
+   },
+   "optimizer_steps": 247.0,
+   "plasticity": {
+    "probe_loss_after_40_steps": [
+     2.810002088546753,
+     2.810138702392578,
+     2.810236692428589,
+     2.8073151111602783,
+     2.8102035522460938,
+     2.8108303546905518
+    ],
+    "probe_chance": 4.981982707977295,
+    "dormant_fraction": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "state_effective_rank": [
+     3.883885383605957,
+     3.883885383605957,
+     3.883885383605957,
+     3.883885383605957,
+     3.883885383605957,
+     3.883885383605957
+    ]
+   },
+   "world_model_heldout": [
+    {
+     "ok_accuracy": 0.933,
+     "majority": 0.6872,
+     "ok_nll": 0.1874,
+     "base_nll": 0.6214,
+     "next_cosine": 0.9955,
+     "next_cosine_mean_predictor": 0.8569
+    },
+    {
+     "ok_accuracy": 0.91495,
+     "majority": 0.6686000000000001,
+     "ok_nll": 0.25980000000000003,
+     "base_nll": 0.6344,
+     "next_cosine": 0.9945,
+     "next_cosine_mean_predictor": 0.866
+    },
+    {
+     "ok_accuracy": 0.9141333333333334,
+     "majority": 0.6822,
+     "ok_nll": 0.28886666666666666,
+     "base_nll": 0.6238333333333334,
+     "next_cosine": 0.9940000000000001,
+     "next_cosine_mean_predictor": 0.8876666666666667
+    },
+    {
+     "ok_accuracy": 0.915275,
+     "majority": 0.6929000000000001,
+     "ok_nll": 0.27175,
+     "base_nll": 0.6149249999999999,
+     "next_cosine": 0.9941,
+     "next_cosine_mean_predictor": 0.90625
+    },
+    {
+     "ok_accuracy": 0.9134599999999999,
+     "majority": 0.7055800000000001,
+     "ok_nll": 0.2663,
+     "base_nll": 0.60302,
+     "next_cosine": 0.9941599999999999,
+     "next_cosine_mean_predictor": 0.9141199999999999
+    },
+    {
+     "ok_accuracy": 0.9150166666666665,
+     "majority": 0.7085833333333333,
+     "ok_nll": 0.2596833333333333,
+     "base_nll": 0.6007666666666667,
+     "next_cosine": 0.9944333333333333,
+     "next_cosine_mean_predictor": 0.9022
+    }
+   ],
+   "world_model_first_phase_over_time": [
+    0.933,
+    0.933,
+    0.933,
+    0.933,
+    0.933,
+    0.933
+   ],
+   "world_model_prequential": {
+    "accuracy": 0.815225,
+    "majority": 0.5868249999999999,
+    "first_iteration": [
+     0.4952,
+     0.5048
+    ],
+    "last_iteration": [
+     0.9222,
+     0.6591
+    ]
+   },
+   "weights_since_init_relative": {
+    "input": 0.031030704910130495,
+    "encoder": 0.06424998331442078,
+    "recurrent": 0.08303301098910933,
+    "policy": 0.6175929334268419,
+    "critic": 0.20831857346759425,
+    "all": 0.07369710780441927
+   },
+   "weights_changed_after_first_phase": [
+    false
+   ],
+   "backbone": {
+    "mode": "none",
+    "trainable": 0,
+    "total": 548856064,
+    "relative_change_from_pretrained": 0.0,
+    "l2_change_from_pretrained": 0.0
+   },
+   "params": {
+    "controller": {
+     "trainable": 19667591,
+     "total": 19667591,
+     "frozen_text_embedding_rows": 1620
+    },
+    "groups": {
+     "input": 4806784,
+     "encoder": 10647552,
+     "recurrent": 2217600,
+     "policy": 1772162,
+     "critic": 223493,
+     "wm": 1057166
+    },
+    "backbone": {
+     "model": "Qwen/Qwen3-0.6B",
+     "mode": "none",
+     "blocks_used": 25,
+     "trainable": 0,
+     "total": 548856064
+    }
+   },
+   "restarts": [
+    1
+   ]
+  }
+ },
+ "comparisons": {},
+ "labels": {
+  "frozen_memory": "1 frozen core + written memory",
+  "naive": "2 trainable core, no protection",
+  "memory": "3 trainable core + external memory",
+  "rehearsal": "4a trainable core + rehearsal",
+  "consolidate": "4b trainable core + rehearsal + consolidation",
+  "backbone_lora": "5 (LoRA) 4b + backbone adapters",
+  "backbone_top4": "5 (top 4 blocks) 4b + backbone top blocks",
+  "backbone_full": "5 (full) 4b + whole backbone"
+ },
+ "order": [
+  "frozen_memory"
+ ]
+}

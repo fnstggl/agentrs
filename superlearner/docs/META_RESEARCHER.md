@@ -97,6 +97,32 @@ fingerprints mean no functional change on that data. The reported search was run
 inert candidates were run — which turned them into free A/A tests: their measured "effects" calibrate the noise of
 single-seed screening (RESULTS, section 11). `experiment e` applies the probe to a finished search.
 
+## Searching over continual update rules (`mode: lifetime`)
+
+`configs/meta_continual.yaml`. The same machinery with three differences:
+
+* **What a candidate is.** A version of `algo/continual.py` - the rule by which the learner's weights are updated
+  over a lifetime. `ContinualSpace` (`meta/proposals.py`) writes a genome of nineteen choices into that file: the
+  `CONTINUAL_DEFAULTS` and `RULE_SCALES` literals and the body of `replay_arm_weights`. The shipped file IS the
+  base genome (a test checks the two are identical), so the champion's tree is the repository's. The first pool is
+  thirteen single-idea variants - no rehearsal, anchors instead of rehearsal, replay consolidation, EWC, L2-SP,
+  shrink-and-perturb, L2-init, heads-only updates, a slower trunk, stronger or no world-model shaping of the
+  representation, two replay weightings - so that each classic method is measured against the same baseline; later
+  pools mutate the champion or the best rule screened so far. The frozen LLM can also rewrite `replay_arm_weights`,
+  `anchor_penalty` and `fisher_update` (`sources.llm`), which needs the language-model server.
+* **What a run is.** `candidate_run.py` stage `lifetime`: a short lifetime (`continual/lifetime.py`) inside the
+  confinement - phases of new arms, each with observation, practice and a held-out evaluation of every phase. The
+  inner run sets only what the search does not vary; everything else comes from the candidate's own file.
+* **What is measured.** `compare.lifetime_measures`, from the env hub's records alone: evaluation episodes are
+  grouped by the hub's training-decision stamp; a run is valid only if there are exactly as many groups as phases
+  and each ran every held-out index exactly once. The primary measure is the mean over phases of success on the
+  phases seen so far; forgetting and the gain right after learning are recorded with it. The inert-change probe now
+  also runs two short phases on fixed episodes (observe, update, consolidate, twice), so that a candidate that
+  changes only observation, rehearsal or consolidation is not mistaken for one that changes nothing.
+
+Not in this search: backbone plasticity (no GPU inside the confinement; the inner learner uses hash text
+embeddings) and the world-model exploration settings, which are run configuration.
+
 ## Interruptions
 
 The ledger is appended after every round; `state.json` holds the champion, the surrogate, the learned-rule search

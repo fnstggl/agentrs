@@ -1,0 +1,36 @@
+{
+ "code": {
+  "learner": "6c1fc2926007a3ff",
+  "protected": "bdb368b177bed31b",
+  "grounding": "00df58b23e150e2b"
+ },
+ "git": "5b29e5d7503f7246264081de7e3fbe41b1adfeb0",
+ "isolation": {
+  "level": "uid+rlimits+landlock+seccomp",
+  "usable": true,
+  "inside": {
+   "uid": 65534,
+   "read_outside_allowlist": "denied (PermissionError)",
+   "read_home": "denied (PermissionError)",
+   "write_outside_workdir": "denied (PermissionError)",
+   "write_own_source": "denied (PermissionError)",
+   "tcp_socket": "denied (PermissionError)",
+   "udp_socket": "denied (PermissionError)",
+   "unix_socket_to_trusted_service": "ALLOWED",
+   "write_workdir": "ALLOWED",
+   "setuid_root": "denied (PermissionError)",
+   "torch": "2.14.1+cu126",
+   "cuda": false
+  },
+  "gpu_inside": false,
+  "torch_inside": "2.14.1+cu126",
+  "missing": [
+   "VM or container-grade isolation (no gVisor/Firecracker/user namespaces in this container)"
+  ]
+ },
+ "started": 1795375244.834779,
+ "base_tree": {
+  "editable": "c04eb121bfc5a7d9",
+  "protected": "97f9e761c2c525f7"
+ }
+}

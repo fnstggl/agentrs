@@ -384,6 +384,8 @@ class Lifetime:
                 self.tr.save(f"phase_{k}.pt", inline=True)
             x["phase"], x["stage"], x["it"] = k + 1, ("begin" if k + 1 < len(self.phases) else "done"), 0
         self.save()
+        if self.tr.device != "cpu":
+            torch.cuda.empty_cache()                      # the GPU is shared with other lifetimes: return cached blocks
         if x["stage"] == "done":
             self.write_results()
             open(os.path.join(self.dir, "DONE"), "w").write(time.strftime("%Y-%m-%d %H:%M:%S\n"))

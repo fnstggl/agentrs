@@ -1,0 +1,10 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -47,5 +47,5 @@
+         'fit_batch': 256},
+- 'rehearsal': {'keep': True, 'per_arm': 120},
++ 'rehearsal': {'keep': False, 'per_arm': 120},
+  'consolidate_steps': 0,
+- 'anchor': {'kind': 'none', 'coef': 0.0, 'decay': 1.0, 'fisher_episodes': 64, 'top_frac': 1.0},
++ 'anchor': {'kind': 'ewc', 'coef': 2000000.0, 'decay': 1.0, 'fisher_episodes': 64, 'top_frac': 1.0},
+  'l2init': 0.0,

@@ -126,6 +126,7 @@ sampled variant to use, and whether a draft step is followed, edited (argument b
 | working | `WorkingMemory`: steps, successful calls, plan, draft, subgoals | one episode | every episode start |
 | episodic | `EpisodicMemory` (goal embedding → outcome, tools that worked, literal arguments) and the `ToolLibrary` | across episodes and worlds; saved in checkpoints | `evaluate --reset-memory` |
 | neural | controller weights; recurrent state (within an episode) | checkpoints | `evaluate --reset-weights` |
+| neural, lifelong | controller, world model and (optionally) language-backbone weights updated in every phase of a lifetime; both optimisers' state; rehearsal reservoirs | one file per lifetime, replaced after every step | a new lifetime |
 
 ## 6. Learning (`algo/`, `train/`)
 
@@ -139,6 +140,15 @@ behaviour cloning for the warm start. `algo/base.py` is the interface for furthe
 experience → episodes → update → changed weights → checkpoint, with periodic greedy evaluation on tasks that are
 never trained on; `train/curriculum.py` chooses task arms from competence, uncertainty, prerequisites and failure
 patterns. Details: [TRAINING.md](TRAINING.md).
+
+### Learning for life
+
+Sections 4-6 describe one training run. `algo/continual.py`, `cam/backbone.py` and `continual/` turn it into a
+learner that keeps changing its weights across phases of new tasks: the world model is trained online and is part
+of the learner's state, verified successes are rehearsed per task arm, phases end with consolidation, the language
+backbone that produces the text embeddings can itself be trained, and one atomically written file restores all of
+it after a restart. The parameter inventory (what is plastic, what is frozen and why), the tests and the
+measurements are in [CONTINUAL.md](CONTINUAL.md).
 
 ## 7. The Meta-Researcher (`meta/`)
 

@@ -1,0 +1,9 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -38,4 +38,4 @@
+ CONTINUAL_DEFAULTS = {'wm': {'enabled': True,
+-        'coef': 1.0,
+-        'repr': 0.1,
++        'coef': 3.0,
++        'repr': 0.5,
+         'replay_steps': 4,

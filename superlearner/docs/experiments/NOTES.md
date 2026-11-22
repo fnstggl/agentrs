@@ -251,3 +251,22 @@ Work on the amendment ("continual learning must change the core neural weights")
 * **Queue concurrency** was raised twice by replacing the runner process without touching running jobs (the
   runner is killed with SIGKILL so that it does not stop its children; the new one is told to leave the jobs in
   flight alone).
+* **A bug that only a restart on the GPU could show.** After the queue was bounced at 20:05 every resumed lifetime
+  ran its phase (8-17 minutes) and then died in the close step: the reference weights kept in the checkpoint for
+  measuring "how far have the weights moved" came back on the GPU, and the measurement subtracted them from a CPU
+  copy. Nothing was lost (each attempt resumes from the last completed step) but six jobs repeated a phase's
+  evaluation two or three times before it was noticed, and two were on their last retry. Fixed (the reference is
+  moved to the CPU when used), then every tensor path of a resumed GPU learner was exercised on a copy of a real
+  run directory (weight change, world-model report, diagnostics, probe, consolidation, update, observation, save)
+  before the queue was started again at 20:26. The CPU tests could not have caught it; there is no GPU test in the
+  suite because the suite must run next to the experiments.
+* **Where the time goes.** Episodes of the service and repair arms in the larger world families take 10-25 s of
+  wall-clock each, 75-85% of it inside the simulator (seven simulated days of consumers and requests); the small
+  worlds' arms take 0.4-2.7 s. A lifetime's later phases are therefore bounded by simulation, not by learning.
+* **GPU memory, again.** At seven queue units the card was full (42-44 GB) and the memory-condition lifetime died in
+  its world-model report after 43 minutes (restarted from its checkpoint). Two causes: a lifetime process holds
+  5-6 GB, not the 4.5 GB budgeted, and from about 20:30 another session on this machine (a `crucible-4` worktree,
+  not part of this work) held about 10 GB. Its processes were left alone. The queue was restarted at five units, and
+  a lifetime now returns its cached GPU blocks after every step. Every seed-0 lifetime was therefore interrupted and
+  resumed between two and four times; their `restarts` counters record it, and each time they continued from the
+  last completed step.

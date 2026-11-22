@@ -1,0 +1,14 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -83,5 +83,8 @@
+ def replay_arm_weights(arms: list, current: set) -> np.ndarray:
+-    """Probability of drawing each arm of the buffer for one replayed episode (uniform over arms: old and new
+-    skills receive the same share of replayed gradient)."""
+-    return np.ones(len(arms)) / max(1, len(arms))
++    """Half of the replay goes to the current phase's arms as a whole and half to all earlier arms as a whole, so
++    the past keeps half of the replayed gradient however many phases it spans."""
++    cur = np.array([1.0 if tuple(a) in current else 0.0 for a in arms])
++    old = 1.0 - cur
++    w = (0.5 * cur / max(1.0, cur.sum()) + 0.5 * old / max(1.0, old.sum())) if cur.sum() and old.sum() else np.ones(len(arms))
++    return w / w.sum()
+ 
