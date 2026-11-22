@@ -7,10 +7,11 @@
 # No language-model server is needed: every run hosts its own Qwen3-0.6B backbone (frozen or trainable).
 # Jobs are ordered so that seed 0 of everything finishes first. A job whose `done` file exists is skipped, and an
 # interrupted lifetime continues from its last completed step.
-# `gpu` counts units of about 6 GB of GPU memory (a frozen-backbone run is 1, adapters or top blocks 2, the fully
-# trainable backbone 3); `cpu` counts rollout workers, which mostly wait for the simulator.
-max_gpu: 5
-max_cpu: 96
+# `gpu` counts units of about 3 GB of GPU memory, measured on these runs: an internalization-test job 1, a lifetime
+# with a frozen backbone 2, with adapters or trainable top blocks 3, with the fully trainable backbone 5.
+# `cpu` counts rollout workers, which mostly wait for the simulator.
+max_gpu: 11
+max_cpu: 120
 env: {PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"}
 jobs:
   - name: pit_base_s0
@@ -111,49 +112,49 @@ jobs:
     done: runs/pit/s0/repair__memory_observe_practice/pit.json
   - name: life_frozen_memory_s0
     cmd: python -m superlearner lifetime --config configs/life/frozen_memory.yaml --set seed=0 --name life_frozen_memory_s0 --run-dir runs/life/frozen_memory_s0
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/frozen_memory_s0/DONE
   - name: life_naive_s0
     cmd: python -m superlearner lifetime --config configs/life/naive.yaml --set seed=0 --name life_naive_s0 --run-dir runs/life/naive_s0
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/naive_s0/DONE
   - name: life_memory_s0
     cmd: python -m superlearner lifetime --config configs/life/memory.yaml --set seed=0 --name life_memory_s0 --run-dir runs/life/memory_s0
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/memory_s0/DONE
   - name: life_rehearsal_s0
     cmd: python -m superlearner lifetime --config configs/life/rehearsal.yaml --set seed=0 --name life_rehearsal_s0 --run-dir runs/life/rehearsal_s0
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/rehearsal_s0/DONE
   - name: life_consolidate_s0
     cmd: python -m superlearner lifetime --config configs/life/consolidate.yaml --set seed=0 --name life_consolidate_s0 --run-dir runs/life/consolidate_s0
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/consolidate_s0/DONE
   - name: life_backbone_full_s0
     cmd: python -m superlearner lifetime --config configs/life/backbone_full.yaml --set seed=0 --name life_backbone_full_s0 --run-dir runs/life/backbone_full_s0
-    gpu: 3
+    gpu: 5
     cpu: 12
     retries: 2
     done: runs/life/backbone_full_s0/DONE
   - name: life_backbone_lora_s0
     cmd: python -m superlearner lifetime --config configs/life/backbone_lora.yaml --set seed=0 --name life_backbone_lora_s0 --run-dir runs/life/backbone_lora_s0
-    gpu: 2
+    gpu: 3
     cpu: 12
     retries: 2
     done: runs/life/backbone_lora_s0/DONE
   - name: life_backbone_top4_s0
     cmd: python -m superlearner lifetime --config configs/life/backbone_top4.yaml --set seed=0 --name life_backbone_top4_s0 --run-dir runs/life/backbone_top4_s0
-    gpu: 2
+    gpu: 3
     cpu: 12
     retries: 2
     done: runs/life/backbone_top4_s0/DONE
@@ -255,37 +256,37 @@ jobs:
     done: runs/pit/s1/repair__memory_observe_practice/pit.json
   - name: life_frozen_memory_s1
     cmd: python -m superlearner lifetime --config configs/life/frozen_memory.yaml --set seed=1 --name life_frozen_memory_s1 --run-dir runs/life/frozen_memory_s1
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/frozen_memory_s1/DONE
   - name: life_naive_s1
     cmd: python -m superlearner lifetime --config configs/life/naive.yaml --set seed=1 --name life_naive_s1 --run-dir runs/life/naive_s1
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/naive_s1/DONE
   - name: life_memory_s1
     cmd: python -m superlearner lifetime --config configs/life/memory.yaml --set seed=1 --name life_memory_s1 --run-dir runs/life/memory_s1
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/memory_s1/DONE
   - name: life_rehearsal_s1
     cmd: python -m superlearner lifetime --config configs/life/rehearsal.yaml --set seed=1 --name life_rehearsal_s1 --run-dir runs/life/rehearsal_s1
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/rehearsal_s1/DONE
   - name: life_consolidate_s1
     cmd: python -m superlearner lifetime --config configs/life/consolidate.yaml --set seed=1 --name life_consolidate_s1 --run-dir runs/life/consolidate_s1
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/consolidate_s1/DONE
   - name: life_backbone_full_s1
     cmd: python -m superlearner lifetime --config configs/life/backbone_full.yaml --set seed=1 --name life_backbone_full_s1 --run-dir runs/life/backbone_full_s1
-    gpu: 3
+    gpu: 5
     cpu: 12
     retries: 2
     done: runs/life/backbone_full_s1/DONE
@@ -353,31 +354,31 @@ jobs:
     done: runs/pit/s2/repair__explore_practice/pit.json
   - name: life_frozen_memory_s2
     cmd: python -m superlearner lifetime --config configs/life/frozen_memory.yaml --set seed=2 --name life_frozen_memory_s2 --run-dir runs/life/frozen_memory_s2
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/frozen_memory_s2/DONE
   - name: life_naive_s2
     cmd: python -m superlearner lifetime --config configs/life/naive.yaml --set seed=2 --name life_naive_s2 --run-dir runs/life/naive_s2
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/naive_s2/DONE
   - name: life_memory_s2
     cmd: python -m superlearner lifetime --config configs/life/memory.yaml --set seed=2 --name life_memory_s2 --run-dir runs/life/memory_s2
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/memory_s2/DONE
   - name: life_consolidate_s2
     cmd: python -m superlearner lifetime --config configs/life/consolidate.yaml --set seed=2 --name life_consolidate_s2 --run-dir runs/life/consolidate_s2
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/consolidate_s2/DONE
   - name: life_backbone_full_s2
     cmd: python -m superlearner lifetime --config configs/life/backbone_full.yaml --set seed=2 --name life_backbone_full_s2 --run-dir runs/life/backbone_full_s2
-    gpu: 3
+    gpu: 5
     cpu: 12
     retries: 2
     done: runs/life/backbone_full_s2/DONE

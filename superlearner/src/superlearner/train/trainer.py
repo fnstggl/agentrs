@@ -174,7 +174,10 @@ class Trainer:
                                          lora_rank=int(bc.get("lora_rank", 8)), chunk_tokens=int(bc.get("chunk_tokens", 6000)))
             self.live = LiveTable(self.backbone, self.store, self.texts)
             self.model.live = self.live
-            sock = os.path.join(os.path.dirname(os.path.abspath(run_dir)), f".bb{os.getpid()}.sock")
+            # a unix socket path is limited to about 100 characters: keep it short and independent of the run directory
+            sdir = os.environ.get("SUPERLEARNER_SOCK_DIR", "/var/tmp/superlearner-sock")
+            os.makedirs(sdir, mode=0o700, exist_ok=True)
+            sock = os.path.join(sdir, f"bb{os.getpid()}.sock")
             self.embed_service = EmbedService(self.backbone, sock)
             worker_llm = {"kind": "backbone", "socket": sock, "gen": c["llm"] if c["llm"].get("kind") == "remote" else None}
             if hasattr(self.algo, "attach_backbone"):
