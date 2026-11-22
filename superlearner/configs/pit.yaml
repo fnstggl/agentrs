@@ -22,6 +22,10 @@ pit:
                         over: {explore: {frac: 0.5, modes: [hot, random, wm], temperature: 2.5, beta: 2.0}}}
     observe:           {demos_per_arm: 4, observe_steps: 120, iters: 0}
     observe_practice:  {demos_per_arm: 4, observe_steps: 120, iters: 6, episodes_per_iter: 64}
+    # Architecture B: the same route with the language backbone fully trainable while the unfamiliar family is
+    # learned (the weights file then also holds the backbone's 549M changed parameters)
+    observe_practice_backbone: {demos_per_arm: 4, observe_steps: 120, iters: 6, episodes_per_iter: 64,
+                                over: {backbone: {mode: full}, algo: {backbone_lr: 0.00001}}}
     # controls: the same experience written to episodic memory with the weights frozen; and weights plus memory
     frozen_memory:           {demos_per_arm: 4, iters: 6, episodes_per_iter: 64, memory: true, freeze: true}
     memory_observe_practice: {demos_per_arm: 4, observe_steps: 120, iters: 6, episodes_per_iter: 64, memory: true}

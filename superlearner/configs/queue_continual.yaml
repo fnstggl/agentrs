@@ -7,8 +7,11 @@
 # No language-model server is needed: every run hosts its own Qwen3-0.6B backbone (frozen or trainable).
 # Jobs are ordered so that seed 0 of everything finishes first. A job whose `done` file exists is skipped, and an
 # interrupted lifetime continues from its last completed step.
-max_gpu: 5
-max_cpu: 48
+# `gpu` counts units of about 4.5 GB of GPU memory (a frozen-backbone run is 1, adapters or top blocks 2, the
+# fully trainable backbone 3); `cpu` counts rollout workers, which mostly wait for embeddings, so more workers
+# than cores is fine.
+max_gpu: 8
+max_cpu: 120
 env: {PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"}
 jobs:
   - name: pit_base_s0
@@ -55,19 +58,19 @@ jobs:
     done: runs/life/consolidate_s0/DONE
   - name: life_backbone_full_s0
     cmd: python -m superlearner lifetime --config configs/life/backbone_full.yaml --set seed=0 --name life_backbone_full_s0 --run-dir runs/life/backbone_full_s0
-    gpu: 1
+    gpu: 3
     cpu: 12
     retries: 2
     done: runs/life/backbone_full_s0/DONE
   - name: life_backbone_lora_s0
     cmd: python -m superlearner lifetime --config configs/life/backbone_lora.yaml --set seed=0 --name life_backbone_lora_s0 --run-dir runs/life/backbone_lora_s0
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/backbone_lora_s0/DONE
   - name: life_backbone_top4_s0
     cmd: python -m superlearner lifetime --config configs/life/backbone_top4.yaml --set seed=0 --name life_backbone_top4_s0 --run-dir runs/life/backbone_top4_s0
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/backbone_top4_s0/DONE
@@ -199,19 +202,19 @@ jobs:
     done: runs/life/consolidate_s1/DONE
   - name: life_backbone_full_s1
     cmd: python -m superlearner lifetime --config configs/life/backbone_full.yaml --set seed=1 --name life_backbone_full_s1 --run-dir runs/life/backbone_full_s1
-    gpu: 1
+    gpu: 3
     cpu: 12
     retries: 2
     done: runs/life/backbone_full_s1/DONE
   - name: life_backbone_lora_s1
     cmd: python -m superlearner lifetime --config configs/life/backbone_lora.yaml --set seed=1 --name life_backbone_lora_s1 --run-dir runs/life/backbone_lora_s1
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/backbone_lora_s1/DONE
   - name: life_backbone_top4_s1
     cmd: python -m superlearner lifetime --config configs/life/backbone_top4.yaml --set seed=1 --name life_backbone_top4_s1 --run-dir runs/life/backbone_top4_s1
-    gpu: 1
+    gpu: 2
     cpu: 12
     retries: 2
     done: runs/life/backbone_top4_s1/DONE
@@ -343,7 +346,7 @@ jobs:
     done: runs/life/consolidate_s2/DONE
   - name: life_backbone_full_s2
     cmd: python -m superlearner lifetime --config configs/life/backbone_full.yaml --set seed=2 --name life_backbone_full_s2 --run-dir runs/life/backbone_full_s2
-    gpu: 1
+    gpu: 3
     cpu: 12
     retries: 2
     done: runs/life/backbone_full_s2/DONE

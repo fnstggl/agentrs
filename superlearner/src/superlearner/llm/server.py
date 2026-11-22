@@ -312,15 +312,20 @@ class EmbedOnly(LLM):
 
 class BackboneClient(LLM):
     """Text embeddings from the learner's own (possibly trainable) language backbone, served by the training
-    process (`cam/backbone.py:EmbedService`). Nothing is cached here across weight versions: the worker's
-    embedding store is replaced whenever the backbone changes. Generation, if a run needs it, goes to `gen`
-    (the frozen generator's client); without one there is no generation."""
+    process (`cam/backbone.py:EmbedService`). Vectors are remembered in this process for as long as the backbone's
+    weights stay the same: when they change the trainer replaces the worker's embedding store and `clear()` is
+    called, so nothing computed with old weights is ever served. Generation, if a run needs it, goes to `gen` (the
+    frozen generator's client); without one there is no generation."""
 
     def __init__(self, socket_path: str, gen: LLM | None = None):
         self.socket_path, self.gen = socket_path, gen
         self._conn, self._pid = None, None
         self.name = "backbone"
-        self.stats = {"embed_texts": 0, "embed_requests": 0}
+        self._cache: dict[str, np.ndarray] = {}
+        self.stats = {"embed_texts": 0, "embed_requests": 0, "embed_local_hits": 0}
+
+    def clear(self) -> None:
+        self._cache = {}
 
     def _c(self):
         if self._conn is None or self._pid != os.getpid():
@@ -332,14 +337,25 @@ class BackboneClient(LLM):
     def embed(self, texts):
         if not len(texts):
             return np.zeros((0, 512), np.float32)
-        c = self._c()
-        c.send(("embed", list(texts)))
-        st, out = c.recv()
-        if st != "ok":
-            raise RuntimeError(f"backbone embedding service: {out}")
+        texts = list(texts)
+        need = [t for t in dict.fromkeys(texts) if t not in self._cache]
         self.stats["embed_texts"] += len(texts)
-        self.stats["embed_requests"] += 1
-        return out
+        self.stats["embed_local_hits"] += len(texts) - len(need)
+        if need:
+            c = self._c()
+            c.send(("embed", need))
+            st, out = c.recv()
+            if st != "ok":
+                raise RuntimeError(f"backbone embedding service: {out}")
+            self.stats["embed_requests"] += 1
+            if len(self._cache) > 100_000:
+                self._cache = {}
+            self._cache.update(zip(need, out))
+            if len(need) == len(texts):
+                return out
+            fresh = dict(zip(need, out))
+            return np.stack([fresh[t] if t in fresh else self._cache[t] for t in texts])
+        return np.stack([self._cache[t] for t in texts])
 
     def generate(self, messages, max_new_tokens=512, variant=0, think=False):
         if self.gen is None:

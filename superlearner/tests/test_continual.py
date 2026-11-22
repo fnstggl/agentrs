@@ -195,45 +195,24 @@ def smoke_cfg():
     return load_config(os.path.join(CFG, "life_smoke.yaml"))
 
 
-@pytest.fixture
-def one_thread():
-    """Multi-threaded floating-point sums are not bitwise reproducible on a busy machine (two identical runs can
-    differ in the last bits); with one thread they are, which is what an exact-restart test needs."""
-    n = torch.get_num_threads()
-    torch.set_num_threads(1)
-    yield
-    torch.set_num_threads(n)
-
-
-def test_a_lifetime_killed_and_restarted_ends_with_the_same_weights(smoke_cfg, tmp_path, one_thread):
-    cfg = copy.deepcopy(smoke_cfg)
-    cfg["lifetime"]["phases"] = cfg["lifetime"]["phases"][:2]
-    cfg["lifetime"]["eval"]["sampled"] = False
-    a = Lifetime(cfg, str(tmp_path / "whole"), verbose=False)
-    while a.step():
-        pass
-    da, ra = PL.weights_digest(a.tr.model), a.x["rows"]
-    a.tr.close()
-    b = Lifetime(cfg, str(tmp_path / "cut"), verbose=False)
-    for _ in range(3):                                                 # begin + observe, practice, close of the first phase
-        b.step()
-    b.tr.close()
-    del b
-    c = Lifetime(cfg, str(tmp_path / "cut"), verbose=False)            # a new object: everything comes from the file
-    assert c.x["phase"] == 1 and c.x["restarts"] == 1 and len(c.x["rows"]) == 1
-    assert c.tr.algo.n_updates > 0 and len(c.tr.algo.buffer) > 0 and c.tr.algo.anchors is not None
-    while c.step():
-        pass
-    dc, rc = PL.weights_digest(c.tr.model), c.x["rows"]
-    res = json.load(open(tmp_path / "cut" / "results.json"))
-    c.tr.close()
-    assert dc == da                                                    # bit-identical weights after the restart
-    assert [r["lists"] for r in ra] == [{k: dict(v, wall_s=x["lists"][k]["wall_s"]) for k, v in r["lists"].items()}
-                                        for r, x in zip(rc, ra)]
-    assert res["finished"] and res["restarts"] == 1 and len(res["derived"]["matrix"]) == 2
-    assert da != a.x["digest_init"]                                    # and learning did change them
-    row = ra[-1]
-    assert row["weights"]["since_init"]["all"]["l2"] > 0 and row["world_model"] and "probe_fit" in row["plasticity"]
+def test_a_learner_rebuilt_from_its_checkpoint_is_the_same_learner(tmp_path):
+    """tests/restart_check.py: after the first phase a new Lifetime is built from the checkpoint file alone. Its
+    state equals the original's in every part that learns or steers learning, one more update on the same episodes
+    gives bit-identical weights in both, and the rebuilt lifetime runs to its end."""
+    import subprocess
+    import sys
+    r = subprocess.run([sys.executable, os.path.join(HERE, "restart_check.py"), str(tmp_path)], capture_output=True, text=True, timeout=900)
+    line = next((l for l in r.stdout.splitlines() if l.startswith("RESTART_CHECK ")), None)
+    assert line, r.stderr[-2000:]
+    d = json.loads(line[len("RESTART_CHECK "):])
+    o, n = d["original"], d["reloaded"]
+    assert n == o                                                      # weights, world model, optimisers, buffers, anchors, counters, RNGs
+    assert o["weights"] != d["weights_at_start"] and o["adam_steps"] > 0 and len(o["buffer"]) > 0 and len(o["experience"]) > 0
+    assert o["anchors"] is not None and o["fisher"] is not None and o["lifetime"][:2] == [1, "begin"] and d["restarts"] == 1
+    x, y = d["after_same_update"]
+    assert x == y and x["weights"] != o["weights"] and x["world_model"] != o["world_model"]    # the same next step, bit for bit
+    assert d["finished"] and d["rows"] == 2 and d["matrix_rows"] == 2 and d["done_marker"]
+    assert d["last_row"]["moved"] > 0 and d["last_row"]["wm"] and d["last_row"]["probe"]
 
 
 def test_frozen_core_condition_never_changes_weights_after_the_first_phase(smoke_cfg, tmp_path):
@@ -375,6 +354,28 @@ def test_embedding_service_batches_requests_and_serves_the_current_weights():
         bb.version += 1
         new = BackboneClient(sock).embed(TEXTS[:2])
         assert np.allclose(new, bb.embed_np(TEXTS[:2]), atol=1e-5) and not np.allclose(new, ref[:2], atol=1e-4)
+        c = BackboneClient(sock)                                 # a client remembers vectors until it is told to forget
+        first = c.embed(TEXTS)
+        again = c.embed(TEXTS[::-1])
+        assert c.stats["embed_requests"] == 1 and c.stats["embed_local_hits"] == len(TEXTS) and np.allclose(again[::-1], first)
+        bb.version += 1                                          # weights changed again: the trainer clears the workers
+        c.clear()
+        c.embed(TEXTS[:1])
+        assert c.stats["embed_requests"] == 2
     finally:
         svc.close()
         shutil.rmtree(os.path.dirname(sock), ignore_errors=True)
+
+
+def test_world_model_fit_on_replayed_transitions_beats_the_base_rate_on_its_data():
+    from superlearner.cam.worldmodel import evaluate_model, transitions
+    model, store, eps = _episodes("found", 6, teacher=False)
+    a = _algo(model, wm={"enabled": True, "replay_steps": 0, "fit_steps": 150, "fit_lr": 3e-3, "fit_batch": 64})
+    a.experience = list(eps)
+    w0 = copy.deepcopy(a.wm.state_dict())
+    m = a.wm_fit(store)
+    assert m["wm_fit_steps"] == 150 and m["wm_fit_loss_last"] < m["wm_fit_loss_first"]
+    assert any((w0[k] != v).any() for k, v in a.wm.state_dict().items())
+    rep = evaluate_model(a.wm, transitions(model, eps, store))
+    assert rep["ok_nll"] < rep["ok_nll_base_rate"]
+    assert a.state_dict()["wm_opt"] is not None                        # its optimiser state is part of the learner's state

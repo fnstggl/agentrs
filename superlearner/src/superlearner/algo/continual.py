@@ -29,7 +29,7 @@ import numpy as np
 import torch
 
 from ..cam.batch import evaluate
-from ..cam.worldmodel import WorldModel, joint_loss
+from ..cam.worldmodel import WorldModel, _loss as wm_loss_on, joint_loss, transitions
 from . import rule as R
 from .base import register
 from .ppo import PPO, flat_params, grad_norm, make_minibatches
@@ -41,7 +41,10 @@ CONTINUAL_DEFAULTS = {'wm': {'enabled': True,
         'replay_steps': 4,
         'replay_batch': 8,
         'buffer': 400,
-        'lr_mult': 4.0},
+        'lr_mult': 4.0,
+        'fit_steps': 300,
+        'fit_lr': 0.001,
+        'fit_batch': 256},
  'rehearsal': {'keep': True, 'per_arm': 120},
  'consolidate_steps': 0,
  'anchor': {'kind': 'none', 'coef': 0.0, 'decay': 1.0, 'fisher_episodes': 64, 'top_frac': 1.0},
@@ -123,6 +126,8 @@ class ContinualPPO(PPOSIL):
         if self.c["sil_steps"] is not None:
             self.c["sil_steps"] = int(round(self.c["sil_steps"] * float(RULE_SCALES["replay_steps"])))
         self.wm = WorldModel(model.cfg.d).to(device) if self.cc["wm"]["enabled"] else None
+        self.wm_opt = (torch.optim.AdamW(self.wm.parameters(), lr=float(self.cc["wm"].get("fit_lr", 1e-3)), weight_decay=1e-4)
+                       if self.wm is not None else None)
         self.backbone = None
         self.experience: list[dict] = []       # recent episodes of any outcome (world-model replay)
         self.arms_now: set = set()             # arms of the current phase
@@ -292,8 +297,39 @@ class ContinualPPO(PPOSIL):
             self.n_updates += 1
             losses.append(float(wl.detach()))
         self.model.eval()
-        return {"wm_replay_loss": float(np.mean(losses)) if losses else 0.0, "wm_replay_steps": len(losses),
-                "wm_buffer": len(self.experience)}
+        out = {"wm_replay_loss": float(np.mean(losses)) if losses else 0.0, "wm_replay_steps": len(losses),
+               "wm_buffer": len(self.experience)}
+        out.update(self.wm_fit(store))
+        return out
+
+    def wm_fit(self, store) -> dict:
+        """Fit the predictor to the stored transitions: the controller encodes every episode of the experience
+        buffer once (no gradient), then the world model alone takes `wm.fit_steps` steps on random minibatches of
+        those transitions. This is where most of its learning happens - it is cheap (the model is a small network
+        on top of the controller's state) and it re-fits the model to the controller's CURRENT representation, which
+        the policy updates have just moved."""
+        wc = self.cc["wm"]
+        steps = int(wc.get("fit_steps", 300))
+        if self.wm is None or steps <= 0 or len(self.experience) < 2:
+            return {}
+        data = transitions(self.model, self.experience, store, self.device, self.rule.gamma)
+        data = {k: v.to(self.device) for k, v in data.items()}
+        n, nb = len(data["ok"]), int(wc.get("fit_batch", 256))
+        self.wm.train()
+        first = last = 0.0
+        for st in range(steps):
+            idx = torch.randint(0, n, (min(nb, n),), device=self.device)
+            loss, _ = wm_loss_on(self.wm, data, idx)
+            if not torch.isfinite(loss):
+                continue
+            self.wm_opt.zero_grad(set_to_none=True)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.wm.parameters(), 1.0)
+            self.wm_opt.step()
+            last = float(loss.detach())
+            first = last if st == 0 else first
+        self.wm.eval()
+        return {"wm_fit_steps": steps, "wm_fit_loss_first": first, "wm_fit_loss_last": last, "wm_fit_transitions": n}
 
     # ------------------------------------------------------------------ observation (supervised updates)
     def observe(self, demos: list[dict], store, steps: int | None = None) -> list[dict]:
@@ -432,6 +468,7 @@ class ContinualPPO(PPOSIL):
     def state_dict(self):
         s = super().state_dict()
         s.update(wm=self.wm.state_dict() if self.wm is not None else None, phase=self.phase,
+                 wm_opt=self.wm_opt.state_dict() if self.wm_opt is not None else None,
                  arms_now=sorted(self.arms_now), anchors=self.anchors, fisher=self.fisher, theta_init=self.theta_init,
                  cc=self.cc, n_seen=self.n_seen)
         return s
@@ -439,6 +476,8 @@ class ContinualPPO(PPOSIL):
     def load_state_dict(self, s):
         if self.wm is not None and s.get("wm") is not None:
             self.wm.load_state_dict(s["wm"])
+            if s.get("wm_opt") is not None:
+                self.wm_opt.load_state_dict(s["wm_opt"])
         try:
             super().load_state_dict(s)
         except ValueError:                           # optimiser groups differ (e.g. another backbone mode): fresh optimiser

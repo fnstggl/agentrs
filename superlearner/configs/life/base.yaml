@@ -34,7 +34,8 @@ algo:
   sil_steps: 16
   sil_batch: 8
   sil_coef: 1.0
-  wm: {enabled: true, coef: 1.0, repr: 0.1, replay_steps: 12, replay_batch: 8, buffer: 400, lr_mult: 4.0, explore_share: 0.5}
+  wm: {enabled: true, coef: 1.0, repr: 0.1, replay_steps: 4, replay_batch: 8, buffer: 400, lr_mult: 4.0, explore_share: 0.5,
+       fit_steps: 300, fit_lr: 0.001, fit_batch: 256}
   rehearsal: {keep: false, per_arm: 120}
   anchor: {kind: none, coef: 0.0}
   observe: {steps: 120, lr: 0.0003, rehearse: true, rehearse_frac: 0.5}

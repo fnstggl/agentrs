@@ -184,3 +184,70 @@ under `runs/` (not committed); archived ones under `runs/archive/`. The curated 
   variant (cloning the new set from the same checkpoint), which shows forgetting (100% → 33%) and its prevention
   by rehearsal (100%).
 * Crucible's 305 tests pass on the final tree (12 min 24 s); 41 superlearner tests pass.
+
+## Continual learning in the weights (2026-11-22, from 17:26)
+
+Work on the amendment ("continual learning must change the core neural weights"). Results are in
+`docs/CONTINUAL.md`; this is what happened on the way, including what was thrown away.
+
+* **Design choices made before any run.** All new experiments use Qwen3-0.6B as the text backbone, hosted by each
+  training process (frozen in conditions 1-4, trainable in 5), instead of the 14B server's embeddings: the same
+  embedding function for every condition, the only difference being whether its weights receive gradients. Its
+  embeddings equal the frozen service's up to 16-bit rounding (cosine 0.998-0.999 on 15 texts); the gradient cache
+  reproduces direct back-propagation (cosine 1.00000, norm ratio 1.0000, all three trainable modes). The 14B
+  generator is not loaded in these experiments (the nine task arms need no generated content).
+* **A dtype slip in the LoRA wrapper** made the adapted backbone start 0.14% away from the frozen one (the
+  wrapper's output was promoted to 32-bit); fixed before any run, test added (`modes start from the frozen function`).
+* **Observation by epochs was too little.** First GPU dry run: 30 "epochs" over six demonstrations is 30 optimiser
+  steps, imitation loss 9.5 -> 6.7, nothing learned. Observation is now a number of steps (160 for the first phase,
+  120 later): 9.4 -> 0.27, first phase 100% held-out.
+* **Calibration of the protection (single seed, three short phases, 6 tasks per arm; `runs/calib/`).**
+  Mean held-out success over the three phases at the end / forgetting of phases 1 and 2:
+
+  | protection | final mean | phase 1 | phase 2 | phase 3 |
+  |---|---|---|---|---|
+  | none | 17% | 0% | 0% | 50% |
+  | EWC anchors only, coefficient 2e4 | 50% | 50% | 0% | 100% |
+  | EWC anchors only, 2e5 | 17% | 0% | 0% | 50% |
+  | EWC anchors only, 2e6 | 50% | 50% | 0% | 100% |
+  | rehearsal | 100% | 100% | 100% | 100% |
+  | rehearsal + 64 consolidation steps | 92% | 75% | 100% | 100% |
+  | rehearsal + consolidation + EWC 2e5 | 67% | 50% | 100% | 50% |
+  | rehearsal + EWC 2e6 | 50% | 50% | 50% | 50% |
+
+  The anchors did act (at 2e6 the importance-weighted distance from the anchor was twenty times smaller than at
+  2e4 for the same total movement), and the second phase was still forgotten every time: the diagonal importance
+  estimate does not capture what the earlier policy needs. With six tasks per arm and one seed the differences
+  among the rehearsal rows are within noise; the EWC-only rows are not (phase 2 at 0% in all three). Decision,
+  taken before the main runs: condition 4 is run both as rehearsal alone (4a) and with replay consolidation (4b);
+  anchors are left to the Meta-Researcher's search, where each is a single-idea candidate.
+* **The online world model was under-trained in the first version** (about 40 small steps per iteration): on new
+  transitions it matched the majority rate and no more (e.g. 0.62 against 0.62). An offline check on one
+  calibration run's own experience (4,087 transitions, 613 held-out) showed the data supports far more: 400 steps of
+  256 transitions at 1e-3 give held-out acceptance accuracy 0.88 against a majority rate of 0.65; 1,500 steps 0.90.
+  Added `wm_fit` (the controller re-encodes the experience buffer, the model alone takes 300 steps). The seven
+  lifetime and base runs that had started 30 minutes earlier, and the meta-search, were stopped and moved to
+  `runs/archive/continual_superseded_wm/`; everything was restarted so that all runs share one learner.
+* **Rollouts were slow for a reason that was not the simulator.** CPU 87% idle, GPU 100% busy: every worker asked
+  the training process's embedding service for every text, one request at a time. Batching concurrent requests and
+  caching per weight version cut an iteration's rollout from about 90 s to 5-20 s in the small worlds. In the larger
+  worlds it was slow again, and a counter read from the live services showed why: 250,000 texts requested, 1,300
+  computed - each episode's capability index asks for all ~111 tool descriptions again, and those requests queued
+  behind GPU passes for the few genuinely new texts. A cache in the worker's client (cleared whenever the
+  backbone's weights change) and an immediate answer for fully cached requests removed that. Runs started before
+  20:01 used the slower service; the embeddings are the same function either way.
+* **An out-of-memory failure that was my doing.** A latency test that loaded another backbone on the GPU ran while
+  seven jobs held 42.9 of 46 GB; the LoRA lifetime died with CUDA out-of-memory in its embedding pass. The queue
+  restarted it and it continued from its checkpoint. The queue now counts GPU memory in units (frozen backbone 1,
+  adapters or top blocks 2, full backbone 3), and no further GPU tests were run next to it.
+* **Restart exactness, and a source of run-to-run variation in the simulator.** The first restart test compared a
+  whole uninterrupted lifetime with a killed-and-continued one and demanded identical weights. It passed, then
+  failed about one time in five. Two identical UNINTERRUPTED runs differ equally often: the observation features
+  of some decisions (`obsf`, from Crucible's `obs_features`) contain a value that depends on wall-clock timing, the
+  recorded log-probabilities then differ in the sixth digit, and occasionally a sampled action flips. This is the
+  simulator's behaviour, not the learner's, and Crucible is not modified here. The test now builds a second
+  learner from the checkpoint file, compares every part of its state with the original's, and requires one more
+  update on the same episodes to give bit-identical weights in both (four passes in four runs).
+* **Queue concurrency** was raised twice by replacing the runner process without touching running jobs (the
+  runner is killed with SIGKILL so that it does not stop its children; the new one is told to leave the jobs in
+  flight alone).

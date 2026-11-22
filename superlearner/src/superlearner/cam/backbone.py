@@ -93,6 +93,8 @@ class TextBackbone(nn.Module):
             from ..llm.base import CALIBRATION_TEXTS
             self.centre.copy_(self._raw(list(CALIBRATION_TEXTS)).mean(0, keepdim=True))
         self.eval()
+        # the pretrained values of everything that can learn (CPU copy): the reference for "how far did it move"
+        self._pretrained = self.trainable_state() if self.trainable else {}
 
     # ------------------------------------------------------------------ which parameters learn
     def _set_mode(self, mode: str, lora_rank: int) -> None:
@@ -128,6 +130,19 @@ class TextBackbone(nn.Module):
         """Only what learning can change (the rest is the pretrained model, identified by its name)."""
         req = {k for k, p in self.named_parameters() if p.requires_grad}
         return {k: v.detach().cpu() for k, v in self.state_dict().items() if k in req}
+
+    def change(self) -> dict:
+        """L2 distance of the trainable parameters from their pretrained values, in total and relative to the
+        pretrained norm (LoRA factors start at A random, B zero: their relative change is that of A and B together)."""
+        if not self.trainable:
+            return {"l2": 0.0, "relative": 0.0, "trainable": 0}
+        d2 = n2 = 0.0
+        cur = dict(self.named_parameters())
+        for k, v0 in self._pretrained.items():
+            v = cur[k].detach().float().cpu()
+            d2 += float(((v - v0.float()) ** 2).sum())
+            n2 += float((v0.float() ** 2).sum())
+        return {"l2": d2 ** 0.5, "relative": (d2 / n2) ** 0.5 if n2 > 0 else 0.0, "trainable": int(sum(v.numel() for v in self._pretrained.values()))}
 
     def load_trainable_state(self, s: dict) -> None:
         own = self.state_dict()
@@ -336,6 +351,11 @@ class EmbedService:
             try:
                 if op == "embed":
                     self.n_texts += len(payload)
+                    cache = self.cache
+                    if self.cache_version == self.bb.version and all(t in cache for t in payload):
+                        # everything is known for the current weights: answer at once, no queue, no GPU
+                        conn.send(("ok", np.stack([cache[t] for t in payload]) if payload else np.zeros((0, EMB_DIM), np.float32)))
+                        continue
                     r = _Req(payload)
                     self.q.put(r)
                     r.done.wait()

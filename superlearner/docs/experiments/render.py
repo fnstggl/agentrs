@@ -201,7 +201,224 @@ def final():
         print()
 
 
-ALL = {"b": b_multi, "baselines": baselines, "c": exp_c, "d": exp_d, "a": exp_a, "worldmodel": worldmodel, "selfplay": selfplay, "meta": meta, "final": final, "d_clone": exp_d_clone}
+# ============================================================================================ continual learning
+def _cl():
+    hits = load("continual_lifetime.json")
+    return hits[0][1] if hits else None
+
+
+def _p(x, d=0):
+    return "-" if x is None else f"{100 * x:.{d}f}%"
+
+
+def _seeds(v, d=0):
+    return "-" if not v else "(" + ", ".join("-" if x is None else f"{100 * x:.{d}f}" for x in v) + ")"
+
+
+def _cmp(c):
+    if not c:
+        return "-"
+    return f"{100 * c['diff']:+.1f} [{100 * c['ci95'][0]:+.1f}, {100 * c['ci95'][1]:+.1f}]"
+
+
+def life():
+    d = _cl()
+    if not d:
+        return
+    C = d["conditions"]
+    print("Held-out success after the whole lifetime (greedy actions; per-seed values in brackets). *Final, six lists*: mean over "
+          "the six held-out lists with the final weights. *Taught five*: the five phases that came with demonstrations. "
+          "*Right after learning*: each phase's own list at the end of that phase. *Forgetting*: for every earlier phase, its best "
+          "success at any time minus its success at the end. *Unseen worlds*: the same arms in two kinds of world no phase trained in.\n")
+    print("| condition | seeds | final, six lists | taught five | sampled actions | right after learning | forgetting | unseen worlds | decisions |\n|---|---|---|---|---|---|---|---|---|")
+    for c in d["order"]:
+        s = C[c]
+        print(f"| {d['labels'][c]} | {len(s['seeds'])} | **{_p(s['final_mean']['mean'])}** {_seeds(s['final_mean']['by_seed'])} | {_p(s['final_mean_taught']['mean'])} | "
+              f"{_p(s['final_mean_sampled']['mean'])} | {_p(s['right_after_learning']['mean'])} | {_p(s['forgetting']['mean'])} {_seeds(s['forgetting']['by_seed'])} | "
+              f"{_p(s['unseen_worlds_final']['mean'])} | {s['env_decisions']:,.0f} |")
+    names = C[d["order"][0]]["phases"]
+    print("\nFinal success by phase:\n\n| condition | " + " | ".join(names) + " |\n|---|" + "---|" * len(names))
+    for c in d["order"]:
+        print(f"| {d['labels'][c]} | " + " | ".join(_p(x) for x in C[c]["final_by_phase"]) + " |")
+    print("\nThe *shift* phase (four earlier arms in two kinds of world they were not learned in, practice only, no demonstrations): "
+          "success on its held-out list just before and after the phase.\n\n| condition | before | after | per seed (before, after) |\n|---|---|---|---|")
+    for c in d["order"]:
+        sh = C[c]["shift"]
+        print(f"| {d['labels'][c]} | {_p(sh['before'])} | {_p(sh['after'])} | " + ", ".join(f"({100 * a:.0f}, {100 * b:.0f})" for a, b in sh["by_seed"]) + " |")
+    mem = [c for c in d["order"] if "final_mean_memory_off" in C[c]]
+    if mem:
+        print("\nConditions with episodic memory, final weights evaluated with the memory and with it switched off:\n\n"
+              "| condition | with its memory | memory off | memory records | agent-made tools |\n|---|---|---|---|---|")
+        for c in mem:
+            s = C[c]
+            print(f"| {d['labels'][c]} | {_p(s['final_mean']['mean'])} | {_p(s['final_mean_memory_off']['mean'])} | {s['memory_items_final']:.0f} | {s['tools_final']:.0f} |")
+    print("\nDifferences between conditions on the same held-out tasks (final weights, all six lists; percentage points; 95% interval "
+          "from a bootstrap over seeds and tasks):\n\n| comparison | seeds | tasks | difference | tasks only the first solves / only the second | unseen worlds |\n|---|---|---|---|---|---|")
+    for k, v in d["comparisons"].items():
+        a, u = v["final, all six lists"], v.get("final, unseen worlds") or {}
+        if not a:
+            continue
+        x, y = k.split(" - ")
+        print(f"| {d['labels'][x]} minus {d['labels'][y]} | {a['seeds']} | {a['n_tasks']} | {_cmp(a)} | {a['a_only']} / {a['b_only']} | {_cmp(u)} |")
+    print()
+
+
+def life_matrix():
+    d = _cl()
+    if not d:
+        return
+    for c in d["order"]:
+        s = d["conditions"][c]
+        names = s["phases"]
+        print(f"**{d['labels'][c]}** (mean of {len(s['seeds'])} seeds; row: after phase, column: held-out list)\n\n| after | " + " | ".join(names) + " |\n|---|" + "---|" * len(names))
+        for k, row in enumerate(s["matrix_mean"]):
+            print(f"| {names[k]} | " + " | ".join((f"**{_p(x)}**" if j == k else _p(x)) for j, x in enumerate(row)) + " |")
+        print()
+
+
+def life_backbone():
+    d = _cl()
+    if not d:
+        return
+    C = d["conditions"]
+    rows = [c for c in ("consolidate", "backbone_lora", "backbone_top4", "backbone_full") if c in C]
+    print("The same learner and update rule (condition 4b) with four amounts of backbone plasticity.\n\n"
+          "| backbone | trainable backbone parameters | moved from pretrained (relative L2) | seeds | final, six lists | right after learning | forgetting | unseen worlds | shift before -> after | update time per lifetime | difference to frozen (paired) |\n|---|---|---|---|---|---|---|---|---|---|---|")
+    for c in rows:
+        s = C[c]
+        b = s.get("backbone") or {}
+        cmp_ = (d["comparisons"].get(f"{c} - consolidate") or {}).get("final, all six lists")
+        rel = b.get("relative_change_from_pretrained")
+        print(f"| {b.get('mode', '?')} | {b.get('trainable', 0):,} | {'-' if not rel else format(rel, '.2e')} | {len(s['seeds'])} | **{_p(s['final_mean']['mean'])}** {_seeds(s['final_mean']['by_seed'])} | "
+              f"{_p(s['right_after_learning']['mean'])} | {_p(s['forgetting']['mean'])} | {_p(s['unseen_worlds_final']['mean'])} | {_p(s['shift']['before'])} -> {_p(s['shift']['after'])} | "
+              f"{s['wall_s']['update_s'] / 60:.0f} min | {_cmp(cmp_) if c != 'consolidate' else 'reference'} |")
+    print()
+
+
+def life_plasticity():
+    d = _cl()
+    if not d:
+        return
+    C = d["conditions"]
+    names = C[d["order"][0]]["phases"]
+    f2 = lambda x: "-" if x is None else f"{x:.2f}"      # noqa: E731
+    print("Plasticity probe: a copy of the controller is trained for 40 steps to choose arbitrary fixed targets on fixed probe decisions; the "
+          f"loss it reaches (lower = easier to train; choosing at random gives {f2(C[d['order'][0]]['plasticity']['probe_chance'])}). Measured after every phase.\n\n"
+          "| condition | " + " | ".join(names) + " | dormant units (max) | effective rank of the state, first -> last |\n|---|" + "---|" * (len(names) + 2))
+    for c in d["order"]:
+        pl = C[c]["plasticity"]
+        dm = [x for x in pl["dormant_fraction"] if x is not None]
+        er = pl["state_effective_rank"]
+        print(f"| {d['labels'][c]} | " + " | ".join(f2(x) for x in pl["probe_loss_after_40_steps"]) + f" | {_p(max(dm) if dm else None, 1)} | {f2(er[0])} -> {f2(er[-1])} |")
+    print("\nWorld model, held-out transitions (episodes of exploratory behaviour that are never trained on; all phases seen so far): share of "
+          "actions whose acceptance it predicts correctly, against always predicting the majority outcome; and the same for this "
+          "iteration's NEW transitions before any update has seen them (predict, then train).\n\n"
+          "| condition | held-out accuracy at the end | majority | first phase's transitions, after phase 1 -> after phase 6 | next-state cosine (mean predictor) | new transitions, first iteration | new transitions, all later iterations (majority) |\n|---|---|---|---|---|---|---|")
+    for c in d["order"]:
+        s = C[c]
+        w = s["world_model_heldout"][-1]
+        f = s["world_model_first_phase_over_time"]
+        pq = s.get("world_model_prequential") or {}
+        print(f"| {d['labels'][c]} | {_p(w['ok_accuracy'])} | {_p(w['majority'])} | {_p(f[0])} -> {_p(f[-1])} | {f2(w['next_cosine'])} ({f2(w['next_cosine_mean_predictor'])}) | "
+              f"{_p((pq.get('first_iteration') or [None])[0])} | {_p(pq.get('accuracy'))} ({_p(pq.get('majority'))}) |")
+    print("\nHow far the controller's weights are from their initial values at the end (relative L2 per parameter group), and whether they "
+          "changed after the first phase:\n\n| condition | input | encoder | recurrent | policy | critic | all | changed after phase 1 | optimiser steps |\n|---|---|---|---|---|---|---|---|---|")
+    for c in d["order"]:
+        s = C[c]
+        w = s["weights_since_init_relative"]
+        print(f"| {d['labels'][c]} | " + " | ".join(f2(w[g]) for g in ("input", "encoder", "recurrent", "policy", "critic", "all"))
+              + f" | {'yes' if all(s['weights_changed_after_first_phase']) else 'NO'} | {s['optimizer_steps']:,.0f} |")
+    print("\nLearning efficiency over the lifetime: training success in the FIRST practice iteration of each phase (right after observing "
+          "the demonstrations; the last phase has none):\n\n| condition | " + " | ".join(names) + " |\n|---|" + "---|" * len(names))
+    for c in d["order"]:
+        print(f"| {d['labels'][c]} | " + " | ".join(_p(x) for x in C[c]["train_first_iter"]) + " |")
+    print()
+
+
+def pit():
+    hits = load("pit.json")
+    if not hits:
+        return
+    d = hits[0][1]
+    desc = {"practice": "practice only", "explore_practice": "practice, half exploratory", "observe": "observation only (4 demonstrations)",
+            "observe_practice": "observation + practice", "observe_practice_backbone": "observation + practice, backbone fully trainable",
+            "frozen_memory": "control: weights frozen, memory written",
+            "memory_observe_practice": "observation + practice, memory on"}
+    for fam, F in d["families"].items():
+        arms = next((f["arms"] for f in d["config"]["families"] if f["name"] == fam), [])
+        print(f"### Unfamiliar family `{fam}` ({', '.join(arms)})\n\nHeld-out success with the weights before and after, both evaluated in a fresh process from the "
+              "weights file alone (greedy; percentage points; 95% interval over seeds and tasks).\n\n"
+              "| route | seeds | weights changed | unfamiliar family: before -> after | difference | tasks gained / lost | in unseen kinds of world | related, never trained | familiar families (retention) | after, sampled | controller weights moved (relative) | decisions used |\n|---|---|---|---|---|---|---|---|---|---|---|---|")
+        for route, r in F.items():
+            L = r["lists"]
+            u = L.get("unfamiliar") or {}
+            ba = lambda x: "-" if not x else f"{_p(x['before'])} -> {_p(x['after'])}"       # noqa: E731
+            print(f"| {desc.get(route, route)} | {len(r['seeds'])} | {'yes' if all(r['weights_changed']) else 'no'} | **{ba(u)}** | {_cmp(u)} | {u.get('gained', '-')} / {u.get('lost', '-')} | "
+                  f"{ba(L.get('unfamiliar_unseen_worlds'))} | {ba(L.get('related_untrained'))} | {ba(L.get('familiar'))} | {_p(r.get('after_sampled_unfamiliar'))} | "
+                  f"{r['relative_weight_change']['all']:.3f} | {r['env_decisions']:,.0f} |")
+        extra = []
+        for route, r in F.items():
+            if r.get("after_with_its_memory"):
+                m = r["after_with_its_memory"]
+                extra.append(f"* {desc.get(route, route)}: with the memory it wrote, {_p(m['before'])} -> {_p(m['after'])} ({_cmp(m)}); "
+                             f"weights alone, {_p(r['lists']['unfamiliar']['before'])} -> {_p(r['lists']['unfamiliar']['after'])}.")
+            if r.get("after_other_actor_name"):
+                m = r["after_other_actor_name"]
+                extra.append(f"* {desc.get(route, route)}, the agent registered under another name: {_p(m['after'])} (same weights, same tasks: {_p(r['lists']['unfamiliar']['after'])}).")
+        if extra:
+            print("\n" + "\n".join(extra))
+        st = next(iter(F.values()))["state_at_start_of_fresh_process"]
+        print(f"\nState of the fresh process before its first episode: {st}.\n")
+
+
+def meta_continual():
+    path = os.path.join(HERE, "meta_continual", "ledger.jsonl")
+    if not os.path.exists(path):
+        return
+    recs = [json.loads(l) for l in open(path) if l.strip()]
+    base = [r for r in recs if r["kind"] == "baseline_run"]
+    ff = [r for r in recs if r["kind"] == "full_feedback"]
+    exps = [r for r in recs if r["kind"] == "experiment"]
+    pool = [dict(e, round=r["round"], picked=e["proposal"] in r["surrogate_picks"]) for r in ff for e in r["pool"]]
+    ran = [e for e in pool if e["valid"]]
+    f3 = lambda x: "-" if x is None else f"{x:+.3f}"       # noqa: E731
+    print(f"{len(pool)} candidate rules proposed, {len(ran)} ran a whole confined lifetime, "
+          f"{sum(1 for e in pool if e.get('inert'))} rejected as inert, {len(exps)} taken to more seeds; "
+          f"{len(base) + sum(len(e.get('measures') or {}) for e in ran) + sum(sum(len(v) for v in (x.get('stages') or {}).values()) for x in exps)} confined lifetimes in the ledger.\n")
+    print("Champion (the shipped rule: rehearsal, online world model, no anchors), per seed:\n\n| seed | score (mean success on phases seen so far) | final | forgetting | right-after-learning gain | retention matrix |\n|---|---|---|---|---|---|")
+    seen = set()
+    for b in sorted(base, key=lambda r: int(r["seed"])):
+        if b["seed"] in seen:
+            continue
+        seen.add(b["seed"])
+        m = b["measures"]
+        print(f"| {b['seed']} | {m['aulc_eval']:.3f} | {m['final_eval']:.3f} | {m.get('life_forgetting', 0):.3f} | {m.get('life_acquisition', 0):.3f} | {m.get('life_matrix')} |")
+    print("\nScreening (one seed each, same seed as the champion's run). Effect = candidate's score minus the champion's.\n\n"
+          "| round | candidate | what it changes | ran | effect | final | forgetting | picked by the learned selector |\n|---|---|---|---|---|---|---|---|")
+    for e in pool:
+        ms = next(iter((e.get("measures") or {}).values()), {})
+        why = e["hypothesis"] if e["valid"] else (e.get("reject_reason", "") + " / " + e["hypothesis"])
+        print(f"| {e['round']} | {e['candidate']} | {why[:170].replace('|', '/')} | {'yes' if e['valid'] else 'no'} | {f3(e['effect']) if e['valid'] else '-'} | "
+              f"{'-' if not ms else format(ms.get('final_eval', 0), '.3f')} | {'-' if not ms else format(ms.get('life_forgetting', 0), '.3f')} | {'yes' if e['picked'] else ''} |")
+    if exps:
+        print("\nCandidates taken to more seeds (score difference to the champion on the same seeds, 95% bootstrap interval):\n\n"
+              "| candidate | what it changes | decision | stage reached | seeds | score difference | final-success difference |\n|---|---|---|---|---|---|---|")
+        for x in exps:
+            c = (x.get("comparison") or {})
+            a, f = c.get("aulc_eval") or {}, c.get("final_eval") or {}
+            ci_ = lambda v: "" if not v.get("ci") else " [%+.3f, %+.3f]" % tuple(v["ci"])        # noqa: E731
+            print(f"| {x['candidate']} | {x['hypothesis'][:150].replace('|', '/')} | {x['decision']} | {x['stage_reached']} | {a.get('n_cand', '-')} | "
+                  f"{f3(a.get('diff'))}{ci_(a)} | {f3(f.get('diff'))}{ci_(f)} |")
+    if ff:
+        print("\nLearned selection of what to test (it chooses before the round's outcomes are known):\n\n| round | pool | selector fitted | its picks | pool mean (random choice) | best in pool |\n|---|---|---|---|---|---|")
+        for r in ff:
+            print(f"| {r['round']} | {len(r['pool'])} | {r['surrogate_fitted']} | {r['value_surrogate']:+.3f} | {r['value_random_expected']:+.3f} | {r['value_best']:+.3f} |")
+    print()
+
+
+ALL = {"b": b_multi, "baselines": baselines, "c": exp_c, "d": exp_d, "a": exp_a, "worldmodel": worldmodel, "selfplay": selfplay, "meta": meta, "final": final, "d_clone": exp_d_clone,
+       "life": life, "life_matrix": life_matrix, "life_backbone": life_backbone, "life_plasticity": life_plasticity, "pit": pit,
+       "meta_continual": meta_continual}
 
 def fill(path: str) -> None:
     """Replace every block ``<!-- table:NAME -->...<!-- /table -->`` of a Markdown file with the tables printed by

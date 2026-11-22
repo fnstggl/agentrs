@@ -706,13 +706,14 @@ CONT_GENES = {
     "wm_repr": [0.0, 0.1, 0.5],
     "wm_coef": [0.3, 1.0, 3.0],
     "wm_replay": [0, 4, 12],
+    "wm_fit": [0, 100, 300],
     "replay_arms": ["uniform", "old_heavy", "new_heavy", "small_first"],
     "replay_steps": [0.5, 1.0, 2.0],
     "lr": [0.5, 1.0, 2.0],
 }
 BASE_CONTINUAL_GENOME = {"rehearsal_keep": True, "per_arm": 120, "rehearse_frac": 0.5, "observe_lr": 3e-4, "observe_steps": 1.0,
                          "consolidate_steps": 0, "anchor": "none", "anchor_coef": 2e5, "top_frac": 1.0, "l2init": 0.0,
-                         "shrink_perturb": "none", "group_lr": "uniform", "wm_repr": 0.1, "wm_coef": 1.0, "wm_replay": 4,
+                         "shrink_perturb": "none", "group_lr": "uniform", "wm_repr": 0.1, "wm_coef": 1.0, "wm_replay": 4, "wm_fit": 300,
                          "replay_arms": "uniform", "replay_steps": 1.0, "lr": 1.0}
 _SHRINK = {"none": (1.0, 0.0), "mild": (0.95, 0.01), "strong": (0.8, 0.03)}
 _GROUP_LR = {"uniform": {}, "slow_trunk": {"input": 0.3, "encoder": 0.3}, "frozen_input": {"input": 0.0},
@@ -748,7 +749,7 @@ def continual_settings(g: dict) -> tuple[dict, dict]:
     """(CONTINUAL_DEFAULTS, RULE_SCALES) a genome stands for."""
     sh, sg = _SHRINK[g["shrink_perturb"]]
     d = {"wm": {"enabled": True, "coef": float(g["wm_coef"]), "repr": float(g["wm_repr"]), "replay_steps": int(g["wm_replay"]),
-                "replay_batch": 8, "buffer": 400, "lr_mult": 4.0},
+                "replay_batch": 8, "buffer": 400, "lr_mult": 4.0, "fit_steps": int(g["wm_fit"]), "fit_lr": 1e-3, "fit_batch": 256},
          "rehearsal": {"keep": bool(g["rehearsal_keep"]), "per_arm": int(g["per_arm"])},
          "consolidate_steps": int(g["consolidate_steps"]),
          "anchor": {"kind": g["anchor"], "coef": float(g["anchor_coef"]) if g["anchor"] != "none" else 0.0, "decay": 1.0,

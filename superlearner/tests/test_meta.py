@@ -287,3 +287,86 @@ def test_inert_changes_are_told_apart_from_real_ones_by_the_confined_probe(tmp_p
     request_cleanup()
     assert fp["inert"] == fp["champion"] and fp["champion"]["delta_norm"] > 0
     assert fp["active"] != fp["champion"]
+
+
+# ------------------------------------------------------------------ search over CONTINUAL update rules (lifetime mode)
+def test_continual_rule_space_renders_working_rules_and_the_shipped_rule_is_its_base_point():
+    from superlearner.algo import base as algo_base
+    from superlearner.cam.model import CAMController, ModelConfig
+    here = os.path.dirname(os.path.abspath(__file__))
+    shipped = open(os.path.join(here, "..", "src", "superlearner", "algo", "continual.py")).read()
+    assert P.render_continual(P.BASE_CONTINUAL_GENOME) == shipped          # the champion's tree is the repository's file
+    cs = P.ContinualSpace(0)
+    named = cs.named()
+    assert len(named) >= 12 and len({json.dumps(g, sort_keys=True) for _, g in named}) == len(named)
+    props = [cs.proposal(g, P.BASE_CONTINUAL_GENOME, name) for name, g in named] + [cs.propose(P.BASE_CONTINUAL_GENOME) for _ in range(6)]
+    assert len({p["id"] for p in props}) >= len(named) + 4
+    small = ModelConfig(d=64, layers=2, heads=4, ff=128, bag_dim=32, hid=64)
+    for p in props:
+        assert p["source"] == "continual_space" and p["target"] == P.CONT_PATH and p["lines_changed"] > 0 and p["genes_changed"]
+        src = p["changes"][P.CONT_PATH]
+        ns: dict = {"__name__": "superlearner.algo.continual_candidate", "__package__": "superlearner.algo"}
+        exec(compile(src.replace('@register("continual")', '@register("continual_test")'), "candidate", "exec"), ns)   # noqa: S102
+        d, sc = P.continual_settings(p["genome"])
+        assert ns["CONTINUAL_DEFAULTS"] == d and ns["RULE_SCALES"] == sc
+        a = ns["ContinualPPO"](CAMController(small), {"lr": 1e-4}, "cpu")
+        w = ns["replay_arm_weights"]([("a", 0, "x"), ("b", 0, "x"), ("c", 0, "x")], {("c", 0, "x")})
+        assert abs(float(np.sum(w)) - 1.0) < 1e-9 and (w >= 0).all()
+        frozen = [g for g, m in P._GROUP_LR[p["genome"]["group_lr"]].items() if m == 0]
+        assert all(g not in a.group_sizes() for g in frozen)
+    algo_base.REGISTRY.pop("continual_test", None)
+    g = cs.mutate(dict(P.BASE_CONTINUAL_GENOME, _effect=0.1))               # bookkeeping keys never reach a genome
+    assert set(g) == set(P.CONT_GENES) and g != P.BASE_CONTINUAL_GENOME
+
+
+def test_lifetime_measures_come_from_the_hub_records_and_reject_selective_evaluation():
+    from superlearner.meta.compare import lifetime_measures
+    lists = [{"name": "A", "indices": [0, 1]}, {"name": "B", "indices": [2, 3]}]
+
+    def ev(stamp, idx, ok):
+        return {"kind": "eval", "eval_index": idx, "stamp": stamp, "summary": {"success": ok, "decisions": 3, "commands": 3, "commands_ok": 3}}
+
+    def tr(stamp):
+        return {"kind": "train", "eval_index": None, "stamp": stamp, "summary": {"success": True, "decisions": 5, "commands": 5, "commands_ok": 4}}
+    recs = [tr(5), tr(10)] + [ev(10, 0, True), ev(10, 1, True), ev(10, 2, False), ev(10, 3, False)] \
+        + [tr(15), tr(20)] + [ev(20, 0, True), ev(20, 1, False), ev(20, 2, True), ev(20, 3, True)]
+    m = lifetime_measures(recs, lists, 100)
+    assert m["life_valid"] and m["life_matrix"] == [[1.0, 0.0], [0.5, 1.0]]
+    assert m["first_eval"] == 1.0 and m["final_eval"] == 0.75 and m["aulc_eval"] == pytest.approx((1.0 + 0.75) / 2)
+    assert m["life_forgetting"] == 0.5 and m["life_acquisition"] == pytest.approx(1.0) and m["train_decisions"] == 20
+    # a learner that skips a task, repeats one, or evaluates an extra time gets no score at all
+    for bad in (recs[:-1], recs + [ev(20, 3, True)], recs + [tr(25)] + [ev(25, i, True) for i in range(4)]):
+        b = lifetime_measures(bad, lists, 100)
+        assert not b["life_valid"] and b["aulc_eval"] == 0.0 and b["final_eval"] == 0.0
+
+
+@pytest.mark.skipif(not ROOT, reason="confinement needs root")
+def test_a_confined_lifetime_is_scored_by_the_hub_and_the_probe_sees_continual_changes():
+    import shutil
+    import tempfile
+    from superlearner.cli import load_config
+    from superlearner.meta.researcher import MetaResearcher
+    here = os.path.dirname(os.path.abspath(__file__))
+    cfg = load_config(os.path.join(here, "..", "configs", "meta_continual_smoke.yaml"))
+    root = tempfile.mkdtemp(prefix="sl-test-", dir="/var/tmp")
+    os.chmod(root, 0o755)
+    try:
+        mr = MetaResearcher(cfg, os.path.join(root, "search"))
+        assert mr.life and mr.champion["genome"] == P.BASE_CONTINUAL_GENOME
+        tasks, lists = mr.life_lists("screen")
+        assert len(tasks) == 4 and [x["indices"] for x in lists] == [[0, 1], [2, 3]] and all(t.split == "select" for t in tasks)
+        inner = mr.inner_config("screen", 1)
+        assert inner["lifetime"]["hub_lists"] == lists and "rehearsal" not in inner["algo"]     # the rule's own file decides
+        mr.prepare_demos()
+        base = mr.baseline("screen")[1]
+        assert base["ok"] and base["life_valid"] and base["life_rounds"] == 2 and len(base["life_matrix"]) == 2
+        assert base["train_decisions"] > 0 and 0.0 <= base["aulc_eval"] <= 1.0
+        cs = P.ContinualSpace(1)
+        real = cs.proposal(dict(P.BASE_CONTINUAL_GENOME, rehearsal_keep=False, observe_lr=1e-3), P.BASE_CONTINUAL_GENOME)
+        mr.make_candidate("c-real", real["changes"])
+        assert mr.is_inert("c-real") is False                             # observation and phase boundaries are probed
+        src = open(os.path.join(mr.base_pkg, P.CONT_PATH)).read()
+        mr.make_candidate("c-inert", {P.CONT_PATH: src + "\nUNUSED_CONSTANT = 3\n"})
+        assert mr.is_inert("c-inert") is True
+    finally:
+        shutil.rmtree(root, ignore_errors=True)

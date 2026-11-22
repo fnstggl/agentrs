@@ -332,7 +332,7 @@ class Lifetime:
         row["weights"] = {"digest": PL.weights_digest(tr.model), "since_init": PL.param_change(tr.model, self.x["ref_init"]),
                           "this_phase": PL.param_change(tr.model, self.x["ref_phase"]) if self.x["ref_phase"] else {}}
         if tr.backbone is not None:
-            row["backbone"] = dict(tr.backbone.n_params(), version=tr.backbone.version)
+            row["backbone"] = dict(tr.backbone.n_params(), version=tr.backbone.version, change_from_pretrained=tr.backbone.change())
         row["optimizer_steps"] = int(getattr(tr.algo, "n_updates", 0))
         row["lr_scale"] = float(getattr(tr.algo, "lr_scale", 1.0))
         row["close_wall_s"] = round(time.time() - t0, 1)

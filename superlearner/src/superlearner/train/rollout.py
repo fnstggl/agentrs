@@ -128,6 +128,8 @@ def worker_main(conn, wid: int, wcfg: dict) -> None:
                 conn.send(("ok", None))
             elif op == "table":
                 store.replace(msg[1][0], msg[1][1])           # the backbone changed: every text vector is new
+                if hasattr(llm, "clear"):
+                    llm.clear()
                 conn.send(("ok", None))
             elif op == "sync":
                 d = msg[1]
@@ -266,6 +268,8 @@ class LocalPool:
 
     def set_table(self, keys, mat):
         self.store.replace(keys, mat)
+        if hasattr(self.llm, "clear"):
+            self.llm.clear()
 
     def set_wm(self, state_dict):
         from ..cam.worldmodel import WorldModel
