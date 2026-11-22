@@ -221,6 +221,12 @@ def run_route(cfg: dict, out_dir: str, seed: int, family: str, route: str, worke
     wa = export_weights(tr, os.path.join(rd, "weights.pt"))
     tcfg = copy.deepcopy(tr.cfg)
     tr.close()
+    # the fresh evaluations are other processes on the same GPU: this one gives its GPU memory back first
+    del life, tr
+    import gc
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     lists = eval_lists(P, fam)
     wb = os.path.join(base, "weights.pt")
     before = fresh_eval(tcfg, wb, lists, os.path.join(sd, f"before__{family}__{base_name(R)}.json"), workers=workers)

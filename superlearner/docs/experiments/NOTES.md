@@ -285,3 +285,8 @@ Work on the amendment ("continual learning must change the core neural weights")
 * **A stop command that stopped itself.** The pattern used to find evaluation subprocesses also matched the shell
   running the command (the known `pkill -f` trap), which killed the shell before it could start the new queue
   runner; nothing else was affected. Patterns are now anchored at the interpreter path.
+* **Third out-of-memory round, third cause.** An internalization job ends by starting fresh evaluation processes
+  while the parent still held its own model and backbone on the GPU, so each job needed twice its budget at the
+  end; with nine units in flight the card filled and two jobs died (both resumed). The parent now releases its GPU
+  memory before the evaluations start. Queue units were re-measured on the running jobs (about 3.3 GB for an
+  internalization job, 5.5-6.3 GB for a lifetime) and the limit set to eight.

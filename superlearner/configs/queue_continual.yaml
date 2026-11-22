@@ -10,7 +10,7 @@
 # `gpu` counts units of about 3 GB of GPU memory, measured on these runs: an internalization-test job 1, a lifetime
 # with a frozen backbone 2, with adapters or trainable top blocks 3, with the fully trainable backbone 5.
 # `cpu` counts rollout workers, which mostly wait for the simulator.
-max_gpu: 11
+max_gpu: 8
 max_cpu: 120
 env: {PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"}
 jobs:
