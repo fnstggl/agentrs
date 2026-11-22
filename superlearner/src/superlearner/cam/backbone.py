@@ -249,20 +249,36 @@ class LiveTable:
 
 
 # ---------------------------------------------------------------------------------------------- service for workers
+class _Req:
+    __slots__ = ("texts", "out", "err", "done")
+
+    def __init__(self, texts):
+        self.texts, self.out, self.err, self.done = list(texts), None, None, threading.Event()
+
+
 class EmbedService:
-    """Serves embeddings of new texts to rollout workers from the backbone's CURRENT weights (unix socket)."""
+    """Serves embeddings of new texts to rollout workers from the backbone's CURRENT weights (unix socket).
+
+    Requests that arrive together are answered by ONE forward pass (a batcher thread drains the queue), and vectors
+    are cached per weight version, so a dozen workers asking for the same tool descriptions cost one computation."""
 
     AUTH = b"superlearner-backbone"
 
-    def __init__(self, backbone: TextBackbone, path: str):
+    def __init__(self, backbone: TextBackbone, path: str, max_wait_s: float = 0.004, max_batch: int = 64):
+        import queue
         from multiprocessing.connection import Listener
         if os.path.exists(path):
             os.unlink(path)
         self.bb, self.path = backbone, path
         self.listener = Listener(path, family="AF_UNIX", authkey=self.AUTH)
-        self.n_texts = 0
+        self.n_texts = self.n_computed = self.n_batches = 0
+        self.max_wait_s, self.max_batch = max_wait_s, max_batch
+        self.q: "queue.Queue[_Req]" = queue.Queue()
+        self.cache: dict[str, np.ndarray] = {}
+        self.cache_version = backbone.version
         self._stop = False
         threading.Thread(target=self._accept, daemon=True).start()
+        threading.Thread(target=self._batcher, daemon=True).start()
 
     def _accept(self) -> None:
         while not self._stop:
@@ -274,6 +290,43 @@ class EmbedService:
                 continue
             threading.Thread(target=self._serve, args=(conn,), daemon=True).start()
 
+    def _batcher(self) -> None:
+        import queue
+        import time
+        while not self._stop:
+            try:
+                batch = [self.q.get(timeout=0.5)]
+            except queue.Empty:
+                continue
+            time.sleep(self.max_wait_s)                       # let the requests of other workers arrive
+            while len(batch) < self.max_batch:
+                try:
+                    batch.append(self.q.get_nowait())
+                except queue.Empty:
+                    break
+            try:
+                if self.cache_version != self.bb.version or len(self.cache) > 200_000:
+                    self.cache, self.cache_version = {}, self.bb.version
+                need = list(dict.fromkeys(t for r in batch for t in r.texts if t not in self.cache))
+                if need:
+                    version = self.bb.version
+                    vecs = self.bb.embed_np(need)
+                    if version == self.bb.version:
+                        self.cache.update(zip(need, vecs))
+                    fresh = dict(zip(need, vecs))
+                else:
+                    fresh = {}
+                self.n_computed += len(need)
+                self.n_batches += 1
+                for r in batch:
+                    r.out = np.stack([fresh[t] if t in fresh else self.cache[t] for t in r.texts]) if r.texts \
+                        else np.zeros((0, EMB_DIM), np.float32)
+            except Exception as e:  # noqa: BLE001
+                for r in batch:
+                    r.err = f"{type(e).__name__}: {e}"
+            for r in batch:
+                r.done.set()
+
     def _serve(self, conn) -> None:
         while True:
             try:
@@ -283,9 +336,13 @@ class EmbedService:
             try:
                 if op == "embed":
                     self.n_texts += len(payload)
-                    conn.send(("ok", self.bb.embed_np(list(payload))))
+                    r = _Req(payload)
+                    self.q.put(r)
+                    r.done.wait()
+                    conn.send(("err", r.err) if r.err else ("ok", r.out))
                 elif op == "info":
-                    conn.send(("ok", dict(self.bb.n_params(), version=self.bb.version)))
+                    conn.send(("ok", dict(self.bb.n_params(), version=self.bb.version, texts=self.n_texts,
+                                          computed=self.n_computed, batches=self.n_batches)))
                 else:
                     conn.send(("err", f"unknown op {op}"))
             except Exception as e:  # noqa: BLE001

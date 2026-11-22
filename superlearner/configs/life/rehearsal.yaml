@@ -1,0 +1,6 @@
+# Condition 4a: trainable core with rehearsal only (per-arm reservoirs of verified successes kept across phases and
+# replayed in every update and observation; no end-of-phase consolidation). `consolidate.yaml` adds consolidation.
+base: base.yaml
+name: life_rehearsal
+algo:
+  rehearsal: {keep: true, per_arm: 120}

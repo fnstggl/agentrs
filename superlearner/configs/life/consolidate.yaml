@@ -1,7 +1,12 @@
-# Condition 4: trainable core with rehearsal (per-arm reservoirs of verified successes kept across phases and
-# replayed) and consolidation (importance-weighted anchors, estimated at the end of every phase).
+# Condition 4: trainable core with rehearsal and consolidation. Verified successes (own and observed) are kept in
+# per-arm reservoirs across phases and replayed in every update and in every observation; at the end of each phase
+# the weights are consolidated by replay over all arms, with no new experience.
+# Chosen before the main comparison from a short calibration (docs/experiments/NOTES.md): rehearsal kept earlier
+# phases at 100% where the unprotected learner fell to 50%; importance-weighted anchors (EWC) alone did not prevent
+# forgetting at any coefficient from 2e4 to 2e6, and a strong anchor on top of rehearsal slowed new learning.
 base: base.yaml
 name: life_consolidate
 algo:
   rehearsal: {keep: true, per_arm: 120}
-  anchor: {kind: ewc, coef: 2000.0, decay: 1.0, fisher_episodes: 64, top_frac: 1.0}
+  consolidate_steps: 64
+  anchor: {kind: none, coef: 0.0}

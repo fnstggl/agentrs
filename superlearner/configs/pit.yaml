@@ -1,0 +1,29 @@
+# The Parametric Internalization Test (docs/CONTINUAL.md, src/superlearner/continual/internalize.py).
+#   superlearner pit route  --config configs/pit.yaml --seed 0 --family launch --route observe_practice
+#   superlearner pit report --config configs/pit.yaml
+# The learner is the `consolidate` learner of the lifetime experiments (trainable 19.7M controller + online world
+# model, frozen Qwen3-0.6B text backbone, rehearsal). It first learns five familiar task families; then it meets
+# ONE unfamiliar family and learns by one of the routes below. What is reported is the unfamiliar family's success
+# with the weights before and after, each evaluated in a fresh process that is given the weights file only.
+base: life/consolidate.yaml
+name: pit
+workers: 10
+pit:
+  base_phase: {arms: [found/0/scratch, fund/0/scratch, list/0/deployed, deploy/0/coded, service/0/listed], worlds: [tiny, bazaar],
+               demos_per_arm: 4, observe_steps: 240, iters: 4, episodes_per_iter: 80}
+  families:
+    # composition of known parts: a deployed service must be listed and then operated until it has served its requests
+    - {name: launch, arms: [service/0/deployed], related: [service/0/coded, service/1/deployed]}
+    # a new mechanism: a listed service that is failing (down, or badly overpriced) must be diagnosed and repaired
+    - {name: repair, arms: [repair/0/scratch], related: [service/0/deployed]}
+  routes:
+    practice:          {demos_per_arm: 0, iters: 6, episodes_per_iter: 64}
+    explore_practice:  {demos_per_arm: 0, iters: 6, episodes_per_iter: 64,
+                        over: {explore: {frac: 0.5, modes: [hot, random, wm], temperature: 2.5, beta: 2.0}}}
+    observe:           {demos_per_arm: 4, observe_steps: 120, iters: 0}
+    observe_practice:  {demos_per_arm: 4, observe_steps: 120, iters: 6, episodes_per_iter: 64}
+    # controls: the same experience written to episodic memory with the weights frozen; and weights plus memory
+    frozen_memory:           {demos_per_arm: 4, iters: 6, episodes_per_iter: 64, memory: true, freeze: true}
+    memory_observe_practice: {demos_per_arm: 4, observe_steps: 120, iters: 6, episodes_per_iter: 64, memory: true}
+  eval: {n: 24, n_unseen: 16, n_related: 16, n_familiar: 20, unseen_worlds: [entrenched_incumbents, fragmented_networks],
+         handle_control: pilot}

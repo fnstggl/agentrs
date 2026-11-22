@@ -1,0 +1,50 @@
+# The Meta-Researcher's search over CONTINUAL update rules (docs/CONTINUAL.md, "search over update rules").
+#   superlearner meta-search --config configs/meta_continual.yaml --full-feedback --run-dir runs/meta/continual1 [--resume]
+# A candidate is a version of algo/continual.py: which parameter groups learn and how fast, how much is learned from
+# an observation, what is replayed and how often, how earlier knowledge is consolidated, how the world model shapes
+# the shared representation, how plasticity is kept. Every candidate runs the SAME short lifetime in confinement
+# (three phases of two new task arms each; observation, practice, held-out evaluation of every phase after every
+# phase) with the same seeds, the same number of episodes per phase and the same held-out tasks on a trusted env
+# hub. The primary measure is the mean, over phases, of held-out success on the phases seen so far.
+# The inner learner is the small CPU controller with hash text embeddings (no GPU inside the confinement), so
+# backbone plasticity is not part of this search.
+name: meta_continual
+mode: lifetime
+seed: 0
+rounds: 3
+pool: 6
+per_round: 2
+develop_top: 4
+selection: surrogate
+sources: {continual_space: 6, llm: 0, rule_space: 0, learned_rule: 0}
+named_first: true          # the first pool is the classic methods, one idea each (thirteen single-idea variants)
+max_parallel: 6
+primary: aulc_eval
+reject_inert: true
+screen_margin: 0.03
+inner:
+  workers: 4
+  model: {d: 128, layers: 2, heads: 4, ff: 256, bag_dim: 48, hid: 128}
+  agent: {use_llm: false, affinity_tokens: true, use_memory: false, use_tools: false}
+  core: {max_decisions: 20}
+  explore: {frac: 0.125, temperature: 2.5, random: true}
+  # only what the search does NOT vary is set here; everything else comes from the candidate's algo/continual.py
+  algo: {name: continual, lr: 0.0001, epochs: 3, minibatch_eps: 8, clip: 0.1, target_kl: 0.03, critic_warmup: 1, lr_warmup_steps: 20,
+         detach_critic: true, ent_coef: 0.003, sil_steps: 8, sil_batch: 8, sil_coef: 1.0}
+  curriculum:
+    adaptive: false
+    gate: false
+    world_families: [tiny, bazaar]
+    arms: [{family: found}, {family: list, start: deployed}, {family: fund}, {family: deploy, start: coded},
+           {family: service, start: listed}, {family: repair}]
+  demos: {episodes: 72, bc_epochs: 1, max_per_arm: 2}      # fixed episodes for the inert-change probe only
+phases:
+  - {name: start,   arms: [found/0/scratch, list/0/deployed], worlds: [tiny, bazaar]}
+  - {name: capital, arms: [fund/0/scratch, deploy/0/coded], worlds: [tiny, bazaar]}
+  - {name: operate, arms: [service/0/listed, repair/0/scratch], worlds: [tiny, bazaar]}
+eval_world_families: [tiny, bazaar, entrenched_incumbents]
+stages:
+  # identical run settings in all three stages, so a seed run at an earlier stage is reused later
+  screen:  {seeds: [1], demos_per_arm: 3, observe_steps: 100, iters: 2, episodes_per_iter: 32, eval_per_arm: 6, budget: 1000000, timeout_s: 7200}
+  develop: {seeds: [1, 2, 3], demos_per_arm: 3, observe_steps: 100, iters: 2, episodes_per_iter: 32, eval_per_arm: 6, budget: 1000000, timeout_s: 7200}
+  confirm: {seeds: [1, 2, 3, 4, 5], demos_per_arm: 3, observe_steps: 100, iters: 2, episodes_per_iter: 32, eval_per_arm: 6, budget: 1000000, timeout_s: 7200}

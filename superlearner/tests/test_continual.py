@@ -195,7 +195,17 @@ def smoke_cfg():
     return load_config(os.path.join(CFG, "life_smoke.yaml"))
 
 
-def test_a_lifetime_killed_and_restarted_ends_with_the_same_weights(smoke_cfg, tmp_path):
+@pytest.fixture
+def one_thread():
+    """Multi-threaded floating-point sums are not bitwise reproducible on a busy machine (two identical runs can
+    differ in the last bits); with one thread they are, which is what an exact-restart test needs."""
+    n = torch.get_num_threads()
+    torch.set_num_threads(1)
+    yield
+    torch.set_num_threads(n)
+
+
+def test_a_lifetime_killed_and_restarted_ends_with_the_same_weights(smoke_cfg, tmp_path, one_thread):
     cfg = copy.deepcopy(smoke_cfg)
     cfg["lifetime"]["phases"] = cfg["lifetime"]["phases"][:2]
     cfg["lifetime"]["eval"]["sampled"] = False
@@ -338,3 +348,33 @@ def test_pit_exports_tensors_only_and_evaluates_them_in_a_new_process():
         assert len(r["fresh_process"]["after"]["unfamiliar"]["per_task"]) == 2
     finally:
         shutil.rmtree(out, ignore_errors=True)
+
+
+def test_embedding_service_batches_requests_and_serves_the_current_weights():
+    import threading
+    from superlearner.cam.backbone import EmbedService
+    from superlearner.llm.server import BackboneClient
+    bb = _tiny_backbone("full")
+    sock = os.path.join(tempfile.mkdtemp(dir="/var/tmp"), "bb.sock")
+    svc = EmbedService(bb, sock, max_wait_s=0.05)
+    try:
+        out: dict = {}
+
+        def ask(i):
+            out[i] = BackboneClient(sock).embed([TEXTS[i % len(TEXTS)], TEXTS[(i + 1) % len(TEXTS)]])
+        ts = [threading.Thread(target=ask, args=(i,)) for i in range(8)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        ref = bb.embed_np(TEXTS)
+        assert all(np.allclose(out[i][0], ref[i % len(TEXTS)], atol=1e-5) for i in range(8))
+        assert svc.n_texts == 16 and svc.n_computed == len(TEXTS) and svc.n_batches < 8     # shared work, fewer passes
+        with torch.no_grad():                                    # the weights change: cached vectors must not be served
+            for p in bb.parameters():
+                if p.requires_grad and p.dim() > 1:
+                    p.add_(0.05 * torch.randn_like(p))
+        bb.version += 1
+        new = BackboneClient(sock).embed(TEXTS[:2])
+        assert np.allclose(new, bb.embed_np(TEXTS[:2]), atol=1e-5) and not np.allclose(new, ref[:2], atol=1e-4)
+    finally:
+        svc.close()
+        shutil.rmtree(os.path.dirname(sock), ignore_errors=True)

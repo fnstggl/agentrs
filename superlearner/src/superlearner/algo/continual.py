@@ -35,17 +35,30 @@ from .base import register
 from .ppo import PPO, flat_params, grad_norm, make_minibatches
 from .sil import PPOSIL
 
-CONTINUAL_DEFAULTS = {
-    "wm": {"enabled": True, "coef": 1.0, "repr": 0.1, "replay_steps": 4, "replay_batch": 8, "buffer": 400, "lr_mult": 4.0},
-    "rehearsal": {"keep": True, "per_arm": 120},
-    "consolidate_steps": 0,
-    "anchor": {"kind": "none", "coef": 0.0, "decay": 1.0, "fisher_episodes": 64, "top_frac": 1.0},
-    "l2init": 0.0,
-    "shrink_perturb": {"shrink": 1.0, "sigma": 0.0},
-    "group_lr": {},
-    "observe": {"steps": 120, "lr": 3e-4, "rehearse": True, "rehearse_frac": 0.5, "value_coef": 0.5, "warmup": 10},
-    "backbone_lr": 1e-5,
-}
+CONTINUAL_DEFAULTS = {'wm': {'enabled': True,
+        'coef': 1.0,
+        'repr': 0.1,
+        'replay_steps': 4,
+        'replay_batch': 8,
+        'buffer': 400,
+        'lr_mult': 4.0},
+ 'rehearsal': {'keep': True, 'per_arm': 120},
+ 'consolidate_steps': 0,
+ 'anchor': {'kind': 'none', 'coef': 0.0, 'decay': 1.0, 'fisher_episodes': 64, 'top_frac': 1.0},
+ 'l2init': 0.0,
+ 'shrink_perturb': {'shrink': 1.0, 'sigma': 0.0},
+ 'group_lr': {},
+ 'observe': {'steps': 120,
+             'lr': 0.0003,
+             'rehearse': True,
+             'rehearse_frac': 0.5,
+             'value_coef': 0.5,
+             'warmup': 10},
+ 'backbone_lr': 1e-05}
+
+# Multipliers on amounts the run configuration fixes (so that a rule can ask for more or fewer of them):
+# supervised steps per observation, replay steps per update, and the reinforcement-learning step size.
+RULE_SCALES = {'observe_steps': 1.0, 'replay_steps': 1.0, 'lr': 1.0}
 
 GROUPS = ("input", "encoder", "recurrent", "policy", "critic", "wm", "backbone")
 
@@ -106,6 +119,9 @@ class ContinualPPO(PPOSIL):
         cfg.setdefault("sil_mode", "filtered")
         cfg.setdefault("replay_episodes", 1_000_000)      # the reservoir bounds the buffer per arm, not in total
         super().__init__(model, cfg, device)
+        self.c["lr"] = float(self.c["lr"]) * float(RULE_SCALES["lr"])
+        if self.c["sil_steps"] is not None:
+            self.c["sil_steps"] = int(round(self.c["sil_steps"] * float(RULE_SCALES["replay_steps"])))
         self.wm = WorldModel(model.cfg.d).to(device) if self.cc["wm"]["enabled"] else None
         self.backbone = None
         self.experience: list[dict] = []       # recent episodes of any outcome (world-model replay)
@@ -212,9 +228,33 @@ class ContinualPPO(PPOSIL):
         """Exploratory episodes (high temperature, random) are off-policy: they feed the world model and the
         reservoir of successes, never the policy-gradient term."""
         own = [e for e in episodes if not e["summary"].get("explore")]
+        pre = self.wm_prequential(episodes, store)        # predict first, then train on the same transitions
         m = self._update_on_policy(own, store, demos) if own else {}
         m.update(self.replay(episodes, store))
+        m.update(pre)
         return m
+
+    @torch.no_grad()
+    def wm_prequential(self, episodes, store) -> dict:
+        """The world model's accuracy on this iteration's NEW transitions before any update has seen them, next to
+        the majority-class rate of those transitions (the online, predict-then-train measure of what it knows)."""
+        if self.wm is None or not episodes:
+            return {}
+        ok_hit = ok_n = ok_pos = 0.0
+        by = {False: [0.0, 0.0, 0.0], True: [0.0, 0.0, 0.0]}          # own / exploratory: hits, n, accepted
+        self.model.eval()
+        for i in range(0, len(episodes), 16):
+            part = episodes[i:i + 16]
+            b = make_minibatches(part, store, self.device, len(part), np.random.default_rng(0))
+            for bb in b:
+                out = evaluate(self.model, bb, store)
+                v = bb.t["valid"]
+                pred = self.wm(out["z"], out["e_head"], out["e_args"])["ok"] > 0
+                hit = (pred.float() == bb.t["ok"]).float() * v
+                ok_hit += float(hit.sum()); ok_n += float(v.sum()); ok_pos += float((bb.t["ok"] * v).sum())
+        acc = ok_hit / max(1.0, ok_n)
+        rate = ok_pos / max(1.0, ok_n)
+        return {"wm_preq_ok_acc": acc, "wm_preq_majority": max(rate, 1.0 - rate), "wm_preq_n": int(ok_n)}
 
     def replay(self, episodes, store) -> dict:
         """As in PPO, with a per-arm reservoir instead of a first-in-first-out buffer (an old skill's successes are
@@ -261,7 +301,7 @@ class ContinualPPO(PPOSIL):
         rehearsal, a share (`observe.rehearse_frac`) of every minibatch is drawn from the reservoir of EARLIER arms,
         so imitating the new demonstrations does not overwrite what was learned before."""
         oc = self.cc["observe"]
-        steps = int(oc["steps"] if steps is None else steps)
+        steps = int(round(int(oc["steps"] if steps is None else steps) * float(RULE_SCALES["observe_steps"])))
         model, dev = self.model, self.device
         if not demos or steps <= 0:
             return []

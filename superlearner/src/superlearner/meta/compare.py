@@ -72,6 +72,46 @@ def run_measures(recs: list[dict], budget: int) -> dict:
             "sim_wall_s": round(float(sum(r["summary"].get("sim_wall_s", 0) for r in recs)), 1)}
 
 
+def lifetime_measures(recs: list[dict], lists: list[dict], budget: int) -> dict:
+    """Measures of a confined LIFETIME run, from the hub's own records only.
+
+    The learner evaluates every held-out list after every phase; on the hub those are groups of evaluation
+    episodes sharing a stamp (no training happened in between). A run is valid only if there are exactly as many
+    groups as phases and every group ran every index exactly once - so a learner cannot gain by evaluating more,
+    less or selectively. R[k][j] is the success on phase j's list after phase k.
+
+        aulc_eval    (the primary measure) mean over k of the mean success on the phases seen so far, j <= k:
+                     high only if new skills are acquired quickly AND earlier ones are kept
+        final_eval   mean success over all phases at the end;   first_eval  after the first phase
+        life_forgetting   mean over earlier phases of (best success ever on it) - (success at the end)
+        life_acquisition  mean over phases of (success right after learning it) - (success just before)
+    """
+    base = run_measures(recs, budget)
+    evals = [r for r in recs if r["kind"] == "eval"]
+    groups: list[tuple[int, dict]] = []
+    for r in evals:
+        st = int(r["stamp"])
+        if not groups or groups[-1][0] != st:
+            groups.append((st, {}))
+        groups[-1][1].setdefault(int(r["eval_index"]), []).append(float(r["summary"]["success"]))
+    K = len(lists)
+    want = sorted(i for x in lists for i in x["indices"])
+    valid = len(groups) == K and all(sorted(g) == want and all(len(v) == 1 for v in g.values()) for _, g in groups)
+    out = dict(base, life_valid=bool(valid), life_rounds=len(groups))
+    if not valid:
+        out.update(aulc_eval=0.0, final_eval=0.0, first_eval=0.0, life_forgetting=0.0, life_acquisition=0.0, life_matrix=[])
+        return out
+    R = [[float(np.mean([g[i][0] for i in x["indices"]])) for x in lists] for _, g in groups]
+    seen = [float(np.mean(R[k][: k + 1])) for k in range(K)]
+    forg = [max(R[k][j] for k in range(j, K)) - R[K - 1][j] for j in range(K - 1)]
+    acq = [R[k][k] - (R[k - 1][k] if k else 0.0) for k in range(K)]
+    out.update(aulc_eval=round(float(np.mean(seen)), 5), final_eval=float(np.mean(R[-1])), first_eval=seen[0],
+               best_eval=max(seen), life_forgetting=float(np.mean(forg)) if forg else 0.0, life_acquisition=float(np.mean(acq)),
+               life_matrix=[[round(x, 4) for x in row] for row in R], life_seen=[round(x, 4) for x in seen],
+               eval_rounds=K, life_stamps=[st for st, _ in groups])
+    return out
+
+
 def compare(cand: dict[int, float], base: dict[int, float], n_boot: int = 4000, seed: int = 0) -> dict:
     """`cand`, `base`: seed -> measure. Bootstrap over seeds; paired when the seed sets are equal."""
     rng = np.random.default_rng(seed)

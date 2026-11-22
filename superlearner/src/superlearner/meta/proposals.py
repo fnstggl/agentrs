@@ -621,8 +621,15 @@ def splice_function(src: str, name: str, new_code: str) -> str:
 
 class LLMProposer:
     FUNCTIONS = ("advantages", "policy_loss", "value_loss", "total_loss", "replay_loss")
+    PATH = RULE_PATH
 
-    def __init__(self, llm, seed: int = 0, think: bool = False, max_tokens: int = 900):
+    def __init__(self, llm, seed: int = 0, think: bool = False, max_tokens: int = 900, path: str | None = None,
+                 functions: tuple | None = None, note: str = ""):
+        if path:
+            self.PATH = path
+        if functions:
+            self.FUNCTIONS = tuple(functions)
+        self.note = note or "All tensors are [B, T] (episodes x decisions); `valid` marks real decisions."
         # reasoning mode is off by default: with it the 14B model regularly spent its whole token budget reasoning
         # about the function and returned nothing (measured: 2,400 tokens, about ten minutes, empty answer)
         self.llm, self.think, self.max_tokens = llm, think, max_tokens
@@ -631,13 +638,13 @@ class LLMProposer:
         self.failures: list[dict] = []
 
     def propose(self, champion_changes: dict, diagnosis: str, history: str, function: str | None = None) -> dict | None:
-        src = champion_changes.get(RULE_PATH) or open(os.path.join(PKG, RULE_PATH)).read()
+        src = champion_changes.get(self.PATH) or open(os.path.join(PKG, self.PATH)).read()
         fn = function or self.FUNCTIONS[int(self.rng.integers(0, len(self.FUNCTIONS)))]
         _, _, old = function_source(src, fn)
         helpers = "\n".join(l for l in src.splitlines() if l.startswith(("def ", "class ")) or l.startswith("    gamma") or "float =" in l)
         user = (f"How the current algorithm is learning:\n{diagnosis}\n\nEarlier experiments:\n{history or '(none yet)'}\n\n"
                 f"Definitions available in the file:\n{helpers}\n\nThe function to improve:\n```python\n{old}```\n\n"
-                f"All tensors are [B, T] (episodes x decisions); `valid` marks real decisions. Write your proposal.")
+                f"{self.note} Write your proposal.")
         self.n += 1
         g = self.llm.generate([{"role": "system", "content": SYSTEM_RESEARCH}, {"role": "user", "content": user}],
                               self.max_tokens, self.n % 3, self.think)
@@ -660,18 +667,173 @@ class LLMProposer:
                                   "hypothesis": str(v.get("hypothesis"))[:300]})
             return None
         return make_proposal("llm", str(v.get("hypothesis", ""))[:600], str(v.get("expected", ""))[:400],
-                             {RULE_PATH: new_src}, [fn], base_src=src, tokens=g.gen_tokens)
+                             {self.PATH: new_src}, [fn], base_src=src, tokens=g.gen_tokens, path=self.PATH)
 
 
 # ================================================================================================ common
 def make_proposal(source: str, hypothesis: str, expected: str, changes: dict, slots: list, genome=None,
-                  base_src: str | None = None, tokens: int = 0) -> dict:
-    base = base_src if base_src is not None else open(os.path.join(PKG, RULE_PATH)).read()
-    new = changes.get(RULE_PATH, base)
-    diff = list(difflib.unified_diff(base.splitlines(), new.splitlines(), "champion/" + RULE_PATH, "candidate/" + RULE_PATH, lineterm="", n=1))
+                  base_src: str | None = None, tokens: int = 0, path: str = RULE_PATH) -> dict:
+    base = base_src if base_src is not None else open(os.path.join(PKG, path)).read()
+    new = changes.get(path, base)
+    diff = list(difflib.unified_diff(base.splitlines(), new.splitlines(), "champion/" + path, "candidate/" + path, lineterm="", n=1))
     changed = sum(1 for l in diff if l[:1] in "+-" and not l.startswith(("+++", "---")))
     body = "\n".join(l for l in diff if l[:1] in "+-" and not l.startswith(("+++", "---")))
     pid = hashlib.sha1(json.dumps([source, sorted(changes.items())], sort_keys=True).encode()).hexdigest()[:10]
     return {"id": pid, "source": source, "hypothesis": hypothesis, "expected": expected, "target": ",".join(sorted(changes)),
             "slots": slots, "changes": changes, "summary": body[:1200], "diff": "\n".join(diff), "lines_changed": changed,
             "genome": genome, "llm_tokens": tokens, "generation": 0}
+
+
+# ================================================================================================ continual update rules
+# A space of rules for updating the learner's weights over a lifetime (algo/continual.py): which parameter groups
+# learn and how fast, how much is learned from an observation, what is replayed and how often, how and how strongly
+# earlier knowledge is consolidated, how the world model shapes the shared representation, and how plasticity is
+# kept. A genome is one choice per gene; a candidate is the source file with those choices written into it.
+CONT_PATH = "algo/continual.py"
+CONT_GENES = {
+    "rehearsal_keep": [True, False],
+    "per_arm": [30, 120],
+    "rehearse_frac": [0.25, 0.5, 0.75],
+    "observe_lr": [1e-4, 3e-4, 1e-3],
+    "observe_steps": [0.5, 1.0, 2.0],
+    "consolidate_steps": [0, 32, 96],
+    "anchor": ["none", "l2sp", "ewc"],
+    "anchor_coef": [2e4, 2e5, 2e6],
+    "top_frac": [1.0, 0.1],
+    "l2init": [0.0, 2e3, 2e4],
+    "shrink_perturb": ["none", "mild", "strong"],
+    "group_lr": ["uniform", "slow_trunk", "frozen_input", "fast_heads", "heads_only"],
+    "wm_repr": [0.0, 0.1, 0.5],
+    "wm_coef": [0.3, 1.0, 3.0],
+    "wm_replay": [0, 4, 12],
+    "replay_arms": ["uniform", "old_heavy", "new_heavy", "small_first"],
+    "replay_steps": [0.5, 1.0, 2.0],
+    "lr": [0.5, 1.0, 2.0],
+}
+BASE_CONTINUAL_GENOME = {"rehearsal_keep": True, "per_arm": 120, "rehearse_frac": 0.5, "observe_lr": 3e-4, "observe_steps": 1.0,
+                         "consolidate_steps": 0, "anchor": "none", "anchor_coef": 2e5, "top_frac": 1.0, "l2init": 0.0,
+                         "shrink_perturb": "none", "group_lr": "uniform", "wm_repr": 0.1, "wm_coef": 1.0, "wm_replay": 4,
+                         "replay_arms": "uniform", "replay_steps": 1.0, "lr": 1.0}
+_SHRINK = {"none": (1.0, 0.0), "mild": (0.95, 0.01), "strong": (0.8, 0.03)}
+_GROUP_LR = {"uniform": {}, "slow_trunk": {"input": 0.3, "encoder": 0.3}, "frozen_input": {"input": 0.0},
+             "fast_heads": {"policy": 3.0, "critic": 3.0}, "heads_only": {"input": 0.0, "encoder": 0.0, "recurrent": 0.0}}
+_REPLAY_ARMS = {
+    "uniform": '''def replay_arm_weights(arms: list, current: set) -> np.ndarray:
+    """Probability of drawing each arm of the buffer for one replayed episode (uniform over arms: old and new
+    skills receive the same share of replayed gradient)."""
+    return np.ones(len(arms)) / max(1, len(arms))
+''',
+    "old_heavy": '''def replay_arm_weights(arms: list, current: set) -> np.ndarray:
+    """Arms of earlier phases are drawn three times as often as the current phase's arms (protect the past)."""
+    w = np.array([1.0 if tuple(a) in current else 3.0 for a in arms])
+    return w / w.sum()
+''',
+    "new_heavy": '''def replay_arm_weights(arms: list, current: set) -> np.ndarray:
+    """The current phase's arms are drawn three times as often as earlier arms (learn the present faster)."""
+    w = np.array([3.0 if tuple(a) in current else 1.0 for a in arms])
+    return w / w.sum()
+''',
+    "small_first": '''def replay_arm_weights(arms: list, current: set) -> np.ndarray:
+    """Half of the replay goes to the current phase's arms as a whole and half to all earlier arms as a whole, so
+    the past keeps half of the replayed gradient however many phases it spans."""
+    cur = np.array([1.0 if tuple(a) in current else 0.0 for a in arms])
+    old = 1.0 - cur
+    w = (0.5 * cur / max(1.0, cur.sum()) + 0.5 * old / max(1.0, old.sum())) if cur.sum() and old.sum() else np.ones(len(arms))
+    return w / w.sum()
+''',
+}
+
+
+def continual_settings(g: dict) -> tuple[dict, dict]:
+    """(CONTINUAL_DEFAULTS, RULE_SCALES) a genome stands for."""
+    sh, sg = _SHRINK[g["shrink_perturb"]]
+    d = {"wm": {"enabled": True, "coef": float(g["wm_coef"]), "repr": float(g["wm_repr"]), "replay_steps": int(g["wm_replay"]),
+                "replay_batch": 8, "buffer": 400, "lr_mult": 4.0},
+         "rehearsal": {"keep": bool(g["rehearsal_keep"]), "per_arm": int(g["per_arm"])},
+         "consolidate_steps": int(g["consolidate_steps"]),
+         "anchor": {"kind": g["anchor"], "coef": float(g["anchor_coef"]) if g["anchor"] != "none" else 0.0, "decay": 1.0,
+                    "fisher_episodes": 64, "top_frac": float(g["top_frac"])},
+         "l2init": float(g["l2init"]),
+         "shrink_perturb": {"shrink": sh, "sigma": sg},
+         "group_lr": dict(_GROUP_LR[g["group_lr"]]),
+         "observe": {"steps": 120, "lr": float(g["observe_lr"]), "rehearse": True, "rehearse_frac": float(g["rehearse_frac"]),
+                     "value_coef": 0.5, "warmup": 10},
+         "backbone_lr": 1e-5}
+    return d, {"observe_steps": float(g["observe_steps"]), "replay_steps": float(g["replay_steps"]), "lr": float(g["lr"])}
+
+
+def _replace_assignment(src: str, name: str, value) -> str:
+    """Replace the top-level assignment ``name = <literal>`` in `src` by ``name = <value>`` (pretty-printed)."""
+    import pprint
+    tree = ast.parse(src)
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and getattr(node.targets[0], "id", None) == name:
+            lines = src.splitlines(keepends=True)
+            new = f"{name} = " + pprint.pformat(value, width=110, sort_dicts=False) + "\n"
+            return "".join(lines[: node.lineno - 1]) + new + "".join(lines[node.end_lineno:])
+    raise KeyError(name)
+
+
+def render_continual(genome: dict, base_src: str | None = None) -> str:
+    src = base_src if base_src is not None else open(os.path.join(PKG, CONT_PATH)).read()
+    d, sc = continual_settings(genome)
+    src = _replace_assignment(src, "CONTINUAL_DEFAULTS", d)
+    src = _replace_assignment(src, "RULE_SCALES", sc)
+    src = splice_function(src, "replay_arm_weights", _REPLAY_ARMS[genome["replay_arms"]])
+    ast.parse(src)
+    return src
+
+
+class ContinualSpace:
+    """Mutation and crossover over genomes of continual update rules."""
+
+    def __init__(self, seed: int = 0):
+        self.rng = np.random.default_rng(seed + 4242)
+
+    def mutate(self, genome: dict, n: int | None = None) -> dict:
+        g = {k: genome[k] for k in CONT_GENES}
+        genome = g.copy()
+        n = int(n if n is not None else self.rng.integers(1, 4))
+        for k in self.rng.choice(sorted(CONT_GENES), size=min(n, len(CONT_GENES)), replace=False):
+            opts = [v for v in CONT_GENES[k] if v != g[k]]
+            g[k] = opts[int(self.rng.integers(0, len(opts)))]
+        if g["anchor"] == "none" and genome["anchor"] == "none" and "anchor_coef" in g and g["anchor_coef"] != genome["anchor_coef"]:
+            g["anchor"] = ["l2sp", "ewc"][int(self.rng.integers(0, 2))]      # a coefficient without an anchor does nothing
+        return g
+
+    def named(self) -> list[tuple[str, dict]]:
+        """Single-idea variants of the base rule: the classic continual-learning methods, one at a time."""
+        b = BASE_CONTINUAL_GENOME
+        return [("no rehearsal (each phase forgets the reservoir of earlier arms)", dict(b, rehearsal_keep=False)),
+                ("no rehearsal, importance-weighted anchors (EWC) instead", dict(b, rehearsal_keep=False, anchor="ewc", anchor_coef=2e6)),
+                ("rehearsal plus replay consolidation at the end of every phase", dict(b, consolidate_steps=96)),
+                ("rehearsal plus importance-weighted anchors (EWC)", dict(b, anchor="ewc", anchor_coef=2e5)),
+                ("rehearsal plus a uniform anchor to the previous phase's weights (L2-SP)", dict(b, anchor="l2sp", anchor_coef=2e5)),
+                ("rehearsal plus shrink-and-perturb at phase boundaries", dict(b, shrink_perturb="mild")),
+                ("rehearsal plus a pull towards the initial weights (L2-init)", dict(b, l2init=2e3)),
+                ("rehearsal with modular updates: heads only after the first phase's trunk", dict(b, group_lr="heads_only")),
+                ("rehearsal with a slower trunk (input and encoder at 0.3x)", dict(b, group_lr="slow_trunk")),
+                ("rehearsal, world-model gradient shapes the representation strongly", dict(b, wm_repr=0.5, wm_coef=3.0)),
+                ("rehearsal, world model trained on a fixed representation", dict(b, wm_repr=0.0)),
+                ("rehearsal with the past favoured in replay", dict(b, replay_arms="old_heavy")),
+                ("rehearsal with half of all replay reserved for earlier phases", dict(b, replay_arms="small_first"))]
+
+    def proposal(self, genome: dict, parent: dict, hypothesis: str | None = None, base_src: str | None = None) -> dict:
+        genome = {k: genome[k] for k in CONT_GENES}
+        parent = {k: parent[k] for k in CONT_GENES}
+        diffs = [f"{k}: {parent[k]} -> {genome[k]}" for k in sorted(CONT_GENES) if genome[k] != parent[k]]
+        src = render_continual(genome, base_src)
+        parent_src = render_continual(parent, base_src)
+        hyp = hypothesis or ("change the continual update rule: " + "; ".join(diffs))
+        p = make_proposal("continual_space", hyp, "better mean success over the phases seen so far, measured after every phase",
+                          {CONT_PATH: src}, [d.split(":")[0] for d in diffs], genome=genome, base_src=parent_src, path=CONT_PATH)
+        p["genes_changed"] = diffs
+        return p
+
+    def propose(self, parent: dict, other: dict | None = None) -> dict:
+        g = self.mutate(parent)
+        if other is not None and self.rng.random() < 0.3:
+            g = {k: (g[k] if self.rng.random() < 0.5 else other[k]) for k in g}
+        if g == parent:
+            g = self.mutate(parent, 1)
+        return self.proposal(g, parent)

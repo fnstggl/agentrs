@@ -37,7 +37,7 @@ from ..train.trainer import code_hashes, git_commit, merge
 from ..world.hub import start_hub
 from ..world.tasks import SPLITS, task_list
 from . import proposals as P
-from .compare import compare, load_trusted, pareto, run_measures, verdict
+from .compare import compare, lifetime_measures, load_trusted, pareto, run_measures, verdict
 from .ledger import Ledger
 from .surrogate import Surrogate
 from .workspace import PKG, create_candidate, require_isolation, run_isolated, verify
@@ -82,8 +82,26 @@ class MetaResearcher:
         self.surrogate = Surrogate(llm.embed if llm is not None else None, seed=c["seed"])
         self.rule_space = P.RuleSpace(c["seed"])
         self.learned = P.LearnedRule(c["seed"])
-        self.llm_proposer = P.LLMProposer(llm, c["seed"]) if (llm is not None and c["sources"].get("llm")) else None
-        self.champion = {"id": "champion-0", "changes": {}, "genome": P.BASE_GENOME, "hypothesis": "baseline: recurrent PPO with GAE",
+        # mode "lifetime": candidates are CONTINUAL update rules (algo/continual.py); a run is a short lifetime over
+        # phases of new task arms, scored by acquisition and retention (compare.lifetime_measures)
+        self.life = c.get("mode") == "lifetime"
+        self.cont_space = P.ContinualSpace(c["seed"])
+        self.best_seen: dict | None = None
+        if self.life:
+            self.llm_proposer = P.LLMProposer(
+                llm, c["seed"], path=P.CONT_PATH, functions=("replay_arm_weights", "anchor_penalty", "fisher_update"),
+                note=("These functions are parts of a continual-learning update rule for a neural controller that learns "
+                      "task arms in successive phases. `replay_arm_weights(arms, current)` returns the probability of "
+                      "replaying each arm (tuples; `current` is the set of arms of the present phase). "
+                      "`anchor_penalty(params, anchors, weights)` is the consolidation penalty between the current "
+                      "parameters and their values at the end of the last phase (lists of tensors; weights may be None). "
+                      "`fisher_update(old, new, decay)` combines per-parameter importance estimates across phases. "
+                      "numpy is imported as np.")) if (llm is not None and c["sources"].get("llm")) else None
+        else:
+            self.llm_proposer = P.LLMProposer(llm, c["seed"]) if (llm is not None and c["sources"].get("llm")) else None
+        self.champion = {"id": "champion-0", "changes": {}, "genome": P.BASE_CONTINUAL_GENOME if self.life else P.BASE_GENOME,
+                         "hypothesis": ("baseline continual rule: rehearsal reservoirs, online world model, no anchors"
+                                        if self.life else "baseline: recurrent PPO with GAE"),
                          "measures": {}, "promoted_at": 0}
         self.round_n = 0
         self.isolation = require_isolation()          # fail closed: no confinement, no candidate execution
@@ -111,7 +129,8 @@ class MetaResearcher:
     def save_state(self) -> None:
         s = {"champion": self.champion, "round": self.round_n, "surrogate": self.surrogate.state_dict(),
              "learned": self.learned.state_dict(), "rng": self.rng.bit_generator.state,
-             "rule_rng": self.rule_space.rng.bit_generator.state}
+             "rule_rng": self.rule_space.rng.bit_generator.state, "cont_rng": self.cont_space.rng.bit_generator.state,
+             "best_seen": self.best_seen}
         tmp = self.state_path + ".tmp"
         json.dump(s, open(tmp, "w"), default=str)
         os.replace(tmp, self.state_path)
@@ -124,6 +143,9 @@ class MetaResearcher:
         self.learned.load_state_dict(s["learned"])
         self.rng.bit_generator.state = s["rng"]
         self.rule_space.rng.bit_generator.state = s["rule_rng"]
+        if s.get("cont_rng"):
+            self.cont_space.rng.bit_generator.state = s["cont_rng"]
+        self.best_seen = s.get("best_seen")
 
     # ------------------------------------------------------------------ shared demonstrations
     def prepare_demos(self) -> str | None:
@@ -148,13 +170,35 @@ class MetaResearcher:
         return path
 
     # ------------------------------------------------------------------ tasks and configs
+    def life_lists(self, stage: str) -> tuple[list, list]:
+        """(held-out tasks for the hub, index ranges per phase for the learner): one list per phase of the lifetime,
+        the phase's arms in held-out seeds of the evaluation world families."""
+        st = self.cfg["stages"][stage]
+        fams = [f for f in self.cfg["eval_world_families"] if f in SPLITS["select"][2]]
+        tasks, lists = [], []
+        for j, ph in enumerate(self.cfg["phases"]):
+            part = task_list(ph["arms"], fams, int(st["eval_per_arm"]) * len(ph["arms"]), "select", 4000 + 300 * j)
+            lists.append({"name": ph.get("name", f"P{j + 1}"), "phase": j, "kind": "seen",
+                          "indices": list(range(len(tasks), len(tasks) + len(part)))})
+            tasks += part
+        return tasks, lists
+
     def eval_tasks(self, stage: str) -> list:
+        if self.life:
+            return self.life_lists(stage)[0]
         st = self.cfg["stages"][stage]
         arms, fams = self.cfg["eval_arms"], [f for f in self.cfg["eval_world_families"] if f in SPLITS["select"][2]]
         return task_list(arms, fams, int(st["eval_n"]), "select", 4000)
 
     def inner_config(self, stage: str, seed: int) -> dict:
         st = self.cfg["stages"][stage]
+        if self.life:
+            phases = [dict(ph, **{k: st[k] for k in ("demos_per_arm", "observe_steps", "iters", "episodes_per_iter") if k in st})
+                      for ph in self.cfg["phases"]]
+            return merge(self.cfg["inner"], {
+                "name": f"{stage}_s{seed}", "seed": int(seed), "ckpt_every": 0, "traj_per_iter": 0, "device": "cpu",
+                "lifetime": {"phases": phases, "hub_lists": self.life_lists(stage)[1], "wm_holdout": 0, "probe_steps": 0,
+                             "eval": {"sampled": False, "unseen_worlds": []}}})
         return merge(self.cfg["inner"], {"name": f"{stage}_s{seed}", "seed": int(seed), "iters": int(st["iters"]),
                                          "episodes_per_iter": int(st["episodes_per_iter"]), "ckpt_every": 0,
                                          "traj_per_iter": 0, "device": "cpu"})
@@ -198,8 +242,9 @@ class MetaResearcher:
         budget = int(st["budget"])
         hub = start_hub(sock, None if selftest else self.eval_tasks(stage), cfg=cfg.get("core"), eval_cfg=cfg.get("core"),
                         results_path=results, budget=None if selftest else {"train_decisions": budget})
-        job = {"stage": "selftest" if selftest else "train", "config": cfg, "env_socket": sock, "workdir": work,
-               "eval_n": 0 if selftest else int(st["eval_n"]), "llm": cfg.get("llm"),
+        run_stage = "lifetime" if self.life else "train"
+        job = {"stage": "selftest" if selftest else run_stage, "config": cfg, "env_socket": sock, "workdir": work,
+               "eval_n": 0 if selftest else int(st.get("eval_n", 0)), "llm": cfg.get("llm"),
                "demos_path": self.cfg.get("demos_path"), "update_threads": 4}
         job_path = os.path.join(work, "job.json")
         json.dump(job, open(job_path, "w"), indent=1)
@@ -219,7 +264,7 @@ class MetaResearcher:
             except OSError:
                 pass
         out = {"returncode": res["returncode"], "timed_out": res["timed_out"], "wall_s": round(time.time() - t0, 1)}
-        rp = os.path.join(work, ("selftest" if selftest else "train") + "_result.json")
+        rp = os.path.join(work, ("selftest" if selftest else run_stage) + "_result.json")
         untrusted = json.load(open(rp)) if os.path.exists(rp) else {"ok": False, "error": res["stdout"][-800:]}
         out["untrusted"] = {k: untrusted.get(k) for k in ("ok", "error", "checks", "max_logp_error", "iters", "stopped",
                                                            "update_s", "rollout_s", "worker_errors", "params")}
@@ -228,10 +273,15 @@ class MetaResearcher:
             if out["ok"]:
                 json.dump(dict(out, tree=self._tree_id(cid), stage_cfg=self.cfg["stages"][stage]), open(done, "w"), default=str)
             return out
-        m = run_measures(load_trusted(results), budget)
-        out.update(m)
-        out["ok"] = bool(res["returncode"] == 0 and m["train_decisions"] >= 0.5 * min(budget, int(st["iters"]) * int(st["episodes_per_iter"]) * 4)
-                         and m["eval_rounds"] >= 2)
+        if self.life:
+            m = lifetime_measures(load_trusted(results), self.life_lists(stage)[1], budget)
+            out.update(m)
+            out["ok"] = bool(res["returncode"] == 0 and m["life_valid"])
+        else:
+            m = run_measures(load_trusted(results), budget)
+            out.update(m)
+            out["ok"] = bool(res["returncode"] == 0 and m["train_decisions"] >= 0.5 * min(budget, int(st["iters"]) * int(st["episodes_per_iter"]) * 4)
+                             and m["eval_rounds"] >= 2)
         out["diag"] = self._diagnostics(os.path.join(work, "run", "metrics.jsonl"))
         if out["ok"]:
             json.dump(dict(out, tree=self._tree_id(cid), stage_cfg=self.cfg["stages"][stage]), open(done, "w"), default=str)
@@ -401,6 +451,23 @@ class MetaResearcher:
         parent = self.champion.get("genome") or P.BASE_GENOME
         seen = {r["candidate"] for r in self.ledger.experiments()}
         tries = 0
+        if self.life:
+            base_src = self.champion["changes"].get(P.CONT_PATH) or open(os.path.join(self.base_pkg, P.CONT_PATH)).read()
+            had = {r.get("proposal") for r in self.ledger.experiments()}
+            if self.round_n == 0 and self.cfg.get("named_first", True):
+                # first pool: the classic continual-learning methods, one idea each, against the same baseline
+                for name, g in self.cont_space.named():
+                    p = self.cont_space.proposal(g, parent, name, base_src)
+                    if p["id"] not in had:
+                        pool.append(p)
+            n_want = len(pool) + int(src.get("continual_space", 0)) if not pool else len(pool)
+            while len(pool) < n_want and tries < 80:
+                tries += 1
+                # mutate the champion, or (half of the time) the best rule screened so far; cross the two over
+                start = self.best_seen if (self.best_seen is not None and self.rng.random() < 0.5) else parent
+                p = self.cont_space.proposal(self.cont_space.mutate(start), parent, None, base_src)
+                if p["id"] not in had and p["id"] not in {q["id"] for q in pool} and p["genome"] != parent:
+                    pool.append(p)
         while len([p for p in pool if p["source"] == "rule_space"]) < int(src.get("rule_space", 0)) and tries < 50:
             tries += 1
             p = self.rule_space.propose(parent if "rule" not in str(parent.get("phi", "")) else P.BASE_GENOME)
@@ -598,8 +665,12 @@ class MetaResearcher:
             if not all(base[s_].get("ok") for s_ in good):
                 raise RuntimeError("the champion's own run failed; no comparison is possible")
             prim = self.cfg["primary"]
+            keys = ("aulc_eval", "final_eval", "first_eval", "aulc_train", "train_decisions", "wall_s",
+                    "life_forgetting", "life_acquisition", "life_matrix")
             rec.update(valid=True, effect=float(np.mean([good[s_][prim] - base[s_][prim] for s_ in good])),
-                       measures={s_: {k: m[k] for k in ("aulc_eval", "final_eval", "first_eval", "aulc_train", "train_decisions", "wall_s")} for s_, m in good.items()})
+                       measures={s_: {k: m[k] for k in keys if k in m} for s_, m in good.items()})
+            if self.life and prop.get("genome") and (self.best_seen is None or rec["effect"] > self.best_seen.get("_effect", -1e9)):
+                self.best_seen = dict(prop["genome"], _effect=rec["effect"])
         except Exception as e:  # noqa: BLE001
             rec["reject_reason"] = f"{type(e).__name__}: {e}"[:300]
         finally:

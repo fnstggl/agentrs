@@ -1,0 +1,22 @@
+# Minutes-long check of the Meta-Researcher's lifetime mode (tiny controller, two phases, two candidates).
+base: meta_continual.yaml
+name: meta_continual_smoke
+rounds: 1
+named_first: false
+sources: {continual_space: 2, llm: 0, rule_space: 0, learned_rule: 0}
+max_parallel: 3
+develop_top: 0
+inner:
+  workers: 2
+  model: {d: 64, layers: 2, heads: 4, ff: 128, bag_dim: 32, hid: 64}
+  core: {max_decisions: 10}
+  demos: {episodes: 12, bc_epochs: 1, max_per_arm: 2}
+  curriculum: {world_families: [tiny], arms: [{family: found}, {family: fund}]}
+phases:
+  - {name: found, arms: [found/0/scratch], worlds: [tiny]}
+  - {name: fund, arms: [fund/0/scratch], worlds: [tiny]}
+eval_world_families: [tiny]
+stages:
+  screen:  {seeds: [1], demos_per_arm: 2, observe_steps: 20, iters: 1, episodes_per_iter: 6, eval_per_arm: 2, budget: 100000, timeout_s: 900}
+  develop: {seeds: [1, 2], demos_per_arm: 2, observe_steps: 20, iters: 1, episodes_per_iter: 6, eval_per_arm: 2, budget: 100000, timeout_s: 900}
+  confirm: {seeds: [1, 2], demos_per_arm: 2, observe_steps: 20, iters: 1, episodes_per_iter: 6, eval_per_arm: 2, budget: 100000, timeout_s: 900}

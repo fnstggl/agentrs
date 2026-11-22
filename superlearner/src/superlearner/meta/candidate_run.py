@@ -159,6 +159,24 @@ def probe(job: dict) -> dict:
     after = flat_params(model).double()
     fp.update(delta_norm=float((after - before).norm()), delta_proj=float(((after - before) * r[: after.shape[0]]).sum()),
               weights_sum=float(after.sum()), update_loss=float(m.get("loss", 0.0) or 0.0))
+    if hasattr(algo, "observe") and hasattr(algo, "begin_phase"):
+        # a continual rule also acts at observations and phase boundaries: two short phases on the fixed episodes
+        # (observe, update, consolidate; then a second phase with other arms), fingerprinted by the final weights
+        torch.manual_seed(4321)
+        half = max(1, len(eps) // 2)
+        arms = lambda es: sorted({tuple(e["summary"].get("arm", ())) for e in es})      # noqa: E731
+        algo.begin_phase(0, arms(eps[:half]))
+        algo.observe(eps[:half], store, 4)
+        algo.update(eps[:half], store)
+        algo.end_phase(store)
+        algo.begin_phase(1, arms(eps[half:]))
+        algo.observe(eps[half:], store, 4)
+        algo.update(eps[half:], store)
+        algo.end_phase(store)
+        w = flat_params(model).double()
+        fp.update(life_weights_sum=float(w.sum()), life_weights_proj=float((w * r[: w.shape[0]]).sum()),
+                  life_buffer=len(algo.buffer), life_steps=int(algo.n_updates),
+                  life_wm_sum=float(sum(float(p.double().sum()) for p in algo.wm.parameters())) if getattr(algo, "wm", None) is not None else 0.0)
     return {"fingerprint": fp}
 
 
@@ -199,11 +217,33 @@ def train(job: dict) -> dict:
     return info
 
 
+def lifetime(job: dict) -> dict:
+    """A whole (short) lifetime of a fresh learner under the candidate's continual update rule: phases of new task
+    arms, each with observation, practice and a held-out evaluation of EVERY phase started by index on the hub."""
+    import torch
+    torch.set_num_threads(int(job.get("update_threads", 4)))
+    from superlearner.continual.lifetime import Lifetime
+    cfg = dict(job["config"])
+    cfg["env_socket"] = job["env_socket"]
+    cfg["llm"] = {"kind": "none"}
+    cfg["device"] = "cpu"
+    cfg.pop("backbone", None)                     # no GPU inside the confinement: hash text embeddings
+    t0 = time.time()
+    life = Lifetime(cfg, os.path.join(job["workdir"], "run"), resume=False, verbose=False)
+    res = life.run()
+    tr = life.tr
+    d = res.get("derived") or {}
+    return {"finished": bool(res.get("finished")), "phases": len(res.get("rows") or []), "wall_s": round(time.time() - t0, 1),
+            "env_decisions": tr.env_decisions, "update_s": round(tr.wall["update_s"], 1), "rollout_s": round(tr.wall["rollout_s"], 1),
+            "worker_errors": tr.pool.errors[:3], "params": tr.model.n_params(), "iters": tr.iter,
+            "untrusted_matrix": d.get("matrix"), "stopped": "" if res.get("finished") else "did not finish"}
+
+
 def main() -> int:
     job = json.load(open(sys.argv[1]))
     out_path = os.path.join(job["workdir"], f"{job['stage']}_result.json")
     try:
-        res = {"selftest": selftest, "probe": probe}.get(job["stage"], train)(job)
+        res = {"selftest": selftest, "probe": probe, "lifetime": lifetime}.get(job["stage"], train)(job)
         res.setdefault("ok", True)
     except Exception as e:  # noqa: BLE001
         res = {"ok": False, "error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()[-3000:]}

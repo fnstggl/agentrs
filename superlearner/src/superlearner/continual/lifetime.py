@@ -46,7 +46,8 @@ from ..world.tasks import TaskSpec, task_list
 from . import plasticity as PL
 
 LIFE_DEFAULTS = {"memory": False, "tools": None, "freeze_after": None, "wm_holdout": 8, "probe_episodes": 12,
-                 "probe_steps": 40, "eval": {"per_arm": 8, "unseen_worlds": [], "unseen_per_arm": 4, "sampled": True, "unseen_only_at_end": True,
+                 "probe_steps": 40, "hub_lists": None,
+                 "eval": {"per_arm": 8, "unseen_worlds": [], "unseen_per_arm": 4, "sampled": True, "unseen_only_at_end": True,
                           "extra_lists": []},
                  "phases": []}
 PHASE_DEFAULTS = {"worlds": ["tiny", "bazaar"], "demos_per_arm": 4, "observe_steps": 120, "iters": 4,
@@ -128,6 +129,9 @@ class Lifetime:
         self.tr.save("latest.pt", inline=True)
 
     def _eval_lists(self) -> list[dict]:
+        if self.L.get("hub_lists"):
+            # the held-out tasks live on a trusted env hub: this process knows them only as indices (meta-search)
+            return [dict(x, kind=x.get("kind", "seen"), tasks=None) for x in self.L["hub_lists"]]
         path = os.path.join(self.dir, "eval_tasks.json")
         if os.path.exists(path):
             raw = json.load(open(path))
@@ -167,9 +171,12 @@ class Lifetime:
         self.tr.absorb(eps)
         return eps
 
-    def evaluate(self, tasks: list, tag: str, agent: dict | None = None, mode: str = "greedy") -> dict:
-        jobs = [{"spec": s.to_dict(), "mode": mode, "seed": 10_000 + i, "episode_id": f"{tag}{i}", "learn": False,
-                 "keep_decisions": False, "human": False, "agent": agent or {}, "tag": tag} for i, s in enumerate(tasks)]
+    def evaluate(self, lst: dict, tag: str, agent: dict | None = None, mode: str = "greedy") -> dict:
+        common = {"mode": mode, "learn": False, "keep_decisions": False, "human": False, "agent": agent or {}, "tag": tag}
+        if lst.get("tasks") is None:
+            jobs = [dict(common, eval=int(i), seed=10_000 + int(i), episode_id=f"{tag}{i}") for i in lst["indices"]]
+        else:
+            jobs = [dict(common, spec=s.to_dict(), seed=10_000 + i, episode_id=f"{tag}{i}") for i, s in enumerate(lst["tasks"])]
         t0 = time.time()
         eps = self._run(jobs)
         good = [e for e in eps if e is not None]
@@ -263,6 +270,8 @@ class Lifetime:
         self.x["counter"] = cur.counter
         log = self.x["phase_log"][-1]
         log["train_success"].append(round(rec.get("train_success", 0.0), 4))
+        if "wm_preq_ok_acc" in rec:
+            log.setdefault("wm_prequential", []).append([round(rec["wm_preq_ok_acc"], 4), round(rec["wm_preq_majority"], 4)])
         self.say(f"  practice {it + 1}/{p['iters']}: train success {rec.get('train_success', 0):.3f} kl {rec.get('kl', 0):.4f} "
                  f"wm ok-acc {rec.get('wm_ok_acc', 0):.2f} dθ {rec.get('param_delta', 0):.3f} "
                  f"roll {rec.get('rollout_s', 0)}s upd {rec.get('update_s', 0)}s")
@@ -308,18 +317,18 @@ class Lifetime:
         for lst in self.lists:
             if lst["kind"] == "unseen" and not last and self.L["eval"].get("unseen_only_at_end", True):
                 continue                                   # unseen-world lists: once, with the final weights
-            row["lists"][lst["name"]] = self.evaluate(lst["tasks"], f"L{k}_{lst['name']}_")
+            row["lists"][lst["name"]] = self.evaluate(lst, f"L{k}_{lst['name']}_")
         if last and self.L["memory"]:              # how much of the final behaviour needs the written memory?
-            row["lists_memory_off"] = {lst["name"]: self.evaluate(lst["tasks"], f"L{k}m0_{lst['name']}_",
+            row["lists_memory_off"] = {lst["name"]: self.evaluate(lst, f"L{k}m0_{lst['name']}_",
                                                                   {"use_memory": False, "use_tools": False})
                                        for lst in self.lists if lst["kind"] == "seen"}
         if self.L["eval"].get("sampled", True):     # the stochastic policy (what RL optimises) on the phases seen so far
-            row["lists_sampled"] = {lst["name"]: self.evaluate(lst["tasks"], f"L{k}s_{lst['name']}_", mode="sample")
+            row["lists_sampled"] = {lst["name"]: self.evaluate(lst, f"L{k}s_{lst['name']}_", mode="sample")
                                     for lst in self.lists if lst["kind"] == "seen" and lst["phase"] <= k}
         row["world_model"] = self.wm_report()
         probe = self.x["probe"]
         row["plasticity"] = dict(PL.diagnostics(tr.model, probe, tr.store, tr.device),
-                                 probe_fit=PL.probe_fit(tr.model, probe, tr.store, tr.device, int(self.L["probe_steps"])))
+                                 probe_fit=PL.probe_fit(tr.model, probe, tr.store, tr.device, int(self.L["probe_steps"])))             if int(self.L["probe_steps"]) > 0 else {}
         row["weights"] = {"digest": PL.weights_digest(tr.model), "since_init": PL.param_change(tr.model, self.x["ref_init"]),
                           "this_phase": PL.param_change(tr.model, self.x["ref_phase"]) if self.x["ref_phase"] else {}}
         if tr.backbone is not None:
@@ -377,6 +386,7 @@ class Lifetime:
         self.save()
         if x["stage"] == "done":
             self.write_results()
+            open(os.path.join(self.dir, "DONE"), "w").write(time.strftime("%Y-%m-%d %H:%M:%S\n"))
         return x["stage"] != "done"
 
     def run(self, max_steps: int | None = None) -> dict:
