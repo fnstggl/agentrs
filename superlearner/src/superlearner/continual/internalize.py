@@ -126,8 +126,8 @@ def fresh_eval_main(argv=None) -> int:
             tr.mem_synced = len(tr.memory.items)
         out["state_at_start"] = {"memory_items": len(tr.memory), "tools": len(tr.library.tools), "embedding_rows": tr.store.n - 1,
                                  "replay_buffer": len(getattr(tr.algo, "buffer", []) or []), "texts": len(tr.texts)}
-        for lst in json.load(open(a.tasks)):
-            for mode in (["greedy", "sample"] if a.sampled else ["greedy"]):
+        for li, lst in enumerate(json.load(open(a.tasks))):
+            for mode in (["greedy", "sample"] if (a.sampled and li == 0) else ["greedy"]):   # sampled: the unfamiliar list
                 jobs = [{"spec": t, "mode": mode, "seed": 10_000 + i, "episode_id": f"pit{i}", "learn": False,
                          "keep_decisions": False, "handle": a.handle, "tag": "pit"} for i, t in enumerate(lst["tasks"])]
                 tr.sync_workers()

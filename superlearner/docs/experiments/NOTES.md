@@ -270,3 +270,18 @@ Work on the amendment ("continual learning must change the core neural weights")
   a lifetime now returns its cached GPU blocks after every step. Every seed-0 lifetime was therefore interrupted and
   resumed between two and four times; their `restarts` counters record it, and each time they continued from the
   last completed step.
+* **The first "unfamiliar" family was not unfamiliar.** The Parametric Internalization Test was first set up with
+  `launch` (`service` from a deployed, unlisted service) as the compositional unfamiliar family. Its first result
+  (seed 0, practice route) showed the base learner at 100% on it BEFORE any learning - in the kinds of world it
+  trained in and in two it never saw: having learned "list a deployed service" and "operate a listed service"
+  separately, it does both in sequence without being shown or trained. (In the lifetimes the same family starts
+  at 0%: there the learner meets it after three phases in other kinds of world, and has not yet practised the two
+  parts together in one curriculum.) A family solved before learning cannot show acquisition, so it was replaced by
+  `build` (`service` from coded software: deploy, list, operate; 0% before). The one finished `launch` route is
+  kept and reported as what it is, zero-shot composition; two partial `launch` runs are in `runs/pit_superseded/`.
+  At the same time the test was made cheaper (4 practice iterations of 48 episodes instead of 6 of 64; 16 / 12 /
+  8 / 10 held-out tasks per list instead of 24 / 16 / 16 / 20; sampled-action evaluation only on the unfamiliar
+  list), because one route had taken 45 minutes; the control routes run on two seeds, the learning routes on three.
+* **A stop command that stopped itself.** The pattern used to find evaluation subprocesses also matched the shell
+  running the command (the known `pkill -f` trap), which killed the shell before it could start the new queue
+  runner; nothing else was affected. Patterns are now anchored at the interpreter path.

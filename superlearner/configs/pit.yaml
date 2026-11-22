@@ -12,22 +12,25 @@ pit:
   base_phase: {arms: [found/0/scratch, fund/0/scratch, list/0/deployed, deploy/0/coded, service/0/listed], worlds: [tiny, bazaar],
                demos_per_arm: 4, observe_steps: 240, iters: 4, episodes_per_iter: 80}
   families:
-    # composition of known parts: a deployed service must be listed and then operated until it has served its requests
-    - {name: launch, arms: [service/0/deployed], related: [service/0/coded, service/1/deployed]}
+    # a longer composition: coded software must be deployed, listed and then operated until it has served its requests
+    - {name: build, arms: [service/0/coded], related: [service/1/coded, service/1/deployed]}
     # a new mechanism: a listed service that is failing (down, or badly overpriced) must be diagnosed and repaired
     - {name: repair, arms: [repair/0/scratch], related: [service/0/deployed]}
+    # NOT unfamiliar after all (kept as a record, seed 0 only): the base learner solves it without any training, by
+    # composing "list a deployed service" and "operate a listed service" (100% before; docs/CONTINUAL.md, section 4)
+    - {name: launch, arms: [service/0/deployed], related: [service/0/coded, service/1/deployed]}
   routes:
-    practice:          {demos_per_arm: 0, iters: 6, episodes_per_iter: 64}
-    explore_practice:  {demos_per_arm: 0, iters: 6, episodes_per_iter: 64,
+    practice:          {demos_per_arm: 0, iters: 4, episodes_per_iter: 48}
+    explore_practice:  {demos_per_arm: 0, iters: 4, episodes_per_iter: 48,
                         over: {explore: {frac: 0.5, modes: [hot, random, wm], temperature: 2.5, beta: 2.0}}}
     observe:           {demos_per_arm: 4, observe_steps: 120, iters: 0}
-    observe_practice:  {demos_per_arm: 4, observe_steps: 120, iters: 6, episodes_per_iter: 64}
+    observe_practice:  {demos_per_arm: 4, observe_steps: 120, iters: 4, episodes_per_iter: 48}
     # Architecture B: the same route with the language backbone fully trainable while the unfamiliar family is
     # learned (the weights file then also holds the backbone's 549M changed parameters)
-    observe_practice_backbone: {demos_per_arm: 4, observe_steps: 120, iters: 6, episodes_per_iter: 64,
+    observe_practice_backbone: {demos_per_arm: 4, observe_steps: 120, iters: 4, episodes_per_iter: 48,
                                 over: {backbone: {mode: full}, algo: {backbone_lr: 0.00001}}}
     # controls: the same experience written to episodic memory with the weights frozen; and weights plus memory
-    frozen_memory:           {demos_per_arm: 4, iters: 6, episodes_per_iter: 64, memory: true, freeze: true}
-    memory_observe_practice: {demos_per_arm: 4, observe_steps: 120, iters: 6, episodes_per_iter: 64, memory: true}
-  eval: {n: 24, n_unseen: 16, n_related: 16, n_familiar: 20, unseen_worlds: [entrenched_incumbents, fragmented_networks],
+    frozen_memory:           {demos_per_arm: 4, iters: 4, episodes_per_iter: 48, memory: true, freeze: true}
+    memory_observe_practice: {demos_per_arm: 4, observe_steps: 120, iters: 4, episodes_per_iter: 48, memory: true}
+  eval: {n: 16, n_unseen: 12, n_related: 8, n_familiar: 10, unseen_worlds: [entrenched_incumbents, fragmented_networks],
          handle_control: pilot}
