@@ -379,3 +379,40 @@ def test_world_model_fit_on_replayed_transitions_beats_the_base_rate_on_its_data
     rep = evaluate_model(a.wm, transitions(model, eps, store))
     assert rep["ok_nll"] < rep["ok_nll_base_rate"]
     assert a.state_dict()["wm_opt"] is not None                        # its optimiser state is part of the learner's state
+
+
+def test_report_aggregates_runs_and_pairs_conditions_by_task():
+    from superlearner.continual.report import boot_paired, cond_summary, final_tasks
+
+    def run(mat, seed, memoff=None):
+        names = ["A", "B", "C"]
+        rows = []
+        for k in range(3):
+            lists = {n: {"success": mat[k][j], "per_task": [mat[k][j] >= 0.5] * 4} for j, n in enumerate(names)}
+            if k == 2:
+                lists["A@unseen"] = {"success": 0.5, "per_task": [True, False]}
+            row = {"lists": lists, "lists_sampled": {n: {"success": mat[k][j]} for j, n in enumerate(names) if j <= k},
+                   "phase_log": {"train_success": [0.2, 0.6], "wm_prequential": [[0.5, 0.6], [0.9, 0.6]]},
+                   "plasticity": {"probe_fit": {"loss_last": 2.0 + k, "chance": 5.0}, "dormant_fraction": 0.0, "state_effective_rank": 4.0},
+                   "world_model": {"A": {"ok_accuracy": 0.9, "ok_accuracy_base_rate": 0.6, "ok_nll": 0.2, "ok_nll_base_rate": 0.6,
+                                         "next_latent_cosine": 0.9, "next_latent_cosine_mean_predictor": 0.5}},
+                   "weights": {"digest": f"d{k}", "since_init": {g: {"relative": 0.1} for g in ("input", "encoder", "recurrent", "policy", "critic", "all")}},
+                   "memory_items": 0, "tools": 0, "optimizer_steps": 100 * (k + 1)}
+            if k == 2 and memoff is not None:
+                row["lists_memory_off"] = {n: {"success": memoff} for n in names}
+            rows.append(row)
+        return {"phases": [{"name": n} for n in names], "rows": rows, "env_decisions": 1000, "episodes": 100, "seed": seed,
+                "wall": {"rollout_s": 60.0, "update_s": 30.0}, "params": {}, "restarts": 1, "finished": True}
+    forgets = run([[1.0, 0.0, 0.0], [0.5, 1.0, 0.0], [0.0, 0.5, 1.0]], 0)
+    keeps = run([[1.0, 0.0, 0.0], [1.0, 1.0, 0.5], [1.0, 1.0, 1.0]], 0, memoff=0.25)
+    f, k = cond_summary({0: forgets}), cond_summary({0: keeps})
+    assert f["final_by_phase"] == [0.0, 0.5, 1.0] and f["final_mean"]["mean"] == pytest.approx(0.5)
+    assert f["forgetting"]["by_phase"] == [1.0, 0.5] and k["forgetting"]["mean"] == 0.0
+    assert f["acquisition"]["by_phase"] == [1.0, 1.0, 1.0] and k["acquisition"]["by_phase"] == [1.0, 1.0, 0.5]
+    assert k["zero_shot_before_training"] == [0.0, 0.0, 0.5] and k["shift"] == {"before": 0.5, "after": 1.0, "by_seed": [[0.5, 1.0]]}
+    assert k["final_mean_memory_off"]["mean"] == 0.25 and k["unseen_worlds_final"]["mean"] == 0.5
+    assert k["world_model_prequential"]["first_iteration"] == [0.5, 0.6] and f["weights_changed_after_first_phase"] == [True]
+    c = boot_paired([final_tasks(keeps)], [final_tasks(forgets)])
+    assert c["n_tasks"] == 12 and c["diff"] == pytest.approx(4 / 12)             # the four tasks of the forgotten phase
+    assert c["a_only"] == 4 and c["b_only"] == 0 and c["ci95"][0] <= c["diff"] <= c["ci95"][1]
+    assert boot_paired([[True, None]], [[None, True]]) == {}                    # no task present in both: no comparison

@@ -39,8 +39,9 @@ def param_change(model, ref: dict) -> dict:
     out = {}
     tot_d, tot_n = 0.0, 0.0
     for g, items in _groups(model).items():
-        d = sum(float(((p.detach().cpu().float() - ref[n].float()) ** 2).sum()) for n, p in items if n in ref)
-        n2 = sum(float((ref[n].float() ** 2).sum()) for n, p in items if n in ref)
+        # (a reference restored from a checkpoint may sit on another device than it was saved from)
+        d = sum(float(((p.detach().cpu().float() - ref[n].detach().cpu().float()) ** 2).sum()) for n, p in items if n in ref)
+        n2 = sum(float((ref[n].detach().cpu().float() ** 2).sum()) for n, p in items if n in ref)
         out[g] = {"l2": d ** 0.5, "relative": (d / n2) ** 0.5 if n2 > 0 else 0.0,
                   "params": int(sum(p.numel() for _, p in items))}
         tot_d += d
