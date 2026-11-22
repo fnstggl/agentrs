@@ -290,3 +290,11 @@ Work on the amendment ("continual learning must change the core neural weights")
   end; with nine units in flight the card filled and two jobs died (both resumed). The parent now releases its GPU
   memory before the evaluations start. Queue units were re-measured on the running jobs (about 3.3 GB for an
   internalization job, 5.5-6.3 GB for a lifetime) and the limit set to eight.
+* **Evaluations that silently recorded nothing.** Checking why a control showed 0% where the same weights scored
+  100% a minute earlier: in five fresh-process evaluation files of seed 0 (four control evaluations and one
+  "before" file) EVERY episode was missing - they ran during the out-of-memory period, the embedding requests
+  failed, each episode raised, and the evaluation counted zero successes over zero episodes as 0%. Every
+  evaluation record written so far was scanned for episodes that did not run: those five files and nothing else
+  (no lifetime row is affected; there the whole job had died instead). The five files and the three route results
+  built on them were removed and are recomputed. An episode that does not run is now re-run up to three times and
+  otherwise raises, in the fresh-process evaluation and in the lifetime's evaluations (test added).

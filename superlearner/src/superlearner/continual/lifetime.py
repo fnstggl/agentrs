@@ -86,6 +86,8 @@ def derive(rows: list[dict], phases: list[dict]) -> dict:
 
 
 class Lifetime:
+    EVAL_RETRY_WAIT_S = 20.0        # pause before re-running evaluation episodes that did not run (e.g. a full GPU)
+
     def __init__(self, cfg: dict, run_dir: str, resume: bool = True, verbose: bool = True):
         self.cfg = cfg = copy.deepcopy(cfg)
         self.L = L = merge(LIFE_DEFAULTS, cfg.get("lifetime") or {})
@@ -179,6 +181,16 @@ class Lifetime:
             jobs = [dict(common, spec=s.to_dict(), seed=10_000 + i, episode_id=f"{tag}{i}") for i, s in enumerate(lst["tasks"])]
         t0 = time.time()
         eps = self._run(jobs)
+        for attempt in range(3):                          # an episode that did not run is an error, never a failure
+            miss = [i for i, e in enumerate(eps) if e is None]
+            if not miss:
+                break
+            time.sleep(self.EVAL_RETRY_WAIT_S * (attempt + 1))
+            for i, e in zip(miss, self._run([jobs[i] for i in miss])):
+                eps[i] = e
+        if any(e is None for e in eps):
+            err = self.tr.pool.errors[-1][-600:] if self.tr.pool.errors else ""
+            raise RuntimeError(f"{sum(e is None for e in eps)} of {len(eps)} evaluation episodes did not run ({tag}): {err}")
         good = [e for e in eps if e is not None]
         r = summarize(good)
         return {"n": len(good), "success": r.get("success", 0.0), "success_ci": r.get("success_ci"), "by_arm": r.get("by_arm"),

@@ -416,3 +416,24 @@ def test_report_aggregates_runs_and_pairs_conditions_by_task():
     assert c["n_tasks"] == 12 and c["diff"] == pytest.approx(4 / 12)             # the four tasks of the forgotten phase
     assert c["a_only"] == 4 and c["b_only"] == 0 and c["ci95"][0] <= c["diff"] <= c["ci95"][1]
     assert boot_paired([[True, None]], [[None, True]]) == {}                    # no task present in both: no comparison
+
+
+def test_an_evaluation_episode_that_did_not_run_is_an_error_not_a_failure(smoke_cfg, tmp_path):
+    """Found the hard way: during a GPU out-of-memory period whole evaluation lists returned no episode and were
+    recorded as 0% success. Missing episodes are now re-run, and if they still do not run the evaluation raises."""
+    cfg = copy.deepcopy(smoke_cfg)
+    cfg["lifetime"]["phases"] = cfg["lifetime"]["phases"][:1]
+    life = Lifetime(cfg, str(tmp_path / "life"), verbose=False)
+    life.EVAL_RETRY_WAIT_S = 0.0
+    real, calls = life._run, {"n": 0}
+
+    def flaky(jobs):                                   # the first attempt loses every episode, the retry works
+        calls["n"] += 1
+        return [None] * len(jobs) if calls["n"] == 1 else real(jobs)
+    life._run = flaky
+    r = life.evaluate(life.lists[0], "t")
+    assert calls["n"] == 2 and r["n"] == len(life.lists[0]["tasks"]) and None not in r["per_task"]
+    life._run = lambda jobs: [None] * len(jobs)        # nothing ever runs: no number may come out
+    with pytest.raises(RuntimeError, match="did not run"):
+        life.evaluate(life.lists[0], "t")
+    life.tr.close()

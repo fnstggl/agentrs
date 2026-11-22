@@ -132,6 +132,16 @@ def fresh_eval_main(argv=None) -> int:
                          "keep_decisions": False, "handle": a.handle, "tag": "pit"} for i, t in enumerate(lst["tasks"])]
                 tr.sync_workers()
                 eps = tr.pool.run(jobs)
+                for attempt in range(3):                  # an episode that did not run is an error, never a failure
+                    miss = [i for i, e in enumerate(eps) if e is None]
+                    if not miss:
+                        break
+                    time.sleep(20 * (attempt + 1))
+                    for i, e in zip(miss, tr.pool.run([jobs[i] for i in miss])):
+                        eps[i] = e
+                if any(e is None for e in eps):
+                    raise RuntimeError(f"{sum(e is None for e in eps)} of {len(eps)} evaluation episodes did not run "
+                                       f"({lst['name']}, {mode}): {tr.pool.errors[-1][-600:] if tr.pool.errors else ''}")
                 tr.absorb(eps)
                 good = [e for e in eps if e is not None]
                 r = summarize(good)
