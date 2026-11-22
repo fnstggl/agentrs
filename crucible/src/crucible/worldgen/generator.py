@@ -35,6 +35,7 @@ class Family:
     split: str
     build: Callable[[np.random.Generator, dict], dict]
     doc: str
+    economic: bool | None = None    # hint for goal generation (None: decided by building a spec once)
 
 
 FAMILIES: dict[str, Family] = {}

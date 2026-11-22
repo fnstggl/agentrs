@@ -1,0 +1,784 @@
+{
+ "family": "open_digital",
+ "seed": 1,
+ "days": 90,
+ "label": "ow_longrun_open_digital_s1_base",
+ "world": "long-ow_longrun_open_digital_s1_base",
+ "spec_hash": "1ae204953f999b1ad0535c61025d5ba5",
+ "modules": [
+  "identity",
+  "bank",
+  "admin",
+  "code",
+  "search",
+  "forum",
+  "mail",
+  "docs",
+  "cal",
+  "issues",
+  "support",
+  "ads",
+  "contracts",
+  "business",
+  "jobs",
+  "cloud",
+  "market",
+  "consumers",
+  "npcs",
+  "shocks",
+  "goals",
+  "civ",
+  "ops",
+  "wf",
+  "caps",
+  "deal",
+  "gov",
+  "net",
+  "appdb",
+  "society",
+  "webgen",
+  "adversary",
+  "disturb"
+ ],
+ "extra_modules": [
+  "disturb"
+ ],
+ "overrides": {},
+ "check_every_days": 1.0,
+ "events": 177120,
+ "commands": 0,
+ "rejected_commands": 0,
+ "weeks": [
+  {
+   "week": 1,
+   "days": [
+    0,
+    6
+   ],
+   "served": 427939,
+   "requests": 428415,
+   "revenue": 1714982,
+   "sectors": {
+    "route.shortest": {
+     "requests": 204315,
+     "served": 203839,
+     "revenue": 815356,
+     "potential": 336741.3,
+     "quality": 0.6532,
+     "sellers_end": 2,
+     "unserved_end": 115
+    },
+    "text.extract": {
+     "requests": 224100,
+     "served": 224100,
+     "revenue": 899626,
+     "potential": 362096.7,
+     "quality": 0.7805,
+     "sellers_end": 2,
+     "unserved_end": 120
+    }
+   },
+   "active_firms_end": 8,
+   "entries": 0,
+   "exits": 0,
+   "bankruptcies": 0,
+   "price_changes": 1,
+   "new_listings": 0,
+   "adoptions": 0,
+   "founder_entries": 0,
+   "founder_exits": 0,
+   "founder_failures": 0,
+   "rejected": 0,
+   "events": 14139,
+   "violations_new": 0,
+   "log_bytes": 3284004,
+   "process_failures": {},
+   "wall_s": 16.3,
+   "rss_mb_end": 66.6,
+   "collapsed_days": 0,
+   "structural_change": true
+  },
+  {
+   "week": 2,
+   "days": [
+    7,
+    13
+   ],
+   "served": 591047,
+   "requests": 591149,
+   "revenue": 2364188,
+   "sectors": {
+    "route.shortest": {
+     "requests": 284115,
+     "served": 284013,
+     "revenue": 1136052,
+     "potential": 336741.3,
+     "quality": 0.6852,
+     "sellers_end": 2,
+     "unserved_end": 51
+    },
+    "text.extract": {
+     "requests": 307034,
+     "served": 307034,
+     "revenue": 1228136,
+     "potential": 362096.7,
+     "quality": 0.7839,
+     "sellers_end": 2,
+     "unserved_end": 63
+    }
+   },
+   "active_firms_end": 8,
+   "entries": 0,
+   "exits": 0,
+   "bankruptcies": 0,
+   "price_changes": 0,
+   "new_listings": 0,
+   "adoptions": 0,
+   "founder_entries": 0,
+   "founder_exits": 0,
+   "founder_failures": 0,
+   "rejected": 0,
+   "events": 14321,
+   "violations_new": 0,
+   "log_bytes": 3370233,
+   "process_failures": {},
+   "wall_s": 15.5,
+   "rss_mb_end": 79.2,
+   "collapsed_days": 0,
+   "structural_change": false
+  },
+  {
+   "week": 3,
+   "days": [
+    14,
+    20
+   ],
+   "served": 594705,
+   "requests": 594705,
+   "revenue": 2378820,
+   "sectors": {
+    "route.shortest": {
+     "requests": 285963,
+     "served": 285963,
+     "revenue": 1143852,
+     "potential": 336741.3,
+     "quality": 0.6526,
+     "sellers_end": 2,
+     "unserved_end": 46
+    },
+    "text.extract": {
+     "requests": 308742,
+     "served": 308742,
+     "revenue": 1234968,
+     "potential": 362096.7,
+     "quality": 0.7795,
+     "sellers_end": 2,
+     "unserved_end": 56
+    }
+   },
+   "active_firms_end": 8,
+   "entries": 0,
+   "exits": 0,
+   "bankruptcies": 0,
+   "price_changes": 0,
+   "new_listings": 0,
+   "adoptions": 0,
+   "founder_entries": 0,
+   "founder_exits": 0,
+   "founder_failures": 0,
+   "rejected": 0,
+   "events": 14248,
+   "violations_new": 0,
+   "log_bytes": 3359072,
+   "process_failures": {},
+   "wall_s": 15.3,
+   "rss_mb_end": 91.5,
+   "collapsed_days": 0,
+   "structural_change": false
+  },
+  {
+   "week": 4,
+   "days": [
+    21,
+    27
+   ],
+   "served": 596556,
+   "requests": 596588,
+   "revenue": 2386224,
+   "sectors": {
+    "route.shortest": {
+     "requests": 286271,
+     "served": 286239,
+     "revenue": 1144956,
+     "potential": 336741.3,
+     "quality": 0.6648,
+     "sellers_end": 2,
+     "unserved_end": 40
+    },
+    "text.extract": {
+     "requests": 310317,
+     "served": 310317,
+     "revenue": 1241268,
+     "potential": 362096.7,
+     "quality": 0.7802,
+     "sellers_end": 2,
+     "unserved_end": 47
+    }
+   },
+   "active_firms_end": 8,
+   "entries": 0,
+   "exits": 0,
+   "bankruptcies": 0,
+   "price_changes": 0,
+   "new_listings": 0,
+   "adoptions": 0,
+   "founder_entries": 0,
+   "founder_exits": 0,
+   "founder_failures": 0,
+   "rejected": 0,
+   "events": 14249,
+   "violations_new": 0,
+   "log_bytes": 3364202,
+   "process_failures": {},
+   "wall_s": 21.6,
+   "rss_mb_end": 104.3,
+   "collapsed_days": 0,
+   "structural_change": false
+  },
+  {
+   "week": 5,
+   "days": [
+    28,
+    34
+   ],
+   "served": 596567,
+   "requests": 596567,
+   "revenue": 2386268,
+   "sectors": {
+    "route.shortest": {
+     "requests": 286870,
+     "served": 286870,
+     "revenue": 1147480,
+     "potential": 336741.3,
+     "quality": 0.6658,
+     "sellers_end": 2,
+     "unserved_end": 34
+    },
+    "text.extract": {
+     "requests": 309697,
+     "served": 309697,
+     "revenue": 1238788,
+     "potential": 362096.7,
+     "quality": 0.7775,
+     "sellers_end": 2,
+     "unserved_end": 47
+    }
+   },
+   "active_firms_end": 8,
+   "entries": 0,
+   "exits": 0,
+   "bankruptcies": 0,
+   "price_changes": 0,
+   "new_listings": 0,
+   "adoptions": 0,
+   "founder_entries": 0,
+   "founder_exits": 0,
+   "founder_failures": 0,
+   "rejected": 0,
+   "events": 14383,
+   "violations_new": 0,
+   "log_bytes": 3410809,
+   "process_failures": {},
+   "wall_s": 19.0,
+   "rss_mb_end": 117.6,
+   "collapsed_days": 0,
+   "structural_change": false
+  },
+  {
+   "week": 6,
+   "days": [
+    35,
+    41
+   ],
+   "served": 597276,
+   "requests": 597276,
+   "revenue": 2389104,
+   "sectors": {
+    "route.shortest": {
+     "requests": 286667,
+     "served": 286667,
+     "revenue": 1146668,
+     "potential": 336741.3,
+     "quality": 0.6734,
+     "sellers_end": 2,
+     "unserved_end": 35
+    },
+    "text.extract": {
+     "requests": 310609,
+     "served": 310609,
+     "revenue": 1242436,
+     "potential": 362096.7,
+     "quality": 0.7768,
+     "sellers_end": 2,
+     "unserved_end": 52
+    }
+   },
+   "active_firms_end": 8,
+   "entries": 0,
+   "exits": 0,
+   "bankruptcies": 0,
+   "price_changes": 0,
+   "new_listings": 0,
+   "adoptions": 0,
+   "founder_entries": 0,
+   "founder_exits": 0,
+   "founder_failures": 0,
+   "rejected": 0,
+   "events": 14355,
+   "violations_new": 0,
+   "log_bytes": 3403752,
+   "process_failures": {},
+   "wall_s": 23.8,
+   "rss_mb_end": 131.0,
+   "collapsed_days": 0,
+   "structural_change": false
+  },
+  {
+   "week": 7,
+   "days": [
+    42,
+    48
+   ],
+   "served": 578652,
+   "requests": 593177,
+   "revenue": 2314608,
+   "sectors": {
+    "route.shortest": {
+     "requests": 283043,
+     "served": 281268,
+     "revenue": 1125072,
+     "potential": 336741.3,
+     "quality": 0.66,
+     "sellers_end": 1,
+     "unserved_end": 58
+    },
+    "text.extract": {
+     "requests": 310134,
+     "served": 297384,
+     "revenue": 1189536,
+     "potential": 362096.7,
+     "quality": 0.7746,
+     "sellers_end": 2,
+     "unserved_end": 49
+    }
+   },
+   "active_firms_end": 7,
+   "entries": 0,
+   "exits": 1,
+   "bankruptcies": 1,
+   "price_changes": 0,
+   "new_listings": 0,
+   "adoptions": 0,
+   "founder_entries": 0,
+   "founder_exits": 0,
+   "founder_failures": 0,
+   "rejected": 0,
+   "events": 13881,
+   "violations_new": 0,
+   "log_bytes": 3260341,
+   "process_failures": {},
+   "wall_s": 21.4,
+   "rss_mb_end": 144.2,
+   "collapsed_days": 0,
+   "structural_change": true
+  },
+  {
+   "week": 8,
+   "days": [
+    49,
+    55
+   ],
+   "served": 593215,
+   "requests": 593432,
+   "revenue": 2372860,
+   "sectors": {
+    "route.shortest": {
+     "requests": 283588,
+     "served": 283371,
+     "revenue": 1133484,
+     "potential": 336741.3,
+     "quality": 0.6903,
+     "sellers_end": 1,
+     "unserved_end": 51
+    },
+    "text.extract": {
+     "requests": 309844,
+     "served": 309844,
+     "revenue": 1239376,
+     "potential": 362096.7,
+     "quality": 0.7805,
+     "sellers_end": 2,
+     "unserved_end": 50
+    }
+   },
+   "active_firms_end": 7,
+   "entries": 0,
+   "exits": 0,
+   "bankruptcies": 0,
+   "price_changes": 0,
+   "new_listings": 0,
+   "adoptions": 0,
+   "founder_entries": 0,
+   "founder_exits": 0,
+   "founder_failures": 0,
+   "rejected": 0,
+   "events": 13413,
+   "violations_new": 0,
+   "log_bytes": 3103321,
+   "process_failures": {},
+   "wall_s": 26.2,
+   "rss_mb_end": 156.1,
+   "collapsed_days": 0,
+   "structural_change": false
+  },
+  {
+   "week": 9,
+   "days": [
+    56,
+    62
+   ],
+   "served": 592632,
+   "requests": 592632,
+   "revenue": 2370528,
+   "sectors": {
+    "route.shortest": {
+     "requests": 283910,
+     "served": 283910,
+     "revenue": 1135640,
+     "potential": 336741.3,
+     "quality": 0.6662,
+     "sellers_end": 1,
+     "unserved_end": 43
+    },
+    "text.extract": {
+     "requests": 308722,
+     "served": 308722,
+     "revenue": 1234888,
+     "potential": 362096.7,
+     "quality": 0.7782,
+     "sellers_end": 2,
+     "unserved_end": 45
+    }
+   },
+   "active_firms_end": 7,
+   "entries": 0,
+   "exits": 0,
+   "bankruptcies": 0,
+   "price_changes": 0,
+   "new_listings": 0,
+   "adoptions": 0,
+   "founder_entries": 0,
+   "founder_exits": 0,
+   "founder_failures": 0,
+   "rejected": 0,
+   "events": 13182,
+   "violations_new": 0,
+   "log_bytes": 3040422,
+   "process_failures": {},
+   "wall_s": 24.7,
+   "rss_mb_end": 167.6,
+   "collapsed_days": 0,
+   "structural_change": false
+  },
+  {
+   "week": 10,
+   "days": [
+    63,
+    69
+   ],
+   "served": 574259,
+   "requests": 574259,
+   "revenue": 2297036,
+   "sectors": {
+    "route.shortest": {
+     "requests": 272544,
+     "served": 272544,
+     "revenue": 1090176,
+     "potential": 336741.3,
+     "quality": 0.6537,
+     "sellers_end": 1,
+     "unserved_end": 37
+    },
+    "text.extract": {
+     "requests": 301715,
+     "served": 301715,
+     "revenue": 1206860,
+     "potential": 362096.7,
+     "quality": 0.7837,
+     "sellers_end": 2,
+     "unserved_end": 38
+    }
+   },
+   "active_firms_end": 7,
+   "entries": 0,
+   "exits": 0,
+   "bankruptcies": 0,
+   "price_changes": 0,
+   "new_listings": 0,
+   "adoptions": 0,
+   "founder_entries": 0,
+   "founder_exits": 0,
+   "founder_failures": 0,
+   "rejected": 0,
+   "events": 13195,
+   "violations_new": 0,
+   "log_bytes": 3043548,
+   "process_failures": {},
+   "wall_s": 23.1,
+   "rss_mb_end": 177.6,
+   "collapsed_days": 0,
+   "structural_change": false
+  },
+  {
+   "week": 11,
+   "days": [
+    70,
+    76
+   ],
+   "served": 574144,
+   "requests": 574144,
+   "revenue": 2296576,
+   "sectors": {
+    "route.shortest": {
+     "requests": 272476,
+     "served": 272476,
+     "revenue": 1089904,
+     "potential": 336741.3,
+     "quality": 0.6427,
+     "sellers_end": 1,
+     "unserved_end": 35
+    },
+    "text.extract": {
+     "requests": 301668,
+     "served": 301668,
+     "revenue": 1206672,
+     "potential": 362096.7,
+     "quality": 0.7863,
+     "sellers_end": 2,
+     "unserved_end": 39
+    }
+   },
+   "active_firms_end": 7,
+   "entries": 0,
+   "exits": 0,
+   "bankruptcies": 0,
+   "price_changes": 0,
+   "new_listings": 0,
+   "adoptions": 0,
+   "founder_entries": 0,
+   "founder_exits": 0,
+   "founder_failures": 0,
+   "rejected": 0,
+   "events": 13086,
+   "violations_new": 0,
+   "log_bytes": 2995883,
+   "process_failures": {},
+   "wall_s": 26.7,
+   "rss_mb_end": 188.5,
+   "collapsed_days": 0,
+   "structural_change": false
+  },
+  {
+   "week": 12,
+   "days": [
+    77,
+    83
+   ],
+   "served": 574233,
+   "requests": 574233,
+   "revenue": 2296932,
+   "sectors": {
+    "route.shortest": {
+     "requests": 272655,
+     "served": 272655,
+     "revenue": 1090620,
+     "potential": 336741.3,
+     "quality": 0.6541,
+     "sellers_end": 1,
+     "unserved_end": 36
+    },
+    "text.extract": {
+     "requests": 301578,
+     "served": 301578,
+     "revenue": 1206312,
+     "potential": 362096.7,
+     "quality": 0.7776,
+     "sellers_end": 2,
+     "unserved_end": 37
+    }
+   },
+   "active_firms_end": 7,
+   "entries": 0,
+   "exits": 0,
+   "bankruptcies": 0,
+   "price_changes": 0,
+   "new_listings": 0,
+   "adoptions": 0,
+   "founder_entries": 0,
+   "founder_exits": 0,
+   "founder_failures": 0,
+   "rejected": 0,
+   "events": 13121,
+   "violations_new": 0,
+   "log_bytes": 3009825,
+   "process_failures": {},
+   "wall_s": 21.2,
+   "rss_mb_end": 199.5,
+   "collapsed_days": 0,
+   "structural_change": false
+  }
+ ],
+ "output": {
+  "served_by_week": [
+   427939,
+   591047,
+   594705,
+   596556,
+   596567,
+   597276,
+   578652,
+   593215,
+   592632,
+   574259,
+   574144,
+   574233
+  ],
+  "median_weeks_2_8": 594705.0,
+  "last_week_over_median_weeks_2_8": 0.966,
+  "mean_after_week_9_over_median_weeks_2_8": 0.966,
+  "weeks_with_structural_change_after_9": 0,
+  "weeks_after_9": 3
+ },
+ "household_budget": {
+  "bound_from_day": 60,
+  "rule": "first day after which the household pool (including the next day's income) holds less than that day's consumer spending",
+  "balance_end": 322609
+ },
+ "liveness": {
+  "rule": "collapsed when a day's served demand < 0.5 x trailing 28-day mean (>= 7 days of history) while customers with the need exist; recovered at >= 0.8 x that mean",
+  "collapses": [],
+  "unrecovered": [],
+  "sectors": {
+   "route.shortest": {
+    "served_first_week": 203839,
+    "served_last_week": 273520,
+    "sellers_end": 1,
+    "unserved_end": 36
+   },
+   "text.extract": {
+    "served_first_week": 224100,
+    "served_last_week": 300676,
+    "sellers_end": 2,
+    "unserved_end": 47
+   }
+  }
+ },
+ "flags": {
+  "repeated_process_failures": [],
+  "process_failures": {},
+  "collapsed_sectors": [],
+  "underserved_sectors": []
+ },
+ "invariants": {
+  "checks": 91,
+  "wall_s": 33.08,
+  "violations": 0,
+  "by_kind": {},
+  "process_failures": {},
+  "money": {
+   "private": 64319457,
+   "recorded_net_inflow": 64319457,
+   "net_inflow_by_kind": {
+    "endowment": 56148482,
+    "fee": -2000,
+    "income": 29859375,
+    "opex": -21686400
+   },
+   "transactions": 18839
+  },
+  "open_at_end": [],
+  "first": []
+ },
+ "economy": {
+  "entries": 0,
+  "exits": 1,
+  "bankruptcies": 1,
+  "price_changes": 1,
+  "new_listings": 0,
+  "adoptions": 0,
+  "active_firms_start": 8,
+  "active_firms_end": 7
+ },
+ "cost": {
+  "wall_s_days": 275.8,
+  "s_per_sim_day": 3.064,
+  "rss_mb_end": 209.1,
+  "rss_mb_max": 209.1,
+  "log_bytes": 41233797,
+  "log_bytes_per_day": 458153,
+  "invariant_checks": 91,
+  "invariant_wall_s": 33.08
+ },
+ "incidents": {
+  "exit": 1,
+  "outage": 1,
+  "service_stopped": 1,
+  "shock": 1,
+  "termination": 1
+ },
+ "shock": {
+  "requested": {
+   "day": 45,
+   "kind": "bankrupt_largest",
+   "hours": 48
+  },
+  "report": {
+   "kind": "bankrupt_largest",
+   "done": true,
+   "org": "o:shorteco1",
+   "sectors": [
+    "route.shortest"
+   ],
+   "how": "admin.shock_bankrupt",
+   "t": 3888000,
+   "day": 45
+  },
+  "sectors": {
+   "route.shortest": {
+    "served_per_day_before": 40946.6,
+    "lowest_day": 45,
+    "lowest_served": 37969,
+    "fell_below_recover_level": false,
+    "recovered_day": null,
+    "days_to_recover": null,
+    "flagged_collapsed_on": null,
+    "cause_reported": null,
+    "served_last_day": 39402,
+    "sellers_end": 1
+   }
+  }
+ },
+ "replay": {
+  "identical": true,
+  "digest": "c9ea7c2be4d613a415937e9d070f3235",
+  "events": 177120,
+  "from": "genesis",
+  "wall_s": 59.8
+ },
+ "wall_s": 336.4,
+ "healthy": true,
+ "files": {
+  "json": "ow_longrun_open_digital_s1_base.json",
+  "csv": "ow_longrun_open_digital_s1_base_days.csv"
+ }
+}

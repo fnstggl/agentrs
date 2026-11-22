@@ -1,0 +1,730 @@
+{
+ "family": "open_digital",
+ "days": 90,
+ "seeds": [
+  1
+ ],
+ "arms": [
+  "base",
+  "entry"
+ ],
+ "shock": {
+  "day": 45,
+  "kind": "bankrupt_sector",
+  "hours": 48
+ },
+ "runs": [
+  "ow_longrun_vacated_open_digital_s1_base",
+  "ow_longrun_vacated_open_digital_s1_entry"
+ ],
+ "by_seed": {
+  "1": {
+   "weeks": [
+    {
+     "week": 1,
+     "base": {
+      "served": 427939,
+      "firms": 8,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 203839,
+        "sellers": 2
+       },
+       "text.extract": {
+        "served": 224100,
+        "sellers": 2
+       }
+      }
+     },
+     "entry": {
+      "served": 425379,
+      "firms": 8,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 202210,
+        "sellers": 2
+       },
+       "text.extract": {
+        "served": 223169,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 2,
+     "base": {
+      "served": 591047,
+      "firms": 8,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 284013,
+        "sellers": 2
+       },
+       "text.extract": {
+        "served": 307034,
+        "sellers": 2
+       }
+      }
+     },
+     "entry": {
+      "served": 597734,
+      "firms": 9,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 290792,
+        "sellers": 3
+       },
+       "text.extract": {
+        "served": 306942,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 3,
+     "base": {
+      "served": 594705,
+      "firms": 8,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 285963,
+        "sellers": 2
+       },
+       "text.extract": {
+        "served": 308742,
+        "sellers": 2
+       }
+      }
+     },
+     "entry": {
+      "served": 625287,
+      "firms": 9,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 316405,
+        "sellers": 3
+       },
+       "text.extract": {
+        "served": 308882,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 4,
+     "base": {
+      "served": 596556,
+      "firms": 8,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 286239,
+        "sellers": 2
+       },
+       "text.extract": {
+        "served": 310317,
+        "sellers": 2
+       }
+      }
+     },
+     "entry": {
+      "served": 636459,
+      "firms": 11,
+      "entries": 2,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 318184,
+        "sellers": 4
+       },
+       "text.extract": {
+        "served": 318275,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 5,
+     "base": {
+      "served": 596567,
+      "firms": 8,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 286870,
+        "sellers": 2
+       },
+       "text.extract": {
+        "served": 309697,
+        "sellers": 2
+       }
+      }
+     },
+     "entry": {
+      "served": 661311,
+      "firms": 11,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 318743,
+        "sellers": 4
+       },
+       "text.extract": {
+        "served": 342568,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 6,
+     "base": {
+      "served": 597276,
+      "firms": 8,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 286667,
+        "sellers": 2
+       },
+       "text.extract": {
+        "served": 310609,
+        "sellers": 2
+       }
+      }
+     },
+     "entry": {
+      "served": 663211,
+      "firms": 11,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 319993,
+        "sellers": 4
+       },
+       "text.extract": {
+        "served": 343218,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 7,
+     "base": {
+      "served": 434034,
+      "firms": 6,
+      "entries": 0,
+      "exits": 2,
+      "collapsed_days": 4,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 122707,
+        "sellers": 0
+       },
+       "text.extract": {
+        "served": 311327,
+        "sellers": 2
+       }
+      }
+     },
+     "entry": {
+      "served": 550976,
+      "firms": 10,
+      "entries": 2,
+      "exits": 3,
+      "collapsed_days": 4,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 318664,
+        "sellers": 4
+       },
+       "text.extract": {
+        "served": 232312,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 8,
+     "base": {
+      "served": 309767,
+      "firms": 6,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 7,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 0,
+        "sellers": 0
+       },
+       "text.extract": {
+        "served": 309767,
+        "sellers": 2
+       }
+      }
+     },
+     "entry": {
+      "served": 613255,
+      "firms": 11,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 319075,
+        "sellers": 4
+       },
+       "text.extract": {
+        "served": 294180,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 9,
+     "base": {
+      "served": 310694,
+      "firms": 6,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 7,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 0,
+        "sellers": 0
+       },
+       "text.extract": {
+        "served": 310694,
+        "sellers": 2
+       }
+      }
+     },
+     "entry": {
+      "served": 626776,
+      "firms": 11,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 318619,
+        "sellers": 4
+       },
+       "text.extract": {
+        "served": 308157,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 10,
+     "base": {
+      "served": 310502,
+      "firms": 6,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 7,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 0,
+        "sellers": 0
+       },
+       "text.extract": {
+        "served": 310502,
+        "sellers": 2
+       }
+      }
+     },
+     "entry": {
+      "served": 627238,
+      "firms": 12,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 318168,
+        "sellers": 4
+       },
+       "text.extract": {
+        "served": 309070,
+        "sellers": 4
+       }
+      }
+     }
+    },
+    {
+     "week": 11,
+     "base": {
+      "served": 309272,
+      "firms": 6,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 7,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 0,
+        "sellers": 0
+       },
+       "text.extract": {
+        "served": 309272,
+        "sellers": 2
+       }
+      }
+     },
+     "entry": {
+      "served": 653840,
+      "firms": 12,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 318729,
+        "sellers": 4
+       },
+       "text.extract": {
+        "served": 335111,
+        "sellers": 4
+       }
+      }
+     }
+    },
+    {
+     "week": 12,
+     "base": {
+      "served": 310008,
+      "firms": 6,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 7,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 0,
+        "sellers": 0
+       },
+       "text.extract": {
+        "served": 310008,
+        "sellers": 2
+       }
+      }
+     },
+     "entry": {
+      "served": 661342,
+      "firms": 12,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "route.shortest": {
+        "served": 318205,
+        "sellers": 4
+       },
+       "text.extract": {
+        "served": 343137,
+        "sellers": 4
+       }
+      }
+     }
+    }
+   ],
+   "arms": {
+    "base": {
+     "output": {
+      "served_by_week": [
+       427939,
+       591047,
+       594705,
+       596556,
+       596567,
+       597276,
+       434034,
+       309767,
+       310694,
+       310502,
+       309272,
+       310008
+      ],
+      "median_weeks_2_8": 594705.0,
+      "last_week_over_median_weeks_2_8": 0.521,
+      "mean_after_week_9_over_median_weeks_2_8": 0.521,
+      "weeks_with_structural_change_after_9": 0,
+      "weeks_after_9": 3
+     },
+     "collapses": [
+      {
+       "sector": "route.shortest",
+       "day": 45,
+       "ratio": 0.0,
+       "recovered_day": null,
+       "days_to_recover": null,
+       "cause": "recorded shock"
+      }
+     ],
+     "unrecovered": [
+      "route.shortest"
+     ],
+     "economy": {
+      "entries": 0,
+      "exits": 2,
+      "bankruptcies": 2,
+      "price_changes": 1,
+      "new_listings": 0,
+      "adoptions": 0,
+      "active_firms_start": 8,
+      "active_firms_end": 6
+     },
+     "household_budget_bound_from_day": null,
+     "entry": null,
+     "shock": {
+      "requested": {
+       "day": 45,
+       "kind": "bankrupt_sector",
+       "hours": 48
+      },
+      "report": {
+       "kind": "bankrupt_sector",
+       "done": true,
+       "orgs": [
+        "o:shorteco1",
+        "o:shorteco2"
+       ],
+       "org": "o:shorteco1",
+       "sectors": [
+        "route.shortest"
+       ],
+       "how": "admin.shock_bankrupt",
+       "t": 3888000,
+       "day": 45
+      },
+      "sectors": {
+       "route.shortest": {
+        "served_per_day_before": 40946.6,
+        "lowest_day": 45,
+        "lowest_served": 0,
+        "fell_below_recover_level": true,
+        "recovered_day": null,
+        "days_to_recover": null,
+        "flagged_collapsed_on": 45,
+        "cause_reported": "recorded shock",
+        "served_last_day": 0,
+        "sellers_end": 0
+       }
+      }
+     },
+     "repeated_process_failures": [],
+     "underserved_sectors": [],
+     "invariant_violations": 0,
+     "replay_identical": true,
+     "events": 168193,
+     "wall_s": 315.3,
+     "s_per_sim_day": 2.797,
+     "rss_mb_max": 197.3,
+     "log_bytes": 38286383,
+     "healthy": false
+    },
+    "entry": {
+     "output": {
+      "served_by_week": [
+       425379,
+       597734,
+       625287,
+       636459,
+       661311,
+       663211,
+       550976,
+       613255,
+       626776,
+       627238,
+       653840,
+       661342
+      ],
+      "median_weeks_2_8": 625287.0,
+      "last_week_over_median_weeks_2_8": 1.058,
+      "mean_after_week_9_over_median_weeks_2_8": 1.035,
+      "weeks_with_structural_change_after_9": 2,
+      "weeks_after_9": 3
+     },
+     "collapses": [
+      {
+       "sector": "text.extract",
+       "day": 45,
+       "ratio": 0.078,
+       "recovered_day": 49,
+       "days_to_recover": 4,
+       "cause": "recorded shock"
+      }
+     ],
+     "unrecovered": [],
+     "economy": {
+      "entries": 7,
+      "exits": 3,
+      "bankruptcies": 3,
+      "price_changes": 8,
+      "new_listings": 7,
+      "adoptions": 0,
+      "active_firms_start": 8,
+      "active_firms_end": 12
+     },
+     "household_budget_bound_from_day": null,
+     "entry": {
+      "founders": 6,
+      "scans": 47,
+      "surveys": 8,
+      "research_cents": 200000,
+      "entries": 7,
+      "exits": 1,
+      "failed": 1,
+      "aborted": 0,
+      "loans_asked": 0,
+      "loans_granted": 0,
+      "launched": 7,
+      "operating": 6,
+      "failure_rate": 0.143,
+      "retired": 0,
+      "sectors_served_by_entrants_at_end": [
+       "route.shortest",
+       "text.extract"
+      ],
+      "sectors_served_only_by_entrants_at_end": [
+       "text.extract"
+      ]
+     },
+     "shock": {
+      "requested": {
+       "day": 45,
+       "kind": "bankrupt_sector",
+       "hours": 48
+      },
+      "report": {
+       "kind": "bankrupt_sector",
+       "done": true,
+       "orgs": [
+        "o:extrac05aco",
+        "o:extracco1",
+        "o:extracco2"
+       ],
+       "org": "o:extracco2",
+       "sectors": [
+        "text.extract"
+       ],
+       "how": "admin.shock_bankrupt",
+       "t": 3888000,
+       "day": 45
+      },
+      "sectors": {
+       "text.extract": {
+        "served_per_day_before": 48980.3,
+        "lowest_day": 45,
+        "lowest_served": 3709,
+        "fell_below_recover_level": true,
+        "recovered_day": 50,
+        "days_to_recover": 5,
+        "flagged_collapsed_on": 45,
+        "cause_reported": "recorded shock",
+        "served_last_day": 48722,
+        "sellers_end": 4
+       }
+      }
+     },
+     "repeated_process_failures": [],
+     "underserved_sectors": [],
+     "invariant_violations": 0,
+     "replay_identical": true,
+     "events": 216990,
+     "wall_s": 790.3,
+     "s_per_sim_day": 7.499,
+     "rss_mb_max": 273.7,
+     "log_bytes": 53787583,
+     "healthy": true
+    }
+   }
+  }
+ },
+ "note": "Seed 2 of this additional experiment (whole-sector bankruptcy on day 45) was stopped before completion because the shared machine was saturated (load average about 100); only seed 1 is reported."
+}

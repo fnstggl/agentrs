@@ -64,7 +64,11 @@ def _type_str(s: Mapping) -> str:
     return {"string": "str", "integer": "int", "number": "num", "boolean": "bool", "object": "obj"}.get(t, t)
 
 
-def render_tool(tool: Mapping, description_chars: int = 160) -> str:
+def render_tool(tool: Mapping, description_chars: int | None = 160, *, whole_description: bool = False) -> str:
+    """One line for a tool. By default (3.0 behaviour, unchanged) only the FIRST LINE of the description is shown,
+    cut to `description_chars`. With ``whole_description=True`` every line of the description is shown (joined,
+    whitespace collapsed) and it is cut only if `description_chars` is a positive number: pass ``None`` for the
+    complete text. For a budgeted list that degrades evenly see `crucible.core.discovery.render_catalogue`."""
     schema = tool.get("inputSchema") or {}
     props = schema.get("properties") or {}
     req = set(schema.get("required") or [])
@@ -75,6 +79,13 @@ def render_tool(tool: Mapping, description_chars: int = 160) -> str:
     cost = (tool.get("annotations") or {}).get("costSeconds")
     if cost:
         line += f" [{cost}s]"
+    if whole_description:
+        d = " ".join((tool.get("description") or "").split())
+        if d:
+            if description_chars and len(d) > description_chars:
+                d = d[: max(0, description_chars - 3)] + "..."
+            line += f" - {d}"
+        return line
     desc = (tool.get("description") or "").strip().splitlines()
     if desc and description_chars:
         d = desc[0].strip()
@@ -84,8 +95,9 @@ def render_tool(tool: Mapping, description_chars: int = 160) -> str:
     return line
 
 
-def render_tools(tools: list[Mapping], description_chars: int = 160) -> str:
-    return "\n".join(render_tool(t, description_chars) for t in sorted(tools, key=lambda t: t.get("name", "")))
+def render_tools(tools: list[Mapping], description_chars: int | None = 160, *, whole_description: bool = False) -> str:
+    return "\n".join(render_tool(t, description_chars, whole_description=whole_description)
+                     for t in sorted(tools, key=lambda t: t.get("name", "")))
 
 
 def render_result(res: Mapping | None, chars: int = 600) -> str:
@@ -105,8 +117,10 @@ def render_result(res: Mapping | None, chars: int = 600) -> str:
 
 
 def render_observation(obs: Any, *, max_events: int | None = None, payload_chars: int = 240,
-                       show_tools: bool = True, description_chars: int = 160) -> str:
-    """Render an `Observation` (or `Observation.to_dict()`) as compact text. Deterministic."""
+                       show_tools: bool = True, description_chars: int | None = 160,
+                       whole_descriptions: bool = False) -> str:
+    """Render an `Observation` (or `Observation.to_dict()`) as compact text. Deterministic. The tool list shows
+    the first line of each description unless ``whole_descriptions=True`` (see `render_tool`)."""
     t = _get(obs, "time", 0)
     lines = [f"time {fmt_time(t)} (t={t}) | you are {_get(obs, 'principal')}"]
     lines.append("last action: " + render_result(_get(obs, "last_result")))
@@ -139,7 +153,8 @@ def render_observation(obs: Any, *, max_events: int | None = None, payload_chars
     tools = _get(obs, "tools")
     if show_tools and tools:
         lines.append("tools:")
-        lines.extend("  " + ln for ln in render_tools(tools, description_chars).splitlines())
+        lines.extend("  " + ln for ln in render_tools(tools, description_chars,
+                                                      whole_description=whole_descriptions).splitlines())
     return "\n".join(lines)
 
 

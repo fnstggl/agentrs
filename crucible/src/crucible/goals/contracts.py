@@ -327,6 +327,11 @@ def is_economic(world_family: str) -> bool:
     have a society but no need-format demand and are excluded."""
     if world_family not in _ECON:
         from ..worldgen import generate
+        from ..worldgen.generator import FAMILIES
+        hint = getattr(FAMILIES.get(world_family), "economic", None)
+        if hint is not None:            # families that say so themselves are not built just to be classified
+            _ECON[world_family] = bool(hint)
+            return _ECON[world_family]
         names = {m["name"] for m in generate({"family": world_family}, 0).modules}
         _ECON[world_family] = "civ" in names and "consumers" in names
     return _ECON[world_family]
