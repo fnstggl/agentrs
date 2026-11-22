@@ -60,15 +60,33 @@ part of its weight moves to its prerequisites. Worlds are drawn with a fresh see
 | select | 1,000,000+ | + entrenched_incumbents, fragmented_networks | algorithm selection (Meta-Researcher), before/after comparisons |
 | final | < 1,000,000 | + labor_rich_fragile_infra, novel_needs | sealed list for final reports |
 
-Evaluation is greedy, with memory read-only, on fixed task lists (unbuildable world seeds are skipped
-deterministically). Success is the task predicate on authoritative state. Reported with Wilson 95% intervals.
+Evaluation is on fixed task lists (unbuildable world seeds are skipped deterministically), with memory read-only,
+both greedy (the controller's most likely choice at every step) and sampled (choices drawn from its distribution,
+as in training); the two can differ a lot — a greedy policy repeats one failing call where a sampling policy gets
+past it. Success is the task predicate on authoritative state. One condition: Wilson 95% interval. Before/after
+comparisons use the same tasks, so differences are paired over tasks (two-level bootstrap over seeds and tasks).
 
 ## Checkpoints and resuming
 
 A checkpoint holds the weights, optimiser and algorithm state, the frozen-embedding store, episodic memory, tool
-library, curriculum state, counters, random states, the configuration and code hashes. `superlearner resume`
-continues a run from `ckpt/latest.pt`. `Trainer.load(weights=..., memory=...)` restores the two separately, which is
-how the "weights restored / memory reset" and "memory preserved / weights reset" comparisons are run.
+library, curriculum state, counters, random states, the configuration and code hashes; the replay buffer of the
+run's own verified successes is stored next to the checkpoint a run resumes from (`latest.pt.replay.pkl.gz`).
+`superlearner resume` (or `train --resume`) continues a run from `ckpt/latest.pt`; log records of iterations that
+ran after that checkpoint are moved to `*.interrupted`, so curves contain each iteration once.
+`Trainer.load(weights=..., memory=...)` restores the two separately, which is how the "weights restored / memory
+reset" and "memory preserved / weights reset" comparisons are run.
+
+## Running many jobs on one GPU
+
+The frozen-LLM server holds 28–34 GB of a 46 GB card; a training run needs 1–5 GB during its updates. Started all
+at once, nine jobs made runs die of out-of-memory or stall (see the lab notes). What is in place:
+
+* the server limits a generation batch by size and estimated tokens and releases cached GPU memory after each batch;
+* a failed update restores the weights and optimiser and is tried again; restores and checkpoint loads wait out a
+  full GPU; experiments that only evaluate keep their controller on the CPU;
+* `superlearner jobs <queue.yaml>` runs a list of jobs with at most `max_gpu` GPU-training jobs and `max_cpu`
+  rollout workers in flight, in dependency order, and skips jobs whose result exists — so the same command continues
+  after an interruption. Experiments write every finished part to `runs/partial/<name>.json` and continue from it.
 
 ## Costs that are recorded
 

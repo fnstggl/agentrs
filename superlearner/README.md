@@ -24,7 +24,7 @@ export PYTHONPATH=src            # or: pip install -e .   (then `superlearner ..
 
 python -m superlearner doctor                                     # hardware, models, isolation, end-to-end CPU check
 python -m superlearner train --config configs/smoke_cpu.yaml      # 1-minute CPU smoke run, no language model
-python -m pytest -q tests                                         # 32 tests
+python -m pytest -q tests                                         # 41 tests (needs root for the confinement test)
 
 python -m superlearner llm-serve &                                # frozen Qwen3-14B server (owns the GPU model)
 python -m superlearner train --config configs/exp_b_fewdemo_sil.yaml
@@ -34,9 +34,14 @@ python -m superlearner resume --experiment exp_b_fewdemo_sil --iters 5
 python -m superlearner inspect-trajectory --trajectory runs/exp_b_fewdemo_sil/traj/eval_iter0030.json.gz
 
 python -m superlearner meta-search --config configs/meta_smoke.yaml     # smallest end-to-end Meta-Researcher round
-python -m superlearner meta-search --config configs/meta_search.yaml    # the real search (hours, CPU)
+python -m superlearner meta-search --config configs/meta_search.yaml --full-feedback --resume   # the real search (hours, CPU)
 python -m superlearner experiment baselines --checkpoint runs/exp_b_fewdemo_sil/ckpt/latest.pt
+
+python -m superlearner jobs configs/queue_experiments.yaml        # every reported experiment as one restartable queue
 ```
+
+One GPU is shared by the language-model server and the training runs; `superlearner jobs` admits jobs under GPU and
+CPU limits and continues after an interruption ([docs/REPRODUCE.md](docs/REPRODUCE.md)).
 
 ## Layout
 
@@ -49,6 +54,7 @@ python -m superlearner experiment baselines --checkpoint runs/exp_b_fewdemo_sil/
 | `src/superlearner/train/` | rollout workers, trainer, curriculum (candidates may change `curriculum.py`), demonstrations, reports | protected |
 | `src/superlearner/meta/` | Meta-Researcher: workspaces and confinement, proposals, surrogate, comparison, ledger | protected |
 | `src/superlearner/selfplay/` | several learners in one persistent world | protected |
+| `src/superlearner/experiments.py`, `jobs.py` | the numbered experiments (resumable); the job queue | protected |
 | `configs/` | every run's configuration | |
 | `docs/` | architecture, experiments, results, security, limitations | |
 | `runs/` | run directories (not committed) | |

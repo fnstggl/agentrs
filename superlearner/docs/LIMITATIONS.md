@@ -14,9 +14,25 @@ demonstrated).
   structured files and error-specific repair, Qwen3-14B still produces a deployable, good-enough service only some
   of the time (numbers in RESULTS). Every arm that needs agent-written code inherits this ceiling.
 * **Warm start carries most of the competence.** Reinforcement learning here improves and repairs a policy that
-  imitation started; from a random controller, multi-step tasks in a space of ~140 tools with structured arguments
-  are not discovered by exploration in the budgets used. No experiment shows learning of an undemonstrated
-  multi-step skill from reward alone.
+  imitation started (+8 to +12 points of held-out success, mostly where the warm start was weakest); from a random
+  controller, multi-step tasks in a space of ~140 tools with structured arguments are not discovered by exploration
+  in the budgets used. No experiment shows learning of an undemonstrated multi-step skill from reward alone:
+  arms at 0% after the warm start stayed at 0% (`fund` with greedy actions), and six iterations of RL on three
+  undemonstrated arms left them at 0%.
+* **The update rule throttles itself.** A policy step that exceeds the KL limit is rolled back and the step size
+  halved; the size recovers slowly. In the reported runs it was between 1/13 and 1/80 of its initial value after 12
+  iterations, and the weights moved by 0.1–0.3% of their norm. Stability was bought with learning speed.
+* **Episodic memory and agent-made tools are off in the reported learning runs.** A controller cloned without
+  memory was thrown off by remembered episodes appearing in its context (42% with the memory it had accumulated,
+  70% with memory reset). Training the controller *with* memory present from the start was not done; whether
+  memory can help this agent is open. No agent-made tool was ever verified and reused.
+* **Greedy and sampled behaviour differ.** A greedy controller repeats one failing call until the retry guard
+  stops it (about 40% of its calls are accepted, against 100% for scripts); sampling gets past some of these and
+  fails elsewhere. Both are reported; neither is the better policy everywhere.
+* **Other learners in the world break it.** In the self-play arena the same checkpoint that lists and operates a
+  service in 100% of single-actor tasks never got a listing accepted (permission and missing-resource errors).
+* **Forgetting.** Learning a new skill by cloning erased two of three earlier skills unless the earlier
+  demonstrations were mixed in. Nothing in the RL loop protects old skills except continued sampling of old tasks.
 * **Demonstrations come from scripts that encode ordinary developer knowledge** (found a company before trading,
   read the format before writing code). They are recorded with provenance and limited to training-split worlds,
   but they are a strong prior on *what to try*.
@@ -34,6 +50,12 @@ demonstrated).
 * **Value ensemble spread is used as an uncertainty signal for the curriculum only**; exploration is entropy-
   regularised sampling.
 * **One simulated actor per world in training.** Other actors are Crucible's own simulated firms and people.
+* **Operating an LLM-written service to a traffic goal was achieved by nobody** — not the controller, not the
+  scripted teacher (0 of 8 and 0 of 11). There are therefore no demonstrations for it, and the reason the
+  teacher's correctly listed services fall short was not diagnosed.
+* **RL with the LLM in the loop is slow.** A training episode that needs a service written takes minutes of
+  generation; four iterations took over an hour and showed no effect. Experiment B's positive result is for the
+  eight arms that need no LLM-written content.
 
 ## The Meta-Researcher
 
@@ -44,14 +66,23 @@ demonstrated).
 * **Three proposal sources, each bounded**: what a 14B model writes correctly; a hand-written fragment set
   (5 × 6 × 4 × 4 × 4 structural choices with continuous constants); a 59-parameter learned rule. This is a large
   space of programs, not an unbounded one.
-* **The inner task of the search is small.** A 3.3M-parameter controller with hash text embeddings on CPU (the GPU
+* **The inner task of the search is small.** A 2.5M-parameter controller with hash text embeddings on CPU (the GPU
   is not reachable inside the confinement), six task arms that need no LLM content, a few thousand decisions per
-  run. An algorithm that wins there has not been shown to win for the full controller; the one follow-up check
-  made is reported in RESULTS.
-* **Statistical power.** Screening uses one seed; development three; confirmation six. Effects smaller than the
-  seed-to-seed spread of the warm start cannot be established at this scale.
-* **The surrogate has little data.** It is a real trained model with a leave-one-out report, but tens of
-  experiments are not enough to say it selects better than chance unless RESULTS says so with an interval.
+  run. An algorithm that wins there has not been shown to win for the full controller. No candidate won there,
+  so no transfer check was made.
+* **Statistical power.** Screening uses one seed; development three; confirmation five. One screening run of the
+  champion's own algorithm differs from another by about ±0.03–0.04 of AULC (measured on candidates that turned
+  out to change nothing), which is as large as most screened effects; the best screened candidate lost its
+  advantage when two more seeds were added. Effects of the size found here cannot be established at this scale.
+* **The surrogate has little data and did not help.** It is a real trained model with a leave-one-out report; in
+  four rounds its picks were not better than the pool average (RESULTS, section 11). With screening outcomes that
+  are mostly noise there was little for it to learn.
+* **A 14B model as algorithm author.** Of eight functions it wrote, one did not parse, one failed the self-test,
+  three ran but changed nothing (an unused variable; a code path the configuration never reaches; a clipping
+  variant that is mathematically the same), and three were real changes of one to three lines. The search that produced the
+  reported results did not yet reject inert candidates before running them; the probe that does was added
+  afterwards and is on by default for new searches. The probe compares computations on one varied batch, so a rule
+  that differs only on data unlike that batch would still be called inert.
 * **Diagnosis is rule-based.** Bottleneck tags come from fixed thresholds over training diagnostics; the LLM turns
   them into hypotheses but does not derive them.
 * **No recursive self-improvement is claimed.** A promoted rule becomes the champion that later candidates are
@@ -64,6 +95,12 @@ demonstrated).
 * The champion's own training (`superlearner train`) runs unconfined; it is repository code.
 
 ## Engineering
+
+* One GPU for everything. The frozen-LLM server and the training runs share one 46 GB card; before the job queue
+  existed, runs died of out-of-memory or stalled. Generation throughput (about 30–40 tokens per second in total)
+  bounds every experiment that needs LLM-written content.
+* The host is shared with other tenants and the instance stopped once for six hours; everything is restartable
+  from files, but timings in RESULTS are from a loaded machine.
 
 * Rollouts are CPU processes with per-worker copies of the controller; there is no batched GPU inference server
   for the policy.

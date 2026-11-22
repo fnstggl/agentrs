@@ -115,6 +115,10 @@ def run_jobs(spec: dict, max_gpu: int | None = None, max_cpu: int | None = None,
                 continue
             if gpu + s["gpu"] > max_gpu or cpu + s["cpu"] > max_cpu:
                 continue
+            if j.get("done") and os.path.exists(j["done"]):           # produced meanwhile (by hand, or by another queue)
+                s.update(state="done", note="result appeared before the job was started")
+                save()
+                continue
             cmd = shlex.split(j["cmd"]) if isinstance(j["cmd"], str) else list(j["cmd"])
             if cmd and cmd[0] == "python":
                 cmd[0] = sys.executable

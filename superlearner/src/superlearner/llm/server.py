@@ -60,9 +60,8 @@ class Server:
 
     def _generate_group(self, group: list) -> list:
         """Batched generation; if the GPU is out of memory (other processes share it), release and go one by one."""
-        n, v, th = self._gkey(group[0][0])
         try:
-            return self.llm.generate_many([(r["messages"], n, v, th) for r, _ in group])
+            return self.llm.generate_many([(r["messages"],) + self._gkey(r) for r, _ in group])
         except Exception as e:  # noqa: BLE001
             if "out of memory" not in str(e).lower() or len(group) == 1:
                 raise
@@ -72,7 +71,7 @@ class Server:
             for r, _ in group:
                 for attempt in range(6):
                     try:
-                        out += self.llm.generate_many([(r["messages"], n, v, th)])
+                        out += self.llm.generate_many([(r["messages"],) + self._gkey(r)])
                         break
                     except Exception as e2:  # noqa: BLE001
                         if "out of memory" not in str(e2).lower() or attempt == 5:
@@ -92,7 +91,7 @@ class Server:
             group = [first]
             if first[0].get("op") == "generate":
                 time.sleep(0.05)                       # let concurrent requests arrive
-                key = self._gkey(first[0])
+                key = self._bkey(first[0])
                 tokens = self._est_tokens(first[0])
                 keep = []
                 while len(group) < self.MAX_BATCH:
@@ -101,7 +100,7 @@ class Server:
                     except queue.Empty:
                         break
                     fits = tokens + self._est_tokens(j[0]) <= self.MAX_BATCH_TOKENS
-                    if j[0].get("op") == "generate" and self._gkey(j[0]) == key and fits:
+                    if j[0].get("op") == "generate" and self._bkey(j[0]) == key and fits:
                         group.append(j)
                         tokens += self._est_tokens(j[0])
                     else:
@@ -152,6 +151,18 @@ class Server:
     @staticmethod
     def _gkey(req: dict) -> tuple:
         return int(req.get("max_new_tokens", 512)), int(req.get("variant", 0)), bool(req.get("think", False))
+
+    @classmethod
+    def _bkey(cls, req: dict) -> tuple:
+        """Which requests may share a forward pass: all greedy ones (each row keeps its own length limit and
+        reasoning flag); sampled ones only with identical settings (they share one random stream)."""
+        n, v, th = cls._gkey(req)
+        if v:
+            return (n, v, th)
+        # a batch runs as long as its longest row, so short requests (a tool call, a list of file names) are not
+        # put behind long ones (a code file, a reasoned manifest): rows are grouped by the size of their limit
+        lim = n + (1000 if th else 0)
+        return ("greedy", 0 if lim <= 300 else 1 if lim <= 1000 else 2 if lim <= 1500 else 3)
 
     def _client_loop(self, conn) -> None:
         lock = threading.Lock()

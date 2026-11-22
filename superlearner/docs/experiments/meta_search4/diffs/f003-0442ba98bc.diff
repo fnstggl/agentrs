@@ -1,0 +1,20 @@
+--- champion/algo/rule.py
++++ candidate/algo/rule.py
+@@ -45,3 +45,3 @@
+ def advantages(reward, value, done, trunc, valid, cfg: RuleConfig):
+-    """Generalised advantage estimation over whole episodes.
++    """Generalised advantage estimation over whole episodes with learnable discount factors.
+ 
+@@ -56,2 +56,5 @@
+     v = value.detach()
++    # Learnable discount factors for advantage estimation
++    gamma = torch.nn.Parameter(torch.tensor(cfg.gamma).to(reward.device), requires_grad=True)
++    lam = torch.nn.Parameter(torch.tensor(cfg.lam).to(reward.device), requires_grad=True)
+     for t in range(T - 1, -1, -1):
+@@ -60,4 +63,4 @@
+         nv = torch.where(trunc[:, t] > 0, v[:, t], vnext) * (1.0 - done[:, t])
+-        delta = reward[:, t] + cfg.gamma * nv - v[:, t]
+-        last = (delta + cfg.gamma * cfg.lam * (1.0 - is_last) * last) * m
++        delta = reward[:, t] + gamma * nv - v[:, t]
++        last = (delta + gamma * lam * (1.0 - is_last) * last) * m
+         adv[:, t] = last

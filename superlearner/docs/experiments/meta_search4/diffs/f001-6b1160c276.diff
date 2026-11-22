@@ -1,0 +1,7 @@
+--- champion/algo/rule.py
++++ candidate/algo/rule.py
+@@ -75,3 +75,3 @@
+     s1 = ratio * adv
+-    s2 = ratio.clamp(1.0 - cfg.clip, 1.0 + cfg.clip) * adv
++    s2 = ratio.clamp(1.0 - cfg.clip, 1.0 + 2 * cfg.clip) * adv
+     loss = -_mean(torch.min(s1, s2), valid)

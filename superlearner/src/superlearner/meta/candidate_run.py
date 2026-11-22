@@ -11,6 +11,9 @@
                         hub's experience budget is exhausted, with periodic evaluation episodes started by index on
                         the hub.
 
+``stage = "probe"``     one update on fixed data with a seeded controller; prints a fingerprint of the result. Two
+                        trees with the same fingerprint do the same thing on this data (test for inert changes).
+
 Everything this process prints or writes is UNTRUSTED diagnostics. Scores come from the hub's own results file.
 """
 from __future__ import annotations
@@ -88,6 +91,77 @@ def selftest(job: dict) -> dict:
     return out
 
 
+def probe(job: dict) -> dict:
+    """A fingerprint of what the candidate's learning rule computes on fixed data, with a seeded controller and the
+    shared demonstration episodes as the batch (one CPU thread):
+
+    * the rule's loss and its gradient on a batch made varied on purpose (perturbed old log-probabilities, so that
+      policy ratios lie on both sides of the trust region; finished and truncated episodes; successes and failures),
+      so that variants which differ only in such cases are exercised;
+    * advantages and returns;
+    * the replay settings, and the replay loss if the rule replays at all;
+    * the weights after one whole update (past any critic-only warm-up), which also covers changes to the update loop.
+
+    Two source trees with the same fingerprint compute the same things on this data. It is how a change that does
+    nothing - an unused variable, an edit to code the configuration never reaches - is told apart from a real one
+    before experience is spent on it. (The converse does not hold: a rule could differ only on data unlike the probe's.)"""
+    import numpy as np
+    import torch
+    torch.set_num_threads(1)
+    torch.manual_seed(1234)
+    np.random.seed(1234)
+    from superlearner.algo import rule as R
+    from superlearner.algo.base import make
+    from superlearner.algo.ppo import flat_params
+    from superlearner.cam.batch import collate, evaluate
+    from superlearner.cam.model import CAMController, EmbStore, ModelConfig
+    cfg = job["config"]
+    d = pickle.load(open(job["demos_path"], "rb"))
+    store = EmbStore()
+    for k, v in d.get("emb", []):
+        store.put(k, v)
+    eps = d["episodes"][:12]
+    model = CAMController(ModelConfig(**(cfg.get("model") or {})))
+    algo = make(cfg.get("algo", {}).get("name", "ppo"), model, {k: v for k, v in (cfg.get("algo") or {}).items() if k != "name"}, "cpu")
+    if hasattr(algo, "n_calls") and isinstance(getattr(algo, "c", None), dict):
+        algo.n_calls = int(algo.c.get("critic_warmup", 0) or 0) + 1
+    fp: dict = {"episodes": len(eps)}
+    # --- the rule itself, on a batch made varied on purpose: old log-probabilities are this controller's own plus
+    # fixed noise; every second episode counts as truncated instead of finished, and as a failure
+    b = collate([e["decisions"] for e in eps], store, success=[i % 2 == 0 for i in range(len(eps))])
+    model.eval()
+    out = evaluate(model, b, store)
+    g = torch.Generator().manual_seed(11)
+    valid = b.t["valid"]
+    for i in range(1, len(eps), 2):
+        last = int(valid[i].sum().item()) - 1
+        b.t["trunc"][i, last], b.t["done"][i, last] = 1.0, 0.0
+    noise = 0.25 * torch.randn(out["logp"].shape, generator=g)
+    b.t["logp_old"] = (out["logp"].detach() + noise) * valid
+    b.t["value_old"] = out["values"].mean(-1).detach() * valid
+    adv, ret = algo.advantages(b) if hasattr(algo, "advantages") else R.advantages(
+        b.t["reward"], b.t["value_old"], b.t["done"], b.t["trunc"], b.t["valid"], algo.rule)
+    loss, _ = R.total_loss(out, b, adv, ret, algo.rule)
+    params = [p for p in model.parameters() if p.requires_grad]
+    grads = torch.autograd.grad(loss, params, allow_unused=True)
+    gflat = torch.cat([(gr if gr is not None else torch.zeros_like(p)).reshape(-1).double() for gr, p in zip(grads, params)])
+    r = torch.randn(gflat.shape[0], generator=torch.Generator().manual_seed(7), dtype=torch.float64)
+    fp.update(rule_loss=float(loss), rule_grad_norm=float(gflat.norm()), rule_grad_proj=float((gflat * r).sum()),
+              adv_abs_sum=float((adv.abs() * valid).sum()), ret_sum=float((ret * valid).sum()))
+    steps, coef, rbatch = algo.replay_settings() if hasattr(algo, "replay_settings") else (0, 0.0, 0)
+    fp.update(replay_steps=int(steps), replay_coef=float(coef) if steps else 0.0, replay_batch=int(rbatch) if steps else 0)
+    if steps > 0 and hasattr(R, "replay_loss"):
+        fp["replay_loss"] = float(R.replay_loss(out, b, ret, algo.rule))
+    # --- one whole update from the same starting weights
+    torch.manual_seed(1234)
+    before = flat_params(model).clone().double()
+    m = algo.update(eps, store)
+    after = flat_params(model).double()
+    fp.update(delta_norm=float((after - before).norm()), delta_proj=float(((after - before) * r[: after.shape[0]]).sum()),
+              weights_sum=float(after.sum()), update_loss=float(m.get("loss", 0.0) or 0.0))
+    return {"fingerprint": fp}
+
+
 def train(job: dict) -> dict:
     import torch
     torch.set_num_threads(int(job.get("update_threads", 4)))
@@ -129,7 +203,7 @@ def main() -> int:
     job = json.load(open(sys.argv[1]))
     out_path = os.path.join(job["workdir"], f"{job['stage']}_result.json")
     try:
-        res = selftest(job) if job["stage"] == "selftest" else train(job)
+        res = {"selftest": selftest, "probe": probe}.get(job["stage"], train)(job)
         res.setdefault("ok", True)
     except Exception as e:  # noqa: BLE001
         res = {"ok": False, "error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()[-3000:]}

@@ -1,0 +1,144 @@
+{
+ "name": "meta_search",
+ "seed": 0,
+ "rounds": 4,
+ "pool": 6,
+ "per_round": 2,
+ "selection": "surrogate",
+ "sources": {
+  "rule_space": 3,
+  "llm": 2,
+  "learned_rule": 1
+ },
+ "max_parallel": 6,
+ "primary": "aulc_eval",
+ "screen_margin": 0.03,
+ "promote_margin": 0.0,
+ "max_final_drop": 0.05,
+ "inner": {
+  "workers": 4,
+  "llm": {
+   "kind": "none"
+  },
+  "eval_every": 2,
+  "model": {
+   "d": 128,
+   "layers": 2,
+   "heads": 4,
+   "ff": 256,
+   "bag_dim": 48,
+   "hid": 128
+  },
+  "agent": {
+   "use_llm": false,
+   "affinity_tokens": true,
+   "use_memory": false,
+   "use_tools": false
+  },
+  "core": {
+   "max_decisions": 20
+  },
+  "algo": {
+   "name": "ppo",
+   "lr": 0.0001,
+   "epochs": 3,
+   "minibatch_eps": 16,
+   "target_kl": 0.03,
+   "clip": 0.1,
+   "critic_warmup": 1,
+   "lr_warmup_steps": 40,
+   "detach_critic": true,
+   "ent_coef": 0.003
+  },
+  "curriculum": {
+   "adaptive": true,
+   "world_families": [
+    "tiny",
+    "bazaar"
+   ],
+   "arms": [
+    {
+     "family": "found"
+    },
+    {
+     "family": "fund"
+    },
+    {
+     "family": "list",
+     "start": "deployed"
+    },
+    {
+     "family": "deploy",
+     "start": "coded"
+    },
+    {
+     "family": "service",
+     "start": "listed"
+    },
+    {
+     "family": "repair"
+    }
+   ],
+   "gate": false
+  },
+  "demos": {
+   "episodes": 96,
+   "bc_epochs": 60,
+   "bc_lr": 0.0005,
+   "max_per_arm": 2,
+   "bc_minibatch_eps": 3
+  }
+ },
+ "eval_arms": [
+  "found/0/scratch",
+  "fund/0/scratch",
+  "list/0/deployed",
+  "deploy/0/coded",
+  "service/0/listed",
+  "repair/0/scratch"
+ ],
+ "eval_world_families": [
+  "tiny",
+  "bazaar",
+  "entrenched_incumbents"
+ ],
+ "stages": {
+  "screen": {
+   "seeds": [
+    1
+   ],
+   "iters": 8,
+   "episodes_per_iter": 32,
+   "budget": 4000,
+   "eval_n": 24,
+   "timeout_s": 5400
+  },
+  "develop": {
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "iters": 8,
+   "episodes_per_iter": 32,
+   "budget": 4000,
+   "eval_n": 24,
+   "timeout_s": 5400
+  },
+  "confirm": {
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "iters": 8,
+   "episodes_per_iter": 32,
+   "budget": 4000,
+   "eval_n": 24,
+   "timeout_s": 5400
+  }
+ },
+ "develop_top": 1
+}

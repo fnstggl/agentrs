@@ -237,6 +237,42 @@ class MetaResearcher:
             json.dump(dict(out, tree=self._tree_id(cid), stage_cfg=self.cfg["stages"][stage]), open(done, "w"), default=str)
         return out
 
+    # ------------------------------------------------------------------ inert changes
+    def probe(self, cid: str) -> dict:
+        """Confined fingerprint of a candidate's update on fixed data (see `candidate_run.probe`). The candidate's
+        editable files are run with THIS repository's protected code, so trees of older searches can be probed too."""
+        from .workspace import is_editable, tree_hashes
+        out_path = os.path.join(self.dir, "probe", cid, "fingerprint.json")
+        if os.path.exists(out_path):
+            return json.load(open(out_path))
+        pkg = os.path.join(self.candidate_dir(cid), "src", "superlearner")
+        changes = {rel: open(os.path.join(pkg, rel)).read() for rel in tree_hashes(pkg)["files"] if is_editable(rel)}
+        dest = os.path.join(self.dir, "probe", cid)
+        os.makedirs(dest, exist_ok=True)
+        create_candidate(dest, changes, PKG)
+        work = os.path.join(dest, "work")
+        os.makedirs(work, exist_ok=True)
+        job = {"stage": "probe", "config": self.inner_config("screen", 0), "workdir": work, "demos_path": self.cfg.get("demos_path")}
+        jp = os.path.join(work, "job.json")
+        json.dump(job, open(jp, "w"), indent=1)
+        extra = (os.path.dirname(self.cfg["demos_path"]),) if self.cfg.get("demos_path") else ()
+        with self._sem:
+            res = run_isolated("superlearner.meta.candidate_run", [jp], os.path.join(dest, "src"), work, timeout_s=600, gpu=False,
+                               extra_read=extra, log_path=os.path.join(work, "log.txt"))
+        rp = os.path.join(work, "probe_result.json")
+        r = json.load(open(rp)) if os.path.exists(rp) else {"ok": False, "error": str(res.get("stdout", ""))[-500:]}
+        out = {"ok": bool(res["returncode"] == 0 and r.get("ok")), "fingerprint": r.get("fingerprint"), "error": r.get("error")}
+        json.dump(out, open(out_path, "w"), indent=1)
+        return out
+
+    def is_inert(self, cid: str) -> bool | None:
+        """True if the candidate's update on the probe data is identical to the champion's; None if a probe failed."""
+        a, b = self.probe(cid), self.probe(self.champion["id"])
+        if not (a.get("ok") and b.get("ok")):
+            return None
+        fa, fb = a["fingerprint"], b["fingerprint"]
+        return set(fa) == set(fb) and all(abs(fa[k] - fb[k]) <= 1e-9 * max(1.0, abs(fb[k])) for k in fb)
+
     def _tree_id(self, cid: str) -> str:
         """Hash of a candidate's source tree (editable and protected parts), to tie stored measures to the code."""
         try:
@@ -546,6 +582,12 @@ class MetaResearcher:
                 bad = [k for k, v in (st["untrusted"].get("checks") or {}).items() if not v]
                 rec["reject_reason"] = f"self-test failed: {bad or st['untrusted'].get('error') or 'crashed'}"[:300]
                 return rec
+            if self.cfg.get("reject_inert", True) and self.cfg.get("demos_path"):
+                self.baseline("screen")                                  # makes sure the champion's tree exists
+                if self.is_inert(cid):
+                    rec["reject_reason"] = "no functional change: its update on the probe data is identical to the champion's"
+                    rec["inert"] = True
+                    return rec
             runs = self.run_stage(cid, "screen")
             good = {s_: m for s_, m in runs.items() if m.get("ok")}
             if len(good) < len(runs):
@@ -679,6 +721,25 @@ class MetaResearcher:
                 "pareto": pareto(pts) if pts else {}, "surrogate": {"updates": self.surrogate.updates, **self.surrogate.loo_report()},
                 "learned_rule": self.learned.history,
                 "llm_proposals_rejected_before_running": len(self.ledger.entries("proposal_rejected"))}
+
+
+def probe_search(run_dir: str) -> dict:
+    """For a finished or running search: which screened candidates are functionally inert (their update on the probe
+    data equals the champion's)? Reads the search's files; runs only confined probes; writes nothing to its ledger."""
+    if not os.path.exists(os.path.join(run_dir, "state.json")):
+        raise FileNotFoundError(f"{run_dir} has no state.json (the search has not finished its champion baseline)")
+    cfg = json.load(open(os.path.join(run_dir, "config.json")))
+    mr = MetaResearcher(dict(cfg, sources=dict(cfg.get("sources") or {}, llm=0)), run_dir, None, resume=True)
+    mr.cfg["demos_path"] = os.path.join(mr.dir, "demos", "demos.pkl")
+    out: dict = {"champion": mr.probe(mr.champion["id"]), "candidates": {}}
+    for fr in mr.ledger.entries("full_feedback"):
+        for e in fr["pool"]:
+            cid = e["candidate"]
+            if os.path.isdir(os.path.join(mr.candidate_dir(cid), "src")):
+                pr = mr.probe(cid)
+                out["candidates"][cid] = {"inert": mr.is_inert(cid), "fingerprint": pr.get("fingerprint"), "probe_ok": pr.get("ok"),
+                                          "error": pr.get("error")}
+    return out
 
 
 def main(a) -> int:

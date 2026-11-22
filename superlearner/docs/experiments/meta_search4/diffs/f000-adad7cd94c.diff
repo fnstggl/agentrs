@@ -1,0 +1,7 @@
+--- champion/algo/rule.py
++++ candidate/algo/rule.py
+@@ -118,2 +118,4 @@
+     al, _ = aux_loss(out, batch, cfg)
++    # Smooth advantages using a running average
++    smooth_adv = torch.cat([torch.zeros_like(adv[:, :1]), adv[:, :-1].mean(dim=1, keepdim=True)], dim=1)
+     loss = cfg.pol_coef * pl + cfg.vf_coef * vl + cfg.ent_coef * cfg.pol_coef * el + cfg.succ_coef * al

@@ -259,7 +259,9 @@ class CachedLLM(LLM):
         return g
 
     def generate_many(self, reqs: list[tuple]) -> list[GenResult]:
-        """`reqs` = [(messages, max_new_tokens, variant, think)] sharing the last three values. Cache-aware."""
+        """`reqs` = [(messages, max_new_tokens, variant, think)]. Requests that share the last three values are
+        batched as before; greedy requests (variant 0) with different limits or reasoning flags are batched with
+        per-row limits; anything else runs one by one. Cache-aware."""
         out: list = [None] * len(reqs)
         miss = []
         for i, (m, n, v, th) in enumerate(reqs):
@@ -272,12 +274,16 @@ class CachedLLM(LLM):
             else:
                 miss.append(i)
         if miss:
+            same = len({tuple(reqs[i][1:]) for i in miss}) == 1
             _, n, v, th = reqs[miss[0]]
-            if hasattr(self.inner, "generate_batch") and len(miss) > 1:
+            if same and hasattr(self.inner, "generate_batch") and len(miss) > 1:
                 gs = self.inner.generate_batch([reqs[i][0] for i in miss], n, v, th)
+            elif not same and len(miss) > 1 and hasattr(self.inner, "generate_mixed") and all(reqs[i][2] == 0 for i in miss):
+                gs = self.inner.generate_mixed([(reqs[i][0], reqs[i][1], reqs[i][3]) for i in miss])
             else:
-                gs = [self.inner.generate(reqs[i][0], n, v, th) for i in miss]
+                gs = [self.inner.generate(*reqs[i]) for i in miss]
             for i, g in zip(miss, gs):
+                _, n, v, th = reqs[i]
                 self.cache.put_gen(prompt_key(self.name, reqs[i][0], n, v, th), self.name, g)
                 self.stats["prompt_tokens"] += g.prompt_tokens
                 self.stats["gen_tokens"] += g.gen_tokens
@@ -410,6 +416,45 @@ class HFModel(LLM):
             if "<think>" in text:
                 text = ""
             res.append(GenResult(text.strip(), int(enc["attention_mask"][i].sum()), n_gen, (time.time() - t0) / len(batch)))
+        return res
+
+    def generate_mixed(self, items: list[tuple]) -> list[GenResult]:
+        """Greedy generation for requests with DIFFERENT length limits and reasoning flags in one forward pass.
+        `items` = [(messages, max_new_tokens, think)]. Every row stops at its own limit (or at end-of-text), so a
+        row's text is what `generate` alone would have produced for it; the batch runs as long as its longest row."""
+        if len(items) == 1:
+            m, n, th = items[0]
+            return [self.generate(m, n, 0, th)]
+        torch = self.torch
+        from transformers import StoppingCriteria, StoppingCriteriaList
+        t0 = time.time()
+        limits = [int(n) + (1000 if th else 0) for _, n, th in items]
+        room = self.max_context - max(limits)
+        texts = [self._template(m, th) for m, _, th in items]
+        enc = self.tok(texts, return_tensors="pt", padding=True, add_special_tokens=False, truncation=True, max_length=room,
+                       padding_side="left")
+        enc = {k: v.to(self.device) for k, v in enc.items()}
+        n_in = enc["input_ids"].shape[1]
+        lim_t = torch.tensor(limits, device=self.device)
+
+        class RowLimits(StoppingCriteria):
+            def __call__(self, input_ids, scores, **kwargs):
+                return (input_ids.shape[1] - n_in) >= lim_t
+
+        kw = dict(max_new_tokens=max(limits), pad_token_id=self.tok.pad_token_id or self.tok.eos_token_id,
+                  do_sample=False, temperature=None, top_p=None, top_k=None, stopping_criteria=StoppingCriteriaList([RowLimits()]))
+        with self.lock, torch.no_grad():
+            out = self.model.generate(**enc, **kw)
+        res = []
+        eos = set(x for x in [self.tok.eos_token_id, self.tok.pad_token_id] if x is not None)
+        for i in range(len(items)):
+            gen = out[i, n_in:][: limits[i]]
+            n_gen = min(limits[i], int(sum(1 for t in gen.tolist() if t not in eos)) + 1)
+            text = self.tok.decode(gen, skip_special_tokens=True)
+            text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
+            if "<think>" in text:
+                text = ""
+            res.append(GenResult(text.strip(), int(enc["attention_mask"][i].sum()), n_gen, (time.time() - t0) / len(items)))
         return res
 
     # Frozen sentence embeddings. A causal LM's mean-pooled states are poor for retrieval; the prompt-based

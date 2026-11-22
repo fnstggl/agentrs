@@ -1,0 +1,3652 @@
+{
+ "checkpoint": "runs/exp_b_fewdemo_sil_s0/ckpt/latest.pt",
+ "days": 12.0,
+ "participants": [
+  {
+   "handle": "ada",
+   "goal": "revenue",
+   "start": "coded",
+   "need": null,
+   "endowment": 800000
+  },
+  {
+   "handle": "bea",
+   "goal": "revenue",
+   "start": "coded",
+   "need": null,
+   "endowment": 800000
+  },
+  {
+   "handle": "cy",
+   "goal": "service",
+   "start": "coded",
+   "need": null,
+   "endowment": 800000
+  }
+ ],
+ "runs": {
+  "all three learners": {
+   "final": {
+    "t": 1144800,
+    "day": 13.25,
+    "market": {
+     "sort.records": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "text.extract": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "pack.knapsack": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "schedule.jobs": {
+      "sellers": 2,
+      "min_price": 1
+     }
+    },
+    "outcomes": {
+     "p:ada": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 692200.0,
+      "listings": []
+     },
+     "p:bea": {
+      "companies": 1.0,
+      "live_services": 1.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 692800.0,
+      "listings": []
+     },
+     "p:cy": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     }
+    }
+   },
+   "agents": {
+    "p:ada": {
+     "decisions": 24,
+     "valid": {
+      "calls": 12,
+      "sent": 12,
+      "ok": 4,
+      "valid_rate": 0.3333333333333333,
+      "failures": {
+       "syntax": 4,
+       "permission": 3,
+       "prerequisite": 1
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1108800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "tool": 12,
+      "wait": 12
+     },
+     "tools_called": {
+      "market.list": 6,
+      "cloud.providers": 1,
+      "cloud.rent": 1,
+      "cloud.deploy": 1,
+      "cloud.deployments": 1,
+      "market.browse": 1,
+      "cloud.status": 1
+     }
+    },
+    "p:bea": {
+     "decisions": 23,
+     "valid": {
+      "calls": 11,
+      "sent": 11,
+      "ok": 7,
+      "valid_rate": 0.6363636363636364,
+      "failures": {
+       "syntax": 1,
+       "nonexistent_resource": 1,
+       "permission": 2
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1072800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12,
+      "tool": 11
+     },
+     "tools_called": {
+      "cloud.rent": 2,
+      "cloud.deploy": 2,
+      "market.browse": 2,
+      "market.list": 2,
+      "cloud.deployments": 1,
+      "cloud.providers": 1,
+      "cloud.status": 1
+     }
+    },
+    "p:cy": {
+     "decisions": 24,
+     "valid": {
+      "calls": 12,
+      "sent": 12,
+      "ok": 5,
+      "valid_rate": 0.4166666666666667,
+      "failures": {
+       "syntax": 2,
+       "nonexistent_resource": 1,
+       "permission": 4
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1036800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "tool": 12,
+      "wait": 12
+     },
+     "tools_called": {
+      "market.list": 4,
+      "cloud.rent": 2,
+      "market.browse": 2,
+      "bank.accounts": 1,
+      "cloud.deployments": 1,
+      "cloud.deploy": 1,
+      "cloud.providers": 1
+     }
+    }
+   },
+   "wall_s": 456.6,
+   "events": 31094,
+   "invariants": [],
+   "learning": {
+    "p:ada": [
+     {
+      "kl": null,
+      "entropy": null,
+      "param_delta": 0.0,
+      "v_loss": null,
+      "grad_steps": 0
+     }
+    ],
+    "p:cy": [
+     {
+      "kl": 0.07080059498548508,
+      "entropy": 0.5858023762702942,
+      "param_delta": 0.03873034939169884,
+      "v_loss": 0.05669662356376648,
+      "grad_steps": 1
+     }
+    ]
+   },
+   "history": [
+    {
+     "day": 1.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 3
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 2.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 3
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 3.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 4.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 5.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 6.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 7.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 8.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 9.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 10.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 11.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 12.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 13.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    }
+   ]
+  },
+  "counterfactual: ada idle": {
+   "final": {
+    "t": 1144800,
+    "day": 13.25,
+    "market": {
+     "sort.records": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "text.extract": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "pack.knapsack": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "schedule.jobs": {
+      "sellers": 3,
+      "min_price": 1
+     }
+    },
+    "outcomes": {
+     "p:ada": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     },
+     "p:bea": {
+      "companies": 1.0,
+      "live_services": 1.0,
+      "listed_services": 1.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 691700.0,
+      "listings": [
+       [
+        "schedule.jobs",
+        3
+       ]
+      ]
+     },
+     "p:cy": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     }
+    }
+   },
+   "agents": {
+    "p:ada": {
+     "decisions": 12,
+     "valid": {
+      "calls": 0,
+      "sent": 0,
+      "ok": 0,
+      "valid_rate": 0.0,
+      "failures": {}
+     },
+     "tools_made": [],
+     "chooser": "idle",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1108800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12
+     },
+     "tools_called": {}
+    },
+    "p:bea": {
+     "decisions": 22,
+     "valid": {
+      "calls": 10,
+      "sent": 10,
+      "ok": 9,
+      "valid_rate": 0.9,
+      "failures": {
+       "prerequisite": 1
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1072800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12,
+      "tool": 10
+     },
+     "tools_called": {
+      "cloud.providers": 1,
+      "cloud.rent": 1,
+      "cloud.deploy": 1,
+      "cloud.deployments": 1,
+      "market.list": 1,
+      "market.browse": 1,
+      "bank.accounts": 1,
+      "cloud.status": 1,
+      "cloud.instances": 1,
+      "biz.register": 1
+     }
+    },
+    "p:cy": {
+     "decisions": 22,
+     "valid": {
+      "calls": 10,
+      "sent": 9,
+      "ok": 4,
+      "valid_rate": 0.4,
+      "failures": {
+       "syntax": 2,
+       "nonexistent_resource": 1,
+       "permission": 2,
+       "loop_blocked": 1
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1036800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12,
+      "tool": 10
+     },
+     "tools_called": {
+      "market.list": 3,
+      "cloud.deploy": 2,
+      "bank.accounts": 1,
+      "cloud.rent": 1,
+      "cloud.deployments": 1,
+      "market.browse": 1,
+      "cloud.providers": 1
+     }
+    }
+   },
+   "wall_s": 163.8,
+   "events": 30928,
+   "invariants": [],
+   "learning": {},
+   "history": [
+    {
+     "day": 1.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 3
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 2.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 3,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 3.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 3,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 4.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 3,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 5.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 3,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 6.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 3,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 7.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 3,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 8.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 3,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 9.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 3,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 10.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 3,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 11.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 3,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 12.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 3,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 13.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 3,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    }
+   ]
+  },
+  "counterfactual: bea idle": {
+   "final": {
+    "t": 1144800,
+    "day": 13.25,
+    "market": {
+     "sort.records": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "text.extract": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "pack.knapsack": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "schedule.jobs": {
+      "sellers": 2,
+      "min_price": 1
+     }
+    },
+    "outcomes": {
+     "p:ada": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     },
+     "p:bea": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     },
+     "p:cy": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     }
+    }
+   },
+   "agents": {
+    "p:ada": {
+     "decisions": 21,
+     "valid": {
+      "calls": 9,
+      "sent": 9,
+      "ok": 3,
+      "valid_rate": 0.3333333333333333,
+      "failures": {
+       "syntax": 3,
+       "nonexistent_resource": 1,
+       "permission": 2
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1108800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12,
+      "tool": 9
+     },
+     "tools_called": {
+      "market.list": 3,
+      "cloud.rent": 2,
+      "market.browse": 1,
+      "cloud.deployments": 1,
+      "cloud.providers": 1,
+      "cloud.deploy": 1
+     }
+    },
+    "p:bea": {
+     "decisions": 12,
+     "valid": {
+      "calls": 0,
+      "sent": 0,
+      "ok": 0,
+      "valid_rate": 0.0,
+      "failures": {}
+     },
+     "tools_made": [],
+     "chooser": "idle",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1072800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12
+     },
+     "tools_called": {}
+    },
+    "p:cy": {
+     "decisions": 24,
+     "valid": {
+      "calls": 12,
+      "sent": 12,
+      "ok": 5,
+      "valid_rate": 0.4166666666666667,
+      "failures": {
+       "syntax": 2,
+       "nonexistent_resource": 1,
+       "permission": 4
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1036800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "tool": 12,
+      "wait": 12
+     },
+     "tools_called": {
+      "market.list": 4,
+      "cloud.rent": 2,
+      "market.browse": 2,
+      "bank.accounts": 1,
+      "cloud.deployments": 1,
+      "cloud.deploy": 1,
+      "cloud.providers": 1
+     }
+    }
+   },
+   "wall_s": 222.9,
+   "events": 30420,
+   "invariants": [],
+   "learning": {
+    "p:cy": [
+     {
+      "kl": null,
+      "entropy": null,
+      "param_delta": 0.0,
+      "v_loss": null,
+      "grad_steps": 0
+     }
+    ]
+   },
+   "history": [
+    {
+     "day": 1.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 3
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 2.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 3.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 4.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 5.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 6.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 7.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 8.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 9.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 10.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 11.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 12.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 13.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    }
+   ]
+  },
+  "counterfactual: cy idle": {
+   "final": {
+    "t": 1144800,
+    "day": 13.25,
+    "market": {
+     "sort.records": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "text.extract": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "pack.knapsack": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "schedule.jobs": {
+      "sellers": 2,
+      "min_price": 1
+     }
+    },
+    "outcomes": {
+     "p:ada": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 692200.0,
+      "listings": []
+     },
+     "p:bea": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     },
+     "p:cy": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     }
+    }
+   },
+   "agents": {
+    "p:ada": {
+     "decisions": 24,
+     "valid": {
+      "calls": 12,
+      "sent": 12,
+      "ok": 5,
+      "valid_rate": 0.4166666666666667,
+      "failures": {
+       "syntax": 3,
+       "permission": 2,
+       "prerequisite": 2
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1108800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "tool": 12,
+      "wait": 12
+     },
+     "tools_called": {
+      "market.list": 5,
+      "cloud.deploy": 2,
+      "market.browse": 2,
+      "cloud.providers": 1,
+      "cloud.rent": 1,
+      "cloud.deployments": 1
+     }
+    },
+    "p:bea": {
+     "decisions": 24,
+     "valid": {
+      "calls": 12,
+      "sent": 12,
+      "ok": 5,
+      "valid_rate": 0.4166666666666667,
+      "failures": {
+       "syntax": 2,
+       "nonexistent_resource": 3,
+       "permission": 2
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1072800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "tool": 12,
+      "wait": 12
+     },
+     "tools_called": {
+      "market.list": 3,
+      "cloud.rent": 2,
+      "market.browse": 2,
+      "bank.accounts": 1,
+      "cloud.deployments": 1,
+      "cloud.deploy": 1,
+      "cloud.providers": 1,
+      "cloud.status": 1
+     }
+    },
+    "p:cy": {
+     "decisions": 12,
+     "valid": {
+      "calls": 0,
+      "sent": 0,
+      "ok": 0,
+      "valid_rate": 0.0,
+      "failures": {}
+     },
+     "tools_made": [],
+     "chooser": "idle",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1036800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12
+     },
+     "tools_called": {}
+    }
+   },
+   "wall_s": 231.0,
+   "events": 30800,
+   "invariants": [],
+   "learning": {
+    "p:bea": [
+     {
+      "kl": null,
+      "entropy": null,
+      "param_delta": 0.0,
+      "v_loss": null,
+      "grad_steps": 0
+     }
+    ],
+    "p:ada": [
+     {
+      "kl": null,
+      "entropy": null,
+      "param_delta": 0.0,
+      "v_loss": null,
+      "grad_steps": 0
+     }
+    ]
+   },
+   "history": [
+    {
+     "day": 1.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 3
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 2.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 3.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 4.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 5.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 6.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 7.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 8.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 9.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 10.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 11.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 12.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 13.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    }
+   ]
+  },
+  "reference: scripted control for all three (same world, same interface, no learning)": {
+   "final": {
+    "t": 1144800,
+    "day": 13.25,
+    "market": {
+     "sort.records": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "text.extract": {
+      "sellers": 2,
+      "min_price": 1
+     },
+     "pack.knapsack": {
+      "sellers": 5,
+      "min_price": 1
+     },
+     "schedule.jobs": {
+      "sellers": 2,
+      "min_price": 1
+     }
+    },
+    "outcomes": {
+     "p:ada": {
+      "companies": 1.0,
+      "live_services": 1.0,
+      "listed_services": 1.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 691700.0,
+      "listings": [
+       [
+        "pack.knapsack",
+        4
+       ]
+      ]
+     },
+     "p:bea": {
+      "companies": 1.0,
+      "live_services": 1.0,
+      "listed_services": 1.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 691700.0,
+      "listings": [
+       [
+        "pack.knapsack",
+        4
+       ]
+      ]
+     },
+     "p:cy": {
+      "companies": 1.0,
+      "live_services": 1.0,
+      "listed_services": 1.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 691700.0,
+      "listings": [
+       [
+        "pack.knapsack",
+        4
+       ]
+      ]
+     }
+    }
+   },
+   "agents": {
+    "p:ada": {
+     "decisions": 18,
+     "valid": {
+      "calls": 6,
+      "sent": 6,
+      "ok": 6,
+      "valid_rate": 1.0,
+      "failures": {}
+     },
+     "tools_made": [],
+     "chooser": "teacher",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1108800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12,
+      "tool": 6
+     },
+     "tools_called": {
+      "cloud.providers": 1,
+      "cloud.rent": 1,
+      "cloud.deploy": 1,
+      "market.browse": 1,
+      "cloud.deployments": 1,
+      "market.list": 1
+     }
+    },
+    "p:bea": {
+     "decisions": 18,
+     "valid": {
+      "calls": 6,
+      "sent": 6,
+      "ok": 6,
+      "valid_rate": 1.0,
+      "failures": {}
+     },
+     "tools_made": [],
+     "chooser": "teacher",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1072800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12,
+      "tool": 6
+     },
+     "tools_called": {
+      "cloud.providers": 1,
+      "cloud.rent": 1,
+      "cloud.deploy": 1,
+      "market.browse": 1,
+      "cloud.deployments": 1,
+      "market.list": 1
+     }
+    },
+    "p:cy": {
+     "decisions": 18,
+     "valid": {
+      "calls": 6,
+      "sent": 6,
+      "ok": 6,
+      "valid_rate": 1.0,
+      "failures": {}
+     },
+     "tools_made": [],
+     "chooser": "teacher",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1036800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12,
+      "tool": 6
+     },
+     "tools_called": {
+      "cloud.providers": 1,
+      "cloud.rent": 1,
+      "cloud.deploy": 1,
+      "market.browse": 1,
+      "cloud.deployments": 1,
+      "market.list": 1
+     }
+    }
+   },
+   "wall_s": 231.0,
+   "events": 31509,
+   "invariants": [],
+   "learning": {},
+   "history": [
+    {
+     "day": 1.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 2
+      },
+      "pack.knapsack": {
+       "sellers": 2,
+       "min_price": 4
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 2
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 2.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 5,
+       "min_price": 3
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 2
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 3.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 5,
+       "min_price": 3
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 4.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 5,
+       "min_price": 2
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 5.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 5,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 6.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 5,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 7.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 5,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 8.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 5,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 9.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 5,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 10.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 5,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 11.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 5,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 12.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 5,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 13.25,
+     "market": {
+      "sort.records": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "text.extract": {
+       "sellers": 2,
+       "min_price": 1
+      },
+      "pack.knapsack": {
+       "sellers": 5,
+       "min_price": 1
+      },
+      "schedule.jobs": {
+       "sellers": 2,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    }
+   ]
+  }
+ },
+ "parts_reused_after_interruption": [
+  "all three learners",
+  "counterfactual: ada idle",
+  "counterfactual: bea idle",
+  "counterfactual: cy idle"
+ ],
+ "effects_of_presence": {
+  "p:ada": {
+   "p:bea": {
+    "requests_served": 0,
+    "independent_revenue": 0.0
+   },
+   "p:cy": {
+    "requests_served": 0,
+    "independent_revenue": 0.0
+   }
+  },
+  "p:bea": {
+   "p:ada": {
+    "requests_served": 0,
+    "independent_revenue": 0.0
+   },
+   "p:cy": {
+    "requests_served": 0,
+    "independent_revenue": 0.0
+   }
+  },
+  "p:cy": {
+   "p:ada": {
+    "requests_served": 0,
+    "independent_revenue": 0.0
+   },
+   "p:bea": {
+    "requests_served": 0,
+    "independent_revenue": 0.0
+   }
+  }
+ }
+}

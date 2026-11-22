@@ -1,0 +1,185 @@
+{
+ "checkpoint": "/workspace/agentrs/.worktrees/superlearner-4/superlearner/runs/exp_d/ckpt/after_A.pt",
+ "skill_set_A": [
+  "found/0/scratch",
+  "fund/0/scratch",
+  "list/0/deployed"
+ ],
+ "unrelated_set_B": [
+  "repair/0/scratch",
+  "deploy/0/coded",
+  "service/0/listed"
+ ],
+ "strategies": {
+  "clone B only": {
+   "A_after": {
+    "episodes": 48,
+    "success": 0.3333333333333333,
+    "success_ci": [
+     0.2168,
+     0.4746
+    ],
+    "progress": 0.6,
+    "valid_rate": 0.16666666666666666,
+    "decisions": 752,
+    "calls": 672,
+    "failures": {
+     "syntax": 32,
+     "prerequisite": 32,
+     "loop_blocked": 496
+    },
+    "llm_propose": 0,
+    "llm_gen": 0,
+    "by_arm": {
+     "found/0/scratch": 1.0,
+     "fund/0/scratch": 0.0,
+     "list/0/deployed": 0.0
+    },
+    "wall_s": 10.6
+   },
+   "B_after": {
+    "episodes": 48,
+    "success": 0.7083333333333334,
+    "success_ci": [
+     0.5682,
+     0.8176
+    ],
+    "progress": 0.7344583333333333,
+    "valid_rate": 1.0,
+    "decisions": 220,
+    "calls": 48,
+    "failures": {},
+    "llm_propose": 0,
+    "llm_gen": 0,
+    "by_arm": {
+     "deploy/0/coded": 1.0,
+     "repair/0/scratch": 0.125,
+     "service/0/listed": 1.0
+    },
+    "wall_s": 21.7
+   },
+   "forgetting_on_A": 0.6666666666666667,
+   "gain_on_B": 0.7083333333333334,
+   "epochs": 60,
+   "weights_moved_l2": 12.904570579528809,
+   "weights_norm": 262.2268371582031,
+   "nll_first_last": [
+    21.296321868896484,
+    0.7805695831775665
+   ]
+  },
+  "clone B with A's demonstrations mixed in": {
+   "A_after": {
+    "episodes": 48,
+    "success": 1.0,
+    "success_ci": [
+     0.9259,
+     1.0
+    ],
+    "progress": 1.0,
+    "valid_rate": 1.0,
+    "decisions": 176,
+    "calls": 176,
+    "failures": {},
+    "llm_propose": 0,
+    "llm_gen": 0,
+    "by_arm": {
+     "found/0/scratch": 1.0,
+     "fund/0/scratch": 1.0,
+     "list/0/deployed": 1.0
+    },
+    "wall_s": 1.8
+   },
+   "B_after": {
+    "episodes": 48,
+    "success": 0.9583333333333334,
+    "success_ci": [
+     0.8602,
+     0.9885
+    ],
+    "progress": 0.9669166666666666,
+    "valid_rate": 1.0,
+    "decisions": 198,
+    "calls": 131,
+    "failures": {},
+    "llm_propose": 0,
+    "llm_gen": 0,
+    "by_arm": {
+     "deploy/0/coded": 1.0,
+     "repair/0/scratch": 0.875,
+     "service/0/listed": 1.0
+    },
+    "wall_s": 13.6
+   },
+   "forgetting_on_A": 0.0,
+   "gain_on_B": 0.9583333333333334,
+   "epochs": 60,
+   "weights_moved_l2": 15.139396667480469,
+   "weights_norm": 262.2268371582031,
+   "nll_first_last": [
+    10.084964672724405,
+    0.34921510020891827
+   ]
+  }
+ },
+ "before": {
+  "A": {
+   "episodes": 48,
+   "success": 1.0,
+   "success_ci": [
+    0.9259,
+    1.0
+   ],
+   "progress": 1.0,
+   "valid_rate": 1.0,
+   "decisions": 176,
+   "calls": 176,
+   "failures": {},
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 1.0,
+    "list/0/deployed": 1.0
+   },
+   "wall_s": 1.9
+  },
+  "B": {
+   "episodes": 48,
+   "success": 0.0,
+   "success_ci": [
+    0.0,
+    0.0741
+   ],
+   "progress": 0.25687499999999996,
+   "valid_rate": 0.18125,
+   "decisions": 1920,
+   "calls": 1920,
+   "failures": {
+    "nonexistent_resource": 137,
+    "prerequisite": 304,
+    "loop_blocked": 995,
+    "syntax": 133,
+    "permission": 3
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 0.0,
+    "repair/0/scratch": 0.0,
+    "service/0/listed": 0.0
+   },
+   "wall_s": 10.3
+  }
+ },
+ "demonstrations": {
+  "A": 12,
+  "B": 12,
+  "B_by_arm": {
+   "deploy/0/coded": 4,
+   "repair/0/scratch": 4,
+   "service/0/listed": 4
+  }
+ },
+ "parts_reused_after_interruption": []
+}

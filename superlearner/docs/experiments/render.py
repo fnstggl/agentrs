@@ -40,7 +40,7 @@ def b_multi():
                     f"{pct(r['arms'][a]['after_rl_sampled']['success'])} {ci(r['arms'][a]['after_rl_sampled']['success_ci'])} ({100 * r['arms'][a]['delta_success_sampled']:+.0f})" if a in r["arms"] else "-" for a in arms) + " |")
         print()
         for k, v in d["aggregate"].items():
-            if isinstance(v, dict) and "diff" in v:
+            if isinstance(v, dict) and "diff" in v and "n_cand" in v:
                 print(f"* {k}: {100 * v['diff']:+.1f} points, 95% CI [{100 * v['ci'][0]:+.1f}, {100 * v['ci'][1]:+.1f}], P(>0) {v['p_improve']:.2f}, n={v['n_cand']} seeds, established={v.get('established')}")
         for k, v in d["aggregate"].items():
             if isinstance(v, dict) and "tasks_gained" in v:
@@ -132,8 +132,8 @@ def worldmodel():
 
 
 def selfplay():
-    for name, d in load("exp_selfplay.json"):
-        print(f"### Self-play ({name}): {d['days']} simulated days\n\n| run | participant | live | listed | requests served | independent revenue (cents) |\n|---|---|---|---|---|---|")
+    for name, d in load("exp_selfplay*.json"):
+        print(f"### Self-play ({name}): world {d.get('world', {'family': 'bazaar', 'seed': 31})}, {d['days']} simulated days\n\n| run | participant | live | listed | requests served | independent revenue (cents) |\n|---|---|---|---|---|---|")
         for label, r in d["runs"].items():
             for a, o in r["final"]["outcomes"].items():
                 print(f"| {label} | {a} | {o['live_services']:.0f} | {o['listed_services']:.0f} | {o['requests_served']} | {o['independent_revenue']:.0f} |")
@@ -144,14 +144,19 @@ def meta():
     for name, d in load("exp_e_meta.json"):
         print(f"### Meta-Researcher ({name}): {d['candidates_screened']} candidates screened ({d['valid_screened']} valid), {d['experiments']} taken further\n")
         print("champion baseline runs: " + "; ".join(f"{b['stage']} seed {b['seed']}: AULC {b['aulc_eval']:.3f}, held-out {b['first_eval']:.2f} -> {b['final_eval']:.2f}" for b in d["champion_baseline_runs"]) + "\n")
-        print("| round | candidate | source | function(s) | changed lines | valid | AULC - champion (1 seed) | picked | hypothesis / rejection |\n|---|---|---|---|---|---|---|---|---|")
+        print("| round | candidate | source | function(s) | changed lines | runs | does anything? | AULC - champion (1 seed) | picked | hypothesis / rejection |\n|---|---|---|---|---|---|---|---|---|---|")
         for x in d["screened"]:
             print(f"| {x['round']} | {x['candidate']} | {x['source']} | {', '.join(x['slots'])} | {x['diff_lines']} | {'yes' if x['valid'] else 'no'} | "
+                  f"{'no (inert)' if x.get('inert') else 'yes' if x.get('inert') is False else '?'} | "
                   f"{'-' if x['effect_aulc'] is None else format(x['effect_aulc'], '+.3f')} | {'yes' if x['picked_by_surrogate'] else ''} | "
                   f"{(x['hypothesis'] if x['valid'] else x['reject_reason'] + ' / ' + x['hypothesis'])[:150].replace('|', '/')} |")
-        print("\n| source | proposed | valid | mean effect | best effect |\n|---|---|---|---|---|")
+        print("\n| source | proposed | ran | inert | mean effect | best effect |\n|---|---|---|---|---|---|")
         for k, g in d["by_source"].items():
-            print(f"| {k} | {g['n']} | {g['valid']} | {'-' if g['mean_effect'] is None else format(g['mean_effect'], '+.3f')} | {'-' if g['best_effect'] is None else format(g['best_effect'], '+.3f')} |")
+            print(f"| {k} | {g['n']} | {g['valid']} | {g.get('inert', '?')} | {'-' if g['mean_effect'] is None else format(g['mean_effect'], '+.3f')} | {'-' if g['best_effect'] is None else format(g['best_effect'], '+.3f')} |")
+        nz = d.get("noise_from_inert_candidates") or {}
+        if nz.get("n"):
+            print(f"\ninert candidates (the champion's algorithm run again): {nz['n']}, effects {nz['effects']}, mean |effect| {nz['mean_abs']:.3f}, max {nz['max_abs']:.3f}; "
+                  f"{nz['active_effects_beyond_max_noise']} of {nz['active_candidates']} active candidates had |effect| above that maximum")
         print("\n| candidate | source | function(s) | decision | stage | AULC difference [95% CI] | seeds | hypothesis |\n|---|---|---|---|---|---|---|---|")
         for r in d["table"]:
             c = r.get("ci")
@@ -164,14 +169,16 @@ def meta():
         if so:
             a_ = so["advantage_over_random_all_rounds"]
             f_ = so["advantage_over_random_once_fitted"]
-            print(f"\nonline selection (learns from its own picks): advantage over random, all rounds {a_['mean']:+.4f} {a_['ci95']} n={a_['n']}; "
-                  f"once fitted {f_['mean']} {f_['ci95']} n={f_['n']}; established={so['established']}; leave-one-out {so.get('surrogate_loo')}")
+            r3 = lambda v: None if v is None else [round(x, 3) for x in v] if isinstance(v, list) else round(v, 3)      # noqa: E731
+            print(f"\nonline selection (learns from its own picks): advantage over random, all rounds {a_['mean']:+.3f} {r3(a_['ci95'])} n={a_['n']}; "
+                  f"once fitted {r3(f_['mean'])} {r3(f_['ci95'])} n={f_['n']}; established={so['established']}; leave-one-out {so.get('surrogate_loo')}")
         if sf.get("rounds"):
             a_ = sf["advantage_over_random"]
-            print(f"\noffline replay with full feedback: advantage over random {a_['mean']:+.4f} {a_['ci95']} over {a_['n_rounds']} rounds; "
-                  f"mean rank correlation predicted vs measured {sf['mean_spearman']}; established={sf['established']}")
+            print(f"\noffline replay with full feedback: advantage over random {a_['mean']:+.3f} [{a_['ci95'][0]:+.3f}, {a_['ci95'][1]:+.3f}] over {a_['n_rounds']} rounds; "
+                  f"mean rank correlation predicted vs measured {sf['mean_spearman']:+.2f}; established={sf['established']}\n")
             for r in sf["rounds"]:
-                print(f"  round {r['round']}: trained on {r['trained_on']}, picked {r['picked']:+.3f}, random {r['random']:+.3f}, best {r['best']:+.3f}, spearman {r['spearman_predicted_vs_measured']}")
+                sp = r['spearman_predicted_vs_measured']
+                print(f"* round {r['round']}: trained on {r['trained_on']}, picked {r['picked']:+.3f}, random {r['random']:+.3f}, best {r['best']:+.3f}, rank correlation {'-' if sp is None else format(sp, '+.2f')}")
         print()
 
 
@@ -196,6 +203,28 @@ def final():
 
 ALL = {"b": b_multi, "baselines": baselines, "c": exp_c, "d": exp_d, "a": exp_a, "worldmodel": worldmodel, "selfplay": selfplay, "meta": meta, "final": final, "d_clone": exp_d_clone}
 
+def fill(path: str) -> None:
+    """Replace every block ``<!-- table:NAME -->...<!-- /table -->`` of a Markdown file with the tables printed by
+    NAME's function, so that the tables of RESULTS.md are generated from the JSON files and never typed."""
+    import contextlib
+    import io
+    import re
+    text = open(path).read()
+
+    def sub(m):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ALL[m.group(1)]()
+        body = "\n".join(l for l in buf.getvalue().strip("\n").split("\n"))
+        return f"<!-- table:{m.group(1)} -->\n{body}\n<!-- /table -->"
+    new = re.sub(r"<!-- table:(\w+) -->.*?<!-- /table -->", sub, text, flags=re.S)
+    open(path, "w").write(new)
+    print(f"filled {len(re.findall(r'<!-- table:', new))} table blocks in {path}")
+
+
 if __name__ == "__main__":
-    for k in (sys.argv[1:] or list(ALL)):
-        ALL[k]()
+    if sys.argv[1:2] == ["--fill"]:
+        fill(sys.argv[2])
+    else:
+        for k in (sys.argv[1:] or list(ALL)):
+            ALL[k]()

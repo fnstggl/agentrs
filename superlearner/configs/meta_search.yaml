@@ -11,11 +11,15 @@ seed: 0
 rounds: 4
 pool: 6
 per_round: 2
-develop_top: 1
+develop_top: 4      # single-seed screening is noisy (see RESULTS): the four best screened candidates get more seeds
 selection: surrogate
 sources: {rule_space: 3, llm: 2, learned_rule: 1}
 max_parallel: 6
 primary: aulc_eval
+# The reported search ran before the inert-change probe existed, so it is switched off here to keep an interrupted
+# and resumed search consistent; its inert candidates are identified afterwards by `experiment e`. New searches
+# should leave it on (the default): candidates whose update is identical to the champion's are rejected unrun.
+reject_inert: false
 screen_margin: 0.03
 inner:
   workers: 4

@@ -1,0 +1,191 @@
+{
+ "checkpoint": "runs/exp_b_fewdemo_sil_s0/ckpt/latest.pt",
+ "trained_world_families": [
+  "tiny",
+  "bazaar"
+ ],
+ "zero_shot": {
+  "training families, unseen seeds": {
+   "episodes": 64,
+   "success": 0.78125,
+   "success_ci": [
+    0.6657,
+    0.865
+   ],
+   "progress": 0.7968125,
+   "valid_rate": 0.40122199592668023,
+   "decisions": 593,
+   "calls": 491,
+   "failures": {
+    "syntax": 114,
+    "nonexistent_resource": 32,
+    "loop_blocked": 147,
+    "permission": 1
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 1.0,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 1.0,
+    "repair/0/scratch": 0.25,
+    "service/0/coded": 1.0,
+    "service/0/deployed": 1.0,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 30.3
+  },
+  "unfamiliar world families (validation)": {
+   "episodes": 64,
+   "success": 0.75,
+   "success_ci": [
+    0.6318,
+    0.8399
+   ],
+   "progress": 0.75,
+   "valid_rate": 0.40040650406504064,
+   "decisions": 611,
+   "calls": 492,
+   "failures": {
+    "syntax": 115,
+    "nonexistent_resource": 32,
+    "loop_blocked": 148
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 1.0,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 1.0,
+    "repair/0/scratch": 0.0,
+    "service/0/coded": 1.0,
+    "service/0/deployed": 1.0,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 45.6
+  },
+  "unfamiliar world families (test: fragile infrastructure, novel needs)": {
+   "episodes": 64,
+   "success": 0.75,
+   "success_ci": [
+    0.6318,
+    0.8399
+   ],
+   "progress": 0.75,
+   "valid_rate": 0.38333333333333336,
+   "decisions": 587,
+   "calls": 480,
+   "failures": {
+    "syntax": 115,
+    "nonexistent_resource": 32,
+    "loop_blocked": 149
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 1.0,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 1.0,
+    "repair/0/scratch": 0.0,
+    "service/0/coded": 1.0,
+    "service/0/deployed": 1.0,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 28.6
+  },
+  "harder objective (service level 1, never trained)": {
+   "episodes": 32,
+   "success": 0.9375,
+   "success_ci": [
+    0.7985,
+    0.9827
+   ],
+   "progress": 0.9726,
+   "valid_rate": 1.0,
+   "decisions": 238,
+   "calls": 80,
+   "failures": {},
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "service/1/deployed": 0.875,
+    "service/1/listed": 1.0
+   },
+   "wall_s": 68.4
+  }
+ },
+ "adaptation": {
+  "from RL-trained weights": [
+   {
+    "decisions": 0,
+    "success": 0.734375
+   },
+   {
+    "decisions": 1079,
+    "success": 0.75,
+    "train_success": 0.59375,
+    "lr_scale": 0.078125,
+    "param_delta": 0.08749378472566605
+   },
+   {
+    "decisions": 2169,
+    "success": 0.734375,
+    "train_success": 0.5729166666666666,
+    "lr_scale": 0.0390625,
+    "param_delta": 0.07636681199073792
+   },
+   {
+    "decisions": 3147,
+    "success": 0.734375,
+    "train_success": 0.6875,
+    "lr_scale": 0.0390625,
+    "param_delta": 0.05512039735913277
+   },
+   {
+    "decisions": 4094,
+    "success": 0.734375,
+    "train_success": 0.6145833333333334,
+    "lr_scale": 0.0390625,
+    "param_delta": 0.05347181484103203
+   }
+  ],
+  "from warm start (before RL)": [
+   {
+    "decisions": 0,
+    "success": 0.65625
+   },
+   {
+    "decisions": 857,
+    "success": 0.703125,
+    "train_success": 0.625,
+    "lr_scale": 1.0,
+    "param_delta": 0.016406476497650146
+   },
+   {
+    "decisions": 2048,
+    "success": 0.671875,
+    "train_success": 0.4583333333333333,
+    "lr_scale": 0.5,
+    "param_delta": 0.004831156227737665
+   },
+   {
+    "decisions": 3236,
+    "success": 0.671875,
+    "train_success": 0.5208333333333334,
+    "lr_scale": 0.25,
+    "param_delta": 0.11419186741113663
+   },
+   {
+    "decisions": 4240,
+    "success": 0.640625,
+    "train_success": 0.6041666666666666,
+    "lr_scale": 0.125,
+    "param_delta": 0.12412785738706589
+   }
+  ]
+ },
+ "parts_reused_after_interruption": []
+}

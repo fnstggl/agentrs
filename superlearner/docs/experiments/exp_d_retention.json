@@ -1,0 +1,238 @@
+{
+ "skill_set_A": [
+  "found/0/scratch",
+  "fund/0/scratch",
+  "list/0/deployed"
+ ],
+ "unrelated_set_B": [
+  "repair/0/scratch",
+  "deploy/0/coded",
+  "service/0/listed"
+ ],
+ "iterations": {
+  "A": 4,
+  "B": 6
+ },
+ "strategies": {
+  "no protection": {
+   "A_after_training_on_B": {
+    "episodes": 48,
+    "success": 1.0,
+    "success_ci": [
+     0.9259,
+     1.0
+    ],
+    "source": "A after B: success rate printed by the interrupted run (runs/x_d.log); it is exactly 48/48, other fields were not saved"
+   },
+   "B_after_training_on_B": {
+    "episodes": 48,
+    "success": 0.0,
+    "success_ci": [
+     0.0,
+     0.0741
+    ],
+    "source": "B after B: success rate printed by the interrupted run (runs/x_d.log); it is exactly 0/48, other fields were not saved"
+   },
+   "forgetting_on_A": 0.0,
+   "gain_on_B": 0.0,
+   "source": "runs/x_d.log (run interrupted by the GPU outage at 15:44 after two of four strategies)"
+  },
+  "replay of own earlier successes": {
+   "A_after_training_on_B": {
+    "episodes": 48,
+    "success": 1.0,
+    "success_ci": [
+     0.9259,
+     1.0
+    ],
+    "source": "A after B: success rate printed by the interrupted run (runs/x_d.log); it is exactly 48/48, other fields were not saved"
+   },
+   "B_after_training_on_B": {
+    "episodes": 48,
+    "success": 0.0,
+    "success_ci": [
+     0.0,
+     0.0741
+    ],
+    "source": "B after B: success rate printed by the interrupted run (runs/x_d.log); it is exactly 0/48, other fields were not saved"
+   },
+   "forgetting_on_A": 0.0,
+   "gain_on_B": 0.0,
+   "source": "runs/x_d.log (run interrupted by the GPU outage at 15:44 after two of four strategies)"
+  },
+  "rehearsal (A sampled at a low rate)": {
+   "A_after_training_on_B": {
+    "episodes": 48,
+    "success": 1.0,
+    "success_ci": [
+     0.9259,
+     1.0
+    ],
+    "progress": 1.0,
+    "valid_rate": 1.0,
+    "decisions": 176,
+    "calls": 176,
+    "failures": {},
+    "llm_propose": 0,
+    "llm_gen": 0,
+    "by_arm": {
+     "found/0/scratch": 1.0,
+     "fund/0/scratch": 1.0,
+     "list/0/deployed": 1.0
+    },
+    "wall_s": 7.5
+   },
+   "B_after_training_on_B": {
+    "episodes": 48,
+    "success": 0.0,
+    "success_ci": [
+     0.0,
+     0.0741
+    ],
+    "progress": 0.2564166666666667,
+    "valid_rate": 0.1828125,
+    "decisions": 1920,
+    "calls": 1920,
+    "failures": {
+     "syntax": 198,
+     "nonexistent_resource": 112,
+     "prerequisite": 444,
+     "loop_blocked": 812,
+     "permission": 3
+    },
+    "llm_propose": 0,
+    "llm_gen": 0,
+    "by_arm": {
+     "deploy/0/coded": 0.0,
+     "repair/0/scratch": 0.0,
+     "service/0/listed": 0.0
+    },
+    "wall_s": 42.1
+   },
+   "forgetting_on_A": 0.0,
+   "gain_on_B": 0.0,
+   "weights_moved_l2": 1.3805609941482544,
+   "weights_norm": 262.2268371582031,
+   "train_success_on_B_by_iter": [
+    0.113,
+    0.066,
+    0.082,
+    0.078,
+    0.094,
+    0.172
+   ],
+   "lr_scale_by_iter": [
+    0.5,
+    0.5,
+    0.5,
+    0.5,
+    0.25,
+    0.25
+   ]
+  },
+  "demonstration regulariser on A (bc_coef 0.5)": {
+   "A_after_training_on_B": {
+    "episodes": 48,
+    "success": 1.0,
+    "success_ci": [
+     0.9259,
+     1.0
+    ],
+    "progress": 1.0,
+    "valid_rate": 1.0,
+    "decisions": 176,
+    "calls": 176,
+    "failures": {},
+    "llm_propose": 0,
+    "llm_gen": 0,
+    "by_arm": {
+     "found/0/scratch": 1.0,
+     "fund/0/scratch": 1.0,
+     "list/0/deployed": 1.0
+    },
+    "wall_s": 5.5
+   },
+   "B_after_training_on_B": {
+    "episodes": 48,
+    "success": 0.0,
+    "success_ci": [
+     0.0,
+     0.0741
+    ],
+    "progress": 0.25729166666666664,
+    "valid_rate": 0.175,
+    "decisions": 1920,
+    "calls": 1920,
+    "failures": {
+     "nonexistent_resource": 233,
+     "prerequisite": 247,
+     "loop_blocked": 1011,
+     "syntax": 91,
+     "permission": 2
+    },
+    "llm_propose": 0,
+    "llm_gen": 0,
+    "by_arm": {
+     "deploy/0/coded": 0.0,
+     "repair/0/scratch": 0.0,
+     "service/0/listed": 0.0
+    },
+    "wall_s": 27.3
+   },
+   "forgetting_on_A": 0.0,
+   "gain_on_B": 0.0,
+   "weights_moved_l2": 1.570705771446228,
+   "weights_norm": 262.2268371582031,
+   "train_success_on_B_by_iter": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "lr_scale_by_iter": [
+    0.5,
+    0.5,
+    0.5,
+    0.5,
+    0.5,
+    0.5
+   ]
+  }
+ },
+ "phase_A": {
+  "A_at_warm_start": {
+   "episodes": 48,
+   "success": 1.0,
+   "success_ci": [
+    0.9259,
+    1.0
+   ],
+   "source": "A at warm start: success rate printed by the interrupted run (runs/x_d.log); it is exactly 48/48, other fields were not saved"
+  },
+  "A_after_learning_A": {
+   "episodes": 48,
+   "success": 1.0,
+   "success_ci": [
+    0.9259,
+    1.0
+   ],
+   "source": "A after phase A: success rate printed by the interrupted run (runs/x_d.log); it is exactly 48/48, other fields were not saved"
+  },
+  "B_before_any_B_training": {
+   "episodes": 48,
+   "success": 0.0,
+   "success_ci": [
+    0.0,
+    0.0741
+   ],
+   "source": "B before phase B: success rate printed by the interrupted run (runs/x_d.log); it is exactly 0/48, other fields were not saved"
+  },
+  "source": "runs/x_d.log (run interrupted by the GPU outage at 15:44 after two of four strategies)"
+ },
+ "parts_reused_after_interruption": [
+  "strategy: no protection",
+  "strategy: replay of own earlier successes"
+ ]
+}

@@ -1,0 +1,289 @@
+{
+ "checkpoint": "runs/exp_b_fewdemo_sil_s0/ckpt/latest.pt",
+ "tasks": {
+  "n": 64,
+  "split": "select",
+  "arms": [
+   "deploy/0/coded",
+   "found/0/scratch",
+   "fund/0/scratch",
+   "list/0/deployed",
+   "repair/0/scratch",
+   "service/0/coded",
+   "service/0/deployed",
+   "service/0/listed"
+  ],
+  "world_families": [
+   "bazaar",
+   "entrenched_incumbents",
+   "fragmented_networks",
+   "tiny"
+  ]
+ },
+ "core": {
+  "max_decisions": 40
+ },
+ "conditions": {
+  "4 CAM after RL": {
+   "episodes": 64,
+   "success": 0.765625,
+   "success_ci": [
+    0.6487,
+    0.8525
+   ],
+   "progress": 0.77090625,
+   "valid_rate": 0.39544513457556935,
+   "decisions": 588,
+   "calls": 483,
+   "failures": {
+    "syntax": 109,
+    "nonexistent_resource": 32,
+    "loop_blocked": 150,
+    "permission": 1
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 1.0,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 1.0,
+    "repair/0/scratch": 0.125,
+    "service/0/coded": 1.0,
+    "service/0/deployed": 1.0,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 21.6
+  },
+  "5 weights restored, memory reset": {
+   "episodes": 64,
+   "success": 0.765625,
+   "success_ci": [
+    0.6487,
+    0.8525
+   ],
+   "progress": 0.7699374999999999,
+   "valid_rate": 0.39669421487603307,
+   "decisions": 589,
+   "calls": 484,
+   "failures": {
+    "syntax": 110,
+    "nonexistent_resource": 32,
+    "loop_blocked": 150
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 1.0,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 1.0,
+    "repair/0/scratch": 0.125,
+    "service/0/coded": 1.0,
+    "service/0/deployed": 1.0,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 88.1
+  },
+  "3 warm-started CAM before RL": {
+   "episodes": 64,
+   "success": 0.671875,
+   "success_ci": [
+    0.55,
+    0.7743
+   ],
+   "progress": 0.68353125,
+   "valid_rate": 0.3693304535637149,
+   "decisions": 635,
+   "calls": 463,
+   "failures": {
+    "syntax": 128,
+    "nonexistent_resource": 32,
+    "loop_blocked": 128,
+    "permission": 4
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 1.0,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 1.0,
+    "repair/0/scratch": 0.125,
+    "service/0/coded": 1.0,
+    "service/0/deployed": 0.25,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 127.3
+  },
+  "6 memory preserved, weights reset": {
+   "episodes": 64,
+   "success": 0.0,
+   "success_ci": [
+    0.0,
+    0.0566
+   ],
+   "progress": 0.22349999999999998,
+   "valid_rate": 0.025735294117647058,
+   "decisions": 2560,
+   "calls": 816,
+   "failures": {
+    "syntax": 437,
+    "nonexistent_resource": 358
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 0.0,
+    "found/0/scratch": 0.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 0.0,
+    "repair/0/scratch": 0.0,
+    "service/0/coded": 0.0,
+    "service/0/deployed": 0.0,
+    "service/0/listed": 0.0
+   },
+   "wall_s": 64.0
+  },
+  "7 scripted control": {
+   "episodes": 64,
+   "success": 1.0,
+   "success_ci": [
+    0.9434,
+    1.0
+   ],
+   "progress": 1.0,
+   "valid_rate": 1.0,
+   "decisions": 256,
+   "calls": 216,
+   "failures": {},
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 1.0,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 1.0,
+    "list/0/deployed": 1.0,
+    "repair/0/scratch": 1.0,
+    "service/0/coded": 1.0,
+    "service/0/deployed": 1.0,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 58.6
+  },
+  "0 uniform random (same action space)": {
+   "episodes": 64,
+   "success": 0.015625,
+   "success_ci": [
+    0.0028,
+    0.0833
+   ],
+   "progress": 0.22278125,
+   "valid_rate": 0.28655215751989943,
+   "decisions": 2462,
+   "calls": 2387,
+   "failures": {
+    "syntax": 129,
+    "nonexistent_resource": 1437,
+    "permission": 112,
+    "prerequisite": 11,
+    "unknown_tool": 13,
+    "loop_blocked": 1
+   },
+   "llm_propose": 0,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 0.0,
+    "found/0/scratch": 0.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 0.0,
+    "repair/0/scratch": 0.0,
+    "service/0/coded": 0.0,
+    "service/0/deployed": 0.0,
+    "service/0/listed": 0.125
+   },
+   "wall_s": 74.2
+  },
+  "2 frozen LLM + grounding, no learning": {
+   "episodes": 62,
+   "success": 0.22580645161290322,
+   "success_ci": [
+    0.1396,
+    0.3441
+   ],
+   "progress": 0.43770967741935485,
+   "valid_rate": 0.563894523326572,
+   "decisions": 995,
+   "calls": 493,
+   "failures": {
+    "unresolved_reference": 16,
+    "prerequisite": 31,
+    "syntax": 34,
+    "permission": 82,
+    "loop_blocked": 16,
+    "unknown_tool": 2,
+    "nonexistent_resource": 34
+   },
+   "llm_propose": 339,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 0.0,
+    "found/0/scratch": 0.875,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 0.0,
+    "repair/0/scratch": 0.0,
+    "service/0/coded": 0.0,
+    "service/0/deployed": 0.0,
+    "service/0/listed": 1.0
+   },
+   "wall_s": 5402.8
+  },
+  "1 frozen LLM alone": {
+   "episodes": 16,
+   "success": 0.125,
+   "success_ci": [
+    0.035,
+    0.3602
+   ],
+   "progress": 0.31975,
+   "valid_rate": 0.7360703812316716,
+   "decisions": 342,
+   "calls": 341,
+   "failures": {
+    "invalid_action": 86,
+    "not_found": 2,
+    "conflict": 2
+   },
+   "llm_propose": 342,
+   "llm_gen": 0,
+   "by_arm": {
+    "deploy/0/coded": 0.0,
+    "found/0/scratch": 1.0,
+    "fund/0/scratch": 0.0,
+    "list/0/deployed": 0.0,
+    "repair/0/scratch": 0.0,
+    "service/0/coded": 0.0,
+    "service/0/deployed": 0.0,
+    "service/0/listed": 0.0
+   },
+   "wall_s": 1993.4,
+   "note": "first 16 tasks, 24 decisions each (one tool call per decision)"
+  }
+ },
+ "param_distance_rl_vs_warm_start": 0.8384179472923279,
+ "memory_items": 0,
+ "library_tools": 0,
+ "llm": {
+  "gen_calls": 344,
+  "gen_cache_hits": 72,
+  "prompt_tokens": 466075,
+  "gen_tokens": 73318,
+  "served_tokens": 90038,
+  "embed_texts": 76923,
+  "embed_cache_hits": 76535,
+  "gen_wall_s": 2465.7822703818483,
+  "server_requests": 639,
+  "reconnects": 72
+ },
+ "parts_reused_after_interruption": []
+}

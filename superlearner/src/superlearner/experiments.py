@@ -750,22 +750,27 @@ def exp_selfplay(a) -> int:
     parts = [{"handle": "ada", "goal": "revenue", "start": "coded", "need": None, "endowment": 800_000},
              {"handle": "bea", "goal": "revenue", "start": "coded", "need": None, "endowment": 800_000},
              {"handle": "cy", "goal": "service", "start": "coded", "need": None, "endowment": 800_000}]
-    res: dict = {"checkpoint": a.checkpoint, "days": days, "participants": parts, "runs": {}}
+    fam, wseed = (str(getattr(a, "world", None) or "bazaar:31").split(":") + ["31"])[:2]
+    res: dict = {"checkpoint": a.checkpoint, "days": days, "world": {"family": fam, "seed": int(wseed)}, "participants": parts, "runs": {}}
     algos = {"p:ada": ("ppo", {"lr": 3e-5, "epochs": 2, "minibatch_eps": 1, "clip": 0.1, "target_kl": 0.05, "detach_critic": True}),
              "p:bea": ("ppo_sil", {"lr": 3e-5, "epochs": 2, "minibatch_eps": 1, "clip": 0.1, "target_kl": 0.05, "detach_critic": True, "sil_steps": 1}),
              "p:cy": ("ppo", {"lr": 1e-5, "epochs": 1, "minibatch_eps": 1, "clip": 0.1, "target_kl": 0.05, "detach_critic": True})}
-    P = Partial("exp_selfplay", _ckpt_key(a.checkpoint, days))
+    tag = "exp_selfplay" if (fam, wseed) == ("bazaar", "31") else f"exp_selfplay_{fam}{wseed}"
+    P = Partial(tag, _ckpt_key(a.checkpoint, days, fam, wseed) if tag != "exp_selfplay" else _ckpt_key(a.checkpoint, days))
+    from .train.demos import TeacherChooser
     for label, idle in (("all three learners", ()), ("counterfactual: ada idle", ("p:ada",)), ("counterfactual: bea idle", ("p:bea",)),
-                        ("counterfactual: cy idle", ("p:cy",))):
+                        ("counterfactual: cy idle", ("p:cy",)),
+                        ("reference: scripted control for all three (same world, same interface, no learning)", "scripted")):
         def one(idle=idle):
-            arena = Arena("bazaar", 31, parts, round_s=1800, core=cfg["core"])
+            arena = Arena(fam, int(wseed), parts, round_s=1800, core=cfg["core"])
             players, al = {}, {}
+            scripted = idle == "scripted"
             for i, actor in enumerate(sorted(arena.cores)):
                 ag, algo, ch = make_learner(ck, llm, algos[actor][0], algos[actor][1], dict(cfg["agent"]), seed=10 + i)
-                players[actor] = (ag, IdleChooser() if actor in idle else ch)
+                players[actor] = (ag, TeacherChooser("auto", 10 + i) if scripted else IdleChooser() if actor in idle else ch)
                 al[actor] = algo
             cb = online_update(al, None)
-            out = arena.run(players, days, seed=3, on_segment=lambda actor, ag, seg: cb(actor, ag, seg) if actor not in idle else None)
+            out = arena.run(players, days, seed=3, on_segment=lambda actor, ag, seg: cb(actor, ag, seg) if (not scripted and actor not in idle) else None)
             out["learning"] = {k: v[-3:] for k, v in cb.stats.items()}
             r = {k: out[k] for k in ("final", "agents", "wall_s", "events", "invariants", "learning")}
             r["history"] = [{"day": h["day"], "market": h["market"],
@@ -784,7 +789,7 @@ def exp_selfplay(a) -> int:
         res["effects_of_presence"][who] = {other: {m: full[other][m] - cf_[other][m] for m in ("requests_served", "independent_revenue")}
                                            for other in full if other != who}
     print("effect of each learner's presence on the others (with - without):", json.dumps(res["effects_of_presence"], indent=1))
-    _save("exp_selfplay", res)
+    _save(tag, res)
     return 0
 
 
@@ -855,6 +860,16 @@ def exp_meta_summary(a, name: str) -> int:
                              "picked_by_surrogate": e["proposal"] in fr["surrogate_picks"], "reject_reason": e.get("reject_reason", ""),
                              "hypothesis": e["hypothesis"], "measures": e.get("measures"), "wall_s": e.get("wall_s"),
                              "diff_lines": len([l for l in diff.splitlines() if l[:1] in "+-" and l[:3] not in ("+++", "---")])})
+    # which screened candidates do nothing? (confined probe: one update on fixed data, compared with the champion's)
+    inert: dict = {}
+    try:
+        from .meta.researcher import probe_search
+        pr = probe_search(rd)
+        inert = {cid: v.get("inert") for cid, v in pr["candidates"].items()}
+    except Exception as e:  # noqa: BLE001 - the summary is still useful without the probe
+        print(f"inert-change probe not run: {type(e).__name__}: {e}")
+    for x in screened:
+        x["inert"] = inert.get(x["candidate"])
     sel_path = os.path.join(rd, "selection_report.json")
     base = [{"stage": b["stage"], "seed": b["seed"], **{k: b["measures"].get(k) for k in ("aulc_eval", "first_eval", "final_eval", "aulc_train", "train_decisions", "wall_s")}}
             for b in led.entries("baseline_run")]
@@ -866,12 +881,21 @@ def exp_meta_summary(a, name: str) -> int:
         g["valid"] += int(x["valid"])
         if x["valid"]:
             g["effects"].append(x["effect_aulc"])
-    for g in by_source.values():
+    for src_, g in by_source.items():
         g["mean_effect"] = float(np.mean(g["effects"])) if g["effects"] else None
         g["best_effect"] = float(np.max(g["effects"])) if g["effects"] else None
+        g["inert"] = int(sum(1 for x in screened if x["source"] == src_ and x.get("inert")))
+    # an inert candidate is the champion's algorithm run again: its "effect" is run-to-run noise at one seed
+    noise = [x["effect_aulc"] for x in valid if x.get("inert")]
+    active = [x["effect_aulc"] for x in valid if x.get("inert") is False]
+    noise_summary = {"n": len(noise), "effects": [round(v, 4) for v in noise],
+                     "mean_abs": float(np.mean(np.abs(noise))) if noise else None, "max_abs": float(np.max(np.abs(noise))) if noise else None,
+                     "sd_around_zero": float(np.sqrt(np.mean(np.square(noise)))) if noise else None,
+                     "active_candidates": len(active),
+                     "active_effects_beyond_max_noise": int(sum(1 for v in active if noise and abs(v) > np.max(np.abs(noise))))}
     res = {"run": rd, "primary": cfg.get("primary"), "stages": cfg.get("stages"), "inner": cfg.get("inner"),
            "champion_baseline_runs": base, "screened": screened, "candidates_screened": len(screened), "valid_screened": len(valid),
-           "by_source": by_source,
+           "by_source": by_source, "noise_from_inert_candidates": noise_summary,
            "rounds": [{k: fr.get(k) for k in ("round", "surrogate_fitted", "k", "surrogate_picks", "value_surrogate", "value_random_expected", "value_best", "valid_fraction", "diagnosis_tags")} for fr in rounds],
            "selection_online": json.load(open(sel_path)) if os.path.exists(sel_path) else None,
            "selection_offline_full_feedback": offline_selection(rd, rounds, int(cfg.get("per_round", 1))),
@@ -881,10 +905,11 @@ def exp_meta_summary(a, name: str) -> int:
            "meta_updates": led.entries("meta_update")[-3:], "learned_rule_updates": led.entries("learned_rule_update"),
            "diagnoses": [d["text"] for d in led.entries("diagnosis")], "details": exps}
     for x in screened:
-        print(f"r{x['round']} {x['candidate']} {x['source']:12s} {','.join(x['slots']):28s} valid={x['valid']} "
+        print(f"r{x['round']} {x['candidate']} {x['source']:12s} {','.join(x['slots']):28s} valid={x['valid']} inert={x.get('inert')} "
               f"effect={'-' if x['effect_aulc'] is None else format(x['effect_aulc'], '+.4f')} {'*' if x['picked_by_surrogate'] else ' '} {x['hypothesis'][:70]}")
     for r in res["table"]:
         print(r)
+    print("noise from inert candidates:", noise_summary)
     print(json.dumps(res["selection_offline_full_feedback"], indent=1, default=str)[:1500])
     _save(name, res)
     return 0

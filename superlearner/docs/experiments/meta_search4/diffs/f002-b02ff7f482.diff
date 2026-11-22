@@ -1,0 +1,10 @@
+--- champion/algo/rule.py
++++ candidate/algo/rule.py
+@@ -75,3 +75,6 @@
+     s1 = ratio * adv
+-    s2 = ratio.clamp(1.0 - cfg.clip, 1.0 + cfg.clip) * adv
++    # Asymmetric clipping: more aggressive when advantage is positive, more conservative when negative
++    clip_upper = 1.0 + cfg.clip * torch.heaviside(adv, torch.tensor(0.0))
++    clip_lower = 1.0 - cfg.clip * torch.heaviside(-adv, torch.tensor(0.0))
++    s2 = ratio.clamp(clip_lower, clip_upper) * adv
+     loss = -_mean(torch.min(s1, s2), valid)

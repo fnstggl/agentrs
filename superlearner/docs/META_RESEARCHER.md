@@ -12,6 +12,7 @@ runs done so far are in [RESULTS.md](RESULTS.md); this file describes the mechan
 | B hypothesize | A pool of executable proposals from three generators (below); the trainable surrogate picks which get an experiment (or a uniform random choice, for the control arm) | `propose_pool`, `select` |
 | C implement | The candidate's own source tree is created with the proposed files; the diff and proposal are stored with it | `make_candidate` |
 | D verify | Protected files byte-identical to the evaluator's tree; source parses; then a self-test **inside the confinement** on real episodes from the hub: an episode runs, recomputed likelihood equals acting-time likelihood, advantages and losses are finite, an update changes the weights and keeps them finite, gradients reach policy and critic | `verify`, `candidate_run.selftest` |
+| D' probe | One update and the rule's loss and gradient on a fixed, deliberately varied batch (seeded controller; perturbed old log-probabilities; finished and truncated episodes; successes and failures), **inside the confinement**; a candidate whose fingerprint equals the champion's changes nothing on this data and is rejected unrun (`reject_inert`, default on) | `probe`, `is_inert`, `candidate_run.probe` |
 | E train | A fresh controller is trained by the candidate's algorithm, confined, against its own env hub, under an experience budget the hub enforces | `run_one` |
 | F compare | Learning curves from the hub's results file against the champion's runs on the same seeds, demonstrations, budgets, evaluation tasks and hardware | `compare` |
 | G analyze | Differences in AULC (primary), final held-out success, training-time success and wall-clock, each with a bootstrap 95% interval over seeds and the probability of improvement; Pareto status across measures | `meta/compare.py` |
@@ -59,7 +60,7 @@ anything yet.
 | training-time success | mean verified success of training episodes over ten equal slices of the budget |
 | generalisation | the evaluation list has unseen seeds and one world family that is never trained on |
 | compute | wall-clock of the confined run; update and rollout seconds; LLM tokens (when the inner task uses the LLM) |
-| robustness | every claim needs ≥ 3 seeds; confirmation uses 6 |
+| robustness | every claim needs ≥ 3 seeds; confirmation uses 5 |
 
 Decision rule (predeclared in `verdict`): **improved** if the AULC difference's 95% interval is above the margin on
 ≥ 3 seeds and final success did not drop by more than 0.05; **harmful** if the interval is entirely below zero;
@@ -73,11 +74,37 @@ measure and as Pareto status, never folded into one number.
 | verify + self-test | — | reject broken code in about a minute | `rejected_invalid` |
 | screen | 1 | drop clearly worse candidates | `rejected_screen` if AULC is below the champion's by more than the margin |
 | develop | 3 | estimate the effect | continue only if P(improvement) ≥ 0.8 |
-| confirm | 6, more evaluation tasks | promotion test | `promoted` / `inconclusive` / `harmful` |
+| confirm | 5 | promotion test | `promoted` / `inconclusive` / `harmful` |
 
-Baseline (champion) runs are made once per stage and seed and reused. Several candidates are evaluated side by
-side within a round; confined runs share a fixed number of slots so that comparisons are not distorted by
-oversubscription.
+In the reported search the three stages use identical run settings and differ only in their seeds, so a seed that
+was run at an earlier stage is reused, for the candidate and for the champion alike. Baseline (champion) runs are
+made once per seed. Several candidates are evaluated side by side within a round; confined runs share a fixed
+number of slots.
+
+What makes two runs comparable is the experience budget (training decisions, counted and enforced by the env hub),
+not wall-clock time: `timeout_s` is deliberately generous and only stops runaway candidates, because wall time
+depends on what else the host is doing (it is recorded as a measure). The confined self-test checks the loss a
+candidate uses *after* any critic-only warm-up phase.
+
+## Changes that do nothing
+
+A proposal can parse, keep its signature, pass the self-test and still be the champion's algorithm: an added
+variable that is never used, an edit to a function the configuration never calls (the replay loss when no replay
+steps are configured), a reformulation that is mathematically the same. Run as an experiment, such a candidate
+produces a "difference" that is only the run-to-run noise of training. The probe (`candidate_run.probe`) computes,
+confined and on one CPU thread, a fingerprint of what the candidate's learning code does on fixed data; equal
+fingerprints mean no functional change on that data. The reported search was run before the probe existed, so its
+inert candidates were run — which turned them into free A/A tests: their measured "effects" calibrate the noise of
+single-seed screening (RESULTS, section 11). `experiment e` applies the probe to a finished search.
+
+## Interruptions
+
+The ledger is appended after every round; `state.json` holds the champion, the surrogate, the learned-rule search
+and the random states. The trusted measures of every finished confined run are stored
+(`trusted/<candidate>/<stage>_s<seed>.measures.json`, tied to the hash of the candidate's source tree and the stage
+settings). `meta-search --resume` on the same directory continues with the remaining rounds; runs that had finished
+are read back instead of spending their experience again, half-finished runs are set aside (`*.old<time>`) and
+started clean.
 
 ## Reproducibility
 

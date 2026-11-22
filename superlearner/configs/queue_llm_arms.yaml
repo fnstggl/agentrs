@@ -1,0 +1,26 @@
+# The learner WITH language-model content (all thirteen arms): a few RL iterations on top of the cloned warm start
+# of Experiment A, then the sealed final list for the warm start and for the RL-trained controller.
+#   superlearner jobs configs/queue_llm_arms.yaml --log-dir runs/queue_llm
+# Meant to run next to configs/queue_experiments.yaml (one more GPU-training job, twelve more workers).
+max_gpu: 1
+max_cpu: 14
+env: {PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"}
+jobs:
+  - name: a_rl
+    cmd: python -m superlearner train --config configs/exp_a_warm.yaml --name exp_a_rl --resume --set iters=4 --set eval_every=2 --set ckpt_every=1 --set workers=12 --set init_from="runs/exp_a_warm/ckpt/bc.pt"
+    gpu: 1
+    cpu: 12
+    retries: 2
+    done: runs/exp_a_rl/ckpt/iter_0004.pt
+  - name: final_13arm_warm
+    cmd: python -m superlearner evaluate --checkpoint runs/exp_a_warm/ckpt/bc.pt --final docs/experiments/final_tasks.json --tag final_sealed --run-dir runs/final_13arm_warm --workers 12
+    cpu: 12
+    retries: 2
+    after: [a_rl]
+    done: runs/final_13arm_warm/eval.jsonl
+  - name: final_13arm_rl
+    cmd: python -m superlearner evaluate --checkpoint runs/exp_a_rl/ckpt/latest.pt --final docs/experiments/final_tasks.json --tag final_sealed --run-dir runs/final_13arm_rl --workers 12
+    cpu: 12
+    retries: 2
+    after: [final_13arm_warm]
+    done: runs/final_13arm_rl/eval.jsonl

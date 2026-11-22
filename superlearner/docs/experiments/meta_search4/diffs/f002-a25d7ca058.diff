@@ -1,0 +1,9 @@
+--- champion/algo/rule.py
++++ candidate/algo/rule.py
+@@ -59,3 +59,5 @@
+         is_last = (done[:, t] + trunc[:, t]).clamp(max=1.0)
+-        nv = torch.where(trunc[:, t] > 0, v[:, t], vnext) * (1.0 - done[:, t])
++        # Apply a small discount factor for truncated episodes to reduce uncertainty
++        trunc_discount = 0.95 if trunc[:, t].any() else 1.0
++        nv = torch.where(trunc[:, t] > 0, v[:, t], vnext) * (1.0 - done[:, t]) * trunc_discount
+         delta = reward[:, t] + cfg.gamma * nv - v[:, t]

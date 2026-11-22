@@ -1,0 +1,122 @@
+{
+ "champion": {
+  "id": "champion-0",
+  "genome": {
+   "adv": [
+    "gae",
+    {}
+   ],
+   "pol": [
+    "ppo_clip",
+    {}
+   ],
+   "val": [
+    "mse",
+    {}
+   ],
+   "tot": [
+    "sum",
+    {}
+   ],
+   "rep": [
+    "none",
+    {}
+   ],
+   "consts": {
+    "gamma": 0.995,
+    "lam": 0.95,
+    "clip": 0.2,
+    "vf_coef": 0.5,
+    "ent_coef": 0.01,
+    "succ_coef": 0.1
+   }
+  },
+  "hypothesis": "baseline: recurrent PPO with GAE",
+  "promoted_at": 0
+ },
+ "rounds": 9,
+ "experiments": 4,
+ "decisions": {
+  "inconclusive": 4
+ },
+ "table": [
+  {
+   "candidate": "f001-34c474b142",
+   "source": "rule_space",
+   "target": "algo/rule.py",
+   "decision": "inconclusive",
+   "stage": "develop",
+   "diff_aulc": 0.005373333333333452,
+   "ci": [
+    -0.10944999999999994,
+    0.08214999999999995
+   ],
+   "n": 3,
+   "hypothesis": "advantages -> optimistic {'beta': 0.618}: when an episode did better than the critic expected, the M"
+  },
+  {
+   "candidate": "f000-c727ca72a1",
+   "source": "rule_space",
+   "target": "algo/rule.py",
+   "decision": "inconclusive",
+   "stage": "develop",
+   "diff_aulc": 0.01697666666666675,
+   "ci": [
+    -0.017179999999999973,
+    0.07636999999999994
+   ],
+   "n": 3,
+   "hypothesis": "total_loss -> explore_when_failing {'k': 1.083}: exploration is worth most where the agent is failin"
+  },
+  {
+   "candidate": "f002-f2837cdb3a",
+   "source": "rule_space",
+   "target": "algo/rule.py",
+   "decision": "inconclusive",
+   "stage": "confirm",
+   "diff_aulc": 0.0043160000000000975,
+   "ci": [
+    -0.072838,
+    0.09956799999999999
+   ],
+   "n": 5,
+   "hypothesis": "value_loss -> clipped {'c': 0.452}: limiting how far the critic may move from its acting-time estima"
+  },
+  {
+   "candidate": "f002-6f3474c3d2",
+   "source": "rule_space",
+   "target": "algo/rule.py",
+   "decision": "inconclusive",
+   "stage": "develop",
+   "diff_aulc": 0.0033966666666667145,
+   "ci": [
+    -0.06398999999999999,
+    0.05799999999999994
+   ],
+   "n": 3,
+   "hypothesis": "policy_loss -> rollback {'alpha': 0.564}: outside the trust region the clipped objective has zero gr"
+  }
+ ],
+ "pareto": {
+  "f001-34c474b142": false,
+  "f000-c727ca72a1": true,
+  "f002-f2837cdb3a": true,
+  "f002-6f3474c3d2": false
+ },
+ "surrogate": {
+  "updates": 9,
+  "n": 13,
+  "n_valid": 12,
+  "spearman": -0.182
+ },
+ "learned_rule": [
+  {
+   "generation": 0,
+   "n": 4,
+   "fitness_mean": 0.010877499999999957,
+   "fitness_best": 0.03617999999999999,
+   "mean_norm": 0.4032601517631018
+  }
+ ],
+ "llm_proposals_rejected_before_running": 1
+}

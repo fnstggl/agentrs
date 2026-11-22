@@ -1,0 +1,71 @@
+{
+ "name": "exp_a_warm",
+ "seed": 0,
+ "device": "auto",
+ "workers": 12,
+ "iters": 4,
+ "episodes_per_iter": 96,
+ "eval_every": 2,
+ "eval_episodes": 52,
+ "eval_split": "curriculum",
+ "ckpt_every": 1,
+ "traj_per_iter": 2,
+ "llm": {
+  "kind": "remote",
+  "socket": "/workspace/agentrs/.worktrees/superlearner-4/superlearner/runs/llm.sock",
+  "cache": "/workspace/agentrs/.worktrees/superlearner-4/superlearner/runs/llm_cache.sqlite"
+ },
+ "model": {},
+ "agent": {
+  "llm_budget": 2,
+  "gen_budget": 6,
+  "use_llm": true,
+  "affinity_tokens": true,
+  "use_memory": false,
+  "use_tools": false
+ },
+ "core": {
+  "max_decisions": 40
+ },
+ "algo": {
+  "name": "ppo_sil",
+  "lr": 5e-05,
+  "epochs": 3,
+  "minibatch_eps": 8,
+  "gamma": 0.995,
+  "lam": 0.95,
+  "clip": 0.1,
+  "ent_coef": 0.003,
+  "vf_coef": 0.5,
+  "target_kl": 0.03,
+  "max_grad_norm": 1.0,
+  "critic_warmup": 1,
+  "lr_warmup_steps": 40,
+  "detach_critic": true,
+  "sil_steps": 16,
+  "sil_batch": 8,
+  "sil_mode": "filtered",
+  "sil_coef": 1.0
+ },
+ "curriculum": {
+  "arms": null,
+  "adaptive": true,
+  "world_families": [
+   "tiny",
+   "bazaar"
+  ],
+  "gate": false
+ },
+ "demos": {
+  "episodes": 156,
+  "bc_epochs": 60,
+  "bc_lr": 0.0003,
+  "max_per_arm": 12
+ },
+ "memory": {
+  "enabled": true
+ },
+ "temperature": 1.0,
+ "store_episodes_iters": 0,
+ "init_from": "runs/exp_a_warm/ckpt/bc.pt"
+}

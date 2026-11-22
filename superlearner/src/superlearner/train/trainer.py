@@ -449,7 +449,7 @@ class Trainer:
 
     def run(self, iters: int | None = None, verbose: bool = True) -> None:
         c = self.cfg
-        if self.iter == 0 and c.get("init_from") and not os.path.exists(os.path.join(self.dir, "ckpt", "bc.pt")):
+        if self.iter == 0 and c.get("init_from"):       # also after an interruption before the first checkpoint
             self.init_from(c["init_from"])
             if verbose:
                 print(f"initialised from {c['init_from']} ({len(self.demos)} demonstrations)", flush=True)

@@ -1,0 +1,11 @@
+--- champion/algo/rule.py
++++ candidate/algo/rule.py
+@@ -135,2 +135,7 @@
+     v = out["values"].mean(-1)
+-    return -(out["logp"] * w).sum() / w.sum().clamp(min=1.0) + 0.5 * (((ret - v) ** 2) * wv).sum() / wv.sum().clamp(min=1.0)
++    # Use Huber loss for the value function to make it more robust to outliers
++    value_error = ret - v
++    huber_threshold = 1.0
++    huber_loss = 0.5 * (value_error ** 2) * (value_error.abs() <= huber_threshold) + huber_threshold * (value_error.abs() - 0.5 * huber_threshold) * (value_error.abs() > huber_threshold)
++    value_loss = (huber_loss * wv).sum() / wv.sum().clamp(min=1.0)
++    return -(out["logp"] * w).sum() / w.sum().clamp(min=1.0) + 0.5 * value_loss

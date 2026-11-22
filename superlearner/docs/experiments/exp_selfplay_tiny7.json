@@ -1,0 +1,3123 @@
+{
+ "checkpoint": "runs/exp_b_fewdemo_sil_s0/ckpt/latest.pt",
+ "days": 12.0,
+ "world": {
+  "family": "tiny",
+  "seed": 7
+ },
+ "participants": [
+  {
+   "handle": "ada",
+   "goal": "revenue",
+   "start": "coded",
+   "need": null,
+   "endowment": 800000
+  },
+  {
+   "handle": "bea",
+   "goal": "revenue",
+   "start": "coded",
+   "need": null,
+   "endowment": 800000
+  },
+  {
+   "handle": "cy",
+   "goal": "service",
+   "start": "coded",
+   "need": null,
+   "endowment": 800000
+  }
+ ],
+ "runs": {
+  "all three learners": {
+   "final": {
+    "t": 1144800,
+    "day": 13.25,
+    "market": {
+     "sort.records": {
+      "sellers": 1,
+      "min_price": 4
+     },
+     "route.shortest": {
+      "sellers": 1,
+      "min_price": 3
+     }
+    },
+    "outcomes": {
+     "p:ada": {
+      "companies": 1.0,
+      "live_services": 1.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 692200.0,
+      "listings": []
+     },
+     "p:bea": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     },
+     "p:cy": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     }
+    }
+   },
+   "agents": {
+    "p:ada": {
+     "decisions": 26,
+     "valid": {
+      "calls": 14,
+      "sent": 12,
+      "ok": 5,
+      "valid_rate": 0.35714285714285715,
+      "failures": {
+       "syntax": 1,
+       "permission": 5,
+       "prerequisite": 1,
+       "loop_blocked": 2
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1108800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "tool": 14,
+      "wait": 12
+     },
+     "tools_called": {
+      "market.list": 7,
+      "cloud.deploy": 2,
+      "cloud.providers": 1,
+      "cloud.rent": 1,
+      "cloud.deployments": 1,
+      "market.browse": 1,
+      "cloud.status": 1
+     }
+    },
+    "p:bea": {
+     "decisions": 24,
+     "valid": {
+      "calls": 12,
+      "sent": 12,
+      "ok": 4,
+      "valid_rate": 0.3333333333333333,
+      "failures": {
+       "syntax": 1,
+       "nonexistent_resource": 3,
+       "permission": 4
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1072800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "tool": 12,
+      "wait": 12
+     },
+     "tools_called": {
+      "market.list": 4,
+      "cloud.rent": 2,
+      "bank.accounts": 1,
+      "cloud.deployments": 1,
+      "cloud.deploy": 1,
+      "market.browse": 1,
+      "cloud.providers": 1,
+      "cloud.status": 1
+     }
+    },
+    "p:cy": {
+     "decisions": 24,
+     "valid": {
+      "calls": 12,
+      "sent": 11,
+      "ok": 4,
+      "valid_rate": 0.3333333333333333,
+      "failures": {
+       "syntax": 1,
+       "nonexistent_resource": 5,
+       "prerequisite": 1,
+       "loop_blocked": 1
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1036800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "tool": 12,
+      "wait": 12
+     },
+     "tools_called": {
+      "cloud.rent": 3,
+      "market.list": 3,
+      "bank.accounts": 1,
+      "id.create_org": 1,
+      "cloud.deployments": 1,
+      "market.browse": 1,
+      "cloud.providers": 1,
+      "cloud.status": 1
+     }
+    }
+   },
+   "wall_s": 33.0,
+   "events": 12820,
+   "invariants": [],
+   "learning": {
+    "p:ada": [
+     {
+      "kl": null,
+      "entropy": null,
+      "param_delta": 0.0,
+      "v_loss": null,
+      "grad_steps": 0
+     }
+    ],
+    "p:bea": [
+     {
+      "kl": null,
+      "entropy": null,
+      "param_delta": 0.0,
+      "v_loss": null,
+      "grad_steps": 0
+     }
+    ],
+    "p:cy": [
+     {
+      "kl": null,
+      "entropy": null,
+      "param_delta": 0.0,
+      "v_loss": null,
+      "grad_steps": 0
+     }
+    ]
+   },
+   "history": [
+    {
+     "day": 1.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 1
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 2.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 2
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 3.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 4.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 5.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 6.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 7.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 8.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 9.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 10.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 11.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 12.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 13.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    }
+   ]
+  },
+  "counterfactual: ada idle": {
+   "final": {
+    "t": 1144800,
+    "day": 13.25,
+    "market": {
+     "sort.records": {
+      "sellers": 1,
+      "min_price": 4
+     },
+     "route.shortest": {
+      "sellers": 1,
+      "min_price": 3
+     }
+    },
+    "outcomes": {
+     "p:ada": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     },
+     "p:bea": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     },
+     "p:cy": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     }
+    }
+   },
+   "agents": {
+    "p:ada": {
+     "decisions": 12,
+     "valid": {
+      "calls": 0,
+      "sent": 0,
+      "ok": 0,
+      "valid_rate": 0.0,
+      "failures": {}
+     },
+     "tools_made": [],
+     "chooser": "idle",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1108800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12
+     },
+     "tools_called": {}
+    },
+    "p:bea": {
+     "decisions": 24,
+     "valid": {
+      "calls": 12,
+      "sent": 12,
+      "ok": 4,
+      "valid_rate": 0.3333333333333333,
+      "failures": {
+       "syntax": 1,
+       "nonexistent_resource": 2,
+       "permission": 5
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1072800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "tool": 12,
+      "wait": 12
+     },
+     "tools_called": {
+      "market.list": 4,
+      "cloud.rent": 2,
+      "bank.accounts": 1,
+      "cloud.deployments": 1,
+      "cloud.deploy": 1,
+      "market.browse": 1,
+      "cloud.providers": 1,
+      "cloud.status": 1
+     }
+    },
+    "p:cy": {
+     "decisions": 22,
+     "valid": {
+      "calls": 10,
+      "sent": 10,
+      "ok": 4,
+      "valid_rate": 0.4,
+      "failures": {
+       "syntax": 1,
+       "nonexistent_resource": 3,
+       "permission": 1,
+       "prerequisite": 1
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1036800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12,
+      "tool": 10
+     },
+     "tools_called": {
+      "market.list": 3,
+      "cloud.rent": 2,
+      "bank.accounts": 1,
+      "id.create_org": 1,
+      "cloud.deployments": 1,
+      "market.browse": 1,
+      "cloud.providers": 1
+     }
+    }
+   },
+   "wall_s": 36.9,
+   "events": 12595,
+   "invariants": [],
+   "learning": {
+    "p:bea": [
+     {
+      "kl": null,
+      "entropy": null,
+      "param_delta": 0.0,
+      "v_loss": null,
+      "grad_steps": 0
+     }
+    ]
+   },
+   "history": [
+    {
+     "day": 1.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 1
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 2.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 2
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 3.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 4.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 5.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 6.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 7.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 8.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 9.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 10.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 11.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 12.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 13.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    }
+   ]
+  },
+  "counterfactual: bea idle": {
+   "final": {
+    "t": 1144800,
+    "day": 13.25,
+    "market": {
+     "sort.records": {
+      "sellers": 1,
+      "min_price": 4
+     },
+     "route.shortest": {
+      "sellers": 1,
+      "min_price": 3
+     }
+    },
+    "outcomes": {
+     "p:ada": {
+      "companies": 1.0,
+      "live_services": 1.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 692200.0,
+      "listings": []
+     },
+     "p:bea": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     },
+     "p:cy": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     }
+    }
+   },
+   "agents": {
+    "p:ada": {
+     "decisions": 26,
+     "valid": {
+      "calls": 14,
+      "sent": 12,
+      "ok": 5,
+      "valid_rate": 0.35714285714285715,
+      "failures": {
+       "syntax": 1,
+       "permission": 5,
+       "prerequisite": 1,
+       "loop_blocked": 2
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1108800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "tool": 14,
+      "wait": 12
+     },
+     "tools_called": {
+      "market.list": 7,
+      "cloud.deploy": 2,
+      "cloud.providers": 1,
+      "cloud.rent": 1,
+      "cloud.deployments": 1,
+      "market.browse": 1,
+      "cloud.status": 1
+     }
+    },
+    "p:bea": {
+     "decisions": 12,
+     "valid": {
+      "calls": 0,
+      "sent": 0,
+      "ok": 0,
+      "valid_rate": 0.0,
+      "failures": {}
+     },
+     "tools_made": [],
+     "chooser": "idle",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1072800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12
+     },
+     "tools_called": {}
+    },
+    "p:cy": {
+     "decisions": 24,
+     "valid": {
+      "calls": 12,
+      "sent": 12,
+      "ok": 4,
+      "valid_rate": 0.3333333333333333,
+      "failures": {
+       "syntax": 2,
+       "nonexistent_resource": 4,
+       "permission": 1,
+       "prerequisite": 1
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1036800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "tool": 12,
+      "wait": 12
+     },
+     "tools_called": {
+      "market.list": 5,
+      "cloud.rent": 2,
+      "bank.accounts": 1,
+      "id.create_org": 1,
+      "cloud.deployments": 1,
+      "market.browse": 1,
+      "cloud.providers": 1
+     }
+    }
+   },
+   "wall_s": 23.6,
+   "events": 12866,
+   "invariants": [],
+   "learning": {
+    "p:ada": [
+     {
+      "kl": 0.030475402250885963,
+      "entropy": 0.4351293742656708,
+      "param_delta": 0.1152743399143219,
+      "v_loss": 0.06071273609995842,
+      "grad_steps": 1
+     }
+    ],
+    "p:cy": [
+     {
+      "kl": null,
+      "entropy": null,
+      "param_delta": 0.0,
+      "v_loss": null,
+      "grad_steps": 0
+     }
+    ]
+   },
+   "history": [
+    {
+     "day": 1.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 1
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 2.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 2
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 3.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 4.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 5.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 6.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 7.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 8.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 9.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 10.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 11.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 12.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 13.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    }
+   ]
+  },
+  "counterfactual: cy idle": {
+   "final": {
+    "t": 1144800,
+    "day": 13.25,
+    "market": {
+     "sort.records": {
+      "sellers": 1,
+      "min_price": 4
+     },
+     "route.shortest": {
+      "sellers": 1,
+      "min_price": 3
+     }
+    },
+    "outcomes": {
+     "p:ada": {
+      "companies": 1.0,
+      "live_services": 1.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 692200.0,
+      "listings": []
+     },
+     "p:bea": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     },
+     "p:cy": {
+      "companies": 1.0,
+      "live_services": 0.0,
+      "listed_services": 0.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 750000.0,
+      "listings": []
+     }
+    }
+   },
+   "agents": {
+    "p:ada": {
+     "decisions": 27,
+     "valid": {
+      "calls": 15,
+      "sent": 12,
+      "ok": 5,
+      "valid_rate": 0.3333333333333333,
+      "failures": {
+       "syntax": 1,
+       "permission": 5,
+       "prerequisite": 1,
+       "loop_blocked": 3
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1108800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "tool": 15,
+      "wait": 12
+     },
+     "tools_called": {
+      "market.list": 8,
+      "cloud.deploy": 2,
+      "cloud.providers": 1,
+      "cloud.rent": 1,
+      "cloud.deployments": 1,
+      "market.browse": 1,
+      "cloud.status": 1
+     }
+    },
+    "p:bea": {
+     "decisions": 25,
+     "valid": {
+      "calls": 13,
+      "sent": 13,
+      "ok": 4,
+      "valid_rate": 0.3076923076923077,
+      "failures": {
+       "syntax": 1,
+       "nonexistent_resource": 2,
+       "permission": 6
+      }
+     },
+     "tools_made": [],
+     "chooser": "model",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1072800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "tool": 13,
+      "wait": 12
+     },
+     "tools_called": {
+      "market.list": 5,
+      "cloud.rent": 2,
+      "bank.accounts": 1,
+      "cloud.deployments": 1,
+      "cloud.deploy": 1,
+      "market.browse": 1,
+      "cloud.providers": 1,
+      "cloud.status": 1
+     }
+    },
+    "p:cy": {
+     "decisions": 12,
+     "valid": {
+      "calls": 0,
+      "sent": 0,
+      "ok": 0,
+      "valid_rate": 0.0,
+      "failures": {}
+     },
+     "tools_made": [],
+     "chooser": "idle",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1036800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12
+     },
+     "tools_called": {}
+    }
+   },
+   "wall_s": 23.4,
+   "events": 12708,
+   "invariants": [],
+   "learning": {
+    "p:ada": [
+     {
+      "kl": null,
+      "entropy": null,
+      "param_delta": 0.0,
+      "v_loss": null,
+      "grad_steps": 0
+     }
+    ],
+    "p:bea": [
+     {
+      "kl": null,
+      "entropy": null,
+      "param_delta": 0.0,
+      "v_loss": null,
+      "grad_steps": 0
+     }
+    ]
+   },
+   "history": [
+    {
+     "day": 1.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 1
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 2.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 2
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 3.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 4.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 5.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 6.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 7.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 8.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 9.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 10.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 11.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 12.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 13.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 4
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    }
+   ]
+  },
+  "reference: scripted control for all three (same world, same interface, no learning)": {
+   "final": {
+    "t": 1144800,
+    "day": 13.25,
+    "market": {
+     "sort.records": {
+      "sellers": 1,
+      "min_price": 3
+     },
+     "route.shortest": {
+      "sellers": 4,
+      "min_price": 1
+     }
+    },
+    "outcomes": {
+     "p:ada": {
+      "companies": 1.0,
+      "live_services": 1.0,
+      "listed_services": 1.0,
+      "requests_served": 13372,
+      "independent_revenue": 40116.0,
+      "cash": 731816.0,
+      "listings": [
+       [
+        "route.shortest",
+        3
+       ]
+      ]
+     },
+     "p:bea": {
+      "companies": 1.0,
+      "live_services": 1.0,
+      "listed_services": 1.0,
+      "requests_served": 0,
+      "independent_revenue": 0.0,
+      "cash": 691700.0,
+      "listings": [
+       [
+        "route.shortest",
+        3
+       ]
+      ]
+     },
+     "p:cy": {
+      "companies": 1.0,
+      "live_services": 1.0,
+      "listed_services": 1.0,
+      "requests_served": 8590,
+      "independent_revenue": 25770.0,
+      "cash": 717470.0,
+      "listings": [
+       [
+        "route.shortest",
+        3
+       ]
+      ]
+     }
+    }
+   },
+   "agents": {
+    "p:ada": {
+     "decisions": 18,
+     "valid": {
+      "calls": 6,
+      "sent": 6,
+      "ok": 6,
+      "valid_rate": 1.0,
+      "failures": {}
+     },
+     "tools_made": [],
+     "chooser": "teacher",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.40116,
+      "streak": 0,
+      "elapsed_s": 1108800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.40116,
+      "return": 0.36864
+     },
+     "heads": {
+      "wait": 12,
+      "tool": 6
+     },
+     "tools_called": {
+      "cloud.providers": 1,
+      "cloud.rent": 1,
+      "cloud.deploy": 1,
+      "market.browse": 1,
+      "cloud.deployments": 1,
+      "market.list": 1
+     }
+    },
+    "p:bea": {
+     "decisions": 18,
+     "valid": {
+      "calls": 6,
+      "sent": 6,
+      "ok": 6,
+      "valid_rate": 1.0,
+      "failures": {}
+     },
+     "tools_made": [],
+     "chooser": "teacher",
+     "evaluator": {
+      "success": false,
+      "failed": false,
+      "progress": 0.0,
+      "streak": 0,
+      "elapsed_s": 1072800,
+      "success_t": null,
+      "initially_true": false,
+      "best_progress": 0.0,
+      "return": 0.0
+     },
+     "heads": {
+      "wait": 12,
+      "tool": 6
+     },
+     "tools_called": {
+      "cloud.providers": 1,
+      "cloud.rent": 1,
+      "cloud.deploy": 1,
+      "market.browse": 1,
+      "cloud.deployments": 1,
+      "market.list": 1
+     }
+    },
+    "p:cy": {
+     "decisions": 18,
+     "valid": {
+      "calls": 6,
+      "sent": 6,
+      "ok": 6,
+      "valid_rate": 1.0,
+      "failures": {}
+     },
+     "tools_made": [],
+     "chooser": "teacher",
+     "evaluator": {
+      "success": true,
+      "failed": false,
+      "progress": 1.0,
+      "streak": 1,
+      "elapsed_s": 1036800,
+      "success_t": 291600,
+      "initially_true": false,
+      "best_progress": 1.0,
+      "return": 2.0
+     },
+     "heads": {
+      "wait": 12,
+      "tool": 6
+     },
+     "tools_called": {
+      "cloud.providers": 1,
+      "cloud.rent": 1,
+      "cloud.deploy": 1,
+      "market.browse": 1,
+      "cloud.deployments": 1,
+      "market.list": 1
+     }
+    }
+   },
+   "wall_s": 14.2,
+   "events": 17330,
+   "invariants": [],
+   "learning": {},
+   "history": [
+    {
+     "day": 1.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 1
+      },
+      "route.shortest": {
+       "sellers": 1,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:bea": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 0.0,
+       "listed_services": 0.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      }
+     }
+    },
+    {
+     "day": 2.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 2
+      },
+      "route.shortest": {
+       "sellers": 4,
+       "min_price": 3
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 249,
+       "independent_revenue": 747.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 155,
+       "independent_revenue": 465.0
+      }
+     }
+    },
+    {
+     "day": 3.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 2
+      },
+      "route.shortest": {
+       "sellers": 4,
+       "min_price": 2
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 1144,
+       "independent_revenue": 3432.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 689,
+       "independent_revenue": 2067.0
+      }
+     }
+    },
+    {
+     "day": 4.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 4,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 2208,
+       "independent_revenue": 6624.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 1584,
+       "independent_revenue": 4752.0
+      }
+     }
+    },
+    {
+     "day": 5.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 4,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 3289,
+       "independent_revenue": 9867.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 2415,
+       "independent_revenue": 7245.0
+      }
+     }
+    },
+    {
+     "day": 6.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 4,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 4464,
+       "independent_revenue": 13392.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 3174,
+       "independent_revenue": 9522.0
+      }
+     }
+    },
+    {
+     "day": 7.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 4,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 5690,
+       "independent_revenue": 17070.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 3920,
+       "independent_revenue": 11760.0
+      }
+     }
+    },
+    {
+     "day": 8.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 4,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 7026,
+       "independent_revenue": 21078.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 4616,
+       "independent_revenue": 13848.0
+      }
+     }
+    },
+    {
+     "day": 9.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 4,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 8319,
+       "independent_revenue": 24957.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 5371,
+       "independent_revenue": 16113.0
+      }
+     }
+    },
+    {
+     "day": 10.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 4,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 9548,
+       "independent_revenue": 28644.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 6125,
+       "independent_revenue": 18375.0
+      }
+     }
+    },
+    {
+     "day": 11.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 4,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 10877,
+       "independent_revenue": 32631.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 6928,
+       "independent_revenue": 20784.0
+      }
+     }
+    },
+    {
+     "day": 12.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 4,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 12122,
+       "independent_revenue": 36366.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 7782,
+       "independent_revenue": 23346.0
+      }
+     }
+    },
+    {
+     "day": 13.25,
+     "market": {
+      "sort.records": {
+       "sellers": 1,
+       "min_price": 3
+      },
+      "route.shortest": {
+       "sellers": 4,
+       "min_price": 1
+      }
+     },
+     "outcomes": {
+      "p:ada": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 13372,
+       "independent_revenue": 40116.0
+      },
+      "p:bea": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 0,
+       "independent_revenue": 0.0
+      },
+      "p:cy": {
+       "live_services": 1.0,
+       "listed_services": 1.0,
+       "requests_served": 8590,
+       "independent_revenue": 25770.0
+      }
+     }
+    }
+   ]
+  }
+ },
+ "parts_reused_after_interruption": [],
+ "effects_of_presence": {
+  "p:ada": {
+   "p:bea": {
+    "requests_served": 0,
+    "independent_revenue": 0.0
+   },
+   "p:cy": {
+    "requests_served": 0,
+    "independent_revenue": 0.0
+   }
+  },
+  "p:bea": {
+   "p:ada": {
+    "requests_served": 0,
+    "independent_revenue": 0.0
+   },
+   "p:cy": {
+    "requests_served": 0,
+    "independent_revenue": 0.0
+   }
+  },
+  "p:cy": {
+   "p:ada": {
+    "requests_served": 0,
+    "independent_revenue": 0.0
+   },
+   "p:bea": {
+    "requests_served": 0,
+    "independent_revenue": 0.0
+   }
+  }
+ }
+}

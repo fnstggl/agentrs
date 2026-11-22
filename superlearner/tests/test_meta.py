@@ -238,3 +238,52 @@ def test_ledger_keeps_every_experiment_and_summarises_history(tmp_path):
     assert len(led.experiments()) == 2 and [r["decision"] for r in led.table()] == ["rejected_invalid", "inconclusive"]
     txt = led.summary_text()
     assert "rejected_invalid" in txt and "+0.012" in txt and "self-test failed" in txt
+
+
+def test_inert_changes_are_told_apart_from_real_ones_by_the_confined_probe(tmp_path):
+    """A candidate that only adds an unused variable computes the same update as the champion on fixed data; one
+    that changes the discount does not. (Found in the real search: both LLM-written candidates of a round were
+    of the first kind, and their measured 'effects' were run-to-run noise.)"""
+    import json as _json
+    from superlearner.meta.workspace import PKG, create_candidate, probe_isolation, run_isolated
+    from superlearner.train.trainer import Trainer
+    if os.getuid() != 0 or not probe_isolation(gpu=False).get("usable", False):
+        pytest.skip("needs the confinement")
+    small = {"d": 64, "layers": 2, "heads": 4, "ff": 128, "bag_dim": 32, "hid": 64}
+    cfg = {"name": "t", "seed": 0, "device": "cpu", "workers": 0, "llm": {"kind": "none"}, "model": small, "agent": {"use_llm": False},
+           "core": {"max_decisions": 8}, "algo": {"name": "ppo", "epochs": 1, "minibatch_eps": 4, "critic_warmup": 1},
+           "curriculum": {"world_families": ["tiny"], "arms": [{"family": "found"}]}, "demos": {"episodes": 4, "bc_epochs": 1}}
+    import shutil
+    import tempfile
+    root = tempfile.mkdtemp(prefix="sl-test-", dir="/var/tmp")      # pytest's tmp_path is not reachable for uid nobody
+    os.chmod(root, 0o755)
+    request_cleanup = lambda: shutil.rmtree(root, ignore_errors=True)          # noqa: E731
+    tmp_path = type(tmp_path)(root)
+    demo_dir = str(tmp_path / "demos")
+    tr = Trainer(cfg, demo_dir)
+    try:
+        assert tr.collect_demos(4)["kept"] >= 2
+    finally:
+        tr.close()
+    os.chmod(demo_dir, 0o755)
+    os.chmod(os.path.join(demo_dir, "demos.pkl"), 0o644)
+    rule = open(os.path.join(PKG, "algo", "rule.py")).read()
+    line = "    al, _ = aux_loss(out, batch, cfg)\n"
+    assert line in rule and "gamma: float = 0.995" in rule
+    trees = {"champion": {}, "inert": {"algo/rule.py": rule.replace(line, line + "    unused = adv.mean() * 0.0\n", 1)},
+             "active": {"algo/rule.py": rule.replace("gamma: float = 0.995", "gamma: float = 0.9", 1)}}
+    fp = {}
+    for name, changes in trees.items():
+        dest = str(tmp_path / name)
+        os.makedirs(dest)
+        create_candidate(dest, changes)
+        work = os.path.join(dest, "work")
+        os.makedirs(work)
+        jp = os.path.join(work, "job.json")
+        _json.dump({"stage": "probe", "config": cfg, "workdir": work, "demos_path": os.path.join(demo_dir, "demos.pkl")}, open(jp, "w"))
+        res = run_isolated("superlearner.meta.candidate_run", [jp], os.path.join(dest, "src"), work, timeout_s=300, extra_read=(demo_dir,))
+        assert res["returncode"] == 0, res.get("stdout", "")[-600:]
+        fp[name] = _json.load(open(os.path.join(work, "probe_result.json")))["fingerprint"]
+    request_cleanup()
+    assert fp["inert"] == fp["champion"] and fp["champion"]["delta_norm"] > 0
+    assert fp["active"] != fp["champion"]

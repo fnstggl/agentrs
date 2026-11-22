@@ -147,3 +147,40 @@ under `runs/` (not committed); archived ones under `runs/archive/`. The curated 
   (all exactly 48/48 or 0/48) before the outage. Those parts were entered into the partial-results file from the
   kept log (`runs/x_d.log`), marked as such, instead of being run again; the other two strategies were run after
   the outage from the saved phase-A checkpoint.
+
+## After the recovery (21:45 → 00:20)
+
+* All remaining work ran as two queues (`configs/queue_experiments.yaml`, `configs/queue_llm_arms.yaml`); nothing
+  died of out-of-memory. Iterations took about a third of the time they had taken before the outage (58 s of
+  rollouts and 2–15 s of updates per Experiment B iteration instead of 160 s and 10–25 s).
+* LLM throughput was the next bottleneck: about 3 generations per minute, because only requests with identical
+  length limit and reasoning flag were batched. The server now batches greedy requests with different limits (each
+  row stops at its own limit; checked against one-by-one generation on Qwen3-0.6B: same text for five mixed
+  requests), grouped by the size of the limit so that short requests do not wait for long ones. After two restarts
+  of the server under running jobs (103 and 72 client reconnects, no failure): 6–8 generations per minute. A
+  batched reasoning request produced the same answer through a different reasoning text than unbatched — batching
+  is not bit-identical; the cache fixes whichever was produced first.
+* Meta-search, fourth attempt (`runs/meta/search4`), ran to the end: champion baseline 714 s, four rounds of 12–30
+  minutes, follow-ups. The first two candidates the frozen LLM wrote passed every check and trained normally; read
+  as code, one added a variable that is never used and the other edited the replay loss, which the champion never
+  calls. Their "effects" (+0.038, −0.006) are noise.
+* Inert-change probe, three versions. (1) One whole update on the demonstration batch, compared by fingerprint
+  with the champion: called six candidates inert, among them a rule-space "rollback" policy loss and an
+  LLM-written wider clip — false positives, because that single update never left the trust region (the KL stop
+  ended it). (2) Rule loss and gradient with perturbed old log-probabilities added: four inert, among them an
+  LLM-written discount on truncated episodes — a false positive, because the demonstration batch has no truncated
+  episode. (3) Every second episode of the batch marked truncated and failed: three inert, each confirmed by
+  reading the diff (unused variable; replay loss never reached; "asymmetric" clipping that is the same function
+  under the `min`). The first two versions' outputs are kept in `runs/meta/search4/probe_v1_single_update` and
+  `probe_v2_no_truncation`.
+* The search's own follow-up took only the best screened candidate (+0.082 at seed 1 → +0.005 over three seeds).
+  Because of the noise finding, the search was resumed with `develop_top: 4`; the next three candidates ended at
+  +0.017, +0.004 (five seeds) and +0.003. The first candidate's record appears twice in the ledger (the resumed run
+  re-read its stored runs and wrote it again); summaries use the last record per candidate.
+* Self-play in the bazaar world: no participant, scripted or learned, was sent a request in 12 days, so that world
+  says nothing. Added a scripted-control reference and a second world (`tiny:7`) where scripted participants do
+  trade (13,372 and 8,590 requests). The learned controllers traded in neither.
+* Retention: RL on the new task set learned nothing (0% → 0%), so nothing could be forgotten. Added the supervised
+  variant (cloning the new set from the same checkpoint), which shows forgetting (100% → 33%) and its prevention
+  by rehearsal (100%).
+* Crucible's 305 tests pass on the final tree (12 min 24 s); 41 superlearner tests pass.
