@@ -1,11 +1,13 @@
 # Results
 
-Everything here was measured on 2026-11-21 on one RTX A6000 (46 GB), 48 logical CPU cores (shared with other
-tenants of the host), 188 GB RAM, with Qwen3-14B as the frozen language model. The instance was down from 15:44 to
-21:35; what that interrupted and how each run was recovered is in the lab notes. Raw outputs are in `docs/experiments/*.json`; the chronological account,
-including every superseded attempt, is `docs/experiments/NOTES.md`. Success always means the task's predicate on
-authoritative world state, checked by the evaluator. Intervals are 95% (Wilson for one condition, bootstrap over
-seeds for differences).
+Everything here was measured on 2026-11-21 and in the first minutes of 2026-11-22 on one RTX A6000 (46 GB),
+48 logical CPU cores (shared with other tenants of the host), 188 GB RAM, with Qwen3-14B as the frozen language
+model. The instance was down from 15:44 to 21:35; what that interrupted and how each run was recovered is in the
+lab notes (`docs/experiments/NOTES.md`, which also has every superseded attempt). Raw outputs are in
+`docs/experiments/`; the tables below are generated from them (`render.py --fill`). Success always means the
+task's predicate on authoritative world state, checked by the evaluator. Intervals are 95%: Wilson for one
+condition; for differences a bootstrap over seeds, or over seeds and tasks where the same tasks were evaluated
+before and after. "Established" in a table means that interval excludes zero.
 
 **Short version.**
 
@@ -150,9 +152,10 @@ What this shows.
 
 * Held-out success rose in every seed and both arms; nothing collapsed. Pooled over the three seeds: PPO alone
   65.3% → 73.3% greedy and 55.2% → 62.2% sampled; PPO + replay 65.3% → 77.1% greedy and 55.2% → 64.6% sampled.
-* With three seeds the interval over seeds is wide. Pairing the same tasks before and after (bootstrap over seeds
-  and tasks): PPO + replay is above zero for greedy and sampled actions; PPO alone for sampled actions, and at
-  the boundary for greedy ([+0.0, +19.5]). Tasks that flipped: 36 gained and 2 lost (replay, greedy), 25 gained and
+* With three seeds the interval over seeds is wide, and a bootstrap over three values cannot contain zero when all
+  three have the same sign, so the "n=3 seeds, established=True" lines above are weak evidence by themselves. The
+  lines to read are the ones paired over tasks (bootstrap over seeds and tasks): PPO + replay is above zero for
+  greedy and sampled actions; PPO alone for sampled actions, and at the boundary for greedy ([+0.0, +19.5]). Tasks that flipped: 36 gained and 2 lost (replay, greedy), 25 gained and
   2 lost (PPO, greedy).
 * The gain is uneven: the seed with the weakest warm start (52%) gained 21–24 points, the strongest (76%) 1–2.
 * It is repair, not discovery. Arms the warm start did partly (deploying a coded service 81%, operating a service
@@ -551,7 +554,8 @@ truncated episodes — and misclassified three real changes as inert; both are k
 ## 12. The sealed final list
 
 `docs/experiments/final_tasks.json` (96 tasks, 12 arms, six world families including two that no training,
-curriculum or selection run ever used; SHA-256 seal `8c20b6e9…`, verified on load) was written before any learning
+curriculum or selection run ever used — Experiment C evaluated in those two families, on other seeds, without
+choosing anything from the result; SHA-256 seal `8c20b6e9…`, verified on load) was written before any learning
 experiment and opened once, after everything above. Which learner to test was decided on the selection split
 (section 4): PPO + replay.
 
@@ -598,7 +602,7 @@ The learner that includes LLM-written content (thirteen arms, section 8) on the 
 | after 4 RL iterations | **70.8%** [61, 79] | 86% | as above except API call 37.5%, repair 37.5%, code 12.5%, deploy from scratch 62.5% |
 
 68 of 96 tasks in both cases. The cloned controller deployed an LLM-written service from nothing in all eight sealed
-deploy tasks, in worlds of families it had never been in. Four RL iterations moved single tasks between arms and
+deploy tasks, some of them in world families it had never been in. Four RL iterations moved single tasks between arms and
 changed nothing overall.
 
 ## 13. What it cost
