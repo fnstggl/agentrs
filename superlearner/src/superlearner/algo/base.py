@@ -35,7 +35,7 @@ class Algorithm:
 
 
 def make(name: str, model, cfg: dict | None = None, device: str = "cpu") -> Algorithm:
-    from . import ppo, sil  # noqa: F401  (registers the built-in algorithms)
+    from . import continual, ppo, sil  # noqa: F401  (registers the built-in algorithms)
     if name not in REGISTRY:
         raise KeyError(f"unknown algorithm {name!r}; known: {sorted(REGISTRY)}")
     return REGISTRY[name](model, cfg, device)

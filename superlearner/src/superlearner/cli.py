@@ -10,6 +10,8 @@
     superlearner lock-final --out FILE               write the sealed final evaluation task list
     superlearner meta-search --config C              run the Meta-Researcher
     superlearner experiment NAME                     run one of the numbered experiments (A-F)
+    superlearner lifetime --config C [--run-dir D]   a lifelong run over phases of tasks (continues where it stopped)
+    superlearner pit base|route|report --config C    the Parametric Internalization Test
 
 (`python -m superlearner ...` works the same when the package is not installed.)
 """
@@ -195,6 +197,34 @@ def cmd_meta(a) -> int:
     return meta_main(a)
 
 
+def apply_sets(cfg: dict, sets) -> dict:
+    for kv in sets or []:
+        k, v = kv.split("=", 1)
+        d = cfg
+        ks = k.split(".")
+        for p in ks[:-1]:
+            d = d.setdefault(p, {})
+        d[ks[-1]] = json.loads(v) if v[:1] in "[{0123456789tfn-\"" else v
+    return cfg
+
+
+def cmd_lifetime(a) -> int:
+    from .continual.lifetime import Lifetime
+    cfg = apply_sets(resolve_llm(load_config(a.config)), a.set)
+    if a.workers is not None:
+        cfg["workers"] = a.workers
+    name = a.name or cfg.get("name") or os.path.splitext(os.path.basename(a.config))[0]
+    cfg["name"] = name
+    rd = a.run_dir or os.path.join(RUNS, name)
+    if a.fresh and os.path.exists(os.path.join(rd, "ckpt", "latest.pt")):
+        os.rename(rd, rd + ".old_" + time.strftime("%m%d_%H%M%S"))
+    res = Lifetime(cfg, rd).run(a.max_steps)
+    d = res.get("derived") or {}
+    print(f"run directory: {rd}\nfinished: {res.get('finished')}  mean final success over seen phases: {d.get('mean_final_seen')}  "
+          f"mean forgetting: {d.get('mean_forgetting')}")
+    return 0
+
+
 def cmd_experiment(a) -> int:
     from .experiments import run_experiment
     return run_experiment(a.name, a)
@@ -230,6 +260,15 @@ def main(argv=None) -> int:
     p.add_argument("--days", type=float); p.add_argument("--adapt-iters", type=int, dest="adapt_iters")
     p.add_argument("--no-llm", action="store_true", dest="no_llm"); p.add_argument("--world", help="self-play world as family:seed (default bazaar:31)")
     p.set_defaults(fn=cmd_experiment)
+    p = sub.add_parser("lifetime"); p.add_argument("--config", required=True); p.add_argument("--run-dir"); p.add_argument("--name")
+    p.add_argument("--set", action="append"); p.add_argument("--workers", type=int); p.add_argument("--fresh", action="store_true")
+    p.add_argument("--max-steps", type=int, dest="max_steps"); p.set_defaults(fn=cmd_lifetime)
+    p = sub.add_parser("pit", help="Parametric Internalization Test (docs/CONTINUAL.md)")
+    p.add_argument("stage", choices=["base", "route", "report"]); p.add_argument("--config", required=True)
+    p.add_argument("--seed", type=int, default=0); p.add_argument("--family"); p.add_argument("--route")
+    p.add_argument("--memory", action="store_true"); p.add_argument("--out-dir", dest="out_dir"); p.add_argument("--set", action="append")
+    p.add_argument("--workers", type=int); p.add_argument("--save-as", dest="save_as")
+    p.set_defaults(fn=lambda a: __import__("superlearner.continual.internalize", fromlist=["main"]).main(a))
     p = sub.add_parser("jobs", help="run a list of jobs under GPU / CPU limits, skipping finished ones (restartable)")
     p.add_argument("file"); p.add_argument("--max-gpu", type=int, dest="max_gpu"); p.add_argument("--max-cpu", type=int, dest="max_cpu")
     p.add_argument("--log-dir", dest="log_dir"); p.add_argument("--only"); p.add_argument("--dry", action="store_true")

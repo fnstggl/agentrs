@@ -29,7 +29,8 @@ def _make_core(job: dict, wcfg: dict, hub):
             hub.reset(TaskSpec.from_dict(job["spec"]))
         return hub
     from ..world.core import CoreConfig, SessionCore
-    return SessionCore(TaskSpec.from_dict(job["spec"]), CoreConfig(**dict(wcfg.get("core") or {}, **(job.get("core") or {}))))
+    return SessionCore(TaskSpec.from_dict(job["spec"]), CoreConfig(**dict(wcfg.get("core") or {}, **(job.get("core") or {}))),
+                       handle=str(job.get("handle") or "agent"))
 
 
 def make_chooser(job: dict):
@@ -119,6 +120,15 @@ def worker_main(conn, wid: int, wcfg: dict) -> None:
             if op == "weights":
                 model.load_state_dict({k: torch.from_numpy(np.asarray(v)) for k, v in msg[1].items()})
                 conn.send(("ok", None))
+            elif op == "wm":
+                from ..cam.worldmodel import WorldModel
+                if agent.live_wm is None:
+                    agent.live_wm = WorldModel(model.cfg.d).eval()
+                agent.live_wm.load_state_dict({k: torch.from_numpy(np.asarray(v)) for k, v in msg[1].items()})
+                conn.send(("ok", None))
+            elif op == "table":
+                store.replace(msg[1][0], msg[1][1])           # the backbone changed: every text vector is new
+                conn.send(("ok", None))
             elif op == "sync":
                 d = msg[1]
                 if d.get("reset"):
@@ -184,6 +194,12 @@ class RolloutPool:
         # numpy arrays are pickled by value; torch tensors would go through /dev/shm, which a confined run cannot use
         self._all(("weights", {k: v.detach().cpu().numpy() for k, v in state_dict.items()}))
 
+    def set_table(self, keys, mat) -> None:
+        self._all(("table", (np.asarray(keys), np.asarray(mat, np.float32))))
+
+    def set_wm(self, state_dict: dict) -> None:
+        self._all(("wm", {k: v.detach().cpu().numpy() for k, v in state_dict.items()}))
+
     def sync(self, mem_new: list, library: dict | None, reset: bool = False) -> None:
         self._all(("sync", {"mem_new": mem_new, "library": library, "reset": reset}))
 
@@ -247,6 +263,15 @@ class LocalPool:
 
     def set_weights(self, state_dict):
         self.model.load_state_dict({k: v.detach().cpu() for k, v in state_dict.items()})
+
+    def set_table(self, keys, mat):
+        self.store.replace(keys, mat)
+
+    def set_wm(self, state_dict):
+        from ..cam.worldmodel import WorldModel
+        if self.agent.live_wm is None:
+            self.agent.live_wm = WorldModel(self.model.cfg.d).eval()
+        self.agent.live_wm.load_state_dict({k: v.detach().cpu() for k, v in state_dict.items()})
 
     def sync(self, mem_new, library, reset=False):
         if reset:

@@ -25,10 +25,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ..grounding.executor import FAILURE_CLASSES
-from .batch import collate, evaluate
-
-FC = ("",) + FAILURE_CLASSES
+from .batch import FC, collate, evaluate
 
 
 class WorldModel(nn.Module):
@@ -55,6 +52,83 @@ class WorldModel(nn.Module):
         return beta_ok * F.logsigmoid(out["ok"]) + beta_gain * out["gain"]
 
 
+def _explore_bonus(self, z, head_e, beta: float = 1.0, beta_ok: float = 0.5):
+    """z [1, d], head_e [1, Nh, d] -> bonus [Nh]: the entropy of the predicted acceptance (how unsure the model is
+    about what the world will do with this action) plus a penalty for actions it is sure will be rejected."""
+    n = head_e.shape[1]
+    with torch.no_grad():
+        ok = self.forward(z.expand(n, -1), head_e[0], torch.zeros_like(head_e[0]))["ok"]
+        p = torch.sigmoid(ok).clamp(1e-4, 1 - 1e-4)
+        ent = -(p * torch.log(p) + (1 - p) * torch.log(1 - p))
+        return beta * ent + beta_ok * F.logsigmoid(ok)
+
+
+WorldModel.explore_bonus = _explore_bonus
+
+
+def discounted_gain(reward: torch.Tensor, valid: torch.Tensor, gamma: float) -> torch.Tensor:
+    B, T = reward.shape
+    gain = torch.zeros_like(reward)
+    run = torch.zeros(B, device=reward.device, dtype=reward.dtype)
+    for t in range(T - 1, -1, -1):
+        run = (reward[:, t] + gamma * run) * valid[:, t].to(reward.dtype)
+        gain[:, t] = run
+    return gain
+
+
+def joint_loss(wm: WorldModel, out: dict, t: dict, gamma: float = 0.995, repr_scale: float = 0.0):
+    """World-model loss on a training batch, computed from the controller's own forward pass (`batch.evaluate`).
+
+    This is how the world model is trained ONLINE as part of the learner: every update of the controller also fits
+    the model to the transitions in the batch (accepted or rejected, successful or not). `repr_scale` is the share
+    of this loss's gradient that flows back into the controller's state z_t: 0 trains the predictor on a fixed
+    representation, a positive value also shapes the shared representation to be predictive of consequences.
+    Targets (the next decision's context encoding) never receive gradients."""
+    v = t["valid"]
+    z = out["z"]
+    if repr_scale <= 0:
+        z = z.detach()
+    elif repr_scale < 1:
+        z = repr_scale * z + (1.0 - repr_scale) * z.detach()
+    eh = out["e_head"] if repr_scale > 0 else out["e_head"].detach()
+    ea = out["e_args"] if repr_scale > 0 else out["e_args"].detach()
+    c = out["c"].detach()
+    nxt = torch.cat([c[:, 1:], torch.zeros_like(c[:, :1])], 1)
+    hn = torch.cat([v[:, 1:], torch.zeros_like(v[:, :1])], 1)
+    d = {"z": z[v], "e_head": eh[v], "e_args": ea[v], "ok": t["ok"][v], "fclass": t["fclass"][v], "reward": t["reward"][v],
+         "next": nxt[v], "gain": discounted_gain(t["reward"], v, gamma)[v], "has_next": hn[v].float()}
+    loss, info = _loss(wm, d, slice(None))
+    with torch.no_grad():
+        pred = wm(d["z"], d["e_head"], d["e_args"])
+        info["ok_acc"] = float(((pred["ok"] > 0).float() == d["ok"]).float().mean()) if len(d["ok"]) else 0.0
+    return loss, {f"wm_{k}": x for k, x in info.items()}
+
+
+@torch.no_grad()
+def heldout_report(model, wm: WorldModel, episodes: list[dict], store, device="cpu", gamma: float = 0.995, chunk: int = 16) -> dict:
+    """Prediction quality of the online world model on transitions it was never trained on, against the trivial
+    predictors fitted on those same transitions (the base rate, the majority class, the mean) - baselines that
+    know the answer distribution, so beating them is not an artefact of a shifted distribution."""
+    was = model.training
+    model.eval()
+    acc: dict = {k: [] for k in ("z", "e_head", "e_args", "ok", "fclass", "reward", "next", "gain", "has_next")}
+    for i in range(0, len(episodes), chunk):
+        b = collate([e["decisions"] for e in episodes[i:i + chunk]], store, device)
+        out = evaluate(model, b, store)
+        v = b.t["valid"]
+        c = out["c"]
+        nxt = torch.cat([c[:, 1:], torch.zeros_like(c[:, :1])], 1)
+        hn = torch.cat([v[:, 1:], torch.zeros_like(v[:, :1])], 1)
+        for k, src in (("z", out["z"]), ("e_head", out["e_head"]), ("e_args", out["e_args"]), ("ok", b.t["ok"]),
+                       ("fclass", b.t["fclass"]), ("reward", b.t["reward"]), ("next", nxt),
+                       ("gain", discounted_gain(b.t["reward"], v, gamma)), ("has_next", hn.float())):
+            acc[k].append(src[v])
+    model.train(was)
+    d = {k: torch.cat(v) for k, v in acc.items()}
+    r = evaluate_model(wm, d, None, device)
+    return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in r.items()}
+
+
 def transitions(model, episodes: list[dict], store, device="cpu", gamma: float = 0.995, chunk: int = 16) -> dict:
     """Recorded decisions -> tensors for the world model (the controller is used frozen, as a feature extractor)."""
     zs, eh, ea, ok, fc, rw, nx, gn, has_next = [], [], [], [], [], [], [], [], []
@@ -73,10 +147,7 @@ def transitions(model, episodes: list[dict], store, device="cpu", gamma: float =
             gain[:, t] = run
         nxt = torch.cat([out["c"][:, 1:], torch.zeros_like(out["c"][:, :1])], 1)
         hn = torch.cat([v[:, 1:], torch.zeros_like(v[:, :1])], 1)
-        cls = torch.zeros(B, T, dtype=torch.long, device=device)
-        for bi, e in enumerate(part):
-            for ti, d in enumerate(e["decisions"]):
-                cls[bi, ti] = FC.index(d.get("fclass", "")) if d.get("fclass", "") in FC else len(FC) - 1
+        cls = b.t["fclass"]
         for name, src in ((zs, out["z"]), (eh, out["e_head"]), (ea, out["e_args"]), (ok, b.t["ok"]), (fc, cls),
                           (rw, b.t["reward"]), (nx, nxt), (gn, gain), (has_next, hn.float())):
             name.append(src[v].detach().cpu())

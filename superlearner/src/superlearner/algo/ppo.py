@@ -74,6 +74,28 @@ class PPO(Algorithm):
         self.n_policy_steps = 0               # optimiser steps that could move the policy (critic warm-up excluded)
         self.lr_scale = 1.0                   # adapted from the measured KL (halved on a rollback, slowly restored)
         self.rollbacks = 0
+        self.extra_params: list = []          # parameters optimised besides the controller's (world model, backbone)
+
+    # ------------------------------------------------------------------ hooks for rules that learn more than a policy
+    def trainable_params(self) -> list:
+        """Everything an optimiser step can change (and a rollback must restore)."""
+        return [p for p in self.model.parameters() if p.requires_grad] + [p for p in self.extra_params if p.requires_grad]
+
+    def extra_loss(self, out, b):
+        """Further loss terms computed from the same forward pass (none in the baseline rule)."""
+        return 0.0, {}
+
+    def backward(self, loss) -> None:
+        loss.backward()
+        live = getattr(self.model, "live", None)
+        if live is not None:
+            live.flush()                      # table gradient -> language-backbone parameters (cam/backbone.py)
+
+    def clip(self) -> None:
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.c["max_grad_norm"])
+        extra = [p for p in self.extra_params if p.grad is not None]
+        if extra:
+            torch.nn.utils.clip_grad_norm_(extra, float(self.c.get("extra_max_grad_norm", self.c["max_grad_norm"])))
 
     # hooks a subclass (or a candidate) can override without touching the loop
     def advantages(self, b):
@@ -138,12 +160,13 @@ class PPO(Algorithm):
                     + 0.5 * ((((ret - v).clamp(min=0)) ** 2) * w).sum() / w.sum().clamp(min=1)
             else:
                 loss = R.replay_loss(out, b, ret, self.rule)
+            xl, _ = self.extra_loss(out, b)
             if not torch.isfinite(loss):
                 continue
             self.set_lr()
             self.opt.zero_grad(set_to_none=True)
-            (coef * loss).backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), self.c["max_grad_norm"])
+            self.backward(coef * loss + xl)
+            self.clip()
             self.opt.step()
             self.n_updates += 1
             self.n_policy_steps += 1
@@ -192,6 +215,9 @@ class PPO(Algorithm):
                 b, adv, ret, boot = prep[i]
                 out = evaluate(model, b)
                 loss, info = self.loss(out, b, adv, ret, boot)
+                xl, xi = self.extra_loss(out, b)
+                loss = loss + xl
+                info.update(xi)
                 if demo_mbs:
                     db = demo_mbs[int(self.rng.integers(0, len(demo_mbs)))]
                     dout = evaluate(model, db)
@@ -203,12 +229,13 @@ class PPO(Algorithm):
                     nonfinite += 1
                     continue
                 guard = bool(c["target_kl"]) and bool(c["kl_rollback"]) and self.n_calls > c["critic_warmup"]
-                prev = [p_.detach().clone() for p_ in model.parameters()] if guard else None
+                tp = self.trainable_params()
+                prev = [p_.detach().clone() for p_ in tp] if guard else None
                 self.set_lr()
                 self.opt.zero_grad(set_to_none=True)
-                loss.backward()
+                self.backward(loss)
                 gns.append(grad_norm(model))
-                torch.nn.utils.clip_grad_norm_(model.parameters(), c["max_grad_norm"])
+                self.clip()
                 self.opt.step()
                 self.n_updates += 1
                 if self.n_calls > c["critic_warmup"]:
@@ -224,7 +251,7 @@ class PPO(Algorithm):
                     info["kl"] = kl_after
                     if not np.isfinite(kl_after) or kl_after > 1.5 * c["target_kl"]:
                         with torch.no_grad():
-                            for p_, q_ in zip(model.parameters(), prev):
+                            for p_, q_ in zip(tp, prev):
                                 p_.copy_(q_)
                         self.lr_scale = max(self.lr_scale * 0.5, 1e-3)
                         self.rollbacks += 1

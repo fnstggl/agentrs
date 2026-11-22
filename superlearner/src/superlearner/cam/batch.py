@@ -16,8 +16,11 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 
+from ..grounding.executor import FAILURE_CLASSES
 from .features import N_NUM, OBS_DIM, T_TOK
 from .model import CAMController, EmbStore, masked_entropy
+
+FC = ("",) + tuple(FAILURE_CLASSES)        # outcome classes of a decision: accepted, or one failure class
 
 AUX_DIM = 16
 
@@ -57,7 +60,7 @@ def collate(episodes: list[list[dict]], store: EmbStore, device="cpu", success: 
          "opt_mask": z((B, T, S, No), bool), "c": np.full((B, T, S), -1, np.int64),
          "valid": z((B, T), bool), "logp_old": z((B, T), np.float32), "value_old": z((B, T), np.float32),
          "reward": z((B, T), np.float32), "done": z((B, T), np.float32), "trunc": z((B, T), np.float32),
-         "ok": z((B, T), np.float32)}
+         "ok": z((B, T), np.float32), "fclass": z((B, T), np.int64)}
     for b, ep in enumerate(episodes):
         for t, d in enumerate(ep):
             n = len(d["ctx"]["ek"])
@@ -95,6 +98,8 @@ def collate(episodes: list[list[dict]], store: EmbStore, device="cpu", success: 
             a["done"][b, t] = float(d.get("done", False))
             a["trunc"][b, t] = float(d.get("trunc", False))
             a["ok"][b, t] = float(d.get("ok", False))
+            fc = d.get("fclass", "") or ""
+            a["fclass"][b, t] = FC.index(fc) if fc in FC else len(FC) - 1
     out = {}
     for k, v in a.items():
         if k.endswith("_ek"):
@@ -109,7 +114,12 @@ def evaluate(model: CAMController, batch: Batch, store: EmbStore | None = None) 
     t = batch.t
     B, T = t["valid"].shape
     N = B * T
-    if store is not None:
+    live = getattr(model, "live", None)
+    if live is not None:
+        # the learner has its own language backbone: the embeddings of the texts this batch uses are recomputed
+        # from the backbone's current weights (and, when it is trainable, receive gradients; cam/backbone.py)
+        live.attach(model, t)
+    elif store is not None:
         model.set_table(store.tensor(t["valid"].device))
 
     def flat(k):

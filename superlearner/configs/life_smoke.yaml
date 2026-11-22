@@ -1,0 +1,23 @@
+# CPU-only smoke lifetime: no language model (hash embeddings), tiny controller, three short phases.
+#   superlearner lifetime --config configs/life_smoke.yaml
+name: life_smoke
+seed: 0
+device: cpu
+workers: 0
+llm: {kind: none}
+model: {d: 64, layers: 2, heads: 4, ff: 128, bag_dim: 32, hid: 64}
+agent: {use_llm: false, affinity_tokens: true}
+core: {max_decisions: 10}
+algo: {name: continual, lr: 0.0003, epochs: 2, minibatch_eps: 4, target_kl: 0.05, critic_warmup: 0, detach_critic: true,
+       sil_steps: 2, sil_batch: 4, sil_coef: 1.0,
+       wm: {enabled: true, replay_steps: 2, replay_batch: 4}, rehearsal: {keep: true, per_arm: 16},
+       anchor: {kind: ewc, coef: 100.0, fisher_episodes: 8}, observe: {steps: 24, lr: 0.001}}
+lifetime:
+  wm_holdout: 3
+  probe_episodes: 4
+  probe_steps: 5
+  eval: {per_arm: 2, unseen_worlds: [], unseen_per_arm: 2}
+  phases:
+    - {name: found, arms: [found/0/scratch], worlds: [tiny], demos_per_arm: 3, observe_steps: 24, iters: 1, episodes_per_iter: 6}
+    - {name: fund, arms: [fund/0/scratch], worlds: [tiny], demos_per_arm: 3, observe_steps: 24, iters: 1, episodes_per_iter: 6}
+    - {name: list, arms: [list/0/deployed], worlds: [tiny], demos_per_arm: 2, observe_steps: 16, iters: 1, episodes_per_iter: 6}

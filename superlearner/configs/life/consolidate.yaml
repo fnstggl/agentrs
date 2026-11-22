@@ -1,0 +1,7 @@
+# Condition 4: trainable core with rehearsal (per-arm reservoirs of verified successes kept across phases and
+# replayed) and consolidation (importance-weighted anchors, estimated at the end of every phase).
+base: base.yaml
+name: life_consolidate
+algo:
+  rehearsal: {keep: true, per_arm: 120}
+  anchor: {kind: ewc, coef: 2000.0, decay: 1.0, fisher_episodes: 64, top_frac: 1.0}

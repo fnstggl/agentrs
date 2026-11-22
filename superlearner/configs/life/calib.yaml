@@ -1,0 +1,14 @@
+# Calibration of the consolidation coefficient on a short three-phase lifetime (anchors only, no rehearsal), so the
+# main comparison uses a coefficient that was chosen before it ran. See docs/experiments/NOTES.md.
+base: base.yaml
+name: life_calib
+workers: 8
+algo:
+  rehearsal: {keep: false, per_arm: 120}
+  anchor: {kind: ewc, coef: 0.0, decay: 1.0, fisher_episodes: 64, top_frac: 1.0}
+lifetime:
+  eval: {per_arm: 6, unseen_worlds: [], sampled: false}
+  phases:
+    - {name: start,   arms: [found/0/scratch, list/0/deployed], worlds: [tiny, bazaar], demos_per_arm: 4, observe_steps: 160, iters: 2, episodes_per_iter: 48}
+    - {name: capital, arms: [fund/0/scratch, deploy/0/coded], worlds: [tiny, bazaar], demos_per_arm: 4, observe_steps: 120, iters: 2, episodes_per_iter: 48}
+    - {name: operate, arms: [service/0/listed, repair/0/scratch], worlds: [cheap_compute_closed_markets], demos_per_arm: 4, observe_steps: 120, iters: 2, episodes_per_iter: 48}

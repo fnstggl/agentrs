@@ -71,6 +71,8 @@ class AgentConfig:
     plan_with_world_model: str = ""   # path of a trained world model: one-step lookahead re-ranks the head choice
     plan_beta_ok: float = 1.0
     plan_beta_gain: float = 1.0
+    explore_beta: float = 0.0         # > 0: choose experiments - favour heads whose outcome the online world model
+    explore_beta_ok: float = 0.5      #      cannot predict, and avoid heads it is sure the world will reject
 
 
 class Chooser:
@@ -147,6 +149,8 @@ class CAMAgent:
         self.memory = memory if memory is not None else EpisodicMemory()
         self.device = device
         self._pending: dict[int, str] = {}
+        self._txt: dict[int, str] = {}      # key -> text of what was embedded this episode (for a trainable backbone)
+        self.live_wm = None                 # the learner's online world model (sent by the trainer), if any
         self.state = None
         self.human = False          # also record a readable trace of every decision (for inspection)
 
@@ -173,6 +177,7 @@ class CAMAgent:
         if not self._pending:
             return
         keys, texts = list(self._pending), list(self._pending.values())
+        self._txt.update(self._pending)
         vecs = self.llm.embed(texts)
         for k, v in zip(keys, vecs):
             self.store.put(k, v)
@@ -569,6 +574,8 @@ class CAMAgent:
             wm = self._world_model()
             if wm is not None:          # hypothetical one-step rollouts in latent space, before acting
                 hlog = (lsm + wm.plan_bonus(z, he, self.cfg.plan_beta_ok, self.cfg.plan_beta_gain)).cpu().numpy()
+            if self.cfg.explore_beta > 0 and self.live_wm is not None:
+                hlog = (lsm + self.live_wm.explore_bonus(z, he, self.cfg.explore_beta, self.cfg.explore_beta_ok)).cpu().numpy()
             vals = m.values(z)[0]
             rec["value"], rec["vstd"] = float(vals.mean()), float(vals.std())
             rec["p_succ"] = float(torch.sigmoid(m.p_success(z))[0])
@@ -726,6 +733,7 @@ class CAMAgent:
     # ================================================================== whole episode
     def run(self, core, chooser: Chooser, episode_id: str = "", learn: bool = True, max_decisions: int = 10_000) -> dict:
         mark = self.store.n
+        self._txt = {}
         self.begin(core, episode_id, learn)
         while len(self.decisions) < max_decisions:
             r = self.step(chooser)
@@ -745,7 +753,8 @@ class CAMAgent:
         summ.update(agent=self.exec.stats(), llm=dict(self.llm_use), heads=kinds, chooser=chooser.name,
                     lib_size=len(self.library.tools), mem_size=len(self.memory), episode=episode_id,
                     tools_used=sorted({d["tool"] for d in self.decisions if d["kind"] == "tool"}))
-        return {"summary": summ, "decisions": self.decisions, "emb_new": self.store.items_since(mark)}
+        return {"summary": summ, "decisions": self.decisions, "emb_new": self.store.items_since(mark),
+                "txt_new": list(self._txt.items())}
 
 
 class _Lib:

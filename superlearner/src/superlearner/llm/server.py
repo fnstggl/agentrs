@@ -310,11 +310,62 @@ class EmbedOnly(LLM):
         return self.emb.embed(texts)
 
 
+class BackboneClient(LLM):
+    """Text embeddings from the learner's own (possibly trainable) language backbone, served by the training
+    process (`cam/backbone.py:EmbedService`). Nothing is cached here across weight versions: the worker's
+    embedding store is replaced whenever the backbone changes. Generation, if a run needs it, goes to `gen`
+    (the frozen generator's client); without one there is no generation."""
+
+    def __init__(self, socket_path: str, gen: LLM | None = None):
+        self.socket_path, self.gen = socket_path, gen
+        self._conn, self._pid = None, None
+        self.name = "backbone"
+        self.stats = {"embed_texts": 0, "embed_requests": 0}
+
+    def _c(self):
+        if self._conn is None or self._pid != os.getpid():
+            from ..cam.backbone import EmbedService
+            self._conn = Client(self.socket_path, family="AF_UNIX", authkey=EmbedService.AUTH)
+            self._pid = os.getpid()
+        return self._conn
+
+    def embed(self, texts):
+        if not len(texts):
+            return np.zeros((0, 512), np.float32)
+        c = self._c()
+        c.send(("embed", list(texts)))
+        st, out = c.recv()
+        if st != "ok":
+            raise RuntimeError(f"backbone embedding service: {out}")
+        self.stats["embed_texts"] += len(texts)
+        self.stats["embed_requests"] += 1
+        return out
+
+    def generate(self, messages, max_new_tokens=512, variant=0, think=False):
+        if self.gen is None:
+            return GenResult("{}", 0, 0)
+        return self.gen.generate(messages, max_new_tokens, variant, think)
+
+    def generate_many(self, items):
+        if self.gen is not None and hasattr(self.gen, "generate_many"):
+            return self.gen.generate_many(items)
+        return [self.generate(*it) for it in items]
+
+    def usage(self):
+        u = dict(self.gen.usage()) if self.gen is not None else {}
+        u.update(self.stats)
+        return u
+
+
 def connect(spec: dict | None) -> LLM:
     """Build the LLM client a run asked for. ``{"kind": "remote", "socket": ..., "cache": ...}``,
-    ``{"kind": "hf", "model": ..., "cache": ...}`` (in-process), ``{"kind": "none"}`` (hash embeddings, no generation)."""
+    ``{"kind": "hf", "model": ..., "cache": ...}`` (in-process), ``{"kind": "none"}`` (hash embeddings, no generation),
+    ``{"kind": "backbone", "socket": ..., "gen": {...}}`` (embeddings from the learner's own backbone)."""
     spec = spec or {"kind": "none"}
     kind = spec.get("kind", "none")
+    if kind == "backbone":
+        gen = spec.get("gen")
+        return BackboneClient(spec["socket"], connect(gen) if gen and gen.get("kind", "none") != "none" else None)
     if kind == "remote":
         return RemoteLLM(spec["socket"], spec.get("cache"))
     if kind == "hf":

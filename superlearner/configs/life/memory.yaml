@@ -1,0 +1,4 @@
+# Condition 3: trainable core (as `naive`) plus episodic memory and agent-made tools, in training and evaluation.
+base: base.yaml
+name: life_memory
+lifetime: {memory: true}

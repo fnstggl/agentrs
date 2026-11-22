@@ -1,0 +1,3 @@
+# Condition 2: trainable core, no protection (each phase's updates use only that phase's data), no episodic memory.
+base: base.yaml
+name: life_naive

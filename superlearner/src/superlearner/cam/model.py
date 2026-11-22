@@ -73,6 +73,16 @@ class EmbStore:
     def has(self, key: int) -> bool:
         return int(key) in self.key2row
 
+    def replace(self, keys, mat: np.ndarray) -> None:
+        """Drop everything and take these vectors instead (all embeddings changed: the backbone was updated)."""
+        self.mat = np.zeros((max(4096, 2 * (len(keys) + 1)), self.dim), np.float32)
+        self.key2row = {0: 0}
+        self.n = 1
+        self._tensor = None
+        self._row2key = None
+        for k, v in zip(keys, mat):
+            self.put(int(k), v)
+
     def rows(self, keys: np.ndarray) -> np.ndarray:
         flat = np.asarray(keys, np.int64).reshape(-1)
         uniq, inv = np.unique(flat, return_inverse=True)

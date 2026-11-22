@@ -1,0 +1,6 @@
+# Condition 5 (broader backbone weight updates): as `consolidate`, and the language backbone itself is trained
+# by the same updates (mode: top:4). The frozen counterpart with the same backbone is `consolidate`.
+base: consolidate.yaml
+name: life_backbone_top4
+backbone: {mode: "top:4"}
+algo: {backbone_lr: 0.00001}

@@ -1,0 +1,6 @@
+# Condition 1: frozen neural core plus written memory. The weights are trained in the first phase (with episodic
+# memory and tool-making on, so the controller knows how to use them) and never change again; in later phases the
+# demonstrations and the agent's own episodes are written to episodic memory and its tool library only.
+base: base.yaml
+name: life_frozen_memory
+lifetime: {memory: true, freeze_after: 0}

@@ -1,0 +1,11 @@
+# CPU-only smoke version of the Parametric Internalization Test (tiny controller, hash embeddings).
+base: life_smoke.yaml
+name: pit_smoke
+pit:
+  base_phase: {arms: [found/0/scratch], worlds: [tiny], demos_per_arm: 3, observe_steps: 40, iters: 1, episodes_per_iter: 6}
+  families:
+    - {name: fund, arms: [fund/0/scratch], related: [list/0/deployed]}
+  routes:
+    observe: {demos_per_arm: 3, observe_steps: 40, iters: 0}
+    frozen_memory: {demos_per_arm: 2, iters: 1, episodes_per_iter: 4, memory: true, freeze: true}
+  eval: {n: 3, n_unseen: 2, n_related: 2, n_familiar: 2, unseen_worlds: [tiny], handle_control: pilot}

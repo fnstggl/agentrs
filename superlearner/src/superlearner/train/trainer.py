@@ -160,11 +160,31 @@ class Trainer:
         self.demos: list[dict] = []
         self.wall = {"rollout_s": 0.0, "update_s": 0.0, "eval_s": 0.0}
         self.llm_usage: dict = {}
-        wcfg = {"llm": c["llm"], "model": c["model"], "agent": c["agent"], "core": c["core"],
+        # The learner's own language backbone (cam/backbone.py), if the run has one: it embeds every text the
+        # controller reads, serves those embeddings to the rollout workers, and - when a mode other than `none` is
+        # chosen - is trained by the same optimiser steps as the controller.
+        self.backbone, self.live, self.embed_service = None, None, None
+        self.texts: dict[int, str] = {}
+        self._table_version = 0
+        worker_llm = c["llm"]
+        bc = c.get("backbone") or {}
+        if bc.get("model"):
+            from ..cam.backbone import EmbedService, LiveTable, TextBackbone
+            self.backbone = TextBackbone(bc["model"], bc.get("mode", "none"), self.device,
+                                         lora_rank=int(bc.get("lora_rank", 8)), chunk_tokens=int(bc.get("chunk_tokens", 6000)))
+            self.live = LiveTable(self.backbone, self.store, self.texts)
+            self.model.live = self.live
+            sock = os.path.join(os.path.dirname(os.path.abspath(run_dir)), f".bb{os.getpid()}.sock")
+            self.embed_service = EmbedService(self.backbone, sock)
+            worker_llm = {"kind": "backbone", "socket": sock, "gen": c["llm"] if c["llm"].get("kind") == "remote" else None}
+            if hasattr(self.algo, "attach_backbone"):
+                self.algo.attach_backbone(self.backbone)
+        wcfg = {"llm": worker_llm, "model": c["model"], "agent": c["agent"], "core": c["core"],
                 "env_socket": c.get("env_socket")}
         start = "fork" if (os.environ.get("SUPERLEARNER_ISOLATED") or self.device == "cpu") else "spawn"
         self.pool = pool or (RolloutPool(c["workers"], wcfg, start) if c["workers"] > 0 else LocalPool(wcfg))
         self._errors_logged = 0
+        self.extra: dict = {}          # further state a caller wants saved with (and restored from) checkpoints
         self.theta0 = flat_params(self.model).clone()
         if resume and os.path.exists(os.path.join(run_dir, "ckpt", "latest.pt")):
             self.load(os.path.join(run_dir, "ckpt", "latest.pt"))
@@ -172,7 +192,8 @@ class Trainer:
         else:
             json.dump(self.cfg, open(os.path.join(run_dir, "config.json"), "w"), indent=1)
             json.dump({"code": code_hashes(), "git": git_commit(), "torch": torch.__version__, "device": self.device,
-                       "params": self.model.n_params(), "started": time.time()},
+                       "params": self.model.n_params(), "started": time.time(),
+                       "backbone": self.backbone.n_params() if self.backbone is not None else None},
                       open(os.path.join(run_dir, "meta.json"), "w"), indent=1)
 
     # ------------------------------------------------------------------ plumbing
@@ -209,6 +230,8 @@ class Trainer:
         for e in good:
             for k, v in e.get("emb_new", []):
                 self.store.put(k, v)
+            for k, t in e.get("txt_new", []):
+                self.texts.setdefault(int(k), t)
             for it in e.get("mem_new", []):
                 if self.cfg["memory"]["enabled"]:
                     self.memory.items.append(it)
@@ -229,8 +252,21 @@ class Trainer:
             self._errors_logged = len(self.pool.errors)
         return good
 
+    def refresh_embeddings(self) -> None:
+        """Call after the weights changed. With a trainable backbone every stored text vector is now stale: they
+        are recomputed from the new weights, and the workers receive the new table at the next sync."""
+        if self.backbone is not None and self.backbone.trainable:
+            self.live.refresh_store()
+
     def sync_workers(self) -> None:
         self.pool.set_weights(self.model.state_dict())
+        if self.backbone is not None and self.backbone.trainable and self._table_version != self.backbone.version:
+            inv = sorted(self.store.key2row.items(), key=lambda kv: kv[1])
+            self.pool.set_table(np.array([k for k, _ in inv if k != 0], np.int64), self.store.mat[1: self.store.n].copy())
+            self._table_version = self.backbone.version
+        wm = getattr(self.algo, "wm", None)
+        if wm is not None and "wm" in list((self.cfg.get("explore") or {}).get("modes") or []):
+            self.pool.set_wm(wm.state_dict())
         new = self.memory.items[self.mem_synced:]
         self.pool.sync(new, self.library.state_dict(), reset=False)
         self.mem_synced = len(self.memory.items)
@@ -352,12 +388,32 @@ class Trainer:
         jobs = [{"spec": s.to_dict(), "mode": "sample", "seed": int(self.rng.integers(0, 2**31 - 1)),
                  "episode_id": f"it{self.iter}e{i}", "learn": True, "temperature": c.get("temperature", 1.0),
                  "human": i < c["traj_per_iter"], "tag": "train"} for i, s in enumerate(specs)]
-        eps = self.absorb(self.pool.run(jobs))
+        # Exploratory episodes (`explore.frac` of the iteration): the policy sampled at a high temperature, or
+        # uniformly random choices. They are experience for the world model (consequences of actions the policy
+        # would not take) and for the reservoir of successes; they are not on-policy data, so rules that separate
+        # the two (algo/continual.py) keep them out of the policy-gradient term.
+        ex = c.get("explore") or {}
+        n_ex = min(len(jobs), int(round(float(ex.get("frac", 0.0)) * len(jobs))))
+        modes = list(ex.get("modes") or (["hot", "random"] if ex.get("random", True) else ["hot"]))
+        for j, job in enumerate(jobs[len(jobs) - n_ex:]):
+            how = modes[j % len(modes)]
+            if how == "random":
+                job.update(mode="random", tag="explore")
+            elif how == "wm":           # experiments chosen with the online world model (cam/worldmodel.py:explore_bonus)
+                job.update(agent={"explore_beta": float(ex.get("beta", 2.0))}, tag="explore")
+            else:
+                job.update(temperature=float(ex.get("temperature", 2.5)), tag="explore")
+        raw = self.pool.run(jobs)
+        for job, e in zip(jobs, raw):
+            if e is not None and job["tag"] == "explore":
+                e["summary"]["explore"] = True
+        eps = self.absorb(raw)
         t_roll = time.time() - t0
         for e in eps:
-            self.curriculum.update(e["summary"], float(np.mean([d["vstd"] for d in e["decisions"]])) if e["decisions"] else 0.0)
+            if not e["summary"].get("explore"):
+                self.curriculum.update(e["summary"], float(np.mean([d.get("vstd", 0.0) for d in e["decisions"]])) if e["decisions"] else 0.0)
             self.log("episodes.jsonl", dict(e["summary"], iter=self.iter))
-        self.save_traj(f"train_iter{self.iter:04d}", [e for e in eps if "human" in e["decisions"][0]][: c["traj_per_iter"]])
+        self.save_traj(f"train_iter{self.iter:04d}", [e for e in eps if e["decisions"] and "human" in e["decisions"][0]][: c["traj_per_iter"]])
         keep = int(c.get("store_episodes_iters", 0))
         if keep and eps:       # training-format trajectory store: the last `keep` iterations, with every decision record
             os.makedirs(os.path.join(self.dir, "replay"), exist_ok=True)
@@ -370,14 +426,18 @@ class Trainer:
         t0 = time.time()
         before = flat_params(self.model).clone()
         m = self.safe_update(eps) if eps else {}
+        self.refresh_embeddings()
         t_upd = time.time() - t0
         self.iter += 1
         self.env_decisions += sum(len(e["decisions"]) for e in eps)
         self.episodes += len(eps)
         self.wall["rollout_s"] += t_roll
         self.wall["update_s"] += t_upd
+        own = [e for e in eps if not e["summary"].get("explore")]
         rec = {"phase": "rl", "iter": self.iter, "env_decisions": self.env_decisions, "episodes": self.episodes,
-               "rollout_s": round(t_roll, 2), "update_s": round(t_upd, 2), **{f"train_{k}": v for k, v in summarize(eps).items()},
+               "rollout_s": round(t_roll, 2), "update_s": round(t_upd, 2), **{f"train_{k}": v for k, v in summarize(own).items()},
+               "explore_episodes": len(eps) - len(own),
+               "explore_success": float(np.mean([e["summary"]["success"] for e in eps if e["summary"].get("explore")] or [0.0])),
                **m, "param_dist_from_init": float((flat_params(self.model) - self.theta0).norm()),
                "weights_changed": bool((flat_params(self.model) != before).any()),
                "curriculum": self.curriculum.table(), "memory": len(self.memory), "tools": len(self.library.tools),
@@ -425,7 +485,7 @@ class Trainer:
         """`algo.update`, surviving a GPU out-of-memory error caused by OTHER processes on a shared GPU: the weights
         and optimiser are restored to their state before the update, cached GPU memory is released, and the same
         update is tried again after a pause. The number of retries is logged."""
-        if self.device == "cpu":
+        if self.device == "cpu" or (self.backbone is not None and self.backbone.trainable):
             return self.algo.update(eps, self.store, self.demos or None)
         snap_m = {k: v.detach().cpu().clone() for k, v in self.model.state_dict().items()}
         snap_a = pickle.dumps(self.algo.state_dict())
@@ -477,7 +537,9 @@ class Trainer:
         self.save()
 
     # ------------------------------------------------------------------ checkpoints
-    def save(self, name: str | None = None) -> str:
+    def save(self, name: str | None = None, inline: bool = False) -> str:
+        """`inline=True` writes ONE file that holds everything a restart needs (weights, optimiser, replay buffers,
+        the caller's `extra` state), replacing the previous one atomically - the form a lifelong learner uses."""
         inv = sorted(self.store.key2row.items(), key=lambda kv: kv[1])
         ck = {"model": self.model.state_dict(), "model_cfg": self.model.cfg.to_dict(), "algo": self.algo.state_dict(),
               "algo_name": self.algo.name, "store_keys": np.array([k for k, _ in inv], np.int64),
@@ -485,16 +547,30 @@ class Trainer:
               "library": self.library.state_dict(), "curriculum": self.curriculum.state_dict(), "iter": self.iter,
               "env_decisions": self.env_decisions, "episodes": self.episodes, "wall": self.wall, "cfg": self.cfg,
               "rng": self.rng.bit_generator.state, "torch_rng": torch.get_rng_state(), "theta0": self.theta0.cpu(),
-              "code": code_hashes(), "demos_n": len(self.demos)}
+              "code": code_hashes(), "demos_n": len(self.demos), "texts": dict(self.texts),
+              "backbone": self.backbone.n_params() if self.backbone is not None else None}
         buf = list(getattr(self.algo, "buffer", []) or [])
         ck["replay_n"] = len(buf)
         path = os.path.join(self.dir, "ckpt", name or f"iter_{self.iter:04d}.pt")
+        if inline:
+            ck["buffers"] = self.algo.buffers_state() if hasattr(self.algo, "buffers_state") else {"buffer": buf}
+            ck["extra"] = self.extra
+            torch.save(ck, path + ".tmp")
+            if self.backbone is not None and self.backbone.trainable:
+                torch.save(self.backbone.trainable_state(), path + ".backbone.tmp")
+                os.replace(path + ".backbone.tmp", path + ".backbone.pt")
+            os.replace(path + ".tmp", path)
+            return path
         torch.save(ck, path)
         # the buffer of the agent's own verified successes belongs to the learner's state: without it a resumed
         # run that replays would start from an empty buffer. One copy next to the checkpoint a run resumes from.
         resume_from = path if name is not None else os.path.join(self.dir, "ckpt", "latest.pt")
         if name is None:
             torch.save(ck, resume_from)
+        if self.backbone is not None and self.backbone.trainable:       # only what learning changed in the backbone
+            for p_ in {path, resume_from}:
+                torch.save(self.backbone.trainable_state(), p_ + ".backbone.tmp")
+                os.replace(p_ + ".backbone.tmp", p_ + ".backbone.pt")
         if hasattr(self.algo, "buffer"):
             tmp = resume_from + ".replay.pkl.gz.tmp"
             with gzip.open(tmp, "wb", compresslevel=1) as f:
@@ -509,6 +585,12 @@ class Trainer:
 
     def _load(self, path: str, weights: bool = True, memory: bool = True, optimizer: bool = True) -> dict:
         ck = torch.load(path, map_location=self.device, weights_only=False)
+        self.texts.update(ck.get("texts") or {})
+        bbp = path + ".backbone.pt"
+        if self.backbone is not None and self.backbone.trainable and weights and os.path.exists(bbp):
+            self.backbone.load_trainable_state(torch.load(bbp, map_location="cpu", weights_only=False))
+            keep = [(int(k), row) for k, row in zip(ck["store_keys"], ck["store_mat"]) if int(k) != 0]
+            self.store.replace([k for k, _ in keep], [r for _, r in keep])   # vectors of the restored weights
         for k, row in zip(ck["store_keys"], ck["store_mat"]):
             if int(k) != 0:
                 self.store.put(int(k), row)
@@ -517,7 +599,12 @@ class Trainer:
             if optimizer and ck.get("algo_name") == self.algo.name:
                 self.algo.load_state_dict(ck["algo"])
                 bp = path + ".replay.pkl.gz"
-                if hasattr(self.algo, "buffer") and os.path.exists(bp):
+                if ck.get("buffers") is not None:
+                    if hasattr(self.algo, "load_buffers_state"):
+                        self.algo.load_buffers_state(ck["buffers"])
+                    else:
+                        self.algo.buffer = list(ck["buffers"].get("buffer", []))
+                elif hasattr(self.algo, "buffer") and os.path.exists(bp):
                     with gzip.open(bp, "rb") as f:
                         b = pickle.load(f)
                     if b.get("iter") == ck["iter"]:
@@ -530,6 +617,8 @@ class Trainer:
             self.pool.sync(self.memory.items, self.library.state_dict(), reset=True)
             self.mem_synced = len(self.memory.items)
         self.curriculum.load_state_dict(ck["curriculum"])
+        if ck.get("extra") is not None:
+            self.extra = ck["extra"]
         self.iter, self.env_decisions, self.episodes = ck["iter"], ck["env_decisions"], ck["episodes"]
         self.wall = ck.get("wall", self.wall)
         self.rng.bit_generator.state = ck["rng"]
@@ -544,3 +633,5 @@ class Trainer:
 
     def close(self) -> None:
         self.pool.close()
+        if self.embed_service is not None:
+            self.embed_service.close()

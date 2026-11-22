@@ -1,0 +1,11 @@
+# Short end-to-end check of a lifetime with a fully trainable backbone on the GPU (minutes).
+base: backbone_full.yaml
+name: life_dry
+lifetime:
+  wm_holdout: 4
+  probe_episodes: 6
+  probe_steps: 10
+  eval: {per_arm: 3, unseen_worlds: [], unseen_per_arm: 2}
+  phases:
+    - {name: start, arms: [found/0/scratch, list/0/deployed], worlds: [tiny, bazaar], demos_per_arm: 3, observe_steps: 120, iters: 2, episodes_per_iter: 32}
+    - {name: capital, arms: [fund/0/scratch, deploy/0/coded], worlds: [tiny, bazaar], demos_per_arm: 3, observe_steps: 80, iters: 2, episodes_per_iter: 32}
