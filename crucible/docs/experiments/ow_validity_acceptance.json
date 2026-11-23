@@ -2,7 +2,7 @@
  "families": {
   "abm_commons": {
    "accepted": 12,
-   "cpu_s_per_mechanism": 31.37,
+   "cpu_s_per_mechanism": 25.28,
    "engine": "abm",
    "n": 12,
    "rate": 1.0,
@@ -13,11 +13,11 @@
    },
    "split": "val",
    "transfer": "structural",
-   "wall_s": 1756.1
+   "wall_s": 756.5
   },
   "abm_complement": {
    "accepted": 8,
-   "cpu_s_per_mechanism": 35.18,
+   "cpu_s_per_mechanism": 27.63,
    "engine": "abm",
    "n": 12,
    "rate": 0.6666666666666666,
@@ -31,11 +31,11 @@
    },
    "split": "val",
    "transfer": "structural",
-   "wall_s": 1993.7
+   "wall_s": 810.0
   },
   "abm_congestion": {
    "accepted": 12,
-   "cpu_s_per_mechanism": 19.22,
+   "cpu_s_per_mechanism": 14.42,
    "engine": "abm",
    "n": 12,
    "rate": 1.0,
@@ -46,11 +46,11 @@
    },
    "split": "train",
    "transfer": "base",
-   "wall_s": 1049.4
+   "wall_s": 400.3
   },
   "abm_duopoly": {
    "accepted": 12,
-   "cpu_s_per_mechanism": 31.0,
+   "cpu_s_per_mechanism": 23.67,
    "engine": "abm",
    "n": 12,
    "rate": 1.0,
@@ -61,18 +61,16 @@
    },
    "split": "train",
    "transfer": "base",
-   "wall_s": 1701.5
+   "wall_s": 750.0
   },
   "abm_duopoly_fx": {
    "accepted": 6,
-   "cpu_s_per_mechanism": 44.32,
+   "cpu_s_per_mechanism": 36.07,
    "engine": "abm",
    "n": 12,
    "rate": 0.5,
    "reasons": {
-    "conservation": 1,
-    "difficulty": 6,
-    "exploits": 1
+    "difficulty": 6
    },
    "seats": 2,
    "solvable": {
@@ -81,18 +79,16 @@
    },
    "split": "test",
    "transfer": "structural",
-   "wall_s": 2383.5
+   "wall_s": 1270.6
   },
   "abm_network_fx": {
-   "accepted": 8,
-   "cpu_s_per_mechanism": 21.46,
+   "accepted": 11,
+   "cpu_s_per_mechanism": 16.92,
    "engine": "abm",
    "n": 12,
-   "rate": 0.6666666666666666,
+   "rate": 0.9166666666666666,
    "reasons": {
-    "conservation": 3,
-    "difficulty": 1,
-    "exploits": 3
+    "difficulty": 1
    },
    "seats": 1,
    "solvable": {
@@ -100,11 +96,11 @@
    },
    "split": "test",
    "transfer": "structural",
-   "wall_s": 1148.5
+   "wall_s": 517.0
   },
   "abm_segments": {
    "accepted": 12,
-   "cpu_s_per_mechanism": 25.38,
+   "cpu_s_per_mechanism": 23.84,
    "engine": "abm",
    "n": 12,
    "rate": 1.0,
@@ -115,13 +111,285 @@
    },
    "split": "test",
    "transfer": "compositional",
-   "wall_s": 1399.0
+   "wall_s": 1026.4
+  },
+  "abm_trust_gate": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 20.28,
+   "engine": "abm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "val",
+   "transfer": "structural",
+   "wall_s": 800.2
+  },
+  "abm_utility": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 11.44,
+   "engine": "abm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "train",
+   "transfer": "base",
+   "wall_s": 294.2
+  },
+  "abm_wom": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 22.0,
+   "engine": "abm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "train",
+   "transfer": "base",
+   "wall_s": 713.9
+  },
+  "scm_additive": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 1.29,
+   "engine": "scm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "train",
+   "transfer": "base",
+   "wall_s": 47.0
+  },
+  "scm_delay": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 1.59,
+   "engine": "scm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "train",
+   "transfer": "base",
+   "wall_s": 54.0
+  },
+  "scm_delay_gate": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 1.59,
+   "engine": "scm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "val",
+   "transfer": "compositional",
+   "wall_s": 51.7
+  },
+  "scm_feedback": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 2.0,
+   "engine": "scm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "test",
+   "transfer": "structural",
+   "wall_s": 91.0
+  },
+  "scm_gate": {
+   "accepted": 11,
+   "cpu_s_per_mechanism": 1.47,
+   "engine": "scm",
+   "n": 12,
+   "rate": 0.9166666666666666,
+   "reasons": {
+    "claims": 1
+   },
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "train",
+   "transfer": "base",
+   "wall_s": 70.9
+  },
+  "scm_invu": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 1.41,
+   "engine": "scm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "val",
+   "transfer": "structural",
+   "wall_s": 54.6
+  },
+  "scm_regime": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 2.65,
+   "engine": "scm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "test",
+   "transfer": "structural",
+   "wall_s": 82.2
+  },
+  "scm_stock_gate": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 1.82,
+   "engine": "scm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "test",
+   "transfer": "compositional",
+   "wall_s": 57.7
+  },
+  "tech_cascade": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 4.37,
+   "engine": "techsys",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "test",
+   "transfer": "cross_impl",
+   "wall_s": 178.8
+  },
+  "tech_contention": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 4.4,
+   "engine": "techsys",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "test",
+   "transfer": "cross_impl",
+   "wall_s": 169.0
+  },
+  "tech_handoff": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 8.08,
+   "engine": "techsys",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 2,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "val",
+   "transfer": "cross_impl",
+   "wall_s": 276.7
+  },
+  "tech_lostwork": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 5.06,
+   "engine": "techsys",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "test",
+   "transfer": "cross_impl",
+   "wall_s": 170.1
+  },
+  "tech_pipeline": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 3.83,
+   "engine": "techsys",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "val",
+   "transfer": "cross_impl",
+   "wall_s": 131.9
+  },
+  "tech_redundant": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 4.49,
+   "engine": "techsys",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "test",
+   "transfer": "cross_impl",
+   "wall_s": 97.8
+  },
+  "tech_shared_pool": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 7.84,
+   "engine": "techsys",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 2,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "test",
+   "transfer": "cross_impl",
+   "wall_s": 113.6
   }
  },
  "first_seed": 0,
  "n_per_family": 12,
  "total": {
-  "accepted": 70,
-  "n": 84
+  "accepted": 288,
+  "n": 300
  }
 }

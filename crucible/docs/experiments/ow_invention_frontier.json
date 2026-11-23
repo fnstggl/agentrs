@@ -1,0 +1,3985 @@
+{
+ "days": 30.0,
+ "removal_day": 14.0,
+ "classes": {
+  "frontier": {
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "horizon_days": 30.0,
+   "summary": {
+    "treatment": {
+     "1:existing_loss_changed": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "1:offering_listed": {
+      "seeds": [
+       2
+      ],
+      "p": 0.3333333333333333,
+      "lo": 0.06149194472039632,
+      "hi": 0.7923403991979523,
+      "low_n": true
+     },
+     "1:organisation_founded": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "1:resource_use_changed": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "1:work_served_changed": {
+      "seeds": [
+       3
+      ],
+      "p": 0.3333333333333333,
+      "lo": 0.06149194472039632,
+      "hi": 0.7923403991979523,
+      "low_n": true
+     },
+     "2:demand_changed": {
+      "seeds": [
+       3
+      ],
+      "p": 0.3333333333333333,
+      "lo": 0.06149194472039632,
+      "hi": 0.7923403991979523,
+      "low_n": true
+     },
+     "2:problem_reported": {
+      "seeds": [
+       1,
+       3
+      ],
+      "p": 0.6666666666666666,
+      "lo": 0.20765960080204782,
+      "hi": 0.9385080552796038,
+      "low_n": true
+     },
+     "3:offering_listed": {
+      "seeds": [
+       1,
+       3
+      ],
+      "p": 0.6666666666666666,
+      "lo": 0.20765960080204782,
+      "hi": 0.9385080552796038,
+      "low_n": true
+     },
+     "3:organisation_founded": {
+      "seeds": [
+       3
+      ],
+      "p": 0.3333333333333333,
+      "lo": 0.06149194472039632,
+      "hi": 0.7923403991979523,
+      "low_n": true
+     },
+     "4:organisation_survived": {
+      "seeds": [
+       2
+      ],
+      "p": 0.3333333333333333,
+      "lo": 0.06149194472039632,
+      "hi": 0.7923403991979523,
+      "low_n": true
+     }
+    },
+    "removal": {
+     "1:existing_loss_changed": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "1:organisation_founded": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "1:resource_use_changed": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "1:work_served_changed": {
+      "seeds": [
+       3
+      ],
+      "p": 0.3333333333333333,
+      "lo": 0.06149194472039632,
+      "hi": 0.7923403991979523,
+      "low_n": true
+     },
+     "2:demand_changed": {
+      "seeds": [
+       3
+      ],
+      "p": 0.3333333333333333,
+      "lo": 0.06149194472039632,
+      "hi": 0.7923403991979523,
+      "low_n": true
+     },
+     "2:loss_mechanism_new": {
+      "seeds": [
+       2
+      ],
+      "p": 0.3333333333333333,
+      "lo": 0.06149194472039632,
+      "hi": 0.7923403991979523,
+      "low_n": true
+     },
+     "2:problem_reported": {
+      "seeds": [
+       1,
+       3
+      ],
+      "p": 0.6666666666666666,
+      "lo": 0.20765960080204782,
+      "hi": 0.9385080552796038,
+      "low_n": true
+     },
+     "3:offering_listed": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "3:organisation_founded": {
+      "seeds": [
+       3
+      ],
+      "p": 0.3333333333333333,
+      "lo": 0.06149194472039632,
+      "hi": 0.7923403991979523,
+      "low_n": true
+     },
+     "4:organisation_survived": {
+      "seeds": [
+       2
+      ],
+      "p": 0.3333333333333333,
+      "lo": 0.06149194472039632,
+      "hi": 0.7923403991979523,
+      "low_n": true
+     }
+    }
+   },
+   "per_seed": {
+    "1": {
+     "fork_time": 691200,
+     "fork_day": 8.0,
+     "horizon_days": 30.0,
+     "exact": true,
+     "determinism_check": null,
+     "control": "control",
+     "inventors": [
+      "o:ada-labs",
+      "p:ada"
+     ],
+     "provenance": {
+      "control": {
+       "p:ada": "scripted",
+       "founders": "autonomous (rule-based minds acting on public signals)"
+      },
+      "treatment": {
+       "p:ada": "scripted",
+       "founders": "autonomous (rule-based minds acting on public signals)"
+      },
+      "removal": {
+       "p:ada": "scripted",
+       "founders": "autonomous (rule-based minds acting on public signals)"
+      }
+     },
+     "invariants": {
+      "control": [],
+      "treatment": [],
+      "removal": []
+     },
+     "digests": {
+      "control": "478d5ceebe742af3c786bf6fac25f11b",
+      "treatment": "19390aac66c4e172909317760e436f10",
+      "removal": "6373e429a522103e418f433ec66c4fdd"
+     },
+     "arms": {
+      "treatment": {
+       "consequences": [
+        {
+         "kind": "organisation_founded",
+         "key": "o:quote01aco",
+         "order": 1,
+         "treatment": {
+          "founder": "p:founder-01",
+          "kind": "company",
+          "t": 979200
+         },
+         "control": null,
+         "first_day": 11.33,
+         "actors": [
+          "p:founder-01"
+         ],
+         "evidence": {
+          "after_condition": false,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "organisation_founded",
+         "key": "o:dedupe04aco",
+         "order": 1,
+         "treatment": {
+          "founder": "p:founder-04",
+          "kind": "company",
+          "t": 1065600
+         },
+         "control": null,
+         "first_day": 12.33,
+         "actors": [
+          "p:founder-04"
+         ],
+         "evidence": {
+          "after_condition": false,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "capacity_overload",
+         "order": 1,
+         "treatment": {
+          "events": 20,
+          "cents": 40
+         },
+         "control": {
+          "events": 79,
+          "cents": 158
+         },
+         "first_day": null,
+         "actors": [
+          "o:dedupe04aco",
+          "o:dedupe05aco"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "service_unavailable",
+         "order": 1,
+         "treatment": {
+          "events": 30495,
+          "cents": 83655
+         },
+         "control": {
+          "events": 14196,
+          "cents": 50955
+         },
+         "first_day": null,
+         "actors": [
+          "o:ada-labs",
+          "o:alloc1co1",
+          "o:dedup3co1",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud1",
+         "order": 1,
+         "treatment": {
+          "used": 12,
+          "of": 120
+         },
+         "control": {
+          "used": 10,
+          "of": 120
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "problem_reported",
+         "key": "cost-fee",
+         "order": 2,
+         "treatment": {
+          "n": 2,
+          "by": [
+           "o:dedupe05aco",
+           "o:quote00aco"
+          ]
+         },
+         "control": {
+          "n": 0
+         },
+         "first_day": 14.98,
+         "actors": [
+          "o:dedupe05aco",
+          "o:quote00aco"
+         ],
+         "evidence": {
+          "requests": [
+           "req_000017",
+           "req_000019"
+          ]
+         }
+        },
+        {
+         "kind": "offering_listed",
+         "key": "lst_000013",
+         "order": 3,
+         "treatment": {
+          "seller": "o:quote00aco",
+          "need": "gen.quote.eaebade9",
+          "kind": "api",
+          "host": "quote00a",
+          "price": 2,
+          "status": "active"
+         },
+         "control": null,
+         "first_day": null,
+         "actors": [
+          "o:quote00aco"
+         ],
+         "evidence": {}
+        }
+       ],
+       "by_order": {
+        "0": 0,
+        "1": 5,
+        "2": 1,
+        "3": 1,
+        "4": 0
+       },
+       "kinds": [
+        "1:existing_loss_changed:capacity_overload",
+        "1:existing_loss_changed:service_unavailable",
+        "1:organisation_founded:o:dedupe04aco",
+        "1:organisation_founded:o:quote01aco",
+        "1:resource_use_changed:o:cloud1",
+        "2:problem_reported:cost-fee",
+        "3:offering_listed:lst_000013"
+       ]
+      },
+      "removal": {
+       "consequences": [
+        {
+         "kind": "organisation_founded",
+         "key": "o:quote01aco",
+         "order": 1,
+         "treatment": {
+          "founder": "p:founder-01",
+          "kind": "company",
+          "t": 979200
+         },
+         "control": null,
+         "first_day": 11.33,
+         "actors": [
+          "p:founder-01"
+         ],
+         "evidence": {
+          "after_condition": false,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "organisation_founded",
+         "key": "o:dedupe04aco",
+         "order": 1,
+         "treatment": {
+          "founder": "p:founder-04",
+          "kind": "company",
+          "t": 1065600
+         },
+         "control": null,
+         "first_day": 12.33,
+         "actors": [
+          "p:founder-04"
+         ],
+         "evidence": {
+          "after_condition": false,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "service_unavailable",
+         "order": 1,
+         "treatment": {
+          "events": 72869,
+          "cents": 210777
+         },
+         "control": {
+          "events": 14196,
+          "cents": 50955
+         },
+         "first_day": null,
+         "actors": [
+          "o:ada-labs",
+          "o:alloc1co1",
+          "o:dedup3co1",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud1",
+         "order": 1,
+         "treatment": {
+          "used": 12,
+          "of": 120
+         },
+         "control": {
+          "used": 10,
+          "of": 120
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "problem_reported",
+         "key": "cost-fee",
+         "order": 2,
+         "treatment": {
+          "n": 2,
+          "by": [
+           "o:dedupe05aco",
+           "o:quote00aco"
+          ]
+         },
+         "control": {
+          "n": 0
+         },
+         "first_day": 14.98,
+         "actors": [
+          "o:dedupe05aco",
+          "o:quote00aco"
+         ],
+         "evidence": {
+          "requests": [
+           "req_000017",
+           "req_000019"
+          ]
+         }
+        },
+        {
+         "kind": "offering_listed",
+         "key": "lst_000013",
+         "order": 3,
+         "treatment": {
+          "seller": "o:quote00aco",
+          "need": "gen.quote.eaebade9",
+          "kind": "api",
+          "host": "quote00a",
+          "price": 2,
+          "status": "active"
+         },
+         "control": null,
+         "first_day": null,
+         "actors": [
+          "o:quote00aco"
+         ],
+         "evidence": {}
+        }
+       ],
+       "by_order": {
+        "0": 0,
+        "1": 4,
+        "2": 1,
+        "3": 1,
+        "4": 0
+       },
+       "kinds": [
+        "1:existing_loss_changed:service_unavailable",
+        "1:organisation_founded:o:dedupe04aco",
+        "1:organisation_founded:o:quote01aco",
+        "1:resource_use_changed:o:cloud1",
+        "2:problem_reported:cost-fee",
+        "3:offering_listed:lst_000013"
+       ],
+       "withdrawn_at_day": 22,
+       "fades": []
+      }
+     },
+     "census": {
+      "control": {
+       "time": 3283200,
+       "t0": 691200,
+       "losses": {
+        "capacity_overload": {
+         "events": 79,
+         "cents": 158,
+         "orgs": [
+          "o:dedupe05aco"
+         ],
+         "first_day": 19
+        },
+        "result_refused": {
+         "events": 73513,
+         "cents": 225915,
+         "orgs": [
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe01aco",
+          "o:dedupe03aco"
+         ],
+         "first_day": 8
+        },
+        "service_unavailable": {
+         "events": 14196,
+         "cents": 50955,
+         "orgs": [
+          "o:alloc1co2",
+          "o:dedup3co2",
+          "o:trans4co2"
+         ],
+         "first_day": 9
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 25,
+         "by": [
+          "o:alloc1co2",
+          "o:cloud1",
+          "o:cloud2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe01aco",
+          "o:dedupe03aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2",
+          "o:transf04aco"
+         ],
+         "first_t": 862200
+        },
+        "capacity_overload": {
+         "n": 1,
+         "by": [
+          "o:dedupe05aco"
+         ],
+         "first_t": 1726200
+        },
+        "cost-compute": {
+         "n": 14,
+         "by": [
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe01aco",
+          "o:dedupe03aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2",
+          "o:transf04aco"
+         ],
+         "first_t": 948600
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 23,
+         "by": [
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe01aco",
+          "o:dedupe03aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2",
+          "o:transf04aco"
+         ],
+         "first_t": 862200
+        },
+        "instance": {
+         "n": 23,
+         "by": [
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe01aco",
+          "o:dedupe03aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2",
+          "o:transf04aco"
+         ],
+         "first_t": 862200
+        },
+        "listing": {
+         "n": 23,
+         "by": [
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe01aco",
+          "o:dedupe03aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2",
+          "o:transf04aco"
+         ],
+         "first_t": 862200
+        },
+        "result_refused": {
+         "n": 11,
+         "by": [
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe01aco",
+          "o:dedupe03aco"
+         ],
+         "first_t": 862200
+        },
+        "service_unavailable": {
+         "n": 3,
+         "by": [
+          "o:alloc1co2",
+          "o:dedup3co2",
+          "o:trans4co2"
+         ],
+         "first_t": 862200
+        }
+       },
+       "capabilities": {},
+       "installs": {},
+       "markets": {},
+       "orgs_new": {
+        "o:dedupe01aco": {
+         "founder": "p:founder-01",
+         "kind": "company",
+         "t": 979200
+        },
+        "o:dedupe03aco": {
+         "founder": "p:founder-03",
+         "kind": "company",
+         "t": 1065600
+        },
+        "o:dedupe05aco": {
+         "founder": "p:founder-05",
+         "kind": "company",
+         "t": 1152000
+        },
+        "o:quote00aco": {
+         "founder": "p:founder-00",
+         "kind": "company",
+         "t": 892800
+        },
+        "o:schedu02aco": {
+         "founder": "p:founder-02",
+         "kind": "company",
+         "t": 979200
+        },
+        "o:transf04aco": {
+         "founder": "p:founder-04",
+         "kind": "company",
+         "t": 1929600
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 10
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 3
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {
+        "lst_000007": {
+         "seller": "o:quote00aco",
+         "need": "gen.quote.eaebade9",
+         "kind": "api",
+         "host": "quote00a",
+         "price": 3,
+         "status": "active"
+        },
+        "lst_000008": {
+         "seller": "o:dedupe01aco",
+         "need": "gen.dedupe.8b6bbcd8",
+         "kind": "api",
+         "host": "dedupe01a",
+         "price": 2,
+         "status": "active"
+        },
+        "lst_000009": {
+         "seller": "o:schedu02aco",
+         "need": "gen.schedule.944d4270",
+         "kind": "api",
+         "host": "schedu02a",
+         "price": 6,
+         "status": "active"
+        },
+        "lst_000010": {
+         "seller": "o:dedupe03aco",
+         "need": "gen.dedupe.8b6bbcd8",
+         "kind": "api",
+         "host": "dedupe03a",
+         "price": 2,
+         "status": "active"
+        },
+        "lst_000011": {
+         "seller": "o:dedupe05aco",
+         "need": "gen.dedupe.8b6bbcd8",
+         "kind": "api",
+         "host": "dedupe05a",
+         "price": 2,
+         "status": "active"
+        },
+        "lst_000012": {
+         "seller": "o:transf04aco",
+         "need": "gen.transform.d255abac",
+         "kind": "api",
+         "host": "transf04a",
+         "price": 2,
+         "status": "active"
+        }
+       },
+       "moves": [],
+       "needs": {
+        "gen.allocate.5db7c5f4": {
+         "consumers": 719,
+         "active": 719,
+         "customers": 634,
+         "served_ok": 404625
+        },
+        "gen.dedupe.8b6bbcd8": {
+         "consumers": 792,
+         "active": 792,
+         "customers": 760,
+         "served_ok": 535020
+        },
+        "gen.quote.eaebade9": {
+         "consumers": 871,
+         "active": 596,
+         "customers": 494,
+         "served_ok": 246943
+        },
+        "gen.schedule.944d4270": {
+         "consumers": 653,
+         "active": 236,
+         "customers": 194,
+         "served_ok": 103258
+        },
+        "gen.transform.d255abac": {
+         "consumers": 965,
+         "active": 965,
+         "customers": 941,
+         "served_ok": 618150
+        }
+       }
+      },
+      "treatment": {
+       "time": 3283200,
+       "t0": 691200,
+       "losses": {
+        "capacity_overload": {
+         "events": 20,
+         "cents": 40,
+         "orgs": [
+          "o:dedupe04aco",
+          "o:dedupe05aco"
+         ],
+         "first_day": 22
+        },
+        "result_refused": {
+         "events": 79740,
+         "cents": 246983,
+         "orgs": [
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco"
+         ],
+         "first_day": 8
+        },
+        "service_unavailable": {
+         "events": 30495,
+         "cents": 83655,
+         "orgs": [
+          "o:ada-labs",
+          "o:alloc1co1",
+          "o:dedup3co1",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1"
+         ],
+         "first_day": 16
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 31,
+         "by": [
+          "o:alloc1co1",
+          "o:alloc1co2",
+          "o:cloud1",
+          "o:cloud2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2"
+         ],
+         "first_t": 1035000
+        },
+        "capacity_overload": {
+         "n": 1,
+         "by": [
+          "o:dedupe04aco"
+         ],
+         "first_t": 1985400
+        },
+        "cost-compute": {
+         "n": 13,
+         "by": [
+          "o:alloc1co1",
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2"
+         ],
+         "first_t": 1035000
+        },
+        "cost-fee": {
+         "n": 2,
+         "by": [
+          "o:dedupe05aco",
+          "o:quote00aco"
+         ],
+         "first_t": 1294200
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 29,
+         "by": [
+          "o:alloc1co1",
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2"
+         ],
+         "first_t": 1035000
+        },
+        "instance": {
+         "n": 29,
+         "by": [
+          "o:alloc1co1",
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2"
+         ],
+         "first_t": 1035000
+        },
+        "listing": {
+         "n": 29,
+         "by": [
+          "o:alloc1co1",
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2"
+         ],
+         "first_t": 1035000
+        },
+        "result_refused": {
+         "n": 8,
+         "by": [
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco"
+         ],
+         "first_t": 1467000
+        },
+        "service_unavailable": {
+         "n": 13,
+         "by": [
+          "o:alloc1co1",
+          "o:dedup3co1",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1"
+         ],
+         "first_t": 1467000
+        }
+       },
+       "capabilities": {},
+       "installs": {},
+       "markets": {},
+       "orgs_new": {
+        "o:ada-labs": {
+         "founder": "p:ada",
+         "kind": "company",
+         "t": 698400
+        },
+        "o:dedupe03aco": {
+         "founder": "p:founder-03",
+         "kind": "company",
+         "t": 1065600
+        },
+        "o:dedupe04aco": {
+         "founder": "p:founder-04",
+         "kind": "company",
+         "t": 1065600
+        },
+        "o:dedupe05aco": {
+         "founder": "p:founder-05",
+         "kind": "company",
+         "t": 1152000
+        },
+        "o:quote00aco": {
+         "founder": "p:founder-00",
+         "kind": "company",
+         "t": 1238400
+        },
+        "o:quote01aco": {
+         "founder": "p:founder-01",
+         "kind": "company",
+         "t": 979200
+        },
+        "o:schedu02aco": {
+         "founder": "p:founder-02",
+         "kind": "company",
+         "t": 979200
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 12
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 3
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {
+        "lst_000007": {
+         "seller": "o:ada-labs",
+         "need": "gen.allocate.5db7c5f4",
+         "kind": "api",
+         "host": "ada-alloca",
+         "price": 3,
+         "status": "active"
+        },
+        "lst_000008": {
+         "seller": "o:quote01aco",
+         "need": "gen.quote.eaebade9",
+         "kind": "api",
+         "host": "quote01a",
+         "price": 2,
+         "status": "active"
+        },
+        "lst_000009": {
+         "seller": "o:schedu02aco",
+         "need": "gen.schedule.944d4270",
+         "kind": "api",
+         "host": "schedu02a",
+         "price": 6,
+         "status": "active"
+        },
+        "lst_000010": {
+         "seller": "o:dedupe03aco",
+         "need": "gen.dedupe.8b6bbcd8",
+         "kind": "api",
+         "host": "dedupe03a",
+         "price": 2,
+         "status": "active"
+        },
+        "lst_000011": {
+         "seller": "o:dedupe04aco",
+         "need": "gen.dedupe.8b6bbcd8",
+         "kind": "api",
+         "host": "dedupe04a",
+         "price": 2,
+         "status": "active"
+        },
+        "lst_000012": {
+         "seller": "o:dedupe05aco",
+         "need": "gen.dedupe.8b6bbcd8",
+         "kind": "api",
+         "host": "dedupe05a",
+         "price": 2,
+         "status": "active"
+        },
+        "lst_000013": {
+         "seller": "o:quote00aco",
+         "need": "gen.quote.eaebade9",
+         "kind": "api",
+         "host": "quote00a",
+         "price": 2,
+         "status": "active"
+        }
+       },
+       "moves": [],
+       "needs": {
+        "gen.allocate.5db7c5f4": {
+         "consumers": 719,
+         "active": 719,
+         "customers": 701,
+         "served_ok": 475457
+        },
+        "gen.dedupe.8b6bbcd8": {
+         "consumers": 792,
+         "active": 792,
+         "customers": 778,
+         "served_ok": 537219
+        },
+        "gen.quote.eaebade9": {
+         "consumers": 871,
+         "active": 678,
+         "customers": 576,
+         "served_ok": 267474
+        },
+        "gen.schedule.944d4270": {
+         "consumers": 653,
+         "active": 308,
+         "customers": 242,
+         "served_ok": 113091
+        },
+        "gen.transform.d255abac": {
+         "consumers": 965,
+         "active": 965,
+         "customers": 769,
+         "served_ok": 551306
+        }
+       }
+      },
+      "removal": {
+       "time": 3283200,
+       "t0": 691200,
+       "losses": {
+        "capacity_overload": {
+         "events": 98,
+         "cents": 196,
+         "orgs": [
+          "o:dedupe04aco",
+          "o:dedupe05aco"
+         ],
+         "first_day": 22
+        },
+        "result_refused": {
+         "events": 80541,
+         "cents": 249486,
+         "orgs": [
+          "o:alloc1co1",
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco"
+         ],
+         "first_day": 8
+        },
+        "service_unavailable": {
+         "events": 72869,
+         "cents": 210777,
+         "orgs": [
+          "o:ada-labs",
+          "o:alloc1co1",
+          "o:dedup3co1",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1"
+         ],
+         "first_day": 16
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 32,
+         "by": [
+          "o:alloc1co1",
+          "o:alloc1co2",
+          "o:cloud1",
+          "o:cloud2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2"
+         ],
+         "first_t": 1035000
+        },
+        "capacity_overload": {
+         "n": 1,
+         "by": [
+          "o:dedupe04aco"
+         ],
+         "first_t": 1985400
+        },
+        "cost-compute": {
+         "n": 14,
+         "by": [
+          "o:alloc1co1",
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2"
+         ],
+         "first_t": 1035000
+        },
+        "cost-fee": {
+         "n": 2,
+         "by": [
+          "o:dedupe05aco",
+          "o:quote00aco"
+         ],
+         "first_t": 1294200
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 30,
+         "by": [
+          "o:alloc1co1",
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2"
+         ],
+         "first_t": 1035000
+        },
+        "instance": {
+         "n": 30,
+         "by": [
+          "o:alloc1co1",
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2"
+         ],
+         "first_t": 1035000
+        },
+        "listing": {
+         "n": 30,
+         "by": [
+          "o:alloc1co1",
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1",
+          "o:trans4co2"
+         ],
+         "first_t": 1035000
+        },
+        "result_refused": {
+         "n": 8,
+         "by": [
+          "o:alloc1co2",
+          "o:dedup3co1",
+          "o:dedup3co2",
+          "o:dedupe03aco"
+         ],
+         "first_t": 1467000
+        },
+        "service_unavailable": {
+         "n": 13,
+         "by": [
+          "o:alloc1co1",
+          "o:dedup3co1",
+          "o:dedupe03aco",
+          "o:dedupe04aco",
+          "o:dedupe05aco",
+          "o:quote00aco",
+          "o:quote01aco",
+          "o:schedu02aco",
+          "o:trans4co1"
+         ],
+         "first_t": 1467000
+        }
+       },
+       "capabilities": {},
+       "installs": {},
+       "markets": {},
+       "orgs_new": {
+        "o:ada-labs": {
+         "founder": "p:ada",
+         "kind": "company",
+         "t": 698400
+        },
+        "o:dedupe03aco": {
+         "founder": "p:founder-03",
+         "kind": "company",
+         "t": 1065600
+        },
+        "o:dedupe04aco": {
+         "founder": "p:founder-04",
+         "kind": "company",
+         "t": 1065600
+        },
+        "o:dedupe05aco": {
+         "founder": "p:founder-05",
+         "kind": "company",
+         "t": 1152000
+        },
+        "o:quote00aco": {
+         "founder": "p:founder-00",
+         "kind": "company",
+         "t": 1238400
+        },
+        "o:quote01aco": {
+         "founder": "p:founder-01",
+         "kind": "company",
+         "t": 979200
+        },
+        "o:schedu02aco": {
+         "founder": "p:founder-02",
+         "kind": "company",
+         "t": 979200
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 12
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 3
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {
+        "lst_000007": {
+         "seller": "o:ada-labs",
+         "need": "gen.allocate.5db7c5f4",
+         "kind": "api",
+         "host": "ada-alloca",
+         "price": 3,
+         "status": "active"
+        },
+        "lst_000008": {
+         "seller": "o:quote01aco",
+         "need": "gen.quote.eaebade9",
+         "kind": "api",
+         "host": "quote01a",
+         "price": 2,
+         "status": "active"
+        },
+        "lst_000009": {
+         "seller": "o:schedu02aco",
+         "need": "gen.schedule.944d4270",
+         "kind": "api",
+         "host": "schedu02a",
+         "price": 6,
+         "status": "active"
+        },
+        "lst_000010": {
+         "seller": "o:dedupe03aco",
+         "need": "gen.dedupe.8b6bbcd8",
+         "kind": "api",
+         "host": "dedupe03a",
+         "price": 2,
+         "status": "active"
+        },
+        "lst_000011": {
+         "seller": "o:dedupe04aco",
+         "need": "gen.dedupe.8b6bbcd8",
+         "kind": "api",
+         "host": "dedupe04a",
+         "price": 2,
+         "status": "active"
+        },
+        "lst_000012": {
+         "seller": "o:dedupe05aco",
+         "need": "gen.dedupe.8b6bbcd8",
+         "kind": "api",
+         "host": "dedupe05a",
+         "price": 2,
+         "status": "active"
+        },
+        "lst_000013": {
+         "seller": "o:quote00aco",
+         "need": "gen.quote.eaebade9",
+         "kind": "api",
+         "host": "quote00a",
+         "price": 2,
+         "status": "active"
+        }
+       },
+       "moves": [],
+       "needs": {
+        "gen.allocate.5db7c5f4": {
+         "consumers": 719,
+         "active": 719,
+         "customers": 697,
+         "served_ok": 428824
+        },
+        "gen.dedupe.8b6bbcd8": {
+         "consumers": 792,
+         "active": 792,
+         "customers": 781,
+         "served_ok": 538277
+        },
+        "gen.quote.eaebade9": {
+         "consumers": 871,
+         "active": 617,
+         "customers": 519,
+         "served_ok": 256736
+        },
+        "gen.schedule.944d4270": {
+         "consumers": 653,
+         "active": 236,
+         "customers": 183,
+         "served_ok": 100340
+        },
+        "gen.transform.d255abac": {
+         "consumers": 965,
+         "active": 965,
+         "customers": 763,
+         "served_ok": 551214
+        }
+       }
+      }
+     },
+     "wall_s": 897.41
+    },
+    "2": {
+     "fork_time": 691200,
+     "fork_day": 8.0,
+     "horizon_days": 30.0,
+     "exact": true,
+     "determinism_check": null,
+     "control": "control",
+     "inventors": [
+      "o:ada-labs",
+      "p:ada"
+     ],
+     "provenance": {
+      "control": {
+       "p:ada": "scripted",
+       "founders": "autonomous (rule-based minds acting on public signals)"
+      },
+      "treatment": {
+       "p:ada": "scripted",
+       "founders": "autonomous (rule-based minds acting on public signals)"
+      },
+      "removal": {
+       "p:ada": "scripted",
+       "founders": "autonomous (rule-based minds acting on public signals)"
+      }
+     },
+     "invariants": {
+      "control": [],
+      "treatment": [],
+      "removal": []
+     },
+     "digests": {
+      "control": "de5107fe2e0cdff73a612e9597cd949f",
+      "treatment": "6bd1da6c8bcac34e2b01043ef238e39a",
+      "removal": "f30c636d71e66910902c51ef882fd5bf"
+     },
+     "arms": {
+      "treatment": {
+       "consequences": [
+        {
+         "kind": "organisation_founded",
+         "key": "o:dedupe03aco",
+         "order": 1,
+         "treatment": {
+          "founder": "p:founder-03",
+          "kind": "company",
+          "t": 1065600
+         },
+         "control": null,
+         "first_day": 12.33,
+         "actors": [
+          "p:founder-03"
+         ],
+         "evidence": {
+          "after_condition": false,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "organisation_founded",
+         "key": "o:alloca05aco",
+         "order": 1,
+         "treatment": {
+          "founder": "p:founder-05",
+          "kind": "company",
+          "t": 1152000
+         },
+         "control": null,
+         "first_day": 13.33,
+         "actors": [
+          "p:founder-05"
+         ],
+         "evidence": {
+          "after_condition": false,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "result_refused",
+         "order": 1,
+         "treatment": {
+          "events": 20039,
+          "cents": 100195
+         },
+         "control": {
+          "events": 28270,
+          "cents": 141350
+         },
+         "first_day": null,
+         "actors": [
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "offering_listed",
+         "key": "lst_000012",
+         "order": 1,
+         "treatment": {
+          "seller": "o:quote02aco",
+          "need": "gen.quote.4473ed8a",
+          "kind": "api",
+          "host": "quote02a",
+          "price": 4,
+          "status": "active"
+         },
+         "control": null,
+         "first_day": null,
+         "actors": [
+          "o:quote02aco"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud1",
+         "order": 1,
+         "treatment": {
+          "used": 9,
+          "of": 120
+         },
+         "control": {
+          "used": 8,
+          "of": 120
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "organisation_survived",
+         "key": "o:dedupe01aco",
+         "order": 4,
+         "treatment": "active",
+         "control": "inactive",
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        }
+       ],
+       "by_order": {
+        "0": 0,
+        "1": 5,
+        "2": 0,
+        "3": 0,
+        "4": 1
+       },
+       "kinds": [
+        "1:existing_loss_changed:result_refused",
+        "1:offering_listed:lst_000012",
+        "1:organisation_founded:o:alloca05aco",
+        "1:organisation_founded:o:dedupe03aco",
+        "1:resource_use_changed:o:cloud1",
+        "4:organisation_survived:o:dedupe01aco"
+       ]
+      },
+      "removal": {
+       "consequences": [
+        {
+         "kind": "organisation_founded",
+         "key": "o:dedupe03aco",
+         "order": 1,
+         "treatment": {
+          "founder": "p:founder-03",
+          "kind": "company",
+          "t": 1065600
+         },
+         "control": null,
+         "first_day": 12.33,
+         "actors": [
+          "p:founder-03"
+         ],
+         "evidence": {
+          "after_condition": false,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "organisation_founded",
+         "key": "o:alloca05aco",
+         "order": 1,
+         "treatment": {
+          "founder": "p:founder-05",
+          "kind": "company",
+          "t": 1152000
+         },
+         "control": null,
+         "first_day": 13.33,
+         "actors": [
+          "p:founder-05"
+         ],
+         "evidence": {
+          "after_condition": false,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "result_refused",
+         "order": 1,
+         "treatment": {
+          "events": 20074,
+          "cents": 100370
+         },
+         "control": {
+          "events": 28270,
+          "cents": 141350
+         },
+         "first_day": null,
+         "actors": [
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud1",
+         "order": 1,
+         "treatment": {
+          "used": 9,
+          "of": 120
+         },
+         "control": {
+          "used": 8,
+          "of": 120
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "loss_mechanism_new",
+         "key": "service_unavailable",
+         "order": 2,
+         "treatment": {
+          "events": 36782,
+          "cents": 147128,
+          "orgs": [
+           "o:ada-labs"
+          ]
+         },
+         "control": {
+          "events": 0
+         },
+         "first_day": 22.0,
+         "actors": [
+          "o:ada-labs"
+         ],
+         "evidence": {
+          "affects_non_adopters": []
+         }
+        },
+        {
+         "kind": "offering_listed",
+         "key": "lst_000012",
+         "order": 3,
+         "treatment": {
+          "seller": "o:quote02aco",
+          "need": "gen.quote.4473ed8a",
+          "kind": "api",
+          "host": "quote02a",
+          "price": 4,
+          "status": "active"
+         },
+         "control": null,
+         "first_day": null,
+         "actors": [
+          "o:quote02aco"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "organisation_survived",
+         "key": "o:dedupe01aco",
+         "order": 4,
+         "treatment": "active",
+         "control": "inactive",
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        }
+       ],
+       "by_order": {
+        "0": 0,
+        "1": 4,
+        "2": 1,
+        "3": 1,
+        "4": 1
+       },
+       "kinds": [
+        "1:existing_loss_changed:result_refused",
+        "1:organisation_founded:o:alloca05aco",
+        "1:organisation_founded:o:dedupe03aco",
+        "1:resource_use_changed:o:cloud1",
+        "2:loss_mechanism_new:service_unavailable",
+        "3:offering_listed:lst_000012",
+        "4:organisation_survived:o:dedupe01aco"
+       ],
+       "withdrawn_at_day": 22,
+       "fades": []
+      }
+     },
+     "census": {
+      "control": {
+       "time": 3283200,
+       "t0": 691200,
+       "losses": {
+        "result_refused": {
+         "events": 28270,
+         "cents": 141350,
+         "orgs": [
+          "o:dedup0co1",
+          "o:dedup0co2"
+         ],
+         "first_day": 8
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 19,
+         "by": [
+          "o:alloca00aco",
+          "o:cloud1",
+          "o:cloud2",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:schedu03aco",
+          "o:trans1co1",
+          "o:trans1co2",
+          "o:transf05aco"
+         ],
+         "first_t": 948600
+        },
+        "cost-compute": {
+         "n": 14,
+         "by": [
+          "o:alloca00aco",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:schedu03aco",
+          "o:trans1co1",
+          "o:trans1co2",
+          "o:transf05aco"
+         ],
+         "first_t": 948600
+        },
+        "cost-fee": {
+         "n": 1,
+         "by": [
+          "o:quote02aco"
+         ],
+         "first_t": 2158200
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 17,
+         "by": [
+          "o:alloca00aco",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:schedu03aco",
+          "o:trans1co1",
+          "o:trans1co2",
+          "o:transf05aco"
+         ],
+         "first_t": 948600
+        },
+        "instance": {
+         "n": 17,
+         "by": [
+          "o:alloca00aco",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:schedu03aco",
+          "o:trans1co1",
+          "o:trans1co2",
+          "o:transf05aco"
+         ],
+         "first_t": 948600
+        },
+        "listing": {
+         "n": 17,
+         "by": [
+          "o:alloca00aco",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:schedu03aco",
+          "o:trans1co1",
+          "o:trans1co2",
+          "o:transf05aco"
+         ],
+         "first_t": 948600
+        },
+        "result_refused": {
+         "n": 4,
+         "by": [
+          "o:dedup0co1",
+          "o:dedup0co2"
+         ],
+         "first_t": 1899000
+        }
+       },
+       "capabilities": {},
+       "installs": {},
+       "markets": {},
+       "orgs_new": {
+        "o:alloca00aco": {
+         "founder": "p:founder-00",
+         "kind": "company",
+         "t": 892800
+        },
+        "o:dedupe01aco": {
+         "founder": "p:founder-01",
+         "kind": "company",
+         "t": 979200
+        },
+        "o:quote02aco": {
+         "founder": "p:founder-02",
+         "kind": "company",
+         "t": 979200
+        },
+        "o:quote04aco": {
+         "founder": "p:founder-04",
+         "kind": "company",
+         "t": 1065600
+        },
+        "o:schedu03aco": {
+         "founder": "p:founder-03",
+         "kind": "company",
+         "t": 1065600
+        },
+        "o:transf05aco": {
+         "founder": "p:founder-05",
+         "kind": "company",
+         "t": 1152000
+        }
+       },
+       "orgs_inactive": [
+        "o:dedupe01aco"
+       ],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 8
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 4
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {
+        "lst_000007": {
+         "seller": "o:alloca00aco",
+         "need": "gen.allocate.d6ccdc86",
+         "kind": "api",
+         "host": "alloca00a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000008": {
+         "seller": "o:schedu03aco",
+         "need": "gen.schedule.91b3292d",
+         "kind": "api",
+         "host": "schedu03a",
+         "price": 5,
+         "status": "active"
+        },
+        "lst_000009": {
+         "seller": "o:quote04aco",
+         "need": "gen.quote.4473ed8a",
+         "kind": "api",
+         "host": "quote04a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000010": {
+         "seller": "o:transf05aco",
+         "need": "gen.transform.24de86df",
+         "kind": "api",
+         "host": "transf05a",
+         "price": 3,
+         "status": "active"
+        },
+        "lst_000011": {
+         "seller": "o:quote02aco",
+         "need": "gen.quote.4473ed8a",
+         "kind": "api",
+         "host": "quote02a",
+         "price": 4,
+         "status": "active"
+        }
+       },
+       "moves": [],
+       "needs": {
+        "gen.allocate.d6ccdc86": {
+         "consumers": 602,
+         "active": 381,
+         "customers": 344,
+         "served_ok": 192863
+        },
+        "gen.dedupe.43c9b317": {
+         "consumers": 648,
+         "active": 648,
+         "customers": 478,
+         "served_ok": 325134
+        },
+        "gen.quote.4473ed8a": {
+         "consumers": 880,
+         "active": 272,
+         "customers": 222,
+         "served_ok": 116057
+        },
+        "gen.schedule.91b3292d": {
+         "consumers": 857,
+         "active": 857,
+         "customers": 736,
+         "served_ok": 507862
+        },
+        "gen.transform.24de86df": {
+         "consumers": 1013,
+         "active": 1013,
+         "customers": 869,
+         "served_ok": 617782
+        }
+       }
+      },
+      "treatment": {
+       "time": 3283200,
+       "t0": 691200,
+       "losses": {
+        "result_refused": {
+         "events": 20039,
+         "cents": 100195,
+         "orgs": [
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco"
+         ],
+         "first_day": 8
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 21,
+         "by": [
+          "o:alloca00aco",
+          "o:alloca05aco",
+          "o:cloud1",
+          "o:cloud2",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:trans1co1"
+         ],
+         "first_t": 948600
+        },
+        "cost-compute": {
+         "n": 14,
+         "by": [
+          "o:alloca00aco",
+          "o:alloca05aco",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:trans1co1"
+         ],
+         "first_t": 948600
+        },
+        "cost-fee": {
+         "n": 2,
+         "by": [
+          "o:alloca05aco",
+          "o:quote02aco"
+         ],
+         "first_t": 1294200
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 19,
+         "by": [
+          "o:alloca00aco",
+          "o:alloca05aco",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:trans1co1"
+         ],
+         "first_t": 948600
+        },
+        "instance": {
+         "n": 19,
+         "by": [
+          "o:alloca00aco",
+          "o:alloca05aco",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:trans1co1"
+         ],
+         "first_t": 948600
+        },
+        "listing": {
+         "n": 19,
+         "by": [
+          "o:alloca00aco",
+          "o:alloca05aco",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:trans1co1"
+         ],
+         "first_t": 948600
+        },
+        "result_refused": {
+         "n": 6,
+         "by": [
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco"
+         ],
+         "first_t": 1207800
+        }
+       },
+       "capabilities": {},
+       "installs": {},
+       "markets": {},
+       "orgs_new": {
+        "o:ada-labs": {
+         "founder": "p:ada",
+         "kind": "company",
+         "t": 698400
+        },
+        "o:alloca00aco": {
+         "founder": "p:founder-00",
+         "kind": "company",
+         "t": 892800
+        },
+        "o:alloca05aco": {
+         "founder": "p:founder-05",
+         "kind": "company",
+         "t": 1152000
+        },
+        "o:dedupe01aco": {
+         "founder": "p:founder-01",
+         "kind": "company",
+         "t": 1843200
+        },
+        "o:dedupe03aco": {
+         "founder": "p:founder-03",
+         "kind": "company",
+         "t": 1065600
+        },
+        "o:quote02aco": {
+         "founder": "p:founder-02",
+         "kind": "company",
+         "t": 1324800
+        },
+        "o:quote04aco": {
+         "founder": "p:founder-04",
+         "kind": "company",
+         "t": 1324800
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 9
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 4
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {
+        "lst_000007": {
+         "seller": "o:ada-labs",
+         "need": "gen.schedule.91b3292d",
+         "kind": "api",
+         "host": "ada-schedu",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000008": {
+         "seller": "o:alloca00aco",
+         "need": "gen.allocate.d6ccdc86",
+         "kind": "api",
+         "host": "alloca00a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000009": {
+         "seller": "o:dedupe03aco",
+         "need": "gen.dedupe.43c9b317",
+         "kind": "api",
+         "host": "dedupe03a",
+         "price": 5,
+         "status": "active"
+        },
+        "lst_000010": {
+         "seller": "o:alloca05aco",
+         "need": "gen.allocate.d6ccdc86",
+         "kind": "api",
+         "host": "alloca05a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000011": {
+         "seller": "o:quote04aco",
+         "need": "gen.quote.4473ed8a",
+         "kind": "api",
+         "host": "quote04a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000012": {
+         "seller": "o:quote02aco",
+         "need": "gen.quote.4473ed8a",
+         "kind": "api",
+         "host": "quote02a",
+         "price": 4,
+         "status": "active"
+        }
+       },
+       "moves": [],
+       "needs": {
+        "gen.allocate.d6ccdc86": {
+         "consumers": 602,
+         "active": 453,
+         "customers": 373,
+         "served_ok": 195048
+        },
+        "gen.dedupe.43c9b317": {
+         "consumers": 648,
+         "active": 648,
+         "customers": 500,
+         "served_ok": 336686
+        },
+        "gen.quote.4473ed8a": {
+         "consumers": 880,
+         "active": 284,
+         "customers": 227,
+         "served_ok": 102471
+        },
+        "gen.schedule.91b3292d": {
+         "consumers": 857,
+         "active": 857,
+         "customers": 783,
+         "served_ok": 565976
+        },
+        "gen.transform.24de86df": {
+         "consumers": 1013,
+         "active": 1013,
+         "customers": 849,
+         "served_ok": 607867
+        }
+       }
+      },
+      "removal": {
+       "time": 3283200,
+       "t0": 691200,
+       "losses": {
+        "result_refused": {
+         "events": 20074,
+         "cents": 100370,
+         "orgs": [
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco"
+         ],
+         "first_day": 8
+        },
+        "service_unavailable": {
+         "events": 36782,
+         "cents": 147128,
+         "orgs": [
+          "o:ada-labs"
+         ],
+         "first_day": 22
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 21,
+         "by": [
+          "o:alloca00aco",
+          "o:alloca05aco",
+          "o:cloud1",
+          "o:cloud2",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:trans1co1"
+         ],
+         "first_t": 948600
+        },
+        "cost-compute": {
+         "n": 14,
+         "by": [
+          "o:alloca00aco",
+          "o:alloca05aco",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:trans1co1"
+         ],
+         "first_t": 948600
+        },
+        "cost-fee": {
+         "n": 2,
+         "by": [
+          "o:alloca05aco",
+          "o:quote02aco"
+         ],
+         "first_t": 1294200
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 19,
+         "by": [
+          "o:alloca00aco",
+          "o:alloca05aco",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:trans1co1"
+         ],
+         "first_t": 948600
+        },
+        "instance": {
+         "n": 19,
+         "by": [
+          "o:alloca00aco",
+          "o:alloca05aco",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:trans1co1"
+         ],
+         "first_t": 948600
+        },
+        "listing": {
+         "n": 19,
+         "by": [
+          "o:alloca00aco",
+          "o:alloca05aco",
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco",
+          "o:quote02aco",
+          "o:quote04aco",
+          "o:sched4co1",
+          "o:sched4co2",
+          "o:trans1co1"
+         ],
+         "first_t": 948600
+        },
+        "result_refused": {
+         "n": 6,
+         "by": [
+          "o:dedup0co1",
+          "o:dedup0co2",
+          "o:dedupe03aco"
+         ],
+         "first_t": 1207800
+        }
+       },
+       "capabilities": {},
+       "installs": {},
+       "markets": {},
+       "orgs_new": {
+        "o:ada-labs": {
+         "founder": "p:ada",
+         "kind": "company",
+         "t": 698400
+        },
+        "o:alloca00aco": {
+         "founder": "p:founder-00",
+         "kind": "company",
+         "t": 892800
+        },
+        "o:alloca05aco": {
+         "founder": "p:founder-05",
+         "kind": "company",
+         "t": 1152000
+        },
+        "o:dedupe01aco": {
+         "founder": "p:founder-01",
+         "kind": "company",
+         "t": 1843200
+        },
+        "o:dedupe03aco": {
+         "founder": "p:founder-03",
+         "kind": "company",
+         "t": 1065600
+        },
+        "o:quote02aco": {
+         "founder": "p:founder-02",
+         "kind": "company",
+         "t": 1324800
+        },
+        "o:quote04aco": {
+         "founder": "p:founder-04",
+         "kind": "company",
+         "t": 1324800
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 9
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 4
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {
+        "lst_000007": {
+         "seller": "o:ada-labs",
+         "need": "gen.schedule.91b3292d",
+         "kind": "api",
+         "host": "ada-schedu",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000008": {
+         "seller": "o:alloca00aco",
+         "need": "gen.allocate.d6ccdc86",
+         "kind": "api",
+         "host": "alloca00a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000009": {
+         "seller": "o:dedupe03aco",
+         "need": "gen.dedupe.43c9b317",
+         "kind": "api",
+         "host": "dedupe03a",
+         "price": 5,
+         "status": "active"
+        },
+        "lst_000010": {
+         "seller": "o:alloca05aco",
+         "need": "gen.allocate.d6ccdc86",
+         "kind": "api",
+         "host": "alloca05a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000011": {
+         "seller": "o:quote04aco",
+         "need": "gen.quote.4473ed8a",
+         "kind": "api",
+         "host": "quote04a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000012": {
+         "seller": "o:quote02aco",
+         "need": "gen.quote.4473ed8a",
+         "kind": "api",
+         "host": "quote02a",
+         "price": 4,
+         "status": "active"
+        }
+       },
+       "moves": [],
+       "needs": {
+        "gen.allocate.d6ccdc86": {
+         "consumers": 602,
+         "active": 390,
+         "customers": 327,
+         "served_ok": 187551
+        },
+        "gen.dedupe.43c9b317": {
+         "consumers": 648,
+         "active": 648,
+         "customers": 493,
+         "served_ok": 336192
+        },
+        "gen.quote.4473ed8a": {
+         "consumers": 880,
+         "active": 278,
+         "customers": 217,
+         "served_ok": 101831
+        },
+        "gen.schedule.91b3292d": {
+         "consumers": 857,
+         "active": 857,
+         "customers": 768,
+         "served_ok": 521875
+        },
+        "gen.transform.24de86df": {
+         "consumers": 1013,
+         "active": 1013,
+         "customers": 851,
+         "served_ok": 606785
+        }
+       }
+      }
+     },
+     "wall_s": 541.9
+    },
+    "3": {
+     "fork_time": 691200,
+     "fork_day": 8.0,
+     "horizon_days": 30.0,
+     "exact": true,
+     "determinism_check": null,
+     "control": "control",
+     "inventors": [
+      "o:ada-labs",
+      "p:ada"
+     ],
+     "provenance": {
+      "control": {
+       "p:ada": "scripted",
+       "founders": "autonomous (rule-based minds acting on public signals)"
+      },
+      "treatment": {
+       "p:ada": "scripted",
+       "founders": "autonomous (rule-based minds acting on public signals)"
+      },
+      "removal": {
+       "p:ada": "scripted",
+       "founders": "autonomous (rule-based minds acting on public signals)"
+      }
+     },
+     "invariants": {
+      "control": [],
+      "treatment": [],
+      "removal": []
+     },
+     "digests": {
+      "control": "b9d3d7d72dab8cbbaabcae014ff6b943",
+      "treatment": "20cf665ce57670d00b8a527f46dde85d",
+      "removal": "0d9e9b9edf7940ab8c57ae432516fb2c"
+     },
+     "arms": {
+      "treatment": {
+       "consequences": [
+        {
+         "kind": "organisation_founded",
+         "key": "o:schedu01aco",
+         "order": 1,
+         "treatment": {
+          "founder": "p:founder-01",
+          "kind": "company",
+          "t": 979200
+         },
+         "control": null,
+         "first_day": 11.33,
+         "actors": [
+          "p:founder-01"
+         ],
+         "evidence": {
+          "after_condition": false,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "result_refused",
+         "order": 1,
+         "treatment": {
+          "events": 34841,
+          "cents": 109684
+         },
+         "control": {
+          "events": 67083,
+          "cents": 274327
+         },
+         "first_day": null,
+         "actors": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:dedupe00aco"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "service_unavailable",
+         "order": 1,
+         "treatment": {
+          "events": 23894,
+          "cents": 89579
+         },
+         "control": {
+          "events": 5850,
+          "cents": 18039
+         },
+         "first_day": null,
+         "actors": [
+          "o:alloc0co1",
+          "o:sched2co1",
+          "o:trans3co1",
+          "o:trans3co2"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud1",
+         "order": 1,
+         "treatment": {
+          "used": 8,
+          "of": 120
+         },
+         "control": {
+          "used": 7,
+          "of": 120
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "work_served_changed",
+         "key": "gen.allocate.943615c5",
+         "order": 1,
+         "treatment": {
+          "served_ok": 498939
+         },
+         "control": {
+          "served_ok": 373663
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "work_served_changed",
+         "key": "gen.quote.a4dc1dd8",
+         "order": 1,
+         "treatment": {
+          "served_ok": 117594
+         },
+         "control": {
+          "served_ok": 40702
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "problem_reported",
+         "key": "cost-fee",
+         "order": 2,
+         "treatment": {
+          "n": 1,
+          "by": [
+           "o:schedu01aco"
+          ]
+         },
+         "control": {
+          "n": 0
+         },
+         "first_day": 12.98,
+         "actors": [
+          "o:schedu01aco"
+         ],
+         "evidence": {
+          "requests": [
+           "req_000014"
+          ]
+         }
+        },
+        {
+         "kind": "demand_changed",
+         "key": "gen.quote.a4dc1dd8",
+         "order": 2,
+         "treatment": {
+          "active": 330,
+          "of": 779
+         },
+         "control": {
+          "active": 212,
+          "of": 779
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "organisation_founded",
+         "key": "o:transf03aco",
+         "order": 3,
+         "treatment": {
+          "founder": "p:founder-03",
+          "kind": "company",
+          "t": 1411200
+         },
+         "control": null,
+         "first_day": 16.33,
+         "actors": [
+          "p:founder-03"
+         ],
+         "evidence": {
+          "after_condition": true,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "organisation_founded",
+         "key": "o:quote05aco",
+         "order": 3,
+         "treatment": {
+          "founder": "p:founder-05",
+          "kind": "company",
+          "t": 1497600
+         },
+         "control": null,
+         "first_day": 17.33,
+         "actors": [
+          "p:founder-05"
+         ],
+         "evidence": {
+          "after_condition": true,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "organisation_founded",
+         "key": "o:dedupe08aco",
+         "order": 3,
+         "treatment": {
+          "founder": "p:founder-08",
+          "kind": "company",
+          "t": 3225600
+         },
+         "control": null,
+         "first_day": 37.33,
+         "actors": [
+          "p:founder-08"
+         ],
+         "evidence": {
+          "after_condition": true,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "offering_listed",
+         "key": "lst_000012",
+         "order": 3,
+         "treatment": {
+          "seller": "o:dedupe08aco",
+          "need": "gen.dedupe.27f35b75",
+          "kind": "api",
+          "host": "dedupe08a",
+          "price": 5,
+          "status": "active"
+         },
+         "control": null,
+         "first_day": null,
+         "actors": [
+          "o:dedupe08aco"
+         ],
+         "evidence": {}
+        }
+       ],
+       "by_order": {
+        "0": 0,
+        "1": 6,
+        "2": 2,
+        "3": 4,
+        "4": 0
+       },
+       "kinds": [
+        "1:existing_loss_changed:result_refused",
+        "1:existing_loss_changed:service_unavailable",
+        "1:organisation_founded:o:schedu01aco",
+        "1:resource_use_changed:o:cloud1",
+        "1:work_served_changed:gen.allocate.943615c5",
+        "1:work_served_changed:gen.quote.a4dc1dd8",
+        "2:demand_changed:gen.quote.a4dc1dd8",
+        "2:problem_reported:cost-fee",
+        "3:offering_listed:lst_000012",
+        "3:organisation_founded:o:dedupe08aco",
+        "3:organisation_founded:o:quote05aco",
+        "3:organisation_founded:o:transf03aco"
+       ]
+      },
+      "removal": {
+       "consequences": [
+        {
+         "kind": "organisation_founded",
+         "key": "o:schedu01aco",
+         "order": 1,
+         "treatment": {
+          "founder": "p:founder-01",
+          "kind": "company",
+          "t": 979200
+         },
+         "control": null,
+         "first_day": 11.33,
+         "actors": [
+          "p:founder-01"
+         ],
+         "evidence": {
+          "after_condition": false,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "service_unavailable",
+         "order": 1,
+         "treatment": {
+          "events": 110121,
+          "cents": 330363
+         },
+         "control": {
+          "events": 5850,
+          "cents": 18039
+         },
+         "first_day": null,
+         "actors": [
+          "o:ada-labs"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud1",
+         "order": 1,
+         "treatment": {
+          "used": 9,
+          "of": 120
+         },
+         "control": {
+          "used": 7,
+          "of": 120
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "work_served_changed",
+         "key": "gen.quote.a4dc1dd8",
+         "order": 1,
+         "treatment": {
+          "served_ok": 77657
+         },
+         "control": {
+          "served_ok": 40702
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "problem_reported",
+         "key": "cost-fee",
+         "order": 2,
+         "treatment": {
+          "n": 1,
+          "by": [
+           "o:schedu01aco"
+          ]
+         },
+         "control": {
+          "n": 0
+         },
+         "first_day": 12.98,
+         "actors": [
+          "o:schedu01aco"
+         ],
+         "evidence": {
+          "requests": [
+           "req_000014"
+          ]
+         }
+        },
+        {
+         "kind": "demand_changed",
+         "key": "gen.quote.a4dc1dd8",
+         "order": 2,
+         "treatment": {
+          "active": 132,
+          "of": 779
+         },
+         "control": {
+          "active": 212,
+          "of": 779
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "organisation_founded",
+         "key": "o:transf03aco",
+         "order": 3,
+         "treatment": {
+          "founder": "p:founder-03",
+          "kind": "company",
+          "t": 1411200
+         },
+         "control": null,
+         "first_day": 16.33,
+         "actors": [
+          "p:founder-03"
+         ],
+         "evidence": {
+          "after_condition": true,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "organisation_founded",
+         "key": "o:quote05aco",
+         "order": 3,
+         "treatment": {
+          "founder": "p:founder-05",
+          "kind": "company",
+          "t": 1497600
+         },
+         "control": null,
+         "first_day": 17.33,
+         "actors": [
+          "p:founder-05"
+         ],
+         "evidence": {
+          "after_condition": true,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "organisation_founded",
+         "key": "o:transf04aco",
+         "order": 3,
+         "treatment": {
+          "founder": "p:founder-04",
+          "kind": "company",
+          "t": 1929600
+         },
+         "control": null,
+         "first_day": 22.33,
+         "actors": [
+          "p:founder-04"
+         ],
+         "evidence": {
+          "after_condition": true,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "organisation_founded",
+         "key": "o:alloca08aco",
+         "order": 3,
+         "treatment": {
+          "founder": "p:founder-08",
+          "kind": "company",
+          "t": 3225600
+         },
+         "control": null,
+         "first_day": 37.33,
+         "actors": [
+          "p:founder-08"
+         ],
+         "evidence": {
+          "after_condition": true,
+          "published_a_response": false
+         }
+        },
+        {
+         "kind": "offering_listed",
+         "key": "lst_000012",
+         "order": 3,
+         "treatment": {
+          "seller": "o:transf04aco",
+          "need": "gen.transform.0813070e",
+          "kind": "api",
+          "host": "transf04a",
+          "price": 4,
+          "status": "active"
+         },
+         "control": null,
+         "first_day": null,
+         "actors": [
+          "o:transf04aco"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "offering_listed",
+         "key": "lst_000013",
+         "order": 3,
+         "treatment": {
+          "seller": "o:alloca08aco",
+          "need": "gen.allocate.943615c5",
+          "kind": "api",
+          "host": "alloca08a",
+          "price": 3,
+          "status": "active"
+         },
+         "control": null,
+         "first_day": null,
+         "actors": [
+          "o:alloca08aco"
+         ],
+         "evidence": {}
+        }
+       ],
+       "by_order": {
+        "0": 0,
+        "1": 4,
+        "2": 2,
+        "3": 6,
+        "4": 0
+       },
+       "kinds": [
+        "1:existing_loss_changed:service_unavailable",
+        "1:organisation_founded:o:schedu01aco",
+        "1:resource_use_changed:o:cloud1",
+        "1:work_served_changed:gen.quote.a4dc1dd8",
+        "2:demand_changed:gen.quote.a4dc1dd8",
+        "2:problem_reported:cost-fee",
+        "3:offering_listed:lst_000012",
+        "3:offering_listed:lst_000013",
+        "3:organisation_founded:o:alloca08aco",
+        "3:organisation_founded:o:quote05aco",
+        "3:organisation_founded:o:transf03aco",
+        "3:organisation_founded:o:transf04aco"
+       ],
+       "withdrawn_at_day": 22,
+       "fades": []
+      }
+     },
+     "census": {
+      "control": {
+       "time": 3283200,
+       "t0": 691200,
+       "losses": {
+        "result_refused": {
+         "events": 67083,
+         "cents": 274327,
+         "orgs": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:dedupe00aco",
+          "o:dedupe03aco"
+         ],
+         "first_day": 8
+        },
+        "service_unavailable": {
+         "events": 5850,
+         "cents": 18039,
+         "orgs": [
+          "o:alloc0co1",
+          "o:sched2co1",
+          "o:trans3co1",
+          "o:trans3co2"
+         ],
+         "first_day": 36
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 23,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:alloca01aco",
+          "o:cloud1",
+          "o:cloud2",
+          "o:dedupe00aco",
+          "o:dedupe03aco",
+          "o:quote04aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:trans3co1",
+          "o:trans3co2",
+          "o:transf05aco"
+         ],
+         "first_t": 948600
+        },
+        "cost-compute": {
+         "n": 13,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:alloca01aco",
+          "o:dedupe00aco",
+          "o:dedupe03aco",
+          "o:quote04aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:trans3co1",
+          "o:trans3co2",
+          "o:transf05aco"
+         ],
+         "first_t": 948600
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 21,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:alloca01aco",
+          "o:dedupe00aco",
+          "o:dedupe03aco",
+          "o:quote04aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:trans3co1",
+          "o:trans3co2",
+          "o:transf05aco"
+         ],
+         "first_t": 948600
+        },
+        "instance": {
+         "n": 21,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:alloca01aco",
+          "o:dedupe00aco",
+          "o:dedupe03aco",
+          "o:quote04aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:trans3co1",
+          "o:trans3co2",
+          "o:transf05aco"
+         ],
+         "first_t": 948600
+        },
+        "listing": {
+         "n": 21,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:alloca01aco",
+          "o:dedupe00aco",
+          "o:dedupe03aco",
+          "o:quote04aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:trans3co1",
+          "o:trans3co2",
+          "o:transf05aco"
+         ],
+         "first_t": 948600
+        },
+        "result_refused": {
+         "n": 9,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:dedupe00aco",
+          "o:dedupe03aco"
+         ],
+         "first_t": 1035000
+        },
+        "service_unavailable": {
+         "n": 4,
+         "by": [
+          "o:alloc0co1",
+          "o:sched2co1",
+          "o:trans3co1",
+          "o:trans3co2"
+         ],
+         "first_t": 3195000
+        }
+       },
+       "capabilities": {},
+       "installs": {},
+       "markets": {},
+       "orgs_new": {
+        "o:alloca01aco": {
+         "founder": "p:founder-01",
+         "kind": "company",
+         "t": 1756800
+        },
+        "o:dedupe00aco": {
+         "founder": "p:founder-00",
+         "kind": "company",
+         "t": 892800
+        },
+        "o:dedupe03aco": {
+         "founder": "p:founder-03",
+         "kind": "company",
+         "t": 1065600
+        },
+        "o:quote04aco": {
+         "founder": "p:founder-04",
+         "kind": "company",
+         "t": 1065600
+        },
+        "o:transf05aco": {
+         "founder": "p:founder-05",
+         "kind": "company",
+         "t": 1152000
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 7
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 4
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {
+        "lst_000007": {
+         "seller": "o:dedupe00aco",
+         "need": "gen.dedupe.27f35b75",
+         "kind": "api",
+         "host": "dedupe00a",
+         "price": 5,
+         "status": "active"
+        },
+        "lst_000008": {
+         "seller": "o:dedupe03aco",
+         "need": "gen.dedupe.27f35b75",
+         "kind": "api",
+         "host": "dedupe03a",
+         "price": 5,
+         "status": "active"
+        },
+        "lst_000009": {
+         "seller": "o:transf05aco",
+         "need": "gen.transform.0813070e",
+         "kind": "api",
+         "host": "transf05a",
+         "price": 3,
+         "status": "active"
+        },
+        "lst_000010": {
+         "seller": "o:alloca01aco",
+         "need": "gen.allocate.943615c5",
+         "kind": "api",
+         "host": "alloca01a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000011": {
+         "seller": "o:quote04aco",
+         "need": "gen.quote.a4dc1dd8",
+         "kind": "api",
+         "host": "quote04a",
+         "price": 3,
+         "status": "active"
+        }
+       },
+       "moves": [],
+       "needs": {
+        "gen.allocate.943615c5": {
+         "consumers": 753,
+         "active": 753,
+         "customers": 621,
+         "served_ok": 373663
+        },
+        "gen.dedupe.27f35b75": {
+         "consumers": 638,
+         "active": 288,
+         "customers": 233,
+         "served_ok": 124171
+        },
+        "gen.quote.a4dc1dd8": {
+         "consumers": 779,
+         "active": 212,
+         "customers": 180,
+         "served_ok": 40702
+        },
+        "gen.schedule.55e3a103": {
+         "consumers": 690,
+         "active": 690,
+         "customers": 630,
+         "served_ok": 457206
+        },
+        "gen.transform.0813070e": {
+         "consumers": 1140,
+         "active": 1140,
+         "customers": 1088,
+         "served_ok": 754702
+        }
+       }
+      },
+      "treatment": {
+       "time": 3283200,
+       "t0": 691200,
+       "losses": {
+        "result_refused": {
+         "events": 34841,
+         "cents": 109684,
+         "orgs": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:dedupe00aco"
+         ],
+         "first_day": 8
+        },
+        "service_unavailable": {
+         "events": 23894,
+         "cents": 89579,
+         "orgs": [
+          "o:alloc0co1",
+          "o:sched2co1",
+          "o:trans3co1",
+          "o:trans3co2"
+         ],
+         "first_day": 27
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 23,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:cloud1",
+          "o:cloud2",
+          "o:dedupe00aco",
+          "o:dedupe08aco",
+          "o:quote05aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:schedu01aco",
+          "o:trans3co1",
+          "o:trans3co2",
+          "o:transf03aco"
+         ],
+         "first_t": 948600
+        },
+        "cost-compute": {
+         "n": 13,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:dedupe00aco",
+          "o:dedupe08aco",
+          "o:quote05aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:schedu01aco",
+          "o:trans3co1",
+          "o:transf03aco"
+         ],
+         "first_t": 948600
+        },
+        "cost-fee": {
+         "n": 1,
+         "by": [
+          "o:schedu01aco"
+         ],
+         "first_t": 1121400
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 21,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:dedupe00aco",
+          "o:dedupe08aco",
+          "o:quote05aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:schedu01aco",
+          "o:trans3co1",
+          "o:trans3co2",
+          "o:transf03aco"
+         ],
+         "first_t": 948600
+        },
+        "instance": {
+         "n": 21,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:dedupe00aco",
+          "o:dedupe08aco",
+          "o:quote05aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:schedu01aco",
+          "o:trans3co1",
+          "o:trans3co2",
+          "o:transf03aco"
+         ],
+         "first_t": 948600
+        },
+        "listing": {
+         "n": 21,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:dedupe00aco",
+          "o:dedupe08aco",
+          "o:quote05aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:schedu01aco",
+          "o:trans3co1",
+          "o:trans3co2",
+          "o:transf03aco"
+         ],
+         "first_t": 948600
+        },
+        "result_refused": {
+         "n": 7,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:dedupe00aco"
+         ],
+         "first_t": 1035000
+        },
+        "service_unavailable": {
+         "n": 5,
+         "by": [
+          "o:alloc0co1",
+          "o:sched2co1",
+          "o:trans3co1",
+          "o:trans3co2"
+         ],
+         "first_t": 2417400
+        }
+       },
+       "capabilities": {},
+       "installs": {},
+       "markets": {},
+       "orgs_new": {
+        "o:ada-labs": {
+         "founder": "p:ada",
+         "kind": "company",
+         "t": 698400
+        },
+        "o:dedupe00aco": {
+         "founder": "p:founder-00",
+         "kind": "company",
+         "t": 892800
+        },
+        "o:dedupe08aco": {
+         "founder": "p:founder-08",
+         "kind": "company",
+         "t": 3225600
+        },
+        "o:quote04aco": {
+         "founder": "p:founder-04",
+         "kind": "company",
+         "t": 3139200
+        },
+        "o:quote05aco": {
+         "founder": "p:founder-05",
+         "kind": "company",
+         "t": 1497600
+        },
+        "o:schedu01aco": {
+         "founder": "p:founder-01",
+         "kind": "company",
+         "t": 979200
+        },
+        "o:transf03aco": {
+         "founder": "p:founder-03",
+         "kind": "company",
+         "t": 1411200
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 8
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 4
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {
+        "lst_000007": {
+         "seller": "o:ada-labs",
+         "need": "gen.allocate.943615c5",
+         "kind": "api",
+         "host": "ada-alloca",
+         "price": 3,
+         "status": "active"
+        },
+        "lst_000008": {
+         "seller": "o:dedupe00aco",
+         "need": "gen.dedupe.27f35b75",
+         "kind": "api",
+         "host": "dedupe00a",
+         "price": 5,
+         "status": "active"
+        },
+        "lst_000009": {
+         "seller": "o:schedu01aco",
+         "need": "gen.schedule.55e3a103",
+         "kind": "api",
+         "host": "schedu01a",
+         "price": 3,
+         "status": "active"
+        },
+        "lst_000010": {
+         "seller": "o:transf03aco",
+         "need": "gen.transform.0813070e",
+         "kind": "api",
+         "host": "transf03a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000011": {
+         "seller": "o:quote05aco",
+         "need": "gen.quote.a4dc1dd8",
+         "kind": "api",
+         "host": "quote05a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000012": {
+         "seller": "o:dedupe08aco",
+         "need": "gen.dedupe.27f35b75",
+         "kind": "api",
+         "host": "dedupe08a",
+         "price": 5,
+         "status": "active"
+        }
+       },
+       "moves": [],
+       "needs": {
+        "gen.allocate.943615c5": {
+         "consumers": 753,
+         "active": 753,
+         "customers": 725,
+         "served_ok": 498939
+        },
+        "gen.dedupe.27f35b75": {
+         "consumers": 638,
+         "active": 250,
+         "customers": 192,
+         "served_ok": 108051
+        },
+        "gen.quote.a4dc1dd8": {
+         "consumers": 779,
+         "active": 330,
+         "customers": 302,
+         "served_ok": 117594
+        },
+        "gen.schedule.55e3a103": {
+         "consumers": 690,
+         "active": 690,
+         "customers": 630,
+         "served_ok": 452403
+        },
+        "gen.transform.0813070e": {
+         "consumers": 1140,
+         "active": 1140,
+         "customers": 1023,
+         "served_ok": 659267
+        }
+       }
+      },
+      "removal": {
+       "time": 3283200,
+       "t0": 691200,
+       "losses": {
+        "result_refused": {
+         "events": 56664,
+         "cents": 174677,
+         "orgs": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:dedupe00aco"
+         ],
+         "first_day": 8
+        },
+        "service_unavailable": {
+         "events": 110121,
+         "cents": 330363,
+         "orgs": [
+          "o:ada-labs"
+         ],
+         "first_day": 22
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 20,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:alloca08aco",
+          "o:cloud1",
+          "o:cloud2",
+          "o:dedupe00aco",
+          "o:quote05aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:schedu01aco",
+          "o:trans3co1",
+          "o:transf03aco",
+          "o:transf04aco"
+         ],
+         "first_t": 948600
+        },
+        "cost-compute": {
+         "n": 14,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:alloca08aco",
+          "o:dedupe00aco",
+          "o:quote05aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:schedu01aco",
+          "o:trans3co1",
+          "o:transf03aco",
+          "o:transf04aco"
+         ],
+         "first_t": 948600
+        },
+        "cost-fee": {
+         "n": 1,
+         "by": [
+          "o:schedu01aco"
+         ],
+         "first_t": 1121400
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 18,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:alloca08aco",
+          "o:dedupe00aco",
+          "o:quote05aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:schedu01aco",
+          "o:trans3co1",
+          "o:transf03aco",
+          "o:transf04aco"
+         ],
+         "first_t": 948600
+        },
+        "instance": {
+         "n": 18,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:alloca08aco",
+          "o:dedupe00aco",
+          "o:quote05aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:schedu01aco",
+          "o:trans3co1",
+          "o:transf03aco",
+          "o:transf04aco"
+         ],
+         "first_t": 948600
+        },
+        "listing": {
+         "n": 18,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:alloca08aco",
+          "o:dedupe00aco",
+          "o:quote05aco",
+          "o:sched2co1",
+          "o:sched2co2",
+          "o:schedu01aco",
+          "o:trans3co1",
+          "o:transf03aco",
+          "o:transf04aco"
+         ],
+         "first_t": 948600
+        },
+        "result_refused": {
+         "n": 5,
+         "by": [
+          "o:alloc0co1",
+          "o:alloc0co2",
+          "o:dedupe00aco"
+         ],
+         "first_t": 1035000
+        }
+       },
+       "capabilities": {},
+       "installs": {},
+       "markets": {},
+       "orgs_new": {
+        "o:ada-labs": {
+         "founder": "p:ada",
+         "kind": "company",
+         "t": 698400
+        },
+        "o:alloca08aco": {
+         "founder": "p:founder-08",
+         "kind": "company",
+         "t": 3225600
+        },
+        "o:dedupe00aco": {
+         "founder": "p:founder-00",
+         "kind": "company",
+         "t": 892800
+        },
+        "o:quote05aco": {
+         "founder": "p:founder-05",
+         "kind": "company",
+         "t": 1497600
+        },
+        "o:schedu01aco": {
+         "founder": "p:founder-01",
+         "kind": "company",
+         "t": 979200
+        },
+        "o:transf03aco": {
+         "founder": "p:founder-03",
+         "kind": "company",
+         "t": 1411200
+        },
+        "o:transf04aco": {
+         "founder": "p:founder-04",
+         "kind": "company",
+         "t": 1929600
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 9
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 4
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {
+        "lst_000007": {
+         "seller": "o:ada-labs",
+         "need": "gen.allocate.943615c5",
+         "kind": "api",
+         "host": "ada-alloca",
+         "price": 3,
+         "status": "active"
+        },
+        "lst_000008": {
+         "seller": "o:dedupe00aco",
+         "need": "gen.dedupe.27f35b75",
+         "kind": "api",
+         "host": "dedupe00a",
+         "price": 5,
+         "status": "active"
+        },
+        "lst_000009": {
+         "seller": "o:schedu01aco",
+         "need": "gen.schedule.55e3a103",
+         "kind": "api",
+         "host": "schedu01a",
+         "price": 3,
+         "status": "active"
+        },
+        "lst_000010": {
+         "seller": "o:transf03aco",
+         "need": "gen.transform.0813070e",
+         "kind": "api",
+         "host": "transf03a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000011": {
+         "seller": "o:quote05aco",
+         "need": "gen.quote.a4dc1dd8",
+         "kind": "api",
+         "host": "quote05a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000012": {
+         "seller": "o:transf04aco",
+         "need": "gen.transform.0813070e",
+         "kind": "api",
+         "host": "transf04a",
+         "price": 4,
+         "status": "active"
+        },
+        "lst_000013": {
+         "seller": "o:alloca08aco",
+         "need": "gen.allocate.943615c5",
+         "kind": "api",
+         "host": "alloca08a",
+         "price": 3,
+         "status": "active"
+        }
+       },
+       "moves": [],
+       "needs": {
+        "gen.allocate.943615c5": {
+         "consumers": 753,
+         "active": 753,
+         "customers": 702,
+         "served_ok": 375110
+        },
+        "gen.dedupe.27f35b75": {
+         "consumers": 638,
+         "active": 256,
+         "customers": 207,
+         "served_ok": 110475
+        },
+        "gen.quote.a4dc1dd8": {
+         "consumers": 779,
+         "active": 132,
+         "customers": 119,
+         "served_ok": 77657
+        },
+        "gen.schedule.55e3a103": {
+         "consumers": 690,
+         "active": 690,
+         "customers": 621,
+         "served_ok": 456819
+        },
+        "gen.transform.0813070e": {
+         "consumers": 1140,
+         "active": 1140,
+         "customers": 1023,
+         "served_ok": 676296
+        }
+       }
+      }
+     },
+     "wall_s": 538.92
+    }
+   },
+   "wall_s": 2070.2
+  }
+ }
+}

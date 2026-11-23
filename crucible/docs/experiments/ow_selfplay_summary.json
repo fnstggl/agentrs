@@ -1,0 +1,233 @@
+{
+ "jobs_finished": {
+  "a1": 6,
+  "audit": 20,
+  "br": 8,
+  "commons": 20,
+  "coop": 20,
+  "crossplay": 15,
+  "fixed": 32,
+  "heldout": 16,
+  "historical": 2,
+  "history": 6,
+  "kernel": 12,
+  "pair": 70,
+  "population": 1,
+  "registry": 2
+ },
+ "n_slots": 8,
+ "iters": {
+  "abm": 40,
+  "tech": 50
+ },
+ "training_wall_s": 16878.6,
+ "conservation": {
+  "matches_checked": 560,
+  "violations": 0,
+  "max_seat_revenue_over_demand_income": 0.37096020065306895
+ },
+ "kernel_hosted_replays_of_trained_pairs": {
+  "what": "the frozen final pair of the first world of each family (one spsa pair, one pg pair) played once more in a kernel world through rig.set / rig.read; `equal` = the arena's net, the sum of the kernel reports and the metric rig_net agree to the cent for both seats",
+  "matches": 12,
+  "equal": 12,
+  "logs_replay": 12,
+  "ledger_conservation_ok": 12,
+  "invariant_violations": 0,
+  "tool_calls": 9768,
+  "runs": [
+   {
+    "family": "abm_commons",
+    "arch": [
+     "pg",
+     "pg"
+    ],
+    "equal": true,
+    "rig_net_cents": [
+     992210.0,
+     856507.0
+    ],
+    "arena_net_cents": [
+     992210.0,
+     856507.0
+    ]
+   },
+   {
+    "family": "abm_commons",
+    "arch": [
+     "spsa",
+     "spsa"
+    ],
+    "equal": true,
+    "rig_net_cents": [
+     716947.0,
+     919889.0
+    ],
+    "arena_net_cents": [
+     716947.0,
+     919889.0
+    ]
+   },
+   {
+    "family": "abm_complement",
+    "arch": [
+     "pg",
+     "pg"
+    ],
+    "equal": true,
+    "rig_net_cents": [
+     303929.0,
+     292545.0
+    ],
+    "arena_net_cents": [
+     303929.0,
+     292545.0
+    ]
+   },
+   {
+    "family": "abm_complement",
+    "arch": [
+     "spsa",
+     "spsa"
+    ],
+    "equal": true,
+    "rig_net_cents": [
+     476828.0,
+     489041.0
+    ],
+    "arena_net_cents": [
+     476828.0,
+     489041.0
+    ]
+   },
+   {
+    "family": "abm_duopoly",
+    "arch": [
+     "pg",
+     "pg"
+    ],
+    "equal": true,
+    "rig_net_cents": [
+     1636296.0,
+     1615699.0
+    ],
+    "arena_net_cents": [
+     1636296.0,
+     1615699.0
+    ]
+   },
+   {
+    "family": "abm_duopoly",
+    "arch": [
+     "spsa",
+     "spsa"
+    ],
+    "equal": true,
+    "rig_net_cents": [
+     1140547.0,
+     990764.0
+    ],
+    "arena_net_cents": [
+     1140547.0,
+     990764.0
+    ]
+   },
+   {
+    "family": "abm_duopoly_fx",
+    "arch": [
+     "pg",
+     "pg"
+    ],
+    "equal": true,
+    "rig_net_cents": [
+     12694.0,
+     2554108.0
+    ],
+    "arena_net_cents": [
+     12694.0,
+     2554108.0
+    ]
+   },
+   {
+    "family": "abm_duopoly_fx",
+    "arch": [
+     "spsa",
+     "spsa"
+    ],
+    "equal": true,
+    "rig_net_cents": [
+     413.0,
+     0.0
+    ],
+    "arena_net_cents": [
+     413.0,
+     0.0
+    ]
+   },
+   {
+    "family": "tech_handoff",
+    "arch": [
+     "pg",
+     "pg"
+    ],
+    "equal": true,
+    "rig_net_cents": [
+     10749.0,
+     26103.0
+    ],
+    "arena_net_cents": [
+     10749.0,
+     26103.0
+    ]
+   },
+   {
+    "family": "tech_handoff",
+    "arch": [
+     "spsa",
+     "spsa"
+    ],
+    "equal": true,
+    "rig_net_cents": [
+     16767.0,
+     22671.0
+    ],
+    "arena_net_cents": [
+     16767.0,
+     22671.0
+    ]
+   },
+   {
+    "family": "tech_shared_pool",
+    "arch": [
+     "pg",
+     "pg"
+    ],
+    "equal": true,
+    "rig_net_cents": [
+     13668.0,
+     18411.0
+    ],
+    "arena_net_cents": [
+     13668.0,
+     18411.0
+    ]
+   },
+   {
+    "family": "tech_shared_pool",
+    "arch": [
+     "spsa",
+     "spsa"
+    ],
+    "equal": true,
+    "rig_net_cents": [
+     10258.0,
+     13203.0
+    ],
+    "arena_net_cents": [
+     10258.0,
+     13203.0
+    ]
+   }
+  ]
+ },
+ "errors_file": "/tmp/claude-0/-workspace-agentrs/bd8b0c90-42cb-4c33-8b8b-7360e51d82a1/scratchpad/wp5/full/errors.log"
+}

@@ -1,0 +1,2011 @@
+{
+ "family": "ow_frontier",
+ "days": 180,
+ "seeds": [
+  1,
+  2
+ ],
+ "arms": [
+  "full"
+ ],
+ "shock": {
+  "day": 90,
+  "kind": "bankrupt_largest",
+  "hours": 48
+ },
+ "wall_s": 2201.2,
+ "runs": [
+  "ow_longrun180_ow_frontier_s1_full",
+  "ow_longrun180_ow_frontier_s2_full"
+ ],
+ "by_seed": {
+  "1": {
+   "weeks": [
+    {
+     "week": 1,
+     "full": {
+      "served": 245872,
+      "firms": 10,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 69460,
+        "sellers": 2
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 70204,
+        "sellers": 2
+       },
+       "gen.quote.eaebade9": {
+        "served": 0,
+        "sellers": 0
+       },
+       "gen.schedule.944d4270": {
+        "served": 0,
+        "sellers": 0
+       },
+       "gen.transform.d255abac": {
+        "served": 106208,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 2,
+     "full": {
+      "served": 341615,
+      "firms": 15,
+      "entries": 5,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 90422,
+        "sellers": 2
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 92095,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 15758,
+        "sellers": 1
+       },
+       "gen.schedule.944d4270": {
+        "served": 4467,
+        "sellers": 1
+       },
+       "gen.transform.d255abac": {
+        "served": 138873,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 3,
+     "full": {
+      "served": 456745,
+      "firms": 16,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 98095,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 130350,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 55860,
+        "sellers": 1
+       },
+       "gen.schedule.944d4270": {
+        "served": 23566,
+        "sellers": 1
+       },
+       "gen.transform.d255abac": {
+        "served": 148874,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 4,
+     "full": {
+      "served": 492076,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 103387,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 133824,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 75989,
+        "sellers": 1
+       },
+       "gen.schedule.944d4270": {
+        "served": 29389,
+        "sellers": 1
+       },
+       "gen.transform.d255abac": {
+        "served": 149487,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 5,
+     "full": {
+      "served": 505978,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 103628,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 133338,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 88294,
+        "sellers": 1
+       },
+       "gen.schedule.944d4270": {
+        "served": 31366,
+        "sellers": 1
+       },
+       "gen.transform.d255abac": {
+        "served": 149352,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 6,
+     "full": {
+      "served": 512141,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 103380,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 133995,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 92700,
+        "sellers": 1
+       },
+       "gen.schedule.944d4270": {
+        "served": 31931,
+        "sellers": 1
+       },
+       "gen.transform.d255abac": {
+        "served": 150135,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 7,
+     "full": {
+      "served": 514091,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 104101,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 133840,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 94417,
+        "sellers": 1
+       },
+       "gen.schedule.944d4270": {
+        "served": 32127,
+        "sellers": 1
+       },
+       "gen.transform.d255abac": {
+        "served": 149606,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 8,
+     "full": {
+      "served": 514082,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 103913,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 134029,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 94479,
+        "sellers": 1
+       },
+       "gen.schedule.944d4270": {
+        "served": 32052,
+        "sellers": 1
+       },
+       "gen.transform.d255abac": {
+        "served": 149609,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 9,
+     "full": {
+      "served": 512348,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 103934,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 134068,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 94637,
+        "sellers": 1
+       },
+       "gen.schedule.944d4270": {
+        "served": 32428,
+        "sellers": 1
+       },
+       "gen.transform.d255abac": {
+        "served": 147281,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 10,
+     "full": {
+      "served": 511877,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 103763,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 133442,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 94482,
+        "sellers": 1
+       },
+       "gen.schedule.944d4270": {
+        "served": 31512,
+        "sellers": 1
+       },
+       "gen.transform.d255abac": {
+        "served": 148678,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 11,
+     "full": {
+      "served": 508880,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 102784,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 133568,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 92833,
+        "sellers": 1
+       },
+       "gen.schedule.944d4270": {
+        "served": 31648,
+        "sellers": 1
+       },
+       "gen.transform.d255abac": {
+        "served": 148047,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 12,
+     "full": {
+      "served": 511123,
+      "firms": 17,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 103002,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 134155,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 93580,
+        "sellers": 1
+       },
+       "gen.schedule.944d4270": {
+        "served": 32293,
+        "sellers": 2
+       },
+       "gen.transform.d255abac": {
+        "served": 148093,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 13,
+     "full": {
+      "served": 442807,
+      "firms": 16,
+      "entries": 0,
+      "exits": 1,
+      "collapsed_days": 2,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 93368,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 115951,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 67695,
+        "sellers": 0
+       },
+       "gen.schedule.944d4270": {
+        "served": 27067,
+        "sellers": 2
+       },
+       "gen.transform.d255abac": {
+        "served": 138726,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 14,
+     "full": {
+      "served": 415146,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 7,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 103564,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 133462,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 0,
+        "sellers": 0
+       },
+       "gen.schedule.944d4270": {
+        "served": 30354,
+        "sellers": 2
+       },
+       "gen.transform.d255abac": {
+        "served": 147766,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 15,
+     "full": {
+      "served": 415370,
+      "firms": 17,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 7,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 103174,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 133180,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 0,
+        "sellers": 0
+       },
+       "gen.schedule.944d4270": {
+        "served": 31913,
+        "sellers": 2
+       },
+       "gen.transform.d255abac": {
+        "served": 147103,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 16,
+     "full": {
+      "served": 416595,
+      "firms": 17,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 7,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 103290,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 132629,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 0,
+        "sellers": 0
+       },
+       "gen.schedule.944d4270": {
+        "served": 32976,
+        "sellers": 2
+       },
+       "gen.transform.d255abac": {
+        "served": 147700,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 17,
+     "full": {
+      "served": 458843,
+      "firms": 18,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 5,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 104225,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 133137,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 41138,
+        "sellers": 2
+       },
+       "gen.schedule.944d4270": {
+        "served": 32851,
+        "sellers": 2
+       },
+       "gen.transform.d255abac": {
+        "served": 147492,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 18,
+     "full": {
+      "served": 513682,
+      "firms": 18,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 104309,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 133557,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 95210,
+        "sellers": 2
+       },
+       "gen.schedule.944d4270": {
+        "served": 32942,
+        "sellers": 2
+       },
+       "gen.transform.d255abac": {
+        "served": 147664,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 19,
+     "full": {
+      "served": 515613,
+      "firms": 18,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 103627,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 133814,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 97332,
+        "sellers": 2
+       },
+       "gen.schedule.944d4270": {
+        "served": 33258,
+        "sellers": 2
+       },
+       "gen.transform.d255abac": {
+        "served": 147582,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 20,
+     "full": {
+      "served": 507981,
+      "firms": 18,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 101149,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 133594,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 97487,
+        "sellers": 2
+       },
+       "gen.schedule.944d4270": {
+        "served": 32988,
+        "sellers": 2
+       },
+       "gen.transform.d255abac": {
+        "served": 142763,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 21,
+     "full": {
+      "served": 514237,
+      "firms": 19,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 104002,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 132615,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 97559,
+        "sellers": 2
+       },
+       "gen.schedule.944d4270": {
+        "served": 32939,
+        "sellers": 2
+       },
+       "gen.transform.d255abac": {
+        "served": 147122,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 22,
+     "full": {
+      "served": 515689,
+      "firms": 19,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 103974,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 133344,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 97440,
+        "sellers": 2
+       },
+       "gen.schedule.944d4270": {
+        "served": 33242,
+        "sellers": 2
+       },
+       "gen.transform.d255abac": {
+        "served": 147689,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 23,
+     "full": {
+      "served": 519188,
+      "firms": 19,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 104435,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 134079,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 97406,
+        "sellers": 2
+       },
+       "gen.schedule.944d4270": {
+        "served": 35658,
+        "sellers": 3
+       },
+       "gen.transform.d255abac": {
+        "served": 147610,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 24,
+     "full": {
+      "served": 518785,
+      "firms": 19,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 104103,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 132461,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 98069,
+        "sellers": 2
+       },
+       "gen.schedule.944d4270": {
+        "served": 37349,
+        "sellers": 3
+       },
+       "gen.transform.d255abac": {
+        "served": 146803,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 25,
+     "full": {
+      "served": 518160,
+      "firms": 19,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.5db7c5f4": {
+        "served": 104624,
+        "sellers": 3
+       },
+       "gen.dedupe.8b6bbcd8": {
+        "served": 132833,
+        "sellers": 4
+       },
+       "gen.quote.eaebade9": {
+        "served": 96974,
+        "sellers": 2
+       },
+       "gen.schedule.944d4270": {
+        "served": 37032,
+        "sellers": 3
+       },
+       "gen.transform.d255abac": {
+        "served": 146697,
+        "sellers": 3
+       }
+      }
+     }
+    }
+   ],
+   "arms": {
+    "full": {
+     "output": {
+      "served_by_week": [
+       245872,
+       341615,
+       456745,
+       492076,
+       505978,
+       512141,
+       514091,
+       514082,
+       512348,
+       511877,
+       508880,
+       511123,
+       442807,
+       415146,
+       415370,
+       416595,
+       458843,
+       513682,
+       515613,
+       507981,
+       514237,
+       515689,
+       519188,
+       518785,
+       518160
+      ],
+      "median_weeks_2_8": 505978.0,
+      "last_week_over_median_weeks_2_8": 1.024,
+      "mean_after_week_9_over_median_weeks_2_8": 0.964,
+      "weeks_with_structural_change_after_9": 6,
+      "weeks_after_9": 16
+     },
+     "collapses": [
+      {
+       "sector": "gen.allocate.5db7c5f4",
+       "day": 86,
+       "ratio": 0.367,
+       "recovered_day": 87,
+       "days_to_recover": 1,
+       "cause": "provider outage"
+      },
+      {
+       "sector": "gen.dedupe.8b6bbcd8",
+       "day": 86,
+       "ratio": 0.151,
+       "recovered_day": 87,
+       "days_to_recover": 1,
+       "cause": "provider outage"
+      },
+      {
+       "sector": "gen.quote.eaebade9",
+       "day": 86,
+       "ratio": 0.083,
+       "recovered_day": 87,
+       "days_to_recover": 1,
+       "cause": "provider outage"
+      },
+      {
+       "sector": "gen.schedule.944d4270",
+       "day": 86,
+       "ratio": 0.086,
+       "recovered_day": 87,
+       "days_to_recover": 1,
+       "cause": "provider outage"
+      },
+      {
+       "sector": "gen.quote.eaebade9",
+       "day": 90,
+       "ratio": 0.0,
+       "recovered_day": 117,
+       "days_to_recover": 27,
+       "cause": "recorded shock"
+      }
+     ],
+     "unrecovered": [],
+     "economy": {
+      "entries": 10,
+      "exits": 1,
+      "bankruptcies": 1,
+      "price_changes": 11,
+      "new_listings": 10,
+      "adoptions": 0,
+      "active_firms_start": 10,
+      "active_firms_end": 19
+     },
+     "household_budget_bound_from_day": null,
+     "entry": {
+      "founders": 14,
+      "scans": 13,
+      "surveys": 7,
+      "research_cents": 175000,
+      "entries": 10,
+      "exits": 1,
+      "failed": 1,
+      "aborted": 0,
+      "loans_asked": 0,
+      "loans_granted": 0,
+      "launched": 10,
+      "operating": 9,
+      "failure_rate": 0.1,
+      "retired": 0,
+      "sectors_served_by_entrants_at_end": [
+       "gen.allocate.5db7c5f4",
+       "gen.dedupe.8b6bbcd8",
+       "gen.quote.eaebade9",
+       "gen.schedule.944d4270",
+       "gen.transform.d255abac"
+      ],
+      "sectors_served_only_by_entrants_at_end": [
+       "gen.quote.eaebade9",
+       "gen.schedule.944d4270"
+      ]
+     },
+     "shock": {
+      "requested": {
+       "day": 90,
+       "kind": "bankrupt_largest",
+       "hours": 48
+      },
+      "report": {
+       "kind": "bankrupt_largest",
+       "done": true,
+       "org": "o:quote00aco",
+       "sectors": [
+        "gen.quote.eaebade9"
+       ],
+       "how": "admin.shock_bankrupt",
+       "t": 7776000,
+       "day": 90
+      },
+      "sectors": {
+       "gen.quote.eaebade9": {
+        "served_per_day_before": 11589.9,
+        "lowest_day": 90,
+        "lowest_served": 0,
+        "fell_below_recover_level": true,
+        "recovered_day": 117,
+        "days_to_recover": 27,
+        "flagged_collapsed_on": 90,
+        "cause_reported": "recorded shock",
+        "served_last_day": 13816,
+        "sellers_end": 2
+       }
+      }
+     },
+     "repeated_process_failures": [],
+     "underserved_sectors": [],
+     "invariant_violations": 0,
+     "replay_identical": true,
+     "events": 623717,
+     "wall_s": 2154.4,
+     "s_per_sim_day": 10.407,
+     "rss_mb_max": 771.5,
+     "log_bytes": 171571182,
+     "healthy": true
+    }
+   }
+  },
+  "2": {
+   "weeks": [
+    {
+     "week": 1,
+     "full": {
+      "served": 261947,
+      "firms": 10,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 0,
+        "sellers": 0
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 61349,
+        "sellers": 2
+       },
+       "gen.quote.4473ed8a": {
+        "served": 0,
+        "sellers": 0
+       },
+       "gen.schedule.91b3292d": {
+        "served": 85187,
+        "sellers": 2
+       },
+       "gen.transform.24de86df": {
+        "served": 115411,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 2,
+     "full": {
+      "served": 353601,
+      "firms": 14,
+      "entries": 4,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 13452,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 79610,
+        "sellers": 3
+       },
+       "gen.quote.4473ed8a": {
+        "served": 3288,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 110381,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 146870,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 3,
+     "full": {
+      "served": 414638,
+      "firms": 16,
+      "entries": 2,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 46330,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 78406,
+        "sellers": 3
+       },
+       "gen.quote.4473ed8a": {
+        "served": 34118,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 111639,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 144145,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 4,
+     "full": {
+      "served": 435806,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 53703,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 80683,
+        "sellers": 4
+       },
+       "gen.quote.4473ed8a": {
+        "served": 40478,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 113169,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 147773,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 5,
+     "full": {
+      "served": 440773,
+      "firms": 15,
+      "entries": 0,
+      "exits": 1,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 57319,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 81599,
+        "sellers": 4
+       },
+       "gen.quote.4473ed8a": {
+        "served": 41099,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 113195,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 147561,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 6,
+     "full": {
+      "served": 442569,
+      "firms": 15,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58215,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 81745,
+        "sellers": 4
+       },
+       "gen.quote.4473ed8a": {
+        "served": 42524,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112658,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 147427,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 7,
+     "full": {
+      "served": 441334,
+      "firms": 16,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58786,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 81695,
+        "sellers": 4
+       },
+       "gen.quote.4473ed8a": {
+        "served": 41880,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112116,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 146857,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 8,
+     "full": {
+      "served": 443334,
+      "firms": 17,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58716,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 81359,
+        "sellers": 5
+       },
+       "gen.quote.4473ed8a": {
+        "served": 41602,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 113629,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 148028,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 9,
+     "full": {
+      "served": 442540,
+      "firms": 17,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58703,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 80856,
+        "sellers": 5
+       },
+       "gen.quote.4473ed8a": {
+        "served": 42489,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112573,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 147919,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 10,
+     "full": {
+      "served": 443376,
+      "firms": 17,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58622,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 81492,
+        "sellers": 5
+       },
+       "gen.quote.4473ed8a": {
+        "served": 41834,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112897,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 148531,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 11,
+     "full": {
+      "served": 442194,
+      "firms": 16,
+      "entries": 0,
+      "exits": 1,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58614,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 80968,
+        "sellers": 5
+       },
+       "gen.quote.4473ed8a": {
+        "served": 41843,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 113127,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 147642,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 12,
+     "full": {
+      "served": 441640,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58585,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 80930,
+        "sellers": 5
+       },
+       "gen.quote.4473ed8a": {
+        "served": 41663,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112714,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 147748,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 13,
+     "full": {
+      "served": 438884,
+      "firms": 15,
+      "entries": 0,
+      "exits": 1,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58990,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 81054,
+        "sellers": 5
+       },
+       "gen.quote.4473ed8a": {
+        "served": 41790,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112841,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 144209,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 14,
+     "full": {
+      "served": 420836,
+      "firms": 15,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58847,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 81439,
+        "sellers": 5
+       },
+       "gen.quote.4473ed8a": {
+        "served": 41777,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112434,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 126339,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 15,
+     "full": {
+      "served": 419244,
+      "firms": 15,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 57378,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 81522,
+        "sellers": 5
+       },
+       "gen.quote.4473ed8a": {
+        "served": 41421,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112958,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 125965,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 16,
+     "full": {
+      "served": 418248,
+      "firms": 15,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 57486,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 80326,
+        "sellers": 5
+       },
+       "gen.quote.4473ed8a": {
+        "served": 41014,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112711,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 126711,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 17,
+     "full": {
+      "served": 419225,
+      "firms": 15,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58208,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 80620,
+        "sellers": 5
+       },
+       "gen.quote.4473ed8a": {
+        "served": 40791,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112447,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 127159,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 18,
+     "full": {
+      "served": 417907,
+      "firms": 15,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 57680,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 80111,
+        "sellers": 5
+       },
+       "gen.quote.4473ed8a": {
+        "served": 40605,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112619,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 126892,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 19,
+     "full": {
+      "served": 417766,
+      "firms": 16,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58109,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 79968,
+        "sellers": 6
+       },
+       "gen.quote.4473ed8a": {
+        "served": 40504,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112663,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 126522,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 20,
+     "full": {
+      "served": 419373,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 57062,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 82046,
+        "sellers": 6
+       },
+       "gen.quote.4473ed8a": {
+        "served": 40030,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112726,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 127509,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 21,
+     "full": {
+      "served": 420679,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58234,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 81797,
+        "sellers": 6
+       },
+       "gen.quote.4473ed8a": {
+        "served": 40681,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 112260,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 127707,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 22,
+     "full": {
+      "served": 419719,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58216,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 81892,
+        "sellers": 6
+       },
+       "gen.quote.4473ed8a": {
+        "served": 40714,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 111774,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 127123,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 23,
+     "full": {
+      "served": 419443,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58274,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 81672,
+        "sellers": 6
+       },
+       "gen.quote.4473ed8a": {
+        "served": 41085,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 111742,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 126670,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 24,
+     "full": {
+      "served": 419548,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58176,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 81930,
+        "sellers": 6
+       },
+       "gen.quote.4473ed8a": {
+        "served": 41241,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 111722,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 126479,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 25,
+     "full": {
+      "served": 419058,
+      "firms": 16,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.allocate.d6ccdc86": {
+        "served": 58548,
+        "sellers": 1
+       },
+       "gen.dedupe.43c9b317": {
+        "served": 81189,
+        "sellers": 6
+       },
+       "gen.quote.4473ed8a": {
+        "served": 41648,
+        "sellers": 1
+       },
+       "gen.schedule.91b3292d": {
+        "served": 111548,
+        "sellers": 3
+       },
+       "gen.transform.24de86df": {
+        "served": 126125,
+        "sellers": 1
+       }
+      }
+     }
+    }
+   ],
+   "arms": {
+    "full": {
+     "output": {
+      "served_by_week": [
+       261947,
+       353601,
+       414638,
+       435806,
+       440773,
+       442569,
+       441334,
+       443334,
+       442540,
+       443376,
+       442194,
+       441640,
+       438884,
+       420836,
+       419244,
+       418248,
+       419225,
+       417907,
+       417766,
+       419373,
+       420679,
+       419719,
+       419443,
+       419548,
+       419058
+      ],
+      "median_weeks_2_8": 440773.0,
+      "last_week_over_median_weeks_2_8": 0.951,
+      "mean_after_week_9_over_median_weeks_2_8": 0.964,
+      "weeks_with_structural_change_after_9": 3,
+      "weeks_after_9": 16
+     },
+     "collapses": [],
+     "unrecovered": [],
+     "economy": {
+      "entries": 9,
+      "exits": 3,
+      "bankruptcies": 1,
+      "price_changes": 1,
+      "new_listings": 7,
+      "adoptions": 0,
+      "active_firms_start": 10,
+      "active_firms_end": 16
+     },
+     "household_budget_bound_from_day": null,
+     "entry": {
+      "founders": 14,
+      "scans": 12,
+      "surveys": 11,
+      "research_cents": 275000,
+      "entries": 9,
+      "exits": 2,
+      "failed": 2,
+      "aborted": 2,
+      "loans_asked": 0,
+      "loans_granted": 0,
+      "launched": 7,
+      "operating": 7,
+      "failure_rate": 0.222,
+      "retired": 1,
+      "sectors_served_by_entrants_at_end": [
+       "gen.allocate.d6ccdc86",
+       "gen.dedupe.43c9b317",
+       "gen.quote.4473ed8a",
+       "gen.schedule.91b3292d"
+      ],
+      "sectors_served_only_by_entrants_at_end": [
+       "gen.allocate.d6ccdc86",
+       "gen.quote.4473ed8a"
+      ]
+     },
+     "shock": {
+      "requested": {
+       "day": 90,
+       "kind": "bankrupt_largest",
+       "hours": 48
+      },
+      "report": {
+       "kind": "bankrupt_largest",
+       "done": true,
+       "org": "o:trans1co2",
+       "sectors": [
+        "gen.transform.24de86df"
+       ],
+       "how": "admin.shock_bankrupt",
+       "t": 7776000,
+       "day": 90
+      },
+      "sectors": {
+       "gen.transform.24de86df": {
+        "served_per_day_before": 21096.0,
+        "lowest_day": 104,
+        "lowest_served": 17757,
+        "fell_below_recover_level": false,
+        "recovered_day": null,
+        "days_to_recover": null,
+        "flagged_collapsed_on": null,
+        "cause_reported": null,
+        "served_last_day": 18165,
+        "sellers_end": 1
+       }
+      }
+     },
+     "repeated_process_failures": [],
+     "underserved_sectors": [],
+     "invariant_violations": 0,
+     "replay_identical": true,
+     "events": 579027,
+     "wall_s": 2195.2,
+     "s_per_sim_day": 10.867,
+     "rss_mb_max": 708.6,
+     "log_bytes": 156847778,
+     "healthy": true
+    }
+   }
+  }
+ }
+}

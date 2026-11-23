@@ -1,0 +1,5390 @@
+{
+ "days": 14,
+ "worlds": [
+  "fidelity-ow_market-1",
+  "fidelity-ow_market-2",
+  "fidelity-ow_heldout-1"
+ ],
+ "problems_in_register": [],
+ "register_counts": {
+  "plausible-hypothesis": 37,
+  "known-unrealistic": 18
+ },
+ "n_mechanisms": 55,
+ "register": [
+  {
+   "id": "money.double_entry_ledger",
+   "modules": [
+    "bank"
+   ],
+   "kinds": [
+    "causal",
+    "economic",
+    "interface"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "integer cents on a double-entry ledger; every movement is one balanced transaction; balances sum to zero",
+   "caveat": "structural claim only (conservation, atomic transfers); no interest, inflation, taxes or foreign exchange"
+  },
+  {
+   "id": "money.exogenous_sources",
+   "modules": [
+    "bank",
+    "consumers",
+    "admin"
+   ],
+   "kinds": [
+    "economic",
+    "temporal"
+   ],
+   "status": "known-unrealistic",
+   "rule": "money enters from declared source accounts: endowments at genesis, a fixed household income per day, the rest of the world buying nothing and selling hardware and energy",
+   "caveat": "household income is exogenous and constant; there is no credit creation beyond lenders' own funds, no macro feedback from firms' wages to household demand"
+  },
+  {
+   "id": "money.instant_final_settlement",
+   "modules": [
+    "bank",
+    "market",
+    "contracts"
+   ],
+   "kinds": [
+    "temporal",
+    "interface"
+   ],
+   "status": "known-unrealistic",
+   "rule": "transfers settle instantly and finally",
+   "caveat": "no clearing delay, float, chargeback or payment failure other than insufficient funds"
+  },
+  {
+   "id": "money.delegated_authority",
+   "modules": [
+    "identity",
+    "bank"
+   ],
+   "kinds": [
+    "interface",
+    "strategic"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "capability grants with scope, 30-day spending limits and expiry; organisations act through roles",
+   "caveat": "limits are applied to one-off payments only (red-team finding money.delegated_spending_limit_bypass)"
+  },
+  {
+   "id": "demand.request_arrivals",
+   "modules": [
+    "consumers"
+   ],
+   "kinds": [
+    "behavioural",
+    "temporal",
+    "distributional"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "requests per offering-hour ~ Poisson(sum of its customers' rates); rates drawn uniformly per consumer; an optional sinusoidal daily cycle (`diurnal`, `peak_hour`)",
+   "caveat": "rate distribution and cycle shape are parameters; no weekly or seasonal pattern, no bursts"
+  },
+  {
+   "id": "demand.price_response",
+   "modules": [
+    "consumers"
+   ],
+   "kinds": [
+    "economic",
+    "behavioural"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "each consumer has a willingness to pay (base price x uniform multiplier); utility falls with price relative to it and requests are reduced accordingly",
+   "caveat": "functional form and spread chosen, not estimated; see `price_elasticity` for the value the simulation actually produces"
+  },
+  {
+   "id": "demand.household_budget",
+   "modules": [
+    "consumers",
+    "bank"
+   ],
+   "kinds": [
+    "economic"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "consumer spending is paid from one budgeted pool that cannot go negative, so aggregate demand is budget-constrained",
+   "caveat": "one pooled budget for all households: no individual budgets, saving or borrowing"
+  },
+  {
+   "id": "demand.choice_and_preferences",
+   "modules": [
+    "consumers"
+   ],
+   "kinds": [
+    "behavioural",
+    "distributional"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "consumers shop among at most six offerings they know, by a weighted utility of experienced quality, latency and price with individual preference weights",
+   "caveat": "weights drawn from a fixed distribution per world"
+  },
+  {
+   "id": "demand.discovery",
+   "modules": [
+    "consumers",
+    "search",
+    "ads",
+    "forum"
+   ],
+   "kinds": [
+    "behavioural",
+    "strategic"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "a consumer learns of an offering through organic search for its need, sponsored results, forum posts and word of mouth from six neighbours on a small-world graph",
+   "caveat": "search and word-of-mouth rates are per-family parameters; consumers do not browse web sites"
+  },
+  {
+   "id": "demand.loyalty_and_switching",
+   "modules": [
+    "consumers"
+   ],
+   "kinds": [
+    "behavioural",
+    "temporal"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "satisfaction is an exponential average of experienced utility; dissatisfied or unserved consumers switch, damped by individual loyalty",
+   "caveat": "see `retention_and_churn` for the simulated retention it produces"
+  },
+  {
+   "id": "demand.turnover",
+   "modules": [
+    "consumers"
+   ],
+   "kinds": [
+    "temporal",
+    "distributional"
+   ],
+   "status": "known-unrealistic",
+   "rule": "a constant share of consumers leaves each day and is replaced by newcomers with fresh preferences",
+   "caveat": "constant hazard independent of age, satisfaction or the economy; population size is fixed"
+  },
+  {
+   "id": "demand.sampled_execution",
+   "modules": [
+    "consumers",
+    "cloud"
+   ],
+   "kinds": [
+    "causal",
+    "distributional"
+   ],
+   "status": "known-unrealistic",
+   "rule": "a few real requests per offering-hour are executed and verified; the rest are extrapolated from them",
+   "caveat": "per-request quality and cost are sampling estimates, not per-request truth"
+  },
+  {
+   "id": "demand.voice",
+   "modules": [
+    "consumers",
+    "market",
+    "forum",
+    "support"
+   ],
+   "kinds": [
+    "behavioural"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "customers leave ratings and reviews, and open support tickets when failure rates exceed 5%",
+   "caveat": "thresholds and propensities chosen"
+  },
+  {
+   "id": "demand.statistical_population",
+   "modules": [
+    "consumers"
+   ],
+   "kinds": [
+    "behavioural",
+    "transfer"
+   ],
+   "status": "known-unrealistic",
+   "rule": "thousands of consumers are rows of arrays updated by vectorised rules",
+   "caveat": "they do not reason, negotiate or read; they are a demand model, not agents"
+  },
+  {
+   "id": "demand.behaviour_models_and_segments",
+   "modules": [
+    "consumers"
+   ],
+   "kinds": [
+    "behavioural",
+    "distributional"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "(4.0, off by default) structurally different consumer rule sets and heterogeneous segments selected by configuration",
+   "caveat": "which rule set resembles real customers is exactly the open question; none is fitted"
+  },
+  {
+   "id": "demand.latent_and_derived",
+   "modules": [
+    "consumers"
+   ],
+   "kinds": [
+    "economic",
+    "temporal",
+    "causal"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "(4.0, off by default) latent needs become active as verified volume served in a source need grows (saturating response with a lag)",
+   "caveat": "functional form and lags chosen"
+  },
+  {
+   "id": "work.verified_needs",
+   "modules": [
+    "consumers",
+    "jobs",
+    "civ"
+   ],
+   "kinds": [
+    "causal",
+    "transfer",
+    "interface"
+   ],
+   "status": "known-unrealistic",
+   "rule": "value comes from a finite set of problem formats with exact verifiers holding ground truth",
+   "caveat": "eight formats; real demand for software is open-ended and rarely exactly verifiable"
+  },
+  {
+   "id": "software.real_execution_and_cost",
+   "modules": [
+    "code",
+    "cloud"
+   ],
+   "kinds": [
+    "causal",
+    "economic",
+    "transfer"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "agent code really runs; measured CPU (or executed lines in the deterministic model) times a work scale consumes compute units",
+   "caveat": "the deterministic cost model undercounts native-code work; one machine type"
+  },
+  {
+   "id": "compute.capacity_and_overload",
+   "modules": [
+    "cloud"
+   ],
+   "kinds": [
+    "causal",
+    "economic"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "an instance has cores x 100,000 compute units per hour; requests beyond that are refused (503)",
+   "caveat": "capacity resets on the hour; no queueing or latency degradation before refusal"
+  },
+  {
+   "id": "compute.price_rule",
+   "modules": [
+    "cloud",
+    "society",
+    "civ"
+   ],
+   "kinds": [
+    "economic",
+    "strategic"
+   ],
+   "status": "known-unrealistic",
+   "rule": "providers post a price per core-hour that moves by a fixed rule with utilisation",
+   "caveat": "one region, no spot market, no negotiated or reserved pricing"
+  },
+  {
+   "id": "compute.outages",
+   "modules": [
+    "cloud"
+   ],
+   "kinds": [
+    "temporal",
+    "distributional"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "each provider draws an outage each day with probability 1 - reliability, lasting 1 to 6 hours",
+   "caveat": "independent across providers and days; no correlated failures or degraded states"
+  },
+  {
+   "id": "compute.billing_and_suspension",
+   "modules": [
+    "cloud",
+    "bank"
+   ],
+   "kinds": [
+    "causal",
+    "temporal"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "instances are billed hourly; an unpaid bill suspends the instance and 72 hours later terminates it",
+   "caveat": ""
+  },
+  {
+   "id": "compute.hardware_market",
+   "modules": [
+    "cloud"
+   ],
+   "kinds": [
+    "economic"
+   ],
+   "status": "known-unrealistic",
+   "rule": "anyone may become a provider and buy cores at a fixed price with a fixed delivery lead time",
+   "caveat": "fixed price and lead time; no depreciation, energy price or supply constraint"
+  },
+  {
+   "id": "firms.incumbent_policy",
+   "modules": [
+    "npcs"
+   ],
+   "kinds": [
+    "strategic",
+    "behavioural"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "incumbents reprice toward observed competition and capacity, add capacity when overloaded, start R&D when out-rated, hire when queues grow",
+   "caveat": "fixed heuristics with a few drawn parameters; no learning"
+  },
+  {
+   "id": "firms.minds",
+   "modules": [
+    "society"
+   ],
+   "kinds": [
+    "strategic",
+    "behavioural",
+    "causal"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "firm minds keep their own books, publish problems, trial capabilities with randomised designs and adopt on their own measured effect",
+   "caveat": "decision rules are fixed heuristics with traits; no learning beyond beliefs"
+  },
+  {
+   "id": "firms.entry",
+   "modules": [
+    "business",
+    "society"
+   ],
+   "kinds": [
+    "strategic",
+    "economic"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "new companies register for a fee; simulated entrants appear by rule or by scheduled shock",
+   "caveat": "see `entry_exit` for realised rates; entry rules are not derived from expected profit"
+  },
+  {
+   "id": "firms.insolvency",
+   "modules": [
+    "business",
+    "contracts"
+   ],
+   "kinds": [
+    "economic",
+    "temporal"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "a company with claims it cannot pay for the grace period is wound up: accounts frozen, cash distributed pro rata, services stopped, contracts ended",
+   "caveat": "no restructuring, no secured creditors, no director liability; obligations not yet due vanish on voluntary dissolution (red-team finding money.debt_extinguished_by_dissolving_the_borrower)"
+  },
+  {
+   "id": "labour.reservation_wage_decision",
+   "modules": [
+    "npcs",
+    "jobs",
+    "contracts"
+   ],
+   "kinds": [
+    "behavioural",
+    "economic"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "a worker accepts an offer when the monthly wage is at least its reservation wage times a risk factor from public signals (company age, breaches, reputation); unpaid workers leave and warn others",
+   "caveat": "the wage is taken at face value whatever its due date (red-team finding reward.fake_members.wage_never_due)"
+  },
+  {
+   "id": "labour.productivity",
+   "modules": [
+    "npcs",
+    "issues",
+    "support"
+   ],
+   "kinds": [
+    "behavioural",
+    "distributional"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "developers progress on assigned issues at a random rate that grows with skill and commit code of a tier set by skill; support staff resolve a skill-dependent number of tickets a day",
+   "caveat": "no effort choice, no teams"
+  },
+  {
+   "id": "labour.effort_under_profit_sharing",
+   "modules": [
+    "gov",
+    "society"
+   ],
+   "kinds": [
+    "behavioural"
+   ],
+   "status": "known-unrealistic",
+   "rule": "effort under a profit-sharing rule follows e = 0.55 + 2.5 s (clipped)",
+   "caveat": "an assumed formula, not an emergent behaviour; results about sharing rules restate it"
+  },
+  {
+   "id": "finance.lender_rule",
+   "modules": [
+    "npcs",
+    "contracts"
+   ],
+   "kinds": [
+    "economic",
+    "strategic"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "a lender approves a loan of at most three times the borrower's verified 30-day independent revenue, at or above its rate, for at most 12 months",
+   "caveat": "repayment start dates and existing exposure are ignored and the metric it relies on counts earlier loans (red-team finding money.loan_counts_as_revenue_and_is_never_due)"
+  },
+  {
+   "id": "market.escrow_and_arbitration",
+   "modules": [
+    "market"
+   ],
+   "kinds": [
+    "economic",
+    "interface"
+   ],
+   "status": "known-unrealistic",
+   "rule": "orders are escrowed; delivery is auto-confirmed after 3 days; unresolved disputes are split 50/50 after 7",
+   "caveat": "arbitration ignores evidence; no reputational or legal cost of disputing"
+  },
+  {
+   "id": "market.ratings",
+   "modules": [
+    "market",
+    "consumers",
+    "search"
+   ],
+   "kinds": [
+    "behavioural",
+    "strategic"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "only buyers may rate, once each; ratings feed search rank and consumer choice",
+   "caveat": "one rating per buyer whatever was spent; a free order counts as a purchase (red-team finding)"
+  },
+  {
+   "id": "market.bounties",
+   "modules": [
+    "jobs"
+   ],
+   "kinds": [
+    "economic",
+    "interface"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "a poster escrows a reward paid to the first submission clearing a quality bar on hidden inputs",
+   "caveat": ""
+  },
+  {
+   "id": "contracts.clauses_and_breach",
+   "modules": [
+    "contracts"
+   ],
+   "kinds": [
+    "interface",
+    "causal",
+    "strategic"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "agreements are compositions of payment, membership, grant, share, deliverable and notice clauses; a missed payment or deliverable is a public breach and a claim",
+   "caveat": "enforcement is automatic and free; no courts, delay or partial performance"
+  },
+  {
+   "id": "negotiation.valuation_and_concession",
+   "modules": [
+    "deal",
+    "society"
+   ],
+   "kinds": [
+    "strategic",
+    "behavioural"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "a mind values an offer from its own position (payments weighted by trust, time, shares, delegated authority, effort), accepts above an aspiration that decays over rounds, otherwise counters or rejects",
+   "caveat": "penalties are priced only when the mind itself must deliver and due dates are not discounted (red-team finding money.simulated_firms_sign_adverse_fine_print)"
+  },
+  {
+   "id": "reputation.public_record_and_trust",
+   "modules": [
+    "deal",
+    "society",
+    "contracts"
+   ],
+   "kinds": [
+    "strategic",
+    "behavioural"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "public record of completed and breached agreements; private trust is a Beta update per counterparty",
+   "caveat": "identities are free to create, so a record can be shed by founding a new organisation"
+  },
+  {
+   "id": "governance.voting",
+   "modules": [
+    "gov",
+    "society"
+   ],
+   "kinds": [
+    "strategic"
+   ],
+   "status": "known-unrealistic",
+   "rule": "constitutions are enforced at authorisation; simulated members vote from trust in the proposer",
+   "caveat": "votes do not come from modelled payoffs"
+  },
+  {
+   "id": "information.search_ranking",
+   "modules": [
+    "search",
+    "net",
+    "ads"
+   ],
+   "kinds": [
+    "interface",
+    "strategic"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "BM25 relevance times a rating signal times a count of linking hosts; ads are shown above organic results",
+   "caveat": "no spam detection; links from the page owner's own hosts count (red-team finding)"
+  },
+  {
+   "id": "information.ad_auction",
+   "modules": [
+    "ads"
+   ],
+   "kinds": [
+    "economic",
+    "strategic"
+   ],
+   "status": "known-unrealistic",
+   "rule": "highest bids first, one ad per advertiser, each impression charged at the bid up to a daily budget",
+   "caveat": "pay-per-impression at one's own bid; no quality score, no second-price rule, no click model"
+  },
+  {
+   "id": "information.forum_and_mail",
+   "modules": [
+    "forum",
+    "mail"
+   ],
+   "kinds": [
+    "interface",
+    "temporal"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "posts, votes and follows; mail with a per-family delivery latency and loss probability",
+   "caveat": "people read a bounded number of posts; no spam filtering"
+  },
+  {
+   "id": "information.beliefs_and_evidence",
+   "modules": [
+    "society",
+    "caps"
+   ],
+   "kinds": [
+    "behavioural",
+    "causal"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "minds update beliefs by source and act on evidence records whose references the world can verify",
+   "caveat": "update rule and source weights chosen"
+  },
+  {
+   "id": "technology.trials_and_adoption",
+   "modules": [
+    "caps",
+    "society"
+   ],
+   "kinds": [
+    "causal",
+    "behavioural",
+    "temporal"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "a firm installs a capability under a randomised switchback or washout trial on real days and keeps it if its own measured effect is positive",
+   "caveat": "see `adoption_curves`; trial lengths and thresholds chosen"
+  },
+  {
+   "id": "technology.simulated_invention",
+   "modules": [
+    "society"
+   ],
+   "kinds": [
+    "strategic",
+    "transfer"
+   ],
+   "status": "known-unrealistic",
+   "rule": "simulated innovators generate controller programs from one grammar, deploy them and iterate on trial evidence",
+   "caveat": "one grammar family; field trials are the only test"
+  },
+  {
+   "id": "operations.books_and_losses",
+   "modules": [
+    "ops"
+   ],
+   "kinds": [
+    "causal",
+    "economic"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "daily profit and loss by ledger kind and a journal of operating losses (overload, outage, downtime) derived from recorded events",
+   "caveat": "losses are counted by rule, not valued by the firm"
+  },
+  {
+   "id": "automation.workflows",
+   "modules": [
+    "wf"
+   ],
+   "kinds": [
+    "interface"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "triggers and flows call tools as their owner on schedules or events",
+   "caveat": "no partial failure modes of real schedulers"
+  },
+  {
+   "id": "web.http_semantics",
+   "modules": [
+    "net",
+    "appdb",
+    "webgen"
+   ],
+   "kinds": [
+    "interface",
+    "transfer"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "agent-deployed and generated sites answer requests with status codes, sessions, consent login, per-app storage, rate limits and outages; a crawler builds the index",
+   "caveat": "server-rendered only; no TLS, DNS hierarchy, cross-site cookies or third-party scripts"
+  },
+  {
+   "id": "web.adversarial_content",
+   "modules": [
+    "adversary"
+   ],
+   "kinds": [
+    "strategic",
+    "transfer"
+   ],
+   "status": "known-unrealistic",
+   "rule": "injection pages, a fraudulent capability, spam and false documentation created at genesis",
+   "caveat": "static adversaries that do not adapt to defences"
+  },
+  {
+   "id": "world.scheduled_shocks",
+   "modules": [
+    "shocks",
+    "civ"
+   ],
+   "kinds": [
+    "temporal",
+    "strategic"
+   ],
+   "status": "known-unrealistic",
+   "rule": "preference drift, demand surges, compute shortages, entrants and reliability storms happen on a schedule fixed by the world family",
+   "caveat": "scripted; not caused by anything inside the world"
+  },
+  {
+   "id": "world.genesis_draws",
+   "modules": [
+    "civ"
+   ],
+   "kinds": [
+    "distributional"
+   ],
+   "status": "known-unrealistic",
+   "rule": "firms, prices, cash, wages, skills and consumer attributes are drawn from uniform ranges set per family",
+   "caveat": "uniform ranges, independent draws; real size and wage distributions are heavy-tailed and correlated"
+  },
+  {
+   "id": "world.action_time_costs",
+   "modules": [
+    "identity",
+    "admin",
+    "goals",
+    "docs",
+    "cal",
+    "issues",
+    "support",
+    "code"
+   ],
+   "kinds": [
+    "temporal",
+    "interface"
+   ],
+   "status": "known-unrealistic",
+   "rule": "every tool call costs a fixed number of simulated seconds and an hourly action limit applies",
+   "caveat": "fixed per tool; real effort depends on content. These service modules are record-keeping interfaces (profiles, self-goals, documents, calendars, issues, tickets, repositories) with no behavioural rule of their own"
+  },
+  {
+   "id": "industry.production_and_wear",
+   "modules": [
+    "industry",
+    "industrygen"
+   ],
+   "kinds": [
+    "causal",
+    "economic"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "yields depend on machine settings on parametric response surfaces; machines wear and break down; energy grids curtail when demand exceeds capacity",
+   "caveat": "response surfaces and wear laws are chosen parametric forms"
+  },
+  {
+   "id": "industry.freight",
+   "modules": [
+    "freight"
+   ],
+   "kinds": [
+    "temporal",
+    "economic"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "goods move on links with transit time, cost and daily capacity; congestion delays and reprices",
+   "caveat": ""
+  },
+  {
+   "id": "industry.household_choice",
+   "modules": [
+    "shoppers"
+   ],
+   "kinds": [
+    "behavioural",
+    "distributional"
+   ],
+   "status": "plausible-hypothesis",
+   "rule": "households choose products by a linear utility in attributes, price and distance with Gumbel noise, within a budget, after discovering products by search and word of mouth",
+   "caveat": "a standard discrete-choice functional form with chosen coefficients; not estimated"
+  },
+  {
+   "id": "lab.network_physics",
+   "modules": [
+    "lab"
+   ],
+   "kinds": [
+    "causal",
+    "transfer"
+   ],
+   "status": "known-unrealistic",
+   "rule": "a static per-hour flow model on a capacitated network with queueing delay and drops",
+   "caveat": "no packet dynamics, no fixed point after drops"
+  }
+ ],
+ "report": {
+  "schema": "crucible-fidelity/1",
+  "statement": "0 of 55 mechanisms are calibrated and 0 are checked against a published stylised fact; 37 are plausible hypotheses and 18 are known simplifications. The repository contains no empirical reference data: every measure below is a simulated quantity with nothing to compare it to.",
+  "register_problems": [],
+  "status_counts": {
+   "calibrated": 0,
+   "stylised-fact-checked": 0,
+   "plausible-hypothesis": 37,
+   "known-unrealistic": 18
+  },
+  "kinds": {
+   "interface": {
+    "mechanisms": [
+     {
+      "id": "money.double_entry_ledger",
+      "status": "plausible-hypothesis",
+      "caveat": "structural claim only (conservation, atomic transfers); no interest, inflation, taxes or foreign exchange"
+     },
+     {
+      "id": "money.instant_final_settlement",
+      "status": "known-unrealistic",
+      "caveat": "no clearing delay, float, chargeback or payment failure other than insufficient funds"
+     },
+     {
+      "id": "money.delegated_authority",
+      "status": "plausible-hypothesis",
+      "caveat": "limits are applied to one-off payments only (red-team finding money.delegated_spending_limit_bypass)"
+     },
+     {
+      "id": "work.verified_needs",
+      "status": "known-unrealistic",
+      "caveat": "eight formats; real demand for software is open-ended and rarely exactly verifiable"
+     },
+     {
+      "id": "market.escrow_and_arbitration",
+      "status": "known-unrealistic",
+      "caveat": "arbitration ignores evidence; no reputational or legal cost of disputing"
+     },
+     {
+      "id": "market.bounties",
+      "status": "plausible-hypothesis",
+      "caveat": ""
+     },
+     {
+      "id": "contracts.clauses_and_breach",
+      "status": "plausible-hypothesis",
+      "caveat": "enforcement is automatic and free; no courts, delay or partial performance"
+     },
+     {
+      "id": "information.search_ranking",
+      "status": "plausible-hypothesis",
+      "caveat": "no spam detection; links from the page owner's own hosts count (red-team finding)"
+     },
+     {
+      "id": "information.forum_and_mail",
+      "status": "plausible-hypothesis",
+      "caveat": "people read a bounded number of posts; no spam filtering"
+     },
+     {
+      "id": "automation.workflows",
+      "status": "plausible-hypothesis",
+      "caveat": "no partial failure modes of real schedulers"
+     },
+     {
+      "id": "web.http_semantics",
+      "status": "plausible-hypothesis",
+      "caveat": "server-rendered only; no TLS, DNS hierarchy, cross-site cookies or third-party scripts"
+     },
+     {
+      "id": "world.action_time_costs",
+      "status": "known-unrealistic",
+      "caveat": "fixed per tool; real effort depends on content. These service modules are record-keeping interfaces (profiles, self-goals, documents, calendars, issues, tickets, repositories) with no behavioural rule of their own"
+     }
+    ],
+    "status_counts": {
+     "calibrated": 0,
+     "stylised-fact-checked": 0,
+     "plausible-hypothesis": 8,
+     "known-unrealistic": 4
+    },
+    "measures": [
+     {
+      "measure": "reliability_distribution",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "mean": 0.99977,
+         "p05": 1.0,
+         "p50": 1.0,
+         "p95": 1.0,
+         "min": 0.98661,
+         "share_of_host_days_below_0.99": 0.0099,
+         "share_of_host_days_below_0.95": 0.0,
+         "provider_outage_hours_per_provider_month": 0.0
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "mean": 0.99902,
+         "p05": 1.0,
+         "p50": 1.0,
+         "p95": 1.0,
+         "min": 0.91833,
+         "share_of_host_days_below_0.99": 0.0202,
+         "share_of_host_days_below_0.95": 0.0101,
+         "provider_outage_hours_per_provider_month": 0.0
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "mean": 1.0,
+         "p05": 1.0,
+         "p50": 1.0,
+         "p95": 1.0,
+         "min": 1.0,
+         "share_of_host_days_below_0.99": 0.0,
+         "share_of_host_days_below_0.95": 0.0,
+         "provider_outage_hours_per_provider_month": 0.0
+        }
+       }
+      ],
+      "how_measured": "per host and simulated day: served requests / (served + errors + unavailable + overloaded), from the service day counters; outage hours from scheduled provider outages",
+      "comparison": "no reference data in repository"
+     }
+    ],
+    "note": ""
+   },
+   "causal": {
+    "mechanisms": [
+     {
+      "id": "money.double_entry_ledger",
+      "status": "plausible-hypothesis",
+      "caveat": "structural claim only (conservation, atomic transfers); no interest, inflation, taxes or foreign exchange"
+     },
+     {
+      "id": "demand.sampled_execution",
+      "status": "known-unrealistic",
+      "caveat": "per-request quality and cost are sampling estimates, not per-request truth"
+     },
+     {
+      "id": "demand.latent_and_derived",
+      "status": "plausible-hypothesis",
+      "caveat": "functional form and lags chosen"
+     },
+     {
+      "id": "work.verified_needs",
+      "status": "known-unrealistic",
+      "caveat": "eight formats; real demand for software is open-ended and rarely exactly verifiable"
+     },
+     {
+      "id": "software.real_execution_and_cost",
+      "status": "plausible-hypothesis",
+      "caveat": "the deterministic cost model undercounts native-code work; one machine type"
+     },
+     {
+      "id": "compute.capacity_and_overload",
+      "status": "plausible-hypothesis",
+      "caveat": "capacity resets on the hour; no queueing or latency degradation before refusal"
+     },
+     {
+      "id": "compute.billing_and_suspension",
+      "status": "plausible-hypothesis",
+      "caveat": ""
+     },
+     {
+      "id": "firms.minds",
+      "status": "plausible-hypothesis",
+      "caveat": "decision rules are fixed heuristics with traits; no learning beyond beliefs"
+     },
+     {
+      "id": "contracts.clauses_and_breach",
+      "status": "plausible-hypothesis",
+      "caveat": "enforcement is automatic and free; no courts, delay or partial performance"
+     },
+     {
+      "id": "information.beliefs_and_evidence",
+      "status": "plausible-hypothesis",
+      "caveat": "update rule and source weights chosen"
+     },
+     {
+      "id": "technology.trials_and_adoption",
+      "status": "plausible-hypothesis",
+      "caveat": "see `adoption_curves`; trial lengths and thresholds chosen"
+     },
+     {
+      "id": "operations.books_and_losses",
+      "status": "plausible-hypothesis",
+      "caveat": "losses are counted by rule, not valued by the firm"
+     },
+     {
+      "id": "industry.production_and_wear",
+      "status": "plausible-hypothesis",
+      "caveat": "response surfaces and wear laws are chosen parametric forms"
+     },
+     {
+      "id": "lab.network_physics",
+      "status": "known-unrealistic",
+      "caveat": "no packet dynamics, no fixed point after drops"
+     }
+    ],
+    "status_counts": {
+     "calibrated": 0,
+     "stylised-fact-checked": 0,
+     "plausible-hypothesis": 11,
+     "known-unrealistic": 3
+    },
+    "measures": [
+     {
+      "measure": "price_elasticity",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "median_arc_elasticity": -1.2884,
+         "median_arc_elasticity_clean_windows": -1.2884,
+         "median_did_elasticity": -0.9394
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "median_arc_elasticity": -1.4272,
+         "median_arc_elasticity_clean_windows": -1.4272,
+         "median_did_elasticity": -1.2128
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "median_arc_elasticity": null,
+         "median_arc_elasticity_clean_windows": null,
+         "median_did_elasticity": null
+        }
+       }
+      ],
+      "how_measured": "for every in-world price change of an API offering with 2 full days of demand on both sides: (dQ/mean Q)/(dP/mean P) on consumer requests per day; the difference-in-differences version subtracts the log change of the other offerings of the same need",
+      "comparison": "no reference data in repository"
+     },
+     {
+      "measure": "compute_utilisation",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "rented_share_of_cores_time_avg": 0.0436,
+         "rented_share_of_cores_peak": 0.065,
+         "instance_utilisation_mean": 0.11906,
+         "instance_utilisation_p95": 0.29992,
+         "share_of_host_days_above_0.8": 0.0,
+         "overloaded_share_of_requests": 0.000325,
+         "unavailable_share_of_requests": 0.0,
+         "rentals_refused_for_capacity": 0
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "rented_share_of_cores_time_avg": 0.043,
+         "rented_share_of_cores_peak": 0.055,
+         "instance_utilisation_mean": 0.13766,
+         "instance_utilisation_p95": 0.34516,
+         "share_of_host_days_above_0.8": 0.0,
+         "overloaded_share_of_requests": 0.00123,
+         "unavailable_share_of_requests": 0.0,
+         "rentals_refused_for_capacity": 0
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "rented_share_of_cores_time_avg": 0.02131,
+         "rented_share_of_cores_peak": 0.025,
+         "instance_utilisation_mean": 0.04815,
+         "instance_utilisation_p95": 0.08457,
+         "share_of_host_days_above_0.8": 0.0,
+         "overloaded_share_of_requests": 0.0,
+         "unavailable_share_of_requests": 0.0,
+         "rentals_refused_for_capacity": 0
+        }
+       }
+      ],
+      "how_measured": "rented cores / provider cores, time-weighted from instance events (current provider capacity); compute units used per complete host-day / (cores x 100,000 x 24) with the instance's current cores; overloaded and unavailable requests from the service day counters",
+      "comparison": "no reference data in repository"
+     }
+    ],
+    "note": ""
+   },
+   "behavioural": {
+    "mechanisms": [
+     {
+      "id": "demand.request_arrivals",
+      "status": "plausible-hypothesis",
+      "caveat": "rate distribution and cycle shape are parameters; no weekly or seasonal pattern, no bursts"
+     },
+     {
+      "id": "demand.price_response",
+      "status": "plausible-hypothesis",
+      "caveat": "functional form and spread chosen, not estimated; see `price_elasticity` for the value the simulation actually produces"
+     },
+     {
+      "id": "demand.choice_and_preferences",
+      "status": "plausible-hypothesis",
+      "caveat": "weights drawn from a fixed distribution per world"
+     },
+     {
+      "id": "demand.discovery",
+      "status": "plausible-hypothesis",
+      "caveat": "search and word-of-mouth rates are per-family parameters; consumers do not browse web sites"
+     },
+     {
+      "id": "demand.loyalty_and_switching",
+      "status": "plausible-hypothesis",
+      "caveat": "see `retention_and_churn` for the simulated retention it produces"
+     },
+     {
+      "id": "demand.voice",
+      "status": "plausible-hypothesis",
+      "caveat": "thresholds and propensities chosen"
+     },
+     {
+      "id": "demand.statistical_population",
+      "status": "known-unrealistic",
+      "caveat": "they do not reason, negotiate or read; they are a demand model, not agents"
+     },
+     {
+      "id": "demand.behaviour_models_and_segments",
+      "status": "plausible-hypothesis",
+      "caveat": "which rule set resembles real customers is exactly the open question; none is fitted"
+     },
+     {
+      "id": "firms.incumbent_policy",
+      "status": "plausible-hypothesis",
+      "caveat": "fixed heuristics with a few drawn parameters; no learning"
+     },
+     {
+      "id": "firms.minds",
+      "status": "plausible-hypothesis",
+      "caveat": "decision rules are fixed heuristics with traits; no learning beyond beliefs"
+     },
+     {
+      "id": "labour.reservation_wage_decision",
+      "status": "plausible-hypothesis",
+      "caveat": "the wage is taken at face value whatever its due date (red-team finding reward.fake_members.wage_never_due)"
+     },
+     {
+      "id": "labour.productivity",
+      "status": "plausible-hypothesis",
+      "caveat": "no effort choice, no teams"
+     },
+     {
+      "id": "labour.effort_under_profit_sharing",
+      "status": "known-unrealistic",
+      "caveat": "an assumed formula, not an emergent behaviour; results about sharing rules restate it"
+     },
+     {
+      "id": "market.ratings",
+      "status": "plausible-hypothesis",
+      "caveat": "one rating per buyer whatever was spent; a free order counts as a purchase (red-team finding)"
+     },
+     {
+      "id": "negotiation.valuation_and_concession",
+      "status": "plausible-hypothesis",
+      "caveat": "penalties are priced only when the mind itself must deliver and due dates are not discounted (red-team finding money.simulated_firms_sign_adverse_fine_print)"
+     },
+     {
+      "id": "reputation.public_record_and_trust",
+      "status": "plausible-hypothesis",
+      "caveat": "identities are free to create, so a record can be shed by founding a new organisation"
+     },
+     {
+      "id": "information.beliefs_and_evidence",
+      "status": "plausible-hypothesis",
+      "caveat": "update rule and source weights chosen"
+     },
+     {
+      "id": "technology.trials_and_adoption",
+      "status": "plausible-hypothesis",
+      "caveat": "see `adoption_curves`; trial lengths and thresholds chosen"
+     },
+     {
+      "id": "industry.household_choice",
+      "status": "plausible-hypothesis",
+      "caveat": "a standard discrete-choice functional form with chosen coefficients; not estimated"
+     }
+    ],
+    "status_counts": {
+     "calibrated": 0,
+     "stylised-fact-checked": 0,
+     "plausible-hypothesis": 17,
+     "known-unrealistic": 2
+    },
+    "measures": [
+     {
+      "measure": "adoption_curves",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "median_days_to_half_peak": 1.0,
+         "share_with_interior_inflection": 0.2222
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "median_days_to_half_peak": 1.0,
+         "share_with_interior_inflection": 0.25
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "median_days_to_half_peak": 0.0,
+         "share_with_interior_inflection": 0.0
+        }
+       }
+      ],
+      "how_measured": "customers per offering at the last hourly market update of each simulated day (consumers.hour events); days counted from the offering's first day in the market",
+      "comparison": "no reference data in repository"
+     },
+     {
+      "measure": "retention_and_churn",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "retention_1d": 0.89841,
+         "retention_7d": 0.80977,
+         "churn_per_day": 0.10159
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "retention_1d": 0.82558,
+         "retention_7d": 0.7069,
+         "churn_per_day": 0.17442
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "retention_1d": 0.68293,
+         "retention_7d": 0.56657,
+         "churn_per_day": 0.31707
+        }
+       }
+      ],
+      "how_measured": "event log replayed to every day boundary; share of customers of an offering still with the same offering h days later (pooled over offerings and days); consumer turnover counts as leaving",
+      "comparison": "no reference data in repository"
+     }
+    ],
+    "note": ""
+   },
+   "economic": {
+    "mechanisms": [
+     {
+      "id": "money.double_entry_ledger",
+      "status": "plausible-hypothesis",
+      "caveat": "structural claim only (conservation, atomic transfers); no interest, inflation, taxes or foreign exchange"
+     },
+     {
+      "id": "money.exogenous_sources",
+      "status": "known-unrealistic",
+      "caveat": "household income is exogenous and constant; there is no credit creation beyond lenders' own funds, no macro feedback from firms' wages to household demand"
+     },
+     {
+      "id": "demand.price_response",
+      "status": "plausible-hypothesis",
+      "caveat": "functional form and spread chosen, not estimated; see `price_elasticity` for the value the simulation actually produces"
+     },
+     {
+      "id": "demand.household_budget",
+      "status": "plausible-hypothesis",
+      "caveat": "one pooled budget for all households: no individual budgets, saving or borrowing"
+     },
+     {
+      "id": "demand.latent_and_derived",
+      "status": "plausible-hypothesis",
+      "caveat": "functional form and lags chosen"
+     },
+     {
+      "id": "software.real_execution_and_cost",
+      "status": "plausible-hypothesis",
+      "caveat": "the deterministic cost model undercounts native-code work; one machine type"
+     },
+     {
+      "id": "compute.capacity_and_overload",
+      "status": "plausible-hypothesis",
+      "caveat": "capacity resets on the hour; no queueing or latency degradation before refusal"
+     },
+     {
+      "id": "compute.price_rule",
+      "status": "known-unrealistic",
+      "caveat": "one region, no spot market, no negotiated or reserved pricing"
+     },
+     {
+      "id": "compute.hardware_market",
+      "status": "known-unrealistic",
+      "caveat": "fixed price and lead time; no depreciation, energy price or supply constraint"
+     },
+     {
+      "id": "firms.entry",
+      "status": "plausible-hypothesis",
+      "caveat": "see `entry_exit` for realised rates; entry rules are not derived from expected profit"
+     },
+     {
+      "id": "firms.insolvency",
+      "status": "plausible-hypothesis",
+      "caveat": "no restructuring, no secured creditors, no director liability; obligations not yet due vanish on voluntary dissolution (red-team finding money.debt_extinguished_by_dissolving_the_borrower)"
+     },
+     {
+      "id": "labour.reservation_wage_decision",
+      "status": "plausible-hypothesis",
+      "caveat": "the wage is taken at face value whatever its due date (red-team finding reward.fake_members.wage_never_due)"
+     },
+     {
+      "id": "finance.lender_rule",
+      "status": "plausible-hypothesis",
+      "caveat": "repayment start dates and existing exposure are ignored and the metric it relies on counts earlier loans (red-team finding money.loan_counts_as_revenue_and_is_never_due)"
+     },
+     {
+      "id": "market.escrow_and_arbitration",
+      "status": "known-unrealistic",
+      "caveat": "arbitration ignores evidence; no reputational or legal cost of disputing"
+     },
+     {
+      "id": "market.bounties",
+      "status": "plausible-hypothesis",
+      "caveat": ""
+     },
+     {
+      "id": "information.ad_auction",
+      "status": "known-unrealistic",
+      "caveat": "pay-per-impression at one's own bid; no quality score, no second-price rule, no click model"
+     },
+     {
+      "id": "operations.books_and_losses",
+      "status": "plausible-hypothesis",
+      "caveat": "losses are counted by rule, not valued by the firm"
+     },
+     {
+      "id": "industry.production_and_wear",
+      "status": "plausible-hypothesis",
+      "caveat": "response surfaces and wear laws are chosen parametric forms"
+     },
+     {
+      "id": "industry.freight",
+      "status": "plausible-hypothesis",
+      "caveat": ""
+     }
+    ],
+    "status_counts": {
+     "calibrated": 0,
+     "stylised-fact-checked": 0,
+     "plausible-hypothesis": 14,
+     "known-unrealistic": 5
+    },
+    "measures": [
+     {
+      "measure": "price_elasticity",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "median_arc_elasticity": -1.2884,
+         "median_arc_elasticity_clean_windows": -1.2884,
+         "median_did_elasticity": -0.9394
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "median_arc_elasticity": -1.4272,
+         "median_arc_elasticity_clean_windows": -1.4272,
+         "median_did_elasticity": -1.2128
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "median_arc_elasticity": null,
+         "median_arc_elasticity_clean_windows": null,
+         "median_did_elasticity": null
+        }
+       }
+      ],
+      "how_measured": "for every in-world price change of an API offering with 2 full days of demand on both sides: (dQ/mean Q)/(dP/mean P) on consumer requests per day; the difference-in-differences version subtracts the log change of the other offerings of the same need",
+      "comparison": "no reference data in repository"
+     },
+     {
+      "measure": "concentration",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "mean_hhi_over_needs": 0.6332
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "mean_hhi_over_needs": 0.6595
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "mean_hhi_over_needs": 0.6711
+        }
+       }
+      ],
+      "how_measured": "sum of squared customer shares of the offerings of a need (0..1; 1 = monopoly) at the end of each simulated day",
+      "comparison": "no reference data in repository"
+     },
+     {
+      "measure": "entry_exit",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "offering_entries": 3,
+         "offering_exits": 0,
+         "offerings_at_start": 6,
+         "offering_entry_rate_per_incumbent_month": 1.07143,
+         "offering_exit_rate_per_incumbent_month": 0.0,
+         "company_entries": 3,
+         "companies_at_start": 10,
+         "company_entry_rate_per_incumbent_month": 0.64286,
+         "company_exit_rate_per_incumbent_month": 0.0,
+         "simulated_days": 14.0
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "offering_entries": 2,
+         "offering_exits": 0,
+         "offerings_at_start": 6,
+         "offering_entry_rate_per_incumbent_month": 0.71429,
+         "offering_exit_rate_per_incumbent_month": 0.0,
+         "company_entries": 3,
+         "companies_at_start": 10,
+         "company_entry_rate_per_incumbent_month": 0.64286,
+         "company_exit_rate_per_incumbent_month": 0.0,
+         "simulated_days": 14.0
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "offering_entries": 1,
+         "offering_exits": 0,
+         "offerings_at_start": 4,
+         "offering_entry_rate_per_incumbent_month": 0.53571,
+         "offering_exit_rate_per_incumbent_month": 0.0,
+         "company_entries": 1,
+         "companies_at_start": 8,
+         "company_entry_rate_per_incumbent_month": 0.26786,
+         "company_exit_rate_per_incumbent_month": 0.0,
+         "simulated_days": 14.0
+        }
+       }
+      ],
+      "how_measured": "entries: offerings joining the consumer market after its first hourly update and company registrations after genesis; exits: closed listings of such offerings and companies ended as bankrupt or dissolved; rates per incumbent at genesis per 30 simulated days",
+      "comparison": "no reference data in repository"
+     },
+     {
+      "measure": "compute_utilisation",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "rented_share_of_cores_time_avg": 0.0436,
+         "rented_share_of_cores_peak": 0.065,
+         "instance_utilisation_mean": 0.11906,
+         "instance_utilisation_p95": 0.29992,
+         "share_of_host_days_above_0.8": 0.0,
+         "overloaded_share_of_requests": 0.000325,
+         "unavailable_share_of_requests": 0.0,
+         "rentals_refused_for_capacity": 0
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "rented_share_of_cores_time_avg": 0.043,
+         "rented_share_of_cores_peak": 0.055,
+         "instance_utilisation_mean": 0.13766,
+         "instance_utilisation_p95": 0.34516,
+         "share_of_host_days_above_0.8": 0.0,
+         "overloaded_share_of_requests": 0.00123,
+         "unavailable_share_of_requests": 0.0,
+         "rentals_refused_for_capacity": 0
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "rented_share_of_cores_time_avg": 0.02131,
+         "rented_share_of_cores_peak": 0.025,
+         "instance_utilisation_mean": 0.04815,
+         "instance_utilisation_p95": 0.08457,
+         "share_of_host_days_above_0.8": 0.0,
+         "overloaded_share_of_requests": 0.0,
+         "unavailable_share_of_requests": 0.0,
+         "rentals_refused_for_capacity": 0
+        }
+       }
+      ],
+      "how_measured": "rented cores / provider cores, time-weighted from instance events (current provider capacity); compute units used per complete host-day / (cores x 100,000 x 24) with the instance's current cores; overloaded and unavailable requests from the service day counters",
+      "comparison": "no reference data in repository"
+     }
+    ],
+    "note": ""
+   },
+   "temporal": {
+    "mechanisms": [
+     {
+      "id": "money.exogenous_sources",
+      "status": "known-unrealistic",
+      "caveat": "household income is exogenous and constant; there is no credit creation beyond lenders' own funds, no macro feedback from firms' wages to household demand"
+     },
+     {
+      "id": "money.instant_final_settlement",
+      "status": "known-unrealistic",
+      "caveat": "no clearing delay, float, chargeback or payment failure other than insufficient funds"
+     },
+     {
+      "id": "demand.request_arrivals",
+      "status": "plausible-hypothesis",
+      "caveat": "rate distribution and cycle shape are parameters; no weekly or seasonal pattern, no bursts"
+     },
+     {
+      "id": "demand.loyalty_and_switching",
+      "status": "plausible-hypothesis",
+      "caveat": "see `retention_and_churn` for the simulated retention it produces"
+     },
+     {
+      "id": "demand.turnover",
+      "status": "known-unrealistic",
+      "caveat": "constant hazard independent of age, satisfaction or the economy; population size is fixed"
+     },
+     {
+      "id": "demand.latent_and_derived",
+      "status": "plausible-hypothesis",
+      "caveat": "functional form and lags chosen"
+     },
+     {
+      "id": "compute.outages",
+      "status": "plausible-hypothesis",
+      "caveat": "independent across providers and days; no correlated failures or degraded states"
+     },
+     {
+      "id": "compute.billing_and_suspension",
+      "status": "plausible-hypothesis",
+      "caveat": ""
+     },
+     {
+      "id": "firms.insolvency",
+      "status": "plausible-hypothesis",
+      "caveat": "no restructuring, no secured creditors, no director liability; obligations not yet due vanish on voluntary dissolution (red-team finding money.debt_extinguished_by_dissolving_the_borrower)"
+     },
+     {
+      "id": "information.forum_and_mail",
+      "status": "plausible-hypothesis",
+      "caveat": "people read a bounded number of posts; no spam filtering"
+     },
+     {
+      "id": "technology.trials_and_adoption",
+      "status": "plausible-hypothesis",
+      "caveat": "see `adoption_curves`; trial lengths and thresholds chosen"
+     },
+     {
+      "id": "world.scheduled_shocks",
+      "status": "known-unrealistic",
+      "caveat": "scripted; not caused by anything inside the world"
+     },
+     {
+      "id": "world.action_time_costs",
+      "status": "known-unrealistic",
+      "caveat": "fixed per tool; real effort depends on content. These service modules are record-keeping interfaces (profiles, self-goals, documents, calendars, issues, tickets, repositories) with no behavioural rule of their own"
+     },
+     {
+      "id": "industry.freight",
+      "status": "plausible-hypothesis",
+      "caveat": ""
+     }
+    ],
+    "status_counts": {
+     "calibrated": 0,
+     "stylised-fact-checked": 0,
+     "plausible-hypothesis": 9,
+     "known-unrealistic": 5
+    },
+    "measures": [
+     {
+      "measure": "adoption_curves",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "median_days_to_half_peak": 1.0,
+         "share_with_interior_inflection": 0.2222
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "median_days_to_half_peak": 1.0,
+         "share_with_interior_inflection": 0.25
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "median_days_to_half_peak": 0.0,
+         "share_with_interior_inflection": 0.0
+        }
+       }
+      ],
+      "how_measured": "customers per offering at the last hourly market update of each simulated day (consumers.hour events); days counted from the offering's first day in the market",
+      "comparison": "no reference data in repository"
+     },
+     {
+      "measure": "demand_timing",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "peak_hour": 13,
+         "peak_to_trough": 5.9422
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "peak_hour": 13,
+         "peak_to_trough": 5.874
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "peak_hour": 13,
+         "peak_to_trough": 5.967
+        }
+       }
+      ],
+      "how_measured": "consumer requests summed by simulated hour of day over the whole run",
+      "comparison": "no reference data in repository"
+     }
+    ],
+    "note": ""
+   },
+   "strategic": {
+    "mechanisms": [
+     {
+      "id": "money.delegated_authority",
+      "status": "plausible-hypothesis",
+      "caveat": "limits are applied to one-off payments only (red-team finding money.delegated_spending_limit_bypass)"
+     },
+     {
+      "id": "demand.discovery",
+      "status": "plausible-hypothesis",
+      "caveat": "search and word-of-mouth rates are per-family parameters; consumers do not browse web sites"
+     },
+     {
+      "id": "compute.price_rule",
+      "status": "known-unrealistic",
+      "caveat": "one region, no spot market, no negotiated or reserved pricing"
+     },
+     {
+      "id": "firms.incumbent_policy",
+      "status": "plausible-hypothesis",
+      "caveat": "fixed heuristics with a few drawn parameters; no learning"
+     },
+     {
+      "id": "firms.minds",
+      "status": "plausible-hypothesis",
+      "caveat": "decision rules are fixed heuristics with traits; no learning beyond beliefs"
+     },
+     {
+      "id": "firms.entry",
+      "status": "plausible-hypothesis",
+      "caveat": "see `entry_exit` for realised rates; entry rules are not derived from expected profit"
+     },
+     {
+      "id": "finance.lender_rule",
+      "status": "plausible-hypothesis",
+      "caveat": "repayment start dates and existing exposure are ignored and the metric it relies on counts earlier loans (red-team finding money.loan_counts_as_revenue_and_is_never_due)"
+     },
+     {
+      "id": "market.ratings",
+      "status": "plausible-hypothesis",
+      "caveat": "one rating per buyer whatever was spent; a free order counts as a purchase (red-team finding)"
+     },
+     {
+      "id": "contracts.clauses_and_breach",
+      "status": "plausible-hypothesis",
+      "caveat": "enforcement is automatic and free; no courts, delay or partial performance"
+     },
+     {
+      "id": "negotiation.valuation_and_concession",
+      "status": "plausible-hypothesis",
+      "caveat": "penalties are priced only when the mind itself must deliver and due dates are not discounted (red-team finding money.simulated_firms_sign_adverse_fine_print)"
+     },
+     {
+      "id": "reputation.public_record_and_trust",
+      "status": "plausible-hypothesis",
+      "caveat": "identities are free to create, so a record can be shed by founding a new organisation"
+     },
+     {
+      "id": "governance.voting",
+      "status": "known-unrealistic",
+      "caveat": "votes do not come from modelled payoffs"
+     },
+     {
+      "id": "information.search_ranking",
+      "status": "plausible-hypothesis",
+      "caveat": "no spam detection; links from the page owner's own hosts count (red-team finding)"
+     },
+     {
+      "id": "information.ad_auction",
+      "status": "known-unrealistic",
+      "caveat": "pay-per-impression at one's own bid; no quality score, no second-price rule, no click model"
+     },
+     {
+      "id": "technology.simulated_invention",
+      "status": "known-unrealistic",
+      "caveat": "one grammar family; field trials are the only test"
+     },
+     {
+      "id": "web.adversarial_content",
+      "status": "known-unrealistic",
+      "caveat": "static adversaries that do not adapt to defences"
+     },
+     {
+      "id": "world.scheduled_shocks",
+      "status": "known-unrealistic",
+      "caveat": "scripted; not caused by anything inside the world"
+     }
+    ],
+    "status_counts": {
+     "calibrated": 0,
+     "stylised-fact-checked": 0,
+     "plausible-hypothesis": 11,
+     "known-unrealistic": 6
+    },
+    "measures": [
+     {
+      "measure": "concentration",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "mean_hhi_over_needs": 0.6332
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "mean_hhi_over_needs": 0.6595
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "mean_hhi_over_needs": 0.6711
+        }
+       }
+      ],
+      "how_measured": "sum of squared customer shares of the offerings of a need (0..1; 1 = monopoly) at the end of each simulated day",
+      "comparison": "no reference data in repository"
+     },
+     {
+      "measure": "entry_exit",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "offering_entries": 3,
+         "offering_exits": 0,
+         "offerings_at_start": 6,
+         "offering_entry_rate_per_incumbent_month": 1.07143,
+         "offering_exit_rate_per_incumbent_month": 0.0,
+         "company_entries": 3,
+         "companies_at_start": 10,
+         "company_entry_rate_per_incumbent_month": 0.64286,
+         "company_exit_rate_per_incumbent_month": 0.0,
+         "simulated_days": 14.0
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "offering_entries": 2,
+         "offering_exits": 0,
+         "offerings_at_start": 6,
+         "offering_entry_rate_per_incumbent_month": 0.71429,
+         "offering_exit_rate_per_incumbent_month": 0.0,
+         "company_entries": 3,
+         "companies_at_start": 10,
+         "company_entry_rate_per_incumbent_month": 0.64286,
+         "company_exit_rate_per_incumbent_month": 0.0,
+         "simulated_days": 14.0
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "offering_entries": 1,
+         "offering_exits": 0,
+         "offerings_at_start": 4,
+         "offering_entry_rate_per_incumbent_month": 0.53571,
+         "offering_exit_rate_per_incumbent_month": 0.0,
+         "company_entries": 1,
+         "companies_at_start": 8,
+         "company_entry_rate_per_incumbent_month": 0.26786,
+         "company_exit_rate_per_incumbent_month": 0.0,
+         "simulated_days": 14.0
+        }
+       }
+      ],
+      "how_measured": "entries: offerings joining the consumer market after its first hourly update and company registrations after genesis; exits: closed listings of such offerings and companies ended as bankrupt or dissolved; rates per incumbent at genesis per 30 simulated days",
+      "comparison": "no reference data in repository"
+     }
+    ],
+    "note": ""
+   },
+   "distributional": {
+    "mechanisms": [
+     {
+      "id": "demand.request_arrivals",
+      "status": "plausible-hypothesis",
+      "caveat": "rate distribution and cycle shape are parameters; no weekly or seasonal pattern, no bursts"
+     },
+     {
+      "id": "demand.choice_and_preferences",
+      "status": "plausible-hypothesis",
+      "caveat": "weights drawn from a fixed distribution per world"
+     },
+     {
+      "id": "demand.turnover",
+      "status": "known-unrealistic",
+      "caveat": "constant hazard independent of age, satisfaction or the economy; population size is fixed"
+     },
+     {
+      "id": "demand.sampled_execution",
+      "status": "known-unrealistic",
+      "caveat": "per-request quality and cost are sampling estimates, not per-request truth"
+     },
+     {
+      "id": "demand.behaviour_models_and_segments",
+      "status": "plausible-hypothesis",
+      "caveat": "which rule set resembles real customers is exactly the open question; none is fitted"
+     },
+     {
+      "id": "compute.outages",
+      "status": "plausible-hypothesis",
+      "caveat": "independent across providers and days; no correlated failures or degraded states"
+     },
+     {
+      "id": "labour.productivity",
+      "status": "plausible-hypothesis",
+      "caveat": "no effort choice, no teams"
+     },
+     {
+      "id": "world.genesis_draws",
+      "status": "known-unrealistic",
+      "caveat": "uniform ranges, independent draws; real size and wage distributions are heavy-tailed and correlated"
+     },
+     {
+      "id": "industry.household_choice",
+      "status": "plausible-hypothesis",
+      "caveat": "a standard discrete-choice functional form with chosen coefficients; not estimated"
+     }
+    ],
+    "status_counts": {
+     "calibrated": 0,
+     "stylised-fact-checked": 0,
+     "plausible-hypothesis": 6,
+     "known-unrealistic": 3
+    },
+    "measures": [
+     {
+      "measure": "reliability_distribution",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "mean": 0.99977,
+         "p05": 1.0,
+         "p50": 1.0,
+         "p95": 1.0,
+         "min": 0.98661,
+         "share_of_host_days_below_0.99": 0.0099,
+         "share_of_host_days_below_0.95": 0.0,
+         "provider_outage_hours_per_provider_month": 0.0
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "mean": 0.99902,
+         "p05": 1.0,
+         "p50": 1.0,
+         "p95": 1.0,
+         "min": 0.91833,
+         "share_of_host_days_below_0.99": 0.0202,
+         "share_of_host_days_below_0.95": 0.0101,
+         "provider_outage_hours_per_provider_month": 0.0
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "mean": 1.0,
+         "p05": 1.0,
+         "p50": 1.0,
+         "p95": 1.0,
+         "min": 1.0,
+         "share_of_host_days_below_0.99": 0.0,
+         "share_of_host_days_below_0.95": 0.0,
+         "provider_outage_hours_per_provider_month": 0.0
+        }
+       }
+      ],
+      "how_measured": "per host and simulated day: served requests / (served + errors + unavailable + overloaded), from the service day counters; outage hours from scheduled provider outages",
+      "comparison": "no reference data in repository"
+     },
+     {
+      "measure": "size_distribution",
+      "values": [
+       {
+        "world": "fidelity-ow_market-1",
+        "value": {
+         "gini": 0.41933,
+         "top_share": 0.25596,
+         "offerings": 9
+        }
+       },
+       {
+        "world": "fidelity-ow_market-2",
+        "value": {
+         "gini": 0.33157,
+         "top_share": 0.22078,
+         "offerings": 8
+        }
+       },
+       {
+        "world": "fidelity-ow_heldout-1",
+        "value": {
+         "gini": 0.17606,
+         "top_share": 0.27594,
+         "offerings": 5
+        }
+       }
+      ],
+      "how_measured": "customers per offering after the last hourly update: Gini coefficient and the largest share",
+      "comparison": "no reference data in repository"
+     }
+    ],
+    "note": ""
+   },
+   "transfer": {
+    "mechanisms": [
+     {
+      "id": "demand.statistical_population",
+      "status": "known-unrealistic",
+      "caveat": "they do not reason, negotiate or read; they are a demand model, not agents"
+     },
+     {
+      "id": "work.verified_needs",
+      "status": "known-unrealistic",
+      "caveat": "eight formats; real demand for software is open-ended and rarely exactly verifiable"
+     },
+     {
+      "id": "software.real_execution_and_cost",
+      "status": "plausible-hypothesis",
+      "caveat": "the deterministic cost model undercounts native-code work; one machine type"
+     },
+     {
+      "id": "technology.simulated_invention",
+      "status": "known-unrealistic",
+      "caveat": "one grammar family; field trials are the only test"
+     },
+     {
+      "id": "web.http_semantics",
+      "status": "plausible-hypothesis",
+      "caveat": "server-rendered only; no TLS, DNS hierarchy, cross-site cookies or third-party scripts"
+     },
+     {
+      "id": "web.adversarial_content",
+      "status": "known-unrealistic",
+      "caveat": "static adversaries that do not adapt to defences"
+     },
+     {
+      "id": "lab.network_physics",
+      "status": "known-unrealistic",
+      "caveat": "no packet dynamics, no fixed point after drops"
+     }
+    ],
+    "status_counts": {
+     "calibrated": 0,
+     "stylised-fact-checked": 0,
+     "plausible-hypothesis": 2,
+     "known-unrealistic": 5
+    },
+    "measures": [],
+    "note": "no quantitative measure is implemented for this kind; transfer can only be established by authorised real-world experiments (crucible.realworld), and none has been run"
+   }
+  },
+  "register": [
+   {
+    "id": "money.double_entry_ledger",
+    "modules": [
+     "bank"
+    ],
+    "source": "services/bank.py",
+    "kinds": [
+     "causal",
+     "economic",
+     "interface"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "integer cents on a double-entry ledger; every movement is one balanced transaction; balances sum to zero",
+    "caveat": "structural claim only (conservation, atomic transfers); no interest, inflation, taxes or foreign exchange",
+    "evidence": null
+   },
+   {
+    "id": "money.exogenous_sources",
+    "modules": [
+     "bank",
+     "consumers",
+     "admin"
+    ],
+    "source": "services/bank.py, economy/consumers.py",
+    "kinds": [
+     "economic",
+     "temporal"
+    ],
+    "status": "known-unrealistic",
+    "rule": "money enters from declared source accounts: endowments at genesis, a fixed household income per day, the rest of the world buying nothing and selling hardware and energy",
+    "caveat": "household income is exogenous and constant; there is no credit creation beyond lenders' own funds, no macro feedback from firms' wages to household demand",
+    "evidence": null
+   },
+   {
+    "id": "money.instant_final_settlement",
+    "modules": [
+     "bank",
+     "market",
+     "contracts"
+    ],
+    "source": "services/bank.py",
+    "kinds": [
+     "temporal",
+     "interface"
+    ],
+    "status": "known-unrealistic",
+    "rule": "transfers settle instantly and finally",
+    "caveat": "no clearing delay, float, chargeback or payment failure other than insufficient funds",
+    "evidence": null
+   },
+   {
+    "id": "money.delegated_authority",
+    "modules": [
+     "identity",
+     "bank"
+    ],
+    "source": "services/identity.py",
+    "kinds": [
+     "interface",
+     "strategic"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "capability grants with scope, 30-day spending limits and expiry; organisations act through roles",
+    "caveat": "limits are applied to one-off payments only (red-team finding money.delegated_spending_limit_bypass)",
+    "evidence": null
+   },
+   {
+    "id": "demand.request_arrivals",
+    "modules": [
+     "consumers"
+    ],
+    "source": "economy/consumers.py",
+    "kinds": [
+     "behavioural",
+     "temporal",
+     "distributional"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "requests per offering-hour ~ Poisson(sum of its customers' rates); rates drawn uniformly per consumer; an optional sinusoidal daily cycle (`diurnal`, `peak_hour`)",
+    "caveat": "rate distribution and cycle shape are parameters; no weekly or seasonal pattern, no bursts",
+    "evidence": null
+   },
+   {
+    "id": "demand.price_response",
+    "modules": [
+     "consumers"
+    ],
+    "source": "economy/consumers.py",
+    "kinds": [
+     "economic",
+     "behavioural"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "each consumer has a willingness to pay (base price x uniform multiplier); utility falls with price relative to it and requests are reduced accordingly",
+    "caveat": "functional form and spread chosen, not estimated; see `price_elasticity` for the value the simulation actually produces",
+    "evidence": null
+   },
+   {
+    "id": "demand.household_budget",
+    "modules": [
+     "consumers",
+     "bank"
+    ],
+    "source": "economy/consumers.py",
+    "kinds": [
+     "economic"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "consumer spending is paid from one budgeted pool that cannot go negative, so aggregate demand is budget-constrained",
+    "caveat": "one pooled budget for all households: no individual budgets, saving or borrowing",
+    "evidence": null
+   },
+   {
+    "id": "demand.choice_and_preferences",
+    "modules": [
+     "consumers"
+    ],
+    "source": "economy/consumers.py",
+    "kinds": [
+     "behavioural",
+     "distributional"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "consumers shop among at most six offerings they know, by a weighted utility of experienced quality, latency and price with individual preference weights",
+    "caveat": "weights drawn from a fixed distribution per world",
+    "evidence": null
+   },
+   {
+    "id": "demand.discovery",
+    "modules": [
+     "consumers",
+     "search",
+     "ads",
+     "forum"
+    ],
+    "source": "economy/consumers.py, services/search.py",
+    "kinds": [
+     "behavioural",
+     "strategic"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "a consumer learns of an offering through organic search for its need, sponsored results, forum posts and word of mouth from six neighbours on a small-world graph",
+    "caveat": "search and word-of-mouth rates are per-family parameters; consumers do not browse web sites",
+    "evidence": null
+   },
+   {
+    "id": "demand.loyalty_and_switching",
+    "modules": [
+     "consumers"
+    ],
+    "source": "economy/consumers.py",
+    "kinds": [
+     "behavioural",
+     "temporal"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "satisfaction is an exponential average of experienced utility; dissatisfied or unserved consumers switch, damped by individual loyalty",
+    "caveat": "see `retention_and_churn` for the simulated retention it produces",
+    "evidence": null
+   },
+   {
+    "id": "demand.turnover",
+    "modules": [
+     "consumers"
+    ],
+    "source": "economy/consumers.py",
+    "kinds": [
+     "temporal",
+     "distributional"
+    ],
+    "status": "known-unrealistic",
+    "rule": "a constant share of consumers leaves each day and is replaced by newcomers with fresh preferences",
+    "caveat": "constant hazard independent of age, satisfaction or the economy; population size is fixed",
+    "evidence": null
+   },
+   {
+    "id": "demand.sampled_execution",
+    "modules": [
+     "consumers",
+     "cloud"
+    ],
+    "source": "economy/consumers.py, services/cloud.py",
+    "kinds": [
+     "causal",
+     "distributional"
+    ],
+    "status": "known-unrealistic",
+    "rule": "a few real requests per offering-hour are executed and verified; the rest are extrapolated from them",
+    "caveat": "per-request quality and cost are sampling estimates, not per-request truth",
+    "evidence": null
+   },
+   {
+    "id": "demand.voice",
+    "modules": [
+     "consumers",
+     "market",
+     "forum",
+     "support"
+    ],
+    "source": "economy/consumers.py",
+    "kinds": [
+     "behavioural"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "customers leave ratings and reviews, and open support tickets when failure rates exceed 5%",
+    "caveat": "thresholds and propensities chosen",
+    "evidence": null
+   },
+   {
+    "id": "demand.statistical_population",
+    "modules": [
+     "consumers"
+    ],
+    "source": "economy/consumers.py",
+    "kinds": [
+     "behavioural",
+     "transfer"
+    ],
+    "status": "known-unrealistic",
+    "rule": "thousands of consumers are rows of arrays updated by vectorised rules",
+    "caveat": "they do not reason, negotiate or read; they are a demand model, not agents",
+    "evidence": null
+   },
+   {
+    "id": "demand.behaviour_models_and_segments",
+    "modules": [
+     "consumers"
+    ],
+    "source": "economy/consumers.py, economy/behavior.py",
+    "kinds": [
+     "behavioural",
+     "distributional"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "(4.0, off by default) structurally different consumer rule sets and heterogeneous segments selected by configuration",
+    "caveat": "which rule set resembles real customers is exactly the open question; none is fitted",
+    "evidence": null
+   },
+   {
+    "id": "demand.latent_and_derived",
+    "modules": [
+     "consumers"
+    ],
+    "source": "economy/consumers.py",
+    "kinds": [
+     "economic",
+     "temporal",
+     "causal"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "(4.0, off by default) latent needs become active as verified volume served in a source need grows (saturating response with a lag)",
+    "caveat": "functional form and lags chosen",
+    "evidence": null
+   },
+   {
+    "id": "work.verified_needs",
+    "modules": [
+     "consumers",
+     "jobs",
+     "civ"
+    ],
+    "source": "economy/needs.py",
+    "kinds": [
+     "causal",
+     "transfer",
+     "interface"
+    ],
+    "status": "known-unrealistic",
+    "rule": "value comes from a finite set of problem formats with exact verifiers holding ground truth",
+    "caveat": "eight formats; real demand for software is open-ended and rarely exactly verifiable",
+    "evidence": null
+   },
+   {
+    "id": "software.real_execution_and_cost",
+    "modules": [
+     "code",
+     "cloud"
+    ],
+    "source": "services/code.py, services/cloud.py, sandbox/",
+    "kinds": [
+     "causal",
+     "economic",
+     "transfer"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "agent code really runs; measured CPU (or executed lines in the deterministic model) times a work scale consumes compute units",
+    "caveat": "the deterministic cost model undercounts native-code work; one machine type",
+    "evidence": null
+   },
+   {
+    "id": "compute.capacity_and_overload",
+    "modules": [
+     "cloud"
+    ],
+    "source": "services/cloud.py",
+    "kinds": [
+     "causal",
+     "economic"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "an instance has cores x 100,000 compute units per hour; requests beyond that are refused (503)",
+    "caveat": "capacity resets on the hour; no queueing or latency degradation before refusal",
+    "evidence": null
+   },
+   {
+    "id": "compute.price_rule",
+    "modules": [
+     "cloud",
+     "society",
+     "civ"
+    ],
+    "source": "services/cloud.py, actors/dynamics.py",
+    "kinds": [
+     "economic",
+     "strategic"
+    ],
+    "status": "known-unrealistic",
+    "rule": "providers post a price per core-hour that moves by a fixed rule with utilisation",
+    "caveat": "one region, no spot market, no negotiated or reserved pricing",
+    "evidence": null
+   },
+   {
+    "id": "compute.outages",
+    "modules": [
+     "cloud"
+    ],
+    "source": "services/cloud.py",
+    "kinds": [
+     "temporal",
+     "distributional"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "each provider draws an outage each day with probability 1 - reliability, lasting 1 to 6 hours",
+    "caveat": "independent across providers and days; no correlated failures or degraded states",
+    "evidence": null
+   },
+   {
+    "id": "compute.billing_and_suspension",
+    "modules": [
+     "cloud",
+     "bank"
+    ],
+    "source": "services/cloud.py",
+    "kinds": [
+     "causal",
+     "temporal"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "instances are billed hourly; an unpaid bill suspends the instance and 72 hours later terminates it",
+    "caveat": "",
+    "evidence": null
+   },
+   {
+    "id": "compute.hardware_market",
+    "modules": [
+     "cloud"
+    ],
+    "source": "services/cloud.py",
+    "kinds": [
+     "economic"
+    ],
+    "status": "known-unrealistic",
+    "rule": "anyone may become a provider and buy cores at a fixed price with a fixed delivery lead time",
+    "caveat": "fixed price and lead time; no depreciation, energy price or supply constraint",
+    "evidence": null
+   },
+   {
+    "id": "firms.incumbent_policy",
+    "modules": [
+     "npcs"
+    ],
+    "source": "actors/npcs.py",
+    "kinds": [
+     "strategic",
+     "behavioural"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "incumbents reprice toward observed competition and capacity, add capacity when overloaded, start R&D when out-rated, hire when queues grow",
+    "caveat": "fixed heuristics with a few drawn parameters; no learning",
+    "evidence": null
+   },
+   {
+    "id": "firms.minds",
+    "modules": [
+     "society"
+    ],
+    "source": "actors/minds.py, actors/producers.py",
+    "kinds": [
+     "strategic",
+     "behavioural",
+     "causal"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "firm minds keep their own books, publish problems, trial capabilities with randomised designs and adopt on their own measured effect",
+    "caveat": "decision rules are fixed heuristics with traits; no learning beyond beliefs",
+    "evidence": null
+   },
+   {
+    "id": "firms.entry",
+    "modules": [
+     "business",
+     "society"
+    ],
+    "source": "services/business.py, actors/dynamics.py",
+    "kinds": [
+     "strategic",
+     "economic"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "new companies register for a fee; simulated entrants appear by rule or by scheduled shock",
+    "caveat": "see `entry_exit` for realised rates; entry rules are not derived from expected profit",
+    "evidence": null
+   },
+   {
+    "id": "firms.insolvency",
+    "modules": [
+     "business",
+     "contracts"
+    ],
+    "source": "services/business.py",
+    "kinds": [
+     "economic",
+     "temporal"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "a company with claims it cannot pay for the grace period is wound up: accounts frozen, cash distributed pro rata, services stopped, contracts ended",
+    "caveat": "no restructuring, no secured creditors, no director liability; obligations not yet due vanish on voluntary dissolution (red-team finding money.debt_extinguished_by_dissolving_the_borrower)",
+    "evidence": null
+   },
+   {
+    "id": "labour.reservation_wage_decision",
+    "modules": [
+     "npcs",
+     "jobs",
+     "contracts"
+    ],
+    "source": "actors/npcs.py",
+    "kinds": [
+     "behavioural",
+     "economic"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "a worker accepts an offer when the monthly wage is at least its reservation wage times a risk factor from public signals (company age, breaches, reputation); unpaid workers leave and warn others",
+    "caveat": "the wage is taken at face value whatever its due date (red-team finding reward.fake_members.wage_never_due)",
+    "evidence": null
+   },
+   {
+    "id": "labour.productivity",
+    "modules": [
+     "npcs",
+     "issues",
+     "support"
+    ],
+    "source": "actors/npcs.py",
+    "kinds": [
+     "behavioural",
+     "distributional"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "developers progress on assigned issues at a random rate that grows with skill and commit code of a tier set by skill; support staff resolve a skill-dependent number of tickets a day",
+    "caveat": "no effort choice, no teams",
+    "evidence": null
+   },
+   {
+    "id": "labour.effort_under_profit_sharing",
+    "modules": [
+     "gov",
+     "society"
+    ],
+    "source": "services/governance.py",
+    "kinds": [
+     "behavioural"
+    ],
+    "status": "known-unrealistic",
+    "rule": "effort under a profit-sharing rule follows e = 0.55 + 2.5 s (clipped)",
+    "caveat": "an assumed formula, not an emergent behaviour; results about sharing rules restate it",
+    "evidence": null
+   },
+   {
+    "id": "finance.lender_rule",
+    "modules": [
+     "npcs",
+     "contracts"
+    ],
+    "source": "actors/npcs.py",
+    "kinds": [
+     "economic",
+     "strategic"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "a lender approves a loan of at most three times the borrower's verified 30-day independent revenue, at or above its rate, for at most 12 months",
+    "caveat": "repayment start dates and existing exposure are ignored and the metric it relies on counts earlier loans (red-team finding money.loan_counts_as_revenue_and_is_never_due)",
+    "evidence": null
+   },
+   {
+    "id": "market.escrow_and_arbitration",
+    "modules": [
+     "market"
+    ],
+    "source": "services/market.py",
+    "kinds": [
+     "economic",
+     "interface"
+    ],
+    "status": "known-unrealistic",
+    "rule": "orders are escrowed; delivery is auto-confirmed after 3 days; unresolved disputes are split 50/50 after 7",
+    "caveat": "arbitration ignores evidence; no reputational or legal cost of disputing",
+    "evidence": null
+   },
+   {
+    "id": "market.ratings",
+    "modules": [
+     "market",
+     "consumers",
+     "search"
+    ],
+    "source": "services/market.py",
+    "kinds": [
+     "behavioural",
+     "strategic"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "only buyers may rate, once each; ratings feed search rank and consumer choice",
+    "caveat": "one rating per buyer whatever was spent; a free order counts as a purchase (red-team finding)",
+    "evidence": null
+   },
+   {
+    "id": "market.bounties",
+    "modules": [
+     "jobs"
+    ],
+    "source": "services/jobs.py",
+    "kinds": [
+     "economic",
+     "interface"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "a poster escrows a reward paid to the first submission clearing a quality bar on hidden inputs",
+    "caveat": "",
+    "evidence": null
+   },
+   {
+    "id": "contracts.clauses_and_breach",
+    "modules": [
+     "contracts"
+    ],
+    "source": "services/contracts.py",
+    "kinds": [
+     "interface",
+     "causal",
+     "strategic"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "agreements are compositions of payment, membership, grant, share, deliverable and notice clauses; a missed payment or deliverable is a public breach and a claim",
+    "caveat": "enforcement is automatic and free; no courts, delay or partial performance",
+    "evidence": null
+   },
+   {
+    "id": "negotiation.valuation_and_concession",
+    "modules": [
+     "deal",
+     "society"
+    ],
+    "source": "actors/negotiation.py",
+    "kinds": [
+     "strategic",
+     "behavioural"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "a mind values an offer from its own position (payments weighted by trust, time, shares, delegated authority, effort), accepts above an aspiration that decays over rounds, otherwise counters or rejects",
+    "caveat": "penalties are priced only when the mind itself must deliver and due dates are not discounted (red-team finding money.simulated_firms_sign_adverse_fine_print)",
+    "evidence": null
+   },
+   {
+    "id": "reputation.public_record_and_trust",
+    "modules": [
+     "deal",
+     "society",
+     "contracts"
+    ],
+    "source": "services/deals.py, actors/minds.py",
+    "kinds": [
+     "strategic",
+     "behavioural"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "public record of completed and breached agreements; private trust is a Beta update per counterparty",
+    "caveat": "identities are free to create, so a record can be shed by founding a new organisation",
+    "evidence": null
+   },
+   {
+    "id": "governance.voting",
+    "modules": [
+     "gov",
+     "society"
+    ],
+    "source": "services/governance.py, actors/negotiation.py",
+    "kinds": [
+     "strategic"
+    ],
+    "status": "known-unrealistic",
+    "rule": "constitutions are enforced at authorisation; simulated members vote from trust in the proposer",
+    "caveat": "votes do not come from modelled payoffs",
+    "evidence": null
+   },
+   {
+    "id": "information.search_ranking",
+    "modules": [
+     "search",
+     "net",
+     "ads"
+    ],
+    "source": "services/search.py, services/net.py",
+    "kinds": [
+     "interface",
+     "strategic"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "BM25 relevance times a rating signal times a count of linking hosts; ads are shown above organic results",
+    "caveat": "no spam detection; links from the page owner's own hosts count (red-team finding)",
+    "evidence": null
+   },
+   {
+    "id": "information.ad_auction",
+    "modules": [
+     "ads"
+    ],
+    "source": "services/ads.py",
+    "kinds": [
+     "economic",
+     "strategic"
+    ],
+    "status": "known-unrealistic",
+    "rule": "highest bids first, one ad per advertiser, each impression charged at the bid up to a daily budget",
+    "caveat": "pay-per-impression at one's own bid; no quality score, no second-price rule, no click model",
+    "evidence": null
+   },
+   {
+    "id": "information.forum_and_mail",
+    "modules": [
+     "forum",
+     "mail"
+    ],
+    "source": "services/forum.py, services/mail.py",
+    "kinds": [
+     "interface",
+     "temporal"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "posts, votes and follows; mail with a per-family delivery latency and loss probability",
+    "caveat": "people read a bounded number of posts; no spam filtering",
+    "evidence": null
+   },
+   {
+    "id": "information.beliefs_and_evidence",
+    "modules": [
+     "society",
+     "caps"
+    ],
+    "source": "actors/minds.py, services/capabilities.py",
+    "kinds": [
+     "behavioural",
+     "causal"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "minds update beliefs by source and act on evidence records whose references the world can verify",
+    "caveat": "update rule and source weights chosen",
+    "evidence": null
+   },
+   {
+    "id": "technology.trials_and_adoption",
+    "modules": [
+     "caps",
+     "society"
+    ],
+    "source": "services/capabilities.py, actors/minds.py",
+    "kinds": [
+     "causal",
+     "behavioural",
+     "temporal"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "a firm installs a capability under a randomised switchback or washout trial on real days and keeps it if its own measured effect is positive",
+    "caveat": "see `adoption_curves`; trial lengths and thresholds chosen",
+    "evidence": null
+   },
+   {
+    "id": "technology.simulated_invention",
+    "modules": [
+     "society"
+    ],
+    "source": "actors/innovators.py",
+    "kinds": [
+     "strategic",
+     "transfer"
+    ],
+    "status": "known-unrealistic",
+    "rule": "simulated innovators generate controller programs from one grammar, deploy them and iterate on trial evidence",
+    "caveat": "one grammar family; field trials are the only test",
+    "evidence": null
+   },
+   {
+    "id": "operations.books_and_losses",
+    "modules": [
+     "ops"
+    ],
+    "source": "economy/operations.py",
+    "kinds": [
+     "causal",
+     "economic"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "daily profit and loss by ledger kind and a journal of operating losses (overload, outage, downtime) derived from recorded events",
+    "caveat": "losses are counted by rule, not valued by the firm",
+    "evidence": null
+   },
+   {
+    "id": "automation.workflows",
+    "modules": [
+     "wf"
+    ],
+    "source": "services/workflows.py",
+    "kinds": [
+     "interface"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "triggers and flows call tools as their owner on schedules or events",
+    "caveat": "no partial failure modes of real schedulers",
+    "evidence": null
+   },
+   {
+    "id": "web.http_semantics",
+    "modules": [
+     "net",
+     "appdb",
+     "webgen"
+    ],
+    "source": "services/net.py, worldgen/sitegen.py",
+    "kinds": [
+     "interface",
+     "transfer"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "agent-deployed and generated sites answer requests with status codes, sessions, consent login, per-app storage, rate limits and outages; a crawler builds the index",
+    "caveat": "server-rendered only; no TLS, DNS hierarchy, cross-site cookies or third-party scripts",
+    "evidence": null
+   },
+   {
+    "id": "web.adversarial_content",
+    "modules": [
+     "adversary"
+    ],
+    "source": "worldgen/adversarial.py",
+    "kinds": [
+     "strategic",
+     "transfer"
+    ],
+    "status": "known-unrealistic",
+    "rule": "injection pages, a fraudulent capability, spam and false documentation created at genesis",
+    "caveat": "static adversaries that do not adapt to defences",
+    "evidence": null
+   },
+   {
+    "id": "world.scheduled_shocks",
+    "modules": [
+     "shocks",
+     "civ"
+    ],
+    "source": "worlds/digital_civilization.py",
+    "kinds": [
+     "temporal",
+     "strategic"
+    ],
+    "status": "known-unrealistic",
+    "rule": "preference drift, demand surges, compute shortages, entrants and reliability storms happen on a schedule fixed by the world family",
+    "caveat": "scripted; not caused by anything inside the world",
+    "evidence": null
+   },
+   {
+    "id": "world.genesis_draws",
+    "modules": [
+     "civ"
+    ],
+    "source": "worlds/digital_civilization.py, worldgen/generator.py",
+    "kinds": [
+     "distributional"
+    ],
+    "status": "known-unrealistic",
+    "rule": "firms, prices, cash, wages, skills and consumer attributes are drawn from uniform ranges set per family",
+    "caveat": "uniform ranges, independent draws; real size and wage distributions are heavy-tailed and correlated",
+    "evidence": null
+   },
+   {
+    "id": "world.action_time_costs",
+    "modules": [
+     "identity",
+     "admin",
+     "goals",
+     "docs",
+     "cal",
+     "issues",
+     "support",
+     "code"
+    ],
+    "source": "core/kernel.py and the service modules",
+    "kinds": [
+     "temporal",
+     "interface"
+    ],
+    "status": "known-unrealistic",
+    "rule": "every tool call costs a fixed number of simulated seconds and an hourly action limit applies",
+    "caveat": "fixed per tool; real effort depends on content. These service modules are record-keeping interfaces (profiles, self-goals, documents, calendars, issues, tickets, repositories) with no behavioural rule of their own",
+    "evidence": null
+   },
+   {
+    "id": "industry.production_and_wear",
+    "modules": [
+     "industry",
+     "industrygen"
+    ],
+    "source": "economy/industry.py",
+    "kinds": [
+     "causal",
+     "economic"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "yields depend on machine settings on parametric response surfaces; machines wear and break down; energy grids curtail when demand exceeds capacity",
+    "caveat": "response surfaces and wear laws are chosen parametric forms",
+    "evidence": null
+   },
+   {
+    "id": "industry.freight",
+    "modules": [
+     "freight"
+    ],
+    "source": "economy/industry.py",
+    "kinds": [
+     "temporal",
+     "economic"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "goods move on links with transit time, cost and daily capacity; congestion delays and reprices",
+    "caveat": "",
+    "evidence": null
+   },
+   {
+    "id": "industry.household_choice",
+    "modules": [
+     "shoppers"
+    ],
+    "source": "economy/shoppers.py",
+    "kinds": [
+     "behavioural",
+     "distributional"
+    ],
+    "status": "plausible-hypothesis",
+    "rule": "households choose products by a linear utility in attributes, price and distance with Gumbel noise, within a budget, after discovering products by search and word of mouth",
+    "caveat": "a standard discrete-choice functional form with chosen coefficients; not estimated",
+    "evidence": null
+   },
+   {
+    "id": "lab.network_physics",
+    "modules": [
+     "lab"
+    ],
+    "source": "worlds/engineering_lab.py",
+    "kinds": [
+     "causal",
+     "transfer"
+    ],
+    "status": "known-unrealistic",
+    "rule": "a static per-hour flow model on a capacitated network with queueing delay and drops",
+    "caveat": "no packet dynamics, no fixed point after drops",
+    "evidence": null
+   }
+  ],
+  "worlds": [
+   {
+    "world": "fidelity-ow_market-1",
+    "family": "ow_market",
+    "seed": 1,
+    "simulated_days": 14.0,
+    "measures": {
+     "adoption_curves": {
+      "value": {
+       "median_days_to_half_peak": 1.0,
+       "share_with_interior_inflection": 0.2222,
+       "offerings": {
+        "alloc0svc1": {
+         "need": "gen.allocate.438afdd8",
+         "series": [
+          [
+           0,
+           445
+          ],
+          [
+           1,
+           765
+          ],
+          [
+           2,
+           893
+          ],
+          [
+           3,
+           960
+          ],
+          [
+           4,
+           1005
+          ],
+          [
+           5,
+           1005
+          ],
+          [
+           6,
+           1026
+          ],
+          [
+           7,
+           1033
+          ],
+          [
+           8,
+           987
+          ],
+          [
+           9,
+           988
+          ],
+          [
+           10,
+           980
+          ],
+          [
+           11,
+           979
+          ],
+          [
+           12,
+           971
+          ],
+          [
+           13,
+           967
+          ]
+         ],
+         "peak": 1033,
+         "days_to_10pct": 0,
+         "days_to_50pct": 1,
+         "days_to_90pct": 3,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.7748
+        },
+        "alloc0svc2": {
+         "need": "gen.allocate.438afdd8",
+         "series": [
+          [
+           0,
+           50
+          ],
+          [
+           1,
+           71
+          ],
+          [
+           2,
+           86
+          ],
+          [
+           3,
+           102
+          ],
+          [
+           4,
+           123
+          ],
+          [
+           5,
+           187
+          ],
+          [
+           6,
+           186
+          ],
+          [
+           7,
+           189
+          ],
+          [
+           8,
+           250
+          ],
+          [
+           9,
+           252
+          ],
+          [
+           10,
+           264
+          ],
+          [
+           11,
+           269
+          ],
+          [
+           12,
+           278
+          ],
+          [
+           13,
+           281
+          ]
+         ],
+         "peak": 281,
+         "days_to_10pct": 0,
+         "days_to_50pct": 5,
+         "days_to_90pct": 10,
+         "day_of_fastest_growth": 5,
+         "interior_inflection": true,
+         "final_share_of_need": 0.2252
+        },
+        "trans1svc1": {
+         "need": "gen.transform.392ebc6b",
+         "series": [
+          [
+           0,
+           280
+          ],
+          [
+           1,
+           377
+          ],
+          [
+           2,
+           427
+          ],
+          [
+           3,
+           461
+          ],
+          [
+           4,
+           470
+          ],
+          [
+           5,
+           479
+          ],
+          [
+           6,
+           517
+          ],
+          [
+           7,
+           514
+          ],
+          [
+           8,
+           534
+          ],
+          [
+           9,
+           539
+          ],
+          [
+           10,
+           537
+          ],
+          [
+           11,
+           532
+          ],
+          [
+           12,
+           529
+          ],
+          [
+           13,
+           529
+          ]
+         ],
+         "peak": 539,
+         "days_to_10pct": 0,
+         "days_to_50pct": 0,
+         "days_to_90pct": 6,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.4208
+        },
+        "trans1svc2": {
+         "need": "gen.transform.392ebc6b",
+         "series": [
+          [
+           0,
+           315
+          ],
+          [
+           1,
+           478
+          ],
+          [
+           2,
+           589
+          ],
+          [
+           3,
+           643
+          ],
+          [
+           4,
+           693
+          ],
+          [
+           5,
+           720
+          ],
+          [
+           6,
+           708
+          ],
+          [
+           7,
+           719
+          ],
+          [
+           8,
+           705
+          ],
+          [
+           9,
+           706
+          ],
+          [
+           10,
+           711
+          ],
+          [
+           11,
+           720
+          ],
+          [
+           12,
+           725
+          ],
+          [
+           13,
+           728
+          ]
+         ],
+         "peak": 728,
+         "days_to_10pct": 0,
+         "days_to_50pct": 1,
+         "days_to_90pct": 4,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.5792
+        },
+        "dedup2svc1": {
+         "need": "gen.dedupe.052cc63f",
+         "series": [
+          [
+           0,
+           519
+          ],
+          [
+           1,
+           686
+          ],
+          [
+           2,
+           784
+          ],
+          [
+           3,
+           858
+          ],
+          [
+           4,
+           900
+          ],
+          [
+           5,
+           953
+          ],
+          [
+           6,
+           976
+          ],
+          [
+           7,
+           965
+          ],
+          [
+           8,
+           964
+          ],
+          [
+           9,
+           1024
+          ],
+          [
+           10,
+           775
+          ],
+          [
+           11,
+           636
+          ],
+          [
+           12,
+           718
+          ],
+          [
+           13,
+           652
+          ]
+         ],
+         "peak": 1024,
+         "days_to_10pct": 0,
+         "days_to_50pct": 0,
+         "days_to_90pct": 5,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.5122
+        },
+        "dedup2svc2": {
+         "need": "gen.dedupe.052cc63f",
+         "series": [
+          [
+           0,
+           91
+          ],
+          [
+           1,
+           139
+          ],
+          [
+           2,
+           167
+          ],
+          [
+           3,
+           182
+          ],
+          [
+           4,
+           180
+          ],
+          [
+           5,
+           164
+          ],
+          [
+           6,
+           160
+          ],
+          [
+           7,
+           183
+          ],
+          [
+           8,
+           187
+          ],
+          [
+           9,
+           134
+          ],
+          [
+           10,
+           125
+          ],
+          [
+           11,
+           148
+          ],
+          [
+           12,
+           83
+          ],
+          [
+           13,
+           69
+          ]
+         ],
+         "peak": 187,
+         "days_to_10pct": 0,
+         "days_to_50pct": 1,
+         "days_to_90pct": 3,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.0542
+        },
+        "dedupe00a": {
+         "need": "gen.dedupe.052cc63f",
+         "series": [
+          [
+           10,
+           262
+          ],
+          [
+           11,
+           420
+          ],
+          [
+           12,
+           395
+          ],
+          [
+           13,
+           435
+          ]
+         ],
+         "peak": 435,
+         "days_to_10pct": 0,
+         "days_to_50pct": 0,
+         "days_to_90pct": 1,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.3417
+        },
+        "dedupe01a": {
+         "need": "gen.dedupe.052cc63f",
+         "series": [
+          [
+           11,
+           24
+          ],
+          [
+           12,
+           67
+          ],
+          [
+           13,
+           100
+          ]
+         ],
+         "peak": 100,
+         "days_to_10pct": 0,
+         "days_to_50pct": 1,
+         "days_to_90pct": 2,
+         "day_of_fastest_growth": 1,
+         "interior_inflection": true,
+         "final_share_of_need": 0.0786
+        },
+        "dedupe05a": {
+         "need": "gen.dedupe.052cc63f",
+         "series": [
+          [
+           13,
+           17
+          ]
+         ],
+         "peak": 17,
+         "days_to_10pct": 0,
+         "days_to_50pct": 0,
+         "days_to_90pct": 0,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.0134
+        }
+       }
+      },
+      "how_measured": "customers per offering at the last hourly market update of each simulated day (consumers.hour events); days counted from the offering's first day in the market",
+      "n": 9,
+      "comparison": "no reference data in repository",
+      "qualitative_check": "diffusion curves are typically S-shaped (growth accelerates, then slows); `share_with_interior_inflection` is the share of offerings whose fastest growth is neither on the first nor on the last day observed. Reported, not used to set any register status"
+     },
+     "retention_and_churn": {
+      "value": {
+       "1d": {
+        "retention": 0.89841,
+        "switched": 0.10045,
+        "left_unserved": 0.00114,
+        "customer_days": 46619
+       },
+       "7d": {
+        "retention": 0.80977,
+        "switched": 0.18704,
+        "left_unserved": 0.00319,
+        "customer_days": 24423
+       },
+       "churn_per_day": 0.10159
+      },
+      "how_measured": "event log replayed to every day boundary; share of customers of an offering still with the same offering h days later (pooled over offerings and days); consumer turnover counts as leaving",
+      "n": 15,
+      "comparison": "no reference data in repository"
+     },
+     "price_elasticity": {
+      "value": {
+       "median_arc_elasticity": -1.2884,
+       "median_arc_elasticity_clean_windows": -1.2884,
+       "median_did_elasticity": -0.9394,
+       "changes": [
+        {
+         "listing": "lst_000006",
+         "host": "dedup2svc2",
+         "day": 2,
+         "t": 257400,
+         "price_before": 6,
+         "price_after": 5,
+         "requests_per_day_before": 1931.5,
+         "requests_per_day_after": 3944.0,
+         "customers_before": 115,
+         "customers_after": 181,
+         "arc_elasticity": -3.7678,
+         "per_customer_elasticity": -1.4238,
+         "did_elasticity": -0.9394,
+         "clean_window": true
+        },
+        {
+         "listing": "lst_000002",
+         "host": "alloc0svc2",
+         "day": 3,
+         "t": 343800,
+         "price_before": 5,
+         "price_after": 4,
+         "requests_per_day_before": 1457.5,
+         "requests_per_day_after": 3203.0,
+         "customers_before": 78,
+         "customers_after": 155,
+         "arc_elasticity": -3.3708,
+         "per_customer_elasticity": -0.4812,
+         "did_elasticity": -2.3161,
+         "clean_window": true
+        },
+        {
+         "listing": "lst_000002",
+         "host": "alloc0svc2",
+         "day": 7,
+         "t": 689400,
+         "price_before": 4,
+         "price_after": 3,
+         "requests_per_day_before": 3914.5,
+         "requests_per_day_after": 5680.5,
+         "customers_before": 186,
+         "customers_after": 251,
+         "arc_elasticity": -1.2884,
+         "per_customer_elasticity": -0.2635,
+         "did_elasticity": -1.3603,
+         "clean_window": true
+        },
+        {
+         "listing": "lst_000006",
+         "host": "dedup2svc2",
+         "day": 10,
+         "t": 948600,
+         "price_before": 5,
+         "price_after": 4,
+         "requests_per_day_before": 3241.5,
+         "requests_per_day_after": 2898.5,
+         "customers_before": 160,
+         "customers_after": 115,
+         "arc_elasticity": 0.5028,
+         "per_customer_elasticity": -0.9735,
+         "did_elasticity": 1.202,
+         "clean_window": true
+        },
+        {
+         "listing": "lst_000005",
+         "host": "dedup2svc1",
+         "day": 11,
+         "t": 1035000,
+         "price_before": 5,
+         "price_after": 4,
+         "requests_per_day_before": 20761.0,
+         "requests_per_day_after": 16488.5,
+         "customers_before": 899,
+         "customers_after": 685,
+         "arc_elasticity": 1.0323,
+         "per_customer_elasticity": -0.189,
+         "did_elasticity": 5.303,
+         "clean_window": true
+        }
+       ]
+      },
+      "how_measured": "for every in-world price change of an API offering with 2 full days of demand on both sides: (dQ/mean Q)/(dP/mean P) on consumer requests per day; the difference-in-differences version subtracts the log change of the other offerings of the same need",
+      "n": 5,
+      "comparison": "no reference data in repository",
+      "note": "observational: in a market whose customer base is still growing (or shrinking) the before/after figure mixes the price effect with that trend - as it would in field data. `per_customer_elasticity` (requests per customer-day) removes the customer-count trend but also the customers lost to the price; `price_elasticity_counterfactual` gives the causal figure"
+     },
+     "concentration": {
+      "value": {
+       "mean_hhi_over_needs": 0.6332,
+       "needs": {
+        "gen.allocate.438afdd8": {
+         "mean": 0.7382,
+         "first": 0.8184,
+         "last": 0.6511,
+         "min": 0.6511,
+         "max": 0.8446,
+         "active_offerings_last": 2,
+         "series": [
+          [
+           0,
+           0.8184,
+           2
+          ],
+          [
+           1,
+           0.8446,
+           2
+          ],
+          [
+           2,
+           0.8397,
+           2
+          ],
+          [
+           3,
+           0.8264,
+           2
+          ],
+          [
+           4,
+           0.8057,
+           2
+          ],
+          [
+           5,
+           0.7355,
+           2
+          ],
+          [
+           6,
+           0.7402,
+           2
+          ],
+          [
+           7,
+           0.7385,
+           2
+          ],
+          [
+           8,
+           0.6775,
+           2
+          ],
+          [
+           9,
+           0.6761,
+           2
+          ],
+          [
+           10,
+           0.6656,
+           2
+          ],
+          [
+           11,
+           0.6618,
+           2
+          ],
+          [
+           12,
+           0.6539,
+           2
+          ],
+          [
+           13,
+           0.6511,
+           2
+          ]
+         ]
+        },
+        "gen.dedupe.052cc63f": {
+         "mean": 0.6497,
+         "first": 0.7461,
+         "last": 0.3884,
+         "min": 0.3884,
+         "max": 0.7953,
+         "active_offerings_last": 5,
+         "series": [
+          [
+           0,
+           0.7461,
+           2
+          ],
+          [
+           1,
+           0.7198,
+           2
+          ],
+          [
+           2,
+           0.7105,
+           2
+          ],
+          [
+           3,
+           0.7112,
+           2
+          ],
+          [
+           4,
+           0.7222,
+           2
+          ],
+          [
+           5,
+           0.7495,
+           2
+          ],
+          [
+           6,
+           0.758,
+           2
+          ],
+          [
+           7,
+           0.732,
+           2
+          ],
+          [
+           8,
+           0.7279,
+           2
+          ],
+          [
+           9,
+           0.7953,
+           2
+          ],
+          [
+           10,
+           0.5072,
+           3
+          ],
+          [
+           11,
+           0.4001,
+           4
+          ],
+          [
+           12,
+           0.4281,
+           4
+          ],
+          [
+           13,
+           0.3884,
+           5
+          ]
+         ]
+        },
+        "gen.transform.392ebc6b": {
+         "mean": 0.5117,
+         "first": 0.5017,
+         "last": 0.5125,
+         "min": 0.5017,
+         "max": 0.5202,
+         "active_offerings_last": 2,
+         "series": [
+          [
+           0,
+           0.5017,
+           2
+          ],
+          [
+           1,
+           0.507,
+           2
+          ],
+          [
+           2,
+           0.5127,
+           2
+          ],
+          [
+           3,
+           0.5136,
+           2
+          ],
+          [
+           4,
+           0.5184,
+           2
+          ],
+          [
+           5,
+           0.5202,
+           2
+          ],
+          [
+           6,
+           0.5122,
+           2
+          ],
+          [
+           7,
+           0.5138,
+           2
+          ],
+          [
+           8,
+           0.5095,
+           2
+          ],
+          [
+           9,
+           0.509,
+           2
+          ],
+          [
+           10,
+           0.5097,
+           2
+          ],
+          [
+           11,
+           0.5113,
+           2
+          ],
+          [
+           12,
+           0.5122,
+           2
+          ],
+          [
+           13,
+           0.5125,
+           2
+          ]
+         ]
+        }
+       }
+      },
+      "how_measured": "sum of squared customer shares of the offerings of a need (0..1; 1 = monopoly) at the end of each simulated day",
+      "n": 42,
+      "comparison": "no reference data in repository"
+     },
+     "entry_exit": {
+      "value": {
+       "offering_entries": 3,
+       "offering_exits": 0,
+       "offerings_at_start": 6,
+       "offering_entry_rate_per_incumbent_month": 1.07143,
+       "offering_exit_rate_per_incumbent_month": 0.0,
+       "company_entries": 3,
+       "company_exits": {},
+       "companies_at_start": 10,
+       "company_entry_rate_per_incumbent_month": 0.64286,
+       "company_exit_rate_per_incumbent_month": 0.0,
+       "simulated_days": 14.0
+      },
+      "how_measured": "entries: offerings joining the consumer market after its first hourly update and company registrations after genesis; exits: closed listings of such offerings and companies ended as bankrupt or dissolved; rates per incumbent at genesis per 30 simulated days",
+      "n": 22,
+      "comparison": "no reference data in repository"
+     },
+     "reliability_distribution": {
+      "value": {
+       "mean": 0.99977,
+       "p05": 1.0,
+       "p50": 1.0,
+       "p95": 1.0,
+       "min": 0.98661,
+       "share_of_host_days_below_0.99": 0.0099,
+       "share_of_host_days_below_0.95": 0.0,
+       "provider_outage_hours_per_provider_month": 0.0
+      },
+      "how_measured": "per host and simulated day: served requests / (served + errors + unavailable + overloaded), from the service day counters; outage hours from scheduled provider outages",
+      "n": 101,
+      "comparison": "no reference data in repository"
+     },
+     "compute_utilisation": {
+      "value": {
+       "rented_share_of_cores_time_avg": 0.0436,
+       "rented_share_of_cores_peak": 0.065,
+       "instance_utilisation_mean": 0.11906,
+       "instance_utilisation_p95": 0.29992,
+       "share_of_host_days_above_0.8": 0.0,
+       "overloaded_share_of_requests": 0.000325,
+       "unavailable_share_of_requests": 0.0,
+       "rentals_refused_for_capacity": 0
+      },
+      "how_measured": "rented cores / provider cores, time-weighted from instance events (current provider capacity); compute units used per complete host-day / (cores x 100,000 x 24) with the instance's current cores; overloaded and unavailable requests from the service day counters",
+      "n": 92,
+      "comparison": "no reference data in repository"
+     },
+     "demand_timing": {
+      "value": {
+       "peak_hour": 13,
+       "peak_to_trough": 5.9422,
+       "share_by_hour": [
+        0.01265,
+        0.01198,
+        0.01314,
+        0.01582,
+        0.02063,
+        0.0266,
+        0.0334,
+        0.04118,
+        0.04873,
+        0.05578,
+        0.06204,
+        0.06664,
+        0.06938,
+        0.07116,
+        0.07045,
+        0.06746,
+        0.06297,
+        0.05672,
+        0.04999,
+        0.04241,
+        0.03483,
+        0.02766,
+        0.02151,
+        0.01685
+       ]
+      },
+      "how_measured": "consumer requests summed by simulated hour of day over the whole run",
+      "n": 336,
+      "comparison": "no reference data in repository"
+     },
+     "size_distribution": {
+      "value": {
+       "gini": 0.41933,
+       "top_share": 0.25596,
+       "offerings": 9
+      },
+      "how_measured": "customers per offering after the last hourly update: Gini coefficient and the largest share",
+      "n": 9,
+      "comparison": "no reference data in repository"
+     }
+    },
+    "modules_without_register_entry": [
+     "entry",
+     "use"
+    ]
+   },
+   {
+    "world": "fidelity-ow_market-2",
+    "family": "ow_market",
+    "seed": 2,
+    "simulated_days": 14.0,
+    "measures": {
+     "adoption_curves": {
+      "value": {
+       "median_days_to_half_peak": 1.0,
+       "share_with_interior_inflection": 0.25,
+       "offerings": {
+        "dedup0svc1": {
+         "need": "gen.dedupe.0dd18805",
+         "series": [
+          [
+           0,
+           113
+          ],
+          [
+           1,
+           266
+          ],
+          [
+           2,
+           163
+          ],
+          [
+           3,
+           200
+          ],
+          [
+           4,
+           186
+          ],
+          [
+           5,
+           200
+          ],
+          [
+           6,
+           213
+          ],
+          [
+           7,
+           207
+          ],
+          [
+           8,
+           207
+          ],
+          [
+           9,
+           203
+          ],
+          [
+           10,
+           188
+          ],
+          [
+           11,
+           172
+          ],
+          [
+           12,
+           130
+          ],
+          [
+           13,
+           161
+          ]
+         ],
+         "peak": 266,
+         "days_to_10pct": 0,
+         "days_to_50pct": 1,
+         "days_to_90pct": 1,
+         "day_of_fastest_growth": 1,
+         "interior_inflection": true,
+         "final_share_of_need": 0.1303
+        },
+        "dedup0svc2": {
+         "need": "gen.dedupe.0dd18805",
+         "series": [
+          [
+           0,
+           406
+          ],
+          [
+           1,
+           633
+          ],
+          [
+           2,
+           878
+          ],
+          [
+           3,
+           908
+          ],
+          [
+           4,
+           967
+          ],
+          [
+           5,
+           976
+          ],
+          [
+           6,
+           980
+          ],
+          [
+           7,
+           997
+          ],
+          [
+           8,
+           1002
+          ],
+          [
+           9,
+           1009
+          ],
+          [
+           10,
+           965
+          ],
+          [
+           11,
+           900
+          ],
+          [
+           12,
+           885
+          ],
+          [
+           13,
+           816
+          ]
+         ],
+         "peak": 1009,
+         "days_to_10pct": 0,
+         "days_to_50pct": 1,
+         "days_to_90pct": 4,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.6602
+        },
+        "alloc1svc1": {
+         "need": "gen.allocate.7d38deea",
+         "series": [
+          [
+           0,
+           350
+          ],
+          [
+           1,
+           594
+          ],
+          [
+           2,
+           691
+          ],
+          [
+           3,
+           729
+          ],
+          [
+           4,
+           766
+          ],
+          [
+           5,
+           783
+          ],
+          [
+           6,
+           774
+          ],
+          [
+           7,
+           781
+          ],
+          [
+           8,
+           793
+          ],
+          [
+           9,
+           792
+          ],
+          [
+           10,
+           799
+          ],
+          [
+           11,
+           802
+          ],
+          [
+           12,
+           798
+          ],
+          [
+           13,
+           798
+          ]
+         ],
+         "peak": 802,
+         "days_to_10pct": 0,
+         "days_to_50pct": 1,
+         "days_to_90pct": 3,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.8779
+        },
+        "alloc1svc2": {
+         "need": "gen.allocate.7d38deea",
+         "series": [
+          [
+           0,
+           30
+          ],
+          [
+           1,
+           42
+          ],
+          [
+           2,
+           44
+          ],
+          [
+           3,
+           66
+          ],
+          [
+           4,
+           66
+          ],
+          [
+           5,
+           77
+          ],
+          [
+           6,
+           101
+          ],
+          [
+           7,
+           106
+          ],
+          [
+           8,
+           105
+          ],
+          [
+           9,
+           111
+          ],
+          [
+           10,
+           107
+          ],
+          [
+           11,
+           107
+          ],
+          [
+           12,
+           111
+          ],
+          [
+           13,
+           111
+          ]
+         ],
+         "peak": 111,
+         "days_to_10pct": 0,
+         "days_to_50pct": 3,
+         "days_to_90pct": 6,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.1221
+        },
+        "trans2svc1": {
+         "need": "gen.transform.6e14fc56",
+         "series": [
+          [
+           0,
+           252
+          ],
+          [
+           1,
+           330
+          ],
+          [
+           2,
+           354
+          ],
+          [
+           3,
+           418
+          ],
+          [
+           4,
+           411
+          ],
+          [
+           5,
+           558
+          ],
+          [
+           6,
+           557
+          ],
+          [
+           7,
+           596
+          ],
+          [
+           8,
+           598
+          ],
+          [
+           9,
+           616
+          ],
+          [
+           10,
+           618
+          ],
+          [
+           11,
+           405
+          ],
+          [
+           12,
+           358
+          ],
+          [
+           13,
+           302
+          ]
+         ],
+         "peak": 618,
+         "days_to_10pct": 0,
+         "days_to_50pct": 1,
+         "days_to_90pct": 5,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.1947
+        },
+        "trans2svc2": {
+         "need": "gen.transform.6e14fc56",
+         "series": [
+          [
+           0,
+           418
+          ],
+          [
+           1,
+           673
+          ],
+          [
+           2,
+           800
+          ],
+          [
+           3,
+           846
+          ],
+          [
+           4,
+           902
+          ],
+          [
+           5,
+           802
+          ],
+          [
+           6,
+           825
+          ],
+          [
+           7,
+           800
+          ],
+          [
+           8,
+           813
+          ],
+          [
+           9,
+           797
+          ],
+          [
+           10,
+           798
+          ],
+          [
+           11,
+           641
+          ],
+          [
+           12,
+           553
+          ],
+          [
+           13,
+           492
+          ]
+         ],
+         "peak": 902,
+         "days_to_10pct": 0,
+         "days_to_50pct": 1,
+         "days_to_90pct": 3,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.3172
+        },
+        "dedupe00a": {
+         "need": "gen.dedupe.0dd18805",
+         "series": [
+          [
+           10,
+           67
+          ],
+          [
+           11,
+           148
+          ],
+          [
+           12,
+           208
+          ],
+          [
+           13,
+           259
+          ]
+         ],
+         "peak": 259,
+         "days_to_10pct": 0,
+         "days_to_50pct": 1,
+         "days_to_90pct": 3,
+         "day_of_fastest_growth": 1,
+         "interior_inflection": true,
+         "final_share_of_need": 0.2095
+        },
+        "transf02a": {
+         "need": "gen.transform.6e14fc56",
+         "series": [
+          [
+           11,
+           376
+          ],
+          [
+           12,
+           603
+          ],
+          [
+           13,
+           757
+          ]
+         ],
+         "peak": 757,
+         "days_to_10pct": 0,
+         "days_to_50pct": 1,
+         "days_to_90pct": 2,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.4881
+        }
+       }
+      },
+      "how_measured": "customers per offering at the last hourly market update of each simulated day (consumers.hour events); days counted from the offering's first day in the market",
+      "n": 8,
+      "comparison": "no reference data in repository",
+      "qualitative_check": "diffusion curves are typically S-shaped (growth accelerates, then slows); `share_with_interior_inflection` is the share of offerings whose fastest growth is neither on the first nor on the last day observed. Reported, not used to set any register status"
+     },
+     "retention_and_churn": {
+      "value": {
+       "1d": {
+        "retention": 0.82558,
+        "switched": 0.17338,
+        "left_unserved": 0.00104,
+        "customer_days": 45316
+       },
+       "7d": {
+        "retention": 0.7069,
+        "switched": 0.29037,
+        "left_unserved": 0.00273,
+        "customer_days": 23835
+       },
+       "churn_per_day": 0.17442
+      },
+      "how_measured": "event log replayed to every day boundary; share of customers of an offering still with the same offering h days later (pooled over offerings and days); consumer turnover counts as leaving",
+      "n": 15,
+      "comparison": "no reference data in repository"
+     },
+     "price_elasticity": {
+      "value": {
+       "median_arc_elasticity": -1.4272,
+       "median_arc_elasticity_clean_windows": -1.4272,
+       "median_did_elasticity": -1.2128,
+       "changes": [
+        {
+         "listing": "lst_000004",
+         "host": "alloc1svc2",
+         "day": 2,
+         "t": 257400,
+         "price_before": 4,
+         "price_after": 3,
+         "requests_per_day_before": 625.5,
+         "requests_per_day_after": 1464.5,
+         "customers_before": 36,
+         "customers_after": 66,
+         "arc_elasticity": -2.81,
+         "per_customer_elasticity": -0.8518,
+         "did_elasticity": -0.8481,
+         "clean_window": true
+        },
+        {
+         "listing": "lst_000005",
+         "host": "trans2svc1",
+         "day": 4,
+         "t": 430200,
+         "price_before": 4,
+         "price_after": 3,
+         "requests_per_day_before": 8721.0,
+         "requests_per_day_after": 13188.0,
+         "customers_before": 386,
+         "customers_after": 557,
+         "arc_elasticity": -1.4272,
+         "per_customer_elasticity": -0.1608,
+         "did_elasticity": -1.2475,
+         "clean_window": true
+        },
+        {
+         "listing": "lst_000004",
+         "host": "alloc1svc2",
+         "day": 5,
+         "t": 516600,
+         "price_before": 3,
+         "price_after": 2,
+         "requests_per_day_before": 1464.5,
+         "requests_per_day_after": 2557.0,
+         "customers_before": 66,
+         "customers_after": 103,
+         "arc_elasticity": -1.3583,
+         "per_customer_elasticity": -0.2683,
+         "did_elasticity": -1.2128,
+         "clean_window": true
+        }
+       ]
+      },
+      "how_measured": "for every in-world price change of an API offering with 2 full days of demand on both sides: (dQ/mean Q)/(dP/mean P) on consumer requests per day; the difference-in-differences version subtracts the log change of the other offerings of the same need",
+      "n": 3,
+      "comparison": "no reference data in repository",
+      "note": "observational: in a market whose customer base is still growing (or shrinking) the before/after figure mixes the price effect with that trend - as it would in field data. `per_customer_elasticity` (requests per customer-day) removes the customer-count trend but also the customers lost to the price; `price_elasticity_counterfactual` gives the causal figure"
+     },
+     "concentration": {
+      "value": {
+       "mean_hhi_over_needs": 0.6595,
+       "needs": {
+        "gen.allocate.7d38deea": {
+         "mean": 0.8197,
+         "first": 0.8546,
+         "last": 0.7856,
+         "min": 0.7844,
+         "max": 0.8874,
+         "active_offerings_last": 2,
+         "series": [
+          [
+           0,
+           0.8546,
+           2
+          ],
+          [
+           1,
+           0.8766,
+           2
+          ],
+          [
+           2,
+           0.8874,
+           2
+          ],
+          [
+           3,
+           0.8477,
+           2
+          ],
+          [
+           4,
+           0.8539,
+           2
+          ],
+          [
+           5,
+           0.837,
+           2
+          ],
+          [
+           6,
+           0.7958,
+           2
+          ],
+          [
+           7,
+           0.7896,
+           2
+          ],
+          [
+           8,
+           0.7935,
+           2
+          ],
+          [
+           9,
+           0.7844,
+           2
+          ],
+          [
+           10,
+           0.7917,
+           2
+          ],
+          [
+           11,
+           0.7923,
+           2
+          ],
+          [
+           12,
+           0.7856,
+           2
+          ],
+          [
+           13,
+           0.7856,
+           2
+          ]
+         ]
+        },
+        "gen.dedupe.0dd18805": {
+         "mean": 0.6629,
+         "first": 0.6594,
+         "last": 0.4967,
+         "min": 0.4967,
+         "max": 0.7359,
+         "active_offerings_last": 3,
+         "series": [
+          [
+           0,
+           0.6594,
+           2
+          ],
+          [
+           1,
+           0.5833,
+           2
+          ],
+          [
+           2,
+           0.7359,
+           2
+          ],
+          [
+           3,
+           0.7042,
+           2
+          ],
+          [
+           4,
+           0.7294,
+           2
+          ],
+          [
+           5,
+           0.7177,
+           2
+          ],
+          [
+           6,
+           0.7067,
+           2
+          ],
+          [
+           7,
+           0.7153,
+           2
+          ],
+          [
+           8,
+           0.7162,
+           2
+          ],
+          [
+           9,
+           0.7211,
+           2
+          ],
+          [
+           10,
+           0.6524,
+           3
+          ],
+          [
+           11,
+           0.5788,
+           3
+          ],
+          [
+           12,
+           0.5639,
+           3
+          ],
+          [
+           13,
+           0.4967,
+           3
+          ]
+         ]
+        },
+        "gen.transform.6e14fc56": {
+         "mean": 0.496,
+         "first": 0.5307,
+         "last": 0.3768,
+         "min": 0.348,
+         "max": 0.5747,
+         "active_offerings_last": 3,
+         "series": [
+          [
+           0,
+           0.5307,
+           2
+          ],
+          [
+           1,
+           0.5585,
+           2
+          ],
+          [
+           2,
+           0.5747,
+           2
+          ],
+          [
+           3,
+           0.5573,
+           2
+          ],
+          [
+           4,
+           0.5699,
+           2
+          ],
+          [
+           5,
+           0.5161,
+           2
+          ],
+          [
+           6,
+           0.5188,
+           2
+          ],
+          [
+           7,
+           0.5107,
+           2
+          ],
+          [
+           8,
+           0.5116,
+           2
+          ],
+          [
+           9,
+           0.5082,
+           2
+          ],
+          [
+           10,
+           0.5081,
+           2
+          ],
+          [
+           11,
+           0.3542,
+           3
+          ],
+          [
+           12,
+           0.348,
+           3
+          ],
+          [
+           13,
+           0.3768,
+           3
+          ]
+         ]
+        }
+       }
+      },
+      "how_measured": "sum of squared customer shares of the offerings of a need (0..1; 1 = monopoly) at the end of each simulated day",
+      "n": 42,
+      "comparison": "no reference data in repository"
+     },
+     "entry_exit": {
+      "value": {
+       "offering_entries": 2,
+       "offering_exits": 0,
+       "offerings_at_start": 6,
+       "offering_entry_rate_per_incumbent_month": 0.71429,
+       "offering_exit_rate_per_incumbent_month": 0.0,
+       "company_entries": 3,
+       "company_exits": {},
+       "companies_at_start": 10,
+       "company_entry_rate_per_incumbent_month": 0.64286,
+       "company_exit_rate_per_incumbent_month": 0.0,
+       "simulated_days": 14.0
+      },
+      "how_measured": "entries: offerings joining the consumer market after its first hourly update and company registrations after genesis; exits: closed listings of such offerings and companies ended as bankrupt or dissolved; rates per incumbent at genesis per 30 simulated days",
+      "n": 21,
+      "comparison": "no reference data in repository"
+     },
+     "reliability_distribution": {
+      "value": {
+       "mean": 0.99902,
+       "p05": 1.0,
+       "p50": 1.0,
+       "p95": 1.0,
+       "min": 0.91833,
+       "share_of_host_days_below_0.99": 0.0202,
+       "share_of_host_days_below_0.95": 0.0101,
+       "provider_outage_hours_per_provider_month": 0.0
+      },
+      "how_measured": "per host and simulated day: served requests / (served + errors + unavailable + overloaded), from the service day counters; outage hours from scheduled provider outages",
+      "n": 99,
+      "comparison": "no reference data in repository"
+     },
+     "compute_utilisation": {
+      "value": {
+       "rented_share_of_cores_time_avg": 0.043,
+       "rented_share_of_cores_peak": 0.055,
+       "instance_utilisation_mean": 0.13766,
+       "instance_utilisation_p95": 0.34516,
+       "share_of_host_days_above_0.8": 0.0,
+       "overloaded_share_of_requests": 0.00123,
+       "unavailable_share_of_requests": 0.0,
+       "rentals_refused_for_capacity": 0
+      },
+      "how_measured": "rented cores / provider cores, time-weighted from instance events (current provider capacity); compute units used per complete host-day / (cores x 100,000 x 24) with the instance's current cores; overloaded and unavailable requests from the service day counters",
+      "n": 91,
+      "comparison": "no reference data in repository"
+     },
+     "demand_timing": {
+      "value": {
+       "peak_hour": 13,
+       "peak_to_trough": 5.874,
+       "share_by_hour": [
+        0.01265,
+        0.01214,
+        0.01295,
+        0.01609,
+        0.02052,
+        0.02641,
+        0.03352,
+        0.04104,
+        0.04894,
+        0.05567,
+        0.06237,
+        0.06634,
+        0.06988,
+        0.07128,
+        0.06989,
+        0.06735,
+        0.06295,
+        0.05681,
+        0.0501,
+        0.04254,
+        0.03453,
+        0.02738,
+        0.02158,
+        0.01706
+       ]
+      },
+      "how_measured": "consumer requests summed by simulated hour of day over the whole run",
+      "n": 336,
+      "comparison": "no reference data in repository"
+     },
+     "size_distribution": {
+      "value": {
+       "gini": 0.33157,
+       "top_share": 0.22078,
+       "offerings": 8
+      },
+      "how_measured": "customers per offering after the last hourly update: Gini coefficient and the largest share",
+      "n": 8,
+      "comparison": "no reference data in repository"
+     }
+    },
+    "modules_without_register_entry": [
+     "entry",
+     "use"
+    ]
+   },
+   {
+    "world": "fidelity-ow_heldout-1",
+    "family": "ow_heldout",
+    "seed": 1,
+    "simulated_days": 14.0,
+    "measures": {
+     "adoption_curves": {
+      "value": {
+       "median_days_to_half_peak": 0.0,
+       "share_with_interior_inflection": 0.0,
+       "offerings": {
+        "netre0svc1": {
+         "need": "gen.netrel.7b3d32f1",
+         "series": [
+          [
+           0,
+           474
+          ],
+          [
+           1,
+           627
+          ],
+          [
+           2,
+           639
+          ],
+          [
+           3,
+           667
+          ],
+          [
+           4,
+           655
+          ],
+          [
+           5,
+           821
+          ],
+          [
+           6,
+           743
+          ],
+          [
+           7,
+           668
+          ],
+          [
+           8,
+           598
+          ],
+          [
+           9,
+           561
+          ],
+          [
+           10,
+           747
+          ],
+          [
+           11,
+           590
+          ],
+          [
+           12,
+           506
+          ],
+          [
+           13,
+           694
+          ]
+         ],
+         "peak": 821,
+         "days_to_10pct": 0,
+         "days_to_50pct": 0,
+         "days_to_90pct": 5,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.523
+        },
+        "netre0svc2": {
+         "need": "gen.netrel.7b3d32f1",
+         "series": [
+          [
+           0,
+           561
+          ],
+          [
+           1,
+           519
+          ],
+          [
+           2,
+           607
+          ],
+          [
+           3,
+           608
+          ],
+          [
+           4,
+           630
+          ],
+          [
+           5,
+           500
+          ],
+          [
+           6,
+           560
+          ],
+          [
+           7,
+           651
+          ],
+          [
+           8,
+           747
+          ],
+          [
+           9,
+           763
+          ],
+          [
+           10,
+           594
+          ],
+          [
+           11,
+           755
+          ],
+          [
+           12,
+           856
+          ],
+          [
+           13,
+           633
+          ]
+         ],
+         "peak": 856,
+         "days_to_10pct": 0,
+         "days_to_50pct": 0,
+         "days_to_90pct": 12,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.477
+        },
+        "coord2svc1": {
+         "need": "gen.coord.607c6123",
+         "series": [
+          [
+           0,
+           274
+          ],
+          [
+           1,
+           327
+          ],
+          [
+           2,
+           399
+          ],
+          [
+           3,
+           419
+          ],
+          [
+           4,
+           387
+          ],
+          [
+           5,
+           426
+          ],
+          [
+           6,
+           453
+          ],
+          [
+           7,
+           464
+          ],
+          [
+           8,
+           457
+          ],
+          [
+           9,
+           430
+          ],
+          [
+           10,
+           450
+          ],
+          [
+           11,
+           421
+          ],
+          [
+           12,
+           467
+          ],
+          [
+           13,
+           493
+          ]
+         ],
+         "peak": 493,
+         "days_to_10pct": 0,
+         "days_to_50pct": 0,
+         "days_to_90pct": 6,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.5088
+        },
+        "coord2svc2": {
+         "need": "gen.coord.607c6123",
+         "series": [
+          [
+           0,
+           403
+          ],
+          [
+           1,
+           489
+          ],
+          [
+           2,
+           466
+          ],
+          [
+           3,
+           487
+          ],
+          [
+           4,
+           527
+          ],
+          [
+           5,
+           487
+          ],
+          [
+           6,
+           479
+          ],
+          [
+           7,
+           460
+          ],
+          [
+           8,
+           497
+          ],
+          [
+           9,
+           525
+          ],
+          [
+           10,
+           506
+          ],
+          [
+           11,
+           526
+          ],
+          [
+           12,
+           499
+          ],
+          [
+           13,
+           476
+          ]
+         ],
+         "peak": 527,
+         "days_to_10pct": 0,
+         "days_to_50pct": 0,
+         "days_to_90pct": 1,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 0.4912
+        },
+        "triage00a": {
+         "need": "gen.triage.714923c7",
+         "series": [
+          [
+           10,
+           116
+          ],
+          [
+           11,
+           166
+          ],
+          [
+           12,
+           193
+          ],
+          [
+           13,
+           219
+          ]
+         ],
+         "peak": 219,
+         "days_to_10pct": 0,
+         "days_to_50pct": 0,
+         "days_to_90pct": 3,
+         "day_of_fastest_growth": 0,
+         "interior_inflection": false,
+         "final_share_of_need": 1.0
+        }
+       }
+      },
+      "how_measured": "customers per offering at the last hourly market update of each simulated day (consumers.hour events); days counted from the offering's first day in the market",
+      "n": 5,
+      "comparison": "no reference data in repository",
+      "qualitative_check": "diffusion curves are typically S-shaped (growth accelerates, then slows); `share_with_interior_inflection` is the share of offerings whose fastest growth is neither on the first nor on the last day observed. Reported, not used to set any register status"
+     },
+     "retention_and_churn": {
+      "value": {
+       "1d": {
+        "retention": 0.68293,
+        "switched": 0.2415,
+        "left_unserved": 0.07557,
+        "customer_days": 31362
+       },
+       "7d": {
+        "retention": 0.56657,
+        "switched": 0.34817,
+        "left_unserved": 0.08526,
+        "customer_days": 16877
+       },
+       "churn_per_day": 0.31707
+      },
+      "how_measured": "event log replayed to every day boundary; share of customers of an offering still with the same offering h days later (pooled over offerings and days); consumer turnover counts as leaving",
+      "n": 15,
+      "comparison": "no reference data in repository"
+     },
+     "price_elasticity": {
+      "value": {
+       "median_arc_elasticity": null,
+       "median_arc_elasticity_clean_windows": null,
+       "median_did_elasticity": null,
+       "changes": []
+      },
+      "how_measured": "for every in-world price change of an API offering with 2 full days of demand on both sides: (dQ/mean Q)/(dP/mean P) on consumer requests per day; the difference-in-differences version subtracts the log change of the other offerings of the same need",
+      "n": 0,
+      "comparison": "no reference data in repository",
+      "note": "no in-world price change with enough demand on both sides was observed"
+     },
+     "concentration": {
+      "value": {
+       "mean_hhi_over_needs": 0.6711,
+       "needs": {
+        "gen.coord.607c6123": {
+         "mean": 0.5052,
+         "first": 0.5182,
+         "last": 0.5002,
+         "min": 0.5,
+         "max": 0.5197,
+         "active_offerings_last": 2,
+         "series": [
+          [
+           0,
+           0.5182,
+           2
+          ],
+          [
+           1,
+           0.5197,
+           2
+          ],
+          [
+           2,
+           0.503,
+           2
+          ],
+          [
+           3,
+           0.5028,
+           2
+          ],
+          [
+           4,
+           0.5117,
+           2
+          ],
+          [
+           5,
+           0.5022,
+           2
+          ],
+          [
+           6,
+           0.5004,
+           2
+          ],
+          [
+           7,
+           0.5,
+           2
+          ],
+          [
+           8,
+           0.5009,
+           2
+          ],
+          [
+           9,
+           0.5049,
+           2
+          ],
+          [
+           10,
+           0.5017,
+           2
+          ],
+          [
+           11,
+           0.5061,
+           2
+          ],
+          [
+           12,
+           0.5005,
+           2
+          ],
+          [
+           13,
+           0.5002,
+           2
+          ]
+         ]
+        },
+        "gen.netrel.7b3d32f1": {
+         "mean": 0.5082,
+         "first": 0.5035,
+         "last": 0.5011,
+         "min": 0.5001,
+         "max": 0.533,
+         "active_offerings_last": 2,
+         "series": [
+          [
+           0,
+           0.5035,
+           2
+          ],
+          [
+           1,
+           0.5044,
+           2
+          ],
+          [
+           2,
+           0.5003,
+           2
+          ],
+          [
+           3,
+           0.5011,
+           2
+          ],
+          [
+           4,
+           0.5002,
+           2
+          ],
+          [
+           5,
+           0.5295,
+           2
+          ],
+          [
+           6,
+           0.5099,
+           2
+          ],
+          [
+           7,
+           0.5001,
+           2
+          ],
+          [
+           8,
+           0.5061,
+           2
+          ],
+          [
+           9,
+           0.5116,
+           2
+          ],
+          [
+           10,
+           0.5065,
+           2
+          ],
+          [
+           11,
+           0.5075,
+           2
+          ],
+          [
+           12,
+           0.533,
+           2
+          ],
+          [
+           13,
+           0.5011,
+           2
+          ]
+         ]
+        },
+        "gen.triage.714923c7": {
+         "mean": 1.0,
+         "first": 1.0,
+         "last": 1.0,
+         "min": 1.0,
+         "max": 1.0,
+         "active_offerings_last": 1,
+         "series": [
+          [
+           10,
+           1.0,
+           1
+          ],
+          [
+           11,
+           1.0,
+           1
+          ],
+          [
+           12,
+           1.0,
+           1
+          ],
+          [
+           13,
+           1.0,
+           1
+          ]
+         ]
+        }
+       }
+      },
+      "how_measured": "sum of squared customer shares of the offerings of a need (0..1; 1 = monopoly) at the end of each simulated day",
+      "n": 32,
+      "comparison": "no reference data in repository"
+     },
+     "entry_exit": {
+      "value": {
+       "offering_entries": 1,
+       "offering_exits": 0,
+       "offerings_at_start": 4,
+       "offering_entry_rate_per_incumbent_month": 0.53571,
+       "offering_exit_rate_per_incumbent_month": 0.0,
+       "company_entries": 1,
+       "company_exits": {},
+       "companies_at_start": 8,
+       "company_entry_rate_per_incumbent_month": 0.26786,
+       "company_exit_rate_per_incumbent_month": 0.0,
+       "simulated_days": 14.0
+      },
+      "how_measured": "entries: offerings joining the consumer market after its first hourly update and company registrations after genesis; exits: closed listings of such offerings and companies ended as bankrupt or dissolved; rates per incumbent at genesis per 30 simulated days",
+      "n": 14,
+      "comparison": "no reference data in repository"
+     },
+     "reliability_distribution": {
+      "value": {
+       "mean": 1.0,
+       "p05": 1.0,
+       "p50": 1.0,
+       "p95": 1.0,
+       "min": 1.0,
+       "share_of_host_days_below_0.99": 0.0,
+       "share_of_host_days_below_0.95": 0.0,
+       "provider_outage_hours_per_provider_month": 0.0
+      },
+      "how_measured": "per host and simulated day: served requests / (served + errors + unavailable + overloaded), from the service day counters; outage hours from scheduled provider outages",
+      "n": 65,
+      "comparison": "no reference data in repository"
+     },
+     "compute_utilisation": {
+      "value": {
+       "rented_share_of_cores_time_avg": 0.02131,
+       "rented_share_of_cores_peak": 0.025,
+       "instance_utilisation_mean": 0.04815,
+       "instance_utilisation_p95": 0.08457,
+       "share_of_host_days_above_0.8": 0.0,
+       "overloaded_share_of_requests": 0.0,
+       "unavailable_share_of_requests": 0.0,
+       "rentals_refused_for_capacity": 0
+      },
+      "how_measured": "rented cores / provider cores, time-weighted from instance events (current provider capacity); compute units used per complete host-day / (cores x 100,000 x 24) with the instance's current cores; overloaded and unavailable requests from the service day counters",
+      "n": 60,
+      "comparison": "no reference data in repository"
+     },
+     "demand_timing": {
+      "value": {
+       "peak_hour": 13,
+       "peak_to_trough": 5.967,
+       "share_by_hour": [
+        0.01268,
+        0.012,
+        0.01295,
+        0.01612,
+        0.02031,
+        0.02613,
+        0.03407,
+        0.04153,
+        0.04837,
+        0.05607,
+        0.06254,
+        0.06752,
+        0.0703,
+        0.07163,
+        0.06969,
+        0.06685,
+        0.06256,
+        0.057,
+        0.04946,
+        0.04235,
+        0.03435,
+        0.0278,
+        0.02127,
+        0.01643
+       ]
+      },
+      "how_measured": "consumer requests summed by simulated hour of day over the whole run",
+      "n": 336,
+      "comparison": "no reference data in repository"
+     },
+     "size_distribution": {
+      "value": {
+       "gini": 0.17606,
+       "top_share": 0.27594,
+       "offerings": 5
+      },
+      "how_measured": "customers per offering after the last hourly update: Gini coefficient and the largest share",
+      "n": 5,
+      "comparison": "no reference data in repository"
+     }
+    },
+    "modules_without_register_entry": [
+     "entry",
+     "use"
+    ]
+   }
+  ]
+ }
+}

@@ -496,7 +496,8 @@ class MetaResearcher:
             had = {r.get("proposal") for r in self.ledger.experiments()}
             if self.round_n == 0 and self.cfg.get("named_first", True):
                 # first pool: the classic continual-learning methods, one idea each, against the same baseline
-                for name, g in self.cont_space.named():
+                eq = self.cfg.get("equal_steps")
+                for name, g in (self.cont_space.named_equal(int(eq)) if eq else self.cont_space.named()):
                     p = self.cont_space.proposal(g, parent, name, base_src)
                     if p["id"] not in had:
                         pool.append(p)
@@ -505,7 +506,9 @@ class MetaResearcher:
                 tries += 1
                 # mutate the champion, or (half of the time) the best rule screened so far; cross the two over
                 start = self.best_seen if (self.best_seen is not None and self.rng.random() < 0.5) else parent
-                p = self.cont_space.proposal(self.cont_space.mutate(start), parent, None, base_src)
+                eq = self.cfg.get("equal_steps")
+                g = self.cont_space.mutate_equal(start, int(eq)) if eq else self.cont_space.mutate(start)
+                p = self.cont_space.proposal(g, parent, None, base_src)
                 if p["id"] not in had and p["id"] not in {q["id"] for q in pool} and p["genome"] != parent:
                     pool.append(p)
         while len([p for p in pool if p["source"] == "rule_space"]) < int(src.get("rule_space", 0)) and tries < 50:
@@ -868,11 +871,13 @@ def post_selection_main(a) -> int:
     base_src = open(os.path.join(mr.base_pkg, P.CONT_PATH)).read()
     b = P.BASE_CONTINUAL_GENOME
     cs = P.ContinualSpace(0)
-    ctrl = "v-observe-2x"
-    if not os.path.isdir(mr.candidate_dir(ctrl)):
-        mr.make_candidate(ctrl, cs.proposal(dict(b, observe_steps=2.0), b, "control: as many extra gradient steps, all spent on observation",
-                                            base_src)["changes"])
-    rules = {"baseline (rehearsal)": "champion-0", "promoted rule": first, "control: same extra steps, no consolidation": ctrl}
+    rules = {"baseline (rehearsal)": "champion-0", "promoted rule": first}
+    if not cfg.get("equal_steps"):                  # a search that does not hold compute fixed needs this control
+        ctrl = "v-observe-2x"
+        if not os.path.isdir(mr.candidate_dir(ctrl)):
+            mr.make_candidate(ctrl, cs.proposal(dict(b, observe_steps=2.0), b, "control: as many extra gradient steps, all spent on observation",
+                                                base_src)["changes"])
+        rules["control: same extra steps, no consolidation"] = ctrl
     for p_ in promoted[1:]:
         rules[f"later promotion {p_}"] = p_
     seeds = [int(x) for x in str(a.seeds).split(",")]

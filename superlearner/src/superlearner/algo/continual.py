@@ -47,6 +47,7 @@ CONTINUAL_DEFAULTS = {'wm': {'enabled': True,
         'fit_batch': 256},
  'rehearsal': {'keep': True, 'per_arm': 120},
  'consolidate_steps': 0,
+ 'consolidate_lr': None,
  'anchor': {'kind': 'none', 'coef': 0.0, 'decay': 1.0, 'fisher_episodes': 64, 'top_frac': 1.0},
  'l2init': 0.0,
  'shrink_perturb': {'shrink': 1.0, 'sigma': 0.0},
@@ -417,13 +418,15 @@ class ContinualPPO(PPOSIL):
         if n_cons > 0 and self.buffer:
             # replay-based consolidation: optimiser steps on the reservoir alone, every arm equally likely, with no
             # new experience - what was learned in this phase is integrated with everything learned before it
-            keep_steps, keep_calls = self.c["sil_steps"], self.n_calls
+            keep_steps, keep_calls, keep_lr = self.c["sil_steps"], self.n_calls, self.c["lr"]
             self.c["sil_steps"], self.n_calls = n_cons, max(self.n_calls, int(self.c["critic_warmup"]) + 1)
+            if self.cc.get("consolidate_lr"):            # default: the reinforcement-learning step size
+                self.c["lr"] = float(self.cc["consolidate_lr"])
             before = flat_params(self.model)
             try:
                 m = PPO.replay(self, [], store)
             finally:
-                self.c["sil_steps"], self.n_calls = keep_steps, keep_calls
+                self.c["sil_steps"], self.n_calls, self.c["lr"] = keep_steps, keep_calls, keep_lr
             info["consolidation"] = {"steps": m.get("replay_steps", 0), "loss": m.get("replay_loss"), "arms": m.get("replay_arms"),
                                      "weights_moved": float((flat_params(self.model) - before).norm())}
         if a["kind"] == "none" or a["coef"] <= 0:
