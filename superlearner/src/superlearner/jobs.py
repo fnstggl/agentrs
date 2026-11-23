@@ -37,7 +37,9 @@ def _load(path: str) -> dict:
 
 
 def run_jobs(spec: dict, max_gpu: int | None = None, max_cpu: int | None = None, log_dir: str = "runs/queue",
-             only: list[str] | None = None, dry: bool = False, poll_s: float = 5.0, verbose: bool = True) -> dict:
+             only: list[str] | None = None, dry: bool = False, poll_s: float = 5.0, verbose: bool = True,
+             strict: bool | None = None) -> dict:
+    strict = bool(spec.get("strict_order", False)) if strict is None else bool(strict)
     max_gpu = int(max_gpu if max_gpu is not None else spec.get("max_gpu", 1))
     max_cpu = int(max_cpu if max_cpu is not None else spec.get("max_cpu", os.cpu_count() or 8))
     jobs = [dict(j) for j in spec.get("jobs", []) if not only or j["name"] in only]
@@ -114,6 +116,8 @@ def run_jobs(spec: dict, max_gpu: int | None = None, max_cpu: int | None = None,
             if any(d in st and st[d]["state"] != "done" for d in j.get("after", [])):
                 continue
             if gpu + s["gpu"] > max_gpu or cpu + s["cpu"] > max_cpu:
+                if strict:
+                    break       # keep the order: a large job must not be starved by smaller ones that always fit
                 continue
             if j.get("done") and os.path.exists(j["done"]):           # produced meanwhile (by hand, or by another queue)
                 s.update(state="done", note="result appeared before the job was started")
