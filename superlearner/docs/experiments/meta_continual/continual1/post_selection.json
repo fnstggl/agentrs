@@ -1,0 +1,500 @@
+{
+ "seeds": [
+  6,
+  7,
+  8,
+  9,
+  10
+ ],
+ "list_offset": 30000,
+ "baseline": "baseline (rehearsal)",
+ "rules": {
+  "baseline (rehearsal)": "champion-0",
+  "promoted rule": "f000-7b917f68ca",
+  "control: same extra steps, no consolidation": "v-observe-2x"
+ },
+ "runs": {
+  "baseline (rehearsal)": {
+   "6": {
+    "aulc_eval": 0.51852,
+    "final_eval": 0.5555555555555555,
+    "life_forgetting": 0.125,
+    "life_acquisition": 0.6388888888888888,
+    "life_matrix": [
+     [
+      0.5,
+      0.0,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.0
+     ],
+     [
+      0.5,
+      0.25,
+      0.9167
+     ]
+    ],
+    "train_decisions": 3396,
+    "wall_s": 1437.1,
+    "ok": true
+   },
+   "7": {
+    "aulc_eval": 0.33333,
+    "final_eval": 0.5,
+    "life_forgetting": 0.0,
+    "life_acquisition": 0.3333333333333333,
+    "life_matrix": [
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.5
+     ]
+    ],
+    "train_decisions": 3053,
+    "wall_s": 1556.9,
+    "ok": true
+   },
+   "8": {
+    "aulc_eval": 0.36111,
+    "final_eval": 0.3333333333333333,
+    "life_forgetting": 0.25,
+    "life_acquisition": 0.4166666666666667,
+    "life_matrix": [
+     [
+      0.25,
+      0.0,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.0
+     ],
+     [
+      0.5,
+      0.0,
+      0.5
+     ]
+    ],
+    "train_decisions": 3242,
+    "wall_s": 1079.4,
+    "ok": true
+   },
+   "9": {
+    "aulc_eval": 0.33333,
+    "final_eval": 0.5,
+    "life_forgetting": 0.16666666666666669,
+    "life_acquisition": 0.4444444444444445,
+    "life_matrix": [
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.0
+     ],
+     [
+      0.5,
+      0.1667,
+      0.8333
+     ]
+    ],
+    "train_decisions": 3222,
+    "wall_s": 1176.4,
+    "ok": true
+   },
+   "10": {
+    "aulc_eval": 0.33333,
+    "final_eval": 0.5,
+    "life_forgetting": 0.25,
+    "life_acquisition": 0.5,
+    "life_matrix": [
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.0
+     ],
+     [
+      0.5,
+      0.0,
+      1.0
+     ]
+    ],
+    "train_decisions": 3078,
+    "wall_s": 476.6,
+    "ok": true
+   }
+  },
+  "promoted rule": {
+   "6": {
+    "aulc_eval": 0.73148,
+    "final_eval": 0.6111111111111112,
+    "life_forgetting": 0.08333333333333331,
+    "life_acquisition": 0.6111111111111112,
+    "life_matrix": [
+     [
+      0.8333,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      0.5,
+      0.0
+     ],
+     [
+      0.8333,
+      0.5,
+      0.5
+     ]
+    ],
+    "train_decisions": 2629,
+    "wall_s": 1650.9,
+    "ok": true
+   },
+   "7": {
+    "aulc_eval": 0.52778,
+    "final_eval": 0.5833333333333334,
+    "life_forgetting": 0.0,
+    "life_acquisition": 0.5,
+    "life_matrix": [
+     [
+      0.5,
+      0.0,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.0
+     ],
+     [
+      0.75,
+      0.5,
+      0.5
+     ]
+    ],
+    "train_decisions": 3121,
+    "wall_s": 1651.9,
+    "ok": true
+   },
+   "9": {
+    "aulc_eval": 0.65741,
+    "final_eval": 0.7222222222222222,
+    "life_forgetting": 0.0,
+    "life_acquisition": 0.5555555555555555,
+    "life_matrix": [
+     [
+      0.5,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      0.5,
+      0.0
+     ],
+     [
+      1.0,
+      0.5,
+      0.6667
+     ]
+    ],
+    "train_decisions": 2838,
+    "wall_s": 1224.4,
+    "ok": true
+   },
+   "8": {
+    "aulc_eval": 0.55556,
+    "final_eval": 0.5,
+    "life_forgetting": 0.16666666666666669,
+    "life_acquisition": 0.5,
+    "life_matrix": [
+     [
+      0.5,
+      0.0,
+      0.0
+     ],
+     [
+      0.8333,
+      0.5,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.5
+     ]
+    ],
+    "train_decisions": 2940,
+    "wall_s": 1230.3,
+    "ok": true
+   },
+   "10": {
+    "aulc_eval": 0.75,
+    "final_eval": 0.5,
+    "life_forgetting": 0.25,
+    "life_acquisition": 0.6666666666666666,
+    "life_matrix": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      0.5,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.5
+     ]
+    ],
+    "train_decisions": 3283,
+    "wall_s": 546.3,
+    "ok": true
+   }
+  },
+  "control: same extra steps, no consolidation": {
+   "7": {
+    "aulc_eval": 0.98148,
+    "final_eval": 0.9444444444444445,
+    "life_forgetting": 0.0,
+    "life_acquisition": 0.9444444444444445,
+    "life_matrix": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      0.8333
+     ]
+    ],
+    "train_decisions": 1646,
+    "wall_s": 1370.9,
+    "ok": true
+   },
+   "6": {
+    "aulc_eval": 1.0,
+    "final_eval": 1.0,
+    "life_forgetting": 0.0,
+    "life_acquisition": 1.0,
+    "life_matrix": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      1.0
+     ]
+    ],
+    "train_decisions": 1655,
+    "wall_s": 1454.6,
+    "ok": true
+   },
+   "9": {
+    "aulc_eval": 1.0,
+    "final_eval": 1.0,
+    "life_forgetting": 0.0,
+    "life_acquisition": 1.0,
+    "life_matrix": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      1.0
+     ]
+    ],
+    "train_decisions": 1497,
+    "wall_s": 1066.1,
+    "ok": true
+   },
+   "8": {
+    "aulc_eval": 0.99074,
+    "final_eval": 0.9722222222222222,
+    "life_forgetting": 0.0,
+    "life_acquisition": 0.9722222222222222,
+    "life_matrix": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      0.9167
+     ]
+    ],
+    "train_decisions": 1610,
+    "wall_s": 1106.0,
+    "ok": true
+   },
+   "10": {
+    "aulc_eval": 0.85185,
+    "final_eval": 0.8055555555555557,
+    "life_forgetting": 0.04166666666666666,
+    "life_acquisition": 0.8333333333333334,
+    "life_matrix": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      0.5,
+      0.0
+     ],
+     [
+      1.0,
+      0.4167,
+      1.0
+     ]
+    ],
+    "train_decisions": 1905,
+    "wall_s": 447.0,
+    "ok": true
+   }
+  }
+ },
+ "comparisons": {
+  "promoted rule": {
+   "aulc_eval": {
+    "n_cand": 5,
+    "n_base": 5,
+    "mean_cand": 0.6444460000000001,
+    "mean_base": 0.37592400000000004,
+    "diff": 0.26852200000000004,
+    "ci": [
+     0.19815200000000002,
+     0.35370799999999997
+    ],
+    "p_improve": 1.0,
+    "paired": true,
+    "established": true,
+    "sign_flip_p": 0.0625,
+    "seeds_better_equal_worse": [
+     5,
+     0,
+     0
+    ]
+   },
+   "final_eval": {
+    "n_cand": 5,
+    "n_base": 5,
+    "mean_cand": 0.5833333333333334,
+    "mean_base": 0.4777777777777777,
+    "diff": 0.10555555555555568,
+    "ci": [
+     0.033333333333333416,
+     0.17777777777777778
+    ],
+    "p_improve": 1.0,
+    "paired": true,
+    "established": true,
+    "sign_flip_p": 0.125,
+    "seeds_better_equal_worse": [
+     4,
+     1,
+     0
+    ]
+   }
+  },
+  "control: same extra steps, no consolidation": {
+   "aulc_eval": {
+    "n_cand": 5,
+    "n_base": 5,
+    "mean_cand": 0.964814,
+    "mean_base": 0.37592400000000004,
+    "diff": 0.5888899999999999,
+    "ci": [
+     0.5221294,
+     0.6518539999999999
+    ],
+    "p_improve": 1.0,
+    "paired": true,
+    "established": true,
+    "sign_flip_p": 0.0625,
+    "seeds_better_equal_worse": [
+     5,
+     0,
+     0
+    ]
+   },
+   "final_eval": {
+    "n_cand": 5,
+    "n_base": 5,
+    "mean_cand": 0.9444444444444444,
+    "mean_base": 0.4777777777777777,
+    "diff": 0.46666666666666673,
+    "ci": [
+     0.37222222222222234,
+     0.5611111111111111
+    ],
+    "p_improve": 1.0,
+    "paired": true,
+    "established": true,
+    "sign_flip_p": 0.0625,
+    "seeds_better_equal_worse": [
+     5,
+     0,
+     0
+    ]
+   }
+  }
+ }
+}

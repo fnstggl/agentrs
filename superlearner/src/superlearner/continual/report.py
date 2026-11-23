@@ -231,6 +231,7 @@ def life_summary(root: str) -> dict:
 
 def main(a) -> int:
     from ..cli import RUNS
+    shutil.rmtree(os.path.join(OUT, "life"), ignore_errors=True)      # only what the runs directory holds now
     os.makedirs(os.path.join(OUT, "life"), exist_ok=True)
     life_root = a.life or os.path.join(RUNS, "life")
     summ = life_summary(life_root)
@@ -246,14 +247,18 @@ def main(a) -> int:
         s = summ["conditions"][c]
         print(f"  {LABEL[c]:48s} seeds {s['seeds']}  final mean {s['final_mean']['mean']:.3f}  forgetting {s['forgetting']['mean']:.3f}  "
               f"acquisition {s['acquisition']['mean']:.3f}")
-    meta = a.meta or os.path.join(RUNS, "meta", "continual1")
-    if os.path.exists(os.path.join(meta, "ledger.jsonl")):
-        dst = os.path.join(OUT, "meta_continual")
+    root = os.path.join(OUT, "meta_continual")
+    shutil.rmtree(root, ignore_errors=True)
+    for name in ("continual1", "continual2", "continual3"):       # the three searches over update rules
+        meta = os.path.join(a.meta or os.path.join(RUNS, "meta"), name)
+        if not os.path.exists(os.path.join(meta, "ledger.jsonl")):
+            continue
+        dst = os.path.join(root, name)
         os.makedirs(os.path.join(dst, "diffs"), exist_ok=True)
-        for f in ("ledger.jsonl", "config.json", "meta.json", "report.json", "selection_report.json"):
+        for f in ("ledger.jsonl", "config.json", "meta.json", "report.json", "selection_report.json", "post_selection.json"):
             if os.path.exists(os.path.join(meta, f)):
                 shutil.copy(os.path.join(meta, f), os.path.join(dst, f))
         for d in sorted(glob.glob(os.path.join(meta, "candidates", "*", "proposal.diff"))):
             shutil.copy(d, os.path.join(dst, "diffs", os.path.basename(os.path.dirname(d)) + ".diff"))
-        print(f"meta-search: copied ledger and {len(os.listdir(os.path.join(dst, 'diffs')))} candidate diffs")
+        print(f"meta-search {name}: copied ledger and {len(os.listdir(os.path.join(dst, 'diffs')))} candidate diffs")
     return 0

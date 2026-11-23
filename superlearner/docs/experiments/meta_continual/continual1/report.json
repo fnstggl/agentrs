@@ -1,0 +1,109 @@
+{
+ "champion": {
+  "id": "f000-7b917f68ca",
+  "genome": {
+   "rehearsal_keep": true,
+   "per_arm": 120,
+   "rehearse_frac": 0.5,
+   "observe_lr": 0.0003,
+   "observe_steps": 1.0,
+   "consolidate_steps": 0,
+   "anchor": "none",
+   "anchor_coef": 200000.0,
+   "top_frac": 1.0,
+   "l2init": 0.0,
+   "shrink_perturb": "none",
+   "group_lr": "uniform",
+   "wm_repr": 0.1,
+   "wm_coef": 1.0,
+   "wm_replay": 4,
+   "wm_fit": 300,
+   "replay_arms": "uniform",
+   "replay_steps": 1.0,
+   "lr": 1.0
+  },
+  "hypothesis": "rehearsal plus replay consolidation at the end of every phase",
+  "promoted_at": 4,
+  "previous": "champion-0"
+ },
+ "rounds": 7,
+ "experiments": 4,
+ "decisions": {
+  "inconclusive": 1,
+  "promoted": 1,
+  "harmful": 1,
+  "rejected_screen": 1
+ },
+ "table": [
+  {
+   "candidate": "f002-26089727fe",
+   "source": "continual_space",
+   "target": "algo/continual.py",
+   "decision": "inconclusive",
+   "stage": "confirm",
+   "diff_aulc": 0.24814399999999992,
+   "ci": [
+    0.19258399999999992,
+    0.31481400000000004
+   ],
+   "n": 5,
+   "hypothesis": "change the continual update rule: observe_steps: 1.0 -> 2.0; rehearsal_keep: True -> False; rehearse"
+  },
+  {
+   "candidate": "f000-7b917f68ca",
+   "source": "continual_space",
+   "target": "algo/continual.py",
+   "decision": "promoted",
+   "stage": "confirm",
+   "diff_aulc": 0.288886,
+   "ci": [
+    0.22592199999999996,
+    0.35185000000000005
+   ],
+   "n": 5,
+   "hypothesis": "rehearsal plus replay consolidation at the end of every phase"
+  },
+  {
+   "candidate": "f000-0f1f125989",
+   "source": "continual_space",
+   "target": "algo/continual.py",
+   "decision": "harmful",
+   "stage": "develop",
+   "diff_aulc": -0.12345666666666666,
+   "ci": [
+    -0.19443999999999995,
+    -0.04630000000000001
+   ],
+   "n": 3,
+   "hypothesis": "rehearsal, world model trained on a fixed representation"
+  },
+  {
+   "candidate": "f001-5c79956461",
+   "source": "continual_space",
+   "target": "algo/continual.py",
+   "decision": "rejected_screen",
+   "stage": "screen",
+   "diff_aulc": -0.04630000000000001,
+   "ci": [
+    -0.04630000000000001,
+    -0.04630000000000001
+   ],
+   "n": 1,
+   "hypothesis": "change the continual update rule: consolidate_steps: 0 -> 96; shrink_perturb: none -> mild"
+  }
+ ],
+ "pareto": {
+  "f002-26089727fe": false,
+  "f000-7b917f68ca": true,
+  "f000-0f1f125989": true,
+  "f001-5c79956461": false
+ },
+ "surrogate": {
+  "updates": 6,
+  "n": 10,
+  "n_valid": 10,
+  "spearman": -0.479
+ },
+ "learned_rule": [],
+ "llm_proposals_rejected_before_running": 0
+}

@@ -414,49 +414,61 @@ def pit():
         print(f"\nState of the fresh process before its first episode: {st}.\n")
 
 
-def meta_continual():
-    path = os.path.join(HERE, "meta_continual", "ledger.jsonl")
+def _meta_search(name, title):
+    path = os.path.join(HERE, "meta_continual", name, "ledger.jsonl")
     if not os.path.exists(path):
         return
     recs = [json.loads(l) for l in open(path) if l.strip()]
-    base = [r for r in recs if r["kind"] == "baseline_run"]
+    base = {}
+    for r in recs:
+        if r["kind"] == "baseline_run":
+            base.setdefault(int(r["seed"]), r["measures"])
     ff = [r for r in recs if r["kind"] == "full_feedback"]
-    exps = [r for r in recs if r["kind"] == "experiment"]
+    exps = {r["candidate"]: r for r in recs if r["kind"] == "experiment"}      # the last record of each candidate
     pool = [dict(e, round=r["round"], picked=e["proposal"] in r["surrogate_picks"]) for r in ff for e in r["pool"]]
     ran = [e for e in pool if e["valid"]]
     f3 = lambda x: "-" if x is None else f"{x:+.3f}"       # noqa: E731
-    print(f"{len(pool)} candidate rules proposed, {len(ran)} ran a whole confined lifetime, "
-          f"{sum(1 for e in pool if e.get('inert'))} rejected as inert, {len(exps)} taken to more seeds; "
-          f"{len(base) + sum(len(e.get('measures') or {}) for e in ran) + sum(sum(len(v) for v in (x.get('stages') or {}).values()) for x in exps)} confined lifetimes in the ledger.\n")
-    print("Champion (the shipped rule: rehearsal, online world model, no anchors), per seed:\n\n| seed | score (mean success on phases seen so far) | final | forgetting | right-after-learning gain | retention matrix |\n|---|---|---|---|---|---|")
-    seen = set()
-    for b in sorted(base, key=lambda r: int(r["seed"])):
-        if b["seed"] in seen:
-            continue
-        seen.add(b["seed"])
-        m = b["measures"]
-        print(f"| {b['seed']} | {m['aulc_eval']:.3f} | {m['final_eval']:.3f} | {m.get('life_forgetting', 0):.3f} | {m.get('life_acquisition', 0):.3f} | {m.get('life_matrix')} |")
-    print("\nScreening (one seed each, same seed as the champion's run). Effect = candidate's score minus the champion's.\n\n"
-          "| round | candidate | what it changes | ran | effect | final | forgetting | picked by the learned selector |\n|---|---|---|---|---|---|---|---|")
-    for e in pool:
+    print(f"#### {title}\n")
+    print(f"{len(pool)} candidate rules, {len(ran)} ran a whole confined lifetime, {sum(1 for e in pool if e.get('inert'))} rejected as inert, "
+          f"{len(exps)} taken to more seeds. Baseline score per seed: " + ", ".join(f"{s}: {m['aulc_eval']:.3f}" for s, m in sorted(base.items())) + ".\n")
+    print("Screening (one seed; effect = candidate's score minus the baseline's), best first:\n\n| round | what it changes | effect | final | forgetting | picked by the learned selector |\n|---|---|---|---|---|---|")
+    for e in sorted(pool, key=lambda e: -(e["effect"] if e["valid"] else -9)):
         ms = next(iter((e.get("measures") or {}).values()), {})
         why = e["hypothesis"] if e["valid"] else (e.get("reject_reason", "") + " / " + e["hypothesis"])
-        print(f"| {e['round']} | {e['candidate']} | {why[:170].replace('|', '/')} | {'yes' if e['valid'] else 'no'} | {f3(e['effect']) if e['valid'] else '-'} | "
-              f"{'-' if not ms else format(ms.get('final_eval', 0), '.3f')} | {'-' if not ms else format(ms.get('life_forgetting', 0), '.3f')} | {'yes' if e['picked'] else ''} |")
+        why = why.replace("change the continual update rule: ", "").replace("|", "/")
+        print(f"| {e['round']} | {why[:130]} | {f3(e['effect']) if e['valid'] else 'did not run'} | {'-' if not ms else format(ms.get('final_eval', 0), '.2f')} | "
+              f"{'-' if not ms else format(ms.get('life_forgetting', 0), '.2f')} | {'yes' if e['picked'] else ''} |")
     if exps:
-        print("\nCandidates taken to more seeds (score difference to the champion on the same seeds, 95% bootstrap interval):\n\n"
-              "| candidate | what it changes | decision | stage reached | seeds | score difference | final-success difference |\n|---|---|---|---|---|---|---|")
-        for x in exps:
-            c = (x.get("comparison") or {})
+        print("\nTaken to more seeds (difference to the champion of that moment on the same seeds; bootstrap over seeds):\n\n"
+              "| what it changes | decision | stage | seeds | score difference | final-success difference |\n|---|---|---|---|---|---|")
+        for x in exps.values():
+            c = x.get("comparison") or {}
             a, f = c.get("aulc_eval") or {}, c.get("final_eval") or {}
             ci_ = lambda v: "" if not v.get("ci") else " [%+.3f, %+.3f]" % tuple(v["ci"])        # noqa: E731
-            print(f"| {x['candidate']} | {x['hypothesis'][:150].replace('|', '/')} | {x['decision']} | {x['stage_reached']} | {a.get('n_cand', '-')} | "
+            print(f"| {x['hypothesis'].replace('change the continual update rule: ', '')[:120].replace('|', '/')} | {x['decision']} | {x['stage_reached']} | {a.get('n_cand', '-')} | "
                   f"{f3(a.get('diff'))}{ci_(a)} | {f3(f.get('diff'))}{ci_(f)} |")
+    ps = os.path.join(HERE, "meta_continual", name, "post_selection.json")
+    if os.path.exists(ps):
+        d = json.load(open(ps))
+        print(f"\n**Test after selection**: seeds {d['seeds']} and held-out tasks the search never used; all rules of a seed ran at the same time. "
+              "With five seeds the sign-flip p-value cannot go below 0.0625.\n\n"
+              "| rule | score | final success | score difference to baseline | seeds better / equal / worse | sign-flip p |\n|---|---|---|---|---|---|")
+        for n, r in d["runs"].items():
+            good = [m for m in r.values() if m.get("ok")]
+            c = (d["comparisons"].get(n) or {}).get("aulc_eval")
+            tail = "reference | - | - |" if not c else f"{c['diff']:+.3f} [{c['ci'][0]:+.3f}, {c['ci'][1]:+.3f}] | {' / '.join(map(str, c['seeds_better_equal_worse']))} | {c['sign_flip_p']:.4f} |"
+            print(f"| {n} | {sum(m['aulc_eval'] for m in good) / len(good):.3f} | {sum(m['final_eval'] for m in good) / len(good):.3f} | {tail}")
     if ff:
         print("\nLearned selection of what to test (it chooses before the round's outcomes are known):\n\n| round | pool | selector fitted | its picks | pool mean (random choice) | best in pool |\n|---|---|---|---|---|---|")
         for r in ff:
             print(f"| {r['round']} | {len(r['pool'])} | {r['surrogate_fitted']} | {r['value_surrogate']:+.3f} | {r['value_random_expected']:+.3f} | {r['value_best']:+.3f} |")
     print()
+
+
+def meta_continual():
+    _meta_search("continual1", "Search 1: candidates charged for experience only")
+    _meta_search("continual2", "Search 2: equal gradient steps, 150 per phase (the baseline is at the ceiling)")
+    _meta_search("continual3", "Search 3: equal gradient steps, 100 per phase")
 
 
 ALL = {"b": b_multi, "baselines": baselines, "c": exp_c, "d": exp_d, "a": exp_a, "worldmodel": worldmodel, "selfplay": selfplay, "meta": meta, "final": final, "d_clone": exp_d_clone,

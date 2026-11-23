@@ -1,0 +1,93 @@
+{
+ "champion": {
+  "id": "f001-2e9a245111",
+  "genome": {
+   "rehearsal_keep": true,
+   "per_arm": 120,
+   "rehearse_frac": 0.5,
+   "observe_lr": 0.001,
+   "observe_steps": 1.0,
+   "consolidate_steps": 0,
+   "consolidate_lr": null,
+   "anchor": "none",
+   "anchor_coef": 200000.0,
+   "top_frac": 1.0,
+   "l2init": 0.0,
+   "shrink_perturb": "none",
+   "group_lr": "uniform",
+   "wm_repr": 0.1,
+   "wm_coef": 1.0,
+   "wm_replay": 4,
+   "wm_fit": 300,
+   "replay_arms": "new_heavy",
+   "replay_steps": 1.0,
+   "lr": 1.0
+  },
+  "hypothesis": "change the continual update rule: observe_lr: 0.0003 -> 0.001; replay_arms: uniform -> new_heavy",
+  "promoted_at": 2,
+  "previous": "champion-0"
+ },
+ "rounds": 5,
+ "experiments": 3,
+ "decisions": {
+  "promoted": 1,
+  "rejected_screen": 2
+ },
+ "table": [
+  {
+   "candidate": "f001-2e9a245111",
+   "source": "continual_space",
+   "target": "algo/continual.py",
+   "decision": "promoted",
+   "stage": "confirm",
+   "diff_aulc": 0.40925999999999985,
+   "ci": [
+    0.368518,
+    0.466668
+   ],
+   "n": 5,
+   "hypothesis": "change the continual update rule: observe_lr: 0.0003 -> 0.001; replay_arms: uniform -> new_heavy"
+  },
+  {
+   "candidate": "f001-f51adab753",
+   "source": "continual_space",
+   "target": "algo/continual.py",
+   "decision": "rejected_screen",
+   "stage": "screen",
+   "diff_aulc": -0.055560000000000054,
+   "ci": [
+    -0.055560000000000054,
+    -0.055560000000000054
+   ],
+   "n": 1,
+   "hypothesis": "change the continual update rule: consolidate_steps: 0 -> 20; observe_lr: 0.0003 -> 0.001; observe_s"
+  },
+  {
+   "candidate": "f000-6b9bc3c61a",
+   "source": "continual_space",
+   "target": "algo/continual.py",
+   "decision": "rejected_screen",
+   "stage": "screen",
+   "diff_aulc": -0.08333000000000002,
+   "ci": [
+    -0.08333000000000002,
+    -0.08333000000000002
+   ],
+   "n": 1,
+   "hypothesis": "larger observation step size (1e-3)"
+  }
+ ],
+ "pareto": {
+  "f001-2e9a245111": true,
+  "f001-f51adab753": true,
+  "f000-6b9bc3c61a": false
+ },
+ "surrogate": {
+  "updates": 4,
+  "n": 7,
+  "n_valid": 7,
+  "spearman": 0.679
+ },
+ "learned_rule": [],
+ "llm_proposals_rejected_before_running": 0
+}

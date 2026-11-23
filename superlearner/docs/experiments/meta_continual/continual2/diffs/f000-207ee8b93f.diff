@@ -1,0 +1,7 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -52,3 +52,3 @@
+  'l2init': 0.0,
+- 'shrink_perturb': {'shrink': 1.0, 'sigma': 0.0},
++ 'shrink_perturb': {'shrink': 0.95, 'sigma': 0.01},
+  'group_lr': {},

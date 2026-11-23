@@ -1,0 +1,7 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -55,3 +55,3 @@
+  'observe': {'steps': 120,
+-             'lr': 0.0003,
++             'lr': 0.0001,
+              'rehearse': True,

@@ -1,0 +1,14 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -48,4 +48,4 @@
+  'rehearsal': {'keep': True, 'per_arm': 120},
+- 'consolidate_steps': 0,
+- 'consolidate_lr': None,
++ 'consolidate_steps': 20,
++ 'consolidate_lr': 0.0003,
+  'anchor': {'kind': 'none', 'coef': 0.0, 'decay': 1.0, 'fisher_episodes': 64, 'top_frac': 1.0},
+@@ -64,3 +64,3 @@
+ # supervised steps per observation, replay steps per update, and the reinforcement-learning step size.
+-RULE_SCALES = {'observe_steps': 1.0, 'replay_steps': 1.0, 'lr': 1.0}
++RULE_SCALES = {'observe_steps': 0.8, 'replay_steps': 1.0, 'lr': 1.0}
+ 

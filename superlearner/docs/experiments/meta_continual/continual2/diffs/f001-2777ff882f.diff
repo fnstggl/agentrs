@@ -1,0 +1,16 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -53,3 +53,3 @@
+  'shrink_perturb': {'shrink': 1.0, 'sigma': 0.0},
+- 'group_lr': {},
++ 'group_lr': {'policy': 3.0, 'critic': 3.0},
+  'observe': {'steps': 120,
+@@ -84,5 +84,5 @@
+ def replay_arm_weights(arms: list, current: set) -> np.ndarray:
+-    """Probability of drawing each arm of the buffer for one replayed episode (uniform over arms: old and new
+-    skills receive the same share of replayed gradient)."""
+-    return np.ones(len(arms)) / max(1, len(arms))
++    """The current phase's arms are drawn three times as often as earlier arms (learn the present faster)."""
++    w = np.array([3.0 if tuple(a) in current else 1.0 for a in arms])
++    return w / w.sum()
+ 

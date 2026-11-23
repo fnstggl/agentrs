@@ -1,0 +1,7 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -53,3 +53,3 @@
+  'shrink_perturb': {'shrink': 1.0, 'sigma': 0.0},
+- 'group_lr': {},
++ 'group_lr': {'policy': 3.0, 'critic': 3.0},
+  'observe': {'steps': 120,

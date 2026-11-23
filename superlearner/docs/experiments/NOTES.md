@@ -374,3 +374,9 @@ Work on the amendment ("continual learning must change the core neural weights")
   compute for its text. All Architecture B runs (four lifetimes, four internalization routes) were moved to
   `runs/archive/continual_backbone_tools_frozen/` and are rerun. The in-run numbers those runs reported (e.g. 90% final
   success for the full backbone) measured a learner whose tool embeddings were frozen, and are not reported as results.
+* **The promoted rule did not transfer to the real learner.** On the 19.7M controller (lifetimes' own lists, two seeds
+  each; the untouched-task check is still to come): at the full supervised steps, rehearsal 93%, the first promoted
+  rule 90%, the equal-compute promoted rule 89%; at half the steps, rehearsal 76% and the equal-compute promoted rule
+  **54%**, with forgetting 0.39 against 0.01. The rule that gave +0.56 on the small CPU controller makes the real
+  learner worse where it had room to improve: a step size of 1e-3 and replay biased towards the current phase learn new
+  arms but overwrite old ones. A search on a proxy learner found something true of the proxy.

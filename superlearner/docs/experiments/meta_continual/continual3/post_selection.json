@@ -1,0 +1,325 @@
+{
+ "seeds": [
+  6,
+  7,
+  8,
+  9,
+  10
+ ],
+ "list_offset": 30000,
+ "baseline": "baseline (rehearsal)",
+ "rules": {
+  "baseline (rehearsal)": "champion-0",
+  "promoted rule": "f001-2e9a245111"
+ },
+ "runs": {
+  "baseline (rehearsal)": {
+   "7": {
+    "aulc_eval": 0.43519,
+    "final_eval": 0.5555555555555555,
+    "life_forgetting": 0.16666666666666669,
+    "life_acquisition": 0.3333333333333333,
+    "life_matrix": [
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      0.5,
+      0.0
+     ],
+     [
+      0.6667,
+      0.5,
+      0.5
+     ]
+    ],
+    "train_decisions": 3274,
+    "wall_s": 798.5,
+    "ok": true
+   },
+   "6": {
+    "aulc_eval": 0.5,
+    "final_eval": 0.5,
+    "life_forgetting": 0.0,
+    "life_acquisition": 0.5,
+    "life_matrix": [
+     [
+      0.5,
+      0.0,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.5
+     ]
+    ],
+    "train_decisions": 3432,
+    "wall_s": 803.1,
+    "ok": true
+   },
+   "8": {
+    "aulc_eval": 0.36111,
+    "final_eval": 0.3333333333333333,
+    "life_forgetting": 0.25,
+    "life_acquisition": 0.4166666666666667,
+    "life_matrix": [
+     [
+      0.25,
+      0.0,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.0
+     ],
+     [
+      0.5,
+      0.0,
+      0.5
+     ]
+    ],
+    "train_decisions": 2990,
+    "wall_s": 977.4,
+    "ok": true
+   },
+   "9": {
+    "aulc_eval": 0.33333,
+    "final_eval": 0.5,
+    "life_forgetting": 0.0,
+    "life_acquisition": 0.3333333333333333,
+    "life_matrix": [
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.5
+     ]
+    ],
+    "train_decisions": 3120,
+    "wall_s": 1029.9,
+    "ok": true
+   },
+   "10": {
+    "aulc_eval": 0.30556,
+    "final_eval": 0.5,
+    "life_forgetting": 0.0,
+    "life_acquisition": 0.27777777777777773,
+    "life_matrix": [
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.5,
+      0.3333,
+      0.0
+     ],
+     [
+      0.5,
+      0.5,
+      0.5
+     ]
+    ],
+    "train_decisions": 3234,
+    "wall_s": 600.0,
+    "ok": true
+   }
+  },
+  "promoted rule": {
+   "7": {
+    "aulc_eval": 0.91667,
+    "final_eval": 0.75,
+    "life_forgetting": 0.375,
+    "life_acquisition": 1.0,
+    "life_matrix": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      0.0
+     ],
+     [
+      0.75,
+      0.5,
+      1.0
+     ]
+    ],
+    "train_decisions": 1560,
+    "wall_s": 722.1,
+    "ok": true
+   },
+   "6": {
+    "aulc_eval": 0.96296,
+    "final_eval": 0.8888888888888888,
+    "life_forgetting": 0.16666666666666669,
+    "life_acquisition": 1.0,
+    "life_matrix": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      0.0
+     ],
+     [
+      0.6667,
+      1.0,
+      1.0
+     ]
+    ],
+    "train_decisions": 1823,
+    "wall_s": 766.7,
+    "ok": true
+   },
+   "8": {
+    "aulc_eval": 0.94444,
+    "final_eval": 0.8333333333333334,
+    "life_forgetting": 0.0,
+    "life_acquisition": 0.8333333333333334,
+    "life_matrix": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      0.5
+     ]
+    ],
+    "train_decisions": 1263,
+    "wall_s": 923.0,
+    "ok": true
+   },
+   "9": {
+    "aulc_eval": 1.0,
+    "final_eval": 1.0,
+    "life_forgetting": 0.0,
+    "life_acquisition": 1.0,
+    "life_matrix": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      1.0
+     ]
+    ],
+    "train_decisions": 1610,
+    "wall_s": 942.5,
+    "ok": true
+   },
+   "10": {
+    "aulc_eval": 0.89815,
+    "final_eval": 0.7777777777777778,
+    "life_forgetting": 0.25,
+    "life_acquisition": 0.9444444444444445,
+    "life_matrix": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      0.8333,
+      0.0
+     ],
+     [
+      0.5,
+      0.8333,
+      1.0
+     ]
+    ],
+    "train_decisions": 1768,
+    "wall_s": 520.6,
+    "ok": true
+   }
+  }
+ },
+ "comparisons": {
+  "promoted rule": {
+   "aulc_eval": {
+    "n_cand": 5,
+    "n_base": 5,
+    "mean_cand": 0.9444440000000001,
+    "mean_base": 0.38703800000000005,
+    "diff": 0.5574060000000001,
+    "ci": [
+     0.49439569999999994,
+     0.62037
+    ],
+    "p_improve": 1.0,
+    "paired": true,
+    "established": true,
+    "sign_flip_p": 0.0625,
+    "seeds_better_equal_worse": [
+     5,
+     0,
+     0
+    ]
+   },
+   "final_eval": {
+    "n_cand": 5,
+    "n_base": 5,
+    "mean_cand": 0.85,
+    "mean_base": 0.4777777777777777,
+    "diff": 0.3722222222222223,
+    "ci": [
+     0.2666666666666667,
+     0.47777777777777775
+    ],
+    "p_improve": 1.0,
+    "paired": true,
+    "established": true,
+    "sign_flip_p": 0.0625,
+    "seeds_better_equal_worse": [
+     5,
+     0,
+     0
+    ]
+   }
+  }
+ }
+}
