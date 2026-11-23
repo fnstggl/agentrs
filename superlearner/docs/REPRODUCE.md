@@ -106,13 +106,17 @@ Each candidate's directory (`runs/meta/search4/candidates/<id>/`) holds its full
 for c in 0 20000 200000 2000000; do python -m superlearner lifetime --config configs/life/calib.yaml --run-dir runs/calib/ewc_$c --set algo.anchor.coef=$c; done
 python -m superlearner lifetime --config configs/life/calib.yaml --run-dir runs/calib/reh --set algo.rehearsal.keep=true
 
-# lifetimes (eight conditions, 22 runs) and the Parametric Internalization Test (2 families x 6 routes x 3 seeds),
+# lifetimes (twelve conditions, 25 runs) and the Parametric Internalization Test (2 families, 7 routes, 2-3 seeds),
 # as one restartable queue; each run hosts its own Qwen3-0.6B backbone, no language-model server is needed
 python -m superlearner jobs configs/queue_continual.yaml --log-dir runs/queue_continual
-python -m superlearner jobs configs/queue_continual_b.yaml --log-dir runs/queue_continual_b   # PIT with a trainable backbone
+python -m superlearner jobs configs/queue_continual_final.yaml --log-dir runs/queue_continual_final   # untouched tasks, swap test
 
-# the Meta-Researcher's search over continual update rules (CPU, confined; hours)
-python -m superlearner meta-search --config configs/meta_continual.yaml --full-feedback --run-dir runs/meta/continual1 --resume
+# the Meta-Researcher's searches over continual update rules (CPU, confined; hours each), and the test after selection
+CUDA_VISIBLE_DEVICES="" python -m superlearner meta-search --config configs/meta_continual.yaml --full-feedback --run-dir runs/meta/continual1 --resume
+CUDA_VISIBLE_DEVICES="" python -m superlearner meta-search --config configs/meta_continual_equal.yaml --full-feedback --run-dir runs/meta/continual2 --resume
+CUDA_VISIBLE_DEVICES="" python -m superlearner meta-search --config configs/meta_continual_equal100.yaml --full-feedback --run-dir runs/meta/continual3 --resume
+CUDA_VISIBLE_DEVICES="" python -m superlearner meta-verify --config configs/meta_continual.yaml --run-dir runs/meta/continual1
+CUDA_VISIBLE_DEVICES="" python -m superlearner meta-verify --config configs/meta_continual_equal100.yaml --run-dir runs/meta/continual3
 
 # aggregate and regenerate the tables
 python -m superlearner pit report --config configs/pit.yaml

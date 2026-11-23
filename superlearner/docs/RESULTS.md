@@ -35,6 +35,10 @@ before and after. "Established" in a table means that interval excludes zero.
 8. **Negative:** several learners in one world (no trade, so no competitive learning), RL with LLM-written content
    in the loop (no change in four iterations), planning with the learned world model (+3 points, inside the noise).
 
+**Later work (2026-11-22 and 23): continual learning in the weights** is reported separately in
+[CONTINUAL.md](CONTINUAL.md). It supersedes point 6 with a fuller measurement. Its searches are the second, third and
+fourth Meta-Researcher searches; like the first they found no better update rule for the real learner.
+
 ## 1. What the frozen language model can and cannot do here
 
 | Probe | Result |

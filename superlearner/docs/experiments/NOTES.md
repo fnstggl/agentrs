@@ -380,3 +380,7 @@ Work on the amendment ("continual learning must change the core neural weights")
   **54%**, with forgetting 0.39 against 0.01. The rule that gave +0.56 on the small CPU controller makes the real
   learner worse where it had room to improve: a step size of 1e-3 and replay biased towards the current phase learn new
   arms but overwrite old ones. A search on a proxy learner found something true of the proxy.
+* **Final runs (2026-11-23, finished 19:08).** 25 lifetimes in twelve conditions, 37 internalization routes, three
+  searches (71 candidates, 125 confined lifetimes), the check on untouched tasks and the swap test. With the backbone
+  fix, the trainable-backbone internalization routes agree between their own process and a fresh one (e.g. `build`, seed
+  0: 100% in both). `configs/queue_continual_b.yaml` was merged into the main queue and removed.

@@ -102,7 +102,7 @@ single-seed screening (RESULTS, section 11). `experiment e` applies the probe to
 `configs/meta_continual.yaml`. The same machinery with three differences:
 
 * **What a candidate is.** A version of `algo/continual.py` - the rule by which the learner's weights are updated
-  over a lifetime. `ContinualSpace` (`meta/proposals.py`) writes a genome of nineteen choices into that file: the
+  over a lifetime. `ContinualSpace` (`meta/proposals.py`) writes a genome of twenty choices into that file: the
   `CONTINUAL_DEFAULTS` and `RULE_SCALES` literals and the body of `replay_arm_weights`. The shipped file IS the
   base genome (a test checks the two are identical), so the champion's tree is the repository's. The first pool is
   thirteen single-idea variants - no rehearsal, anchors instead of rehearsal, replay consolidation, EWC, L2-SP,
@@ -122,6 +122,15 @@ single-seed screening (RESULTS, section 11). `experiment e` applies the probe to
 
 Not in this search: backbone plasticity (no GPU inside the confinement; the inner learner uses hash text
 embeddings) and the world-model exploration settings, which are run configuration.
+
+**Equal compute.** The first search charged candidates for experience but not for gradient steps, and its promoted rule
+turned out to be mostly "train more". `meta_continual_equal*.yaml` fix the supervised gradient steps per phase; every
+candidate only decides how to use them.
+
+**Testing what was selected.** `superlearner meta-verify` reruns the baseline and the promoted rule on seeds and held-out
+tasks the search never used, every rule of a seed at the same time (outcomes in non-`tiny` worlds depend on measured CPU
+time). The result is reported with an exact sign-flip test, whose floor with five seeds is p = 0.0625. A promoted rule is
+then also run on the real learner as a lifetime condition. Results: [CONTINUAL.md](CONTINUAL.md), section 6.
 
 ## Interruptions
 
