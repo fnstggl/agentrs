@@ -1,0 +1,8 @@
+# The rule promoted by the equal-compute search (runs/meta/continual3, f001-2e9a245111), on the real learner: observation
+# at step size 1e-3 instead of 3e-4, and replay that draws the current phase's arms three times as often. Same number of
+# gradient steps as `rehearsal`. It is written here as settings of the trusted code; candidate trees only ever run confined.
+base: rehearsal.yaml
+name: life_meta_rule_equal
+algo:
+  observe: {lr: 0.001}
+  replay_bias: 3.0

@@ -1,0 +1,12 @@
+# `rehearsal` with half the supervised steps per phase. With the full budget the real learner is near its ceiling, so an
+# update rule that uses steps better could not show; this regime leaves room. Fixed before any run of it was seen.
+base: rehearsal.yaml
+name: life_scarce_rehearsal
+lifetime:
+  phases:
+    - {name: start, arms: [found/0/scratch, list/0/deployed], worlds: [tiny, bazaar], demos_per_arm: 4, observe_steps: 80, iters: 4, episodes_per_iter: 64}
+    - {name: capital, arms: [fund/0/scratch, deploy/0/coded], worlds: [tiny, bazaar], demos_per_arm: 4, observe_steps: 60, iters: 4, episodes_per_iter: 64}
+    - {name: operate, arms: [service/0/listed, repair/0/scratch], worlds: [cheap_compute_closed_markets], demos_per_arm: 4, observe_steps: 60, iters: 4, episodes_per_iter: 64}
+    - {name: launch, arms: [service/0/deployed], worlds: [expensive_compute_open_distribution], demos_per_arm: 4, observe_steps: 60, iters: 4, episodes_per_iter: 64}
+    - {name: build, arms: [service/0/coded], worlds: [bazaar, cheap_compute_closed_markets], demos_per_arm: 4, observe_steps: 60, iters: 4, episodes_per_iter: 64}
+    - {name: shift, arms: [found/0/scratch, list/0/deployed, fund/0/scratch, deploy/0/coded], worlds: [expensive_compute_open_distribution, cheap_compute_closed_markets], demos_per_arm: 0, iters: 4, episodes_per_iter: 96}

@@ -353,3 +353,13 @@ Work on the amendment ("continual learning must change the core neural weights")
   from observation to consolidation hurt (-0.14 to -0.46), and so did anchors, a slower trunk and a smaller step size.
   One candidate crashed because two screening threads built the champion's probe tree at once (fixed). Third search:
   the same design at 100 steps per phase, where this baseline scored 0.38-0.56 (`runs/meta/continual3`).
+* **The third search (equal compute, 100 steps per phase) found a rule that holds up on new seeds and tasks.**
+  `f001-2e9a245111`: observation step size 1e-3 instead of 3e-4, and replay drawing the current phase's arms three times
+  as often. Confirm stage, five seeds: +0.409 [0.369, 0.467]. Post-selection (seeds 6-10, tasks the search never used,
+  side by side): 0.944 against 0.387, +0.557 [0.494, 0.620], better on 5 of 5 seeds (sign-flip p = 0.0625, the floor for
+  five seeds); final success 0.85 against 0.48. What it is: a better setting of two knobs of a hand-written rule space,
+  found on a small CPU controller. It is not a new algorithm, and a larger step size on an under-trained baseline is an
+  ordinary finding. Whether it helps the real learner is tested separately (`life/meta_rule_equal.yaml`, and at half the
+  supervised steps `scarce_rehearsal` / `scarce_meta_rule`, because the real learner is near its ceiling at full steps).
+  The rule's replay weighting is a reviewed setting of the trusted code (`replay_bias`, off by default); the candidate's
+  source tree is not executed outside the confinement.

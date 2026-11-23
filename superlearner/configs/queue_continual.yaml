@@ -3,6 +3,7 @@
 # * `life_<condition>_s<seed>`  lifetimes over six phases: conditions 1, 2 and 4b on three seeds; 3, 4a and the fully
 #   trainable backbone on two; adapters (LoRA) and the top four blocks on one. Seeds 1 and 2 skip sampled evaluations.
 #   The rule the Meta-Researcher promoted (`meta_champion`) runs on two seeds, matched with `rehearsal`.
+#   The rule promoted by the equal-compute search runs at the full and at half the supervised steps (two seeds each).
 # * `pit_*`  the Parametric Internalization Test: base learners, then one job per unfamiliar family, route and seed
 #   (learning routes on three seeds, control routes and the trainable-backbone route on two), each ending with
 #   weights-only evaluations in fresh processes.
@@ -453,6 +454,42 @@ jobs:
   after:
   - pit_base_s1
   done: runs/pit/s1/repair__observe_practice_backbone/pit.json
+- name: life_meta_rule_equal_s0
+  cmd: python -m superlearner lifetime --config configs/life/meta_rule_equal.yaml --set seed=0 --name life_meta_rule_equal_s0 --run-dir runs/life/meta_rule_equal_s0
+  gpu: 2
+  cpu: 12
+  retries: 6
+  done: runs/life/meta_rule_equal_s0/DONE
+- name: life_meta_rule_equal_s1
+  cmd: python -m superlearner lifetime --config configs/life/meta_rule_equal.yaml --set seed=1 --set lifetime.eval.sampled=false --name life_meta_rule_equal_s1 --run-dir runs/life/meta_rule_equal_s1
+  gpu: 2
+  cpu: 12
+  retries: 6
+  done: runs/life/meta_rule_equal_s1/DONE
+- name: life_scarce_rehearsal_s0
+  cmd: python -m superlearner lifetime --config configs/life/scarce_rehearsal.yaml --set seed=0 --name life_scarce_rehearsal_s0 --run-dir runs/life/scarce_rehearsal_s0
+  gpu: 2
+  cpu: 12
+  retries: 6
+  done: runs/life/scarce_rehearsal_s0/DONE
+- name: life_scarce_rehearsal_s1
+  cmd: python -m superlearner lifetime --config configs/life/scarce_rehearsal.yaml --set seed=1 --set lifetime.eval.sampled=false --name life_scarce_rehearsal_s1 --run-dir runs/life/scarce_rehearsal_s1
+  gpu: 2
+  cpu: 12
+  retries: 6
+  done: runs/life/scarce_rehearsal_s1/DONE
+- name: life_scarce_meta_rule_s0
+  cmd: python -m superlearner lifetime --config configs/life/scarce_meta_rule.yaml --set seed=0 --name life_scarce_meta_rule_s0 --run-dir runs/life/scarce_meta_rule_s0
+  gpu: 2
+  cpu: 12
+  retries: 6
+  done: runs/life/scarce_meta_rule_s0/DONE
+- name: life_scarce_meta_rule_s1
+  cmd: python -m superlearner lifetime --config configs/life/scarce_meta_rule.yaml --set seed=1 --set lifetime.eval.sampled=false --name life_scarce_meta_rule_s1 --run-dir runs/life/scarce_meta_rule_s1
+  gpu: 2
+  cpu: 12
+  retries: 6
+  done: runs/life/scarce_meta_rule_s1/DONE
 - name: pit_report
   cmd: python -m superlearner pit report --config configs/pit.yaml
   cpu: 1

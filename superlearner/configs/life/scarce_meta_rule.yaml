@@ -1,0 +1,6 @@
+# The promoted rule (see meta_rule_equal.yaml) with half the supervised steps per phase. Compare with `scarce_rehearsal`.
+base: scarce_rehearsal.yaml
+name: life_scarce_meta_rule
+algo:
+  observe: {lr: 0.001}
+  replay_bias: 3.0
