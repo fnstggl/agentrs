@@ -1,0 +1,8 @@
+# The rule the Meta-Researcher promoted, on the real learner: rehearsal plus 96 replay-only consolidation steps at the
+# end of every phase (its only difference from the search's baseline). The search ran on a small CPU controller with
+# hash embeddings; this condition tests whether what it found carries over. Compare with `rehearsal` on the same seeds.
+base: base.yaml
+name: life_meta_champion
+algo:
+  rehearsal: {keep: true, per_arm: 120}
+  consolidate_steps: 96

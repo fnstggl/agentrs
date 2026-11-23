@@ -37,7 +37,7 @@ from ..train.trainer import code_hashes, git_commit, merge
 from ..world.hub import start_hub
 from ..world.tasks import SPLITS, task_list
 from . import proposals as P
-from .compare import compare, lifetime_measures, load_trusted, pareto, run_measures, verdict
+from .compare import compare, lifetime_measures, load_trusted, pareto, run_measures, sign_flip_p, verdict
 from .ledger import Ledger
 from .surrogate import Surrogate
 from .workspace import PKG, create_candidate, require_isolation, run_isolated, verify
@@ -177,7 +177,8 @@ class MetaResearcher:
         fams = [f for f in self.cfg["eval_world_families"] if f in SPLITS["select"][2]]
         tasks, lists = [], []
         for j, ph in enumerate(self.cfg["phases"]):
-            part = task_list(ph["arms"], fams, int(st["eval_per_arm"]) * len(ph["arms"]), "select", 4000 + 300 * j)
+            part = task_list(ph["arms"], fams, int(st["eval_per_arm"]) * len(ph["arms"]), "select",
+                             int(st.get("list_offset", 4000)) + 300 * j)
             lists.append({"name": ph.get("name", f"P{j + 1}"), "phase": j, "kind": "seen",
                           "indices": list(range(len(tasks), len(tasks) + len(part)))})
             tasks += part
@@ -285,6 +286,45 @@ class MetaResearcher:
         out["diag"] = self._diagnostics(os.path.join(work, "run", "metrics.jsonl"))
         if out["ok"]:
             json.dump(dict(out, tree=self._tree_id(cid), stage_cfg=self.cfg["stages"][stage]), open(done, "w"), default=str)
+        return out
+
+    # ------------------------------------------------------------------ test after selection
+    def post_selection(self, rules: dict, baseline: str, seeds: list[int], offset: int = 30_000, together: int = 2) -> dict:
+        """An unbiased look at rules the search has already selected: seeds and held-out tasks it never used, and every
+        rule of a seed running AT THE SAME TIME (outcomes in non-`tiny` worlds depend on measured CPU time, hence on what
+        else the machine is doing, and the search's baseline and candidates ran hours apart). `rules`: name -> candidate
+        id. Each rule is compared with `baseline` on the same seeds."""
+        st = dict(self.cfg["stages"]["confirm"], seeds=list(seeds), list_offset=int(offset))
+        self.cfg["stages"]["postsel"] = st
+        runs: dict = {n: {} for n in rules}
+        for i in range(0, len(seeds), int(together)):                # all rules of these seeds side by side
+            part = seeds[i:i + int(together)]
+            with cf.ThreadPoolExecutor(max_workers=len(part) * len(rules)) as ex:
+                futs = {ex.submit(self.run_one, cid, "postsel", s): (n, s) for n, cid in rules.items() for s in part}
+                for f in cf.as_completed(futs):
+                    n, s = futs[f]
+                    try:
+                        runs[n][s] = f.result()
+                    except Exception as e:  # noqa: BLE001
+                        runs[n][s] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        keys = ("aulc_eval", "final_eval", "life_forgetting", "life_acquisition", "life_matrix", "train_decisions", "wall_s", "ok")
+        out: dict = {"seeds": list(seeds), "list_offset": int(offset), "baseline": baseline, "rules": dict(rules),
+                     "runs": {n: {str(s): {k: m.get(k) for k in keys} for s, m in r.items()} for n, r in runs.items()},
+                     "comparisons": {}}
+        base = {s: m for s, m in runs[baseline].items() if m.get("ok")}
+        for n, r in runs.items():
+            if n == baseline:
+                continue
+            good = sorted(s for s, m in r.items() if m.get("ok") and s in base)
+            for k in ("aulc_eval", "final_eval"):
+                c = compare({s: r[s][k] for s in good}, {s: base[s][k] for s in good})
+                c["sign_flip_p"] = sign_flip_p([r[s][k] - base[s][k] for s in good])
+                c["seeds_better_equal_worse"] = [sum(r[s][k] > base[s][k] for s in good), sum(r[s][k] == base[s][k] for s in good),
+                                                 sum(r[s][k] < base[s][k] for s in good)]
+                out["comparisons"].setdefault(n, {})[k] = c
+        tmp = os.path.join(self.dir, "post_selection.json.tmp")
+        json.dump(out, open(tmp, "w"), indent=1, default=str)
+        os.replace(tmp, os.path.join(self.dir, "post_selection.json"))
         return out
 
     # ------------------------------------------------------------------ inert changes
@@ -577,7 +617,7 @@ class MetaResearcher:
 
     def _promote(self, cid: str, prop: dict, confirm_runs: dict) -> None:
         old = self.champion["id"]
-        self.champion = {"id": cid, "changes": dict(prop["changes"]), "genome": prop.get("genome") if prop["source"] == "rule_space" else self.champion.get("genome"),
+        self.champion = {"id": cid, "changes": dict(prop["changes"]), "genome": prop.get("genome") if prop["source"] in ("rule_space", "continual_space") else self.champion.get("genome"),
                          "hypothesis": prop["hypothesis"], "measures": {"confirm": confirm_runs}, "promoted_at": self.round_n,
                          "previous": old}
         self.ledger.append({"kind": "promotion", "round": self.round_n, "new_champion": cid, "previous": old})
@@ -811,6 +851,34 @@ def probe_search(run_dir: str) -> dict:
                 out["candidates"][cid] = {"inert": mr.is_inert(cid), "fingerprint": pr.get("fingerprint"), "probe_ok": pr.get("ok"),
                                           "error": pr.get("error")}
     return out
+
+
+def post_selection_main(a) -> int:
+    """`superlearner meta-verify`: the promoted rule, its baseline and a control with as many extra gradient steps."""
+    from ..cli import RUNS, load_config
+    cfg = load_config(a.config)
+    rd = a.run_dir or os.path.join(RUNS, "meta", cfg.get("name", "meta"))
+    mr = MetaResearcher(cfg, rd, None, resume=True)
+    mr.prepare_demos()
+    promoted = [r["new_champion"] for r in mr.ledger.entries("promotion")]
+    if not promoted:
+        print("the search promoted nothing; nothing to verify")
+        return 0
+    first = promoted[0]
+    base_src = open(os.path.join(mr.base_pkg, P.CONT_PATH)).read()
+    b = P.BASE_CONTINUAL_GENOME
+    cs = P.ContinualSpace(0)
+    ctrl = "v-observe-2x"
+    if not os.path.isdir(mr.candidate_dir(ctrl)):
+        mr.make_candidate(ctrl, cs.proposal(dict(b, observe_steps=2.0), b, "control: as many extra gradient steps, all spent on observation",
+                                            base_src)["changes"])
+    rules = {"baseline (rehearsal)": "champion-0", "promoted rule": first, "control: same extra steps, no consolidation": ctrl}
+    for p_ in promoted[1:]:
+        rules[f"later promotion {p_}"] = p_
+    seeds = [int(x) for x in str(a.seeds).split(",")]
+    out = mr.post_selection(rules, "baseline (rehearsal)", seeds)
+    print(json.dumps(out["comparisons"], indent=1, default=str))
+    return 0
 
 
 def main(a) -> int:

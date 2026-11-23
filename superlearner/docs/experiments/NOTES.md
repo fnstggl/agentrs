@@ -316,3 +316,16 @@ Work on the amendment ("continual learning must change the core neural weights")
 * **The queue now looks at the card.** Every earlier out-of-memory death had the same root: the queue counted only
   its own jobs, while another session used up to 10 GB. A GPU job now starts only if `nvidia-smi` reports enough free
   memory after subtracting what recently started jobs have yet to allocate.
+* **The search promoted a rule, and I did not take its number at face value.** `f000-7b917f68ca` (rehearsal plus 96
+  replay-only consolidation steps per phase; its only difference from the baseline) was promoted at +0.289 on five
+  seeds. Four reasons not to report that as the effect: (1) the candidate was picked as the best of 25 on seed 1 and
+  the same held-out tasks; (2) the baseline's runs took about 2,500 s and the candidate's about 950 s because they
+  ran hours apart under different machine load, and outcomes in non-`tiny` worlds depend on measured CPU time; (3) it
+  takes about twice the gradient steps per phase on the same experience, so it may be "more training" rather than
+  "consolidation"; (4) with five seeds a bootstrap over seeds says little. `superlearner meta-verify` therefore
+  reruns baseline, promoted rule and a control with as many extra steps spent on observation, on seeds 6-10 and on
+  held-out tasks the search never used, every rule of a seed at the same time. The rule is also run on the real
+  learner (`life/meta_champion.yaml`), since the search's inner learner is a small CPU controller.
+* A bug in `_promote`: for `continual_space` candidates the champion kept its old genome, so later pools would have
+  mutated the pre-promotion rule. The reported search had finished its pools before its first promotion, so it was
+  not affected; fixed for later searches.

@@ -112,6 +112,18 @@ def lifetime_measures(recs: list[dict], lists: list[dict], budget: int) -> dict:
     return out
 
 
+def sign_flip_p(diffs: list[float]) -> float:
+    """Exact two-sided sign-flip test of "the paired differences are centred on zero" (at most 16 pairs). With n pairs
+    the smallest possible value is 2 / 2^n: five seeds can never give less than 0.0625, whatever the effect."""
+    d = np.asarray(diffs, float)
+    n = len(d)
+    if n == 0 or n > 16:
+        return float("nan")
+    obs = abs(d.sum())
+    hits = sum(abs((d * np.array([1 if (m >> i) & 1 else -1 for i in range(n)])).sum()) >= obs - 1e-12 for m in range(2 ** n))
+    return hits / 2 ** n
+
+
 def compare(cand: dict[int, float], base: dict[int, float], n_boot: int = 4000, seed: int = 0) -> dict:
     """`cand`, `base`: seed -> measure. Bootstrap over seeds; paired when the seed sets are equal."""
     rng = np.random.default_rng(seed)

@@ -24,13 +24,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 OUT = os.path.join(ROOT, "docs", "experiments")
 
-ORDER = ["frozen_memory", "naive", "memory", "rehearsal", "consolidate", "backbone_lora", "backbone_top4", "backbone_full"]
+ORDER = ["frozen_memory", "naive", "memory", "rehearsal", "consolidate", "meta_champion", "backbone_lora", "backbone_top4", "backbone_full"]
 LABEL = {"frozen_memory": "1 frozen core + written memory", "naive": "2 trainable core, no protection",
          "memory": "3 trainable core + external memory", "rehearsal": "4a trainable core + rehearsal",
-         "consolidate": "4b trainable core + rehearsal + consolidation", "backbone_lora": "5 (LoRA) 4b + backbone adapters",
+         "consolidate": "4b trainable core + rehearsal + consolidation", "meta_champion": "rule promoted by the Meta-Researcher", "backbone_lora": "5 (LoRA) 4b + backbone adapters",
          "backbone_top4": "5 (top 4 blocks) 4b + backbone top blocks", "backbone_full": "5 (full) 4b + whole backbone"}
 PAIRS = [("naive", "frozen_memory"), ("memory", "naive"), ("rehearsal", "naive"), ("consolidate", "naive"),
-         ("consolidate", "rehearsal"), ("consolidate", "frozen_memory"), ("backbone_lora", "consolidate"),
+         ("consolidate", "rehearsal"), ("meta_champion", "rehearsal"), ("consolidate", "frozen_memory"), ("backbone_lora", "consolidate"),
          ("backbone_top4", "consolidate"), ("backbone_full", "consolidate")]
 
 

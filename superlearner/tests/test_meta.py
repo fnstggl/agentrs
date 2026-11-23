@@ -370,3 +370,39 @@ def test_a_confined_lifetime_is_scored_by_the_hub_and_the_probe_sees_continual_c
         assert mr.is_inert("c-inert") is True
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+def test_sign_flip_test_is_exact_and_cannot_go_below_its_floor():
+    from superlearner.meta.compare import sign_flip_p
+    assert sign_flip_p([1.0, 1.0, 1.0, 1.0, 1.0]) == pytest.approx(2 / 32)    # five seeds, all better: 0.0625, no smaller
+    assert sign_flip_p([1.0, -1.0]) == 1.0 and np.isnan(sign_flip_p([]))
+    assert sign_flip_p([3.0, 1.0, -1.0]) == pytest.approx(6 / 8)      # sums 5, 3, 3, 1, -1, -3, -3, -5
+
+
+@pytest.mark.skipif(not ROOT, reason="confinement needs root")
+def test_selected_rules_are_retested_on_new_seeds_and_tasks_side_by_side():
+    import shutil
+    import tempfile
+    from superlearner.cli import load_config
+    from superlearner.meta.researcher import MetaResearcher
+    here = os.path.dirname(os.path.abspath(__file__))
+    cfg = load_config(os.path.join(here, "..", "configs", "meta_continual_smoke.yaml"))
+    root = tempfile.mkdtemp(prefix="sl-test-", dir="/var/tmp")
+    os.chmod(root, 0o755)
+    try:
+        mr = MetaResearcher(cfg, os.path.join(root, "search"))
+        mr.prepare_demos()
+        old = {t.seed for t in mr.life_lists("confirm")[0]}
+        cs = P.ContinualSpace(1)
+        src = open(os.path.join(mr.base_pkg, P.CONT_PATH)).read()
+        b = P.BASE_CONTINUAL_GENOME
+        mr.make_candidate("c-base", {})
+        mr.make_candidate("c-more", cs.proposal(dict(b, consolidate_steps=32), b, "x", src)["changes"])
+        out = mr.post_selection({"base": "c-base", "more": "c-more"}, "base", [6], offset=30_000)
+        assert {t.seed for t in mr.life_lists("postsel")[0]}.isdisjoint(old)      # tasks the search never saw
+        assert all(out["runs"][n]["6"]["ok"] for n in ("base", "more"))
+        c = out["comparisons"]["more"]["aulc_eval"]
+        assert c["n_cand"] == 1 and "sign_flip_p" in c and sum(c["seeds_better_equal_worse"]) == 1
+        assert os.path.exists(os.path.join(root, "search", "post_selection.json"))
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
