@@ -2,6 +2,7 @@
 #   superlearner jobs configs/queue_continual.yaml --log-dir runs/queue_continual
 # * `life_<condition>_s<seed>`  lifetimes over six phases: conditions 1, 2 and 4b on three seeds; 3, 4a and the fully
 #   trainable backbone on two; adapters (LoRA) and the top four blocks on one. Seeds 1 and 2 skip sampled evaluations.
+#   The rule the Meta-Researcher promoted (`meta_champion`) runs on two seeds, matched with `rehearsal`.
 # * `pit_*`  the Parametric Internalization Test: base learners, then one job per unfamiliar family, route and seed
 #   (learning routes on three seeds, control routes and the trainable-backbone route on two), each ending with
 #   weights-only evaluations in fresh processes.
@@ -11,11 +12,11 @@
 # with a frozen backbone 2, with adapters or top blocks 3, with the fully trainable backbone 5. A GPU job starts only
 # when the card really has that much free, because other sessions may share it. `strict_order` keeps the order of
 # this file, so that a large job is not starved by smaller ones. `cpu` counts rollout workers.
-max_gpu: 10
+max_gpu: 9
 max_cpu: 120
 strict_order: true
 gpu_unit_mb: 3400
-gpu_margin_mb: 1500
+gpu_margin_mb: 3000
 gpu_settle_s: 180
 env:
   PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
@@ -24,37 +25,37 @@ jobs:
   cmd: python -m superlearner pit base --config configs/pit.yaml --seed 0
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   done: runs/pit/s0/base/weights.pt
 - name: pit_base_mem_s0
   cmd: python -m superlearner pit base --config configs/pit.yaml --seed 0 --memory
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   done: runs/pit/s0/base_mem/weights.pt
 - name: pit_base_s1
   cmd: python -m superlearner pit base --config configs/pit.yaml --seed 1
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   done: runs/pit/s1/base/weights.pt
 - name: pit_base_mem_s1
   cmd: python -m superlearner pit base --config configs/pit.yaml --seed 1 --memory
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   done: runs/pit/s1/base_mem/weights.pt
 - name: pit_base_s2
   cmd: python -m superlearner pit base --config configs/pit.yaml --seed 2
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   done: runs/pit/s2/base/weights.pt
 - name: pit_build_practice_s0
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family build --route practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s0
   done: runs/pit/s0/build__practice/pit.json
@@ -62,7 +63,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family build --route observe_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s0
   done: runs/pit/s0/build__observe_practice/pit.json
@@ -70,7 +71,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family build --route observe
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s0
   done: runs/pit/s0/build__observe/pit.json
@@ -78,7 +79,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family build --route explore_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s0
   done: runs/pit/s0/build__explore_practice/pit.json
@@ -86,7 +87,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family build --route frozen_memory
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_mem_s0
   done: runs/pit/s0/build__frozen_memory/pit.json
@@ -94,7 +95,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family build --route memory_observe_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_mem_s0
   done: runs/pit/s0/build__memory_observe_practice/pit.json
@@ -102,7 +103,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family repair --route practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s0
   done: runs/pit/s0/repair__practice/pit.json
@@ -110,7 +111,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family repair --route observe_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s0
   done: runs/pit/s0/repair__observe_practice/pit.json
@@ -118,7 +119,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family repair --route observe
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s0
   done: runs/pit/s0/repair__observe/pit.json
@@ -126,7 +127,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family repair --route explore_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s0
   done: runs/pit/s0/repair__explore_practice/pit.json
@@ -134,7 +135,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family repair --route frozen_memory
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_mem_s0
   done: runs/pit/s0/repair__frozen_memory/pit.json
@@ -142,7 +143,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family repair --route memory_observe_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_mem_s0
   done: runs/pit/s0/repair__memory_observe_practice/pit.json
@@ -150,7 +151,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family build --route practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s1
   done: runs/pit/s1/build__practice/pit.json
@@ -158,7 +159,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family build --route observe_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s1
   done: runs/pit/s1/build__observe_practice/pit.json
@@ -166,7 +167,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family build --route observe
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s1
   done: runs/pit/s1/build__observe/pit.json
@@ -174,7 +175,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family build --route explore_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s1
   done: runs/pit/s1/build__explore_practice/pit.json
@@ -182,7 +183,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family build --route frozen_memory
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_mem_s1
   done: runs/pit/s1/build__frozen_memory/pit.json
@@ -190,7 +191,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family build --route memory_observe_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_mem_s1
   done: runs/pit/s1/build__memory_observe_practice/pit.json
@@ -198,7 +199,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family repair --route practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s1
   done: runs/pit/s1/repair__practice/pit.json
@@ -206,7 +207,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family repair --route observe_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s1
   done: runs/pit/s1/repair__observe_practice/pit.json
@@ -214,7 +215,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family repair --route observe
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s1
   done: runs/pit/s1/repair__observe/pit.json
@@ -222,7 +223,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family repair --route explore_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s1
   done: runs/pit/s1/repair__explore_practice/pit.json
@@ -230,7 +231,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family repair --route frozen_memory
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_mem_s1
   done: runs/pit/s1/repair__frozen_memory/pit.json
@@ -238,7 +239,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family repair --route memory_observe_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_mem_s1
   done: runs/pit/s1/repair__memory_observe_practice/pit.json
@@ -246,7 +247,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 2 --family build --route practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s2
   done: runs/pit/s2/build__practice/pit.json
@@ -254,7 +255,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 2 --family build --route observe_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s2
   done: runs/pit/s2/build__observe_practice/pit.json
@@ -262,7 +263,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 2 --family build --route observe
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s2
   done: runs/pit/s2/build__observe/pit.json
@@ -270,7 +271,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 2 --family build --route explore_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s2
   done: runs/pit/s2/build__explore_practice/pit.json
@@ -278,7 +279,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 2 --family repair --route practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s2
   done: runs/pit/s2/repair__practice/pit.json
@@ -286,7 +287,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 2 --family repair --route observe_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s2
   done: runs/pit/s2/repair__observe_practice/pit.json
@@ -294,7 +295,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 2 --family repair --route observe
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s2
   done: runs/pit/s2/repair__observe/pit.json
@@ -302,7 +303,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 2 --family repair --route explore_practice
   gpu: 1
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s2
   done: runs/pit/s2/repair__explore_practice/pit.json
@@ -310,109 +311,121 @@ jobs:
   cmd: python -m superlearner lifetime --config configs/life/frozen_memory.yaml --set seed=0 --name life_frozen_memory_s0 --run-dir runs/life/frozen_memory_s0
   gpu: 2
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/frozen_memory_s0/DONE
 - name: life_naive_s0
   cmd: python -m superlearner lifetime --config configs/life/naive.yaml --set seed=0 --name life_naive_s0 --run-dir runs/life/naive_s0
   gpu: 2
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/naive_s0/DONE
 - name: life_memory_s0
   cmd: python -m superlearner lifetime --config configs/life/memory.yaml --set seed=0 --name life_memory_s0 --run-dir runs/life/memory_s0
   gpu: 2
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/memory_s0/DONE
 - name: life_rehearsal_s0
   cmd: python -m superlearner lifetime --config configs/life/rehearsal.yaml --set seed=0 --name life_rehearsal_s0 --run-dir runs/life/rehearsal_s0
   gpu: 2
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/rehearsal_s0/DONE
 - name: life_consolidate_s0
   cmd: python -m superlearner lifetime --config configs/life/consolidate.yaml --set seed=0 --name life_consolidate_s0 --run-dir runs/life/consolidate_s0
   gpu: 2
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/consolidate_s0/DONE
 - name: life_backbone_full_s0
   cmd: python -m superlearner lifetime --config configs/life/backbone_full.yaml --set seed=0 --name life_backbone_full_s0 --run-dir runs/life/backbone_full_s0
   gpu: 5
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/backbone_full_s0/DONE
 - name: life_backbone_lora_s0
   cmd: python -m superlearner lifetime --config configs/life/backbone_lora.yaml --set seed=0 --name life_backbone_lora_s0 --run-dir runs/life/backbone_lora_s0
   gpu: 3
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/backbone_lora_s0/DONE
 - name: life_backbone_top4_s0
   cmd: python -m superlearner lifetime --config configs/life/backbone_top4.yaml --set seed=0 --name life_backbone_top4_s0 --run-dir runs/life/backbone_top4_s0
   gpu: 3
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/backbone_top4_s0/DONE
+- name: life_meta_champion_s0
+  cmd: python -m superlearner lifetime --config configs/life/meta_champion.yaml --set seed=0 --name life_meta_champion_s0 --run-dir runs/life/meta_champion_s0
+  gpu: 2
+  cpu: 12
+  retries: 6
+  done: runs/life/meta_champion_s0/DONE
+- name: life_meta_champion_s1
+  cmd: python -m superlearner lifetime --config configs/life/meta_champion.yaml --set seed=1 --set lifetime.eval.sampled=false --name life_meta_champion_s1 --run-dir runs/life/meta_champion_s1
+  gpu: 2
+  cpu: 12
+  retries: 6
+  done: runs/life/meta_champion_s1/DONE
 - name: life_frozen_memory_s1
   cmd: python -m superlearner lifetime --config configs/life/frozen_memory.yaml --set seed=1 --set lifetime.eval.sampled=false --name life_frozen_memory_s1 --run-dir runs/life/frozen_memory_s1
   gpu: 2
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/frozen_memory_s1/DONE
 - name: life_naive_s1
   cmd: python -m superlearner lifetime --config configs/life/naive.yaml --set seed=1 --set lifetime.eval.sampled=false --name life_naive_s1 --run-dir runs/life/naive_s1
   gpu: 2
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/naive_s1/DONE
 - name: life_consolidate_s1
   cmd: python -m superlearner lifetime --config configs/life/consolidate.yaml --set seed=1 --set lifetime.eval.sampled=false --name life_consolidate_s1 --run-dir runs/life/consolidate_s1
   gpu: 2
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/consolidate_s1/DONE
 - name: life_memory_s1
   cmd: python -m superlearner lifetime --config configs/life/memory.yaml --set seed=1 --set lifetime.eval.sampled=false --name life_memory_s1 --run-dir runs/life/memory_s1
   gpu: 2
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/memory_s1/DONE
 - name: life_backbone_full_s1
   cmd: python -m superlearner lifetime --config configs/life/backbone_full.yaml --set seed=1 --set lifetime.eval.sampled=false --name life_backbone_full_s1 --run-dir runs/life/backbone_full_s1
   gpu: 5
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/backbone_full_s1/DONE
 - name: life_rehearsal_s1
   cmd: python -m superlearner lifetime --config configs/life/rehearsal.yaml --set seed=1 --set lifetime.eval.sampled=false --name life_rehearsal_s1 --run-dir runs/life/rehearsal_s1
   gpu: 2
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/rehearsal_s1/DONE
 - name: life_frozen_memory_s2
   cmd: python -m superlearner lifetime --config configs/life/frozen_memory.yaml --set seed=2 --set lifetime.eval.sampled=false --name life_frozen_memory_s2 --run-dir runs/life/frozen_memory_s2
   gpu: 2
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/frozen_memory_s2/DONE
 - name: life_naive_s2
   cmd: python -m superlearner lifetime --config configs/life/naive.yaml --set seed=2 --set lifetime.eval.sampled=false --name life_naive_s2 --run-dir runs/life/naive_s2
   gpu: 2
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/naive_s2/DONE
 - name: life_consolidate_s2
   cmd: python -m superlearner lifetime --config configs/life/consolidate.yaml --set seed=2 --set lifetime.eval.sampled=false --name life_consolidate_s2 --run-dir runs/life/consolidate_s2
   gpu: 2
   cpu: 12
-  retries: 4
+  retries: 6
   done: runs/life/consolidate_s2/DONE
 - name: pit_build_observe_practice_backbone_s0
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family build --route observe_practice_backbone
   gpu: 5
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s0
   done: runs/pit/s0/build__observe_practice_backbone/pit.json
@@ -420,7 +433,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 0 --family repair --route observe_practice_backbone
   gpu: 5
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s0
   done: runs/pit/s0/repair__observe_practice_backbone/pit.json
@@ -428,7 +441,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family build --route observe_practice_backbone
   gpu: 5
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s1
   done: runs/pit/s1/build__observe_practice_backbone/pit.json
@@ -436,7 +449,7 @@ jobs:
   cmd: python -m superlearner pit route --config configs/pit.yaml --seed 1 --family repair --route observe_practice_backbone
   gpu: 5
   cpu: 10
-  retries: 4
+  retries: 6
   after:
   - pit_base_s1
   done: runs/pit/s1/repair__observe_practice_backbone/pit.json
@@ -481,4 +494,4 @@ jobs:
   - pit_build_observe_practice_backbone_s1
   - pit_repair_observe_practice_backbone_s1
   done: docs/experiments/pit.json
-  retries: 4
+  retries: 6

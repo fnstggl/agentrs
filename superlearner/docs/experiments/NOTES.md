@@ -329,3 +329,9 @@ Work on the amendment ("continual learning must change the core neural weights")
 * A bug in `_promote`: for `continual_space` candidates the champion kept its old genome, so later pools would have
   mutated the pre-promotion rule. The reported search had finished its pools before its first promotion, so it was
   not affected; fixed for later searches.
+* **The other GPU user is constant.** With every job of this work stopped, about 10.3 GB stayed allocated by a process
+  outside it (left alone). That leaves about 35 GB, so the queue's limit is nine units with a 3 GB margin. Two queue
+  runners had been overcommitting the card between them, and the fully trainable backbone lifetime used up its
+  retries on out-of-memory at the same step; the promoted-rule runs were merged into the one queue.
+* `meta-verify` first crashed because a CPU-only process still touched the (full) GPU through the optimiser's
+  accelerator check. It runs with `CUDA_VISIBLE_DEVICES=""`.
