@@ -64294,6 +64294,1673 @@
    "config_key": "e36f61309787b80c",
    "transcript_file": "ow_llm_mech.scm_additive-1000000.h24.qwen3-4b-v4.jsonl",
    "transcript_turns": 48
+  },
+  "mech.scm_additive-1000000.h24.qwen3-4b-v4-think": {
+   "format": "crucible-llm-eval/1",
+   "kind": "mechanism",
+   "run": "mech.scm_additive-1000000.h24.qwen3-4b-v4-think",
+   "task": {
+    "task": "scm_additive:1000000",
+    "horizon_ticks": 24,
+    "starting_balance_cents": 206060,
+    "objective": "Operate the facility so that your net income (revenue minus cost) over the first 24 ticks is at least 25883 cents.",
+    "goal_net_cents": 25883,
+    "family": "scm_additive",
+    "seed": 1000000,
+    "engine": "scm",
+    "transfer": "base",
+    "split": "train",
+    "full_horizon_ticks": 96,
+    "shortened": true,
+    "n_levers": 7,
+    "world_family": "mech_scm_additive",
+    "world_seed": 1338671478
+   },
+   "goal_text": "Operate the facility so that your net income (revenue minus cost) over the first 24 ticks is at least 25883 cents.",
+   "policy": {
+    "name": "llm:Qwen/Qwen3-4B",
+    "kind": "llm",
+    "class": "EvalLLMPolicy",
+    "model": "Qwen/Qwen3-4B",
+    "interface": "v4",
+    "tool_chars": 40000,
+    "tool_order": "alpha",
+    "result_chars": 12000,
+    "history": 8,
+    "history_chars": 1200,
+    "history_arg_chars": 200,
+    "last_action_line": false,
+    "payload_chars": 600,
+    "max_events": 25,
+    "max_new_tokens": 1024,
+    "temperature": 0.0,
+    "host_summaries": true,
+    "max_context": 32768,
+    "thinking": true,
+    "test_double": false,
+    "system_prompt_hash": "45c6bbc64ed2"
+   },
+   "runner": {
+    "dt_s": 1800,
+    "tick_s": 3600,
+    "turns_per_tick": 2,
+    "turns": 48,
+    "seed": 0
+   },
+   "outcome": {
+    "task": "scm_additive:1000000",
+    "family": "scm_additive",
+    "seed": 1000000,
+    "engine": "scm",
+    "transfer": "base",
+    "split": "train",
+    "ticks": 24,
+    "net_cents": -1176.0,
+    "net_per_tick": -49.0,
+    "revenue_cents": 57504.0,
+    "cost_cents": 58680.0,
+    "objective_quantity": 1286.6033000000002,
+    "ticks_fallback": 0,
+    "ticks_idle": 0,
+    "funds_end_cents": 204884,
+    "score": -0.03758840825408598,
+    "success": false,
+    "score_first_half": -0.007231596513999628,
+    "score_second_half": -0.06794521999417234,
+    "random_score": -0.39492289939339353,
+    "progress": 0.0
+   },
+   "sim_check": {
+    "applicable": true,
+    "equal": true,
+    "differences": {}
+   },
+   "hypotheses": {
+    "filings": 0,
+    "effects_filed": 0,
+    "predictions_filed": 0,
+    "first_filed_at_tick": null
+   },
+   "behaviour": {
+    "calls": {
+     "rig.read": 5,
+     "rig.spec": 5,
+     "rig.take": 2,
+     "rig.set": 1
+    },
+    "rig_calls_accepted": {
+     "read": 5,
+     "set": 1,
+     "spec": 3
+    },
+    "first_turn": {
+     "rig.read": 1,
+     "rig.set": 6,
+     "rig.spec": 2
+    },
+    "discovery_calls": 0,
+    "read_spec": true,
+    "set_levers": true,
+    "filed_hypotheses": false,
+    "setting_changes": 1,
+    "single_lever_changes": 1,
+    "levers_moved": [
+     "va32"
+    ],
+    "levers_total": 7,
+    "values_tried_per_lever": {
+     "bo61": 1,
+     "ge48": 1,
+     "ka24": 1,
+     "ki10": 1,
+     "ro84": 1,
+     "to70": 1,
+     "va32": 2
+    },
+    "distinct_settings": 2,
+    "ticks_at_default": 3,
+    "final_differs_from_default": true,
+    "last_change_tick": 3,
+    "final_settings_held_ticks": 21
+   },
+   "settings_by_tick": [
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 8.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    }
+   ],
+   "accounting": {
+    "turns": 48,
+    "wall_s": 5937.6,
+    "model_s": 5937.39,
+    "world_s": 0.21,
+    "simulated_s": 86400,
+    "calls": 48,
+    "prompt_tokens": 179017,
+    "gen_tokens": 44357,
+    "parse_failures": 35,
+    "waits": 0,
+    "truncated_prompts": 0,
+    "policy_usage": {
+     "model": "Qwen/Qwen3-4B",
+     "calls": 48,
+     "prompt_tokens": 179017,
+     "gen_tokens": 44357,
+     "parse_failures": 35,
+     "waits": 0,
+     "truncated_prompts": 0,
+     "gen_s": 5937.388621091843,
+     "max_new_tokens": 1024,
+     "max_context": 32768,
+     "interface": {
+      "version": "v4",
+      "tool_chars": 40000,
+      "renderer": "catalogue",
+      "tool_order": "alpha",
+      "result_chars": 12000,
+      "history": 8,
+      "history_chars": 1200,
+      "history_arg_chars": 200,
+      "last_action_line": false,
+      "payload_chars": 600,
+      "max_events": 25
+     }
+    }
+   },
+   "interface": {
+    "stamp": {
+     "kernel": "crucible-kernel/1",
+     "api": "crucible-api/1",
+     "discovery": "crucible-discovery/1",
+     "catalogue": "3b0e046bfb212c558587ff27f894790a",
+     "tools": 40,
+     "hosts": 4,
+     "modules": {
+      "admin": "1",
+      "bank": "1",
+      "identity": "1",
+      "rig": "1"
+     },
+     "visible": {
+      "hash": "3b0e046bfb212c558587ff27f894790a",
+      "tools": 40
+     }
+    },
+    "audit": {
+     "applies": true,
+     "version": "v4",
+     "prompts": {
+      "n": 48,
+      "truncated": 0,
+      "truncated_turns": [],
+      "context_limit": 32768,
+      "max_prompt_tokens": 4762,
+      "mean_prompt_tokens": 3729.5
+     },
+     "generation": {
+      "max_new_tokens": 1024,
+      "at_limit": 35,
+      "at_limit_turns": [
+       3,
+       4,
+       5,
+       7,
+       8,
+       9,
+       10,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       24,
+       25,
+       26,
+       27
+      ],
+      "replies_with_thought": 48,
+      "thought_without_answer": 33,
+      "thought_without_answer_turns": [
+       3,
+       4,
+       5,
+       7,
+       8,
+       9,
+       10,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       19,
+       24,
+       25,
+       26,
+       27,
+       28,
+       29
+      ]
+     },
+     "catalogue": {
+      "renderer": "catalogue",
+      "budget_chars": 40000,
+      "chars": 10554,
+      "level": "full",
+      "complete": true,
+      "tools": 40,
+      "tools_with_signature": 40,
+      "first_line_descriptions": false
+     },
+     "results": {
+      "n": 13,
+      "last_result_budget_chars": 12000,
+      "cut_as_last_result": 0,
+      "cut_as_last_result_by_tool": {},
+      "history_line_chars": 1200,
+      "cut_in_history": 3,
+      "longest_result_chars": 1911,
+      "error_detail_shown": true
+     },
+     "observation": {
+      "turns": 48,
+      "summary_chars": 400,
+      "summaries_cut_by_module": {},
+      "payload_chars": 600,
+      "event_payloads_cut": 0
+     },
+     "clean": true
+    }
+   },
+   "diagnosis": {
+    "format": "crucible-diagnosis/1",
+    "source": "event_log",
+    "actor": "p:agent",
+    "world_id": "llmeval-scm_additive-1000000-mech.scm_additive-1000000.h24.qwen3-4b-v4-think",
+    "window": {
+     "from_seq": 17,
+     "to_seq": 247,
+     "t0": 0,
+     "t1": 86400
+    },
+    "interface": {
+     "kernel": "crucible-kernel/1",
+     "api": "crucible-api/1",
+     "discovery": "crucible-discovery/1",
+     "catalogue": "3b0e046bfb212c558587ff27f894790a",
+     "tools": 40,
+     "hosts": 4,
+     "modules": {
+      "admin": "1",
+      "bank": "1",
+      "identity": "1",
+      "rig": "1"
+     },
+     "visible": {
+      "hash": "3b0e046bfb212c558587ff27f894790a",
+      "tools": 40
+     }
+    },
+    "principals": [
+     "p:agent"
+    ],
+    "counts": {
+     "turns": 48,
+     "attempts": 48,
+     "accepted": 9,
+     "rejected": 4,
+     "unparsed": 35,
+     "waits": 0,
+     "no_action": 0,
+     "distinct_tools": 4
+    },
+    "classes": {
+     "ok_effect": {
+      "n": 1,
+      "rate": 0.0208,
+      "evidence": [
+       48
+      ],
+      "tools": {
+       "rig.set": 1
+      }
+     },
+     "ok_read": {
+      "n": 8,
+      "rate": 0.1667,
+      "evidence": [
+       20,
+       29,
+       69,
+       124,
+       126,
+       183,
+       210,
+       239
+      ],
+      "tools": {
+       "rig.read": 5,
+       "rig.spec": 3
+      }
+     },
+     "syntax": {
+      "n": 35,
+      "rate": 0.7292,
+      "evidence": [],
+      "subs": {
+       "unparseable": 35
+      }
+     },
+     "nonexistent": {
+      "n": 2,
+      "rate": 0.0417,
+      "evidence": [
+       115,
+       172
+      ],
+      "subs": {
+       "no facility facilities see": 2
+      },
+      "tools": {
+       "rig.spec": 2
+      }
+     },
+     "conflict": {
+      "n": 2,
+      "rate": 0.0417,
+      "evidence": [
+       18,
+       181
+      ],
+      "subs": {
+       "you already hold a": 2
+      },
+      "tools": {
+       "rig.take": 2
+      }
+     }
+    },
+    "families": {
+     "valid": {
+      "n": 9,
+      "rate": 0.1875
+     },
+     "idle": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "form": {
+      "n": 35,
+      "rate": 0.7292
+     },
+     "discovery": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "belief": {
+      "n": 4,
+      "rate": 0.0833
+     },
+     "permission": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "rule": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "resource": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "service": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "code": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "simulator": {
+      "n": 0,
+      "rate": 0.0
+     }
+    },
+    "loops": {
+     "status": "absent",
+     "actions": 0,
+     "rate": 0.0,
+     "runs": 0,
+     "longest_run": 0,
+     "by_tool": {},
+     "run_list": [],
+     "unverified_reads": 0,
+     "evidence": [],
+     "definition": "same tool, identical arguments (or one text argument reworded, Jaccard >= 0.8), same outcome, at least 2 times in the preceding 8 attempts"
+    },
+    "context": {
+     "context_limit": 32768,
+     "max_new_tokens": 1024,
+     "status": "absent",
+     "per_turn": true,
+     "turns": 48,
+     "truncated_turns": 0,
+     "rate": 0.0,
+     "evidence_turns": [],
+     "max_prompt_tokens": 4762,
+     "mean_prompt_tokens": 3729.5,
+     "tool_list": {
+      "renderer": "catalogue",
+      "budget_chars": 40000,
+      "level": "full",
+      "first_line_only": false,
+      "hosts_listed": 4,
+      "tools": 40,
+      "with_signature": 40,
+      "share_with_signature": 1.0,
+      "hosts": 4,
+      "hosts_with_no_signature": [],
+      "calls_to_existing_tools": 13,
+      "calls_to_tools_with_signature": 13,
+      "share_of_calls_to_tools_with_signature": 1.0,
+      "discovery_calls": 0,
+      "status": "absent"
+     }
+    },
+    "code": {
+     "tests": 0,
+     "tests_failed": 0,
+     "runs": 0,
+     "runs_failed": 0,
+     "deploys": 0,
+     "deploys_failed": 0,
+     "manifest_rejections": 0,
+     "commits": 0,
+     "requests": {
+      "ok": 0,
+      "error": 0,
+      "overload": 0,
+      "unavailable": 0
+     },
+     "quality": {
+      "scored_hours": 0,
+      "mean_q": null
+     },
+     "evidence": [],
+     "current_deployments": {
+      "ids": [],
+      "requests": {
+       "ok": 0,
+       "error": 0
+      }
+     },
+     "status": "absent",
+     "attempted": false,
+     "reasons": [],
+     "live_deployments": 0,
+     "deployments": 0,
+     "note": "the actor wrote, ran and deployed no code in this window"
+    },
+    "resources": {
+     "funds": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "rate_limit": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "capacity": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "budget": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "cash": {
+      "start": 206060,
+      "end": 204884,
+      "min": 204884,
+      "max": 206501,
+      "min_seq": 244,
+      "spent_by_kind": {
+       "rig_settle": 2555
+      }
+     },
+     "instances_suspended_unpaid": {
+      "n": 0,
+      "evidence": []
+     },
+     "status": "absent",
+     "reasons": [],
+     "n": 0,
+     "rate": 0.0,
+     "evidence": []
+    },
+    "competitor": {
+     "status": "not_applicable",
+     "population": {
+      "status": "not_applicable",
+      "reason": "no consumer population in this world"
+     },
+     "orders": {
+      "status": "not_applicable",
+      "reason": "no marketplace in this world"
+     },
+     "evidence": []
+    },
+    "strategy": {
+     "attempts": 48,
+     "valid_share": 0.1875,
+     "distinct_tools": 3,
+     "top_call_share": 0.4444,
+     "effects": 1,
+     "loop_rate": 0.0,
+     "valid_and_varied": false,
+     "goal": {
+      "success": false,
+      "progress": 0.0
+     },
+     "status": "absent",
+     "reason": "activity was not both valid and varied (see valid_share, distinct_tools, top_call_share, loop_rate)"
+    },
+    "difficulty": {
+     "status": "established",
+     "reason": "every competent reference also failed",
+     "references": [
+      {
+       "name": "idle",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.03758840825408598,
+       "run": "mech.scm_additive-1000000.h24.idle"
+      },
+      {
+       "name": "random_settings",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.5393300839712856,
+       "run": "mech.scm_additive-1000000.h24.random_settings"
+      },
+      {
+       "name": "random",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.01740351248973537,
+       "run": "mech.scm_additive-1000000.h24.random_tools"
+      },
+      {
+       "name": "scripted_experimenter",
+       "competent": true,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.03758840825408598,
+       "run": "mech.scm_additive-1000000.h24.scripted_experimenter"
+      },
+      {
+       "name": "privileged_reference",
+       "competent": false,
+       "success": true,
+       "progress": 1.0,
+       "score": 0.9621202087361924,
+       "run": "mech.scm_additive-1000000.h24.privileged_reference"
+      }
+     ],
+     "best_reference_progress": 0.0
+    },
+    "findings": [
+     {
+      "kind": "syntax",
+      "status": "established",
+      "share": 0.7292,
+      "evidence": [],
+      "detail": "unparseable 35"
+     },
+     {
+      "kind": "nonexistent",
+      "status": "established",
+      "share": 0.0417,
+      "evidence": [
+       115,
+       172
+      ],
+      "detail": "no facility facilities see 2"
+     },
+     {
+      "kind": "conflict",
+      "status": "established",
+      "share": 0.0417,
+      "evidence": [
+       18,
+       181
+      ],
+      "detail": "you already hold a 2"
+     },
+     {
+      "kind": "task_difficulty",
+      "status": "established",
+      "share": null,
+      "evidence": [],
+      "detail": "every competent reference also failed"
+     }
+    ],
+    "primary": "syntax",
+    "primary_reason": "39 of 48 attempts did not succeed; the largest class is syntax (35)",
+    "not_determinable": []
+   },
+   "invariants": [],
+   "model": {
+    "requested": "Qwen/Qwen3-4B",
+    "model": "Qwen/Qwen3-4B",
+    "device": "cuda",
+    "max_context": 32768,
+    "thinking": true,
+    "weights_fingerprint": "4e13ff02190852e4",
+    "notes": []
+   },
+   "code_digest": "c6be89bf9f00f6ed",
+   "recorded": "2026-11-23T05:04:34Z",
+   "config_key": "ace6f467be6876bd",
+   "transcript_file": "ow_llm_mech.scm_additive-1000000.h24.qwen3-4b-v4-think.jsonl",
+   "transcript_turns": 48
+  },
+  "mech.scm_additive-1000000.h24.qwen3-4b-v4-sampled": {
+   "format": "crucible-llm-eval/1",
+   "kind": "mechanism",
+   "run": "mech.scm_additive-1000000.h24.qwen3-4b-v4-sampled",
+   "task": {
+    "task": "scm_additive:1000000",
+    "horizon_ticks": 24,
+    "starting_balance_cents": 206060,
+    "objective": "Operate the facility so that your net income (revenue minus cost) over the first 24 ticks is at least 25883 cents.",
+    "goal_net_cents": 25883,
+    "family": "scm_additive",
+    "seed": 1000000,
+    "engine": "scm",
+    "transfer": "base",
+    "split": "train",
+    "full_horizon_ticks": 96,
+    "shortened": true,
+    "n_levers": 7,
+    "world_family": "mech_scm_additive",
+    "world_seed": 1338671478
+   },
+   "goal_text": "Operate the facility so that your net income (revenue minus cost) over the first 24 ticks is at least 25883 cents.",
+   "policy": {
+    "name": "llm:Qwen/Qwen3-4B",
+    "kind": "llm",
+    "class": "EvalLLMPolicy",
+    "model": "Qwen/Qwen3-4B",
+    "interface": "v4",
+    "tool_chars": 40000,
+    "tool_order": "alpha",
+    "result_chars": 12000,
+    "history": 8,
+    "history_chars": 1200,
+    "history_arg_chars": 200,
+    "last_action_line": false,
+    "payload_chars": 600,
+    "max_events": 25,
+    "max_new_tokens": 512,
+    "temperature": 0.7,
+    "host_summaries": true,
+    "max_context": 32768,
+    "thinking": false,
+    "test_double": false,
+    "system_prompt_hash": "45c6bbc64ed2"
+   },
+   "runner": {
+    "dt_s": 1800,
+    "tick_s": 3600,
+    "turns_per_tick": 2,
+    "turns": 48,
+    "seed": 0
+   },
+   "outcome": {
+    "task": "scm_additive:1000000",
+    "family": "scm_additive",
+    "seed": 1000000,
+    "engine": "scm",
+    "transfer": "base",
+    "split": "train",
+    "ticks": 24,
+    "net_cents": -1176.0,
+    "net_per_tick": -49.0,
+    "revenue_cents": 57504.0,
+    "cost_cents": 58680.0,
+    "objective_quantity": 1286.6033000000002,
+    "ticks_fallback": 0,
+    "ticks_idle": 0,
+    "funds_end_cents": 204884,
+    "score": -0.03758840825408598,
+    "success": false,
+    "score_first_half": -0.007231596513999628,
+    "score_second_half": -0.06794521999417234,
+    "random_score": -0.39492289939339353,
+    "progress": 0.0
+   },
+   "sim_check": {
+    "applicable": true,
+    "equal": true,
+    "differences": {}
+   },
+   "hypotheses": {
+    "filings": 0,
+    "effects_filed": 0,
+    "predictions_filed": 0,
+    "first_filed_at_tick": null
+   },
+   "behaviour": {
+    "calls": {
+     "rig.read": 48
+    },
+    "rig_calls_accepted": {
+     "read": 48
+    },
+    "first_turn": {
+     "rig.read": 0
+    },
+    "discovery_calls": 0,
+    "read_spec": false,
+    "set_levers": false,
+    "filed_hypotheses": false,
+    "setting_changes": 0,
+    "single_lever_changes": 0,
+    "levers_moved": [],
+    "levers_total": 7,
+    "values_tried_per_lever": {
+     "bo61": 1,
+     "ge48": 1,
+     "ka24": 1,
+     "ki10": 1,
+     "ro84": 1,
+     "to70": 1,
+     "va32": 1
+    },
+    "distinct_settings": 1,
+    "ticks_at_default": 24,
+    "final_differs_from_default": false,
+    "last_change_tick": null,
+    "final_settings_held_ticks": 24
+   },
+   "settings_by_tick": [
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    }
+   ],
+   "accounting": {
+    "turns": 48,
+    "wall_s": 163.4,
+    "model_s": 163.13,
+    "world_s": 0.27,
+    "simulated_s": 86400,
+    "calls": 48,
+    "prompt_tokens": 269655,
+    "gen_tokens": 624,
+    "parse_failures": 0,
+    "waits": 0,
+    "truncated_prompts": 0,
+    "policy_usage": {
+     "model": "Qwen/Qwen3-4B",
+     "calls": 48,
+     "prompt_tokens": 269655,
+     "gen_tokens": 624,
+     "parse_failures": 0,
+     "waits": 0,
+     "truncated_prompts": 0,
+     "gen_s": 163.13156008720398,
+     "max_new_tokens": 512,
+     "max_context": 32768,
+     "interface": {
+      "version": "v4",
+      "tool_chars": 40000,
+      "renderer": "catalogue",
+      "tool_order": "alpha",
+      "result_chars": 12000,
+      "history": 8,
+      "history_chars": 1200,
+      "history_arg_chars": 200,
+      "last_action_line": false,
+      "payload_chars": 600,
+      "max_events": 25
+     }
+    }
+   },
+   "interface": {
+    "stamp": {
+     "kernel": "crucible-kernel/1",
+     "api": "crucible-api/1",
+     "discovery": "crucible-discovery/1",
+     "catalogue": "3b0e046bfb212c558587ff27f894790a",
+     "tools": 40,
+     "hosts": 4,
+     "modules": {
+      "admin": "1",
+      "bank": "1",
+      "identity": "1",
+      "rig": "1"
+     },
+     "visible": {
+      "hash": "3b0e046bfb212c558587ff27f894790a",
+      "tools": 40
+     }
+    },
+    "audit": {
+     "applies": true,
+     "version": "v4",
+     "prompts": {
+      "n": 48,
+      "truncated": 0,
+      "truncated_turns": [],
+      "context_limit": 32768,
+      "max_prompt_tokens": 6138,
+      "mean_prompt_tokens": 5617.8
+     },
+     "generation": {
+      "max_new_tokens": 512,
+      "at_limit": 0,
+      "at_limit_turns": [],
+      "replies_with_thought": 0,
+      "thought_without_answer": 0,
+      "thought_without_answer_turns": []
+     },
+     "catalogue": {
+      "renderer": "catalogue",
+      "budget_chars": 40000,
+      "chars": 10554,
+      "level": "full",
+      "complete": true,
+      "tools": 40,
+      "tools_with_signature": 40,
+      "first_line_descriptions": false
+     },
+     "results": {
+      "n": 48,
+      "last_result_budget_chars": 12000,
+      "cut_as_last_result": 0,
+      "cut_as_last_result_by_tool": {},
+      "history_line_chars": 1200,
+      "cut_in_history": 0,
+      "longest_result_chars": 525,
+      "error_detail_shown": true
+     },
+     "observation": {
+      "turns": 48,
+      "summary_chars": 400,
+      "summaries_cut_by_module": {},
+      "payload_chars": 600,
+      "event_payloads_cut": 0
+     },
+     "clean": true
+    }
+   },
+   "diagnosis": {
+    "format": "crucible-diagnosis/1",
+    "source": "event_log",
+    "actor": "p:agent",
+    "world_id": "llmeval-scm_additive-1000000-mech.scm_additive-1000000.h24.qwen3-4b-v4-sampled",
+    "window": {
+     "from_seq": 17,
+     "to_seq": 281,
+     "t0": 0,
+     "t1": 86400
+    },
+    "interface": {
+     "kernel": "crucible-kernel/1",
+     "api": "crucible-api/1",
+     "discovery": "crucible-discovery/1",
+     "catalogue": "3b0e046bfb212c558587ff27f894790a",
+     "tools": 40,
+     "hosts": 4,
+     "modules": {
+      "admin": "1",
+      "bank": "1",
+      "identity": "1",
+      "rig": "1"
+     },
+     "visible": {
+      "hash": "3b0e046bfb212c558587ff27f894790a",
+      "tools": 40
+     }
+    },
+    "principals": [
+     "p:agent"
+    ],
+    "counts": {
+     "turns": 48,
+     "attempts": 48,
+     "accepted": 48,
+     "rejected": 0,
+     "unparsed": 0,
+     "waits": 0,
+     "no_action": 0,
+     "distinct_tools": 1
+    },
+    "classes": {
+     "ok_read": {
+      "n": 48,
+      "rate": 1.0,
+      "evidence": [
+       18,
+       20,
+       29,
+       31,
+       40,
+       42,
+       51,
+       53,
+       62,
+       64,
+       73,
+       75
+      ],
+      "tools": {
+       "rig.read": 48
+      }
+     }
+    },
+    "families": {
+     "valid": {
+      "n": 48,
+      "rate": 1.0
+     },
+     "idle": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "form": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "discovery": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "belief": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "permission": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "rule": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "resource": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "service": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "code": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "simulator": {
+      "n": 0,
+      "rate": 0.0
+     }
+    },
+    "loops": {
+     "status": "absent",
+     "actions": 0,
+     "rate": 0.0,
+     "runs": 0,
+     "longest_run": 0,
+     "by_tool": {},
+     "run_list": [],
+     "unverified_reads": 0,
+     "evidence": [],
+     "definition": "same tool, identical arguments (or one text argument reworded, Jaccard >= 0.8), same outcome, at least 2 times in the preceding 8 attempts"
+    },
+    "context": {
+     "context_limit": 32768,
+     "max_new_tokens": 512,
+     "status": "absent",
+     "per_turn": true,
+     "turns": 48,
+     "truncated_turns": 0,
+     "rate": 0.0,
+     "evidence_turns": [],
+     "max_prompt_tokens": 6138,
+     "mean_prompt_tokens": 5617.8,
+     "tool_list": {
+      "renderer": "catalogue",
+      "budget_chars": 40000,
+      "level": "full",
+      "first_line_only": false,
+      "hosts_listed": 4,
+      "tools": 40,
+      "with_signature": 40,
+      "share_with_signature": 1.0,
+      "hosts": 4,
+      "hosts_with_no_signature": [],
+      "calls_to_existing_tools": 48,
+      "calls_to_tools_with_signature": 48,
+      "share_of_calls_to_tools_with_signature": 1.0,
+      "discovery_calls": 0,
+      "status": "absent"
+     }
+    },
+    "code": {
+     "tests": 0,
+     "tests_failed": 0,
+     "runs": 0,
+     "runs_failed": 0,
+     "deploys": 0,
+     "deploys_failed": 0,
+     "manifest_rejections": 0,
+     "commits": 0,
+     "requests": {
+      "ok": 0,
+      "error": 0,
+      "overload": 0,
+      "unavailable": 0
+     },
+     "quality": {
+      "scored_hours": 0,
+      "mean_q": null
+     },
+     "evidence": [],
+     "current_deployments": {
+      "ids": [],
+      "requests": {
+       "ok": 0,
+       "error": 0
+      }
+     },
+     "status": "absent",
+     "attempted": false,
+     "reasons": [],
+     "live_deployments": 0,
+     "deployments": 0,
+     "note": "the actor wrote, ran and deployed no code in this window"
+    },
+    "resources": {
+     "funds": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "rate_limit": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "capacity": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "budget": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "cash": {
+      "start": 206060,
+      "end": 204884,
+      "min": 204884,
+      "max": 206501,
+      "min_seq": 278,
+      "spent_by_kind": {
+       "rig_settle": 2555
+      }
+     },
+     "instances_suspended_unpaid": {
+      "n": 0,
+      "evidence": []
+     },
+     "status": "absent",
+     "reasons": [],
+     "n": 0,
+     "rate": 0.0,
+     "evidence": []
+    },
+    "competitor": {
+     "status": "not_applicable",
+     "population": {
+      "status": "not_applicable",
+      "reason": "no consumer population in this world"
+     },
+     "orders": {
+      "status": "not_applicable",
+      "reason": "no marketplace in this world"
+     },
+     "evidence": []
+    },
+    "strategy": {
+     "attempts": 48,
+     "valid_share": 1.0,
+     "distinct_tools": 1,
+     "top_call_share": 1.0,
+     "effects": 0,
+     "loop_rate": 0.0,
+     "valid_and_varied": false,
+     "goal": {
+      "success": false,
+      "progress": 0.0
+     },
+     "status": "absent",
+     "reason": "activity was not both valid and varied (see valid_share, distinct_tools, top_call_share, loop_rate)"
+    },
+    "difficulty": {
+     "status": "established",
+     "reason": "every competent reference also failed",
+     "references": [
+      {
+       "name": "idle",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.03758840825408598,
+       "run": "mech.scm_additive-1000000.h24.idle"
+      },
+      {
+       "name": "random_settings",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.5393300839712856,
+       "run": "mech.scm_additive-1000000.h24.random_settings"
+      },
+      {
+       "name": "random",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.01740351248973537,
+       "run": "mech.scm_additive-1000000.h24.random_tools"
+      },
+      {
+       "name": "scripted_experimenter",
+       "competent": true,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.03758840825408598,
+       "run": "mech.scm_additive-1000000.h24.scripted_experimenter"
+      },
+      {
+       "name": "privileged_reference",
+       "competent": false,
+       "success": true,
+       "progress": 1.0,
+       "score": 0.9621202087361924,
+       "run": "mech.scm_additive-1000000.h24.privileged_reference"
+      }
+     ],
+     "best_reference_progress": 0.0
+    },
+    "findings": [
+     {
+      "kind": "task_difficulty",
+      "status": "established",
+      "share": null,
+      "evidence": [],
+      "detail": "every competent reference also failed"
+     }
+    ],
+    "primary": "not_determinable",
+    "primary_reason": "no detector reached its threshold: see the rates of each class",
+    "not_determinable": []
+   },
+   "invariants": [],
+   "model": {
+    "requested": "Qwen/Qwen3-4B",
+    "model": "Qwen/Qwen3-4B",
+    "device": "cuda",
+    "max_context": 32768,
+    "thinking": false,
+    "weights_fingerprint": "4e13ff02190852e4",
+    "notes": []
+   },
+   "code_digest": "c6be89bf9f00f6ed",
+   "recorded": "2026-11-23T05:07:19Z",
+   "config_key": "4349e0eec1db6927",
+   "transcript_file": "ow_llm_mech.scm_additive-1000000.h24.qwen3-4b-v4-sampled.jsonl",
+   "transcript_turns": 48
   }
  }
 }
