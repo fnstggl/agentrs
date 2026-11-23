@@ -465,8 +465,15 @@ def test_backbone_trained_lifetime_end_to_end_and_the_swap_back_to_pretrained_we
         pass
     ch = life.tr.backbone.change()
     row = life.x["rows"][-1]
+    tr_texts, tr_keys = dict(life.tr.texts), [k for k in life.tr.store.key2row if k]
+    tr_mat = np.stack([life.tr.store.mat[life.tr.store.key2row[k]] for k in tr_keys])
+    tr_now = life.tr.backbone.embed_np([tr_texts.get(k, " ") for k in tr_keys])
     life.tr.close()
     assert ch["l2"] > 0 and row["backbone"]["change_from_pretrained"]["l2"] == ch["l2"]       # the backbone itself learned
+    # every stored text vector, tool descriptions included, is what the CURRENT weights compute for that text: the
+    # in-run evaluation and a fresh process that embeds from scratch then see the same inputs
+    assert all(k in tr_texts for k in tr_keys), "a stored embedding has no text, so it cannot follow the backbone"
+    assert np.allclose(tr_mat, tr_now, atol=2e-3)
     assert os.path.exists(os.path.join(rd, "ckpt", "latest.pt.backbone.pt"))
     before = os.path.getmtime(os.path.join(rd, "ckpt", "latest.pt"))
     out = backbone_swap(rd)

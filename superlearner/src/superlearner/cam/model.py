@@ -73,6 +73,13 @@ class EmbStore:
     def has(self, key: int) -> bool:
         return int(key) in self.key2row
 
+    def overwrite(self, key: int, vec: np.ndarray) -> None:
+        """Replace the vector of a known key (the embedding function changed)."""
+        r = self.key2row[int(key)]
+        if not np.array_equal(self.mat[r], vec):
+            self.mat[r] = vec
+            self._tensor = None
+
     def replace(self, keys, mat: np.ndarray) -> None:
         """Drop everything and take these vectors instead (all embeddings changed: the backbone was updated)."""
         self.mat = np.zeros((max(4096, 2 * (len(keys) + 1)), self.dim), np.float32)

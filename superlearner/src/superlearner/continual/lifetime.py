@@ -321,6 +321,7 @@ class Lifetime:
         p, tr = self.phases[k], self.tr
         t0 = time.time()
         cons = tr.algo.end_phase(tr.store) if (hasattr(tr.algo, "end_phase") and not self.x["frozen"]) else {}
+        tr.refresh_embeddings()                       # consolidation may have moved a trainable backbone
         row: dict = {"after_phase": k, "name": p["name"], "env_decisions": tr.env_decisions, "episodes": tr.episodes,
                      "iter": tr.iter, "lists": {}, "consolidation": cons, "frozen": self.x["frozen"],
                      "memory_items": len(tr.memory), "tools": len(tr.library.tools),

@@ -363,3 +363,14 @@ Work on the amendment ("continual learning must change the core neural weights")
   supervised steps `scarce_rehearsal` / `scarce_meta_rule`, because the real learner is near its ceiling at full steps).
   The rule's replay weighting is a reviewed setting of the trusted code (`replay_bias`, off by default); the candidate's
   source tree is not executed outside the confinement.
+* **A bug that invalidated every trainable-backbone run so far, caught by the fresh-process evaluation.** The
+  internalization route with a trainable backbone reported 100% in its own process and 0-40% in the fresh one. Cause:
+  tool descriptions (about 200 texts, the very items the controller chooses among) reach the embedding store through
+  the capability index, which bypassed the record of "which text is this key". So during Architecture B training those
+  vectors stayed at their PRETRAINED values and never received gradient, while a fresh process computed them from the
+  trained backbone and handed the controller inputs it had never seen. A second, smaller fault: consolidation moved the
+  backbone after the last refresh of the stored vectors. Frozen-backbone conditions are unaffected (the function does
+  not change), so their runs stand. Fixed; a test now requires every stored vector to equal what the current weights
+  compute for its text. All Architecture B runs (four lifetimes, four internalization routes) were moved to
+  `runs/archive/continual_backbone_tools_frozen/` and are rerun. The in-run numbers those runs reported (e.g. 90% final
+  success for the full backbone) measured a learner whose tool embeddings were frozen, and are not reported as results.

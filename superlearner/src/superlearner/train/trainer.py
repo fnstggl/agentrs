@@ -180,7 +180,8 @@ class Trainer:
             os.makedirs(sdir, mode=0o700, exist_ok=True)
             sock = os.path.join(sdir, f"bb{os.getpid()}.sock")
             self.embed_service = EmbedService(self.backbone, sock)
-            worker_llm = {"kind": "backbone", "socket": sock, "gen": c["llm"] if c["llm"].get("kind") == "remote" else None}
+            worker_llm = {"kind": "backbone", "socket": sock, "gen": c["llm"] if c["llm"].get("kind") == "remote" else None,
+                          "trainable": self.backbone.trainable}
             if hasattr(self.algo, "attach_backbone"):
                 self.algo.attach_backbone(self.backbone)
         wcfg = {"llm": worker_llm, "model": c["model"], "agent": c["agent"], "core": c["core"],
