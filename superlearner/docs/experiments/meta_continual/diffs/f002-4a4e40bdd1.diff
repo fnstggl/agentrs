@@ -1,0 +1,15 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -48,9 +48,9 @@
+  'rehearsal': {'keep': True, 'per_arm': 120},
+- 'consolidate_steps': 0,
++ 'consolidate_steps': 32,
+  'anchor': {'kind': 'none', 'coef': 0.0, 'decay': 1.0, 'fisher_episodes': 64, 'top_frac': 1.0},
+  'l2init': 0.0,
+- 'shrink_perturb': {'shrink': 1.0, 'sigma': 0.0},
++ 'shrink_perturb': {'shrink': 0.95, 'sigma': 0.01},
+  'group_lr': {},
+  'observe': {'steps': 120,
+-             'lr': 0.0003,
++             'lr': 0.0001,
+              'rehearse': True,

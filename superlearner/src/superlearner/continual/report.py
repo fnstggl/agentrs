@@ -63,6 +63,11 @@ def load_life(root: str) -> dict:
         r = json.load(open(p))
         if not r.get("finished"):
             continue
+        holes = [(row["name"], key, k) for row in r["rows"] for key in ("lists", "lists_sampled", "lists_memory_off")
+                 for k, v in (row.get(key) or {}).items() if any(x is None for x in v["per_task"])]
+        if holes:                                    # an evaluation in which episodes did not run is not a result
+            print(f"EXCLUDED {p}: evaluation episodes missing in {holes[:3]}")
+            continue
         name = os.path.basename(os.path.dirname(p))
         cond, _, sd = name.rpartition("_s")
         runs.setdefault(cond, {})[int(sd)] = r

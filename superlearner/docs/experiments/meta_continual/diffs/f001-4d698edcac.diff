@@ -1,0 +1,14 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -44,3 +44,3 @@
+         'lr_mult': 4.0,
+-        'fit_steps': 300,
++        'fit_steps': 100,
+         'fit_lr': 0.001,
+@@ -48,4 +48,4 @@
+  'rehearsal': {'keep': True, 'per_arm': 120},
+- 'consolidate_steps': 0,
+- 'anchor': {'kind': 'none', 'coef': 0.0, 'decay': 1.0, 'fisher_episodes': 64, 'top_frac': 1.0},
++ 'consolidate_steps': 96,
++ 'anchor': {'kind': 'l2sp', 'coef': 20000.0, 'decay': 1.0, 'fisher_episodes': 64, 'top_frac': 1.0},
+  'l2init': 0.0,

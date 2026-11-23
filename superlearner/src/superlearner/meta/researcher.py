@@ -822,7 +822,9 @@ def main(a) -> int:
         from ..cli import DEFAULT_LLM
         from ..llm.server import connect
         spec = dict(DEFAULT_LLM, **cfg.get("proposer_llm", {}))
-        if os.path.exists(spec["socket"]):
+        if spec.get("kind") != "remote":                 # e.g. {"kind": "hf", "model": ..., "device": "cpu"}: in-process
+            llm = connect(spec)
+        elif os.path.exists(spec["socket"]):
             llm = connect(spec)
         else:
             print(f"note: no LLM server at {spec['socket']}; running without LLM-written proposals")

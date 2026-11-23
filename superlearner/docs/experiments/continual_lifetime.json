@@ -425,9 +425,906 @@
    "restarts": [
     1
    ]
+  },
+  "naive": {
+   "seeds": [
+    0
+   ],
+   "phases": [
+    "start",
+    "capital",
+    "operate",
+    "launch",
+    "build",
+    "shift"
+   ],
+   "matrix_mean": [
+    [
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.5
+    ],
+    [
+     0.5,
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.75
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.5,
+     0.0,
+     0.5,
+     0.75,
+     0.0,
+     0.25
+    ],
+    [
+     0.25,
+     0.5,
+     0.7917,
+     0.0,
+     1.0,
+     0.3125
+    ],
+    [
+     0.5,
+     0.5,
+     0.75,
+     0.5,
+     1.0,
+     0.4583
+    ]
+   ],
+   "matrix_by_seed": [
+    [
+     [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
+     [
+      0.5,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.75
+     ],
+     [
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.5,
+      0.0,
+      0.5,
+      0.75,
+      0.0,
+      0.25
+     ],
+     [
+      0.25,
+      0.5,
+      0.7916666666666666,
+      0.0,
+      1.0,
+      0.3125
+     ],
+     [
+      0.5,
+      0.5,
+      0.75,
+      0.5,
+      1.0,
+      0.4583333333333333
+     ]
+    ]
+   ],
+   "matrix_sampled_by_seed": [
+    [
+     [
+      1.0,
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     [
+      0.5,
+      1.0,
+      null,
+      null,
+      null,
+      null
+     ],
+     [
+      0.0,
+      0.0,
+      0.7083333333333334,
+      null,
+      null,
+      null
+     ],
+     [
+      0.5,
+      0.0,
+      0.5,
+      0.75,
+      null,
+      null
+     ],
+     [
+      0.375,
+      0.5,
+      0.625,
+      0.5,
+      1.0,
+      null
+     ],
+     [
+      0.5,
+      0.5,
+      0.625,
+      0.6666666666666666,
+      1.0,
+      0.4791666666666667
+     ]
+    ]
+   ],
+   "final_by_phase": [
+    0.5,
+    0.5,
+    0.75,
+    0.5,
+    1.0,
+    0.4583
+   ],
+   "final_mean": {
+    "mean": 0.6180555555555556,
+    "by_seed": [
+     0.6180555555555556
+    ]
+   },
+   "final_mean_sampled": {
+    "mean": 0.6284722222222222,
+    "by_seed": [
+     0.6284722222222222
+    ]
+   },
+   "final_mean_taught": {
+    "mean": 0.65,
+    "by_seed": [
+     0.65
+    ]
+   },
+   "forgetting": {
+    "mean": 0.3,
+    "by_phase": [
+     0.5,
+     0.5,
+     0.25,
+     0.25,
+     0.0
+    ],
+    "by_seed": [
+     0.3
+    ]
+   },
+   "acquisition": {
+    "mean": 0.8159722222222222,
+    "by_phase": [
+     1.0,
+     1.0,
+     1.0,
+     0.75,
+     1.0,
+     0.1458
+    ],
+    "by_seed": [
+     0.8159722222222222
+    ]
+   },
+   "right_after_learning": {
+    "mean": 0.8680555555555555,
+    "by_phase": [
+     1.0,
+     1.0,
+     1.0,
+     0.75,
+     1.0,
+     0.4583
+    ]
+   },
+   "zero_shot_before_training": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.3125
+   ],
+   "shift": {
+    "before": 0.3125,
+    "after": 0.4583333333333333,
+    "by_seed": [
+     [
+      0.3125,
+      0.4583333333333333
+     ]
+    ]
+   },
+   "unseen_worlds_final": {
+    "mean": 0.6770833333333334,
+    "by_seed": [
+     0.6770833333333334
+    ]
+   },
+   "memory_items_final": 0.0,
+   "tools_final": 0.0,
+   "train_first_iter": [
+    1.0,
+    0.9623,
+    0.7679,
+    0.8571,
+    1.0,
+    0.4881
+   ],
+   "train_mean": [
+    1.0,
+    0.972225,
+    0.74555,
+    0.7946249999999999,
+    0.991075,
+    0.5624750000000001
+   ],
+   "env_decisions": 13669.0,
+   "episodes": 1651.0,
+   "wall_s": {
+    "rollout_s": 1925.386246919632,
+    "update_s": 862.0715913772583
+   },
+   "optimizer_steps": 1574.0,
+   "plasticity": {
+    "probe_loss_after_40_steps": [
+     2.310298204421997,
+     3.220397710800171,
+     2.5101420879364014,
+     3.084845542907715,
+     3.245589256286621,
+     3.1322765350341797
+    ],
+    "probe_chance": 4.9796977043151855,
+    "dormant_fraction": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "state_effective_rank": [
+     3.952543020248413,
+     4.746251106262207,
+     2.8367557525634766,
+     2.3486316204071045,
+     2.147399425506592,
+     2.14506459236145
+    ]
+   },
+   "world_model_heldout": [
+    {
+     "ok_accuracy": 0.9496,
+     "majority": 0.6403,
+     "ok_nll": 0.1658,
+     "base_nll": 0.6533,
+     "next_cosine": 0.9956,
+     "next_cosine_mean_predictor": 0.887
+    },
+    {
+     "ok_accuracy": 0.92855,
+     "majority": 0.6409499999999999,
+     "ok_nll": 0.2007,
+     "base_nll": 0.6529,
+     "next_cosine": 0.9662999999999999,
+     "next_cosine_mean_predictor": 0.77805
+    },
+    {
+     "ok_accuracy": 0.9198333333333334,
+     "majority": 0.6141666666666666,
+     "ok_nll": 0.21396666666666667,
+     "base_nll": 0.6638666666666667,
+     "next_cosine": 0.9618333333333334,
+     "next_cosine_mean_predictor": 0.8199
+    },
+    {
+     "ok_accuracy": 0.917875,
+     "majority": 0.5951249999999999,
+     "ok_nll": 0.277775,
+     "base_nll": 0.67045,
+     "next_cosine": 0.9860500000000001,
+     "next_cosine_mean_predictor": 0.928025
+    },
+    {
+     "ok_accuracy": 0.9268599999999999,
+     "majority": 0.57936,
+     "ok_nll": 0.25576,
+     "base_nll": 0.67488,
+     "next_cosine": 0.9570799999999998,
+     "next_cosine_mean_predictor": 0.916
+    },
+    {
+     "ok_accuracy": 0.9251,
+     "majority": 0.5842499999999999,
+     "ok_nll": 0.24,
+     "base_nll": 0.67395,
+     "next_cosine": 0.9711,
+     "next_cosine_mean_predictor": 0.9240333333333334
+    }
+   ],
+   "world_model_first_phase_over_time": [
+    0.9496,
+    0.9496,
+    0.9353,
+    0.9281,
+    0.964,
+    0.964
+   ],
+   "world_model_prequential": {
+    "accuracy": 0.911575,
+    "majority": 0.7049875,
+    "first_iteration": [
+     0.6277,
+     0.6369
+    ],
+    "last_iteration": [
+     0.9785,
+     0.5785
+    ]
+   },
+   "weights_since_init_relative": {
+    "input": 0.05962818337449513,
+    "encoder": 0.160149518678861,
+    "recurrent": 0.2963657822357159,
+    "policy": 0.9070321270360858,
+    "critic": 0.318642730268945,
+    "all": 0.1351256426950042
+   },
+   "weights_changed_after_first_phase": [
+    true
+   ],
+   "backbone": {
+    "mode": "none",
+    "trainable": 0,
+    "total": 548856064,
+    "relative_change_from_pretrained": 0.0,
+    "l2_change_from_pretrained": 0.0
+   },
+   "params": {
+    "controller": {
+     "trainable": 19667591,
+     "total": 19667591,
+     "frozen_text_embedding_rows": 2323
+    },
+    "groups": {
+     "input": 4806784,
+     "encoder": 10647552,
+     "recurrent": 2217600,
+     "policy": 1772162,
+     "critic": 223493,
+     "wm": 1057166
+    },
+    "backbone": {
+     "model": "Qwen/Qwen3-0.6B",
+     "mode": "none",
+     "blocks_used": 25,
+     "trainable": 0,
+     "total": 548856064
+    }
+   },
+   "restarts": [
+    3
+   ]
+  },
+  "rehearsal": {
+   "seeds": [
+    0
+   ],
+   "phases": [
+    "start",
+    "capital",
+    "operate",
+    "launch",
+    "build",
+    "shift"
+   ],
+   "matrix_mean": [
+    [
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.5
+    ],
+    [
+     1.0,
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    [
+     0.5,
+     1.0,
+     1.0,
+     0.0,
+     0.0,
+     0.75
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     0.8333,
+     0.0,
+     1.0
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     0.75,
+     1.0,
+     1.0
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     0.8333,
+     1.0,
+     1.0
+    ]
+   ],
+   "matrix_by_seed": [
+    [
+     [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
+     [
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0
+     ],
+     [
+      0.5,
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      0.75
+     ],
+     [
+      1.0,
+      1.0,
+      1.0,
+      0.8333333333333334,
+      0.0,
+      1.0
+     ],
+     [
+      1.0,
+      1.0,
+      1.0,
+      0.75,
+      1.0,
+      1.0
+     ],
+     [
+      1.0,
+      1.0,
+      1.0,
+      0.8333333333333334,
+      1.0,
+      1.0
+     ]
+    ]
+   ],
+   "matrix_sampled_by_seed": [
+    [
+     [
+      1.0,
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     [
+      1.0,
+      0.9583333333333334,
+      null,
+      null,
+      null,
+      null
+     ],
+     [
+      0.625,
+      1.0,
+      0.8333333333333334,
+      null,
+      null,
+      null
+     ],
+     [
+      1.0,
+      1.0,
+      0.875,
+      0.3333333333333333,
+      null,
+      null
+     ],
+     [
+      0.875,
+      1.0,
+      0.9583333333333334,
+      0.5,
+      1.0,
+      null
+     ],
+     [
+      0.9166666666666666,
+      1.0,
+      0.875,
+      0.5,
+      1.0,
+      0.8958333333333334
+     ]
+    ]
+   ],
+   "final_by_phase": [
+    1.0,
+    1.0,
+    1.0,
+    0.8333,
+    1.0,
+    1.0
+   ],
+   "final_mean": {
+    "mean": 0.9722222222222223,
+    "by_seed": [
+     0.9722222222222223
+    ]
+   },
+   "final_mean_sampled": {
+    "mean": 0.8645833333333331,
+    "by_seed": [
+     0.8645833333333331
+    ]
+   },
+   "final_mean_taught": {
+    "mean": 0.9666666666666668,
+    "by_seed": [
+     0.9666666666666668
+    ]
+   },
+   "forgetting": {
+    "mean": 0.0,
+    "by_phase": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "by_seed": [
+     0.0
+    ]
+   },
+   "acquisition": {
+    "mean": 0.8055555555555557,
+    "by_phase": [
+     1.0,
+     1.0,
+     1.0,
+     0.8333,
+     1.0,
+     0.0
+    ],
+    "by_seed": [
+     0.8055555555555557
+    ]
+   },
+   "right_after_learning": {
+    "mean": 0.9722222222222223,
+    "by_phase": [
+     1.0,
+     1.0,
+     1.0,
+     0.8333,
+     1.0,
+     1.0
+    ]
+   },
+   "zero_shot_before_training": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "shift": {
+    "before": 1.0,
+    "after": 1.0,
+    "by_seed": [
+     [
+      1.0,
+      1.0
+     ]
+    ]
+   },
+   "unseen_worlds_final": {
+    "mean": 1.0,
+    "by_seed": [
+     1.0
+    ]
+   },
+   "memory_items_final": 0.0,
+   "tools_final": 0.0,
+   "train_first_iter": [
+    1.0,
+    0.9811,
+    0.5179,
+    0.5536,
+    0.9821,
+    0.9048
+   ],
+   "train_mean": [
+    1.0,
+    0.9308,
+    0.625,
+    0.6964250000000001,
+    0.982125,
+    0.9196749999999999
+   ],
+   "env_decisions": 17481.0,
+   "episodes": 1651.0,
+   "wall_s": {
+    "rollout_s": 2186.624284505844,
+    "update_s": 1175.2679045200348
+   },
+   "optimizer_steps": 1614.0,
+   "plasticity": {
+    "probe_loss_after_40_steps": [
+     2.197350025177002,
+     3.093308687210083,
+     2.728910446166992,
+     2.5975072383880615,
+     2.3203961849212646,
+     2.624187469482422
+    ],
+    "probe_chance": 4.9796977043151855,
+    "dormant_fraction": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "state_effective_rank": [
+     3.93780255317688,
+     3.5899240970611572,
+     3.861187696456909,
+     4.307510852813721,
+     4.58282470703125,
+     4.57765007019043
+    ]
+   },
+   "world_model_heldout": [
+    {
+     "ok_accuracy": 0.9353,
+     "majority": 0.6475,
+     "ok_nll": 0.1364,
+     "base_nll": 0.649,
+     "next_cosine": 0.9943,
+     "next_cosine_mean_predictor": 0.8258
+    },
+    {
+     "ok_accuracy": 0.92435,
+     "majority": 0.63795,
+     "ok_nll": 0.29574999999999996,
+     "base_nll": 0.6544000000000001,
+     "next_cosine": 0.9722,
+     "next_cosine_mean_predictor": 0.88985
+    },
+    {
+     "ok_accuracy": 0.8797,
+     "majority": 0.632,
+     "ok_nll": 0.29483333333333334,
+     "base_nll": 0.6576000000000001,
+     "next_cosine": 0.9297666666666666,
+     "next_cosine_mean_predictor": 0.8119999999999999
+    },
+    {
+     "ok_accuracy": 0.885275,
+     "majority": 0.599525,
+     "ok_nll": 0.33885,
+     "base_nll": 0.6664750000000002,
+     "next_cosine": 0.8657250000000001,
+     "next_cosine_mean_predictor": 0.6669
+    },
+    {
+     "ok_accuracy": 0.89438,
+     "majority": 0.6018399999999999,
+     "ok_nll": 0.35078,
+     "base_nll": 0.6668200000000002,
+     "next_cosine": 0.89144,
+     "next_cosine_mean_predictor": 0.7055
+    },
+    {
+     "ok_accuracy": 0.91275,
+     "majority": 0.6009666666666666,
+     "ok_nll": 0.2981833333333333,
+     "base_nll": 0.6680833333333335,
+     "next_cosine": 0.9079,
+     "next_cosine_mean_predictor": 0.7072833333333333
+    }
+   ],
+   "world_model_first_phase_over_time": [
+    0.9353,
+    0.9568,
+    0.9137,
+    0.9496,
+    0.9496,
+    0.9568
+   ],
+   "world_model_prequential": {
+    "accuracy": 0.9140208333333333,
+    "majority": 0.6471583333333334,
+    "first_iteration": [
+     0.6358,
+     0.6418
+    ],
+    "last_iteration": [
+     0.9398,
+     0.5041
+    ]
+   },
+   "weights_since_init_relative": {
+    "input": 0.060116852190676515,
+    "encoder": 0.1506330722498364,
+    "recurrent": 0.34150731856404815,
+    "policy": 0.7994326956335043,
+    "critic": 0.271558010370854,
+    "all": 0.12962795137391364
+   },
+   "weights_changed_after_first_phase": [
+    true
+   ],
+   "backbone": {
+    "mode": "none",
+    "trainable": 0,
+    "total": 548856064,
+    "relative_change_from_pretrained": 0.0,
+    "l2_change_from_pretrained": 0.0
+   },
+   "params": {
+    "controller": {
+     "trainable": 19667591,
+     "total": 19667591,
+     "frozen_text_embedding_rows": 2148
+    },
+    "groups": {
+     "input": 4806784,
+     "encoder": 10647552,
+     "recurrent": 2217600,
+     "policy": 1772162,
+     "critic": 223493,
+     "wm": 1057166
+    },
+    "backbone": {
+     "model": "Qwen/Qwen3-0.6B",
+     "mode": "none",
+     "blocks_used": 25,
+     "trainable": 0,
+     "total": 548856064
+    }
+   },
+   "restarts": [
+    3
+   ]
   }
  },
- "comparisons": {},
+ "comparisons": {
+  "naive - frozen_memory": {
+   "final, all six lists": {
+    "n_tasks": 144,
+    "seeds": 1,
+    "a": 0.5694444444444444,
+    "b": 0.3333333333333333,
+    "diff": 0.2361111111111111,
+    "ci95": [
+     0.1111111111111111,
+     0.3541666666666667
+    ],
+    "a_only": 60,
+    "b_only": 26
+   },
+   "final, unseen worlds": {
+    "n_tasks": 48,
+    "seeds": 1,
+    "a": 0.5833333333333334,
+    "b": 0.3333333333333333,
+    "diff": 0.25,
+    "ci95": [
+     0.020833333333333332,
+     0.4583333333333333
+    ],
+    "a_only": 22,
+    "b_only": 10
+   }
+  },
+  "rehearsal - naive": {
+   "final, all six lists": {
+    "n_tasks": 144,
+    "seeds": 1,
+    "a": 0.9861111111111112,
+    "b": 0.5694444444444444,
+    "diff": 0.4166666666666667,
+    "ci95": [
+     0.3333333333333333,
+     0.5
+    ],
+    "a_only": 61,
+    "b_only": 1
+   },
+   "final, unseen worlds": {
+    "n_tasks": 48,
+    "seeds": 1,
+    "a": 1.0,
+    "b": 0.5833333333333334,
+    "diff": 0.4166666666666667,
+    "ci95": [
+     0.2708333333333333,
+     0.5421875000000018
+    ],
+    "a_only": 20,
+    "b_only": 0
+   }
+  }
+ },
  "labels": {
   "frozen_memory": "1 frozen core + written memory",
   "naive": "2 trainable core, no protection",
@@ -439,6 +1336,8 @@
   "backbone_full": "5 (full) 4b + whole backbone"
  },
  "order": [
-  "frozen_memory"
+  "frozen_memory",
+  "naive",
+  "rehearsal"
  ]
 }

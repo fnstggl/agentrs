@@ -1,0 +1,7 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -47,3 +47,3 @@
+         'fit_batch': 256},
+- 'rehearsal': {'keep': True, 'per_arm': 120},
++ 'rehearsal': {'keep': False, 'per_arm': 120},
+  'consolidate_steps': 0,

@@ -299,7 +299,14 @@ def report(cfg: dict, out_dir: str) -> dict:
             for s in seeds:
                 p = os.path.join(out_dir, f"s{s}", f"{fam['name']}__{route}", "pit.json")
                 if os.path.exists(p):
-                    rs.append(json.load(open(p)))
+                    r = json.load(open(p))
+                    fp = r["fresh_process"]
+                    holes = [(part, k) for part in ("before", "after", "after_other_actor_name", "after_with_its_memory")
+                             for k, v in (fp.get(part) or {}).items() if any(x is None for x in v["per_task"])]
+                    if holes:                        # an evaluation in which episodes did not run is not a result
+                        out.setdefault("excluded_incomplete", []).append({"file": p, "missing": holes})
+                        continue
+                    rs.append(r)
             if not rs:
                 continue
             row: dict = {"seeds": [r["seed"] for r in rs], "lists": {}}

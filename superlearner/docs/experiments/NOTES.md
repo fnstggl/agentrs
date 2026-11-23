@@ -298,3 +298,7 @@ Work on the amendment ("continual learning must change the core neural weights")
   (no lifetime row is affected; there the whole job had died instead). The five files and the three route results
   built on them were removed and are recomputed. An episode that does not run is now re-run up to three times and
   otherwise raises, in the fresh-process evaluation and in the lifetime's evaluations (test added).
+  A second scan forty minutes later found three more seed-0 results with a list that had not run (one evaluation
+  whose process had started before the guard existed, and two routes that had already read the invalid "before"
+  file); they were removed as well. The report now also refuses any result that contains an episode that did not
+  run, so such a file cannot enter a table even if one is produced.
