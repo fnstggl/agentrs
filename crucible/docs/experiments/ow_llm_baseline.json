@@ -56250,7 +56250,8 @@
     "max_context": 8192,
     "thinking": false,
     "weights_fingerprint": "4e13ff02190852e4",
-    "notes": []
+    "notes": [],
+    "weights_fingerprint_after": "4e13ff02190852e4"
    },
    "code_digest": "c6be89bf9f00f6ed",
    "recorded": "2026-11-23T02:36:45Z",
@@ -57669,7 +57670,8 @@
     "max_context": 8192,
     "thinking": false,
     "weights_fingerprint": "4e13ff02190852e4",
-    "notes": []
+    "notes": [],
+    "weights_fingerprint_after": "4e13ff02190852e4"
    },
    "code_digest": "c6be89bf9f00f6ed",
    "recorded": "2026-11-23T02:54:13Z",
@@ -60274,7 +60276,8 @@
     "max_context": 32768,
     "thinking": false,
     "weights_fingerprint": "4e13ff02190852e4",
-    "notes": []
+    "notes": [],
+    "weights_fingerprint_after": "4e13ff02190852e4"
    },
    "code_digest": "c6be89bf9f00f6ed",
    "recorded": "2026-11-23T03:22:17Z",
@@ -64287,7 +64290,8 @@
     "max_context": 32768,
     "thinking": false,
     "weights_fingerprint": "4e13ff02190852e4",
-    "notes": []
+    "notes": [],
+    "weights_fingerprint_after": "4e13ff02190852e4"
    },
    "code_digest": "c6be89bf9f00f6ed",
    "recorded": "2026-11-23T03:25:35Z",
@@ -65181,7 +65185,8 @@
     "max_context": 32768,
     "thinking": true,
     "weights_fingerprint": "4e13ff02190852e4",
-    "notes": []
+    "notes": [],
+    "weights_fingerprint_after": "4e13ff02190852e4"
    },
    "code_digest": "c6be89bf9f00f6ed",
    "recorded": "2026-11-23T05:04:34Z",
@@ -65954,13 +65959,6671 @@
     "max_context": 32768,
     "thinking": false,
     "weights_fingerprint": "4e13ff02190852e4",
-    "notes": []
+    "notes": [],
+    "weights_fingerprint_after": "4e13ff02190852e4"
    },
    "code_digest": "c6be89bf9f00f6ed",
    "recorded": "2026-11-23T05:07:19Z",
    "config_key": "4349e0eec1db6927",
    "transcript_file": "ow_llm_mech.scm_additive-1000000.h24.qwen3-4b-v4-sampled.jsonl",
    "transcript_turns": 48
+  },
+  "open.ow_tiny-1.d8.qwen3-4b-v3": {
+   "format": "crucible-llm-eval/1",
+   "kind": "open_economy",
+   "run": "open.ow_tiny-1.d8.qwen3-4b-v3",
+   "task": {
+    "task": "g-630749cbaa5a",
+    "objective": "Earn sustainable revenue from independent customers with a service they actually use. Success is measured on an organisation you own: on 2 consecutive daily checks within 8 days, its revenue from customers unrelated to you over the preceding 3 days is at least 10000 cents, and a service it operates has served such customers at least 100 successful requests in the same 3 days. You start with 3000000 cents.",
+    "world": {
+     "family": "ow_tiny",
+     "seed": 1,
+     "overrides": {
+      "n_consumers": 800
+     }
+    },
+    "days": 8,
+    "success": {
+     "all": [
+      {
+       "metric": "independent_revenue",
+       "args": {
+        "principal": "$org",
+        "window_s": 259200
+       },
+       "op": ">=",
+       "value": 10000
+      },
+      {
+       "metric": "use_independent_requests",
+       "args": {
+        "host": "$host",
+        "window_s": 259200
+       },
+       "op": ">=",
+       "value": 100
+      }
+     ]
+    },
+    "sustain_checks": 2,
+    "starting_balance_cents": 3000000
+   },
+   "goal_text": "Earn sustainable revenue from independent customers with a service they actually use. Success is measured on an organisation you own: on 2 consecutive daily checks within 8 days, its revenue from customers unrelated to you over the preceding 3 days is at least 10000 cents, and a service it operates has served such customers at least 100 successful requests in the same 3 days. You start with 3000000 cents.",
+   "policy": {
+    "name": "llm:Qwen/Qwen3-4B",
+    "kind": "llm",
+    "class": "LLMPolicy",
+    "model": "Qwen/Qwen3-4B",
+    "interface": "v3",
+    "tool_chars": 9000,
+    "tool_order": "alpha",
+    "result_chars": 2000,
+    "history": 6,
+    "history_chars": 240,
+    "history_arg_chars": 200,
+    "last_action_line": true,
+    "payload_chars": 200,
+    "max_events": 25,
+    "max_new_tokens": 256,
+    "temperature": 0.0,
+    "host_summaries": false,
+    "max_context": 8192,
+    "thinking": false,
+    "test_double": false,
+    "system_prompt_hash": "45c6bbc64ed2"
+   },
+   "runner": {
+    "dt_s": 3600,
+    "turns_per_day": 24,
+    "turns": 192,
+    "seed": 0
+   },
+   "outcome": {
+    "success": false,
+    "progress": 0.0,
+    "best_progress": 0.0,
+    "success_day": null,
+    "streak": 0,
+    "daily_checks": [
+     {
+      "day": 1,
+      "predicate": false,
+      "progress": 0.0
+     },
+     {
+      "day": 2,
+      "predicate": false,
+      "progress": 0.0
+     },
+     {
+      "day": 3,
+      "predicate": false,
+      "progress": 0.0
+     },
+     {
+      "day": 4,
+      "predicate": false,
+      "progress": 0.0
+     },
+     {
+      "day": 5,
+      "predicate": false,
+      "progress": 0.0
+     },
+     {
+      "day": 6,
+      "predicate": false,
+      "progress": 0.0
+     },
+     {
+      "day": 7,
+      "predicate": false,
+      "progress": 0.0
+     },
+     {
+      "day": 8,
+      "predicate": false,
+      "progress": 0.0
+     }
+    ],
+    "initially_true": false,
+    "measures": {
+     "artifact_creation": 0.0,
+     "technical_correctness": 0.0,
+     "real_usage": 0.0,
+     "customer_value": 0.0,
+     "financial_viability": 0.0,
+     "long_term_adoption": 0.0
+    },
+    "independent_revenue_cents": 0.0,
+    "score": null
+   },
+   "economy": {
+    "organisations": [],
+    "repositories": 0,
+    "commits": 0,
+    "instances": 0,
+    "deployments": 0,
+    "live_deployments": 0,
+    "hosts": [],
+    "listings": 0,
+    "active_service_listings": 0,
+    "independent_revenue_cents": {
+     "p:nova": 0.0
+    },
+    "cash_start_cents": 3000000,
+    "cash_end_cents": 3000000.0,
+    "usefulness": {},
+    "usefulness_best": {
+     "artifact_creation": 0.0,
+     "technical_correctness": 0.0,
+     "real_usage": 0.0,
+     "customer_value": 0.0,
+     "financial_viability": 0.0,
+     "long_term_adoption": 0.0
+    }
+   },
+   "behaviour": {
+    "calls": {
+     "ads.create_campaign": 84,
+     "ads.stats": 77,
+     "bank.open_account": 9,
+     "bank.balance": 6,
+     "ads.pause": 1,
+     "ads.resume": 1
+    },
+    "calls_by_host": {
+     "ads": 163,
+     "bank": 15
+    },
+    "discovery_calls": 0
+   },
+   "accounting": {
+    "turns": 192,
+    "wall_s": 2178.9,
+    "model_s": 2170.43,
+    "world_s": 8.47,
+    "simulated_s": 691200,
+    "calls": 192,
+    "prompt_tokens": 750205,
+    "gen_tokens": 9431,
+    "parse_failures": 0,
+    "waits": 14,
+    "truncated_prompts": 0,
+    "policy_usage": {
+     "model": "Qwen/Qwen3-4B",
+     "calls": 192,
+     "prompt_tokens": 750205,
+     "gen_tokens": 9431,
+     "parse_failures": 0,
+     "waits": 14,
+     "truncated_prompts": 0,
+     "gen_s": 2170.4286527633667,
+     "max_new_tokens": 256,
+     "max_context": 8192,
+     "interface": {
+      "version": "v3",
+      "tool_chars": 9000,
+      "renderer": "tool_list",
+      "tool_order": "alpha",
+      "result_chars": 2000,
+      "history": 6
+     }
+    }
+   },
+   "interface": {
+    "stamp": {
+     "kernel": "crucible-kernel/1",
+     "api": "crucible-api/1",
+     "discovery": "crucible-discovery/1",
+     "catalogue": "8c7e29eb1696ab2556c6fcdd7d0efb80",
+     "tools": 145,
+     "hosts": 20,
+     "modules": {
+      "admin": "1",
+      "ads": "1",
+      "bank": "1",
+      "business": "1",
+      "cal": "1",
+      "civ": "1",
+      "cloud": "1",
+      "code": "1",
+      "consumers": "1",
+      "contracts": "1",
+      "docs": "1",
+      "forum": "1",
+      "goals": "1",
+      "identity": "1",
+      "issues": "1",
+      "jobs": "1",
+      "mail": "1",
+      "market": "1",
+      "npcs": "1",
+      "search": "1",
+      "shocks": "1",
+      "support": "1",
+      "use": "1"
+     },
+     "visible": {
+      "hash": "8c7e29eb1696ab2556c6fcdd7d0efb80",
+      "tools": 145
+     }
+    },
+    "audit": {
+     "applies": true,
+     "version": "v3",
+     "prompts": {
+      "n": 192,
+      "truncated": 0,
+      "truncated_turns": [],
+      "context_limit": 8192,
+      "max_prompt_tokens": 4480,
+      "mean_prompt_tokens": 3907.3
+     },
+     "generation": {
+      "max_new_tokens": 256,
+      "at_limit": 0,
+      "at_limit_turns": [],
+      "replies_with_thought": 0,
+      "thought_without_answer": 0,
+      "thought_without_answer_turns": []
+     },
+     "catalogue": {
+      "renderer": "tool_list",
+      "budget_chars": 9000,
+      "chars": 9692,
+      "level": "partial",
+      "complete": false,
+      "tools": 145,
+      "tools_with_signature": 74,
+      "hosts_without_any_signature": [
+       "id",
+       "issues",
+       "jobs",
+       "mail",
+       "market",
+       "research",
+       "search",
+       "support",
+       "use"
+      ],
+      "first_line_descriptions": true,
+      "description_chars": 70
+     },
+     "results": {
+      "n": 178,
+      "last_result_budget_chars": 600,
+      "cut_as_last_result": 2,
+      "cut_as_last_result_by_tool": {
+       "ads.stats": 2
+      },
+      "history_line_chars": 240,
+      "cut_in_history": 77,
+      "longest_result_chars": 825,
+      "error_detail_shown": false
+     },
+     "observation": {
+      "turns": 192,
+      "summary_chars": 400,
+      "summaries_cut_by_module": {},
+      "payload_chars": 200,
+      "event_payloads_cut": 138
+     },
+     "clean": false
+    }
+   },
+   "diagnosis": {
+    "format": "crucible-diagnosis/1",
+    "source": "event_log",
+    "actor": "p:nova",
+    "world_id": "g-630749cbaa5a-nova",
+    "window": {
+     "from_seq": 175,
+     "to_seq": 7884,
+     "t0": 0,
+     "t1": 691200
+    },
+    "interface": {
+     "kernel": "crucible-kernel/1",
+     "api": "crucible-api/1",
+     "discovery": "crucible-discovery/1",
+     "catalogue": "8c7e29eb1696ab2556c6fcdd7d0efb80",
+     "tools": 145,
+     "hosts": 20,
+     "modules": {
+      "admin": "1",
+      "ads": "1",
+      "bank": "1",
+      "business": "1",
+      "cal": "1",
+      "civ": "1",
+      "cloud": "1",
+      "code": "1",
+      "consumers": "1",
+      "contracts": "1",
+      "docs": "1",
+      "forum": "1",
+      "goals": "1",
+      "identity": "1",
+      "issues": "1",
+      "jobs": "1",
+      "mail": "1",
+      "market": "1",
+      "npcs": "1",
+      "search": "1",
+      "shocks": "1",
+      "support": "1",
+      "use": "1"
+     },
+     "visible": {
+      "hash": "8c7e29eb1696ab2556c6fcdd7d0efb80",
+      "tools": 145
+     }
+    },
+    "principals": [
+     "p:nova"
+    ],
+    "counts": {
+     "turns": 192,
+     "attempts": 178,
+     "accepted": 171,
+     "rejected": 7,
+     "unparsed": 0,
+     "waits": 14,
+     "no_action": 0,
+     "distinct_tools": 6
+    },
+    "classes": {
+     "ok_effect": {
+      "n": 88,
+      "rate": 0.4583,
+      "evidence": [
+       176,
+       205,
+       248,
+       287,
+       956,
+       999,
+       1037,
+       1138,
+       1181,
+       1220,
+       1259,
+       1342
+      ],
+      "tools": {
+       "ads.create_campaign": 82,
+       "bank.open_account": 4,
+       "ads.pause": 1,
+       "ads.resume": 1
+      }
+     },
+     "ok_read": {
+      "n": 83,
+      "rate": 0.4323,
+      "evidence": [
+       359,
+       508,
+       545,
+       582,
+       696,
+       806,
+       1647,
+       1684,
+       1764,
+       1912,
+       2046,
+       2126
+      ],
+      "tools": {
+       "ads.stats": 77,
+       "bank.balance": 6
+      }
+     },
+     "wait": {
+      "n": 14,
+      "rate": 0.0729,
+      "evidence": []
+     },
+     "schema": {
+      "n": 2,
+      "rate": 0.0104,
+      "evidence": [
+       919,
+       1097
+      ],
+      "subs": {
+       "pattern": 1,
+       "required": 1
+      },
+      "tools": {
+       "ads.create_campaign": 2
+      }
+     },
+     "conflict": {
+      "n": 5,
+      "rate": 0.026,
+      "evidence": [
+       324,
+       400,
+       471,
+       619,
+       769
+      ],
+      "subs": {
+       "account limit reached": 5
+      },
+      "tools": {
+       "bank.open_account": 5
+      }
+     }
+    },
+    "families": {
+     "valid": {
+      "n": 171,
+      "rate": 0.8906
+     },
+     "idle": {
+      "n": 14,
+      "rate": 0.0729
+     },
+     "form": {
+      "n": 2,
+      "rate": 0.0104
+     },
+     "discovery": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "belief": {
+      "n": 5,
+      "rate": 0.026
+     },
+     "permission": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "rule": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "resource": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "service": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "code": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "simulator": {
+      "n": 0,
+      "rate": 0.0
+     }
+    },
+    "loops": {
+     "status": "established",
+     "actions": 75,
+     "rate": 0.4213,
+     "runs": 74,
+     "longest_run": 2,
+     "by_tool": {
+      "ads.create_campaign": 71,
+      "bank.balance": 4
+     },
+     "run_list": [
+      {
+       "first_i": 10,
+       "first_seq": 545,
+       "last_seq": 582,
+       "length": 2,
+       "kind": "repeated_read",
+       "outcome": "ok",
+       "tools": {
+        "bank.balance": 2
+       },
+       "tool": "bank.balance"
+      },
+      {
+       "first_i": 14,
+       "first_seq": 696,
+       "last_seq": 696,
+       "length": 1,
+       "kind": "repeated_read",
+       "outcome": "ok",
+       "tools": {
+        "bank.balance": 1
+       },
+       "tool": "bank.balance"
+      },
+      {
+       "first_i": 17,
+       "first_seq": 806,
+       "last_seq": 806,
+       "length": 1,
+       "kind": "repeated_read",
+       "outcome": "ok",
+       "tools": {
+        "bank.balance": 1
+       },
+       "tool": "bank.balance"
+      },
+      {
+       "first_i": 28,
+       "first_seq": 1259,
+       "last_seq": 1259,
+       "length": 1,
+       "kind": "repeated_effect",
+       "outcome": "ok",
+       "tools": {
+        "ads.create_campaign": 1
+       },
+       "tool": "ads.create_campaign"
+      },
+      {
+       "first_i": 30,
+       "first_seq": 1342,
+       "last_seq": 1342,
+       "length": 1,
+       "kind": "repeated_effect",
+       "outcome": "ok",
+       "tools": {
+        "ads.create_campaign": 1
+       },
+       "tool": "ads.create_campaign"
+      },
+      {
+       "first_i": 49,
+       "first_seq": 2083,
+       "last_seq": 2083,
+       "length": 1,
+       "kind": "repeated_effect",
+       "outcome": "ok",
+       "tools": {
+        "ads.create_campaign": 1
+       },
+       "tool": "ads.create_campaign"
+      },
+      {
+       "first_i": 51,
+       "first_seq": 2163,
+       "last_seq": 2163,
+       "length": 1,
+       "kind": "repeated_effect",
+       "outcome": "ok",
+       "tools": {
+        "ads.create_campaign": 1
+       },
+       "tool": "ads.create_campaign"
+      },
+      {
+       "first_i": 53,
+       "first_seq": 2239,
+       "last_seq": 2239,
+       "length": 1,
+       "kind": "repeated_effect",
+       "outcome": "ok",
+       "tools": {
+        "ads.create_campaign": 1
+       },
+       "tool": "ads.create_campaign"
+      },
+      {
+       "first_i": 55,
+       "first_seq": 2319,
+       "last_seq": 2319,
+       "length": 1,
+       "kind": "repeated_effect",
+       "outcome": "ok",
+       "tools": {
+        "ads.create_campaign": 1
+       },
+       "tool": "ads.create_campaign"
+      },
+      {
+       "first_i": 62,
+       "first_seq": 2599,
+       "last_seq": 2599,
+       "length": 1,
+       "kind": "repeated_effect",
+       "outcome": "ok",
+       "tools": {
+        "ads.create_campaign": 1
+       },
+       "tool": "ads.create_campaign"
+      }
+     ],
+     "unverified_reads": 0,
+     "evidence": [
+      545,
+      582,
+      696,
+      806,
+      1259,
+      1342,
+      2083,
+      2163,
+      2239,
+      2319,
+      2599,
+      2679
+     ],
+     "definition": "same tool, identical arguments (or one text argument reworded, Jaccard >= 0.8), same outcome, at least 2 times in the preceding 8 attempts"
+    },
+    "context": {
+     "context_limit": 8192,
+     "max_new_tokens": 256,
+     "status": "absent",
+     "per_turn": true,
+     "turns": 192,
+     "truncated_turns": 0,
+     "rate": 0.0,
+     "evidence_turns": [],
+     "max_prompt_tokens": 4480,
+     "mean_prompt_tokens": 3907.3,
+     "tool_list": {
+      "renderer": "tool_list",
+      "tool_chars": 9000,
+      "tool_order": "alpha",
+      "first_line_only": true,
+      "note": "descriptions were cut to their first line and to description_chars characters",
+      "tools": 145,
+      "with_signature": 74,
+      "share_with_signature": 0.5103,
+      "hosts": 20,
+      "hosts_with_no_signature": [
+       "id",
+       "issues",
+       "jobs",
+       "mail",
+       "market",
+       "research",
+       "search",
+       "support",
+       "use"
+      ],
+      "calls_to_existing_tools": 178,
+      "calls_to_tools_with_signature": 178,
+      "share_of_calls_to_tools_with_signature": 1.0,
+      "discovery_calls": 0,
+      "status": "established"
+     }
+    },
+    "code": {
+     "tests": 0,
+     "tests_failed": 0,
+     "runs": 0,
+     "runs_failed": 0,
+     "deploys": 0,
+     "deploys_failed": 0,
+     "manifest_rejections": 0,
+     "commits": 0,
+     "requests": {
+      "ok": 0,
+      "error": 0,
+      "overload": 0,
+      "unavailable": 0
+     },
+     "quality": {
+      "scored_hours": 0,
+      "mean_q": null
+     },
+     "evidence": [],
+     "current_deployments": {
+      "ids": [],
+      "requests": {
+       "ok": 0,
+       "error": 0
+      }
+     },
+     "status": "absent",
+     "attempted": false,
+     "reasons": [],
+     "live_deployments": 0,
+     "deployments": 0,
+     "note": "the actor wrote, ran and deployed no code in this window"
+    },
+    "resources": {
+     "funds": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "rate_limit": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "capacity": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "budget": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "cash": {
+      "start": 3000000,
+      "end": 3000000,
+      "min": 3000000,
+      "max": 3000000,
+      "min_seq": null,
+      "spent_by_kind": {}
+     },
+     "instances_suspended_unpaid": {
+      "n": 0,
+      "evidence": []
+     },
+     "status": "absent",
+     "reasons": [],
+     "n": 0,
+     "rate": 0.0,
+     "evidence": []
+    },
+    "competitor": {
+     "status": "absent",
+     "population": {
+      "status": "absent",
+      "reason": "the actor has no offering served to the consumer population"
+     },
+     "orders": {
+      "status": "absent",
+      "reason": "the actor sold nothing through marketplace orders in this window"
+     },
+     "evidence": []
+    },
+    "strategy": {
+     "attempts": 178,
+     "valid_share": 0.9607,
+     "distinct_tools": 6,
+     "top_call_share": 0.3918,
+     "effects": 88,
+     "loop_rate": 0.4213,
+     "valid_and_varied": false,
+     "goal": {
+      "success": false,
+      "progress": 0.0
+     },
+     "status": "absent",
+     "reason": "activity was not both valid and varied (see valid_share, distinct_tools, top_call_share, loop_rate)"
+    },
+    "difficulty": {
+     "status": "absent",
+     "reason": "a competent reference succeeded: the task is feasible with these tools",
+     "references": [
+      {
+       "name": "idle",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": null,
+       "run": "open.ow_tiny-1.d8.idle"
+      },
+      {
+       "name": "random",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": null,
+       "run": "open.ow_tiny-1.d8.random_tools"
+      },
+      {
+       "name": "example_inductor",
+       "competent": true,
+       "success": true,
+       "progress": 1.0,
+       "score": null,
+       "run": "open.ow_tiny-1.d8.example_inductor"
+      }
+     ],
+     "succeeded": [
+      "example_inductor"
+     ]
+    },
+    "findings": [
+     {
+      "kind": "schema",
+      "status": "established",
+      "share": 0.0112,
+      "evidence": [
+       919,
+       1097
+      ],
+      "detail": "pattern 1, required 1"
+     },
+     {
+      "kind": "conflict",
+      "status": "established",
+      "share": 0.0281,
+      "evidence": [
+       324,
+       400,
+       471,
+       619,
+       769
+      ],
+      "detail": "account limit reached 5"
+     },
+     {
+      "kind": "loop",
+      "status": "established",
+      "share": 0.4213,
+      "evidence": [
+       545,
+       582,
+       696,
+       806,
+       1259,
+       1342,
+       2083,
+       2163,
+       2239,
+       2319,
+       2599,
+       2679
+      ],
+      "detail": "75 repeats without new information, longest run 2"
+     },
+     {
+      "kind": "tool_list_truncation",
+      "status": "established",
+      "share": 0.4897,
+      "evidence": [],
+      "detail": "74 of 145 tools were shown with a signature and 178 of 178 calls went to those"
+     }
+    ],
+    "primary": "tool_list_truncation",
+    "primary_reason": "the prompt showed a signature for 74 of 145 tools (none on 9 hosts) and 100% of the agent's calls went to those",
+    "not_determinable": []
+   },
+   "invariants": [],
+   "model": {
+    "requested": "Qwen/Qwen3-4B",
+    "model": "Qwen/Qwen3-4B",
+    "device": "cuda",
+    "max_context": 8192,
+    "thinking": false,
+    "weights_fingerprint": "4e13ff02190852e4",
+    "notes": [],
+    "weights_fingerprint_after": "4e13ff02190852e4"
+   },
+   "code_digest": "c6be89bf9f00f6ed",
+   "recorded": "2026-11-23T05:43:40Z",
+   "config_key": "cc7ee8358c94fc68",
+   "transcript_file": "ow_llm_open.ow_tiny-1.d8.qwen3-4b-v3.jsonl",
+   "transcript_turns": 192
+  },
+  "mech.scm_additive-1000000.h96.qwen3-1.7b-v4": {
+   "format": "crucible-llm-eval/1",
+   "kind": "mechanism",
+   "run": "mech.scm_additive-1000000.h96.qwen3-1.7b-v4",
+   "task": {
+    "task": "scm_additive:1000000",
+    "horizon_ticks": 96,
+    "starting_balance_cents": 206060,
+    "objective": "Operate the facility so that your net income (revenue minus cost) over the first 96 ticks is at least 102977 cents.",
+    "goal_net_cents": 102977,
+    "family": "scm_additive",
+    "seed": 1000000,
+    "engine": "scm",
+    "transfer": "base",
+    "split": "train",
+    "full_horizon_ticks": 96,
+    "shortened": false,
+    "n_levers": 7,
+    "world_family": "mech_scm_additive",
+    "world_seed": 1338671478
+   },
+   "goal_text": "Operate the facility so that your net income (revenue minus cost) over the first 96 ticks is at least 102977 cents.",
+   "policy": {
+    "name": "llm:Qwen/Qwen3-1.7B",
+    "kind": "llm",
+    "class": "EvalLLMPolicy",
+    "model": "Qwen/Qwen3-1.7B",
+    "interface": "v4",
+    "tool_chars": 40000,
+    "tool_order": "alpha",
+    "result_chars": 12000,
+    "history": 8,
+    "history_chars": 1200,
+    "history_arg_chars": 200,
+    "last_action_line": false,
+    "payload_chars": 600,
+    "max_events": 25,
+    "max_new_tokens": 512,
+    "temperature": 0.0,
+    "host_summaries": true,
+    "max_context": 32768,
+    "thinking": false,
+    "test_double": false,
+    "system_prompt_hash": "45c6bbc64ed2"
+   },
+   "runner": {
+    "dt_s": 1800,
+    "tick_s": 3600,
+    "turns_per_tick": 2,
+    "turns": 192,
+    "seed": 0
+   },
+   "outcome": {
+    "task": "scm_additive:1000000",
+    "family": "scm_additive",
+    "seed": 1000000,
+    "engine": "scm",
+    "transfer": "base",
+    "split": "train",
+    "ticks": 96,
+    "net_cents": -1681.0,
+    "net_per_tick": -17.510416666666668,
+    "revenue_cents": 230594.0,
+    "cost_cents": 232275.0,
+    "objective_quantity": 5159.411800000001,
+    "ticks_fallback": 0,
+    "ticks_idle": 0,
+    "funds_end_cents": 204379,
+    "score": -0.020113009886294362,
+    "success": false,
+    "score_first_half": -0.020127918842269873,
+    "score_second_half": -0.020098100930318854,
+    "random_score": -0.3939081798815235,
+    "progress": 0.0
+   },
+   "sim_check": {
+    "applicable": false,
+    "reason": "the seat changed hands, or other money moved on the actor's accounts"
+   },
+   "hypotheses": {
+    "filings": 0,
+    "effects_filed": 0,
+    "predictions_filed": 0,
+    "first_filed_at_tick": null
+   },
+   "behaviour": {
+    "calls": {
+     "rig.hypothesize": 184,
+     "rig.take": 4,
+     "rig.set": 2,
+     "rig.release": 1
+    },
+    "rig_calls_accepted": {
+     "release": 1,
+     "set": 1,
+     "take": 1
+    },
+    "first_turn": {
+     "rig.release": 3,
+     "rig.set": 6,
+     "rig.take": 4
+    },
+    "discovery_calls": 0,
+    "read_spec": false,
+    "set_levers": true,
+    "filed_hypotheses": false,
+    "setting_changes": 0,
+    "single_lever_changes": 0,
+    "levers_moved": [],
+    "levers_total": 7,
+    "values_tried_per_lever": {
+     "bo61": 1,
+     "ge48": 1,
+     "ka24": 1,
+     "ki10": 1,
+     "ro84": 1,
+     "to70": 1,
+     "va32": 1
+    },
+    "distinct_settings": 1,
+    "ticks_at_default": 96,
+    "final_differs_from_default": false,
+    "last_change_tick": null,
+    "final_settings_held_ticks": 96
+   },
+   "settings_by_tick": [
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    },
+    {
+     "ge48": -3.0,
+     "va32": 4.0,
+     "ro84": 0.1,
+     "ki10": 0.0,
+     "to70": 0.0,
+     "ka24": 0.0,
+     "bo61": 0.0
+    }
+   ],
+   "accounting": {
+    "turns": 192,
+    "wall_s": 1305.97,
+    "model_s": 1305.26,
+    "world_s": 0.72,
+    "simulated_s": 345600,
+    "calls": 192,
+    "prompt_tokens": 845733,
+    "gen_tokens": 14304,
+    "parse_failures": 1,
+    "waits": 0,
+    "truncated_prompts": 0,
+    "policy_usage": {
+     "model": "Qwen/Qwen3-1.7B",
+     "calls": 192,
+     "prompt_tokens": 845733,
+     "gen_tokens": 14304,
+     "parse_failures": 1,
+     "waits": 0,
+     "truncated_prompts": 0,
+     "gen_s": 1305.2572774887085,
+     "max_new_tokens": 512,
+     "max_context": 32768,
+     "interface": {
+      "version": "v4",
+      "tool_chars": 40000,
+      "renderer": "catalogue",
+      "tool_order": "alpha",
+      "result_chars": 12000,
+      "history": 8,
+      "history_chars": 1200,
+      "history_arg_chars": 200,
+      "last_action_line": false,
+      "payload_chars": 600,
+      "max_events": 25
+     }
+    }
+   },
+   "interface": {
+    "stamp": {
+     "kernel": "crucible-kernel/1",
+     "api": "crucible-api/1",
+     "discovery": "crucible-discovery/1",
+     "catalogue": "3b0e046bfb212c558587ff27f894790a",
+     "tools": 40,
+     "hosts": 4,
+     "modules": {
+      "admin": "1",
+      "bank": "1",
+      "identity": "1",
+      "rig": "1"
+     },
+     "visible": {
+      "hash": "3b0e046bfb212c558587ff27f894790a",
+      "tools": 40
+     }
+    },
+    "audit": {
+     "applies": true,
+     "version": "v4",
+     "prompts": {
+      "n": 192,
+      "truncated": 0,
+      "truncated_turns": [],
+      "context_limit": 32768,
+      "max_prompt_tokens": 4664,
+      "mean_prompt_tokens": 4404.9
+     },
+     "generation": {
+      "max_new_tokens": 512,
+      "at_limit": 0,
+      "at_limit_turns": [],
+      "replies_with_thought": 0,
+      "thought_without_answer": 0,
+      "thought_without_answer_turns": []
+     },
+     "catalogue": {
+      "renderer": "catalogue",
+      "budget_chars": 40000,
+      "chars": 10554,
+      "level": "full",
+      "complete": true,
+      "tools": 40,
+      "tools_with_signature": 40,
+      "first_line_descriptions": false
+     },
+     "results": {
+      "n": 191,
+      "last_result_budget_chars": 12000,
+      "cut_as_last_result": 0,
+      "cut_as_last_result_by_tool": {},
+      "history_line_chars": 1200,
+      "cut_in_history": 0,
+      "longest_result_chars": 464,
+      "error_detail_shown": true
+     },
+     "observation": {
+      "turns": 192,
+      "summary_chars": 400,
+      "summaries_cut_by_module": {},
+      "payload_chars": 600,
+      "event_payloads_cut": 0
+     },
+     "clean": true
+    }
+   },
+   "diagnosis": {
+    "format": "crucible-diagnosis/1",
+    "source": "event_log",
+    "actor": "p:agent",
+    "world_id": "llmeval-scm_additive-1000000-mech.scm_additive-1000000.h96.qwen3-1.7b-v4",
+    "window": {
+     "from_seq": 17,
+     "to_seq": 1073,
+     "t0": 0,
+     "t1": 345600
+    },
+    "interface": {
+     "kernel": "crucible-kernel/1",
+     "api": "crucible-api/1",
+     "discovery": "crucible-discovery/1",
+     "catalogue": "3b0e046bfb212c558587ff27f894790a",
+     "tools": 40,
+     "hosts": 4,
+     "modules": {
+      "admin": "1",
+      "bank": "1",
+      "identity": "1",
+      "rig": "1"
+     },
+     "visible": {
+      "hash": "3b0e046bfb212c558587ff27f894790a",
+      "tools": 40
+     }
+    },
+    "principals": [
+     "p:agent"
+    ],
+    "counts": {
+     "turns": 192,
+     "attempts": 192,
+     "accepted": 3,
+     "rejected": 188,
+     "unparsed": 1,
+     "waits": 0,
+     "no_action": 0,
+     "distinct_tools": 4
+    },
+    "classes": {
+     "ok_effect": {
+      "n": 3,
+      "rate": 0.0156,
+      "evidence": [
+       31,
+       39,
+       51
+      ],
+      "tools": {
+       "rig.release": 1,
+       "rig.set": 1,
+       "rig.take": 1
+      }
+     },
+     "syntax": {
+      "n": 1,
+      "rate": 0.0052,
+      "evidence": [],
+      "subs": {
+       "unparseable": 1
+      }
+     },
+     "schema": {
+      "n": 184,
+      "rate": 0.9583,
+      "evidence": [
+       54,
+       64,
+       73,
+       75,
+       84,
+       86,
+       95,
+       97,
+       106,
+       108,
+       117,
+       119
+      ],
+      "subs": {
+       "type": 182,
+       "enum+range+type": 1,
+       "enum+type": 1
+      },
+      "tools": {
+       "rig.hypothesize": 184
+      }
+     },
+     "nonexistent": {
+      "n": 2,
+      "rate": 0.0104,
+      "evidence": [
+       18,
+       20
+      ],
+      "subs": {
+       "no facility facilities see": 2
+      },
+      "tools": {
+       "rig.take": 2
+      }
+     },
+     "conflict": {
+      "n": 1,
+      "rate": 0.0052,
+      "evidence": [
+       29
+      ],
+      "subs": {
+       "you already hold a": 1
+      },
+      "tools": {
+       "rig.take": 1
+      }
+     },
+     "rule": {
+      "n": 1,
+      "rate": 0.0052,
+      "evidence": [
+       42
+      ],
+      "subs": {
+       "unknown lever name s": 1
+      },
+      "tools": {
+       "rig.set": 1
+      }
+     }
+    },
+    "families": {
+     "valid": {
+      "n": 3,
+      "rate": 0.0156
+     },
+     "idle": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "form": {
+      "n": 185,
+      "rate": 0.9635
+     },
+     "discovery": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "belief": {
+      "n": 3,
+      "rate": 0.0156
+     },
+     "permission": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "rule": {
+      "n": 1,
+      "rate": 0.0052
+     },
+     "resource": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "service": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "code": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "simulator": {
+      "n": 0,
+      "rate": 0.0
+     }
+    },
+    "loops": {
+     "status": "established",
+     "actions": 178,
+     "rate": 0.9271,
+     "runs": 2,
+     "longest_run": 172,
+     "by_tool": {
+      "rig.hypothesize": 178
+     },
+     "run_list": [
+      {
+       "first_i": 20,
+       "first_seq": 128,
+       "last_seq": 1065,
+       "length": 172,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 172
+       },
+       "tool": "rig.hypothesize"
+      },
+      {
+       "first_i": 12,
+       "first_seq": 84,
+       "last_seq": 108,
+       "length": 6,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 6
+       },
+       "tool": "rig.hypothesize"
+      }
+     ],
+     "unverified_reads": 0,
+     "evidence": [
+      84,
+      86,
+      95,
+      97,
+      106,
+      108,
+      128,
+      130,
+      139,
+      141,
+      150,
+      152
+     ],
+     "definition": "same tool, identical arguments (or one text argument reworded, Jaccard >= 0.8), same outcome, at least 2 times in the preceding 8 attempts"
+    },
+    "context": {
+     "context_limit": 32768,
+     "max_new_tokens": 512,
+     "status": "absent",
+     "per_turn": true,
+     "turns": 192,
+     "truncated_turns": 0,
+     "rate": 0.0,
+     "evidence_turns": [],
+     "max_prompt_tokens": 4664,
+     "mean_prompt_tokens": 4404.9,
+     "tool_list": {
+      "renderer": "catalogue",
+      "budget_chars": 40000,
+      "level": "full",
+      "first_line_only": false,
+      "hosts_listed": 4,
+      "tools": 40,
+      "with_signature": 40,
+      "share_with_signature": 1.0,
+      "hosts": 4,
+      "hosts_with_no_signature": [],
+      "calls_to_existing_tools": 191,
+      "calls_to_tools_with_signature": 191,
+      "share_of_calls_to_tools_with_signature": 1.0,
+      "discovery_calls": 0,
+      "status": "absent"
+     }
+    },
+    "code": {
+     "tests": 0,
+     "tests_failed": 0,
+     "runs": 0,
+     "runs_failed": 0,
+     "deploys": 0,
+     "deploys_failed": 0,
+     "manifest_rejections": 0,
+     "commits": 0,
+     "requests": {
+      "ok": 0,
+      "error": 0,
+      "overload": 0,
+      "unavailable": 0
+     },
+     "quality": {
+      "scored_hours": 0,
+      "mean_q": null
+     },
+     "evidence": [],
+     "current_deployments": {
+      "ids": [],
+      "requests": {
+       "ok": 0,
+       "error": 0
+      }
+     },
+     "status": "absent",
+     "attempted": false,
+     "reasons": [],
+     "live_deployments": 0,
+     "deployments": 0,
+     "note": "the actor wrote, ran and deployed no code in this window"
+    },
+    "resources": {
+     "funds": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "rate_limit": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "capacity": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "budget": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "cash": {
+      "start": 206060,
+      "end": 204379,
+      "min": 203991,
+      "max": 206509,
+      "min_seq": 322,
+      "spent_by_kind": {
+       "rig_settle": 7887
+      }
+     },
+     "instances_suspended_unpaid": {
+      "n": 0,
+      "evidence": []
+     },
+     "status": "absent",
+     "reasons": [],
+     "n": 0,
+     "rate": 0.0,
+     "evidence": []
+    },
+    "competitor": {
+     "status": "not_applicable",
+     "population": {
+      "status": "not_applicable",
+      "reason": "no consumer population in this world"
+     },
+     "orders": {
+      "status": "not_applicable",
+      "reason": "no marketplace in this world"
+     },
+     "evidence": []
+    },
+    "strategy": {
+     "attempts": 192,
+     "valid_share": 0.0156,
+     "distinct_tools": 3,
+     "top_call_share": 0.3333,
+     "effects": 3,
+     "loop_rate": 0.9271,
+     "valid_and_varied": false,
+     "goal": {
+      "success": false,
+      "progress": 0.0
+     },
+     "status": "absent",
+     "reason": "activity was not both valid and varied (see valid_share, distinct_tools, top_call_share, loop_rate)"
+    },
+    "difficulty": {
+     "status": "established",
+     "reason": "every competent reference also failed",
+     "references": [
+      {
+       "name": "idle",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.020152767102229054,
+       "run": "mech.scm_additive-1000000.h96.idle"
+      },
+      {
+       "name": "random_settings",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.5132764252961911,
+       "run": "mech.scm_additive-1000000.h96.random_settings"
+      },
+      {
+       "name": "random",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.016435467412335338,
+       "run": "mech.scm_additive-1000000.h96.random_tools"
+      },
+      {
+       "name": "scripted_experimenter",
+       "competent": true,
+       "success": false,
+       "progress": 0.7100025842190357,
+       "score": 0.35500129210951786,
+       "run": "mech.scm_additive-1000000.h96.scripted_experimenter"
+      },
+      {
+       "name": "privileged_reference",
+       "competent": false,
+       "success": true,
+       "progress": 1.0,
+       "score": 0.9781509250178907,
+       "run": "mech.scm_additive-1000000.h96.privileged_reference"
+      }
+     ],
+     "best_reference_progress": 0.7100025842190357
+    },
+    "findings": [
+     {
+      "kind": "syntax",
+      "status": "established",
+      "share": 0.0052,
+      "evidence": [],
+      "detail": "unparseable 1"
+     },
+     {
+      "kind": "schema",
+      "status": "established",
+      "share": 0.9583,
+      "evidence": [
+       54,
+       64,
+       73,
+       75,
+       84,
+       86,
+       95,
+       97,
+       106,
+       108,
+       117,
+       119
+      ],
+      "detail": "type 182, enum+range+type 1, enum+type 1"
+     },
+     {
+      "kind": "nonexistent",
+      "status": "established",
+      "share": 0.0104,
+      "evidence": [
+       18,
+       20
+      ],
+      "detail": "no facility facilities see 2"
+     },
+     {
+      "kind": "conflict",
+      "status": "established",
+      "share": 0.0052,
+      "evidence": [
+       29
+      ],
+      "detail": "you already hold a 1"
+     },
+     {
+      "kind": "rule",
+      "status": "established",
+      "share": 0.0052,
+      "evidence": [
+       42
+      ],
+      "detail": "unknown lever name s 1"
+     },
+     {
+      "kind": "loop",
+      "status": "established",
+      "share": 0.9271,
+      "evidence": [
+       84,
+       86,
+       95,
+       97,
+       106,
+       108,
+       128,
+       130,
+       139,
+       141,
+       150,
+       152
+      ],
+      "detail": "178 repeats without new information, longest run 172"
+     },
+     {
+      "kind": "task_difficulty",
+      "status": "established",
+      "share": null,
+      "evidence": [],
+      "detail": "every competent reference also failed"
+     }
+    ],
+    "primary": "schema",
+    "primary_reason": "189 of 192 attempts did not succeed; the largest class is schema (184)",
+    "not_determinable": []
+   },
+   "invariants": [],
+   "model": {
+    "requested": "Qwen/Qwen3-1.7B",
+    "model": "Qwen/Qwen3-1.7B",
+    "device": "cuda",
+    "max_context": 32768,
+    "thinking": false,
+    "weights_fingerprint": "4d56dc614f2ab890",
+    "notes": [],
+    "weights_fingerprint_after": "4d56dc614f2ab890"
+   },
+   "code_digest": "c6be89bf9f00f6ed",
+   "recorded": "2026-11-23T06:05:44Z",
+   "config_key": "6358e7ac3d8c4cd9",
+   "transcript_file": "ow_llm_mech.scm_additive-1000000.h96.qwen3-1.7b-v4.jsonl",
+   "transcript_turns": 192
+  },
+  "mech.abm_utility-1000000.h120.qwen3-1.7b-v4": {
+   "format": "crucible-llm-eval/1",
+   "kind": "mechanism",
+   "run": "mech.abm_utility-1000000.h120.qwen3-1.7b-v4",
+   "task": {
+    "task": "abm_utility:1000000",
+    "horizon_ticks": 120,
+    "starting_balance_cents": 5252160,
+    "objective": "Operate the facility so that your net income (revenue minus cost) over the first 120 ticks is at least 435786 cents.",
+    "goal_net_cents": 435786,
+    "family": "abm_utility",
+    "seed": 1000000,
+    "engine": "abm",
+    "transfer": "base",
+    "split": "train",
+    "full_horizon_ticks": 120,
+    "shortened": false,
+    "n_levers": 5,
+    "world_family": "mech_abm_utility",
+    "world_seed": 1137213903
+   },
+   "goal_text": "Operate the facility so that your net income (revenue minus cost) over the first 120 ticks is at least 435786 cents.",
+   "policy": {
+    "name": "llm:Qwen/Qwen3-1.7B",
+    "kind": "llm",
+    "class": "EvalLLMPolicy",
+    "model": "Qwen/Qwen3-1.7B",
+    "interface": "v4",
+    "tool_chars": 40000,
+    "tool_order": "alpha",
+    "result_chars": 12000,
+    "history": 8,
+    "history_chars": 1200,
+    "history_arg_chars": 200,
+    "last_action_line": false,
+    "payload_chars": 600,
+    "max_events": 25,
+    "max_new_tokens": 512,
+    "temperature": 0.0,
+    "host_summaries": true,
+    "max_context": 32768,
+    "thinking": false,
+    "test_double": false,
+    "system_prompt_hash": "45c6bbc64ed2"
+   },
+   "runner": {
+    "dt_s": 1800,
+    "tick_s": 3600,
+    "turns_per_tick": 2,
+    "turns": 240,
+    "seed": 0
+   },
+   "outcome": {
+    "task": "abm_utility:1000000",
+    "family": "abm_utility",
+    "seed": 1000000,
+    "engine": "abm",
+    "transfer": "base",
+    "split": "train",
+    "ticks": 120,
+    "net_cents": 0.0,
+    "net_per_tick": 0.0,
+    "revenue_cents": 0.0,
+    "cost_cents": 0.0,
+    "objective_quantity": 0.0,
+    "ticks_fallback": 0,
+    "ticks_idle": 0,
+    "funds_end_cents": 5252160,
+    "score": -0.000799642679429283,
+    "success": false,
+    "score_first_half": -0.000799642679429283,
+    "score_second_half": -0.000799642679429283,
+    "random_score": -2.713415102463436,
+    "progress": 0.0
+   },
+   "sim_check": {
+    "applicable": false,
+    "reason": "the seat changed hands, or other money moved on the actor's accounts"
+   },
+   "hypotheses": {
+    "filings": 0,
+    "effects_filed": 0,
+    "predictions_filed": 0,
+    "first_filed_at_tick": null
+   },
+   "behaviour": {
+    "calls": {
+     "rig.hypothesize": 118,
+     "rig.set": 38,
+     "rig.read": 21,
+     "rig.take": 13,
+     "rig.release": 3,
+     "rig.spec": 2,
+     "rig.list": 1
+    },
+    "rig_calls_accepted": {
+     "list": 1,
+     "read": 20,
+     "release": 3,
+     "set": 32,
+     "spec": 2,
+     "take": 3
+    },
+    "first_turn": {
+     "rig.list": 175,
+     "rig.read": 10,
+     "rig.release": 3,
+     "rig.set": 6,
+     "rig.spec": 176,
+     "rig.take": 4
+    },
+    "discovery_calls": 0,
+    "read_spec": true,
+    "set_levers": true,
+    "filed_hypotheses": false,
+    "setting_changes": 0,
+    "single_lever_changes": 0,
+    "levers_moved": [],
+    "levers_total": 5,
+    "values_tried_per_lever": {
+     "do69": 1,
+     "fe82": 1,
+     "go45": 1,
+     "re22": 1,
+     "ru49": 1
+    },
+    "distinct_settings": 1,
+    "ticks_at_default": 120,
+    "final_differs_from_default": false,
+    "last_change_tick": null,
+    "final_settings_held_ticks": 120
+   },
+   "settings_by_tick": [
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    },
+    {
+     "re22": 33.0,
+     "fe82": 49.0,
+     "do69": 100.0,
+     "go45": 100.0,
+     "ru49": 67.0
+    }
+   ],
+   "accounting": {
+    "turns": 240,
+    "wall_s": 3585.2,
+    "model_s": 3582.22,
+    "world_s": 2.98,
+    "simulated_s": 432000,
+    "calls": 240,
+    "prompt_tokens": 1020825,
+    "gen_tokens": 21150,
+    "parse_failures": 44,
+    "waits": 0,
+    "truncated_prompts": 0,
+    "policy_usage": {
+     "model": "Qwen/Qwen3-1.7B",
+     "calls": 240,
+     "prompt_tokens": 1020825,
+     "gen_tokens": 21150,
+     "parse_failures": 44,
+     "waits": 0,
+     "truncated_prompts": 0,
+     "gen_s": 3582.221825361252,
+     "max_new_tokens": 512,
+     "max_context": 32768,
+     "interface": {
+      "version": "v4",
+      "tool_chars": 40000,
+      "renderer": "catalogue",
+      "tool_order": "alpha",
+      "result_chars": 12000,
+      "history": 8,
+      "history_chars": 1200,
+      "history_arg_chars": 200,
+      "last_action_line": false,
+      "payload_chars": 600,
+      "max_events": 25
+     }
+    }
+   },
+   "interface": {
+    "stamp": {
+     "kernel": "crucible-kernel/1",
+     "api": "crucible-api/1",
+     "discovery": "crucible-discovery/1",
+     "catalogue": "3b0e046bfb212c558587ff27f894790a",
+     "tools": 40,
+     "hosts": 4,
+     "modules": {
+      "admin": "1",
+      "bank": "1",
+      "identity": "1",
+      "rig": "1"
+     },
+     "visible": {
+      "hash": "3b0e046bfb212c558587ff27f894790a",
+      "tools": 40
+     }
+    },
+    "audit": {
+     "applies": true,
+     "version": "v4",
+     "prompts": {
+      "n": 240,
+      "truncated": 0,
+      "truncated_turns": [],
+      "context_limit": 32768,
+      "max_prompt_tokens": 5525,
+      "mean_prompt_tokens": 4253.4
+     },
+     "generation": {
+      "max_new_tokens": 512,
+      "at_limit": 0,
+      "at_limit_turns": [],
+      "replies_with_thought": 0,
+      "thought_without_answer": 0,
+      "thought_without_answer_turns": []
+     },
+     "catalogue": {
+      "renderer": "catalogue",
+      "budget_chars": 40000,
+      "chars": 10554,
+      "level": "full",
+      "complete": true,
+      "tools": 40,
+      "tools_with_signature": 40,
+      "first_line_descriptions": false
+     },
+     "results": {
+      "n": 196,
+      "last_result_budget_chars": 12000,
+      "cut_as_last_result": 0,
+      "cut_as_last_result_by_tool": {},
+      "history_line_chars": 1200,
+      "cut_in_history": 2,
+      "longest_result_chars": 1779,
+      "error_detail_shown": true
+     },
+     "observation": {
+      "turns": 240,
+      "summary_chars": 400,
+      "summaries_cut_by_module": {},
+      "payload_chars": 600,
+      "event_payloads_cut": 4
+     },
+     "clean": true
+    }
+   },
+   "diagnosis": {
+    "format": "crucible-diagnosis/1",
+    "source": "event_log",
+    "actor": "p:agent",
+    "world_id": "llmeval-abm_utility-1000000-mech.abm_utility-1000000.h120.qwen3-1.7b-v4",
+    "window": {
+     "from_seq": 17,
+     "to_seq": 1208,
+     "t0": 0,
+     "t1": 432000
+    },
+    "interface": {
+     "kernel": "crucible-kernel/1",
+     "api": "crucible-api/1",
+     "discovery": "crucible-discovery/1",
+     "catalogue": "3b0e046bfb212c558587ff27f894790a",
+     "tools": 40,
+     "hosts": 4,
+     "modules": {
+      "admin": "1",
+      "bank": "1",
+      "identity": "1",
+      "rig": "1"
+     },
+     "visible": {
+      "hash": "3b0e046bfb212c558587ff27f894790a",
+      "tools": 40
+     }
+    },
+    "principals": [
+     "p:agent"
+    ],
+    "counts": {
+     "turns": 240,
+     "attempts": 240,
+     "accepted": 61,
+     "rejected": 135,
+     "unparsed": 44,
+     "waits": 0,
+     "no_action": 0,
+     "distinct_tools": 7
+    },
+    "classes": {
+     "ok_effect": {
+      "n": 38,
+      "rate": 0.1583,
+      "evidence": [
+       30,
+       38,
+       49,
+       52,
+       61,
+       64,
+       185,
+       233,
+       353,
+       365,
+       470,
+       534
+      ],
+      "tools": {
+       "rig.set": 32,
+       "rig.release": 3,
+       "rig.take": 3
+      }
+     },
+     "ok_read": {
+      "n": 23,
+      "rate": 0.0958,
+      "evidence": [
+       73,
+       188,
+       236,
+       545,
+       611,
+       684,
+       865,
+       873,
+       886,
+       897,
+       908,
+       916
+      ],
+      "tools": {
+       "rig.read": 20,
+       "rig.spec": 2,
+       "rig.list": 1
+      }
+     },
+     "syntax": {
+      "n": 44,
+      "rate": 0.1833,
+      "evidence": [],
+      "subs": {
+       "unparseable": 44
+      }
+     },
+     "permission": {
+      "n": 1,
+      "rate": 0.0042,
+      "evidence": [
+       651
+      ],
+      "subs": {
+       "forbidden": 1
+      },
+      "tools": {
+       "rig.read": 1
+      }
+     },
+     "schema": {
+      "n": 103,
+      "rate": 0.4292,
+      "evidence": [
+       75,
+       83,
+       85,
+       93,
+       95,
+       103,
+       105,
+       113,
+       115,
+       123,
+       125,
+       158
+      ],
+      "subs": {
+       "type": 98,
+       "required+type": 3,
+       "range+type": 2
+      },
+      "tools": {
+       "rig.hypothesize": 103
+      }
+     },
+     "nonexistent": {
+      "n": 4,
+      "rate": 0.0167,
+      "evidence": [
+       18,
+       20,
+       590,
+       855
+      ],
+      "subs": {
+       "no facility facilities see": 4
+      },
+      "tools": {
+       "rig.take": 2,
+       "rig.hypothesize": 1,
+       "rig.set": 1
+      }
+     },
+     "conflict": {
+      "n": 8,
+      "rate": 0.0333,
+      "evidence": [
+       28,
+       598,
+       620,
+       628,
+       630,
+       638,
+       640,
+       863
+      ],
+      "subs": {
+       "you already hold a": 8
+      },
+      "tools": {
+       "rig.take": 8
+      }
+     },
+     "rule": {
+      "n": 19,
+      "rate": 0.0792,
+      "evidence": [
+       41,
+       661,
+       753,
+       755,
+       763,
+       765,
+       773,
+       775,
+       815,
+       823,
+       825,
+       833
+      ],
+      "subs": {
+       "effects unknown target valid": 12,
+       "unknown lever name s": 5,
+       "effects unknown lever valid": 2
+      },
+      "tools": {
+       "rig.hypothesize": 14,
+       "rig.set": 5
+      }
+     }
+    },
+    "families": {
+     "valid": {
+      "n": 61,
+      "rate": 0.2542
+     },
+     "idle": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "form": {
+      "n": 147,
+      "rate": 0.6125
+     },
+     "discovery": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "belief": {
+      "n": 12,
+      "rate": 0.05
+     },
+     "permission": {
+      "n": 1,
+      "rate": 0.0042
+     },
+     "rule": {
+      "n": 19,
+      "rate": 0.0792
+     },
+     "resource": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "service": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "code": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "simulator": {
+      "n": 0,
+      "rate": 0.0
+     }
+    },
+    "loops": {
+     "status": "established",
+     "actions": 79,
+     "rate": 0.3292,
+     "runs": 27,
+     "longest_run": 18,
+     "by_tool": {
+      "rig.hypothesize": 66,
+      "rig.set": 11,
+      "rig.take": 2
+     },
+     "run_list": [
+      {
+       "first_i": 50,
+       "first_seq": 263,
+       "last_seq": 345,
+       "length": 18,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 18
+       },
+       "tool": "rig.hypothesize"
+      },
+      {
+       "first_i": 226,
+       "first_seq": 1136,
+       "last_seq": 1166,
+       "length": 7,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 7
+       },
+       "tool": "rig.hypothesize"
+      },
+      {
+       "first_i": 145,
+       "first_seq": 716,
+       "last_seq": 744,
+       "length": 6,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 6
+       },
+       "tool": "rig.hypothesize"
+      },
+      {
+       "first_i": 160,
+       "first_seq": 793,
+       "last_seq": 813,
+       "length": 5,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 5
+       },
+       "tool": "rig.hypothesize"
+      },
+      {
+       "first_i": 168,
+       "first_seq": 833,
+       "last_seq": 853,
+       "length": 5,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 5
+       },
+       "tool": "rig.hypothesize"
+      },
+      {
+       "first_i": 208,
+       "first_seq": 1042,
+       "last_seq": 1054,
+       "length": 4,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 4
+       },
+       "tool": "rig.hypothesize"
+      },
+      {
+       "first_i": 236,
+       "first_seq": 1188,
+       "last_seq": 1201,
+       "length": 4,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 3,
+        "rig.set": 1
+       },
+       "tool": "rig.hypothesize"
+      },
+      {
+       "first_i": 17,
+       "first_seq": 105,
+       "last_seq": 115,
+       "length": 3,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 3
+       },
+       "tool": "rig.hypothesize"
+      },
+      {
+       "first_i": 155,
+       "first_seq": 765,
+       "last_seq": 775,
+       "length": 3,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 3
+       },
+       "tool": "rig.hypothesize"
+      },
+      {
+       "first_i": 220,
+       "first_seq": 1103,
+       "last_seq": 1114,
+       "length": 3,
+       "kind": "repeated_effect",
+       "outcome": "ok",
+       "tools": {
+        "rig.set": 2,
+        "rig.hypothesize": 1
+       },
+       "tool": "rig.set"
+      }
+     ],
+     "unverified_reads": 0,
+     "evidence": [
+      64,
+      93,
+      105,
+      113,
+      115,
+      223,
+      225,
+      263,
+      265,
+      273,
+      275,
+      283
+     ],
+     "definition": "same tool, identical arguments (or one text argument reworded, Jaccard >= 0.8), same outcome, at least 2 times in the preceding 8 attempts"
+    },
+    "context": {
+     "context_limit": 32768,
+     "max_new_tokens": 512,
+     "status": "absent",
+     "per_turn": true,
+     "turns": 240,
+     "truncated_turns": 0,
+     "rate": 0.0,
+     "evidence_turns": [],
+     "max_prompt_tokens": 5525,
+     "mean_prompt_tokens": 4253.4,
+     "tool_list": {
+      "renderer": "catalogue",
+      "budget_chars": 40000,
+      "level": "full",
+      "first_line_only": false,
+      "hosts_listed": 4,
+      "tools": 40,
+      "with_signature": 40,
+      "share_with_signature": 1.0,
+      "hosts": 4,
+      "hosts_with_no_signature": [],
+      "calls_to_existing_tools": 196,
+      "calls_to_tools_with_signature": 196,
+      "share_of_calls_to_tools_with_signature": 1.0,
+      "discovery_calls": 0,
+      "status": "absent"
+     }
+    },
+    "code": {
+     "tests": 0,
+     "tests_failed": 0,
+     "runs": 0,
+     "runs_failed": 0,
+     "deploys": 0,
+     "deploys_failed": 0,
+     "manifest_rejections": 0,
+     "commits": 0,
+     "requests": {
+      "ok": 0,
+      "error": 0,
+      "overload": 0,
+      "unavailable": 0
+     },
+     "quality": {
+      "scored_hours": 0,
+      "mean_q": null
+     },
+     "evidence": [],
+     "current_deployments": {
+      "ids": [],
+      "requests": {
+       "ok": 0,
+       "error": 0
+      }
+     },
+     "status": "absent",
+     "attempted": false,
+     "reasons": [],
+     "live_deployments": 0,
+     "deployments": 0,
+     "note": "the actor wrote, ran and deployed no code in this window"
+    },
+    "resources": {
+     "funds": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "rate_limit": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "capacity": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "budget": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "cash": {
+      "start": 5252160,
+      "end": 5252160,
+      "min": 5252160,
+      "max": 5252160,
+      "min_seq": null,
+      "spent_by_kind": {}
+     },
+     "instances_suspended_unpaid": {
+      "n": 0,
+      "evidence": []
+     },
+     "status": "absent",
+     "reasons": [],
+     "n": 0,
+     "rate": 0.0,
+     "evidence": []
+    },
+    "competitor": {
+     "status": "not_applicable",
+     "population": {
+      "status": "not_applicable",
+      "reason": "no consumer population in this world"
+     },
+     "orders": {
+      "status": "not_applicable",
+      "reason": "no marketplace in this world"
+     },
+     "evidence": []
+    },
+    "strategy": {
+     "attempts": 240,
+     "valid_share": 0.2542,
+     "distinct_tools": 6,
+     "top_call_share": 0.3279,
+     "effects": 38,
+     "loop_rate": 0.3292,
+     "valid_and_varied": false,
+     "goal": {
+      "success": false,
+      "progress": 0.0
+     },
+     "status": "absent",
+     "reason": "activity was not both valid and varied (see valid_share, distinct_tools, top_call_share, loop_rate)"
+    },
+    "difficulty": {
+     "status": "established",
+     "reason": "every competent reference also failed",
+     "references": [
+      {
+       "name": "idle",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.000799642679429283,
+       "run": "mech.abm_utility-1000000.h120.idle"
+      },
+      {
+       "name": "random_settings",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": -2.523954804770352,
+       "run": "mech.abm_utility-1000000.h120.random_settings"
+      },
+      {
+       "name": "random",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.000799642679429283,
+       "run": "mech.abm_utility-1000000.h120.random_tools"
+      },
+      {
+       "name": "scripted_experimenter",
+       "competent": true,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.021921701287204453,
+       "run": "mech.abm_utility-1000000.h120.scripted_experimenter"
+      },
+      {
+       "name": "privileged_reference",
+       "competent": false,
+       "success": true,
+       "progress": 1.0,
+       "score": 1.0260748634095385,
+       "run": "mech.abm_utility-1000000.h120.privileged_reference"
+      }
+     ],
+     "best_reference_progress": 0.0
+    },
+    "findings": [
+     {
+      "kind": "syntax",
+      "status": "established",
+      "share": 0.1833,
+      "evidence": [],
+      "detail": "unparseable 44"
+     },
+     {
+      "kind": "permission",
+      "status": "established",
+      "share": 0.0042,
+      "evidence": [
+       651
+      ],
+      "detail": "forbidden 1"
+     },
+     {
+      "kind": "schema",
+      "status": "established",
+      "share": 0.4292,
+      "evidence": [
+       75,
+       83,
+       85,
+       93,
+       95,
+       103,
+       105,
+       113,
+       115,
+       123,
+       125,
+       158
+      ],
+      "detail": "type 98, required+type 3, range+type 2"
+     },
+     {
+      "kind": "nonexistent",
+      "status": "established",
+      "share": 0.0167,
+      "evidence": [
+       18,
+       20,
+       590,
+       855
+      ],
+      "detail": "no facility facilities see 4"
+     },
+     {
+      "kind": "conflict",
+      "status": "established",
+      "share": 0.0333,
+      "evidence": [
+       28,
+       598,
+       620,
+       628,
+       630,
+       638,
+       640,
+       863
+      ],
+      "detail": "you already hold a 8"
+     },
+     {
+      "kind": "rule",
+      "status": "established",
+      "share": 0.0792,
+      "evidence": [
+       41,
+       661,
+       753,
+       755,
+       763,
+       765,
+       773,
+       775,
+       815,
+       823,
+       825,
+       833
+      ],
+      "detail": "effects unknown target valid 12, unknown lever name s 5, effects unknown lever valid 2"
+     },
+     {
+      "kind": "loop",
+      "status": "established",
+      "share": 0.3292,
+      "evidence": [
+       64,
+       93,
+       105,
+       113,
+       115,
+       223,
+       225,
+       263,
+       265,
+       273,
+       275,
+       283
+      ],
+      "detail": "79 repeats without new information, longest run 18"
+     },
+     {
+      "kind": "task_difficulty",
+      "status": "established",
+      "share": null,
+      "evidence": [],
+      "detail": "every competent reference also failed"
+     }
+    ],
+    "primary": "schema",
+    "primary_reason": "179 of 240 attempts did not succeed; the largest class is schema (103)",
+    "not_determinable": []
+   },
+   "invariants": [],
+   "model": {
+    "requested": "Qwen/Qwen3-1.7B",
+    "model": "Qwen/Qwen3-1.7B",
+    "device": "cuda",
+    "max_context": 32768,
+    "thinking": false,
+    "weights_fingerprint": "4d56dc614f2ab890",
+    "notes": [],
+    "weights_fingerprint_after": "4d56dc614f2ab890"
+   },
+   "code_digest": "c6be89bf9f00f6ed",
+   "recorded": "2026-11-23T07:05:31Z",
+   "config_key": "02cc9425f0dc4df5",
+   "transcript_file": "ow_llm_mech.abm_utility-1000000.h120.qwen3-1.7b-v4.jsonl",
+   "transcript_turns": 240
+  },
+  "mech.tech_pipeline-1000000.h144.qwen3-1.7b-v4": {
+   "format": "crucible-llm-eval/1",
+   "kind": "mechanism",
+   "run": "mech.tech_pipeline-1000000.h144.qwen3-1.7b-v4",
+   "task": {
+    "task": "tech_pipeline:1000000",
+    "horizon_ticks": 144,
+    "starting_balance_cents": 51700,
+    "objective": "Operate the facility so that your net income (revenue minus cost) over the first 144 ticks is at least 23019 cents.",
+    "goal_net_cents": 23019,
+    "family": "tech_pipeline",
+    "seed": 1000000,
+    "engine": "techsys",
+    "transfer": "cross_impl",
+    "split": "val",
+    "full_horizon_ticks": 144,
+    "shortened": false,
+    "n_levers": 7,
+    "world_family": "mech_tech_pipeline",
+    "world_seed": 1076294363
+   },
+   "goal_text": "Operate the facility so that your net income (revenue minus cost) over the first 144 ticks is at least 23019 cents.",
+   "policy": {
+    "name": "llm:Qwen/Qwen3-1.7B",
+    "kind": "llm",
+    "class": "EvalLLMPolicy",
+    "model": "Qwen/Qwen3-1.7B",
+    "interface": "v4",
+    "tool_chars": 40000,
+    "tool_order": "alpha",
+    "result_chars": 12000,
+    "history": 8,
+    "history_chars": 1200,
+    "history_arg_chars": 200,
+    "last_action_line": false,
+    "payload_chars": 600,
+    "max_events": 25,
+    "max_new_tokens": 512,
+    "temperature": 0.0,
+    "host_summaries": true,
+    "max_context": 32768,
+    "thinking": false,
+    "test_double": false,
+    "system_prompt_hash": "45c6bbc64ed2"
+   },
+   "runner": {
+    "dt_s": 1800,
+    "tick_s": 3600,
+    "turns_per_tick": 2,
+    "turns": 288,
+    "seed": 0
+   },
+   "outcome": {
+    "task": "tech_pipeline:1000000",
+    "family": "tech_pipeline",
+    "seed": 1000000,
+    "engine": "techsys",
+    "transfer": "cross_impl",
+    "split": "val",
+    "ticks": 144,
+    "net_cents": -11892.0,
+    "net_per_tick": -82.58333333333333,
+    "revenue_cents": 54876.0,
+    "cost_cents": 66768.0,
+    "objective_quantity": -11898.430440000015,
+    "ticks_fallback": 0,
+    "ticks_idle": 0,
+    "funds_end_cents": 39808,
+    "score": -0.11808567769653402,
+    "success": false,
+    "score_first_half": -0.21528306452088827,
+    "score_second_half": -0.02088829087217983,
+    "random_score": -0.8707293935048304,
+    "progress": 0.0
+   },
+   "sim_check": {
+    "applicable": false,
+    "reason": "the seat changed hands, or other money moved on the actor's accounts"
+   },
+   "hypotheses": {
+    "filings": 3,
+    "effects_filed": 3,
+    "predictions_filed": 3,
+    "first_filed_at_tick": 14,
+    "n_claims": 1,
+    "invalid": 0,
+    "n_pairs": 105,
+    "n_true_effects": 29,
+    "sign_accuracy": 0.0,
+    "lag_accuracy": null,
+    "lag_mae": null,
+    "coverage": 0.0,
+    "identification": 0.0,
+    "brier": null,
+    "prediction": {
+     "n": 3,
+     "n_valid": 3,
+     "mae": 75.48333333333329,
+     "nmae": 0.37476897107309587
+    }
+   },
+   "behaviour": {
+    "calls": {
+     "rig.set": 61,
+     "rig.hypothesize": 53,
+     "rig.take": 43,
+     "bank.invoice_status": 38,
+     "rig.read": 34,
+     "bank.pay_invoice": 11,
+     "rig.release": 11,
+     "bank.open_account": 10,
+     "bank.authorize_debit": 7,
+     "bank.invoice": 7,
+     "bank.balance": 3,
+     "rig.spec": 3,
+     "bank.invoice_invoice": 1,
+     "world.find_tools": 1
+    },
+    "rig_calls_accepted": {
+     "hypothesize": 3,
+     "read": 32,
+     "release": 11,
+     "set": 52,
+     "spec": 3,
+     "take": 11
+    },
+    "first_turn": {
+     "rig.hypothesize": 29,
+     "rig.read": 8,
+     "rig.release": 3,
+     "rig.set": 6,
+     "rig.spec": 277,
+     "rig.take": 4
+    },
+    "discovery_calls": 1,
+    "read_spec": true,
+    "set_levers": true,
+    "filed_hypotheses": true,
+    "setting_changes": 5,
+    "single_lever_changes": 4,
+    "levers_moved": [
+     "fu52",
+     "pu90",
+     "se10",
+     "te97"
+    ],
+    "levers_total": 7,
+    "values_tried_per_lever": {
+     "fu52": 3,
+     "lo11": 1,
+     "ma69": 1,
+     "pu90": 2,
+     "se10": 2,
+     "te97": 2,
+     "ve91": 1
+    },
+    "distinct_settings": 4,
+    "ticks_at_default": 73,
+    "final_differs_from_default": true,
+    "last_change_tick": 140,
+    "final_settings_held_ticks": 4
+   },
+   "settings_by_tick": [
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 6.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 1.0,
+     "se10": 7.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 11.0,
+     "fu52": 21.0
+    },
+    {
+     "pu90": 7.0,
+     "se10": 10.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 21.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 7.0,
+     "se10": 10.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 21.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 7.0,
+     "se10": 10.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 21.0,
+     "fu52": 38.0
+    },
+    {
+     "pu90": 7.0,
+     "se10": 10.0,
+     "ve91": 188.0,
+     "lo11": 17.0,
+     "ma69": 1.0,
+     "te97": 21.0,
+     "fu52": 38.0
+    }
+   ],
+   "accounting": {
+    "turns": 288,
+    "wall_s": 2054.31,
+    "model_s": 2051.72,
+    "world_s": 2.59,
+    "simulated_s": 518400,
+    "calls": 288,
+    "prompt_tokens": 1283014,
+    "gen_tokens": 14209,
+    "parse_failures": 4,
+    "waits": 1,
+    "truncated_prompts": 0,
+    "policy_usage": {
+     "model": "Qwen/Qwen3-1.7B",
+     "calls": 288,
+     "prompt_tokens": 1283014,
+     "gen_tokens": 14209,
+     "parse_failures": 4,
+     "waits": 1,
+     "truncated_prompts": 0,
+     "gen_s": 2051.7191388607025,
+     "max_new_tokens": 512,
+     "max_context": 32768,
+     "interface": {
+      "version": "v4",
+      "tool_chars": 40000,
+      "renderer": "catalogue",
+      "tool_order": "alpha",
+      "result_chars": 12000,
+      "history": 8,
+      "history_chars": 1200,
+      "history_arg_chars": 200,
+      "last_action_line": false,
+      "payload_chars": 600,
+      "max_events": 25
+     }
+    }
+   },
+   "interface": {
+    "stamp": {
+     "kernel": "crucible-kernel/1",
+     "api": "crucible-api/1",
+     "discovery": "crucible-discovery/1",
+     "catalogue": "3b0e046bfb212c558587ff27f894790a",
+     "tools": 40,
+     "hosts": 4,
+     "modules": {
+      "admin": "1",
+      "bank": "1",
+      "identity": "1",
+      "rig": "1"
+     },
+     "visible": {
+      "hash": "3b0e046bfb212c558587ff27f894790a",
+      "tools": 40
+     }
+    },
+    "audit": {
+     "applies": true,
+     "version": "v4",
+     "prompts": {
+      "n": 288,
+      "truncated": 0,
+      "truncated_turns": [],
+      "context_limit": 32768,
+      "max_prompt_tokens": 7553,
+      "mean_prompt_tokens": 4454.9
+     },
+     "generation": {
+      "max_new_tokens": 512,
+      "at_limit": 0,
+      "at_limit_turns": [],
+      "replies_with_thought": 0,
+      "thought_without_answer": 0,
+      "thought_without_answer_turns": []
+     },
+     "catalogue": {
+      "renderer": "catalogue",
+      "budget_chars": 40000,
+      "chars": 10554,
+      "level": "full",
+      "complete": true,
+      "tools": 40,
+      "tools_with_signature": 40,
+      "first_line_descriptions": false
+     },
+     "results": {
+      "n": 283,
+      "last_result_budget_chars": 12000,
+      "cut_as_last_result": 0,
+      "cut_as_last_result_by_tool": {},
+      "history_line_chars": 1200,
+      "cut_in_history": 4,
+      "longest_result_chars": 9692,
+      "error_detail_shown": true
+     },
+     "observation": {
+      "turns": 288,
+      "summary_chars": 400,
+      "summaries_cut_by_module": {},
+      "payload_chars": 600,
+      "event_payloads_cut": 2
+     },
+     "clean": true
+    }
+   },
+   "diagnosis": {
+    "format": "crucible-diagnosis/1",
+    "source": "event_log",
+    "actor": "p:agent",
+    "world_id": "llmeval-tech_pipeline-1000000-mech.tech_pipeline-1000000.h144.qwen3-1.7b-v4",
+    "window": {
+     "from_seq": 17,
+     "to_seq": 1654,
+     "t0": 0,
+     "t1": 518400
+    },
+    "interface": {
+     "kernel": "crucible-kernel/1",
+     "api": "crucible-api/1",
+     "discovery": "crucible-discovery/1",
+     "catalogue": "3b0e046bfb212c558587ff27f894790a",
+     "tools": 40,
+     "hosts": 4,
+     "modules": {
+      "admin": "1",
+      "bank": "1",
+      "identity": "1",
+      "rig": "1"
+     },
+     "visible": {
+      "hash": "3b0e046bfb212c558587ff27f894790a",
+      "tools": 40
+     }
+    },
+    "principals": [
+     "p:agent"
+    ],
+    "counts": {
+     "turns": 288,
+     "attempts": 287,
+     "accepted": 119,
+     "rejected": 164,
+     "unparsed": 4,
+     "waits": 1,
+     "no_action": 0,
+     "distinct_tools": 14
+    },
+    "classes": {
+     "ok_effect": {
+      "n": 81,
+      "rate": 0.2812,
+      "evidence": [
+       31,
+       39,
+       51,
+       54,
+       86,
+       98,
+       110,
+       146,
+       180,
+       193,
+       204,
+       207
+      ],
+      "tools": {
+       "rig.set": 52,
+       "rig.release": 11,
+       "rig.take": 11,
+       "bank.open_account": 4,
+       "rig.hypothesize": 3
+      }
+     },
+     "ok_read": {
+      "n": 38,
+      "rate": 0.1319,
+      "evidence": [
+       64,
+       89,
+       101,
+       144,
+       156,
+       167,
+       191,
+       243,
+       722,
+       757,
+       769,
+       781
+      ],
+      "tools": {
+       "rig.read": 32,
+       "rig.spec": 3,
+       "bank.balance": 2,
+       "world.find_tools": 1
+      }
+     },
+     "wait": {
+      "n": 1,
+      "rate": 0.0035,
+      "evidence": []
+     },
+     "syntax": {
+      "n": 4,
+      "rate": 0.0139,
+      "evidence": [],
+      "subs": {
+       "unparseable": 4
+      }
+     },
+     "unknown_tool": {
+      "n": 1,
+      "rate": 0.0035,
+      "evidence": [
+       1257
+      ],
+      "subs": {
+       "near_name": 1
+      },
+      "tools": {
+       "bank.invoice_invoice": 1
+      }
+     },
+     "permission": {
+      "n": 9,
+      "rate": 0.0312,
+      "evidence": [
+       1120,
+       1174,
+       1176,
+       1185,
+       1187,
+       1196,
+       1198,
+       1207,
+       1209
+      ],
+      "subs": {
+       "forbidden": 9
+      },
+      "tools": {
+       "bank.authorize_debit": 7,
+       "bank.balance": 1,
+       "rig.set": 1
+      }
+     },
+     "schema": {
+      "n": 43,
+      "rate": 0.1493,
+      "evidence": [
+       66,
+       75,
+       77,
+       113,
+       122,
+       124,
+       666,
+       675,
+       677,
+       686,
+       688,
+       697
+      ],
+      "subs": {
+       "type": 18,
+       "required": 9,
+       "required+type": 8,
+       "required+unexpected": 5,
+       "required+type+unexpected": 2,
+       "unexpected": 1
+      },
+      "tools": {
+       "rig.hypothesize": 43
+      }
+     },
+     "nonexistent": {
+      "n": 68,
+      "rate": 0.2361,
+      "evidence": [
+       18,
+       20,
+       221,
+       342,
+       344,
+       353,
+       355,
+       364,
+       366,
+       375,
+       377,
+       386
+      ],
+      "subs": {
+       "no invoice": 38,
+       "no facility facilities see": 12,
+       "no open invoice": 11,
+       "no principal with handle": 7
+      },
+      "tools": {
+       "bank.invoice_status": 38,
+       "bank.pay_invoice": 11,
+       "bank.invoice": 7,
+       "rig.take": 7,
+       "rig.set": 3,
+       "rig.read": 2
+      }
+     },
+     "conflict": {
+      "n": 31,
+      "rate": 0.1076,
+      "evidence": [
+       29,
+       230,
+       252,
+       254,
+       263,
+       265,
+       277,
+       286,
+       299,
+       308,
+       310,
+       319
+      ],
+      "subs": {
+       "you already hold a": 25,
+       "account limit reached": 6
+      },
+      "tools": {
+       "rig.take": 25,
+       "bank.open_account": 6
+      }
+     },
+     "rule": {
+      "n": 12,
+      "rate": 0.0417,
+      "evidence": [
+       42,
+       133,
+       135,
+       158,
+       169,
+       178,
+       330,
+       641,
+       936,
+       948,
+       1596,
+       1607
+      ],
+      "subs": {
+       "effects unknown target valid": 7,
+       "unknown lever name s": 5
+      },
+      "tools": {
+       "rig.hypothesize": 7,
+       "rig.set": 5
+      }
+     }
+    },
+    "families": {
+     "valid": {
+      "n": 119,
+      "rate": 0.4132
+     },
+     "idle": {
+      "n": 1,
+      "rate": 0.0035
+     },
+     "form": {
+      "n": 47,
+      "rate": 0.1632
+     },
+     "discovery": {
+      "n": 1,
+      "rate": 0.0035
+     },
+     "belief": {
+      "n": 99,
+      "rate": 0.3438
+     },
+     "permission": {
+      "n": 9,
+      "rate": 0.0312
+     },
+     "rule": {
+      "n": 12,
+      "rate": 0.0417
+     },
+     "resource": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "service": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "code": {
+      "n": 0,
+      "rate": 0.0
+     },
+     "simulator": {
+      "n": 0,
+      "rate": 0.0
+     }
+    },
+    "loops": {
+     "status": "established",
+     "actions": 112,
+     "rate": 0.3902,
+     "runs": 43,
+     "longest_run": 15,
+     "by_tool": {
+      "bank.invoice_status": 33,
+      "rig.set": 26,
+      "rig.hypothesize": 20,
+      "rig.take": 13,
+      "bank.authorize_debit": 5,
+      "bank.invoice": 5,
+      "bank.pay_invoice": 5,
+      "bank.open_account": 4,
+      "rig.spec": 1
+     },
+     "run_list": [
+      {
+       "first_i": 83,
+       "first_seq": 487,
+       "last_seq": 564,
+       "length": 15,
+       "kind": "repeated_rejection",
+       "outcome": "not_found",
+       "tools": {
+        "bank.invoice_status": 13,
+        "bank.pay_invoice": 2
+       },
+       "tool": "bank.invoice_status"
+      },
+      {
+       "first_i": 67,
+       "first_seq": 399,
+       "last_seq": 465,
+       "length": 13,
+       "kind": "repeated_rejection",
+       "outcome": "not_found",
+       "tools": {
+        "bank.invoice_status": 11,
+        "bank.pay_invoice": 2
+       },
+       "tool": "bank.invoice_status"
+      },
+      {
+       "first_i": 58,
+       "first_seq": 353,
+       "last_seq": 377,
+       "length": 6,
+       "kind": "repeated_rejection",
+       "outcome": "not_found",
+       "tools": {
+        "bank.invoice_status": 6
+       },
+       "tool": "bank.invoice_status"
+      },
+      {
+       "first_i": 118,
+       "first_seq": 686,
+       "last_seq": 710,
+       "length": 6,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 6
+       },
+       "tool": "rig.hypothesize"
+      },
+      {
+       "first_i": 49,
+       "first_seq": 299,
+       "last_seq": 321,
+       "length": 5,
+       "kind": "repeated_rejection",
+       "outcome": "conflict",
+       "tools": {
+        "rig.take": 5
+       },
+       "tool": "rig.take"
+      },
+      {
+       "first_i": 205,
+       "first_seq": 1187,
+       "last_seq": 1209,
+       "length": 5,
+       "kind": "repeated_rejection",
+       "outcome": "forbidden",
+       "tools": {
+        "bank.authorize_debit": 5
+       },
+       "tool": "bank.authorize_debit"
+      },
+      {
+       "first_i": 183,
+       "first_seq": 1062,
+       "last_seq": 1084,
+       "length": 4,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 2,
+        "rig.set": 2
+       },
+       "tool": "rig.hypothesize"
+      },
+      {
+       "first_i": 220,
+       "first_seq": 1277,
+       "last_seq": 1290,
+       "length": 4,
+       "kind": "repeated_rejection",
+       "outcome": "not_found",
+       "tools": {
+        "bank.invoice": 4
+       },
+       "tool": "bank.invoice"
+      },
+      {
+       "first_i": 231,
+       "first_seq": 1333,
+       "last_seq": 1349,
+       "length": 4,
+       "kind": "repeated_rejection",
+       "outcome": "conflict",
+       "tools": {
+        "bank.open_account": 4
+       },
+       "tool": "bank.open_account"
+      },
+      {
+       "first_i": 258,
+       "first_seq": 1486,
+       "last_seq": 1499,
+       "length": 4,
+       "kind": "repeated_rejection",
+       "outcome": "invalid_action",
+       "tools": {
+        "rig.hypothesize": 4
+       },
+       "tool": "rig.hypothesize"
+      }
+     ],
+     "unverified_reads": 0,
+     "evidence": [
+      86,
+      98,
+      110,
+      158,
+      169,
+      178,
+      207,
+      263,
+      265,
+      277,
+      286,
+      299
+     ],
+     "definition": "same tool, identical arguments (or one text argument reworded, Jaccard >= 0.8), same outcome, at least 2 times in the preceding 8 attempts"
+    },
+    "context": {
+     "context_limit": 32768,
+     "max_new_tokens": 512,
+     "status": "absent",
+     "per_turn": true,
+     "turns": 288,
+     "truncated_turns": 0,
+     "rate": 0.0,
+     "evidence_turns": [],
+     "max_prompt_tokens": 7553,
+     "mean_prompt_tokens": 4454.9,
+     "tool_list": {
+      "renderer": "catalogue",
+      "budget_chars": 40000,
+      "level": "full",
+      "first_line_only": false,
+      "hosts_listed": 4,
+      "tools": 40,
+      "with_signature": 40,
+      "share_with_signature": 1.0,
+      "hosts": 4,
+      "hosts_with_no_signature": [],
+      "calls_to_existing_tools": 282,
+      "calls_to_tools_with_signature": 282,
+      "share_of_calls_to_tools_with_signature": 1.0,
+      "discovery_calls": 1,
+      "status": "absent"
+     }
+    },
+    "code": {
+     "tests": 0,
+     "tests_failed": 0,
+     "runs": 0,
+     "runs_failed": 0,
+     "deploys": 0,
+     "deploys_failed": 0,
+     "manifest_rejections": 0,
+     "commits": 0,
+     "requests": {
+      "ok": 0,
+      "error": 0,
+      "overload": 0,
+      "unavailable": 0
+     },
+     "quality": {
+      "scored_hours": 0,
+      "mean_q": null
+     },
+     "evidence": [],
+     "current_deployments": {
+      "ids": [],
+      "requests": {
+       "ok": 0,
+       "error": 0
+      }
+     },
+     "status": "absent",
+     "attempted": false,
+     "reasons": [],
+     "live_deployments": 0,
+     "deployments": 0,
+     "note": "the actor wrote, ran and deployed no code in this window"
+    },
+    "resources": {
+     "funds": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "rate_limit": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "capacity": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "budget": {
+      "n": 0,
+      "rate": 0.0,
+      "evidence": []
+     },
+     "cash": {
+      "start": 51700,
+      "end": 39808,
+      "min": 39610,
+      "max": 51858,
+      "min_seq": 1640,
+      "spent_by_kind": {
+       "rig_settle": 14405
+      }
+     },
+     "instances_suspended_unpaid": {
+      "n": 0,
+      "evidence": []
+     },
+     "status": "absent",
+     "reasons": [],
+     "n": 0,
+     "rate": 0.0,
+     "evidence": []
+    },
+    "competitor": {
+     "status": "not_applicable",
+     "population": {
+      "status": "not_applicable",
+      "reason": "no consumer population in this world"
+     },
+     "orders": {
+      "status": "not_applicable",
+      "reason": "no marketplace in this world"
+     },
+     "evidence": []
+    },
+    "strategy": {
+     "attempts": 287,
+     "valid_share": 0.4146,
+     "distinct_tools": 9,
+     "top_call_share": 0.2689,
+     "effects": 81,
+     "loop_rate": 0.3902,
+     "valid_and_varied": false,
+     "goal": {
+      "success": false,
+      "progress": 0.0
+     },
+     "status": "absent",
+     "reason": "activity was not both valid and varied (see valid_share, distinct_tools, top_call_share, loop_rate)"
+    },
+    "difficulty": {
+     "status": "established",
+     "reason": "every competent reference also failed",
+     "references": [
+      {
+       "name": "idle",
+       "competent": false,
+       "success": false,
+       "progress": 0.049578339205306604,
+       "score": 0.024789169602653302,
+       "run": "mech.tech_pipeline-1000000.h144.idle"
+      },
+      {
+       "name": "random_settings",
+       "competent": false,
+       "success": false,
+       "progress": 0.0,
+       "score": -0.822828697720258,
+       "run": "mech.tech_pipeline-1000000.h144.random_settings"
+      },
+      {
+       "name": "random",
+       "competent": false,
+       "success": false,
+       "progress": 0.13788809612331734,
+       "score": 0.06894404806165867,
+       "run": "mech.tech_pipeline-1000000.h144.random_tools"
+      },
+      {
+       "name": "scripted_experimenter",
+       "competent": true,
+       "success": false,
+       "progress": 0.4741662683167206,
+       "score": 0.2370831341583603,
+       "run": "mech.tech_pipeline-1000000.h144.scripted_experimenter"
+      },
+      {
+       "name": "privileged_reference",
+       "competent": false,
+       "success": true,
+       "progress": 1.0,
+       "score": 0.9658333775944384,
+       "run": "mech.tech_pipeline-1000000.h144.privileged_reference"
+      }
+     ],
+     "best_reference_progress": 0.4741662683167206
+    },
+    "findings": [
+     {
+      "kind": "syntax",
+      "status": "established",
+      "share": 0.0139,
+      "evidence": [],
+      "detail": "unparseable 4"
+     },
+     {
+      "kind": "unknown_tool",
+      "status": "established",
+      "share": 0.0035,
+      "evidence": [
+       1257
+      ],
+      "detail": "near_name 1"
+     },
+     {
+      "kind": "permission",
+      "status": "established",
+      "share": 0.0314,
+      "evidence": [
+       1120,
+       1174,
+       1176,
+       1185,
+       1187,
+       1196,
+       1198,
+       1207,
+       1209
+      ],
+      "detail": "forbidden 9"
+     },
+     {
+      "kind": "schema",
+      "status": "established",
+      "share": 0.1498,
+      "evidence": [
+       66,
+       75,
+       77,
+       113,
+       122,
+       124,
+       666,
+       675,
+       677,
+       686,
+       688,
+       697
+      ],
+      "detail": "type 18, required 9, required+type 8, required+unexpected 5, required+type+unexpected 2, unexpected 1"
+     },
+     {
+      "kind": "nonexistent",
+      "status": "established",
+      "share": 0.2369,
+      "evidence": [
+       18,
+       20,
+       221,
+       342,
+       344,
+       353,
+       355,
+       364,
+       366,
+       375,
+       377,
+       386
+      ],
+      "detail": "no invoice 38, no facility facilities see 12, no open invoice 11, no principal with handle 7"
+     },
+     {
+      "kind": "conflict",
+      "status": "established",
+      "share": 0.108,
+      "evidence": [
+       29,
+       230,
+       252,
+       254,
+       263,
+       265,
+       277,
+       286,
+       299,
+       308,
+       310,
+       319
+      ],
+      "detail": "you already hold a 25, account limit reached 6"
+     },
+     {
+      "kind": "rule",
+      "status": "established",
+      "share": 0.0418,
+      "evidence": [
+       42,
+       133,
+       135,
+       158,
+       169,
+       178,
+       330,
+       641,
+       936,
+       948,
+       1596,
+       1607
+      ],
+      "detail": "effects unknown target valid 7, unknown lever name s 5"
+     },
+     {
+      "kind": "loop",
+      "status": "established",
+      "share": 0.3902,
+      "evidence": [
+       86,
+       98,
+       110,
+       158,
+       169,
+       178,
+       207,
+       263,
+       265,
+       277,
+       286,
+       299
+      ],
+      "detail": "112 repeats without new information, longest run 15"
+     },
+     {
+      "kind": "task_difficulty",
+      "status": "established",
+      "share": null,
+      "evidence": [],
+      "detail": "every competent reference also failed"
+     }
+    ],
+    "primary": "nonexistent",
+    "primary_reason": "168 of 287 attempts did not succeed; the largest class is nonexistent (68)",
+    "not_determinable": []
+   },
+   "invariants": [],
+   "model": {
+    "requested": "Qwen/Qwen3-1.7B",
+    "model": "Qwen/Qwen3-1.7B",
+    "device": "cuda",
+    "max_context": 32768,
+    "thinking": false,
+    "weights_fingerprint": "4d56dc614f2ab890",
+    "notes": [],
+    "weights_fingerprint_after": "4d56dc614f2ab890"
+   },
+   "code_digest": "c6be89bf9f00f6ed",
+   "recorded": "2026-11-23T07:39:49Z",
+   "config_key": "ac4b57d2495c2e08",
+   "transcript_file": "ow_llm_mech.tech_pipeline-1000000.h144.qwen3-1.7b-v4.jsonl",
+   "transcript_turns": 288
   }
  }
 }

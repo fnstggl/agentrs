@@ -103,3 +103,20 @@ architectures are shown.
 3. Money moves only through `bank.move`; every account has a defined source.
 4. Nothing an agent can call returns hidden parameters, evaluator code paths or other participants' private state.
 5. Every module passes the admission harness (`crucible.worldgen.admission`) and has invariant checks.
+
+## 4. Documentation map
+
+| subject | document |
+|---|---|
+| results, status by category, limitations | [OPENWORLD_REPORT.md](OPENWORLD_REPORT.md) |
+| setup, exact commands, determinism guarantees, checkpoints | [REPRODUCE_OPENWORLD.md](REPRODUCE_OPENWORLD.md) |
+| acceptance tests A-P | [ACCEPTANCE.md](ACCEPTANCE.md) |
+| world kernel, events, replay, snapshots | [WORLD_KERNEL.md](WORLD_KERNEL.md) |
+| internet fabric, application runtime | [SYNTHETIC_INTERNET.md](SYNTHETIC_INTERNET.md), [INTERNET_ARCHITECTURE.md](INTERNET_ARCHITECTURE.md) |
+| economic state, participants | [ECONOMY.md](ECONOMY.md), [ACTOR_SYSTEM.md](ACTOR_SYSTEM.md), `economy/behavior.py`, `actors/entry.py` |
+| mechanism generation | section 2.1 above, `mechanisms/base.py` and the docstrings of `scm.py`, `abm.py`, `techsys.py` |
+| task generation and evaluation | [EVALUATION.md](EVALUATION.md), `research/tasks.py`, `research/protocols.py`, `research/sealed.py` |
+| self-play | [SELF_PLAY.md](SELF_PLAY.md) (3.0 leagues), `selfplay/__init__.py` |
+| security and red team | [SECURITY.md](SECURITY.md), `redteam/`, `experiments/ow_redteam.json` |
+| fidelity | [WORLD_FIDELITY.md](WORLD_FIDELITY.md), `evaluation/fidelity.py`, `experiments/ow_fidelity.json` |
+| performance | [SCALING.md](SCALING.md), `benchmarks/openworld.json` |

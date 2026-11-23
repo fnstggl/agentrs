@@ -1,0 +1,308 @@
+{
+ "what": "The existing CAM 2.0 controller as a baseline on Crucible 4.0 open-economy goals.",
+ "families": [
+  "service:ow_tiny:0",
+  "revenue:ow_tiny:0"
+ ],
+ "seeds": [
+  0,
+  1,
+  2,
+  3
+ ],
+ "max_steps": 40,
+ "dt_s": 43200,
+ "simulated_days_per_episode": 20.0,
+ "gpu_free_mb_at_start": 25710,
+ "arms": {
+  "cam_initial": {
+   "checkpoint": "initial.pt",
+   "success": {
+    "n": 8,
+    "p": 0.0,
+    "lo": 0.0,
+    "hi": 0.3244075648838801,
+    "low_n": false
+   },
+   "mean_progress": 0.0,
+   "invalid_rate": 0.0,
+   "per_family": {
+    "revenue:ow_tiny:0": 0.0,
+    "service:ow_tiny:0": 0.0
+   },
+   "env_steps": 240,
+   "mean_len": 30.0,
+   "errors": 0,
+   "dropped": [],
+   "wall_s": 60.4149215221405,
+   "episodes": [
+    {
+     "task": "crucible:service:ow_tiny:0:1",
+     "success": false,
+     "score": 0.0,
+     "len": 20
+    },
+    {
+     "task": "crucible:service:ow_tiny:0:0",
+     "success": false,
+     "score": 0.0,
+     "len": 20
+    },
+    {
+     "task": "crucible:service:ow_tiny:0:3",
+     "success": false,
+     "score": 0.0,
+     "len": 20
+    },
+    {
+     "task": "crucible:service:ow_tiny:0:2",
+     "success": false,
+     "score": 0.0,
+     "len": 20
+    },
+    {
+     "task": "crucible:revenue:ow_tiny:0:1",
+     "success": false,
+     "score": 0.0,
+     "len": 40
+    },
+    {
+     "task": "crucible:revenue:ow_tiny:0:0",
+     "success": false,
+     "score": 0.0,
+     "len": 40
+    },
+    {
+     "task": "crucible:revenue:ow_tiny:0:2",
+     "success": false,
+     "score": 0.0,
+     "len": 40
+    },
+    {
+     "task": "crucible:revenue:ow_tiny:0:3",
+     "success": false,
+     "score": 0.0,
+     "len": 40
+    }
+   ]
+  },
+  "cam_final": {
+   "checkpoint": "final.pt",
+   "success": {
+    "n": 8,
+    "p": 0.0,
+    "lo": 0.0,
+    "hi": 0.3244075648838801,
+    "low_n": false
+   },
+   "mean_progress": 0.0,
+   "invalid_rate": 1.0,
+   "per_family": {
+    "revenue:ow_tiny:0": 0.0,
+    "service:ow_tiny:0": 0.0
+   },
+   "env_steps": 240,
+   "mean_len": 30.0,
+   "errors": 0,
+   "dropped": [],
+   "wall_s": 2315.6321172714233,
+   "episodes": [
+    {
+     "task": "crucible:service:ow_tiny:0:1",
+     "success": false,
+     "score": 0.0,
+     "len": 20
+    },
+    {
+     "task": "crucible:service:ow_tiny:0:0",
+     "success": false,
+     "score": 0.0,
+     "len": 20
+    },
+    {
+     "task": "crucible:service:ow_tiny:0:2",
+     "success": false,
+     "score": 0.0,
+     "len": 20
+    },
+    {
+     "task": "crucible:service:ow_tiny:0:3",
+     "success": false,
+     "score": 0.0,
+     "len": 20
+    },
+    {
+     "task": "crucible:revenue:ow_tiny:0:0",
+     "success": false,
+     "score": 0.0,
+     "len": 40
+    },
+    {
+     "task": "crucible:revenue:ow_tiny:0:1",
+     "success": false,
+     "score": 0.0,
+     "len": 40
+    },
+    {
+     "task": "crucible:revenue:ow_tiny:0:2",
+     "success": false,
+     "score": 0.0,
+     "len": 40
+    },
+    {
+     "task": "crucible:revenue:ow_tiny:0:3",
+     "success": false,
+     "score": 0.0,
+     "len": 40
+    }
+   ]
+  },
+  "idle": {
+   "success": {
+    "n": 8,
+    "p": 0.0,
+    "lo": 0.0,
+    "hi": 0.3244075648838801,
+    "low_n": false
+   },
+   "mean_progress": 0.0,
+   "episodes": [
+    {
+     "task": "service:ow_tiny:0#0",
+     "family": "service:ow_tiny:0",
+     "success": false,
+     "score": 0.0,
+     "actions": 0
+    },
+    {
+     "task": "service:ow_tiny:0#1",
+     "family": "service:ow_tiny:0",
+     "success": false,
+     "score": 0.0,
+     "actions": 0
+    },
+    {
+     "task": "service:ow_tiny:0#2",
+     "family": "service:ow_tiny:0",
+     "success": false,
+     "score": 0.0,
+     "actions": 0
+    },
+    {
+     "task": "service:ow_tiny:0#3",
+     "family": "service:ow_tiny:0",
+     "success": false,
+     "score": 0.0,
+     "actions": 0
+    },
+    {
+     "task": "revenue:ow_tiny:0#0",
+     "family": "revenue:ow_tiny:0",
+     "success": false,
+     "score": 0.0,
+     "actions": 0
+    },
+    {
+     "task": "revenue:ow_tiny:0#1",
+     "family": "revenue:ow_tiny:0",
+     "success": false,
+     "score": 0.0,
+     "actions": 0
+    },
+    {
+     "task": "revenue:ow_tiny:0#2",
+     "family": "revenue:ow_tiny:0",
+     "success": false,
+     "score": 0.0,
+     "actions": 0
+    },
+    {
+     "task": "revenue:ow_tiny:0#3",
+     "family": "revenue:ow_tiny:0",
+     "success": false,
+     "score": 0.0,
+     "actions": 0
+    }
+   ]
+  },
+  "builder": {
+   "success": {
+    "n": 8,
+    "p": 0.75,
+    "lo": 0.409275430310169,
+    "hi": 0.928520787247891,
+    "low_n": false
+   },
+   "mean_progress": 0.75,
+   "episodes": [
+    {
+     "task": "service:ow_tiny:0#0",
+     "family": "service:ow_tiny:0",
+     "success": true,
+     "score": 1.0,
+     "actions": 28
+    },
+    {
+     "task": "service:ow_tiny:0#1",
+     "family": "service:ow_tiny:0",
+     "success": false,
+     "score": 0.0,
+     "actions": 10
+    },
+    {
+     "task": "service:ow_tiny:0#2",
+     "family": "service:ow_tiny:0",
+     "success": false,
+     "score": 0.0,
+     "actions": 10
+    },
+    {
+     "task": "service:ow_tiny:0#3",
+     "family": "service:ow_tiny:0",
+     "success": true,
+     "score": 1.0,
+     "actions": 28
+    },
+    {
+     "task": "revenue:ow_tiny:0#0",
+     "family": "revenue:ow_tiny:0",
+     "success": true,
+     "score": 1.0,
+     "actions": 115
+    },
+    {
+     "task": "revenue:ow_tiny:0#1",
+     "family": "revenue:ow_tiny:0",
+     "success": true,
+     "score": 1.0,
+     "actions": 100
+    },
+    {
+     "task": "revenue:ow_tiny:0#2",
+     "family": "revenue:ow_tiny:0",
+     "success": true,
+     "score": 1.0,
+     "actions": 115
+    },
+    {
+     "task": "revenue:ow_tiny:0#3",
+     "family": "revenue:ow_tiny:0",
+     "success": true,
+     "score": 1.0,
+     "actions": 100
+    }
+   ]
+  }
+ },
+ "cam_params": {
+  "integration": 20319232,
+  "core": 8398848,
+  "memory": 1052416,
+  "policy_value": 8151555,
+  "llm_control": 3690497,
+  "world_model": 23630346,
+  "total": 65242894
+ },
+ "llm_weights_unchanged": true,
+ "wall_s": 2764.6
+}

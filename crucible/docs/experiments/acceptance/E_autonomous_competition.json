@@ -1,0 +1,25 @@
+{
+ "test": "tests/test_acceptance.py::test_E_autonomous_competition",
+ "claim": "Two independently controlled agents compete; their policies adapt in response to each other's actions; the environment's changes result from real executable decisions.",
+ "measured": {
+  "two_by_two_net_per_tick": {
+   "trained_vs_aggressive|plays_aggressive": 3673.338888888889,
+   "trained_vs_aggressive|plays_passive": 16141.058333333332,
+   "trained_vs_passive|plays_aggressive": 3713.658333333334,
+   "trained_vs_passive|plays_passive": 26686.95
+  },
+  "own_opponent_total": 30360.28888888889,
+  "other_opponent_total": 19854.716666666667,
+  "policy_distance_between_opponents": 0.6313690566725325,
+  "kernel_ticks": 24,
+  "recorded_experiment_present": true
+ },
+ "caveats": [
+  "The learners are stochastic-approximation controllers on a few policy parameters; opponents in the 2x2 are scripted profiles. Richer adaptation in joint training is reported from the recorded self-play experiment, with its uncertainty."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_E_autonomous_competition'",
+ "outcome": "passed",
+ "wall_s": 98.5,
+ "recorded_at": "2026-11-23T05:26:32Z"
+}

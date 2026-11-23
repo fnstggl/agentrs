@@ -1,0 +1,49 @@
+{
+ "test": "tests/test_acceptance.py::test_A_real_software_creation",
+ "claim": "An agent creates and deploys a working application; another independent agent discovers it, interacts with it and receives a verifiably useful result; the application uses persistent state and ordinary execution paths.",
+ "measured": {
+  "tools_used": [
+   "bank.accounts",
+   "bank.open_account",
+   "bank.transfer",
+   "biz.register",
+   "cloud.deploy",
+   "cloud.providers",
+   "cloud.rent",
+   "code.commit",
+   "code.create_repo",
+   "code.run",
+   "id.create_org",
+   "market.browse",
+   "market.list",
+   "use.categories",
+   "use.examples",
+   "use.probe",
+   "use.report"
+  ],
+  "commits": 1,
+  "requests_metered": 15629,
+  "verified_quality": 1.0,
+  "battery_quality": 1.0,
+  "independent_customers": 292,
+  "independent_ok_requests": 15559,
+  "revenue_cents": 46677,
+  "margin_cents": 22477,
+  "second_agent_answer_score": 1.0,
+  "ledger_callers": [
+   "households",
+   "p:buyer",
+   "use-lab"
+  ],
+  "ledger_household_requests": 257,
+  "world_events": 7362
+ },
+ "caveats": [
+  "The builder is a scripted control that knows one piece of developer craft (inducing a record wire format from worked examples); it shows the world supports the path, not that a learner finds it."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_A_real_software_creation'",
+ "outcome": "passed",
+ "wall_s": 0.3,
+ "recorded_at": "2026-11-23T05:15:59Z"
+}

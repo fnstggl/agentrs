@@ -1,0 +1,80 @@
+{
+ "test": "tests/test_acceptance.py::test_D_structural_transfer",
+ "claim": "A learner trained on one family of rules meets a different mechanism family; its performance and adaptation are measured against learning from scratch.",
+ "measured": {
+  "learner": "model_based",
+  "source_families": [
+   "scm_additive",
+   "scm_gate"
+  ],
+  "target_family": "scm_invu",
+  "source_steps": 6000,
+  "adaptation_steps": 3000,
+  "zero_shot_gain_over_untrained": {
+   "n": 6,
+   "mean_diff": -0.061177591682648365,
+   "lo": -0.15840291812321075,
+   "hi": 0.04068689188054122,
+   "p_value": 0.34375,
+   "frac_better": 0.16666666666666666,
+   "frac_worse": 0.8333333333333334,
+   "low_n": false
+  },
+  "adaptation_auc": {
+   "pretrained": {
+    "n": 6,
+    "mean": 0.641209481804309,
+    "lo": 0.5240171917846466,
+    "hi": 0.7468428010365401,
+    "sd": 0.15824823715365496,
+    "low_n": false
+   },
+   "scratch": {
+    "n": 6,
+    "mean": 0.7023870734869574,
+    "lo": 0.6578537698289512,
+    "hi": 0.7441515056359541,
+    "sd": 0.06092598500083605,
+    "low_n": false
+   },
+   "paired_difference": {
+    "n": 6,
+    "mean_diff": -0.06117759168264838,
+    "lo": -0.15840291812321078,
+    "hi": 0.04068689188054122,
+    "p_value": 0.34375,
+    "frac_better": 0.16666666666666666,
+    "frac_worse": 0.8333333333333334,
+    "low_n": false
+   }
+  },
+  "final_score": {
+   "pretrained": {
+    "n": 6,
+    "mean": 0.6412094818043089,
+    "lo": 0.5240171917846466,
+    "hi": 0.7468428010365401,
+    "sd": 0.1582482371536549,
+    "low_n": false
+   },
+   "scratch": {
+    "n": 6,
+    "mean": 0.7023870734869574,
+    "lo": 0.6578537698289512,
+    "hi": 0.7441515056359541,
+    "sd": 0.06092598500083602,
+    "low_n": false
+   }
+  },
+  "negative_transfer": false,
+  "recorded_longer_runs": []
+ },
+ "caveats": [
+  "This test establishes that the protocol measures structural transfer on equal experience; it asserts no particular result. With this small budget and n=6 the measured difference is reported as it came out."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_D_structural_transfer'",
+ "outcome": "passed",
+ "wall_s": 150.2,
+ "recorded_at": "2026-11-23T05:24:30Z"
+}

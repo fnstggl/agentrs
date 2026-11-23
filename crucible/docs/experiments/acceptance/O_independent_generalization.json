@@ -1,0 +1,190 @@
+{
+ "test": "tests/test_acceptance.py::test_O_independent_generalization",
+ "claim": "Performance is evaluated on world families not used for tuning or training.",
+ "measured": {
+  "evaluated_families": [
+   "scm_feedback",
+   "scm_regime",
+   "abm_network_fx",
+   "tech_contention"
+  ],
+  "training_families": [
+   "abm_congestion",
+   "abm_duopoly",
+   "abm_utility",
+   "abm_wom",
+   "scm_additive",
+   "scm_delay",
+   "scm_gate"
+  ],
+  "results": {
+   "hold": {
+    "score": {
+     "n": 8,
+     "mean": -0.0011565397931795319,
+     "lo": -0.011754988711984219,
+     "hi": 0.01044907572991542,
+     "sd": 0.017520133191252518,
+     "low_n": false
+    },
+    "by_transfer": {
+     "cross_impl": {
+      "n": 2,
+      "mean": -0.003960873844590389,
+      "lo": -0.008734314345039271,
+      "hi": 0.0008125666558584936,
+      "sd": 0.0067506642949158235,
+      "low_n": true
+     },
+     "structural": {
+      "n": 6,
+      "mean": -0.00022176177604257973,
+      "lo": -0.014893462212263486,
+      "hi": 0.015099901575784941,
+      "sd": 0.020406580126323008,
+      "low_n": false
+     }
+    },
+    "success": {
+     "n": 8,
+     "p": 0.0,
+     "lo": 0.0,
+     "hi": 0.3244075648838801,
+     "low_n": false
+    }
+   },
+   "probe_exploit": {
+    "score": {
+     "n": 8,
+     "mean": 0.241523983432529,
+     "lo": 0.04771119740959309,
+     "hi": 0.4323115917713835,
+     "sd": 0.30631683194478637,
+     "low_n": false
+    },
+    "by_transfer": {
+     "cross_impl": {
+      "n": 2,
+      "mean": -0.0014618618459550925,
+      "lo": -0.15759105239101648,
+      "hi": 0.1546673286991063,
+      "sd": 0.220800018751159,
+      "low_n": true
+     },
+     "structural": {
+      "n": 6,
+      "mean": 0.32251926519202373,
+      "lo": 0.10734418689726125,
+      "hi": 0.5381216674634927,
+      "sd": 0.3002038328979572,
+      "low_n": false
+     }
+    },
+    "success": {
+     "n": 8,
+     "p": 0.25,
+     "lo": 0.07147921275210906,
+     "hi": 0.5907245696898311,
+     "low_n": false
+    }
+   },
+   "ppo_gru_trained": {
+    "score": {
+     "n": 8,
+     "mean": -0.1683167187604525,
+     "lo": -0.5889241430905522,
+     "hi": 0.20592062409161324,
+     "sd": 0.642963859959406,
+     "low_n": false
+    },
+    "by_transfer": {
+     "cross_impl": {
+      "n": 2,
+      "mean": -1.1755908633510246,
+      "lo": -1.2569513406156905,
+      "hi": -1.0942303860863587,
+      "sd": 0.11506109038883836,
+      "low_n": true
+     },
+     "structural": {
+      "n": 6,
+      "mean": 0.1674413294364048,
+      "lo": 0.03772392479737389,
+      "hi": 0.2971587340754357,
+      "sd": 0.1870697280057391,
+      "low_n": false
+     }
+    },
+    "success": {
+     "n": 8,
+     "p": 0.0,
+     "lo": 0.0,
+     "hi": 0.3244075648838801,
+     "low_n": false
+    }
+   },
+   "model_based_trained": {
+    "score": {
+     "n": 8,
+     "mean": 0.2935751876705321,
+     "lo": 0.016337959044529934,
+     "hi": 0.5717446012501187,
+     "sd": 0.44080821054663405,
+     "low_n": false
+    },
+    "by_transfer": {
+     "cross_impl": {
+      "n": 2,
+      "mean": -0.17131734285828168,
+      "lo": -0.3599904679680755,
+      "hi": 0.017355782251512148,
+      "sd": 0.26682409238558613,
+      "low_n": true
+     },
+     "structural": {
+      "n": 6,
+      "mean": 0.4485393645134701,
+      "lo": 0.18603946526895013,
+      "hi": 0.7105016786609545,
+      "sd": 0.37753265994063706,
+      "low_n": false
+     }
+    },
+    "success": {
+     "n": 8,
+     "p": 0.5,
+     "lo": 0.21521606221387762,
+     "hi": 0.7847839377861223,
+     "low_n": false
+    }
+   }
+  },
+  "checkpoints_trained_on": {
+   "ppo_gru": [
+    "scm_additive",
+    "scm_delay",
+    "scm_gate",
+    "abm_utility",
+    "abm_wom",
+    "abm_congestion"
+   ],
+   "model_based": [
+    "scm_additive",
+    "scm_delay",
+    "scm_gate",
+    "abm_utility",
+    "abm_wom",
+    "abm_congestion"
+   ]
+  },
+  "sealed_result_present": false
+ },
+ "caveats": [
+  "These are test-split families at public validation seeds, so the procedure, not the numbers, is what this test establishes. The final figures come from one opening of the sealed set."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_O_independent_generalization'",
+ "outcome": "passed",
+ "wall_s": 35.4,
+ "recorded_at": "2026-11-23T05:45:27Z"
+}

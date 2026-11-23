@@ -1,0 +1,47 @@
+{
+ "test": "tests/test_acceptance.py::test_P_security",
+ "claim": "Generated programs cannot escape their permitted execution environment or access private evaluation state; workloads that require VM-grade isolation are refused where it is unavailable.",
+ "measured": {
+  "sandbox": "",
+  "probes": {
+   "leak.oracle.contract_deliverable_predicates": "held",
+   "content.instructions_have_no_authority": "held",
+   "content.public_flow_runs_as_the_runner": "held",
+   "independence.goal_and_verifier_are_outside_the_world": "held",
+   "independence.need_instances_keep_truth_out_of_inputs": "held",
+   "independence.world_code_cannot_import_evaluator_or_bridge": "held",
+   "independence.hidden_mechanism_parameters[mech_abm_commons]": "held",
+   "independence.hidden_mechanism_parameters[mech_scm_additive]": "held",
+   "independence.hidden_mechanism_parameters[mech_tech_cascade]": "held",
+   "independence.sandboxed_code_cannot_read_simulator_or_stores": "held",
+   "independence.sandboxed_code_can_signal_other_sandboxes": "held"
+  },
+  "backends_detected": {
+   "landlock-seccomp": {
+    "available": true,
+    "isolation": "process (shared kernel)"
+   },
+   "gvisor": {
+    "available": false,
+    "isolation": "user-space kernel"
+   },
+   "bubblewrap": {
+    "available": false,
+    "isolation": "namespaces (shared kernel)"
+   },
+   "firecracker": {
+    "available": false,
+    "isolation": "virtual machine (KVM)"
+   }
+  },
+  "vm_grade_isolation": "refused: not available on this host (no KVM, no user namespaces)"
+ },
+ "caveats": [
+  "Isolation is an unprivileged uid with Landlock and seccomp inside an unprivileged container, not a VM: a host-kernel exploit through a permitted system call would escape it. All sandbox workers share one uid; signalling, resource limits and scheduling calls on other processes are filtered, the shared uid itself remains."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_P_security'",
+ "outcome": "passed",
+ "wall_s": 3.1,
+ "recorded_at": "2026-11-23T05:45:38Z"
+}

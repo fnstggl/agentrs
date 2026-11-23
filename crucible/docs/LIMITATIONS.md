@@ -125,3 +125,37 @@ The full list with code locations is in `docs/OPEN_ENDEDNESS_AUDIT.md` §5. In s
 * **Liveness checks were too weak.** "Demand served > 0" missed a collapse to about 0.1% of normal. The weekly
   process-failure count caught it. Thresholds should be relative to recent levels.
 * **Isolation is not VM-grade here.** Workloads that require VM-grade isolation are refused, not run.
+
+## Crucible 4.0 (feat/crucible-4)
+
+Measured results and negative findings are in [OPENWORLD_REPORT.md](OPENWORLD_REPORT.md).
+
+* **No learner has yet learned to succeed in unfamiliar worlds.** On the sealed test no trained learner beat a scripted
+  experimenter. The instrument's sensitivity to real meta-learning is therefore shown only on purpose-built learners.
+* **Nothing is calibrated.** 0 of 55 registered mechanisms are compared with real data: 37 are plausible hypotheses and 18
+  are known to be unrealistic. No result here predicts real-world performance.
+* **Competence in the world is mostly scripted.** Inventors, builders and experimenters that succeed are scripted controls;
+  simulated firms and founders are rule-based minds.
+* **Self-play runs on hidden-mechanism facilities**, not inside the full open economy, with small controllers.
+* **Discovery by one-lever experiments does not work on the technical-systems engine**, where levers interact and lag.
+* **Second-order effects are established for one invention class** (capacity); pricing and latent-demand classes are weak.
+* **Remaining exploits.**
+  * Two formally unrelated colluders can each be credited if the two legs of a payment are further apart than the netting
+    window. A one-way payment from a colluder is indistinguishable from a purchase.
+  * A first deliberate loan default still nets the owner the principal (limited liability), at the cost of a public breach,
+    a claim, bankruptcy and no further credit.
+  * Free requests from a colluding unrelated agent count as service usage; a colluding real business counts as an adopter; a
+    paid one-cent order buys a rating; a doorway page padded past 300 characters can still outrank thin content.
+  * N distinct agents can cost an advertiser N impressions a day.
+  * Sustained goals are watched only at harness steps.
+  * Anyone with write access to the event store can rewrite a log suffix; `storage.base.make_anchor` detects it, but nothing
+    verifies anchors automatically.
+* **Isolation is process-level.** Workers share one uid and the host kernel. VM-grade workloads are refused.
+* **The founder pool is finite** (14 per world, activated over a year), so horizons well beyond a year can run out of entrants.
+* **Simulated prices can ratchet down:** firm minds have no cost floor and rarely raise prices once entrants arrive.
+* **The real-world bridge** is tested against a loopback server only; its HTTPS path is untested.
+* **Performance numbers** come from the quick suite on a shared machine with an 11.5-core quota. The 30-day episode costs
+  and the full family table were not measured.
+* **Known flaky test under heavy load:** `test_internet.py::test_real_chromium_*` failed once and passed on rerun.
+* **The sealed set `ow-final` is spent**, and its salt is outside the repository: a new comparison needs a new set.
+

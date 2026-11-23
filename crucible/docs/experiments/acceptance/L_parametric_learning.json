@@ -1,0 +1,68 @@
+{
+ "test": "tests/test_acceptance.py::test_L_parametric_learning",
+ "claim": "A neural agent improves after training; updated weights outperform the original checkpoint on fresh tasks with episodic context reset; the environment supports this even if a learner fails.",
+ "measured": {
+  "learner": "ppo_gru (recurrent PPO)",
+  "weight_updates": 600,
+  "env_interactions": 28800,
+  "compute": {
+   "train_cpu_s": 90.78852031699988,
+   "train_gpu_s": 0.0,
+   "infer_cpu_s": 9.79091301999952,
+   "infer_gpu_s": 0.0,
+   "env_sim_s": 5.821236690040678,
+   "infer_tokens": 0,
+   "search_evals": 0,
+   "compute_s": 100.5794333369994,
+   "eval_infer_cpu_s": 0.5624470229999741
+  },
+  "gain_on_fresh_tasks": {
+   "n": 12,
+   "mean_diff": 0.3593095420385512,
+   "lo": 0.305606368953945,
+   "hi": 0.4074220652620803,
+   "p_value": 0.00048828125,
+   "frac_better": 1.0,
+   "frac_worse": 0.0,
+   "low_n": false
+  },
+  "original": {
+   "n": 12,
+   "mean": 0.018068978491585178,
+   "lo": 0.007531836429736414,
+   "hi": 0.028748714663271332,
+   "sd": 0.019380931545676706,
+   "low_n": false
+  },
+  "trained": {
+   "n": 12,
+   "mean": 0.3773785205301364,
+   "lo": 0.31685553285148704,
+   "hi": 0.4294226645647339,
+   "sd": 0.10803341164075768,
+   "low_n": false
+  },
+  "verdict": "internalised",
+  "control_without_weights": {
+   "verdict": "no_gain_detected",
+   "gain": {
+    "n": 6,
+    "mean_diff": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "p_value": 1.0,
+    "frac_better": 0.0,
+    "frac_worse": 0.0,
+    "low_n": false
+   }
+  }
+ },
+ "caveats": [
+  "Shown on easy hand-made mechanisms from one structural family, where learning is cheap. On the real benchmark families trained PPO improved far less; see the learner table."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_L_parametric_learning'",
+ "outcome": "passed",
+ "wall_s": 216.6,
+ "recorded_at": "2026-11-23T05:43:00Z"
+}

@@ -1,5 +1,34 @@
 # Implementation status ledger
 
+## Crucible 4.0 "OpenWorld" (branch `feat/crucible-4`, based on `feat/crucible-internet` 11e5613)
+
+Baseline at branch start: 305 passed. Last full run on this source: **1,057 passed**, plus **16 of 16 acceptance tests
+(A-P)**. Results, negative findings and the full status by category: [docs/OPENWORLD_REPORT.md](docs/OPENWORLD_REPORT.md).
+Acceptance records: [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md). Commands: [docs/REPRODUCE_OPENWORLD.md](docs/REPRODUCE_OPENWORLD.md).
+
+| component | status | evidence |
+|---|---|---|
+| hidden-mechanism engines `scm`, `abm`, `techsys`; 25 families; facility module `rig`; bit-identical simulator | TESTED | `test_mech_*.py`; 288 of 300 first draws valid |
+| private evaluator and validity checks | TESTED | `test_mech_evaluator.py`, `ow_validity_acceptance.json` |
+| usefulness substrate (10 category families, composition, ledger) | TESTED | `test_usefulness.py`, `test_ow_worlds.py` |
+| behaviour models, segments, latent and derived demand, pay-on-acceptance | TESTED | `test_behavior.py`; 3.0 digests unchanged |
+| market entry, invariant monitor, long-run harness | TESTED, run to 365 days | `test_entry.py`, `test_invariants.py`, `test_longrun.py`, `ow_longrun*` |
+| invention trials by matched forks | TESTED; capacity class validated over 3 seeds, pricing and frontier weak | `test_invention.py`, `ow_invention_*.json` |
+| tool discovery, dry-run validation, failure diagnosis, v4 LLM interface | TESTED | `test_discovery.py`, `test_diagnostics.py`, `test_llm_interface4.py` |
+| learner contract, baselines, protocols, sealed sets | TESTED | `test_learners.py`, `test_research_protocols.py` |
+| self-play arena, six modes, league, cross-play, collusion audit | TESTED, experiments recorded | `test_selfplay.py`, `ow_selfplay_*.json` |
+| red team: 81 probes | 79 held, 1 open (store-level log rewrite), 1 not applicable | `test_redteam.py`, `test_hardening.py`, `ow_redteam.json` |
+| real-world bridge (refuses by default) | TESTED on loopback only; HTTPS path untested | `test_realworld_gate.py` |
+| fidelity register | IMPLEMENTED; 0 of 55 mechanisms calibrated | `test_fidelity.py`, `ow_fidelity.json` |
+| parallel worlds, rollout workers, benchmarks | TESTED; quick benchmark only | `test_scale.py`, `benchmarks/openworld.json` |
+| baselines on the sealed test | MEASURED: no trained learner beat the scripted experimenter | `ow_benchmark_sealed_final.json` |
+| frozen LLM and CAM 2.0 baselines | MEASURED: Qwen3-4B equals idle; CAM 0 of 8 goals | `ow_llm_baseline_summary.json`, `ow_cam_baseline.json` |
+| calibration against real data, real-world pilots, VM-grade isolation, full benchmark table | NOT ATTEMPTED | see the report, section 5 |
+
+Tests changed because they encoded behaviour the red team showed to be exploitable or obsolete: `test_internet.py` (own-site
+link farm), `test_services_comm.py` (ad-budget drain), `test_web.py` (a colleague rating the seller), `test_diagnostics.py`
+(per-turn truncation is now recorded), `test_entry.py` (one test moved to the deterministic cost model because it was flaky).
+
 Status words: **DESIGNED** (documented, not built) · **IMPLEMENTED** (code exists and was exercised manually) ·
 **TESTED** (automated tests run and pass) · **BENCHMARKED** (measured numbers in docs/SCALING.md) ·
 **INCOMPLETE** (partially built; what is missing is stated) · **BLOCKED** (cannot be done here; why).

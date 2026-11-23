@@ -400,7 +400,8 @@ def test_a_founder_who_cannot_code_hires_a_developer_from_the_labour_pool():
 def test_a_company_with_sales_gets_a_loan_from_the_existing_lender_and_one_without_does_not():
     need = "text.extract"
     w = _world([_firm(1, "sort.records", 0, 1)], ["sort.records", need],
-               {"founder_specs": [dict(GOOD, capital=700_000)], "first_scan_day": 1.0, "scan_interval_days": 1.0})
+               {"founder_specs": [dict(GOOD, capital=700_000)], "first_scan_day": 1.0, "scan_interval_days": 1.0},
+               params={"cost_model": "deterministic"})     # measured CPU time made the founder's decision vary by run
     try:
         st, mod = w.state, w.modules["entry"]
         w.advance_time(7 * DAY)

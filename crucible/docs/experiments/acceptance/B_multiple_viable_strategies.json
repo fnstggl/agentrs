@@ -1,0 +1,113 @@
+{
+ "test": "tests/test_acceptance.py::test_B_multiple_viable_strategies",
+ "claim": "At least two materially different strategies achieve the same independently verified objective in multiple world instances, without a hard-coded intended action sequence.",
+ "measured": {
+  "objective": {
+   "gain_cents": 20000,
+   "days": 20,
+   "endowment_cents": 2000000
+  },
+  "worlds_where_objective_met": {
+   "sell_software": [
+    1,
+    2,
+    4
+   ],
+   "operate_facility": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "idle": []
+  },
+  "worlds_where_both_strategies_met_it": [
+   1,
+   2,
+   4
+  ],
+  "results": {
+   "sell_software": {
+    "1": {
+     "gain_cents": 100356,
+     "objective_met": true,
+     "income_by_kind": {
+      "sale": 247356
+     }
+    },
+    "2": {
+     "gain_cents": 141270,
+     "objective_met": true,
+     "income_by_kind": {
+      "sale": 288270
+     }
+    },
+    "3": {
+     "gain_cents": -69396,
+     "objective_met": false,
+     "income_by_kind": {
+      "sale": 77604
+     }
+    },
+    "4": {
+     "gain_cents": 74152,
+     "objective_met": true,
+     "income_by_kind": {
+      "sale": 221152
+     }
+    }
+   },
+   "operate_facility": {
+    "1": {
+     "gain_cents": 789821,
+     "objective_met": true,
+     "income_by_kind": {
+      "rig_settle": 848180
+     }
+    },
+    "2": {
+     "gain_cents": 942912,
+     "objective_met": true,
+     "income_by_kind": {
+      "rig_settle": 996743
+     }
+    },
+    "3": {
+     "gain_cents": 1892198,
+     "objective_met": true,
+     "income_by_kind": {
+      "rig_settle": 1970109
+     }
+    },
+    "4": {
+     "gain_cents": 412852,
+     "objective_met": true,
+     "income_by_kind": {
+      "rig_settle": 451938
+     }
+    }
+   },
+   "idle": {
+    "1": {
+     "gain_cents": 0,
+     "objective_met": false,
+     "income_by_kind": {}
+    },
+    "2": {
+     "gain_cents": 0,
+     "objective_met": false,
+     "income_by_kind": {}
+    }
+   }
+  }
+ },
+ "caveats": [
+  "Both strategies are carried out by scripted competent controls that decide from what they observe. This shows the world admits more than one route to the same verified outcome; it does not show that a learner finds either.",
+  "The horizon was changed after a first attempt. With 10 days the software strategy met the objective in only 1 of 3 worlds, because a company pays its set-up costs first (it was at +$143 and +$286 on day 10 in two worlds). The horizon was then set to 20 days and a fourth, previously unseen world was added. The software strategy is not viable in every world: in world 3 it was still losing money on day 20."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_B_multiple_viable_strategies'",
+ "outcome": "passed",
+ "wall_s": 309.0,
+ "recorded_at": "2026-11-23T05:21:26Z"
+}

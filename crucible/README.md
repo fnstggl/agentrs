@@ -15,6 +15,22 @@ second world (the engineering laboratory) shows the kernel is not specific to ec
   [scaling](docs/SCALING.md) · [security](docs/SECURITY.md) · [research questions](docs/RESEARCH_QUESTIONS.md) ·
   [experiments](docs/EXPERIMENTS.md) · [limitations](docs/LIMITATIONS.md) · [related work](docs/RELATED_WORK.md)
 
+
+## Crucible 4.0 "OpenWorld"
+
+A platform for measuring how fast learning systems acquire new, transferable capabilities: hidden causal worlds from three
+independent engines, open economies whose value is established by executing code, autonomous firms and founders, self-play,
+learning-curve and transfer protocols, a sealed test set and an adversarial red team.
+
+**Current finding: all 16 acceptance tests pass, and no learner tested so far beats a scripted experimenter on unseen worlds.**
+Read [docs/OPENWORLD_REPORT.md](docs/OPENWORLD_REPORT.md) first, then [docs/REPRODUCE_OPENWORLD.md](docs/REPRODUCE_OPENWORLD.md).
+
+```bash
+cd crucible && python -m pytest -q --ignore=tests/test_acceptance.py   # regression suite
+python examples/run_acceptance.py                                      # acceptance tests A-P
+python examples/ow_benchmark.py list                                   # learners, families and sealed sets
+```
+
 ## Install
 
 ```bash
