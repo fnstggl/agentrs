@@ -1,0 +1,17 @@
+# After every lifetime has finished (configs/queue_continual.yaml):
+#   superlearner jobs configs/queue_continual_final.yaml --log-dir runs/queue_continual_final
+# * the independent check: every run's final weights on untouched tasks, in fresh processes;
+# * the swap test: each backbone-trained learner with its backbone put back to pretrained weights.
+max_gpu: 9
+max_cpu: 60
+strict_order: true
+gpu_unit_mb: 3400
+gpu_margin_mb: 3000
+gpu_settle_s: 180
+env: {PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"}
+jobs:
+  - {name: continual_verify, cmd: "python -m superlearner continual-verify --workers 8 --parallel 2", gpu: 3, cpu: 16, retries: 3}
+  - {name: swap_lora_s0, cmd: "python -m superlearner backbone-swap --run-dir runs/life/backbone_lora_s0 --workers 8", gpu: 3, cpu: 8, retries: 3, after: [continual_verify], done: runs/life/backbone_lora_s0/backbone_swap.json}
+  - {name: swap_top4_s0, cmd: "python -m superlearner backbone-swap --run-dir runs/life/backbone_top4_s0 --workers 8", gpu: 3, cpu: 8, retries: 3, after: [continual_verify], done: runs/life/backbone_top4_s0/backbone_swap.json}
+  - {name: swap_full_s0, cmd: "python -m superlearner backbone-swap --run-dir runs/life/backbone_full_s0 --workers 8", gpu: 5, cpu: 8, retries: 3, after: [continual_verify], done: runs/life/backbone_full_s0/backbone_swap.json}
+  - {name: swap_full_s1, cmd: "python -m superlearner backbone-swap --run-dir runs/life/backbone_full_s1 --workers 8", gpu: 5, cpu: 8, retries: 3, after: [continual_verify], done: runs/life/backbone_full_s1/backbone_swap.json}
