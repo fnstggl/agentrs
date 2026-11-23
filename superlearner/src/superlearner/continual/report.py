@@ -69,6 +69,9 @@ def load_life(root: str) -> dict:
             print(f"EXCLUDED {p}: evaluation episodes missing in {holes[:3]}")
             continue
         name = os.path.basename(os.path.dirname(p))
+        swap = os.path.join(os.path.dirname(p), "backbone_swap.json")
+        if os.path.exists(swap):
+            r["_backbone_swap"] = json.load(open(swap))
         cond, _, sd = name.rpartition("_s")
         runs.setdefault(cond, {})[int(sd)] = r
     return runs
@@ -160,6 +163,14 @@ def cond_summary(rs: dict) -> dict:
                            "l2_change_from_pretrained": _mean([(b.get("change_from_pretrained") or {}).get("l2") for b in bb])}
     out["params"] = first["params"]
     out["restarts"] = [rs[s].get("restarts", 0) for s in seeds]
+    sw = [rs[s].get("_backbone_swap") for s in seeds if rs[s].get("_backbone_swap")]
+    if sw:
+        pair = boot_paired([[x for v in w["trained backbone"].values() for x in v["per_task"]] for w in sw],
+                           [[x for v in w["pretrained backbone"].values() for x in v["per_task"]] for w in sw])
+        out["backbone_swap"] = {"seeds": len(sw), "trained": float(np.mean([w["mean"]["trained backbone"] for w in sw])),
+                                "pretrained": float(np.mean([w["mean"]["pretrained backbone"] for w in sw])), "paired": pair,
+                                "by_phase": {n: [float(np.mean([w["trained backbone"][n]["success"] for w in sw])),
+                                                 float(np.mean([w["pretrained backbone"][n]["success"] for w in sw]))] for n in names}}
     return out
 
 

@@ -133,7 +133,7 @@ def gpu_retry(fn, tries: int = 30, lo: float = 5.0, hi: float = 30.0):
 
 
 class Trainer:
-    def __init__(self, cfg: dict, run_dir: str, resume: bool = False, pool=None):
+    def __init__(self, cfg: dict, run_dir: str, resume: bool = False, pool=None, keep_records: bool = False):
         self.cfg = merge(DEFAULT_CFG, cfg)
         self.dir = run_dir
         for d in ("", "ckpt", "traj"):
@@ -169,8 +169,9 @@ class Trainer:
         worker_llm = c["llm"]
         bc = c.get("backbone") or {}
         if bc.get("model"):
-            from ..cam.backbone import EmbedService, LiveTable, TextBackbone
-            self.backbone = TextBackbone(bc["model"], bc.get("mode", "none"), self.device,
+            from ..cam.backbone import EmbedService, LiveTable, TextBackbone, tiny_lm
+            lm, tok = tiny_lm(bc["model"], **bc["test_double"]) if bc.get("test_double") else (None, None)
+            self.backbone = TextBackbone(bc["model"], bc.get("mode", "none"), self.device, lm=lm, tok=tok,
                                          lora_rank=int(bc.get("lora_rank", 8)), chunk_tokens=int(bc.get("chunk_tokens", 6000)))
             self.live = LiveTable(self.backbone, self.store, self.texts)
             self.model.live = self.live
@@ -192,7 +193,7 @@ class Trainer:
         if resume and os.path.exists(os.path.join(run_dir, "ckpt", "latest.pt")):
             self.load(os.path.join(run_dir, "ckpt", "latest.pt"))
             self._trim_logs()
-        else:
+        elif not keep_records:                     # (a lifetime that continues keeps the records of its start)
             json.dump(self.cfg, open(os.path.join(run_dir, "config.json"), "w"), indent=1)
             json.dump({"code": code_hashes(), "git": git_commit(), "torch": torch.__version__, "device": self.device,
                        "params": self.model.n_params(), "started": time.time(),

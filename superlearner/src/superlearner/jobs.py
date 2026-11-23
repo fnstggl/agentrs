@@ -36,10 +36,26 @@ def _load(path: str) -> dict:
     return yaml.safe_load(open(path)) or {}
 
 
+def gpu_free_mb() -> int | None:
+    """Free memory of the first GPU as the driver reports it (it counts every process on the card, including ones
+    this queue knows nothing about). None if it cannot be read."""
+    try:
+        r = subprocess.run(["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"], capture_output=True,
+                           text=True, timeout=20)
+        return int(r.stdout.split()[0]) if r.returncode == 0 else None
+    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
+        return None
+
+
 def run_jobs(spec: dict, max_gpu: int | None = None, max_cpu: int | None = None, log_dir: str = "runs/queue",
              only: list[str] | None = None, dry: bool = False, poll_s: float = 5.0, verbose: bool = True,
-             strict: bool | None = None) -> dict:
+             strict: bool | None = None, free_fn=gpu_free_mb) -> dict:
     strict = bool(spec.get("strict_order", False)) if strict is None else bool(strict)
+    # `gpu_unit_mb`: what one unit of `gpu` needs. A GPU job then starts only if the card really has that much free
+    # (plus `gpu_margin_mb`), after subtracting what jobs started in the last `gpu_settle_s` seconds have yet to allocate.
+    unit_mb, margin_mb = int(spec.get("gpu_unit_mb", 0)), int(spec.get("gpu_margin_mb", 1500))
+    settle_s = float(spec.get("gpu_settle_s", 180))
+    waiting_since = None
     max_gpu = int(max_gpu if max_gpu is not None else spec.get("max_gpu", 1))
     max_cpu = int(max_cpu if max_cpu is not None else spec.get("max_cpu", os.cpu_count() or 8))
     jobs = [dict(j) for j in spec.get("jobs", []) if not only or j["name"] in only]
@@ -123,6 +139,19 @@ def run_jobs(spec: dict, max_gpu: int | None = None, max_cpu: int | None = None,
                 s.update(state="done", note="result appeared before the job was started")
                 save()
                 continue
+            if unit_mb and s["gpu"] and not dry:
+                free = free_fn()
+                if free is not None:
+                    now = time.time()
+                    settling = sum(st[n]["gpu"] * unit_mb for n in procs if now - st[n]["t0"] < settle_s)
+                    if free - settling < s["gpu"] * unit_mb + margin_mb:
+                        if waiting_since is None:
+                            waiting_since = now
+                            say(f"{j['name']}: waiting for GPU memory ({free} MiB free, {settling} MiB still settling)")
+                        if strict:
+                            break
+                        continue
+                waiting_since = None
             cmd = shlex.split(j["cmd"]) if isinstance(j["cmd"], str) else list(j["cmd"])
             if cmd and cmd[0] == "python":
                 cmd[0] = sys.executable

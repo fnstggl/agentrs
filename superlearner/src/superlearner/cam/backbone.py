@@ -43,6 +43,16 @@ EMB_DROP_TOP = 3            # the embedding is read below the top 3 blocks (hidd
 PROJ_SEED = 20261121
 
 
+def tiny_lm(model: str = "Qwen/Qwen3-0.6B", hidden: int = 32, layers: int = 5):
+    """TEST DOUBLE ONLY: a small network of the same architecture with random weights and the real tokenizer."""
+    from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+    tok = AutoTokenizer.from_pretrained(model, local_files_only=True)
+    conf = AutoConfig.from_pretrained(model, local_files_only=True)
+    conf.hidden_size, conf.intermediate_size, conf.num_hidden_layers = hidden, 2 * hidden, layers
+    conf.num_attention_heads, conf.num_key_value_heads, conf.head_dim = 2, 2, hidden // 2
+    return AutoModelForCausalLM.from_config(conf).model.float(), tok
+
+
 class LoRALinear(nn.Module):
     """y = W x + (alpha / r) * B A x with W frozen; B starts at zero, so the adapted layer starts as the original."""
 
@@ -129,7 +139,7 @@ class TextBackbone(nn.Module):
     def trainable_state(self) -> dict:
         """Only what learning can change (the rest is the pretrained model, identified by its name)."""
         req = {k for k, p in self.named_parameters() if p.requires_grad}
-        return {k: v.detach().cpu() for k, v in self.state_dict().items() if k in req}
+        return {k: v.detach().cpu().clone() for k, v in self.state_dict().items() if k in req}     # a copy, also on the CPU
 
     def change(self) -> dict:
         """L2 distance of the trainable parameters from their pretrained values, in total and relative to the

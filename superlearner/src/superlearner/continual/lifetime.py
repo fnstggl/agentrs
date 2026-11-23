@@ -105,7 +105,7 @@ class Lifetime:
                            "curriculum": {"arms": [arm_dict(a) for a in self.phases[0]["arms"]], "gate": False,
                                           "world_families": self.phases[0]["worlds"]}})
         tcfg.pop("init_from", None)
-        self.tr = tr = Trainer(tcfg, run_dir, resume=False)
+        self.tr = tr = Trainer(tcfg, run_dir, resume=False, keep_records=have)
         if have:
             tr.load(self.ck)
             tr._trim_logs()
@@ -413,3 +413,36 @@ class Lifetime:
         finally:
             self.tr.close()
         return json.load(open(os.path.join(self.dir, "results.json"))) if os.path.exists(os.path.join(self.dir, "results.json")) else {}
+
+
+def backbone_swap(run_dir: str, workers: int | None = None) -> dict:
+    """Where does a backbone-trained learner keep what it learned? A finished lifetime is evaluated twice on its
+    held-out lists with its final controller: once with its trained language backbone, once with the backbone put
+    back to its pretrained weights (every text embedding recomputed). Success that disappears with the swap was
+    carried by the backbone's changed weights; success that stays lives in the controller, which had co-adapted to
+    the trained backbone's embeddings - so a drop is a lower bound on what the backbone holds, not a clean split.
+    Nothing is saved back to the run: its checkpoint is left as it was."""
+    cfg = json.load(open(os.path.join(run_dir, "lifetime.json")))["cfg"]
+    if workers is not None:
+        cfg["workers"] = workers
+    life = Lifetime(cfg, run_dir, verbose=False)
+    tr = life.tr
+    out: dict = {"run": run_dir, "backbone": tr.backbone.n_params() if tr.backbone is not None else None}
+    try:
+        if life.x["stage"] != "done" or tr.backbone is None or not tr.backbone.trainable:
+            raise RuntimeError("needs a finished lifetime with a trainable backbone")
+        seen = [lst for lst in life.lists if lst["kind"] == "seen"]
+        out["change_from_pretrained"] = tr.backbone.change()
+        out["trained backbone"] = {lst["name"]: life.evaluate(lst, f"swapT_{lst['name']}_") for lst in seen}
+        tr.backbone.load_trainable_state(tr.backbone._pretrained)
+        tr.live.refresh_store()                      # every stored text vector is recomputed; workers get the new table
+        out["after_reset"] = tr.backbone.change()
+        out["pretrained backbone"] = {lst["name"]: life.evaluate(lst, f"swapP_{lst['name']}_") for lst in seen}
+        m = lambda d: float(np.mean([v["success"] for v in d.values()]))       # noqa: E731
+        out["mean"] = {"trained backbone": m(out["trained backbone"]), "pretrained backbone": m(out["pretrained backbone"])}
+    finally:
+        tr.close()
+    tmp = os.path.join(run_dir, "backbone_swap.json.tmp")
+    json.dump(out, open(tmp, "w"), indent=1, default=str)
+    os.replace(tmp, os.path.join(run_dir, "backbone_swap.json"))
+    return out

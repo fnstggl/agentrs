@@ -234,9 +234,11 @@ def run_route(cfg: dict, out_dir: str, seed: int, family: str, route: str, worke
     # the fresh evaluations are other processes on the same GPU: this one gives its GPU memory back first
     del life, tr
     import gc
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
+    for _ in range(3):                # the embedding service's threads hold the backbone until they have wound down
+        time.sleep(1.0)
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
     lists = eval_lists(P, fam)
     wb = os.path.join(base, "weights.pt")
     before = fresh_eval(tcfg, wb, lists, os.path.join(sd, f"before__{family}__{base_name(R)}.json"), workers=workers)

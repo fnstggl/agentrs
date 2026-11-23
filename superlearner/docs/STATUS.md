@@ -41,6 +41,23 @@ Branch `feat/superlearner-4` (cut from `feat/crucible-internet` 11e5613). Number
 | Part 2.5 — learned world model | yes | predicts acceptance (94% vs 75% base rate), failure class, next context; one-step lookahead +3 points, **not established** |
 | Part 8 — several learners in one world | yes, two worlds, counterfactuals, scripted reference | **negative**: scripted participants trade and compete in the small world; the learned controllers never got a listed, used service, so no effect of competition on learning could be measured |
 
+## Amendment: continual learning must change the core neural weights
+
+Design, tests and every table: [CONTINUAL.md](CONTINUAL.md). Headline numbers are repeated here; the tables there
+are generated from the result files.
+
+| # | Requirement | Implemented | Experimentally demonstrated |
+|---|---|---|---|
+| A1 | Parametric learning is mandatory: world model, strategic and tactical policy, representations and backbone are continually trainable; updates persist across episodes, tasks, world changes, restarts and checkpoint reloads | yes - `algo/continual.py`, `continual/lifetime.py`: every phase of a lifetime updates all five controller groups and the world model (and the backbone in Architecture B); one atomically replaced file restores weights, both optimisers, reservoirs, anchors and counters; a learner rebuilt from it is state-identical and takes a bit-identical next update (tested) | <!-- A1 --> |
+| A2 | Reconsider the frozen LLM: Architecture A against B | yes - `cam/backbone.py`: Qwen3-0.6B as the text backbone, frozen / LoRA / top four blocks / all 549M parameters trained through a gradient cache (exact gradients, tested); the 14B generator stays frozen, with the reasons stated | <!-- A2 --> |
+| A3 | Online and continual gradient-based learning: incremental world model, scheduled policy updates, recurrent and off-policy learning, representation updates, replay consolidation, protection against forgetting, adaptation to changed mechanisms, optimiser persistence | yes - world model trained on every batch and re-fitted on the experience buffer; recurrent PPO; replay of own successes and exploratory episodes off-policy; per-arm reservoirs; replay consolidation; EWC / L2-SP / L2-init anchors; shrink-and-perturb; per-group step sizes | <!-- A3 --> |
+| A4 | Two complementary memory systems | yes - weights as the primary substrate; episodic memory and tool library as a switchable supplement; rehearsal data is training data, not something the agent reads when deciding | <!-- A4 --> |
+| A5 | Parametric Internalization Test | yes - `superlearner pit`: weights exported to a tensors-only file, evaluated in a new process with empty memory, tools, replay buffer and embedding cache (asserted), zero recurrent state per episode, held-out worlds, a different actor name as control | <!-- A5 --> |
+| A6 | Learning over long sequences, five conditions compared | yes - six-phase lifetimes (nine task arms, four kinds of world for training, two more for testing), eight conditions | <!-- A6 --> |
+| A7 | Protect the ability to keep learning; forgetting and loss of plasticity as measured failure modes | yes - retention matrix; plasticity probe (a copy must fit arbitrary targets in 40 steps), dormant units, effective rank, weight and gradient norms after every phase | <!-- A7 --> |
+| A8 | The Meta-Researcher searches over the rules of the weight updates | yes - `mode: lifetime`: candidates are versions of `algo/continual.py` (nineteen genes and three rewritable functions), run as confined lifetimes, scored by hub-measured acquisition and retention | <!-- A8 --> |
+| A9 | Non-negotiable: persistent, measurable, gradient-driven neural learning that improves behaviour on unseen tasks; a peripheral controller must be told apart from the reasoning backbone | the distinction is explicit in every table: Architecture A trains 20.7M parameters next to a frozen backbone, Architecture B also trains the 0.6B language backbone; nothing is claimed for the 14B generator | <!-- A9 --> |
+
 ## What remains unproven
 
 * **That reinforcement learning can teach this agent a skill it was not shown.** Every gain measured is on skills

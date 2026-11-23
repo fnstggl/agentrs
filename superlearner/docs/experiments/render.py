@@ -292,6 +292,14 @@ def life_backbone():
         print(f"| {b.get('mode', '?')} | {b.get('trainable', 0):,} | {'-' if not rel else format(rel, '.2e')} | {len(s['seeds'])} | **{_p(s['final_mean']['mean'])}** {_seeds(s['final_mean']['by_seed'])} | "
               f"{_p(s['right_after_learning']['mean'])} | {_p(s['forgetting']['mean'])} | {_p(s['unseen_worlds_final']['mean'])} | {_p(s['shift']['before'])} -> {_p(s['shift']['after'])} | "
               f"{s['wall_s']['update_s'] / 60:.0f} min | {_cmp(cmp_) if c != 'consolidate' else 'reference'} |")
+    sw = [(c, C[c]["backbone_swap"]) for c in rows if C[c].get("backbone_swap")]
+    if sw:
+        print("\nSwap test: the final controller evaluated on the six held-out lists with its trained backbone, and again with the "
+              "backbone put back to its pretrained weights (all text embeddings recomputed). What disappears was carried by the "
+              "backbone's changed weights.\n\n| backbone | seeds | with its trained backbone | with the pretrained backbone | difference (paired by task) | by phase (trained / pretrained) |\n|---|---|---|---|---|---|")
+        for c, w in sw:
+            print(f"| {C[c]['backbone']['mode']} | {w['seeds']} | {_p(w['trained'])} | {_p(w['pretrained'])} | {_cmp(w['paired'])} | "
+                  + ", ".join(f"{n} {100 * a:.0f}/{100 * b:.0f}" for n, (a, b) in w["by_phase"].items()) + " |")
     print()
 
 

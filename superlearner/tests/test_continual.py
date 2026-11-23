@@ -437,3 +437,59 @@ def test_an_evaluation_episode_that_did_not_run_is_an_error_not_a_failure(smoke_
     with pytest.raises(RuntimeError, match="did not run"):
         life.evaluate(life.lists[0], "t")
     life.tr.close()
+
+
+def test_backbone_trained_lifetime_end_to_end_and_the_swap_back_to_pretrained_weights(smoke_cfg, tmp_path):
+    """A small backbone with its last block trainable: a one-phase lifetime changes the backbone's weights, a restart
+    restores them, and the swap test evaluates the final controller with the trained and with the pretrained backbone
+    without touching the run's checkpoint. Skipped if the tokenizer is not in the local cache."""
+    pytest.importorskip("transformers")
+    from superlearner.continual.lifetime import backbone_swap
+    try:
+        import transformers
+        transformers.AutoConfig.from_pretrained("Qwen/Qwen3-0.6B", local_files_only=True)
+    except Exception:  # noqa: BLE001
+        pytest.skip("Qwen3-0.6B is not in the local cache")
+    cfg = copy.deepcopy(smoke_cfg)
+    cfg["backbone"] = {"model": "Qwen/Qwen3-0.6B", "mode": "top:1", "chunk_tokens": 400, "test_double": {"hidden": 32, "layers": 5}}
+    cfg["algo"].update(backbone_lr=1e-4, sil_steps=1)
+    cfg["algo"]["wm"].update(replay_steps=1, fit_steps=10)
+    cfg["algo"]["observe"]["steps"] = 6
+    cfg["lifetime"].update(phases=[dict(cfg["lifetime"]["phases"][0], observe_steps=6, demos_per_arm=2, episodes_per_iter=4)],
+                           wm_holdout=0, probe_steps=0)
+    cfg["lifetime"]["eval"].update(sampled=False, per_arm=2)
+    rd = str(tmp_path / "bb")
+    life = Lifetime(cfg, rd, verbose=False)
+    assert life.tr.backbone.n_params()["trainable"] > 0 and life.tr.algo.group_sizes()["backbone"] == life.tr.backbone.n_params()["trainable"]
+    while life.step():
+        pass
+    ch = life.tr.backbone.change()
+    row = life.x["rows"][-1]
+    life.tr.close()
+    assert ch["l2"] > 0 and row["backbone"]["change_from_pretrained"]["l2"] == ch["l2"]       # the backbone itself learned
+    assert os.path.exists(os.path.join(rd, "ckpt", "latest.pt.backbone.pt"))
+    before = os.path.getmtime(os.path.join(rd, "ckpt", "latest.pt"))
+    out = backbone_swap(rd)
+    assert out["change_from_pretrained"]["l2"] == pytest.approx(ch["l2"], rel=1e-5)             # restored from the checkpoint
+    assert out["after_reset"]["l2"] == 0.0
+    n = len(life.lists[0]["tasks"])
+    for key in ("trained backbone", "pretrained backbone"):
+        assert all(len(v["per_task"]) == n and None not in v["per_task"] for v in out[key].values())
+    assert os.path.getmtime(os.path.join(rd, "ckpt", "latest.pt")) == before                    # the run was not altered
+
+
+def test_queue_waits_for_gpu_memory_it_does_not_control(tmp_path):
+    from superlearner.jobs import run_jobs
+    marker = tmp_path / "ran"
+    spec = {"max_gpu": 4, "max_cpu": 4, "gpu_unit_mb": 1000, "gpu_margin_mb": 500, "gpu_settle_s": 0,
+            "jobs": [{"name": "a", "cmd": f"touch {marker}", "gpu": 2, "cpu": 1}]}
+    readings = iter([1000, 2000, 2600])                # another process holds the card, then lets go of it
+    seen = []
+
+    def free():
+        v = next(readings, 2600)
+        seen.append((v, marker.exists()))
+        return v
+    st = run_jobs(spec, log_dir=str(tmp_path / "q"), poll_s=0.01, verbose=False, free_fn=free)
+    assert st["a"]["state"] == "done" and [v for v, _ in seen][:3] == [1000, 2000, 2600]
+    assert not any(ran for _, ran in seen)             # it did not start while less than 2 x 1000 + 500 MiB was free
