@@ -195,7 +195,7 @@ Work on the amendment ("continual learning must change the core neural weights")
   embedding function for every condition, the only difference being whether its weights receive gradients. Its
   embeddings equal the frozen service's up to 16-bit rounding (cosine 0.998-0.999 on 15 texts); the gradient cache
   reproduces direct back-propagation (cosine 1.00000, norm ratio 1.0000, all three trainable modes). The 14B
-  generator is not loaded in these experiments (the nine task arms need no generated content).
+  generator is not loaded in these experiments (the eight task arms need no generated content).
 * **A dtype slip in the LoRA wrapper** made the adapted backbone start 0.14% away from the frozen one (the
   wrapper's output was promoted to 32-bit); fixed before any run, test added (`modes start from the frozen function`).
 * **Observation by epochs was too little.** First GPU dry run: 30 "epochs" over six demonstrations is 30 optimiser
@@ -302,3 +302,17 @@ Work on the amendment ("continual learning must change the core neural weights")
   whose process had started before the guard existed, and two routes that had already read the invalid "before"
   file); they were removed as well. The report now also refuses any result that contains an episode that did not
   run, so such a file cannot enter a table even if one is produced.
+* **A selection problem in my own design, and the check added for it.** The calibration that chose the protection
+  (rehearsal, consolidation), the lifetimes' held-out lists and the meta-search's lists all draw from the same seed
+  range of the `select` split (offset 4,000 + 300 per phase), so the first tasks of the calibration's lists are also
+  in the main runs' lists. `superlearner continual-verify` was added before any verification result was read: all
+  finished lifetimes, final weights only, new process, 112 tasks from offsets 30,000+ (no world in common with any
+  lifetime list, checked), the same tasks for every run.
+* **Two measurement bugs found by a test of the swap diagnostic.** On the CPU, `trainable_state()` returned views of
+  the live parameters, so the "pretrained" reference moved with the weights and the backbone's distance from it read
+  0. On the GPU (`.cpu()` copies) the numbers were right: the running LoRA lifetime reports a relative change of
+  0.27-0.33. Also, a resumed lifetime rewrote `config.json` and `meta.json`, losing the commit it started from; it now
+  keeps them. The runs that had already resumed show the commit of their last restart in `meta.json`.
+* **The queue now looks at the card.** Every earlier out-of-memory death had the same root: the queue counted only
+  its own jobs, while another session used up to 10 GB. A GPU job now starts only if `nvidia-smi` reports enough free
+  memory after subtracting what recently started jobs have yet to allocate.

@@ -263,6 +263,41 @@ def life():
     print()
 
 
+def life_verify():
+    d = _cl()
+    if not d or not any(d["conditions"][c].get("verify") for c in d["order"]):
+        return
+    C = d["conditions"]
+    first = next(C[c]["verify"]["weights only"] for c in d["order"] if C[c].get("verify"))
+    ln = list(first["lists"])
+    print("Every lifetime's final weights, exported to a tensors-only file and evaluated in a new process with no memory, tools, replay "
+          f"buffer or cached embedding, on {sum(first['lists'][n]['n_tasks'] for n in ln)} tasks from a seed range that neither the calibration, "
+          "the lifetimes' own lists nor the meta-search ever used (eight arms). Per-seed values in brackets.\n\n"
+          "| condition | seeds | in kinds of world it trained in | in kinds of world it never trained in | with its episodic memory |\n|---|---|---|---|---|")
+    for c in d["order"]:
+        v = C[c].get("verify")
+        if not v:
+            continue
+        w, m = v["weights only"], v.get("with its memory")
+        mm = "-" if not m else " / ".join(_p(m["lists"][n]["mean"]) for n in ln)
+        print(f"| {d['labels'][c]} | {len(w['seeds'])} | **{_p(w['lists'][ln[0]]['mean'])}** {_seeds(w['lists'][ln[0]]['by_seed'])} | "
+              f"**{_p(w['lists'][ln[1]]['mean'])}** {_seeds(w['lists'][ln[1]]['by_seed'])} | {mm} |")
+    arms = list(first["by_arm"])
+    print("\nBy arm (weights only, both lists):\n\n| condition | " + " | ".join(arms) + " |\n|---|" + "---|" * len(arms))
+    for c in d["order"]:
+        v = C[c].get("verify")
+        if v:
+            print(f"| {d['labels'][c]} | " + " | ".join(_p(v["weights only"]["by_arm"].get(a)) for a in arms) + " |")
+    rows = [(k, v["untouched tasks, fresh process"]) for k, v in d["comparisons"].items() if v.get("untouched tasks, fresh process")]
+    if rows:
+        print("\nDifferences on these same tasks (percentage points; 95% interval from a bootstrap over seeds and tasks):\n\n"
+              "| comparison | seeds | tasks | difference | tasks only the first solves / only the second |\n|---|---|---|---|---|")
+        for k, a in rows:
+            x, y = k.split(" - ")
+            print(f"| {d['labels'][x]} minus {d['labels'][y]} | {a['seeds']} | {a['n_tasks']} | {_cmp(a)} | {a['a_only']} / {a['b_only']} |")
+    print()
+
+
 def life_matrix():
     d = _cl()
     if not d:
@@ -425,7 +460,7 @@ def meta_continual():
 
 
 ALL = {"b": b_multi, "baselines": baselines, "c": exp_c, "d": exp_d, "a": exp_a, "worldmodel": worldmodel, "selfplay": selfplay, "meta": meta, "final": final, "d_clone": exp_d_clone,
-       "life": life, "life_matrix": life_matrix, "life_backbone": life_backbone, "life_plasticity": life_plasticity, "pit": pit,
+       "life": life, "life_verify": life_verify, "life_matrix": life_matrix, "life_backbone": life_backbone, "life_plasticity": life_plasticity, "pit": pit,
        "meta_continual": meta_continual}
 
 def fill(path: str) -> None:

@@ -42,7 +42,7 @@ little to move 350M parameters per block without damaging what the model already
 trained is the one whose output the controller consumes at every decision (text representations), at a size
 (0.6B) where full-parameter training is real rather than nominal. Nothing in the results below is a statement
 about the 14B model: **the generator has not learned anything; when this document says the backbone learned, it
-means Qwen3-0.6B.** The nine task arms used here need no generated content, so the generator is not even loaded.
+means Qwen3-0.6B.** The eight task arms used here need no generated content, so the generator is not even loaded.
 The top three blocks of Qwen3-0.6B are also untouched: the embedding is read below them, so no gradient reaches
 them.
 
@@ -155,6 +155,16 @@ phases, importance-weighted anchors alone did not at any coefficient from 2e4 to
 rehearsal slowed new learning.
 
 <!-- table:life -->
+<!-- /table -->
+
+### Independent check on untouched tasks
+
+The protection in conditions 4a/4b was chosen from a short calibration, and the calibration, the lists above and the
+meta-search all draw from the same seed range of the `select` split, so the numbers above are not free of selection.
+`superlearner continual-verify` therefore evaluates every run's final weights on tasks from a seed range none of them
+used, fixed before any outcome was seen, in a new process given the weights file alone.
+
+<!-- table:life_verify -->
 <!-- /table -->
 
 ### Retention matrices

@@ -72,6 +72,12 @@ def load_life(root: str) -> dict:
         swap = os.path.join(os.path.dirname(p), "backbone_swap.json")
         if os.path.exists(swap):
             r["_backbone_swap"] = json.load(open(swap))
+        for key, fn in (("_verify", "verify.json"), ("_verify_memory", "verify_memory.json")):
+            vp = os.path.join(os.path.dirname(p), fn)
+            if os.path.exists(vp):
+                v = json.load(open(vp))
+                if not any(x is None for L in v["lists"].values() for x in L["per_task"]):
+                    r[key] = v
         cond, _, sd = name.rpartition("_s")
         runs.setdefault(cond, {})[int(sd)] = r
     return runs
@@ -161,6 +167,18 @@ def cond_summary(rs: dict) -> dict:
         out["backbone"] = {"mode": bb[0]["mode"], "trainable": bb[0]["trainable"], "total": bb[0]["total"],
                            "relative_change_from_pretrained": _mean([(b.get("change_from_pretrained") or {}).get("relative") for b in bb]),
                            "l2_change_from_pretrained": _mean([(b.get("change_from_pretrained") or {}).get("l2") for b in bb])}
+    ver = {}
+    for key, tag in (("_verify", "weights only"), ("_verify_memory", "with its memory")):
+        have = [s for s in seeds if rs[s].get(key)]
+        if have:
+            L = rs[have[0]][key]["lists"]
+            ver[tag] = {"seeds": have, "lists": {n: {"mean": float(np.mean([rs[s][key]["lists"][n]["success"] for s in have])),
+                                                     "by_seed": [rs[s][key]["lists"][n]["success"] for s in have],
+                                                     "n_tasks": L[n]["n"]} for n in L},
+                        "by_arm": {a: float(np.mean([rs[s][key]["lists"][n]["by_arm"][a] for s in have for n in L]))
+                                   for a in L[next(iter(L))]["by_arm"]}}
+    if ver:
+        out["verify"] = ver
     out["params"] = first["params"]
     out["restarts"] = [rs[s].get("restarts", 0) for s in seeds]
     sw = [rs[s].get("_backbone_swap") for s in seeds if rs[s].get("_backbone_swap")]
@@ -203,6 +221,10 @@ def life_summary(root: str) -> dict:
                 out["comparisons"][f"{a} - {b}"] = {
                     "final, all six lists": boot_paired([final_tasks(runs[a][s]) for s in seeds], [final_tasks(runs[b][s]) for s in seeds]),
                     "final, unseen worlds": boot_paired([final_tasks(runs[a][s], "unseen") for s in seeds], [final_tasks(runs[b][s], "unseen") for s in seeds])}
+                vs = [s for s in seeds if runs[a][s].get("_verify") and runs[b][s].get("_verify")]
+                if vs:
+                    flat = lambda r: [x for n in sorted(r["_verify"]["lists"]) for x in r["_verify"]["lists"][n]["per_task"]]   # noqa: E731
+                    out["comparisons"][f"{a} - {b}"]["untouched tasks, fresh process"] = boot_paired([flat(runs[a][s]) for s in vs], [flat(runs[b][s]) for s in vs])
     return out
 
 

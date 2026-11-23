@@ -4,7 +4,7 @@
 # The learner: the 19.7M-parameter CAM controller with an online world model (1.06M), and a language backbone
 # (Qwen3-0.6B, the 25 blocks that feed the text read-out) that embeds every text the controller reads. In this file
 # the backbone is frozen (`mode: none`); `backbone_*.yaml` make parts of it or all of it trainable.
-# The 14B generator is not used here: the nine task arms of the sequence need no LLM-written content.
+# The 14B generator is not used here: the eight task arms of the sequence need no LLM-written content.
 name: life
 seed: 0
 device: auto
