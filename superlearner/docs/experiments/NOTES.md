@@ -335,3 +335,15 @@ Work on the amendment ("continual learning must change the core neural weights")
   retries on out-of-memory at the same step; the promoted-rule runs were merged into the one queue.
 * `meta-verify` first crashed because a CPU-only process still touched the (full) GPU through the optimiser's
   accelerator check. It runs with `CUDA_VISIBLE_DEVICES=""`.
+* **The post-selection test overturned the reading of the promotion.** Seeds 6-10, held-out tasks the search never
+  used, all rules of a seed at the same time. Score (mean success on the phases seen so far): baseline 0.376, promoted
+  rule 0.644 (+0.268, better on 5 of 5 seeds, sign-flip p = 0.0625, the smallest five seeds can give), **control 0.965**
+  (+0.589, 5 of 5). So the promoted rule's gain is not a selection artefact, but it is not evidence for consolidation
+  either: the search's baseline was under-trained (100 observation steps), the rule added 96 gradient steps, and
+  spending about the same number of steps on plain observation is far better. (Those observation steps also run at
+  3e-4 against 1e-4 for consolidation, so the control mixes "where" and "how large".) The search charged candidates
+  for experience, not for gradient steps, and its space never tried "just observe longer" on its own.
+* **Second search, at equal compute** (`configs/meta_continual_equal.yaml`, `runs/meta/continual2`). Every rule spends
+  the same 150 supervised gradient steps per phase; 17 single-idea variants, then a round of mutations. A
+  `consolidate_lr` setting was added so that consolidation can be tested at the observation step size. Its default
+  (none) leaves the update unchanged, so lifetimes that start after this edit run the same rule as those before it.

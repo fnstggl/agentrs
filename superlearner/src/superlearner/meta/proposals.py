@@ -697,6 +697,7 @@ CONT_GENES = {
     "observe_lr": [1e-4, 3e-4, 1e-3],
     "observe_steps": [0.5, 1.0, 2.0],
     "consolidate_steps": [0, 32, 96],
+    "consolidate_lr": [None, 3e-4],
     "anchor": ["none", "l2sp", "ewc"],
     "anchor_coef": [2e4, 2e5, 2e6],
     "top_frac": [1.0, 0.1],
@@ -712,7 +713,7 @@ CONT_GENES = {
     "lr": [0.5, 1.0, 2.0],
 }
 BASE_CONTINUAL_GENOME = {"rehearsal_keep": True, "per_arm": 120, "rehearse_frac": 0.5, "observe_lr": 3e-4, "observe_steps": 1.0,
-                         "consolidate_steps": 0, "anchor": "none", "anchor_coef": 2e5, "top_frac": 1.0, "l2init": 0.0,
+                         "consolidate_steps": 0, "consolidate_lr": None, "anchor": "none", "anchor_coef": 2e5, "top_frac": 1.0, "l2init": 0.0,
                          "shrink_perturb": "none", "group_lr": "uniform", "wm_repr": 0.1, "wm_coef": 1.0, "wm_replay": 4, "wm_fit": 300,
                          "replay_arms": "uniform", "replay_steps": 1.0, "lr": 1.0}
 _SHRINK = {"none": (1.0, 0.0), "mild": (0.95, 0.01), "strong": (0.8, 0.03)}
@@ -752,6 +753,7 @@ def continual_settings(g: dict) -> tuple[dict, dict]:
                 "replay_batch": 8, "buffer": 400, "lr_mult": 4.0, "fit_steps": int(g["wm_fit"]), "fit_lr": 1e-3, "fit_batch": 256},
          "rehearsal": {"keep": bool(g["rehearsal_keep"]), "per_arm": int(g["per_arm"])},
          "consolidate_steps": int(g["consolidate_steps"]),
+         "consolidate_lr": g["consolidate_lr"],
          "anchor": {"kind": g["anchor"], "coef": float(g["anchor_coef"]) if g["anchor"] != "none" else 0.0, "decay": 1.0,
                     "fisher_episodes": 64, "top_frac": float(g["top_frac"])},
          "l2init": float(g["l2init"]),
@@ -818,6 +820,53 @@ class ContinualSpace:
                 ("rehearsal, world model trained on a fixed representation", dict(b, wm_repr=0.0)),
                 ("rehearsal with the past favoured in replay", dict(b, replay_arms="old_heavy")),
                 ("rehearsal with half of all replay reserved for earlier phases", dict(b, replay_arms="small_first"))]
+
+    # ---- search at equal compute: every rule spends the same number of supervised gradient steps per phase
+    EQUAL_GENES = ("split", "consolidate_lr", "rehearse_frac", "observe_lr", "anchor", "top_frac", "l2init", "shrink_perturb",
+                   "group_lr", "wm_repr", "wm_fit", "replay_arms", "per_arm")
+
+    @staticmethod
+    def with_split(g: dict, consolidate: int, budget: int) -> dict:
+        """`budget` supervised steps per phase: `consolidate` of them at the phase's end, the rest on observation."""
+        return dict(g, consolidate_steps=int(consolidate), observe_steps=(int(budget) - int(consolidate)) / int(budget))
+
+    def named_equal(self, budget: int) -> list[tuple[str, dict]]:
+        """Single-idea variants of the base rule, all with the same number of supervised gradient steps."""
+        b = {k: BASE_CONTINUAL_GENOME[k] for k in CONT_GENES}
+        s = lambda c, **kw: dict(self.with_split(b, c, budget), **kw)      # noqa: E731
+        q = int(budget) // 5
+        return [(f"{q} of the {budget} steps moved to end-of-phase consolidation", s(q)),
+                (f"{2 * q} of the {budget} steps moved to end-of-phase consolidation", s(2 * q)),
+                (f"{q} steps moved to consolidation, at the observation step size", s(q, consolidate_lr=3e-4)),
+                (f"{2 * q} steps moved to consolidation, at the observation step size", s(2 * q, consolidate_lr=3e-4)),
+                ("a quarter of each observation batch rehearses earlier arms (instead of half)", dict(b, rehearse_frac=0.25)),
+                ("three quarters of each observation batch rehearse earlier arms", dict(b, rehearse_frac=0.75)),
+                ("larger observation step size (1e-3)", dict(b, observe_lr=1e-3)),
+                ("smaller observation step size (1e-4)", dict(b, observe_lr=1e-4)),
+                ("importance-weighted anchors (EWC) on top of rehearsal", dict(b, anchor="ewc", anchor_coef=2e5)),
+                ("uniform anchor to the last phase's weights (L2-SP)", dict(b, anchor="l2sp", anchor_coef=2e4)),
+                ("shrink-and-perturb at phase boundaries", dict(b, shrink_perturb="mild")),
+                ("pull towards the initial weights (L2-init)", dict(b, l2init=2e3)),
+                ("slower trunk (input and encoder at 0.3x)", dict(b, group_lr="slow_trunk")),
+                ("faster heads (policy and critic at 3x)", dict(b, group_lr="fast_heads")),
+                ("world model trained on a fixed representation", dict(b, wm_repr=0.0)),
+                ("replay favours earlier arms", dict(b, replay_arms="old_heavy")),
+                ("half of all replay reserved for earlier phases", dict(b, replay_arms="small_first"))]
+
+    def mutate_equal(self, genome: dict, budget: int) -> dict:
+        g = {k: genome[k] for k in CONT_GENES}
+        n = int(self.rng.integers(1, 4))
+        for k in self.rng.choice(list(self.EQUAL_GENES), size=n, replace=False):
+            if k == "split":
+                q = int(budget) // 5
+                opts = [c for c in (0, q, 2 * q, 3 * q) if c != g["consolidate_steps"]]
+                g = self.with_split(g, opts[int(self.rng.integers(0, len(opts)))], budget)
+                continue
+            opts = [v for v in CONT_GENES[k] if v != g[k]]
+            g[k] = opts[int(self.rng.integers(0, len(opts)))]
+            if k == "anchor" and g[k] != "none":
+                g["anchor_coef"] = CONT_GENES["anchor_coef"][int(self.rng.integers(0, len(CONT_GENES["anchor_coef"])))]
+        return g
 
     def proposal(self, genome: dict, parent: dict, hypothesis: str | None = None, base_src: str | None = None) -> dict:
         genome = {k: genome[k] for k in CONT_GENES}

@@ -1,0 +1,16 @@
+# The search over continual update rules AT EQUAL COMPUTE (docs/CONTINUAL.md, section 6).
+#   CUDA_VISIBLE_DEVICES="" superlearner meta-search --config configs/meta_continual_equal.yaml --full-feedback --run-dir runs/meta/continual2
+# Why: the first search (meta_continual.yaml) charged candidates for experience but not for gradient steps. Its promoted
+# rule added 96 steps per phase, and a control spending those steps on plain observation beat it easily. Here every
+# rule spends the same `equal_steps` supervised gradient steps per phase, however it divides them between observation
+# and consolidation; the other genes change how those steps are used, not how many there are.
+base: meta_continual.yaml
+name: meta_continual_equal
+equal_steps: 150
+rounds: 2
+develop_top: 3
+sources: {continual_space: 6, llm: 0, rule_space: 0, learned_rule: 0}
+stages:
+  screen:  {observe_steps: 150}
+  develop: {observe_steps: 150}
+  confirm: {observe_steps: 150}
