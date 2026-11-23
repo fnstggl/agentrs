@@ -1,0 +1,872 @@
+{
+ "family": "ow_heldout",
+ "days": 90,
+ "seeds": [
+  1,
+  2
+ ],
+ "arms": [
+  "full"
+ ],
+ "shock": {
+  "day": 45,
+  "kind": "bankrupt_largest",
+  "hours": 48
+ },
+ "wall_s": 731.5,
+ "runs": [
+  "ow_longrun90_ow_heldout_s1_full",
+  "ow_longrun90_ow_heldout_s2_full"
+ ],
+ "by_seed": {
+  "1": {
+   "weeks": [
+    {
+     "week": 1,
+     "full": {
+      "served": 332789,
+      "firms": 8,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.607c6123": {
+        "served": 135489,
+        "sellers": 2
+       },
+       "gen.netrel.7b3d32f1": {
+        "served": 197300,
+        "sellers": 2
+       },
+       "gen.triage.714923c7": {
+        "served": 0,
+        "sellers": 0
+       }
+      }
+     }
+    },
+    {
+     "week": 2,
+     "full": {
+      "served": 398158,
+      "firms": 9,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.607c6123": {
+        "served": 158177,
+        "sellers": 2
+       },
+       "gen.netrel.7b3d32f1": {
+        "served": 225528,
+        "sellers": 2
+       },
+       "gen.triage.714923c7": {
+        "served": 14453,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 3,
+     "full": {
+      "served": 446730,
+      "firms": 11,
+      "entries": 2,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.607c6123": {
+        "served": 161135,
+        "sellers": 3
+       },
+       "gen.netrel.7b3d32f1": {
+        "served": 245220,
+        "sellers": 3
+       },
+       "gen.triage.714923c7": {
+        "served": 40375,
+        "sellers": 1
+       }
+      }
+     }
+    },
+    {
+     "week": 4,
+     "full": {
+      "served": 463630,
+      "firms": 12,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.607c6123": {
+        "served": 164406,
+        "sellers": 3
+       },
+       "gen.netrel.7b3d32f1": {
+        "served": 254677,
+        "sellers": 3
+       },
+       "gen.triage.714923c7": {
+        "served": 44547,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 5,
+     "full": {
+      "served": 469993,
+      "firms": 12,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.607c6123": {
+        "served": 165989,
+        "sellers": 3
+       },
+       "gen.netrel.7b3d32f1": {
+        "served": 256425,
+        "sellers": 3
+       },
+       "gen.triage.714923c7": {
+        "served": 47579,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 6,
+     "full": {
+      "served": 430071,
+      "firms": 12,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 1,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.607c6123": {
+        "served": 151890,
+        "sellers": 3
+       },
+       "gen.netrel.7b3d32f1": {
+        "served": 233084,
+        "sellers": 3
+       },
+       "gen.triage.714923c7": {
+        "served": 45097,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 7,
+     "full": {
+      "served": 448035,
+      "firms": 12,
+      "entries": 1,
+      "exits": 1,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.607c6123": {
+        "served": 159082,
+        "sellers": 3
+       },
+       "gen.netrel.7b3d32f1": {
+        "served": 241680,
+        "sellers": 3
+       },
+       "gen.triage.714923c7": {
+        "served": 47273,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 8,
+     "full": {
+      "served": 477678,
+      "firms": 13,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.607c6123": {
+        "served": 163149,
+        "sellers": 3
+       },
+       "gen.netrel.7b3d32f1": {
+        "served": 265486,
+        "sellers": 4
+       },
+       "gen.triage.714923c7": {
+        "served": 49043,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 9,
+     "full": {
+      "served": 484563,
+      "firms": 13,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.607c6123": {
+        "served": 162660,
+        "sellers": 3
+       },
+       "gen.netrel.7b3d32f1": {
+        "served": 272059,
+        "sellers": 4
+       },
+       "gen.triage.714923c7": {
+        "served": 49844,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 10,
+     "full": {
+      "served": 488701,
+      "firms": 13,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.607c6123": {
+        "served": 164923,
+        "sellers": 3
+       },
+       "gen.netrel.7b3d32f1": {
+        "served": 273081,
+        "sellers": 4
+       },
+       "gen.triage.714923c7": {
+        "served": 50697,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 11,
+     "full": {
+      "served": 492266,
+      "firms": 13,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.607c6123": {
+        "served": 166766,
+        "sellers": 3
+       },
+       "gen.netrel.7b3d32f1": {
+        "served": 274884,
+        "sellers": 4
+       },
+       "gen.triage.714923c7": {
+        "served": 50616,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 12,
+     "full": {
+      "served": 495182,
+      "firms": 13,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.607c6123": {
+        "served": 167052,
+        "sellers": 3
+       },
+       "gen.netrel.7b3d32f1": {
+        "served": 276738,
+        "sellers": 4
+       },
+       "gen.triage.714923c7": {
+        "served": 51392,
+        "sellers": 2
+       }
+      }
+     }
+    }
+   ],
+   "arms": {
+    "full": {
+     "output": {
+      "served_by_week": [
+       332789,
+       398158,
+       446730,
+       463630,
+       469993,
+       430071,
+       448035,
+       477678,
+       484563,
+       488701,
+       492266,
+       495182
+      ],
+      "median_weeks_2_8": 448035.0,
+      "last_week_over_median_weeks_2_8": 1.105,
+      "mean_after_week_9_over_median_weeks_2_8": 1.098,
+      "weeks_with_structural_change_after_9": 0,
+      "weeks_after_9": 3
+     },
+     "collapses": [
+      {
+       "sector": "gen.coord.607c6123",
+       "day": 41,
+       "ratio": 0.499,
+       "recovered_day": 42,
+       "days_to_recover": 1,
+       "cause": "provider outage"
+      }
+     ],
+     "unrecovered": [],
+     "economy": {
+      "entries": 6,
+      "exits": 1,
+      "bankruptcies": 1,
+      "price_changes": 5,
+      "new_listings": 6,
+      "adoptions": 0,
+      "active_firms_start": 8,
+      "active_firms_end": 13
+     },
+     "household_budget_bound_from_day": null,
+     "entry": {
+      "founders": 14,
+      "scans": 75,
+      "surveys": 15,
+      "research_cents": 375000,
+      "entries": 6,
+      "exits": 1,
+      "failed": 1,
+      "aborted": 0,
+      "loans_asked": 0,
+      "loans_granted": 0,
+      "launched": 6,
+      "operating": 5,
+      "failure_rate": 0.167,
+      "retired": 0,
+      "sectors_served_by_entrants_at_end": [
+       "gen.coord.607c6123",
+       "gen.netrel.7b3d32f1",
+       "gen.triage.714923c7"
+      ],
+      "sectors_served_only_by_entrants_at_end": [
+       "gen.triage.714923c7"
+      ]
+     },
+     "shock": {
+      "requested": {
+       "day": 45,
+       "kind": "bankrupt_largest",
+       "hours": 48
+      },
+      "report": {
+       "kind": "bankrupt_largest",
+       "done": true,
+       "org": "o:netrel02aco",
+       "sectors": [
+        "gen.netrel.7b3d32f1"
+       ],
+       "how": "admin.shock_bankrupt",
+       "t": 3888000,
+       "day": 45
+      },
+      "sectors": {
+       "gen.netrel.7b3d32f1": {
+        "served_per_day_before": 35717.7,
+        "lowest_day": 47,
+        "lowest_served": 32034,
+        "fell_below_recover_level": false,
+        "recovered_day": null,
+        "days_to_recover": null,
+        "flagged_collapsed_on": null,
+        "cause_reported": null,
+        "served_last_day": 39839,
+        "sellers_end": 4
+       }
+      }
+     },
+     "repeated_process_failures": [],
+     "underserved_sectors": [],
+     "invariant_violations": 0,
+     "replay_identical": true,
+     "events": 244315,
+     "wall_s": 590.6,
+     "s_per_sim_day": 4.876,
+     "rss_mb_max": 307.8,
+     "log_bytes": 62630986,
+     "healthy": true
+    }
+   }
+  },
+  "2": {
+   "weeks": [
+    {
+     "week": 1,
+     "full": {
+      "served": 304466,
+      "firms": 8,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.829f9926": {
+        "served": 173301,
+        "sellers": 2
+       },
+       "gen.netrel.94d9f81c": {
+        "served": 0,
+        "sellers": 0
+       },
+       "gen.triage.9789344a": {
+        "served": 131165,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 2,
+     "full": {
+      "served": 362347,
+      "firms": 12,
+      "entries": 4,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.829f9926": {
+        "served": 202661,
+        "sellers": 4
+       },
+       "gen.netrel.94d9f81c": {
+        "served": 7043,
+        "sellers": 2
+       },
+       "gen.triage.9789344a": {
+        "served": 152643,
+        "sellers": 2
+       }
+      }
+     }
+    },
+    {
+     "week": 3,
+     "full": {
+      "served": 382648,
+      "firms": 14,
+      "entries": 2,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.829f9926": {
+        "served": 208574,
+        "sellers": 5
+       },
+       "gen.netrel.94d9f81c": {
+        "served": 16923,
+        "sellers": 2
+       },
+       "gen.triage.9789344a": {
+        "served": 157151,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 4,
+     "full": {
+      "served": 400618,
+      "firms": 14,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.829f9926": {
+        "served": 222886,
+        "sellers": 5
+       },
+       "gen.netrel.94d9f81c": {
+        "served": 19522,
+        "sellers": 2
+       },
+       "gen.triage.9789344a": {
+        "served": 158210,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 5,
+     "full": {
+      "served": 408858,
+      "firms": 14,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.829f9926": {
+        "served": 228748,
+        "sellers": 5
+       },
+       "gen.netrel.94d9f81c": {
+        "served": 21515,
+        "sellers": 2
+       },
+       "gen.triage.9789344a": {
+        "served": 158595,
+        "sellers": 3
+       }
+      }
+     }
+    },
+    {
+     "week": 6,
+     "full": {
+      "served": 417085,
+      "firms": 15,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.829f9926": {
+        "served": 230692,
+        "sellers": 5
+       },
+       "gen.netrel.94d9f81c": {
+        "served": 22527,
+        "sellers": 2
+       },
+       "gen.triage.9789344a": {
+        "served": 163866,
+        "sellers": 4
+       }
+      }
+     }
+    },
+    {
+     "week": 7,
+     "full": {
+      "served": 418820,
+      "firms": 14,
+      "entries": 0,
+      "exits": 1,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.829f9926": {
+        "served": 221606,
+        "sellers": 4
+       },
+       "gen.netrel.94d9f81c": {
+        "served": 25922,
+        "sellers": 2
+       },
+       "gen.triage.9789344a": {
+        "served": 171292,
+        "sellers": 4
+       }
+      }
+     }
+    },
+    {
+     "week": 8,
+     "full": {
+      "served": 414026,
+      "firms": 15,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.829f9926": {
+        "served": 210801,
+        "sellers": 4
+       },
+       "gen.netrel.94d9f81c": {
+        "served": 29577,
+        "sellers": 2
+       },
+       "gen.triage.9789344a": {
+        "served": 173648,
+        "sellers": 4
+       }
+      }
+     }
+    },
+    {
+     "week": 9,
+     "full": {
+      "served": 417209,
+      "firms": 15,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.829f9926": {
+        "served": 210539,
+        "sellers": 4
+       },
+       "gen.netrel.94d9f81c": {
+        "served": 32043,
+        "sellers": 2
+       },
+       "gen.triage.9789344a": {
+        "served": 174627,
+        "sellers": 4
+       }
+      }
+     }
+    },
+    {
+     "week": 10,
+     "full": {
+      "served": 426242,
+      "firms": 15,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.829f9926": {
+        "served": 217585,
+        "sellers": 5
+       },
+       "gen.netrel.94d9f81c": {
+        "served": 32860,
+        "sellers": 2
+       },
+       "gen.triage.9789344a": {
+        "served": 175797,
+        "sellers": 4
+       }
+      }
+     }
+    },
+    {
+     "week": 11,
+     "full": {
+      "served": 435231,
+      "firms": 15,
+      "entries": 0,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.829f9926": {
+        "served": 224990,
+        "sellers": 5
+       },
+       "gen.netrel.94d9f81c": {
+        "served": 34433,
+        "sellers": 2
+       },
+       "gen.triage.9789344a": {
+        "served": 175808,
+        "sellers": 4
+       }
+      }
+     }
+    },
+    {
+     "week": 12,
+     "full": {
+      "served": 438012,
+      "firms": 16,
+      "entries": 1,
+      "exits": 0,
+      "collapsed_days": 0,
+      "process_failures": 0,
+      "violations": 0,
+      "sectors": {
+       "gen.coord.829f9926": {
+        "served": 226258,
+        "sellers": 6
+       },
+       "gen.netrel.94d9f81c": {
+        "served": 35502,
+        "sellers": 2
+       },
+       "gen.triage.9789344a": {
+        "served": 176252,
+        "sellers": 4
+       }
+      }
+     }
+    }
+   ],
+   "arms": {
+    "full": {
+     "output": {
+      "served_by_week": [
+       304466,
+       362347,
+       382648,
+       400618,
+       408858,
+       417085,
+       418820,
+       414026,
+       417209,
+       426242,
+       435231,
+       438012
+      ],
+      "median_weeks_2_8": 408858.0,
+      "last_week_over_median_weeks_2_8": 1.071,
+      "mean_after_week_9_over_median_weeks_2_8": 1.059,
+      "weeks_with_structural_change_after_9": 2,
+      "weeks_after_9": 3
+     },
+     "collapses": [],
+     "unrecovered": [],
+     "economy": {
+      "entries": 10,
+      "exits": 1,
+      "bankruptcies": 1,
+      "price_changes": 6,
+      "new_listings": 10,
+      "adoptions": 0,
+      "active_firms_start": 8,
+      "active_firms_end": 17
+     },
+     "household_budget_bound_from_day": null,
+     "entry": {
+      "founders": 14,
+      "scans": 19,
+      "surveys": 9,
+      "research_cents": 225000,
+      "entries": 10,
+      "exits": 1,
+      "failed": 1,
+      "aborted": 0,
+      "loans_asked": 0,
+      "loans_granted": 0,
+      "launched": 10,
+      "operating": 9,
+      "failure_rate": 0.1,
+      "retired": 0,
+      "sectors_served_by_entrants_at_end": [
+       "gen.coord.829f9926",
+       "gen.netrel.94d9f81c",
+       "gen.triage.9789344a"
+      ],
+      "sectors_served_only_by_entrants_at_end": [
+       "gen.netrel.94d9f81c"
+      ]
+     },
+     "shock": {
+      "requested": {
+       "day": 45,
+       "kind": "bankrupt_largest",
+       "hours": 48
+      },
+      "report": {
+       "kind": "bankrupt_largest",
+       "done": true,
+       "org": "o:coord03aco",
+       "sectors": [
+        "gen.coord.829f9926"
+       ],
+       "how": "admin.shock_bankrupt",
+       "t": 3888000,
+       "day": 45
+      },
+      "sectors": {
+       "gen.coord.829f9926": {
+        "served_per_day_before": 33190.1,
+        "lowest_day": 53,
+        "lowest_served": 29729,
+        "fell_below_recover_level": false,
+        "recovered_day": null,
+        "days_to_recover": null,
+        "flagged_collapsed_on": null,
+        "cause_reported": null,
+        "served_last_day": 34518,
+        "sellers_end": 6
+       }
+      }
+     },
+     "repeated_process_failures": [],
+     "underserved_sectors": [],
+     "invariant_violations": 0,
+     "replay_identical": true,
+     "events": 266739,
+     "wall_s": 725.1,
+     "s_per_sim_day": 6.5,
+     "rss_mb_max": 350.7,
+     "log_bytes": 70251970,
+     "healthy": true
+    }
+   }
+  }
+ }
+}

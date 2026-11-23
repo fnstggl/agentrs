@@ -8,11 +8,15 @@ strategic failure. Here every run returns, together:
 
 * ``outcome``      what the operator-side evaluator measured, never anything the agent said;
 * ``transcript``   every turn: what the model wrote, the action, the complete result, its diagnosed class;
-* ``usage``        tokens and seconds;
-* ``interface``    `discovery.interface_stamp` of the world, the prompt configuration, and an **audit** of what the
-                   prompt cut (`interface_audit`): truncated prompts, the detail level the tool catalogue reached,
-                   results longer than their budget, generations that hit the token limit;
+* ``accounting``   tokens and seconds;
+* ``interface``    `discovery.interface_stamp` of the world, and an **audit** of what the prompt cut
+                   (`interface_audit`): truncated prompts, the detail level the tool catalogue reached, results
+                   longer than their budget, generations that hit the token limit;
 * ``diagnosis``    `research.diagnostics.diagnose` with the controls on the same task as references.
+
+`conduct(record)` then reads a stored record by fixed rules and names the kind of failure - lost to the
+interface, refused by the world, passive, repetitive, or strategic - including the case the diagnosis leaves
+unnamed (every call valid, none changing anything).
 
 (a) Mechanism tasks (`run_mechanism`). A `research.tasks.Task` is hosted in its kernel world
 (`Task.world_config()`), the agent is admitted with the task's starting balance and given **only** the public
@@ -41,15 +45,18 @@ Controls through the same harness: `IdlePolicy`, `RandomPolicy` (uniformly rando
 `RandomLearner`) and `RigExperimenter`, a scripted operator that runs a one-lever-at-a-time experiment through
 `rig.*` tool calls, files what it found and then exploits. The scripted operator is the *competent control*: its
 result enters the diagnosis as a reference, which is what lets a diagnosis tell task difficulty from agent
-failure. None of the controls is an agent under test.
+failure. `SchedulePolicy(reference_schedule(task))` plays the task's private reference settings through the
+same tools: it shows what the normalisation calls 1.0 in the kernel world and is context, never a competent
+reference (it knows the hidden mechanism). None of these is an agent under test.
 
 `EvalLLMPolicy` is `LLMPolicy` with two corrections to the v4 prompt that the base class does not offer: a budget
 for the characters kept of each past result in "Your recent actions" (240 in the base class, less than one
 `rig.read` report), and the removal of the observation's ``last action: none`` line, which the base class prints
-on every turn, also right after an action.
+on every turn, also right after an action. It also never takes a tool call out of an unfinished ``<think>``
+block (a thinking model that ran out of generation budget has not answered).
 
-`RunStore` makes a batch of runs resumable: one JSON file of finished records, one JSONL transcript per run.
-Nothing in this module is reachable from inside a world.
+`RunStore` makes a batch of runs resumable: one JSON file of finished records, one JSONL transcript per run;
+several processes may write to it. Nothing in this module is reachable from inside a world.
 """
 from __future__ import annotations
 

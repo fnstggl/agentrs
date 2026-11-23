@@ -1,0 +1,2645 @@
+{
+ "days": 30.0,
+ "removal_day": 14.0,
+ "classes": {
+  "pricing": {
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "horizon_days": 30.0,
+   "summary": {
+    "treatment": {
+     "0:artifact_published": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "1:artifact_adopted": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "1:existing_loss_changed": {
+      "seeds": [
+       1,
+       2
+      ],
+      "p": 0.6666666666666666,
+      "lo": 0.20765960080204782,
+      "hi": 0.9385080552796038,
+      "low_n": true
+     },
+     "1:market_formed": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "1:resource_use_changed": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "2:loss_mechanism_new": {
+      "seeds": [
+       3
+      ],
+      "p": 0.3333333333333333,
+      "lo": 0.06149194472039632,
+      "hi": 0.7923403991979523,
+      "low_n": true
+     },
+     "2:problem_reported": {
+      "seeds": [
+       3
+      ],
+      "p": 0.3333333333333333,
+      "lo": 0.06149194472039632,
+      "hi": 0.7923403991979523,
+      "low_n": true
+     }
+    },
+    "removal": {
+     "0:artifact_published": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "1:artifact_adopted": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "1:existing_loss_changed": {
+      "seeds": [
+       1,
+       2
+      ],
+      "p": 0.6666666666666666,
+      "lo": 0.20765960080204782,
+      "hi": 0.9385080552796038,
+      "low_n": true
+     },
+     "1:market_formed": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "1:resource_use_changed": {
+      "seeds": [
+       1,
+       2,
+       3
+      ],
+      "p": 1.0,
+      "lo": 0.4385029682449546,
+      "hi": 1.0,
+      "low_n": true
+     },
+     "2:loss_mechanism_new": {
+      "seeds": [
+       2,
+       3
+      ],
+      "p": 0.6666666666666666,
+      "lo": 0.20765960080204782,
+      "hi": 0.9385080552796038,
+      "low_n": true
+     },
+     "2:problem_reported": {
+      "seeds": [
+       2,
+       3
+      ],
+      "p": 0.6666666666666666,
+      "lo": 0.20765960080204782,
+      "hi": 0.9385080552796038,
+      "low_n": true
+     }
+    }
+   },
+   "per_seed": {
+    "1": {
+     "fork_time": 86400,
+     "fork_day": 1.0,
+     "horizon_days": 30.0,
+     "exact": true,
+     "determinism_check": null,
+     "control": "control",
+     "inventors": [
+      "o:ada-price",
+      "p:ada"
+     ],
+     "provenance": {
+      "control": {
+       "p:ada": "scripted",
+       "p:bea": "scripted"
+      },
+      "treatment": {
+       "p:ada": "scripted",
+       "p:bea": "scripted"
+      },
+      "removal": {
+       "p:ada": "scripted",
+       "p:bea": "scripted"
+      }
+     },
+     "invariants": {
+      "control": [],
+      "treatment": [],
+      "removal": []
+     },
+     "digests": {
+      "control": "51bd64da732393d4531c9a835741b29b",
+      "treatment": "5470ad61f5d139410ea94e3999fa7969",
+      "removal": "b93e430e39a123b8082659802ced7c9e"
+     },
+     "arms": {
+      "treatment": {
+       "consequences": [
+        {
+         "kind": "artifact_published",
+         "key": "cap_000001",
+         "order": 0,
+         "treatment": "peakprice",
+         "control": null,
+         "first_day": 2.62,
+         "actors": [
+          "o:ada-price"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "artifact_adopted",
+         "key": "cap_000001",
+         "order": 1,
+         "treatment": {
+          "tried": [
+           "o:shorteco1",
+           "o:shorteco2"
+          ],
+          "kept": []
+         },
+         "control": {
+          "tried": [],
+          "kept": []
+         },
+         "first_day": 3.98,
+         "actors": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "market_formed",
+         "key": "cap_000001",
+         "order": 1,
+         "treatment": {
+          "t": 431700,
+          "label": "analytics capacity charges"
+         },
+         "control": null,
+         "first_day": 5.0,
+         "actors": [],
+         "evidence": {
+          "around": "the artifact"
+         }
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "capacity_overload",
+         "order": 1,
+         "treatment": {
+          "events": 910,
+          "cents": 3613
+         },
+         "control": {
+          "events": 1294,
+          "cents": 5176
+         },
+         "first_day": null,
+         "actors": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud1",
+         "order": 1,
+         "treatment": {
+          "used": 2,
+          "of": 120
+         },
+         "control": {
+          "used": 1,
+          "of": 120
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud2",
+         "order": 1,
+         "treatment": {
+          "used": 8,
+          "of": 80
+         },
+         "control": {
+          "used": 7,
+          "of": 80
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        }
+       ],
+       "by_order": {
+        "0": 1,
+        "1": 5,
+        "2": 0,
+        "3": 0,
+        "4": 0
+       },
+       "kinds": [
+        "0:artifact_published:cap_000001",
+        "1:artifact_adopted:cap_000001",
+        "1:existing_loss_changed:capacity_overload",
+        "1:market_formed:cap_000001",
+        "1:resource_use_changed:o:cloud1",
+        "1:resource_use_changed:o:cloud2"
+       ]
+      },
+      "removal": {
+       "consequences": [
+        {
+         "kind": "artifact_published",
+         "key": "cap_000001",
+         "order": 0,
+         "treatment": "peakprice",
+         "control": null,
+         "first_day": 2.62,
+         "actors": [
+          "o:ada-price"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "artifact_adopted",
+         "key": "cap_000001",
+         "order": 1,
+         "treatment": {
+          "tried": [
+           "o:shorteco1",
+           "o:shorteco2"
+          ],
+          "kept": []
+         },
+         "control": {
+          "tried": [],
+          "kept": []
+         },
+         "first_day": 3.98,
+         "actors": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "market_formed",
+         "key": "cap_000001",
+         "order": 1,
+         "treatment": {
+          "t": 431700,
+          "label": "analytics capacity charges"
+         },
+         "control": null,
+         "first_day": 5.0,
+         "actors": [],
+         "evidence": {
+          "around": "the artifact"
+         }
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "capacity_overload",
+         "order": 1,
+         "treatment": {
+          "events": 910,
+          "cents": 3613
+         },
+         "control": {
+          "events": 1294,
+          "cents": 5176
+         },
+         "first_day": null,
+         "actors": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud1",
+         "order": 1,
+         "treatment": {
+          "used": 2,
+          "of": 120
+         },
+         "control": {
+          "used": 1,
+          "of": 120
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud2",
+         "order": 1,
+         "treatment": {
+          "used": 8,
+          "of": 80
+         },
+         "control": {
+          "used": 7,
+          "of": 80
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        }
+       ],
+       "by_order": {
+        "0": 1,
+        "1": 5,
+        "2": 0,
+        "3": 0,
+        "4": 0
+       },
+       "kinds": [
+        "0:artifact_published:cap_000001",
+        "1:artifact_adopted:cap_000001",
+        "1:existing_loss_changed:capacity_overload",
+        "1:market_formed:cap_000001",
+        "1:resource_use_changed:o:cloud1",
+        "1:resource_use_changed:o:cloud2"
+       ],
+       "withdrawn_at_day": 15,
+       "fades": []
+      }
+     },
+     "census": {
+      "control": {
+       "time": 2678400,
+       "t0": 86400,
+       "losses": {
+        "capacity_overload": {
+         "events": 1294,
+         "cents": 5176,
+         "orgs": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_day": 1
+        },
+        "service_unavailable": {
+         "events": 49940,
+         "cents": 199760,
+         "orgs": [
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_day": 25
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 7,
+         "by": [
+          "o:cloud1",
+          "o:cloud2",
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "capacity_overload": {
+         "n": 2,
+         "by": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-compute": {
+         "n": 2,
+         "by": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 1899000
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 5,
+         "by": [
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "instance": {
+         "n": 5,
+         "by": [
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "listing": {
+         "n": 5,
+         "by": [
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "service_unavailable": {
+         "n": 1,
+         "by": [
+          "o:extracco2"
+         ],
+         "first_t": 2244600
+        }
+       },
+       "capabilities": {},
+       "installs": {},
+       "markets": {},
+       "orgs_new": {},
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 1
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 7
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {},
+       "moves": [],
+       "needs": {
+        "route.shortest": {
+         "consumers": 1923,
+         "active": 1923,
+         "customers": 1889,
+         "served_ok": 1134681
+        },
+        "text.extract": {
+         "consumers": 2077,
+         "active": 2077,
+         "customers": 2042,
+         "served_ok": 1265236
+        }
+       }
+      },
+      "treatment": {
+       "time": 2678400,
+       "t0": 86400,
+       "losses": {
+        "capacity_overload": {
+         "events": 910,
+         "cents": 3613,
+         "orgs": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_day": 1
+        },
+        "service_unavailable": {
+         "events": 41836,
+         "cents": 163219,
+         "orgs": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_day": 6
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 8,
+         "by": [
+          "o:cloud1",
+          "o:cloud2",
+          "o:extracco1",
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "capacity_overload": {
+         "n": 4,
+         "by": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 6,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "instance": {
+         "n": 6,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "listing": {
+         "n": 6,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "service_unavailable": {
+         "n": 4,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 603000
+        }
+       },
+       "capabilities": {
+        "cap_000001": {
+         "host": "peakprice",
+         "provider": "o:ada-price",
+         "t": 226800,
+         "improves": null,
+         "status": "active"
+        }
+       },
+       "installs": {
+        "cap_000001": {
+         "ever": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "active": [],
+         "removed": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 343800
+        }
+       },
+       "markets": {
+        "cap_000001": {
+         "t": 431700,
+         "label": "analytics capacity charges"
+        }
+       },
+       "orgs_new": {
+        "o:ada-price": {
+         "founder": "p:ada",
+         "kind": "company",
+         "t": 194400
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 2
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 8
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {},
+       "moves": [],
+       "needs": {
+        "route.shortest": {
+         "consumers": 1923,
+         "active": 1923,
+         "customers": 1908,
+         "served_ok": 1259054
+        },
+        "text.extract": {
+         "consumers": 2077,
+         "active": 2077,
+         "customers": 2031,
+         "served_ok": 1249315
+        }
+       }
+      },
+      "removal": {
+       "time": 2678400,
+       "t0": 86400,
+       "losses": {
+        "capacity_overload": {
+         "events": 910,
+         "cents": 3613,
+         "orgs": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_day": 1
+        },
+        "service_unavailable": {
+         "events": 41836,
+         "cents": 163219,
+         "orgs": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_day": 6
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 8,
+         "by": [
+          "o:cloud1",
+          "o:cloud2",
+          "o:extracco1",
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "capacity_overload": {
+         "n": 4,
+         "by": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 6,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "instance": {
+         "n": 6,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "listing": {
+         "n": 6,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "service_unavailable": {
+         "n": 4,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 603000
+        }
+       },
+       "capabilities": {
+        "cap_000001": {
+         "host": "peakprice",
+         "provider": "o:ada-price",
+         "t": 226800,
+         "improves": null,
+         "status": "active"
+        }
+       },
+       "installs": {
+        "cap_000001": {
+         "ever": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "active": [],
+         "removed": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 343800
+        }
+       },
+       "markets": {
+        "cap_000001": {
+         "t": 431700,
+         "label": "analytics capacity charges"
+        }
+       },
+       "orgs_new": {
+        "o:ada-price": {
+         "founder": "p:ada",
+         "kind": "company",
+         "t": 194400
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 2
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 8
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {},
+       "moves": [],
+       "needs": {
+        "route.shortest": {
+         "consumers": 1923,
+         "active": 1923,
+         "customers": 1910,
+         "served_ok": 1262738
+        },
+        "text.extract": {
+         "consumers": 2077,
+         "active": 2077,
+         "customers": 2030,
+         "served_ok": 1251406
+        }
+       }
+      }
+     },
+     "wall_s": 321.81
+    },
+    "2": {
+     "fork_time": 86400,
+     "fork_day": 1.0,
+     "horizon_days": 30.0,
+     "exact": true,
+     "determinism_check": null,
+     "control": "control",
+     "inventors": [
+      "o:ada-price",
+      "p:ada"
+     ],
+     "provenance": {
+      "control": {
+       "p:ada": "scripted",
+       "p:bea": "scripted"
+      },
+      "treatment": {
+       "p:ada": "scripted",
+       "p:bea": "scripted"
+      },
+      "removal": {
+       "p:ada": "scripted",
+       "p:bea": "scripted"
+      }
+     },
+     "invariants": {
+      "control": [],
+      "treatment": [],
+      "removal": []
+     },
+     "digests": {
+      "control": "b26c14195e51b95e5836a0772da19150",
+      "treatment": "bf646394cf00e1de4620038533516dab",
+      "removal": "5e1ca5ec0ddc2e3e5dc3e5f1c1528e19"
+     },
+     "arms": {
+      "treatment": {
+       "consequences": [
+        {
+         "kind": "artifact_published",
+         "key": "cap_000001",
+         "order": 0,
+         "treatment": "peakprice",
+         "control": null,
+         "first_day": 1.46,
+         "actors": [
+          "o:ada-price"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "artifact_adopted",
+         "key": "cap_000001",
+         "order": 1,
+         "treatment": {
+          "tried": [
+           "o:recordco1",
+           "o:recordco2",
+           "o:shorteco1",
+           "o:shorteco2"
+          ],
+          "kept": [
+           "o:shorteco1",
+           "o:shorteco2"
+          ]
+         },
+         "control": {
+          "tried": [],
+          "kept": []
+         },
+         "first_day": 1.98,
+         "actors": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "market_formed",
+         "key": "cap_000001",
+         "order": 1,
+         "treatment": {
+          "t": 258900,
+          "label": "analytics capacity charges"
+         },
+         "control": null,
+         "first_day": 3.0,
+         "actors": [],
+         "evidence": {
+          "around": "the artifact"
+         }
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "capacity_overload",
+         "order": 1,
+         "treatment": {
+          "events": 1115789,
+          "cents": 2268160
+         },
+         "control": {
+          "events": 1642561,
+          "cents": 1653012
+         },
+         "first_day": null,
+         "actors": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "service_unavailable",
+         "order": 1,
+         "treatment": {
+          "events": 0,
+          "cents": 0
+         },
+         "control": {
+          "events": 69283,
+          "cents": 91333
+         },
+         "first_day": null,
+         "actors": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud1",
+         "order": 1,
+         "treatment": {
+          "used": 4,
+          "of": 120
+         },
+         "control": {
+          "used": 3,
+          "of": 120
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        }
+       ],
+       "by_order": {
+        "0": 1,
+        "1": 5,
+        "2": 0,
+        "3": 0,
+        "4": 0
+       },
+       "kinds": [
+        "0:artifact_published:cap_000001",
+        "1:artifact_adopted:cap_000001",
+        "1:existing_loss_changed:capacity_overload",
+        "1:existing_loss_changed:service_unavailable",
+        "1:market_formed:cap_000001",
+        "1:resource_use_changed:o:cloud1"
+       ]
+      },
+      "removal": {
+       "consequences": [
+        {
+         "kind": "artifact_published",
+         "key": "cap_000001",
+         "order": 0,
+         "treatment": "peakprice",
+         "control": null,
+         "first_day": 1.46,
+         "actors": [
+          "o:ada-price"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "artifact_adopted",
+         "key": "cap_000001",
+         "order": 1,
+         "treatment": {
+          "tried": [
+           "o:recordco1",
+           "o:recordco2",
+           "o:shorteco1",
+           "o:shorteco2"
+          ],
+          "kept": []
+         },
+         "control": {
+          "tried": [],
+          "kept": []
+         },
+         "first_day": 1.98,
+         "actors": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "market_formed",
+         "key": "cap_000001",
+         "order": 1,
+         "treatment": {
+          "t": 258900,
+          "label": "analytics capacity charges"
+         },
+         "control": null,
+         "first_day": 3.0,
+         "actors": [],
+         "evidence": {
+          "around": "the artifact"
+         }
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "capacity_overload",
+         "order": 1,
+         "treatment": {
+          "events": 1099817,
+          "cents": 2236179
+         },
+         "control": {
+          "events": 1642561,
+          "cents": 1653012
+         },
+         "first_day": null,
+         "actors": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "existing_loss_changed",
+         "key": "service_unavailable",
+         "order": 1,
+         "treatment": {
+          "events": 23470,
+          "cents": 41225
+         },
+         "control": {
+          "events": 69283,
+          "cents": 91333
+         },
+         "first_day": null,
+         "actors": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud1",
+         "order": 1,
+         "treatment": {
+          "used": 5,
+          "of": 120
+         },
+         "control": {
+          "used": 3,
+          "of": 120
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "loss_mechanism_new",
+         "key": "dependency_failure",
+         "order": 2,
+         "treatment": {
+          "events": 6,
+          "cents": 0,
+          "orgs": [
+           "o:shorteco1",
+           "o:shorteco2"
+          ]
+         },
+         "control": {
+          "events": 0
+         },
+         "first_day": 15.0,
+         "actors": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "evidence": {
+          "affects_non_adopters": []
+         }
+        },
+        {
+         "kind": "problem_reported",
+         "key": "dependency_failure",
+         "order": 2,
+         "treatment": {
+          "n": 2,
+          "by": [
+           "o:shorteco1",
+           "o:shorteco2"
+          ]
+         },
+         "control": {
+          "n": 0
+         },
+         "first_day": 21.98,
+         "actors": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "evidence": {
+          "requests": [
+           "req_000015",
+           "req_000016"
+          ]
+         }
+        }
+       ],
+       "by_order": {
+        "0": 1,
+        "1": 5,
+        "2": 2,
+        "3": 0,
+        "4": 0
+       },
+       "kinds": [
+        "0:artifact_published:cap_000001",
+        "1:artifact_adopted:cap_000001",
+        "1:existing_loss_changed:capacity_overload",
+        "1:existing_loss_changed:service_unavailable",
+        "1:market_formed:cap_000001",
+        "1:resource_use_changed:o:cloud1",
+        "2:loss_mechanism_new:dependency_failure",
+        "2:problem_reported:dependency_failure"
+       ],
+       "withdrawn_at_day": 15,
+       "fades": []
+      }
+     },
+     "census": {
+      "control": {
+       "time": 2678400,
+       "t0": 86400,
+       "losses": {
+        "capacity_overload": {
+         "events": 1642561,
+         "cents": 1653012,
+         "orgs": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_day": 1
+        },
+        "service_unavailable": {
+         "events": 69283,
+         "cents": 91333,
+         "orgs": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1"
+         ],
+         "first_day": 21
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 10,
+         "by": [
+          "o:cloud1",
+          "o:cloud2",
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "capacity_overload": {
+         "n": 6,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-compute": {
+         "n": 3,
+         "by": [
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-fee": {
+         "n": 1,
+         "by": [
+          "o:recordco2"
+         ],
+         "first_t": 257400
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 8,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "instance": {
+         "n": 8,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "listing": {
+         "n": 8,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "service_unavailable": {
+         "n": 1,
+         "by": [
+          "o:recordco1"
+         ],
+         "first_t": 1899000
+        }
+       },
+       "capabilities": {},
+       "installs": {},
+       "markets": {},
+       "orgs_new": {},
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 3
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 4
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {},
+       "moves": [],
+       "needs": {
+        "route.shortest": {
+         "consumers": 1381,
+         "active": 1381,
+         "customers": 1372,
+         "served_ok": 938701
+        },
+        "sort.records": {
+         "consumers": 2619,
+         "active": 2619,
+         "customers": 2578,
+         "served_ok": 76110
+        }
+       }
+      },
+      "treatment": {
+       "time": 2678400,
+       "t0": 86400,
+       "losses": {
+        "capacity_overload": {
+         "events": 1115789,
+         "cents": 2268160,
+         "orgs": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_day": 1
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 10,
+         "by": [
+          "o:cloud1",
+          "o:cloud2",
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "capacity_overload": {
+         "n": 6,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-compute": {
+         "n": 4,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-fee": {
+         "n": 1,
+         "by": [
+          "o:recordco2"
+         ],
+         "first_t": 257400
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 8,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "instance": {
+         "n": 8,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "listing": {
+         "n": 8,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        }
+       },
+       "capabilities": {
+        "cap_000001": {
+         "host": "peakprice",
+         "provider": "o:ada-price",
+         "t": 126000,
+         "improves": null,
+         "status": "active"
+        }
+       },
+       "installs": {
+        "cap_000001": {
+         "ever": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "active": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "removed": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        }
+       },
+       "markets": {
+        "cap_000001": {
+         "t": 258900,
+         "label": "analytics capacity charges"
+        }
+       },
+       "orgs_new": {
+        "o:ada-price": {
+         "founder": "p:ada",
+         "kind": "company",
+         "t": 93600
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 4
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 4
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {},
+       "moves": [],
+       "needs": {
+        "route.shortest": {
+         "consumers": 1381,
+         "active": 1381,
+         "customers": 1371,
+         "served_ok": 983726
+        },
+        "sort.records": {
+         "consumers": 2619,
+         "active": 2619,
+         "customers": 2505,
+         "served_ok": 79484
+        }
+       }
+      },
+      "removal": {
+       "time": 2678400,
+       "t0": 86400,
+       "losses": {
+        "capacity_overload": {
+         "events": 1099817,
+         "cents": 2236179,
+         "orgs": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_day": 1
+        },
+        "dependency_failure": {
+         "events": 6,
+         "cents": 0,
+         "orgs": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_day": 15
+        },
+        "service_unavailable": {
+         "events": 23470,
+         "cents": 41225,
+         "orgs": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1"
+         ],
+         "first_day": 28
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 10,
+         "by": [
+          "o:cloud1",
+          "o:cloud2",
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "capacity_overload": {
+         "n": 6,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-compute": {
+         "n": 4,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-fee": {
+         "n": 1,
+         "by": [
+          "o:recordco2"
+         ],
+         "first_t": 257400
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "dependency_failure": {
+         "n": 2,
+         "by": [
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 8,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "instance": {
+         "n": 8,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        },
+        "listing": {
+         "n": 8,
+         "by": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        }
+       },
+       "capabilities": {
+        "cap_000001": {
+         "host": "peakprice",
+         "provider": "o:ada-price",
+         "t": 126000,
+         "improves": null,
+         "status": "active"
+        }
+       },
+       "installs": {
+        "cap_000001": {
+         "ever": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "active": [],
+         "removed": [
+          "o:recordco1",
+          "o:recordco2",
+          "o:shorteco1",
+          "o:shorteco2"
+         ],
+         "first_t": 171000
+        }
+       },
+       "markets": {
+        "cap_000001": {
+         "t": 258900,
+         "label": "analytics capacity charges"
+        }
+       },
+       "orgs_new": {
+        "o:ada-price": {
+         "founder": "p:ada",
+         "kind": "company",
+         "t": 93600
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 5
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 4
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {},
+       "moves": [],
+       "needs": {
+        "route.shortest": {
+         "consumers": 1381,
+         "active": 1381,
+         "customers": 1374,
+         "served_ok": 981475
+        },
+        "sort.records": {
+         "consumers": 2619,
+         "active": 2619,
+         "customers": 2499,
+         "served_ok": 78255
+        }
+       }
+      }
+     },
+     "wall_s": 916.0
+    },
+    "3": {
+     "fork_time": 86400,
+     "fork_day": 1.0,
+     "horizon_days": 30.0,
+     "exact": true,
+     "determinism_check": null,
+     "control": "control",
+     "inventors": [
+      "o:ada-price",
+      "p:ada"
+     ],
+     "provenance": {
+      "control": {
+       "p:ada": "scripted",
+       "p:bea": "scripted"
+      },
+      "treatment": {
+       "p:ada": "scripted",
+       "p:bea": "scripted"
+      },
+      "removal": {
+       "p:ada": "scripted",
+       "p:bea": "scripted"
+      }
+     },
+     "invariants": {
+      "control": [],
+      "treatment": [],
+      "removal": []
+     },
+     "digests": {
+      "control": "3b64912fd6557bf2e723415bb5957043",
+      "treatment": "3abcd497ba3841ccfa91c99a4ed39323",
+      "removal": "9eb9e54242ab4290022eb75b9469904e"
+     },
+     "arms": {
+      "treatment": {
+       "consequences": [
+        {
+         "kind": "artifact_published",
+         "key": "cap_000001",
+         "order": 0,
+         "treatment": "peakprice",
+         "control": null,
+         "first_day": 1.46,
+         "actors": [
+          "o:ada-price"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "artifact_adopted",
+         "key": "cap_000001",
+         "order": 1,
+         "treatment": {
+          "tried": [
+           "o:extracco1",
+           "o:extracco2",
+           "o:recordco1",
+           "o:recordco2"
+          ],
+          "kept": []
+         },
+         "control": {
+          "tried": [],
+          "kept": []
+         },
+         "first_day": 1.98,
+         "actors": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "market_formed",
+         "key": "cap_000001",
+         "order": 1,
+         "treatment": {
+          "t": 258900,
+          "label": "analytics capacity charges"
+         },
+         "control": null,
+         "first_day": 3.0,
+         "actors": [],
+         "evidence": {
+          "around": "the artifact"
+         }
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud1",
+         "order": 1,
+         "treatment": {
+          "used": 3,
+          "of": 120
+         },
+         "control": {
+          "used": 2,
+          "of": 120
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "loss_mechanism_new",
+         "key": "dependency_failure",
+         "order": 2,
+         "treatment": {
+          "events": 30,
+          "cents": 0,
+          "orgs": [
+           "o:extracco1",
+           "o:extracco2",
+           "o:recordco1"
+          ]
+         },
+         "control": {
+          "events": 0
+         },
+         "first_day": 9.0,
+         "actors": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1"
+         ],
+         "evidence": {
+          "affects_non_adopters": []
+         }
+        },
+        {
+         "kind": "loss_mechanism_new",
+         "key": "service_unavailable",
+         "order": 2,
+         "treatment": {
+          "events": 28463,
+          "cents": 36765,
+          "orgs": [
+           "o:extracco2",
+           "o:recordco1"
+          ]
+         },
+         "control": {
+          "events": 0
+         },
+         "first_day": 9.0,
+         "actors": [
+          "o:extracco2",
+          "o:recordco1"
+         ],
+         "evidence": {
+          "affects_non_adopters": []
+         }
+        },
+        {
+         "kind": "problem_reported",
+         "key": "service_unavailable",
+         "order": 2,
+         "treatment": {
+          "n": 1,
+          "by": [
+           "o:extracco2"
+          ]
+         },
+         "control": {
+          "n": 0
+         },
+         "first_day": 9.98,
+         "actors": [
+          "o:extracco2"
+         ],
+         "evidence": {
+          "requests": [
+           "req_000011"
+          ]
+         }
+        }
+       ],
+       "by_order": {
+        "0": 1,
+        "1": 3,
+        "2": 3,
+        "3": 0,
+        "4": 0
+       },
+       "kinds": [
+        "0:artifact_published:cap_000001",
+        "1:artifact_adopted:cap_000001",
+        "1:market_formed:cap_000001",
+        "1:resource_use_changed:o:cloud1",
+        "2:loss_mechanism_new:dependency_failure",
+        "2:loss_mechanism_new:service_unavailable",
+        "2:problem_reported:service_unavailable"
+       ]
+      },
+      "removal": {
+       "consequences": [
+        {
+         "kind": "artifact_published",
+         "key": "cap_000001",
+         "order": 0,
+         "treatment": "peakprice",
+         "control": null,
+         "first_day": 1.46,
+         "actors": [
+          "o:ada-price"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "artifact_adopted",
+         "key": "cap_000001",
+         "order": 1,
+         "treatment": {
+          "tried": [
+           "o:extracco1",
+           "o:extracco2",
+           "o:recordco1",
+           "o:recordco2"
+          ],
+          "kept": []
+         },
+         "control": {
+          "tried": [],
+          "kept": []
+         },
+         "first_day": 1.98,
+         "actors": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "evidence": {}
+        },
+        {
+         "kind": "market_formed",
+         "key": "cap_000001",
+         "order": 1,
+         "treatment": {
+          "t": 258900,
+          "label": "analytics capacity charges"
+         },
+         "control": null,
+         "first_day": 3.0,
+         "actors": [],
+         "evidence": {
+          "around": "the artifact"
+         }
+        },
+        {
+         "kind": "resource_use_changed",
+         "key": "o:cloud1",
+         "order": 1,
+         "treatment": {
+          "used": 3,
+          "of": 120
+         },
+         "control": {
+          "used": 2,
+          "of": 120
+         },
+         "first_day": null,
+         "actors": [],
+         "evidence": {}
+        },
+        {
+         "kind": "loss_mechanism_new",
+         "key": "dependency_failure",
+         "order": 2,
+         "treatment": {
+          "events": 30,
+          "cents": 0,
+          "orgs": [
+           "o:extracco1",
+           "o:extracco2",
+           "o:recordco1"
+          ]
+         },
+         "control": {
+          "events": 0
+         },
+         "first_day": 9.0,
+         "actors": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1"
+         ],
+         "evidence": {
+          "affects_non_adopters": []
+         }
+        },
+        {
+         "kind": "loss_mechanism_new",
+         "key": "service_unavailable",
+         "order": 2,
+         "treatment": {
+          "events": 28463,
+          "cents": 36765,
+          "orgs": [
+           "o:extracco2",
+           "o:recordco1"
+          ]
+         },
+         "control": {
+          "events": 0
+         },
+         "first_day": 9.0,
+         "actors": [
+          "o:extracco2",
+          "o:recordco1"
+         ],
+         "evidence": {
+          "affects_non_adopters": []
+         }
+        },
+        {
+         "kind": "problem_reported",
+         "key": "service_unavailable",
+         "order": 2,
+         "treatment": {
+          "n": 1,
+          "by": [
+           "o:extracco2"
+          ]
+         },
+         "control": {
+          "n": 0
+         },
+         "first_day": 9.98,
+         "actors": [
+          "o:extracco2"
+         ],
+         "evidence": {
+          "requests": [
+           "req_000011"
+          ]
+         }
+        }
+       ],
+       "by_order": {
+        "0": 1,
+        "1": 3,
+        "2": 3,
+        "3": 0,
+        "4": 0
+       },
+       "kinds": [
+        "0:artifact_published:cap_000001",
+        "1:artifact_adopted:cap_000001",
+        "1:market_formed:cap_000001",
+        "1:resource_use_changed:o:cloud1",
+        "2:loss_mechanism_new:dependency_failure",
+        "2:loss_mechanism_new:service_unavailable",
+        "2:problem_reported:service_unavailable"
+       ],
+       "withdrawn_at_day": 15,
+       "fades": [
+        {
+         "key": "dependency_failure",
+         "cut_day": 15,
+         "window_days": 7,
+         "per_day_after_removal": 0.0,
+         "per_day_kept": 0.0,
+         "faded": null
+        },
+        {
+         "key": "service_unavailable",
+         "cut_day": 15,
+         "window_days": 7,
+         "per_day_after_removal": 0.0,
+         "per_day_kept": 0.0,
+         "faded": null
+        }
+       ]
+      }
+     },
+     "census": {
+      "control": {
+       "time": 2678400,
+       "t0": 86400,
+       "losses": {
+        "capacity_overload": {
+         "events": 1444598,
+         "cents": 1444598,
+         "orgs": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_day": 1
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 6,
+         "by": [
+          "o:cloud1",
+          "o:cloud2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "capacity_overload": {
+         "n": 4,
+         "by": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-compute": {
+         "n": 2,
+         "by": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-fee": {
+         "n": 2,
+         "by": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 257400
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 4,
+         "by": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "instance": {
+         "n": 4,
+         "by": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "listing": {
+         "n": 4,
+         "by": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        }
+       },
+       "capabilities": {},
+       "installs": {},
+       "markets": {},
+       "orgs_new": {},
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 2
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 2
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {},
+       "moves": [],
+       "needs": {
+        "sort.records": {
+         "consumers": 2264,
+         "active": 2264,
+         "customers": 2239,
+         "served_ok": 78747
+        },
+        "text.extract": {
+         "consumers": 1736,
+         "active": 1736,
+         "customers": 1721,
+         "served_ok": 1171857
+        }
+       }
+      },
+      "treatment": {
+       "time": 2678400,
+       "t0": 86400,
+       "losses": {
+        "capacity_overload": {
+         "events": 1145465,
+         "cents": 1797941,
+         "orgs": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_day": 1
+        },
+        "dependency_failure": {
+         "events": 30,
+         "cents": 0,
+         "orgs": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1"
+         ],
+         "first_day": 9
+        },
+        "service_unavailable": {
+         "events": 28463,
+         "cents": 36765,
+         "orgs": [
+          "o:extracco2",
+          "o:recordco1"
+         ],
+         "first_day": 9
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 9,
+         "by": [
+          "o:cloud1",
+          "o:cloud2",
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "capacity_overload": {
+         "n": 4,
+         "by": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-compute": {
+         "n": 4,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-fee": {
+         "n": 2,
+         "by": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 257400
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 7,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "instance": {
+         "n": 7,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "listing": {
+         "n": 7,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "service_unavailable": {
+         "n": 1,
+         "by": [
+          "o:extracco2"
+         ],
+         "first_t": 862200
+        }
+       },
+       "capabilities": {
+        "cap_000001": {
+         "host": "peakprice",
+         "provider": "o:ada-price",
+         "t": 126000,
+         "improves": null,
+         "status": "active"
+        }
+       },
+       "installs": {
+        "cap_000001": {
+         "ever": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "active": [],
+         "removed": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        }
+       },
+       "markets": {
+        "cap_000001": {
+         "t": 258900,
+         "label": "analytics capacity charges"
+        }
+       },
+       "orgs_new": {
+        "o:ada-price": {
+         "founder": "p:ada",
+         "kind": "company",
+         "t": 93600
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 3
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 2
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {},
+       "moves": [],
+       "needs": {
+        "sort.records": {
+         "consumers": 2264,
+         "active": 2264,
+         "customers": 2226,
+         "served_ok": 78103
+        },
+        "text.extract": {
+         "consumers": 1736,
+         "active": 1736,
+         "customers": 1731,
+         "served_ok": 1223545
+        }
+       }
+      },
+      "removal": {
+       "time": 2678400,
+       "t0": 86400,
+       "losses": {
+        "capacity_overload": {
+         "events": 1383316,
+         "cents": 1492582,
+         "orgs": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_day": 1
+        },
+        "dependency_failure": {
+         "events": 30,
+         "cents": 0,
+         "orgs": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1"
+         ],
+         "first_day": 9
+        },
+        "service_unavailable": {
+         "events": 28463,
+         "cents": 36765,
+         "orgs": [
+          "o:extracco2",
+          "o:recordco1"
+         ],
+         "first_day": 9
+        }
+       },
+       "requests": {
+        "account": {
+         "n": 9,
+         "by": [
+          "o:cloud1",
+          "o:cloud2",
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "capacity_overload": {
+         "n": 4,
+         "by": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-compute": {
+         "n": 4,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "cost-fee": {
+         "n": 2,
+         "by": [
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 257400
+        },
+        "cost-opex": {
+         "n": 2,
+         "by": [
+          "o:cloud1",
+          "o:cloud2"
+         ],
+         "first_t": 1899000
+        },
+        "host": {
+         "n": 7,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "instance": {
+         "n": 7,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "listing": {
+         "n": 7,
+         "by": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        },
+        "service_unavailable": {
+         "n": 1,
+         "by": [
+          "o:extracco2"
+         ],
+         "first_t": 862200
+        }
+       },
+       "capabilities": {
+        "cap_000001": {
+         "host": "peakprice",
+         "provider": "o:ada-price",
+         "t": 126000,
+         "improves": null,
+         "status": "active"
+        }
+       },
+       "installs": {
+        "cap_000001": {
+         "ever": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "active": [],
+         "removed": [
+          "o:extracco1",
+          "o:extracco2",
+          "o:recordco1",
+          "o:recordco2"
+         ],
+         "first_t": 171000
+        }
+       },
+       "markets": {
+        "cap_000001": {
+         "t": 258900,
+         "label": "analytics capacity charges"
+        }
+       },
+       "orgs_new": {
+        "o:ada-price": {
+         "founder": "p:ada",
+         "kind": "company",
+         "t": 93600
+        }
+       },
+       "orgs_inactive": [],
+       "providers": {
+        "o:cloud1": {
+         "price": 75,
+         "cores": 120,
+         "used": 3
+        },
+        "o:cloud2": {
+         "price": 85,
+         "cores": 80,
+         "used": 2
+        }
+       },
+       "hw_orders": [],
+       "listings_new": {},
+       "moves": [],
+       "needs": {
+        "sort.records": {
+         "consumers": 2264,
+         "active": 2264,
+         "customers": 2235,
+         "served_ok": 79009
+        },
+        "text.extract": {
+         "consumers": 1736,
+         "active": 1736,
+         "customers": 1731,
+         "served_ok": 1223522
+        }
+       }
+      }
+     },
+     "wall_s": 764.11
+    }
+   },
+   "wall_s": 2036.3
+  }
+ }
+}

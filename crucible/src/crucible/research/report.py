@@ -696,7 +696,7 @@ def _r_transfer(res: Mapping, out_dir: str, name: str, md: list[str], figs: list
     md += [f"{heading} Transfer: {lr}", ""]
     if heading == "#":
         _versions(md, res)
-    md += [f"Source: {', '.join(res['source'].get('families') or ['given tasks'])}, "
+    md += [f"Source families: {', '.join(res['source'].get('families') or ['given tasks'])}, "
            f"{res['source']['budget_env_steps']:,} environment steps; seeds {res['seeds']}. Zero-shot: the "
            "source-trained checkpoint, frozen, against the untrained learner on the same tasks. Adaptation: the same "
            "interaction budget on the target, starting from the source-trained checkpoint or from scratch (same seeds, "

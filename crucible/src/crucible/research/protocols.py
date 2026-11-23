@@ -1599,8 +1599,9 @@ def transfer(learner_factory: Callable[[int], Any], source: Any, targets: Mappin
         out_t[name] = o
     return _js({"protocol": "transfer", "schema": SCHEMA, "versions": versions(), "label": label,
                 "learner": _ident(learner) if learner is not None else None, "seeds": [int(s) for s in seeds],
-                "source": {"families": list(getattr(src, "families", ())) or None, "budget_env_steps": int(source_budget),
-                           "runs": source_runs},
+                "source": {"families": list(getattr(src, "families", ())) or sorted(
+                               {f for r in source_runs for f in r["training_tasks"]["families"]}),
+                           "budget_env_steps": int(source_budget), "runs": source_runs},
                 "threshold": float(threshold), "sustain": int(sustain), "alpha": alpha, "targets": out_t,
                 "categories": {c: [n for n, t in targets.items() if t["category"] == c] for c in CATEGORIES},
                 "negative_transfer": sorted(n for n, o in out_t.items() if o["negative_transfer"]),

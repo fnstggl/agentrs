@@ -10,6 +10,8 @@ Classes:
              fork (provider capacity).
   pricing    open_digital: peak pricing published in answer to overload reports (a different lever on the same
              losses: demand shaping instead of capacity).
+  frontier   ow_frontier: a better service in one kind of work wakes latent demand for another kind (a hidden,
+             per-world link); the responders are the world's own founders, not scripted agents.
 
 Arms per class: `control` (inventor idle, responders present), `treatment`, `no_response` (inventor acts,
 responders idle), `removal` (treatment until day R, then the inventor's service is undeployed by a recorded
@@ -111,12 +113,36 @@ def build_pricing(removal_day: float):
     return build
 
 
-CLASSES = {"capacity": build_capacity, "pricing": build_pricing}
+def build_frontier(removal_day: float):
+    """ow_frontier: some kinds of work are latent (almost nobody needs them) until another kind is served well;
+    which kind wakes which is drawn per world and hidden. The artifact is a better service in the source kind of
+    the strongest hidden link (a scripted builder that knows the best algorithm). Nobody scripted responds: the
+    world's own founders (actors/entry.py) decide from public signals whether the market that wakes up is worth
+    entering."""
+    def build(seed: int):
+        from crucible.agents.scripted import Builder
+        w = World.create(generate({"family": "ow_frontier", "overrides": {}}, seed), world_id=f"inv-front-{seed}")
+        w.system_call("admin.join", {"handle": "ada", "endowment": 1_500_000})
+        edges = sorted(w.modules["consumers"].cfg.get("derived") or [], key=lambda e: -float(e["weight"]))
+        src = edges[0]["src"]                              # operator-side knowledge, used only to pick the trial
+        idle = Runner(w, [("p:ada", IdlePolicy())], dt=3600, record=False)
+        idle.run(24 * 8)
+        inv = {"p:ada"}
+        prov = {"p:ada": "scripted", "founders": "autonomous (rule-based minds acting on public signals)"}
+        arms = [Arm("control", lambda world: [("p:ada", IdlePolicy())], provenance=prov),
+                Arm("treatment", lambda world: [("p:ada", Builder(need=src, capital=600_000))], provenance=prov),
+                Arm("removal", lambda world: [("p:ada", Builder(need=src, capital=600_000))],
+                    intervention=_withdraw(inv), at_day=removal_day, provenance=prov)]
+        return w, arms, inv
+    return build
+
+
+CLASSES = {"capacity": build_capacity, "pricing": build_pricing, "frontier": build_frontier}
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--classes", default="capacity,pricing")
+    ap.add_argument("--classes", default="capacity,pricing,frontier")
     ap.add_argument("--seeds", default="1,2,3")
     ap.add_argument("--days", type=float, default=30)
     ap.add_argument("--removal-day", type=float, default=14)

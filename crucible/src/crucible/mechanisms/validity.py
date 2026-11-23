@@ -42,7 +42,7 @@ import numpy as np
 from ..core.canonical import digest
 from . import evaluator as E
 from .base import MECH_FAMILIES, Engine, build_engine, make_mechanism
-from .sim import MechSim, TickRng, ensure_engines, suggest_income
+from .sim import MechSim, TickRng, demand_income, ensure_engines, suggest_income
 
 STATE_BOUND = 1e9
 ARM_TICKS = 12                 # ticks per arm of a single-lever experiment
@@ -233,7 +233,10 @@ def check_mechanism(mech: dict, n_seeds: int = 6, budget: int = 96, seed: int = 
     declared = income is not None
     if not declared:
         income = suggest_income(mech)
-    scale = float(income) / n_seats
+    scale = float(income) / n_seats             # the unit the economic margins below are expressed in
+    # the hard bound on what the mechanism may pay per tick is the demand income a host funds it with; for an
+    # engine that states it exactly (`engine.demand_income_cents_per_tick`) that can exceed the probed scale
+    cap = max(float(income), float(demand_income(mech, eng)))
     seeds = [41_000_009 + 7919 * seed + k for k in range(n_seeds)]
 
     # ---- purity
@@ -254,28 +257,29 @@ def check_mechanism(mech: dict, n_seeds: int = 6, budget: int = 96, seed: int = 
     min_rev = min(r["min_revenue"] for r in runs.values())
     min_cost = min(r["min_cost"] for r in runs.values())
     max_rev = max(r["max_total_revenue"] for r in runs.values())
-    checks["conservation"] = {"ok": bool(finite and min_rev >= 0 and min_cost >= 0 and max_rev <= income),
+    checks["conservation"] = {"ok": bool(finite and min_rev >= 0 and min_cost >= 0 and max_rev <= cap),
                               "min_revenue": min_rev, "min_cost": min_cost, "max_total_revenue": max_rev,
-                              "income_cents_per_tick": int(income), "income_declared": declared}
+                              "income_cents_per_tick": int(cap), "margin_scale_cents": int(income),
+                              "income_declared": declared}
     growth = {}
     for k in ("hi", "flip", "random"):
         rev = np.asarray(runs[k]["revenue"]) if runs[k]["revenue"] else np.zeros(4)
         q = max(1, len(rev) // 4)
         growth[k] = float(rev[-q:].mean() - rev[:q].mean())
-    checks["exploits"] = {"ok": bool(finite and min_cost >= 0 and max_rev <= income
-                                     and all(g <= 0.5 * income for g in growth.values())),
-                          "negative_cost": bool(min_cost < 0), "revenue_above_income": bool(max_rev > income),
+    checks["exploits"] = {"ok": bool(finite and min_cost >= 0 and max_rev <= cap
+                                     and all(g <= 0.5 * cap for g in growth.values())),
+                          "negative_cost": bool(min_cost < 0), "revenue_above_income": bool(max_rev > cap),
                           "revenue_growth_late_minus_early": growth}
 
     # ---- per seat: economics, effects, experiments, solvability
     try:
-        declared = [r for r in eng.truth().get("regimes", []) if 0 < int(r["at"]) < h]
+        changes = [r for r in eng.truth().get("regimes", []) if 0 < int(r["at"]) < h]
     except Exception:                                           # noqa: BLE001
-        declared = []
+        changes = []
     # the optimum must move only for changes that stay: a disturbance that is undone later (marked `transient`
     # by the engine) is a hazard to survive, and constant robust settings may be the best response to it
-    regimes = sorted({int(r["at"]) for r in declared if not r.get("transient")})
-    transient_only = bool(declared) and not regimes
+    regimes = sorted({int(r["at"]) for r in changes if not r.get("transient")})
+    transient_only = bool(changes) and not regimes
     claims = tuple(getattr(eng, "claims", ()) or ())
     econ, per_seat = [], []
     for seat in range(n_seats):

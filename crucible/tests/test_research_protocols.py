@@ -911,21 +911,25 @@ def test_transfer_efficiency_is_above_one_with_a_useful_prior_and_negative_trans
     # a target without training tasks is zero-shot only
     n = r["targets"]["near"]
     assert n["adaptation"] is None and n["negative_transfer"] is None and n["zero_shot"]["gain"]["lo"] > 0.5
-    assert r["source"]["runs"][0]["training"]["env_steps"] == 12 * BATCH
+    assert r["source"]["runs"][0]["training"]["env_steps"] == 12 * BATCH and r["source"]["families"] == ["hand_a"]
     json.dumps(r, allow_nan=False)
 
 
-def test_transfer_efficiency_is_one_for_a_learner_with_nothing_to_transfer(fam_a, targets):
+def test_transfer_efficiency_is_one_for_a_learner_with_nothing_to_transfer(fam_a, targets, tmp_path):
     only = {"within": targets["within"]}
     # nothing in a context-only learner survives its source training: the two adaptation curves are the same curve
     only["within"] = dict(only["within"], eval=only["within"]["eval"][:6])
-    r = P.transfer(F(ContextLearner), fam_a["train"], only, source_budget=BATCH, adapt_budget=2 * BATCH,
-                   eval_every=BATCH, n_envs=N_ENVS)
+    kw = dict(source_budget=BATCH, adapt_budget=2 * BATCH, eval_every=BATCH, n_envs=N_ENVS, workdir=str(tmp_path / "t"))
+    r = P.transfer(F(ContextLearner), fam_a["train"], only, **kw)
     ad = r["targets"]["within"]["adaptation"]
     assert ad["auc"]["ratio"]["defined"] and ad["auc"]["ratio"]["ratio"] == 1.0
     assert ad["auc"]["ratio"]["lo"] == ad["auc"]["ratio"]["hi"] == 1.0 and ad["auc"]["diff"]["mean_diff"] == 0.0
     assert r["targets"]["within"]["zero_shot"]["gain"]["mean_diff"] == 0.0
     assert r["targets"]["within"]["negative_transfer"] is False and r["negative_transfer"] == []
+    # with a working directory the protocol continues where it stopped: a second call finds everything done
+    again = P.transfer(F(ContextLearner), fam_a["train"], only, **kw)
+    assert r["source"]["runs"][0]["reused"] is False and again["source"]["runs"][0]["reused"] is True
+    assert again["targets"]["within"]["adaptation"]["curves"] == ad["curves"]
     # a weight learner whose source taught it nothing relevant (the useful lever did nothing there): about one
     flat = [HandTask("hand_flat", s, s, T.world_seed_of("hand_flat", s), 4001, 80020, H, 1, False,
                      engine="scm", mech=scm.handmade(
@@ -1383,12 +1387,10 @@ def test_the_benchmark_command_runs_named_learners_resumes_and_writes_results_an
     assert fres["protocol"] == "sealed" and fres["sealed"]["access"] == 1 and fres["sealed"]["set"] == "runner"
     assert fres["subjects"]["t_weights"][0]["trained"] is True and fres["subjects"]["hold"][0]["trained"] is True
     assert [e["event"] for e in sealed.access_log("runner")] == ["create", "prepare", "access"]
-    with pytest.raises(SystemExit):                    # the budget of one is spent: asking again is refused
-        try:
-            ow_benchmark.main(["sealed"] + common + ["--sealed-set", "runner", "--purpose", "again", "--ack",
-                                                     sealed.SEALED_ACK], log=lines.append)
-        except sealed.SealedSetError as e:
-            raise SystemExit(str(e))
+    with pytest.raises(SystemExit, match="refused.*contaminated"):   # the budget of one is spent
+        ow_benchmark.main(["sealed"] + common + ["--sealed-set", "runner", "--purpose", "again", "--ack",
+                                                 sealed.SEALED_ACK], log=lines.append)
+    assert sealed.describe("runner")["contaminated"] is True
     with pytest.raises(SystemExit, match="unknown learner"):
         ow_benchmark.main(["baseline", "--learners", "no_such_learner", "--tag", "x", "--out", str(tmp_path / "e2"),
                            "--figures", str(tmp_path / "f2"), "--work", str(tmp_path / "w2")], log=lines.append)

@@ -312,8 +312,11 @@ def _sealed(a, cfg: dict, learners: list, seeds: list, log) -> dict:
             else:
                 origin[n].append({"seed": s, "checkpoint": None, "trained": False})
             subjects[n].append(lr)
-    res = sealed.evaluate(subjects, a.sealed_set, a.ack, a.purpose, reference=a.reference, workers=a.workers,
-                          spec=_spec(), n_envs=cfg["n_envs"], segments=cfg["segments"], label=a.tag)
+    try:
+        res = sealed.evaluate(subjects, a.sealed_set, a.ack, a.purpose, reference=a.reference, workers=a.workers,
+                              spec=_spec(), n_envs=cfg["n_envs"], segments=cfg["segments"], label=a.tag)
+    except sealed.SealedSetError as e:                   # refused: said plainly, nothing is written
+        raise SystemExit(f"sealed access refused: {e}")
     res["subjects"] = origin
     return _finish(a, "sealed", res, log)
 
