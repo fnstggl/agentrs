@@ -1,0 +1,11 @@
+# The search at equal compute, with room to improve. At 150 supervised steps per phase (meta_continual_equal.yaml) the
+# baseline already reached 100% on the screening seed, so no candidate could beat it and "no promotion" meant nothing.
+# At 100 steps the same baseline scored 0.38-0.56, so a better use of the same steps can show.
+#   CUDA_VISIBLE_DEVICES="" superlearner meta-search --config configs/meta_continual_equal100.yaml --full-feedback --run-dir runs/meta/continual3
+base: meta_continual_equal.yaml
+name: meta_continual_equal100
+equal_steps: 100
+stages:
+  screen:  {observe_steps: 100}
+  develop: {observe_steps: 100}
+  confirm: {observe_steps: 100}

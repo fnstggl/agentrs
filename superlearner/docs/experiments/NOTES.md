@@ -347,3 +347,9 @@ Work on the amendment ("continual learning must change the core neural weights")
   the same 150 supervised gradient steps per phase; 17 single-idea variants, then a round of mutations. A
   `consolidate_lr` setting was added so that consolidation can be tested at the observation step size. Its default
   (none) leaves the update unchanged, so lifetimes that start after this edit run the same rule as those before it.
+* **The second search could not have found anything.** At 150 supervised steps per phase the baseline scored 1.0 on
+  the screening seed (every phase at 100%), so 22 of the 23 candidates that ran were at or below it and nothing could
+  be promoted. That is a ceiling, not evidence that no better rule exists. What it does show at one seed: moving steps
+  from observation to consolidation hurt (-0.14 to -0.46), and so did anchors, a slower trunk and a smaller step size.
+  One candidate crashed because two screening threads built the champion's probe tree at once (fixed). Third search:
+  the same design at 100 steps per phase, where this baseline scored 0.38-0.56 (`runs/meta/continual3`).

@@ -329,6 +329,15 @@ class MetaResearcher:
 
     # ------------------------------------------------------------------ inert changes
     def probe(self, cid: str) -> dict:
+        """One probe per candidate at a time: screening threads ask for the champion's fingerprint concurrently, and
+        two of them building its probe tree at once made one candidate fail with a missing file."""
+        with self._lock:
+            locks = self.__dict__.setdefault("_probe_locks", {})
+            lk = locks.setdefault(cid, threading.Lock())
+        with lk:
+            return self._probe(cid)
+
+    def _probe(self, cid: str) -> dict:
         """Confined fingerprint of a candidate's update on fixed data (see `candidate_run.probe`). The candidate's
         editable files are run with THIS repository's protected code, so trees of older searches can be probed too."""
         from .workspace import is_editable, tree_hashes
