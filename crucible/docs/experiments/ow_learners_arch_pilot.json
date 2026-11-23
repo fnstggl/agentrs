@@ -1,0 +1,142 @@
+{
+ "what": "Architecture pilot for the recurrent PPO learner: slot-symmetric ('set', ppo_gru) against a flat GRU over the padded observation ('flat', ppo_gru_flat). Same code, same inputs, same hyper-parameters (hidden 32, lr 1e-3, 3 epochs x 4 minibatches per 4096-step rollout, 16 environments, 2 threads), one seed each, training families scm_additive, scm_delay, scm_gate only (300 tasks per family), frozen evaluation on the 18 scm dev tasks (validation seeds 1000100..1000105). The set run was stopped at 75k steps to free its CPU slot; the flat run went to 150k.",
+ "note": "train_return is the mean total reward (public money units) of the last 256 training episodes; 0 is what never touching a lever earns.",
+ "runs": {
+  "set": [
+   {
+    "steps": 0,
+    "episodes": 0,
+    "updates": 0,
+    "score": -0.04338956204421499,
+    "success": 0.0,
+    "train_return": null,
+    "wall_s": 13,
+    "train_cpu_s": 0,
+    "infer_cpu_s": 2,
+    "policy_entropy": null
+   },
+   {
+    "steps": 25008,
+    "episodes": 216,
+    "updates": 60,
+    "score": -0.02324235196642877,
+    "success": 0.0,
+    "train_return": 0.18664250117576053,
+    "wall_s": 238,
+    "train_cpu_s": 56,
+    "infer_cpu_s": 16,
+    "policy_entropy": -1.0830660512049992
+   },
+   {
+    "steps": 50000,
+    "episodes": 435,
+    "updates": 120,
+    "score": -0.0072806924885451445,
+    "success": 0.0,
+    "train_return": 0.9342526722317928,
+    "wall_s": 376,
+    "train_cpu_s": 97,
+    "infer_cpu_s": 30,
+    "policy_entropy": -1.0834296991427739
+   },
+   {
+    "steps": 75008,
+    "episodes": 649,
+    "updates": 192,
+    "score": 0.011187663356757424,
+    "success": 0.0,
+    "train_return": 1.3714868467277057,
+    "wall_s": 735,
+    "train_cpu_s": 177,
+    "infer_cpu_s": 49,
+    "policy_entropy": -1.2571166356404622
+   }
+  ],
+  "flat": [
+   {
+    "steps": 0,
+    "episodes": 0,
+    "updates": 0,
+    "score": -0.04338956204421499,
+    "success": 0.0,
+    "train_return": null,
+    "wall_s": 8,
+    "train_cpu_s": 0,
+    "infer_cpu_s": 1,
+    "policy_entropy": null
+   },
+   {
+    "steps": 25008,
+    "episodes": 216,
+    "updates": 60,
+    "score": -0.03329674512067539,
+    "success": 0.0,
+    "train_return": -0.1477492964702294,
+    "wall_s": 137,
+    "train_cpu_s": 13,
+    "infer_cpu_s": 15,
+    "policy_entropy": -1.0429747402668
+   },
+   {
+    "steps": 50000,
+    "episodes": 435,
+    "updates": 120,
+    "score": -0.028985548784316157,
+    "success": 0.0,
+    "train_return": 0.19422787391420115,
+    "wall_s": 211,
+    "train_cpu_s": 24,
+    "infer_cpu_s": 22,
+    "policy_entropy": -0.9827847729126612
+   },
+   {
+    "steps": 75008,
+    "episodes": 649,
+    "updates": 192,
+    "score": -0.016587710531184567,
+    "success": 0.0,
+    "train_return": 0.1618607669119001,
+    "wall_s": 251,
+    "train_cpu_s": 32,
+    "infer_cpu_s": 27,
+    "policy_entropy": -1.083248183131218
+   },
+   {
+    "steps": 100000,
+    "episodes": 861,
+    "updates": 252,
+    "score": -0.008481294550689127,
+    "success": 0.0,
+    "train_return": 0.6250284362353256,
+    "wall_s": 330,
+    "train_cpu_s": 43,
+    "infer_cpu_s": 36,
+    "policy_entropy": -1.0878113110860188
+   },
+   {
+    "steps": 125008,
+    "episodes": 1076,
+    "updates": 312,
+    "score": 0.0061343018578372665,
+    "success": 0.0,
+    "train_return": 0.9624412782280771,
+    "wall_s": 368,
+    "train_cpu_s": 51,
+    "infer_cpu_s": 41,
+    "policy_entropy": -1.0776750544706981
+   },
+   {
+    "steps": 150000,
+    "episodes": 1293,
+    "updates": 372,
+    "score": -0.002322757532299634,
+    "success": 0.0,
+    "train_return": 1.2351386472601007,
+    "wall_s": 535,
+    "train_cpu_s": 71,
+    "infer_cpu_s": 57,
+    "policy_entropy": -0.8995021929343542
+   }
+  ]
+ }
+}

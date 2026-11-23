@@ -7,13 +7,19 @@ Listing kinds:
 * `goods`   - inventory items (conserved; escrow prevents double sale).
 * `service` - labour or consulting delivered off-ledger; escrow, confirmation, dispute and arbitration.
 
-Ratings are only accepted from principals that actually paid the seller (completed orders, or paid API calls),
-so reputation cannot be manufactured without spending money - and self-dealing is excluded.
+Ratings are only accepted from principals that actually paid the seller money (completed orders of a positive
+amount, or paid API calls), so reputation cannot be manufactured without spending money - and self-dealing is
+excluded (nobody related to the seller can rate it).
+
+Settlement never depends on one order: the hourly sweep settles every order on its own, and an order whose seller
+or buyer has ceased to exist (company wound up, accounts frozen) is settled to whoever can still receive the money
+- the buyer first, then the seller - or, if nobody can, forfeited to the fee account with a record. A company that
+is wound up settles its own open orders first (`settle_for_wind_up`).
 """
 from __future__ import annotations
 
 from ..core import schema as S
-from ..core.errors import Conflict, Forbidden, InsufficientFunds, InvalidAction, NotFound
+from ..core.errors import Conflict, Forbidden, InsufficientFunds, InvalidAction, NotFound, contain
 from ..core.kernel import SYSTEM, Module, applier, endpoint, process, register_module
 from .identity import ident
 
@@ -295,11 +301,13 @@ class Market(Module):
         if l is None:
             raise NotFound("no listing")
         buyers = ctx.world.principals_of(ctx.actor)
-        if l["seller"] in buyers:
+        from ..goals.metrics import is_related
+        if l["seller"] in buyers or is_related(ctx.world, l["seller"], ctx.actor):
             raise Forbidden("sellers cannot rate themselves")
-        paid = any(o["buyer"] in buyers and o["status"] == "completed" for o in st.find("orders", "listing", listing))
+        paid = any(o["buyer"] in buyers and o["status"] == "completed" and o["amount"] > 0
+                   for o in st.find("orders", "listing", listing))
         if not paid and l["kind"] == "api":
-            paid = any(st.has("api_customers", f"{l['host']}|{b}") for b in buyers)
+            paid = any((st.get("api_customers", f"{l['host']}|{b}") or {}).get("cents", 0) > 0 for b in buyers)
         if not paid:
             raise Forbidden("only paying customers can rate")
         rid = f"{listing}|{ctx.actor}"
@@ -334,6 +342,14 @@ class Market(Module):
             bank.move(ctx, ESCROW, dst, o["amount"], "sale", f"order {oid}", ref=oid)
         ctx.emit("market.order_status", {"id": oid, "status": "completed", "note": ""}, vis=(o["buyer"], o["seller"]))
 
+    def _buyer_account(self, st, o) -> str | None:
+        """Where a refund can go: the account the order was paid from if it is still open, else the buyer's
+        primary account, else nowhere."""
+        a = st.get("accounts", o["account"])
+        if a is not None and a["status"] == "open":
+            return o["account"]
+        return self.world.modules["bank"].primary_account(st, o["buyer"])
+
     def _refund(self, ctx, oid, frac):
         o = ctx.state.tables["orders"][oid]
         bank = ctx.world.modules["bank"]
@@ -349,15 +365,89 @@ class Market(Module):
         ctx.emit("market.order_status", {"id": oid, "status": "refunded" if frac == 1.0 else "arbitrated", "note": ""},
                  vis=(o["buyer"], o["seller"]))
 
+    def _settle_orphan(self, ctx, oid, why: str) -> None:
+        """An open order one of whose sides can no longer receive money. The whole amount goes to the side that
+        still can (the buyer gets its money back; failing that the seller is paid); if neither can, it is
+        forfeited to the fee account. Goods not yet shipped return to the seller's stock. Never raises for a
+        missing account."""
+        st = ctx.state
+        o = st.tables["orders"][oid]
+        bank = ctx.world.modules["bank"]
+        back, seller = self._buyer_account(st, o), bank.primary_account(st, o["seller"])
+        status = "refunded"
+        if o["amount"]:
+            if back is not None:
+                bank.move(ctx, ESCROW, back, o["amount"], "refund", f"order {oid} ({why})", ref=oid)
+            elif seller is not None:
+                bank.move(ctx, ESCROW, seller, o["amount"], "sale", f"order {oid} ({why})", ref=oid)
+                status = "completed"
+            else:
+                bank.move(ctx, ESCROW, "acct_fees", o["amount"], "forfeit", f"order {oid} ({why})", ref=oid)
+                status = "void"
+        if status != "completed" and o["kind"] == "goods" and not o.get("shipped"):
+            ctx.emit("market.stock", {"owner": o["seller"], "sku": st.tables["listings"][o["listing"]]["sku"],
+                                      "delta": o["qty"]}, vis=(o["seller"],))
+        ctx.emit("market.order_status", {"id": oid, "status": status, "note": why[:200]}, vis=(o["buyer"], o["seller"]))
+
+    def _settle_due(self, ctx, oid, frac) -> None:
+        """One order of the sweep: automatic confirmation (frac None) or arbitration (frac = buyer's share)."""
+        st = ctx.state
+        o = st.tables["orders"][oid]
+        bank = ctx.world.modules["bank"]
+        seller_ok = bank.primary_account(st, o["seller"]) is not None
+        a = st.get("accounts", o["account"])
+        buyer_ok = a is not None and a["status"] == "open"
+        if o["amount"] and (not seller_ok or (frac is not None and not buyer_ok)):
+            self._settle_orphan(ctx, oid, "seller no longer exists" if not seller_ok else "buyer no longer exists")
+        elif frac is None:
+            self._complete(ctx, oid)
+        else:
+            self._refund(ctx, oid, frac)
+
     @process("sweep")
     def pr_sweep(self, ctx):
         st = ctx.state
-        for oid in st.find_ids("orders", "status", "delivered"):
-            if ctx.now - st.tables["orders"][oid]["updated"] >= AUTO_CONFIRM_S:
-                self._complete(ctx, oid)
-        for oid in st.find_ids("orders", "status", "disputed"):
-            if ctx.now - st.tables["orders"][oid]["updated"] >= ARBITRATION_S:
-                self._refund(ctx, oid, 0.5)
+        due = [(oid, None) for oid in st.find_ids("orders", "status", "delivered")
+               if ctx.now - st.tables["orders"][oid]["updated"] >= AUTO_CONFIRM_S]
+        due += [(oid, 0.5) for oid in st.find_ids("orders", "status", "disputed")
+                if ctx.now - st.tables["orders"][oid]["updated"] >= ARBITRATION_S]
+        for oid, frac in due:        # every order on its own: one that cannot be settled never blocks the others
+            err = contain(ctx, self._settle_due, ctx, oid, frac)
+            if err is not None:
+                ctx.emit("market.settle_failed", {"id": oid, "error": f"{type(err).__name__}: {err}"[:200]},
+                         vis="internal")
+
+    def settle_for_wind_up(self, ctx, org: str) -> None:
+        """Called before a company's accounts are frozen (dissolution or bankruptcy): its open orders are settled
+        while both sides can still be paid. As seller: orders the buyer has not confirmed are refunded (the seller
+        will not be there to answer a dispute). As buyer: delivered orders are paid, the others refunded."""
+        st = ctx.state
+        for oid in st.find_ids("orders", "seller", org):
+            if st.tables["orders"][oid]["status"] in ("paid", "delivered", "disputed"):
+                if contain(ctx, self._settle_orphan_as, ctx, oid, "seller") is not None:
+                    ctx.emit("market.settle_failed", {"id": oid, "error": "wind-up of the seller"}, vis="internal")
+        for oid in st.find_ids("orders", "buyer", org):
+            if st.tables["orders"][oid]["status"] in ("paid", "delivered", "disputed"):
+                if contain(ctx, self._settle_orphan_as, ctx, oid, "buyer") is not None:
+                    ctx.emit("market.settle_failed", {"id": oid, "error": "wind-up of the buyer"}, vis="internal")
+
+    def _settle_orphan_as(self, ctx, oid, side: str) -> None:
+        st = ctx.state
+        o = st.tables["orders"][oid]
+        bank = ctx.world.modules["bank"]
+        if side == "buyer" and o["status"] == "delivered" and bank.primary_account(st, o["seller"]) is not None:
+            self._complete(ctx, oid)                         # the buyer received it: the seller is paid
+        elif self._buyer_account(st, o) is not None or not o["amount"]:
+            back = self._buyer_account(st, o)
+            if o["amount"]:
+                bank.move(ctx, ESCROW, back, o["amount"], "refund", f"order {oid} ({side} wound up)", ref=oid)
+            if o["kind"] == "goods" and not o.get("shipped"):
+                ctx.emit("market.stock", {"owner": o["seller"], "sku": st.tables["listings"][o["listing"]]["sku"],
+                                          "delta": o["qty"]}, vis=(o["seller"],))
+            ctx.emit("market.order_status", {"id": oid, "status": "refunded", "note": f"{side} wound up"},
+                     vis=(o["buyer"], o["seller"]))
+        else:
+            self._settle_orphan(ctx, oid, f"{side} wound up")
 
     def mint_goods(self, ctx, owner, sku, qty):
         """Only world generation / production mechanisms create goods (a declared source)."""
@@ -393,6 +483,10 @@ class Market(Module):
         if ev.payload["status"] == "completed":
             l = st.tables["listings"][o["listing"]]
             st.patch("listings", o["listing"], sales=l["sales"] + o["qty"])
+
+    @applier("market.settle_failed")
+    def ap_settle_failed(self, ev):
+        pass
 
     @applier("market.rating")
     def ap_rating(self, ev):

@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from ..core import schema as S
-from ..core.errors import Conflict, Forbidden, InvalidAction, NotFound
+from ..core.errors import Conflict, Forbidden, InvalidAction, NotFound, contain
 from ..core.kernel import SYSTEM, Module, applier, endpoint, process, register_module
 from .identity import ident
 
@@ -227,20 +227,42 @@ class Jobs(Module):
         return {"score": round(mean, 4), "mean_cpu_ms": round(mean_cpu, 3), "accepted": ok,
                 "required": b["min_q"], "paid_cents": b["reward"] if ok else 0}
 
+    def _expire(self, ctx, bid, why: str = "expired bounty") -> None:
+        """Close an open bounty and give the escrowed reward back to its poster. If nobody is left to take it back
+        (the poster was wound up and has no open account), the reward is forfeited to the fee account, with a
+        record - it never stays behind in escrow for a bounty that is closed."""
+        st = ctx.state
+        bank = ctx.world.modules["bank"]
+        b = st.tables["bounties"][bid]
+        acct = b["account"] if st.tables["accounts"][b["account"]]["status"] == "open" else bank.primary_account(st, b["poster"])
+        if acct is not None:
+            bank.move(ctx, BOUNTY_ESCROW, acct, b["reward"], "refund", f"{why} {bid}", ref=bid)
+        else:
+            bank.move(ctx, BOUNTY_ESCROW, "acct_fees", b["reward"], "forfeit",
+                      f"{why} {bid} (poster no longer exists)", ref=bid)
+        ctx.emit("jobs.bounty_status", {"id": bid, "status": "expired", "winner": None, "repo": None}, vis="public")
+        search = ctx.world.modules.get("search")
+        if search is not None:
+            search.unindex(ctx, f"bounty:{bid}")
+
     @process("sweep")
     def pr_sweep(self, ctx):
         st = ctx.state
-        bank = ctx.world.modules["bank"]
         for bid in st.find_ids("bounties", "status", "open"):
-            b = st.tables["bounties"][bid]
-            if ctx.now > b["deadline"]:
-                acct = b["account"] if st.tables["accounts"][b["account"]]["status"] == "open" else bank.primary_account(st, b["poster"])
-                if acct is not None:
-                    bank.move(ctx, BOUNTY_ESCROW, acct, b["reward"], "refund", f"expired bounty {bid}", ref=bid)
-                ctx.emit("jobs.bounty_status", {"id": bid, "status": "expired", "winner": None, "repo": None}, vis="public")
-                search = ctx.world.modules.get("search")
-                if search is not None:
-                    search.unindex(ctx, f"bounty:{bid}")
+            if ctx.now > st.tables["bounties"][bid]["deadline"]:
+                err = contain(ctx, self._expire, ctx, bid)       # one bounty never blocks the others
+                if err is not None:
+                    ctx.emit("jobs.sweep_failed", {"id": bid, "error": f"{type(err).__name__}: {err}"[:200]},
+                             vis="internal")
+
+    def cancel_for_wind_up(self, ctx, org: str) -> None:
+        """Called before a company's accounts are frozen: its open bounties are closed and their rewards return
+        to it (and so to its creditors and shareholders)."""
+        st = ctx.state
+        for bid in st.find_ids("bounties", "poster", org):
+            if st.tables["bounties"][bid]["status"] == "open":
+                if contain(ctx, self._expire, ctx, bid, "bounty withdrawn on wind-up") is not None:
+                    ctx.emit("jobs.sweep_failed", {"id": bid, "error": "wind-up of the poster"}, vis="internal")
 
     # ------------------------------------------------------------------ appliers
     @applier("jobs.posting")
@@ -283,6 +305,10 @@ class Jobs(Module):
                                            "accepted": p["accepted"], "t": ev.t})
         b = st.tables["bounties"][p["bounty"]]
         st.patch("bounties", p["bounty"], attempts=b["attempts"] + 1)
+
+    @applier("jobs.sweep_failed")
+    def ap_sweep_failed(self, ev):
+        pass
 
     @applier("jobs.bounty_status")
     def ap_bounty_status(self, ev):

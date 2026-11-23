@@ -1,0 +1,6827 @@
+{
+ "schema": "crucible-bench-openworld/1",
+ "generated": "2026-11-22T22:28:31+0000",
+ "mode": "quick",
+ "argv": [
+  "--quick"
+ ],
+ "machine": {
+  "cpu_count": 48,
+  "cgroup_cpu_quota_cores": 11.52,
+  "memory_total_gb": 188.5,
+  "pid_budget": {
+   "current": 1281,
+   "max": 2816,
+   "free": 1535
+  },
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "loadavg": [
+   67.09,
+   35.03,
+   27.42
+  ]
+ },
+ "caveat": "Measured on a shared machine. Wall-clock rates are pessimistic whenever other tenants use the container's CPU quota (see machine.cgroup_cpu_quota_cores and each section's conditions.cgroup_throttled_fraction and loadavg). Rates per CPU-second remove the time spent waiting for a core, but not the slowdown from sharing caches and hyper-threads with other tenants, so they are pessimistic too, only less. Nothing in this file is extrapolated.",
+ "discovery": {
+  "families": [
+   "bazaar",
+   "cheap_compute_closed_markets",
+   "engineering_lab",
+   "engineering_lab_heldout",
+   "entrenched_incumbents",
+   "expensive_compute_open_distribution",
+   "fragmented_networks",
+   "labor_rich_fragile_infra",
+   "mech_abm_commons",
+   "mech_abm_commons_tools",
+   "mech_abm_complement",
+   "mech_abm_complement_tools",
+   "mech_abm_congestion",
+   "mech_abm_congestion_tools",
+   "mech_abm_duopoly",
+   "mech_abm_duopoly_fx",
+   "mech_abm_duopoly_fx_tools",
+   "mech_abm_duopoly_tools",
+   "mech_abm_network_fx",
+   "mech_abm_network_fx_tools",
+   "mech_abm_segments",
+   "mech_abm_segments_tools",
+   "mech_abm_trust_gate",
+   "mech_abm_trust_gate_tools",
+   "mech_abm_utility",
+   "mech_abm_utility_tools",
+   "mech_abm_wom",
+   "mech_abm_wom_tools",
+   "mech_scm_additive",
+   "mech_scm_additive_tools",
+   "mech_scm_delay",
+   "mech_scm_delay_gate",
+   "mech_scm_delay_gate_tools",
+   "mech_scm_delay_tools",
+   "mech_scm_feedback",
+   "mech_scm_feedback_tools",
+   "mech_scm_gate",
+   "mech_scm_gate_tools",
+   "mech_scm_invu",
+   "mech_scm_invu_tools",
+   "mech_scm_regime",
+   "mech_scm_regime_tools",
+   "mech_scm_stock_gate",
+   "mech_scm_stock_gate_tools",
+   "mech_tech_cascade",
+   "mech_tech_cascade_tools",
+   "mech_tech_contention",
+   "mech_tech_contention_tools",
+   "mech_tech_handoff",
+   "mech_tech_handoff_tools",
+   "mech_tech_lostwork",
+   "mech_tech_lostwork_tools",
+   "mech_tech_pipeline",
+   "mech_tech_pipeline_tools",
+   "mech_tech_redundant",
+   "mech_tech_redundant_tools",
+   "mech_tech_shared_pool",
+   "mech_tech_shared_pool_tools",
+   "novel_needs",
+   "open_digital",
+   "open_fragile_suppliers",
+   "open_industry",
+   "open_mixed",
+   "open_perishable",
+   "open_scarce_energy",
+   "open_tight_compute",
+   "open_weak_institutions",
+   "ow_composite",
+   "ow_frontier",
+   "ow_heldout",
+   "ow_market",
+   "ow_tiny",
+   "tiny"
+  ],
+  "groups": {
+   "legacy": [
+    "bazaar",
+    "cheap_compute_closed_markets",
+    "entrenched_incumbents",
+    "expensive_compute_open_distribution",
+    "fragmented_networks",
+    "labor_rich_fragile_infra",
+    "novel_needs",
+    "tiny"
+   ],
+   "lab": [
+    "engineering_lab",
+    "engineering_lab_heldout"
+   ],
+   "mech": [
+    "mech_abm_commons",
+    "mech_abm_commons_tools",
+    "mech_abm_complement",
+    "mech_abm_complement_tools",
+    "mech_abm_congestion",
+    "mech_abm_congestion_tools",
+    "mech_abm_duopoly",
+    "mech_abm_duopoly_fx",
+    "mech_abm_duopoly_fx_tools",
+    "mech_abm_duopoly_tools",
+    "mech_abm_network_fx",
+    "mech_abm_network_fx_tools",
+    "mech_abm_segments",
+    "mech_abm_segments_tools",
+    "mech_abm_trust_gate",
+    "mech_abm_trust_gate_tools",
+    "mech_abm_utility",
+    "mech_abm_utility_tools",
+    "mech_abm_wom",
+    "mech_abm_wom_tools",
+    "mech_scm_additive",
+    "mech_scm_additive_tools",
+    "mech_scm_delay",
+    "mech_scm_delay_gate",
+    "mech_scm_delay_gate_tools",
+    "mech_scm_delay_tools",
+    "mech_scm_feedback",
+    "mech_scm_feedback_tools",
+    "mech_scm_gate",
+    "mech_scm_gate_tools",
+    "mech_scm_invu",
+    "mech_scm_invu_tools",
+    "mech_scm_regime",
+    "mech_scm_regime_tools",
+    "mech_scm_stock_gate",
+    "mech_scm_stock_gate_tools",
+    "mech_tech_cascade",
+    "mech_tech_cascade_tools",
+    "mech_tech_contention",
+    "mech_tech_contention_tools",
+    "mech_tech_handoff",
+    "mech_tech_handoff_tools",
+    "mech_tech_lostwork",
+    "mech_tech_lostwork_tools",
+    "mech_tech_pipeline",
+    "mech_tech_pipeline_tools",
+    "mech_tech_redundant",
+    "mech_tech_redundant_tools",
+    "mech_tech_shared_pool",
+    "mech_tech_shared_pool_tools"
+   ],
+   "open": [
+    "open_digital",
+    "open_fragile_suppliers",
+    "open_industry",
+    "open_mixed",
+    "open_perishable",
+    "open_scarce_energy",
+    "open_tight_compute",
+    "open_weak_institutions"
+   ],
+   "ow": [
+    "ow_composite",
+    "ow_frontier",
+    "ow_heldout",
+    "ow_market",
+    "ow_tiny"
+   ]
+  },
+  "splits": {
+   "bazaar": "train",
+   "cheap_compute_closed_markets": "train",
+   "engineering_lab": "train",
+   "engineering_lab_heldout": "test",
+   "entrenched_incumbents": "val",
+   "expensive_compute_open_distribution": "train",
+   "fragmented_networks": "val",
+   "labor_rich_fragile_infra": "test",
+   "mech_abm_commons": "val",
+   "mech_abm_commons_tools": "val",
+   "mech_abm_complement": "val",
+   "mech_abm_complement_tools": "val",
+   "mech_abm_congestion": "train",
+   "mech_abm_congestion_tools": "train",
+   "mech_abm_duopoly": "train",
+   "mech_abm_duopoly_fx": "test",
+   "mech_abm_duopoly_fx_tools": "test",
+   "mech_abm_duopoly_tools": "train",
+   "mech_abm_network_fx": "test",
+   "mech_abm_network_fx_tools": "test",
+   "mech_abm_segments": "test",
+   "mech_abm_segments_tools": "test",
+   "mech_abm_trust_gate": "val",
+   "mech_abm_trust_gate_tools": "val",
+   "mech_abm_utility": "train",
+   "mech_abm_utility_tools": "train",
+   "mech_abm_wom": "train",
+   "mech_abm_wom_tools": "train",
+   "mech_scm_additive": "train",
+   "mech_scm_additive_tools": "train",
+   "mech_scm_delay": "train",
+   "mech_scm_delay_gate": "val",
+   "mech_scm_delay_gate_tools": "val",
+   "mech_scm_delay_tools": "train",
+   "mech_scm_feedback": "test",
+   "mech_scm_feedback_tools": "test",
+   "mech_scm_gate": "train",
+   "mech_scm_gate_tools": "train",
+   "mech_scm_invu": "val",
+   "mech_scm_invu_tools": "val",
+   "mech_scm_regime": "test",
+   "mech_scm_regime_tools": "test",
+   "mech_scm_stock_gate": "test",
+   "mech_scm_stock_gate_tools": "test",
+   "mech_tech_cascade": "test",
+   "mech_tech_cascade_tools": "test",
+   "mech_tech_contention": "test",
+   "mech_tech_contention_tools": "test",
+   "mech_tech_handoff": "val",
+   "mech_tech_handoff_tools": "val",
+   "mech_tech_lostwork": "test",
+   "mech_tech_lostwork_tools": "test",
+   "mech_tech_pipeline": "val",
+   "mech_tech_pipeline_tools": "val",
+   "mech_tech_redundant": "test",
+   "mech_tech_redundant_tools": "test",
+   "mech_tech_shared_pool": "test",
+   "mech_tech_shared_pool_tools": "test",
+   "novel_needs": "test",
+   "open_digital": "train",
+   "open_fragile_suppliers": "val",
+   "open_industry": "train",
+   "open_mixed": "train",
+   "open_perishable": "test",
+   "open_scarce_energy": "val",
+   "open_tight_compute": "val",
+   "open_weak_institutions": "test",
+   "ow_composite": "val",
+   "ow_frontier": "train",
+   "ow_heldout": "test",
+   "ow_market": "train",
+   "ow_tiny": "dev",
+   "tiny": "dev"
+  },
+  "imported": [
+   "crucible.worldgen.mech_families",
+   "crucible.worldgen.ow_families",
+   "crucible.usefulness.module",
+   "crucible.actors.entry"
+  ],
+  "import_errors": {},
+  "selected": [
+   "bazaar",
+   "mech_abm_commons",
+   "mech_abm_commons_tools",
+   "mech_scm_additive",
+   "mech_scm_additive_tools",
+   "mech_tech_cascade",
+   "mech_tech_cascade_tools",
+   "open_digital",
+   "open_industry",
+   "ow_composite",
+   "ow_frontier",
+   "ow_heldout",
+   "ow_market",
+   "ow_tiny",
+   "tiny"
+  ],
+  "not_run": {
+   "mech_abm_complement": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_complement_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_congestion": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_congestion_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_duopoly": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_duopoly_fx": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_duopoly_fx_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_duopoly_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_network_fx": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_network_fx_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_segments": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_segments_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_trust_gate": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_trust_gate_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_utility": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_utility_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_wom": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_abm_wom_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_delay": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_delay_gate": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_delay_gate_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_delay_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_feedback": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_feedback_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_gate": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_gate_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_invu": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_invu_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_regime": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_regime_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_stock_gate": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_scm_stock_gate_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_tech_contention": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_tech_contention_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_tech_handoff": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_tech_handoff_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_tech_lostwork": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_tech_lostwork_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_tech_pipeline": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_tech_pipeline_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_tech_redundant": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_tech_redundant_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_tech_shared_pool": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "mech_tech_shared_pool_tools": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite",
+   "cheap_compute_closed_markets": "not part of the quick set of 3.0 families; run the full suite",
+   "engineering_lab": "not part of the quick set of 3.0 families; run the full suite",
+   "engineering_lab_heldout": "not part of the quick set of 3.0 families; run the full suite",
+   "entrenched_incumbents": "not part of the quick set of 3.0 families; run the full suite",
+   "expensive_compute_open_distribution": "not part of the quick set of 3.0 families; run the full suite",
+   "fragmented_networks": "not part of the quick set of 3.0 families; run the full suite",
+   "labor_rich_fragile_infra": "not part of the quick set of 3.0 families; run the full suite",
+   "novel_needs": "not part of the quick set of 3.0 families; run the full suite",
+   "open_fragile_suppliers": "not part of the quick set of 3.0 families; run the full suite",
+   "open_mixed": "not part of the quick set of 3.0 families; run the full suite",
+   "open_perishable": "not part of the quick set of 3.0 families; run the full suite",
+   "open_scarce_energy": "not part of the quick set of 3.0 families; run the full suite",
+   "open_tight_compute": "not part of the quick set of 3.0 families; run the full suite",
+   "open_weak_institutions": "not part of the quick set of 3.0 families; run the full suite"
+  }
+ },
+ "run": {
+  "wall_s": 272.92,
+  "sections_run": [
+   "kernel",
+   "families",
+   "storage",
+   "memory",
+   "scaling",
+   "rollout",
+   "browser",
+   "gpu",
+   "episode_cost",
+   "llm"
+  ],
+  "workers": 4,
+  "seed": 1,
+  "conditions": {
+   "loadavg_start": [
+    9.87,
+    23.7,
+    24.03
+   ],
+   "loadavg_end": [
+    67.09,
+    35.03,
+    27.42
+   ],
+   "cpu_count": 48,
+   "cgroup_cpu_quota_cores": 11.52,
+   "cgroup_cores_used_all_tenants": 11.52,
+   "cgroup_throttled_fraction": 1.0,
+   "bench_cpu_s": 146.12,
+   "bench_cores_used": 0.535,
+   "wall_s": 272.921
+  },
+  "cpu_utilisation": {
+   "bench_cpu_s": 146.12,
+   "bench_cores_used": 0.535,
+   "cgroup_cores_used_all_tenants": 11.52,
+   "cgroup_cpu_quota_cores": 11.52,
+   "cgroup_throttled_fraction": 1.0
+  }
+ },
+ "sections": {
+  "kernel": {
+   "status": "ok",
+   "reason": null,
+   "generated": "2026-11-22T22:24:25+0000",
+   "mode": "quick",
+   "wall_s": 24.291,
+   "conditions": {
+    "loadavg_start": [
+     10.76,
+     23.65,
+     24.01
+    ],
+    "loadavg_end": [
+     9.75,
+     22.38,
+     23.58
+    ],
+    "cpu_count": 48,
+    "cgroup_cpu_quota_cores": 11.52,
+    "cgroup_cores_used_all_tenants": 11.51,
+    "cgroup_throttled_fraction": 1.0,
+    "bench_cpu_s": 5.95,
+    "bench_cores_used": 0.245,
+    "wall_s": 24.291
+   },
+   "params": {
+    "n_actors": 200,
+    "n_cmds": 4000,
+    "reps": 2,
+    "seed": 0,
+    "recorded_3_0": {
+     "source": "bench.json",
+     "t": "2026-11-20 22:14:42",
+     "transfers_per_wall_s": 7731.8,
+     "read_cmds_per_wall_s": 19709.2,
+     "replay_events_per_wall_s": 41814.0,
+     "note": "same world and workload as the first, third and fourth rows; measured at another time under another load"
+    }
+   },
+   "rows": [
+    {
+     "measure": "bank.transfer (journaled transaction)",
+     "unit": "commands/s",
+     "per_wall_s": {
+      "n": 2,
+      "median": 1079.8,
+      "min": 1054.3,
+      "max": 1105.4,
+      "mean": 1079.8,
+      "stdev": 36.1,
+      "samples": [
+       1105.4,
+       1054.3
+      ]
+     },
+     "per_cpu_s": {
+      "n": 2,
+      "median": 4441.9,
+      "min": 4206.3,
+      "max": 4677.6,
+      "mean": 4441.9,
+      "stdev": 333.2,
+      "samples": [
+       4677.6,
+       4206.3
+      ]
+     },
+     "ok_fraction": 1.0,
+     "commands_per_rep": 4000,
+     "reps": 2,
+     "workers": 1,
+     "world": {
+      "modules": [
+       "identity",
+       "bank",
+       "admin"
+      ],
+      "actors": 200
+     },
+     "loadavg": [
+      9.75,
+      22.38,
+      23.58
+     ],
+     "events_per_command": 3.0
+    },
+    {
+     "measure": "mixed tool calls (9 tools)",
+     "unit": "commands/s",
+     "per_wall_s": {
+      "n": 2,
+      "median": 1199.4,
+      "min": 1142.0,
+      "max": 1256.8,
+      "mean": 1199.4,
+      "stdev": 81.2,
+      "samples": [
+       1142.0,
+       1256.8
+      ]
+     },
+     "per_cpu_s": {
+      "n": 2,
+      "median": 4709.5,
+      "min": 4691.3,
+      "max": 4727.6,
+      "mean": 4709.5,
+      "stdev": 25.7,
+      "samples": [
+       4691.3,
+       4727.6
+      ]
+     },
+     "ok_fraction": 1.0,
+     "commands_per_rep": 4000,
+     "reps": 2,
+     "workers": 1,
+     "world": {
+      "modules": [
+       "identity",
+       "bank",
+       "admin",
+       "forum",
+       "mail",
+       "docs",
+       "search"
+      ],
+      "actors": 200
+     },
+     "loadavg": [
+      9.75,
+      22.38,
+      23.58
+     ],
+     "tool_mix": {
+      "bank.accounts": {
+       "calls": 1198,
+       "ok": 1198
+      },
+      "bank.balance": {
+       "calls": 845,
+       "ok": 845
+      },
+      "bank.transfer": {
+       "calls": 2390,
+       "ok": 2390
+      },
+      "docs.create": {
+       "calls": 379,
+       "ok": 379
+      },
+      "forum.list": {
+       "calls": 759,
+       "ok": 759
+      },
+      "forum.post": {
+       "calls": 795,
+       "ok": 795
+      },
+      "mail.inbox": {
+       "calls": 393,
+       "ok": 393
+      },
+      "mail.send": {
+       "calls": 449,
+       "ok": 449
+      },
+      "world.clock": {
+       "calls": 792,
+       "ok": 792
+      }
+     }
+    },
+    {
+     "measure": "bank.accounts (recorded read)",
+     "unit": "commands/s",
+     "per_wall_s": {
+      "n": 2,
+      "median": 3880.5,
+      "min": 3357.2,
+      "max": 4403.8,
+      "mean": 3880.5,
+      "stdev": 740.1,
+      "samples": [
+       4403.8,
+       3357.2
+      ]
+     },
+     "per_cpu_s": {
+      "n": 2,
+      "median": 15165.6,
+      "min": 14392.3,
+      "max": 15938.9,
+      "mean": 15165.6,
+      "stdev": 1093.6,
+      "samples": [
+       15938.9,
+       14392.3
+      ]
+     },
+     "ok_fraction": 1.0,
+     "commands_per_rep": 1000,
+     "reps": 2,
+     "workers": 1,
+     "world": {
+      "modules": [
+       "identity",
+       "bank",
+       "admin"
+      ],
+      "actors": 200
+     },
+     "loadavg": [
+      9.75,
+      22.38,
+      23.58
+     ]
+    },
+    {
+     "measure": "replay from genesis (digest checked)",
+     "unit": "events/s",
+     "per_wall_s": {
+      "n": 2,
+      "median": 6998.9,
+      "min": 6151.1,
+      "max": 7846.7,
+      "mean": 6998.9,
+      "stdev": 1198.9,
+      "samples": [
+       6151.1,
+       7846.7
+      ]
+     },
+     "per_cpu_s": {
+      "n": 2,
+      "median": 26872.9,
+      "min": 26549.2,
+      "max": 27196.7,
+      "mean": 26872.9,
+      "stdev": 457.8,
+      "samples": [
+       26549.2,
+       27196.7
+      ]
+     },
+     "ok_fraction": 1.0,
+     "reps": 2,
+     "workers": 1,
+     "world": {
+      "modules": [
+       "identity",
+       "bank",
+       "admin"
+      ],
+      "actors": 200
+     },
+     "loadavg": [
+      9.75,
+      22.38,
+      23.58
+     ],
+     "invariants_ok": true
+    }
+   ]
+  },
+  "families": {
+   "status": "ok",
+   "reason": null,
+   "generated": "2026-11-22T22:25:16+0000",
+   "mode": "quick",
+   "wall_s": 51.081,
+   "conditions": {
+    "loadavg_start": [
+     9.75,
+     22.38,
+     23.58
+    ],
+    "loadavg_end": [
+     8.25,
+     20.09,
+     22.74
+    ],
+    "cpu_count": 48,
+    "cgroup_cpu_quota_cores": 11.52,
+    "cgroup_cores_used_all_tenants": 11.51,
+    "cgroup_throttled_fraction": 1.0,
+    "bench_cpu_s": 47.34,
+    "bench_cores_used": 0.927,
+    "wall_s": 51.081
+   },
+   "params": {
+    "idle_days": 1,
+    "agent_days": 2,
+    "reps": 2,
+    "workers": 4,
+    "seed": 1,
+    "dt_s": 3600,
+    "pool_start_s": 3.99
+   },
+   "rows": [
+    {
+     "family": "bazaar",
+     "group": "legacy",
+     "split": "train",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 22,
+      "cost_model": "measured",
+      "consumers": 6000,
+      "shoppers": 0,
+      "npc_workers": 30,
+      "firms": 8,
+      "rigs": 0,
+      "principals": 75,
+      "table_rows": 2112,
+      "array_bytes": 516000
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      8.88,
+      21.2,
+      23.16
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 0.1686,
+       "min": 0.1611,
+       "max": 0.176,
+       "mean": 0.1686,
+       "stdev": 0.0105,
+       "samples": [
+        0.176,
+        0.1611
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 0.6547,
+       "min": 0.6496,
+       "max": 0.6597,
+       "mean": 0.6547,
+       "stdev": 0.0071,
+       "samples": [
+        0.6597,
+        0.6496
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 2498.5,
+       "min": 2489.0,
+       "max": 2508.0,
+       "mean": 2498.5,
+       "stdev": 13.4,
+       "samples": [
+        2489.0,
+        2508.0
+       ]
+      },
+      "process_runs_per_sim_day": 104.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 0.4441,
+       "min": 0.3985,
+       "max": 0.4897,
+       "mean": 0.4441,
+       "stdev": 0.0645,
+       "samples": [
+        0.3985,
+        0.4897
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 59.5,
+       "min": 59.1,
+       "max": 59.8,
+       "mean": 59.5,
+       "stdev": 0.5,
+       "samples": [
+        59.1,
+        59.8
+       ]
+      },
+      "same_digest_across_reps": false
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy",
+       "Builder"
+      ],
+      "agent_steps": 192,
+      "commands": 172,
+      "rejected": 72,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 0.1259,
+       "min": 0.1259,
+       "max": 0.1259,
+       "mean": 0.1259,
+       "stdev": 0.0,
+       "samples": [
+        0.1259
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 0.583,
+       "min": 0.583,
+       "max": 0.583,
+       "mean": 0.583,
+       "stdev": 0.0,
+       "samples": [
+        0.583
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 2635.0,
+       "min": 2635.0,
+       "max": 2635.0,
+       "mean": 2635.0,
+       "stdev": 0.0,
+       "samples": [
+        2635.0
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 16.707,
+      "cpu_s": 3.4907,
+      "cpu_children_s": 0.7017,
+      "peak_rss_mb": 63.0,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "mech_abm_commons",
+     "group": "mech",
+     "split": "val",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 4,
+      "cost_model": "measured",
+      "consumers": 0,
+      "shoppers": 0,
+      "npc_workers": 0,
+      "firms": 0,
+      "rigs": 1,
+      "principals": 1,
+      "table_rows": 82,
+      "array_bytes": 131776
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      9.59,
+      21.75,
+      23.35
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 10.4633,
+       "min": 10.0806,
+       "max": 10.846,
+       "mean": 10.4633,
+       "stdev": 0.5412,
+       "samples": [
+        10.0806,
+        10.846
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 44.4919,
+       "min": 36.9004,
+       "max": 52.0833,
+       "mean": 44.4919,
+       "stdev": 10.736,
+       "samples": [
+        36.9004,
+        52.0833
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 154.0,
+       "min": 154.0,
+       "max": 154.0,
+       "mean": 154.0,
+       "stdev": 0.0,
+       "samples": [
+        154.0,
+        154.0
+       ]
+      },
+      "process_runs_per_sim_day": 24.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 2.16,
+       "min": 1.9174,
+       "max": 2.4026,
+       "mean": 2.16,
+       "stdev": 0.3431,
+       "samples": [
+        2.4026,
+        1.9174
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 55.2,
+       "min": 55.2,
+       "max": 55.2,
+       "mean": 55.2,
+       "stdev": 0.0,
+       "samples": [
+        55.2,
+        55.2
+       ]
+      },
+      "same_digest_across_reps": true
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy"
+      ],
+      "agent_steps": 144,
+      "commands": 144,
+      "rejected": 68,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 7.0274,
+       "min": 7.0274,
+       "max": 7.0274,
+       "mean": 7.0274,
+       "stdev": 0.0,
+       "samples": [
+        7.0274
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 27.972,
+       "min": 27.972,
+       "max": 27.972,
+       "mean": 27.972,
+       "stdev": 0.0,
+       "samples": [
+        27.972
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 249.0,
+       "min": 249.0,
+       "max": 249.0,
+       "mean": 249.0,
+       "stdev": 0.0,
+       "samples": [
+        249.0
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 2.5149,
+      "cpu_s": 0.5862,
+      "cpu_children_s": 0.0,
+      "peak_rss_mb": 55.2,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "mech_abm_commons_tools",
+     "group": "mech",
+     "split": "val",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 8,
+      "cost_model": "deterministic",
+      "consumers": 0,
+      "shoppers": 0,
+      "npc_workers": 0,
+      "firms": 0,
+      "rigs": 1,
+      "principals": 3,
+      "table_rows": 168,
+      "array_bytes": 87976
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      9.31,
+      21.49,
+      23.26
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 7.2147,
+       "min": 5.8824,
+       "max": 8.547,
+       "mean": 7.2147,
+       "stdev": 1.8842,
+       "samples": [
+        8.547,
+        5.8824
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 22.7663,
+       "min": 21.5517,
+       "max": 23.9808,
+       "mean": 22.7663,
+       "stdev": 1.7176,
+       "samples": [
+        21.5517,
+        23.9808
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 866.0,
+       "min": 866.0,
+       "max": 866.0,
+       "mean": 866.0,
+       "stdev": 0.0,
+       "samples": [
+        866.0,
+        866.0
+       ]
+      },
+      "process_runs_per_sim_day": 193.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 1.763,
+       "min": 1.4899,
+       "max": 2.0361,
+       "mean": 1.763,
+       "stdev": 0.3862,
+       "samples": [
+        1.4899,
+        2.0361
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 59.4,
+       "min": 59.4,
+       "max": 59.4,
+       "mean": 59.4,
+       "stdev": 0.0,
+       "samples": [
+        59.4,
+        59.4
+       ]
+      },
+      "same_digest_across_reps": true
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy"
+      ],
+      "agent_steps": 144,
+      "commands": 144,
+      "rejected": 64,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 3.2717,
+       "min": 3.2717,
+       "max": 3.2717,
+       "mean": 3.2717,
+       "stdev": 0.0,
+       "samples": [
+        3.2717
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 12.6183,
+       "min": 12.6183,
+       "max": 12.6183,
+       "mean": 12.6183,
+       "stdev": 0.0,
+       "samples": [
+        12.6183
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 939.5,
+       "min": 939.5,
+       "max": 939.5,
+       "mean": 939.5,
+       "stdev": 0.0,
+       "samples": [
+        939.5
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 2.7975,
+      "cpu_s": 0.6589,
+      "cpu_children_s": 0.0,
+      "peak_rss_mb": 55.5,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "mech_scm_additive",
+     "group": "mech",
+     "split": "train",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 4,
+      "cost_model": "measured",
+      "consumers": 0,
+      "shoppers": 0,
+      "npc_workers": 0,
+      "firms": 0,
+      "rigs": 1,
+      "principals": 1,
+      "table_rows": 81,
+      "array_bytes": 160
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      9.31,
+      21.49,
+      23.26
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 52.0766,
+       "min": 11.5607,
+       "max": 92.5926,
+       "mean": 52.0766,
+       "stdev": 57.2982,
+       "samples": [
+        11.5607,
+        92.5926
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 81.5076,
+       "min": 70.4225,
+       "max": 92.5926,
+       "mean": 81.5076,
+       "stdev": 15.6766,
+       "samples": [
+        70.4225,
+        92.5926
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 154.0,
+       "min": 154.0,
+       "max": 154.0,
+       "mean": 154.0,
+       "stdev": 0.0,
+       "samples": [
+        154.0,
+        154.0
+       ]
+      },
+      "process_runs_per_sim_day": 24.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 0.3027,
+       "min": 0.295,
+       "max": 0.3105,
+       "mean": 0.3027,
+       "stdev": 0.011,
+       "samples": [
+        0.3105,
+        0.295
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 59.5,
+       "min": 59.4,
+       "max": 59.5,
+       "mean": 59.5,
+       "stdev": 0.1,
+       "samples": [
+        59.5,
+        59.4
+       ]
+      },
+      "same_digest_across_reps": true
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy"
+      ],
+      "agent_steps": 144,
+      "commands": 144,
+      "rejected": 70,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 9.0416,
+       "min": 9.0416,
+       "max": 9.0416,
+       "mean": 9.0416,
+       "stdev": 0.0,
+       "samples": [
+        9.0416
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 25.2845,
+       "min": 25.2845,
+       "max": 25.2845,
+       "mean": 25.2845,
+       "stdev": 0.0,
+       "samples": [
+        25.2845
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 237.0,
+       "min": 237.0,
+       "max": 237.0,
+       "mean": 237.0,
+       "stdev": 0.0,
+       "samples": [
+        237.0
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 0.7883,
+      "cpu_s": 0.2091,
+      "cpu_children_s": 0.0,
+      "peak_rss_mb": 59.5,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "mech_scm_additive_tools",
+     "group": "mech",
+     "split": "train",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 8,
+      "cost_model": "deterministic",
+      "consumers": 0,
+      "shoppers": 0,
+      "npc_workers": 0,
+      "firms": 0,
+      "rigs": 1,
+      "principals": 3,
+      "table_rows": 167,
+      "array_bytes": 144
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      9.31,
+      21.49,
+      23.26
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 9.9709,
+       "min": 9.1659,
+       "max": 10.7759,
+       "mean": 9.9709,
+       "stdev": 1.1384,
+       "samples": [
+        9.1659,
+        10.7759
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 34.9057,
+       "min": 29.3255,
+       "max": 40.4858,
+       "mean": 34.9057,
+       "stdev": 7.8915,
+       "samples": [
+        29.3255,
+        40.4858
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 866.0,
+       "min": 866.0,
+       "max": 866.0,
+       "mean": 866.0,
+       "stdev": 0.0,
+       "samples": [
+        866.0,
+        866.0
+       ]
+      },
+      "process_runs_per_sim_day": 193.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 0.2091,
+       "min": 0.203,
+       "max": 0.2151,
+       "mean": 0.2091,
+       "stdev": 0.0086,
+       "samples": [
+        0.2151,
+        0.203
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 59.5,
+       "min": 59.5,
+       "max": 59.5,
+       "mean": 59.5,
+       "stdev": 0.0,
+       "samples": [
+        59.5,
+        59.5
+       ]
+      },
+      "same_digest_across_reps": true
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy"
+      ],
+      "agent_steps": 144,
+      "commands": 144,
+      "rejected": 64,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 3.3676,
+       "min": 3.3676,
+       "max": 3.3676,
+       "mean": 3.3676,
+       "stdev": 0.0,
+       "samples": [
+        3.3676
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 16.9779,
+       "min": 16.9779,
+       "max": 16.9779,
+       "mean": 16.9779,
+       "stdev": 0.0,
+       "samples": [
+        16.9779
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 939.5,
+       "min": 939.5,
+       "max": 939.5,
+       "mean": 939.5,
+       "stdev": 0.0,
+       "samples": [
+        939.5
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 1.0009,
+      "cpu_s": 0.2169,
+      "cpu_children_s": 0.0,
+      "peak_rss_mb": 59.5,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "mech_tech_cascade",
+     "group": "mech",
+     "split": "test",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 4,
+      "cost_model": "measured",
+      "consumers": 0,
+      "shoppers": 0,
+      "npc_workers": 0,
+      "firms": 0,
+      "rigs": 1,
+      "principals": 1,
+      "table_rows": 81,
+      "array_bytes": 680
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      9.31,
+      21.49,
+      23.26
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 41.2615,
+       "min": 11.6009,
+       "max": 70.922,
+       "mean": 41.2615,
+       "stdev": 41.9463,
+       "samples": [
+        70.922,
+        11.6009
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 70.922,
+       "min": 70.922,
+       "max": 70.922,
+       "mean": 70.922,
+       "stdev": 0.0,
+       "samples": [
+        70.922,
+        70.922
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 154.0,
+       "min": 154.0,
+       "max": 154.0,
+       "mean": 154.0,
+       "stdev": 0.0,
+       "samples": [
+        154.0,
+        154.0
+       ]
+      },
+      "process_runs_per_sim_day": 24.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 0.6436,
+       "min": 0.6028,
+       "max": 0.6843,
+       "mean": 0.6436,
+       "stdev": 0.0576,
+       "samples": [
+        0.6843,
+        0.6028
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 57.5,
+       "min": 55.5,
+       "max": 59.5,
+       "mean": 57.5,
+       "stdev": 2.8,
+       "samples": [
+        55.5,
+        59.5
+       ]
+      },
+      "same_digest_across_reps": true
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy"
+      ],
+      "agent_steps": 144,
+      "commands": 144,
+      "rejected": 70,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 9.9552,
+       "min": 9.9552,
+       "max": 9.9552,
+       "mean": 9.9552,
+       "stdev": 0.0,
+       "samples": [
+        9.9552
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 38.61,
+       "min": 38.61,
+       "max": 38.61,
+       "mean": 38.61,
+       "stdev": 0.0,
+       "samples": [
+        38.61
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 237.0,
+       "min": 237.0,
+       "max": 237.0,
+       "mean": 237.0,
+       "stdev": 0.0,
+       "samples": [
+        237.0
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 0.8065,
+      "cpu_s": 0.2329,
+      "cpu_children_s": 0.0,
+      "peak_rss_mb": 55.5,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "mech_tech_cascade_tools",
+     "group": "mech",
+     "split": "test",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 8,
+      "cost_model": "deterministic",
+      "consumers": 0,
+      "shoppers": 0,
+      "npc_workers": 0,
+      "firms": 0,
+      "rigs": 1,
+      "principals": 3,
+      "table_rows": 167,
+      "array_bytes": 680
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      9.31,
+      21.49,
+      23.26
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 9.556,
+       "min": 9.0416,
+       "max": 10.0705,
+       "mean": 9.556,
+       "stdev": 0.7275,
+       "samples": [
+        10.0705,
+        9.0416
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 33.9103,
+       "min": 31.0559,
+       "max": 36.7647,
+       "mean": 33.9103,
+       "stdev": 4.0367,
+       "samples": [
+        36.7647,
+        31.0559
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 866.0,
+       "min": 866.0,
+       "max": 866.0,
+       "mean": 866.0,
+       "stdev": 0.0,
+       "samples": [
+        866.0,
+        866.0
+       ]
+      },
+      "process_runs_per_sim_day": 193.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 0.6472,
+       "min": 0.5998,
+       "max": 0.6946,
+       "mean": 0.6472,
+       "stdev": 0.067,
+       "samples": [
+        0.5998,
+        0.6946
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 59.5,
+       "min": 59.5,
+       "max": 59.5,
+       "mean": 59.5,
+       "stdev": 0.0,
+       "samples": [
+        59.5,
+        59.5
+       ]
+      },
+      "same_digest_across_reps": true
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy"
+      ],
+      "agent_steps": 144,
+      "commands": 144,
+      "rejected": 64,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 6.6934,
+       "min": 6.6934,
+       "max": 6.6934,
+       "mean": 6.6934,
+       "stdev": 0.0,
+       "samples": [
+        6.6934
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 24.4798,
+       "min": 24.4798,
+       "max": 24.4798,
+       "mean": 24.4798,
+       "stdev": 0.0,
+       "samples": [
+        24.4798
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 939.5,
+       "min": 939.5,
+       "max": 939.5,
+       "mean": 939.5,
+       "stdev": 0.0,
+       "samples": [
+        939.5
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 0.7926,
+      "cpu_s": 0.2301,
+      "cpu_children_s": 0.0,
+      "peak_rss_mb": 55.7,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "open_digital",
+     "group": "open",
+     "split": "train",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 32,
+      "cost_model": "deterministic",
+      "consumers": 4000,
+      "shoppers": 0,
+      "npc_workers": 12,
+      "firms": 4,
+      "rigs": 0,
+      "principals": 46,
+      "table_rows": 1242,
+      "array_bytes": 344000
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      10.17,
+      21.26,
+      23.17
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 0.5423,
+       "min": 0.4547,
+       "max": 0.6298,
+       "mean": 0.5423,
+       "stdev": 0.1239,
+       "samples": [
+        0.6298,
+        0.4547
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 2.0595,
+       "min": 1.8968,
+       "max": 2.2222,
+       "mean": 2.0595,
+       "stdev": 0.2301,
+       "samples": [
+        2.2222,
+        1.8968
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 2231.0,
+       "min": 2231.0,
+       "max": 2231.0,
+       "mean": 2231.0,
+       "stdev": 0.0,
+       "samples": [
+        2231.0,
+        2231.0
+       ]
+      },
+      "process_runs_per_sim_day": 300.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 0.117,
+       "min": 0.0317,
+       "max": 0.2023,
+       "mean": 0.117,
+       "stdev": 0.1206,
+       "samples": [
+        0.0317,
+        0.2023
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 60.2,
+       "min": 60.1,
+       "max": 60.2,
+       "mean": 60.2,
+       "stdev": 0.1,
+       "samples": [
+        60.2,
+        60.1
+       ]
+      },
+      "same_digest_across_reps": true
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy",
+       "Builder"
+      ],
+      "agent_steps": 192,
+      "commands": 174,
+      "rejected": 71,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 0.3085,
+       "min": 0.3085,
+       "max": 0.3085,
+       "mean": 0.3085,
+       "stdev": 0.0,
+       "samples": [
+        0.3085
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 1.2247,
+       "min": 1.2247,
+       "max": 1.2247,
+       "mean": 1.2247,
+       "stdev": 0.0,
+       "samples": [
+        1.2247
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 2410.5,
+       "min": 2410.5,
+       "max": 2410.5,
+       "mean": 2410.5,
+       "stdev": 0.0,
+       "samples": [
+        2410.5
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 7.1874,
+      "cpu_s": 1.5696,
+      "cpu_children_s": 0.3966,
+      "peak_rss_mb": 60.4,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "open_industry",
+     "group": "open",
+     "split": "train",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 34,
+      "cost_model": "deterministic",
+      "consumers": 0,
+      "shoppers": 20000,
+      "npc_workers": 24,
+      "firms": 0,
+      "rigs": 0,
+      "principals": 50,
+      "table_rows": 566,
+      "array_bytes": 1640000
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      10.17,
+      21.26,
+      23.17
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 5.0042,
+       "min": 4.8828,
+       "max": 5.1256,
+       "mean": 5.0042,
+       "stdev": 0.1717,
+       "samples": [
+        5.1256,
+        4.8828
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 18.4887,
+       "min": 17.331,
+       "max": 19.6464,
+       "mean": 18.4887,
+       "stdev": 1.6372,
+       "samples": [
+        17.331,
+        19.6464
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 1533.0,
+       "min": 1533.0,
+       "max": 1533.0,
+       "mean": 1533.0,
+       "stdev": 0.0,
+       "samples": [
+        1533.0,
+        1533.0
+       ]
+      },
+      "process_runs_per_sim_day": 276.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 0.148,
+       "min": 0.1058,
+       "max": 0.1902,
+       "mean": 0.148,
+       "stdev": 0.0597,
+       "samples": [
+        0.1058,
+        0.1902
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 64.3,
+       "min": 63.1,
+       "max": 65.5,
+       "mean": 64.3,
+       "stdev": 1.7,
+       "samples": [
+        63.1,
+        65.5
+       ]
+      },
+      "same_digest_across_reps": true
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy"
+      ],
+      "agent_steps": 144,
+      "commands": 144,
+      "rejected": 62,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 2.9184,
+       "min": 2.9184,
+       "max": 2.9184,
+       "mean": 2.9184,
+       "stdev": 0.0,
+       "samples": [
+        2.9184
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 10.3199,
+       "min": 10.3199,
+       "max": 10.3199,
+       "mean": 10.3199,
+       "stdev": 0.0,
+       "samples": [
+        10.3199
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 1434.5,
+       "min": 1434.5,
+       "max": 1434.5,
+       "mean": 1434.5,
+       "stdev": 0.0,
+       "samples": [
+        1434.5
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 1.6014,
+      "cpu_s": 0.4531,
+      "cpu_children_s": 0.0,
+      "peak_rss_mb": 57.4,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "ow_composite",
+     "group": "ow",
+     "split": "val",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 33,
+      "cost_model": "deterministic",
+      "consumers": 4000,
+      "shoppers": 0,
+      "npc_workers": 12,
+      "firms": 10,
+      "rigs": 0,
+      "principals": 64,
+      "table_rows": 2491,
+      "array_bytes": 344000
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      8.91,
+      20.62,
+      22.94
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 0.2413,
+       "min": 0.2391,
+       "max": 0.2435,
+       "mean": 0.2413,
+       "stdev": 0.0031,
+       "samples": [
+        0.2435,
+        0.2391
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 0.8589,
+       "min": 0.8363,
+       "max": 0.8815,
+       "mean": 0.8589,
+       "stdev": 0.032,
+       "samples": [
+        0.8815,
+        0.8363
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 3356.0,
+       "min": 3356.0,
+       "max": 3356.0,
+       "mean": 3356.0,
+       "stdev": 0.0,
+       "samples": [
+        3356.0,
+        3356.0
+       ]
+      },
+      "process_runs_per_sim_day": 324.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 0.213,
+       "min": 0.1022,
+       "max": 0.3238,
+       "mean": 0.213,
+       "stdev": 0.1567,
+       "samples": [
+        0.1022,
+        0.3238
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 62.6,
+       "min": 59.7,
+       "max": 65.6,
+       "mean": 62.6,
+       "stdev": 4.2,
+       "samples": [
+        65.6,
+        59.7
+       ]
+      },
+      "same_digest_across_reps": true
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy",
+       "Builder"
+      ],
+      "agent_steps": 192,
+      "commands": 172,
+      "rejected": 67,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 0.1683,
+       "min": 0.1683,
+       "max": 0.1683,
+       "mean": 0.1683,
+       "stdev": 0.0,
+       "samples": [
+        0.1683
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 0.6541,
+       "min": 0.6541,
+       "max": 0.6541,
+       "mean": 0.6541,
+       "stdev": 0.0,
+       "samples": [
+        0.6541
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 3432.0,
+       "min": 3432.0,
+       "max": 3432.0,
+       "mean": 3432.0,
+       "stdev": 0.0,
+       "samples": [
+        3432.0
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 12.7015,
+      "cpu_s": 3.0545,
+      "cpu_children_s": 0.433,
+      "peak_rss_mb": 71.1,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "ow_frontier",
+     "group": "ow",
+     "split": "train",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 33,
+      "cost_model": "deterministic",
+      "consumers": 4000,
+      "shoppers": 0,
+      "npc_workers": 12,
+      "firms": 6,
+      "rigs": 0,
+      "principals": 52,
+      "table_rows": 1665,
+      "array_bytes": 348000
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      8.91,
+      20.62,
+      22.94
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 0.5411,
+       "min": 0.5298,
+       "max": 0.5525,
+       "mean": 0.5411,
+       "stdev": 0.0161,
+       "samples": [
+        0.5525,
+        0.5298
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 1.8549,
+       "min": 1.8044,
+       "max": 1.9055,
+       "mean": 1.8549,
+       "stdev": 0.0715,
+       "samples": [
+        1.9055,
+        1.8044
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 2671.0,
+       "min": 2671.0,
+       "max": 2671.0,
+       "mean": 2671.0,
+       "stdev": 0.0,
+       "samples": [
+        2671.0,
+        2671.0
+       ]
+      },
+      "process_runs_per_sim_day": 325.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 0.1098,
+       "min": 0.1007,
+       "max": 0.1189,
+       "mean": 0.1098,
+       "stdev": 0.0129,
+       "samples": [
+        0.1007,
+        0.1189
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 64.5,
+       "min": 63.1,
+       "max": 65.9,
+       "mean": 64.5,
+       "stdev": 2.0,
+       "samples": [
+        65.9,
+        63.1
+       ]
+      },
+      "same_digest_across_reps": true
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy",
+       "Builder"
+      ],
+      "agent_steps": 192,
+      "commands": 172,
+      "rejected": 67,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 0.3038,
+       "min": 0.3038,
+       "max": 0.3038,
+       "mean": 0.3038,
+       "stdev": 0.0,
+       "samples": [
+        0.3038
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 1.1493,
+       "min": 1.1493,
+       "max": 1.1493,
+       "mean": 1.1493,
+       "stdev": 0.0,
+       "samples": [
+        1.1493
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 2779.5,
+       "min": 2779.5,
+       "max": 2779.5,
+       "mean": 2779.5,
+       "stdev": 0.0,
+       "samples": [
+        2779.5
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 7.5882,
+      "cpu_s": 1.8319,
+      "cpu_children_s": 0.2985,
+      "peak_rss_mb": 61.4,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "ow_heldout",
+     "group": "ow",
+     "split": "test",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 33,
+      "cost_model": "deterministic",
+      "consumers": 4000,
+      "shoppers": 0,
+      "npc_workers": 12,
+      "firms": 4,
+      "rigs": 0,
+      "principals": 46,
+      "table_rows": 1243,
+      "array_bytes": 348000
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      8.91,
+      20.62,
+      22.94
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 0.9299,
+       "min": 0.8471,
+       "max": 1.0127,
+       "mean": 0.9299,
+       "stdev": 0.1171,
+       "samples": [
+        1.0127,
+        0.8471
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 3.0035,
+       "min": 2.7624,
+       "max": 3.2446,
+       "mean": 3.0035,
+       "stdev": 0.341,
+       "samples": [
+        3.2446,
+        2.7624
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 2331.0,
+       "min": 2331.0,
+       "max": 2331.0,
+       "mean": 2331.0,
+       "stdev": 0.0,
+       "samples": [
+        2331.0,
+        2331.0
+       ]
+      },
+      "process_runs_per_sim_day": 325.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 0.0638,
+       "min": 0.0265,
+       "max": 0.1011,
+       "mean": 0.0638,
+       "stdev": 0.0528,
+       "samples": [
+        0.1011,
+        0.0265
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 64.5,
+       "min": 63.1,
+       "max": 65.9,
+       "mean": 64.5,
+       "stdev": 2.0,
+       "samples": [
+        65.9,
+        63.1
+       ]
+      },
+      "same_digest_across_reps": true
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy",
+       "Builder"
+      ],
+      "agent_steps": 192,
+      "commands": 172,
+      "rejected": 67,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 0.4068,
+       "min": 0.4068,
+       "max": 0.4068,
+       "mean": 0.4068,
+       "stdev": 0.0,
+       "samples": [
+        0.4068
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 1.7232,
+       "min": 1.7232,
+       "max": 1.7232,
+       "mean": 1.7232,
+       "stdev": 0.0,
+       "samples": [
+        1.7232
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 2491.5,
+       "min": 2491.5,
+       "max": 2491.5,
+       "mean": 2491.5,
+       "stdev": 0.0,
+       "samples": [
+        2491.5
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 5.4144,
+      "cpu_s": 1.0843,
+      "cpu_children_s": 0.3135,
+      "peak_rss_mb": 66.4,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "ow_market",
+     "group": "ow",
+     "split": "train",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 33,
+      "cost_model": "deterministic",
+      "consumers": 4000,
+      "shoppers": 0,
+      "npc_workers": 12,
+      "firms": 6,
+      "rigs": 0,
+      "principals": 52,
+      "table_rows": 1666,
+      "array_bytes": 344000
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      8.25,
+      20.09,
+      22.74
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 0.3952,
+       "min": 0.3734,
+       "max": 0.417,
+       "mean": 0.3952,
+       "stdev": 0.0308,
+       "samples": [
+        0.3734,
+        0.417
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 1.413,
+       "min": 1.3742,
+       "max": 1.4518,
+       "mean": 1.413,
+       "stdev": 0.0549,
+       "samples": [
+        1.3742,
+        1.4518
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 2680.0,
+       "min": 2680.0,
+       "max": 2680.0,
+       "mean": 2680.0,
+       "stdev": 0.0,
+       "samples": [
+        2680.0,
+        2680.0
+       ]
+      },
+      "process_runs_per_sim_day": 324.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 0.1074,
+       "min": 0.0992,
+       "max": 0.1155,
+       "mean": 0.1074,
+       "stdev": 0.0115,
+       "samples": [
+        0.1155,
+        0.0992
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 63.5,
+       "min": 63.4,
+       "max": 63.5,
+       "mean": 63.5,
+       "stdev": 0.1,
+       "samples": [
+        63.4,
+        63.5
+       ]
+      },
+      "same_digest_across_reps": true
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy",
+       "Builder"
+      ],
+      "agent_steps": 192,
+      "commands": 172,
+      "rejected": 67,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 0.2857,
+       "min": 0.2857,
+       "max": 0.2857,
+       "mean": 0.2857,
+       "stdev": 0.0,
+       "samples": [
+        0.2857
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 1.0414,
+       "min": 1.0414,
+       "max": 1.0414,
+       "mean": 1.0414,
+       "stdev": 0.0,
+       "samples": [
+        1.0414
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 2806.5,
+       "min": 2806.5,
+       "max": 2806.5,
+       "mean": 2806.5,
+       "stdev": 0.0,
+       "samples": [
+        2806.5
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 7.713,
+      "cpu_s": 1.9181,
+      "cpu_children_s": 0.3217,
+      "peak_rss_mb": 67.5,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "ow_tiny",
+     "group": "ow",
+     "split": "dev",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 23,
+      "cost_model": "deterministic",
+      "consumers": 600,
+      "shoppers": 0,
+      "npc_workers": 6,
+      "firms": 2,
+      "rigs": 0,
+      "principals": 31,
+      "table_rows": 627,
+      "array_bytes": 51600
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      8.44,
+      20.33,
+      22.83
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 1.4344,
+       "min": 1.4166,
+       "max": 1.4522,
+       "mean": 1.4344,
+       "stdev": 0.0252,
+       "samples": [
+        1.4166,
+        1.4522
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 4.7816,
+       "min": 4.7416,
+       "max": 4.8216,
+       "mean": 4.7816,
+       "stdev": 0.0566,
+       "samples": [
+        4.8216,
+        4.7416
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 1063.0,
+       "min": 1063.0,
+       "max": 1063.0,
+       "mean": 1063.0,
+       "stdev": 0.0,
+       "samples": [
+        1063.0,
+        1063.0
+       ]
+      },
+      "process_runs_per_sim_day": 128.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 0.019,
+       "min": 0.0126,
+       "max": 0.0254,
+       "mean": 0.019,
+       "stdev": 0.0091,
+       "samples": [
+        0.0126,
+        0.0254
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 68.8,
+       "min": 66.4,
+       "max": 71.2,
+       "mean": 68.8,
+       "stdev": 3.4,
+       "samples": [
+        66.4,
+        71.2
+       ]
+      },
+      "same_digest_across_reps": true
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy",
+       "Builder"
+      ],
+      "agent_steps": 192,
+      "commands": 172,
+      "rejected": 63,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 0.5854,
+       "min": 0.5854,
+       "max": 0.5854,
+       "mean": 0.5854,
+       "stdev": 0.0,
+       "samples": [
+        0.5854
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 2.3773,
+       "min": 2.3773,
+       "max": 2.3773,
+       "mean": 2.3773,
+       "stdev": 0.0,
+       "samples": [
+        2.3773
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 1250.0,
+       "min": 1250.0,
+       "max": 1250.0,
+       "mean": 1250.0,
+       "stdev": 0.0,
+       "samples": [
+        1250.0
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 3.712,
+      "cpu_s": 0.7563,
+      "cpu_children_s": 0.2806,
+      "peak_rss_mb": 66.4,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "tiny",
+     "group": "legacy",
+     "split": "dev",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 22,
+      "cost_model": "measured",
+      "consumers": 800,
+      "shoppers": 0,
+      "npc_workers": 6,
+      "firms": 2,
+      "rigs": 0,
+      "principals": 31,
+      "table_rows": 622,
+      "array_bytes": 68800
+     },
+     "workers": 4,
+     "reps": 2,
+     "loadavg": [
+      8.25,
+      20.09,
+      22.74
+     ],
+     "idle": {
+      "days": 1,
+      "reps": 2,
+      "sim_days_per_wall_s": {
+       "n": 2,
+       "median": 0.5132,
+       "min": 0.4991,
+       "max": 0.5273,
+       "mean": 0.5132,
+       "stdev": 0.0199,
+       "samples": [
+        0.5273,
+        0.4991
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 2,
+       "median": 1.8551,
+       "min": 1.7819,
+       "max": 1.9283,
+       "mean": 1.8551,
+       "stdev": 0.1035,
+       "samples": [
+        1.9283,
+        1.7819
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 2,
+       "median": 1028.0,
+       "min": 1028.0,
+       "max": 1028.0,
+       "mean": 1028.0,
+       "stdev": 0.0,
+       "samples": [
+        1028.0,
+        1028.0
+       ]
+      },
+      "process_runs_per_sim_day": 104.0,
+      "process_failures": 0,
+      "create_s": {
+       "n": 2,
+       "median": 0.0556,
+       "min": 0.023,
+       "max": 0.0881,
+       "mean": 0.0556,
+       "stdev": 0.046,
+       "samples": [
+        0.023,
+        0.0881
+       ]
+      },
+      "peak_rss_mb": {
+       "n": 2,
+       "median": 67.6,
+       "min": 63.7,
+       "max": 71.4,
+       "mean": 67.6,
+       "stdev": 5.4,
+       "samples": [
+        71.4,
+        63.7
+       ]
+      },
+      "same_digest_across_reps": false
+     },
+     "agents": {
+      "days": 2,
+      "reps": 1,
+      "dt_s": 3600,
+      "mix": [
+       "RandomPolicy",
+       "RandomPolicy",
+       "SweepPolicy",
+       "Builder"
+      ],
+      "agent_steps": 192,
+      "commands": 172,
+      "rejected": 72,
+      "sim_days_per_wall_s": {
+       "n": 1,
+       "median": 0.3516,
+       "min": 0.3516,
+       "max": 0.3516,
+       "mean": 0.3516,
+       "stdev": 0.0,
+       "samples": [
+        0.3516
+       ]
+      },
+      "sim_days_per_cpu_s": {
+       "n": 1,
+       "median": 1.2641,
+       "min": 1.2641,
+       "max": 1.2641,
+       "mean": 1.2641,
+       "stdev": 0.0,
+       "samples": [
+        1.2641
+       ]
+      },
+      "events_per_sim_day": {
+       "n": 1,
+       "median": 1253.5,
+       "min": 1253.5,
+       "max": 1253.5,
+       "mean": 1253.5,
+       "stdev": 0.0,
+       "samples": [
+        1253.5
+       ]
+      },
+      "process_failures": 0,
+      "wall_s": 6.0051,
+      "cpu_s": 1.496,
+      "cpu_children_s": 0.3272,
+      "peak_rss_mb": 71.4,
+      "peak_rss_scope": "job"
+     }
+    },
+    {
+     "family": "cheap_compute_closed_markets",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "engineering_lab",
+     "group": "lab",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "engineering_lab_heldout",
+     "group": "lab",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "entrenched_incumbents",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "expensive_compute_open_distribution",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "fragmented_networks",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "labor_rich_fragile_infra",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "mech_abm_complement",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_complement_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_congestion",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_congestion_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_duopoly",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_duopoly_fx",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_duopoly_fx_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_duopoly_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_network_fx",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_network_fx_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_segments",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_segments_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_trust_gate",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_trust_gate_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_utility",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_utility_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_wom",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_wom_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_delay",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_delay_gate",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_delay_gate_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_delay_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_feedback",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_feedback_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_gate",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_gate_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_invu",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_invu_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_regime",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_regime_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_stock_gate",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_stock_gate_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_contention",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_contention_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_handoff",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_handoff_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_lostwork",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_lostwork_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_pipeline",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_pipeline_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_redundant",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_redundant_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_shared_pool",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_shared_pool_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "novel_needs",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_fragile_suppliers",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_mixed",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_perishable",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_scarce_energy",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_tight_compute",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_weak_institutions",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    }
+   ]
+  },
+  "storage": {
+   "status": "ok",
+   "reason": null,
+   "generated": "2026-11-22T22:25:56+0000",
+   "mode": "quick",
+   "wall_s": 39.498,
+   "conditions": {
+    "loadavg_start": [
+     8.25,
+     20.09,
+     22.74
+    ],
+    "loadavg_end": [
+     9.25,
+     18.97,
+     22.26
+    ],
+    "cpu_count": 48,
+    "cgroup_cpu_quota_cores": 11.52,
+    "cgroup_cores_used_all_tenants": 11.52,
+    "cgroup_throttled_fraction": 1.0,
+    "bench_cpu_s": 18.75,
+    "bench_cores_used": 0.475,
+    "wall_s": 39.498
+   },
+   "params": {
+    "days": 2,
+    "workers": 2,
+    "seed": 1,
+    "store": "sqlite (WAL, synchronous=NORMAL)"
+   },
+   "rows": [
+    {
+     "family": "mech_abm_commons",
+     "group": "mech",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "principals": 1,
+      "table_rows": 154,
+      "array_bytes": 131776,
+      "modules": 4,
+      "consumers": 0,
+      "shoppers": 0,
+      "cost_model": "measured"
+     },
+     "workers": 2,
+     "days": 2,
+     "reps": 1,
+     "loadavg": [
+      9.25,
+      18.97,
+      22.26
+     ],
+     "cumulative": [
+      {
+       "day": 1.0,
+       "events": 154,
+       "store_bytes": 77824
+      },
+      {
+       "day": 2.0,
+       "events": 298,
+       "store_bytes": 110592
+      }
+     ],
+     "events_total": 298,
+     "store_bytes_total": 110592,
+     "events_per_sim_day": {
+      "n": 1,
+      "median": 144.0,
+      "min": 144.0,
+      "max": 144.0,
+      "mean": 144.0,
+      "stdev": 0.0,
+      "samples": [
+       144.0
+      ]
+     },
+     "store_bytes_per_sim_day": {
+      "n": 1,
+      "median": 32768.0,
+      "min": 32768.0,
+      "max": 32768.0,
+      "mean": 32768.0,
+      "stdev": 0.0,
+      "samples": [
+       32768.0
+      ]
+     },
+     "bytes_per_event": 371.1,
+     "snapshot_bytes": 68879,
+     "snapshot_ms": {
+      "n": 3,
+      "median": 4.07,
+      "min": 4.03,
+      "max": 4.16,
+      "mean": 4.08,
+      "stdev": 0.06,
+      "samples": [
+       4.16,
+       4.03,
+       4.07
+      ]
+     },
+     "snapshot_file_write_ms": 3.98,
+     "fork_ms": {
+      "n": 3,
+      "median": 11.58,
+      "min": 7.82,
+      "max": 74.14,
+      "mean": 31.18,
+      "stdev": 37.25,
+      "samples": [
+       74.14,
+       11.58,
+       7.82
+      ]
+     },
+     "fork_digest_equal": true,
+     "replay_events": 298,
+     "replay_source": "sqlite",
+     "replay_events_per_s": 2552.5,
+     "replay_events_per_cpu_s": 5870.2,
+     "read_events_per_s": 4350.0,
+     "replay_digest_equal": true
+    },
+    {
+     "family": "mech_abm_commons_tools",
+     "group": "mech",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "principals": 3,
+      "table_rows": 312,
+      "array_bytes": 87976,
+      "modules": 8,
+      "consumers": 0,
+      "shoppers": 0,
+      "cost_model": "deterministic"
+     },
+     "workers": 2,
+     "days": 2,
+     "reps": 1,
+     "loadavg": [
+      9.25,
+      18.97,
+      22.26
+     ],
+     "cumulative": [
+      {
+       "day": 1.0,
+       "events": 866,
+       "store_bytes": 208896
+      },
+      {
+       "day": 2.0,
+       "events": 1710,
+       "store_bytes": 368640
+      }
+     ],
+     "events_total": 1710,
+     "store_bytes_total": 368640,
+     "events_per_sim_day": {
+      "n": 1,
+      "median": 844.0,
+      "min": 844.0,
+      "max": 844.0,
+      "mean": 844.0,
+      "stdev": 0.0,
+      "samples": [
+       844.0
+      ]
+     },
+     "store_bytes_per_sim_day": {
+      "n": 1,
+      "median": 159744.0,
+      "min": 159744.0,
+      "max": 159744.0,
+      "mean": 159744.0,
+      "stdev": 0.0,
+      "samples": [
+       159744.0
+      ]
+     },
+     "bytes_per_event": 215.6,
+     "snapshot_bytes": 50122,
+     "snapshot_ms": {
+      "n": 3,
+      "median": 2.74,
+      "min": 2.43,
+      "max": 3.51,
+      "mean": 2.89,
+      "stdev": 0.55,
+      "samples": [
+       3.51,
+       2.74,
+       2.43
+      ]
+     },
+     "snapshot_file_write_ms": 3.35,
+     "fork_ms": {
+      "n": 3,
+      "median": 7.3,
+      "min": 6.43,
+      "max": 72.16,
+      "mean": 28.63,
+      "stdev": 37.7,
+      "samples": [
+       6.43,
+       72.16,
+       7.3
+      ]
+     },
+     "fork_digest_equal": true,
+     "replay_events": 1710,
+     "replay_source": "sqlite",
+     "replay_events_per_s": 8593.7,
+     "replay_events_per_cpu_s": 23839.2,
+     "read_events_per_s": 152501.8,
+     "replay_digest_equal": true
+    },
+    {
+     "family": "mech_scm_additive",
+     "group": "mech",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "principals": 1,
+      "table_rows": 153,
+      "array_bytes": 160,
+      "modules": 4,
+      "consumers": 0,
+      "shoppers": 0,
+      "cost_model": "measured"
+     },
+     "workers": 2,
+     "days": 2,
+     "reps": 1,
+     "loadavg": [
+      9.25,
+      18.97,
+      22.26
+     ],
+     "cumulative": [
+      {
+       "day": 1.0,
+       "events": 154,
+       "store_bytes": 90112
+      },
+      {
+       "day": 2.0,
+       "events": 298,
+       "store_bytes": 126976
+      }
+     ],
+     "events_total": 298,
+     "store_bytes_total": 126976,
+     "events_per_sim_day": {
+      "n": 1,
+      "median": 144.0,
+      "min": 144.0,
+      "max": 144.0,
+      "mean": 144.0,
+      "stdev": 0.0,
+      "samples": [
+       144.0
+      ]
+     },
+     "store_bytes_per_sim_day": {
+      "n": 1,
+      "median": 36864.0,
+      "min": 36864.0,
+      "max": 36864.0,
+      "mean": 36864.0,
+      "stdev": 0.0,
+      "samples": [
+       36864.0
+      ]
+     },
+     "bytes_per_event": 426.1,
+     "snapshot_bytes": 5056,
+     "snapshot_ms": {
+      "n": 3,
+      "median": 0.45,
+      "min": 0.38,
+      "max": 0.47,
+      "mean": 0.44,
+      "stdev": 0.05,
+      "samples": [
+       0.38,
+       0.45,
+       0.47
+      ]
+     },
+     "snapshot_file_write_ms": 0.76,
+     "fork_ms": {
+      "n": 3,
+      "median": 6.13,
+      "min": 3.31,
+      "max": 65.19,
+      "mean": 24.88,
+      "stdev": 34.94,
+      "samples": [
+       3.31,
+       65.19,
+       6.13
+      ]
+     },
+     "fork_digest_equal": true,
+     "replay_events": 298,
+     "replay_source": "sqlite",
+     "replay_events_per_s": 3458.3,
+     "replay_events_per_cpu_s": 22382.5,
+     "read_events_per_s": 101112.5,
+     "replay_digest_equal": true
+    },
+    {
+     "family": "mech_scm_additive_tools",
+     "group": "mech",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "principals": 3,
+      "table_rows": 311,
+      "array_bytes": 144,
+      "modules": 8,
+      "consumers": 0,
+      "shoppers": 0,
+      "cost_model": "deterministic"
+     },
+     "workers": 2,
+     "days": 2,
+     "reps": 1,
+     "loadavg": [
+      9.25,
+      18.97,
+      22.26
+     ],
+     "cumulative": [
+      {
+       "day": 1.0,
+       "events": 866,
+       "store_bytes": 217088
+      },
+      {
+       "day": 2.0,
+       "events": 1710,
+       "store_bytes": 380928
+      }
+     ],
+     "events_total": 1710,
+     "store_bytes_total": 380928,
+     "events_per_sim_day": {
+      "n": 1,
+      "median": 844.0,
+      "min": 844.0,
+      "max": 844.0,
+      "mean": 844.0,
+      "stdev": 0.0,
+      "samples": [
+       844.0
+      ]
+     },
+     "store_bytes_per_sim_day": {
+      "n": 1,
+      "median": 163840.0,
+      "min": 163840.0,
+      "max": 163840.0,
+      "mean": 163840.0,
+      "stdev": 0.0,
+      "samples": [
+       163840.0
+      ]
+     },
+     "bytes_per_event": 222.8,
+     "snapshot_bytes": 6933,
+     "snapshot_ms": {
+      "n": 3,
+      "median": 0.64,
+      "min": 0.59,
+      "max": 0.79,
+      "mean": 0.67,
+      "stdev": 0.1,
+      "samples": [
+       0.79,
+       0.64,
+       0.59
+      ]
+     },
+     "snapshot_file_write_ms": 1.44,
+     "fork_ms": {
+      "n": 3,
+      "median": 4.98,
+      "min": 3.74,
+      "max": 72.41,
+      "mean": 27.04,
+      "stdev": 39.29,
+      "samples": [
+       4.98,
+       72.41,
+       3.74
+      ]
+     },
+     "fork_digest_equal": true,
+     "replay_events": 1710,
+     "replay_source": "sqlite",
+     "replay_events_per_s": 16567.6,
+     "replay_events_per_cpu_s": 43991.5,
+     "read_events_per_s": 187471.1,
+     "replay_digest_equal": true
+    },
+    {
+     "family": "mech_tech_cascade",
+     "group": "mech",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "principals": 1,
+      "table_rows": 153,
+      "array_bytes": 680,
+      "modules": 4,
+      "consumers": 0,
+      "shoppers": 0,
+      "cost_model": "measured"
+     },
+     "workers": 2,
+     "days": 2,
+     "reps": 1,
+     "loadavg": [
+      9.25,
+      18.97,
+      22.26
+     ],
+     "cumulative": [
+      {
+       "day": 1.0,
+       "events": 154,
+       "store_bytes": 184320
+      },
+      {
+       "day": 2.0,
+       "events": 298,
+       "store_bytes": 319488
+      }
+     ],
+     "events_total": 298,
+     "store_bytes_total": 319488,
+     "events_per_sim_day": {
+      "n": 1,
+      "median": 144.0,
+      "min": 144.0,
+      "max": 144.0,
+      "mean": 144.0,
+      "stdev": 0.0,
+      "samples": [
+       144.0
+      ]
+     },
+     "store_bytes_per_sim_day": {
+      "n": 1,
+      "median": 135168.0,
+      "min": 135168.0,
+      "max": 135168.0,
+      "mean": 135168.0,
+      "stdev": 0.0,
+      "samples": [
+       135168.0
+      ]
+     },
+     "bytes_per_event": 1072.1,
+     "snapshot_bytes": 4610,
+     "snapshot_ms": {
+      "n": 3,
+      "median": 0.56,
+      "min": 0.48,
+      "max": 0.56,
+      "mean": 0.53,
+      "stdev": 0.05,
+      "samples": [
+       0.56,
+       0.48,
+       0.56
+      ]
+     },
+     "snapshot_file_write_ms": 0.97,
+     "fork_ms": {
+      "n": 3,
+      "median": 2.26,
+      "min": 2.26,
+      "max": 2.53,
+      "mean": 2.35,
+      "stdev": 0.16,
+      "samples": [
+       2.26,
+       2.26,
+       2.53
+      ]
+     },
+     "fork_digest_equal": true,
+     "replay_events": 298,
+     "replay_source": "sqlite",
+     "replay_events_per_s": 3762.5,
+     "replay_events_per_cpu_s": 18487.7,
+     "read_events_per_s": 70435.5,
+     "replay_digest_equal": true
+    },
+    {
+     "family": "mech_tech_cascade_tools",
+     "group": "mech",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "principals": 3,
+      "table_rows": 311,
+      "array_bytes": 680,
+      "modules": 8,
+      "consumers": 0,
+      "shoppers": 0,
+      "cost_model": "deterministic"
+     },
+     "workers": 2,
+     "days": 2,
+     "reps": 1,
+     "loadavg": [
+      9.25,
+      18.97,
+      22.26
+     ],
+     "cumulative": [
+      {
+       "day": 1.0,
+       "events": 866,
+       "store_bytes": 315392
+      },
+      {
+       "day": 2.0,
+       "events": 1710,
+       "store_bytes": 585728
+      }
+     ],
+     "events_total": 1710,
+     "store_bytes_total": 585728,
+     "events_per_sim_day": {
+      "n": 1,
+      "median": 844.0,
+      "min": 844.0,
+      "max": 844.0,
+      "mean": 844.0,
+      "stdev": 0.0,
+      "samples": [
+       844.0
+      ]
+     },
+     "store_bytes_per_sim_day": {
+      "n": 1,
+      "median": 270336.0,
+      "min": 270336.0,
+      "max": 270336.0,
+      "mean": 270336.0,
+      "stdev": 0.0,
+      "samples": [
+       270336.0
+      ]
+     },
+     "bytes_per_event": 342.5,
+     "snapshot_bytes": 6677,
+     "snapshot_ms": {
+      "n": 3,
+      "median": 0.48,
+      "min": 0.44,
+      "max": 0.5,
+      "mean": 0.47,
+      "stdev": 0.03,
+      "samples": [
+       0.5,
+       0.48,
+       0.44
+      ]
+     },
+     "snapshot_file_write_ms": 0.87,
+     "fork_ms": {
+      "n": 3,
+      "median": 2.73,
+      "min": 2.04,
+      "max": 3.32,
+      "mean": 2.7,
+      "stdev": 0.64,
+      "samples": [
+       2.04,
+       2.73,
+       3.32
+      ]
+     },
+     "fork_digest_equal": true,
+     "replay_events": 1710,
+     "replay_source": "sqlite",
+     "replay_events_per_s": 16993.5,
+     "replay_events_per_cpu_s": 48960.7,
+     "read_events_per_s": 169866.0,
+     "replay_digest_equal": true
+    },
+    {
+     "family": "open_digital",
+     "group": "open",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "principals": 46,
+      "table_rows": 2150,
+      "array_bytes": 344000,
+      "modules": 32,
+      "consumers": 4000,
+      "shoppers": 0,
+      "cost_model": "deterministic"
+     },
+     "workers": 2,
+     "days": 2,
+     "reps": 1,
+     "loadavg": [
+      9.25,
+      18.97,
+      22.26
+     ],
+     "cumulative": [
+      {
+       "day": 1.0,
+       "events": 2231,
+       "store_bytes": 667648
+      },
+      {
+       "day": 2.0,
+       "events": 4239,
+       "store_bytes": 1236992
+      }
+     ],
+     "events_total": 4239,
+     "store_bytes_total": 1236992,
+     "events_per_sim_day": {
+      "n": 1,
+      "median": 2008.0,
+      "min": 2008.0,
+      "max": 2008.0,
+      "mean": 2008.0,
+      "stdev": 0.0,
+      "samples": [
+       2008.0
+      ]
+     },
+     "store_bytes_per_sim_day": {
+      "n": 1,
+      "median": 569344.0,
+      "min": 569344.0,
+      "max": 569344.0,
+      "mean": 569344.0,
+      "stdev": 0.0,
+      "samples": [
+       569344.0
+      ]
+     },
+     "bytes_per_event": 291.8,
+     "snapshot_bytes": 186553,
+     "snapshot_ms": {
+      "n": 3,
+      "median": 88.85,
+      "min": 13.08,
+      "max": 91.19,
+      "mean": 64.38,
+      "stdev": 44.43,
+      "samples": [
+       88.85,
+       13.08,
+       91.19
+      ]
+     },
+     "snapshot_file_write_ms": 187.56,
+     "fork_ms": {
+      "n": 3,
+      "median": 99.23,
+      "min": 95.64,
+      "max": 100.99,
+      "mean": 98.62,
+      "stdev": 2.73,
+      "samples": [
+       99.23,
+       95.64,
+       100.99
+      ]
+     },
+     "fork_digest_equal": true,
+     "replay_events": 4239,
+     "replay_source": "sqlite",
+     "replay_events_per_s": 3511.2,
+     "replay_events_per_cpu_s": 14925.2,
+     "read_events_per_s": 22808.5,
+     "replay_digest_equal": true
+    },
+    {
+     "family": "ow_composite",
+     "group": "ow",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "principals": 64,
+      "table_rows": 4427,
+      "array_bytes": 344000,
+      "modules": 33,
+      "consumers": 4000,
+      "shoppers": 0,
+      "cost_model": "deterministic"
+     },
+     "workers": 2,
+     "days": 2,
+     "reps": 1,
+     "loadavg": [
+      9.25,
+      18.97,
+      22.26
+     ],
+     "cumulative": [
+      {
+       "day": 1.0,
+       "events": 3356,
+       "store_bytes": 1155072
+      },
+      {
+       "day": 2.0,
+       "events": 6349,
+       "store_bytes": 2125824
+      }
+     ],
+     "events_total": 6349,
+     "store_bytes_total": 2125824,
+     "events_per_sim_day": {
+      "n": 1,
+      "median": 2993.0,
+      "min": 2993.0,
+      "max": 2993.0,
+      "mean": 2993.0,
+      "stdev": 0.0,
+      "samples": [
+       2993.0
+      ]
+     },
+     "store_bytes_per_sim_day": {
+      "n": 1,
+      "median": 970752.0,
+      "min": 970752.0,
+      "max": 970752.0,
+      "mean": 970752.0,
+      "stdev": 0.0,
+      "samples": [
+       970752.0
+      ]
+     },
+     "bytes_per_event": 334.8,
+     "snapshot_bytes": 233097,
+     "snapshot_ms": {
+      "n": 3,
+      "median": 91.92,
+      "min": 21.5,
+      "max": 92.79,
+      "mean": 68.73,
+      "stdev": 40.91,
+      "samples": [
+       21.5,
+       92.79,
+       91.92
+      ]
+     },
+     "snapshot_file_write_ms": 94.63,
+     "fork_ms": {
+      "n": 3,
+      "median": 117.1,
+      "min": 109.49,
+      "max": 118.55,
+      "mean": 115.05,
+      "stdev": 4.87,
+      "samples": [
+       118.55,
+       109.49,
+       117.1
+      ]
+     },
+     "fork_digest_equal": true,
+     "replay_events": 6349,
+     "replay_source": "sqlite",
+     "replay_events_per_s": 3032.7,
+     "replay_events_per_cpu_s": 12365.5,
+     "read_events_per_s": 13086.6,
+     "replay_digest_equal": true
+    },
+    {
+     "family": "ow_frontier",
+     "group": "ow",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "principals": 52,
+      "table_rows": 2900,
+      "array_bytes": 348000,
+      "modules": 33,
+      "consumers": 4000,
+      "shoppers": 0,
+      "cost_model": "deterministic"
+     },
+     "workers": 2,
+     "days": 2,
+     "reps": 1,
+     "loadavg": [
+      9.25,
+      18.97,
+      22.26
+     ],
+     "cumulative": [
+      {
+       "day": 1.0,
+       "events": 2671,
+       "store_bytes": 909312
+      },
+      {
+       "day": 2.0,
+       "events": 5065,
+       "store_bytes": 1658880
+      }
+     ],
+     "events_total": 5065,
+     "store_bytes_total": 1658880,
+     "events_per_sim_day": {
+      "n": 1,
+      "median": 2394.0,
+      "min": 2394.0,
+      "max": 2394.0,
+      "mean": 2394.0,
+      "stdev": 0.0,
+      "samples": [
+       2394.0
+      ]
+     },
+     "store_bytes_per_sim_day": {
+      "n": 1,
+      "median": 749568.0,
+      "min": 749568.0,
+      "max": 749568.0,
+      "mean": 749568.0,
+      "stdev": 0.0,
+      "samples": [
+       749568.0
+      ]
+     },
+     "bytes_per_event": 327.5,
+     "snapshot_bytes": 199573,
+     "snapshot_ms": {
+      "n": 3,
+      "median": 18.51,
+      "min": 16.59,
+      "max": 89.62,
+      "mean": 41.57,
+      "stdev": 41.62,
+      "samples": [
+       16.59,
+       89.62,
+       18.51
+      ]
+     },
+     "snapshot_file_write_ms": 89.77,
+     "fork_ms": {
+      "n": 3,
+      "median": 166.45,
+      "min": 101.46,
+      "max": 178.33,
+      "mean": 148.74,
+      "stdev": 41.38,
+      "samples": [
+       166.45,
+       178.33,
+       101.46
+      ]
+     },
+     "fork_digest_equal": true,
+     "replay_events": 5065,
+     "replay_source": "sqlite",
+     "replay_events_per_s": 3006.2,
+     "replay_events_per_cpu_s": 13060.0,
+     "read_events_per_s": 25894.2,
+     "replay_digest_equal": true
+    },
+    {
+     "family": "ow_heldout",
+     "group": "ow",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "principals": 46,
+      "table_rows": 2142,
+      "array_bytes": 348000,
+      "modules": 33,
+      "consumers": 4000,
+      "shoppers": 0,
+      "cost_model": "deterministic"
+     },
+     "workers": 2,
+     "days": 2,
+     "reps": 1,
+     "loadavg": [
+      9.25,
+      18.97,
+      22.26
+     ],
+     "cumulative": [
+      {
+       "day": 1.0,
+       "events": 2331,
+       "store_bytes": 704512
+      },
+      {
+       "day": 2.0,
+       "events": 4439,
+       "store_bytes": 1314816
+      }
+     ],
+     "events_total": 4439,
+     "store_bytes_total": 1314816,
+     "events_per_sim_day": {
+      "n": 1,
+      "median": 2108.0,
+      "min": 2108.0,
+      "max": 2108.0,
+      "mean": 2108.0,
+      "stdev": 0.0,
+      "samples": [
+       2108.0
+      ]
+     },
+     "store_bytes_per_sim_day": {
+      "n": 1,
+      "median": 610304.0,
+      "min": 610304.0,
+      "max": 610304.0,
+      "mean": 610304.0,
+      "stdev": 0.0,
+      "samples": [
+       610304.0
+      ]
+     },
+     "bytes_per_event": 296.2,
+     "snapshot_bytes": 186150,
+     "snapshot_ms": {
+      "n": 3,
+      "median": 82.15,
+      "min": 14.99,
+      "max": 91.56,
+      "mean": 62.9,
+      "stdev": 41.76,
+      "samples": [
+       82.15,
+       14.99,
+       91.56
+      ]
+     },
+     "snapshot_file_write_ms": 83.94,
+     "fork_ms": {
+      "n": 3,
+      "median": 100.28,
+      "min": 97.76,
+      "max": 103.42,
+      "mean": 100.49,
+      "stdev": 2.84,
+      "samples": [
+       97.76,
+       103.42,
+       100.28
+      ]
+     },
+     "fork_digest_equal": true,
+     "replay_events": 4439,
+     "replay_source": "sqlite",
+     "replay_events_per_s": 3683.8,
+     "replay_events_per_cpu_s": 14639.0,
+     "read_events_per_s": 37722.9,
+     "replay_digest_equal": true
+    },
+    {
+     "family": "ow_market",
+     "group": "ow",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "principals": 52,
+      "table_rows": 2906,
+      "array_bytes": 344000,
+      "modules": 33,
+      "consumers": 4000,
+      "shoppers": 0,
+      "cost_model": "deterministic"
+     },
+     "workers": 2,
+     "days": 2,
+     "reps": 1,
+     "loadavg": [
+      9.25,
+      18.97,
+      22.26
+     ],
+     "cumulative": [
+      {
+       "day": 1.0,
+       "events": 2680,
+       "store_bytes": 909312
+      },
+      {
+       "day": 2.0,
+       "events": 5082,
+       "store_bytes": 1650688
+      }
+     ],
+     "events_total": 5082,
+     "store_bytes_total": 1650688,
+     "events_per_sim_day": {
+      "n": 1,
+      "median": 2402.0,
+      "min": 2402.0,
+      "max": 2402.0,
+      "mean": 2402.0,
+      "stdev": 0.0,
+      "samples": [
+       2402.0
+      ]
+     },
+     "store_bytes_per_sim_day": {
+      "n": 1,
+      "median": 741376.0,
+      "min": 741376.0,
+      "max": 741376.0,
+      "mean": 741376.0,
+      "stdev": 0.0,
+      "samples": [
+       741376.0
+      ]
+     },
+     "bytes_per_event": 324.8,
+     "snapshot_bytes": 203917,
+     "snapshot_ms": {
+      "n": 3,
+      "median": 13.34,
+      "min": 13.11,
+      "max": 85.12,
+      "mean": 37.19,
+      "stdev": 41.51,
+      "samples": [
+       13.34,
+       85.12,
+       13.11
+      ]
+     },
+     "snapshot_file_write_ms": 13.15,
+     "fork_ms": {
+      "n": 3,
+      "median": 93.54,
+      "min": 27.83,
+      "max": 103.86,
+      "mean": 75.08,
+      "stdev": 41.24,
+      "samples": [
+       93.54,
+       27.83,
+       103.86
+      ]
+     },
+     "fork_digest_equal": true,
+     "replay_events": 5082,
+     "replay_source": "sqlite",
+     "replay_events_per_s": 3403.0,
+     "replay_events_per_cpu_s": 12129.2,
+     "read_events_per_s": 41235.7,
+     "replay_digest_equal": true
+    },
+    {
+     "family": "ow_tiny",
+     "group": "ow",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "principals": 31,
+      "table_rows": 1048,
+      "array_bytes": 51600,
+      "modules": 23,
+      "consumers": 600,
+      "shoppers": 0,
+      "cost_model": "deterministic"
+     },
+     "workers": 2,
+     "days": 2,
+     "reps": 1,
+     "loadavg": [
+      9.25,
+      18.97,
+      22.26
+     ],
+     "cumulative": [
+      {
+       "day": 1.0,
+       "events": 1063,
+       "store_bytes": 323584
+      },
+      {
+       "day": 2.0,
+       "events": 1969,
+       "store_bytes": 536576
+      }
+     ],
+     "events_total": 1969,
+     "store_bytes_total": 536576,
+     "events_per_sim_day": {
+      "n": 1,
+      "median": 906.0,
+      "min": 906.0,
+      "max": 906.0,
+      "mean": 906.0,
+      "stdev": 0.0,
+      "samples": [
+       906.0
+      ]
+     },
+     "store_bytes_per_sim_day": {
+      "n": 1,
+      "median": 212992.0,
+      "min": 212992.0,
+      "max": 212992.0,
+      "mean": 212992.0,
+      "stdev": 0.0,
+      "samples": [
+       212992.0
+      ]
+     },
+     "bytes_per_event": 272.5,
+     "snapshot_bytes": 45337,
+     "snapshot_ms": {
+      "n": 3,
+      "median": 4.14,
+      "min": 3.94,
+      "max": 75.72,
+      "mean": 27.93,
+      "stdev": 41.39,
+      "samples": [
+       75.72,
+       4.14,
+       3.94
+      ]
+     },
+     "snapshot_file_write_ms": 4.66,
+     "fork_ms": {
+      "n": 3,
+      "median": 10.74,
+      "min": 10.1,
+      "max": 12.31,
+      "mean": 11.05,
+      "stdev": 1.14,
+      "samples": [
+       10.1,
+       10.74,
+       12.31
+      ]
+     },
+     "fork_digest_equal": true,
+     "replay_events": 1969,
+     "replay_source": "sqlite",
+     "replay_events_per_s": 3835.4,
+     "replay_events_per_cpu_s": 13023.9,
+     "read_events_per_s": 20159.6,
+     "replay_digest_equal": true
+    },
+    {
+     "family": "tiny",
+     "group": "legacy",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "principals": 31,
+      "table_rows": 1041,
+      "array_bytes": 68800,
+      "modules": 22,
+      "consumers": 800,
+      "shoppers": 0,
+      "cost_model": "measured"
+     },
+     "workers": 2,
+     "days": 2,
+     "reps": 1,
+     "loadavg": [
+      9.25,
+      18.97,
+      22.26
+     ],
+     "cumulative": [
+      {
+       "day": 1.0,
+       "events": 1024,
+       "store_bytes": 376832
+      },
+      {
+       "day": 2.0,
+       "events": 1910,
+       "store_bytes": 692224
+      }
+     ],
+     "events_total": 1910,
+     "store_bytes_total": 692224,
+     "events_per_sim_day": {
+      "n": 1,
+      "median": 886.0,
+      "min": 886.0,
+      "max": 886.0,
+      "mean": 886.0,
+      "stdev": 0.0,
+      "samples": [
+       886.0
+      ]
+     },
+     "store_bytes_per_sim_day": {
+      "n": 1,
+      "median": 315392.0,
+      "min": 315392.0,
+      "max": 315392.0,
+      "mean": 315392.0,
+      "stdev": 0.0,
+      "samples": [
+       315392.0
+      ]
+     },
+     "bytes_per_event": 362.4,
+     "snapshot_bytes": 50751,
+     "snapshot_ms": {
+      "n": 3,
+      "median": 3.75,
+      "min": 3.1,
+      "max": 3.77,
+      "mean": 3.54,
+      "stdev": 0.38,
+      "samples": [
+       3.77,
+       3.1,
+       3.75
+      ]
+     },
+     "snapshot_file_write_ms": 4.68,
+     "fork_ms": {
+      "n": 3,
+      "median": 9.24,
+      "min": 8.18,
+      "max": 79.26,
+      "mean": 32.23,
+      "stdev": 40.74,
+      "samples": [
+       8.18,
+       9.24,
+       79.26
+      ]
+     },
+     "fork_digest_equal": true,
+     "replay_events": 1910,
+     "replay_source": "sqlite",
+     "replay_events_per_s": 3169.6,
+     "replay_events_per_cpu_s": 12062.9,
+     "read_events_per_s": 21866.6,
+     "replay_digest_equal": true
+    },
+    {
+     "family": "bazaar",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "quick mode measures storage for a subset; run the full suite"
+    },
+    {
+     "family": "open_industry",
+     "group": "open",
+     "status": "not_run",
+     "error": "quick mode measures storage for a subset; run the full suite"
+    },
+    {
+     "family": "cheap_compute_closed_markets",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "engineering_lab",
+     "group": "lab",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "engineering_lab_heldout",
+     "group": "lab",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "entrenched_incumbents",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "expensive_compute_open_distribution",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "fragmented_networks",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "labor_rich_fragile_infra",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "mech_abm_complement",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_complement_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_congestion",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_congestion_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_duopoly",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_duopoly_fx",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_duopoly_fx_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_duopoly_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_network_fx",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_network_fx_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_segments",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_segments_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_trust_gate",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_trust_gate_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_utility",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_utility_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_wom",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_wom_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_delay",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_delay_gate",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_delay_gate_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_delay_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_feedback",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_feedback_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_gate",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_gate_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_invu",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_invu_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_regime",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_regime_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_stock_gate",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_stock_gate_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_contention",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_contention_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_handoff",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_handoff_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_lostwork",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_lostwork_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_pipeline",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_pipeline_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_redundant",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_redundant_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_shared_pool",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_shared_pool_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "novel_needs",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_fragile_suppliers",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_mixed",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_perishable",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_scarce_energy",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_tight_compute",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_weak_institutions",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    }
+   ]
+  },
+  "memory": {
+   "status": "ok",
+   "reason": null,
+   "generated": "2026-11-22T22:26:29+0000",
+   "mode": "quick",
+   "wall_s": 33.212,
+   "conditions": {
+    "loadavg_start": [
+     9.25,
+     18.97,
+     22.26
+    ],
+    "loadavg_end": [
+     6.31,
+     17.16,
+     21.53
+    ],
+    "cpu_count": 48,
+    "cgroup_cpu_quota_cores": 11.52,
+    "cgroup_cores_used_all_tenants": 11.53,
+    "cgroup_throttled_fraction": 1.0,
+    "bench_cpu_s": 12.35,
+    "bench_cores_used": 0.372,
+    "wall_s": 33.212
+   },
+   "params": {
+    "days": 1,
+    "workers": 2,
+    "seed": 1,
+    "fresh_process_per_world": true
+   },
+   "rows": [
+    {
+     "family": "bazaar",
+     "group": "legacy",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {
+       "n_consumers": 1000
+      },
+      "principals": 75,
+      "principal_kinds": {
+       "org": 12,
+       "person": 54,
+       "service": 8,
+       "system": 1
+      },
+      "table_rows": 2044,
+      "array_bytes": 86000,
+      "snapshot_bytes": 73195,
+      "modules": 22,
+      "cost_model": "measured",
+      "consumers": 1000,
+      "shoppers": 0,
+      "npc_workers": 30,
+      "firms": 8,
+      "rigs": 0
+     },
+     "workers": 2,
+     "days": 1,
+     "reps": 1,
+     "loadavg": [
+      6.31,
+      17.16,
+      21.53
+     ],
+     "population": 1030,
+     "principals": 75,
+     "rss_before_world_mb": 52.5,
+     "rss_end_mb": 58.1,
+     "peak_rss_mb": 58.1,
+     "world_rss_mb": 5.6,
+     "state_array_mb": 0.08,
+     "snapshot_mb": 0.07,
+     "sim_days_per_wall_s": 0.2038
+    },
+    {
+     "family": "bazaar",
+     "group": "legacy",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {
+       "n_consumers": 10000
+      },
+      "principals": 75,
+      "principal_kinds": {
+       "org": 12,
+       "person": 54,
+       "service": 8,
+       "system": 1
+      },
+      "table_rows": 2161,
+      "array_bytes": 860000,
+      "snapshot_bytes": 388560,
+      "modules": 22,
+      "cost_model": "measured",
+      "consumers": 10000,
+      "shoppers": 0,
+      "npc_workers": 30,
+      "firms": 8,
+      "rigs": 0
+     },
+     "workers": 2,
+     "days": 1,
+     "reps": 1,
+     "loadavg": [
+      6.31,
+      17.16,
+      21.53
+     ],
+     "population": 10030,
+     "principals": 75,
+     "rss_before_world_mb": 52.7,
+     "rss_end_mb": 58.7,
+     "peak_rss_mb": 58.7,
+     "world_rss_mb": 6.0,
+     "state_array_mb": 0.82,
+     "snapshot_mb": 0.371,
+     "sim_days_per_wall_s": 0.156
+    },
+    {
+     "family": "bazaar",
+     "group": "legacy",
+     "status": "ok",
+     "error": null,
+     "world": {
+      "seed": 1,
+      "overrides": {
+       "n_consumers": 100000
+      },
+      "principals": 75,
+      "principal_kinds": {
+       "org": 12,
+       "person": 54,
+       "service": 8,
+       "system": 1
+      },
+      "table_rows": 3052,
+      "array_bytes": 8600000,
+      "snapshot_bytes": 3512028,
+      "modules": 22,
+      "cost_model": "measured",
+      "consumers": 100000,
+      "shoppers": 0,
+      "npc_workers": 30,
+      "firms": 8,
+      "rigs": 0
+     },
+     "workers": 2,
+     "days": 1,
+     "reps": 1,
+     "loadavg": [
+      6.31,
+      17.16,
+      21.53
+     ],
+     "population": 100030,
+     "principals": 75,
+     "rss_before_world_mb": 52.5,
+     "rss_end_mb": 72.0,
+     "peak_rss_mb": 92.2,
+     "world_rss_mb": 39.7,
+     "state_array_mb": 8.2,
+     "snapshot_mb": 3.349,
+     "sim_days_per_wall_s": 0.0693
+    }
+   ]
+  },
+  "scaling": {
+   "status": "ok",
+   "reason": null,
+   "generated": "2026-11-22T22:27:41+0000",
+   "mode": "quick",
+   "wall_s": 71.701,
+   "conditions": {
+    "loadavg_start": [
+     6.31,
+     17.16,
+     21.53
+    ],
+    "loadavg_end": [
+     47.42,
+     26.55,
+     24.42
+    ],
+    "cpu_count": 48,
+    "cgroup_cpu_quota_cores": 11.52,
+    "cgroup_cores_used_all_tenants": 11.52,
+    "cgroup_throttled_fraction": 1.0,
+    "bench_cpu_s": 46.18,
+    "bench_cores_used": 0.644,
+    "wall_s": 71.701
+   },
+   "params": {
+    "counts": [
+     1,
+     2,
+     4,
+     8
+    ],
+    "days": 2,
+    "reps": 2,
+    "pool_start_s": 6.32,
+    "start_method": "spawn"
+   },
+   "rows": [
+    {
+     "parallel_worlds": 1,
+     "workers": 8,
+     "days_each": 2,
+     "reps": 2,
+     "aggregate_sim_days_per_wall_s": {
+      "n": 2,
+      "median": 0.3225,
+      "min": 0.2437,
+      "max": 0.4013,
+      "mean": 0.3225,
+      "stdev": 0.1114,
+      "samples": [
+       0.2437,
+       0.4013
+      ]
+     },
+     "per_world_run_wall_s": {
+      "n": 2,
+      "median": 6.3483,
+      "min": 4.7732,
+      "max": 7.9235,
+      "mean": 6.3483,
+      "stdev": 2.2276,
+      "samples": [
+       7.9235,
+       4.7732
+      ]
+     },
+     "cpu_s_per_batch": {
+      "n": 2,
+      "median": 1.3,
+      "min": 1.298,
+      "max": 1.302,
+      "mean": 1.3,
+      "stdev": 0.003,
+      "samples": [
+       1.298,
+       1.302
+      ]
+     },
+     "failed_jobs": 0,
+     "status": "ok",
+     "error": null,
+     "world": {
+      "family": "tiny",
+      "overrides": {}
+     },
+     "loadavg": [
+      14.27,
+      18.15,
+      21.76
+     ],
+     "cgroup_throttled_fraction": 1.0,
+     "cgroup_cores_used_all_tenants": 11.49,
+     "speedup_vs_1": 1.0,
+     "efficiency": 1.0
+    },
+    {
+     "parallel_worlds": 2,
+     "workers": 8,
+     "days_each": 2,
+     "reps": 2,
+     "aggregate_sim_days_per_wall_s": {
+      "n": 2,
+      "median": 0.6839,
+      "min": 0.677,
+      "max": 0.6909,
+      "mean": 0.6839,
+      "stdev": 0.0099,
+      "samples": [
+       0.677,
+       0.6909
+      ]
+     },
+     "per_world_run_wall_s": {
+      "n": 4,
+      "median": 5.3904,
+      "min": 5.1101,
+      "max": 5.5015,
+      "mean": 5.3481,
+      "stdev": 0.1884,
+      "samples": [
+       5.497,
+       5.2838,
+       5.5015,
+       5.1101
+      ]
+     },
+     "cpu_s_per_batch": {
+      "n": 2,
+      "median": 2.46,
+      "min": 2.416,
+      "max": 2.505,
+      "mean": 2.46,
+      "stdev": 0.063,
+      "samples": [
+       2.416,
+       2.505
+      ]
+     },
+     "failed_jobs": 0,
+     "status": "ok",
+     "error": null,
+     "world": {
+      "family": "tiny",
+      "overrides": {}
+     },
+     "loadavg": [
+      23.38,
+      19.99,
+      22.31
+     ],
+     "cgroup_throttled_fraction": 1.0,
+     "cgroup_cores_used_all_tenants": 11.52,
+     "speedup_vs_1": 2.121,
+     "efficiency": 1.06
+    },
+    {
+     "parallel_worlds": 4,
+     "workers": 8,
+     "days_each": 2,
+     "reps": 2,
+     "aggregate_sim_days_per_wall_s": {
+      "n": 2,
+      "median": 0.837,
+      "min": 0.8325,
+      "max": 0.8414,
+      "mean": 0.837,
+      "stdev": 0.0063,
+      "samples": [
+       0.8414,
+       0.8325
+      ]
+     },
+     "per_world_run_wall_s": {
+      "n": 8,
+      "median": 6.0946,
+      "min": 4.8702,
+      "max": 9.3723,
+      "mean": 6.8895,
+      "stdev": 1.8407,
+      "samples": [
+       5.5023,
+       9.2032,
+       5.7041,
+       8.5077,
+       4.8702,
+       5.4713,
+       6.4851,
+       9.3723
+      ]
+     },
+     "cpu_s_per_batch": {
+      "n": 2,
+      "median": 5.041,
+      "min": 4.91,
+      "max": 5.172,
+      "mean": 5.041,
+      "stdev": 0.185,
+      "samples": [
+       5.172,
+       4.91
+      ]
+     },
+     "failed_jobs": 0,
+     "status": "ok",
+     "error": null,
+     "world": {
+      "family": "tiny",
+      "overrides": {}
+     },
+     "loadavg": [
+      37.15,
+      23.33,
+      23.36
+     ],
+     "cgroup_throttled_fraction": 1.0,
+     "cgroup_cores_used_all_tenants": 11.55,
+     "speedup_vs_1": 2.595,
+     "efficiency": 0.649
+    },
+    {
+     "parallel_worlds": 8,
+     "workers": 8,
+     "days_each": 2,
+     "reps": 2,
+     "aggregate_sim_days_per_wall_s": {
+      "n": 2,
+      "median": 1.7617,
+      "min": 1.5249,
+      "max": 1.9985,
+      "mean": 1.7617,
+      "stdev": 0.3348,
+      "samples": [
+       1.5249,
+       1.9985
+      ]
+     },
+     "per_world_run_wall_s": {
+      "n": 16,
+      "median": 6.0492,
+      "min": 4.5872,
+      "max": 9.9168,
+      "mean": 6.1741,
+      "stdev": 1.4325,
+      "samples": [
+       7.4108,
+       5.4989,
+       5.9995,
+       6.2966,
+       5.0037,
+       4.8159,
+       4.592,
+       9.9168,
+       4.5872,
+       7.4931,
+       6.6803,
+       4.6762,
+       7.5819,
+       6.0989,
+       6.4242,
+       5.7101
+      ]
+     },
+     "cpu_s_per_batch": {
+      "n": 2,
+      "median": 9.824,
+      "min": 9.589,
+      "max": 10.06,
+      "mean": 9.824,
+      "stdev": 0.333,
+      "samples": [
+       9.589,
+       10.06
+      ]
+     },
+     "failed_jobs": 0,
+     "status": "ok",
+     "error": null,
+     "world": {
+      "family": "tiny",
+      "overrides": {}
+     },
+     "loadavg": [
+      47.42,
+      26.55,
+      24.42
+     ],
+     "cgroup_throttled_fraction": 1.0,
+     "cgroup_cores_used_all_tenants": 11.52,
+     "speedup_vs_1": 5.463,
+     "efficiency": 0.683
+    }
+   ]
+  },
+  "rollout": {
+   "status": "ok",
+   "reason": null,
+   "generated": "2026-11-22T22:27:58+0000",
+   "mode": "quick",
+   "wall_s": 17.109,
+   "conditions": {
+    "loadavg_start": [
+     47.42,
+     26.55,
+     24.42
+    ],
+    "loadavg_end": [
+     55.98,
+     29.88,
+     25.57
+    ],
+    "cpu_count": 48,
+    "cgroup_cpu_quota_cores": 11.52,
+    "cgroup_cores_used_all_tenants": 11.53,
+    "cgroup_throttled_fraction": 1.0,
+    "bench_cpu_s": 8.02,
+    "bench_cores_used": 0.469,
+    "wall_s": 17.109
+   },
+   "params": {
+    "worker_counts": [
+     1,
+     4
+    ],
+    "tasks_per_worker": 4,
+    "steps": 12,
+    "think_s": 1800,
+    "policy": "RandomPolicy"
+   },
+   "rows": [
+    {
+     "workers": 1,
+     "tasks": 4,
+     "failed": 0,
+     "steps": 48,
+     "steps_per_task": 12,
+     "reps": 1,
+     "steps_per_wall_s": {
+      "n": 1,
+      "median": 21.88,
+      "min": 21.88,
+      "max": 21.88,
+      "mean": 21.88,
+      "stdev": 0.0,
+      "samples": [
+       21.88
+      ]
+     },
+     "sim_days_per_wall_s": {
+      "n": 1,
+      "median": 0.4619,
+      "min": 0.4619,
+      "max": 0.4619,
+      "mean": 0.4619,
+      "stdev": 0.0,
+      "samples": [
+       0.4619
+      ]
+     },
+     "task_wall_s": {
+      "n": 4,
+      "median": 0.4819,
+      "min": 0.4187,
+      "max": 0.8072,
+      "mean": 0.5474,
+      "stdev": 0.1758,
+      "samples": [
+       0.8072,
+       0.4883,
+       0.4187,
+       0.4754
+      ]
+     },
+     "farm_start_s": 3.72,
+     "accounting_exact": true,
+     "status": "ok",
+     "error": null,
+     "world": {
+      "family": "tiny",
+      "overrides": {},
+      "think_s": 1800
+     },
+     "loadavg": [
+      49.79,
+      27.39,
+      24.71
+     ],
+     "cgroup_throttled_fraction": 1.0,
+     "speedup_vs_1": 1.0
+    },
+    {
+     "workers": 4,
+     "tasks": 16,
+     "failed": 0,
+     "steps": 192,
+     "steps_per_task": 12,
+     "reps": 1,
+     "steps_per_wall_s": {
+      "n": 1,
+      "median": 43.76,
+      "min": 43.76,
+      "max": 43.76,
+      "mean": 43.76,
+      "stdev": 0.0,
+      "samples": [
+       43.76
+      ]
+     },
+     "sim_days_per_wall_s": {
+      "n": 1,
+      "median": 0.9287,
+      "min": 0.9287,
+      "max": 0.9287,
+      "mean": 0.9287,
+      "stdev": 0.0,
+      "samples": [
+       0.9287
+      ]
+     },
+     "task_wall_s": {
+      "n": 16,
+      "median": 0.755,
+      "min": 0.508,
+      "max": 1.9964,
+      "mean": 0.9224,
+      "stdev": 0.4436,
+      "samples": [
+       0.81,
+       1.3983,
+       1.7887,
+       1.9964,
+       1.1219,
+       0.6055,
+       0.7,
+       0.6237,
+       0.8112,
+       0.604,
+       1.0159,
+       0.6831,
+       0.508,
+       0.5901,
+       0.817,
+       0.6838
+      ]
+     },
+     "farm_start_s": 4.7,
+     "accounting_exact": true,
+     "status": "ok",
+     "error": null,
+     "world": {
+      "family": "tiny",
+      "overrides": {},
+      "think_s": 1800
+     },
+     "loadavg": [
+      55.98,
+      29.88,
+      25.57
+     ],
+     "cgroup_throttled_fraction": 1.0,
+     "speedup_vs_1": 2.0
+    }
+   ]
+  },
+  "browser": {
+   "status": "ok",
+   "reason": null,
+   "generated": "2026-11-22T22:28:31+0000",
+   "mode": "quick",
+   "wall_s": 32.077,
+   "conditions": {
+    "loadavg_start": [
+     55.98,
+     29.88,
+     25.57
+    ],
+    "loadavg_end": [
+     67.09,
+     35.03,
+     27.42
+    ],
+    "cpu_count": 48,
+    "cgroup_cpu_quota_cores": 11.52,
+    "cgroup_cores_used_all_tenants": 11.5,
+    "cgroup_throttled_fraction": 1.0,
+    "bench_cpu_s": 6.65,
+    "bench_cores_used": 0.207,
+    "wall_s": 32.077
+   },
+   "params": {
+    "n": 10,
+    "sessions": 1
+   },
+   "rows": [
+    {
+     "measure": "Chromium goto (navigate + observe)",
+     "unit": "actions/s",
+     "actions_per_s": 2.33,
+     "ms_per_action": {
+      "n": 10,
+      "median": 406.72,
+      "min": 316.92,
+      "max": 581.56,
+      "mean": 430.05,
+      "stdev": 75.4,
+      "samples": [
+       581.56,
+       397.93,
+       407.73,
+       316.92,
+       383.3,
+       405.72,
+       395.38,
+       415.4,
+       484.53,
+       512.05
+      ]
+     },
+     "first_load_ms": 1697.2,
+     "reps": 10,
+     "workers": 1,
+     "world": {
+      "family": "open_digital",
+      "overrides": {
+       "n_consumers": 500,
+       "module_config": {
+        "webgen": {
+         "sites": 2
+        }
+       }
+      },
+      "seed": 1,
+      "site": "recipebox"
+     },
+     "loadavg": [
+      67.09,
+      35.03,
+      27.42
+     ],
+     "cost_vs_api": 355.2
+    },
+    {
+     "measure": "Chromium observe (read the current page)",
+     "unit": "actions/s",
+     "actions_per_s": 34.0,
+     "ms_per_action": {
+      "n": 10,
+      "median": 6.68,
+      "min": 5.2,
+      "max": 89.78,
+      "mean": 29.41,
+      "stdev": 37.38,
+      "samples": [
+       89.78,
+       5.93,
+       6.95,
+       79.33,
+       5.79,
+       7.25,
+       5.2,
+       81.23,
+       6.27,
+       6.41
+      ]
+     },
+     "reps": 10,
+     "workers": 1,
+     "world": {
+      "family": "open_digital",
+      "overrides": {
+       "n_consumers": 500,
+       "module_config": {
+        "webgen": {
+         "sites": 2
+        }
+       }
+      },
+      "seed": 1,
+      "site": "recipebox"
+     },
+     "loadavg": [
+      67.09,
+      35.03,
+      27.42
+     ]
+    },
+    {
+     "measure": "API net.fetch of the same page",
+     "unit": "actions/s",
+     "actions_per_s": 826.0,
+     "per_s": {
+      "n": 3,
+      "median": 826.0,
+      "min": 120.7,
+      "max": 1030.6,
+      "mean": 659.1,
+      "stdev": 477.4,
+      "samples": [
+       826.0,
+       120.7,
+       1030.6
+      ]
+     },
+     "reps": 3,
+     "workers": 1,
+     "world": {
+      "family": "open_digital",
+      "overrides": {
+       "n_consumers": 500,
+       "module_config": {
+        "webgen": {
+         "sites": 2
+        }
+       }
+      },
+      "seed": 1,
+      "site": "recipebox"
+     },
+     "loadavg": [
+      67.09,
+      35.03,
+      27.42
+     ]
+    }
+   ]
+  },
+  "gpu": {
+   "status": "ok",
+   "reason": null,
+   "generated": "2026-11-22T22:28:31+0000",
+   "mode": "quick",
+   "wall_s": 0.0,
+   "conditions": {
+    "loadavg_start": [
+     9.87,
+     23.7,
+     24.03
+    ],
+    "loadavg_end": [
+     67.09,
+     35.03,
+     27.42
+    ],
+    "cpu_count": 48,
+    "cgroup_cpu_quota_cores": 11.52,
+    "cgroup_cores_used_all_tenants": 11.52,
+    "cgroup_throttled_fraction": 1.0,
+    "bench_cpu_s": 146.12,
+    "bench_cores_used": 0.535,
+    "wall_s": 272.92
+   },
+   "params": {
+    "samples": 10,
+    "source": "nvidia-smi, read-only"
+   },
+   "rows": [
+    {
+     "gpu": 0,
+     "name": "NVIDIA RTX A6000",
+     "label": "other tenants' load (this suite does not use the GPU)",
+     "util_pct": {
+      "n": 10,
+      "median": 3.0,
+      "min": 0.0,
+      "max": 23.0,
+      "mean": 4.8,
+      "stdev": 6.7,
+      "samples": [
+       0.0,
+       7.0,
+       23.0,
+       3.0,
+       3.0,
+       3.0,
+       0.0,
+       3.0,
+       3.0,
+       3.0
+      ]
+     },
+     "mem_used_mb": {
+      "n": 10,
+      "median": 19646.0,
+      "min": 13786.0,
+      "max": 25572.0,
+      "mean": 19919.0,
+      "stdev": 4959.0,
+      "samples": [
+       25572.0,
+       25572.0,
+       23116.0,
+       25159.0,
+       22842.0,
+       13786.0,
+       13794.0,
+       16450.0,
+       16450.0,
+       16450.0
+      ]
+     },
+     "mem_total_mb": 46068.0,
+     "reps": 10,
+     "workers": 0,
+     "sampled_at": [
+      "22:24:01",
+      "22:24:25",
+      "22:25:16",
+      "22:25:56",
+      "22:26:29",
+      "22:27:41",
+      "22:27:58",
+      "22:28:31",
+      "22:28:31",
+      "22:28:31"
+     ],
+     "loadavg": [
+      67.09,
+      35.03,
+      27.42
+     ]
+    }
+   ]
+  },
+  "episode_cost": {
+   "status": "ok",
+   "reason": "episodes of [2] simulated days were measured in this run; the standard 30-day figure is produced by the full run and is not extrapolated here",
+   "generated": "2026-11-22T22:28:31+0000",
+   "mode": "quick",
+   "wall_s": 0.0,
+   "conditions": {
+    "loadavg_start": [
+     9.75,
+     22.38,
+     23.58
+    ],
+    "loadavg_end": [
+     8.25,
+     20.09,
+     22.74
+    ],
+    "cpu_count": 48,
+    "cgroup_cpu_quota_cores": 11.52,
+    "cgroup_cores_used_all_tenants": 11.51,
+    "cgroup_throttled_fraction": 1.0,
+    "bench_cpu_s": 47.34,
+    "bench_cores_used": 0.927,
+    "wall_s": 51.081
+   },
+   "params": {
+    "episode_days": [
+     2
+    ],
+    "standard_episode_days": 30,
+    "price_per_cpu_hour": null,
+    "includes": "world process CPU + sandboxed programs; excludes the policy's own compute"
+   },
+   "rows": [
+    {
+     "family": "bazaar",
+     "group": "legacy",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 4.192,
+     "peak_rss_mb": 63.0,
+     "wall_s": 16.707,
+     "agent_steps": 192,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 22,
+      "cost_model": "measured",
+      "consumers": 6000,
+      "shoppers": 0,
+      "npc_workers": 30,
+      "firms": 8,
+      "rigs": 0,
+      "principals": 75,
+      "table_rows": 2112,
+      "array_bytes": 516000
+     },
+     "loadavg": [
+      8.88,
+      21.2,
+      23.16
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy",
+      "Builder"
+     ]
+    },
+    {
+     "family": "mech_abm_commons",
+     "group": "mech",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 0.586,
+     "peak_rss_mb": 55.2,
+     "wall_s": 2.5149,
+     "agent_steps": 144,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 4,
+      "cost_model": "measured",
+      "consumers": 0,
+      "shoppers": 0,
+      "npc_workers": 0,
+      "firms": 0,
+      "rigs": 1,
+      "principals": 1,
+      "table_rows": 82,
+      "array_bytes": 131776
+     },
+     "loadavg": [
+      9.59,
+      21.75,
+      23.35
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy"
+     ]
+    },
+    {
+     "family": "mech_abm_commons_tools",
+     "group": "mech",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 0.659,
+     "peak_rss_mb": 55.5,
+     "wall_s": 2.7975,
+     "agent_steps": 144,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 8,
+      "cost_model": "deterministic",
+      "consumers": 0,
+      "shoppers": 0,
+      "npc_workers": 0,
+      "firms": 0,
+      "rigs": 1,
+      "principals": 3,
+      "table_rows": 168,
+      "array_bytes": 87976
+     },
+     "loadavg": [
+      9.31,
+      21.49,
+      23.26
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy"
+     ]
+    },
+    {
+     "family": "mech_scm_additive",
+     "group": "mech",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 0.209,
+     "peak_rss_mb": 59.5,
+     "wall_s": 0.7883,
+     "agent_steps": 144,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 4,
+      "cost_model": "measured",
+      "consumers": 0,
+      "shoppers": 0,
+      "npc_workers": 0,
+      "firms": 0,
+      "rigs": 1,
+      "principals": 1,
+      "table_rows": 81,
+      "array_bytes": 160
+     },
+     "loadavg": [
+      9.31,
+      21.49,
+      23.26
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy"
+     ]
+    },
+    {
+     "family": "mech_scm_additive_tools",
+     "group": "mech",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 0.217,
+     "peak_rss_mb": 59.5,
+     "wall_s": 1.0009,
+     "agent_steps": 144,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 8,
+      "cost_model": "deterministic",
+      "consumers": 0,
+      "shoppers": 0,
+      "npc_workers": 0,
+      "firms": 0,
+      "rigs": 1,
+      "principals": 3,
+      "table_rows": 167,
+      "array_bytes": 144
+     },
+     "loadavg": [
+      9.31,
+      21.49,
+      23.26
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy"
+     ]
+    },
+    {
+     "family": "mech_tech_cascade",
+     "group": "mech",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 0.233,
+     "peak_rss_mb": 55.5,
+     "wall_s": 0.8065,
+     "agent_steps": 144,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 4,
+      "cost_model": "measured",
+      "consumers": 0,
+      "shoppers": 0,
+      "npc_workers": 0,
+      "firms": 0,
+      "rigs": 1,
+      "principals": 1,
+      "table_rows": 81,
+      "array_bytes": 680
+     },
+     "loadavg": [
+      9.31,
+      21.49,
+      23.26
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy"
+     ]
+    },
+    {
+     "family": "mech_tech_cascade_tools",
+     "group": "mech",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 0.23,
+     "peak_rss_mb": 55.7,
+     "wall_s": 0.7926,
+     "agent_steps": 144,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 8,
+      "cost_model": "deterministic",
+      "consumers": 0,
+      "shoppers": 0,
+      "npc_workers": 0,
+      "firms": 0,
+      "rigs": 1,
+      "principals": 3,
+      "table_rows": 167,
+      "array_bytes": 680
+     },
+     "loadavg": [
+      9.31,
+      21.49,
+      23.26
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy"
+     ]
+    },
+    {
+     "family": "open_digital",
+     "group": "open",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 1.966,
+     "peak_rss_mb": 60.4,
+     "wall_s": 7.1874,
+     "agent_steps": 192,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 32,
+      "cost_model": "deterministic",
+      "consumers": 4000,
+      "shoppers": 0,
+      "npc_workers": 12,
+      "firms": 4,
+      "rigs": 0,
+      "principals": 46,
+      "table_rows": 1242,
+      "array_bytes": 344000
+     },
+     "loadavg": [
+      10.17,
+      21.26,
+      23.17
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy",
+      "Builder"
+     ]
+    },
+    {
+     "family": "open_industry",
+     "group": "open",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 0.453,
+     "peak_rss_mb": 57.4,
+     "wall_s": 1.6014,
+     "agent_steps": 144,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 34,
+      "cost_model": "deterministic",
+      "consumers": 0,
+      "shoppers": 20000,
+      "npc_workers": 24,
+      "firms": 0,
+      "rigs": 0,
+      "principals": 50,
+      "table_rows": 566,
+      "array_bytes": 1640000
+     },
+     "loadavg": [
+      10.17,
+      21.26,
+      23.17
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy"
+     ]
+    },
+    {
+     "family": "ow_composite",
+     "group": "ow",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 3.487,
+     "peak_rss_mb": 71.1,
+     "wall_s": 12.7015,
+     "agent_steps": 192,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 33,
+      "cost_model": "deterministic",
+      "consumers": 4000,
+      "shoppers": 0,
+      "npc_workers": 12,
+      "firms": 10,
+      "rigs": 0,
+      "principals": 64,
+      "table_rows": 2491,
+      "array_bytes": 344000
+     },
+     "loadavg": [
+      8.91,
+      20.62,
+      22.94
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy",
+      "Builder"
+     ]
+    },
+    {
+     "family": "ow_frontier",
+     "group": "ow",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 2.13,
+     "peak_rss_mb": 61.4,
+     "wall_s": 7.5882,
+     "agent_steps": 192,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 33,
+      "cost_model": "deterministic",
+      "consumers": 4000,
+      "shoppers": 0,
+      "npc_workers": 12,
+      "firms": 6,
+      "rigs": 0,
+      "principals": 52,
+      "table_rows": 1665,
+      "array_bytes": 348000
+     },
+     "loadavg": [
+      8.91,
+      20.62,
+      22.94
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy",
+      "Builder"
+     ]
+    },
+    {
+     "family": "ow_heldout",
+     "group": "ow",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 1.398,
+     "peak_rss_mb": 66.4,
+     "wall_s": 5.4144,
+     "agent_steps": 192,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 33,
+      "cost_model": "deterministic",
+      "consumers": 4000,
+      "shoppers": 0,
+      "npc_workers": 12,
+      "firms": 4,
+      "rigs": 0,
+      "principals": 46,
+      "table_rows": 1243,
+      "array_bytes": 348000
+     },
+     "loadavg": [
+      8.91,
+      20.62,
+      22.94
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy",
+      "Builder"
+     ]
+    },
+    {
+     "family": "ow_market",
+     "group": "ow",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 2.24,
+     "peak_rss_mb": 67.5,
+     "wall_s": 7.713,
+     "agent_steps": 192,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 33,
+      "cost_model": "deterministic",
+      "consumers": 4000,
+      "shoppers": 0,
+      "npc_workers": 12,
+      "firms": 6,
+      "rigs": 0,
+      "principals": 52,
+      "table_rows": 1666,
+      "array_bytes": 344000
+     },
+     "loadavg": [
+      8.25,
+      20.09,
+      22.74
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy",
+      "Builder"
+     ]
+    },
+    {
+     "family": "ow_tiny",
+     "group": "ow",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 1.037,
+     "peak_rss_mb": 66.4,
+     "wall_s": 3.712,
+     "agent_steps": 192,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 23,
+      "cost_model": "deterministic",
+      "consumers": 600,
+      "shoppers": 0,
+      "npc_workers": 6,
+      "firms": 2,
+      "rigs": 0,
+      "principals": 31,
+      "table_rows": 627,
+      "array_bytes": 51600
+     },
+     "loadavg": [
+      8.44,
+      20.33,
+      22.83
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy",
+      "Builder"
+     ]
+    },
+    {
+     "family": "tiny",
+     "group": "legacy",
+     "status": "ok",
+     "error": null,
+     "episode_days": 2,
+     "standard_30_day_episode": false,
+     "cpu_s": 1.823,
+     "peak_rss_mb": 71.4,
+     "wall_s": 6.0051,
+     "agent_steps": 192,
+     "usd": null,
+     "price_per_cpu_hour": null,
+     "reps": 1,
+     "workers": 4,
+     "world": {
+      "seed": 1,
+      "overrides": {},
+      "modules": 22,
+      "cost_model": "measured",
+      "consumers": 800,
+      "shoppers": 0,
+      "npc_workers": 6,
+      "firms": 2,
+      "rigs": 0,
+      "principals": 31,
+      "table_rows": 622,
+      "array_bytes": 68800
+     },
+     "loadavg": [
+      8.25,
+      20.09,
+      22.74
+     ],
+     "agents": [
+      "RandomPolicy",
+      "RandomPolicy",
+      "SweepPolicy",
+      "Builder"
+     ]
+    },
+    {
+     "family": "cheap_compute_closed_markets",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "engineering_lab",
+     "group": "lab",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "engineering_lab_heldout",
+     "group": "lab",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "entrenched_incumbents",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "expensive_compute_open_distribution",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "fragmented_networks",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "labor_rich_fragile_infra",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "mech_abm_complement",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_complement_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_congestion",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_congestion_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_duopoly",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_duopoly_fx",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_duopoly_fx_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_duopoly_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_network_fx",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_network_fx_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_segments",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_segments_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_trust_gate",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_trust_gate_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_utility",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_utility_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_wom",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_abm_wom_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_delay",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_delay_gate",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_delay_gate_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_delay_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_feedback",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_feedback_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_gate",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_gate_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_invu",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_invu_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_regime",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_regime_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_stock_gate",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_scm_stock_gate_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_contention",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_contention_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_handoff",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_handoff_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_lostwork",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_lostwork_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_pipeline",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_pipeline_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_redundant",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_redundant_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_shared_pool",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "mech_tech_shared_pool_tools",
+     "group": "mech",
+     "status": "not_run",
+     "error": "quick mode runs at most 6 mech_* families (--max-per-group); run the full suite"
+    },
+    {
+     "family": "novel_needs",
+     "group": "legacy",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_fragile_suppliers",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_mixed",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_perishable",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_scarce_energy",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_tight_compute",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    },
+    {
+     "family": "open_weak_institutions",
+     "group": "open",
+     "status": "not_run",
+     "error": "not part of the quick set of 3.0 families; run the full suite"
+    }
+   ]
+  },
+  "llm": {
+   "status": "not_measured",
+   "reason": "not measured in this run",
+   "generated": "2026-11-22T22:28:31+0000",
+   "mode": "quick",
+   "wall_s": 0.0,
+   "conditions": {
+    "loadavg_start": [
+     67.09,
+     35.03,
+     27.42
+    ],
+    "loadavg_end": [
+     67.09,
+     35.03,
+     27.42
+    ],
+    "cpu_count": 48,
+    "cgroup_cpu_quota_cores": 11.52,
+    "cgroup_cores_used_all_tenants": 2.16,
+    "cgroup_throttled_fraction": null,
+    "bench_cpu_s": 0.0,
+    "bench_cores_used": 0.0,
+    "wall_s": 0.0
+   },
+   "params": {
+    "input_file": null
+   },
+   "rows": []
+  }
+ }
+}

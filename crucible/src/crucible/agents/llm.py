@@ -217,7 +217,14 @@ class LLMPolicy(Policy):
     def __init__(self, model: str = "Qwen/Qwen3-1.7B", device: str = "cuda", max_new_tokens: int = 256,
                  temperature: float = 0.0, history: int = 6, system_prompt: str | None = None, goal: str = "",
                  backend: Any = None, tool_chars: int = 9000, max_events: int = 25, payload_chars: int = 200,
-                 record_prompts: bool = False, seed: int = 0, tool_order: str = "alpha"):
+                 record_prompts: bool = False, seed: int = 0, tool_order: str = "alpha", interface: str = "v3",
+                 result_chars: int = 2000, host_summaries: dict | None = None):
+        if interface not in ("v3", "v4"):
+            raise ValueError("interface must be 'v3' (the Crucible 3.0 prompt, byte for byte) or 'v4'")
+        # v4: the tool list is `core.discovery.render_catalogue` (never drops a host; degrades uniformly and says
+        # what it left out), failures are shown with their structured detail (near names, schema paths), and the
+        # result of the last action gets its own budget so that `world.hosts` / `world.find_tools` answers fit.
+        self.interface, self.result_chars, self.host_summaries = interface, int(result_chars), host_summaries
         self.model_name = getattr(backend, "name", model)
         self._backend, self._backend_args = backend, (model, device)
         self.max_new_tokens, self.temperature, self.k_hist = max_new_tokens, temperature, history
@@ -262,22 +269,36 @@ class LLMPolicy(Policy):
         if self.goal:
             parts.append(f"Goal: {self.goal}")
         parts.append(f"You are {getattr(self, 'actor', '?')}.")
+        v4 = self.interface == "v4"
+        if v4:
+            from ..core import discovery as D
+        show = D.render_result if v4 else R.render_result
         if self.hist:
             lines = []
             for h in self.hist[-self.k_hist:]:
                 if h.get("action"):
                     a = h["action"]
                     lines.append(f"- {a['tool']} {R.compact_json(a.get('args', {}), 200)} -> "
-                                 f"{R.render_result(h.get('result'), 240) if h.get('result') else 'no result'}")
+                                 f"{show(h.get('result'), 240) if h.get('result') else 'no result'}")
                 else:
                     lines.append(f"- (no action: {h.get('note', 'wait')})")
             parts.append("Your recent actions:\n" + "\n".join(lines))
-        parts.append("Observation:\n" + render_actor_observation(obs, self.last_result, self.max_events,
-                                                                 self.payload_chars))
+        if v4:
+            parts.append("Observation:\n" + render_actor_observation(obs, None, self.max_events, self.payload_chars))
+            if self.last_result:
+                parts.append("Result of your last action:\n" + D.render_result(self.last_result, self.result_chars))
+        else:
+            parts.append("Observation:\n" + render_actor_observation(obs, self.last_result, self.max_events,
+                                                                     self.payload_chars))
         if new:
             parts.append("Newly available tools: " + ", ".join(new))
-        parts.append(f"Tools ({len(tools)}):\n" + render_tool_list(tools, self.tool_chars, tuple(new) + tuple(recent),
-                                                                  order=self.tool_order))
+        if v4:
+            prio = tuple(new) + tuple(dict.fromkeys(recent))[:8]
+            parts.append(f"Tools ({len(tools)}):\n" + D.render_catalogue(tools, self.tool_chars,
+                                                                         hosts=self.host_summaries, priority=prio))
+        else:
+            parts.append(f"Tools ({len(tools)}):\n" + render_tool_list(tools, self.tool_chars,
+                                                                       tuple(new) + tuple(recent), order=self.tool_order))
         parts.append("Your next action (one JSON tool call):")
         return [{"role": "system", "content": self.system_prompt}, {"role": "user", "content": "\n\n".join(parts)}], new
 
@@ -296,6 +317,8 @@ class LLMPolicy(Policy):
         rec = {"turn": self.turn - 1, "t": (obs.get("time") if isinstance(obs, dict) else getattr(obs, "time", None)),
                "prompt_hash": prompt_hash(msgs), "prompt_chars": sum(len(m["content"]) for m in msgs),
                "prompt_tokens": g.prompt_tokens, "gen_tokens": g.gen_tokens, "text": g.text, "new_tools": new}
+        if g.truncated:                      # per turn, so a diagnosis can say which decisions saw a cut prompt
+            rec["truncated"] = True
         if self.record_prompts:
             rec["messages"] = msgs
         action = None
@@ -324,4 +347,8 @@ class LLMPolicy(Policy):
             self.transcript[-1]["result"] = {k: result.get(k) for k in ("ok", "error", "tool")}
 
     def usage(self) -> dict:
-        return {"model": self.model_name, **self.stats}
+        return {"model": self.model_name, **self.stats, "max_new_tokens": self.max_new_tokens,
+                "max_context": getattr(self._backend, "max_context", None),
+                "interface": {"version": self.interface, "tool_chars": self.tool_chars,
+                              "renderer": "catalogue" if self.interface == "v4" else "tool_list",
+                              "tool_order": self.tool_order, "result_chars": self.result_chars, "history": self.k_hist}}

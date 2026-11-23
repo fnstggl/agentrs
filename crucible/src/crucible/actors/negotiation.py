@@ -11,7 +11,11 @@ Valuation (money-equivalent cents over a horizon, from the recipient's point of 
 * receiving shares is worth the stake times a valuation of the company from its *verified* operating results,
   discounted by risk aversion; giving away shares of one's own company costs that plus a control premium;
 * delegating a capability costs its sensitivity times distrust; a deliverable I owe costs effort; one owed to me
-  is worth its penalty (what I can recover) times trust.
+  is worth its penalty (what I can recover) times trust. A penalty I would have to pay is a liability whoever must
+  deliver: if somebody else's delivery decides whether I pay, I cannot make it happen, so I count most of it
+  against the offer; if my own delivery decides it, I count all of it unless what is asked already holds (a
+  deliverable written so that it can never be met is then never worth signing for less than its penalty).
+  Money promised for later than the usual first pay day is discounted for the wait.
 
 Decision: reject outright counterparties with a bad record or broken promises to me; accept if the value beats
 an aspiration level that starts above the reservation and decays with each round (patience); otherwise counter by
@@ -78,6 +82,11 @@ def evaluate(soc, ctx, m, me: str, d: dict) -> tuple[float, dict]:
             n = int(cl.get("count") or (horizon // int(every) if every else 1)) if every else 1
             disc = sum(m["traits"]["patience"] ** (k * (int(every or MONTH)) / MONTH) for k in range(n))
             amt = float(cl["amount"]) * disc
+            # a first payment later than one period away (payment in arrears is normal) is worth less the longer
+            # the wait; one that starts beyond the horizon this mind plans over is worth nothing to it
+            wait = int(cl.get("start_in_s") or 0) - int(every or 0)
+            if wait > 0:
+                amt *= 0.0 if wait >= horizon else m["traits"]["patience"] ** (wait / MONTH)
             if cl["to"] == me:      # a payer that defaults stops being worked for: exposure is limited
                 v = amt * (0.6 + 0.4 * tr)
             elif cl["from"] == me:
@@ -105,9 +114,21 @@ def evaluate(soc, ctx, m, me: str, d: dict) -> tuple[float, dict]:
         elif t == "deliverable":
             pen = cl.get("penalty") or {}
             if cl["by"] in (me, m.get("org")):
-                v = -float(m.get("effort_cost", 100_000)) - (pen.get("amount", 0) * 0.3 if pen.get("from") == me else 0)
+                # A penalty I owe if I do not deliver: a modest risk if what is asked is already the case (I can
+                # check: a deliverable may only measure the parties), a certain loss otherwise - I cannot tell
+                # whether something that does not hold yet is achievable at all, or was written never to be.
+                from ..goals.metrics import evaluate_predicate
+                try:
+                    holds = bool(evaluate_predicate(ctx.world, cl["predicate"]))
+                except Exception:  # noqa: BLE001 - a predicate that cannot be evaluated does not hold
+                    holds = False
+                mine = pen.get("from") in (me, m.get("org"))
+                v = -float(m.get("effort_cost", 100_000)) - (pen.get("amount", 0) * (0.3 if holds else 1.0) if mine else 0)
             else:
                 v = float(pen.get("amount", 0)) * 0.5 * tr if pen.get("to") == me else 0.0
+                if pen.get("from") in (me, m.get("org")):
+                    # I would pay if THEY fail to deliver: the outcome is in their hands, not mine
+                    v -= float(pen.get("amount", 0)) * (1.0 - 0.5 * tr)
         parts.append((i, t, round(v, 1)))
         u += v
     return u, {"trust": round(tr, 3), "parts": parts}

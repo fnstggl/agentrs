@@ -119,18 +119,19 @@ class Endpoint:
     returns: str = ""
     owner: str = SYSTEM   # principal operating the service (for deployed services: its service principal)
     builtin: bool = True
+    version: str = "1"    # interface version of this endpoint (defaults to its module's version)
 
     def spec(self) -> dict:
         return {"name": self.name, "description": self.doc, "inputSchema": self.params,
                 "annotations": {"readOnlyHint": self.read_only, "costSeconds": self.cost_s,
-                                "host": self.host, "builtin": self.builtin}}
+                                "host": self.host, "builtin": self.builtin, "version": self.version}}
 
 
 def endpoint(name: str, params: dict | None = None, *, doc: str = "", cost_s: int = 1, read_only: bool = False,
-             returns: str = ""):
+             returns: str = "", version: str | None = None):
     def deco(fn):
         fn.__crucible_endpoint__ = dict(name=name, params=params or S.obj(), doc=doc or (fn.__doc__ or "").strip(),
-                                        cost_s=cost_s, read_only=read_only, returns=returns)
+                                        cost_s=cost_s, read_only=read_only, returns=returns, version=version)
         return fn
     return deco
 
@@ -407,6 +408,10 @@ class World:
              "Fetch the API description of any service host (built-in or agent-deployed).", True),
         ]:
             self.endpoints["world." + name] = Endpoint("world." + name, "world", params, fn, doc, 0, ro)
+        if self.spec.params.get("discovery", True) is not False:
+            # 4.0: world.find_tools / hosts / validate / help / api (core/discovery.py)
+            from . import discovery
+            discovery.install(self)
 
     def _add_module(self, mod: Module) -> None:
         mod.world = self
@@ -423,7 +428,7 @@ class World:
                 if full in self.endpoints:
                     raise ProtocolError(f"duplicate endpoint {full}")
                 self.endpoints[full] = Endpoint(full, host, e["params"], bound, e["doc"], e["cost_s"], e["read_only"],
-                                                e["returns"])
+                                                e["returns"], version=str(e.get("version") or mod.version))
             if hasattr(fn, "__crucible_applier__"):
                 et = fn.__crucible_applier__
                 if et in self.appliers:
@@ -598,19 +603,20 @@ class World:
                 return ActionResult(rec["ok"], to_jsonable(rec["result"]), rec.get("error"), [], 0, self.now,
                                     replayed=True, tool=tool or "")
         if not isinstance(tool, str) or not isinstance(args, dict):
-            return self._reject(actor, tool, args, InvalidAction(_MALFORMED))
+            return self._hinted(self._reject(actor, tool, args, InvalidAction(_MALFORMED)), actor, tool, args)
         try:
             ep = self.resolve(tool, actor)
             if ep.host == "admin":
                 raise Forbidden("admin tools are reserved for the simulator operator")
         except CrucibleError as e:
-            return self._reject(actor, tool, args, e)
+            return self._hinted(self._reject(actor, tool, args, e), actor, tool, args)
         # canonical argument order: live execution and regeneration (args read back from sorted JSON) must see
         # identical inputs, or anything that iterates over them (validation messages, handlers) could diverge
         args = _sorted_keys(S.with_defaults(ep.params, args))
         errs = S.validate(ep.params, args)
         if errs:
-            return self._reject(actor, tool, args, InvalidAction("; ".join(errs[:6]), tool=tool))
+            return self._hinted(self._reject(actor, tool, args, InvalidAction("; ".join(errs[:6]), tool=tool)),
+                                actor, tool, args, ep)
         limit = int(self.spec.params.get("max_actions_per_hour", 0))
         if limit:
             hour = self.now // 3600
@@ -634,12 +640,21 @@ class World:
         except CrucibleError as e:
             ext = list(ctx.ext)
             self._rollback()
-            return self._reject(actor, tool, args, e, cmd_no=cmd_no, ext=ext, key=key, cost=ep.cost_s)
+            return self._hinted(self._reject(actor, tool, args, e, cmd_no=cmd_no, ext=ext, key=key, cost=ep.cost_s),
+                                actor, tool, args)
         except Exception as e:  # a handler bug: never let it corrupt state
             self._rollback()
             if self.strict:
                 raise
             return self._reject(actor, tool, args, CrucibleError(f"internal error: {type(e).__name__}: {e}"))
+
+    def _hinted(self, res: ActionResult, actor, tool, args, ep: Endpoint | None = None) -> ActionResult:
+        """4.0: structured detail (near-miss tool names, schema paths) on the error RETURNED for a rejected
+        action. The recorded `cmd.rejected` event is untouched, so logs stay byte-identical to 3.0."""
+        if self.spec.params.get("discovery", True) is False:
+            return res
+        from . import discovery
+        return discovery.with_hints(self, actor, tool, args, res, ep)
 
     def _reject(self, actor, tool, args, err: CrucibleError, cmd_no=None, ext=None, key=None, cost=0) -> ActionResult:
         self.stats["rejected"] += 1
@@ -888,6 +903,9 @@ class World:
         import pickle
         d = pickle.loads(zlib.decompress(blob))
         spec = WorldSpec.from_dict(d["spec"])
+        if fork and store is not None and world_id in (None, d["world_id"]):
+            # a fork is another world: under its parent's id the store would record it as its own parent
+            world_id = f"{d['world_id']}.f{d['seq']}"
         w = cls(spec, world_id or d["world_id"], store, strict=strict)
         loaded = StateStore.loads(d["state"])
         # keep table declarations from install(), take data from snapshot

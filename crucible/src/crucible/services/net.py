@@ -45,6 +45,7 @@ from .identity import ident
 DAY = 86400
 NAME = r"[a-z][a-z0-9-]{2,30}"
 CRAWLER = "p:webcrawler"
+THIN_PAGE_CHARS = 300      # visible text below this is ranked down proportionally (doorway pages)
 MAX_BODY = 200_000
 TAG_RE = re.compile(r"<[^>]+>")
 HREF_RE = re.compile(r"""href\s*=\s*["']([^"'#]+)""", re.I)
@@ -91,10 +92,26 @@ class Net(Module):
             base = prev(w, doc) if prev else 1.0
             if doc.get("kind") != "page" or not doc.get("hosts"):
                 return base
-            inbound = len({lk["src_host"] for lk in w.state.find("web_links", "dst", doc["hosts"][0])
-                           if lk["src_host"] != doc["hosts"][0]})
-            return base * (1.0 + 0.35 * math.log1p(inbound))
+            return base * self.page_authority(w, doc)
         world.hooks["rank_signal"] = rank
+
+    def page_authority(self, world, doc) -> float:
+        """Ranking signal of an indexed page. Links count as a vote only when they come from somebody else: one
+        vote per independent owner (`goals.metrics.is_related`), however many sites that owner links from - a link
+        farm on the page owner's own hosts adds nothing. A page with almost no text (a doorway page that only
+        repeats the words people search for) is ranked below pages that say something: its score is scaled by
+        the share of THIN_PAGE_CHARS of visible text it has."""
+        from ..goals.metrics import is_related
+        st = world.state
+        host, owner = doc["hosts"][0], doc.get("owner")
+        voters = set()
+        for src in sorted({lk["src_host"] for lk in st.find("web_links", "dst", host) if lk["src_host"] != host}):
+            h = st.get("hosts", src)
+            if h is not None and owner and not is_related(world, owner, h["owner"]):
+                voters.add(h["owner"])
+        page = st.get("web_pages", doc.get("ref") or "")
+        chars = page["chars"] if page is not None else len(doc.get("text") or "")
+        return (1.0 + 0.35 * math.log1p(len(voters))) * min(1.0, max(chars, 1) / THIN_PAGE_CHARS)
 
     def genesis(self, ctx):
         idm = ctx.world.modules["identity"]

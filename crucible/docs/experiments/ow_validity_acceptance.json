@@ -1,0 +1,127 @@
+{
+ "families": {
+  "abm_commons": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 31.37,
+   "engine": "abm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 2,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "val",
+   "transfer": "structural",
+   "wall_s": 1756.1
+  },
+  "abm_complement": {
+   "accepted": 8,
+   "cpu_s_per_mechanism": 35.18,
+   "engine": "abm",
+   "n": 12,
+   "rate": 0.6666666666666666,
+   "reasons": {
+    "difficulty": 4
+   },
+   "seats": 2,
+   "solvable": {
+    "unknown": 4,
+    "yes": 8
+   },
+   "split": "val",
+   "transfer": "structural",
+   "wall_s": 1993.7
+  },
+  "abm_congestion": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 19.22,
+   "engine": "abm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "train",
+   "transfer": "base",
+   "wall_s": 1049.4
+  },
+  "abm_duopoly": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 31.0,
+   "engine": "abm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 2,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "train",
+   "transfer": "base",
+   "wall_s": 1701.5
+  },
+  "abm_duopoly_fx": {
+   "accepted": 6,
+   "cpu_s_per_mechanism": 44.32,
+   "engine": "abm",
+   "n": 12,
+   "rate": 0.5,
+   "reasons": {
+    "conservation": 1,
+    "difficulty": 6,
+    "exploits": 1
+   },
+   "seats": 2,
+   "solvable": {
+    "unknown": 4,
+    "yes": 8
+   },
+   "split": "test",
+   "transfer": "structural",
+   "wall_s": 2383.5
+  },
+  "abm_network_fx": {
+   "accepted": 8,
+   "cpu_s_per_mechanism": 21.46,
+   "engine": "abm",
+   "n": 12,
+   "rate": 0.6666666666666666,
+   "reasons": {
+    "conservation": 3,
+    "difficulty": 1,
+    "exploits": 3
+   },
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "test",
+   "transfer": "structural",
+   "wall_s": 1148.5
+  },
+  "abm_segments": {
+   "accepted": 12,
+   "cpu_s_per_mechanism": 25.38,
+   "engine": "abm",
+   "n": 12,
+   "rate": 1.0,
+   "reasons": {},
+   "seats": 1,
+   "solvable": {
+    "yes": 12
+   },
+   "split": "test",
+   "transfer": "compositional",
+   "wall_s": 1399.0
+  }
+ },
+ "first_seed": 0,
+ "n_per_family": 12,
+ "total": {
+  "accepted": 70,
+  "n": 84
+ }
+}

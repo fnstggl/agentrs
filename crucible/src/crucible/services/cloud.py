@@ -197,7 +197,18 @@ class Cloud(Module):
             if used > 0 and used + est > cap:
                 self._usage(ctx, dep_id, 0, 0.0, 0.0, "overload", 0)
                 return {"status": 503, "error": "service overloaded (instance capacity exhausted this hour)"}
-        out = self._run(ctx, dep_id, dep, handler, args, caller, post)
+        running = ctx.world.runtime.setdefault("cloud.running", set())
+        if dep_id in running:
+            # the deployment is already executing further up this call chain (a service calling itself, directly or
+            # through others): its single worker cannot serve a second request before the first returns
+            self._usage(ctx, dep_id, 0, 0.0, 0.0, "overload", 0)
+            return {"status": 503, "error": "service is already handling a request in this call chain "
+                                            "(a service cannot call itself)"}
+        running.add(dep_id)
+        try:
+            out = self._run(ctx, dep_id, dep, handler, args, caller, post)
+        finally:
+            running.discard(dep_id)
         cu = out["cpu_ms"] * work_scale
         status = 200 if out["ok"] else 500
         err = None if out["ok"] else (out["error"] or {}).get("message", "error")
@@ -246,6 +257,14 @@ class Cloud(Module):
     def _usage(self, ctx, dep_id, n, cpu_ms, cu, outcome, work_scale, err=None):
         ctx.emit("cloud.usage", {"dep": dep_id, "n": n, "cpu_ms": round(cpu_ms, 4), "cu": round(cu, 3),
                                  "outcome": outcome, "ws": work_scale, "err": (err or "")[:200]}, vis="internal")
+        # A request sent by the operator's own side (the operator, its people and organisations, its own services)
+        # is real load but not demand: it is marked, so that the service metrics can count customers only. The
+        # acting principal is what counts, whatever label the request carries.
+        if ctx.actor != SYSTEM and outcome in ("ok", "error", "unavailable", "overload"):
+            from ..goals.metrics import is_related
+            dep = ctx.state.get("deployments", dep_id)
+            if is_related(ctx.world, dep["owner"], ctx.actor):
+                ctx.emit("cloud.usage_rel", {"dep": dep_id, "outcome": outcome}, vis="internal")
 
     def _revenue(self, ctx, dep_id, cents):
         ctx.emit("cloud.revenue", {"dep": dep_id, "cents": cents}, vis="internal")
@@ -286,18 +305,21 @@ class Cloud(Module):
             raise NotFound("no such provider")
         bank = ctx.world.modules["bank"]
         acct_owner = bank.account_owner(st, account)
-        ident(ctx.world).authorize(ctx, acct_owner, "bank.spend", scope=account)
+        first = prov["price"] * cores
+        # hourly billing is a standing charge: under a spending grant with a limit, the first hour and every later
+        # hour are checked against that grant and recorded on it (identity.authorize_standing)
+        grant = ident(ctx.world).authorize_standing(ctx, acct_owner, account, first)
         used = sum(i["cores"] for i in st.find("instances", "provider", provider) if i["status"] == "running")
         if used + cores > prov["cores"]:
             ops = ctx.world.hooks.get("ops")
             raise CapacityExceeded(f"{provider} has {prov['cores'] - used} free cores",
                                    persist=[ops.loss_event(owner, "capacity_unavailable", 0, 1, provider)] if ops else [])
-        first = prov["price"] * cores
         bank.move(ctx, account, bank.primary_account(st, provider), first, "compute", f"first hour {cores} cores",
                   ref=provider)
         iid = st.new_id("inst")
         ctx.emit("cloud.instance", {"id": iid, "owner": owner, "provider": provider, "cores": cores,
-                                    "price": prov["price"], "account": account}, vis=(owner, provider))
+                                    "price": prov["price"], "account": account,
+                                    **({"grant": grant} if grant else {})}, vis=(owner, provider))
         return {"instance": iid, "price_core_hour_cents": prov["price"], "capacity_cu_per_hour": cores * CU_PER_CORE_HOUR}
 
     @endpoint("resize", S.obj({"instance": S.s_str(maxLength=40), "cores": S.s_int(minimum=1, maximum=64)},
@@ -429,8 +451,8 @@ class Cloud(Module):
         if not st.has("providers", provider):
             raise NotFound("not a provider")
         bank = ctx.world.modules["bank"]
-        ident(ctx.world).authorize(ctx, bank.account_owner(st, account), "bank.spend", scope=account)
         price = int(self.p("hardware_cents_per_core", 300_000)) * cores
+        ident(ctx.world).authorize(ctx, bank.account_owner(st, account), "bank.spend", amount=price, scope=account)
         bank.move(ctx, account, "acct_external", price, "hardware", f"{cores} cores", ref=provider)
         oid = st.new_id("hw")
         lead = int(self.p("hardware_lead_s", 7 * 86400))
@@ -623,7 +645,12 @@ class Cloud(Module):
             try:
                 if prov_acct is None:
                     raise ServiceUnavailable("provider has no account")
+                grant = inst.get("grant")
+                if grant and ident(ctx.world).grant_room(ctx, grant) < amount:
+                    raise Forbidden("the spending limit of the grant that pays for this instance is used up")
                 bank.move(ctx, inst["account"], prov_acct, amount, "compute", f"instance {iid}", ref=inst["provider"])
+                if grant:
+                    ident(ctx.world).grant_spend(ctx, grant, amount)
                 if inst["status"] == "suspended":
                     ctx.emit("cloud.instance_status", {"id": iid, "status": "running", "reason": "paid"},
                              vis=(inst["owner"], inst["provider"]))
@@ -707,7 +734,8 @@ class Cloud(Module):
         self.world.state.insert("instances", p["id"], {"owner": p["owner"], "provider": p["provider"], "cores": p["cores"],
                                                       "price": p["price"], "account": p["account"], "status": "running",
                                                       "created": ev.t, "used_cu": 0.0, "hour": ev.t // 3600,
-                                                      "suspended_at": None})
+                                                      "suspended_at": None,
+                                                      **({"grant": p["grant"]} if p.get("grant") else {})})
 
     @applier("cloud.instance_status")
     def ap_instance_status(self, ev):
@@ -775,6 +803,20 @@ class Cloud(Module):
         return dict(st.tables["svc_hours"].get(f"{host}|{hour}") or
                     {"host": host, "hour": hour, "ok": 0, "errors": 0, "unavailable": 0, "overload": 0, "cu": 0.0,
                      "revenue_cents": 0})
+
+    @applier("cloud.usage_rel")
+    def ap_usage_rel(self, ev):
+        """Marks the request just recorded by `cloud.usage` as coming from the operator's own side: per-day
+        counters `rel_ok` / `rel_errors` / `rel_unavailable` / `rel_overload` (present only when non-zero)."""
+        p = ev.payload
+        st = self.world.state
+        dep = st.tables["deployments"][p["dep"]]
+        key = f"{dep['host']}|{ev.t // 86400}"
+        r = st.tables["svc_days"].get(key)
+        if r is None:
+            return
+        k = "rel_" + {"ok": "ok", "error": "errors", "unavailable": "unavailable", "overload": "overload"}[p["outcome"]]
+        st.put("svc_days", key, {**r, k: r.get(k, 0) + 1})
 
     @applier("cloud.usage_bulk")
     def ap_usage_bulk(self, ev):
