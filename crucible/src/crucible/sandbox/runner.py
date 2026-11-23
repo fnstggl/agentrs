@@ -7,7 +7,9 @@ Layers (all verified by tests/test_sandbox.py):
 3. privileges dropped to an unprivileged uid (default `nobody`) before any user code runs;
 4. Landlock: read-only access to the Python standard library, approved packages and system libraries; read-write
    access only to the job's own working directory; all TCP bind/connect denied (ABI >= 4);
-5. seccomp: no socket creation, no exec, no ptrace/mount/namespace/BPF/io_uring/keyring syscalls;
+5. seccomp: no socket creation, no exec, no ptrace/mount/namespace/BPF/io_uring/keyring syscalls; signals,
+   resource limits and scheduling changes only on the calling process itself (all workers share one unprivileged
+   uid, so the kernel alone would let one tenant's code signal another tenant's worker);
 6. wall-clock timeouts per job, enforced by the parent (the whole process group is killed);
 7. the only channel to the outside is a JSON-lines pipe to the parent; calls into the synthetic internet go through
    `crucible_sdk.call(tool, **args)`, which the kernel authorises and records like any other action.
@@ -179,7 +181,10 @@ class Worker:
         reads, syspath = _read_paths(cfg.packages)
         pkgs = _pkg_dir(cfg)
         reads.append(pkgs)
-        boot_cfg = {"uid": pw.pw_uid, "gid": pw.pw_gid, "read_paths": reads + [os.path.dirname(BOOT)],
+        # boot.py itself is not readable from inside: it is fully loaded before Landlock is applied, and the
+        # simulator's sandbox package (isolation settings, broker protocol, host paths) is none of the tenant's
+        # business
+        boot_cfg = {"uid": pw.pw_uid, "gid": pw.pw_gid, "read_paths": reads,
                     "sys_path": syspath + [pkgs], "out_bytes": cfg.out_bytes, "allow_root": cfg.allow_root,
                     "require_landlock": not cfg.allow_weak, "require_seccomp": not cfg.allow_weak,
                     "count_lines": cfg.count_lines}
@@ -300,7 +305,18 @@ class Worker:
         t0 = time.monotonic()
         deadline = t0 + timeout
         n_rpc = 0
-        self._write({"op": "job", "id": jid, **job})
+
+        def died(reason: str) -> dict:
+            self.dead_reason = reason
+            tail = self._stderr_tail()
+            self._kill()
+            return {"ok": False, "error": {"type": "WorkerDied", "message": reason, "stderr": tail[-800:]},
+                    "result": None, "stdout": "", "cpu_ms": (time.monotonic() - t0) * 1000.0,
+                    "wall_ms": (time.monotonic() - t0) * 1000.0, "rpc_calls": n_rpc}
+        try:
+            self._write({"op": "job", "id": jid, **job})
+        except OSError:                       # the process is gone (killed, crashed): an ordinary failed job
+            return died("process exited before the job could be sent")
         while True:
             msg = self._read_msg(deadline)
             if msg is None:
@@ -312,13 +328,17 @@ class Worker:
             if op == "rpc":
                 n_rpc += 1
                 if rpc is None or n_rpc > max_rpc:
-                    self._write({"op": "rpc_result", "id": msg["id"], "ok": False,
-                                 "error": {"code": "forbidden", "message": "no network calls available"}})
-                    continue
-                pause = time.monotonic()
-                ok, val = rpc(msg.get("tool", ""), msg.get("args") or {})
-                deadline += time.monotonic() - pause  # time spent in the broker is not the program's
-                self._write({"op": "rpc_result", "id": msg["id"], "ok": ok, **({"result": val} if ok else {"error": val})})
+                    reply = {"op": "rpc_result", "id": msg["id"], "ok": False,
+                             "error": {"code": "forbidden", "message": "no network calls available"}}
+                else:
+                    pause = time.monotonic()
+                    ok, val = rpc(msg.get("tool", ""), msg.get("args") or {})
+                    deadline += time.monotonic() - pause  # time spent in the broker is not the program's
+                    reply = {"op": "rpc_result", "id": msg["id"], "ok": ok, **({"result": val} if ok else {"error": val})}
+                try:
+                    self._write(reply)
+                except OSError:               # the process died while its call was being served
+                    return died("process exited during a world call")
             elif op == "done" and msg.get("id") == jid:
                 msg["rpc_calls"] = n_rpc
                 return msg

@@ -25,7 +25,8 @@ from typing import Any
 import numpy as np
 
 from ..core.canonical import digest
-from .metrics import METRICS, check_predicate, evaluate_metric, evaluate_predicate, related_parties
+from .metrics import (METRICS, check_predicate, evaluate_metric, evaluate_predicate, related_parties,
+                      uses_instant_metric)
 
 DAY = 86400
 
@@ -100,7 +101,13 @@ def bindings(world, actor: str) -> dict:
 
 class GoalVerifier:
     """Independent verification of one goal for one actor. Holds evaluator-side memory (sustain counters) outside
-    the world, so the agent cannot read or alter it."""
+    the world, so the agent cannot read or alter it.
+
+    "Sustained for k daily checks" means the outcome lasted, not that it was true at k instants an agent can count
+    to. Windowed metrics (revenue over 30 days, requests over 7) carry that meaning themselves. A predicate on a
+    metric of a single instant (a balance, a search rank: `metrics.INSTANT_METRICS`) does not, so for those the
+    verifier also looks between the daily checks - at every harness step (`sample`) - and a streak only grows if
+    the predicate held at every look since the previous check; otherwise it starts again at one."""
 
     def __init__(self, goal: GoalContract, actor: str):
         self.goal = goal
@@ -110,6 +117,9 @@ class GoalVerifier:
         self.streak = 0
         self.success_t: int | None = None
         self.initially_true = False
+        self.instant = goal.sustain_checks > 1 and uses_instant_metric(goal.success)
+        self.lapsed = False             # the predicate was seen false since the last daily check
+        self.samples = 0
 
     def begin(self, world) -> None:
         self.start_t = world.now
@@ -153,12 +163,26 @@ class GoalVerifier:
             v = v - p["baseline"]
         return float(np.clip(v / max(1e-9, p["target"]), 0.0, 1.0))
 
+    def sample(self, world) -> None:
+        """A look between daily checks (called by the harness at every step). Only needed, and only done, while a
+        streak on a point-in-time predicate is running."""
+        if self.instant and self.streak > 0 and self.success_t is None and not self.lapsed:
+            self.samples += 1
+            if not self.predicate(world):
+                self.lapsed = True
+
     def daily_check(self, world) -> None:
         if self.success_t is not None:
             return
         okv = self.predicate(world)
         self.checks.append((world.now, okv))
-        self.streak = self.streak + 1 if okv else 0
+        if not okv:
+            self.streak = 0
+        elif self.lapsed:
+            self.streak = 1             # true now, but not all the way since the last check: a new streak
+        else:
+            self.streak += 1
+        self.lapsed = False
         if self.streak >= self.goal.sustain_checks and not self.initially_true:
             self.success_t = world.now
 
@@ -191,6 +215,8 @@ class RewardContract:
 
     def step_reward(self, world, actor) -> float:
         v = self.v[actor]
+        if world.now < self.next_check[actor]:
+            v.sample(world)
         while world.now >= self.next_check[actor]:
             v.daily_check(world)
             self.next_check[actor] += self.check_every_s

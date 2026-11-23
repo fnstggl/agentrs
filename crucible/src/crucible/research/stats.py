@@ -216,3 +216,65 @@ def curve_band(curves: Sequence[tuple[Sequence[float], Sequence[float]]], grid: 
         hi.append(c["hi"])
         ns.append(c["n"])
     return {"x": grid.tolist(), "mean": mean, "lo": lo, "hi": hi, "n": ns}
+
+
+# ---------------------------------------------------------------------------- evaluator helpers (protocols)
+def iqm_ci(x: Iterable[float], level: float = 0.95, n_boot: int = 2000, seed: int = 0) -> dict:
+    """Interquartile mean with a percentile bootstrap interval over runs."""
+    a = _arr(x)
+    if len(a) == 0:
+        return {"n": 0, "iqm": None, "lo": None, "hi": None, "low_n": True}
+    rng = np.random.default_rng(seed)
+    s = np.sort(a[rng.integers(0, len(a), size=(n_boot, len(a)))], axis=1)
+    k = len(a) // 4 if len(a) >= 4 else 0
+    m = s[:, k:len(a) - k].mean(axis=1)
+    q = (1 - level) / 2
+    return {"n": int(len(a)), "iqm": iqm(a), "lo": float(np.quantile(m, q)), "hi": float(np.quantile(m, 1 - q)),
+            "low_n": len(a) < MIN_N}
+
+
+def ratio_ci(num: Sequence[float], den: Sequence[float], level: float = 0.95, n_boot: int = 4000,
+             seed: int = 0) -> dict:
+    """Ratio of means mean(num) / mean(den) of *paired* samples (same runs, same order), with a percentile
+    bootstrap interval that resamples the pairs jointly.
+
+    A ratio of means is a statement only while the denominator is safely positive: `defined` is False (and
+    `ratio`, `lo`, `hi` are None) when the denominator's mean, or the lower end of its own bootstrap interval, is
+    not above zero. The numerator and denominator means are always returned, so the difference can be read
+    instead."""
+    a = np.asarray(num, float)
+    b = np.asarray(den, float)
+    if a.shape != b.shape:
+        raise ValueError("paired samples must have the same length")
+    ok = np.isfinite(a) & np.isfinite(b)
+    a, b = a[ok], b[ok]
+    out = {"n": int(len(a)), "num_mean": float(a.mean()) if len(a) else None,
+           "den_mean": float(b.mean()) if len(b) else None, "ratio": None, "lo": None, "hi": None,
+           "defined": False, "low_n": len(a) < MIN_N}
+    if len(a) == 0:
+        out["reason"] = "no pairs"
+        return out
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, len(a), size=(n_boot, len(a)))
+    na, nb = a[idx].mean(axis=1), b[idx].mean(axis=1)
+    q = (1 - level) / 2
+    if b.mean() <= 0 or float(np.quantile(nb, q)) <= 0:
+        out["reason"] = "the denominator is not reliably above zero: the ratio is undefined"
+        return out
+    r = na / nb
+    out.update(ratio=float(a.mean() / b.mean()), lo=float(np.quantile(r, q)), hi=float(np.quantile(r, 1 - q)),
+               defined=True)
+    return out
+
+
+def slope(y: Sequence[float]) -> float | None:
+    """Least-squares slope of y against position rescaled to [0, 1] (change over the whole sequence)."""
+    a = np.asarray(y, float)
+    ok = np.isfinite(a)
+    if ok.sum() < 2:
+        return None
+    x = np.linspace(0.0, 1.0, len(a))[ok]
+    a = a[ok]
+    x = x - x.mean()
+    den = float((x * x).sum())
+    return float((x * (a - a.mean())).sum() / den) if den > 0 else None

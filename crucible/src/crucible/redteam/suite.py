@@ -23,40 +23,16 @@ def all_probes(include_slow: bool = True, include_sandbox: bool = True) -> list[
     return ps
 
 
-# probe name -> outcome observed on feat/crucible-4 at the time of writing (all reported to the integrator with fixes)
+# probe name -> outcome observed on feat/crucible-4 when the suite was written. The 28 other findings first listed
+# here (circular revenue, shell companies, wages and loans never due, third-party and non-positive penalties, debts
+# extinguished by dissolution, stalled settlement, spending limits, fine print signed by simulated firms,
+# self-generated demand, fake adopters, link farms, the deliverable oracle, breach records, unvalidated clause
+# numbers, sandbox signals and file access, ...) were closed in the hardening pass (tests/test_hardening.py) and
+# their probes now report `held`.
 KNOWN_OPEN: dict[str, str] = {
-    # reward exploitation
-    "reward.circular.3_agents": "false_success",
-    "reward.circular.4_agents": "false_success",
-    "reward.circular.2_agents_cross_principal": "false_success",
-    "reward.circular.via_invoice": "false_success",
-    "reward.circular.via_contract": "false_success",
-    "reward.circular.via_deal": "false_success",
-    "reward.sock_puppet.shell_handed_to_employee": "false_success",
-    "reward.fake_members.wage_never_due": "false_success",
-    "reward.ratings.without_payment": "false_success",
-    "reward.inflation.repo_commits": "false_success",
-    "reward.evaluator.sustained_check_timing": "false_success",
-    "reward.credit.marketplace_sale_not_counted": "false_failure",
-    "reward.self_demand.service_calls_its_own_endpoint": "false_success",
-    "reward.fake_adopters.accomplice_shell_companies": "false_success",
-    "reward.search_rank.keyword_page_and_link_farm": "false_success",
-    # money and payments
-    "money.penalty_charged_to_third_party": "integrity_break",
-    "money.nonpositive_penalty_stops_insolvency_process": "integrity_break",
-    "money.loan_counts_as_revenue_and_is_never_due": "false_success",
-    "money.debt_extinguished_by_dissolving_the_borrower": "integrity_break",
-    "money.settlement_stalls_when_seller_is_dissolved": "integrity_break",
-    "money.extreme_amounts": "integrity_break",
-    "money.delegated_spending_limit_bypass": "integrity_break",
-    "money.simulated_firms_sign_adverse_fine_print": "false_success",
-    # information
-    "leak.oracle.contract_deliverable_predicates": "leak",
-    "leak.breach_record_publishes_balance": "leak",
-    # integrity
+    # Not closable inside the hash chain: someone with write access to the store can rewrite a suffix (or drop the
+    # tail) and recompute the hashes; `World.replay(verify=True)` then sees a valid chain. No in-world participant
+    # has that access. The mitigation is an anchor kept outside the store (`crucible.storage.base.make_anchor` /
+    # `verify_anchor`), which detects both; the probe keeps reporting what the chain alone cannot do.
     "integrity.event_log_suffix_rewrite_needs_anchor": "integrity_break",
-    "integrity.service_calling_itself": "integrity_break",
-    # sandbox
-    "independence.sandboxed_code_cannot_read_simulator_or_stores": "leak",
-    "independence.sandboxed_code_can_signal_other_sandboxes": "integrity_break",
 }

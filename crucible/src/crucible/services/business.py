@@ -8,11 +8,19 @@
   for `insolvency_grace_s` is declared bankrupt. Bankruptcy is a real procedure: accounts are frozen, the remaining
   cash is distributed pro rata to claimants, services and instances are terminated, contracts end, listings close,
   non-owner members are released, and the event is public.
+* Winding a company up never makes what it owes disappear. Before anything is distributed, its open marketplace
+  orders and bounties are settled, and every payment it still owes under an active contract in a fixed number of
+  instalments (a loan's remaining repayments), and the penalty of every deliverable it promised and has not
+  delivered, becomes a claim. A company can dissolve itself only if it can pay all of that in full (creditors
+  first, then shareholders); otherwise the way out is insolvency, where creditors share what is left and the
+  contracts it leaves unpaid end as breached by it - on its public record.
+* The daily run treats every company on its own: a record that cannot be processed is reported
+  (`biz.daily_failed`) and does not stop fees, claim settlement or insolvency for anyone else.
 """
 from __future__ import annotations
 
 from ..core import schema as S
-from ..core.errors import Conflict, CrucibleError, Forbidden, InvalidAction, NotFound
+from ..core.errors import Conflict, CrucibleError, Forbidden, InvalidAction, NotFound, contain
 from ..core.kernel import Module, applier, endpoint, process, register_module
 from .identity import ident
 
@@ -79,8 +87,9 @@ class Business(Module):
         if ctx.state.has("companies", org):
             raise Conflict("already registered")
         bank = ctx.world.modules["bank"]
-        ident(ctx.world).authorize(ctx, bank.account_owner(ctx.state, account), "bank.spend", scope=account)
-        self.register_company(ctx, org, ctx.actor, sector, pay_from=account)
+        fee = int(self.p("registration_fee_cents", 50_000))
+        ident(ctx.world).authorize(ctx, bank.account_owner(ctx.state, account), "bank.spend", amount=fee, scope=account)
+        self.register_company(ctx, org, ctx.actor, sector, fee=fee, pay_from=account)
         return {"company": org, "shares_issued": SHARES, "holder": ctx.actor}
 
     @endpoint("company", S.obj({"org": S.s_str(maxLength=40)}, ["org"]), read_only=True)
@@ -109,7 +118,9 @@ class Business(Module):
 
     @endpoint("dissolve", S.obj({"org": S.s_str(maxLength=40)}, ["org"]), cost_s=600)
     def ep_dissolve(self, ctx, org):
-        """Voluntarily wind up a solvent company: claims are paid first, the rest goes to shareholders."""
+        """Voluntarily wind up a solvent company: everything it owes (open claims, the remaining instalments of
+        its contracts, penalties of deliverables it has not delivered) is paid first, the rest goes to
+        shareholders. Refused if it cannot pay all of that: terminate or settle the contracts first."""
         org = ident(ctx.world).resolve_handle(ctx.state, org)
         if ident(ctx.world).role(ctx.state, org, ctx.actor) != "owner":
             raise Forbidden("only owners dissolve")
@@ -119,57 +130,112 @@ class Business(Module):
         return {"ok": True}
 
     # ------------------------------------------------------------------ insolvency
+    @staticmethod
+    def _valid(amount) -> bool:
+        return type(amount) is int and amount > 0
+
     def open_claims(self, state, org) -> list:
         return [(cid, c) for cid in state.find_ids("claims", "debtor", org)
                 for c in [state.tables["claims"][cid]] if c["status"] == "open"]
 
+    def fixed_obligations(self, state, org) -> list[tuple[str, int, str, int, str]]:
+        """(contract, clause, creditor, cents, what) for everything `org` still owes under active contracts in a
+        definite amount: unpaid payments of clauses with a fixed number of instalments, and the penalties of
+        deliverables it promised and has not delivered. Open-ended recurring payments (a salary, a subscription)
+        are not debts: they stop when the contract ends."""
+        from .contracts import remaining_fixed
+        out = []
+        for row in state.find("contract_parties", "party", org):
+            k = state.tables["contracts"][row["contract"]]
+            if k["status"] not in ("active", "terminating"):
+                continue
+            for i, cl in enumerate(k["clauses"]):
+                if cl["type"] == "payment" and cl["from"] == org:
+                    rem = remaining_fixed(k, i)
+                    if self._valid(rem):
+                        out.append((row["contract"], i, cl["to"], rem, "remaining payments"))
+                elif cl["type"] == "deliverable" and cl["by"] == org and cl.get("penalty") \
+                        and str(i) not in k["delivered"]:
+                    pen = cl["penalty"]
+                    if pen["from"] == org and pen["to"] in k["parties"] and pen["to"] != org and self._valid(pen["amount"]):
+                        out.append((row["contract"], i, pen["to"], pen["amount"], "penalty"))
+        return out
+
     @process("daily")
     def pr_daily(self, ctx):
+        st = ctx.state
+        for org in st.find_ids("companies", "status", "registered"):
+            # every company on its own: a record that cannot be processed must not stop the run for the others
+            err = contain(ctx, self._company_day, ctx, org)
+            if err is not None:
+                ctx.emit("biz.daily_failed", {"org": org, "error": f"{type(err).__name__}: {err}"[:200]}, vis="internal")
+
+    def _company_day(self, ctx, org):
         st = ctx.state
         bank = ctx.world.modules["bank"]
         grace = int(self.p("insolvency_grace_s", 14 * 86400))
         annual = int(self.p("annual_fee_cents", 20_000))
         contracts = ctx.world.modules["contracts"]
-        for org in st.find_ids("companies", "status", "registered"):
-            c = st.tables["companies"][org]
-            acct = bank.primary_account(st, org)
-            if annual and (ctx.now - c["t"]) // (365 * 86400) > c["fees_paid"] - 1 and ctx.now - c["t"] >= 365 * 86400:
-                try:
-                    if acct is None:
-                        raise Forbidden("no account")
-                    bank.move(ctx, acct, "acct_fees", annual, "fee", "annual registration fee")
-                    ctx.emit("biz.fee", {"org": org}, vis=(org,))
-                except CrucibleError:
-                    contracts.add_claim(ctx, org, "sys", annual, "annual registration fee")
-                    ctx.emit("biz.fee", {"org": org, "unpaid": True}, vis=(org,))
-            claims = self.open_claims(st, org)
-            if not claims:
-                if c["distress_since"] is not None:
-                    ctx.emit("biz.distress", {"org": org, "since": None}, vis="public")
-                continue
-            owed = sum(cl["amount"] for _, cl in claims)
-            cash = bank.available(st, acct) if acct else 0
-            if cash >= owed and acct is not None:   # pay claims automatically when cash exists (creditor priority)
-                for cid, cl in claims:
-                    dst = bank.primary_account(st, cl["creditor"]) if cl["creditor"] != "sys" else "acct_fees"
-                    if dst is None:
-                        continue
-                    bank.move(ctx, acct, dst, cl["amount"], "claim", f"claim {cid}")
-                    ctx.emit("contracts.claim_status", {"id": cid, "status": "settled", "paid": cl["amount"]},
-                             vis=(org, cl["creditor"]))
-                continue
-            if c["distress_since"] is None:
-                ctx.emit("biz.distress", {"org": org, "since": ctx.now, "owed": owed}, vis="public")
-            elif ctx.now - c["distress_since"] >= grace:
-                self._wind_up(ctx, org, "bankrupt")
+        c = st.tables["companies"][org]
+        acct = bank.primary_account(st, org)
+        if annual and (ctx.now - c["t"]) // (365 * 86400) > c["fees_paid"] - 1 and ctx.now - c["t"] >= 365 * 86400:
+            try:
+                if acct is None:
+                    raise Forbidden("no account")
+                bank.move(ctx, acct, "acct_fees", annual, "fee", "annual registration fee")
+                ctx.emit("biz.fee", {"org": org}, vis=(org,))
+            except CrucibleError:
+                contracts.add_claim(ctx, org, "sys", annual, "annual registration fee")
+                ctx.emit("biz.fee", {"org": org, "unpaid": True}, vis=(org,))
+        claims = self.open_claims(st, org)
+        for cid, cl in claims:
+            if not self._valid(cl["amount"]):     # a record from before claims were validated: it claims nothing
+                ctx.emit("contracts.claim_status", {"id": cid, "status": "void", "paid": 0}, vis=(org, cl["creditor"]))
+        claims = [(cid, cl) for cid, cl in claims if self._valid(cl["amount"])]
+        if not claims:
+            if c["distress_since"] is not None:
+                ctx.emit("biz.distress", {"org": org, "since": None}, vis="public")
+            return
+        owed = sum(cl["amount"] for _, cl in claims)
+        cash = bank.available(st, acct) if acct else 0
+        if cash >= owed and acct is not None:   # pay claims automatically when cash exists (creditor priority)
+            for cid, cl in claims:
+                dst = bank.primary_account(st, cl["creditor"]) if cl["creditor"] != "sys" else "acct_fees"
+                if dst is None:
+                    continue
+                bank.move(ctx, acct, dst, cl["amount"], "claim", f"claim {cid}")
+                ctx.emit("contracts.claim_status", {"id": cid, "status": "settled", "paid": cl["amount"]},
+                         vis=(org, cl["creditor"]))
+            return
+        if c["distress_since"] is None:
+            ctx.emit("biz.distress", {"org": org, "since": ctx.now, "owed": owed}, vis="public")
+        elif ctx.now - c["distress_since"] >= grace:
+            self._wind_up(ctx, org, "bankrupt")
 
     def _wind_up(self, ctx, org, status):
         st = ctx.state
         bank = ctx.world.modules["bank"]
+        contracts = ctx.world.modules["contracts"]
+        # 1. money the world is holding for or from the company is settled while its accounts are still open
+        market = ctx.world.modules.get("market")
+        if market is not None:
+            market.settle_for_wind_up(ctx, org)
+        jobs = ctx.world.modules.get("jobs")
+        if jobs is not None:
+            jobs.cancel_for_wind_up(ctx, org)
+        # 2. what it still owes under its contracts becomes claims (nothing is extinguished by winding up)
+        unpaid_contracts = set()
+        for cid, i, creditor, amount, what in self.fixed_obligations(st, org):
+            contracts.add_claim(ctx, org, creditor, amount, f"contract {cid} clause {i}: {what} due on wind-up")
+            unpaid_contracts.add(cid)
         accts = [a for a in st.find_ids("accounts", "owner", org) if st.tables["accounts"][a]["status"] == "open"]
         cash = sum(max(0, st.tables["accounts"][a]["balance"]) for a in accts)
-        claims = self.open_claims(st, org)
+        claims = [(cid, cl) for cid, cl in self.open_claims(st, org) if self._valid(cl["amount"])]
         owed = sum(c["amount"] for _, c in claims)
+        if status == "dissolved" and owed > cash:
+            raise Conflict(f"{org} owes {owed} cents (open claims, remaining contract payments, penalties of "
+                           f"undelivered deliverables) and holds {cash}: a company that cannot pay what it owes "
+                           "cannot dissolve itself - settle or terminate its contracts first")
         payout_ratio = min(1.0, cash / owed) if owed else 0.0
         # pay claimants pro rata from the accounts in id order
         for cid, cl in claims:
@@ -198,15 +264,17 @@ class Business(Module):
                     if x > 0 and dst is not None and dst != a:
                         bank.move(ctx, a, dst, x, "distribution", f"wind-up of {org}")
                         share -= x
-        contracts = ctx.world.modules["contracts"]
         for row in st.find("contract_parties", "party", org):
             k = st.tables["contracts"][row["contract"]]
             if k["status"] in ("active", "terminating", "proposed"):
-                contracts.end(ctx, row["contract"], "terminated", f"{org} {status}")
+                if row["contract"] in unpaid_contracts and payout_ratio < 1:
+                    # it leaves payments it promised unpaid: a breach by the company, on its public record
+                    contracts.end(ctx, row["contract"], "breached", f"{org} {status} with obligations unpaid", by=org)
+                else:
+                    contracts.end(ctx, row["contract"], "terminated", f"{org} {status}")
         cloud = ctx.world.modules.get("cloud")
         if cloud is not None:
             cloud.on_bankrupt(ctx, org)
-        market = ctx.world.modules.get("market")
         if market is not None:
             for lid in st.find_ids("listings", "seller", org):
                 if st.tables["listings"][lid]["status"] == "active":
@@ -246,6 +314,10 @@ class Business(Module):
     def ap_fee(self, ev):
         c = self.world.state.tables["companies"][ev.payload["org"]]
         self.world.state.patch("companies", ev.payload["org"], fees_paid=c["fees_paid"] + 1)
+
+    @applier("biz.daily_failed")
+    def ap_daily_failed(self, ev):
+        pass
 
     @applier("biz.distress")
     def ap_distress(self, ev):

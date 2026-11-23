@@ -32,7 +32,7 @@ from typing import Iterator, Sequence
 from ..core.canonical import digest
 from ..mechanisms.base import CONTRACT_VERSION, MECH_FAMILIES, build_engine, make_mechanism
 
-TASK_VERSION = "task/1"
+TASK_VERSION = "task/2"
 ENDOWMENT_TICKS = 20            # the operator starts with this many ticks' worth of the facility's demand income
 GOAL_FRACTION = 0.5             # the public objective sits this far from the default net toward the reference net
 VAL_SEED0 = 1_000_000
@@ -142,11 +142,8 @@ def world_seed_of(family: str, seed: int) -> int:
 
 
 def _income(mech: dict) -> int:
-    inc = mech["config"].get("income_cents_per_tick")
-    if inc is None:
-        from ..mechanisms.sim import suggest_income
-        inc = suggest_income(mech)
-    return int(inc)
+    from ..mechanisms.sim import demand_income
+    return demand_income(mech)
 
 
 def make_task(family: str, seed: int, validate: bool = True, max_tries: int = 8) -> Task:
@@ -169,7 +166,7 @@ def make_task(family: str, seed: int, validate: bool = True, max_tries: int = 8)
     _MECHS[(family, int(got["seed"]))] = mech
     eng = build_engine(mech)
     econ = rep["economics"][0]
-    inc = int(mech["config"].get("income_cents_per_tick") or econ["scale"])
+    inc = _income(mech)
     h = int(eng.horizon)
     d, r = float(econ["default_net"]), float(econ["reference_net"])
     return Task(family, int(seed), int(got["seed"]), world_seed_of(family, seed), inc, ENDOWMENT_TICKS * inc, h,

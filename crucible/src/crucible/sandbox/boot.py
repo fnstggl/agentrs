@@ -104,7 +104,18 @@ DENY = ["socket", "socketpair", "connect", "bind", "listen", "accept", "accept4"
         "io_uring_enter", "io_uring_register", "kexec_load", "kexec_file_load", "init_module", "finit_module",
         "delete_module", "reboot", "swapon", "swapoff", "sethostname", "setdomainname", "acct", "quotactl",
         "name_to_handle_at", "open_by_handle_at", "setuid", "setgid", "setreuid", "setregid", "setresuid",
-        "setresgid", "setgroups", "personality"]
+        "setresgid", "setgroups", "personality",
+        # handles on other processes (every sandbox worker runs under the same unprivileged uid, so the kernel's
+        # own permission checks would let one tenant's code act on another tenant's worker)
+        "pidfd_open", "pidfd_send_signal", "pidfd_getfd", "kcmp", "process_madvise", "process_mrelease"]
+# Syscalls that name a target process: allowed only when the target is this process itself. (syscall, index of
+# the argument that names the target, value it must have: "pid" = our own pid, 0 = "the calling process").
+SELF_ONLY = [("kill", 0, "pid"), ("tkill", 0, "pid"), ("tgkill", 0, "pid"), ("rt_sigqueueinfo", 0, "pid"),
+             ("rt_tgsigqueueinfo", 0, "pid"), ("prlimit64", 0, 0), ("sched_setaffinity", 0, 0),
+             ("sched_setscheduler", 0, 0), ("sched_setparam", 0, 0), ("sched_setattr", 0, 0), ("setpriority", 1, 0),
+             ("ioprio_set", 1, 0), ("migrate_pages", 0, 0), ("move_pages", 0, 0)]
+# fcntl commands that make the kernel deliver SIGIO/SIGURG for a descriptor to an arbitrary process
+FCNTL_DENY = [8, 10, 15]   # F_SETOWN, F_SETSIG, F_SETOWN_EX
 
 
 def seccomp() -> bool:
@@ -145,6 +156,21 @@ def seccomp() -> bool:
     nr = sc.seccomp_syscall_resolve_name(b"clone")
     if sc.seccomp_rule_add_array(ctx, errno_eperm, nr, 1, cmp) != 0:
         raise SystemExit("sandbox: seccomp clone rule failed")
+    # signals, limits and scheduling: only on ourselves. SCMP_CMP_NE compares the full 64-bit argument, so only
+    # the exact value passes; a process group (0 or negative for kill), "everyone" (-1) and any other pid do not.
+    me = os.getpid()
+    for name, arg, want in SELF_ONLY:
+        nr = sc.seccomp_syscall_resolve_name(name.encode())
+        if nr < 0:
+            continue
+        cmp = (ArgCmp * 1)(ArgCmp(arg, 1, me if want == "pid" else want, 0))  # SCMP_CMP_NE
+        if sc.seccomp_rule_add_array(ctx, errno_eperm, nr, 1, cmp) != 0:
+            raise SystemExit(f"sandbox: seccomp self-only rule for {name} failed")
+    nr = sc.seccomp_syscall_resolve_name(b"fcntl")
+    for cmd in FCNTL_DENY:
+        cmp = (ArgCmp * 1)(ArgCmp(1, 4, cmd, 0))  # SCMP_CMP_EQ
+        if nr >= 0 and sc.seccomp_rule_add_array(ctx, errno_eperm, nr, 1, cmp) != 0:
+            raise SystemExit("sandbox: seccomp fcntl rule failed")
     if sc.seccomp_load(ctx) != 0:
         raise SystemExit("sandbox: seccomp_load failed")
     return True
@@ -214,6 +240,43 @@ def _resolve(spec: str):
 
 _LINES = [0]
 _MON = None
+_IMPORTING = [0]
+
+
+def _quiet_import(name, globals=None, locals=None, fromlist=(), level=0):
+    _IMPORTING[0] += 1
+    try:
+        return _REAL_IMPORT(name, globals, locals, fromlist, level)
+    finally:
+        _IMPORTING[0] -= 1
+
+
+def _quiet_import_module(name, package=None):
+    _IMPORTING[0] += 1
+    try:
+        return _REAL_IMPORT_MODULE(name, package)
+    finally:
+        _IMPORTING[0] -= 1
+
+
+if CFG.get("count_lines"):
+    # Deterministic cost model: the work of a request is the Python lines it executes, and must not depend on what
+    # this process happened to have loaded already (a fresh worker - after a restart, in a fork of the world, in
+    # a resumed run - must charge what a warm one charges). Loading code is therefore never counted: neither the
+    # program itself (`_run` loads it before counting starts) nor a module imported while a request runs.
+    import builtins
+    import importlib
+    _REAL_IMPORT, _REAL_IMPORT_MODULE = builtins.__import__, importlib.import_module
+    builtins.__import__ = _quiet_import
+    importlib.import_module = _quiet_import_module
+_SHIM_A, _SHIM_B = _quiet_import.__code__, _quiet_import_module.__code__
+
+
+def _on_line(code, line):
+    if code is _SHIM_A or code is _SHIM_B:
+        return sys.monitoring.DISABLE         # our own import shims are not the program's work
+    if not _IMPORTING[0]:
+        _LINES[0] += 1
 
 
 def _count_on():
@@ -222,7 +285,7 @@ def _count_on():
     mon = sys.monitoring
     if _MON is None:
         mon.use_tool_id(4, "crucible-work")
-        mon.register_callback(4, mon.events.LINE, lambda code, line: _LINES.__setitem__(0, _LINES[0] + 1))
+        mon.register_callback(4, mon.events.LINE, _on_line)
         _MON = mon
     _LINES[0] = 0
     mon.set_events(4, mon.events.LINE)
@@ -240,6 +303,15 @@ def _run(job: dict) -> dict:
     sys.stdout = sys.stderr = buf
     c0, w0 = _cpu_ms(), time.perf_counter()
     counting = bool(CFG.get("count_lines"))
+    if counting and job.get("kind", "call") == "call":
+        # load the program before counting starts (and drop what it prints while loading): the first request a
+        # fresh worker serves then costs, and records, exactly what every later request does
+        sys.stdout = sys.stderr = io.StringIO()
+        try:
+            _resolve(job["target"])
+        except BaseException:  # noqa: BLE001 - the counted run below reports the failure
+            pass
+        sys.stdout = sys.stderr = buf
     if counting:
         _count_on()
     try:

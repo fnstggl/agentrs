@@ -2,6 +2,7 @@
 persistent storage; name registration; rate limits and failures; crawling, link graph and search; real-browser and
 API equivalence."""
 import json
+import math
 import re
 
 import pytest
@@ -83,18 +84,19 @@ def _ex(w, who):
     return lambda t, **k: w.execute(who, {"tool": t, "args": k})  # noqa: E731
 
 
-def _deploy(w, host="notes", rate=120):
-    ex = _ex(w, "p:alice")
-    me = w.modules["bank"].primary_account(w.state, "p:alice")
-    if not w.state.has("orgs", "o:aliceweb"):
-        assert ex("id.create_org", handle="aliceweb", name="Alice Web", kind="company").ok
-        assert ex("biz.register", org="o:aliceweb", account=me).ok
-        acct = ex("bank.open_account", owner="o:aliceweb").result["account"]
-        ex("bank.transfer", from_account=me, to=acct, amount=1_000_000)
-    acct = w.modules["bank"].primary_account(w.state, "o:aliceweb")
-    repo = ex("code.create_repo", name=host, owner="o:aliceweb").result["repo"]
+def _deploy(w, host="notes", rate=120, who="alice", capital=1_000_000):
+    ex = _ex(w, f"p:{who}")
+    org = f"o:{who}web"
+    me = w.modules["bank"].primary_account(w.state, f"p:{who}")
+    if not w.state.has("orgs", org):
+        assert ex("id.create_org", handle=f"{who}web", name=f"{who.title()} Web", kind="company").ok
+        assert ex("biz.register", org=org, account=me).ok
+        acct = ex("bank.open_account", owner=org).result["account"]
+        ex("bank.transfer", from_account=me, to=acct, amount=capital)
+    acct = w.modules["bank"].primary_account(w.state, org)
+    repo = ex("code.create_repo", name=host, owner=org).result["repo"]
     assert ex("code.commit", repo=repo, files={"crucible.json": manifest(rate), "service.py": NOTES_APP}).ok
-    inst = ex("cloud.rent", provider="o:cloud1", cores=1, account=acct, owner="o:aliceweb").result["instance"]
+    inst = ex("cloud.rent", provider="o:cloud1", cores=1, account=acct, owner=org).result["instance"]
     r = ex("cloud.deploy", repo=repo, host=host, instance=inst)
     assert r.ok and r.result["status"] == "live", (r.error, r.result)
     return ex
@@ -145,7 +147,8 @@ def test_names_rate_limits_and_outages():
 def test_crawler_indexes_public_pages_follows_links_and_ranks_by_links():
     w = _world()
     _deploy(w)
-    _deploy(w, host="shopping")                                   # the site the notes board links to
+    _deploy(w, host="shopping", who="bob", capital=300_000)       # the site the notes board links to: someone else's
+    _deploy(w, host="shopfarm", who="bob", capital=300_000)       # bob's second site links to his first as well
     bob = _ex(w, "p:bob")
     bob("net.login", site="notes")
     bob("net.fetch", url="http://notes.crucible/notes", method="POST", form={"text": "a guide to sorting records"})
@@ -158,8 +161,17 @@ def test_crawler_indexes_public_pages_follows_links_and_ranks_by_links():
     assert any("notes.crucible/note/" in (h.get("ref") or "") for h in hits), hits
     assert any(lk["dst"] == "shopping" and lk["src_host"] == "notes" for _, lk in w.state.scan("web_links"))
     rank = w.hooks["rank_signal"]
-    shop_home = w.state.get("search_docs", "page:shopping.crucible/")
-    assert shop_home is not None and rank(w, shop_home) > 1.0             # inbound links raise the ranking signal
+    doc = lambda host: w.state.get("search_docs", f"page:{host}.crucible/")  # noqa: E731
+    # Hardened in 4.0 (red-team finding F17). This test used to deploy both sites under ONE owner and assert that
+    # the link between them raised the rank - exactly the owner-made link farm. A link is a vote only when it comes
+    # from an independent owner (one vote per owner), and a page with almost no text is ranked down.
+    links = {(lk["src_host"], lk["dst"]) for _, lk in w.state.scan("web_links")}
+    assert {("notes", "shopping"), ("shopfarm", "shopping")} <= links
+    net = w.modules["net"]
+    assert net.page_authority(w, doc("shopping")) == pytest.approx(
+        (1 + 0.35 * math.log1p(1)) * net.page_authority(w, doc("shopfarm")))    # alice's vote counts, bob's own does not
+    assert rank(w, doc("shopping")) > rank(w, doc("shopfarm"))            # the same page without an outside link
+    assert rank(w, doc("shopfarm")) < 1.0                                  # ~70 characters of text: a thin page
 
 
 def test_noindex_and_login_required_pages_are_not_indexed():

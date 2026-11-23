@@ -12,6 +12,15 @@ order under which impressions are charged later (inside other principals' search
   campaign account to the operator account (`config["operator_account"]`, default `acct_fees`). A campaign that
   cannot pay is paused (`reason="insufficient_funds"`) and the impression is not served (the search endpoint
   drops sponsored results that were not charged). Returns the campaign ids actually charged.
+* `search_impressions(ctx, campaign_ids)` is what a search by a participant uses: a campaign pays for at most ONE
+  impression per searcher per simulated day. The searcher is the person behind the search (a deployed service
+  counts as the people who control its operator), so repeating a query - by hand, from a script, or from any
+  number of one's own services - cannot run down somebody else's advertising budget; the ad is still shown on
+  repeats. Who has already been charged is read from the ledger (`bank.txn.by` of the impression charges), so the
+  rule needs no state of its own. Impressions served to the simulated consumer population are charged in bulk by
+  the demand process through `record_impressions` and are not affected.
+* A campaign created under a spending grant that has a limit remembers the grant: every impression is checked
+  against it and recorded on it, and the campaign pauses when the limit is used up.
 * A daily process (`ads.daily`) resets `spent_today`.
 
 Invariants: per campaign, `total_spent == impressions * bid_cents == sum of its ad_impressions bank txns`,
@@ -20,8 +29,8 @@ Invariants: per campaign, `total_spent == impressions * bid_cents == sum of its 
 from __future__ import annotations
 
 from ..core import schema as S
-from ..core.errors import Conflict, CrucibleError, InsufficientFunds, InvalidAction, NotFound
-from ..core.kernel import Ctx, Module, applier, endpoint, process, register_module
+from ..core.errors import Conflict, CrucibleError, Forbidden, InsufficientFunds, InvalidAction, NotFound
+from ..core.kernel import SYSTEM, Ctx, Module, applier, endpoint, process, register_module
 from .identity import ident
 from .search import HOST_NAME, KIND_RE, is_host, tokenize
 
@@ -111,14 +120,73 @@ class Ads(Module):
             if k <= 0:
                 self._pause(ctx, cid, c, "insufficient_funds")
                 continue
+            grant = c.get("grant")
+            if grant:
+                k = min(k, ident(ctx.world).grant_room(ctx, grant) // bid)
+                if k <= 0:
+                    self._pause(ctx, cid, c, "spending_limit")
+                    continue
             try:
                 tid = bank.move(ctx, c["account"], op, k * bid, TXN_KIND, f"ad impressions {cid}", ref=cid)  # type: ignore[attr-defined]
             except CrucibleError:   # bank.post validates before emitting: nothing to undo
                 self._pause(ctx, cid, c, "payment_failed")
                 continue
+            if grant:
+                ident(ctx.world).grant_spend(ctx, grant, k * bid)
             ctx.emit("ads.impressions", {"id": cid, "n": k, "amount": k * bid, "txn": tid}, vis="internal")
             charged.append(cid)
         return charged
+
+    def viewers(self, state, actor: str) -> set[str]:
+        """Every principal that is the same audience as `actor`: the persons behind it (itself; for a service the
+        owners and admins of its operator) and the services of everything those persons control."""
+        people: set[str] = set()
+        rec = state.get("principals", actor)
+        op = rec["info"].get("operator") if rec is not None and rec["kind"] == "service" else actor
+        if isinstance(op, str) and op.startswith("o:"):
+            people.update(m["person"] for m in state.find("members", "org", op) if m["role"] in ("owner", "admin"))
+        elif isinstance(op, str):
+            people.add(op)
+        out = set(people) | {actor}
+        if "hosts" in state.tables:
+            owners = set(people)
+            for p in people:
+                owners.update(m["org"] for m in state.find("members", "person", p) if m["role"] in ("owner", "admin"))
+            for o in sorted(owners):
+                out.update(f"svc:{h}" for h in state.find_ids("hosts", "owner", o))
+        return out
+
+    def seen_today(self, state, cid: str, viewers: set[str], now: int) -> bool:
+        """Whether one of `viewers` has already been charged an impression of this campaign this simulated day."""
+        idx = state.indexes.get(("txns", "by"))
+        if idx is None:
+            return False
+        day0 = (now // DAY) * DAY
+        txns = state.tables["txns"]
+        for v in viewers:
+            for tid in idx.get(v, ()):
+                tx = txns[tid]
+                if tx["kind"] == TXN_KIND and tx["ref"] == cid and tx["t"] >= day0:
+                    return True
+        return False
+
+    def search_impressions(self, ctx: Ctx, campaign_ids) -> list[str]:
+        """Impressions for one search by `ctx.actor`: returns the campaigns that may be shown - those charged now
+        (first impression of the day for this searcher) and those this searcher has already been charged for
+        today (shown again at no charge)."""
+        st = ctx.state
+        if ctx.actor == SYSTEM:                      # an operator's own query: charged like any impression
+            return self.record_impressions(ctx, campaign_ids, 1)
+        who = self.viewers(st, ctx.actor)
+        shown: list[str] = []
+        for cid in campaign_ids:
+            if cid in shown:
+                continue
+            if self.seen_today(st, cid, who, ctx.now):
+                shown.append(cid)
+            elif self.record_impressions(ctx, [cid], 1):
+                shown.append(cid)
+        return shown
 
     def _pause(self, ctx: Ctx, cid: str, c, reason: str) -> None:
         ctx.emit("ads.status", {"id": cid, "status": "paused", "reason": reason, "by": ctx.actor},
@@ -152,7 +220,10 @@ class Ads(Module):
         st = ctx.state
         bank = ctx.world.modules["bank"]
         owner = bank.account_owner(st, account)  # type: ignore[attr-defined]
-        ident(ctx.world).authorize(ctx, owner, "bank.spend", scope=account)
+        grant = ident(ctx.world).authorize_standing(ctx, owner, account)
+        if grant and ident(ctx.world).grant_room(ctx, grant) < bid_cents:
+            raise InsufficientFunds("your spending limit on this account does not cover a single impression",
+                                    account=account)
         if st.tables["accounts"][account]["kind"] == "system":
             raise InvalidAction("system accounts cannot advertise")
         if daily_budget_cents < bid_cents:
@@ -174,7 +245,7 @@ class Ads(Module):
         ctx.emit("ads.campaign", {"id": cid, "advertiser": owner, "account": account, "keywords": kws, "kind": kind,
                                   "bid_cents": bid_cents, "daily_budget_cents": daily_budget_cents,
                                   "landing": {"title": title, "text": text, "hosts": hs, "ref": ref},
-                                  "by": ctx.actor}, vis=(owner, ctx.actor))
+                                  "by": ctx.actor, **({"grant": grant} if grant else {})}, vis=(owner, ctx.actor))
         return {"campaign": cid, "keywords": kws}
 
     @endpoint("pause", S.obj({"campaign": S.s_str(maxLength=40)}, ["campaign"]), cost_s=5)
@@ -192,7 +263,9 @@ class Ads(Module):
     def ep_resume(self, ctx, campaign):
         """Resume a paused campaign (the account must be able to pay for an impression)."""
         c = self._campaign(ctx, campaign)
-        ident(ctx.world).authorize(ctx, c["advertiser"], "bank.spend", scope=c["account"])
+        grant = ident(ctx.world).authorize_standing(ctx, c["advertiser"], c["account"])
+        if grant and grant != c.get("grant"):
+            raise Forbidden("a spending grant with a limit can only resume campaigns that were created under it")
         if c["status"] == "active":
             raise Conflict("already active")
         bank = ctx.world.modules["bank"]
@@ -236,7 +309,8 @@ class Ads(Module):
                                              "bid_cents": p["bid_cents"],
                                              "daily_budget_cents": p["daily_budget_cents"], "status": "active",
                                              "reason": None, "spent_today": 0, "total_spent": 0, "impressions": 0,
-                                             "landing": dict(p["landing"]), "created": ev.t, "by": p["by"]})
+                                             "landing": dict(p["landing"]), "created": ev.t, "by": p["by"],
+                                             **({"grant": p["grant"]} if p.get("grant") else {})})
         for kw in p["keywords"]:
             st.insert("ads_kw", f"{kw}|{p['id']}", {"kw": kw, "campaign": p["id"]})
 

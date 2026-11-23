@@ -148,6 +148,7 @@ def random_settings(eng, rng) -> dict:
 def test_engine_and_families_registered():
     assert ENGINES["abm"] is abm.AbmEngine
     assert abm.AbmEngine.state_in_event is False
+    assert abm.AbmEngine.claims == ("default_zero", "random_loses", "corners_bad")
     want = {"abm_utility": ("train", "base", 1), "abm_wom": ("train", "base", 1),
             "abm_congestion": ("train", "base", 1), "abm_trust_gate": ("val", "structural", 1),
             "abm_network_fx": ("test", "structural", 1), "abm_segments": ("test", "compositional", 1),
@@ -979,6 +980,21 @@ def test_calibration_default_reference_random_corners(family):
          random_negative_share=float(np.mean(np.array(c.rand) < 0)))
     assert len(c.corners) == 2 ** len(c.roles) >= 8
     assert best_corner < 0.3 * r, (family, best_corner, r, max(c.corners, key=c.corners.get))
+
+
+@pytest.mark.parametrize("family", ALL)
+def test_constructive_optimum_is_the_reference_these_tests_measure(family):
+    """The engine's own statement of a good setting (a private hint for the operator's reference search) is exactly
+    the reference whose earnings the calibration test establishes, in the schedule form the evaluator expects."""
+    for sd in (0, 7):
+        eng = eng_of(family, sd)
+        for seat in range(eng.n_seats):
+            hint = eng.constructive_optimum(seat)
+            assert [e["from"] for e in hint["schedule"]] == [0]
+            got, want = hint["schedule"][0]["settings"], nat(eng, **REF[family])
+            assert got.keys() == want.keys() == {lv.name for lv in eng.levers(seat)}
+            assert all(abs(got[nm] - want[nm]) < 1e-9 and 0.0 <= got[nm] <= 100.0 for nm in got)
+    assert abm._GOOD[eng_of(family, 0).config["kind"]] == REF[family]
 
 
 def _paired(family: str, a: dict, b: dict, seeds=SEEDS20, ticks=None) -> tuple[float, float, float, float]:

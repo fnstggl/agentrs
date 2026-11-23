@@ -281,7 +281,7 @@ class NPCs(Module):
                 tier = min(tiers - 1, int(skill * tiers))
                 path = f"solutions/{need.replace('.', '_')}.py"
                 c = self.act(ctx, person, "code.commit", {"repo": repo, "files": {path: tier_source(need, tier)},
-                                                          "message": f"implement {need} (issue {it['id']})"})
+                                                          "message": f"implement {need} (issue {it['issue']})"})
                 if c:
                     self.act(ctx, person, "issues.close", {"issue": it["issue"], "comment": f"Implemented in {repo}:{path}, function solve(args, caller)."})
                 prog_map = dict(w.get("progress", {}))
@@ -347,8 +347,14 @@ class NPCs(Module):
         org = mem[0]["org"]
         if org in w.get("blacklist", []):
             return False, "this employer did not pay before"
+        # an employment offer gives the worker a job and a wage; it never takes anything from the worker
+        if any(_takes_from(cl, person) for cl in c["clauses"]):
+            return False, "the offer contains a clause that would cost me money or rights"
+        # a wage is money that arrives: at least monthly, first within a month of signing, and for long enough to
+        # be a job (open-ended, or at least three months). A "wage" first due in a year is worth nothing today.
         pay = sum(cl["amount"] for cl in c["clauses"] if cl["type"] == "payment" and cl["to"] == person
-                  and cl.get("every_s") and cl["every_s"] <= 31 * DAY)
+                  and cl.get("every_s") and cl["every_s"] <= 31 * DAY and (cl.get("start_in_s") or 0) <= 31 * DAY
+                  and (cl.get("count") is None or cl["count"] * cl["every_s"] >= 90 * DAY))
         want = w["reservation"] * (1.15 if w["employer"] else 1.0)
         comp = st.get("companies", org)
         if comp is None or comp["status"] != "registered":
@@ -374,6 +380,8 @@ class NPCs(Module):
         back = [cl for cl in c["clauses"] if cl["type"] == "payment" and cl["to"] == org]
         if len(out) != 1 or not back:
             return False, "expected one disbursement and repayments"
+        if any(_takes_from(cl, org) for cl in c["clauses"] if cl is not out[0]):
+            return False, "the contract contains a clause that would cost us beyond the disbursement"
         borrower = out[0]["to"]
         principal = out[0]["amount"]
         if principal > L["max"]:
@@ -383,16 +391,46 @@ class NPCs(Module):
            not any(g["owner"] == borrower and g["cap"] in ("bank.read", "bank.*", "*") and g["status"] == "active"
                    for g in st.find("grants", "grantee", org)):
             return False, "grant us bank.read so we can verify your revenue"
+        # the people behind the borrower: a company is cheap to found, so its owners' record counts - a lender
+        # does not lend to a new company of someone whose last company left its debts unpaid
+        owners = {m["person"] for m in st.find("members", "org", borrower) if m["role"] == "owner"} \
+            if borrower.startswith("o:") else {borrower}
+        circle = {borrower} | owners
+        for p in sorted(owners):
+            circle.update(m["org"] for m in st.find("members", "person", p) if m["role"] == "owner")
+        circle.update(oid for oid, o in st.tables["orgs"].items() if o.get("founder") in owners)
+        if any(cl["status"] in ("open", "written_off") for p in sorted(circle) for cl in st.find("claims", "debtor", p)):
+            return False, "the borrower or another company of its owners has unpaid or written-off debts"
         repay = sum(cl["amount"] * (cl["count"] or 1) for cl in back)
         months = max(1.0, sum((cl["every_s"] or 0) * (cl["count"] or 1) for cl in back) / (30 * DAY))
         rate = (repay / principal - 1.0) / months if principal else 0.0
         rev = m_independent_revenue(ctx.world, borrower, 30 * DAY)
         if rate < L["rate"]:
             return False, f"monthly rate {rate:.3f} below our {L['rate']:.3f}"
-        if principal > 3 * rev:
-            return False, "principal exceeds three months of verified independent revenue"
-        if months > 12:
+        # repayment must actually begin, and end: first instalment within a month, everything repaid within a year,
+        # every recurring repayment with a fixed number of instalments
+        if any(cl.get("every_s") and cl.get("count") is None for cl in back):
+            return False, "repayments need a fixed number of instalments"
+        first_due = min((cl.get("start_in_s") or 0) for cl in back)
+        last_due = max((cl.get("start_in_s") or 0) + (cl["every_s"] or 0) * ((cl["count"] or 1) - 1) for cl in back)
+        if first_due > 31 * DAY:
+            return False, "the first repayment must fall due within a month"
+        if months > 12 or last_due > 366 * DAY:
             return False, "term longer than 12 months"
+        # what the borrower already owes us (remaining instalments of our other loans, unpaid claims) counts
+        # against the same limit: revenue is verified once, not once per loan
+        from ..services.contracts import remaining_fixed
+        exposure = 0
+        for row in st.find("contract_parties", "party", org):
+            k = st.tables["contracts"][row["contract"]]
+            if k["status"] in ("active", "terminating"):
+                exposure += sum(remaining_fixed(k, i) for i, cl in enumerate(k["clauses"])
+                                if cl["type"] == "payment" and cl["from"] == borrower and cl["to"] == org)
+        exposure += sum(cl["amount"] for cl in st.find("claims", "creditor", org)
+                        if cl["debtor"] == borrower and cl["status"] == "open")
+        if principal + exposure > 3 * rev:
+            return False, ("principal exceeds three months of verified independent revenue" if not exposure else
+                           "principal plus what you already owe us exceeds three months of verified independent revenue")
         return True, "approved"
 
     def on_ended(self, ctx, cid, status):
@@ -472,3 +510,17 @@ class NPCs(Module):
             if w["employer"] is not None and not st.has("members", f"{w['employer']}|{person}"):
                 errs.append(f"worker {person} employed by {w['employer']} but not a member")
         return errs
+
+
+def _takes_from(cl: dict, who: str) -> bool:
+    """Whether a contract clause makes `who` pay, give up shares, delegate rights, or owe a deliverable. The
+    simulated workers and lenders sign what they are offered for what it gives them; they do not sign fine print
+    that takes something from them (a penalty they would pay, a grant over their account, ...)."""
+    t = cl["type"]
+    if t in ("payment", "shares"):
+        return cl["from"] == who
+    if t == "grant":
+        return cl["owner"] == who
+    if t == "deliverable":
+        return cl["by"] == who or (cl.get("penalty") or {}).get("from") == who
+    return False

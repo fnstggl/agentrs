@@ -903,6 +903,9 @@ class World:
         import pickle
         d = pickle.loads(zlib.decompress(blob))
         spec = WorldSpec.from_dict(d["spec"])
+        if fork and store is not None and world_id in (None, d["world_id"]):
+            # a fork is another world: under its parent's id the store would record it as its own parent
+            world_id = f"{d['world_id']}.f{d['seq']}"
         w = cls(spec, world_id or d["world_id"], store, strict=strict)
         loaded = StateStore.loads(d["state"])
         # keep table declarations from install(), take data from snapshot

@@ -424,6 +424,22 @@ class MechSim:
                 "status": status}
 
 
+def demand_income(mech: dict, engine: Engine | None = None) -> int:
+    """The demand income per tick of a facility hosting `mech`, the same number wherever it is needed (hosting,
+    tasks, validity): what the mechanism's config declares (`income_cents_per_tick`); else what its engine states
+    without simulating (`engine.demand_income_cents_per_tick`); else a probe by simulation (`suggest_income`)."""
+    inc = mech["config"].get("income_cents_per_tick")
+    if inc is None:
+        if engine is None:
+            if mech["engine"] not in ENGINES:
+                ensure_engines()
+            engine = build_engine(mech)
+        inc = getattr(engine, "demand_income_cents_per_tick", None)
+    if inc is None:
+        inc = suggest_income(mech)
+    return int(inc)
+
+
 def suggest_income(mech: dict, seeds: int = 2, margin: float = 1.25) -> int:
     """A demand income per tick for a mechanism whose engine declares none (`config.income_cents_per_tick`):
     `margin` times the largest total revenue any tick earned in seeded runs at default, extreme and random

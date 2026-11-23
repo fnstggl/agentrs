@@ -12,16 +12,70 @@ Clause types (composable; none encodes a strategy):
 
 A contract becomes active when every party has signed; offers expire. Breaches are public facts (they affect
 counterparties' decisions) and unpaid amounts become claims that the bankruptcy process honours.
+
+What a contract can and cannot do (validated when it is proposed; validation is the only gate, because the
+scheduled processes that execute clauses move money without asking anybody again):
+
+* money only ever moves between parties: payer and payee of a payment, and payer and payee of a penalty, have all
+  signed. A penalty is owed for a failed deliverable by the party that must deliver, or by another signatory acting
+  as guarantor - never to the party that failed (nobody is paid for its own failure);
+* every number is a bounded integer (amounts 1..10^12 cents like the ledger, periods of at least an hour, a first
+  payment at most a year out), so nothing that cannot be executed can be signed;
+* a deliverable predicate may only read metrics about the parties themselves and what they own (their companies,
+  hosts, repositories): a contract is not a way to measure somebody who never signed it;
+* a public breach record says who breached what and how much is owed - not the debtor's account or balance.
 """
 from __future__ import annotations
 
+import numbers
+import re
+
 from ..core import schema as S
-from ..core.errors import Conflict, CrucibleError, Forbidden, InvalidAction, NotFound
+from ..core.errors import Conflict, CrucibleError, Forbidden, InsufficientFunds, InvalidAction, NotFound, contain
 from ..core.kernel import SYSTEM, Ctx, Module, applier, endpoint, process, register_module
 from .identity import ident
 
 CLAUSE = {"type": "object", "additionalProperties": True}
 MAX_CLAUSES = 12
+MAX_AMOUNT = 10**12                 # the ledger's own maximum (services/bank.py)
+MAX_START_S = 366 * 86400           # first payment / notice at most a year out
+MAX_TERM_S = 10 * 365 * 86400       # periods and deliverable deadlines
+CAP_RE = r"\*|[a-z]+(\.[a-z_*]+)?"
+
+
+def _int(x, lo: int, hi: int, what: str) -> int:
+    """A clause number: a real integer (never a bool, float or string) inside [lo, hi]."""
+    if isinstance(x, bool) or not isinstance(x, numbers.Integral):
+        raise InvalidAction(f"{what} must be an integer")
+    x = int(x)
+    if not lo <= x <= hi:
+        raise InvalidAction(f"{what} must be between {lo} and {hi}")
+    return x
+
+
+def remaining_fixed(c, i: int) -> int:
+    """Cents still to be paid under payment clause `i` of contract record `c` when the number of payments is
+    fixed (a single payment, or a recurring one with a count); 0 for open-ended recurring payments."""
+    cl = c["clauses"][i]
+    paid = c["paid"].get(str(i), 0)
+    if not cl.get("every_s"):
+        return 0 if paid >= 1 else int(cl["amount"])
+    if cl.get("count") is None:
+        return 0
+    return max(0, int(cl["count"]) - paid) * int(cl["amount"])
+
+
+def public_view(cid: str, c) -> dict:
+    """What a non-party may see of a breached contract: who, what status, what is owed - no text, no clauses,
+    no accounts, no reasons that quote the bank."""
+    reason = str(c.get("status_reason") or "")
+    if reason.startswith("payment failed"):
+        reason = "payment failed"
+    owed = [{"from": cl["from"], "to": cl["to"], "amount": cl["amount"]} for cl in c["clauses"]
+            if cl["type"] == "payment" and cl["from"] == c.get("breached_by")]
+    return {"id": cid, "title": c["title"], "parties": list(c["parties"]), "status": c["status"],
+            "breached_by": c.get("breached_by"), "status_reason": reason, "updated": c.get("updated"),
+            "payment_obligations_of_the_breaching_party": owed, "redacted": True}
 
 
 @register_module
@@ -38,24 +92,31 @@ class Contracts(Module):
 
     # ------------------------------------------------------------------ validation
     def validate(self, ctx: Ctx, parties: list[str], clauses: list[dict]) -> list[dict]:
-        from ..goals.metrics import check_predicate
+        from ..goals.metrics import check_predicate, check_predicate_scope, is_related
         st = ctx.state
         out = []
         if not clauses or len(clauses) > MAX_CLAUSES:
             raise InvalidAction(f"1-{MAX_CLAUSES} clauses required")
         R = lambda x: ident(ctx.world).resolve_handle(st, x)  # noqa: E731
         for i, c in enumerate(clauses):
-            t = c.get("type")
+            t = c.get("type") if isinstance(c, dict) else None
             try:
                 if t == "payment":
-                    cl = {"type": t, "from": R(c["from"]), "to": R(c["to"]), "amount": int(c["amount"]),
-                          "every_s": c.get("every_s"), "count": c.get("count"), "start_in_s": int(c.get("start_in_s", 0))}
+                    cl = {"type": t, "from": R(c["from"]), "to": R(c["to"]), "amount": c["amount"],
+                          "every_s": c.get("every_s"), "count": c.get("count"), "start_in_s": c.get("start_in_s", 0)}
+                    cl["amount"] = _int(cl["amount"], -MAX_AMOUNT, MAX_AMOUNT, f"clause {i}: amount")
                     if cl["amount"] <= 0 or cl["from"] == cl["to"]:
                         raise InvalidAction("payment needs a positive amount between different parties")
-                    if cl["every_s"] is not None and int(cl["every_s"]) < 3600:
-                        raise InvalidAction("recurring payments at most hourly")
-                    if cl["count"] is not None and not (1 <= int(cl["count"]) <= 10_000):
-                        raise InvalidAction("bad count")
+                    cl["start_in_s"] = _int(cl["start_in_s"], 0, MAX_START_S, f"clause {i}: start_in_s")
+                    if cl["every_s"] is not None:
+                        cl["every_s"] = _int(cl["every_s"], -MAX_TERM_S, MAX_TERM_S, f"clause {i}: every_s")
+                        if cl["every_s"] < 3600:
+                            raise InvalidAction("recurring payments at most hourly")
+                    if cl["count"] is not None:
+                        if isinstance(cl["count"], bool) or not isinstance(cl["count"], numbers.Integral) \
+                                or not 1 <= cl["count"] <= 10_000:
+                            raise InvalidAction("bad count")
+                        cl["count"] = int(cl["count"])
                     for k in ("from", "to"):
                         if cl[k] not in parties:
                             raise InvalidAction(f"clause {i}: {k} must be a party")
@@ -71,8 +132,14 @@ class Contracts(Module):
                           "scope": str(c.get("scope", "*")), "limit": c.get("limit")}
                     if cl["owner"] not in parties:
                         raise InvalidAction("the granting owner must be a party")
+                    if not isinstance(c["cap"], str) or not re.fullmatch(CAP_RE, cl["cap"]) or len(cl["cap"]) > 40 \
+                            or len(cl["scope"]) > 80:
+                        raise InvalidAction(f"clause {i}: bad capability or scope")
+                    if cl["limit"] is not None:
+                        cl["limit"] = _int(cl["limit"], 0, MAX_AMOUNT, f"clause {i}: limit")
                 elif t == "shares":
-                    cl = {"type": t, "org": R(c["org"]), "from": R(c["from"]), "to": R(c["to"]), "shares": int(c["shares"])}
+                    cl = {"type": t, "org": R(c["org"]), "from": R(c["from"]), "to": R(c["to"]),
+                          "shares": _int(c["shares"], -MAX_AMOUNT, MAX_AMOUNT, f"clause {i}: shares")}
                     if cl["from"] not in parties or cl["to"] not in parties or cl["shares"] <= 0:
                         raise InvalidAction("share transfers between parties, positive amounts")
                 elif t == "deliverable":
@@ -80,16 +147,31 @@ class Contracts(Module):
                     if errs:
                         raise InvalidAction("; ".join(errs))
                     pen = c.get("penalty")
-                    cl = {"type": t, "by": R(c["by"]), "predicate": c["predicate"], "due_in_s": int(c["due_in_s"]),
+                    cl = {"type": t, "by": R(c["by"]), "predicate": c["predicate"],
+                          "due_in_s": _int(c["due_in_s"], -MAX_TERM_S, MAX_TERM_S, f"clause {i}: due_in_s"),
                           "penalty": None if not pen else {"from": R(pen["from"]), "to": R(pen["to"]),
-                                                           "amount": int(pen["amount"])}}
+                                                           "amount": _int(pen["amount"], 1, MAX_AMOUNT,
+                                                                          f"clause {i}: penalty amount")}}
                     if cl["due_in_s"] < 3600:
                         raise InvalidAction("deliverables due at least an hour out")
+                    if cl["by"] not in parties:
+                        raise InvalidAction(f"clause {i}: the party that must deliver (`by`) must be a party")
+                    p = cl["penalty"]
+                    if p is not None:
+                        if p["from"] not in parties or p["to"] not in parties or p["from"] == p["to"]:
+                            raise InvalidAction(f"clause {i}: a penalty is paid by one party to another party")
+                        if p["to"] == cl["by"] or (p["from"] != cl["by"] and is_related(ctx.world, cl["by"], p["to"])):
+                            # "if I fail, you pay me" - or my company, my owner, my employee
+                            raise InvalidAction(f"clause {i}: a penalty cannot be paid to the party whose own "
+                                                "deliverable failed, or to a party related to it")
+                    errs = check_predicate_scope(ctx.world, cl["predicate"], parties)
+                    if errs:
+                        raise Forbidden(f"clause {i}: " + "; ".join(errs[:3]))
                 elif t == "notice":
-                    cl = {"type": t, "seconds": int(c["seconds"])}
+                    cl = {"type": t, "seconds": _int(c["seconds"], 0, MAX_START_S, f"clause {i}: seconds")}
                 else:
                     raise InvalidAction(f"unknown clause type {t!r}")
-            except (KeyError, TypeError, ValueError) as e:
+            except (KeyError, TypeError, ValueError, AttributeError) as e:
                 raise InvalidAction(f"clause {i} malformed: {e}")
             out.append(cl)
         return out
@@ -135,7 +217,11 @@ class Contracts(Module):
                 a = (accounts or {}).get(str(i)) or bank.primary_account(st, party)
                 if a is None or bank.account_owner(st, a) != party:
                     raise InvalidAction(f"clause {i}: name one of your accounts to pay from")
-                ident(ctx.world).authorize(ctx, party, "bank.spend", scope=a)
+                # a schedule of future debits is a standing order: it needs full authority over the account, not a
+                # delegation capped at an amount per month (the cap could never be enforced payment by payment)
+                if ident(ctx.world).authorize_standing(ctx, party, a) is not None:
+                    raise Forbidden(f"clause {i}: a spending grant with a limit cannot commit {a} to scheduled "
+                                    "contract payments")
                 accts[str(i)] = a
         ctx.emit("contracts.signed", {"id": cid, "party": party, "accounts": accts}, vis=tuple(c["parties"]))
         c = st.get("contracts", cid)
@@ -206,14 +292,30 @@ class Contracts(Module):
             hook(ctx, cid, status)
 
     def add_claim(self, ctx: Ctx, debtor: str, creditor: str, amount: int, source: str) -> str:
+        if isinstance(amount, bool) or not isinstance(amount, numbers.Integral) or not 0 < amount <= MAX_AMOUNT:
+            raise InvalidAction("a claim is a positive amount within the ledger's range")
         clid = ctx.state.new_id("claim")
         ctx.emit("contracts.claim", {"id": clid, "debtor": debtor, "creditor": creditor, "amount": int(amount),
                                      "source": source}, vis=(debtor, creditor))
         return clid
 
     # ------------------------------------------------------------------ processes
+    def _unexecutable(self, ctx, contract, clause, err) -> None:
+        """A clause that cannot be executed at all (a record written before clause numbers were validated) ends
+        the contract instead of leaving it active for ever with a dead schedule."""
+        c = ctx.state.get("contracts", contract)
+        if c is not None and c["status"] in ("active", "terminating"):
+            ctx.emit("contracts.clause_failed", {"id": contract, "clause": clause,
+                                                 "error": f"{type(err).__name__}: {err}"[:200]}, vis=tuple(c["parties"]))
+            self.end(ctx, contract, "terminated", f"clause {clause} could not be executed")
+
     @process("pay")
     def pr_pay(self, ctx, contract, clause):
+        err = contain(ctx, self._pay, ctx, contract, clause)
+        if err is not None:
+            self._unexecutable(ctx, contract, clause, err)
+
+    def _pay(self, ctx, contract, clause):
         st = ctx.state
         c = st.get("contracts", contract)
         if c is None or c["status"] not in ("active", "terminating"):
@@ -228,9 +330,13 @@ class Contracts(Module):
                 raise Forbidden("missing account")
             bank.move(ctx, src, dst, cl["amount"], "contract", f"{c['title']} (clause {clause})", ref=contract)
         except CrucibleError as e:
-            self.add_claim(ctx, cl["from"], cl["to"], cl["amount"], f"contract {contract} clause {clause}")
-            self.end(ctx, contract, "breached", f"payment failed: {e.message}", by=cl["from"])
-            self._penalties(ctx, contract)
+            self.add_claim(ctx, cl["from"], cl["to"], cl["amount"] + self._accelerated(c, clause),
+                           f"contract {contract} clause {clause}")
+            # the breach is a public record: it says that the payment failed and (coarsely) why, never the bank's
+            # own message, which names the debtor's account and its available funds
+            why = "insufficient funds" if isinstance(e, InsufficientFunds) else "the paying account is not available"
+            self.end(ctx, contract, "breached", f"payment failed: {why}", by=cl["from"])
+            self._penalties(ctx, contract, breacher=cl["from"])
             return
         ctx.emit("contracts.paid", {"id": contract, "clause": clause, "n": paid + 1}, vis=tuple(c["parties"]))
         if cl["every_s"] and (cl["count"] is None or paid + 1 < cl["count"]):
@@ -238,15 +344,39 @@ class Contracts(Module):
                          prio=35, key=f"pay|{contract}|{clause}")
         self._maybe_complete(ctx, contract)
 
+    @staticmethod
+    def _accelerated(c, clause: int) -> int:
+        """What else falls due when the payment of `clause` is missed. Nothing, for a one-way obligation (a fee,
+        a retainer: the missed instalment is claimed and the contract ends). But a party that has RECEIVED money
+        from its creditor under the same contract (a loan's disbursement) owes all of it back: every remaining
+        instalment it promised that creditor in a fixed number of payments falls due with the one it missed -
+        otherwise missing the first repayment would be the cheapest way to settle a loan."""
+        cl = c["clauses"][clause]
+        got = any(x["type"] == "payment" and x["from"] == cl["to"] and x["to"] == cl["from"]
+                  and c["paid"].get(str(i), 0) > 0 for i, x in enumerate(c["clauses"]))
+        if not got:
+            return 0
+        rest = sum(remaining_fixed(c, i) for i, x in enumerate(c["clauses"])
+                   if x["type"] == "payment" and x["from"] == cl["from"] and x["to"] == cl["to"])
+        return max(0, rest - int(cl["amount"])) if remaining_fixed(c, clause) else rest
+
     @process("check")
     def pr_check(self, ctx, contract, clause):
+        err = contain(ctx, self._check, ctx, contract, clause)
+        if err is not None:
+            self._unexecutable(ctx, contract, clause, err)
+
+    def _check(self, ctx, contract, clause):
         from ..goals.metrics import evaluate_predicate
         st = ctx.state
         c = st.get("contracts", contract)
         if c is None or c["status"] not in ("active", "terminating"):
             return
         cl = c["clauses"][clause]
-        ok = evaluate_predicate(ctx.world, cl["predicate"])
+        try:
+            ok = bool(evaluate_predicate(ctx.world, cl["predicate"]))
+        except Exception:  # noqa: BLE001 - a predicate that cannot be evaluated has not been met
+            ok = False
         ctx.emit("contracts.deliverable", {"id": contract, "clause": clause, "ok": ok}, vis=tuple(c["parties"]))
         if not ok:
             self.end(ctx, contract, "breached", f"deliverable {clause} not met", by=cl["by"])
@@ -254,14 +384,23 @@ class Contracts(Module):
         else:
             self._maybe_complete(ctx, contract)
 
-    def _penalties(self, ctx, cid, only=None):
+    def _penalties(self, ctx, cid, only=None, breacher=None):
+        """Charge the penalty of failed deliverable `only`; or, when `breacher` stopped paying, the penalties of
+        the deliverables that party itself still owed. Money moves only between parties (validation guarantees it
+        for new contracts; records written before that rule are checked again here)."""
         st = ctx.state
         c = st.get("contracts", cid)
         bank = ctx.world.modules["bank"]
         for i, cl in enumerate(c["clauses"]):
             if cl["type"] != "deliverable" or not cl.get("penalty") or (only is not None and i != only):
                 continue
+            if breacher is not None and (cl["by"] != breacher or str(i) in c["delivered"]):
+                continue
             pen = cl["penalty"]
+            amt = pen.get("amount")
+            if pen["from"] not in c["parties"] or pen["to"] not in c["parties"] or isinstance(amt, bool) \
+                    or not isinstance(amt, numbers.Integral) or not 0 < amt <= MAX_AMOUNT:
+                continue
             src, dst = bank.primary_account(st, pen["from"]), bank.primary_account(st, pen["to"])
             try:
                 if src is None or dst is None:
@@ -369,12 +508,15 @@ class Contracts(Module):
 
     @endpoint("view", S.obj({"contract": S.s_str(maxLength=40)}, ["contract"]), read_only=True)
     def ep_view(self, ctx, contract):
-        """Full text and state of a contract you are a party to (breached contracts are public)."""
+        """Full text and state of a contract you are a party to. A breach is a public fact: anyone may read who
+        breached which contract and what that party owed under it (no text, clauses or accounts)."""
         c = ctx.state.get("contracts", contract)
         if c is None:
             raise NotFound("no contract")
-        if not (ctx.world.principals_of(ctx.actor) & set(c["parties"])) and c["status"] != "breached":
-            raise Forbidden("not a party")
+        if not (ctx.world.principals_of(ctx.actor) & set(c["parties"])):
+            if c["status"] != "breached":
+                raise Forbidden("not a party")
+            return public_view(contract, c)
         return dict(c, id=contract)
 
     @endpoint("claims", S.obj(), read_only=True)
@@ -441,6 +583,10 @@ class Contracts(Module):
         c = st.tables["contracts"][ev.payload["id"]]
         if ev.payload["ok"]:
             st.patch("contracts", ev.payload["id"], delivered=sorted(set(c["delivered"]) | {str(ev.payload["clause"])}))
+
+    @applier("contracts.clause_failed")
+    def ap_clause_failed(self, ev):
+        pass
 
     @applier("contracts.note")
     def ap_note(self, ev):

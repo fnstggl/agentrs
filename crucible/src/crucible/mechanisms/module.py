@@ -690,13 +690,11 @@ def rig_module(world) -> Rig | None:
 def rig_entry(mech: dict, id: str = "r1", tick_s: int = 3600, income_cents_per_tick: int | None = None,
               holders: tuple | list = (), lease_cents: int = 0, **extra) -> dict:
     """One entry of the module's `rigs` config. `holders` are handles pre-assigned to seats 0, 1, ... (None leaves
-    a seat open). The demand income defaults to what the mechanism declares (`config.income_cents_per_tick`), or
-    to `sim.suggest_income(mech)` for engines that declare none."""
+    a seat open). The demand income defaults to `sim.demand_income(mech)`: what the mechanism declares, else what
+    its engine states, else a probe by simulation."""
     if income_cents_per_tick is None:
-        income_cents_per_tick = mech["config"].get("income_cents_per_tick")
-    if income_cents_per_tick is None:
-        from .sim import suggest_income
-        income_cents_per_tick = suggest_income(mech)
+        from .sim import demand_income
+        income_cents_per_tick = demand_income(mech)
     return {"id": id, "mech": mech, "tick_s": int(tick_s), "income_cents_per_tick": int(income_cents_per_tick),
             "seats": [{"holder": h} for h in holders], "lease_cents": int(lease_cents), **extra}
 

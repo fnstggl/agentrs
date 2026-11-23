@@ -15,8 +15,9 @@
                      signal-to-noise ratio of `SNR_MIN`, the noise being measured across independent replicates
     difficulty       the reference policy beats defaults and beats uniformly random settings by margins, and
                      neither corner (everything max / everything min) comes close to it
-    dynamism         (mechanisms that declare regimes) the settings that are best before the switch are clearly
-                     worse after it than the settings that are best after it
+    dynamism         (mechanisms that declare a lasting regime change) the settings that are best before the
+                     switch are clearly worse after it than the settings that are best after it; changes an
+                     engine marks `transient` are hazards, not shifts, and are exempt
     claims           properties the engine itself declares (`engine.claims`): `default_zero` (defaults earn about
                      nothing), `random_loses` (random settings lose money on average), `corners_bad`
 
@@ -268,9 +269,13 @@ def check_mechanism(mech: dict, n_seeds: int = 6, budget: int = 96, seed: int = 
 
     # ---- per seat: economics, effects, experiments, solvability
     try:
-        regimes = sorted({int(r["at"]) for r in eng.truth().get("regimes", []) if 0 < int(r["at"]) < h})
+        declared = [r for r in eng.truth().get("regimes", []) if 0 < int(r["at"]) < h]
     except Exception:                                           # noqa: BLE001
-        regimes = []
+        declared = []
+    # the optimum must move only for changes that stay: a disturbance that is undone later (marked `transient`
+    # by the engine) is a hazard to survive, and constant robust settings may be the best response to it
+    regimes = sorted({int(r["at"]) for r in declared if not r.get("transient")})
+    transient_only = bool(declared) and not regimes
     claims = tuple(getattr(eng, "claims", ()) or ())
     econ, per_seat = [], []
     for seat in range(n_seats):
@@ -381,6 +386,9 @@ def check_mechanism(mech: dict, n_seeds: int = 6, budget: int = 96, seed: int = 
         checks[name] = merge(name)
     if regimes:
         checks["dynamism"] = merge("dynamism")
+    elif transient_only:
+        checks["dynamism"] = {"ok": True, "applies": False,
+                              "why": "every declared change is transient; the optimum is not required to move"}
     if claims:
         names = sorted(per_seat[0]["claims"])
         checks["claims"] = {"ok": all(p["claims"][n]["ok"] for p in per_seat for n in names), "declared": list(claims),

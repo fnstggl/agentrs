@@ -11,6 +11,12 @@ signal `world.hooks["rank_signal"](world, doc_record) -> float` (reputation, upt
 modules; a signal <= 0 delists a document), with a recency tie-break (index time, then index order). Sponsored results come from
 `world.hooks["sponsored"](world, q, kind, limit)` (the ads module) and are placed first, labelled.
 
+`search.query` is read-only for the searcher: it changes nothing the searcher owns (it records the hosts the
+searcher learned). Showing a sponsored result does charge its advertiser - that is the standing order the
+advertiser placed - but at most one impression per campaign per searcher per simulated day
+(`ads.search_impressions`), so a query cannot be repeated to spend somebody else's budget. Evaluated through
+`World.query` (page rendering) nothing is charged or recorded at all.
+
 Determinism: the inverted index is a runtime cache (`world.runtime["search.index"]`) derived from the
 `search_docs` table. Appliers only mark documents dirty; the cache reconciles dirty documents against the
 authoritative records (by record identity) before every query, and keeps re-checking documents touched inside
@@ -283,7 +289,8 @@ class Search(Module):
             ads = ctx.world.modules.get("ads")
             camp = [r["campaign"] for r in sponsored if r.get("campaign")]
             if ads is not None and camp:
-                charged = set(ads.record_impressions(ctx, camp, 1))  # type: ignore[attr-defined]
+                # one paid impression per campaign per searcher per day; repeats are shown without a charge
+                charged = set(ads.search_impressions(ctx, camp))  # type: ignore[attr-defined]
                 sponsored = [r for r in sponsored if r.get("campaign") is None or r["campaign"] in charged]
         results = sponsored + organic
         for r in results:

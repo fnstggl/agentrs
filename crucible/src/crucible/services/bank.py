@@ -36,7 +36,7 @@ class Bank(Module):
     def install(self, world):
         st = world.state
         st.declare_table("accounts", index=("owner",))
-        st.declare_table("txns", index=("kind",))
+        st.declare_table("txns", index=("kind", "by"))
         st.declare_table("acct_txns", index=("acct",))
         st.declare_table("invoices", index=("payer", "payee_owner", "status"))
         st.declare_table("mandates", index=("payer_acct", "payee"))
@@ -254,11 +254,14 @@ class Bank(Module):
     def ep_mandate(self, ctx, from_account, payee, max_per_period, period_s=30 * 86400, purpose=""):
         """Direct-debit mandate: lets a payee (e.g. a cloud provider or employee contract) pull up to a limit."""
         owner = self.account_owner(ctx.state, from_account)
-        ident(ctx.world).authorize(ctx, owner, "bank.spend", scope=from_account)
+        # a mandate is a standing order: set up under a spending grant with a limit, every debit is checked
+        # against that grant and recorded on it (identity.authorize_standing)
+        grant = ident(ctx.world).authorize_standing(ctx, owner, from_account)
         payee = ident(ctx.world).resolve_handle(ctx.state, payee)
         mid = ctx.state.new_id("mandate")
         ctx.emit("bank.mandate", {"id": mid, "payer_acct": from_account, "payer": owner, "payee": payee,
-                                  "max": max_per_period, "period": period_s, "purpose": purpose[:120]},
+                                  "max": max_per_period, "period": period_s, "purpose": purpose[:120],
+                                  **({"grant": grant} if grant else {})},
                  vis=(owner, payee))
         return {"mandate": mid}
 
@@ -280,7 +283,12 @@ class Bank(Module):
         used = m["used"] if ctx.now - m["window_start"] < m["period"] else 0
         if used + amount > m["max"]:
             raise Forbidden("mandate limit exceeded")
+        grant = m.get("grant")
+        if grant and ident(ctx.world).grant_room(ctx, grant) < amount:
+            raise Forbidden("the spending limit of the grant this mandate was created under is used up")
         tid = self.move(ctx, m["payer_acct"], dst, amount, kind, memo, ref)
+        if grant:
+            ident(ctx.world).grant_spend(ctx, grant, amount)
         ctx.emit("bank.mandate_used", {"id": mandate, "amount": amount}, vis="internal")
         return tid
 
@@ -335,7 +343,8 @@ class Bank(Module):
         self.world.state.insert("mandates", p["id"], {"payer_acct": p["payer_acct"], "payer": p["payer"],
                                                      "payee": p["payee"], "max": p["max"], "period": p["period"],
                                                      "purpose": p["purpose"], "status": "active", "used": 0,
-                                                     "window_start": ev.t})
+                                                     "window_start": ev.t,
+                                                     **({"grant": p["grant"]} if p.get("grant") else {})})
 
     @applier("bank.mandate_used")
     def ap_mandate_used(self, ev):

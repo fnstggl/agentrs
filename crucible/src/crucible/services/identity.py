@@ -10,6 +10,14 @@ resource owned by someone else. The rules:
 4. Anyone else needs an explicit grant (delegation) from an owner/admin: capability, scope, optional spending
    limit per rolling 30-day window, optional expiry. Spending against a limit is recorded.
 5. A service principal acts with the grants its operating organisation gave it - nothing more.
+6. A spending limit bounds *every* way of spending under the grant. A one-off payment is checked and recorded when
+   it is made. A standing charge (an instance billed by the hour, an advertising campaign, a direct-debit mandate)
+   set up under a grant with a limit remembers that grant (`authorize_standing`), and every later charge is
+   checked against it and recorded on it (`grant_room` / `grant_spend`); when the limit is reached, or the grant
+   is revoked or expires, the charge fails like any payment that cannot be made.
+7. Ownership is accepted, not assigned: a member becomes an owner only by accepting an invitation to that role
+   (or by acquiring a majority of a company's shares). Leaving an organisation ends the leaver's own delegations
+   over it.
 """
 from __future__ import annotations
 
@@ -122,6 +130,64 @@ class Identity(Module):
             return True
         return False
 
+    # ------------------------------------------------------------------ standing charges under a limited grant
+    def authorize_standing(self, ctx: Ctx, owner: str, scope: str, first_amount: int = 0) -> str | None:
+        """Authorise `ctx.actor` to set up a standing charge on an account (`scope`) of `owner`, and to pay
+        `first_amount` now. Returns None when the authority has no spending limit (the owner itself, an
+        owner/admin of the organisation, or a grant without a limit) - nothing more to keep track of. Returns the
+        id of the grant when the authority is a grant *with* a limit: the caller stores it on what it creates and
+        charges through `grant_room` / `grant_spend`, so the limit bounds the standing charge as well.
+        `first_amount` is checked against that grant and recorded on it. Raises Forbidden otherwise."""
+        st = ctx.state
+        actor = ctx.actor
+        gid = None
+        if not self.allowed(ctx, actor, owner, "bank.spend", 0, scope):
+            raise Forbidden(f"{actor} lacks bank.spend on {owner} ({scope})")
+        o = st.get("orgs", owner)
+        by_role = actor == owner or actor == SYSTEM or (
+            o is not None and o["status"] == "active" and self.role(st, owner, actor) in ("owner", "admin"))
+        if not by_role:
+            limited = []
+            for g_id in st.find_ids("grants", "grantee", actor):
+                g = st.tables["grants"][g_id]
+                if g["owner"] != owner or g["status"] != "active" or not _cap_match(g["cap"], "bank.spend"):
+                    continue
+                if g["scope"] not in ("*", None) and g["scope"] != scope:
+                    continue
+                if g["expires"] is not None and g["expires"] <= ctx.now:
+                    continue
+                if g["limit"] is None:
+                    limited = None                     # full authority: no limit to enforce
+                    break
+                limited.append(g_id)
+            if limited is not None:
+                gid = next((g_id for g_id in limited if self.grant_room(ctx, g_id) >= max(1, int(first_amount))), None)
+                if gid is None:
+                    raise Forbidden(f"{actor}: the spending limit granted by {owner} does not cover this charge")
+                if first_amount:
+                    self.grant_spend(ctx, gid, int(first_amount))
+        gov = ctx.world.hooks.get("gov_check")       # same institutional rule as `authorize`
+        if gov is not None and owner.startswith("o:") and actor != SYSTEM and not ctx.read_only and ctx.tool \
+                and not ctx.tool.startswith("gov."):
+            gov(ctx, owner, ctx.tool, ctx.tool_args or {})
+        return gid
+
+    def grant_room(self, ctx: Ctx, gid: str) -> int:
+        """Cents that may still be spent under a grant in its current 30-day window (0 if it is no longer valid)."""
+        g = ctx.state.get("grants", gid)
+        if g is None or g["status"] != "active" or (g["expires"] is not None and g["expires"] <= ctx.now):
+            return 0
+        if g["limit"] is None:
+            return 10**18
+        used = g["used"] if ctx.now - g["window_start"] < WINDOW else 0
+        return max(0, int(g["limit"]) - int(used))
+
+    def grant_spend(self, ctx: Ctx, gid: str, amount: int) -> None:
+        """Record a charge made under a grant (callers check `grant_room` first and call this after the money
+        moved)."""
+        g = ctx.state.tables["grants"][gid]
+        ctx.emit("id.grant_used", {"id": gid, "amount": int(amount)}, vis=(g["owner"], g["grantee"]))
+
     # ------------------------------------------------------------------ endpoints
     @endpoint("profile", S.obj({"principal": S.s_str("p:<handle>, o:<handle> or a bare handle", maxLength=80)},
                                ["principal"]), read_only=True)
@@ -187,7 +253,11 @@ class Identity(Module):
         if not person.startswith("p:"):
             raise InvalidAction("only persons can be members")
         if ctx.state.has("members", f"{org}|{person}"):
-            raise Conflict("already a member")
+            # the one invitation an existing member can receive: to become an owner (ownership is accepted)
+            if role != "owner" or self.role(ctx.state, org, person) == "owner":
+                raise Conflict("already a member")
+            if self.role(ctx.state, org, ctx.actor) != "owner":
+                raise Forbidden("only owners offer ownership")
         iid = ctx.state.new_id("inv")
         ctx.emit("id.invite", {"id": iid, "org": org, "person": person, "role": role, "title": title,
                                "by": ctx.actor}, vis=(person, org))
@@ -201,7 +271,12 @@ class Identity(Module):
             raise NotFound("no such pending invite")
         ctx.emit("id.invite_response", {"id": invite, "accept": accept}, vis=(ctx.actor, inv["org"]))
         if accept:
-            self.add_member(ctx, inv["org"], ctx.actor, inv["role"], inv["title"])
+            if ctx.state.has("members", f"{inv['org']}|{ctx.actor}"):
+                if inv["role"] == "owner" and self.role(ctx.state, inv["org"], ctx.actor) != "owner":
+                    ctx.emit("id.role", {"org": inv["org"], "person": ctx.actor, "role": "owner"},
+                             vis=(ctx.actor, inv["org"]))
+            else:
+                self.add_member(ctx, inv["org"], ctx.actor, inv["role"], inv["title"])
         return {"joined": bool(accept), "org": inv["org"]}
 
     def add_member(self, ctx, org, person, role="member", title=""):
@@ -221,13 +296,17 @@ class Identity(Module):
     @endpoint("set_role", S.obj({"org": S.s_str(maxLength=40), "person": S.s_str(maxLength=40),
                                  "role": S.s_enum(list(ROLES))}, ["org", "person", "role"]))
     def ep_set_role(self, ctx, org, person, role):
-        """Owners change a member's role (owner/admin/member)."""
+        """Owners change a member's role (admin/member). Making somebody else an owner needs that person's
+        consent: use id.invite with role=owner, which the member accepts with id.respond_invite."""
         org = self.resolve_handle(ctx.state, org)
         person = self.resolve_handle(ctx.state, person)
         if self.role(ctx.state, org, ctx.actor) != "owner":
             raise Forbidden("only owners change roles")
         if not ctx.state.has("members", f"{org}|{person}"):
             raise NotFound("not a member")
+        if role == "owner" and person != ctx.actor and self.role(ctx.state, org, person) != "owner":
+            raise Forbidden("ownership must be accepted by the new owner: invite the member with role=owner "
+                            "(id.invite) and let them accept (id.respond_invite)")
         if role != "owner" and person == ctx.actor and len(self.org_owner_persons(ctx.state, org)) == 1:
             raise InvalidAction("an organisation needs at least one owner")
         ctx.emit("id.role", {"org": org, "person": person, "role": role}, vis=(person, org))
@@ -242,6 +321,12 @@ class Identity(Module):
         if self.role(ctx.state, org, ctx.actor) == "owner" and len(self.org_owner_persons(ctx.state, org)) == 1:
             raise InvalidAction("transfer ownership before leaving")
         self.remove_member(ctx, org, ctx.actor, "left")
+        # whoever leaves gives up the delegations it held over the organisation (an owner could have granted
+        # itself spending rights just before walking away)
+        for gid in ctx.state.find_ids("grants", "grantee", ctx.actor):
+            g = ctx.state.tables["grants"][gid]
+            if g["owner"] == org and g["status"] == "active":
+                ctx.emit("id.revoke", {"id": gid}, vis=(ctx.actor, org))
         ctx.world.hooks.get("on_member_left", lambda *a: None)(ctx, org, ctx.actor)
         return {"ok": True}
 

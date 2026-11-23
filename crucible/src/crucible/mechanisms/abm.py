@@ -190,7 +190,7 @@ _BASE_POP = dict(wtp_med=1.5, wtp_sig=0.30, inc_med=1.0, inc_sig=0.35, save_tick
                  sus_scale=0.0, nfx_scale=0.0, pioneer=1.0, th_lo=0.0, th_hi=0.0, m_lo=0.0, m_hi=0.0,
                  segments=[{"name": "all", "share": 1.0}])
 _BASE_COST = dict(unit=0.60, quality=0.10, capacity=0.05, overhead=0.0, unit_inc=0.60)   # in p0 (quality: N * p0)
-_BASE_SEAT = dict(price_lo=0.3, price_hi=2.8, price_default=1.6, q_lo=0.2, q_hi=0.9, q_gamma=0.5, cap_lo=0.02,
+_BASE_SEAT = dict(price_lo=0.3, price_hi=2.8, price_default=1.8, q_lo=0.2, q_hi=0.9, q_gamma=0.5, cap_lo=0.02,
                   cap_hi=0.6, out_hi=0.08, ref_hi=2.0, aware0=0.02)
 _BASE_ADAPT = dict(eta_loss=0.08, eta_gain=0.03, kappa=0.05, share_rate=0.03, floor=1.05, ceil=2.2, cap_up=0.5,
                    cap_down=0.03, util_lo=0.7, profit_rate=0.1, exit_frac=0.25, grace=20, delay=20,
@@ -239,7 +239,7 @@ _KINDS: dict[str, dict] = {
                     motifs=("outreach_awareness", "shared_attention_pool", "two_seat_rivalry")),
     "complement": dict(seats=2, levers=("price", "quality", "outreach"), noop=(0, 1), net=("blocks",),
                        n_inc=(1, 1), horizon=120, rules=dict(bundle=True, omega=0.05),
-                       cost=dict(unit=0.30, quality=0.05), seat=dict(price_lo=0.1, price_hi=1.5, price_default=0.8),
+                       cost=dict(unit=0.30, quality=0.05), seat=dict(price_lo=0.1, price_hi=1.5, price_default=0.9),
                        motifs=("outreach_awareness", "bundle_of_complements", "weakest_link_quality",
                                "sum_of_prices")),
     "duopoly_fx": dict(seats=2, levers=("price", "quality", "outreach"), noop=(0, 1), net=("ring",),
@@ -303,6 +303,22 @@ _CHAINS: dict[str, dict[str, str]] = {
         trial="value rises with the share of the customer's neighbours using that seat's firm",
         retention="lock-in: neighbours' usage plus habit",
         feedback="reinforcing and path dependent: an early lead in installed base decides the market"),
+}
+# Good constant settings per kind, in natural multiples (price and referral in p0, quality as effort, outreach in
+# N * p0 per tick, capacity in N). Found offline by random search with coordinate refinement on 300-customer markets
+# with the default rules; `tests/test_mech_abm.py` measures what they earn over 20 seeds per family. They are a
+# starting point for an operator-side reference search, not a proven optimum, and no participant can see them.
+_GOOD: dict[str, dict[str, float]] = {
+    "utility": dict(price=1.0, quality=0.16, outreach=0.011),
+    "wom": dict(price=1.05, quality=0.65, outreach=0.001, referral=0.45),
+    "congestion": dict(price=0.96, quality=0.17, capacity=0.2, outreach=0.008),
+    "trust_gate": dict(price=1.0, quality=0.58, outreach=0.014),
+    "network_fx": dict(price=0.85, quality=0.2, outreach=0.04),
+    "segments": dict(price=1.0, quality=0.58, outreach=0.007, referral=0.3),
+    "duopoly": dict(price=1.1, quality=0.1, outreach=0.008),
+    "commons": dict(price=1.05, quality=0.25, outreach=0.004),
+    "complement": dict(price=0.52, quality=0.35, outreach=0.010),
+    "duopoly_fx": dict(price=0.85, quality=0.16, outreach=0.027),
 }
 _LEVER_ROLES = ("price", "quality", "capacity", "outreach", "referral")
 _GAUGE_ROLES = ("orders", "active", "rating", "complaints", "queue", "volume")
@@ -572,6 +588,8 @@ class AbmEngine(Engine):
     engine = "abm"
     version = "1"
     state_in_event = False      # the state holds every customer: hosts recompute the step on replay
+    # economic properties every generated market is meant to have (checked over 20 seeds per family in the tests)
+    claims = ("default_zero", "random_loses", "corners_bad")
 
     def __init__(self, config: dict):
         super().__init__(config)
@@ -702,12 +720,28 @@ class AbmEngine(Engine):
         """PRIVATE. Total income of all customers per tick, in cents (exact: the population is in the config)."""
         return self._k.income_total
 
+    @property
+    def demand_income_cents_per_tick(self) -> int:
+        """What a host funds the facility's demand account with per tick (see `sim.demand_income`): the total
+        income of all customers, so that the customers' own budgets, which the engine enforces one by one, are
+        the binding constraint and the host's account is not a second, lower cap."""
+        return int(-(-float(self._k.income_total) // 1))
+
     def revenue_bound(self, ticks: int) -> float:
         """PRIVATE. The most all firms together can have been paid after `ticks` ticks, in cents: the customers'
         initial budgets (`pop.endow_ticks` ticks of income, 0 for none) plus their income since. A host that funds
         the demand side with this never falls short."""
         tr = self._k.traits
         return float(np.minimum(tr[T_INC] * self._k.endow, tr[T_BCAP]).sum() + int(ticks) * self._k.income_total)
+
+    def constructive_optimum(self, seat: int = 0) -> dict:
+        """PRIVATE. A good constant setting for a seat, stated from the family's causal story (`_GOOD`), in the
+        form the evaluator's reference search accepts as a starting point: `{"schedule": [{"from", "settings"}]}`.
+        In the two-seat families it is the setting that is good when both seats play it."""
+        k = self._k
+        unit = {"price": k.p0, "quality": 1.0, "outreach": k.N * k.p0, "capacity": float(k.N), "referral": k.p0}
+        good = {role: v * unit[role] for role, v in _GOOD[self.config["kind"]].items()}
+        return {"schedule": [{"from": 0, "settings": self.encode(good)}], "natural": good}
 
     def encode(self, natural: dict, base: dict | None = None) -> dict[str, float]:
         """PRIVATE. Settings (public name -> dial) from natural values by role: `price` in cents, `quality` as

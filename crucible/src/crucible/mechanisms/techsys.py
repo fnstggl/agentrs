@@ -1096,22 +1096,27 @@ def _truth(cfg: dict) -> dict:
     regimes = []
     for r in cfg.get("regimes", []):
         what, tg = r["what"], r["target"]
+        # a change that is undone later is marked transient: the settings that are best need not move for good
+        tr = {"transient": True, "until": int(r["until"])} if r.get("until") is not None else {}
         if what == "arrival":
-            regimes.append({"at": int(r["at"]), "what": f"arrivals of line {tg} x{r['value']}"})
+            regimes.append({"at": int(r["at"]), "what": f"arrivals of line {tg} x{r['value']}", **tr})
             if r.get("until") is not None:
-                regimes.append({"at": int(r["until"]), "what": f"arrivals of line {tg} back to normal"})
+                regimes.append({"at": int(r["until"]), "what": f"arrivals of line {tg} back to normal",
+                                "transient": True})
             continue
         nid = f"dependency.s{tg}"
         node(nid, "exogenous")
         if what == "rate":
             edge(nid, f"capacity.s{tg}", +1, 0, "regime")
-            regimes.append({"at": int(r["at"]), "what": f"dependency of stage {tg} degrades: service rate x{r['value']}"})
+            regimes.append({"at": int(r["at"]), "what": f"dependency of stage {tg} degrades: service rate x{r['value']}",
+                            **tr})
         else:
             edge(nid, f"flow.s{tg}", +1, 0, "regime")
             edge(nid, f"errors.seat{st[tg]['seat']}", -1, 0, "regime")
-            regimes.append({"at": int(r["at"]), "what": f"dependency of stage {tg} degrades: error rate {r['value']}"})
+            regimes.append({"at": int(r["at"]), "what": f"dependency of stage {tg} degrades: error rate {r['value']}",
+                            **tr})
         if r.get("until") is not None:
-            regimes.append({"at": int(r["until"]), "what": f"dependency of stage {tg} recovers"})
+            regimes.append({"at": int(r["until"]), "what": f"dependency of stage {tg} recovers", "transient": True})
     regimes.sort(key=lambda r: (r["at"], r["what"]))
 
     # gauges

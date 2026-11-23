@@ -213,6 +213,8 @@ class CrucibleSLWorld(World):
     def advance_time(self) -> None:
         w = self.world
         w.advance_time(w.now + self.dt)
+        if w.now < self.next_check:
+            self.verifier.sample(w)        # sustained point-in-time predicates are watched between daily checks
         while w.now >= self.next_check:
             self.verifier.daily_check(w)
             self.next_check += DAY

@@ -567,9 +567,15 @@ def test_ads_billing_budget_reset_and_pausing():
     assert w.knows("p:bob", "host", "widgets")
     assert bal(accts["alice"]) == 100_000 - 100 and bal("acct_fees") == fees0 + 100
     balances_sum_zero(w)
+    # Hardened in 4.0 (this test used to assert that bob's repeated searches were each charged, which let anyone
+    # run down a rival's advertising budget): a campaign pays for one impression per searcher per simulated day.
+    # Bob repeating the query still sees the ad, at no further charge to the advertiser.
     assert ok(w, "p:bob", "search.query", q="widgets")["results"][0]["sponsored"]
-    # budget: 2 impressions = 200 of 250; the third would exceed it
-    assert not ok(w, "p:bob", "search.query", q="widgets")["results"][0]["sponsored"]
+    assert bal(accts["alice"]) == 100_000 - 100 and bal("acct_fees") == fees0 + 100
+    assert ok(w, "p:carol", "search.query", q="widgets")["results"][0]["sponsored"]      # another searcher: charged
+    assert bal(accts["alice"]) == 100_000 - 200
+    # budget: 2 impressions = 200 of 250; a third searcher's would exceed it
+    assert not ok(w, "p:alice", "search.query", q="widgets")["results"][0]["sponsored"]
     s = ok(w, "p:alice", "ads.stats")[0]
     assert (s["impressions"], s["spent_today"], s["total_spent"]) == (2, 200, 200)
     fails(w, "p:bob", "ads.stats", "forbidden", campaign=cid)
