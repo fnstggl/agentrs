@@ -88,6 +88,13 @@ at once, nine jobs made runs die of out-of-memory or stall (see the lab notes). 
   rollout workers in flight, in dependency order, and skips jobs whose result exists — so the same command continues
   after an interruption. Experiments write every finished part to `runs/partial/<name>.json` and continue from it.
 
+## Learning for life
+
+`superlearner lifetime` (`continual/lifetime.py`) replaces the single train-then-evaluate run with a sequence of
+phases: observe a few verified demonstrations of new arms, practise in fresh worlds, consolidate, then evaluate every
+phase's held-out list. The update rule is `algo/continual.py`. One checkpoint file, replaced after every step, holds
+the whole learner. See [CONTINUAL.md](CONTINUAL.md).
+
 ## Costs that are recorded
 
 Per iteration: rollout seconds, update seconds, environment decisions, episodes. Per run: LLM calls, tokens

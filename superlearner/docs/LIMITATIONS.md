@@ -57,6 +57,34 @@ demonstrated).
   generation; four iterations took over an hour and showed no effect. Experiment B's positive result is for the
   eight arms that need no LLM-written content.
 
+## Continual learning in the weights
+
+Numbers are in [CONTINUAL.md](CONTINUAL.md); these limits apply to all of them.
+
+* **The 14B language model has not learned anything.** It stays frozen and is not even loaded in these experiments.
+  "Backbone" always means Qwen3-0.6B, and only the 25 of its 28 blocks that feed the text read-out. That backbone
+  produces embeddings for the controller. It does not generate the agent's text or code, and it is not where the
+  agent's reasoning in language happens, so training it is a real but partial form of "adapting the central
+  language backbone".
+* **Most acquisition in these experiments comes from a few demonstrations.** The observation step is supervised
+  learning from a scripted teacher's verified episodes. Whatever is credited to "observation" is learning from
+  being shown, not discovery. The practice-only routes of the internalization test are the measure of learning from
+  the agent's own experience.
+* **The task universe is small.** Eight task arms, all parts of one ladder (found, fund, code-to-service, list,
+  operate, repair), in six world families. "Unseen" means unseen seeds and world families, not unseen kinds of
+  problem. Learning to do these does not show that the agent would learn something unrelated.
+* **Few seeds.** Three at most, one for some backbone conditions. Intervals are from a bootstrap over seeds and tasks;
+  with three seeds they understate seed-to-seed variation.
+* **Lifetimes are short.** Six phases, about 15,000 decisions. Loss of plasticity typically shows up over far longer
+  sequences, so "no loss of plasticity measured" here says little about long horizons.
+* **Selection.** The protection was picked from a calibration whose tasks overlap the lifetimes' own held-out lists.
+  The check on untouched tasks (`continual-verify`) exists for that reason; it is the number to trust.
+* **The update-rule search does not cover the backbone.** Candidates run confined without a GPU, on a small
+  controller with hash text embeddings. A rule that wins there is not shown to win on the real learner.
+* **Runs were interrupted.** Seed-0 lifetimes were stopped and resumed several times by out-of-memory failures and
+  queue restarts (`restarts` in each result file). A restored learner is state-identical, but the simulator is not
+  bit-reproducible, so a resumed run is one valid sample rather than the same trajectory it would have followed.
+
 ## The Meta-Researcher
 
 * **Scope of what candidates changed.** All evaluated candidates changed `algo/rule.py` (the learning rule,
