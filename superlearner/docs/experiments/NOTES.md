@@ -384,3 +384,4 @@ Work on the amendment ("continual learning must change the core neural weights")
   searches (71 candidates, 125 confined lifetimes), the check on untouched tasks and the swap test. With the backbone
   fix, the trainable-backbone internalization routes agree between their own process and a fresh one (e.g. `build`, seed
   0: 100% in both). `configs/queue_continual_b.yaml` was merged into the main queue and removed.
+* Final tree: 70 superlearner tests and Crucible's 305 pass (4 min 17 s and 10 min 33 s, on an otherwise idle machine).

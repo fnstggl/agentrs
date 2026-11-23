@@ -29,7 +29,7 @@ export PYTHONPATH=src            # or: pip install -e .   (then `superlearner ..
 
 python -m superlearner doctor                                     # hardware, models, isolation, end-to-end CPU check
 python -m superlearner train --config configs/smoke_cpu.yaml      # 1-minute CPU smoke run, no language model
-python -m pytest -q tests                                         # 68 tests (needs root for the confinement tests)
+python -m pytest -q tests                                         # 70 tests (needs root for the confinement tests)
 
 python -m superlearner llm-serve &                                # frozen Qwen3-14B server (owns the GPU model)
 python -m superlearner train --config configs/exp_b_fewdemo_sil.yaml
