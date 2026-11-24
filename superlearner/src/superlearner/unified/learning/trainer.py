@@ -87,6 +87,8 @@ class UnifiedTrainer:
         m, T = self.model, b.action.shape[1]
         goal = m.goal_encoder.net(b.goal[:, 0])
         chosen, prev_a, prev_dt = self._action_inputs(b)
+        if self.cfg.core == "attention":
+            return self._unroll_events(b, goal, chosen, prev_a, prev_dt)
         state = m.rssm.initial(b.action.shape[0], b.action.device)
         emb = self._encode(b, 0, T)
         started = b.first[:, 0].bool()
@@ -98,6 +100,16 @@ class UnifiedTrainer:
             state = m.rssm.observe(state, prev_a[:, t], prev_dt[:, t], emb[:, t], goal)
             out.append(state)
         return _stack(out), goal, chosen, emb
+
+    def _unroll_events(self, b: ReplaySequence, goal: Tensor, chosen: Tensor, prev_a: Tensor, prev_dt: Tensor):
+        """Attention core: every step of the window in one causal pass. Replay windows never span two episodes."""
+        m, c = self.model, self.cfg
+        B, T = b.action.shape
+        emb = self._encode(b, 0, T)
+        u = m.events(m.events.event(emb, prev_a, prev_dt), b.mask > 0, goal)
+        z = torch.zeros(B, T, c.stoch_vars, c.stoch_classes, device=u.device)
+        return (BeliefState(u, z, torch.zeros(B, T, 1, c.memory_dim, device=u.device),
+                            torch.zeros(B, T, c.memory_dim, device=u.device), u, z, z), goal, chosen, emb)
 
     @staticmethod
     def training_mask(b: ReplaySequence, burn: int) -> Tensor:
@@ -124,7 +136,8 @@ class UnifiedTrainer:
         # Latent prediction: the pre-observation state predicts a slow encoder of the observation
         with torch.no_grad():
             tgt = F.normalize(self._encode(b, burn, b.action.shape[1], target=True), dim=-1)
-        pl = F.normalize(m.latent_pred(s.h), dim=-1)
+        before = s.h if c.core == "rssm" else torch.cat([torch.zeros_like(s.u[:, :1]), s.u[:, :-1]], 1)
+        pl = F.normalize(m.latent_pred(before), dim=-1)
         l_lat = _mean(2 - 2 * (pl * tgt).sum(-1), trans)
 
         l_rew = _mean(twohot_loss(m.reward_head(s.u), prev_rew, m.bins), trans)
@@ -155,7 +168,7 @@ class UnifiedTrainer:
         # Open-loop consistency: roll the prior forward from a posterior, compare with later posteriors
         l_over = s.u.new_zeros(())
         T = s.u.shape[1]
-        if c.overshoot > 0 and T > c.overshoot + 1:
+        if c.overshoot > 0 and c.core == "rssm" and T > c.overshoot + 1:
             at = int(torch.randint(0, T - c.overshoot, (1,)).item())
             cur = BeliefState(s.h[:, at], s.z[:, at], s.memory[:, at], s.read[:, at], s.u[:, at], s.prior_logits[:, at],
                               s.post_logits[:, at])
@@ -261,7 +274,8 @@ class UnifiedTrainer:
         l_ent = -c.entropy_coef * _mean(ent, act_mask)
 
         l_imag, imag_info = u.new_zeros(()), {}
-        if c.use_imagination and self.heldout_r2 == self.heldout_r2 and self.heldout_r2 >= c.imagination_min_r2:
+        if (c.use_imagination and c.core == "rssm" and self.heldout_r2 == self.heldout_r2
+                and self.heldout_r2 >= c.imagination_min_r2):
             l_imag, imag_info = self._imagined_policy_loss(s, g, e_seq, cmask, b, burn, logp, act_mask, scale)
         l_actor = l_pg + l_ent + c.imagination_weight * l_imag
         info = {"ac/value": l_value, "ac/q": l_q, "ac/pg": l_pg, "ac/entropy": _mean(ent, act_mask),
@@ -318,7 +332,7 @@ class UnifiedTrainer:
         c, m = self.cfg, self.model
         dev = next(m.parameters()).device
         b = batch.to(dev)
-        burn = min(c.burn_in, b.action.shape[1] - 2)
+        burn = 0 if c.core == "attention" else min(c.burn_in, b.action.shape[1] - 2)
         s, goal, chosen, _ = self.unroll(b, burn)
         b.mask = self.training_mask(b, burn)     # the losses below index from step 0 and rely on this mask
         burn = 0
@@ -392,6 +406,8 @@ class UnifiedTrainer:
         dev = next(m.parameters()).device
         b = batch.to(dev)
         burn = min(c.burn_in, b.action.shape[1] - 2)
+        if c.core == "attention":
+            burn = 0
         s, goal, chosen, _ = self.unroll(b, burn)
         b.mask = self.training_mask(b, burn)
         burn = 0
@@ -399,20 +415,23 @@ class UnifiedTrainer:
         rows = (b.mask[:, burn:][:, 1:] * (1 - b.first[:, burn:][:, 1:])).bool()
         if rows.sum() < 8:
             return {}
-        prev = BeliefState(s.h[:, :-1].flatten(0, 1), s.z[:, :-1].flatten(0, 1), s.memory[:, :-1].flatten(0, 1),
-                           s.read[:, :-1].flatten(0, 1), s.u[:, :-1].flatten(0, 1), s.prior_logits[:, :-1].flatten(0, 1),
-                           s.post_logits[:, :-1].flatten(0, 1))
-        g = goal.unsqueeze(1).expand(-1, T - 1, -1).flatten(0, 1)
-        nxt, out = m.predict_future(prev, chosen[:, :-1].flatten(0, 1), b.dt[:, burn:][:, :-1].flatten(), g)
-        pred = out["reward"].reshape(rows.shape)[rows]
-        true = b.reward[:, burn:][:, :-1][rows]
-        ss_res = ((symlog(true) - symlog(pred)) ** 2).sum()
-        ss_tot = ((symlog(true) - symlog(true).mean()) ** 2).sum().clamp(min=1e-8)
-        r2 = float(1 - ss_res / ss_tot)
-        err = (true - pred).abs()
-        unc = out["reward_std"].reshape(rows.shape)[rows]
-        corr = float(torch.corrcoef(torch.stack([err, unc]))[0, 1]) if err.numel() > 2 and unc.std() > 0 else float("nan")
-        self.heldout_r2 = r2
+        r2, corr = float("nan"), float("nan")
+        if c.core == "rssm":         # the one-step forecast exists only for the RSSM's prior
+            prev = BeliefState(s.h[:, :-1].flatten(0, 1), s.z[:, :-1].flatten(0, 1), s.memory[:, :-1].flatten(0, 1),
+                               s.read[:, :-1].flatten(0, 1), s.u[:, :-1].flatten(0, 1),
+                               s.prior_logits[:, :-1].flatten(0, 1), s.post_logits[:, :-1].flatten(0, 1))
+            g = goal.unsqueeze(1).expand(-1, T - 1, -1).flatten(0, 1)
+            nxt, out = m.predict_future(prev, chosen[:, :-1].flatten(0, 1), b.dt[:, burn:][:, :-1].flatten(), g)
+            pred = out["reward"].reshape(rows.shape)[rows]
+            true = b.reward[:, burn:][:, :-1][rows]
+            ss_res = ((symlog(true) - symlog(pred)) ** 2).sum()
+            ss_tot = ((symlog(true) - symlog(true).mean()) ** 2).sum().clamp(min=1e-8)
+            r2 = float(1 - ss_res / ss_tot)
+            err = (true - pred).abs()
+            unc = out["reward_std"].reshape(rows.shape)[rows]
+            if err.numel() > 2 and unc.std() > 0:
+                corr = float(torch.corrcoef(torch.stack([err, unc]))[0, 1])
+            self.heldout_r2 = r2
         # Held-out test of the consequence model on programs that really changed something
         delta, dmask = self.effect_targets(b, burn)
         idx = b.action.reshape(*b.action.shape, 1, 1).expand(-1, -1, 1, b.cand_features.shape[-1])

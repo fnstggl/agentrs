@@ -24,6 +24,10 @@ class UnifiedConfig:
     use_slots: bool = True
     use_world_model_loss: bool = True
     latent_mode: str = "sample"     # "sample": straight-through one-hot sample (DreamerV3); "probs": posterior probabilities
+    core: str = "rssm"              # "rssm" (CAM 6.1) or "attention" (CAM 7.0 event memory)
+    event_window: int = 64
+    event_layers: int = 2
+    event_heads: int = 4
     use_imagination: bool = True
     use_generator: bool = True
     train_generator: bool = True

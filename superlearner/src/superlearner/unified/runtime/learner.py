@@ -75,6 +75,7 @@ class UnifiedLearner(Learner):
             self.r_n, self.r_mean, self.r_m2 = np.zeros(n), np.zeros(n), np.zeros(n)
             self.adapt_A, self.adapt_b = self.model.adapt.empty(n, self.device)
             self.tick_buf: list[dict] = [{"x": [], "r": [], "sd": []} for _ in range(n)]
+            self.event_buf: list[list[torch.Tensor]] = [[] for _ in range(n)]
             self.episodes: list[dict] = [self._new_ep() for _ in range(n)]
             if len(self.labels) != n:
                 self.labels = ["default"] * n
@@ -102,6 +103,7 @@ class UnifiedLearner(Learner):
             self.trace[i] = 0.0
             self.r_n[i], self.r_mean[i], self.r_m2[i] = 0.0, 0.0, 0.0
             self.tick_buf[i] = {"x": [], "r": [], "sd": []}
+            self.event_buf[i] = []
             self.episodes[i] = self._new_ep()
 
     @staticmethod
@@ -309,6 +311,30 @@ class UnifiedLearner(Learner):
             bonus = bonus + (c.plan_beta * (one - one[:, :1])).clamp(-10, 10)
         return bonus * mask
 
+    def _event_belief(self, o: ObservationBatch, idx: np.ndarray, t: torch.Tensor, goal: torch.Tensor) -> BeliefState:
+        """Append this decision's event to each episode's window and read the belief at its newest position. The window
+        and positions match training, where replay windows are at most ``event_window`` decisions of one episode."""
+        m, W = self.model, self.cfg.event_window
+        _, pooled = m.encode_observation(o)
+        ev = m.events.event(pooled, self.prev_action[t], self.prev_dt[t])
+        lens = []
+        for r, i in enumerate(idx):
+            buf = self.event_buf[i]
+            buf.append(ev[r])
+            if len(buf) > W:
+                del buf[0]
+            lens.append(len(buf))
+        win = torch.zeros(len(idx), max(lens), ev.shape[-1], device=ev.device)
+        valid = torch.zeros(len(idx), max(lens), dtype=torch.bool, device=ev.device)
+        for r, i in enumerate(idx):
+            win[r, :lens[r]] = torch.stack(self.event_buf[i])
+            valid[r, :lens[r]] = True
+        u_all = m.events(win, valid, goal)
+        u = u_all[torch.arange(len(idx), device=ev.device), torch.as_tensor(lens, device=ev.device) - 1]
+        self.state.u[t] = u
+        return BeliefState(u, u.new_zeros(len(idx), 1, 1), u.new_zeros(len(idx), 1, 1), u.new_zeros(len(idx), 1), u,
+                           u.new_zeros(len(idx), 1, 1), None)
+
     def _decide(self, obs: np.ndarray, idx: np.ndarray, explore: bool) -> None:
         device, cfg = self.device, self.cfg
         vals, deltas, pres = self._tokens(obs, idx)
@@ -320,10 +346,13 @@ class UnifiedLearner(Learner):
                              torch.as_tensor(pres, device=device), self.ids.expand(len(idx), -1),
                              extra=torch.as_tensor(extra, device=device))
         goal = self.model.encode_goal(GoalBatch(torch.as_tensor(goal_np, device=device)))
-        prev = self.state.map(lambda x: x[t])
-        belief = self.model.update_belief(prev, self.prev_action[t], o, self.prev_dt[t], goal, sample=explore)
-        for f in ("h", "z", "memory", "read", "u", "prior_logits", "post_logits"):
-            getattr(self.state, f)[t] = getattr(belief, f)
+        if cfg.core == "attention":
+            belief = self._event_belief(o, idx, t, goal)
+        else:
+            prev = self.state.map(lambda x: x[t])
+            belief = self.model.update_belief(prev, self.prev_action[t], o, self.prev_dt[t], goal, sample=explore)
+            for f in ("h", "z", "memory", "read", "u", "prior_logits", "post_logits"):
+                getattr(self.state, f)[t] = getattr(belief, f)
         toks, fea, mask, dur, scheds = self._propose(belief.u, goal, obs, idx)
         ct, cf = torch.as_tensor(toks, device=device), torch.as_tensor(fea, device=device)
         cm = torch.as_tensor(mask, device=device)

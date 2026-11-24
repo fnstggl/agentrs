@@ -10,6 +10,7 @@ from torch import Tensor, nn
 
 from ..config import UnifiedConfig
 from ..core.adaptive import EpisodeRegression
+from ..core.events import EventCore
 from ..core.rssm import RSSM
 from ..dist import make_bins, twohot_mean
 from ..encoders.observation import ActionEncoder, GoalEncoder, ObservationEncoder, _encoder, mlp
@@ -144,6 +145,9 @@ class UnifiedModel(nn.Module):
         self.action_encoder = ActionEncoder(cfg, self.obs_encoder.id_embed, layout.lever_id0, lang, ADAPT_FEATURES)
         self.adapt = EpisodeRegression(layout.n_levers, cfg.adapt_k)
         self.rssm = RSSM(cfg)
+        self.events = EventCore(cfg) if cfg.core == "attention" else None
+        if cfg.core not in ("rssm", "attention"):
+            raise ValueError(f"unknown core {cfg.core}")
         # Prediction heads
         self.obs_decoder = mlp(2 * d, d, 1, layers=2)
         self.decode_id = nn.Embedding(layout.n_ids, d)
@@ -151,7 +155,9 @@ class UnifiedModel(nn.Module):
         self.reward_ensemble = nn.ModuleList(zero_last(mlp(d, d // 2, cfg.twohot_bins, layers=1))
                                              for _ in range(cfg.reward_heads))
         self.continue_head = mlp(d, d, 1, layers=2)
-        self.latent_pred = mlp(cfg.deter_dim, d, d, layers=2)
+        # Predicts the next observation's slow embedding from the state before that observation: the RSSM's
+        # deterministic state, or for the attention core the previous belief.
+        self.latent_pred = mlp(cfg.deter_dim if cfg.core == "rssm" else d, d, d, layers=2)
         self.multi_head = nn.ModuleList(zero_last(mlp(d + cfg.action_dim, d, cfg.twohot_bins, layers=2))
                                         for _ in cfg.multi_horizons)
         # Action-conditioned consequence model: change of reward per tick caused by a candidate program
@@ -172,7 +178,8 @@ class UnifiedModel(nn.Module):
 
     # ---------------------------------------------------------------- parameter ownership
     def param_groups(self) -> dict[str, list[nn.Parameter]]:
-        world = [self.obs_encoder, self.goal_encoder, self.action_encoder, self.rssm, self.obs_decoder, self.decode_id,
+        core = self.events if self.cfg.core == "attention" else self.rssm
+        world = [self.obs_encoder, self.goal_encoder, self.action_encoder, core, self.obs_decoder, self.decode_id,
                  self.reward_head, self.reward_ensemble, self.continue_head, self.latent_pred, self.multi_head, self.effect_heads]
         seen, wm = set(), []
         for m in world:

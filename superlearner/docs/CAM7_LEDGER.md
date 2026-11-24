@@ -34,6 +34,10 @@ relative to exact regression. Any CAM 7.0 claim of learned priors must beat the 
 
 | Date | Experiment | Result | Verdict |
 |---|---|---|---|
+| 2026-11-24 | Exp 1 condition A, round 3: training loss in each task's full-data spread (`blr_meta_taskscale`, fixed+learned features) | Held-out (third look at this set): effect error vs fixed k=8 −0.183 [−0.278, −0.100], k=16 −0.220 [−0.312, −0.141]; rank k=16 +0.032 [+0.003, +0.062], k=1 −0.097 [−0.196, −0.001]. Familiar: effect error better for k ≥ 4, rank neutral to slightly positive | **Supports** the variance-inflation hypothesis. Development evidence only, because this held-out set was inspected in rounds 1–3. Confirmation C-1 declared |
+| 2026-11-24 | Agent-level cue task with the attention core (window 16, 3 seeds, 150 rounds) | final 0.035, **0.375 (optimal)**, 0.053 | First CAM agent to solve the memory task in any seed; 2 of 3 seeds stay at chance, so the remaining failure is RL optimisation (the probe shows the representation keeps the cue). The window-1 control crashed (window shorter than training sequences); fixed with a banded mask and no absolute positions |
+| 2026-11-24 | Exp 1 condition A, round 2 (float64; held-out and familiar families; learned-only and fixed+learned features; 3 seeds; `runs/cam7/fewshot/condition_a_*_round2.json`) | Meta minus fixed, rank at k=8: held-out −0.092 [−0.146, −0.039], **familiar −0.090 [−0.139, −0.044]**; effect error k=8: held-out +1.32, familiar +0.89. Fixed+learned identical to learned-only. Converge by k=64 | **Not a transfer failure**: meta-training gives worse beliefs even in-distribution. Next hypothesis: the support-estimated spread in the training loss rewards variance inflation over mean accuracy |
+| 2026-11-24 | Memory pathway, focused (3 seeds, 1,500 steps, delays 0/4/16; `runs/cam7/memory2/`) | Task accuracy, world-model training: attention 1.00/1.00/1.00, GRU 1.00/0.67/0.48, RSSM sampled 0.53/0.48/0.49, RSSM probs 0.68/0.48/0.50. Supervised: attention and GRU 1.00 at all delays; RSSM 1.00/0.65/0.49; RSSM probs 1.00/0.64/0.48 (its latent keeps the cue, 0.97–1.00, but the belief loses it within 4 steps) | **Cause of CAM 6.1 memory failure found, in two parts**: the sampled latent drops evidence, and the RSSM transition loses it within a few steps even under direct supervision. **Decision**: CAM 7.0 memory = causal attention over event tokens |
 | 2026-11-24 | Memory pathway probe, screening (1 seed, 600 steps; `runs/cam7/memory/`) | Under world-model training the cue is 100% decodable from the encoder and posterior logits but 56% from the **sampled** latent and 52% from the belief at the step it appears. GRU and attention keep it (100%). Supervised retention: attention to delay 32, GRU to 4, RSSM to 1. 5 runs died of GPU OOM (shared GPU) | **Located**: the straight-through sampled categorical latent discards evidence the posterior holds. Next: posterior-probability latent (`latent_mode="probs"`) |
 | 2026-11-24 | Exp 1 condition A, round 1: identical support sets, 120 held-out-family tasks, 3 seeds (`runs/cam7/fewshot/condition_a_heldout_round1.json`) | Query ranking, k=8: tuned fixed BLR 0.543 vs meta-trained BLR 0.451; k=64: 0.766 vs 0.758. Effect error k=8: 0.91 vs 2.23. NLL: meta better only at k≤2 by inflating variance, worse at k≥16 | **Meta-trained features did not beat generic regression.** NLL at k≤2 is dominated by the support-only scale estimate and is not decision-relevant |
 | 2026-11-24 | Memory fixes on the cue task (2 seeds): shared policy gradients | memory 0.026, −0.059; none 0.053, −0.059 | **Failed**. More updates / both variants timed out (no result) |
@@ -44,6 +48,18 @@ relative to exact regression. Any CAM 7.0 claim of learned priors must beat the 
 | 2026-11-23 | Effect-head planner | held-out effect R² ≤ 0.155 | Failed; off by default |
 | 2026-11-23 | Actor objectives | all-candidate twin-Q chases critic error (−0.66); V-trace stable but only learns to hold | V-trace kept |
 | 2026-11-23 | Signal check: within-episode regression on settings | explains 61–97% of reward variance across 6 training families | Signal exists |
+
+### Pre-declared confirmations (written and committed before the run)
+
+**C-1, learned priors for few-shot effect prediction (declared 2026-11-24, before any look at the confirmation set).**
+Set: the four held-out families (`abm_trust_gate`, `scm_delay_gate`, `scm_invu`, `tech_pipeline`) at seeds
+1,050,000–1,050,029 (120 tasks), never used by any experiment. Learner: `blr_meta_taskscale` (fixed move features plus
+learned features, meta-trained on the six training families with each task's full-data spread in the loss), 3 seeds,
+3,000 steps, retrained from scratch. Baseline: `blr_fixed` with the settings tuned on the training families. Interval:
+two-level bootstrap over seeds and tasks, 95%.
+Passes only if all three hold: (1) effect error, learned minus fixed, has an upper bound below 0 at k = 8;
+(2) the same at k = 16; (3) ranking, learned minus fixed, has a lower bound above −0.02 at k = 16 (not worse).
+Otherwise the claim "meta-learned priors improve few-shot effect prediction on unseen mechanisms" is recorded as failed.
 
 ### Active
 
@@ -58,7 +74,8 @@ relative to exact regression. Any CAM 7.0 claim of learned priors must beat the 
 | Learner lacked an efficient way to fold in new evidence | Supported (development) | adaptive layer +0.221 vs +0.036 |
 | Reward scale hid small effects | Supported | per-tick reward sd 0.002–0.06; effect R² rose after standardisation |
 | Policy chased critic errors | Supported | expected-Q objective collapsed on abm_utility |
-| Information lost before the policy belief (memory) | Open | probe at step 0 fails in recurrent agent |
+| Information lost before the policy belief (memory) | **Supported** | sampled latent 0.50 vs posterior logits 0.88–1.00 at the step the cue appears; RSSM transition fails by delay 4 even with direct supervision; attention keeps it to 16 |
+| Stochastic latent bottleneck discarded evidence | **Supported** | as above; probabilities instead of samples recover the latent (0.97) but not the transition |
 | Stop-gradient kept RL from shaping the belief | Weakened | shared gradients did not fix the cue task |
 
 ## Next steps

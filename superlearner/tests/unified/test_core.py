@@ -283,3 +283,46 @@ def test_frozen_evaluation_changes_nothing(filled):
     run_toy(filled, ToyVecEnv(4, horizon=12), 8, learn=False)
     assert len(filled.replay) == n
     assert all(torch.equal(before[k], v) for k, v in filled.model.state_dict().items())
+
+
+# ---------------------------------------------------------------------- CAM 7.0 event-attention core
+def test_attention_core_is_causal_and_trains():
+    c = tiny().with_(core="attention", event_window=16)
+    lr = UnifiedLearner(EnvSpec(), 0, DEV, c)
+    run_toy(lr, ToyVecEnv(4, horizon=12), 16, learn=True, updates=False)
+    t = lr.trainer
+    b = lr.replay.sample(4, 10).to(DEV)
+    s1, *_ = t.unroll(b, 0)
+    b.values = b.values.clone()
+    b.values[:, 6:] += 5.0
+    s2, *_ = t.unroll(b, 0)
+    assert torch.allclose(s1.u[:, :6], s2.u[:, :6], atol=1e-5)
+    assert not torch.allclose(s1.u[:, 6:], s2.u[:, 6:], atol=1e-3)
+    before = [p.detach().clone() for p in lr.model.events.parameters()]
+    t.update(lr.replay.sample(4, 10))
+    t.update(lr.replay.sample(4, 10))
+    assert any(not torch.equal(a, p) for a, p in zip(before, lr.model.events.parameters()))
+    assert all(p.grad is None for p in lr.model.rssm.parameters())     # the unused core never receives gradients
+
+
+def test_attention_core_acting_matches_replay_belief():
+    """The belief computed while acting equals the one rebuilt from replay for the same episode."""
+    c = tiny().with_(core="attention", event_window=16, use_generator=False)
+    lr = UnifiedLearner(EnvSpec(), 0, DEV, c)
+    env = ToyVecEnv(1, horizon=6)
+    obs = env.reset()
+    lr.reset_context(1)
+    us = []
+    while not env.done.all():
+        n_before = len(lr.episodes[0]["action"])
+        a = lr.act(obs, explore=False)
+        if len(lr.episodes[0]["action"]) > n_before:          # a decision was taken on this tick
+            us.append(lr.state.u[0].clone())
+        nxt, r, d, _ = env.step(a)
+        lr.observe(obs, a, r, d, nxt)
+        obs = nxt
+    ep = lr.replay.reservoir["default"][0] if lr.replay.reservoir["default"] else lr.replay.held[0]
+    b = lr.replay._collate([(ep, 0, len(ep["reward"]))], len(ep["reward"])).to(DEV)
+    with torch.no_grad():
+        s, *_ = lr.trainer.unroll(b, 0)
+    assert torch.allclose(torch.stack(us), s.u[0, :len(us)], atol=1e-4)

@@ -83,7 +83,9 @@ def build(n_train: int = 150, n_test: int = 30, n_support: int = 64, n_query: in
     os.makedirs(OUT, exist_ok=True)
     # "familiar": unused training-range seeds of the training families (in-distribution check, never trained on)
     for name, fams, n, start in (("train", TRAIN, n_train, 0), ("heldout", HELDOUT, n_test, 1_000_000),
-                                 ("familiar", TRAIN, 20, 500_000)):
+                                 ("familiar", TRAIN, 20, 500_000),
+                                 # untouched confirmation set for pre-declared criterion C-1 (ledger)
+                                 ("confirm", HELDOUT, 30, 1_050_000)):
         path = os.path.join(OUT, f"{name}.npz")
         if os.path.exists(path):
             continue
@@ -153,14 +155,16 @@ class MetaBLR:
         self.m = EpisodeRegression(L_MAX, k, fixed_features=fixed_features).to(device)
         self.m.decay_logit.data.fill_(30.0)          # arms here are exchangeable: no forgetting
 
-    def predict(self, xs, ys, xq, x0, mask):
+    def predict(self, xs, ys, xq, x0, mask, scale=None):
         m = self.m
         ps = m.phi(xs, x0.unsqueeze(1).expand_as(xs), mask.unsqueeze(1).expand_as(xs))
         pq = m.phi(xq, x0.unsqueeze(1).expand_as(xq), mask.unsqueeze(1).expand_as(xq))
-        A = ps.transpose(1, 2) @ ps
-        b = (ps * ys.unsqueeze(-1)).sum(1)
+        psd = ps.double()                                # float64 statistics, as in the agent's accumulator
+        A = psd.transpose(1, 2) @ psd
+        b = (psd * ys.double().unsqueeze(-1)).sum(1)
         mu, var = m.predict(A, b, pq)
-        return mu, var * (_scale(ys) ** 2).unsqueeze(1)
+        s = _scale(ys) if scale is None else scale
+        return mu, var * (s ** 2).unsqueeze(1)
 
 
 def _spearman(a: np.ndarray, b: np.ndarray) -> float:
@@ -181,7 +185,9 @@ def _tensors(d: dict, idx, device):
     return t("xs"), t("ys"), t("xq"), t("yq"), t("x0"), t("mask")
 
 
-def meta_train(model: MetaBLR, train: dict, steps: int, seed: int, device: str) -> list[float]:
+def meta_train(model: MetaBLR, train: dict, steps: int, seed: int, device: str, task_scale: bool = False) -> list[float]:
+    """``task_scale``: measure training errors in each training task's full-data spread (a training-time label) instead
+    of the spread estimated from the k support points, which at small k rewards inflating the variance."""
     import torch
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
@@ -192,7 +198,8 @@ def meta_train(model: MetaBLR, train: dict, steps: int, seed: int, device: str) 
         idx = rng.choice(n, 32, replace=False)
         xs, ys, xq, yq, x0, mask = _tensors(train, idx, device)
         k = int(rng.choice(KS))
-        mu, var = model.predict(xs[:, :k], ys[:, :k], xq, x0, mask)
+        scale = torch.cat([ys, yq], 1).std(1).clamp(min=1e-4) if task_scale else None
+        mu, var = model.predict(xs[:, :k], ys[:, :k], xq, x0, mask, scale)
         loss = (0.5 * (torch.log(2 * math.pi * var) + (yq - mu) ** 2 / var)).mean()
         opt.zero_grad()
         loss.backward()
@@ -251,15 +258,17 @@ def run(seeds, steps: int, device: str, test: str = "heldout", tag: str = "condi
     res["learners"]["blr_meta_untrained"] = {"seeds": {}}
     res["learners"]["blr_meta"] = {"seeds": {}, "train_seconds": []}
     res["learners"]["blr_meta_plus_fixed"] = {"seeds": {}, "train_seconds": []}
+    res["learners"]["blr_meta_taskscale"] = {"seeds": {}, "train_seconds": []}
     import torch
     for s in seeds:
-        for name, fixed in (("blr_meta", False), ("blr_meta_plus_fixed", True)):
+        for name, fixed, ts in (("blr_meta", False, False), ("blr_meta_plus_fixed", True, False),
+                                ("blr_meta_taskscale", True, True)):
             torch.manual_seed(s)
             m = MetaBLR(device=device, fixed_features=fixed)
-            if not fixed:
+            if name == "blr_meta":
                 res["learners"]["blr_meta_untrained"]["seeds"][str(s)] = evaluate(m, te, device)
             t0 = time.time()
-            meta_train(m, tr, steps, s, device)
+            meta_train(m, tr, steps, s, device, task_scale=ts)
             res["learners"][name]["train_seconds"].append(time.time() - t0)
             res["learners"][name]["seeds"][str(s)] = evaluate(m, te, device)
     res["test_set"] = test
@@ -296,7 +305,7 @@ def report(res: dict) -> None:
                 cells.append(f"{m:+8.3f} [{lo:+.3f},{hi:+.3f}]")
             print(f"{k:>4} " + " ".join(f"{c:>26}" for c in cells))
     base = res["learners"]["blr_fixed"]["seeds"]["-"]
-    for name in ("blr_meta", "blr_meta_plus_fixed"):
+    for name in ("blr_meta", "blr_meta_plus_fixed", "blr_meta_taskscale"):
         if name not in res["learners"]:
             continue
         print(f"\n{name} minus blr_fixed (rank: positive = better; effect_rmse: negative = better):")
@@ -314,7 +323,7 @@ if __name__ == "__main__":
     ap.add_argument("cmd", choices=["data", "run", "report"])
     ap.add_argument("--seeds", default="0,1,2")
     ap.add_argument("--steps", type=int, default=3000)
-    ap.add_argument("--test", default="heldout", choices=["heldout", "familiar"])
+    ap.add_argument("--test", default="heldout", choices=["heldout", "familiar", "confirm"])
     a = ap.parse_args()
     if a.cmd == "data":
         build()
