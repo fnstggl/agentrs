@@ -7,7 +7,7 @@ Read this first in every session. Newest entries at the top of each section. Res
 
 | Item | Location |
 |---|---|
-| CAM 7.0 branch | `feat/cam-7.0` (local; from `feat/cam-6.1` `feccc86` + crucible-4 `c07098b` + superlearner-4 `58c18ce`) |
+| CAM 7.0 branch | `feat/cam-7.0` (pushed to `origin` at `eaf488c` on 2026-11-24, public repository; from `feat/cam-6.1` `feccc86` + crucible-4 `c07098b` + superlearner-4 `58c18ce`) |
 | CAM 6.1 code | `superlearner/src/superlearner/unified/` |
 | CAM 6.1 report | `superlearner/docs/CAM61_RESULTS.md` |
 | Raw run outputs | `runs/cam61/` (git-ignored, ephemeral disk; 4.3 GB incl. checkpoints, 5.9 MB of `lifetime.json`) |
@@ -78,10 +78,33 @@ interventions better. Scope: identical support sets (condition A), prediction on
 
 ### Active
 
-| Started | Job | Output |
-|---|---|---|
-| 2026-11-24 | CAM 7.0 development run, `cam7_small` with fixed event core, seed 0, familiar families only, 120k | `runs/cam61/cam7_dev_small_v2/`, log `runs/cam61/logs/cam7_dev_small_v2.log` |
-| 2026-11-24 | Agent cue task with fixed event core (lr 3e-4), window 16 vs window 1, 5 seeds | `runs/cam7/memory_agent_fixed_w*.json` |
+None. (Both jobs previously listed here finished; their results are in the Completed table.)
+
+## Coverage of the CAM 7.0 specification (audit, 2026-11-24)
+
+**CAM 7.0 as specified has not been built.** The branch is CAM 6.1's code with a new memory core and a better
+standalone few-shot learner. CAM 7.0's own six commits changed about 1,070 lines of code and tests, about 600 of them
+diagnostics and benchmark harnesses, against about 3,400 for CAM 6.1. Work so far covers the spec's Phases 0–2;
+Phase 3 (the integrated backbone) has not started.
+
+| Spec part | State |
+|---|---|
+| 0 Recover CAM 6.1 state | Done |
+| 1 Diagnose CAM 6.1 failures, memory by layer | Done for memory, conditioning and the adaptive layer's loss; delays 0/4/16 (focused) and up to 32 (screening), not 64 |
+| 3.2 Event tokens | Minimal: one token per step from the pooled observation, previous action and elapsed time. No per-observation, entity, prediction, outcome, cost, reliability or provenance tokens. Width 128 in `cam7_small`; the 256-wide `cam7` preset is untrained |
+| 3.3 Shared adaptive features φ = F(H, a, Δt) | Not done: the adaptive layer's features are a small separate network on lever settings, not computed by the backbone |
+| 3.4 Fast Bayesian inference | Done as a separate layer (float64, Cholesky, learned prior, precision and noise). Single reward outcome only; no multiple outcome heads or non-Gaussian likelihoods |
+| 3.5 Posterior integrated into the backbone | **Not done**: the posterior still acts mainly as a planner bonus (`runtime/learner.py` `_plan_bonus`), which the spec rules out; only three per-candidate summaries enter the action encoder, and no posterior tokens enter the backbone |
+| 3.6 Nonlinear, interacting, nonstationary mechanisms; change points; latent context | Not done |
+| 4.1 Support/query meta-training | Done for the standalone few-shot learner (C-1 passed); not applied to the agent's backbone |
+| 4.2 Direct training of evidence retention; 4.3 | Not done |
+| 5 Intervention-consequence prediction | Effect heads inherited from CAM 6.1 (held-out effect R² ≤ 0.29); no evidence-quality or identification work |
+| 6 Value-of-information exploration, coherent uncertainty, imagination | Not done (Thompson bonus from CAM 6.1 only; imagination off in the `cam7` presets) |
+| 7 Credit assignment | V-trace from CAM 6.1; delayed-reward credit assignment fails (`cue_final`) |
+| 8 General-purpose OpenWorld actions | Not done |
+| 9 Continual parametric learning | Not done |
+| 10 Experiments 1–4 | Only Experiment 1 condition A |
+| 13 Deliverables and the 14 questions | Not written; Q1, Q2 and part of Q3/Q4/Q6 answered in this ledger |
 
 ## Hypotheses (status)
 
