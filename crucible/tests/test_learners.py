@@ -24,9 +24,10 @@ ALL = learners.available()
 FAST = {"ppo_gru": dict(hidden=32, rollout_steps=200, epochs=2, minibatches=2),
         "ppo_gru_flat": dict(hidden=32, rollout_steps=200, epochs=2, minibatches=2),
         "model_based": dict(min_episodes=4, batch_episodes=4, updates_per_episode=1.0, feat_hidden=16),
-        "evo_probe": dict(population=4)}
+        "evo_probe": dict(population=4),
+        "meta_np": dict(d=16, heads=2, enc_blocks=1, dec_blocks=1, min_episodes=2, batch=4, updates_per_episode=1.0)}
 TRAINABLE = [n for n in ALL if learners.describe(n)["learns_across_episodes"]]
-STOCHASTIC = ["random", "hill_climb", "ppo_gru", "ppo_gru_flat", "model_based", "evo_probe"]
+STOCHASTIC = ["random", "hill_climb", "ppo_gru", "ppo_gru_flat", "model_based", "evo_probe", "meta_np"]
 
 
 def make(name, seed=0, **kw):
@@ -366,6 +367,9 @@ def test_usage_accounting_adds_up(name, easy):
         per = lr.p["grid"]                              # one grid per lever per decision, every `dwell` ticks
         want = sum(((t.horizon - 1) // lr.p["dwell"]) * len(t.sim().engine.levers(0)) * per for t in tasks)
         assert u.search_evals == want
+        assert u.params == sum(q.numel() for q in lr.net.parameters())
+    elif name == "meta_np":                             # searches over settings with its model at every decision
+        assert u.search_evals > 0
         assert u.params == sum(q.numel() for q in lr.net.parameters())
     else:
         assert u.search_evals == 0

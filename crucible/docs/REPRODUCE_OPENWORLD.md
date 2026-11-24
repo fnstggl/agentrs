@@ -45,7 +45,10 @@ Set `CRUCIBLE_CACHE=<dir>` so validated tasks are built once. Every long script 
 | validity of generated mechanisms | `python examples/ow_validity_acceptance.py --n 12 --workers 3` |
 | learner training (one run) | `python examples/ow_train_learners.py train --learner ppo_gru --seed 0 --steps 180000 --eval-every 30000` |
 | | `python examples/ow_train_learners.py train --learner model_based --seed 0 --steps 100000 --eval-every 20000` |
-| learner tables | `python examples/ow_train_learners.py curves`, then `table`, then `heldout` |
+| positive-control learner (one seed; GPU) | `OW_USE_GPU=1 python examples/ow_train_learners.py train --learner meta_np --seed 0 --steps 300000 --eval-every 60000 --n-envs 32 --fresh` |
+| learner tables | `python examples/ow_train_learners.py curves`, then `table`, then `heldout` (add `OW_USE_GPU=1` for `meta_np` rows) |
+| positive-control verdict | `python examples/ow_meta_np_result.py` |
+| what the `meta_np` correction can learn (synthetic) | `python examples/ow_meta_np_synthetic.py` |
 | equal-budget comparison | `python examples/ow_benchmark.py compare --learners ppo_gru,model_based,probe_exploit --reference probe_exploit --seeds 0,1,2 --budget 120000 --eval-every 30000 --n-eval 6 --workers 3 --tag final` |
 | three timescales | `python examples/ow_benchmark.py timescales --learners ppo_gru,model_based --seeds 0,1 --budget 60000 --n-eval 4 --workers 2 --tag final` |
 | parametric internalisation | `python examples/ow_benchmark.py internalisation --learners ppo_gru,model_based --seeds 0,1,2 --budget 60000 --train-families scm_additive,scm_gate,scm_delay --second-families abm_utility,abm_wom --second-budget 30000 --n-eval 4 --workers 2 --tag final` |

@@ -14,8 +14,8 @@
 
 Everything is written under `docs/experiments/` (`ow_learners_*.json`, checkpoints in `checkpoints/`). Training
 uses the CPU only (the GPU is hidden from the process) with `OW_THREADS` torch threads per process (default 1:
-the networks are small and one thread is the most CPU-efficient). Set `CRUCIBLE_CACHE` to share validated tasks
-between runs.
+the networks are small and one thread is the most CPU-efficient). The exception is `meta_np`, which uses the GPU
+when `OW_USE_GPU=1` is set. Set `CRUCIBLE_CACHE` to share validated tasks between runs.
 """
 from __future__ import annotations
 
@@ -25,7 +25,9 @@ import os
 import sys
 import time
 
-os.environ["CUDA_VISIBLE_DEVICES"] = ""                 # these learners never use a GPU
+if os.environ.get("OW_USE_GPU") != "1":
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""             # only `meta_np` uses a GPU, and only with OW_USE_GPU=1
+GPU_DEVICE = os.environ.get("OW_DEVICE", "cuda") if os.environ.get("OW_USE_GPU") == "1" else "cpu"
 THREADS = int(os.environ.get("OW_THREADS", "1"))
 for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_v, str(THREADS))
@@ -74,6 +76,10 @@ def _dev_tasks(T, families):
     return T.build_tasks([(f, T.VAL_SEED0 + DEV_OFFSET + i) for f in families for i in range(DEV_N)], workers=2)
 
 
+def _device(name: str) -> str:
+    return GPU_DEVICE if name == "meta_np" else "cpu"
+
+
 def _run_name(a) -> str:
     return a.tag or f"{a.learner}_s{a.seed}"
 
@@ -88,7 +94,7 @@ def cmd_train(a) -> None:
     os.makedirs(CKPT, exist_ok=True)
     curve_path = os.path.join(OUT, f"ow_learners_curve_{name}.json")
     ckpt_path = os.path.join(CKPT, f"ow_learners_{name}.pt")
-    lr = learners.make(a.learner, spec, seed=a.seed, **kw)
+    lr = learners.make(a.learner, spec, seed=a.seed, device=_device(a.learner), **kw)
     run = {"learner": a.learner, "seed": a.seed, "kwargs": kw, "families": fams, "n_envs": a.n_envs,
            "budget_steps": a.steps, "eval_every": a.eval_every, "pool_per_family": POOL,
            "dev_tasks": f"validation seeds {T.VAL_SEED0 + DEV_OFFSET}..+{DEV_N - 1} of each training family",
@@ -140,7 +146,7 @@ def cmd_train(a) -> None:
 
 
 # ---------------------------------------------------------------------------- the learners of the tables
-TRAINABLE = ("ppo_gru", "ppo_gru_flat", "model_based", "evo_probe")
+TRAINABLE = ("ppo_gru", "ppo_gru_flat", "model_based", "evo_probe", "meta_np")
 
 
 def _roster(learners, spec, seeds=(0, 1, 2)) -> list[tuple[str, callable]]:
@@ -154,7 +160,7 @@ def _roster(learners, spec, seeds=(0, 1, 2)) -> list[tuple[str, callable]]:
 
     def trained(name: str, run: str, **kw):
         def build():
-            lr = learners.make(name, spec, seed=0, **kw)
+            lr = learners.make(name, spec, seed=0, device=_device(name), **kw)
             lr.load(os.path.join(CKPT, f"ow_learners_{run}.pt"))
             return lr
         return build
@@ -166,7 +172,7 @@ def _roster(learners, spec, seeds=(0, 1, 2)) -> list[tuple[str, callable]]:
         with open(cp) as fh:
             return bool(json.load(fh).get("finished"))
     for name in TRAINABLE:
-        rows.append((f"{name} untrained", (lambda n=name: learners.make(n, spec, seed=0))))
+        rows.append((f"{name} untrained", (lambda n=name: learners.make(n, spec, seed=0, device=_device(n)))))
         for s in seeds:
             if finished(f"{name}_s{s}"):
                 rows.append((f"{name} trained s{s}", trained(name, f"{name}_s{s}")))

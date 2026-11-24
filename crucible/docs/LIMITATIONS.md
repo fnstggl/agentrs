@@ -132,6 +132,8 @@ Measured results and negative findings are in [OPENWORLD_REPORT.md](OPENWORLD_RE
 
 * **No learner has yet learned to succeed in unfamiliar worlds.** On the sealed test no trained learner beat a scripted
   experimenter. The instrument's sensitivity to real meta-learning is therefore shown only on purpose-built learners.
+* **The positive-control learner `meta_np` failed its pre-declared criteria.** It beat the scripted experimenter on new
+  worlds of its training families, but not its own untrained weights, and training made it worse on held-out families.
 * **Nothing is calibrated.** 0 of 55 registered mechanisms are compared with real data: 37 are plausible hypotheses and 18
   are known to be unrealistic. No result here predicts real-world performance.
 * **Competence in the world is mostly scripted.** Inventors, builders and experimenters that succeed are scripted controls;

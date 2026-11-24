@@ -16,6 +16,11 @@ the component contracts are in [OPENWORLD_ARCHITECTURE.md](OPENWORLD_ARCHITECTUR
 * The learning that was measured is real but small. PPO's weights improved by +0.07 to +0.09 on fresh tasks (significant
   in 3 of 3 seeds), which brought it from below idle to about idle. The model-based learner's score comes from fitting a
   model *within* each episode; training its weights across episodes added nothing detectable.
+* A dedicated **positive-control learner failed its criteria**, which were written before any validation score was seen
+  (section 3.2). A neural process trained across 1,800 worlds beat the scripted experimenter on new worlds of the training
+  families (+0.184 [+0.129, +0.240]), but its gain over its own untrained weights was not distinguishable from zero
+  (+0.048 [-0.006, +0.101]), and on held-out families training made it worse (-0.065 [-0.118, -0.014]). No sealed set
+  was opened for it.
 * A frozen **Qwen3-4B** with a corrected interface scored the same as idle: in all six full-length facility runs it read
   the gauges every turn and **never set a lever**. The existing **CAM 2.0** checkpoint reached 0 of 8 open-economy goals.
 * The red team found one critical and 13 high-severity holes in the 3.0 reward system. 23 of 24 findings are closed.
@@ -34,7 +39,9 @@ the component contracts are in [OPENWORLD_ARCHITECTURE.md](OPENWORLD_ARCHITECTUR
 kind of learning: within-episode only, weights only, a memoriser that replays training trajectories, and none
 (`tests/test_research_protocols.py`). On real learners they separate architectures, timescales and transfer categories
 with paired intervals. What is still missing is a **positive control on the real task families**: no learner tested so
-far actually gets better at learning them, so the instrument has not yet been seen detecting that on hard tasks.
+far actually gets better at learning them, so the instrument has not yet been seen detecting that on hard tasks. One
+purpose-built attempt failed (section 3.2). The instrument did refuse to credit it: a large win over the scripted
+baseline was not accepted as learning, because the same procedure with untrained weights scored almost as well.
 
 ## 2. What was built
 
@@ -108,6 +115,47 @@ Transfer (60,000 source steps; zero-shot gain of the trained checkpoint over the
 
 PPO's transfer gains start from an untrained policy that loses money, so they mostly reflect learning to do less harm:
 its absolute scores stay near or below idle.
+
+#### Positive-control attempt: `meta_np` (failed)
+
+`meta_np` is a transformer neural process trained across worlds to predict the revenue and cost of untried settings from
+the settings tried so far in the episode. Its output is a correction to an exact Bayesian regression, and it starts at
+zero, so **an untrained `meta_np` is that regression with the same search procedure**. Each of 3 seeds trained for 300,000
+environment steps (about 37,700 updates) on 1,800 worlds of the six training families.
+
+The criteria were recorded before any validation score was seen ([log](experiments/ow_meta_np_log.md)): the trained
+learner, averaged over seeds, must beat the scripted experimenter (C1) **and** its own untrained weights (C2), with
+paired 95% intervals above zero, before a new sealed set may be opened. Beating `model_based` (C3) was reported either way.
+
+| trained `meta_np` minus | validation, training families (72 tasks) | held-out families (48 tasks) |
+|---|---|---|
+| *(trained `meta_np` score)* | *+0.292* | *+0.176* |
+| scripted experimenter (C1) | **+0.184 [+0.129, +0.240]**, passes | -0.047 [-0.131, +0.037] |
+| its own untrained weights (C2) | **+0.048 [-0.006, +0.101]**, fails | **-0.065 [-0.118, -0.014]**, worse |
+| `model_based`, untrained (C3) | +0.050 [-0.002, +0.102] | -0.066 [-0.141, +0.009] |
+| `model_based`, trained (C3) | +0.052 [+0.003, +0.106] | -0.052 [-0.107, -0.000] |
+
+**Verdict: failed. C2 and C3 do not hold, so no sealed set was opened.** The win over the scripted experimenter is mostly
+due to the regression and search procedure, which need no training.
+
+An exploratory breakdown, chosen after seeing these results and not part of the verdict, shows why the average is small.
+Trained minus untrained on validation is **+0.174 [+0.113, +0.236]** on the agent-based market families and
+**-0.078 [-0.141, -0.020]** on the structural causal families. On held-out families it is +0.012 [+0.008, +0.017] (market),
+-0.113 [-0.196, -0.032] (causal) and -0.047 [-0.170, +0.058] (technical systems). The weights learned something useful
+about market worlds and lost ground elsewhere. Any claim about that needs a fresh test.
+
+On development tasks, one pilot checkpoint predicted held-out settings better than the regression, the mean of measured
+settings and the nearest measured setting: lowest error in 18 of 18 family and context-size cells, best ranking in 15,
+and lowest regret when picking a setting in 16 ([data](experiments/ow_meta_np_predcheck.json)). Better prediction did not
+reliably become better decisions.
+
+On synthetic worlds, after 8,000 updates, the correction learned a response curve shared across worlds (error 2% of the
+regression's) and a pure two-lever interaction (16%), but not a saturating curve whose size differs per lever and per
+world (101%) ([data](experiments/ow_meta_np_synthetic.json)).
+
+Disclosures: the design was tuned on development seeds across 8 training configurations and about 35 variants of its
+acting settings, all listed in the log. Validation and held-out tasks had already been used to compare earlier learners,
+though never to tune this one. Because this learner has now been seen on them, a successor needs fresh validation seeds.
 
 ### 3.3 Frozen language models and CAM
 
@@ -215,12 +263,12 @@ caveats in [ACCEPTANCE.md](ACCEPTANCE.md).
 | **Experimentally validated (under the simulator's assumptions)** | long-horizon liveness and accounting; capacity second-order chain; informed-vs-deprived discovery on causal-model families; reward-hack resistance against 81 probes; opponent-dependent learning; collusion detection |
 | **Partially validated** | transfer measurement (no learner shows strong transfer); invention classes other than capacity; cooperation (depends on family); real-world bridge (loopback only, HTTPS path untested); performance (quick suite only) |
 | **Inconclusive** | whether the instrument detects meta-learning on real families (no learner exhibits it); which architecture is better on the sealed set between model-based and scripted |
-| **Failed / negative results** | no trained learner beat the scripted experimenter on the sealed set; meta-learning not detected; model-based gained nothing from weight training; frozen Qwen3-4B never acted on the facility; CAM 2.0 reached 0 of 8; discovery procedure fails on technical systems |
+| **Failed / negative results** | no trained learner beat the scripted experimenter on the sealed set; the `meta_np` positive control failed its pre-declared criteria, and training made it worse on held-out families; meta-learning not detected; model-based gained nothing from weight training; frozen Qwen3-4B never acted on the facility; CAM 2.0 reached 0 of 8; discovery procedure fails on technical systems |
 | **Not attempted** | calibration against real data; real-world pilots; VM-grade isolation (unavailable on this host); frontier-scale models; hundreds of concurrent LLM agents; self-play inside the full open economy (self-play runs on hidden-mechanism facilities); the full 30-day benchmark table |
 
 ## 6. Limitations that matter most
 
-1. **The learners are modest.** Budgets of 60,000-180,000 steps with small networks on a shared CPU cannot show what a
+1. **The learners are modest.** Budgets of 60,000-300,000 steps with small networks on shared hardware cannot show what a
    strong architecture would do. The results describe these baselines, not the difficulty ceiling of the benchmark.
 2. **No external validity.** Customers, firms and mechanisms are models. Success here does not predict success in reality.
 3. **Most competence in the world is scripted.** Every successful inventor, builder and experimenter is a scripted control.
@@ -233,9 +281,11 @@ caveats in [ACCEPTANCE.md](ACCEPTANCE.md).
 
 ## 7. Recommended next steps
 
-1. **Establish a positive control:** train one strong learner (a larger recurrent or transformer model with a much larger
-   budget) until it clearly beats the scripted experimenter on validation families. Without it, the instrument's
-   sensitivity to real meta-learning stays unproven.
+1. **Establish a positive control.** The first attempt (`meta_np`, section 3.2) failed. A successor must beat its own
+   untrained weights as well as the scripted experimenter, on fresh validation seeds and then a new sealed set. The
+   obvious lead is to keep the gain on market worlds without the loss on causal ones, for example by letting each
+   episode decide how far to trust the learned correction from its own prediction errors. Without a positive control,
+   the instrument's sensitivity to real meta-learning stays unproven.
 2. **Train CAM on Crucible** through the existing adapter; its tool-selection failure is the first thing to fix.
 3. **Give language models a scaffold or a stronger model** to separate "cannot act" from "cannot discover".
 4. **Calibrate one mechanism family** against public data, starting with adoption and retention.
