@@ -149,7 +149,12 @@ def report(args) -> dict:
                 if name == ref:
                     continue
                 a, b = matrix(d), matrix(res[ref])
-                diff = a.mean(0, keepdims=True) - b.mean(0, keepdims=True) if a.shape[0] != b.shape[0] else a - b
+                # paired per task; a single-run side broadcasts so the other side's seed variation stays in the
+                # interval; two multi-seed sides of different sizes are compared on seed means
+                if a.shape[0] == b.shape[0] or 1 in (a.shape[0], b.shape[0]):
+                    diff = a - b
+                else:
+                    diff = a.mean(0, keepdims=True) - b.mean(0, keepdims=True)
                 out["paired"][f"{name} - {ref}"] = _boot2(diff)
                 m, lo, hi = out["paired"][f"{name} - {ref}"]
                 print(f"  {name} - {ref}: {m:+.3f} [{lo:+.3f}, {hi:+.3f}]")

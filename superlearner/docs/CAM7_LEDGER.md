@@ -100,6 +100,17 @@ two-level bootstrap over training seeds and tasks, 95%. Each claim stands alone 
 Also reported without a criterion: `model_based` trained (3 seeds), exact regression (`meta_np` untrained), hold, CAM 6.1
 adaptive (decisive checkpoints) if it loads, CAM 7.0 without the residual, and the adaptation curves at k = 0…64.
 
+**C-4, Experiment 3, parametric transfer (declared 2026-11-24, before the run).** Crucible's `protocols.transfer`
+unchanged (`superlearner.cam7.experiments.exp3`), CAM 7.0 `small` full, seeds 0, 1, 2 (fresh trainings): source = the six
+training families, 240k steps; adaptation budget 120k on each target's training stream, from the source checkpoint
+("pretrained") and from scratch (target-only control), same stream, same evaluation tasks; evaluation tasks at VAL offset
+80,000, 8 per family (untouched). Targets: within (new seeds of the training families), compositional (`scm_delay_gate`),
+structural (`abm_trust_gate`, `scm_invu`), cross-implementation (`tech_pipeline`). Claim per target, standing alone:
+the area under the adaptation curve, pretrained − scratch, paired over (seed, task), has its 95% lower bound > 0
+(the protocol's own interval). C-4a within, C-4b compositional, C-4c structural, C-4d cross-implementation. Zero-shot
+gains and steps to threshold reported without a criterion; `model_based` through the same protocol as the baseline's
+own transfer, without a criterion.
+
 **C-3, Experiment 2, active causal discovery (declared 2026-11-24, before any look at the confirmation set).** Set:
 `x2_confound_gate` and `x2_regime_mix` at VAL offset 70,000, 12 tasks each (24), never used. Same three CAM 7.0
 checkpoints; budget 24 ticks; `superlearner.cam7.experiments.exp2`. Statistic: whole-episode score, paired per task,
