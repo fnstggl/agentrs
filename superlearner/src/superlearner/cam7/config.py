@@ -38,6 +38,7 @@ class Cam7Config:
     use_residual: bool = True       # learned correction to the Bayesian decision score; ablation: False
     use_bayes_inputs: bool = True   # False with explore_rule learned_only: no posterior quantity reaches the policy
     eig_weight: float = 1.0
+    kg_weight: float = 1.0          # weight on remaining decisions x knowledge gradient (1 = the textbook online KG)
     policy_temp: float = 1.0        # softmax temperature over candidate scores while exploring in training
     min_funds: float = 0.15         # same safety rule as model_based: below this, return to defaults and stop
     surprise: float = 4.0           # change-point rule (as model_based): recent squared error > surprise^2 x earlier

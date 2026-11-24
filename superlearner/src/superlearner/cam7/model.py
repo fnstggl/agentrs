@@ -398,7 +398,7 @@ class Cam7Model(nn.Module):
             z_mean, z_sd, z_kg = torch.zeros_like(z_mean), torch.zeros_like(z_sd), torch.zeros_like(z_kg)
             eig = torch.zeros_like(eig)
         if rule == "kg":
-            base = z_mean + nr * z_kg
+            base = z_mean + cfg.kg_weight * nr * z_kg
         elif rule == "eig":
             base = z_mean + cfg.eig_weight * eig.float().detach()
         elif rule in ("greedy", "thompson", "random", "fixed_design"):

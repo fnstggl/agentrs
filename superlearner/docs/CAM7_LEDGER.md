@@ -47,6 +47,7 @@ auxiliaries, clipped actor-critic on actual outcomes with the posterior as a fix
 
 | Date | Experiment | Result | Reading |
 |---|---|---|---|
+| 2026-11-24 | Diagnostic after C-2/C-3: weight on the value of information (`kg_weight`), 3 seeds, dev sets (`runs/cam7/exp1b_dev`, `runs/cam7/exp2_dev3`), no residual | Familiar: weight 0.25 +0.045 [+0.007, +0.084] vs 1.0; held-out: 0.25 −0.018 [−0.058, +0.023], 0.5 −0.003; Exp 2: 0.5 −0.040 [−0.108, +0.026], 0.25 −0.043; weight 0 (greedy over the same candidates) worst everywhere | Hypothesis "KG × remaining decisions over-explores" not supported across sets; textbook weight 1 kept. The mid-episode lag behind exact regression on held-out families (k=16: about 0.02 vs 0.11) is present at every weight, so it is not the exploration weight |
 | 2026-11-24 | Exp 2 dev (`runs/cam7/exp2_dev`, x2_confound_gate + x2_regime_mix, 12 tasks each, VAL offset 60,000, one trained small model, budget 24 ticks) | Episode score: knowledge gradient **0.505**, full (KG + learned residual) 0.447, Thompson 0.437, EIG 0.433, greedy 0.351, `model_based` trained 0.344, fixed design 0.276, random 0.166. Commit score at tick 24: `model_based` 0.334, greedy 0.272, Thompson 0.252, KG 0.213. Probe rank correlation: Thompson 0.58, `model_based` 0.55, KG 0.47 | Decision-relevant VOI gives the best verified outcome; it does not give the best information at a fixed early budget. The learned residual hurts on these unseen worlds |
 | 2026-11-24 | Exp 1B dev (`runs/cam7/exp1b_dev`, 48 tasks per split at VAL offset 60,000, frozen, fresh context) | Held-out: hold 0.000, exact BLR 0.132, `model_based` untrained 0.155 / trained 0.159 (3 seeds), CAM 7.0 base untrained 0.168, trained 0.165, small trained 0.183 (+0.028 [−0.035, +0.091] vs `model_based` untrained). Familiar: `model_based` untrained 0.246 / trained 0.263, exact BLR 0.244, CAM 7.0 small trained **0.308** (+0.062 [+0.025, +0.101] vs `model_based` untrained) | Training helps on familiar families; no measurable transfer to held-out families. Training mostly cut early exploration losses (held-out window k=4: −0.285 untrained, −0.138 trained) without raising the final level |
 | 2026-11-24 | Untrained exploration rules, dev sets (32 tasks per split) | `model_based` untrained 0.202 / 0.240 (familiar / held-out), CAM 7.0 KG 0.130 / 0.156: losses concentrated in `abm_congestion` (−0.53; greedy +0.07) and `tech_pipeline` (−0.43) | Exploration that the one-period value of information prices as cheap does lasting damage in worlds with slow feedback (churn); the learned residual is meant to learn this |
@@ -99,6 +100,23 @@ two-level bootstrap over training seeds and tasks, 95%. Each claim stands alone 
 - C-2d held-out families, transfer of what was learned: CAM 7.0 trained − untrained (dev: +0.030 [−0.015, +0.077]).
 Also reported without a criterion: `model_based` trained (3 seeds), exact regression (`meta_np` untrained), hold, CAM 6.1
 adaptive (decisive checkpoints) if it loads, CAM 7.0 without the residual, and the adaptation curves at k = 0…64.
+
+**C-2 result (run once, 2026-11-24, `runs/cam7/confirm/exp1b_{heldout,familiar}`):** C-2a **PASSED** (familiar,
+trained − untrained +0.172 [+0.094, +0.261]); C-2b failed (familiar, − `model_based` untrained +0.024 [−0.018, +0.067]);
+C-2c failed (held-out, − `model_based` untrained −0.042 [−0.100, +0.010]); C-2d failed (held-out, trained − untrained
++0.021 [−0.032, +0.075]). Scores, held-out / familiar: CAM 7.0 0.180 / 0.285, without residual 0.179 / 0.251, untrained
+0.159 / 0.114, `model_based` untrained 0.222 / 0.261, trained 0.175 / 0.287, exact regression 0.164 / 0.262, CAM 6.1
+adaptive (decisive checkpoints, evaluated at `feccc86` in a separate worktree) −0.054 / 0.013, hold −0.001 / −0.004.
+CAM 7.0 − CAM 6.1 adaptive: about +0.23 / +0.27. Adaptation curves (familiar): trained CAM 7.0 loses much less while
+experimenting (k=2: −0.13 vs −0.30 `model_based`, −0.47 exact regression) and ends highest (k=64: 0.397), but exact
+regression is ahead in the middle (k=16: 0.326 vs 0.191).
+
+**C-3 result (run once, 2026-11-24, `runs/cam7/confirm/exp2`):** all three failed. C-3a KG − Thompson +0.039
+[−0.024, +0.104]; C-3b KG − `model_based` trained +0.047 [−0.047, +0.140]; C-3c full − `model_based` trained −0.004
+[−0.102, +0.085]. Reported without a criterion (same model, only the choice of experiments differs): KG − greedy +0.211
+[+0.114, +0.303], KG − EIG +0.099 [+0.011, +0.188], KG − fixed design +0.192 [+0.098, +0.287], KG − random +0.228
+[+0.133, +0.328]; learned residual on top of KG −0.051 [−0.107, +0.005]. Episode scores: KG 0.410, Thompson 0.371,
+`model_based` 0.363, full 0.359, EIG 0.311, fixed design 0.217, greedy 0.198, random 0.181.
 
 **C-4, Experiment 3, parametric transfer (declared 2026-11-24, before the run).** Crucible's `protocols.transfer`
 unchanged (`superlearner.cam7.experiments.exp3`), CAM 7.0 `small` full, seeds 0, 1, 2 (fresh trainings): source = the six
