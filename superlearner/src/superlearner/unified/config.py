@@ -68,6 +68,8 @@ class UnifiedConfig:
     use_adaptive_planner: bool = True       # Thompson-sample candidate gains from it once it passes the held-out check
     use_hand_evidence: bool = True          # the hand-designed slope statistics shared with Crucible's baselines
     adapt_k: int = 4
+    adapt_fixed_features: bool = False      # add each lever's move and squared move under the learned features
+    adapt_task_scale: bool = False          # meta-train with each episode's full-data reward spread (C-1 passed with this)
     adapt_lr: float = 1e-3
     adapt_batch: int = 8
     adapt_beta: float = 3.0
@@ -120,4 +122,19 @@ def large() -> UnifiedConfig:
                          action_dim=1024, goal_dim=1024)
 
 
-SCALES = {"small": small, "medium": medium, "large": large}
+def cam7_small() -> UnifiedConfig:
+    """CAM 7.0 screening configuration: event-attention memory, within-episode regression with fixed and learned
+    features meta-trained in each episode's full spread (the two choices supported by the 2026-11-24 diagnostics)."""
+    return small().with_(core="attention", event_window=64, event_layers=2, event_heads=4, use_adaptive=True,
+                         adapt_fixed_features=True, adapt_task_scale=True, use_effect_planner=False,
+                         use_imagination=False, batch_size=32, seq_len=32, burn_in=0, updates_per_step=0.06,
+                         entropy_coef=0.003)
+
+
+def cam7() -> UnifiedConfig:
+    """CAM 7.0 starting configuration from the specification (width 256, four attention layers)."""
+    return cam7_small().with_(d_model=256, action_dim=256, goal_dim=256, memory_dim=256, obs_layers=2, obs_heads=4,
+                              event_layers=4, event_heads=8)
+
+
+SCALES = {"small": small, "medium": medium, "large": large, "cam7_small": cam7_small, "cam7": cam7}

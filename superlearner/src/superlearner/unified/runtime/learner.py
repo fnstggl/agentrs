@@ -446,7 +446,8 @@ class UnifiedLearner(Learner):
         for _ in range(n):
             info = self.trainer.update(self.replay.sample(self.cfg.batch_size, self.cfg.seq_len))
             if self.cfg.use_adaptive:
-                info.update(self.trainer.update_adapt(self.replay.sample_episodes(self.cfg.adapt_batch)))
+                info.update(self.trainer.update_adapt(self.replay.sample_episodes(self.cfg.adapt_batch,
+                                                                                  task_scale=self.cfg.adapt_task_scale)))
             if self.trainer.steps % 50 == 0:
                 info.update(self.trainer.heldout_prediction(self.replay.sample_holdout(self.cfg.batch_size, self.cfg.seq_len)))
                 if self.cfg.use_adaptive:

@@ -60,6 +60,10 @@ two-level bootstrap over seeds and tasks, 95%.
 Passes only if all three hold: (1) effect error, learned minus fixed, has an upper bound below 0 at k = 8;
 (2) the same at k = 16; (3) ranking, learned minus fixed, has a lower bound above −0.02 at k = 16 (not worse).
 Otherwise the claim "meta-learned priors improve few-shot effect prediction on unseen mechanisms" is recorded as failed.
+**Result (run once, 2026-11-24, `runs/cam7/fewshot/condition_a_confirm.json`): PASSED.** Effect error k=8 −0.135
+[−0.206, −0.070], k=16 −0.189 [−0.285, −0.107]; ranking k=16 +0.018 [−0.003, +0.039]. Not part of the criterion: ranking
+at k=4 −0.033 and k=8 −0.014 (point estimates), so learned priors size effects better but do not yet order
+interventions better. Scope: identical support sets (condition A), prediction only, not control.
 
 ### Active
 

@@ -74,8 +74,10 @@ class EpisodeReplay:
         eps = [self.held[int(self.rng.integers(len(self.held)))] for _ in range(batch)]
         return self._collate([self._cut(e, length) for e in eps], length)
 
-    def sample_episodes(self, batch: int, max_ticks: int = 256, holdout: bool = False) -> dict | None:
-        """Whole episodes at tick resolution, for training the within-episode regression from each episode's start."""
+    def sample_episodes(self, batch: int, max_ticks: int = 256, holdout: bool = False, task_scale: bool = False) -> dict | None:
+        """Whole episodes at tick resolution, for training the within-episode regression from each episode's start.
+        ``task_scale``: replace the running spread by the episode's full-data spread, a training-time label that keeps
+        the likelihood from rewarding inflated variance at small sample sizes (confirmation C-1)."""
         pool = list(self.held) if holdout else None
         eps = []
         for _ in range(batch):
@@ -91,6 +93,8 @@ class EpisodeReplay:
         for i, e in enumerate(eps):
             h = min(H, len(e["tick_r"]))
             x[i, :h], r[i, :h], sd[i, :h], valid[i, :h] = e["tick_x"][:h], e["tick_r"][:h], e["tick_sd"][:h], 1.0
+            if task_scale:
+                sd[i, :h] = max(float(np.std(e["tick_r"][:h])), 1e-4)
         t = lambda a: torch.from_numpy(a)
         return {"x": t(x), "r": t(r), "sd": t(sd), "valid": t(valid),
                 "x0": t(np.stack([e["x0"] for e in eps])), "mask": t(np.stack([e["lmask"] for e in eps]))}

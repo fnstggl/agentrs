@@ -143,7 +143,7 @@ class UnifiedModel(nn.Module):
         self.obs_encoder = ObservationEncoder(cfg, layout.n_ids, text_dim)
         self.goal_encoder = GoalEncoder(cfg, goal_features)
         self.action_encoder = ActionEncoder(cfg, self.obs_encoder.id_embed, layout.lever_id0, lang, ADAPT_FEATURES)
-        self.adapt = EpisodeRegression(layout.n_levers, cfg.adapt_k)
+        self.adapt = EpisodeRegression(layout.n_levers, cfg.adapt_k, fixed_features=cfg.adapt_fixed_features)
         self.rssm = RSSM(cfg)
         self.events = EventCore(cfg) if cfg.core == "attention" else None
         if cfg.core not in ("rssm", "attention"):
