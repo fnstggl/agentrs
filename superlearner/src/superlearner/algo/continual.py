@@ -48,6 +48,7 @@ CONTINUAL_DEFAULTS = {'wm': {'enabled': True,
  'rehearsal': {'keep': True, 'per_arm': 120},
  'consolidate_steps': 0,
  'consolidate_lr': None,
+ 'replay_bias': None,
  'anchor': {'kind': 'none', 'coef': 0.0, 'decay': 1.0, 'fisher_episodes': 64, 'top_frac': 1.0},
  'l2init': 0.0,
  'shrink_perturb': {'shrink': 1.0, 'sigma': 0.0},
@@ -223,6 +224,8 @@ class ContinualPPO(PPOSIL):
             by.setdefault(tuple(e["summary"].get("arm", ())), []).append(e)
         arms = sorted(by)
         p = replay_arm_weights(arms, self.arms_now)
+        if self.cc.get("replay_bias"):                   # how many times more often the current phase's arms are drawn
+            p = np.asarray(p, np.float64) * np.array([float(self.cc["replay_bias"]) if tuple(x) in self.arms_now else 1.0 for x in arms])
         p = np.asarray(p, np.float64) / float(np.sum(p))
         out = []
         for _ in range(min(n, len(self.buffer))):

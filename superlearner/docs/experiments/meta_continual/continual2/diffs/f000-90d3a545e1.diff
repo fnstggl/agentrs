@@ -1,0 +1,7 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -39,3 +39,3 @@
+         'coef': 1.0,
+-        'repr': 0.1,
++        'repr': 0.0,
+         'replay_steps': 4,

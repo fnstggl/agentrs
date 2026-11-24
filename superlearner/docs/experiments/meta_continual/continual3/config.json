@@ -1,0 +1,197 @@
+{
+ "name": "meta_continual_equal100",
+ "seed": 0,
+ "rounds": 2,
+ "pool": 6,
+ "per_round": 2,
+ "selection": "surrogate",
+ "sources": {
+  "rule_space": 0,
+  "llm": 0,
+  "learned_rule": 0,
+  "continual_space": 6
+ },
+ "max_parallel": 6,
+ "primary": "aulc_eval",
+ "screen_margin": 0.03,
+ "promote_margin": 0.0,
+ "max_final_drop": 0.05,
+ "inner": {
+  "workers": 4,
+  "llm": {
+   "kind": "none"
+  },
+  "eval_every": 2,
+  "model": {
+   "d": 128,
+   "layers": 2,
+   "heads": 4,
+   "ff": 256,
+   "bag_dim": 48,
+   "hid": 128
+  },
+  "agent": {
+   "use_llm": false,
+   "affinity_tokens": true,
+   "use_memory": false,
+   "use_tools": false
+  },
+  "core": {
+   "max_decisions": 20
+  },
+  "algo": {
+   "name": "continual",
+   "lr": 0.0001,
+   "epochs": 3,
+   "minibatch_eps": 8,
+   "target_kl": 0.03,
+   "clip": 0.1,
+   "critic_warmup": 1,
+   "lr_warmup_steps": 20,
+   "detach_critic": true,
+   "ent_coef": 0.003,
+   "sil_steps": 8,
+   "sil_batch": 8,
+   "sil_coef": 1.0
+  },
+  "curriculum": {
+   "adaptive": false,
+   "world_families": [
+    "tiny",
+    "bazaar"
+   ],
+   "arms": [
+    {
+     "family": "found"
+    },
+    {
+     "family": "list",
+     "start": "deployed"
+    },
+    {
+     "family": "fund"
+    },
+    {
+     "family": "deploy",
+     "start": "coded"
+    },
+    {
+     "family": "service",
+     "start": "listed"
+    },
+    {
+     "family": "repair"
+    }
+   ],
+   "gate": false
+  },
+  "demos": {
+   "episodes": 72,
+   "bc_epochs": 1,
+   "max_per_arm": 2
+  },
+  "explore": {
+   "frac": 0.125,
+   "temperature": 2.5,
+   "random": true
+  }
+ },
+ "eval_arms": [
+  "found/0/scratch",
+  "fund/0/scratch",
+  "list/0/deployed",
+  "service/0/listed"
+ ],
+ "eval_world_families": [
+  "tiny",
+  "bazaar",
+  "entrenched_incumbents"
+ ],
+ "stages": {
+  "screen": {
+   "seeds": [
+    1
+   ],
+   "iters": 2,
+   "episodes_per_iter": 32,
+   "budget": 1000000,
+   "eval_n": 16,
+   "timeout_s": 7200,
+   "demos_per_arm": 3,
+   "observe_steps": 100,
+   "eval_per_arm": 6
+  },
+  "develop": {
+   "seeds": [
+    1,
+    2,
+    3
+   ],
+   "iters": 2,
+   "episodes_per_iter": 32,
+   "budget": 1000000,
+   "eval_n": 24,
+   "timeout_s": 7200,
+   "demos_per_arm": 3,
+   "observe_steps": 100,
+   "eval_per_arm": 6
+  },
+  "confirm": {
+   "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "iters": 2,
+   "episodes_per_iter": 32,
+   "budget": 1000000,
+   "eval_n": 24,
+   "timeout_s": 7200,
+   "demos_per_arm": 3,
+   "observe_steps": 100,
+   "eval_per_arm": 6
+  }
+ },
+ "mode": "lifetime",
+ "develop_top": 3,
+ "named_first": true,
+ "reject_inert": true,
+ "phases": [
+  {
+   "name": "start",
+   "arms": [
+    "found/0/scratch",
+    "list/0/deployed"
+   ],
+   "worlds": [
+    "tiny",
+    "bazaar"
+   ]
+  },
+  {
+   "name": "capital",
+   "arms": [
+    "fund/0/scratch",
+    "deploy/0/coded"
+   ],
+   "worlds": [
+    "tiny",
+    "bazaar"
+   ]
+  },
+  {
+   "name": "operate",
+   "arms": [
+    "service/0/listed",
+    "repair/0/scratch"
+   ],
+   "worlds": [
+    "tiny",
+    "bazaar"
+   ]
+  }
+ ],
+ "equal_steps": 100
+}

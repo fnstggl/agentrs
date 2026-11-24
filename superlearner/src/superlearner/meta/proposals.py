@@ -754,6 +754,7 @@ def continual_settings(g: dict) -> tuple[dict, dict]:
          "rehearsal": {"keep": bool(g["rehearsal_keep"]), "per_arm": int(g["per_arm"])},
          "consolidate_steps": int(g["consolidate_steps"]),
          "consolidate_lr": g["consolidate_lr"],
+         "replay_bias": None,
          "anchor": {"kind": g["anchor"], "coef": float(g["anchor_coef"]) if g["anchor"] != "none" else 0.0, "decay": 1.0,
                     "fisher_episodes": 64, "top_frac": float(g["top_frac"])},
          "l2init": float(g["l2init"]),

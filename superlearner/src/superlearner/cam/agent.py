@@ -237,12 +237,19 @@ class CAMAgent:
         self._see(self.obs)
 
     def _sync_caps(self, tools: list) -> None:
-        """Refresh the capability index and put the frozen embeddings of new tool descriptions into the store."""
-        self.caps.update(tools)
-        for name in self.caps.order:
+        """Refresh the capability index and put the embeddings of tool descriptions into the store. With a trainable
+        language backbone the index was just computed from the CURRENT weights, so a stored vector is replaced by it,
+        and the description's text is reported to the trainer, which re-embeds and trains through it like any text."""
+        new = self.caps.update(tools)
+        live = bool(getattr(self.llm, "trainable", False))
+        for i, name in enumerate(self.caps.order):
             k = self.caps.keys[name]
             if not self.store.has(k):
-                self.store.put(k, self.caps.vec(name))
+                self.store.put(k, self.caps._mat[i])
+            elif live and new:
+                self.store.overwrite(k, self.caps._mat[i])
+            if new:
+                self._txt[k] = tool_doc(self.caps.tools[name])
 
     def _claim(self, x: Any, depth: int = 0) -> None:
         """Identifiers returned by the actor's own successful state-changing calls are 'mine'."""

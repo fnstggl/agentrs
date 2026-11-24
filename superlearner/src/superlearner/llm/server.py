@@ -317,8 +317,8 @@ class BackboneClient(LLM):
     called, so nothing computed with old weights is ever served. Generation, if a run needs it, goes to `gen` (the
     frozen generator's client); without one there is no generation."""
 
-    def __init__(self, socket_path: str, gen: LLM | None = None):
-        self.socket_path, self.gen = socket_path, gen
+    def __init__(self, socket_path: str, gen: LLM | None = None, trainable: bool = False):
+        self.socket_path, self.gen, self.trainable = socket_path, gen, bool(trainable)
         self._conn, self._pid = None, None
         self.name = "backbone"
         self._cache: dict[str, np.ndarray] = {}
@@ -381,7 +381,8 @@ def connect(spec: dict | None) -> LLM:
     kind = spec.get("kind", "none")
     if kind == "backbone":
         gen = spec.get("gen")
-        return BackboneClient(spec["socket"], connect(gen) if gen and gen.get("kind", "none") != "none" else None)
+        return BackboneClient(spec["socket"], connect(gen) if gen and gen.get("kind", "none") != "none" else None,
+                              bool(spec.get("trainable")))
     if kind == "remote":
         return RemoteLLM(spec["socket"], spec.get("cache"))
     if kind == "hf":

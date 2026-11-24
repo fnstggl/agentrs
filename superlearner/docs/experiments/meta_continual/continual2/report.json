@@ -1,0 +1,42 @@
+{
+ "champion": {
+  "id": "champion-0",
+  "genome": {
+   "rehearsal_keep": true,
+   "per_arm": 120,
+   "rehearse_frac": 0.5,
+   "observe_lr": 0.0003,
+   "observe_steps": 1.0,
+   "consolidate_steps": 0,
+   "consolidate_lr": null,
+   "anchor": "none",
+   "anchor_coef": 200000.0,
+   "top_frac": 1.0,
+   "l2init": 0.0,
+   "shrink_perturb": "none",
+   "group_lr": "uniform",
+   "wm_repr": 0.1,
+   "wm_coef": 1.0,
+   "wm_replay": 4,
+   "wm_fit": 300,
+   "replay_arms": "uniform",
+   "replay_steps": 1.0,
+   "lr": 1.0
+  },
+  "hypothesis": "baseline continual rule: rehearsal reservoirs, online world model, no anchors",
+  "promoted_at": 0
+ },
+ "rounds": 2,
+ "experiments": 0,
+ "decisions": {},
+ "table": [],
+ "pareto": {},
+ "surrogate": {
+  "updates": 1,
+  "n": 4,
+  "n_valid": 4,
+  "spearman": null
+ },
+ "learned_rule": [],
+ "llm_proposals_rejected_before_running": 0
+}

@@ -24,13 +24,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 OUT = os.path.join(ROOT, "docs", "experiments")
 
-ORDER = ["frozen_memory", "naive", "memory", "rehearsal", "consolidate", "meta_champion", "backbone_lora", "backbone_top4", "backbone_full"]
+ORDER = ["frozen_memory", "naive", "memory", "rehearsal", "consolidate", "meta_champion", "meta_rule_equal", "scarce_rehearsal", "scarce_meta_rule", "backbone_lora", "backbone_top4", "backbone_full"]
 LABEL = {"frozen_memory": "1 frozen core + written memory", "naive": "2 trainable core, no protection",
          "memory": "3 trainable core + external memory", "rehearsal": "4a trainable core + rehearsal",
-         "consolidate": "4b trainable core + rehearsal + consolidation", "meta_champion": "rule promoted by the Meta-Researcher", "backbone_lora": "5 (LoRA) 4b + backbone adapters",
+         "consolidate": "4b trainable core + rehearsal + consolidation", "meta_champion": "first promoted rule (96 consolidation steps)", "meta_rule_equal": "equal-compute promoted rule",
+         "scarce_rehearsal": "half the steps: rehearsal", "scarce_meta_rule": "half the steps: equal-compute promoted rule", "backbone_lora": "5 (LoRA) 4b + backbone adapters",
          "backbone_top4": "5 (top 4 blocks) 4b + backbone top blocks", "backbone_full": "5 (full) 4b + whole backbone"}
 PAIRS = [("naive", "frozen_memory"), ("memory", "naive"), ("rehearsal", "naive"), ("consolidate", "naive"),
-         ("consolidate", "rehearsal"), ("meta_champion", "rehearsal"), ("consolidate", "frozen_memory"), ("backbone_lora", "consolidate"),
+         ("consolidate", "rehearsal"), ("meta_champion", "rehearsal"), ("meta_rule_equal", "rehearsal"), ("scarce_meta_rule", "scarce_rehearsal"), ("consolidate", "frozen_memory"), ("backbone_lora", "consolidate"),
          ("backbone_top4", "consolidate"), ("backbone_full", "consolidate")]
 
 
@@ -230,6 +231,7 @@ def life_summary(root: str) -> dict:
 
 def main(a) -> int:
     from ..cli import RUNS
+    shutil.rmtree(os.path.join(OUT, "life"), ignore_errors=True)      # only what the runs directory holds now
     os.makedirs(os.path.join(OUT, "life"), exist_ok=True)
     life_root = a.life or os.path.join(RUNS, "life")
     summ = life_summary(life_root)
@@ -245,14 +247,18 @@ def main(a) -> int:
         s = summ["conditions"][c]
         print(f"  {LABEL[c]:48s} seeds {s['seeds']}  final mean {s['final_mean']['mean']:.3f}  forgetting {s['forgetting']['mean']:.3f}  "
               f"acquisition {s['acquisition']['mean']:.3f}")
-    meta = a.meta or os.path.join(RUNS, "meta", "continual1")
-    if os.path.exists(os.path.join(meta, "ledger.jsonl")):
-        dst = os.path.join(OUT, "meta_continual")
+    root = os.path.join(OUT, "meta_continual")
+    shutil.rmtree(root, ignore_errors=True)
+    for name in ("continual1", "continual2", "continual3"):       # the three searches over update rules
+        meta = os.path.join(a.meta or os.path.join(RUNS, "meta"), name)
+        if not os.path.exists(os.path.join(meta, "ledger.jsonl")):
+            continue
+        dst = os.path.join(root, name)
         os.makedirs(os.path.join(dst, "diffs"), exist_ok=True)
-        for f in ("ledger.jsonl", "config.json", "meta.json", "report.json", "selection_report.json"):
+        for f in ("ledger.jsonl", "config.json", "meta.json", "report.json", "selection_report.json", "post_selection.json"):
             if os.path.exists(os.path.join(meta, f)):
                 shutil.copy(os.path.join(meta, f), os.path.join(dst, f))
         for d in sorted(glob.glob(os.path.join(meta, "candidates", "*", "proposal.diff"))):
             shutil.copy(d, os.path.join(dst, "diffs", os.path.basename(os.path.dirname(d)) + ".diff"))
-        print(f"meta-search: copied ledger and {len(os.listdir(os.path.join(dst, 'diffs')))} candidate diffs")
+        print(f"meta-search {name}: copied ledger and {len(os.listdir(os.path.join(dst, 'diffs')))} candidate diffs")
     return 0

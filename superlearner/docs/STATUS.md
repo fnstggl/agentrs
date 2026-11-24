@@ -1,7 +1,7 @@
 # Status: implemented versus demonstrated
 
 Branch `feat/superlearner-4` (cut from `feat/crucible-internet` 11e5613). Numbers and their caveats are in
-[RESULTS.md](RESULTS.md); this page says, per requirement, what exists and what an experiment actually showed.
+[RESULTS.md](RESULTS.md) and, for continual learning, [CONTINUAL.md](CONTINUAL.md); this page says, per requirement, what exists and what an experiment actually showed.
 
 * **implemented** — the code exists, runs, and is covered by a test or a recorded run;
 * **demonstrated** — an experiment with a control measured the claimed effect;
@@ -24,7 +24,7 @@ Branch `feat/superlearner-4` (cut from `feat/crucible-internet` 11e5613). Number
 | 11 | Self-improvement evidence: claims backed by matched experiments and uncertainty | the comparison machinery reports bootstrap intervals and a predeclared verdict; a confined probe identifies candidates that change nothing | **no improvement established** — no candidate was promoted; the four followed-up candidates ended at +0.003 to +0.017 AULC with intervals around zero. Inert candidates measured the comparison's noise (up to +0.040 at one seed) |
 | 12 | Reproducibility: configurations, seeds, versions, checkpoints, learning curves | yes — run directories and candidate directories hold all of these; `docs/REPRODUCE.md`; restartable queue | the commands in REPRODUCE are the ones used; an unplanned six-hour outage was recovered from files alone (lab notes) |
 | 13 | Security: generated code cannot silently escape to unrestricted host execution | yes — world code only in Crucible's sandbox; research code under uid + rlimits + Landlock + seccomp, probed from inside; fail-closed | the probe passes on this host (`superlearner doctor`, `tests/test_meta.py`); VM-grade isolation is not available here |
-| 14 | Compatibility: existing Crucible tests still pass | no Crucible file was modified | yes — 305 passed (0:12:24) on the final tree, after all experiments |
+| 14 | Compatibility: existing Crucible tests still pass | no Crucible file was modified | yes — 305 passed on the final tree after the continual-learning work (0:10:33), with 70 superlearner tests |
 | 15 | Working software: training, evaluation and meta-search from documented commands | yes — `doctor`, `llm-serve`, `train`, `resume`, `evaluate`, `report`, `inspect-trajectory`, `lock-final`, `meta-search`, `experiment`, `jobs`; CLI test | all reported results were produced with these commands |
 
 ## Experiments (Part 12)
@@ -48,20 +48,21 @@ are generated from the result files.
 
 | # | Requirement | Implemented | Experimentally demonstrated |
 |---|---|---|---|
-| A1 | Parametric learning is mandatory: world model, strategic and tactical policy, representations and backbone are continually trainable; updates persist across episodes, tasks, world changes, restarts and checkpoint reloads | yes - `algo/continual.py`, `continual/lifetime.py`: every phase of a lifetime updates all five controller groups and the world model (and the backbone in Architecture B); one atomically replaced file restores weights, both optimisers, reservoirs, anchors and counters; a learner rebuilt from it is state-identical and takes a bit-identical next update (tested) | <!-- A1 --> |
-| A2 | Reconsider the frozen LLM: Architecture A against B | yes - `cam/backbone.py`: Qwen3-0.6B as the text backbone, frozen / LoRA / top four blocks / all 549M parameters trained through a gradient cache (exact gradients, tested); the 14B generator stays frozen, with the reasons stated | <!-- A2 --> |
-| A3 | Online and continual gradient-based learning: incremental world model, scheduled policy updates, recurrent and off-policy learning, representation updates, replay consolidation, protection against forgetting, adaptation to changed mechanisms, optimiser persistence | yes - world model trained on every batch and re-fitted on the experience buffer; recurrent PPO; replay of own successes and exploratory episodes off-policy; per-arm reservoirs; replay consolidation; EWC / L2-SP / L2-init anchors; shrink-and-perturb; per-group step sizes | <!-- A3 --> |
-| A4 | Two complementary memory systems | yes - weights as the primary substrate; episodic memory and tool library as a switchable supplement; rehearsal data is training data, not something the agent reads when deciding | <!-- A4 --> |
-| A5 | Parametric Internalization Test | yes - `superlearner pit`: weights exported to a tensors-only file, evaluated in a new process with empty memory, tools, replay buffer and embedding cache (asserted), zero recurrent state per episode, held-out worlds, a different actor name as control | <!-- A5 --> |
-| A6 | Learning over long sequences, five conditions compared | yes - six-phase lifetimes (eight task arms, four kinds of world for training, two more for testing), eight conditions | <!-- A6 --> |
-| A7 | Protect the ability to keep learning; forgetting and loss of plasticity as measured failure modes | yes - retention matrix; plasticity probe (a copy must fit arbitrary targets in 40 steps), dormant units, effective rank, weight and gradient norms after every phase | <!-- A7 --> |
-| A8 | The Meta-Researcher searches over the rules of the weight updates | yes - `mode: lifetime`: candidates are versions of `algo/continual.py` (nineteen genes and three rewritable functions), run as confined lifetimes, scored by hub-measured acquisition and retention | <!-- A8 --> |
-| A9 | Non-negotiable: persistent, measurable, gradient-driven neural learning that improves behaviour on unseen tasks; a peripheral controller must be told apart from the reasoning backbone | the distinction is explicit in every table: Architecture A trains 20.7M parameters next to a frozen backbone, Architecture B also trains the 0.6B language backbone; nothing is claimed for the 14B generator | <!-- A9 --> |
+| A1 | Parametric learning is mandatory: world model, strategic and tactical policy, representations and backbone are continually trainable; updates persist across episodes, tasks, world changes, restarts and checkpoint reloads | yes - `algo/continual.py`, `continual/lifetime.py`: every phase of a lifetime updates all five controller groups and the world model (and the backbone in Architecture B); one atomically replaced file restores weights, both optimisers, reservoirs, anchors and counters; a learner rebuilt from it is state-identical and takes a bit-identical next update (tested) | **yes** - in all trainable conditions every phase changed the weights (digests differ), a learner rebuilt from its file is state-identical, and final weights alone score 89-97% on untouched tasks in a new process with rehearsal at full steps (66% unprotected) |
+| A2 | Reconsider the frozen LLM: Architecture A against B | yes - `cam/backbone.py`: Qwen3-0.6B as the text backbone, frozen / LoRA / top four blocks / all 549M parameters trained through a gradient cache (exact gradients, tested); the 14B generator stays frozen, with the reasons stated | **A works; B not established.** Architecture B over A with the same rule: full backbone +5.4 points [+0.0, +11.6] (two seeds), LoRA +8.0 and top four blocks +8.9 (one seed each), mostly on one arm, at four to six times the update cost |
+| A3 | Online and continual gradient-based learning: incremental world model, scheduled policy updates, recurrent and off-policy learning, representation updates, replay consolidation, protection against forgetting, adaptation to changed mechanisms, optimiser persistence | yes - world model trained on every batch and re-fitted on the experience buffer; recurrent PPO; replay of own successes and exploratory episodes off-policy; per-arm reservoirs; replay consolidation; EWC / L2-SP / L2-init anchors; shrink-and-perturb; per-group step sizes | **yes** - the online world model predicts acceptance on held-out transitions at 90-93% against a 57-66% majority rate; rehearsal took forgetting from 31% to 0%; earlier skills held in two kinds of world they were not learned in |
+| A4 | Two complementary memory systems | yes - weights as the primary substrate; episodic memory and tool library as a switchable supplement; rehearsal data is training data, not something the agent reads when deciding | **yes, with a negative result for memory** - weights alone 66%; frozen core + memory 25%; trainable core trained with memory 40%, 25 points below the same core without it |
+| A5 | Parametric Internalization Test | yes - `superlearner pit`: weights exported to a tensors-only file, evaluated in a new process with empty memory, tools, replay buffer and embedding cache (asserted), zero recurrent state per episode, held-out worlds, a different actor name as control | **yes** - `build`: 0% → 100% on three of three seeds from four demonstrations, in a process given only the weights; practice alone 0% → 50%; frozen weights + memory 0%. `repair`: 21% → 77% with demonstrations, no gain from practice alone |
+| A6 | Learning over long sequences, five conditions compared | yes - six-phase lifetimes (eight task arms, four kinds of world for training, two more for testing), eight conditions | **yes** - see CONTINUAL.md section 5, including an independent check on 112 untouched tasks |
+| A7 | Protect the ability to keep learning; forgetting and loss of plasticity as measured failure modes | yes - retention matrix; plasticity probe (a copy must fit arbitrary targets in 40 steps), dormant units, effective rank, weight and gradient norms after every phase | **forgetting: measured and prevented. Plasticity: no loss measured** in six phases (no dormant units, stable probe), which is too short to rule it out |
+| A8 | The Meta-Researcher searches over the rules of the weight updates | yes - `mode: lifetime`: candidates are versions of `algo/continual.py` (twenty genes and three rewritable functions), run as confined lifetimes, scored by hub-measured acquisition and retention | **run; no better rule established for CAM.** 71 candidates, 125 confined lifetimes, two promoted. One lost to a plain control; the other gave +0.56 on the small search learner on new seeds and tasks, but on the real learner no gain at full steps and -21.9 points at half steps |
+| A9 | Non-negotiable: persistent, measurable, gradient-driven neural learning that improves behaviour on unseen tasks; a peripheral controller must be told apart from the reasoning backbone | the distinction is explicit in every table: Architecture A trains 20.7M parameters next to a frozen backbone, Architecture B also trains the 0.6B language backbone; nothing is claimed for the 14B generator | **yes for the controller and world model** (persistent, gradient-driven, better on unseen tasks). The language backbone (0.6B) can now be trained, without an established benefit. **The 14B generator has not learned** |
 
 ## What remains unproven
 
-* **That reinforcement learning can teach this agent a skill it was not shown.** Every gain measured is on skills
-  the demonstrations had partly installed. Arms at 0% stayed at 0%.
+* **That reinforcement learning reliably teaches a skill the agent was not shown.** In the internalization test,
+  practice alone took `build` from 0% to 50% (100% on one seed, 50% on another, 0% on the third), but `build` is a
+  composition of skills it already had, and practice alone did nothing for `repair`.
 * **That the gain from RL is robust.** Three seeds; the sealed-list interval is [+0.0, +25.0]; one of three seeds
   did not improve at all. More seeds are the obvious next measurement.
 * **That episodic memory or agent-made tools help.** Memory hurt the one agent tested with it; that agent had been
@@ -73,10 +74,12 @@ are generated from the result files.
 * **That RL works with LLM-written content in the loop.** Four iterations, no change.
 * **That planning with the learned world model improves behaviour.** +3 points on 64 tasks is inside the noise.
 * **That several learners in one world learn from each other.** They did not trade.
-* **That the Meta-Researcher can find a better learning algorithm, or that its learned selection helps.** In one
-  search of 23 candidates it found none and its selection was no better than random. The search's inner task is
-  small (a 2.5M-parameter controller, 4,000 decisions per run) and screening at one seed is dominated by noise;
-  whether a longer search with several seeds per candidate would find something is unknown.
-* **Recursive self-improvement.** Nothing was promoted, so nothing compounded.
+* **That the Meta-Researcher can find a better learning algorithm for CAM, or that its learned selection helps.** Four
+  searches, 94 candidates. Two rules were promoted on a small proxy learner and held up there on new seeds and tasks;
+  neither improved the real learner, and one harmed it when training steps were scarce. Its learned selection was no
+  better than random in the first search and was fitted in only one round of the later ones.
+* **Recursive self-improvement.** No promoted rule was carried into the real learner, so nothing compounded.
+* **That training the language backbone helps.** Suggestive only (one or two seeds); see CONTINUAL.md.
+* **That written memory helps.** It lowered success wherever it was tested.
 * **Long horizons.** Episodes of 3–40 decisions; no task of hundreds of decisions was trained.
 * **Isolation stronger than uid + rlimits + Landlock + seccomp** is not available on this host.

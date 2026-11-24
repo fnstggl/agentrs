@@ -1,0 +1,7 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -51,3 +51,3 @@
+  'anchor': {'kind': 'none', 'coef': 0.0, 'decay': 1.0, 'fisher_episodes': 64, 'top_frac': 1.0},
+- 'l2init': 0.0,
++ 'l2init': 2000.0,
+  'shrink_perturb': {'shrink': 1.0, 'sigma': 0.0},

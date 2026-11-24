@@ -262,6 +262,11 @@ def run_route(cfg: dict, out_dir: str, seed: int, family: str, route: str, worke
         out["fresh_process"]["memory_state"] = m["state_at_start"]
     json.dump(out, open(res_path + ".tmp", "w"), indent=1, default=str)
     os.replace(res_path + ".tmp", res_path)
+    if R.get("drop_checkpoint"):                  # weights.pt holds what was learned; this is the optimiser's 7 GB
+        for fn in ("latest.pt", "latest.pt.backbone.pt"):
+            fp = os.path.join(rd, "ckpt", fn)
+            if os.path.exists(fp):
+                os.unlink(fp)
     return out
 
 

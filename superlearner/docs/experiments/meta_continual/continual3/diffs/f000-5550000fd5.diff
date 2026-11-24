@@ -1,0 +1,7 @@
+--- champion/algo/continual.py
++++ candidate/algo/continual.py
+@@ -57,3 +57,3 @@
+              'rehearse': True,
+-             'rehearse_frac': 0.5,
++             'rehearse_frac': 0.25,
+              'value_coef': 0.5,

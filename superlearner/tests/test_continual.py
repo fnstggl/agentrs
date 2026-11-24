@@ -465,8 +465,15 @@ def test_backbone_trained_lifetime_end_to_end_and_the_swap_back_to_pretrained_we
         pass
     ch = life.tr.backbone.change()
     row = life.x["rows"][-1]
+    tr_texts, tr_keys = dict(life.tr.texts), [k for k in life.tr.store.key2row if k]
+    tr_mat = np.stack([life.tr.store.mat[life.tr.store.key2row[k]] for k in tr_keys])
+    tr_now = life.tr.backbone.embed_np([tr_texts.get(k, " ") for k in tr_keys])
     life.tr.close()
     assert ch["l2"] > 0 and row["backbone"]["change_from_pretrained"]["l2"] == ch["l2"]       # the backbone itself learned
+    # every stored text vector, tool descriptions included, is what the CURRENT weights compute for that text: the
+    # in-run evaluation and a fresh process that embeds from scratch then see the same inputs
+    assert all(k in tr_texts for k in tr_keys), "a stored embedding has no text, so it cannot follow the backbone"
+    assert np.allclose(tr_mat, tr_now, atol=2e-3)
     assert os.path.exists(os.path.join(rd, "ckpt", "latest.pt.backbone.pt"))
     before = os.path.getmtime(os.path.join(rd, "ckpt", "latest.pt"))
     out = backbone_swap(rd)
@@ -493,3 +500,31 @@ def test_queue_waits_for_gpu_memory_it_does_not_control(tmp_path):
     st = run_jobs(spec, log_dir=str(tmp_path / "q"), poll_s=0.01, verbose=False, free_fn=free)
     assert st["a"]["state"] == "done" and [v for v, _ in seen][:3] == [1000, 2000, 2600]
     assert not any(ran for _, ran in seen)             # it did not start while less than 2 x 1000 + 500 MiB was free
+
+
+def test_replay_bias_setting_equals_the_new_heavy_rule_and_is_off_by_default():
+    from superlearner.meta import proposals as P
+    model = CAMController(ModelConfig(**SMALL))
+    a = _algo(model)
+    assert a.cc.get("replay_bias") is None
+    src = P._REPLAY_ARMS["new_heavy"]
+    ns: dict = {"np": np}
+    exec(src, ns)                                                       # noqa: S102
+    arms = [("a", 0, "x"), ("b", 0, "x"), ("c", 0, "x")]
+    now = {("c", 0, "x")}
+    want = ns["replay_arm_weights"](arms, now)
+    got = np.ones(3) / 3 * np.array([3.0 if x in now else 1.0 for x in arms])
+    assert np.allclose(got / got.sum(), want)
+    b = _algo(CAMController(ModelConfig(**SMALL)), replay_bias=3.0)
+    b.arms_now = now
+    _, _, eps = _episodes("found", 2)
+    for i, arm in enumerate(arms):
+        for e in copy.deepcopy(eps):
+            e["summary"]["arm"] = list(arm)
+            b.buffer.append(e)
+    drawn = [tuple(e["summary"]["arm"]) for e in b._sample_replay(len(b.buffer)) for _ in [0]]
+    assert all(x in arms for x in drawn)
+    many = []
+    for _ in range(60):
+        many += [tuple(e["summary"]["arm"]) for e in b._sample_replay(6)]
+    assert many.count(("c", 0, "x")) > 2 * many.count(("a", 0, "x"))

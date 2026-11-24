@@ -347,3 +347,41 @@ Work on the amendment ("continual learning must change the core neural weights")
   the same 150 supervised gradient steps per phase; 17 single-idea variants, then a round of mutations. A
   `consolidate_lr` setting was added so that consolidation can be tested at the observation step size. Its default
   (none) leaves the update unchanged, so lifetimes that start after this edit run the same rule as those before it.
+* **The second search could not have found anything.** At 150 supervised steps per phase the baseline scored 1.0 on
+  the screening seed (every phase at 100%), so 22 of the 23 candidates that ran were at or below it and nothing could
+  be promoted. That is a ceiling, not evidence that no better rule exists. What it does show at one seed: moving steps
+  from observation to consolidation hurt (-0.14 to -0.46), and so did anchors, a slower trunk and a smaller step size.
+  One candidate crashed because two screening threads built the champion's probe tree at once (fixed). Third search:
+  the same design at 100 steps per phase, where this baseline scored 0.38-0.56 (`runs/meta/continual3`).
+* **The third search (equal compute, 100 steps per phase) found a rule that holds up on new seeds and tasks.**
+  `f001-2e9a245111`: observation step size 1e-3 instead of 3e-4, and replay drawing the current phase's arms three times
+  as often. Confirm stage, five seeds: +0.409 [0.369, 0.467]. Post-selection (seeds 6-10, tasks the search never used,
+  side by side): 0.944 against 0.387, +0.557 [0.494, 0.620], better on 5 of 5 seeds (sign-flip p = 0.0625, the floor for
+  five seeds); final success 0.85 against 0.48. What it is: a better setting of two knobs of a hand-written rule space,
+  found on a small CPU controller. It is not a new algorithm, and a larger step size on an under-trained baseline is an
+  ordinary finding. Whether it helps the real learner is tested separately (`life/meta_rule_equal.yaml`, and at half the
+  supervised steps `scarce_rehearsal` / `scarce_meta_rule`, because the real learner is near its ceiling at full steps).
+  The rule's replay weighting is a reviewed setting of the trusted code (`replay_bias`, off by default); the candidate's
+  source tree is not executed outside the confinement.
+* **A bug that invalidated every trainable-backbone run so far, caught by the fresh-process evaluation.** The
+  internalization route with a trainable backbone reported 100% in its own process and 0-40% in the fresh one. Cause:
+  tool descriptions (about 200 texts, the very items the controller chooses among) reach the embedding store through
+  the capability index, which bypassed the record of "which text is this key". So during Architecture B training those
+  vectors stayed at their PRETRAINED values and never received gradient, while a fresh process computed them from the
+  trained backbone and handed the controller inputs it had never seen. A second, smaller fault: consolidation moved the
+  backbone after the last refresh of the stored vectors. Frozen-backbone conditions are unaffected (the function does
+  not change), so their runs stand. Fixed; a test now requires every stored vector to equal what the current weights
+  compute for its text. All Architecture B runs (four lifetimes, four internalization routes) were moved to
+  `runs/archive/continual_backbone_tools_frozen/` and are rerun. The in-run numbers those runs reported (e.g. 90% final
+  success for the full backbone) measured a learner whose tool embeddings were frozen, and are not reported as results.
+* **The promoted rule did not transfer to the real learner.** On the 19.7M controller (lifetimes' own lists, two seeds
+  each; the untouched-task check is still to come): at the full supervised steps, rehearsal 93%, the first promoted
+  rule 90%, the equal-compute promoted rule 89%; at half the steps, rehearsal 76% and the equal-compute promoted rule
+  **54%**, with forgetting 0.39 against 0.01. The rule that gave +0.56 on the small CPU controller makes the real
+  learner worse where it had room to improve: a step size of 1e-3 and replay biased towards the current phase learn new
+  arms but overwrite old ones. A search on a proxy learner found something true of the proxy.
+* **Final runs (2026-11-23, finished 19:08).** 25 lifetimes in twelve conditions, 37 internalization routes, three
+  searches (71 candidates, 125 confined lifetimes), the check on untouched tasks and the swap test. With the backbone
+  fix, the trainable-backbone internalization routes agree between their own process and a fresh one (e.g. `build`, seed
+  0: 100% in both). `configs/queue_continual_b.yaml` was merged into the main queue and removed.
+* Final tree: 70 superlearner tests and Crucible's 305 pass (4 min 17 s and 10 min 33 s, on an otherwise idle machine).

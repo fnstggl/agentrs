@@ -1,0 +1,55 @@
+{
+ "rounds": [
+  {
+   "round": 0,
+   "fitted": false,
+   "surrogate": 0.12731499999999996,
+   "random": -0.08101461538461542,
+   "best": 0.1296299999999999,
+   "n": 13
+  },
+  {
+   "round": 1,
+   "fitted": false,
+   "surrogate": -0.046300000000000036,
+   "random": -0.01698000000000006,
+   "best": 0.0833299999999999,
+   "n": 6
+  },
+  {
+   "round": 2,
+   "fitted": true,
+   "surrogate": -0.013895000000000046,
+   "random": -0.04630166666666671,
+   "best": 0.19443999999999995,
+   "n": 6
+  }
+ ],
+ "candidates_screened": 25,
+ "advantage_over_random_all_rounds": {
+  "mean": 0.07047209401709402,
+  "ci95": [
+   -0.029319999999999975,
+   0.20832961538461536
+  ],
+  "n": 3
+ },
+ "advantage_over_random_once_fitted": {
+  "mean": 0.03240666666666667,
+  "ci95": [
+   NaN,
+   NaN
+  ],
+  "n": 1
+ },
+ "regret_vs_best": {
+  "surrogate": 0.11342666666666663,
+  "random": 0.18389876068376065
+ },
+ "established": false,
+ "surrogate_loo": {
+  "n": 10,
+  "n_valid": 10,
+  "spearman": -0.479
+ }
+}

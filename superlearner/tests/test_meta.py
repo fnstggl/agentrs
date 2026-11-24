@@ -406,3 +406,26 @@ def test_selected_rules_are_retested_on_new_seeds_and_tasks_side_by_side():
         assert os.path.exists(os.path.join(root, "search", "post_selection.json"))
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+def test_concurrent_probes_of_one_candidate_do_not_overlap():
+    import threading
+    import time
+    from superlearner.meta.researcher import MetaResearcher
+    state = {"now": 0, "max": 0}
+    guard = threading.Lock()
+
+    def fake(cid):
+        with guard:
+            state["now"] += 1
+            state["max"] = max(state["max"], state["now"])
+        time.sleep(0.02)
+        with guard:
+            state["now"] -= 1
+        return {"ok": True}
+    me = types.SimpleNamespace(_lock=threading.RLock(), _probe=fake)
+    me.__dict__.setdefault("_probe_locks", {})
+    ts = [threading.Thread(target=MetaResearcher.probe, args=(me, "champion-0")) for _ in range(6)]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    assert state["max"] == 1
