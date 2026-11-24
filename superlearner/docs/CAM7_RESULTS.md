@@ -80,6 +80,8 @@ scores on untouched tasks:
 That comparison was declared as reported, not as a pass/fail criterion. *Status: tested; the CAM 6.1 → CAM 7.0 gap is
 large and consistent.*
 
+The same diagnosis from the other side: the CAM 7.0 network with the explicit posterior removed, trained the same way by RL, scores −0.195 held-out and −0.282 familiar on the development sets (one seed). That is −0.37 and −0.57 below CAM 7.0, and below holding the defaults. Removing the adaptive posterior degrades control decisively (specification 3.5).
+
 **2. Did its latest ALPaCA-inspired changes solve the problem?** No.
 - Decisive run: −0.021 on held-out families, against +0.170 for `model_based`.
 - On the untouched C-2 set, its checkpoints score −0.054 held-out and +0.013 familiar.
