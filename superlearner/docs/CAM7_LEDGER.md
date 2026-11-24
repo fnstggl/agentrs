@@ -34,6 +34,10 @@ relative to exact regression. Any CAM 7.0 claim of learned priors must beat the 
 
 | Date | Experiment | Result | Verdict |
 |---|---|---|---|
+| 2026-11-24 | **Delayed-reward cue task** (`cue_final`: only the last of 8 ticks is rewarded, by the first tick's cue; 3 seeds, 250 rounds; `runs/cam7/memory_cue_final.jsonl`) | window 16: 0.031, −0.156, −0.141; window 1: 0.031, −0.156, −0.188 (scale: +1 always right, 0 chance) | **Failed: agent-level long memory is not demonstrated.** The earlier cue-task "success" was largely win-stay from the previous action and reward inside the current event. Representation holds the cue (probes); the failure is credit assignment from a delayed reward |
+| 2026-11-24 | Mandatory test 4 after scoping the conditioning changes to the attention core (CAM 6.1 path restored), 64 held-out episodes | before −1.004, after **0.273** (threshold 0.30) | Narrow fail at the larger, less noisy evaluation; the earlier pass used 16 held-out episodes. Threshold unchanged |
+| 2026-11-24 | Held-out reward forecasting (mandatory test 4, RSSM core) after the conditioning changes, 2 seeds | after R²: current −0.016 / 0.202; without FeatureNorm 0.283 / 0.387; zero-init + FeatureNorm 0.015 / −0.563; original 0.635 / −0.155 | FeatureNorm hurts the RSSM's imagined forecasts (statistics of observed beliefs applied to imagined ones): **removed from the RSSM, kept in the attention core**. Metric is noisy with 16 held-out episodes; test now uses about 64 |
+| 2026-11-24 | **Agent cue task with all fixes** (event core direct path, lr 3e-4, FeatureNorm, small-init heads, V-trace actor; 5 seeds, 150 rounds; `runs/cam7/memory_agent_allfix_*.json`) | window 16: 0.368, 0.124, 0.375, 0.375, 0.308 (mean **0.310**, optimum 0.375); window 1: mean 0.042 (one seed 0.214, plausibly "repeat what just paid" from the previous action and reward inside the current event); twin-Q actor: 0.002 | **Promising but not reliable**: 4 of 5 seeds near optimal vs control, but the mandatory test run of the same configuration on seed 3 then gave 0.041 vs control 0.256 (GPU runs are not bit-reproducible; successful runs learned only in their last third). Twin-Q actor still fails; V-trace retained. Retesting with 250 rounds |
 | 2026-11-24 | Critic isolation on the cue task (supervised target: reward of the chosen action; 3–5 seeds, 600 steps) | Cue and action sign each linearly decodable (1.00) at training rows. Raw belief varies only sd 0.022 across samples, action embedding 0.091. Heads on raw features: 0.50–0.57. Batch-whitened inputs + plain MLP: 0.99–1.00 (3/3). With running feature normalisation, head designs: zero-init LayerNorm 1/5, **small-init LayerNorm 3/5 (+0.90)**, bilinear 1/5 (+0.86) | **Two more causes found**: badly conditioned belief/action features, and exactly-zero output init slows critics. Fixed with `FeatureNorm` (running statistics, applied after use, no within-batch leakage; tested) on belief, action and goal embeddings, and small random output init for all distributional heads |
 | 2026-11-24 | CAM 7.0 dev run v2 (fixed event core, before FeatureNorm and init fix), familiar families, seed 0 | 0 → −0.259, 42k +0.085, 81k +0.110, **121k −0.166**; adaptive-layer held-out R² 0.60–0.75, effect R² rising to 0.29 | Unstable: collapse late in training. To revisit with the conditioning fixes |
 | 2026-11-24 | Agent cue task with all-candidate twin-Q actor (5 seeds) | window 16: mean −0.005; window 1: −0.004 | Failed: the critic itself did not learn the interaction (see critic isolation) |
@@ -92,7 +96,21 @@ interventions better. Scope: identical support sets (condition A), prediction on
 
 ## Next steps
 
-1. Collect the adaptive decisive rerun and record it here.
-2. Memory: layer-by-layer probes at delays 0, 1, 4, 16, 32, 64 for GRU, attention, RSSM, RSSM + slots, under supervised
-   and world-model-only training (`superlearner/src/superlearner/unified/diagnostics/memory_probe.py`).
-3. Experiment 1, condition A: identical support sets for exact regression, model_based, meta-trained regression, CAM.
+1. Agent-level credit assignment under delayed reward (`cue_final`): check whether the critic's λ-return reaches the
+   first decisions, whether the value head learns the terminal reward from the cue, and whether an auxiliary
+   "predict the episode's final reward" target makes the belief keep the cue (prediction worked for retention in the
+   probe; the RL signal alone does not).
+2. CAM 7.0 development run collapsed late (+0.110 → −0.166 at 121k); rerun with FeatureNorm and small-init heads,
+   then diagnose the collapse (actor entropy, critic scale, adaptive gate) before any held-out comparison.
+3. Experiment 1 condition B (each learner chooses its interventions), then Experiment 2 (active discovery), with
+   pre-declared criteria and untouched seeds, against exact regression and `model_based`.
+4. Experiments 3 (parametric transfer and continual learning) and 4 (OpenWorld) are not started.
+
+## Status of the four mandatory experiments
+
+| Experiment | Status |
+|---|---|
+| 1 Few-shot adaptation | Condition A done: learned priors beat generic regression on effect size (C-1 passed); ranking not better. Condition B not run |
+| 2 Active causal discovery | Not run |
+| 3 Parametric transfer and continual learning | Not run |
+| 4 OpenWorld long-horizon transfer | Not run |

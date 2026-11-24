@@ -33,8 +33,8 @@ def test_world_model_prediction_improves_on_held_out_episodes():
     lr = UnifiedLearner(EnvSpec(), 0, DEV, cfg(use_generator=False))
     lr.replay.holdout = 0.25
     env = ToyVecEnv(16, horizon=12, seed=1)
-    run_toy(lr, env, 64, learn=True, updates=False)
-    held = lr.replay.sample_holdout(16, 12)
+    run_toy(lr, env, 256, learn=True, updates=False)
+    held = lr.replay.sample_holdout(64, 12)           # about 64 held-out episodes, so the R² is not dominated by noise
     assert held is not None
     before = lr.trainer.heldout_prediction(held)["heldout/reward_r2"]
     for _ in range(250):
@@ -44,21 +44,26 @@ def test_world_model_prediction_improves_on_held_out_episodes():
 
 
 # ---------------------------------------------------------------------- Test 5
-def _cue_score(use_memory: bool, seed: int) -> float:
-    c = cfg(use_generator=False, use_recurrence=use_memory, use_slots=use_memory, candidates=6)
+def _cue_score(window: int, seed: int) -> float:
+    """CAM 7.0 memory: causal attention over the last ``window`` events. Window 1 sees only the current event."""
+    c = cfg(use_generator=False, use_adaptive=False, candidates=6, core="attention", event_window=window,
+            lr_world=3e-4, lr_actor=3e-4, lr_critic=3e-4)
     lr = UnifiedLearner(EnvSpec(), seed, DEV, c)
     # Two opposed one-tick programs make the decision depend only on remembering the cue.
     lr.proposer = lambda rng, mask, k: ([encode([("set", 0, 0.8), ("wait", 1)]), encode([("set", 0, -0.8), ("wait", 1)])]
                                         * k)[:k]
-    env = ToyVecEnv(16, "cue", horizon=8, seed=seed)
-    train(lr, env, 150)
-    return run_toy(lr, ToyVecEnv(64, "cue", horizon=8, seed=100 + seed), 128, learn=False, explore=False)
+    env = ToyVecEnv(16, "cue_final", horizon=8, seed=seed)
+    train(lr, env, 250)
+    score = run_toy(lr, ToyVecEnv(64, "cue_final", horizon=8, seed=100 + seed), 128, learn=False, explore=False)
+    return score * 8 / 0.5          # +1 = always right on the rewarded last tick, 0 = chance
 
 
-def test_recurrent_memory_beats_memoryless_control():
-    with_mem = _cue_score(True, 0)
-    without = _cue_score(False, 0)
-    assert with_mem > without + 0.08, (with_mem, without)
+def test_event_memory_beats_single_event_control():
+    """Only the last of eight ticks is rewarded, by the cue shown on the first: no reward along the way reveals the
+    answer, so a learner without memory of the first event is at chance."""
+    with_mem = _cue_score(16, 3)
+    without = _cue_score(1, 3)
+    assert with_mem > 0.6 and with_mem > without + 0.4, (with_mem, without)
 
 
 # ---------------------------------------------------------------------- Test 6

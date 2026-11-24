@@ -31,14 +31,16 @@ class FeatureNorm(nn.Module):
     2026-11-24: 0.50 sign accuracy raw, 0.99-1.00 standardised). Statistics move only during gradient-enabled passes
     (training) and are used unchanged while acting, so acting and training compute the same function."""
 
-    def __init__(self, dim: int, momentum: float = 0.01, eps: float = 1e-4):
+    def __init__(self, dim: int, momentum: float = 0.01, eps: float = 1e-4, enabled: bool = True):
         super().__init__()
-        self.momentum, self.eps = momentum, eps
+        self.momentum, self.eps, self.enabled = momentum, eps, enabled
         self.register_buffer("mean", torch.zeros(dim))
         self.register_buffer("var", torch.ones(dim))
         self.register_buffer("count", torch.zeros(()))
 
     def forward(self, x: Tensor) -> Tensor:
+        if not self.enabled:
+            return x
         # Normalise with the statistics as they stood before this batch, then update them: a step is never scaled
         # by statistics that include later steps of the same batch.
         out = (x - self.mean.clone()) / torch.sqrt(self.var.clone() + self.eps)
@@ -104,7 +106,7 @@ class GoalEncoder(nn.Module):
     def __init__(self, cfg: UnifiedConfig, n_features: int):
         super().__init__()
         self.net = mlp(n_features, cfg.goal_dim, cfg.goal_dim, layers=2)
-        self.norm = FeatureNorm(cfg.goal_dim)
+        self.norm = FeatureNorm(cfg.goal_dim, enabled=cfg.core == "attention")   # CAM 6.1 (RSSM) unchanged
 
     def forward(self, goal: GoalBatch) -> Tensor:
         return self.norm(self.net(goal.features))
@@ -129,7 +131,7 @@ class ActionEncoder(nn.Module):
         self.n_struct = lang.n_features + extra_features
         self.struct = mlp(self.n_struct, d, d, layers=1)
         self.out = mlp(2 * d, d, d, layers=1)
-        self.norm = FeatureNorm(d)
+        self.norm = FeatureNorm(d, enabled=cfg.core == "attention")              # CAM 6.1 (RSSM) unchanged
         lever_tokens = torch.arange(lang.lever0, lang.value0)
         self.register_buffer("lever_tokens", lever_tokens, persistent=False)
 

@@ -37,14 +37,21 @@ class ObsLayout:
         return self.n_gauges
 
 
-def zero_last(m: nn.Sequential) -> nn.Sequential:
-    """Start a distributional head near a uniform prediction (mean near zero) with small random output weights.
+SMALL_INIT = {"on": False}     # set per model in UnifiedModel.__init__
 
-    Exactly zero output weights (DreamerV3's choice) left the inner layers with no gradient at first and, on the
-    cue task, a critic learned the cue-by-action interaction in 1 of 5 seeds within 600 steps; small random weights
-    learned it in 3 of 5 and nearly in a fourth (ledger, 2026-11-24)."""
+
+def zero_last(m: nn.Sequential) -> nn.Sequential:
+    """Start a distributional head at (CAM 6.1, RSSM core) or near (CAM 7.0, attention core) a uniform prediction.
+
+    For the attention core the output weights are small and random: exactly zero weights left the inner layers with
+    no gradient at first, and on the cue task a critic learned the cue-by-action interaction in 1 of 5 seeds within
+    600 steps against 3 of 5 (and nearly a fourth) with small weights. The RSSM core keeps exact zeros, because its
+    held-out forecasting got worse with small weights (ledger, 2026-11-24)."""
     last = m[-1]
-    nn.init.normal_(last.weight, std=0.01)
+    if SMALL_INIT["on"]:
+        nn.init.normal_(last.weight, std=0.01)
+    else:
+        nn.init.zeros_(last.weight)
     nn.init.zeros_(last.bias)
     return m
 
@@ -143,6 +150,7 @@ class UnifiedModel(nn.Module):
                  lang: Language = DEFAULT, text_dim: int | None = None):
         super().__init__()
         self.cfg, self.layout, self.lang = cfg, layout, lang
+        SMALL_INIT["on"] = cfg.core == "attention"
         d = cfg.d_model
         self.obs_encoder = ObservationEncoder(cfg, layout.n_ids, text_dim)
         self.goal_encoder = GoalEncoder(cfg, goal_features)

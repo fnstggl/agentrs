@@ -8,7 +8,8 @@ from crucible.research.learner import EnvSpec
 
 class ToyVecEnv:
     """``target``: reward peaks at hidden lever settings. ``cue``: a reading shown only on the first tick decides which
-    lever direction pays on later ticks, so a memoryless agent cannot do better than chance."""
+    lever direction pays on later ticks. ``cue_final``: the same cue, but only the last tick is rewarded, so no reward
+    reveals the answer along the way and only memory of the first observation helps."""
 
     def __init__(self, n: int, mode: str = "target", horizon: int = 12, seed: int = 0, target: dict | None = None,
                  spec: EnvSpec | None = None):
@@ -28,7 +29,7 @@ class ToyVecEnv:
         o = np.zeros((self.n, sp.obs_dim), dtype=np.float32)
         o[:, sp.gauge_mask.start:sp.gauge_mask.start + 2] = 1.0
         o[:, sp.lever_mask.start:sp.lever_mask.start + 6] = 1.0
-        if self.mode == "cue":
+        if self.mode in ("cue", "cue_final"):
             # The settings stay hidden here: a visible lever would act as an external memory of the cue.
             o[:, 0] = np.where(self.t == 0, self.cue, 0.0)
         else:
@@ -50,6 +51,9 @@ class ToyVecEnv:
         return self._obs(np.zeros(self.n, dtype=np.float32))
 
     def _reward(self, a: np.ndarray) -> np.ndarray:
+        if self.mode == "cue_final":
+            last = self.t == self.h - 1
+            return np.where(last, (np.sign(a[:, 0]) * self.cue > 0) * 1.0 - 0.5, 0.0).astype(np.float32)
         if self.mode == "cue":
             late = self.t >= 2
             return np.where(late, (np.sign(a[:, 0]) * self.cue > 0) * 1.0 - 0.5, 0.0).astype(np.float32)
