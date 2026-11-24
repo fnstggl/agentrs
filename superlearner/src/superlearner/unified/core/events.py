@@ -24,7 +24,10 @@ class EventCore(nn.Module):
         self.window = cfg.event_window
         self.event_in = mlp(d + cfg.action_dim + 2, d, d, layers=1)
         self.body = _encoder(d, cfg.event_heads, cfg.event_layers)
-        self.project = mlp(d + cfg.goal_dim, d, d, layers=2)
+        # The belief reads the attention summary of the window and, directly, the current event. Without the direct
+        # path the current step's evidence reached the belief only through the residual stream mixed with averaged
+        # history, and learning to read it failed in 1-2 of 3 seeds (ledger, reward isolation, 2026-11-24).
+        self.project = mlp(2 * d + cfg.goal_dim, d, d, layers=2)
 
     def event(self, pooled: Tensor, prev_action: Tensor, prev_dt: Tensor) -> Tensor:
         """``[..., d]`` event tokens from the observation summary, the previous program and its duration."""
@@ -46,4 +49,4 @@ class EventCore(nn.Module):
             pad = pad.clone()
             pad[empty, 0] = False
         z = self.body(x, mask=causal, src_key_padding_mask=pad)
-        return self.project(torch.cat([z, goal.unsqueeze(1).expand(-1, T, -1)], -1))
+        return self.project(torch.cat([z, events, goal.unsqueeze(1).expand(-1, T, -1)], -1))
