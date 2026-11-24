@@ -85,6 +85,32 @@ auxiliaries, clipped actor-critic on actual outcomes with the posterior as a fix
 
 ### Pre-declared confirmations (written and committed before the run)
 
+**C-2, Experiment 1 condition B (each learner chooses its own interventions; declared 2026-11-24, before any look at
+the confirmation set).** Set: VAL offset 70,000 (seeds 1,070,000–1,070,011) of the four held-out families (48 tasks)
+and of the six training families (72 tasks, "familiar": unseen instances of the training families); never used by any
+run. Every learner frozen, fresh context, `explore=False`, `superlearner.cam7.experiments.exp1b`. CAM 7.0 = the `small`
+configuration, full decision rule (knowledge gradient + learned residual), the three already-trained checkpoints
+`runs/cam7/dev_cam7_small/s{0,1,2}/ckpt/point_0004.ckpt` (240k steps on the six training families); "untrained" =
+`point_0000` of the same runs. Statistic: whole-episode score (area under the adaptation curve), paired per task,
+two-level bootstrap over training seeds and tasks, 95%. Each claim stands alone and passes only if the lower bound > 0:
+- C-2a familiar, parametric learning: CAM 7.0 trained − CAM 7.0 untrained (dev: +0.111 [+0.031, +0.217]);
+- C-2b familiar, against the strongest baseline: CAM 7.0 − `model_based` untrained (dev: +0.040 [+0.001, +0.081]);
+- C-2c held-out families, against the strongest baseline: CAM 7.0 − `model_based` untrained (dev: +0.018 [−0.029, +0.065]);
+- C-2d held-out families, transfer of what was learned: CAM 7.0 trained − untrained (dev: +0.030 [−0.015, +0.077]).
+Also reported without a criterion: `model_based` trained (3 seeds), exact regression (`meta_np` untrained), hold, CAM 6.1
+adaptive (decisive checkpoints) if it loads, CAM 7.0 without the residual, and the adaptation curves at k = 0…64.
+
+**C-3, Experiment 2, active causal discovery (declared 2026-11-24, before any look at the confirmation set).** Set:
+`x2_confound_gate` and `x2_regime_mix` at VAL offset 70,000, 12 tasks each (24), never used. Same three CAM 7.0
+checkpoints; budget 24 ticks; `superlearner.cam7.experiments.exp2`. Statistic: whole-episode score, paired per task,
+two-level bootstrap, 95%; lower bound > 0 to pass:
+- C-3a decision-relevant value of information beats posterior sampling with the same model: KG rule (no residual) −
+  Thompson (dev: +0.068 [−0.010, +0.149]);
+- C-3b CAM 7.0 (KG rule) − `model_based` trained, 3 seeds (dev: +0.162 [+0.076, +0.246]);
+- C-3c full CAM 7.0 (KG + learned residual) − `model_based` trained (dev: +0.103 [+0.031, +0.180]).
+Also reported without a criterion: greedy, EIG, random, fixed design; commit score, probe rank correlation and regret,
+experimentation cost and the number of distinct settings tried.
+
 **C-1, learned priors for few-shot effect prediction (declared 2026-11-24, before any look at the confirmation set).**
 Set: the four held-out families (`abm_trust_gate`, `scm_delay_gate`, `scm_invu`, `tech_pipeline`) at seeds
 1,050,000–1,050,029 (120 tasks), never used by any experiment. Learner: `blr_meta_taskscale` (fixed move features plus

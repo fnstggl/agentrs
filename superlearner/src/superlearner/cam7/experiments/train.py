@@ -22,6 +22,9 @@ def make_learner(name: str, spec, seed: int, device: str, overrides: dict, scale
     if name == "cam7":
         from ..agent import Cam7Learner
         return Cam7Learner(spec, seed, device, None, scale, **overrides)
+    if name == "cam61":
+        from superlearner.unified.experiments.harness import make_learner as mk
+        return mk("cam61", spec, seed, device, overrides, scale)
     from crucible.research import learners
     return learners.make(name, spec, seed=seed, device="cpu", **overrides)
 
