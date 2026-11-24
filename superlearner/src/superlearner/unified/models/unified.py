@@ -38,9 +38,13 @@ class ObsLayout:
 
 
 def zero_last(m: nn.Sequential) -> nn.Sequential:
-    """Start a distributional head at a uniform prediction, whose symmetric mean is exactly zero."""
+    """Start a distributional head near a uniform prediction (mean near zero) with small random output weights.
+
+    Exactly zero output weights (DreamerV3's choice) left the inner layers with no gradient at first and, on the
+    cue task, a critic learned the cue-by-action interaction in 1 of 5 seeds within 600 steps; small random weights
+    learned it in 3 of 5 and nearly in a fourth (ledger, 2026-11-24)."""
     last = m[-1]
-    nn.init.zeros_(last.weight)
+    nn.init.normal_(last.weight, std=0.01)
     nn.init.zeros_(last.bias)
     return m
 

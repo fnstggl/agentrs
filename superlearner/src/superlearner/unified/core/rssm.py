@@ -16,7 +16,7 @@ from torch import Tensor, nn
 
 from ..config import UnifiedConfig
 from ..dist import categorical_kl, sample_categorical, unimix_logits
-from ..encoders.observation import mlp
+from ..encoders.observation import FeatureNorm, mlp
 from ..interfaces import BeliefState
 
 
@@ -73,6 +73,7 @@ class RSSM(nn.Module):
         self.memory = SlotMemory(cfg, d, cfg.deter_dim + self.stoch_dim)
         self.project = mlp(cfg.deter_dim + self.stoch_dim + cfg.memory_dim + cfg.goal_dim, d, d, layers=2)
         self.h0 = nn.Parameter(torch.zeros(cfg.deter_dim))
+        self.u_norm = FeatureNorm(d)
 
     # -------------------------------------------------------------------- pieces
     def _logits(self, net: nn.Module, x: Tensor) -> Tensor:
@@ -102,7 +103,7 @@ class RSSM(nn.Module):
         else:
             read = torch.zeros(h.shape[0], self.cfg.memory_dim, device=h.device, dtype=h.dtype)
             new_memory = memory
-        u = self.project(torch.cat([h, flat, read, goal], -1))
+        u = self.u_norm(self.project(torch.cat([h, flat, read, goal], -1)))
         return BeliefState(h, z, new_memory, read, u, prior, post)
 
     # -------------------------------------------------------------------- public steps

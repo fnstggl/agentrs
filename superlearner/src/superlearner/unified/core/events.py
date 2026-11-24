@@ -14,7 +14,7 @@ import torch
 from torch import Tensor, nn
 
 from ..config import UnifiedConfig
-from ..encoders.observation import _encoder, mlp
+from ..encoders.observation import FeatureNorm, _encoder, mlp
 
 
 class EventCore(nn.Module):
@@ -28,6 +28,7 @@ class EventCore(nn.Module):
         # path the current step's evidence reached the belief only through the residual stream mixed with averaged
         # history, and learning to read it failed in 1-2 of 3 seeds (ledger, reward isolation, 2026-11-24).
         self.project = mlp(2 * d + cfg.goal_dim, d, d, layers=2)
+        self.norm = FeatureNorm(d)
 
     def event(self, pooled: Tensor, prev_action: Tensor, prev_dt: Tensor) -> Tensor:
         """``[..., d]`` event tokens from the observation summary, the previous program and its duration."""
@@ -49,4 +50,4 @@ class EventCore(nn.Module):
             pad = pad.clone()
             pad[empty, 0] = False
         z = self.body(x, mask=causal, src_key_padding_mask=pad)
-        return self.project(torch.cat([z, events, goal.unsqueeze(1).expand(-1, T, -1)], -1))
+        return self.norm(self.project(torch.cat([z, events, goal.unsqueeze(1).expand(-1, T, -1)], -1)))

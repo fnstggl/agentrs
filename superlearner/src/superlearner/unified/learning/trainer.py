@@ -85,7 +85,7 @@ class UnifiedTrainer:
         gradient is cut at ``burn`` and ``training_mask`` removes those steps from the losses. Rows that begin at the
         episode start have a true initial state, so all of their steps train (including the learned initial state)."""
         m, T = self.model, b.action.shape[1]
-        goal = m.goal_encoder.net(b.goal[:, 0])
+        goal = m.goal_encoder.norm(m.goal_encoder.net(b.goal[:, 0]))
         chosen, prev_a, prev_dt = self._action_inputs(b)
         if self.cfg.core == "attention":
             return self._unroll_events(b, goal, chosen, prev_a, prev_dt)

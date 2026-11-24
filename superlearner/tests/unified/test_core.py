@@ -130,13 +130,15 @@ def test_no_future_information_in_replay_unroll(filled):
     t = filled.trainer
     b = filled.replay.sample(4, 10).to(DEV)
     torch.manual_seed(5)
-    s1, *_ = t.unroll(b, 0)
+    with torch.no_grad():                 # running feature statistics only move in gradient-enabled passes
+        s1, *_ = t.unroll(b, 0)
     b.values = b.values.clone()
     b.values[:, 6:] += 5.0
     b.deltas = b.deltas.clone()
     b.deltas[:, 6:] -= 3.0
     torch.manual_seed(5)
-    s2, *_ = t.unroll(b, 0)
+    with torch.no_grad():
+        s2, *_ = t.unroll(b, 0)
     assert torch.allclose(s1.h[:, :7], s2.h[:, :7], atol=1e-5)
     assert torch.allclose(s1.post_logits[:, :6], s2.post_logits[:, :6], atol=1e-5)
     assert not torch.allclose(s1.post_logits[:, 6:], s2.post_logits[:, 6:], atol=1e-3)
@@ -292,10 +294,12 @@ def test_attention_core_is_causal_and_trains():
     run_toy(lr, ToyVecEnv(4, horizon=12), 16, learn=True, updates=False)
     t = lr.trainer
     b = lr.replay.sample(4, 10).to(DEV)
-    s1, *_ = t.unroll(b, 0)
+    with torch.no_grad():
+        s1, *_ = t.unroll(b, 0)
     b.values = b.values.clone()
     b.values[:, 6:] += 5.0
-    s2, *_ = t.unroll(b, 0)
+    with torch.no_grad():
+        s2, *_ = t.unroll(b, 0)
     assert torch.allclose(s1.u[:, :6], s2.u[:, :6], atol=1e-5)
     assert not torch.allclose(s1.u[:, 6:], s2.u[:, 6:], atol=1e-3)
     before = [p.detach().clone() for p in lr.model.events.parameters()]
@@ -326,3 +330,13 @@ def test_attention_core_acting_matches_replay_belief():
     with torch.no_grad():
         s, *_ = lr.trainer.unroll(b, 0)
     assert torch.allclose(torch.stack(us), s.u[0, :len(us)], atol=1e-4)
+
+
+def test_feature_norm_never_uses_statistics_from_the_same_batch():
+    from superlearner.unified.encoders.observation import FeatureNorm
+    n = FeatureNorm(3)
+    x = torch.randn(64, 3) * 5 + 10
+    out = n(x)                                   # first batch: statistics were still the initial ones
+    assert torch.allclose(out, (x - 0) / torch.sqrt(torch.ones(3) + n.eps))
+    y = n(x)
+    assert abs(float(y.mean())) < 0.5 and abs(float(y.std()) - 1) < 0.2

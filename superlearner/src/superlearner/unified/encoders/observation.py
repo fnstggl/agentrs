@@ -23,6 +23,36 @@ def mlp(in_dim: int, hidden: int, out_dim: int, layers: int = 2) -> nn.Sequentia
     return nn.Sequential(*mods)
 
 
+class FeatureNorm(nn.Module):
+    """Standardise each feature by running statistics across samples (not across the features of one sample).
+
+    The belief and action embeddings carried their decision-relevant directions with small variance beside large
+    constant offsets; downstream heads then failed to learn interactions between them (critic isolation, ledger
+    2026-11-24: 0.50 sign accuracy raw, 0.99-1.00 standardised). Statistics move only during gradient-enabled passes
+    (training) and are used unchanged while acting, so acting and training compute the same function."""
+
+    def __init__(self, dim: int, momentum: float = 0.01, eps: float = 1e-4):
+        super().__init__()
+        self.momentum, self.eps = momentum, eps
+        self.register_buffer("mean", torch.zeros(dim))
+        self.register_buffer("var", torch.ones(dim))
+        self.register_buffer("count", torch.zeros(()))
+
+    def forward(self, x: Tensor) -> Tensor:
+        # Normalise with the statistics as they stood before this batch, then update them: a step is never scaled
+        # by statistics that include later steps of the same batch.
+        out = (x - self.mean.clone()) / torch.sqrt(self.var.clone() + self.eps)
+        if torch.is_grad_enabled() and self.training:
+            flat = x.detach().reshape(-1, x.shape[-1])
+            if flat.shape[0] > 1:
+                m, v = flat.mean(0), flat.var(0, unbiased=False)
+                rate = max(self.momentum, 1.0 / float(self.count + 1))
+                self.mean.lerp_(m, rate)
+                self.var.lerp_(v, rate)
+                self.count += 1
+        return out
+
+
 def _encoder(d: int, heads: int, layers: int) -> nn.TransformerEncoder:
     layer = nn.TransformerEncoderLayer(d, heads, 4 * d, dropout=0.0, activation="gelu", batch_first=True,
                                        norm_first=True)
@@ -74,9 +104,10 @@ class GoalEncoder(nn.Module):
     def __init__(self, cfg: UnifiedConfig, n_features: int):
         super().__init__()
         self.net = mlp(n_features, cfg.goal_dim, cfg.goal_dim, layers=2)
+        self.norm = FeatureNorm(cfg.goal_dim)
 
     def forward(self, goal: GoalBatch) -> Tensor:
-        return self.net(goal.features)
+        return self.norm(self.net(goal.features))
 
 
 class ActionEncoder(nn.Module):
@@ -98,6 +129,7 @@ class ActionEncoder(nn.Module):
         self.n_struct = lang.n_features + extra_features
         self.struct = mlp(self.n_struct, d, d, layers=1)
         self.out = mlp(2 * d, d, d, layers=1)
+        self.norm = FeatureNorm(d)
         lever_tokens = torch.arange(lang.lever0, lang.value0)
         self.register_buffer("lever_tokens", lever_tokens, persistent=False)
 
@@ -120,7 +152,7 @@ class ActionEncoder(nn.Module):
         x = self.body(x, src_key_padding_mask=pad)
         w = self.attn(x).squeeze(-1).masked_fill(pad, float("-inf"))
         pooled = (torch.softmax(w, 1).unsqueeze(-1) * x).sum(1)
-        return self.out(torch.cat([pooled, self.struct(f)], -1)).reshape(*shape, -1)
+        return self.norm(self.out(torch.cat([pooled, self.struct(f)], -1))).reshape(*shape, -1)
 
     def encode_candidates(self, c: ActionCandidateBatch) -> Tensor:
         return self.forward(c.tokens, c.features)
