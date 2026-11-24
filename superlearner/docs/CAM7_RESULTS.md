@@ -54,7 +54,10 @@ saved beside the weights.
 | C-3a | Value of information beats Thompson sampling with the same model | +0.039 [−0.024, +0.104] | failed |
 | C-3b | CAM 7.0 (KG) beats trained `model_based` on active discovery | +0.047 [−0.047, +0.140] | failed |
 | C-3c | Full CAM 7.0 beats trained `model_based` on active discovery | −0.004 [−0.102, +0.085] | failed |
-| C-4a–d | Experiment 3, transfer protocol (see below) | | |
+| C-4a | Experiment 3 within families: pretrained adapts faster than scratch (area) | +0.085 [+0.054, +0.120] | **demonstrated** |
+| C-4b | Compositional (`scm_delay_gate`) | −0.099 [−0.156, −0.043] | failed (negative transfer) |
+| C-4c | Structural (`abm_trust_gate`, `scm_invu`) | −0.023 [−0.047, −0.002] | failed |
+| C-4d | Cross-implementation (`tech_pipeline`) | −0.043 [−0.102, +0.018] | failed |
 
 ## The fourteen questions
 
@@ -138,11 +141,14 @@ The learned residual, which is meant to learn when exploration is too costly, hu
 *Status: by construction for mechanism evidence; not demonstrated for arbitrary cues.*
 
 **7. Do its core weights acquire persistent transferable capabilities?** Persistent within families: yes. C-2a used
-checkpoints evaluated in a fresh process, frozen, with fresh context and no replay. Across families: see question 8 and
-Experiment 3. *Status: demonstrated within families.*
+checkpoints evaluated in a fresh process, frozen, with fresh context and no replay. Experiment 3: within families, a source-trained network adapts faster than a fresh one on the same target stream (+0.085 [+0.054, +0.120], C-4a). *Status: demonstrated within families.*
 
-**8. Does experience in one environment improve learning in an unfamiliar one?** Zero-shot, no (C-2d failed). Adaptation
-speed: Experiment 3 (below).
+**8. Does experience in one environment improve learning in an unfamiliar one?** No.
+- *Zero-shot:* C-2d failed.
+- *Adaptation speed (Experiment 3):* pretraining on the six source families did not speed up learning on any unfamiliar category. It slowed learning on the compositional family `scm_delay_gate`: area −0.099 [−0.156, −0.043]; trained from scratch on that family CAM 7.0 reaches 0.437, from the source checkpoint 0.337.
+- *Baseline:* `model_based` shows no transfer either.
+
+*Status: failed (negative transfer on one category).*
 
 **9. Does model-based imagination improve actual outcomes?**
 - *One-step imagination:* the value-of-information rule imagines an experiment's outcome, updates the belief and
@@ -191,4 +197,15 @@ CAM 7.0 uses about ten times `model_based`'s search evaluations for equal outcom
 
 ## Experiment 3 (parametric transfer)
 
-PENDING
+Crucible's `protocols.transfer`, three seeds, source 240k steps on the six training families, then 120k steps on each target stream from the source checkpoint and from scratch. Evaluation tasks are untouched (VAL offset 80,000).
+
+| Target | CAM 7.0 zero-shot gain | CAM 7.0 area, pretrained − scratch | `model_based` area, pretrained − scratch |
+|---|---|---|---|
+| Within | +0.163 [+0.109, +0.222] | +0.085 [+0.054, +0.120] | −0.017 [−0.042, +0.006] |
+| Compositional | −0.032 [−0.113, +0.046] | −0.099 [−0.156, −0.043] | +0.004 [−0.045, +0.056] |
+| Structural | +0.007 [−0.036, +0.047] | −0.023 [−0.047, −0.002] | −0.006 [−0.029, +0.017] |
+| Cross-implementation | −0.028 [−0.188, +0.130] | −0.043 [−0.102, +0.018] | −0.023 [−0.087, +0.042] |
+
+No arm reached the goal threshold, so steps-to-threshold is undefined.
+
+The specification's decisive metric is how much less experience is needed in unfamiliar worlds after experience elsewhere. On that metric CAM 7.0 has **not** succeeded: its learning stays inside the families it learned from.

@@ -130,6 +130,16 @@ the area under the adaptation curve, pretrained − scratch, paired over (seed, 
 gains and steps to threshold reported without a criterion; `model_based` through the same protocol as the baseline's
 own transfer, without a criterion.
 
+**C-4 result (run once, 2026-11-24, `runs/cam7/exp3/{cam7_small,model_based}/transfer_0_1_2.json`):** C-4a **PASSED**
+(within: area pretrained − scratch +0.085 [+0.054, +0.120]; zero-shot +0.163 [+0.109, +0.222]); C-4b failed with
+**negative transfer** (compositional `scm_delay_gate`: −0.099 [−0.156, −0.043]; scratch area 0.437 vs pretrained
+0.337); C-4c failed (structural: −0.023 [−0.047, −0.002]); C-4d failed (cross-implementation `tech_pipeline`: −0.043
+[−0.102, +0.018]). No arm reached the goal threshold, so steps-to-threshold is undefined. `model_based` through the same
+protocol: no transfer anywhere (within −0.017, compositional +0.004, structural −0.006, cross −0.023; within zero-shot
+−0.048 [−0.085, −0.013]). Reading: CAM 7.0's weights learn persistently and fast (training from scratch on a target
+family is very effective), but what they learn on the source families does not speed up learning on new families and
+slows it on the compositional one: over-specialised priors or residual, or lost plasticity.
+
 **C-3, Experiment 2, active causal discovery (declared 2026-11-24, before any look at the confirmation set).** Set:
 `x2_confound_gate` and `x2_regime_mix` at VAL offset 70,000, 12 tasks each (24), never used. Same three CAM 7.0
 checkpoints; budget 24 ticks; `superlearner.cam7.experiments.exp2`. Statistic: whole-episode score, paired per task,
@@ -159,31 +169,26 @@ interventions better. Scope: identical support sets (condition A), prediction on
 
 None. (Both jobs previously listed here finished; their results are in the Completed table.)
 
-## Coverage of the CAM 7.0 specification (audit, 2026-11-24)
-
-**CAM 7.0 as specified has not been built.** The branch is CAM 6.1's code with a new memory core and a better
-standalone few-shot learner. CAM 7.0's own six commits changed about 1,070 lines of code and tests, about 600 of them
-diagnostics and benchmark harnesses, against about 3,400 for CAM 6.1. Work so far covers the spec's Phases 0–2;
-Phase 3 (the integrated backbone) has not started.
+## Coverage of the CAM 7.0 specification (updated 2026-11-24, after Phase 3 and Experiments 1–3)
 
 | Spec part | State |
 |---|---|
-| 0 Recover CAM 6.1 state | Done |
-| 1 Diagnose CAM 6.1 failures, memory by layer | Done for memory, conditioning and the adaptive layer's loss; delays 0/4/16 (focused) and up to 32 (screening), not 64 |
-| 3.2 Event tokens | Minimal: one token per step from the pooled observation, previous action and elapsed time. No per-observation, entity, prediction, outcome, cost, reliability or provenance tokens. Width 128 in `cam7_small`; the 256-wide `cam7` preset is untrained |
-| 3.3 Shared adaptive features φ = F(H, a, Δt) | Not done: the adaptive layer's features are a small separate network on lever settings, not computed by the backbone |
-| 3.4 Fast Bayesian inference | Done as a separate layer (float64, Cholesky, learned prior, precision and noise). Single reward outcome only; no multiple outcome heads or non-Gaussian likelihoods |
-| 3.5 Posterior integrated into the backbone | **Not done**: the posterior still acts mainly as a planner bonus (`runtime/learner.py` `_plan_bonus`), which the spec rules out; only three per-candidate summaries enter the action encoder, and no posterior tokens enter the backbone |
-| 3.6 Nonlinear, interacting, nonstationary mechanisms; change points; latent context | Not done |
-| 4.1 Support/query meta-training | Done for the standalone few-shot learner (C-1 passed); not applied to the agent's backbone |
-| 4.2 Direct training of evidence retention; 4.3 | Not done |
-| 5 Intervention-consequence prediction | Effect heads inherited from CAM 6.1 (held-out effect R² ≤ 0.29); no evidence-quality or identification work |
-| 6 Value-of-information exploration, coherent uncertainty, imagination | Not done (Thompson bonus from CAM 6.1 only; imagination off in the `cam7` presets) |
-| 7 Credit assignment | V-trace from CAM 6.1; delayed-reward credit assignment fails (`cue_final`) |
-| 8 General-purpose OpenWorld actions | Not done |
-| 9 Continual parametric learning | Not done |
-| 10 Experiments 1–4 | Only Experiment 1 condition A |
-| 13 Deliverables and the 14 questions | Not written; Q1, Q2 and part of Q3/Q4/Q6 answered in this ledger |
+| 0–2 Recover, diagnose, strongest fast learner | Done (see experiments below; C-1 passed) |
+| 3.2 Event tokens | Implemented: lever, gauge, global and up to 64 event tokens with per-episode identities; events carry setting changes, outcomes, previous predictions and innovations, gauge changes, time. No text/semantic encoder (no text in these worlds) |
+| 3.3 Shared adaptive features | Implemented: phi = F(h_j from pass 1, d, e, t), fixed + learned + learned pairwise interactions; tested (learned interaction test) |
+| 3.4 Fast Bayesian inference | Implemented (NIG, Student-t, revenue and cost heads, learned priors, noise, forgetting); tested (exactness, Kalman equivalence, calibration) |
+| 3.5 Posterior integrated into the backbone | Implemented (pass 2 reads posterior tokens; decision and value condition on it). Removing the posterior: −0.37/−0.57 (dev). Removing only the posterior tokens: −0.05 held-out (dev, 1 seed, inconclusive) |
+| 3.6 Nonlinear / nonstationary | Partly: learned interaction features, learned forgetting, change-point cut rule. No latent regime inference (PEARL-style) |
+| 4.1 Support/query meta-training | Implemented for the backbone, features and priors |
+| 4.2 Direct retention training, 4.3 | Not done beyond the world auxiliaries |
+| 5 Intervention consequences | Posterior predicts steady-state outcomes of candidate interventions; evaluated against evaluator forks (Exp 2 probes). No multi-horizon policy-conditional futures |
+| 6 Value of information | Implemented (knowledge gradient, EIG, Thompson, greedy, random, fixed design, learned residual); compared in Exp 2 |
+| 6.3 Multistep imagination | Not done (one-step imagined experiments only, via KG) |
+| 7 Credit assignment | Clipped importance-weighted actor-critic over decisions on actual outcomes; the learned residual did not help |
+| 8 OpenWorld actions | Not done |
+| 9 Continual learning | Persistent weights, optimiser and versioned replay in checkpoints; sequential multi-domain retention not run; no distributed actors |
+| 10 Experiments | 1A (C-1) and 1B (C-2), 2 (C-3), 3 (C-4) run; 4 not run |
+| 13 Report | `superlearner/docs/CAM7_RESULTS.md` |
 
 ## Hypotheses (status)
 
@@ -198,21 +203,21 @@ Phase 3 (the integrated backbone) has not started.
 
 ## Next steps
 
-1. Agent-level credit assignment under delayed reward (`cue_final`): check whether the critic's λ-return reaches the
-   first decisions, whether the value head learns the terminal reward from the cue, and whether an auxiliary
-   "predict the episode's final reward" target makes the belief keep the cue (prediction worked for retention in the
-   probe; the RL signal alone does not).
-2. CAM 7.0 development run collapsed late (+0.110 → −0.166 at 121k); rerun with FeatureNorm and small-init heads,
-   then diagnose the collapse (actor entropy, critic scale, adaptive gate) before any held-out comparison.
-3. Experiment 1 condition B (each learner chooses its interventions), then Experiment 2 (active discovery), with
-   pre-declared criteria and untouched seeds, against exact regression and `model_based`.
-4. Experiments 3 (parametric transfer and continual learning) and 4 (OpenWorld) are not started.
+1. Negative transfer (C-4b): test whether resetting or shrinking the learned residual and re-learning the priors on a
+   new family (prior learning rate, prior reset, weight decay toward the untrained priors) removes the slowdown, and
+   measure plasticity directly (adaptation speed of a source-trained vs fresh network on the same target stream).
+2. The mid-episode lag behind exact regression on held-out families (k=16): compare candidate sets and step sizes
+   (trust region) with `meta_np`'s arms; it is not the exploration weight.
+3. The learned residual hurts on new worlds: try a learned scalar VOI weight conditioned on context instead of a full
+   residual network.
+4. Experiment 4 (OpenWorld): needs an OpenWorld adapter for CAM 7.0 and the frozen-Qwen baselines; not started.
+5. Any new confirmation needs a fresh untouched offset (60,000 = dev, 70,000 = C-2/C-3, 80,000 = C-4 are spent).
 
 ## Status of the four mandatory experiments
 
 | Experiment | Status |
 |---|---|
-| 1 Few-shot adaptation | Condition A done: learned priors beat generic regression on effect size (C-1 passed); ranking not better. Condition B not run |
-| 2 Active causal discovery | Not run |
-| 3 Parametric transfer and continual learning | Not run |
+| 1 Few-shot adaptation | A: C-1 passed (learned priors size effects better). B: C-2a passed (trained beats untrained on familiar families); C-2b–d failed (no advantage over `model_based`, no transfer to held-out families) |
+| 2 Active causal discovery | C-3a–c failed; value of information beats greedy, EIG, fixed design and random with the same model (reported, not criteria) |
+| 3 Parametric transfer | C-4a passed (within families); C-4b failed with negative transfer; C-4c, C-4d failed |
 | 4 OpenWorld long-horizon transfer | Not run |
