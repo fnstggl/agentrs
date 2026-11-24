@@ -1,0 +1,48 @@
+{
+ "test": "tests/test_acceptance.py::test_F_cooperation",
+ "claim": "Independent agents achieve a difficult objective by coordinating complementary capabilities; removing cooperation changes the outcome under controlled conditions.",
+ "measured": {
+  "family": "tech_handoff",
+  "joint_net_per_tick": [
+   {
+    "world": 0,
+    "trained_pair": 184.9837962962963,
+    "both_default": -4.719907407407407,
+    "only_upstream_trained": 144.98379629629628,
+    "only_downstream_trained": 35.28009259259259
+   },
+   {
+    "world": 1,
+    "trained_pair": 93.4050925925926,
+    "both_default": -5.456018518518519,
+    "only_upstream_trained": 49.71527777777777,
+    "only_downstream_trained": 38.354166666666664
+   },
+   {
+    "world": 2,
+    "trained_pair": 127.31481481481482,
+    "both_default": -23.8125,
+    "only_upstream_trained": -13.247685185185185,
+    "only_downstream_trained": 106.19444444444446
+   }
+  ],
+  "pair_minus_best_single": {
+   "n": 3,
+   "mean_diff": 34.93672839506174,
+   "lo": 21.120370370370367,
+   "hi": 43.68981481481482,
+   "p_value": 0.25,
+   "frac_better": 1.0,
+   "frac_worse": 0.0,
+   "low_n": true
+  }
+ },
+ "caveats": [
+  "Three world instances; a paired interval over three is reported but flagged low-n. 'Cooperation' here is two independent learners sharing a team objective with no communication channel; each sees only its own gauges."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_F_cooperation'",
+ "outcome": "passed",
+ "wall_s": 68.9,
+ "recorded_at": "2026-11-23T05:27:56Z"
+}

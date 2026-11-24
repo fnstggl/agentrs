@@ -1,0 +1,228 @@
+{
+ "test": "tests/test_acceptance.py::test_H_long_term_sustainability",
+ "claim": "The world supports meaningful economic and technological activity across long simulated periods, permits real failures and recoveries, and no hidden process repeatedly crashes or silently disables a sector.",
+ "measured": {
+  "in_test_run": {
+   "family": "ow_market",
+   "days": 28,
+   "weeks_served": [
+    448230,
+    588851,
+    591972,
+    600734
+   ],
+   "entries": 5,
+   "shock": {
+    "requested": {
+     "day": 14,
+     "kind": "bankrupt_largest"
+    },
+    "report": {
+     "kind": "bankrupt_largest",
+     "done": true,
+     "org": "o:alloc0co1",
+     "sectors": [
+      "gen.allocate.438afdd8"
+     ],
+     "how": "admin.shock_bankrupt",
+     "t": 1209600,
+     "day": 14
+    },
+    "sectors": {
+     "gen.allocate.438afdd8": {
+      "served_per_day_before": 29115.9,
+      "lowest_day": 14,
+      "lowest_served": 24973,
+      "fell_below_recover_level": false,
+      "recovered_day": null,
+      "days_to_recover": null,
+      "flagged_collapsed_on": null,
+      "cause_reported": null,
+      "served_last_day": 26785,
+      "sellers_end": 1
+     }
+    }
+   },
+   "collapses": [],
+   "invariant_checks": 29,
+   "events": 77931
+  },
+  "recorded_long_runs": {
+   "ow_longrun180_ow_frontier_s1_full": {
+    "days": 180,
+    "weeks_served_first_last": [
+     245872,
+     518160
+    ],
+    "last_over_median": 1.014,
+    "process_failures": [],
+    "invariant_violations": 0,
+    "replay_identical": true,
+    "entries": 10,
+    "exits": 1,
+    "unrecovered_collapses": [],
+    "healthy": true
+   },
+   "ow_longrun180_ow_frontier_s2_full": {
+    "days": 180,
+    "weeks_served_first_last": [
+     261947,
+     419058
+    ],
+    "last_over_median": 0.998,
+    "process_failures": [],
+    "invariant_violations": 0,
+    "replay_identical": true,
+    "entries": 9,
+    "exits": 2,
+    "unrecovered_collapses": [],
+    "healthy": true
+   },
+   "ow_longrun365_ow_market_s1_full": {
+    "days": 365,
+    "weeks_served_first_last": [
+     448230,
+     666335
+    ],
+    "last_over_median": 1.057,
+    "process_failures": [],
+    "invariant_violations": 0,
+    "replay_identical": true,
+    "entries": 12,
+    "exits": 4,
+    "unrecovered_collapses": [],
+    "healthy": true
+   },
+   "ow_longrun365_ow_market_s2_full": {
+    "days": 365,
+    "weeks_served_first_last": [
+     463699,
+     660819
+    ],
+    "last_over_median": 1.011,
+    "process_failures": [],
+    "invariant_violations": 0,
+    "replay_identical": true,
+    "entries": 10,
+    "exits": 4,
+    "unrecovered_collapses": [],
+    "healthy": true
+   },
+   "ow_longrun365_ow_market_s3_full": {
+    "days": 365,
+    "weeks_served_first_last": [
+     396729,
+     652122
+    ],
+    "last_over_median": 1.019,
+    "process_failures": [],
+    "invariant_violations": 0,
+    "replay_identical": true,
+    "entries": 11,
+    "exits": 3,
+    "unrecovered_collapses": [],
+    "healthy": true
+   },
+   "ow_longrun90_ow_heldout_s1_full": {
+    "days": 90,
+    "weeks_served_first_last": [
+     332789,
+     495182
+    ],
+    "last_over_median": 1.061,
+    "process_failures": [],
+    "invariant_violations": 0,
+    "replay_identical": true,
+    "entries": 6,
+    "exits": 1,
+    "unrecovered_collapses": [],
+    "healthy": true
+   },
+   "ow_longrun90_ow_heldout_s2_full": {
+    "days": 90,
+    "weeks_served_first_last": [
+     304466,
+     438012
+    ],
+    "last_over_median": 1.054,
+    "process_failures": [],
+    "invariant_violations": 0,
+    "replay_identical": true,
+    "entries": 10,
+    "exits": 1,
+    "unrecovered_collapses": [],
+    "healthy": true
+   },
+   "ow_longrun_open_digital_s1_base": {
+    "days": 90,
+    "weeks_served_first_last": [
+     427939,
+     574233
+    ],
+    "last_over_median": 0.97,
+    "process_failures": [],
+    "invariant_violations": 0,
+    "replay_identical": true,
+    "entries": null,
+    "exits": null,
+    "unrecovered_collapses": [],
+    "healthy": true
+   },
+   "ow_longrun_open_digital_s1_entry": {
+    "days": 90,
+    "weeks_served_first_last": [
+     425379,
+     662540
+    ],
+    "last_over_median": 1.002,
+    "process_failures": [],
+    "invariant_violations": 0,
+    "replay_identical": true,
+    "entries": 4,
+    "exits": 0,
+    "unrecovered_collapses": [],
+    "healthy": true
+   },
+   "ow_longrun_open_digital_s2_base": {
+    "days": 90,
+    "weeks_served_first_last": [
+     182226,
+     241123
+    ],
+    "last_over_median": 0.991,
+    "process_failures": [],
+    "invariant_violations": 0,
+    "replay_identical": true,
+    "entries": null,
+    "exits": null,
+    "unrecovered_collapses": [
+     "sort.records"
+    ],
+    "healthy": false
+   },
+   "ow_longrun_open_digital_s2_entry": {
+    "days": 90,
+    "weeks_served_first_last": [
+     184393,
+     650373
+    ],
+    "last_over_median": 1.013,
+    "process_failures": [],
+    "invariant_violations": 0,
+    "replay_identical": true,
+    "entries": 6,
+    "exits": 3,
+    "unrecovered_collapses": [],
+    "healthy": true
+   }
+  }
+ },
+ "caveats": [
+  "The in-test run is 28 simulated days; the 90-, 180- and 365-day runs are executed separately (examples/long_run4.py) and their recorded results are checked here when present."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_H_long_term_sustainability'",
+ "outcome": "passed",
+ "wall_s": 201.9,
+ "recorded_at": "2026-11-23T05:36:26Z"
+}

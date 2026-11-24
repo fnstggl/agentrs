@@ -1,0 +1,24 @@
+{
+ "test": "tests/test_acceptance.py::test_N_clean_installation",
+ "claim": "A fresh checkout can install and run the supported environment without relying on undocumented local state.",
+ "measured": {
+  "commit": "2a983b9a20ee2fe997471fdbd2b8c14150019485",
+  "install": "uv pip install crucible[dev] into an empty venv, empty HOME",
+  "smoke_worlds": {
+   "families": 74,
+   "mech_scm_additive": 82,
+   "mech_abm_utility": 82,
+   "mech_tech_pipeline": 82,
+   "ow_tiny": 597
+  },
+  "tests_in_clean_checkout": "68 passed in 50.19s"
+ },
+ "caveats": [
+  "Installs the core and dev extras. The web, browser, PostgreSQL and RL extras, the Crucible sandbox's root requirement and model weights are documented separately and are not part of this check."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_N_clean_installation'",
+ "outcome": "passed",
+ "wall_s": 61.3,
+ "recorded_at": "2026-11-23T05:44:44Z"
+}

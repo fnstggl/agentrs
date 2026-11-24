@@ -1,0 +1,35 @@
+{
+ "what": "What can the `meta_np` correction learn beyond its regression? Three synthetic families of worlds, full network size.",
+ "episodes": 3000,
+ "held_out_episodes": 40,
+ "device": "cuda",
+ "rows": {
+  "shared_curve": {
+   "regression_mse": 0.030476686246402096,
+   "corrected_over_regression": {
+    "1000": 0.9816421358319158,
+    "2000": 0.9811869551445306,
+    "4000": 0.03161652490530771,
+    "8000": 0.020611077040836107
+   }
+  },
+  "per_world_saturation": {
+   "regression_mse": 0.016711195426250925,
+   "corrected_over_regression": {
+    "1000": 1.002636022100926,
+    "2000": 1.0318250984953397,
+    "4000": 1.0113430299523334,
+    "8000": 1.0132480771289114
+   }
+  },
+  "pure_product": {
+   "regression_mse": 0.22115309787914156,
+   "corrected_over_regression": {
+    "1000": 1.0138065389018727,
+    "2000": 0.9889884624907478,
+    "4000": 0.8651141040287281,
+    "8000": 0.16427673925373992
+   }
+  }
+ }
+}

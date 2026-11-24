@@ -1,0 +1,1175 @@
+{
+ "test": "tests/test_acceptance.py::test_G_invention_and_second_order_effects",
+ "claim": "A new artifact changes the world; other participants adopt or respond to it; at least one consequential second-order effect appears; matched counterfactual forks establish the effect under the simulator's assumptions.",
+ "measured": {
+  "fork_day": 1.0,
+  "horizon_days": 6,
+  "exact_counterfactual": true,
+  "control_fork_reproducible": true,
+  "independent_adopters": [
+   "o:recordco1",
+   "o:recordco2",
+   "o:recordco3",
+   "o:shorteco1",
+   "o:shorteco2"
+  ],
+  "new_loss_mechanisms": {
+   "capacity_unavailable": 25,
+   "dependency_failure": 25
+  },
+  "capacity_overload_events": {
+   "treatment": 116805,
+   "control": 194491
+  },
+  "reactions_by_others": [
+   "artifact_imitated",
+   "imitator_founded",
+   "provider_price_changed"
+  ],
+  "consequences_by_order": {
+   "0": 1,
+   "1": 10,
+   "2": 2,
+   "3": 0,
+   "4": 1
+  },
+  "multi_seed_suites": {
+   "capacity": {
+    "capacity": {
+     "treatment": {
+      "0:artifact_published": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:artifact_adopted": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:artifact_imitated": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:existing_loss_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:imitation_adopted": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:imitator_founded": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:market_formed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:resource_use_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:work_served_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "2:loss_mechanism_new": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "2:problem_reported": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "3:organisation_founded": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "3:response_adopted": {
+       "seeds": [
+        3
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "3:response_published": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "4:hardware_investment": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "4:organisation_wound_up": {
+       "seeds": [
+        2
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "4:provider_capacity_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "4:provider_price_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      }
+     },
+     "no_response": {
+      "0:artifact_published": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:artifact_adopted": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:artifact_imitated": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:existing_loss_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:imitation_adopted": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:imitator_founded": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:market_formed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:resource_use_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:work_served_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "2:loss_mechanism_new": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "2:problem_reported": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "2:resource_saturated": {
+       "seeds": [
+        1
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "4:hardware_investment": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "4:provider_capacity_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "4:provider_price_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      }
+     },
+     "removal": {
+      "0:artifact_published": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:artifact_adopted": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:artifact_imitated": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:existing_loss_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:imitation_adopted": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:imitator_founded": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:market_formed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:resource_use_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:work_served_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "2:loss_mechanism_new": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "2:problem_reported": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "2:resource_saturated": {
+       "seeds": [
+        1
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "3:organisation_founded": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "3:response_adopted": {
+       "seeds": [
+        2,
+        3
+       ],
+       "p": 0.6666666666666666,
+       "lo": 0.20765960080204782,
+       "hi": 0.9385080552796038,
+       "low_n": true
+      },
+      "3:response_published": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "4:hardware_investment": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "4:organisation_wound_up": {
+       "seeds": [
+        2
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "4:provider_capacity_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "4:provider_price_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      }
+     },
+     "removal_lineage": {
+      "0:artifact_published": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:artifact_adopted": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:artifact_imitated": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:existing_loss_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:imitation_adopted": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:imitator_founded": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:market_formed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:resource_use_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:work_served_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "2:loss_mechanism_new": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "2:problem_reported": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "3:organisation_founded": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "3:response_adopted": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "3:response_published": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "4:hardware_investment": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "4:organisation_wound_up": {
+       "seeds": [
+        2
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "4:provider_capacity_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "4:provider_price_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      }
+     }
+    }
+   },
+   "pricing": {
+    "pricing": {
+     "treatment": {
+      "0:artifact_published": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:artifact_adopted": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:existing_loss_changed": {
+       "seeds": [
+        1,
+        2
+       ],
+       "p": 0.6666666666666666,
+       "lo": 0.20765960080204782,
+       "hi": 0.9385080552796038,
+       "low_n": true
+      },
+      "1:market_formed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:resource_use_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "2:loss_mechanism_new": {
+       "seeds": [
+        3
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "2:problem_reported": {
+       "seeds": [
+        3
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      }
+     },
+     "removal": {
+      "0:artifact_published": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:artifact_adopted": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:existing_loss_changed": {
+       "seeds": [
+        1,
+        2
+       ],
+       "p": 0.6666666666666666,
+       "lo": 0.20765960080204782,
+       "hi": 0.9385080552796038,
+       "low_n": true
+      },
+      "1:market_formed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:resource_use_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "2:loss_mechanism_new": {
+       "seeds": [
+        2,
+        3
+       ],
+       "p": 0.6666666666666666,
+       "lo": 0.20765960080204782,
+       "hi": 0.9385080552796038,
+       "low_n": true
+      },
+      "2:problem_reported": {
+       "seeds": [
+        2,
+        3
+       ],
+       "p": 0.6666666666666666,
+       "lo": 0.20765960080204782,
+       "hi": 0.9385080552796038,
+       "low_n": true
+      }
+     }
+    }
+   },
+   "frontier": {
+    "frontier": {
+     "treatment": {
+      "1:existing_loss_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:offering_listed": {
+       "seeds": [
+        2
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "1:organisation_founded": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:resource_use_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:work_served_changed": {
+       "seeds": [
+        3
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "2:demand_changed": {
+       "seeds": [
+        3
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "2:problem_reported": {
+       "seeds": [
+        1,
+        3
+       ],
+       "p": 0.6666666666666666,
+       "lo": 0.20765960080204782,
+       "hi": 0.9385080552796038,
+       "low_n": true
+      },
+      "3:offering_listed": {
+       "seeds": [
+        1,
+        3
+       ],
+       "p": 0.6666666666666666,
+       "lo": 0.20765960080204782,
+       "hi": 0.9385080552796038,
+       "low_n": true
+      },
+      "3:organisation_founded": {
+       "seeds": [
+        3
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "4:organisation_survived": {
+       "seeds": [
+        2
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      }
+     },
+     "removal": {
+      "1:existing_loss_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:organisation_founded": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:resource_use_changed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "1:work_served_changed": {
+       "seeds": [
+        3
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "2:demand_changed": {
+       "seeds": [
+        3
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "2:loss_mechanism_new": {
+       "seeds": [
+        2
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "2:problem_reported": {
+       "seeds": [
+        1,
+        3
+       ],
+       "p": 0.6666666666666666,
+       "lo": 0.20765960080204782,
+       "hi": 0.9385080552796038,
+       "low_n": true
+      },
+      "3:offering_listed": {
+       "seeds": [
+        1,
+        2,
+        3
+       ],
+       "p": 1.0,
+       "lo": 0.4385029682449546,
+       "hi": 1.0,
+       "low_n": true
+      },
+      "3:organisation_founded": {
+       "seeds": [
+        3
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      },
+      "4:organisation_survived": {
+       "seeds": [
+        2
+       ],
+       "p": 0.3333333333333333,
+       "lo": 0.06149194472039632,
+       "hi": 0.7923403991979523,
+       "low_n": true
+      }
+     }
+    }
+   }
+  }
+ },
+ "caveats": [
+  "The inventor is a scripted competent control; the firms that adopt, the entrepreneurs who imitate and the providers that reprice are rule-based minds. The chain shows what the world's mechanics support. It is a controlled simulated counterfactual, not evidence about a real economy."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_G_invention_and_second_order_effects'",
+ "outcome": "passed",
+ "wall_s": 272.1,
+ "recorded_at": "2026-11-23T05:32:45Z"
+}

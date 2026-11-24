@@ -587,3 +587,10 @@ Panel on the accepted tasks:
 | frozen Qwen3-4B | 0/4 (every command rejected) |
 
 Details: LONG_HORIZON_EVALUATION.md.
+
+## Crucible 4.0 experiments (branch `feat/crucible-4`)
+
+The full results, including negative ones, are in [OPENWORLD_REPORT.md](OPENWORLD_REPORT.md), and the commands are in
+[REPRODUCE_OPENWORLD.md](REPRODUCE_OPENWORLD.md). Result files are `docs/experiments/ow_*.json`; rendered tables and figures
+are in `docs/figures/ow_benchmark_*_final/`. Earlier results above are unchanged.
+

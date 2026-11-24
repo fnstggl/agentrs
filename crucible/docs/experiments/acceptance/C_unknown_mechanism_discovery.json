@@ -1,0 +1,120 @@
+{
+ "test": "tests/test_acceptance.py::test_C_unknown_mechanism_discovery",
+ "claim": "An agent meets a hidden mechanism; experiments reveal information needed for success; an informed policy outperforms a matched policy deprived of that information.",
+ "measured": {
+  "n_tasks": 12,
+  "families": [
+   "scm_additive",
+   "scm_gate"
+  ],
+  "commit_phase_score": {
+   "informed": {
+    "n": 12,
+    "mean": 0.647369710190698,
+    "lo": 0.4990386038335592,
+    "hi": 0.7927398516131279,
+    "sd": 0.26682607681610593,
+    "low_n": false
+   },
+   "deprived": {
+    "n": 12,
+    "mean": -0.9183819145262895,
+    "lo": -1.1419218538761973,
+    "hi": -0.6760423161266076,
+    "sd": 0.43174141242558983,
+    "low_n": false
+   },
+   "paired": {
+    "n": 12,
+    "mean_diff": 1.5657516247169878,
+    "lo": 1.297480182406743,
+    "hi": 1.79714145059109,
+    "p_value": 0.00048828125,
+    "frac_better": 1.0,
+    "frac_worse": 0.0,
+    "low_n": false
+   }
+  },
+  "whole_episode_score": {
+   "informed": {
+    "n": 12,
+    "mean": 0.31691957656688224,
+    "lo": 0.2246122513891962,
+    "hi": 0.4089464091989794,
+    "sd": 0.16772475662983943,
+    "low_n": false
+   },
+   "deprived": {
+    "n": 12,
+    "mean": -0.5363044828605273,
+    "lo": -0.6652780074110323,
+    "hi": -0.400801711180334,
+    "sd": 0.24645617758486496,
+    "low_n": false
+   },
+   "paired": {
+    "n": 12,
+    "mean_diff": 0.8532240594274093,
+    "lo": 0.7068505287086732,
+    "hi": 0.9823491092076629,
+    "p_value": 0.00048828125,
+    "frac_better": 1.0,
+    "frac_worse": 0.0,
+    "low_n": false
+   }
+  },
+  "objective_reached": {
+   "informed": {
+    "n": 12,
+    "p": 0.16666666666666666,
+    "lo": 0.046965142183853836,
+    "hi": 0.44803086225297334,
+    "low_n": false
+   },
+   "deprived": {
+    "n": 12,
+    "p": 0.0,
+    "lo": 0.0,
+    "hi": 0.2424940066552408,
+    "low_n": false
+   }
+  },
+  "other_engine_tech_pipeline": {
+   "n": 4,
+   "informed": {
+    "n": 4,
+    "mean": -1.3499707830062295,
+    "lo": -1.6119051849736965,
+    "hi": -1.1075819580125894,
+    "sd": 0.31541573747699664,
+    "low_n": true
+   },
+   "deprived": {
+    "n": 4,
+    "mean": -1.080776727764673,
+    "lo": -1.3228745436049927,
+    "hi": -0.7817393435747451,
+    "sd": 0.3139416090328261,
+    "low_n": true
+   },
+   "paired": {
+    "n": 4,
+    "mean_diff": -0.2691940552415566,
+    "lo": -0.8301658413989514,
+    "hi": 0.03248282728596391,
+    "p_value": 0.75,
+    "frac_better": 0.5,
+    "frac_worse": 0.5,
+    "low_n": true
+   }
+  }
+ },
+ "caveats": [
+  "The operator's procedure (one lever at a time from the defaults, then commit) is uninformative on the technical-systems engine, where levers interact and take effect with a lag: there the informed and deprived operators both do worse than leaving the defaults alone. The claim is established for the causal-model families only."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_C_unknown_mechanism_discovery'",
+ "outcome": "passed",
+ "wall_s": 6.8,
+ "recorded_at": "2026-11-23T05:21:48Z"
+}

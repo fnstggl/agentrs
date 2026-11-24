@@ -388,8 +388,12 @@ def test_context_truncation_is_measured_per_turn_and_explains_the_unknown_tools(
     none = X.diagnose(w, nova)
     assert none["context"]["status"] == "not_determinable"
     assert any(x.startswith("context_truncation:") for x in none["not_determinable"])
-    # a transcript without a context limit cannot say which turns were truncated either
-    half = X.diagnose(w, nova, transcript=pol.transcript)
+    # a transcript that records truncation per turn says so without a context limit ...
+    flagged = X.diagnose(w, nova, transcript=pol.transcript)
+    assert flagged["context"]["status"] == "established" and flagged["context"]["truncated_turns"] == 6
+    # ... one in the 3.0 format (no per-turn flag) and without a context limit cannot say which turns were truncated
+    old_format = [{k: v for k, v in r.items() if k != "truncated"} for r in pol.transcript]
+    half = X.diagnose(w, nova, transcript=old_format)
     assert half["context"]["status"] == "not_determinable"
 
 

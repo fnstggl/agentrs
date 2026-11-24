@@ -1,0 +1,22 @@
+{
+ "test": "tests/test_acceptance.py::test_M_reproducibility",
+ "claim": "World snapshots, action logs, state transitions and evaluator results reproduce according to their declared determinism guarantees.",
+ "measured": {
+  "events": 7362,
+  "replay_digest_equal": true,
+  "regeneration_head_hash_equal": true,
+  "evaluator_equal_on_replay": true,
+  "fork_equals_parent_after_advance": true,
+  "store_resume_equal": true,
+  "anchor_verified": true,
+  "task_determinism": true
+ },
+ "caveats": [
+  "Guarantees: replay of recorded events is exact always; regeneration is exact because outcomes the kernel cannot recompute (program outputs, measured CPU) are recorded; fork-versus-parent equality and cross-process equality hold under the deterministic cost model only. With measured CPU cost, two fresh executions of the same world differ. A handler that keeps state in process memory can still cost more on a fresh sandbox worker."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_M_reproducibility'",
+ "outcome": "passed",
+ "wall_s": 9.3,
+ "recorded_at": "2026-11-23T05:43:39Z"
+}

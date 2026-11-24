@@ -21,6 +21,8 @@ private task data), so every learner has the same information and permissions:
                                                   episodes
     evo_probe       search        yes      yes    cross-entropy (population) search over the parameters of the
                                                   probe-and-commit procedure
+    meta_np         model_based   yes      yes    a transformer neural process meta-trained across worlds; Bayesian
+                                                  optimisation over settings inside each episode
 
 The registry is the public surface::
 
@@ -140,6 +142,16 @@ def _evo_defaults():
     return dict(EVO_DEFAULTS)
 
 
+def _meta(spec, seed, device, **kw):
+    from .meta_np import MetaNPLearner
+    return MetaNPLearner(spec, seed, device, **kw)
+
+
+def _meta_defaults():
+    from .meta_np import META_DEFAULTS
+    return dict(META_DEFAULTS)
+
+
 def _scripted_defaults(which: str):
     def defaults():
         from . import scripted
@@ -175,3 +187,7 @@ register("model_based", _mb, kind="model_based", has_weights=True, learns_across
 register("evo_probe", _evo, kind="search", has_weights=True, learns_across_episodes=True, defaults=_evo_defaults,
          doc="Cross-entropy method over the parameters of the probe-and-commit procedure: a population of "
              "parameter vectors is scored by episode returns on the training stream.")
+register("meta_np", _meta, kind="model_based", has_weights=True, learns_across_episodes=True, defaults=_meta_defaults,
+         doc="A transformer neural process over a table of (arm, lever) cells, meta-trained across worlds to predict "
+             "revenue and cost of unseen settings from the arms measured so far; inside an episode it chooses "
+             "experiments by an upper confidence bound and then commits to the best settings it has measured.")

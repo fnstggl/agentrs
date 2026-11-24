@@ -114,3 +114,20 @@ Validation and calibration costs (Part 17/18; open_tight_compute, 3-day warm-up)
 | Visibility task | about 43 s (idle + random + competent forks, 7 days) |
 | Loss-relief task | about 139 s (21 days) |
 | Adoption task | about 163 s (30 days) |
+
+## Crucible 4.0 (`docs/benchmarks/openworld.json`, `examples/bench_openworld.py --quick`)
+
+The machine has 48 logical CPUs but an **11.52-core cgroup quota** shared with other jobs, so earlier references to 48 vCPUs
+overstate what a process can use and wall-clock numbers are pessimistic. Each record carries its load and quota.
+
+| measure | value |
+|---|---|
+| ledger transfers | 4,442 per wall-second (7,196 per CPU-second) |
+| replay from genesis | 26,345 events per wall-second |
+| parallel small worlds (`tiny`, 2 days each) | 1.15 simulated days/s for 1 world, 1.41 for 2, 4.68 for 4, 10.13 for 8 |
+| real Chromium | 7.5 navigations/s |
+| resident memory of a world | 4 MB (1,000 people), 40 MB (100,000 people) |
+| 365-day `ow_market` run | about 1.2M events, 310-360 MB of log, 1.4-1.6 GB peak memory, about 70 minutes under load |
+
+Quick mode covers 15 of the 73 world families. The full table and the 30-day episode costs were not run.
+

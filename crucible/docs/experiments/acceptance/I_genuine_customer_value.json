@@ -1,0 +1,34 @@
+{
+ "test": "tests/test_acceptance.py::test_I_genuine_customer_value",
+ "claim": "Customers adopt a service because it performs useful work; advertising claims alone do not produce success.",
+ "measured": {
+  "working": {
+   "revenue_cents": 46677,
+   "customers": 292,
+   "retention": 0.7857,
+   "retained_customers": 229.0,
+   "rating": 4.42,
+   "price_cents": 3,
+   "verified_quality": 1.0
+  },
+  "garbage": {
+   "revenue_cents": 0,
+   "customers": 31,
+   "rating": 1.0,
+   "price_cents": 2,
+   "requests_answered": 4262,
+   "retention": 0.0333,
+   "retained_customers": 1.0,
+   "answers_accepted_and_paid": 0,
+   "margin_cents": -24200
+  }
+ },
+ "caveats": [
+  "Customers are simulated: they refuse answers whose verified score is below a floor and rate from experienced quality. That real customers behave this way is a modelling assumption."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_I_genuine_customer_value'",
+ "outcome": "passed",
+ "wall_s": 0.0,
+ "recorded_at": "2026-11-23T05:36:50Z"
+}

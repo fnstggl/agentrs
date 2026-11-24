@@ -1,0 +1,44 @@
+{
+ "test": "tests/test_acceptance.py::test_K_architecture_neutral_evaluation",
+ "claim": "Different RL architectures use the environment through consistent interfaces, with equivalent permissions and evaluation budgets.",
+ "measured": {
+  "architectures": {
+   "evo_probe": "search",
+   "hill_climb": "scripted",
+   "hold": "idle",
+   "model_based": "model_based",
+   "ppo_gru": "model_free",
+   "ppo_gru_flat": "model_free",
+   "probe_exploit": "scripted",
+   "random": "random"
+  },
+  "env_steps_each": {
+   "evo_probe": 240,
+   "hill_climb": 240,
+   "hold": 240,
+   "model_based": 240,
+   "ppo_gru": 240,
+   "ppo_gru_flat": 240,
+   "probe_exploit": 240,
+   "random": 240
+  },
+  "comparison_schedule_env_steps": [
+   0,
+   960,
+   1920
+  ],
+  "same_evaluation_tasks": true,
+  "kernel_equals_simulator_for": [
+   "ppo_gru",
+   "model_based"
+  ]
+ },
+ "caveats": [
+  "Language-model agents use the same world through the text tool interface (agents/llm.py) rather than this numeric contract; both reach the facility through the same `rig.*` tools."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_K_architecture_neutral_evaluation'",
+ "outcome": "passed",
+ "wall_s": 60.3,
+ "recorded_at": "2026-11-23T05:39:12Z"
+}

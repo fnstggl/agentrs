@@ -332,6 +332,15 @@ def test_marketplace_jobs_and_inline_forms(world, alice):
         return next(k for k in forms_of(c.get(url).text) if k.startswith(prefix))
     ok(submit(alice, "http://id.crucible/", "id-create_org", {"handle": "acme", "name": "Acme", "kind": "company"}))
     ok(submit(alice, "http://biz.crucible/", "biz-register", {"org": "o:acme", "account": ALICE_ACCT}))
+    # the buyer rates while still unrelated to the seller: a colleague in the seller's company may not rate it
+    r = ok(submit(alice, "http://market.crucible/", "market-list", {"kind": "service", "title": "Consult",
+                                                                    "price_cents": "300"}))
+    lid = re.search(r"id=(lst_\d+)", str(r.url)).group(1)
+    ok(submit(bob, f"http://market.crucible/listing?id={lid}", "market-buy", {}))
+    ok(submit(alice, "http://market.crucible/orders?role=seller",
+              row_form(alice, "http://market.crucible/orders?role=seller", "market-deliver")))
+    ok(submit(bob, "http://market.crucible/orders", row_form(bob, "http://market.crucible/orders", "market-confirm")))
+    ok(submit(bob, f"http://market.crucible/listing?id={lid}", "market-rate", {"stars": "5", "text": "great"}))
     ok(submit(alice, "http://id.crucible/profile?p=o:acme", "id-invite", {"person": "bob"}))
     f = row_form(bob, "http://id.crucible/", "id-respond_invite")
     ok(submit(bob, "http://id.crucible/", f, button=f + "-1"))                       # Accept
@@ -343,14 +352,6 @@ def test_marketplace_jobs_and_inline_forms(world, alice):
     page = alice.get(f"http://jobs.crucible/posting?id={posting}").text            # org admin: applications
     assert 'id="s-applications"' in page and "hire me" in page.split('id="s-applications"')[1].split("</section>")[0]
     assert 'id="s-applications"' not in bob.get(f"http://jobs.crucible/posting?id={posting}").text
-    r = ok(submit(alice, "http://market.crucible/", "market-list", {"kind": "service", "title": "Consult",
-                                                                    "price_cents": "300"}))
-    lid = re.search(r"id=(lst_\d+)", str(r.url)).group(1)
-    ok(submit(bob, f"http://market.crucible/listing?id={lid}", "market-buy", {}))
-    ok(submit(alice, "http://market.crucible/orders?role=seller",
-              row_form(alice, "http://market.crucible/orders?role=seller", "market-deliver")))
-    ok(submit(bob, "http://market.crucible/orders", row_form(bob, "http://market.crucible/orders", "market-confirm")))
-    ok(submit(bob, f"http://market.crucible/listing?id={lid}", "market-rate", {"stars": "5", "text": "great"}))
     ok(submit(alice, "http://cloud.crucible/", "cloud-rent", {"cores": "1"}))
     ok(submit(alice, "http://cloud.crucible/", row_form(alice, "http://cloud.crucible/", "cloud-release")))
     ok(submit(alice, "http://ads.crucible/", "ads-create_campaign", {"keywords": "acme, widgets", "bid_cents": "5",

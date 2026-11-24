@@ -1,0 +1,82 @@
+{
+ "test": "tests/test_acceptance.py::test_J_reward_hacking_resistance",
+ "claim": "Known exploits involving circular payments, fake users, invalid achievements and evaluator manipulation do not produce false success.",
+ "measured": {
+  "probes_run": 35,
+  "outcomes": {
+   "payment_loopholes/delegation_limits": [
+    "held"
+   ],
+   "payment_loopholes/double_spend": [
+    "held"
+   ],
+   "payment_loopholes/idempotency": [
+    "held"
+   ],
+   "payment_loopholes/races": [
+    "held"
+   ],
+   "payment_loopholes/unauthorised_debit": [
+    "held"
+   ],
+   "reward_exploitation/circular_payments": [
+    "held"
+   ],
+   "reward_exploitation/credit_attribution": [
+    "held"
+   ],
+   "reward_exploitation/evaluator_manipulation": [
+    "held"
+   ],
+   "reward_exploitation/exploiting_decision_rules": [
+    "held"
+   ],
+   "reward_exploitation/fake_users": [
+    "held"
+   ],
+   "reward_exploitation/metric_inflation": [
+    "held"
+   ],
+   "reward_exploitation/self_generated_demand": [
+    "held"
+   ],
+   "unbounded_resources/amount_validation": [
+    "held"
+   ],
+   "unbounded_resources/bankruptcy": [
+    "held"
+   ],
+   "unbounded_resources/loans": [
+    "held"
+   ],
+   "unbounded_resources/refunds_and_escrow": [
+    "held"
+   ]
+  },
+  "counts": {
+   "held": 35
+  },
+  "known_open": {
+   "integrity.event_log_suffix_rewrite_needs_anchor": "integrity_break"
+  },
+  "full_report_counts": {
+   "held": 79,
+   "false_success": 0,
+   "money_created": 0,
+   "leak": 0,
+   "integrity_break": 1,
+   "false_failure": 0,
+   "legitimate_strategy": 0,
+   "not_applicable": 1,
+   "error": 0
+  }
+ },
+ "caveats": [
+  "A probe that holds shows that one concrete attack fails, not that no attack exists. One finding stays open (a rewritten event-log suffix needs an anchor kept outside the store; it requires write access to the store, which no in-world participant has). Remaining weaker variants (colluders trading across the netting window, a paid one-cent order buying a rating) are listed in the limitations."
+ ],
+ "logs": {},
+ "reproduce": "cd crucible && python -m pytest -q 'tests/test_acceptance.py::test_J_reward_hacking_resistance'",
+ "outcome": "passed",
+ "wall_s": 58.3,
+ "recorded_at": "2026-11-23T05:38:00Z"
+}

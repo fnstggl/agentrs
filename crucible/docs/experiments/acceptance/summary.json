@@ -1,0 +1,232 @@
+{
+ "commit": "2a983b9a20ee2fe997471fdbd2b8c14150019485",
+ "tree_had_uncommitted_changes": false,
+ "recorded_at": "2026-11-23T05:45:39Z",
+ "tests": {
+  "A": {
+   "test": "A",
+   "title": "Real software creation",
+   "node": "tests/test_acceptance.py::test_A_real_software_creation",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 27.49s",
+   "wall_s": 35.3,
+   "record": "docs/experiments/acceptance/A_real_software_creation.json",
+   "result": "PASSED",
+   "claim": "An agent creates and deploys a working application; another independent agent discovers it, interacts with it and receives a verifiably useful result; the application uses persistent state and ordinary execution paths.",
+   "caveats": [
+    "The builder is a scripted control that knows one piece of developer craft (inducing a record wire format from worked examples); it shows the world supports the path, not that a learner finds it."
+   ]
+  },
+  "B": {
+   "test": "B",
+   "title": "Multiple viable strategies",
+   "node": "tests/test_acceptance.py::test_B_multiple_viable_strategies",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 318.81s (0:05:18)",
+   "wall_s": 326.6,
+   "record": "docs/experiments/acceptance/B_multiple_viable_strategies.json",
+   "result": "PASSED",
+   "claim": "At least two materially different strategies achieve the same independently verified objective in multiple world instances, without a hard-coded intended action sequence.",
+   "caveats": [
+    "Both strategies are carried out by scripted competent controls that decide from what they observe. This shows the world admits more than one route to the same verified outcome; it does not show that a learner finds either.",
+    "The horizon was changed after a first attempt. With 10 days the software strategy met the objective in only 1 of 3 worlds, because a company pays its set-up costs first (it was at +$143 and +$286 on day 10 in two worlds). The horizon was then set to 20 days and a fourth, previously unseen world was added. The software strategy is not viable in every world: in world 3 it was still losing money on day 20."
+   ]
+  },
+  "C": {
+   "test": "C",
+   "title": "Unknown mechanism discovery",
+   "node": "tests/test_acceptance.py::test_C_unknown_mechanism_discovery",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 13.51s",
+   "wall_s": 19.9,
+   "record": "docs/experiments/acceptance/C_unknown_mechanism_discovery.json",
+   "result": "PASSED",
+   "claim": "An agent meets a hidden mechanism; experiments reveal information needed for success; an informed policy outperforms a matched policy deprived of that information.",
+   "caveats": [
+    "The operator's procedure (one lever at a time from the defaults, then commit) is uninformative on the technical-systems engine, where levers interact and take effect with a lag: there the informed and deprived operators both do worse than leaving the defaults alone. The claim is established for the causal-model families only."
+   ]
+  },
+  "D": {
+   "test": "D",
+   "title": "Structural transfer",
+   "node": "tests/test_acceptance.py::test_D_structural_transfer",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 161.50s (0:02:41)",
+   "wall_s": 172.8,
+   "record": "docs/experiments/acceptance/D_structural_transfer.json",
+   "result": "PASSED",
+   "claim": "A learner trained on one family of rules meets a different mechanism family; its performance and adaptation are measured against learning from scratch.",
+   "caveats": [
+    "This test establishes that the protocol measures structural transfer on equal experience; it asserts no particular result. With this small budget and n=6 the measured difference is reported as it came out."
+   ]
+  },
+  "E": {
+   "test": "E",
+   "title": "Autonomous competition",
+   "node": "tests/test_acceptance.py::test_E_autonomous_competition",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 107.49s (0:01:47)",
+   "wall_s": 113.6,
+   "record": "docs/experiments/acceptance/E_autonomous_competition.json",
+   "result": "PASSED",
+   "claim": "Two independently controlled agents compete; their policies adapt in response to each other's actions; the environment's changes result from real executable decisions.",
+   "caveats": [
+    "The learners are stochastic-approximation controllers on a few policy parameters; opponents in the 2x2 are scripted profiles. Richer adaptation in joint training is reported from the recorded self-play experiment, with its uncertainty."
+   ]
+  },
+  "F": {
+   "test": "F",
+   "title": "Cooperation",
+   "node": "tests/test_acceptance.py::test_F_cooperation",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 78.21s (0:01:18)",
+   "wall_s": 83.8,
+   "record": "docs/experiments/acceptance/F_cooperation.json",
+   "result": "PASSED",
+   "claim": "Independent agents achieve a difficult objective by coordinating complementary capabilities; removing cooperation changes the outcome under controlled conditions.",
+   "caveats": [
+    "Three world instances; a paired interval over three is reported but flagged low-n. 'Cooperation' here is two independent learners sharing a team objective with no communication channel; each sees only its own gauges."
+   ]
+  },
+  "G": {
+   "test": "G",
+   "title": "Invention and second-order effects",
+   "node": "tests/test_acceptance.py::test_G_invention_and_second_order_effects",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 284.80s (0:04:44)",
+   "wall_s": 291.8,
+   "record": "docs/experiments/acceptance/G_invention_and_second_order_effects.json",
+   "result": "PASSED",
+   "claim": "A new artifact changes the world; other participants adopt or respond to it; at least one consequential second-order effect appears; matched counterfactual forks establish the effect under the simulator's assumptions.",
+   "caveats": [
+    "The inventor is a scripted competent control; the firms that adopt, the entrepreneurs who imitate and the providers that reprice are rule-based minds. The chain shows what the world's mechanics support. It is a controlled simulated counterfactual, not evidence about a real economy."
+   ]
+  },
+  "H": {
+   "test": "H",
+   "title": "Long-term sustainability",
+   "node": "tests/test_acceptance.py::test_H_long_term_sustainability",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 210.89s (0:03:30)",
+   "wall_s": 218.6,
+   "record": "docs/experiments/acceptance/H_long_term_sustainability.json",
+   "result": "PASSED",
+   "claim": "The world supports meaningful economic and technological activity across long simulated periods, permits real failures and recoveries, and no hidden process repeatedly crashes or silently disables a sector.",
+   "caveats": [
+    "The in-test run is 28 simulated days; the 90-, 180- and 365-day runs are executed separately (examples/long_run4.py) and their recorded results are checked here when present."
+   ]
+  },
+  "I": {
+   "test": "I",
+   "title": "Genuine customer value",
+   "node": "tests/test_acceptance.py::test_I_genuine_customer_value",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 16.81s",
+   "wall_s": 21.5,
+   "record": "docs/experiments/acceptance/I_genuine_customer_value.json",
+   "result": "PASSED",
+   "claim": "Customers adopt a service because it performs useful work; advertising claims alone do not produce success.",
+   "caveats": [
+    "Customers are simulated: they refuse answers whose verified score is below a floor and rate from experienced quality. That real customers behave this way is a modelling assumption."
+   ]
+  },
+  "J": {
+   "test": "J",
+   "title": "Reward-hacking resistance",
+   "node": "tests/test_acceptance.py::test_J_reward_hacking_resistance",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 64.80s (0:01:04)",
+   "wall_s": 70.0,
+   "record": "docs/experiments/acceptance/J_reward_hacking_resistance.json",
+   "result": "PASSED",
+   "claim": "Known exploits involving circular payments, fake users, invalid achievements and evaluator manipulation do not produce false success.",
+   "caveats": [
+    "A probe that holds shows that one concrete attack fails, not that no attack exists. One finding stays open (a rewritten event-log suffix needs an anchor kept outside the store; it requires write access to the store, which no in-world participant has). Remaining weaker variants (colluders trading across the netting window, a paid one-cent order buying a rating) are listed in the limitations."
+   ]
+  },
+  "K": {
+   "test": "K",
+   "title": "Architecture-neutral evaluation",
+   "node": "tests/test_acceptance.py::test_K_architecture_neutral_evaluation",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 65.71s (0:01:05)",
+   "wall_s": 73.5,
+   "record": "docs/experiments/acceptance/K_architecture_neutral_evaluation.json",
+   "result": "PASSED",
+   "claim": "Different RL architectures use the environment through consistent interfaces, with equivalent permissions and evaluation budgets.",
+   "caveats": [
+    "Language-model agents use the same world through the text tool interface (agents/llm.py) rather than this numeric contract; both reach the facility through the same `rig.*` tools."
+   ]
+  },
+  "L": {
+   "test": "L",
+   "title": "Parametric learning",
+   "node": "tests/test_acceptance.py::test_L_parametric_learning",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 221.80s (0:03:41)",
+   "wall_s": 231.3,
+   "record": "docs/experiments/acceptance/L_parametric_learning.json",
+   "result": "PASSED",
+   "claim": "A neural agent improves after training; updated weights outperform the original checkpoint on fresh tasks with episodic context reset; the environment supports this even if a learner fails.",
+   "caveats": [
+    "Shown on easy hand-made mechanisms from one structural family, where learning is cheap. On the real benchmark families trained PPO improved far less; see the learner table."
+   ]
+  },
+  "M": {
+   "test": "M",
+   "title": "Reproducibility",
+   "node": "tests/test_acceptance.py::test_M_reproducibility",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 27.47s",
+   "wall_s": 31.6,
+   "record": "docs/experiments/acceptance/M_reproducibility.json",
+   "result": "PASSED",
+   "claim": "World snapshots, action logs, state transitions and evaluator results reproduce according to their declared determinism guarantees.",
+   "caveats": [
+    "Guarantees: replay of recorded events is exact always; regeneration is exact because outcomes the kernel cannot recompute (program outputs, measured CPU) are recorded; fork-versus-parent equality and cross-process equality hold under the deterministic cost model only. With measured CPU cost, two fresh executions of the same world differ. A handler that keeps state in process memory can still cost more on a fresh sandbox worker."
+   ]
+  },
+  "N": {
+   "test": "N",
+   "title": "Clean installation",
+   "node": "tests/test_acceptance.py::test_N_clean_installation",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 64.28s (0:01:04)",
+   "wall_s": 65.7,
+   "record": "docs/experiments/acceptance/N_clean_installation.json",
+   "result": "PASSED",
+   "claim": "A fresh checkout can install and run the supported environment without relying on undocumented local state.",
+   "caveats": [
+    "Installs the core and dev extras. The web, browser, PostgreSQL and RL extras, the Crucible sandbox's root requirement and model weights are documented separately and are not part of this check."
+   ]
+  },
+  "O": {
+   "test": "O",
+   "title": "Independent generalization",
+   "node": "tests/test_acceptance.py::test_O_independent_generalization",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 40.10s",
+   "wall_s": 45.2,
+   "record": "docs/experiments/acceptance/O_independent_generalization.json",
+   "result": "PASSED",
+   "claim": "Performance is evaluated on world families not used for tuning or training.",
+   "caveats": [
+    "These are test-split families at public validation seeds, so the procedure, not the numbers, is what this test establishes. The final figures come from one opening of the sealed set."
+   ]
+  },
+  "P": {
+   "test": "P",
+   "title": "Security",
+   "node": "tests/test_acceptance.py::test_P_security",
+   "pytest_exit": 0,
+   "pytest_summary": "1 passed in 4.53s",
+   "wall_s": 6.2,
+   "record": "docs/experiments/acceptance/P_security.json",
+   "result": "PASSED",
+   "claim": "Generated programs cannot escape their permitted execution environment or access private evaluation state; workloads that require VM-grade isolation are refused where it is unavailable.",
+   "caveats": [
+    "Isolation is an unprivileged uid with Landlock and seccomp inside an unprivileged container, not a VM: a host-kernel exploit through a permitted system call would escape it. All sandbox workers share one uid; signalling, resource limits and scheduling calls on other processes are filtered, the shared uid itself remains."
+   ]
+  }
+ }
+}

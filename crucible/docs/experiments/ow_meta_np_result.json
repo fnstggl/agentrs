@@ -1,0 +1,271 @@
+{
+ "criteria": "docs/experiments/ow_meta_np_log.md (declared before any validation score was seen)",
+ "validation": {
+  "n_tasks": 72,
+  "meta_np_trained": 0.29198066730993955,
+  "per_seed": [
+   0.27605249778174384,
+   0.2966583117556229,
+   0.30323119239245194
+  ],
+  "reference_means": {
+   "probe_exploit": 0.10841074440018691,
+   "meta_np untrained": 0.24391090794516757,
+   "model_based untrained": 0.24172868831596167,
+   "model_based trained": 0.23961979458316052
+  },
+  "trained_minus": {
+   "probe_exploit": {
+    "n": 72,
+    "mean_diff": 0.18356992290975266,
+    "lo": 0.12924567508415788,
+    "hi": 0.23973543050957977,
+    "p_value": 9.999000099990002e-05,
+    "frac_better": 0.7638888888888888,
+    "frac_worse": 0.2361111111111111,
+    "low_n": false,
+    "excludes_zero_above": true,
+    "excludes_zero_below": false
+   },
+   "meta_np untrained": {
+    "n": 72,
+    "mean_diff": 0.048069759364771994,
+    "lo": -0.006279314149848823,
+    "hi": 0.10137877930419989,
+    "p_value": 0.08249175082491751,
+    "frac_better": 0.6527777777777778,
+    "frac_worse": 0.3472222222222222,
+    "low_n": false,
+    "excludes_zero_above": false,
+    "excludes_zero_below": false
+   },
+   "model_based untrained": {
+    "n": 72,
+    "mean_diff": 0.0502519789939779,
+    "lo": -0.002463623665920364,
+    "hi": 0.10157415048538465,
+    "p_value": 0.0643935606439356,
+    "frac_better": 0.6111111111111112,
+    "frac_worse": 0.3888888888888889,
+    "low_n": false,
+    "excludes_zero_above": false,
+    "excludes_zero_below": false
+   },
+   "model_based trained": {
+    "n": 72,
+    "mean_diff": 0.05236087272677909,
+    "lo": 0.0028088359316676774,
+    "hi": 0.10598941490874103,
+    "p_value": 0.051394860513948606,
+    "frac_better": 0.6388888888888888,
+    "frac_worse": 0.3611111111111111,
+    "low_n": false,
+    "excludes_zero_above": true,
+    "excludes_zero_below": false
+   }
+  },
+  "exploratory_trained_minus_untrained": {
+   "note": "chosen after seeing the results; not part of the verdict",
+   "by_engine": {
+    "abm": {
+     "n": 36,
+     "mean_diff": 0.17380635954184542,
+     "lo": 0.11339523775114077,
+     "hi": 0.2357093219622309,
+     "p_value": 9.999000099990002e-05,
+     "frac_better": 0.8888888888888888,
+     "frac_worse": 0.1111111111111111,
+     "low_n": false,
+     "excludes_zero_above": true,
+     "excludes_zero_below": false
+    },
+    "scm": {
+     "n": 36,
+     "mean_diff": -0.07766684081230144,
+     "lo": -0.14093252229738762,
+     "hi": -0.02000777314970377,
+     "p_value": 0.018098190180981903,
+     "frac_better": 0.4166666666666667,
+     "frac_worse": 0.5833333333333334,
+     "low_n": false,
+     "excludes_zero_above": false,
+     "excludes_zero_below": true
+    }
+   },
+   "by_family": {
+    "abm_congestion": {
+     "trained": 0.20100395551282432,
+     "untrained": -0.0591159380642475
+    },
+    "abm_utility": {
+     "trained": 0.47714754266323406,
+     "untrained": 0.23768097878342065
+    },
+    "abm_wom": {
+     "trained": 0.04515071155621193,
+     "untrained": 0.023318090387560778
+    },
+    "scm_additive": {
+     "trained": 0.47326693899099803,
+     "untrained": 0.589440603285613
+    },
+    "scm_delay": {
+     "trained": 0.2737459204970058,
+     "untrained": 0.33973049443879183
+    },
+    "scm_gate": {
+     "trained": 0.28156893463936333,
+     "untrained": 0.3324112188398667
+    }
+   }
+  }
+ },
+ "held_out_families": {
+  "n_tasks": 48,
+  "meta_np_trained": 0.17629449005029338,
+  "per_seed": [
+   0.19323695660440876,
+   0.18791423394421647,
+   0.14773227960225488
+  ],
+  "reference_means": {
+   "probe_exploit": 0.22295335577316647,
+   "meta_np untrained": 0.2413496375350179,
+   "model_based untrained": 0.24187061426016035,
+   "model_based trained": 0.22818355686496525
+  },
+  "trained_minus": {
+   "probe_exploit": {
+    "n": 48,
+    "mean_diff": -0.04665886572287311,
+    "lo": -0.13085734199947877,
+    "hi": 0.037263192262459645,
+    "p_value": 0.2963703629637036,
+    "frac_better": 0.5416666666666666,
+    "frac_worse": 0.4583333333333333,
+    "low_n": false,
+    "excludes_zero_above": false,
+    "excludes_zero_below": false
+   },
+   "meta_np untrained": {
+    "n": 48,
+    "mean_diff": -0.0650551474847245,
+    "lo": -0.11806960675429434,
+    "hi": -0.014183252474600734,
+    "p_value": 0.0187981201879812,
+    "frac_better": 0.5,
+    "frac_worse": 0.5,
+    "low_n": false,
+    "excludes_zero_above": false,
+    "excludes_zero_below": true
+   },
+   "model_based untrained": {
+    "n": 48,
+    "mean_diff": -0.06557612420986696,
+    "lo": -0.14055811261760476,
+    "hi": 0.008665463542651197,
+    "p_value": 0.08859114088591141,
+    "frac_better": 0.4375,
+    "frac_worse": 0.5625,
+    "low_n": false,
+    "excludes_zero_above": false,
+    "excludes_zero_below": false
+   },
+   "model_based trained": {
+    "n": 48,
+    "mean_diff": -0.05188906681467185,
+    "lo": -0.10714346169159662,
+    "hi": -0.0004148292553521593,
+    "p_value": 0.06579342065793421,
+    "frac_better": 0.5,
+    "frac_worse": 0.5,
+    "low_n": false,
+    "excludes_zero_above": false,
+    "excludes_zero_below": true
+   }
+  },
+  "exploratory_trained_minus_untrained": {
+   "note": "chosen after seeing the results; not part of the verdict",
+   "by_engine": {
+    "abm": {
+     "n": 12,
+     "mean_diff": 0.012260329225711077,
+     "lo": 0.007949417799252768,
+     "hi": 0.01661527606894207,
+     "p_value": 0.00048828125,
+     "frac_better": 1.0,
+     "frac_worse": 0.0,
+     "low_n": false,
+     "excludes_zero_above": true,
+     "excludes_zero_below": false
+    },
+    "scm": {
+     "n": 24,
+     "mean_diff": -0.11274433496742353,
+     "lo": -0.19564228130052813,
+     "hi": -0.03206758697295881,
+     "p_value": 0.013798620137986202,
+     "frac_better": 0.2916666666666667,
+     "frac_worse": 0.7083333333333334,
+     "low_n": false,
+     "excludes_zero_above": false,
+     "excludes_zero_below": true
+    },
+    "tech": {
+     "n": 12,
+     "mean_diff": -0.04699224922976201,
+     "lo": -0.16962243060333101,
+     "hi": 0.058420218738362124,
+     "p_value": 0.498046875,
+     "frac_better": 0.4166666666666667,
+     "frac_worse": 0.5833333333333334,
+     "low_n": false,
+     "excludes_zero_above": false,
+     "excludes_zero_below": false
+    }
+   },
+   "by_family": {
+    "abm_network_fx": {
+     "trained": 0.0010374285993728846,
+     "untrained": -0.014015500133462718
+    },
+    "abm_trust_gate": {
+     "trained": -0.007180982905681407,
+     "untrained": -0.01664871262426796
+    },
+    "scm_delay_gate": {
+     "trained": 0.22559506727045162,
+     "untrained": 0.4124457431329202
+    },
+    "scm_feedback": {
+     "trained": 0.5960613411457932,
+     "untrained": 0.7333571082670961
+    },
+    "scm_invu": {
+     "trained": 0.5646893372375587,
+     "untrained": 0.5630542601559677
+    },
+    "scm_regime": {
+     "trained": 0.4259115163209786,
+     "untrained": 0.5543774902884923
+    },
+    "tech_contention": {
+     "trained": -0.2611911740257313,
+     "untrained": -0.22262124204735945
+    },
+    "tech_pipeline": {
+     "trained": -0.13456661324039543,
+     "untrained": -0.07915204675924321
+    }
+   }
+  }
+ },
+ "verdict": {
+  "C1_beats_scripted": true,
+  "C2_beats_own_untrained": false,
+  "C3_beats_model_based": false,
+  "positive_control": "FAILED",
+  "sealed_set_opened": false,
+  "reason": "C1 and C2 must both hold on validation before a sealed set is opened"
+ }
+}
