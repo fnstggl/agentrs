@@ -20,13 +20,25 @@ def test_posterior_mean_matches_ridge_regression():
     for t in range(H):
         A, b = m.add(A, b, phi[:, t], y[:, t])
     mean, _ = m.posterior(A, b)
-    noise = m.log_noise.exp()
+    noise = m._noise()
     prior = torch.full((m.dim,), m.log_prec.exp().item(), device=DEV)
     prior[-1] = m.log_prec_bias.exp()
     for i in range(B):
         P = torch.diag(prior) + phi[i].T @ phi[i] / noise
         ref = torch.linalg.solve(P, phi[i].T @ y[i] / noise)
         assert torch.allclose(mean[i], ref, atol=1e-3)
+
+
+def test_posterior_stays_positive_definite_with_collinear_features():
+    m = EpisodeRegression(n_levers=3, k=4, fixed_features=True).to(DEV)
+    m.log_prec.data.fill_(-20.0)           # the clamp must keep this usable
+    m.log_noise.data.fill_(-20.0)
+    phi = torch.randn(2, 1, m.dim, device=DEV).expand(2, 500, m.dim).contiguous()   # one direction repeated
+    A, b = m.empty(2, DEV)
+    for t in range(0, 500, 50):
+        A, b = m.add(A, b, phi[:, t] * 1e3, torch.randn(2, device=DEV))
+    mu, var = m.predict(A, b, phi[:, :3])
+    assert torch.isfinite(mu).all() and (var > 0).all()
 
 
 def test_posterior_mean_is_invariant_to_reward_scale():

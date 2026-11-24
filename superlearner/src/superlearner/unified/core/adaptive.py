@@ -20,10 +20,14 @@ from torch import Tensor, nn
 
 
 class EpisodeRegression(nn.Module):
-    def __init__(self, n_levers: int = 12, k: int = 4, hidden: int = 32):
+    def __init__(self, n_levers: int = 12, k: int = 4, hidden: int = 32, fixed_features: bool = False):
         super().__init__()
         self.n_levers, self.k = n_levers, k
-        self.dim = n_levers * k + 1
+        # With fixed_features, each lever also contributes its move and squared move: the learned features can then
+        # only add to the generic regression instead of replacing it.
+        self.fixed = fixed_features
+        self.dim = n_levers * (k + (2 if fixed_features else 0)) + 1
+        self.log_prec_fixed = nn.Parameter(torch.tensor(0.0))
         self.psi = nn.Sequential(nn.Linear(3, hidden), nn.SiLU(), nn.Linear(hidden, hidden), nn.SiLU(), nn.Linear(hidden, k))
         self.log_prec = nn.Parameter(torch.tensor(0.0))          # weights of the lever features
         self.log_prec_bias = nn.Parameter(torch.tensor(-7.0))    # the reward level: almost unconstrained
@@ -35,18 +39,25 @@ class EpisodeRegression(nn.Module):
         """``x``, ``x0``, ``mask``: ``[..., L]`` -> features ``[..., D]`` (last entry is the bias)."""
         inp = torch.stack([x, x - x0, (x - x0) ** 2], -1)
         f = self.psi(inp) * mask.unsqueeze(-1)
-        return torch.cat([f.flatten(-2), torch.ones_like(x[..., :1])], -1)
+        parts = [f.flatten(-2)]
+        if self.fixed:
+            d = (x - x0) * mask
+            parts = [d, d * d] + parts
+        return torch.cat(parts + [torch.ones_like(x[..., :1])], -1)
 
     @property
     def decay(self) -> Tensor:
         return torch.sigmoid(self.decay_logit)
 
     def empty(self, n: int, device) -> tuple[Tensor, Tensor]:
-        return torch.zeros(n, self.dim, self.dim, device=device), torch.zeros(n, self.dim, device=device)
+        """Sufficient statistics are float64: float32 sums of outer products lose positive definiteness."""
+        return (torch.zeros(n, self.dim, self.dim, device=device, dtype=torch.float64),
+                torch.zeros(n, self.dim, device=device, dtype=torch.float64))
 
     def add(self, A: Tensor, b: Tensor, phi: Tensor, y: Tensor, live: Tensor | None = None) -> tuple[Tensor, Tensor]:
         """Fold one pair per row into the decayed sufficient statistics. ``live`` rows only."""
-        d = self.decay
+        d = self.decay.double()
+        phi, y = phi.double(), y.double()
         A2 = d * A + phi.unsqueeze(-1) * phi.unsqueeze(-2)
         b2 = d * b + phi * y.unsqueeze(-1)
         if live is None:
@@ -54,33 +65,47 @@ class EpisodeRegression(nn.Module):
         m = live.reshape(-1, 1, 1).to(A.dtype)
         return m * A2 + (1 - m) * A, m.squeeze(-1) * b2 + (1 - m.squeeze(-1)) * b
 
+    # Bounds keep the learned prior and noise in a range where the precision stays well conditioned.
+    def _noise(self) -> Tensor:
+        return self.log_noise.clamp(-6.0, 4.0).exp()
+
     def _precision(self, A: Tensor) -> Tensor:
-        prior = torch.full((self.dim,), 1.0, device=A.device, dtype=A.dtype) * self.log_prec.exp()
-        prior = torch.cat([prior[:-1], self.log_prec_bias.exp().reshape(1)])
-        return torch.diag_embed(prior.expand(*A.shape[:-2], -1)) + A / self.log_noise.exp()
+        """Prior precision plus data precision, in float64. A scale-relative jitter keeps it positive definite when
+        learned features are nearly collinear."""
+        A = A.double()
+        n_fixed = 2 * self.n_levers if self.fixed else 0
+        prior = torch.cat([torch.ones(n_fixed, device=A.device, dtype=A.dtype) * self.log_prec_fixed.clamp(-6, 6).exp().double(),
+                           torch.ones(self.dim - 1 - n_fixed, device=A.device, dtype=A.dtype) * self.log_prec.clamp(-6, 6).exp().double(),
+                           self.log_prec_bias.clamp(-12, 6).exp().reshape(1).double()])
+        P = torch.diag_embed(prior.expand(*A.shape[:-2], -1)) + A / self._noise().double()
+        diag = P.diagonal(dim1=-2, dim2=-1)
+        jitter = 1e-9 * diag.mean(-1, keepdim=True) + 1e-10
+        return P + torch.diag_embed(jitter.expand_as(diag))
 
     def posterior(self, A: Tensor, b: Tensor) -> tuple[Tensor, Tensor]:
-        """Mean ``[..., D]`` and Cholesky factor of the precision ``[..., D, D]``."""
+        """Mean ``[..., D]`` (input dtype) and Cholesky factor of the precision ``[..., D, D]`` (float64)."""
         L = torch.linalg.cholesky(self._precision(A))
-        mean = torch.cholesky_solve((b / self.log_noise.exp()).unsqueeze(-1), L).squeeze(-1)
-        return mean, L
+        mean = torch.cholesky_solve((b.double() / self._noise().double()).unsqueeze(-1), L).squeeze(-1)
+        return mean.float(), L
 
     def predict(self, A: Tensor, b: Tensor, phi: Tensor) -> tuple[Tensor, Tensor]:
         """Posterior predictive mean and variance (in units of ``s^2``) for features ``phi`` ``[B, ..., D]``."""
         mean, L = self.posterior(A, b)
         shape = phi.shape
         flat = phi.reshape(shape[0], -1, shape[-1])
-        mu = (flat * mean.unsqueeze(1)).sum(-1)
-        sol = torch.cholesky_solve(flat.transpose(1, 2), L)            # P^-1 phi^T
-        var = (flat * sol.transpose(1, 2)).sum(-1) + self.log_noise.exp()
+        mu = (flat.float() * mean.unsqueeze(1)).sum(-1)
+        fd = flat.double()
+        sol = torch.cholesky_solve(fd.transpose(1, 2), L)            # P^-1 phi^T, never an explicit inverse
+        var = (fd * sol.transpose(1, 2)).sum(-1).float() + self._noise()
         return mu.reshape(shape[:-1]), var.reshape(shape[:-1])
 
     def sample_weights(self, A: Tensor, b: Tensor, generator: torch.Generator | None = None) -> Tensor:
         """One posterior draw of the weights per row (Thompson sampling)."""
         mean, L = self.posterior(A, b)
-        eps = torch.randn(mean.shape, device=mean.device, generator=generator)
+        eps = torch.randn(mean.shape, device=mean.device, generator=generator, dtype=torch.float64)
         # P = L L^T, so w = mean + L^{-T} eps has covariance P^{-1}
-        return mean + torch.linalg.solve_triangular(L.transpose(-1, -2), eps.unsqueeze(-1), upper=True).squeeze(-1)
+        draw = torch.linalg.solve_triangular(L.transpose(-1, -2), eps.unsqueeze(-1), upper=True).squeeze(-1)
+        return mean + draw.to(mean.dtype)
 
     # ------------------------------------------------------------------ meta-training
     def prefix_nll(self, x: Tensor, r: Tensor, sd: Tensor, x0: Tensor, mask: Tensor, valid: Tensor,
@@ -120,7 +145,7 @@ class EpisodeRegression(nn.Module):
         loss = torch.stack(nll).sum() / n
         info = {"adapt/nll": loss.detach(), "adapt/nll_mean_only": torch.stack(base).sum().detach() / n,
                 "adapt/r2_vs_mean": 1 - torch.stack(se).sum().detach() / torch.stack(se_base).sum().clamp(min=1e-8),
-                "adapt/decay": self.decay.detach(), "adapt/noise": self.log_noise.exp().detach()}
+                "adapt/decay": self.decay.detach(), "adapt/noise": self._noise().detach()}
         if return_predictions:
             info["ticks"], info["mu"] = ts, torch.stack(mus, 1)
         return loss, info

@@ -23,6 +23,7 @@ class UnifiedConfig:
     use_recurrence: bool = True
     use_slots: bool = True
     use_world_model_loss: bool = True
+    latent_mode: str = "sample"     # "sample": straight-through one-hot sample (DreamerV3); "probs": posterior probabilities
     use_imagination: bool = True
     use_generator: bool = True
     train_generator: bool = True

@@ -137,7 +137,9 @@ class RSSM(nn.Module):
         h = self._transition(prev, action, dt)
         prior = self.prior(h)
         post = self.posterior(h, embed)
-        z = sample_categorical(post, sample)
+        # A sampled one-hot can erase evidence that the posterior logits hold (measured by the memory probe);
+        # "probs" carries the posterior distribution itself.
+        z = torch.softmax(post, -1) if self.cfg.latent_mode == "probs" else sample_categorical(post, sample)
         surprise = categorical_kl(post.detach(), prior.detach())
         return self._finish(h, z, prev.memory, goal, prior, post, torch.log1p(surprise))
 
@@ -145,6 +147,6 @@ class RSSM(nn.Module):
         """An imagined step. It has no observation argument, so it cannot read a future state."""
         h = self._transition(prev, action, dt)
         prior = self.prior(h)
-        z = sample_categorical(prior, sample)
+        z = torch.softmax(prior, -1) if self.cfg.latent_mode == "probs" else sample_categorical(prior, sample)
         surprise = torch.zeros(h.shape[0], device=h.device, dtype=h.dtype)
         return self._finish(h, z, prev.memory, goal, prior, None, surprise)
