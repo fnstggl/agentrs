@@ -48,7 +48,7 @@ def run(a: dict) -> dict:
                if isinstance(v, dict) and "score" in v}
         extra = {}
         if hasattr(learner, "trainer"):
-            extra = {"reward_r2": round(learner.trainer.heldout_r2, 3), "effect_r2": round(learner.trainer.effect_r2, 3)}
+            extra = {"reward_r2": round(learner.trainer.heldout_r2, 3), "effect_r2": round(learner.trainer.effect_r2, 3), "adapt_r2": round(learner.trainer.adapt_r2, 3)}
         print(f"[{a['name']} s{seed}] steps={p.get('env_steps')} t={time.time() - t0:.0f}s {row} {extra}", flush=True)
 
     res = protocols.lifetime(learner, train, int(a["budget"]), int(a["eval_every"]), sets, spec=spec,

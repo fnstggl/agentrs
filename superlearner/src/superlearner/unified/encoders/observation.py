@@ -36,7 +36,7 @@ class ObservationEncoder(nn.Module):
         super().__init__()
         d = cfg.d_model
         self.id_embed = nn.Embedding(n_ids, d)
-        self.n_extra = 4
+        self.n_extra = 6
         self.numeric = mlp(3 + self.n_extra, d, d, layers=2)
         self.text_proj = nn.Linear(text_dim, d) if text_dim else None
         self.local = _encoder(d, cfg.obs_heads, cfg.obs_layers)
@@ -83,7 +83,8 @@ class ActionEncoder(nn.Module):
     """Program tokens plus compiled structure to ``e_a [..., d]``. Lever tokens share the observation's identity
     embedding, so a program refers to the same variable the observation describes."""
 
-    def __init__(self, cfg: UnifiedConfig, obs_ids: nn.Embedding, lever_id0: int, lang: Language = DEFAULT):
+    def __init__(self, cfg: UnifiedConfig, obs_ids: nn.Embedding, lever_id0: int, lang: Language = DEFAULT,
+                 extra_features: int = 0):
         super().__init__()
         d = cfg.action_dim
         self.lang = lang
@@ -94,7 +95,8 @@ class ActionEncoder(nn.Module):
         self.pos = nn.Embedding(lang.max_len, d)
         self.body = _encoder(d, max(1, min(cfg.obs_heads, 4)), 1)
         self.attn = nn.Linear(d, 1)
-        self.struct = mlp(lang.n_features, d, d, layers=1)
+        self.n_struct = lang.n_features + extra_features
+        self.struct = mlp(self.n_struct, d, d, layers=1)
         self.out = mlp(2 * d, d, d, layers=1)
         lever_tokens = torch.arange(lang.lever0, lang.value0)
         self.register_buffer("lever_tokens", lever_tokens, persistent=False)

@@ -25,10 +25,17 @@ SEEDS = (0, 1, 2)
 BUDGET = 240_000
 TRAINING = {"batch_size": 32, "seq_len": 16, "burn_in": 4, "updates_per_step": 0.06, "entropy_coef": 0.003}
 CONDITIONS = {
-    "cam61_full": ("cam61", {"plan_beta": 2.0}),
-    "cam61_no_planner": ("cam61", {"use_effect_planner": False}),
-    "cam61_no_world_model": ("cam61", {"use_effect_planner": False, "use_world_model_loss": False,
+    # First round (2026-11-23), before the regression layer existed; kept so its results stay reproducible
+    "cam61_full": ("cam61", {"plan_beta": 2.0, "use_effect_planner": True, "use_adaptive": False}),
+    "cam61_no_planner": ("cam61", {"use_effect_planner": False, "use_adaptive": False}),
+    "cam61_no_world_model": ("cam61", {"use_effect_planner": False, "use_world_model_loss": False, "use_adaptive": False,
                                        "shared_policy_gradients": True, "use_imagination": False}),
+    # Second round, after adding the within-episode regression layer (2026-11-24)
+    "adaptive_full": ("cam61", {"use_adaptive": True}),
+    "adaptive_no_planner": ("cam61", {"use_adaptive": True, "use_adaptive_planner": False}),
+    "adaptive_no_hand_evidence": ("cam61", {"use_adaptive": True, "use_hand_evidence": False}),
+    "adaptive_no_world_model": ("cam61", {"use_adaptive": True, "use_world_model_loss": False,
+                                          "shared_policy_gradients": True, "use_imagination": False}),
     "ppo_gru": ("ppo_gru", {}),
     "model_based": ("model_based", {}),
 }
@@ -109,11 +116,13 @@ def report() -> dict:
         row["train_cost_seed0"] = {k: c.get(k) for k in ("env_steps", "updates", "train_cpu_s", "train_gpu_s", "infer_gpu_s")}
         res["conditions"][cond] = row
     res["paired_vs_baselines"] = {}
-    for a in ("cam61_full", "cam61_no_planner"):
-        for b in ("cam61_no_world_model", "ppo_gru", "model_based"):
-            for name in ("familiar", "heldout"):
-                if (a, name) in finals and (b, name) in finals:
-                    res["paired_vs_baselines"][f"{a} - {b} [{name}]"] = _boot(finals[(a, name)] - finals[(b, name)])
+    pairs = [(a, b) for a in ("cam61_full", "cam61_no_planner") for b in ("cam61_no_world_model", "ppo_gru", "model_based")]
+    pairs += [("adaptive_full", b) for b in ("adaptive_no_planner", "adaptive_no_hand_evidence", "adaptive_no_world_model",
+                                            "cam61_full", "ppo_gru", "model_based")]
+    for a, b in pairs:
+        for name in ("familiar", "heldout"):
+            if (a, name) in finals and (b, name) in finals:
+                res["paired_vs_baselines"][f"{a} - {b} [{name}]"] = _boot(finals[(a, name)] - finals[(b, name)])
     path = os.path.join(RUNS, "decisive_report.json")
     with open(path, "w") as fh:
         json.dump(res, fh, indent=1)

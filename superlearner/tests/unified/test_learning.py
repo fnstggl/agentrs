@@ -80,9 +80,9 @@ def test_policy_probabilities_move_toward_rewarded_action():
         idx = torch.arange(16, device=DEV)
         toks = np.stack([np.stack([good, bad, good, bad])] * 16)
         from superlearner.unified.encoders.programs import features
-        f = np.zeros((16, 4, lr.lang.n_features), dtype=np.float32)
+        f = np.zeros((16, 4, lr.model.action_encoder.n_struct), dtype=np.float32)
         for k, t in enumerate((good, bad, good, bad)):
-            f[:, k] = features(parse(t), obs[0, lr.spec.last_action], obs[0, lr.spec.lever_mask])[0]
+            f[:, k, :lr.lang.n_features] = features(parse(t), obs[0, lr.spec.last_action], obs[0, lr.spec.lever_mask])[0]
         with torch.no_grad():
             e = lr.model.action_encoder(torch.as_tensor(toks, device=DEV), torch.as_tensor(f, device=DEV))
             g = lr.model.encode_goal(type("G", (), {"features": torch.as_tensor(lr._goal(obs, np.arange(16)), device=DEV)})())

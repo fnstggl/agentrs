@@ -89,6 +89,8 @@ def test_gradients_reach_every_trainable_parameter(filled):
     before = {k: [p.detach().clone() for p in v] for k, v in t.groups.items()}
     t.update(batch)     # distributional heads start at exactly zero output, so their inner layers move from step 2
     t.update(filled.replay.sample(4, 40))
+    for _ in range(2):          # the within-episode regression has its own meta-training step
+        assert t.update_adapt(filled.replay.sample_episodes(4))
     for name, params in t.groups.items():
         dead = [i for i, p in enumerate(params) if p.grad is None or not torch.isfinite(p.grad).all()]
         assert not dead, f"{name}: {len(dead)} of {len(params)} parameters got no finite gradient"

@@ -58,7 +58,15 @@ class UnifiedConfig:
     return_norm_rate: float = 0.01
     return_norm_limit: float = 1.0
     actor_objective: str = "vtrace"         # "vtrace": sampled gradient; "expected": all-candidate gradient on twin Q
-    use_effect_planner: bool = True         # steer decisions with the learned action-effect model once it is calibrated
+    use_effect_planner: bool = False        # one-step action-effect head as a planner; failed its held-out check
+    use_adaptive: bool = True               # within-episode Bayesian regression on learned lever features
+    use_adaptive_planner: bool = True       # Thompson-sample candidate gains from it once it passes the held-out check
+    use_hand_evidence: bool = True          # the hand-designed slope statistics shared with Crucible's baselines
+    adapt_k: int = 4
+    adapt_lr: float = 1e-3
+    adapt_batch: int = 8
+    adapt_beta: float = 3.0
+    adapt_min_r2: float = 0.05
     effect_heads: int = 3
     effect_weight: float = 1.0
     plan_beta: float = 8.0

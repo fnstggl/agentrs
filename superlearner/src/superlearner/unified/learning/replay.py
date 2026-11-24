@@ -12,6 +12,7 @@ import torch
 
 from ..interfaces import ReplaySequence
 
+TICK_FIELDS = ("tick_x", "tick_r", "tick_sd", "x0", "lmask")
 _FIELDS = ("values", "deltas", "present", "extra", "goal", "cand_tokens", "cand_features", "cand_mask", "cand_dur", "cand_bonus", "rscale", "action",
            "behavior_log_prob", "reward", "dt", "cont", "first")
 
@@ -34,6 +35,9 @@ class EpisodeReplay:
         if n < 2:
             return
         ep = {k: np.asarray(episode[k]) for k in _FIELDS}
+        for k in TICK_FIELDS:
+            if k in episode:
+                ep[k] = np.asarray(episode[k], dtype=np.float32)
         ep["family"] = family
         if self.rng.random() < self.holdout:
             self.held.append(ep)     # held-out episodes are only used to test prediction
@@ -69,6 +73,27 @@ class EpisodeReplay:
             return None
         eps = [self.held[int(self.rng.integers(len(self.held)))] for _ in range(batch)]
         return self._collate([self._cut(e, length) for e in eps], length)
+
+    def sample_episodes(self, batch: int, max_ticks: int = 256, holdout: bool = False) -> dict | None:
+        """Whole episodes at tick resolution, for training the within-episode regression from each episode's start."""
+        pool = list(self.held) if holdout else None
+        eps = []
+        for _ in range(batch):
+            ep = pool[int(self.rng.integers(len(pool)))] if pool else (None if holdout else self._pick())
+            if ep is not None and "tick_x" in ep and len(ep["tick_r"]) >= 4:
+                eps.append(ep)
+        if not eps:
+            return None
+        H = min(max_ticks, max(len(e["tick_r"]) for e in eps))
+        L = eps[0]["tick_x"].shape[1]
+        x, r, sd, valid = (np.zeros((len(eps), H, L), np.float32), np.zeros((len(eps), H), np.float32),
+                           np.ones((len(eps), H), np.float32), np.zeros((len(eps), H), np.float32))
+        for i, e in enumerate(eps):
+            h = min(H, len(e["tick_r"]))
+            x[i, :h], r[i, :h], sd[i, :h], valid[i, :h] = e["tick_x"][:h], e["tick_r"][:h], e["tick_sd"][:h], 1.0
+        t = lambda a: torch.from_numpy(a)
+        return {"x": t(x), "r": t(r), "sd": t(sd), "valid": t(valid),
+                "x0": t(np.stack([e["x0"] for e in eps])), "mask": t(np.stack([e["lmask"] for e in eps]))}
 
     def _cut(self, ep: dict, length: int) -> tuple[dict, int, int]:
         n = len(ep["reward"])

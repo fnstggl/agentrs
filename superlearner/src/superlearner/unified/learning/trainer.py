@@ -55,6 +55,8 @@ class UnifiedTrainer:
         self.steps = 0
         self.heldout_r2 = float("nan")
         self.effect_r2 = float("nan")
+        self.adapt_r2 = float("nan")
+        self.opt["adapt"] = torch.optim.Adam(g["adapt"], lr=cfg.adapt_lr)
         self.train_seconds = 0.0
 
     # ------------------------------------------------------------------ belief unroll
@@ -355,6 +357,31 @@ class UnifiedTrainer:
         self.train_seconds += time.perf_counter() - t0
         return {k: float(v.detach().cpu()) if torch.is_tensor(v) else float(v) for k, v in info.items()}
 
+    # ------------------------------------------------------------------ within-episode regression
+    def update_adapt(self, episodes: dict | None) -> dict:
+        """Meta-train the regression's features and priors: predictive likelihood of each reward from earlier pairs."""
+        if episodes is None:
+            return {}
+        dev = next(self.model.parameters()).device
+        ep = {k: v.to(dev) for k, v in episodes.items()}
+        loss, info = self.model.adapt.prefix_nll(**ep)
+        self.opt["adapt"].zero_grad(set_to_none=True)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.groups["adapt"], self.cfg.grad_clip)
+        self.opt["adapt"].step()
+        return {k: float(v) for k, v in info.items()}
+
+    @torch.no_grad()
+    def heldout_adapt(self, episodes: dict | None) -> dict:
+        """Held-out episodes only. Sets the gate for using the regression at decision time."""
+        if episodes is None:
+            return {}
+        dev = next(self.model.parameters()).device
+        _, info = self.model.adapt.prefix_nll(**{k: v.to(dev) for k, v in episodes.items()})
+        self.adapt_r2 = float(info["adapt/r2_vs_mean"])
+        return {"heldout/adapt_r2": self.adapt_r2, "heldout/adapt_nll": float(info["adapt/nll"]),
+                "heldout/adapt_nll_mean_only": float(info["adapt/nll_mean_only"])}
+
     # ------------------------------------------------------------------ calibration
     @torch.no_grad()
     def heldout_prediction(self, batch: ReplaySequence | None) -> dict:
@@ -403,7 +430,7 @@ class UnifiedTrainer:
     def state_dict(self) -> dict:
         return {"model": self.model.state_dict(), "opt": {k: o.state_dict() for k, o in self.opt.items()},
                 "norm": self.norm.state_dict(), "steps": self.steps, "heldout_r2": self.heldout_r2,
-                "effect_r2": self.effect_r2}
+                "effect_r2": self.effect_r2, "adapt_r2": self.adapt_r2}
 
     def load_state_dict(self, st: dict) -> None:
         self.model.load_state_dict(st["model"])
@@ -412,3 +439,4 @@ class UnifiedTrainer:
         self.norm.load_state_dict(st["norm"])
         self.steps, self.heldout_r2 = int(st["steps"]), float(st["heldout_r2"])
         self.effect_r2 = float(st.get("effect_r2", float("nan")))
+        self.adapt_r2 = float(st.get("adapt_r2", float("nan")))

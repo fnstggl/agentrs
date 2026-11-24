@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 
 from ..config import UnifiedConfig
+from ..core.adaptive import EpisodeRegression
 from ..core.rssm import RSSM
 from ..dist import make_bins, twohot_mean
 from ..encoders.observation import ActionEncoder, GoalEncoder, ObservationEncoder, _encoder, mlp
@@ -16,6 +17,7 @@ from ..encoders.programs import BOS, DEFAULT, PAD, Grammar, Language
 from ..interfaces import ActionCandidateBatch, BeliefState, GoalBatch, ObservationBatch, masked_log_softmax
 
 
+ADAPT_FEATURES = 3       # per-candidate: predicted gain, its spread, one Thompson-sampled gain
 EFFECT_SCALE = 2.0       # effects are standardised by the episode's reward variability, then spread on the grid
 
 
@@ -139,7 +141,8 @@ class UnifiedModel(nn.Module):
         d = cfg.d_model
         self.obs_encoder = ObservationEncoder(cfg, layout.n_ids, text_dim)
         self.goal_encoder = GoalEncoder(cfg, goal_features)
-        self.action_encoder = ActionEncoder(cfg, self.obs_encoder.id_embed, layout.lever_id0, lang)
+        self.action_encoder = ActionEncoder(cfg, self.obs_encoder.id_embed, layout.lever_id0, lang, ADAPT_FEATURES)
+        self.adapt = EpisodeRegression(layout.n_levers, cfg.adapt_k)
         self.rssm = RSSM(cfg)
         # Prediction heads
         self.obs_decoder = mlp(2 * d, d, 1, layers=2)
@@ -179,7 +182,7 @@ class UnifiedModel(nn.Module):
                     wm.append(p)
         return {"world": wm, "actor": list(self.policy.parameters()),
                 "critic": list(self.value.parameters()) + list(self.q.parameters()) + list(self.q2.parameters()),
-                "generator": list(self.generator.parameters())}
+                "generator": list(self.generator.parameters()), "adapt": list(self.adapt.parameters())}
 
     def n_params(self) -> dict[str, int]:
         return {k: sum(p.numel() for p in v) for k, v in self.param_groups().items()}

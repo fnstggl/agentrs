@@ -73,6 +73,8 @@ class UnifiedLearner(Learner):
             self.track_m = np.zeros((n, 3), dtype=np.float32)
             self.trace = np.zeros((n, L, 3), dtype=np.float32)
             self.r_n, self.r_mean, self.r_m2 = np.zeros(n), np.zeros(n), np.zeros(n)
+            self.adapt_A, self.adapt_b = self.model.adapt.empty(n, self.device)
+            self.tick_buf: list[dict] = [{"x": [], "r": [], "sd": []} for _ in range(n)]
             self.episodes: list[dict] = [self._new_ep() for _ in range(n)]
             if len(self.labels) != n:
                 self.labels = ["default"] * n
@@ -88,6 +90,8 @@ class UnifiedLearner(Learner):
         self.prev_action[t] = 0.0
         self.prev_dt[t] = 0.0
         self.prev_values[idx] = 0.0
+        self.adapt_A[t] = 0.0
+        self.adapt_b[t] = 0.0
         for i in idx:
             self.queue[i] = []
             self.fresh[i] = True
@@ -97,6 +101,7 @@ class UnifiedLearner(Learner):
             self.since_n[i] = 0
             self.trace[i] = 0.0
             self.r_n[i], self.r_mean[i], self.r_m2[i] = 0.0, 0.0, 0.0
+            self.tick_buf[i] = {"x": [], "r": [], "sd": []}
             self.episodes[i] = self._new_ep()
 
     @staticmethod
@@ -130,6 +135,54 @@ class UnifiedLearner(Learner):
         d = r - self.r_mean
         self.r_mean[live] += d[live] / self.r_n[live]
         self.r_m2[live] += (d * (r - self.r_mean))[live]
+        if self.cfg.use_adaptive and live.any():
+            # Every tick is one (settings in force, reward) pair for the within-episode regression.
+            dev, ad = self.device, self.model.adapt
+            phi = ad.phi(torch.as_tensor(a, device=dev), torch.as_tensor(self.x0, device=dev),
+                         torch.as_tensor(obs[:, sp.lever_mask], device=dev))
+            self.adapt_A, self.adapt_b = ad.add(self.adapt_A, self.adapt_b, phi,
+                                                torch.as_tensor(sc[:, 0], device=dev, dtype=phi.dtype),
+                                                torch.as_tensor(live, device=dev))
+        if not self.frozen:
+            sd = self._reward_sd(np.arange(self.n))
+            for i in np.flatnonzero(live):
+                buf = self.tick_buf[i]
+                buf["x"].append(a[i].copy()); buf["r"].append(float(sc[i, 0])); buf["sd"].append(float(sd[i]))
+
+    @torch.no_grad()
+    def _adaptive(self, obs: np.ndarray, idx: np.ndarray, finals: np.ndarray | None):
+        """Predictions of the within-episode regression, in units of this episode's reward spread.
+        Returns per-candidate features ``[m, K, 3]``, per-lever features ``[m, L, 2]`` and the sampled gains ``[m, K]``."""
+        sp, dev, ad = self.spec, self.device, self.model.adapt
+        m, L = len(idx), sp.max_levers
+        K = 0 if finals is None else finals.shape[1]
+        if not self.cfg.use_adaptive:
+            return np.zeros((m, K, 3), np.float32), np.zeros((m, L, 2), np.float32), torch.zeros(m, K, device=dev)
+        t = torch.as_tensor(idx, device=dev)
+        A, b = self.adapt_A[t], self.adapt_b[t]
+        cur = torch.as_tensor(obs[idx][:, sp.last_action], device=dev)
+        x0 = torch.as_tensor(self.x0[idx], device=dev)
+        mask = torch.as_tensor(obs[idx][:, sp.lever_mask], device=dev)
+        s = torch.as_tensor(self._reward_sd(idx), device=dev, dtype=cur.dtype).unsqueeze(1)
+        feats = lambda q: ad.phi(q, x0.unsqueeze(1).expand_as(q), mask.unsqueeze(1).expand_as(q))
+        eye = torch.eye(L, device=dev) * 0.2
+        q = torch.cat([cur.unsqueeze(1), (cur.unsqueeze(1) + eye).clamp(-1, 1), (cur.unsqueeze(1) - eye).clamp(-1, 1)], 1)
+        if K:
+            q = torch.cat([q, torch.as_tensor(finals, device=dev)], 1)
+        phi = feats(q)
+        mu, var = ad.predict(A, b, phi)
+        w = ad.sample_weights(A, b)
+        ts = (phi * w.unsqueeze(1)).sum(-1)
+        slope = ((mu[:, 1:1 + L] - mu[:, 1 + L:1 + 2 * L]) / s).clamp(-5, 5) / 5 * mask
+        unc = (0.5 * (var[:, 1:1 + L] + var[:, 1 + L:1 + 2 * L])).sqrt().clamp(max=5) / 5 * mask
+        lever = torch.stack([slope, unc], -1).cpu().numpy()
+        if not K:
+            return np.zeros((m, 0, 3), np.float32), lever, torch.zeros(m, 0, device=dev)
+        c0 = 1 + 2 * L
+        gain = (mu[:, c0:] - mu[:, :1]) / s
+        tg = (ts[:, c0:] - ts[:, :1]) / s
+        cand = torch.stack([gain.clamp(-5, 5) / 5, var[:, c0:].sqrt().clamp(max=5) / 5, tg.clamp(-5, 5) / 5], -1)
+        return cand.cpu().numpy(), lever, tg
 
     def _reward_sd(self, idx: np.ndarray) -> np.ndarray:
         """This episode's own reward variability so far: the public unit for how large an effect is."""
@@ -141,9 +194,9 @@ class UnifiedLearner(Learner):
         den = (tr[:, :, 2] + 1e-3) * self._reward_sd(idx)[:, None]
         return np.stack([np.clip(tr[:, :, 0] / den, -5, 5) / 5, np.clip(tr[:, :, 1] / den, -5, 5) / 5], -1).astype(np.float32)
 
-    def _extra(self, obs: np.ndarray, idx: np.ndarray) -> np.ndarray:
+    def _extra(self, obs: np.ndarray, idx: np.ndarray, lever_adapt: np.ndarray | None = None) -> np.ndarray:
         sp = self.spec
-        out = np.zeros((len(idx), self.layout.n_ids, 4), dtype=np.float32)
+        out = np.zeros((len(idx), self.layout.n_ids, 6), dtype=np.float32)
         lo = self.layout.lever_id0
         ev = self._evidence(idx)
         mask = obs[idx][:, sp.lever_mask]
@@ -151,6 +204,10 @@ class UnifiedLearner(Learner):
         out[:, lo:lo + sp.max_levers, 1] = ev[:, :, 0] * mask
         out[:, lo:lo + sp.max_levers, 2] = ev[:, :, 1] * mask
         out[:, lo:lo + sp.max_levers, 3] = np.minimum(self.trace[idx][:, :, 2], 3.0) / 3.0 * mask
+        if not self.cfg.use_hand_evidence:
+            out[:, :, 1:4] = 0.0
+        if lever_adapt is not None:
+            out[:, lo:lo + sp.max_levers, 4:6] = lever_adapt
         return out
 
     def _tokens(self, obs: np.ndarray, idx: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -194,17 +251,23 @@ class UnifiedLearner(Learner):
             prop = self.proposer(self.rng, lever_mask[r], fixed) if self.proposer else \
                 structured_candidates(self.rng, lever_mask[r], fixed, lang)
             toks[r, :fixed] = np.stack(prop[:fixed])
-        fea = np.zeros((len(idx), k, lang.n_features), dtype=np.float32)
+        fea = np.zeros((len(idx), k, lang.n_features + 3), dtype=np.float32)
         dur = np.zeros((len(idx), k), dtype=np.float32)
         scheds: list[list] = [[None] * k for _ in range(len(idx))]
         for r in range(len(idx)):
             for c in range(k):
                 st = parse(toks[r, c], lang)
                 f, ticks = features(st, settings[r], lever_mask[r], lang, evidence[r])
-                fea[r, c], dur[r, c] = f, ticks
+                fea[r, c, :lang.n_features], dur[r, c] = f, ticks
                 if ticks:
                     scheds[r][c] = st
         mask = dur > 0
+        n = lang.n_levers
+        if not cfg.use_hand_evidence:
+            fea[:, :, 2 * n + 4:2 * n + 6] = 0.0
+        cand, _, tg = self._adaptive(obs, idx, fea[:, :, n:2 * n])
+        fea[:, :, lang.n_features:] = cand * mask[..., None]
+        self._last_sampled_gain = tg
         return toks, fea, mask, dur, scheds
 
     # ------------------------------------------------------------------ acting
@@ -232,18 +295,25 @@ class UnifiedLearner(Learner):
         """Decision-time use of the consequence model, only after it passes the held-out check. One ensemble member
         per decision is followed (Thompson-style), so disagreement produces experiments rather than a fixed choice."""
         c = self.cfg
+        bonus = torch.zeros_like(mask, dtype=u.dtype)
+        ar2 = self.trainer.adapt_r2
+        if c.use_adaptive and c.use_adaptive_planner and ar2 == ar2 and ar2 >= c.adapt_min_r2:
+            # Thompson sampling from the within-episode posterior: uncertain candidates get tried in proportion to
+            # the chance that they are better, which is how this learner chooses experiments.
+            bonus = bonus + (c.adapt_beta * self._last_sampled_gain).clamp(-10, 10)
         r2 = self.trainer.effect_r2
-        if not c.use_effect_planner or not (r2 == r2 and r2 >= c.plan_min_r2):
-            return torch.zeros_like(mask, dtype=u.dtype)
-        pred = self.model.effect_predictions(u, e)
-        pick = torch.randint(pred.shape[0], (u.shape[0],), device=u.device)
-        one = pred[pick, torch.arange(u.shape[0], device=u.device)]
-        return (c.plan_beta * (one - one[:, :1])).clamp(-10, 10) * mask
+        if c.use_effect_planner and r2 == r2 and r2 >= c.plan_min_r2:
+            pred = self.model.effect_predictions(u, e)
+            pick = torch.randint(pred.shape[0], (u.shape[0],), device=u.device)
+            one = pred[pick, torch.arange(u.shape[0], device=u.device)]
+            bonus = bonus + (c.plan_beta * (one - one[:, :1])).clamp(-10, 10)
+        return bonus * mask
 
     def _decide(self, obs: np.ndarray, idx: np.ndarray, explore: bool) -> None:
         device, cfg = self.device, self.cfg
         vals, deltas, pres = self._tokens(obs, idx)
-        extra = self._extra(obs, idx)
+        _, lever_adapt, _ = self._adaptive(obs, idx, None)
+        extra = self._extra(obs, idx, lever_adapt)
         goal_np = self._goal(obs, idx)
         t = torch.as_tensor(idx, device=device)
         o = ObservationBatch(torch.as_tensor(vals, device=device), torch.as_tensor(deltas, device=device),
@@ -323,6 +393,13 @@ class UnifiedLearner(Learner):
         ep["cand_dur"].append(np.zeros_like(ep["cand_dur"][-1]))
         ep["cand_bonus"].append(np.zeros_like(ep["cand_bonus"][-1]))
         ep["rscale"].append(ep["rscale"][-1])
+        buf = self.tick_buf[i]
+        sp = self.spec
+        buf["x"].append(next_obs[i, sp.last_action].copy()); buf["r"].append(float(next_obs[i, sp.scalars][0]))
+        buf["sd"].append(buf["sd"][-1] if buf["sd"] else 1e-3)
+        ep["tick_x"], ep["tick_r"], ep["tick_sd"] = np.stack(buf["x"]), np.array(buf["r"]), np.array(buf["sd"])
+        ep["x0"], ep["lmask"] = self.x0[i].copy(), next_obs[i, sp.lever_mask].copy()
+        self.tick_buf[i] = {"x": [], "r": [], "sd": []}
         ep["action"].append(0); ep["behavior_log_prob"].append(0.0)
         ep["reward"].append(0.0); ep["dt"].append(0.0); ep["cont"].append(0.0); ep["first"].append(0.0)
         self.replay.add(ep, self.labels[i])
@@ -339,8 +416,12 @@ class UnifiedLearner(Learner):
         info: dict = {}
         for _ in range(n):
             info = self.trainer.update(self.replay.sample(self.cfg.batch_size, self.cfg.seq_len))
+            if self.cfg.use_adaptive:
+                info.update(self.trainer.update_adapt(self.replay.sample_episodes(self.cfg.adapt_batch)))
             if self.trainer.steps % 50 == 0:
                 info.update(self.trainer.heldout_prediction(self.replay.sample_holdout(self.cfg.batch_size, self.cfg.seq_len)))
+                if self.cfg.use_adaptive:
+                    info.update(self.trainer.heldout_adapt(self.replay.sample_episodes(16, holdout=True)))
         self._usage.updates += n
         self._usage.train_gpu_s += time.perf_counter() - t0
         self.metrics = info
