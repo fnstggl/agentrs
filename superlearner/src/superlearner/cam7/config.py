@@ -36,6 +36,7 @@ class Cam7Config:
     explore_rule: str = "kg"        # kg | thompson | greedy | eig | random | fixed_design | learned_only
     use_posterior_tokens: bool = True   # the backbone reads the posterior (integration); ablation: False
     use_residual: bool = True       # learned correction to the Bayesian decision score; ablation: False
+    use_bayes_inputs: bool = True   # False with explore_rule learned_only: no posterior quantity reaches the policy
     eig_weight: float = 1.0
     policy_temp: float = 1.0        # softmax temperature over candidate scores while exploring in training
     min_funds: float = 0.15         # same safety rule as model_based: below this, return to defaults and stop

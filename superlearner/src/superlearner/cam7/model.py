@@ -383,7 +383,7 @@ class Cam7Model(nn.Module):
             eig = P.info_gain(cov_net, obs_var)
             sd = post.s2.sum(-1).sqrt()                                           # [B]
             hold = mean[:, :1]
-        if cfg.use_posterior_tokens:
+        if cfg.use_posterior_tokens and cfg.use_bayes_inputs:
             pl, pg = self.posterior_tokens(post, ctx_b, H, cut, x_now, innov_rms)
             lever_z, _, glob_z = self.encode(H, cut, pl.detach(), pg.detach())
         else:
@@ -394,6 +394,9 @@ class Cam7Model(nn.Module):
         z_sd = (cov_net.diagonal(dim1=-2, dim2=-1).clamp_min(0).sqrt() / sd[:, None]).float().detach()
         z_kg = (kg / sd[:, None]).float().detach()
         nr = n_rem.float()[:, None].expand(B, C)
+        if not cfg.use_bayes_inputs:                   # attention learner without explicit Bayesian adaptation
+            z_mean, z_sd, z_kg = torch.zeros_like(z_mean), torch.zeros_like(z_sd), torch.zeros_like(z_kg)
+            eig = torch.zeros_like(eig)
         if rule == "kg":
             base = z_mean + nr * z_kg
         elif rule == "eig":
@@ -454,13 +457,25 @@ class Cam7Model(nn.Module):
             sel = (pri.argsort(-1).argsort(-1) < k).float() * H.lmask
             step = (torch.rand(B, L, device=dev, generator=gen) * 2 - 1) * cfg.trust
             rnd.append((x_now + sel * step).clamp(-1, 1))
+        no_bayes = not cfg.use_bayes_inputs
+        if no_bayes:       # the no-Bayes ablation: no candidate may come from the posterior; random moves instead
+            r2 = []
+            for _ in range(opt.shape[1]):
+                k = torch.randint(1, 4, (B, 1), device=dev, generator=gen)
+                pri = torch.rand(B, L, device=dev, generator=gen) + (1 - H.lmask) * 10
+                sel = (pri.argsort(-1).argsort(-1) < k).float() * H.lmask
+                r2.append((x_now + sel * (torch.rand(B, L, device=dev, generator=gen) * 2 - 1) * cfg.trust).clamp(-1, 1))
+            opt = torch.stack(r2, 1)
         cands = [x_now[:, None], opt] + [probes] + ([torch.stack(rnd, 1)] if rnd else [])
         cand = torch.cat(cands, 1)
         C = cand.shape[1]
         flags = torch.zeros(B, C, N_CAND_FLAGS, device=dev)
         flags[:, 0, 0] = 1
-        flags[:, 1, 1] = 1
-        flags[:, 2:1 + W.shape[1], 2] = 1
+        if no_bayes:
+            flags[:, 1:1 + W.shape[1], 4] = 1
+        else:
+            flags[:, 1, 1] = 1
+            flags[:, 2:1 + W.shape[1], 2] = 1
         flags[:, 1 + W.shape[1]:1 + W.shape[1] + 2 * L, 3] = 1
         flags[:, 1 + W.shape[1] + 2 * L:, 4] = 1
         lever_slot = torch.cat([torch.ones(B, 1 + W.shape[1], device=dev), H.lmask.repeat(1, 2)] +

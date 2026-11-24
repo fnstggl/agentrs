@@ -28,6 +28,29 @@ Read this first in every session. Newest entries at the top of each section. Res
 Lesson from `meta_np`: in this benchmark, features learned across worlds have so far *reduced* held-out performance
 relative to exact regression. Any CAM 7.0 claim of learned priors must beat the exact regression on held-out families.
 
+## CAM 7.0 integrated learner (Phase 3, started 2026-11-24)
+
+Code: `superlearner/src/superlearner/cam7/` (`posterior.py` fast layer, `model.py` network and tensor interfaces,
+`agent.py` learner and objectives, `worlds.py` Experiment 2 families, `experiments/{train,deveval,exp1b,exp2}.py`).
+Tests: `superlearner/tests/cam7/` (9 pass). Runs: `runs/cam7/` (git-ignored). A 240k-step training run takes about
+10 minutes (CAM 6.1: 3.7 hours).
+
+Design: one transformer over lever, gauge, global and event tokens (per-episode random identities, nothing tied to a
+slot). Pass 1 gives each lever's context, from which the adaptive features of every row are computed (fixed d, d², e, e²
++ learned + learned pairwise interactions). An exact normal-inverse-gamma regression on those features (revenue and cost
+separately, Student-t predictive, learned priors and forgetting) is the fast belief. Pass 2 of the same transformer reads
+the posterior as tokens. Decision score over candidate interventions = β [posterior mean value + remaining decisions ×
+knowledge gradient] / noise sd + learned residual. Objectives: support/query meta-NLL (features, priors, pass 1), world
+auxiliaries, clipped actor-critic on actual outcomes with the posterior as a fixed input.
+
+### Development results (development seeds only; nothing here is confirmed)
+
+| Date | Experiment | Result | Reading |
+|---|---|---|---|
+| 2026-11-24 | Exp 2 dev (`runs/cam7/exp2_dev`, x2_confound_gate + x2_regime_mix, 12 tasks each, VAL offset 60,000, one trained small model, budget 24 ticks) | Episode score: knowledge gradient **0.505**, full (KG + learned residual) 0.447, Thompson 0.437, EIG 0.433, greedy 0.351, `model_based` trained 0.344, fixed design 0.276, random 0.166. Commit score at tick 24: `model_based` 0.334, greedy 0.272, Thompson 0.252, KG 0.213. Probe rank correlation: Thompson 0.58, `model_based` 0.55, KG 0.47 | Decision-relevant VOI gives the best verified outcome; it does not give the best information at a fixed early budget. The learned residual hurts on these unseen worlds |
+| 2026-11-24 | Exp 1B dev (`runs/cam7/exp1b_dev`, 48 tasks per split at VAL offset 60,000, frozen, fresh context) | Held-out: hold 0.000, exact BLR 0.132, `model_based` untrained 0.155 / trained 0.159 (3 seeds), CAM 7.0 base untrained 0.168, trained 0.165, small trained 0.183 (+0.028 [−0.035, +0.091] vs `model_based` untrained). Familiar: `model_based` untrained 0.246 / trained 0.263, exact BLR 0.244, CAM 7.0 small trained **0.308** (+0.062 [+0.025, +0.101] vs `model_based` untrained) | Training helps on familiar families; no measurable transfer to held-out families. Training mostly cut early exploration losses (held-out window k=4: −0.285 untrained, −0.138 trained) without raising the final level |
+| 2026-11-24 | Untrained exploration rules, dev sets (32 tasks per split) | `model_based` untrained 0.202 / 0.240 (familiar / held-out), CAM 7.0 KG 0.130 / 0.156: losses concentrated in `abm_congestion` (−0.53; greedy +0.07) and `tech_pipeline` (−0.43) | Exploration that the one-period value of information prices as cheap does lasting damage in worlds with slow feedback (churn); the learned residual is meant to learn this |
+
 ## Experiments
 
 ### Completed
