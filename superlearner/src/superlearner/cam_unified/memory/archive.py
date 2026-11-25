@@ -164,7 +164,8 @@ class EventArchive:
                  cold_compression_level: int = 19, index_reserve_bytes: int = 1_500_000,
                  fsync: bool = True):
         self.root = os.path.abspath(root)
-        self.chunk_rows = int(chunk_rows or (cfg.archive_chunk_rows if cfg is not None else 65536))
+        self._chunk_rows_arg = chunk_rows or (cfg.archive_chunk_rows if cfg is not None else None)
+        self.chunk_rows = int(self._chunk_rows_arg or 65536)
         self.max_bytes = max_bytes if max_bytes is not None else (cfg.archive_max_bytes if cfg is not None else None)
         if isinstance(cold_policy, str):
             cold_policy = (cold_policy,)
@@ -208,6 +209,9 @@ class EventArchive:
                 self._lock_fh = None
                 raise ArchiveLocked(f"another process writes to {self.root}")
         self._manifest = self._load_manifest()
+        if self._chunk_rows_arg is None and self._manifest.get("chunk_rows"):
+            self.chunk_rows = int(self._manifest["chunk_rows"])      # reopened without explicit sizing
+        self._manifest.setdefault("chunk_rows", self.chunk_rows)
         self.cold_dir = os.path.abspath(cold_dir or self._manifest.get("cold_dir") or os.path.join(self.root, "cold"))
         if not readonly:
             os.makedirs(self.cold_dir, exist_ok=True)
@@ -487,7 +491,16 @@ class EventArchive:
         """What a full-lifetime checkpoint records about the archive (it is never copied into a checkpoint)."""
         return {"root": self.root, "count": self.count(), "sealed": self._sealed_rows(),
                 "chunks": [(c["n"], c["rows"], c["sha256"]) for c in self._manifest["chunks"]],
-                "cold_dir": self.cold_dir}
+                "cold_dir": self.cold_dir, "chunk_rows": self.chunk_rows}
+
+    def refresh(self) -> None:
+        """Read-only readers: pick up chunks and WAL rows the writer committed since this reader opened."""
+        if not self.readonly:
+            return
+        self._manifest = self._load_manifest()
+        self._recover_files()
+        self._pf_cache.clear()
+        self._replay_wal()
 
     def close(self) -> None:
         if getattr(self, "_db", None) is None:
@@ -581,6 +594,9 @@ class EventArchive:
         for i, (g, c, r) in enumerate(locs):
             if c == -1:
                 k = g - self._buf_g0
+                if not 0 <= k < self._buf_len() and self.readonly:
+                    self.refresh()                   # a reader older than the writer's latest rows
+                    k = g - self._buf_g0
                 if 0 <= k < self._buf_len():
                     out[i] = {col: self._buf[col][k] for col in COLUMNS}
                     continue
@@ -789,10 +805,13 @@ class EventArchive:
             self._pf_cache.move_to_end(n)
         return pf
 
-    def _chunk_by_n(self, n: int) -> dict:
+    def _chunk_by_n(self, n: int, _retry: bool = True) -> dict:
         for c in self._manifest["chunks"]:
             if c["n"] == n:
                 return c
+        if self.readonly and _retry:                 # committed by the writer after this reader opened
+            self.refresh()
+            return self._chunk_by_n(n, _retry=False)
         raise ArchiveCorrupted(f"chunk {n} is not in the manifest")
 
     def _sealed_rows(self) -> int:

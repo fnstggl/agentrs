@@ -263,3 +263,22 @@ def test_compression_loss_trains_memory_tokens_to_keep_event_information():
     print(f"\nevent identification from memory tokens: {before:.3f} -> {after:.3f} "
           f"(chance {1 / 252:.4f}); loss {losses[0]:.2f} -> {np.mean(losses[-10:]):.2f}")
     assert after > 0.3 and after > 10 * max(before, 1 / 252) and np.mean(losses[-10:]) < losses[0] - 1.0
+
+
+def test_memory_tokens_enter_the_core_context(tmp_path):
+    """Contract check: M_t concatenates with other context TokenSets (refs preserved) and changes Z_t = F(Z, ctx).
+    (The core here is the shared reference double; the real backbone is workstream B's.)"""
+    from superlearner.cam_unified.testing import DoubleCore
+    cfg, arc, idx, ret, con = _pipeline(tmp_path)
+    torch.manual_seed(0)
+    core = DoubleCore(cfg).eval()
+    Z = core.init_state(2) + 0.1 * torch.randn(2, cfg.n_state, cfg.d_model)
+    obs = rand_tokens(2, 5, cfg.d_model, seed=1)
+    with torch.no_grad():
+        M, ids, _ = ret.retrieve(ret.query(Z, None, None), 4, now=[10.0, 10.0])
+        ctx = TokenSet.cat(obs, M)
+        Z_mem, _ = core(Z, ctx)
+        Z_nomem, _ = core(Z, obs)
+    assert ctx.N == 5 + M.N and ctx.refs[0][5] == M.refs[0][0] and (ctx.kind[:, 5:] == int(TokenKind.MEMORY)).all()
+    assert not torch.allclose(Z_mem, Z_nomem, atol=1e-4)
+    arc.close()

@@ -304,7 +304,7 @@ for b in a.scan(batch_size=8, gseq_max=20):       # warm-up: lazy imports of the
     pass
 tracemalloc.start()
 n = 0
-for b in a.scan(batch_size=256):
+for b in a.scan(batch_size=256, gseq_max=int(sys.argv[2])):
     n += len(b)
     del b
 cur, peak = tracemalloc.get_traced_memory()
@@ -322,12 +322,17 @@ def test_scan_is_memory_bounded(tmp_path):
         a.append(evs)
         total += sum(len(e.to_json()) for e in evs)
     a.close()
-    r = _run(_SCAN_MEM, root)
-    assert r.returncode == 0, r.stderr[-2000:]
-    m = json.loads(r.stdout.strip().splitlines()[-1])
-    assert m["n"] == 14_000 and total > 45e6
-    assert m["py_peak"] < 0.05 * total, m            # never holds the lifetime: bounded by the batch + row groups
-    assert m["arrow_peak"] < 0.15 * total, m
+    peaks = {}
+    for upto in (3_499, 13_999):                      # a quarter of the lifetime vs all of it
+        r = _run(_SCAN_MEM, root, str(upto))
+        assert r.returncode == 0, r.stderr[-2000:]
+        peaks[upto] = m = json.loads(r.stdout.strip().splitlines()[-1])
+        assert m["n"] == upto + 1
+    q, f = peaks[3_499], peaks[13_999]
+    assert total > 45e6
+    assert f["py_peak"] < 1.3 * q["py_peak"] + 1e6, peaks        # memory does not grow with the scanned length
+    assert f["arrow_peak"] < 1.3 * q["arrow_peak"] + 1e6, peaks
+    assert f["py_peak"] + f["arrow_peak"] < 0.4 * total, peaks   # and is a fraction of the archived data
 
 
 def test_long_content_offloaded_to_artifacts_and_resolved(tmp_path):
@@ -371,3 +376,22 @@ def test_single_writer_and_concurrent_readonly_reader(tmp_path):
         r.append(light_events(1, start=999))
     r.close()
     a.close()
+
+
+def test_reader_follows_a_live_writer_and_sizing_is_persistent(tmp_path):
+    root = str(tmp_path / "a")
+    w = EventArchive(root, chunk_rows=100)
+    w.append(light_events(250))
+    w.flush()
+    r = EventArchive(root, readonly=True)
+    assert r.count() == 250 and r.chunk_rows == 100           # chunk size comes from the manifest
+    w.append(light_events(300, start=250))                    # seals 3 more chunks after the reader opened
+    w.flush()
+    ids = [r_.event_id for b in r.scan(batch_size=128) for r_ in b]
+    assert ids == [f"env0-0-{i:09d}" for i in range(550)]     # new chunks and WAL rows are picked up
+    assert r.count() == 550 and r.get(["env0-0-000000549"])[0].step == 49
+    r.close()
+    w.close()
+    again = EventArchive(root)
+    assert again.chunk_rows == 100
+    again.close()

@@ -419,7 +419,7 @@ class CheckpointOps:
             arc = getattr(a, "archive", None)
             if arc is None:
                 from .archive import EventArchive
-                arc = EventArchive(p["root"], cold_dir=p.get("cold_dir"))
+                arc = EventArchive(p["root"], chunk_rows=p.get("chunk_rows"), cold_dir=p.get("cold_dir"))
             have = {c["n"]: (c["rows"], c["sha256"]) for c in arc.chunks()}
             for n, rows, sha in p["chunks"]:
                 if have.get(n, (None, None))[0] != rows:

@@ -183,8 +183,11 @@ def test_persistence_and_truncation_of_uncommitted_rows(tmp_path):
     vdir = os.path.join(root, "versions", os.listdir(os.path.join(root, "versions"))[0])
     with open(os.path.join(vdir, "keys_00002.f16"), "ab") as fh:        # rows written, commit never happened
         fh.write(np.ones((5, kd), np.float16).tobytes())
+    with open(os.path.join(vdir, "vals_00007.f16"), "wb") as fh:        # a whole uncommitted shard
+        fh.write(np.ones((3, T * D), np.float16).tobytes())
     re = MemoryIndex(root, kd, T, D, shard_rows=50, device="cpu")
     assert os.path.getsize(os.path.join(vdir, "keys_00002.f16")) == 20 * kd * 2
+    assert os.path.getsize(os.path.join(vdir, "vals_00007.f16")) == 0
     after = re.search("v", q, 6)
     assert (after.kids == before.kids).all() and re.count("v") == 120
     with pytest.raises(ValueError):

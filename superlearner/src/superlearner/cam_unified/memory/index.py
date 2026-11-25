@@ -82,6 +82,7 @@ class MemoryIndex:
         self.do_fsync = fsync
         self._gpu: "OrderedDict" = OrderedDict()
         self._mm: dict = {}
+        self._cols: dict = {}
         self.stats = {"searches": 0, "search_s": 0.0, "added": 0, "reencoded": 0}
         if not readonly:
             os.makedirs(os.path.join(self.root, "versions"), exist_ok=True)
@@ -131,13 +132,19 @@ class MemoryIndex:
         kw, vw = self.key_dim * 2, self.value_tokens * self.value_dim * 2
         for v, vdir, n in self._db.execute("SELECT version, vdir, n_rows FROM versions").fetchall():
             d = os.path.join(self.root, "versions", vdir)
-            for s in range(max(1, -(-n // self.shard_rows)) + 1):
+            if not os.path.isdir(d):
+                continue
+            for f in os.listdir(d):
+                pre, _, rest = f.partition("_")
+                if pre not in ("keys", "vals") or not rest.endswith(".f16"):
+                    continue
+                s = int(rest[:-4])
                 rows = max(0, min(self.shard_rows, n - s * self.shard_rows))
-                for pre, w in (("keys", kw), ("vals", vw)):
-                    p = os.path.join(d, f"{pre}_{s:05d}.f16")
-                    if os.path.exists(p) and os.path.getsize(p) > rows * w:
-                        with open(p, "r+b") as fh:
-                            fh.truncate(rows * w)
+                w = kw if pre == "keys" else vw
+                p = os.path.join(d, f)
+                if os.path.getsize(p) > rows * w:
+                    with open(p, "r+b") as fh:
+                        fh.truncate(rows * w)
 
     # ================================================================== state
     def get_state(self, key: str, default=None):
@@ -376,39 +383,79 @@ class MemoryIndex:
         return t
 
     # ================================================================== search
+    def _columns(self, version: str) -> dict:
+        """Columnar segment metadata indexed by kid (dense), kept in memory and extended incrementally as keys are
+        added: t_start, t_end, gseq_end, level (float/int arrays) and integer codes of env_id/actor_id/episode_id."""
+        n = self.count(version)
+        c = self._cols.get(version)
+        if c is None:
+            c = {"n": 0, "t_start": np.zeros(0), "t_end": np.zeros(0), "gseq_end": np.zeros(0, np.int64),
+                 "level": np.zeros(0, np.int64), "codes": {k: {} for k in ("env_id", "actor_id", "episode_id")},
+                 "env_id": np.zeros(0, np.int64), "actor_id": np.zeros(0, np.int64),
+                 "episode_id": np.zeros(0, np.int64)}
+            self._cols[version] = c
+        if c["n"] < n:
+            rows = self._db.execute(
+                "SELECT s.t_start, s.t_end, s.gseq_end, s.level, s.env_id, s.actor_id, s.episode_id FROM keys k "
+                "JOIN segments s ON s.seg_id = k.seg_id WHERE k.version=? AND k.kid >= ? ORDER BY k.kid",
+                (version, c["n"])).fetchall()
+            if len(rows) != n - c["n"]:
+                raise RuntimeError(f"index {self.root}: key rows of {version} are not dense")
+            ts, te, ge, lv = (np.array([r[i] if r[i] is not None else v for r in rows], dtype=dt)
+                              for i, v, dt in ((0, 0.0, np.float64), (1, 0.0, np.float64),
+                                               (2, -1, np.int64), (3, 1, np.int64)))
+            c["t_start"] = np.concatenate([c["t_start"], ts])
+            c["t_end"] = np.concatenate([c["t_end"], te])
+            c["gseq_end"] = np.concatenate([c["gseq_end"], ge])
+            c["level"] = np.concatenate([c["level"], lv])
+            for j, col in ((4, "env_id"), (5, "actor_id"), (6, "episode_id")):
+                codes = c["codes"][col]
+                c[col] = np.concatenate([c[col], np.array([codes.setdefault(r[j], len(codes)) for r in rows],
+                                                          dtype=np.int64)])
+            c["n"] = n
+        return c
+
     def candidates(self, version: str, f: dict) -> np.ndarray:
-        """Sorted kids of ``version`` whose segment satisfies filter dict ``f`` (SQLite prefilter)."""
-        clauses, params = ["k.version = ?"], [version]
-        for k, v in f.items():
+        """Sorted kids of ``version`` whose segment satisfies filter dict ``f``. Time, gseq, level, env, actor and
+        episode filters run on the in-memory columnar metadata; entity and segment-id filters on SQLite."""
+        for k in f:
             if k not in FILTER_KEYS:
                 raise ValueError(f"unknown memory filter {k!r}")
+        c = self._columns(version)
+        m = np.ones(c["n"], dtype=bool)
+
+        def as_list(v):
+            return [v] if isinstance(v, (str, int, float)) or v is None else list(v)
+        for k, v in f.items():
             if v is None:
                 continue
             if k == "t_min":
-                clauses.append("s.t_end >= ?")
-                params.append(float(v))
+                m &= c["t_end"] >= float(v)
             elif k == "t_max":
-                clauses.append("s.t_start <= ?")
-                params.append(float(v))
+                m &= c["t_start"] <= float(v)
             elif k == "gseq_max":
-                clauses.append("s.gseq_end <= ?")
-                params.append(int(v))
-            elif k == "entity":
-                vs = [v] if isinstance(v, str) else list(v)
-                clauses.append(f"s.seg_id IN (SELECT seg_id FROM seg_entities WHERE entity IN ({','.join('?' * len(vs))}))")
-                params.extend(vs)
-            elif k in ("exclude_episode", "exclude_seg_ids"):
-                vs = [v] if isinstance(v, str) else list(v)
-                col = "s.episode_id" if k == "exclude_episode" else "s.seg_id"
-                if vs:
-                    clauses.append(f"{col} NOT IN ({','.join('?' * len(vs))})")
-                    params.extend(vs)
-            else:
-                vs = list(v) if isinstance(v, (list, tuple, set)) else [v]
-                clauses.append(f"s.{k} IN ({','.join('?' * len(vs))})")
-                params.extend(vs)
-        q = f"SELECT k.kid FROM keys k JOIN segments s ON s.seg_id = k.seg_id WHERE {' AND '.join(clauses)} ORDER BY k.kid"
-        return np.fromiter((r[0] for r in self._db.execute(q, params)), dtype=np.int64)
+                m &= c["gseq_end"] <= int(v)
+            elif k == "level":
+                m &= np.isin(c["level"], [int(x) for x in as_list(v)])
+            elif k in ("env_id", "actor_id", "episode_id"):
+                codes = [c["codes"][k][x] for x in as_list(v) if x in c["codes"][k]]
+                m &= np.isin(c[k], codes)
+            elif k == "exclude_episode":
+                codes = [c["codes"]["episode_id"][x] for x in as_list(v) if x in c["codes"]["episode_id"]]
+                if codes:
+                    m &= ~np.isin(c["episode_id"], codes)
+            elif k in ("entity", "exclude_seg_ids"):
+                vs = as_list(v)
+                if k == "entity":
+                    q = (f"SELECT k.kid FROM keys k JOIN seg_entities e ON e.seg_id = k.seg_id WHERE k.version=? "
+                         f"AND e.entity IN ({','.join('?' * len(vs))})")
+                else:
+                    q = f"SELECT kid FROM keys WHERE version=? AND seg_id IN ({','.join('?' * len(vs))})"
+                kids = np.fromiter((r[0] for r in self._db.execute(q, [version, *vs])), dtype=np.int64)
+                sel = np.zeros(c["n"], dtype=bool)
+                sel[kids[kids < c["n"]]] = True
+                m &= sel if k == "entity" else ~sel
+        return np.nonzero(m)[0].astype(np.int64)
 
     def search(self, version: str, q, k: int, filters=None) -> SearchResult:
         """Exact top-k by dot product within one version.
@@ -464,6 +511,10 @@ class MemoryIndex:
         B = q.shape[0]
         bs = torch.full((B, k), float("-inf"), device=self.device)
         bi = torch.full((B, k), -1, dtype=torch.long, device=self.device)
+        mfull = None
+        if cand is not None:                                   # one device mask per filter, sliced per chunk
+            mfull = torch.zeros(n, dtype=torch.bool, device=self.device)
+            mfull[torch.from_numpy(cand).to(self.device)] = True
         for s in range(-(-n // self.shard_rows)):
             K = self._shard_tensor(version, s)
             base = s * self.shard_rows
@@ -471,12 +522,8 @@ class MemoryIndex:
                 Kc = K[c0:c0 + self.search_chunk].float()
                 sc = q @ Kc.T                                     # [B, c]
                 g0 = base + c0
-                if cand is not None:
-                    lo, hi = np.searchsorted(cand, [g0, g0 + Kc.shape[0]])
-                    m = torch.zeros(Kc.shape[0], dtype=torch.bool, device=self.device)
-                    if hi > lo:
-                        m[torch.from_numpy(cand[lo:hi] - g0).to(self.device)] = True
-                    sc = sc.masked_fill(~m, float("-inf"))
+                if mfull is not None:
+                    sc = sc.masked_fill(~mfull[g0:g0 + Kc.shape[0]], float("-inf"))
                 kk = min(k, sc.shape[1])
                 ts, ti = sc.topk(kk, dim=1)
                 ti = torch.where(torch.isfinite(ts), ti + g0, torch.full_like(ti, -1))
@@ -485,7 +532,12 @@ class MemoryIndex:
         return bs, bi
 
     def _gather_topk(self, version: str, q: torch.Tensor, k: int, cand: np.ndarray):
-        K = self.keys(version, cand).to(self.device)              # [C, key_dim]
+        parts = []
+        sh = cand // self.shard_rows
+        for s in np.unique(sh):                                    # gather from the device-resident shards
+            loc = torch.from_numpy(cand[sh == s] - s * self.shard_rows).to(self.device)
+            parts.append(self._shard_tensor(version, int(s))[loc])
+        K = torch.cat(parts).float()                               # [C, key_dim]
         sc = q @ K.T
         kk = min(k, sc.shape[1])
         ts, ti = sc.topk(kk, dim=1)
@@ -552,6 +604,7 @@ class MemoryIndex:
             self._gpu.pop(key)
         for key in [k for k in self._mm if k[0] == version]:
             self._mm.pop(key)
+        self._cols.pop(version, None)
 
     def pointer(self) -> dict:
         return {"root": self.root, "key_dim": self.key_dim, "value_tokens": self.value_tokens,

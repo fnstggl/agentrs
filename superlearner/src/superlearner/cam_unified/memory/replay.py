@@ -146,6 +146,8 @@ class ReplaySampler:
     def sync(self, max_events: Optional[int] = None) -> int:
         """Bring membership tables up to date with the archive (new events + tag changes). Returns events consumed."""
         cols = ["gseq", "env_id", "failed", "success", "novelty", "surprise", "innovation", "skill", "family"]
+        if not self.archive.readonly:
+            self.archive.flush()             # membership only for durable events (their gseqs are final)
         n = 0
         for rows in self.archive.scan_meta(batch_size=8192, columns=cols, gseq_min=self.cursor + 1):
             items = []

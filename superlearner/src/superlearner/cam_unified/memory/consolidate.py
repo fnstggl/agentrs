@@ -63,6 +63,8 @@ class Consolidator:
         """Consume archived events after the cursor, emit full (or episode-final) segments, encode and index them.
         ``close_all`` also closes every open segment / group (e.g. at the end of a lifetime phase)."""
         version = self.retriever.key_version
+        if not self.archive.readonly:
+            self.archive.flush()             # only durable events become segments (their gseqs are final)
         emitted1: list = []
         n_ev = 0
         for rows in self.archive.scan_meta(batch_size=4096, gseq_min=self.state["cursor"] + 1,
