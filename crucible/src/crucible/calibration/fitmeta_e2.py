@@ -26,7 +26,11 @@ def git(*args: str) -> str:
 
 
 def code_state() -> dict:
-    dirty = [l[3:] for l in git("status", "--porcelain").splitlines()
+    try:   # not git(): its strip() would eat the status column of the first line
+        status = subprocess.check_output(["git", "status", "--porcelain"], cwd=CRUCIBLE_ROOT, stderr=subprocess.DEVNULL).decode()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        status = ""
+    dirty = [l[3:] for l in status.splitlines()
              if "docs/v5/calibration/models/" not in l and "docs/v5/calibration/reports/" not in l]
     return {"commit": git("rev-parse", "HEAD"), "dirty_paths": dirty[:20], "clean": not dirty}
 
