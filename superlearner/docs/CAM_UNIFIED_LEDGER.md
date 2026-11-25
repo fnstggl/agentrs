@@ -47,17 +47,39 @@ that lack files/tests/verification). Append; do not rewrite history.
 
 | Started (UTC) | Job | Where |
 |---|---|---|
-| 2026-11-25 03:1x | Wave-1 build workflow `wf_c9e0d81b-aaa`: workstreams A, B, C, D, E, F, G, I implement in worktrees `/workspace/wt/<id>` (branches `ws/<id>` from `b68cc0e`), each followed by an independent verifier (H) and a fix pass | `/root/.claude/projects/-workspace/8a8c4e56-2384-4271-b874-3a6441f3bc23/workflows/scripts/cam-unified-build-wave1-wf_c9e0d81b-aaa.js` |
+| 2026-11-25 07:3x | Wave-2 build workflow (S Stage-1 real OpenWorld path, A2 decoder + demo-init, Y integrated capability tests, X foundational experiments, F2 distributed CAM), each verified by H then fixed; worktrees `/workspace/wt2/<id>` on `ws2/<id>` | workflow script `/tmp/claude-0/-workspace/8a8c4e56-2384-4271-b874-3a6441f3bc23/scratchpad/wave2.js` (persisted copy under the session's workflows/scripts/) |
 
-Resume after an interruption: `Workflow({scriptPath: <that file>, resumeFromRunId: "wf_c9e0d81b-aaa"})` (finished agents
-replay from cache); worktrees and their commits persist on disk.
+Resume after an interruption: `Workflow({scriptPath: <persisted script>, resumeFromRunId: <run id in the table below>})`; worktrees
+and their commits persist on disk. Completed: wave 1 `wf_c9e0d81b-aaa` (merged).
 
 ## Decisions
 
 (see `CAM_UNIFIED_ARCHITECTURE.md` for interface decisions and their reasons)
 
+### 2026-11-25 — Wave 1 merged (03:15–07:05 UTC)
+
+- Workflow `wf_c9e0d81b-aaa`: 24 agents (8 build, 8 independent verify, 8 fix), 9.5 M subagent tokens, 4.0 h. Every
+  workstream's tests passed under its verifier; verifiers reported 36 major and 84 minor issues, which the fix passes
+  addressed. Branches `ws/A`..`ws/I` merged into `feat/cam-7.0-unified` (no overlapping files, no conflicts; merge
+  commits `373916c`..`88d14cf`).
+- Scale of the merged code: ~35k lines of production code in `cam_unified/` plus tests.
+- Measured: main backbone 114.6 M params (workstream-B total 150.4 M), large 306 M; main fixed-J=4 train step 155 ms
+  (B=8, ctx 377, bf16, 5.3 GB); Qwen3-1.7B encode ~24–30k tok/s, decode ~20 tok/s at B=1 and ~150 tok/s at B=8;
+  archive ingest 8.4k events/s over 1 M events (389 B/event); index search over 1 M keys 10–22 ms; toy actors-only
+  1.9k / 5.9k / 9.5k / 11k decisions/s for 1/4/8/16 actors; Builder reaches OW-1 on day 27 (ow_market seed 1).
+- Biggest integration gaps (from the fix reports): no CAM decision has run in a real OpenWorld yet; the untrained
+  decoder emits up to 1,536-token degenerate strings (533 s per 4 rounds); capabilities A03/A05/A06/A08/A09/E03 are
+  shown only with doubles; distributed learning only with a toy GRU policy.
+- Contract v3 (`6a67351`, architecture §13): the 50 wave-1 change requests folded in additively. Manifest statuses
+  folded conservatively (claims a verifier did not support stay IN_PROGRESS; `verified_by` empty until the
+  acceptance-level H pass).
+- Lesson: never run the suite under `flock gpu_heavy.lock` — tests take that lock themselves (self-deadlock).
+
 ## Next steps
 
-1. Write the shared interface contract (`cam_unified/interfaces.py`) and architecture document.
-2. Launch workstreams A–G in isolated worktrees with explicit file ownership; H verifies.
-3. Stage 1 vertical path on the real OpenWorld.
+1. Wave 2 (running): Stage-1 real OpenWorld path (S), decoder length control + demo-init (A2), integrated capability
+   tests (Y), Part 17 experiments 1–3 (X), distributed CAM on OpenWorld (F2).
+2. Merge wave 2; acceptance-level H pass over A01–A22 (`superlearner/tests/cam_unified/acceptance/`).
+3. Stage 3 main-model training; Stage 5 OpenWorld lifetimes (OW-1..OW-7, Exp 4) with baselines (Part 19).
+4. Before 2026-11-30 03:00 UTC: push all code; decide an off-box destination for checkpoints/results with the user.
+
