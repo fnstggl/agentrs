@@ -112,7 +112,9 @@ class EmbeddingCache:
         with self._lock:
             self._mem.clear()
 
-    def __len__(self) -> int:
+    def memory_size(self) -> int:
+        """Entries held in memory. (No __len__: an empty cache must not be falsy, or `cache or default` would
+        silently replace a caller's cache.)"""
         return len(self._mem)
 
     # ------------------------------------------------------------------------------------------ internals

@@ -153,7 +153,7 @@ def encode_bytes(data: bytes, modality: str, *, cache: EmbeddingCache | None = N
 def encode_bytes_many(datas: Sequence[bytes], modality: str, *, cache: EmbeddingCache | None = None) -> np.ndarray:
     refs = [ref_of(d) for d in datas]
     keys = [cache_key(r, modality) for r in refs]
-    out = _vectors(None, refs, keys, modality, list(datas), cache or default_cache())
+    out = _vectors(None, refs, keys, modality, list(datas), cache if cache is not None else default_cache())
     out.setflags(write=False)
     return out
 

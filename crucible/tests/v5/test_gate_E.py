@@ -339,9 +339,9 @@ def _perturbed(role: str, fn):
     """Run fn() with one weight matrix of the model scaled, then restore it exactly."""
     import torch
     ld = MD.load(role)
-    target = {"text": lambda m: m.encoder.layer[-1].output.dense.weight,
-              "image": lambda m: m.visual_projection.weight,
-              "audio": lambda m: m.audio_spectrogram_transformer.encoder.layer[-1].output.dense.weight}[role](ld.model)
+    name = {"text": "encoder.layer.5.output.dense.weight", "image": "visual_projection.weight",
+            "audio": "audio_spectrogram_transformer.layers.11.mlp.fc2.weight"}[role]
+    target = dict(ld.model.named_parameters())[name]
     saved = target.detach().clone()
     try:
         with torch.no_grad():

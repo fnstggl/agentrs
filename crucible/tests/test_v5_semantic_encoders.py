@@ -163,7 +163,7 @@ def test_cpu_execution_agrees_with_this_process():
         i = E.encode_bytes(base64.b64decode(d["i"]), "image", cache=EmbeddingCache(disk=False))
         print(json.dumps({"t": t.tolist(), "i": i.tolist(), "dev": E.models.load("text").device}))
     """)
-    env = dict(os.environ, CRUCIBLE_ENCODER_DEVICE="cpu", PYTHONPATH=os.path.join(os.path.dirname(__file__), "..", "src"))
+    env = dict(os.environ, CRUCIBLE_ENCODER_DEVICE="cpu", CRUCIBLE_EMBED_DISK_CACHE="0", PYTHONPATH=os.path.join(os.path.dirname(__file__), "..", "src"))
     inp = json.dumps({"t": [base64.b64encode(t).decode() for t in texts], "i": base64.b64encode(img).decode()})
     out = subprocess.run([sys.executable, "-c", prog], input=inp.encode(), capture_output=True, env=env, timeout=600)
     assert out.returncode == 0, out.stderr.decode()[-2000:]

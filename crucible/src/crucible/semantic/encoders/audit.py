@@ -202,6 +202,6 @@ def stub_check(vectors: dict[str, np.ndarray], distinct_groups: dict[str, str] |
                 a, b = names[i], names[j]
                 if distinct_groups.get(a) != distinct_groups.get(b):
                     va, vb = np.asarray(vectors[a]), np.asarray(vectors[b])
-                    if np.allclose(va, vb, atol=1e-6):
+                    if va.shape == vb.shape and np.allclose(va, vb, atol=1e-6):
                         problems.append(f"{a} and {b}: identical vectors for different content")
     return {"stub_vectors_detected": len(problems), "problems": problems[:50], "checked": len(names)}
