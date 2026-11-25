@@ -24,11 +24,12 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CRUCIBLE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-CAL_DIR = os.path.join(CRUCIBLE_ROOT, "docs", "v5", "calibration")
+# CRUCIBLE_E2_CAL_DIR redirects cards, checkpoints and reports (used only for smoke runs of the fitting scripts).
+CAL_DIR = os.environ.get("CRUCIBLE_E2_CAL_DIR") or os.path.join(CRUCIBLE_ROOT, "docs", "v5", "calibration")
 MODELS_DIR = os.path.join(CAL_DIR, "models")
 REPORTS_DIR = os.path.join(CAL_DIR, "reports")
-DATASETS_DIR = os.path.join(CAL_DIR, "datasets")
-PLANS_DIR = os.path.join(CAL_DIR, "plans")
+DATASETS_DIR = os.path.join(CRUCIBLE_ROOT, "docs", "v5", "calibration", "datasets")
+PLANS_DIR = os.path.join(CRUCIBLE_ROOT, "docs", "v5", "calibration", "plans")
 CARD_SCHEMA = "crucible.v5.calibration.model_card/1"
 E2_DATASETS = ("criteo_uplift_v2.1", "gharchive_2024-10-07_96h")
 E2_MODELS = ("commercial_response@1", "software_deep_engagement@1", "software_repo_growth@1")

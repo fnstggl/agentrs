@@ -96,31 +96,36 @@ def average_precision(y, p) -> float:
 
 
 def binary_report(y, p, n_bins: int = 15) -> dict:
+    if len(y) == 0:
+        return {"n": 0}
     return {"n": int(len(y)), "log_loss": log_loss(y, p), "brier": brier(y, p), "ece": ece(y, p, n_bins),
             "auc": auc(y, p), "mean_predicted": float(np.mean(p)), "mean_observed": float(np.mean(y))}
 
 
 # ----------------------------------------------------------------------------------------------- uplift
 
-def _uplift_cumulants(y, t, score):
-    """Cumulative treated/control counts and responders at the end of each tie group (descending score)."""
+def _uplift_cumulants(y, t, score, w=None, order=None):
+    """Cumulative (weighted) treated/control counts and responders at the end of each tie group, descending score.
+
+    `w` are row weights (bootstrap multiplicities); `order` a precomputed descending-score order."""
     y = np.asarray(y, dtype=np.float64); t = np.asarray(t).astype(bool); s = np.asarray(score, dtype=np.float64)
-    order = np.argsort(-s, kind="stable")
+    if order is None:
+        order = np.argsort(-s, kind="stable")
     ys, ts, ss = y[order], t[order], s[order]
-    nt = np.cumsum(ts); nc = np.cumsum(~ts)
-    yt = np.cumsum(ys * ts); yc = np.cumsum(ys * ~ts)
+    ws = np.ones(ys.size) if w is None else np.asarray(w, dtype=np.float64)[order]
+    wt = ws * ts; wc = ws * ~ts
+    k = np.cumsum(ws); nt = np.cumsum(wt); nc = np.cumsum(wc)
+    yt = np.cumsum(ys * wt); yc = np.cumsum(ys * wc)
     last = np.r_[ss[1:] != ss[:-1], True]
-    k = np.flatnonzero(last) + 1
     z = np.zeros(1)
-    return (np.r_[z, k].astype(np.float64), np.r_[z, nt[last]].astype(np.float64), np.r_[z, nc[last]].astype(np.float64),
-            np.r_[z, yt[last]], np.r_[z, yc[last]])
+    return np.r_[z, k[last]], np.r_[z, nt[last]], np.r_[z, nc[last]], np.r_[z, yt[last]], np.r_[z, yc[last]]
 
 
-def qini_curve(y, t, score):
+def qini_curve(y, t, score, w=None, order=None):
     """x = number targeted, q = Y_T(k) - Y_C(k) * N_T(k) / N_C(k); evaluated at tie-group ends, linear in between."""
-    k, nt, nc, yt, yc = _uplift_cumulants(y, t, score)
+    k, nt, nc, yt, yc = _uplift_cumulants(y, t, score, w, order)
     with np.errstate(invalid="ignore", divide="ignore"):
-        q = yt - np.where(nc > 0, yc * nt / np.maximum(nc, 1), 0.0)
+        q = yt - np.where(nc > 0, yc * nt / np.where(nc > 0, nc, 1.0), 0.0)
     return k, q
 
 
@@ -128,19 +133,36 @@ def _area(x, yv) -> float:
     return float(np.sum((x[1:] - x[:-1]) * (yv[1:] + yv[:-1]) / 2.0))
 
 
-def qini_coefficient(y, t, score) -> dict:
-    """Area between the Qini curve and the random line, raw (per targeted user) and normalised by the perfect ranking."""
+def qini_coefficient(y, t, score, w=None, orders=None) -> dict:
+    """Area between the Qini curve and the random line, raw (per targeted user) and normalised by the perfect ranking.
+
+    `orders` = (model order, perfect order) precomputed for repeated (bootstrap) evaluation."""
     y = np.asarray(y, dtype=np.float64); t = np.asarray(t).astype(bool)
-    x, q = qini_curve(y, t, score)
+    perfect = y * t - y * (~t)                     # treated responders first, control responders last
+    om, op = orders if orders is not None else (None, None)
+    x, q = qini_curve(y, t, score, w, om)
     n = x[-1]
     random_area = q[-1] * n / 2.0
     model_area = _area(x, q)
-    perfect = y * t - y * (~t)                     # treated responders first, control responders last
-    xp, qp = qini_curve(y, t, perfect)
+    xp, qp = qini_curve(y, t, perfect, w, op)
     perfect_area = _area(xp, qp)
     denom = perfect_area - random_area
     return {"qini_area_per_user": (model_area - random_area) / (n * n) if n else 0.0,
             "qini_coefficient": (model_area - random_area) / denom if denom != 0 else float("nan")}
+
+
+def qini_bootstrap(y, t, score, n_boot: int = 200, seed: int = 0) -> dict:
+    """Bootstrap distribution of the normalised Qini coefficient (rows resampled with replacement)."""
+    y = np.asarray(y, dtype=np.float64); t = np.asarray(t).astype(bool); s = np.asarray(score, dtype=np.float64)
+    orders = (np.argsort(-s, kind="stable"), np.argsort(-(y * t - y * (~t)), kind="stable"))
+    rng = np.random.default_rng(seed)
+    vals = np.empty(n_boot)
+    for i in range(n_boot):
+        w = np.bincount(rng.integers(0, y.size, size=y.size), minlength=y.size)
+        vals[i] = qini_coefficient(y, t, s, w=w, orders=orders)["qini_coefficient"]
+    lo, hi = np.quantile(vals, [0.025, 0.975])
+    return {"point": qini_coefficient(y, t, s, orders=orders)["qini_coefficient"], "se": float(vals.std(ddof=1)),
+            "ci95": [float(lo), float(hi)], "n_boot": n_boot}
 
 
 def auuc_normalised(y, t, score) -> float:
