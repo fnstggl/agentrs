@@ -20,7 +20,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import numpy as np
 
 from ..mechanisms.base import ENGINES, Engine, Gauge, Lever, StepResult, register_engine
 from .engines import build as build_rapid

@@ -309,7 +309,6 @@ class GraphDynamical(RapidEngine):
         c = self.config
         P = len(c["cap"])
         dep = np.asarray(c["dep"], dtype=int)
-        ctrl = np.asarray(c["ctrl"], dtype=int)
         zone = np.asarray(c["zone"], dtype=int)
         z = rng.standard_normal(1)
         uu = rng.random(2)
