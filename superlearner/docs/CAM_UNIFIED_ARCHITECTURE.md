@@ -221,6 +221,31 @@ pretrained arm's meta-training still drew 52–58% source episodes after 120k ta
    learned/declared think time (SMDP), so Δt enters the semi-Markov discount and the dynamics model.
 4. Parallel OpenWorld experience requires processes (world kernels are single-threaded) → workstream F's actors.
 
+### Contract v2 decisions (after the Stage-0 critic, `cam_unified_stage0_critic.json`)
+
+5. **Clock (SMDP).** One decision = one tool call. The harness then advances the world by `cost_s + think_s`
+   (`config.think_s` = 600 s). The agent also has a `wait` tool (`{"seconds": int ≤ max_wait_s}`) to let time pass
+   deliberately; that is how long-running effects are awaited. Δt is recorded per event and enters the semi-Markov
+   discount and the dynamics model. This keeps accepted actions far below the 240-per-simulated-hour rate limit.
+6. **Cursors, not times.** `collect_events(since)` takes the environment's event cursor (Crucible `seq`) and returns
+   new cursors; adapters construct `WorldServer(max_events=100_000)` (the default 50 silently drops events) and link
+   direct consequences to the command that caused them (`Observation.caused_by`) from the operator log, filtered with
+   `World.visible(e, World.principals_of(p))` so only actor-visible events are exposed. Genesis public events are not
+   in `observe`; the adapter delivers the actor-visible ones once at reset.
+7. **Units as given.** Money stays in integer cents with unit `"cents"`; no adapter converts units. The tokenizer
+   embeds unit strings.
+8. **TOOL tokens are pointer targets only** (not inside F_θ's working context): 145–200 tools would consume half the
+   budget. The core sees tools through the action generator's pointer and through ACTION tokens of past actions.
+9. **Semantic encoder frozen in Stages 1–3** (`sem_encoder_lora = False`): hidden states of the base model are cached by
+   content hash; adaptation of understanding happens in the trainable pooling/projections, entity encoder and core.
+   LoRA trains the *decoder* path (argument generation) from Stage 1. Encoder LoRA is a later, versioned condition.
+10. **Dense real signals.** World-model targets per action: `ok`, `error.code` (13 codes), cost/charges in cents, bank
+    balance deltas, rig readings and `rig.report` revenue/cost each simulated hour, `use.report` fields. The first
+    OpenWorld RL return is the `ow_works` rig facility (`rig.spec/take/set/read`, typed numeric arguments, dense
+    per-tick net) inside the full economy world, beside the sparse verified economy goal (RewardContract).
+11. **Multi-actor worlds.** `EnvAdapter` batches are independent worlds by default; `OpenWorldAdapter(shared_world=True)`
+    joins B actors to one world under one operator clock (OW-7, W05, heterogeneous participants).
+
 ## 12. Verification (H)
 
 Acceptance tests `superlearner/tests/cam_unified/acceptance/test_aNN_*.py` for A01–A22, written and run by H against

@@ -21,7 +21,7 @@ import uuid
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Iterator, Optional, Protocol, Sequence, runtime_checkable
 
-CONTRACT_VERSION = 1   # 1.1 (2026-11-25): TokenSet.entity2
+CONTRACT_VERSION = 2   # 1.1: TokenSet.entity2; 2: seq cursors, time/money/duration semantics (stage-0 critic)
 OBS_SCHEMA_VERSION = 1
 
 
@@ -87,13 +87,16 @@ class Observation(_Rec):
     kind: ObsKind
     content: str = ""                # original text/code/html/json (may be truncated; full copy at artifact_ref)
     artifact_ref: Optional[str] = None   # content-addressed ref into the ArtifactStore for exact retrieval
-    value: Optional[float] = None    # NUMERIC: the number exactly as observed
-    unit: Optional[str] = None       # NUMERIC: e.g. "USD", "USD/month", "ms", "count", "fraction"
+    value: Optional[float] = None    # NUMERIC: the number exactly as observed (no unit conversion by adapters)
+    unit: Optional[str] = None       # NUMERIC: as the environment states it, e.g. "cents" (Crucible money is integer
+                                     # cents), "cents/core-hour", "ms", "count", "fraction"
     entity: Optional[str] = None     # persistent id of the primary entity the observation is about
     entity_type: Optional[str] = None
     target: Optional[str] = None     # RELATION/MESSAGE/TRANSACTION: the second entity
     relation: Optional[str] = None   # RELATION: observed relation label (free text, may be absent)
-    t: float = 0.0                   # simulated time of the observation (days since world start)
+    t: float = 0.0                   # simulated time of the observation in DAYS since world start (= seconds / 86400;
+                                     # adapters convert exactly; Crucible's native clock is integer seconds)
+    seq: Optional[int] = None        # environment event sequence number (cursor), when the environment has one
     source: str = ""                 # evidence source: tool name / page url / sensor / participant id
     evidence: EvidenceKind = EvidenceKind.OBSERVATIONAL
     caused_by: Optional[str] = None  # event_id of the action that produced it, when known (delayed attribution)
@@ -164,8 +167,9 @@ class ExecutionResult(_Rec):
     ok: bool
     observations: list = field(default_factory=list)     # list[Observation]: the tool's direct output
     error: Optional[str] = None
-    cost: float = 0.0                    # observable resource cost (currency units of the world)
-    duration: float = 0.0                # simulated days consumed
+    cost: float = 0.0                    # observable resource cost in the world's money unit (Crucible: cents)
+    duration: float = 0.0                # simulated days the environment charges for the action (Crucible cost_s/86400).
+                                         # Executing never moves the clock: only the harness's advance_time does (SMDP).
     started_t: float = 0.0
     finished_t: float = 0.0
     meta: dict = field(default_factory=dict)
@@ -291,9 +295,9 @@ class EnvAdapter(Protocol):
         ...
     def execute(self, actions: Sequence[Optional[Action]]) -> list:   # [B] ExecutionResult (None action = skip)
         ...
-    def collect_events(self, since: Sequence[float]) -> list:  # [B] list[Observation] asynchronous events since t
-        ...
-    def advance_time(self, duration: Sequence[float]) -> ObservationBatch: ...
+    def collect_events(self, since: Sequence[int]) -> tuple:    # since = [B] opaque event cursors (Crucible: seq)
+        ...                                                     # -> ([B] list[Observation], [B] new cursors); lossless
+    def advance_time(self, duration: Sequence[float]) -> ObservationBatch: ...   # days; harness/operator side only
     def goals(self) -> list:                                  # [B] GoalSpec
         ...
     def close(self) -> None: ...

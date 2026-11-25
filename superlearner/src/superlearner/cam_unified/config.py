@@ -31,14 +31,18 @@ class CamConfig:
     # ---- semantic backbone (pretrained, separate parameter count)
     sem_model: str = "Qwen/Qwen3-1.7B"
     sem_test_model: str = "Qwen/Qwen3-0.6B"   # unit/integration tests only
-    sem_chunk_tokens: int = 256       # max tokens per encoded observation chunk
+    sem_chunk_tokens: int = 512       # max tokens per encoded observation chunk (longer content: several chunks)
+    sem_encoder_lora: bool = False    # Stage 1-3: encoder path uses base weights (hidden-state cache stays valid);
+                                      # LoRA trains the decoder path only. Enabling it forces re-encoding (versioned).
+    think_s: int = 600                # OpenWorld SMDP: simulated seconds charged per decision beyond the tool's cost_s
+    max_wait_s: int = 86400           # longest agent-chosen wait (the 'wait' tool) per decision
     sem_tokens_per_obs: int = 4       # learned attention-pooling queries per semantic observation
     sem_lora_rank: int = 16
     sem_lora_alpha: int = 32
     sem_lora_targets: tuple = ("q_proj", "k_proj", "v_proj", "o_proj")
     n_prefix: int = 16                # latent-to-language bridge prefix embeddings P_t = W(Z,G,B)
     max_evidence: int = 4             # observations CAM's evidence pointer may show the action decoder verbatim
-    max_arg_tokens: int = 384
+    max_arg_tokens: int = 1536          # code.commit arguments measured at ~1,068 Qwen3 tokens
 
     # ---- numerical observation encoding
     n_fourier: int = 16
