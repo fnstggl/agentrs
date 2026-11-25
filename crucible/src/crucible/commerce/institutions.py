@@ -1008,7 +1008,7 @@ class Institutions(Module):
             src = bank.primary_account(st, org)
             if biz is None or src is None:
                 raise Conflict("funding a spin-off needs a company registry and an account of the parent")
-            biz.register_company(ctx, new, head, "spin-off", fee=0)
+            biz.register_company(ctx, new, head, "spin-off", pay_from=src)     # the ordinary fee, paid by the parent
             acct = bank.open_account(ctx, new, "checking")
             bank.move(ctx, src, acct, a["budget_cents"], "investment", f"spin-off {new} of {org}", ref=did)
             funded = a["budget_cents"]

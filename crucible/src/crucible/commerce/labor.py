@@ -393,7 +393,7 @@ class Labor(Module):
             yes = False
         elif to == worker:
             yes = True
-        elif to is not None and to == d["by"]:
+        elif to is not None and to == d["by"] and a["kind"] != "admit":     # (an applicant proposes itself)
             yes = bool(rng.random() < 0.2)
         elif a["kind"] == "dissolve":
             yes = sat < 0.3
