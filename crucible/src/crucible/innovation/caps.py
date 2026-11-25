@@ -23,23 +23,26 @@ capabilities may exist; the registry only indexes what operators declare.
   itself executed the service successfully (`caps.try`); afterwards every real call it makes to that endpoint is
   counted as use (`caps.use`). Nothing is ever counted from what a provider says about itself.
 
-The v5 tables exist only when the module is configured with `{"registry": true}`: worlds built before 5.0 keep
-their exact state digests and event logs (the 4.0 endpoints, appliers and processes are inherited unchanged).
+The v5 tables and endpoints exist only when the module is configured with `{"registry": true}`: worlds built before
+5.0 keep their exact tool catalogue, state digests and event logs (the 4.0 endpoints, appliers and processes are
+inherited unchanged, and `caps.search` keeps its 4.0 schema there).
 """
 from __future__ import annotations
 
-import re
+import types
 
 from ..core import schema as S
 from ..core.canonical import digest
 from ..core.errors import Conflict, CrucibleError, Forbidden, InvalidAction, NotFound
-from ..core.kernel import applier, endpoint, register_module
+from ..core.kernel import Endpoint, applier, endpoint, register_module
 from ..services.capabilities import Capabilities, tokens
 from ..services.identity import ident
 
 CAP_NAME = r"[a-z][a-z0-9_]*(\.[a-z0-9_]+){0,3}"
 HOST_RE = r"[a-z][a-z0-9-]{2,30}"
 REPO_REF = r"[a-z0-9][a-z0-9_-]{0,39}/[a-z][a-z0-9_-]{0,39}(@c[0-9a-f]{20})?"
+V5_ENDPOINTS = ("declare", "declaration", "declarations", "try", "verify", "adopt_service", "drop_service",
+                "adoptions")
 V5_TABLES = {
     "cap_decls": ("host", "provider", "name", "status"),
     "cap_trials": ("decl", "by"),
@@ -97,6 +100,15 @@ class CapabilityRegistry(Capabilities):
         super().install(world)
         world.hooks["caps_registry"] = self
         if not self.registry:
+            # a world without the v5 registry keeps the exact 4.0 tool surface: the v5 endpoints are withdrawn and
+            # caps.search is the 4.0 endpoint (schema, handler and version), so tool catalogues are unchanged
+            host = self.host or self.name
+            for ep in V5_ENDPOINTS:
+                world.endpoints.pop(f"{host}.{ep}", None)
+            e = Capabilities.ep_search.__crucible_endpoint__
+            world.endpoints[f"{host}.search"] = Endpoint(
+                f"{host}.search", host, e["params"], types.MethodType(Capabilities.ep_search, self), e["doc"],
+                e["cost_s"], e["read_only"], e["returns"], version=str(e.get("version") or self.version))
             return
         for t, idx in V5_TABLES.items():
             world.state.declare_table(t, index=idx)

@@ -146,8 +146,9 @@ def test_search_finds_declarations_records_discovery_and_keeps_the_4_0_form(worl
     assert not ex(w, "bob", "caps.search").ok
 
 
-def test_registry_is_opt_in_so_4_0_worlds_keep_their_state():
+def test_registry_is_opt_in_so_4_0_worlds_keep_their_tools_and_state():
     from crucible.innovation.caps import V5_TABLES
+    from crucible.services.capabilities import Capabilities
     spec = innovation_spec(4, with_adopters=False)
     for m in spec.modules:
         if m["name"] == "caps":
@@ -155,11 +156,20 @@ def test_registry_is_opt_in_so_4_0_worlds_keep_their_state():
     w = World.create(spec)
     try:
         assert not set(V5_TABLES) & set(w.state.tables)
+        # the tool surface of host caps is exactly the 4.0 one (names, schemas, docs, versions)
+        want = {}
+        for attr in dir(Capabilities):
+            e = getattr(getattr(Capabilities, attr), "__crucible_endpoint__", None)
+            if e:
+                want[f"caps.{e['name']}"] = (e["params"], e["doc"], str(e.get("version") or Capabilities.version))
+        got = {n: (ep.params, ep.doc, ep.version) for n, ep in w.endpoints.items() if ep.host == "caps"}
+        assert got == want
         join(w, "bob", 1000)
         r = ex(w, "bob", "caps.declare", service_host="xyz",
                capability={"name": "a.b", "inputs": {"type": "object"}, "outputs": {"type": "object"}, "doc": "d"})
-        assert not r.ok and "not enabled" in r.error["message"]
-        assert ex(w, "bob", "caps.search", query="anything").result == []
+        assert not r.ok and r.error["code"] == "unknown_tool"
+        assert not ex(w, "bob", "caps.search", query="anything").ok          # 4.0 schema: q only
+        assert ex(w, "bob", "caps.search", q="anything").result == []
     finally:
         w.close()
 
