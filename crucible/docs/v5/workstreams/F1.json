@@ -1,7 +1,7 @@
 {
  "workstream": "F1",
  "branch": "worktree-wf_62a0cf0b-bb3-3",
- "commit": "fb29b88",
+ "commit": "b64f6b4",
  "requirements": [
   {
    "id": "K.1",
@@ -135,6 +135,7 @@
   "New kernel modules: products (prod), subs, xchg, ventures (venture), patrons (no tools). ventures chains world.hooks['on_company_ended']; no 4.0 file was changed.",
   "New evaluator metrics (goals.metrics registry, subject principal): mrr_cents, arr_cents, active_subscriptions, independent_customers, churn_rate, profit_cents, one_time_revenue_cents.",
   "docs/v5/FIDELITY_REGISTER.md: six F1 rows appended to the v5 table (other workstreams append to the same table).",
-  "Gate tests write evidence to docs/v5/evidence/gate_K and gate_SP when run; none is committed. Set CRUCIBLE_V5_AUTHOR=ws-F1. tests/v5/_commerce_kit.py is a shared helper for the two gate files."
+  "Gate tests write evidence to docs/v5/evidence/gate_K and gate_SP when run; none is committed. Set CRUCIBLE_V5_AUTHOR=ws-F1. tests/v5/_commerce_kit.py is a shared helper for the two gate files.",
+  "Regression (full suite minus tests/v5, one process, 1 CPU): 1121 passed, 5 failed, 2 skipped. The 5 failures (test_ow_worlds::test_open_ow_world_replays_regenerates_and_forks_exactly and four test_scale pool-digest tests) are order-dependent and pre-existing: a control run of the same file sequence with the commerce package disabled fails the same 5, and both files pass when run on their own or as the second half of the suite (359 passed). test_entry::test_a_founder_who_cannot_code_hires_a_developer_from_the_labour_pool failed once under heavy machine load and passed in the quiet rerun and on its own."
  ]
 }
