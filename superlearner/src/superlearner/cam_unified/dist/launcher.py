@@ -291,6 +291,7 @@ class Launcher:
         st = self._read_status()
         ln = st.get("learner", {})
         acts = {k: v for k, v in st.items() if k in self.actor_specs}
+        speed = learning_speed(self.series, (0.5, 0.8, 0.9))
         thr = steady_rate(self.series, "decisions")
         ing = steady_rate(self.series, "ingested")
         trn = steady_rate(self.series, "trained_decisions")
@@ -303,7 +304,7 @@ class Launcher:
                    "trained_decisions_per_s_steady": trn,
                    "actor_blocked_s": {k: (v.get("writer") or {}).get("blocked_s") for k, v in acts.items()},
                    "actor_wait_weights_s": {k: v.get("wait_weights_s") for k, v in acts.items()},
-                   "learner_version": ln.get("version"),
+                   "learning_speed": speed, "learner_version": ln.get("version"),
                    "learner_counts": ln.get("counts", {}), "lag": ln.get("router", {}),
                    "queue": ln.get("queue", {}), "actor_recent_scores": {k: v.get("recent_score") for k, v in acts.items()},
                    "actor_versions_used": {k: v.get("versions_used") for k, v in acts.items()},
@@ -329,14 +330,34 @@ def steady_rate(series: list, key: str, warm_frac: float = 0.3) -> Optional[floa
     return (w[-1][1] - first[1]) / (w[-1][0] - first[0])
 
 
+def learning_speed(series: list, thresholds=(0.5, 0.8, 0.9)) -> dict:
+    """Wall-clock learning speed and sample efficiency from the sampled series: for each threshold, the first time
+    the mean over actors of their rolling episode score (last 50 episodes) reaches it, with the decisions generated
+    and decisions trained on up to that moment (None if never reached)."""
+    out = {}
+    for th in thresholds:
+        hit = None
+        for r in series:
+            sc = [v for v in (r.get("recent_scores") or {}).values() if v is not None]
+            if sc and sum(sc) / len(sc) >= th:
+                hit = r
+                break
+        out[str(th)] = None if hit is None else {"t_s": hit["t_rel"], "decisions": hit["decisions"],
+                                                 "trained_decisions": hit["trained_decisions"],
+                                                 "learner_version": hit["learner_version"]}
+    return out
+
+
 def benchmark_actors(out_dir: str, n_actors=(1, 4, 8), seconds: float = 20.0, envs_per_actor: int = 4,
                      min_decisions: int = 256, max_batch_decisions: int = 1024, seed: int = 0,
-                     max_spool_bytes: int = 64 << 20, with_learner: bool = True) -> list:
+                     max_spool_bytes: int = 16 << 20, with_learner: bool = True) -> list:
     """Toy-environment throughput benchmark: N actors (+ the learner) for ``seconds`` each; one summary per N.
 
     ``with_learner=True``: end-to-end. The spool is bounded (``max_spool_bytes``, policy "block"), so the measured
     decisions/s is the sustained system rate: when the learner's ingestion saturates, actors block
-    (``actor_blocked_s``) instead of the spool growing without bound.
+    (``actor_blocked_s``) instead of the spool growing without bound. The bound also sets policy staleness: on the
+    toy benchmark a 64 MB spool let 4-8 actors run so far ahead that most data exceeded max_lag=16, while 4-16 MB kept
+    the lag at 1-6 updates (all of it V-trace corrected, none discarded).
     ``with_learner=False``: experience-generation capacity of the actors alone (initial weights are published
     once; segments accumulate durably in the spool, which must be large enough for the run)."""
     results = []
@@ -374,7 +395,7 @@ def _main(argv=None) -> None:
     b.add_argument("--actors-only", action="store_true", help="no learner: actor experience-generation capacity")
     a = ap.parse_args(argv)
     res = benchmark_actors(a.out, tuple(int(x) for x in a.actors.split(",")), a.seconds, a.envs_per_actor,
-                           with_learner=not a.actors_only, max_spool_bytes=(8 << 30) if a.actors_only else 64 << 20)
+                           with_learner=not a.actors_only, max_spool_bytes=(8 << 30) if a.actors_only else 16 << 20)
     for r in res:
         c = r["compute"]
         blk = r["actor_blocked_s"]

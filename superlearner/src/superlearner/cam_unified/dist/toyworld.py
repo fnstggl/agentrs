@@ -378,7 +378,11 @@ class TinyLearnerModel:
                 torch.tensor(masks, dtype=torch.bool), torch.tensor(lags, dtype=torch.long))
 
     def update(self, batch) -> dict:
-        trajs = batch.trajectories
+        # truncated trajectories (actor stopped or crashed mid-episode) lack their final delayed outcomes; training
+        # on them would treat missing payouts as zeros, so they are left out (they stay in the archive)
+        trajs = [t for t in batch.trajectories if not t.truncated]
+        if not trajs:
+            return {"skipped": "all trajectories truncated", "n_steps": 0, "n_truncated": len(batch.trajectories)}
         x, r_in, a, mu, rew, pay_y, pay_m, dt, mask, lag = self._tensors(trajs)
         B, T = a.shape
         K = self.net.n_tools
@@ -421,7 +425,8 @@ class TinyLearnerModel:
                 "payoff_loss": pay_loss.item(), "mean_reward": float((rew * m).sum() / n), "grad_norm": gn,
                 "rho_mean_offpolicy": float(rho[off].mean()) if off.any() else None,
                 "rho_clipped_frac": float(((log_rho.exp() > self.rho_bar) & off).float().sum() / off.float().sum())
-                if off.any() else None, "n_steps": int(m.sum())}
+                if off.any() else None, "n_steps": int(m.sum()),
+                "n_truncated": len(batch.trajectories) - len(trajs)}
 
 
 def make_tiny_learner(seed: int = 0, **kw) -> TinyLearnerModel:

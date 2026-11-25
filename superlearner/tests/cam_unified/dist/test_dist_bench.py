@@ -22,7 +22,7 @@ def test_actor_throughput_1_4_8(tmp_path):
         if fd is not None:
             fcntl.flock(fd, fcntl.LOCK_EX)
         secs = float(os.environ.get("CAM_BENCH_SECONDS", "15"))
-        gen = benchmark_actors(out, (1, 4, 8), seconds=secs, with_learner=False, max_spool_bytes=8 << 30)
+        gen = benchmark_actors(out, (1, 4, 8, 16), seconds=secs, with_learner=False, max_spool_bytes=8 << 30)
         res = benchmark_actors(out, (1, 4, 8), seconds=secs)
     finally:
         if fd is not None:
@@ -38,6 +38,9 @@ def test_actor_throughput_1_4_8(tmp_path):
     print("actors-only generation:", [(g["n_actors"], round(g["decisions_per_s_steady"] or 0)) for g in gen])
     print("end-to-end:", [(r["n_actors"], round(r["decisions_per_s_steady"] or 0),
                            round(r["trained_decisions_per_s_steady"] or 0)) for r in res])
+    print("learning speed:", json.dumps({r["n_actors"]: r["learning_speed"] for r in res}))
+    print("actors-only compute:", json.dumps({g["n_actors"]: {k: g["compute"][k] for k in
+                                                              ("cpu_s", "wall_s", "peak_rss_mb_sum")} for g in gen}))
     # experience generation scales with actors (independent processes, separate worlds)
     assert gen[1]["decisions_per_s_steady"] > 2.5 * gen[0]["decisions_per_s_steady"]
     assert gen[2]["decisions_per_s_steady"] > gen[1]["decisions_per_s_steady"]

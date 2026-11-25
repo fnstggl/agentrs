@@ -223,8 +223,21 @@ def test_crashed_actor_is_restarted_and_queue_stays_consistent(tmp_path):
                 break
         time.sleep(0.1)
     time.sleep(3)                                       # let the learner see the dead incarnation's open episode
+    v_before = read_latest(os.path.join(run, "ckpt"))["version"]
+    lpid = la.kill("learner", signal.SIGKILL)           # the learner crashes too
+    t1 = time.time()
+    while time.time() - t1 < 60:
+        la.poll()
+        lst = la._read_status().get("learner", {})
+        if la.restarts.get("learner") == 1 and lst.get("pid") not in (None, lpid) and \
+                lst.get("version", -1) > v_before:
+            break
+        time.sleep(0.1)
     s = la.stop()
-    assert killed is not None and s["restarts"] == {"a0": 1}
+    assert s["restarts"] == {"a0": 1, "learner": 1}
+    assert s["learner_counts"].get("resumed_from", -1) >= v_before   # resumed from LATEST, versions continue
+    assert s["learner_version"] > v_before
+    assert killed is not None
     evs = [json.loads(l) for l in open(os.path.join(run, "launcher.jsonl"))]
     assert [e["event"] for e in evs if e["name"] == "a0"][:3] == ["start", "exit", "restart"]
     assert any(e["event"] == "exit" and e["name"] == "a0" and e["exitcode"] == -signal.SIGKILL for e in evs)
@@ -268,3 +281,46 @@ def test_learner_restart_resumes_from_latest_and_rebuilds_open_trajectories(tmp_
     r = L2.step()
     assert r is not None and r["by_actor"] == {"a1": 64}                # trained after the restart, not lost
     L2.close()
+
+
+class _FlakyEnv:
+    """EnvAdapter wrapper whose world raises once mid-episode (a crashed simulator)."""
+
+    def __init__(self, inner, fail_at):
+        self.inner, self.fail_at, self.n = inner, fail_at, 0
+        self.env_ids = inner.env_ids
+
+    def __getattr__(self, k):
+        return getattr(self.inner, k)
+
+    def execute(self, actions):
+        self.n += 1
+        if self.n == self.fail_at:
+            raise RuntimeError("simulator crashed")
+        return self.inner.execute(actions)
+
+
+def test_environment_failure_closes_episode_and_actor_continues(tmp_path, monkeypatch):
+    import superlearner.cam_unified.dist.toyworld as tw
+    made = []
+    orig = tw.make_toy_env
+
+    def factory(seed=0, **kw):
+        env, ev = orig(seed=seed, **kw)
+        made.append(env)
+        return (_FlakyEnv(env, 5), ev) if len(made) == 1 else (env, ev)
+    monkeypatch.setattr(tw, "make_toy_env", factory)
+    run = str(tmp_path / "run")
+    m = make_tiny_learner(seed=0)
+    L = CentralLearner(run, m, sink=JsonlArchive(os.path.join(run, "archive")), min_decisions=16)
+    a = ActorProcess(ActorSpec("a0", run, env_kwargs={"B": 2, "episode_len": 8}, seed=4, max_episodes=2,
+                               batch_records=1000))
+    st = a.run()
+    assert st["env_failures"] == 1 and st["truncated_episodes"] == 2 and st["episodes"] == 2
+    assert len(made) == 2 and "simulator crashed" in st["last_error"]
+    L.ingest()
+    trs = L.assembler.pop_ready()
+    trunc = [t for t in trs if t.truncated]
+    assert len(trunc) == 2 and all(t.n == 4 for t in trunc)          # 4 decisions made before the crash
+    assert len([t for t in trs if not t.truncated]) == 4
+    L.close()
