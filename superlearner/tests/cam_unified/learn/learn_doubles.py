@@ -48,8 +48,8 @@ class KalmanDouble(nn.Module):
     def update(self, belief, step, t):
         mu, P = belief
         phi = self.phi(step)
-        y = step.outcomes.y[:, 0]
         m = step.outcomes.y_mask[:, 0].float()
+        y = torch.where(m > 0, step.outcomes.y[:, 0], torch.zeros_like(step.outcomes.y[:, 0]))
         s = torch.einsum("bf,bfg,bg->b", phi, P, phi) + torch.exp(self.log_noise)
         K = torch.einsum("bfg,bg->bf", P, phi) / s.unsqueeze(-1)
         innov = y - (phi * mu).sum(-1)
@@ -62,9 +62,10 @@ class KalmanDouble(nn.Module):
         phi = self.phi(step)
         mean = (phi * mu).sum(-1)
         var = torch.einsum("bf,bfg,bg->b", phi, P, phi) + torch.exp(self.log_noise)
-        y = step.outcomes.y[:, 0]
+        m = step.outcomes.y_mask[:, 0]
+        y = torch.where(m, step.outcomes.y[:, 0], torch.zeros_like(step.outcomes.y[:, 0]))
         lp = -0.5 * (torch.log(2 * math.pi * var) + (y - mean) ** 2 / var)
-        return lp * step.outcomes.y_mask[:, 0].float()
+        return torch.where(m, lp, torch.zeros_like(lp))
 
 
 def regression_sequence(B: int, T: int, F_: int = 4, D: int = 16, theta_sd: float = 2.0, noise: float = 0.3,
@@ -85,7 +86,8 @@ def regression_sequence(B: int, T: int, F_: int = 4, D: int = 16, theta_sd: floa
         done = torch.zeros(B, dtype=torch.bool)
         if done_at is not None and t == done_at:
             done[:] = True
-        steps.append(StepBatch(obs=TokenSet.empty(B, D), act=TokenSet.from_dense(ax, TokenKind.ACTION), outcomes=oc,
+        obs = TokenSet.from_dense(torch.zeros(B, 1, D), TokenKind.OBS_SEM)        # one valid observation token
+        steps.append(StepBatch(obs=obs, act=TokenSet.from_dense(ax, TokenKind.ACTION), outcomes=oc,
                                dt=torch.ones(B), reward=torch.zeros(B), done=done, behavior_logp=torch.zeros(B),
                                model_version=torch.zeros(B, dtype=torch.long),
                                event_ids=[f"e{b}_{t}" for b in range(B)]))
@@ -146,6 +148,10 @@ class ArmBelief:
     def init(self, B):
         return torch.full((B, self.n), -math.log(self.n))
 
+    def update(self, logw: torch.Tensor, ll: torch.Tensor, watched: torch.Tensor) -> torch.Tensor:
+        """Bayes' rule: the watch reading has the same likelihood under every hypothesis, so it changes nothing."""
+        return torch.log_softmax(logw + ll, -1)
+
     def loglik(self, obs: list) -> torch.Tensor:
         """[n_arms] log p(observations | h) for one environment's observation list."""
         ll = torch.zeros(self.n)
@@ -182,35 +188,61 @@ class ArmBelief:
         return None
 
 
+class ReactiveArmBelief(ArmBelief):
+    """A miscalibrated belief whose (learned-style) update reacts to pure noise — the noisy-TV failure mode of a
+    filter with surprise-triggered uncertainty expansion. Its prior is overconfident (logit ``bias`` on arm 0 while
+    the paying arm is uniform) and every watch reading tempers the belief towards uniform (logits x (1 - expand)).
+    The reading carries no information, yet the tempered belief predicts later probe / pull outcomes *better* on
+    average, so the raw hindsight LP of watching is positive; its epistemic share (every hypothesis predicts the same
+    reading distribution) is exactly 0."""
+
+    def __init__(self, n_arms: int, pay: float = 100.0, eps: float = 1e-3, bias: float = 3.0, expand: float = 0.5):
+        super().__init__(n_arms, pay, eps)
+        self.bias, self.expand = bias, expand
+
+    def init(self, B):
+        logits = torch.zeros(B, self.n)
+        logits[:, 0] = self.bias
+        return torch.log_softmax(logits, -1)
+
+    def update(self, logw, ll, watched):
+        tempered = torch.where(watched.unsqueeze(-1), (1 - self.expand) * logw, logw)
+        return torch.log_softmax(tempered + ll, -1)
+
+
 def arm_learning_progress(res, belief: ArmBelief, horizon: int = 8, coef: float = 1.0, corrected: bool = True,
                           enabled: bool = True) -> dict:
-    """Hindsight LP of every decision of a `RunResult` from the probe bandit, under the exact arm belief.
+    """Hindsight LP of every decision of a `RunResult` from the probe bandit, under the arm belief (its own update).
     Returns {"lp", "signal_frac", "intrinsic"} [B, L] (compacted like the trajectory)."""
     traj = res.traj
     B, L = traj.B, traj.T
     K = belief.n
     LL = torch.zeros(B, L, K)
+    watched = torch.zeros(B, L, dtype=torch.bool)
     probs = {}
     for b in range(B):
         for t, obs in enumerate(res.observations[b]):
             LL[b, t] = belief.loglik(obs)
+            watched[b, t] = any(o.source == "watch" for o in obs)
             probs[(b, t)] = belief.outcome_probs(obs)
-    steps = [LL[:, t] for t in range(L)]
+    steps = list(range(L))
     beliefs = [belief.init(B)]
     for t in range(L - 1):
-        beliefs.append(torch.log_softmax(beliefs[-1] + steps[t], -1))
-    upd = lambda bel, ll, t: torch.log_softmax(bel + ll, -1)                 # noqa: E731
-    lpf = lambda bel, ll, t: torch.logsumexp(bel + ll, -1)                   # noqa: E731
-    ep = traj.trial if traj.trial is not None else None
-    r = hindsight_learning_progress(beliefs, steps, upd, lpf, horizon, traj.mask, ep)
+        beliefs.append(belief.update(beliefs[-1], LL[:, t], watched[:, t]))
+    upd = lambda bel, t_, t: belief.update(bel, LL[:, t], watched[:, t])          # noqa: E731
+    lpf = lambda bel, t_, t: torch.logsumexp(bel + LL[:, t], -1)                   # noqa: E731
+    # one row = one task (the paying arm is the same in every trial of a meta-episode), so later trials' observations
+    # are valid queries about the same hypothesis; the belief itself is never reset between trials either
+    r = hindsight_learning_progress(beliefs, steps, upd, lpf, horizon, traj.mask)
     rho = torch.zeros(B, L)
     for (b, t), p in probs.items():
         if p is None or not bool(traj.mask[b, t]):
             continue
         d = categorical_decomposition(p.unsqueeze(0), beliefs[t][b:b + 1])
         rho[b, t] = combine_signal_frac(d["signal_frac"])[0]
-    intr = exploration_reward(r["lp"], rho if corrected else None, coef, enabled=enabled) * traj.mask.float()
-    return {"lp": r["lp"], "signal_frac": rho, "intrinsic": intr}
+    intr = exploration_reward(r["lp"], rho if corrected else None, coef, enabled=enabled)
+    intr = torch.where(traj.mask, intr, torch.zeros_like(intr))
+    return {"lp": r["lp"], "signal_frac": rho, "intrinsic": intr, "watched": watched}
 
 
 # ================================================================================================ probe agent
@@ -360,42 +392,67 @@ class ProbeAgent(nn.Module):
 def train_probe_agent(agent: ProbeAgent, iters: int = 200, B: int = 128, horizon=(1, 6), n_trials: int = 1,
                       trial_weights=None, epochs: int = 4, lr: float = 2e-3, entropy_coef: float = 0.01,
                       seed0: int = 0, noise_tv: bool = False, log_every: int = 0, grad_probe_every: int = 25,
-                      stage="actor_critic", lp_coef: float = 0.0, lp_horizon: int = 8,
-                      lp_anneal: float | None = None) -> dict:
-    """``lp_anneal``: fraction of the iterations over which the LP coefficient decays linearly to 0 (LP as an
-    initial training signal); None keeps it constant."""
-    """Train with the production machinery; returns the trainer, per-iteration stats and timing."""
-    cfg = make_config("dev", lr=lr, grad_clip=1.0)
+                      stage=None, lp_coef: float = 0.0, lp_horizon: int = 8, lp_anneal: float | None = None,
+                      belief: ArmBelief | None = None, corrected: bool = True, support_weights=None,
+                      competence_window=None, use_learned_exploration: bool | None = None) -> dict:
+    """Train with the production machinery; returns the trainer, per-iteration stats and timing.
+
+    Without LP, trials or support weights the objective is the plain actor-critic (stage ``actor_critic``, key
+    "actor"); otherwise `MetaRLObjective.from_config` (stage ``explore_meta``, key "meta"), whose LP term is gated
+    by ``cfg.use_learned_exploration`` and the stage's ``lp_reward`` flag and scaled by ``cfg.lp_coef``.
+    ``lp_anneal``: fraction of the iterations over which the LP coefficient decays linearly to 0 (LP as an initial
+    training signal); None keeps it constant. ``belief``: the arm belief that scores LP (default: exact `ArmBelief`);
+    ``corrected=False`` uses the raw LP without the epistemic signal fraction (noisy-TV control)."""
+    use_le = (lp_coef > 0) if use_learned_exploration is None else use_learned_exploration
+    cfg = make_config("dev", lr=lr, grad_clip=1.0, lp_coef=float(lp_coef), use_learned_exploration=use_le)
     adapter = ProbeBanditAdapter(B, n_arms=agent.n_arms, horizon=horizon, noise_tv=noise_tv)
     runner = TrialRunner(adapter, adapter.evaluator)
     ac = ActorCriticObjective(kappa=cfg.kappa, gae_lambda=0.95, clip=0.2, entropy_coef=entropy_coef,
                               target_kl=0.05, max_fresh_kl=0.05)
-    meta = MetaRLObjective(ac, trial_weights=trial_weights, use_intrinsic=lp_coef > 0)
-    belief = ArmBelief(agent.n_arms, agent.pay)
+    meta_rl = lp_coef > 0 or n_trials > 1 or trial_weights is not None or support_weights is not None
+    stage = stage or ("explore_meta" if meta_rl else "actor_critic")
     trainer = CombinedTrainer(cfg, core=agent.core_params(), heads=agent.head_params(), stage=stage, amp=False,
                               grad_probe_every=grad_probe_every)
+    objective = MetaRLObjective.from_config(cfg, ac, trainer=trainer, trial_weights=trial_weights,
+                                            support_weights=support_weights,
+                                            competence_window=competence_window) if meta_rl else ac
+    belief = belief or ArmBelief(agent.n_arms, agent.pay)
     hist = []
     t0 = time.time()
     for it in range(iters):
         seeds = list(range(seed0 + it * B, seed0 + (it + 1) * B))
         res = runner.run(agent, seeds, n_trials=n_trials)
         lp_mean = 0.0
-        coef = lp_coef if lp_anneal is None else lp_coef * max(0.0, 1.0 - it / max(1.0, lp_anneal * iters))
+        if meta_rl:
+            objective.lp_coef = lp_coef if lp_anneal is None else \
+                lp_coef * max(0.0, 1.0 - it / max(1.0, lp_anneal * iters))
         if lp_coef > 0:
-            lpr = arm_learning_progress(res, belief, lp_horizon, coef)
+            lpr = arm_learning_progress(res, belief, lp_horizon, 1.0, corrected=corrected)
             res.traj.intrinsic = lpr["intrinsic"]
             lp_mean = float(lpr["lp"][res.traj.mask].mean())
-        epochs_out = run_epochs(meta, res.traj, agent.version, agent.recompute, trainer.step, epochs)
+        epochs_out = run_epochs(objective, res.traj, agent.version, agent.recompute, trainer.step, epochs)
         d = epochs_out[-1]
         last = d["update"]
         agent.version += 1
         probe_rate = sum(sum(a == "probe" for a in row) for row in res.actions) / max(1, int(res.traj.mask.sum()))
         hist.append({"it": it, "return": float(res.per_trial_return.sum(1).mean()), "kl": d["kl"],
-                     "entropy": d["entropy"], "update": last, "lp": lp_mean, "probe_rate": probe_rate})
+                     "entropy": d["entropy"], "update": last, "lp": lp_mean, "probe_rate": probe_rate,
+                     "lp_in_reward": d.get("lp_in_reward", 0)})
         if log_every and it % log_every == 0:
             print(it, round(hist[-1]["return"], 1), round(d["entropy"], 3), round(d["kl"], 4), round(lp_mean, 3),
                   round(probe_rate, 3))
-    return {"trainer": trainer, "hist": hist, "seconds": time.time() - t0}
+    return {"trainer": trainer, "hist": hist, "seconds": time.time() - t0, "objective": objective}
+
+
+def competence_curve(policy, H: int = 6, n_arms: int = 6, ks=(0, 1, 2, 4), window: int = 1, n_per: int = 200,
+                     seed0: int = 3_000_000, greedy: bool = True) -> dict:
+    """Policy-level J_tau(U(D_{1:k})): mean verified return of decisions k .. k+window-1 of held-out tasks after k
+    support decisions (`MetaRLObjective.competence_by_support`)."""
+    adapter = ProbeBanditAdapter(n_per, n_arms=n_arms, horizon=H)
+    res = TrialRunner(adapter, adapter.evaluator).run(policy, list(range(seed0, seed0 + n_per)), greedy=greedy)
+    meta = MetaRLObjective(ActorCriticObjective(), support_weights={k: 1.0 for k in ks}, competence_window=window)
+    out = meta.competence_by_support(res.traj)
+    return {k: out[k] for k in ks}
 
 
 def evaluate(policy, n_arms: int = 6, horizons=range(1, 7), n_per: int = 200, seed0: int = 1_000_000,

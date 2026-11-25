@@ -1,10 +1,12 @@
 """CAM 7.0 math (NIG / Student-t / KG / EIG / Thompson) ported unchanged; streaming statistics; guarded math-assist
 inputs; spec 8.5 baselines on the probe bandit."""
+import math
+
 import pytest
 import torch
 
 from superlearner.cam7 import posterior as cam7
-from superlearner.cam_unified.interfaces import TokenKind
+from superlearner.cam_unified.interfaces import Action, TokenKind
 from superlearner.cam_unified.learn import math_assist as M
 from superlearner.cam_unified.learn.diagnostics import ProbeBanditAdapter
 from superlearner.cam_unified.learn.meta import TrialRunner
@@ -98,3 +100,59 @@ def test_discrete_tool_baselines_run_on_the_probe_bandit():
         assert all(len(a) == 6 for a in res.actions)
     assert rets["greedy"] > rets["random"] + 100            # posterior-mean elimination vs uniform random
     assert rets["greedy"] <= ad.elimination_value(6) + 60   # no baseline exploits the probe's information
+
+
+def test_structured_prior_kg_values_the_information_only_probe():
+    """With correlated hypotheses the probe's report updates every arm's value: KG(probe) > 0 although the probe pays
+    nothing; the independent-candidate model gives it no value of information."""
+    ad = ProbeBanditAdapter(4, horizon=6)
+    sp = ad.structured_prior()
+    m = M.HypothesisValueModel(4, sp)
+    mean, kg = m.mean(), m.knowledge_gradient()
+    assert mean[0, 0].item() == pytest.approx(-30.0) and mean[0, 1].item() == pytest.approx(100 / 6)
+    assert kg[0, 0].item() == pytest.approx(100.0 - 100 / 6)                 # after the probe the best arm pays 100
+    assert kg[0, 1].item() == pytest.approx((1 / 6) * (100 - 100 / 6) + (5 / 6) * (20 - 100 / 6))
+    assert m.info_gain()[0, 0].item() == pytest.approx(math.log(6))          # the probe reveals the hypothesis
+    m.update(torch.zeros(4, dtype=torch.long), torch.tensor([2, 2, 3, 5]))  # probe outcomes: arms 2, 2, 3, 5 signal
+    assert torch.allclose(m.mean()[:, 1 + 2], torch.tensor([100.0, 100.0, 0.0, 0.0], dtype=torch.float64))
+    assert torch.allclose(m.knowledge_gradient(), torch.zeros(4, 7, dtype=torch.float64), atol=1e-9)
+    # the outcome reader maps observations to outcome indices
+    ad.reset([0, 1, 2, 3])
+    res = ad.execute([Action("probe")] * 4)
+    for b in range(4):
+        g = ad.evaluator.evaluate_goal(b).details["hidden"]["good_arm"]
+        assert sp.outcome_fn(0, res[b].observations) == g
+    # one-step VOI on the independent model: the probe has no value
+    cvm = M.CandidateValueModel(1, 7, prior_mean=[-30.0] + [100 / 6] * 6, b0=100.0 ** 2)
+    assert cvm.scores()[0, 0, 2].item() < cvm.scores()[0, 1:, 2].min().item()
+
+
+def test_structured_kg_baseline_probes_first_and_is_near_bayes_optimal():
+    rets, first = {}, {}
+    for kind in ("kg", "kg_structured", "greedy_structured"):
+        for H in (2, 4, 6):
+            ad = ProbeBanditAdapter(64, horizon=H)
+            pol = M.DiscreteToolPolicy(kind, prior_mean={"pull": 100 / 6}, seed=1, structured=ad.structured_prior())
+            res = TrialRunner(ad, ad.evaluator).run(pol, list(range(900, 964)))
+            rets[(kind, H)] = float(res.per_trial_return.sum(1).mean())
+            first[(kind, H)] = sum(a[0] == "probe" for a in res.actions) / 64
+    for H in (2, 4, 6):
+        assert first[("kg_structured", H)] == 1.0 and first[("kg", H)] == 0.0
+        assert rets[("kg_structured", H)] == pytest.approx(ad.bayes_optimal_value(H))   # noise-free: exact
+        assert rets[("kg_structured", H)] > rets[("kg", H)] + 15
+        assert first[("greedy_structured", H)] == 0.0                                  # myopic: never probes
+    with pytest.raises(ValueError):
+        M.BanditBaseline("kg_structured", 7)
+
+
+def test_math_assist_from_config_and_thompson_draws_with_a_generator_on_another_device():
+    from superlearner.cam_unified.config import make_config
+    assert M.MathAssistEncoder.from_config(make_config("dev")).enabled is False
+    on = M.MathAssistEncoder.from_config(make_config("dev", math_explore_assist=True), d_model=16)
+    assert on.enabled and on(torch.randn(1, 3, 5)).x.shape == (1, 3, 16)
+    phi, y, om, pri = _data(T=30)
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    post = M.fit(phi.to(dev), y.to(dev), om.to(dev), *(p.to(dev) for p in pri))
+    w1 = M.sample_weights(post, 8, torch.Generator().manual_seed(5))
+    w2 = M.sample_weights(post, 8, torch.Generator().manual_seed(5))
+    assert torch.equal(w1, w2) and w1.device.type == torch.device(dev).type

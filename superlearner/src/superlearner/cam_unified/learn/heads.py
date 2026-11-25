@@ -62,6 +62,24 @@ def twohot_mean(logits: Tensor, bins: Tensor) -> Tensor:
     return symexp(wavg)
 
 
+def rand_like_device(shape, device, generator: Optional[torch.Generator] = None, normal: bool = False,
+                     dtype=torch.float32) -> Tensor:
+    """Uniform [0,1) (or standard normal) samples on ``device``. A seeded ``generator`` may live on another device
+    (e.g. a CPU generator for reproducible tests driving CUDA tensors): sampling then happens on the generator's
+    device and the result is moved."""
+    fn = torch.randn if normal else torch.rand
+    if generator is None:
+        return fn(shape, device=device, dtype=dtype)
+    return fn(shape, device=generator.device, dtype=dtype, generator=generator).to(device)
+
+
+def multinomial_on(probs: Tensor, generator: Optional[torch.Generator] = None) -> Tensor:
+    """One categorical draw per row of ``probs`` [B,C] -> [B] long, honouring a generator on another device."""
+    if generator is None or generator.device == probs.device:
+        return torch.multinomial(probs, 1, generator=generator).squeeze(-1)
+    return torch.multinomial(probs.detach().to(generator.device), 1, generator=generator).squeeze(-1).to(probs.device)
+
+
 # ----------------------------------------------------------------------------------------------- building blocks
 
 class _MLP(nn.Module):
@@ -147,6 +165,12 @@ class ValueHead(nn.Module):
         self.mlp = _MLP(d_model, hidden or d_model, n_bins, zero_out=True)
         self.register_buffer("bins", torch.linspace(low, high, n_bins), persistent=False)
 
+    @staticmethod
+    def from_config(cfg, **over) -> "ValueHead":
+        kw = dict(d_model=cfg.d_model, n_heads=cfg.n_heads)
+        kw.update(over)
+        return ValueHead(**kw)
+
     def forward(self, R: Tensor, goal: Optional[TokenSet] = None, extra: Optional[list] = None,
                 state_kind: int = TokenKind.STATE) -> ValueOutput:
         h = self.pool(R, [goal] + list(extra or []), state_kind=state_kind)[:, 0]
@@ -201,6 +225,13 @@ class OptionModule(nn.Module):
         with torch.no_grad():                     # start with long options (beta ~ 0.12) rather than coin flips
             self.term.fc2.bias.fill_(-2.0)
 
+    @staticmethod
+    def from_config(cfg, **over) -> "OptionModule":
+        """``cfg.d_model``, ``cfg.n_options`` latent options, ``cfg.option_max_steps``, ``cfg.n_heads``."""
+        kw = dict(d_model=cfg.d_model, n_options=cfg.n_options, max_steps=cfg.option_max_steps, n_heads=cfg.n_heads)
+        kw.update(over)
+        return OptionModule(**kw)
+
     # -- pieces
     def _pooled(self, R: Tensor, goal: Optional[TokenSet]):
         h = self.pool(R, [goal])
@@ -249,9 +280,9 @@ class OptionModule(nn.Module):
             term = forced | (beta > 0.5)
             choice = logp_sel.argmax(-1)
         else:
-            u = torch.rand(prev.shape, device=R.device, generator=generator)
+            u = rand_like_device(prev.shape, R.device, generator)
             term = forced | (u < beta)
-            choice = torch.multinomial(logp_sel.exp(), 1, generator=generator).squeeze(-1)
+            choice = multinomial_on(logp_sel.exp(), generator)
         option = torch.where(term, choice, prev)
         logp, ent = self._logp_entropy(logp_sel, ent_sel, forced, beta, option, term)
         steps = torch.where(term, torch.ones_like(steps_prev), steps_prev + 1)
@@ -331,6 +362,12 @@ class BudgetEncoder(nn.Module):
         self.register_buffer("freq", 2.0 ** torch.arange(n_fourier).float() * 0.25, persistent=False)
         self.d_in = self.N_Q * (3 + 2 * n_fourier + 1)
         self.mlp = _MLP(self.d_in, d_model, d_model)
+
+    @staticmethod
+    def from_config(cfg, **over) -> "BudgetEncoder":
+        kw = dict(d_model=cfg.d_model)
+        kw.update(over)
+        return BudgetEncoder(**kw)
 
     def features(self, b: BudgetState) -> Tensor:
         raw = b.stack().float()                          # [B,6]

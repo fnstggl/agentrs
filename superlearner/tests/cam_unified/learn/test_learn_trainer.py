@@ -168,3 +168,15 @@ def test_backbone_probe_on_a_large_backbone_uses_exact_norms_and_sampled_cosines
     assert info2.backbone["cosine"]["world|meta"] == pytest.approx(-1.0, abs=1e-5)   # exact even when sampled
     info3 = tr.step({"world": m.backbone(x).sum(), "meta": torch.tensor(0.5)})        # objective without a graph
     assert info3.backbone["norm"]["meta"] == 0.0
+
+
+def test_critic_weight_must_be_unambiguous():
+    m = _Model()
+    with pytest.raises(ValueError):
+        CombinedTrainer(make_config("dev", value_coef=1.0), core=m.backbone, amp=False)
+    tr = CombinedTrainer(make_config("dev", value_coef=1.0), core=m.backbone, amp=False,
+                         loss_weights={"value": 1.0})
+    assert tr.weights["value"] == 1.0
+    cfg = make_config("dev", value_coef=2.0)
+    cfg.loss_weights["value"] = 2.0
+    assert CombinedTrainer(cfg, core=m.backbone, amp=False).weights["value"] == 2.0

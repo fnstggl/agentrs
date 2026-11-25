@@ -193,3 +193,32 @@ def test_budget_conditioned_policy_learns_delayed_credit():
     assert acts[:5] == ["invest"] * 5 and acts[5:] == ["safe"] * 3, acts     # invest while the payoff can arrive
     ret = float(res.per_trial_return.sum(1).mean())
     assert ret == pytest.approx(ad._oracle_return(ad.envs[0]), abs=1e-6)
+
+
+def test_scores_are_normalised_against_the_oracle_for_every_family():
+    from superlearner.cam_unified.learn.diagnostics import normalised_score
+    assert normalised_score(50.0, 100.0) == 0.5 and normalised_score(-5.0, 100.0) == 0.0
+    assert normalised_score(-2.0, -1.0) == 0.5 and normalised_score(-0.5, -1.0) == 1.0
+    assert normalised_score(0.0, 0.0) == 1.0 and normalised_score(-1.0, 0.0) == 0.5
+    # changing mechanism: the oracle knows the gain; its expected return is -sum(noise^2 + unreachable residual)
+    ad = ChangingMechanismAdapter(64, horizon=12, noise=0.1)
+    ob = ad.reset(list(range(64)))
+    while not all(ob.done):
+        acts = []
+        for e in ad.envs:
+            g = e.hidden["gain"] if e.decisions < e.hidden["change_at"] else e.hidden["gain_after"]
+            acts.append(Action("set_level", {"level": max(-1.0, min(1.0, ad.target / g))}))
+        res = ad.execute(acts)
+        ob = ad.advance_time([r.duration for r in res])
+    oracle_like = [ad.evaluator.evaluate_goal(b) for b in range(64)]
+    want = sum(r.details["oracle_return"] for r in oracle_like) / 64
+    got = sum(r.metrics["return"] for r in oracle_like) / 64
+    assert want < 0 and abs(got - want) < 0.1 * abs(want) + 0.02
+    assert sum(r.score for r in oracle_like) / 64 > 0.8
+    ad.reset(list(range(64)))
+    ob = ad.reset(list(range(64)))
+    while not all(ob.done):                                  # a policy that ignores the gauge
+        res = ad.execute([Action("set_level", {"level": 0.0})] * 64)
+        ob = ad.advance_time([r.duration for r in res])
+    lazy = sum(ad.evaluator.evaluate_goal(b).score for b in range(64)) / 64
+    assert 0.0 < lazy < 0.1

@@ -169,3 +169,18 @@ def test_lp_trained_experimenter_prefers_information_surprise_trained_prefers_no
         assert p_probe > 0.9, p_probe
     else:
         assert p_probe < 0.1, p_probe
+
+
+def test_intrinsic_reward_is_finite_for_nonfinite_lp_and_zero_for_pure_noise():
+    lp = torch.tensor([float("-inf"), float("inf"), float("nan"), 3.0, -50.0])
+    rho = torch.tensor([0.0, 0.0, 1.0, 0.5, 1.0])
+    assert noise_corrected_lp(lp, rho).tolist() == [0.0, 0.0, 0.0, 1.5, -50.0]
+    r = exploration_reward(lp, rho, coef=2.0, clip=10.0)
+    assert torch.isfinite(r).all() and r.tolist() == [0.0, 0.0, 0.0, 3.0, -20.0]
+    raw = exploration_reward(lp, None, coef=1.0, clip=10.0)
+    assert raw.tolist() == [-10.0, 10.0, 0.0, 3.0, -10.0]
+    assert torch.equal(exploration_reward(lp, rho, 1.0, enabled=False), torch.zeros(5))
+    # unobserved outcomes may carry nan particle log-likelihoods
+    plp = torch.tensor([[[0.0, float("nan")], [-1.0, float("nan")]]])
+    out = mixture_log_prob(plp, torch.log(torch.tensor([[0.5, 0.5]])), torch.tensor([[True, False]]))
+    assert torch.isfinite(out).all()

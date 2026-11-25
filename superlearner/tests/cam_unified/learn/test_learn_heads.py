@@ -133,3 +133,13 @@ def test_budget_token_encodes_scale_presence_and_fractions():
     assert tok.x.shape == (3, 1, 32) and int(tok.kind[0, 0]) == TokenKind.BUDGET and bool(tok.mask.all())
     unk = enc.features(BudgetState.make(2))
     assert torch.all(unk == 0)
+
+
+def test_heads_are_built_from_the_config():
+    cfg = tiny_config(n_options=6, option_max_steps=9)
+    om = OptionModule.from_config(cfg)
+    assert (om.n, om.max_steps, om.emb.shape[1]) == (6, 9, cfg.d_model)
+    vh = ValueHead.from_config(cfg)
+    assert vh(torch.randn(2, 3, cfg.d_model)).value.shape == (2,)
+    be = BudgetEncoder.from_config(cfg)
+    assert be(BudgetState.make(2, decisions_left=3.0, decisions_total=5.0)).x.shape == (2, 1, cfg.d_model)

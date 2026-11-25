@@ -91,7 +91,8 @@ class CombinedTrainer:
     """Optimise all trainable parts of the model with the staged combined objective.
 
     Args:
-      cfg: `CamConfig` (lr, lr_sem, weight_decay, grad_clip, loss_weights).
+      cfg: `CamConfig` (lr, lr_sem, weight_decay, grad_clip, loss_weights; ``value_coef`` must equal
+        ``loss_weights["value"]`` unless the trainer's ``loss_weights`` sets "value" explicitly).
       core / heads / semantic: modules or parameter iterables for the three optimiser groups (disjoint).
       backbone: parameters whose per-objective gradient contributions are measured (default: ``core``).
       stage: index 1..7 or stage name; ``stage_schedule``: [(update_count, stage)] automatic advancement.
@@ -134,6 +135,13 @@ class CombinedTrainer:
         self.betas = betas
         self.opt = torch.optim.AdamW(pg, betas=betas)
         self.backbone = _params(backbone) if backbone is not None else list(groups["core"])
+        # the critic weight appears twice in CamConfig (value_coef and loss_weights["value"]); refuse an ambiguous
+        # config instead of silently applying one of them
+        vc = getattr(cfg, "value_coef", None)
+        if vc is not None and "value" in cfg.loss_weights and not (loss_weights and "value" in loss_weights) \
+                and abs(float(vc) - float(cfg.loss_weights["value"])) > 1e-12:
+            raise ValueError(f"cfg.value_coef={vc} disagrees with cfg.loss_weights['value']="
+                             f"{cfg.loss_weights['value']}; set both (or pass loss_weights={{'value': w}})")
         self.weights = dict(cfg.loss_weights)
         self.weights.update(DEFAULT_EXTRA_WEIGHTS if extra_loss_weights is None else extra_loss_weights)
         if loss_weights:

@@ -8,7 +8,8 @@ Changes for CAM Unified:
   tool call, the harness then advances the world by ``cost_s + think_s``), so a long action or option is discounted by
   its real elapsed simulated time;
 * every recursion takes a validity mask for right-padded batches (``mask[b, t] = False`` after row ``b`` ended); the
-  bootstrap value of a row is ``values[b, L_b]``, the first position after its last valid step;
+  bootstrap value of a row is ``values[b, L_b]``, the first position after its last valid step. Masking uses
+  ``torch.where`` (never a product), so NaN / inf in padded slots of any input cannot reach a valid step;
 * GAE (Schulman et al. 2016) for fresh on-policy data; V-trace also returns the policy-gradient advantages
   ``rho_t (r_t + gamma_t vs_{t+1} - V_t)``;
 * option-level SMDP targets ``R_option + gamma_Delta V(s_next)`` with ``gamma_Delta = exp(-kappa * Delta_t)``.
@@ -75,13 +76,13 @@ def gae(rewards: Tensor, values: Tensor, gammas: Tensor, continues: Tensor, lam:
     B, T, m, c = _prep(rewards, values, gammas, continues, mask)
     adv = torch.zeros_like(rewards)
     acc = torch.zeros_like(values[:, 0])
-    mf = m.to(rewards.dtype)
+    zero = torch.zeros_like(acc)
     for t in reversed(range(T)):
         disc = gammas[:, t] * c[:, t]
         delta = rewards[:, t] + disc * values[:, t + 1] - values[:, t]
-        acc = mf[:, t] * (delta + disc * lam * acc)
+        acc = torch.where(m[:, t], delta + disc * lam * acc, zero)
         adv[:, t] = acc
-    ret = (adv + values[:, :T]) * mf
+    ret = torch.where(m, adv + values[:, :T], torch.zeros_like(adv))
     return adv, ret
 
 
@@ -106,15 +107,15 @@ def vtrace(rewards: Tensor, values: Tensor, gammas: Tensor, continues: Tensor, l
     cc = lam * ratio.clamp(max=c_clip)
     disc = gammas * c_
     delta = rho * (rewards + disc * values[:, 1:] - values[:, :-1])
-    mf = m.to(rewards.dtype)
     vs = values.clone()
     acc = torch.zeros_like(values[:, 0])
+    zero = torch.zeros_like(acc)
     for t in reversed(range(T)):
-        acc = mf[:, t] * (delta[:, t] + disc[:, t] * cc[:, t] * acc)
+        acc = torch.where(m[:, t], delta[:, t] + disc[:, t] * cc[:, t] * acc, zero)
         vs[:, t] = values[:, t] + acc
     pg_rho = ratio.clamp(max=rho_clip if pg_rho_clip is None else pg_rho_clip)
-    pg_adv = pg_rho * (rewards + disc * vs[:, 1:] - values[:, :-1]) * mf
-    return vs, pg_adv, rho * mf
+    pg_adv = torch.where(m, pg_rho * (rewards + disc * vs[:, 1:] - values[:, :-1]), torch.zeros_like(rewards))
+    return vs, pg_adv, torch.where(m, rho, torch.zeros_like(rho))
 
 
 def option_targets(rewards: Tensor, values: Tensor, gammas: Tensor, continues: Tensor, option_start: Tensor,
@@ -147,8 +148,8 @@ def option_targets(rewards: Tensor, values: Tensor, gammas: Tensor, continues: T
         Gam[:, t] = torch.where(m[:, t], gm, torch.zeros_like(gm))
         nxt_G, nxt_Gam = g, gm
         nxt_boundary = start[:, t] | ~m[:, t]
-    keep = (start & m).to(rewards.dtype)
-    return G * keep, Gam * keep
+    keep = start & m
+    return torch.where(keep, G, torch.zeros_like(G)), torch.where(keep, Gam, torch.zeros_like(Gam))
 
 
 class ReturnNormalizer:

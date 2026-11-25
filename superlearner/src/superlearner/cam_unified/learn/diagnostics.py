@@ -197,8 +197,24 @@ class DiagnosticAdapter:
         self._closed = True
 
 
+def normalised_score(ret: float, oracle: float) -> float:
+    """Progress in [0, 1] of a verified return against the oracle's expected return.
+    oracle > 0 (reward-type): ret / oracle; oracle < 0 (cost-type, e.g. squared tracking error with irreducible
+    noise): oracle / ret once ret is worse than the oracle, 1 at or above it; oracle == 0: 1 / (1 + max(0, -ret)).
+    Clipped to [0, 1]."""
+    if oracle > 0:
+        x = ret / oracle
+    elif oracle < 0:
+        x = 1.0 if ret >= oracle else oracle / ret
+    else:
+        x = 1.0 / (1.0 + max(0.0, -ret))
+    return max(0.0, min(1.0, x))
+
+
 class DiagnosticEvaluator:
-    """GoalEvaluator for the diagnostic adapters (evaluator side; may read hidden state, which stays in `details`)."""
+    """GoalEvaluator for the diagnostic adapters (evaluator side; may read hidden state, which stays in `details`).
+    ``score`` = `normalised_score` (return vs. the oracle's expected return); ``achieved`` = episode done with
+    score >= 0.9."""
 
     def __init__(self, adapter: DiagnosticAdapter):
         self.adapter = adapter
@@ -206,8 +222,8 @@ class DiagnosticEvaluator:
     def evaluate_goal(self, env_index: int) -> IndependentGoalResult:
         e = self.adapter.envs[env_index]
         oracle = self.adapter._oracle_return(e)
-        score = 0.0 if oracle <= 0 else max(0.0, min(1.0, e.ret / oracle))
-        return IndependentGoalResult(goal_id=e.goal.goal_id, achieved=bool(e.done and e.ret >= 0.9 * oracle),
+        score = normalised_score(e.ret, oracle)
+        return IndependentGoalResult(goal_id=e.goal.goal_id, achieved=bool(e.done and score >= 0.9),
                                      score=score, metrics={"return": e.ret}, t=e.t, evaluator=self.adapter.family,
                                      details={"hidden": dict(e.hidden), "oracle_return": oracle})
 
@@ -290,6 +306,62 @@ class ProbeBanditAdapter(DiagnosticAdapter):
 
     def _oracle_return(self, e: _Env) -> float:
         return e.horizon * self.pay
+
+    def structured_prior(self):
+        """The task family's hypothesis model for the structured-prior baselines (`math_assist.StructuredPrior`):
+        hypothesis h = paying arm (uniform prior); candidates in `DiscreteToolPolicy.candidates` order (probe,
+        pull 0..n-1, watch). Probe outcome = index of the signalled arm (noise-free) or the signal bit pattern (with
+        ``probe_noise``, n_arms <= 10); pull outcome = paid (payout > pay/2) or not, with the Gaussian payout noise
+        folded into the classification probabilities; watch = its reading (independent of h). Values in cents, the
+        probe's including its cost. Public family structure only — no episode's hidden state."""
+        import torch
+        from .math_assist import StructuredPrior
+        n = self.n_arms
+        if self.probe_noise > 0 and n > 10:
+            raise ValueError("noisy-probe outcome table limited to n_arms <= 10")
+        n_probe = (2 ** n) if self.probe_noise > 0 else n
+        C = 1 + n + (1 if self.noise_tv else 0)
+        O = max(n_probe, 2, 100 if self.noise_tv else 0)
+        lik = torch.zeros(C, n, O, dtype=torch.float64)
+        val = torch.zeros(C, O, dtype=torch.float64)
+        h = torch.arange(n)
+        if self.probe_noise > 0:
+            eps = float(self.probe_noise)
+            for o in range(n_probe):
+                bits = torch.tensor([(o >> i) & 1 for i in range(n)], dtype=torch.bool)
+                match = bits.unsqueeze(0) == (h.unsqueeze(1) == torch.arange(n).unsqueeze(0))   # [h, i]
+                lik[0, :, o] = torch.where(match, 1 - eps, eps).prod(1)
+        else:
+            lik[0, :, :n] = torch.eye(n, dtype=torch.float64)
+        val[0, :n_probe] = -self.probe_cost
+        if self.pay_noise > 0:
+            p_hit = 0.5 * (1 + math.erf(0.5 / (self.pay_noise * math.sqrt(2))))   # payout > pay/2 | paying arm
+        else:
+            p_hit = 1.0
+        for a in range(n):
+            paid = torch.where(h == a, p_hit, 1 - p_hit).double()
+            lik[1 + a, :, 1] = paid
+            lik[1 + a, :, 0] = 1 - paid
+            val[1 + a, 1] = self.pay
+        if self.noise_tv:
+            lik[-1, :, :100] = 0.01
+        names = [("probe", {})] + [("pull", {"arm": a}) for a in range(n)] + ([("watch", {})] if self.noise_tv else [])
+        pay, noisy = self.pay, self.probe_noise > 0
+
+        def outcome_fn(c: int, obs: list) -> int:
+            num = [o for o in obs if o.kind == ObsKind.NUMERIC and o.value is not None]
+            if c == 0:
+                sig = {int(o.entity.split("_")[1]): o.value > 0.5 for o in num if o.source == "probe"}
+                if noisy:
+                    return sum(1 << i for i, v in sig.items() if v)
+                hits = [i for i, v in sig.items() if v]
+                return hits[0] if len(hits) == 1 else 0
+            if c <= n:
+                return int(sum(o.value for o in num if o.source == "pull") > 0.5 * pay)
+            w = [o for o in num if o.source == "watch"]
+            return int(w[0].value) if w else 0
+
+        return StructuredPrior(lik, val, torch.zeros(n, dtype=torch.float64), names, outcome_fn)
 
     def bayes_optimal_value(self, horizon: int) -> float:
         """Expected return of the Bayes-optimal policy (noise-free probe and payouts) by dynamic programming over
@@ -439,4 +511,10 @@ class ChangingMechanismAdapter(DiagnosticAdapter):
         return ExecutionResult(True, [o], duration=self.decision_days, started_t=e.t, finished_t=e.t)
 
     def _oracle_return(self, e: _Env) -> float:
-        return 0.0          # the best expected return is -H * noise^2 (scores are not normalised for this task)
+        """Expected return of the oracle that knows the gain at every decision: per decision the irreducible noise
+        noise^2, plus the residual (target - |g|)^2 when |g| < target makes the target unreachable with |level| <= 1."""
+        tot = 0.0
+        for d in range(e.horizon):
+            g = e.hidden["gain"] if d < e.hidden["change_at"] else e.hidden["gain_after"]
+            tot -= self.noise ** 2 + max(0.0, abs(self.target) - abs(g)) ** 2
+        return tot

@@ -201,3 +201,127 @@ def test_from_config_contract_sequence_and_per_family_percentile_scaling():
     p = o.prepare(traj, 0)
     a = o._norm_adv(p.adv, traj.mask, p)
     assert torch.allclose(a[0], a[2], atol=1e-4) and torch.allclose(a[1], a[3], atol=1e-4)
+
+
+def test_from_sequence_respects_the_contract_padding_convention():
+    """A row that ended (done) and is followed by steps without observation tokens is right-padded."""
+    from superlearner.cam_unified.testing import rand_sequence, tiny_config
+    seq = rand_sequence(2, 5, tiny_config(), seed=0)
+    seq.steps[2].done[1] = True
+    for t in (3, 4):
+        seq.steps[t].obs.mask[1] = False
+        seq.steps[t].reward[1] = float("nan")
+        seq.steps[t].behavior_logp[1] = float("nan")
+    tr = Trajectory.from_sequence(seq, value=torch.zeros(2, 6))
+    assert tr.mask.tolist() == [[True] * 5, [True, True, True, False, False]]
+    assert torch.isfinite(tr.reward).all() and torch.isfinite(tr.behavior_logp).all()
+    prep = ActorCriticObjective(max_policy_lag=0).prepare(tr, 0)
+    assert prep.adv[1, 3:].abs().sum() == 0 and torch.isfinite(prep.adv).all()
+    # a row whose later steps carry observations again started a new episode: not padding
+    seq.steps[4].obs.mask[1, 0] = True
+    assert Trajectory.from_sequence(seq, value=torch.zeros(2, 6)).mask.all()
+
+
+def test_nonfinite_values_in_padding_never_reach_valid_steps():
+    B, T = 2, 4
+    g = torch.Generator().manual_seed(0)
+    reward = torch.randn(B, T, generator=g)
+    beh = -torch.rand(B, T, generator=g)
+    value = torch.randn(B, T + 1, generator=g)
+    mask = torch.tensor([[True] * 4, [True, True, False, False]])
+    done = torch.tensor([[False, False, False, True], [False, True, False, False]])
+    clean = Trajectory(reward=reward.clone(), dt=torch.ones(B, T), done=done, behavior_logp=beh.clone(),
+                       model_version=torch.zeros(B, T, dtype=torch.long), mask=mask, value=value.clone())
+    r2, b2, v2 = reward.clone(), beh.clone(), value.clone()
+    r2[1, 3], b2[1, 3], v2[1, 4] = float("nan"), float("nan"), float("inf")
+    r2[1, 2], b2[1, 2] = float("inf"), float("-inf")
+    dirty = Trajectory(reward=r2, dt=torch.ones(B, T), done=done, behavior_logp=b2,
+                       model_version=torch.zeros(B, T, dtype=torch.long), mask=mask, value=v2)
+    obj = ActorCriticObjective(max_fresh_kl=10.0)
+    outs = []
+    for tr in (clean, dirty):
+        prep = obj.prepare(tr, 0)
+        theta = torch.zeros(B, T, requires_grad=True)
+        d = obj.loss(tr, prep, tr.behavior_logp + theta, torch.zeros(B, T), torch.zeros(B, T + 1))
+        (gr,) = torch.autograd.grad(d["actor"], theta)
+        outs.append((prep.adv, d["actor"].detach(), gr))
+    assert torch.isfinite(outs[1][1]) and torch.allclose(outs[0][0], outs[1][0])
+    assert torch.allclose(outs[0][1], outs[1][1]) and torch.allclose(outs[0][2], outs[1][2])
+    # the same holds for the stale (V-trace) route
+    p = obj.prepare(dirty, 5)
+    d = obj.loss(dirty, p, dirty.behavior_logp, torch.zeros(B, T), torch.zeros(B, T + 1))
+    assert d["n_stale_steps"] == 6 and torch.isfinite(d["actor"]) and torch.isfinite(d["value"])
+
+
+def test_advantage_floor_is_invariant_to_a_constant_reward_offset():
+    """Baseline revenue added to every decision (fixed horizon) must not shrink informative advantages."""
+    B, T = 64, 5
+    g = torch.Generator().manual_seed(1)
+    info = torch.randn(B, T, generator=g) * 10.0          # the informative part
+    done = torch.zeros(B, T, dtype=torch.bool)
+    done[:, -1] = True
+    obj = ActorCriticObjective(kappa=0.0, gae_lambda=0.95)
+    res = []
+    for offset in (0.0, 10_000.0):
+        remaining = torch.arange(T, 0, -1).float()
+        value = torch.zeros(B, T + 1)
+        value[:, :T] = offset * remaining                 # a fitted critic absorbs the offset
+        traj = Trajectory(reward=info + offset, dt=torch.ones(B, T), done=done, behavior_logp=torch.zeros(B, T),
+                          model_version=torch.zeros(B, T, dtype=torch.long), value=value)
+        prep = obj.prepare(traj, 0)
+        res.append(obj._norm_adv(prep.adv, traj.mask, prep))
+    assert torch.allclose(res[0], res[1], atol=1e-3)
+    assert res[1].std().item() > 0.9                      # informative advantages keep unit scale
+
+
+def test_value_clipping_on_the_twohot_path_removes_gradient_where_the_clipped_term_dominates():
+    B, T = 1, 2
+    traj = Trajectory(reward=torch.tensor([[10.0, 10.0]]), dt=torch.zeros(B, T),
+                      done=torch.tensor([[False, True]]), behavior_logp=torch.zeros(B, T),
+                      model_version=torch.zeros(B, T, dtype=torch.long), value=torch.zeros(B, T + 1))
+    head = ValueHead(16, n_heads=2)
+    obj = ActorCriticObjective(value_clip=1.0, normalize_advantages=False, kappa=0.0, gae_lambda=1.0)
+    prep = obj.prepare(traj, 0)                           # returns 20, 10; old values 0
+    from superlearner.cam_unified.learn.heads import symlog, twohot_encode
+    logits = torch.full((B, T + 1, 255), -30.0)
+    # step 0: predicts 5, i.e. moved from the old value 0 towards the return 20 by more than the clip range: the
+    # clipped term (1 - 20)^2 dominates (5 - 20)^2, so PPO2 value clipping gives no gradient
+    # step 1: predicts 0.5 (inside the clip range: ordinary two-hot gradient)
+    logits[0, 0] = torch.log(twohot_encode(symlog(torch.tensor(5.0)), head.bins).clamp_min(1e-12))
+    logits[0, 1] = torch.log(twohot_encode(symlog(torch.tensor(0.5)), head.bins).clamp_min(1e-12))
+    logits.requires_grad_(True)
+    out = obj.loss(traj, prep, torch.zeros(B, T), torch.zeros(B, T), value_logits=logits, value_head=head)
+    (g,) = torch.autograd.grad(out["value"], logits)
+    assert g[0, 0].abs().sum() == 0 and g[0, 1].abs().sum() > 0 and out["value_clip_frac"] == 0.5
+    noclip = ActorCriticObjective(value_clip=None, normalize_advantages=False, kappa=0.0, gae_lambda=1.0)
+    out2 = noclip.loss(traj, noclip.prepare(traj, 0), torch.zeros(B, T), torch.zeros(B, T), value_logits=logits,
+                       value_head=head)
+    (g2,) = torch.autograd.grad(out2["value"], logits)
+    assert g2[0, 0].abs().sum() > 0
+
+
+def test_run_epochs_uses_the_objectives_key_and_records_provenance():
+    from superlearner.cam_unified.config import make_config
+    from superlearner.cam_unified.interfaces import EventRecord
+    from superlearner.cam_unified.learn.meta import MetaRLObjective
+    from superlearner.cam_unified.learn.ppo import run_epochs
+    from superlearner.cam_unified.learn.trainer import CombinedTrainer
+    theta = torch.zeros(3, requires_grad=True)
+    acts = torch.zeros(4, 2, dtype=torch.long)
+    traj = _traj(4, 2, acts, theta.detach(), torch.randn(4, 2))
+
+    def recompute(tr):
+        lp = torch.log_softmax(theta, -1)[acts]
+        return {"logp": lp, "entropy": torch.zeros(4, 2), "value": torch.zeros(4, 3) + 0.0 * theta.sum()}
+    cfg = make_config("dev")
+    seen = []
+    for obj, stage, key in ((ActorCriticObjective(), "actor_critic", "actor"),
+                            (MetaRLObjective(ActorCriticObjective()), "explore_meta", "meta")):
+        tr = CombinedTrainer(cfg, core=[theta], stage=stage, amp=False, grad_probe_every=0)
+        recs = [EventRecord(f"e{i}", "env", "a", "ep", i, 0, 0.0, []) for i in range(2)]
+        hist = run_epochs(obj, traj, 0, recompute, tr.step, epochs=2, consumed=recs)
+        assert all(set(h["update"].losses) == {key, "value"} for h in hist)
+        ids = [h["update"].update_id for h in hist]
+        assert all(r.training_provenance["used_in_updates"] == ids for r in recs)
+        seen.append(key)
+    assert seen == ["actor", "meta"]

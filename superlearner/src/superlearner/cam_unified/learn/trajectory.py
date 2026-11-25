@@ -5,11 +5,17 @@ learning objectives of workstream D need beyond it: validity mask for right-padd
 trial index (multi-trial meta-RL episodes), option bookkeeping, intrinsic learning-progress reward and the
 behaviour-time value estimates used by GAE / value clipping. All tensors are batch-major ``[B, T]`` (``value`` is
 ``[B, T + 1]``, its last valid column the bootstrap value).
+
+Padding. Entries at padded (``mask == False``) positions are replaced by 0 on construction (``value``: every column
+that is neither a valid step nor the bootstrap of one), so NaN / inf written into padding by a producer (e.g. an
+``EventRecord.behavior_logp`` of None stored as NaN) can never leak into valid steps through a masked product.
+`sequence_mask` derives the validity mask of a contract `SequenceBatch` from its padding convention ("padded rows
+masked via done/obs.mask").
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import torch
 from torch import Tensor
@@ -35,18 +41,41 @@ class Trajectory:
     family: Optional[list] = None        # [B] task family (per-family return normalisation; never a model input)
     extras: dict = field(default_factory=dict)   # policy-specific per-step records, tensors with leading [B, T]
 
+    _PER_STEP = ("reward", "dt", "behavior_logp", "cost", "intrinsic")
+
     def __post_init__(self):
         if self.mask is None:
             self.mask = torch.ones_like(self.reward, dtype=torch.bool)
+        self.mask = self.mask.bool()
         B, T = self.reward.shape
         for name in ("dt", "done", "behavior_logp", "model_version", "mask"):
             v = getattr(self, name)
             if tuple(v.shape) != (B, T):
                 raise ValueError(f"Trajectory.{name} must be [B, T] = {(B, T)}, got {tuple(v.shape)}")
+        for name in ("cost", "trial", "intrinsic", "option", "option_start"):
+            v = getattr(self, name)
+            if v is not None and tuple(v.shape) != (B, T):
+                raise ValueError(f"Trajectory.{name} must be [B, T] = {(B, T)}, got {tuple(v.shape)}")
         if self.value is not None and tuple(self.value.shape) != (B, T + 1):
             raise ValueError(f"Trajectory.value must be [B, T+1], got {tuple(self.value.shape)}")
-        if (self.dt[self.mask.bool()] < 0).any():
+        m = self.mask
+        # padded entries -> 0 (torch.where, not a product: 0 * nan = nan)
+        for name in self._PER_STEP:
+            v = getattr(self, name)
+            if v is not None:
+                setattr(self, name, torch.where(m, v, torch.zeros_like(v)))
+        self.done = self.done.bool() & m
+        if self.value is not None:
+            vm = self.value_mask()
+            self.value = torch.where(vm, self.value, torch.zeros_like(self.value))
+        if (self.dt < 0).any():
             raise ValueError("dt must be non-negative")
+
+    def value_mask(self) -> Tensor:
+        """[B, T+1] bool: columns of ``value`` that are used — every valid step and the bootstrap after it."""
+        B, T = self.mask.shape
+        f = torch.zeros(B, 1, dtype=torch.bool, device=self.mask.device)
+        return torch.cat([self.mask, f], 1) | torch.cat([f, self.mask], 1)
 
     @property
     def B(self) -> int:
@@ -93,9 +122,12 @@ class Trajectory:
     @staticmethod
     def from_sequence(seq: SequenceBatch, value: Optional[Tensor] = None, mask: Optional[Tensor] = None,
                       cost: Optional[Tensor] = None) -> "Trajectory":
-        """Stack a contract `SequenceBatch` (list of `StepBatch`) into a batch-major trajectory."""
+        """Stack a contract `SequenceBatch` (list of `StepBatch`) into a batch-major trajectory.
+        ``mask`` [B,T] (valid decisions) defaults to `sequence_mask` (the contract's done/obs.mask padding rule)."""
         if not seq.steps:
             raise ValueError("empty SequenceBatch")
+        if mask is None:
+            mask = sequence_mask(seq.steps)
 
         def st(name, dtype=None):
             xs = [torch.as_tensor(getattr(s, name)) for s in seq.steps]
@@ -129,9 +161,53 @@ def compact_rows(active: Tensor, *series: Tensor) -> tuple[Tensor, list]:
     return mask, out
 
 
+def sequence_mask(steps: Sequence[Any]) -> Tensor:
+    """Validity mask [B, T] of aligned contract steps (`StepBatch`) under the padding convention of
+    `interfaces.SequenceBatch` ("padded rows masked via done/obs.mask").
+
+    A row is right-padded after it ended: every step after the row's last ``done`` is padding iff none of those
+    steps carries an observation token (``obs.mask`` all False). If any later step has observations, a new episode
+    started in that row and its steps are valid (a later step without observations, e.g. after a pure ``wait``, is
+    a real decision). Steps whose ``obs`` is None are treated as carrying observations (cannot be padding).
+    A truncated row padded *without* a done cannot be recognised by the convention: pass an explicit mask."""
+    if not steps:
+        raise ValueError("no steps")
+    T = len(steps)
+    ref = None
+    for s in steps:
+        for name in ("done", "reward", "dt"):
+            v = getattr(s, name, None)
+            if torch.is_tensor(v):
+                ref = v
+                break
+        if ref is not None:
+            break
+    if ref is None:
+        raise ValueError("cannot infer the batch size: steps need a `done`, `reward` or `dt` tensor")
+    B, dev = ref.shape[0], ref.device
+    done = torch.stack([torch.zeros(B, dtype=torch.bool, device=dev) if getattr(s, "done", None) is None
+                        else torch.as_tensor(s.done).bool().to(dev) for s in steps], 1)          # [B,T]
+    has_obs = []
+    for s in steps:
+        ob = getattr(s, "obs", None)
+        if ob is None or getattr(ob, "mask", None) is None:
+            has_obs.append(torch.ones(B, dtype=torch.bool, device=dev))
+        else:
+            mk = ob.mask.bool().to(dev)
+            has_obs.append(mk.reshape(B, -1).any(1) if mk.numel() else torch.zeros(B, dtype=torch.bool, device=dev))
+    has_obs = torch.stack(has_obs, 1)                                                          # [B,T]
+    t = torch.arange(T, device=dev).unsqueeze(0).expand(B, T)
+    last_done = torch.where(done, t, torch.full_like(t, -1)).max(1).values                    # [B]
+    after = t > last_done.unsqueeze(1)
+    revived = (after & has_obs).any(1)                                                         # a new episode began
+    pad = after & (last_done >= 0).unsqueeze(1) & ~revived.unsqueeze(1)
+    return ~pad
+
+
 def masked_mean(x: Tensor, mask: Tensor) -> Tensor:
-    m = mask.to(x.dtype)
-    return (x * m).sum() / m.sum().clamp_min(1.0)
+    """Mean of ``x`` over ``mask``; entries outside the mask never matter (even NaN / inf)."""
+    m = mask.bool()
+    return torch.where(m, x, torch.zeros_like(x)).sum() / m.to(x.dtype).sum().clamp_min(1.0)
 
 
 def stack_steps(rows: list[dict[str, Any]], keys: list[str]) -> dict[str, Tensor]:

@@ -46,7 +46,7 @@ def mixture_log_prob(particle_logp: Tensor, logw: Tensor, mask: Optional[Tensor]
     Returns [B] = log sum_k w_k prod_q p(y_q | k) (outcomes of one step are jointly scored per particle)."""
     lp = particle_logp.float()
     if mask is not None:
-        lp = lp * mask.unsqueeze(1).to(lp.dtype)
+        lp = torch.where(mask.bool().unsqueeze(1), lp, torch.zeros_like(lp))   # unobserved entries may be nan
     return torch.logsumexp(logw.float() + lp.sum(-1), dim=1)
 
 
@@ -94,9 +94,9 @@ def decompose_outcome_dist(dist, logw: Tensor) -> dict:
 def combine_signal_frac(rho: Tensor, mask: Optional[Tensor] = None) -> Tensor:
     """Per-step signal fraction from per-outcome fractions rho [B,Q]: 1 - prod_q (1 - rho_q) over observed outcomes.
     0 iff every observed outcome is pure noise; 1 if any outcome is fully attributable to the mechanism."""
-    r = rho.float().clamp(0, 1)
+    r = torch.nan_to_num(rho.float(), nan=0.0).clamp(0, 1)
     if mask is not None:
-        r = r * mask.to(r.dtype)
+        r = torch.where(mask.bool(), r, torch.zeros_like(r))
     return 1.0 - torch.prod(1.0 - r, dim=-1)
 
 
@@ -160,17 +160,29 @@ def _check_disjoint_ids(steps: Sequence[Any]) -> None:
         seen |= flat
 
 
+_BIG = 1e30
+
+
+def _finite_lp(lp: Tensor) -> Tensor:
+    """LP with +-inf mapped to +-1e30 and NaN (an undefined LP: no valid comparison) mapped to 0."""
+    return torch.nan_to_num(lp.float(), nan=0.0, posinf=_BIG, neginf=-_BIG)
+
+
 def noise_corrected_lp(lp: Tensor, signal_frac: Tensor) -> Tensor:
-    """LP_corr = LP * rho, rho in [0, 1] the support outcome's epistemic share (0 for pure noise)."""
-    return lp * signal_frac.float().clamp(0, 1)
+    """LP_corr = LP * rho, rho in [0, 1] the support outcome's epistemic share. Where rho = 0 (pure noise) the result
+    is exactly 0 whatever LP is (also +-inf / NaN); a NaN rho counts as 0 (no attributable signal)."""
+    rho = torch.nan_to_num(signal_frac.float(), nan=0.0).clamp(0, 1)
+    x = _finite_lp(lp)
+    return torch.where(rho > 0, x * rho, torch.zeros_like(x))
 
 
 def exploration_reward(lp: Tensor, signal_frac: Optional[Tensor], coef: float, clip: Optional[float] = 10.0,
                        enabled: bool = True) -> Tensor:
-    """Intrinsic reward ``coef * clip(LP * rho)`` for `Trajectory.intrinsic` (0 when learned exploration is off)."""
+    """Intrinsic reward ``coef * clip(LP * rho)`` for `Trajectory.intrinsic` (0 when learned exploration is off).
+    Always finite: +-inf LP saturates at +-clip (+-1e30 without a clip), NaN LP earns 0."""
     if not enabled:
-        return torch.zeros_like(lp)
-    r = lp.float() if signal_frac is None else noise_corrected_lp(lp, signal_frac)
+        return torch.zeros_like(lp, dtype=torch.float32)
+    r = _finite_lp(lp) if signal_frac is None else noise_corrected_lp(lp, signal_frac)
     if clip is not None:
         r = r.clamp(-clip, clip)
     return float(coef) * r
@@ -193,6 +205,7 @@ def lp_reward_for_trajectory(beliefs: Sequence[Any], steps: Sequence[Any], updat
         with torch.no_grad():
             rho = torch.stack([decompose_fn(beliefs[t], steps[t], t).float() for t in range(len(steps))], 1)
     res["signal_frac"] = rho
+    res["n_nonfinite_lp"] = int((~torch.isfinite(res["lp"])).sum())
     res["intrinsic"] = exploration_reward(res["lp"], rho, coef, enabled=enabled)
     return res
 
