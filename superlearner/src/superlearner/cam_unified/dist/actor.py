@@ -16,14 +16,21 @@ they arrive, so a trajectory's final decision record closes it). Every record ca
 version that chose the action) and ``behavior_logp``; every decision also yields a `DecisionTrace`.
 
 Weights are refreshed only at safe boundaries through `PolicyClient` (trajectory boundaries, or decision boundaries
-with ``refresh_at="decision"``). After a decision-boundary refresh whose accumulated relative parameter change
-exceeds ``rebuild_threshold``, the latent state is reconstructed by `ActorPolicyP.rebuild_state` from the raw
-records of the running episode (version-independent memory) instead of being reused.
+with ``refresh_at="decision"``). After a decision-boundary refresh whose relative parameter change since the latent
+state was built exceeds ``rebuild_threshold``, the latent state is reconstructed by `ActorPolicyP.rebuild_state` from
+the raw records of the running episode (version-independent memory) instead of being reused. Every decision record
+carries ``extra["state_version"]`` (the weights version the latent state was built under; it differs from
+``model_version`` after a refresh without rebuild) and ``extra["deterministic"]`` (the policy acted greedily, so
+``behavior_logp`` is 0 = log 1), which the learner's router needs to decide what is exactly on-policy.
 
 Crash recovery: environment exceptions close the running episodes with an explicit ``episode_end`` record
-(``truncated: true``), rebuild the environment and continue (up to ``max_env_failures`` in a row); a killed process
-is restarted by the launcher under the same actor id, and its `SpoolWriter` recovers sequence numbers and leftover
-temporary segments.
+(``truncated: true``), rebuild the environment (a new world, hence new environment ids and seeds) and continue (up to
+``max_env_failures`` in a row). A killed process is restarted by the launcher under the same actor id with
+``incarnation`` + 1: its `SpoolWriter` recovers sequence numbers, leftover temporary segments and every record the
+dead process had buffered (write-ahead log), and the actor closes the episodes the dead incarnation left open (it
+persists their ids at every episode start) with ``episode_end`` records (``truncated: true``). Seeds of the
+environment, the policy and the episode sampler are derived from (seed, incarnation, environment rebuilds), so a
+restarted actor never replays the experience of an earlier incarnation and its worlds are new lifetimes with new ids.
 """
 from __future__ import annotations
 
@@ -41,6 +48,14 @@ from ..interfaces import (DecisionTrace, EventRecord, EvidenceKind, ObservationB
 from ..observe.accounting import ComputeMeter, atomic_write_json
 from .publish import PolicyClient
 from .queue import ExperienceQueue, action_dict
+
+
+def derive_seed(seed: int, *salt) -> int:
+    """``seed`` itself when every salt is 0/empty (the first incarnation's first world), else a deterministic
+    31-bit hash of (seed, salt...)."""
+    if not any(salt):
+        return int(seed)
+    return random.Random("/".join(str(x) for x in (seed,) + salt)).randrange(2 ** 31)
 
 
 def resolve(path: str):
@@ -86,6 +101,7 @@ class ActorSpec:
     max_env_failures: int = 3
     wait_version_s: float = 120.0
     queue_kwargs: dict = field(default_factory=dict)
+    incarnation: int = 0            # process restarts under this actor id (set by the launcher)
     cuda: bool = False              # False: CUDA_VISIBLE_DEVICES="" in the actor process (no GPU context per actor;
                                     # GPU inference goes through the shared semantic server or an explicit cuda=True)
 
@@ -111,9 +127,14 @@ class ActorProcess:
         self.writer = self.queue.writer(spec.actor_id, batch_records=spec.batch_records)
         self.client = PolicyClient(p["ckpt"], refresh_at=spec.refresh_at, actor_id=spec.actor_id)
         self.meter = ComputeMeter(spec.actor_id, role="actor")
-        self.rng = random.Random(spec.seed)
+        self.incarnation = int(spec.incarnation)
+        self.rng = random.Random(derive_seed(spec.seed, self.incarnation, "episodes") if self.incarnation
+                                 else spec.seed)
+        self.env_builds = 0
         self.stats = {"episodes": 0, "decisions": 0, "records": 0, "delayed": 0, "refreshes": 0, "rebuilds": 0,
-                      "env_failures": 0, "truncated_episodes": 0, "versions_used": []}
+                      "env_failures": 0, "truncated_episodes": 0, "versions_used": [],
+                      "incarnation": self.incarnation, "closed_from_previous_incarnation": 0,
+                      "wal_recovered_items": self.writer.stats.get("wal_recovered_items", 0)}
         self.recent_scores: deque = deque(maxlen=50)
         self.episode_log: list = []           # (episode, version, mean score) per finished episode
         self._action_to_event: OrderedDict = OrderedDict()
@@ -124,7 +145,7 @@ class ActorProcess:
         kw = dict(spec.policy_kwargs)
         if semantic is not None:
             kw["semantic"] = semantic
-        self.policy = resolve(spec.policy_factory)(seed=spec.seed, **kw)
+        self.policy = resolve(spec.policy_factory)(seed=derive_seed(spec.seed, self.incarnation), **kw)
         try:
             self._act_takes_active = "active" in inspect.signature(self.policy.act).parameters
         except (TypeError, ValueError):
@@ -132,7 +153,9 @@ class ActorProcess:
 
     # ---------------------------------------------------------------- helpers
     def _make_env(self) -> None:
-        made = resolve(self.spec.env_factory)(seed=self.spec.seed, **self.spec.env_kwargs)
+        seed = derive_seed(self.spec.seed, self.incarnation, self.env_builds)
+        self.env_builds += 1
+        made = resolve(self.spec.env_factory)(seed=seed, **self.spec.env_kwargs)
         if isinstance(made, tuple):
             self.env, self.evaluator = made[0], (made[1] if len(made) > 1 else None)
         else:
@@ -171,7 +194,7 @@ class ActorProcess:
               "recent_score": (sum(self.recent_scores) / len(self.recent_scores)) if self.recent_scores else None,
               "episode_log": self.episode_log[-200:], "writer": dict(self.writer.stats), **self.stats,
               "versions_used": self.stats["versions_used"][-50:], "refresh_at": self.spec.refresh_at,
-              "seed": self.spec.seed}
+              "seed": self.spec.seed, "incarnation": self.incarnation}
         atomic_write_json(os.path.join(self.paths["status"], f"{self.spec.actor_id}.json"), st, fsync=False)
         self.meter.write(os.path.join(self.paths["compute"], f"{self.spec.actor_id}.{os.getpid()}.json"))
 
@@ -186,6 +209,7 @@ class ActorProcess:
         self.stats["wait_weights_s"] = time.time() - t_wait
         self.stats["t_running"] = time.time()
         self.stats["versions_used"].append(self.client.version)
+        self._close_previous_incarnation()
         self.state = "running"
         failures = 0
         try:
@@ -217,16 +241,31 @@ class ActorProcess:
                 self.status(force=True)
         return dict(self.stats)
 
+    def _episode_end(self, ep: str, env_id: str, step: int, reason: str, **extra) -> None:
+        self.writer.put(EventRecord(event_id=new_id("e_"), env_id=env_id, actor_id=self.spec.actor_id,
+                                    episode_id=ep, step=step, model_version=self.client.version, t_sim=0.0,
+                                    observations=[], done=True, evidence=EvidenceKind.OBSERVATIONAL,
+                                    extra={"kind": "episode_end", "truncated": True, "reason": reason,
+                                           "incarnation": self.incarnation, **extra}))
+
     def _close_truncated(self, reason: str) -> None:
         open_eps = getattr(self, "_open_episodes", {})
         for b, (ep, env_id, step) in open_eps.items():
-            self.writer.put(EventRecord(event_id=new_id("e_"), env_id=env_id, actor_id=self.spec.actor_id,
-                                        episode_id=ep, step=step, model_version=self.client.version, t_sim=0.0,
-                                        observations=[], done=True, evidence=EvidenceKind.OBSERVATIONAL,
-                                        extra={"kind": "episode_end", "truncated": True, "reason": reason}))
+            self._episode_end(ep, env_id, step, reason)
             self.stats["truncated_episodes"] += 1
         self._open_episodes = {}
+        self.writer.note_open_episodes([])
         self.writer.flush()
+
+    def _close_previous_incarnation(self) -> None:
+        """Episodes a killed earlier incarnation left open (persisted at their start) get an explicit end."""
+        prev = self.writer.previous_open_episodes()
+        for ep, env_id, inc in prev:
+            self._episode_end(ep, env_id, -1, "actor process died", dead_incarnation=inc)
+        self.stats["closed_from_previous_incarnation"] += len(prev)
+        self.writer.note_open_episodes([])
+        if prev:
+            self.writer.flush()
 
     def _episode(self) -> None:
         s, env = self.spec, self.env
@@ -254,6 +293,7 @@ class ActorProcess:
         t_now = list(obs.t)
         step = 0
         self._open_episodes = {b: (ep_ids[b], obs.env_ids[b], 0) for b in range(B)}
+        self.writer.note_open_episodes([(ep_ids[b], obs.env_ids[b], self.incarnation) for b in range(B)])
         version_at_start = self.client.version
         while not all(done):
             if self._stop():
@@ -308,7 +348,10 @@ class ActorProcess:
                     uncertainty=dict(info.get("uncertainty", {})), goal_id=goals[b].goal_id, reward=float(reward),
                     cost=float(res.cost), done=bool(adv.done[b]), behavior_logp=a.logp,
                     provenance=Provenance.REAL, evidence=EvidenceKind.CONTROLLED,
-                    extra={"dt": durations[b], "drift": self.client.drift, "kind": "decision"})
+                    extra={"dt": durations[b], "drift": self.client.drift, "kind": "decision",
+                           "state_version": self.client.state_version,
+                           "deterministic": bool(info.get("deterministic", False)),
+                           "incarnation": self.incarnation})
                 trace = None
                 if s.record_traces:
                     trace = DecisionTrace(
@@ -359,6 +402,7 @@ class ActorProcess:
         else:                                   # stopped mid-episode: close it explicitly
             self._close_truncated("actor stopped")
         self._open_episodes = {}
+        self.writer.note_open_episodes([])
         self.writer.flush()
         self.status()
 

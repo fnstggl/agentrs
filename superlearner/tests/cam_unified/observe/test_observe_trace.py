@@ -97,3 +97,32 @@ def test_retrospective_summary_is_grounded_and_labelled():
     assert "consumed by 1 learner updates" in text
     empty = retrospective_summary([])
     assert empty["n_decisions"] == 0 and empty["statements"]
+
+
+def test_accumulated_outcomes_env_filtered_loading_and_partitions(tmp_path):
+    from superlearner.cam_unified.observe.trace import load_partition, partition_lifetimes
+    root = str(tmp_path / "traces")
+    r = TraceRecorder(root, name="x", rows_per_file=4)
+    for i in range(6):
+        r.record(_tr(i, env="w0" if i % 2 == 0 else "w1"))
+    # two delayed payouts for one decision: summed with accumulate=True (a plain fill replaces)
+    r.fill_outcome({"payoff": 1.0, "delayed": [{"v": 1.0}]}, event_id="e0002", env_id="w0", accumulate=True)
+    r.fill_outcome({"payoff": 2.5, "delayed": [{"v": 2.5}]}, event_id="e0002", env_id="w0", accumulate=True)
+    r.fill_outcome({"payoff": 7.0}, event_id="e0003", env_id="w1")
+    r.fill_outcome({"payoff": 9.0}, event_id="e0003", env_id="w1")
+    r.add_update_refs(["e0000", "e0002"], "u1", env_id="w0")
+    r.add_update_refs(["e0001"], "u1", env_id="w1")
+    r.fill_outcome({"note": "legacy untagged patch"}, event_id="e0004")
+    r.close()
+    w0 = {t.decision_id: t for t in load_traces(root, env_id="w0")}
+    assert set(w0) == {"d0000", "d0002", "d0004"}
+    assert w0["d0002"].outcome["payoff"] == pytest.approx(3.5) and len(w0["d0002"].outcome["delayed"]) == 2
+    assert w0["d0000"].update_refs == ["u1"] and w0["d0004"].outcome["note"] == "legacy untagged patch"
+    w1 = {t.decision_id: t for t in load_traces(root, env_id="w1")}
+    assert set(w1) == {"d0001", "d0003", "d0005"} and w1["d0003"].outcome["payoff"] == 9.0   # replace semantics
+    # one streaming pass into per-lifetime files reproduces the per-env loads
+    parts = partition_lifetimes(root, str(tmp_path / "parts"), max_open=1)
+    assert set(parts) == {"w0", "w1"}
+    for env, direct in (("w0", w0), ("w1", w1)):
+        got = {t.decision_id: t for t in load_partition(parts[env], str(tmp_path / "parts" / "_untagged.jsonl"))}
+        assert {k: v.to_dict() for k, v in got.items()} == {k: v.to_dict() for k, v in direct.items()}

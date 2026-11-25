@@ -144,7 +144,7 @@ def test_learner_policy_lag_accounting_and_routing(tmp_path, mode):
         assert after == [(0, "on_policy"), (2, "off_policy"), (2, "off_policy")]
         assert st["router"]["lag_hist"] == {"0": 16, "2": 8, "4": 4, "5": 4}
         assert st["router"]["counts"] == {"on_policy": 16, "off_policy": 8, "discarded": 8,
-                                          "discard:lag_over_max": 8}
+                                          "discard:lag_over_max": 8, "exact_on_policy": 16}
         assert L.version == 6
     else:
         # strictly on-policy: every stale trajectory is discarded, never trained as if it were fresh
@@ -156,6 +156,10 @@ def test_learner_policy_lag_accounting_and_routing(tmp_path, mode):
     for u in trained:                                  # every update records its lag summary and consumed events
         assert "lag_hist" in u["lag"] and len(u["event_ids"]) == u["n_decisions"]
     assert any(not u["trained"] for u in ups)          # batches with only stale data are logged, not trained
+    skipped = [json.loads(l) for l in open(os.path.join(run, "learner", "skipped.jsonl"))]
+    n_skipped = sum(len(x["event_ids"]) for x in skipped)
+    assert n_skipped == st["router"]["counts"]["discarded"]       # every untrained decision is logged with a reason
+    assert L.consumed([i for x in skipped for i in x["event_ids"]]) == {i for x in skipped for i in x["event_ids"]}
     assert L.publisher.latest()["version"] == L.version   # publish_every=1
     L.close()
 

@@ -138,13 +138,19 @@ def test_decision_boundary_refresh_reconstructs_latent_state(tmp_path, threshold
     versions = [e.model_version for e in sorted((e for e in events if e.action is not None and e.env_id.endswith(".0")),
                                                 key=lambda e: e.step)]
     assert versions == [0] * 5 + [1] * 7          # adopted between decisions 5 and 6 of the same trajectory
+    dec0 = sorted((e for e in events if e.action is not None and e.env_id.endswith(".0")), key=lambda e: e.step)
+    states = [e.extra["state_version"] for e in dec0]
+    true_drift = (sum(float((pol.new_sd[k] - v).pow(2).sum()) for k, v in make_tiny_learner(seed=0).state_dict().items())
+                  / sum(float(v.pow(2).sum()) for v in make_tiny_learner(seed=0).state_dict().values())) ** 0.5
     if expect_rebuild:
         assert a.stats["rebuilds"] == 1 and len(pol.checks) == 1
         assert pol.checks[0] < 1e-5               # rebuilt latent == replay of the raw episode under new weights
         assert a.client.drift == 0.0
+        assert states == [0] * 5 + [1] * 7        # latent state rebuilt under version 1
     else:
         assert a.stats["rebuilds"] == 0 and pol.checks == []
-        assert a.client.drift > 0
+        assert a.client.drift == pytest.approx(true_drift, rel=1e-5)   # exact ‖θ1−θ0‖/‖θ0‖, measured on the actor
+        assert states == [0] * 12                 # version-1 decisions acted from a latent state built under 0
 
 
 def _archive_episodes(run, actor):
@@ -275,8 +281,7 @@ def test_learner_restart_resumes_from_latest_and_rebuilds_open_trajectories(tmp_
     a2 = ActorProcess(ActorSpec("a1", run, env_kwargs={"B": 4}, seed=2, max_episodes=1, batch_records=1000))
     a2.run()
     L.ingest()
-    pending = L.backlog()
-    assert pending == 64
+    assert L.assembler.held_events() == 64 and L.backlog() == 0      # ingested, held open, not yet trained
     sd = {k: t.clone() for k, t in m.state_dict().items()}
     L.close()
     m2 = make_tiny_learner(seed=123)
@@ -324,9 +329,104 @@ def test_environment_failure_closes_episode_and_actor_continues(tmp_path, monkey
     st = a.run()
     assert st["env_failures"] == 1 and st["truncated_episodes"] == 2 and st["episodes"] == 2
     assert len(made) == 2 and "simulator crashed" in st["last_error"]
+    assert set(made[0].env_ids).isdisjoint(made[1].env_ids)           # the rebuilt world is a new lifetime
     L.ingest()
     trs = L.assembler.pop_ready()
     trunc = [t for t in trs if t.truncated]
-    assert len(trunc) == 2 and all(t.n == 4 for t in trunc)          # 4 decisions made before the crash
-    assert len([t for t in trs if not t.truncated]) == 4
+    # 4 decisions were made before the crash: the last settle=2 may lack their delayed payouts, so 2 are trained
+    # and the 3rd supplies the bootstrap value (no terminal discount on a truncated episode)
+    assert len(trunc) == 2
+    for t in trunc:
+        assert [e.step for e in t.events] == [0, 1, 2] and t.train_mask == [True, True, False]
+        assert t.bootstrap and not t.terminal
+    un = L.assembler.take_untrainable()
+    assert sorted(r for _, r, _ in un if r != "aux") == ["truncated_unsettled"] * 4
+    full = [t for t in trs if not t.truncated]
+    assert len(full) == 4 and all(t.terminal and t.n == 8 and not t.bootstrap for t in full)
     L.close()
+
+
+def test_restarted_actor_incarnation_gets_new_seeds_and_lifetimes(tmp_path):
+    """Verifier finding: a restarted actor used to replay its first incarnation's random sequences and env ids."""
+    run = str(tmp_path / "run")
+    CheckpointPublisher(os.path.join(run, "ckpt")).publish(make_tiny_learner(seed=0).state_dict(), 0)
+    runs = []
+    for inc in (0, 1, 1):
+        a = ActorProcess(ActorSpec("a0", run, env_kwargs={"B": 2, "episode_len": 6}, seed=4, max_episodes=1,
+                                   batch_records=1000, incarnation=inc))
+        a.run()
+        runs.append(a)
+    events, _ = _ingest_all(run)
+    dec = [e for e in events if e.action is not None]
+    by_inc = defaultdict(list)
+    for e in dec:
+        by_inc[e.extra["incarnation"]].append(e)
+    env0 = {e.env_id for e in by_inc[0]}
+    env1 = {e.env_id for e in by_inc[1]}
+    assert env0 == {"toy4.0", "toy4.1"} and len(env1) == 2 and env0.isdisjoint(env1)
+    first_obs = lambda es: [round(o.value, 6) for e in es if e.step == 0 for o in e.observations][:8]  # noqa: E731
+    assert first_obs(by_inc[0]) != first_obs(by_inc[1])
+    # same incarnation, same spec: deterministic (two runs of incarnation 1 agree on their world ids)
+    assert runs[1].env.env_ids == runs[2].env.env_ids
+
+
+def test_actor_closes_episodes_its_dead_predecessor_left_open(tmp_path):
+    run = str(tmp_path / "run")
+    CheckpointPublisher(os.path.join(run, "ckpt")).publish(make_tiny_learner(seed=0).state_dict(), 0)
+    q = ExperienceQueue(os.path.join(run, "spool"))
+    q.writer("a0", batch_records=10).note_open_episodes([("ep_dead1", "toy9.0", 0), ("ep_dead2", "toy9.1", 0)])
+    a = ActorProcess(ActorSpec("a0", run, env_kwargs={"B": 2, "episode_len": 4}, seed=9, max_episodes=1,
+                               incarnation=1))
+    st = a.run()
+    assert st["closed_from_previous_incarnation"] == 2
+    events, _ = _ingest_all(run)
+    ends = [e for e in events if (e.extra or {}).get("kind") == "episode_end"]
+    assert sorted(e.episode_id for e in ends) == ["ep_dead1", "ep_dead2"]
+    assert all(e.extra["truncated"] and e.extra["reason"] == "actor process died" for e in ends)
+    assert json.load(open(os.path.join(run, "spool", "writers", "a0.open.json")))["episodes"] == []
+
+
+def test_sigkilled_actor_loses_no_buffered_experience(tmp_path):
+    """End to end under the launcher: an actor whose current episode is held only in its write-ahead log (no segment
+    committed yet) is SIGKILLed; its restarted incarnation commits every logged record, closes the dead episodes,
+    and the learner trains them (bootstrapped at the truncation) — no gap, nothing duplicated."""
+    run = str(tmp_path / "run")
+    L = LearnerSpec(run_dir=run, model_kwargs={"seed": 0}, min_decisions=64, max_batch_decisions=256,
+                    segment_len=64, burn_in=8)
+    A = [ActorSpec(actor_id="a0", run_dir=run, env_kwargs={"B": 2, "episode_len": 100000}, seed=3,
+                   batch_records=10 ** 7, status_every_s=0.2)]
+    la = Launcher(run, L, A, max_restarts=1)
+    la.start()
+    t0 = time.time()
+    killed = None
+    while time.time() - t0 < 60:
+        la.poll()
+        st = la._read_status().get("a0", {})
+        if killed is None and st.get("decisions", 0) > 1500:
+            killed = la.kill("a0", signal.SIGKILL)
+        if killed and la.restarts.get("a0") == 1:
+            st2 = la._read_status().get("a0", {})
+            ln = la._read_status().get("learner", {}).get("counts", {})
+            if st2.get("pid") not in (None, killed) and st2.get("decisions", 0) > 200 and \
+                    ln.get("trained_decisions", 0) >= 1000:
+                break
+        time.sleep(0.05)
+    s = la.stop()
+    assert killed is not None and s["restarts"] == {"a0": 1}
+    st = json.load(open(os.path.join(run, "status", "a0.json")))
+    assert st["incarnation"] == 1 and st["wal_recovered_items"] > 3000      # decisions + outcomes + traces
+    assert st["closed_from_previous_incarnation"] == 2
+    sink = JsonlArchive(os.path.join(run, "archive"))
+    recs = [e for b in sink.scan(actor_id="a0") for e in b]
+    sink.close()
+    dead = [e for e in recs if e.action is not None and e.extra.get("incarnation") == 0]
+    assert len(dead) > 1500
+    for env in {e.env_id for e in dead}:            # every step of the dead episodes, none lost, none twice
+        steps = sorted(e.step for e in dead if e.env_id == env)
+        assert steps == list(range(len(steps)))
+    ids = [e.event_id for e in recs]
+    assert len(ids) == len(set(ids))
+    ends = [e for e in recs if (e.extra or {}).get("kind") == "episode_end" and e.extra.get("dead_incarnation") == 0]
+    assert len(ends) == 2
+    lc = s["learner_counts"]
+    assert lc.get("trained_decisions", 0) >= 1000 and s["queue"]["gaps"] == {}

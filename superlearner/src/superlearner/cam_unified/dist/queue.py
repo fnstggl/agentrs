@@ -9,6 +9,8 @@ Layout of a spool directory::
       quarantine/      segments that failed their checksum or could not be decoded (+ ``.reason.json``)
       shed/<actor_id>.jsonl   ledger of segments an actor shed under the "shed" backpressure policy
       writers/<actor_id>.json writer state (next sequence number, last commit time)
+      writers/<actor_id>.wal  write-ahead log: every buffered, not yet committed item (see below)
+      writers/<actor_id>.open.json  episodes the actor has open (closed explicitly by its next incarnation)
       seen.sqlite      learner-side seen-set (event-id dedup), segment status and per-actor sequence accounting
 
 **Segment format** (``cam-unified-seg/1``, JSON lines): a header line ``{"format", "actor_id", "seq",
@@ -18,9 +20,20 @@ is written to a hidden ``.tmp`` file, flushed, ``fsync``-ed, then atomically ren
 ``fsync``-ed: the learner only ever sees complete segments, and the checksum catches anything else (copy errors,
 disk corruption).
 
-**Ordering.** File names sort by commit time (strictly increasing per writer), then actor and sequence, so the learner
-consumes segments in commit order and each actor's segments in sequence order. The consumer records the highest
-sequence seen per actor and reports gaps (e.g. a quarantined or shed segment) instead of hiding them.
+**Write-ahead log.** `SpoolWriter.put` encodes each item immediately and appends its line to the actor's ``.wal``
+with one unbuffered ``write`` (no fsync), so an actor process killed at any point (SIGKILL included) loses nothing it
+had buffered: the kernel keeps the written bytes, and the next writer for that actor id commits the WAL's complete
+lines as a segment before anything else (a line torn by the kill itself — the kernel interrupted inside ``write`` — is
+dropped and counted, ``wal_torn_lines``). The WAL is truncated after each committed (or shed) segment; a crash between
+the commit and the truncation re-commits those items, which event-id dedup absorbs. A power loss can still lose the
+WAL tail written since the last fsync-ed segment.
+
+**Ordering.** File names sort by commit time, then actor and sequence, so the learner consumes segments in commit
+order and each actor's segments in sequence order. Per actor the order is exact (commit times strictly increase per
+writer). Across actors it is approximate: the commit time is taken after backpressure admission, immediately before
+the segment is written and renamed, so two writers committing within the same few milliseconds may be consumed in
+the opposite order of their renames. The consumer records the highest sequence seen per actor and reports gaps (e.g.
+a quarantined or shed segment) instead of hiding them.
 
 **Exactly-once ingestion into the sink.** For each ingest call the consumer (1) marks the segments ``claimed`` in
 SQLite, (2) drops event ids already in the seen-set (and duplicates within the batch), (3) appends the new records to
@@ -32,7 +45,9 @@ of a writer are committed if their checksum is valid (the crash happened after `
 **Backpressure** (``max_spool_bytes`` = bytes of committed, unconsumed segments): policy ``"block"`` makes the
 writer wait (the actor stops stepping its environment) until the learner catches up, raising `SpoolFull` after
 ``block_timeout_s``; ``"raise"`` raises immediately; ``"shed"`` does not write the segment and appends its event ids,
-size and reason to ``shed/<actor>.jsonl`` and to the writer's counters. Nothing is ever dropped silently.
+size and reason to ``shed/<actor>.jsonl`` and to the writer's counters. Nothing is ever dropped silently. The limit is
+checked without a cross-process lock, so N writers admitted at the same moment can overshoot it by at most N
+segments (each at most ``batch_records`` items); size ``max_spool_bytes`` with that margin.
 
 **Delayed outcomes** travel as ordinary `EventRecord` items whose ``attributed_to`` names the event id of the
 responsible action; the consumer returns them separately (`IngestResult.delayed`). Every record carries the
@@ -149,23 +164,54 @@ def encode_record(rec) -> dict:
     raise TypeError(f"cannot encode {type(rec)}")
 
 
-def encode_segment(actor_id: str, seq: int, commit_ns: int, items: list) -> bytes:
-    """items: list of ("event", EventRecord | dict) / ("trace", DecisionTrace | dict) -> segment bytes."""
-    body_lines, versions, kinds = [], [], {}
-    for k, rec in items:
-        d = encode_record(rec)
-        if k == "event":
-            versions.append(int(d.get("model_version", 0)))
-        elif k == "trace":
-            versions.append(int(d.get("policy_version", 0)))
-        kinds[k] = kinds.get(k, 0) + 1
-        body_lines.append(json.dumps({"k": k, "d": d}, separators=(",", ":"), default=str))
-    body = ("\n".join(body_lines) + "\n").encode() if body_lines else b""
+class _Item:
+    """One encoded queue item: its JSON line (bytes, with the trailing newline) and what the header/ledger need."""
+    __slots__ = ("kind", "line", "version", "rid")
+
+    def __init__(self, kind: str, line: bytes, version: int, rid: str):
+        self.kind, self.line, self.version, self.rid = kind, line, version, rid
+
+
+def encode_item(k: str, rec) -> _Item:
+    d = encode_record(rec)
+    if k == "event":
+        v, rid = int(d.get("model_version", 0)), d.get("event_id")
+    elif k == "trace":
+        v, rid = int(d.get("policy_version", 0)), d.get("decision_id")
+    else:
+        raise ValueError(f"unknown item kind {k!r}")
+    return _Item(k, (json.dumps({"k": k, "d": d}, separators=(",", ":"), default=str) + "\n").encode(), v, rid)
+
+
+def _item_from_line(line: bytes) -> _Item:
+    o = json.loads(line)
+    k, d = o["k"], o["d"]
+    if k == "event":
+        return _Item(k, line, int(d.get("model_version", 0)), d["event_id"])
+    if k == "trace":
+        return _Item(k, line, int(d.get("policy_version", 0)), d["decision_id"])
+    raise ValueError(f"unknown item kind {k!r}")
+
+
+def encode_items(actor_id: str, seq: int, commit_ns: int, items: list, extra_header: Optional[dict] = None) -> bytes:
+    """Pre-encoded `_Item` list -> segment bytes."""
+    kinds: dict = {}
+    for it in items:
+        kinds[it.kind] = kinds.get(it.kind, 0) + 1
+    body = b"".join(it.line for it in items)
+    versions = [it.version for it in items]
     header = {"format": SEG_FORMAT, "actor_id": actor_id, "seq": seq, "commit_ns": commit_ns, "n": len(items),
               "model_versions": [min(versions), max(versions)] if versions else None, "kinds": kinds}
+    if extra_header:
+        header.update(extra_header)
     footer = {"footer": True, "n": len(items), "sha256": hashlib.sha256(body).hexdigest()}
     return (json.dumps(header, separators=(",", ":")) + "\n").encode() + body + \
         (json.dumps(footer, separators=(",", ":")) + "\n").encode()
+
+
+def encode_segment(actor_id: str, seq: int, commit_ns: int, items: list) -> bytes:
+    """items: list of ("event", EventRecord | dict) / ("trace", DecisionTrace | dict) -> segment bytes."""
+    return encode_items(actor_id, seq, commit_ns, [encode_item(k, rec) for k, rec in items])
 
 
 _TRACE_PRE = b'{"k":"trace","d":'
@@ -360,10 +406,11 @@ class ExperienceQueue:
 
 
 class SpoolWriter:
-    """Actor-side writer. `put` buffers records; a segment is committed every ``batch_records`` items and on
-    `flush` (call it at trajectory boundaries). Not thread-safe; one writer per actor id at a time."""
+    """Actor-side writer. `put` encodes and logs records (write-ahead log); a segment is committed every
+    ``batch_records`` items and on `flush` (call it at trajectory boundaries). Not thread-safe; one writer per actor
+    id at a time."""
 
-    def __init__(self, q: ExperienceQueue, actor_id: str, batch_records: int, policy: str):
+    def __init__(self, q: ExperienceQueue, actor_id: str, batch_records: int, policy: str, wal: bool = True):
         if not _ID_RE.match(actor_id):
             raise ValueError(f"actor id must match {_ID_RE.pattern}: {actor_id!r}")
         self.q = q
@@ -372,6 +419,8 @@ class SpoolWriter:
         self.policy = policy
         self.buf: list = []
         self.state_path = os.path.join(q.writers_dir, f"{actor_id}.json")
+        self.wal_path = os.path.join(q.writers_dir, f"{actor_id}.wal")
+        self.open_path = os.path.join(q.writers_dir, f"{actor_id}.open.json")
         st = {"next_seq": 0, "last_commit_ns": 0}
         if os.path.exists(self.state_path):
             with open(self.state_path) as fh:
@@ -379,8 +428,16 @@ class SpoolWriter:
         self.next_seq = int(st["next_seq"])
         self.last_commit_ns = int(st["last_commit_ns"])
         self.stats = {"segments": 0, "items": 0, "bytes": 0, "blocked_s": 0.0, "shed_segments": 0, "shed_items": 0,
-                      "recovered_tmp": 0, "quarantined_tmp": 0}
+                      "recovered_tmp": 0, "quarantined_tmp": 0, "wal_recovered_items": 0, "wal_torn_lines": 0}
+        self._prev_open: list = []
+        try:
+            with open(self.open_path) as fh:
+                self._prev_open = [tuple(x) for x in json.load(fh).get("episodes", [])]
+        except (OSError, json.JSONDecodeError):
+            self._prev_open = []
         self._recover()
+        self.wal_fd = os.open(self.wal_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644) if wal else None
+        self._recover_wal()
 
     # ------------------------------------------------------------ crash recovery
     def _recover(self) -> None:
@@ -409,31 +466,77 @@ class SpoolWriter:
             _fsync_dir(self.q.incoming)
         self._save_state()
 
+    def _recover_wal(self) -> None:
+        """Commit the items a previous writer for this actor had logged but not committed."""
+        try:
+            with open(self.wal_path, "rb") as fh:
+                data = fh.read()
+        except FileNotFoundError:
+            return
+        if not data:
+            return
+        lines = data.split(b"\n")
+        tail = lines.pop()                       # bytes after the last newline: a line torn by the kill
+        items = []
+        for ln in lines:
+            if not ln:
+                continue
+            try:
+                items.append(_item_from_line(ln + b"\n"))
+            except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+                self.stats["wal_torn_lines"] += 1
+        if tail:
+            self.stats["wal_torn_lines"] += 1
+        if self.stats["wal_torn_lines"]:
+            with open(os.path.join(self.q.shed_dir, f"{self.actor_id}.jsonl"), "a") as fh:
+                fh.write(json.dumps({"actor_id": self.actor_id, "t": time.time(), "n": self.stats["wal_torn_lines"],
+                                     "reason": "write-ahead log line torn by a process kill"}) + "\n")
+        if items:
+            self.buf = items
+            self.stats["wal_recovered_items"] += len(items)
+            self.flush(extra_header={"recovered_from_wal": True})
+        elif self.wal_fd is not None:
+            os.ftruncate(self.wal_fd, 0)
+
     def _save_state(self) -> None:
         atomic_write_json(self.state_path, {"next_seq": self.next_seq, "last_commit_ns": self.last_commit_ns},
                           fsync=self.q.fsync)
 
+    # ------------------------------------------------------------ episodes left open
+    def note_open_episodes(self, episodes: list) -> None:
+        """Persist the actor's open episodes [(episode_id, env_id, incarnation)] (called at episode start/end)."""
+        atomic_write_json(self.open_path, {"t": time.time(), "episodes": [list(e) for e in episodes]}, fsync=False)
+
+    def previous_open_episodes(self) -> list:
+        """Episodes the previous process for this actor id left open when it died: [(episode_id, env_id, inc)]."""
+        out, self._prev_open = self._prev_open, []
+        return out
+
     # ------------------------------------------------------------ writing
     def put(self, event: Optional[EventRecord] = None, trace: Optional[DecisionTrace] = None) -> Optional[str]:
-        """Buffer one event and/or trace; commits a segment when the buffer is full. Returns the committed segment
-        name (or None)."""
-        if event is not None:
-            self.buf.append(("event", event))
-        if trace is not None:
-            self.buf.append(("trace", trace))
+        """Encode and log one event and/or trace; commits a segment when the buffer is full. Returns the committed
+        segment name (or None)."""
+        for k, rec in (("event", event), ("trace", trace)):
+            if rec is None:
+                continue
+            it = encode_item(k, rec)
+            if self.wal_fd is not None:
+                os.write(self.wal_fd, it.line)
+            self.buf.append(it)
         if len(self.buf) >= self.batch_records:
             return self.flush()
         return None
 
-    def flush(self) -> Optional[str]:
+    def flush(self, extra_header: Optional[dict] = None) -> Optional[str]:
         """Commit the buffered items as one segment (no-op on an empty buffer). Applies backpressure."""
         if not self.buf:
             return None
         seq = self.next_seq
-        cns = max(time.time_ns(), self.last_commit_ns + 1)
-        data = encode_segment(self.actor_id, seq, cns, self.buf)
-        if not self._admit(len(data), seq):
+        nbytes = sum(len(it.line) for it in self.buf) + 512
+        if not self._admit(nbytes, seq):
             return None
+        cns = max(time.time_ns(), self.last_commit_ns + 1)   # taken after admission (see "Ordering")
+        data = encode_items(self.actor_id, seq, cns, self.buf, extra_header)
         tmp = os.path.join(self.q.incoming, f".{self.actor_id}-{seq:010d}.tmp")
         with open(tmp, "wb") as fh:
             fh.write(data)
@@ -447,6 +550,8 @@ class SpoolWriter:
         os.replace(tmp, os.path.join(self.q.incoming, name))
         if self.q.fsync:
             _fsync_dir(self.q.incoming)
+        if self.wal_fd is not None:
+            os.ftruncate(self.wal_fd, 0)   # committed: a crash before this line re-commits (dedup absorbs it)
         self.stats["segments"] += 1
         self.stats["items"] += len(self.buf)
         self.stats["bytes"] += len(data)
@@ -460,7 +565,7 @@ class SpoolWriter:
         if self.policy == "raise":
             raise SpoolFull(f"spool {self.q.root} holds more than {lim} bytes")
         if self.policy == "shed":
-            ids = [r.event_id if hasattr(r, "event_id") else r.decision_id for _, r in self.buf]
+            ids = [it.rid for it in self.buf]
             entry = {"actor_id": self.actor_id, "seq": seq, "n": len(self.buf), "bytes": nbytes, "t": time.time(),
                      "reason": f"spool over {lim} bytes", "ids": ids}
             with open(os.path.join(self.q.shed_dir, f"{self.actor_id}.jsonl"), "a") as fh:
@@ -470,6 +575,8 @@ class SpoolWriter:
                     os.fsync(fh.fileno())
             self.next_seq = seq + 1          # the consumer sees the gap and the ledger explains it
             self._save_state()
+            if self.wal_fd is not None:
+                os.ftruncate(self.wal_fd, 0)
             self.stats["shed_segments"] += 1
             self.stats["shed_items"] += len(self.buf)
             self.buf = []
@@ -484,7 +591,11 @@ class SpoolWriter:
         return True
 
     def close(self) -> Optional[str]:
-        return self.flush()
+        name = self.flush()
+        if self.wal_fd is not None:
+            os.close(self.wal_fd)
+            self.wal_fd = None
+        return name
 
 
 _SCHEMA = """

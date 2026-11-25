@@ -7,12 +7,19 @@ links them to the rest of the system after the fact, without rewriting history:
                                                predictions, uncertainty, imagined alternatives, selected action, belief
                                                before/after, policy version, immediate outcome);
 * ``fill_outcome(event_id=..., outcome=...)`` — consequences observed later (delayed outcomes, attributed by the
-                                               action's event id); successive fills merge, and list-valued keys append;
+                                               action's event id); successive fills merge, list-valued keys append,
+                                               and with ``accumulate=True`` numeric values are **summed** per key (the
+                                               learner fills delayed outcomes this way: several payouts attributed to
+                                               one decision give their total, the individual values stay in the
+                                               ``delayed`` list);
 * ``add_update_refs(event_ids, update_id)`` — the learner update(s) that consumed the decision's event.
 
 Each of these appends a patch line; `iter_traces` / `load` merge patches into the base records, so the files are
 append-only and several processes may record into one directory (each recorder instance writes its own
-``part-<pid>-<n>.jsonl`` files). `to_parquet` exports flattened traces (nested fields as JSON strings) with pyarrow.
+``part-<pid>-<n>.jsonl`` files). Patches carry the decision's ``env_id`` when the writer knows it (the learner always
+does), so `load_traces(root, env_id=...)` holds one lifetime in memory, and `partition_lifetimes` streams a whole
+directory into per-lifetime files in one pass (the dashboard renders from those, never holding every trace at once).
+`to_parquet` exports flattened traces (nested fields as JSON strings) with pyarrow.
 
 `retrospective_summary` builds readable per-lifetime summaries from recorded actions, predictions and outcomes
 only. Every summary is labelled as an interpretation of the record, not access to the model's internal reasoning
@@ -24,7 +31,7 @@ import json
 import math
 import os
 import time
-from collections import Counter, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 from typing import Iterable, Iterator, Optional
 
 from ..interfaces import DecisionTrace
@@ -76,11 +83,16 @@ class TraceRecorder:
         self._write({"type": "trace", "d": trace.to_dict()})
 
     def fill_outcome(self, outcome: dict, event_id: Optional[str] = None, decision_id: Optional[str] = None,
-                     t: Optional[float] = None) -> None:
+                     t: Optional[float] = None, env_id: Optional[str] = None, accumulate: bool = False) -> None:
         if event_id is None and decision_id is None:
             raise ValueError("fill_outcome needs event_id or decision_id")
-        self._write({"type": "outcome", "event_id": event_id, "decision_id": decision_id, "outcome": outcome,
-                     "t_wall": t if t is not None else time.time()})
+        o = {"type": "outcome", "event_id": event_id, "decision_id": decision_id, "outcome": outcome,
+             "t_wall": t if t is not None else time.time()}
+        if env_id is not None:
+            o["env_id"] = env_id
+        if accumulate:
+            o["mode"] = "sum"
+        self._write(o)
 
     def set_field(self, field: str, value, event_id: Optional[str] = None,
                   decision_id: Optional[str] = None) -> None:
@@ -90,8 +102,11 @@ class TraceRecorder:
         self._write({"type": "field", "event_id": event_id, "decision_id": decision_id, "field": field,
                      "value": value})
 
-    def add_update_refs(self, event_ids: Iterable[str], update_id: str) -> None:
-        self._write({"type": "update", "event_ids": list(event_ids), "update_id": update_id})
+    def add_update_refs(self, event_ids: Iterable[str], update_id: str, env_id: Optional[str] = None) -> None:
+        o = {"type": "update", "event_ids": list(event_ids), "update_id": update_id}
+        if env_id is not None:
+            o["env_id"] = env_id
+        self._write(o)
 
     def flush(self) -> None:
         if self._fh is not None:
@@ -129,23 +144,22 @@ class TraceRecorder:
         return traces_to_parquet(self.load(env_id), path)
 
 
-def _merge_outcome(dst: dict, new: dict) -> None:
+def _is_num(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _merge_outcome(dst: dict, new: dict, mode: str = "set") -> None:
+    """Lists append; with ``mode="sum"`` numbers add to an existing number; anything else replaces."""
     for k, v in new.items():
         if isinstance(v, list) and isinstance(dst.get(k), list):
+            dst[k] = dst[k] + v
+        elif mode == "sum" and _is_num(v) and _is_num(dst.get(k)):
             dst[k] = dst[k] + v
         else:
             dst[k] = v
 
 
-def load_traces(root: str, env_id: Optional[str] = None, flush=None) -> list:
-    """Merge base traces and patches from every part file under ``root``; ordered by (env_id, t_sim)."""
-    if flush is not None:
-        flush()
-    if not os.path.isdir(root):
-        return []
-    base: dict[str, dict] = {}
-    by_event: dict[str, str] = {}
-    patches: list = []
+def _iter_lines(root: str):
     for fn in sorted(os.listdir(root)):
         if not (fn.startswith("part-") and fn.endswith(".jsonl")):
             continue
@@ -155,15 +169,23 @@ def load_traces(root: str, env_id: Optional[str] = None, flush=None) -> list:
                 if not line:
                     continue
                 try:
-                    o = json.loads(line)
+                    yield json.loads(line), line
                 except json.JSONDecodeError:
-                    continue
-                if o.get("type") == "trace":
-                    d = o["d"]
-                    base[d["decision_id"]] = d
-                    by_event[d["event_id"]] = d["decision_id"]
-                else:
-                    patches.append(o)
+                    continue          # a line being written by a live process
+
+
+def _merge(lines) -> list:
+    """Merge parsed trace/patch objects (any order) into DecisionTraces ordered by (env_id, t_sim)."""
+    base: dict = {}
+    by_event: dict = {}
+    patches: list = []
+    for o in lines:
+        if o.get("type") == "trace":
+            d = o["d"]
+            base[d["decision_id"]] = d
+            by_event[d["event_id"]] = d["decision_id"]
+        else:
+            patches.append(o)
     for o in patches:
         typ = o.get("type")
         if typ == "update":
@@ -176,12 +198,75 @@ def load_traces(root: str, env_id: Optional[str] = None, flush=None) -> list:
         if did is None or did not in base:
             continue
         if typ == "outcome":
-            _merge_outcome(base[did].setdefault("outcome", {}), o["outcome"])
+            _merge_outcome(base[did].setdefault("outcome", {}), o["outcome"], o.get("mode", "set"))
         elif typ == "field":
             base[did][o["field"]] = o["value"]
-    out = [DecisionTrace(**d) for d in base.values() if env_id is None or d["env_id"] == env_id]
+    out = [DecisionTrace(**d) for d in base.values()]
     out.sort(key=lambda t: (t.env_id, t.t_sim))          # stable: ties keep recording order
     return out
+
+
+def load_traces(root: str, env_id: Optional[str] = None, flush=None) -> list:
+    """Merge base traces and patches from every part file under ``root``; ordered by (env_id, t_sim). With
+    ``env_id`` only that lifetime's traces and patches are kept in memory (patches without an ``env_id`` tag — older
+    writers — are kept too and matched by event id)."""
+    if flush is not None:
+        flush()
+    if not os.path.isdir(root):
+        return []
+    if env_id is None:
+        return _merge(o for o, _ in _iter_lines(root))
+    keep = []
+    for o, _ in _iter_lines(root):
+        e = o["d"].get("env_id") if o.get("type") == "trace" else o.get("env_id")
+        if e == env_id or (e is None and o.get("type") != "trace"):
+            keep.append(o)
+    return _merge(keep)
+
+
+def partition_lifetimes(root: str, out_dir: str, max_open: int = 128) -> dict:
+    """Stream every part file under ``root`` once and write each lifetime's traces and patches to
+    ``out_dir/<n>.jsonl``. Patches without an env tag go to ``out_dir/_untagged.jsonl`` (applied to every lifetime by
+    `load_partition`). Returns env_id -> partition path. Memory: the env -> file map and ``max_open`` file handles."""
+    os.makedirs(out_dir, exist_ok=True)
+    paths: dict = {}
+    handles: OrderedDict = OrderedDict()
+    untagged = os.path.join(out_dir, "_untagged.jsonl")
+    with open(untagged, "w") as unt:
+        if os.path.isdir(root):
+            for o, line in _iter_lines(root):
+                e = o["d"].get("env_id") if o.get("type") == "trace" else o.get("env_id")
+                if e is None:
+                    unt.write(line + "\n")
+                    continue
+                fh = handles.get(e)
+                if fh is None:
+                    if e not in paths:
+                        paths[e] = os.path.join(out_dir, f"{len(paths):06d}.jsonl")
+                        mode = "w"
+                    else:
+                        mode = "a"
+                    fh = handles[e] = open(paths[e], mode)
+                    while len(handles) > max_open:
+                        handles.popitem(last=False)[1].close()
+                else:
+                    handles.move_to_end(e)
+                fh.write(line + "\n")
+    for fh in handles.values():
+        fh.close()
+    return paths
+
+
+def load_partition(path: str, untagged: Optional[str] = None) -> list:
+    """Traces of one lifetime from a `partition_lifetimes` file (+ the untagged patches, matched by event id)."""
+    objs = []
+    for p in (path, untagged):
+        if p and os.path.exists(p):
+            with open(p) as fh:
+                for line in fh:
+                    if line.strip():
+                        objs.append(json.loads(line))
+    return _merge(objs)
 
 
 def traces_to_parquet(traces: list, path: str) -> str:

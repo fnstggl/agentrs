@@ -8,12 +8,25 @@ reply = ``(req_id, result | {"error": ...})``.
 
 Ops:
 
-* ``hidden``  {"texts", "max_tokens", "layer"} → {"h": [N, T, H] bf16, "mask": [N, T] bool, "version"} — token
-  hidden states of the chosen layer (``-1`` = final post-norm), right-padded per request;
-* ``embed``   {"texts", "max_tokens"} → {"e": [N, H] float32, "version"} — mask-mean-pooled final hidden state;
+* ``hidden``  {"texts", "max_tokens", "layer"} → {"h": [N, T, H] bf16, "mask": [N, T] bool, "n_tokens": [N],
+  "truncated": [N] bool, "version"} — token hidden states of the chosen layer (``-1`` = final post-norm),
+  right-padded per request. A text longer than ``max_tokens`` is cut to its first ``max_tokens`` tokens, and the
+  reply says so (``n_tokens`` is the full length, ``truncated`` flags the cut; the server counts them);
+* ``hidden_chunks`` {"texts", "chunk_tokens", "layer"} → {"h": [M, T, H], "mask": [M, T], "chunk_of": [M],
+  "chunk_index": [M], "n_tokens": [N], "version"} — every text split into consecutive chunks of at most
+  ``chunk_tokens`` tokens (config ``sem_chunk_tokens``: long content becomes several chunks, nothing is cut);
+* ``embed``   {"texts", "max_tokens"} → {"e": [N, H] float32, "n_tokens", "truncated", "version"} — mask-mean-pooled
+  final hidden state;
 * ``generate`` {"prompts", "max_new_tokens", "greedy", "temperature", "seed", "prefix_embeds"?} → {"tokens": [[id]],
-  "text": [str], "logprobs": [[float]], "version"} — the reply's behaviour log-probabilities are those of the
-  served decoder version (``decoder_version``), so actors can log exact ``logp`` for off-policy correction;
+  "text": [str], "logprobs": [[float]], "model_logprobs": [[float]], "deterministic": bool, "version"} —
+  ``logprobs`` are the behaviour log-probabilities of the generated tokens under the policy that actually produced
+  them by the served decoder version (``decoder_version``), so actors can log exact ``logp`` for off-policy
+  correction: with sampling, log-softmax of the (temperature-scaled) logits; with greedy decoding the behaviour is
+  deterministic, so every token's behaviour log-probability is 0 (μ = 1) and ``deterministic`` is True.
+  ``model_logprobs`` always holds the log-softmax of the raw logits at the generated tokens (a diagnostic / target
+  policy value, never a behaviour probability). ``prefix_embeds`` ([K, H] per prompt) are placed **before** the
+  prompt's token embeddings (after left padding), i.e. a genuine soft prefix P_t: the decoder reads
+  [P_t; prompt tokens] and continues;
 * ``info`` → model name, hidden size, versions, stats; ``adapter_state`` → the served adapter tensors.
 
 **Batching.** The server blocks for the first request, then keeps collecting for up to ``max_wait_ms`` or until
@@ -114,6 +127,7 @@ class SemanticServer:
         self.base_tag = f"base:{model_name}"
         self.cache = _LRU(cache_bytes)
         self.stats = Counter()
+        self.stats["texts_truncated"] = 0
         self.batch_texts_hist = Counter()
         self.batch_clients_hist = Counter()
         self.max_clients_in_batch = 0
@@ -156,11 +170,17 @@ class SemanticServer:
         import contextlib
         return contextlib.nullcontext()
 
+    def token_ids(self, texts: list) -> list:
+        """Full (untruncated) token ids of each text, no special tokens added."""
+        return self.tok(list(texts), add_special_tokens=False)["input_ids"]
+
     @torch.no_grad()
-    def _hidden_batch(self, texts: list, max_tokens: int, layer: int) -> list:
-        """-> list of [T_i, H] bf16 CPU tensors (each text's own tokens only)."""
-        out: list = [None] * len(texts)
-        keys = [(hashlib.sha256(t.encode()).hexdigest(), self.encoder_version, layer, max_tokens) for t in texts]
+    def _hidden_ids(self, id_lists: list, layer: int, cache_tag) -> list:
+        """id_lists: [N] list[int] (each <= the model context) -> [N] [T_i, H] bf16 CPU tensors. Cached by
+        (sha256 of the ids, encoder_version, layer, cache_tag)."""
+        out: list = [None] * len(id_lists)
+        keys = [(hashlib.sha256(str(ids).encode()).hexdigest(), self.encoder_version, layer, cache_tag)
+                for ids in id_lists]
         todo = []
         for i, k in enumerate(keys):
             v = self.cache.get(k)
@@ -169,10 +189,18 @@ class SemanticServer:
             else:
                 out[i] = v
         if todo:
-            enc = self.tok([texts[i] for i in todo], return_tensors="pt", padding=True, truncation=True,
-                           max_length=max_tokens, padding_side="right")
-            ids = enc["input_ids"].to(self.device)
-            att = enc["attention_mask"].to(self.device)
+            T = max(max(1, len(id_lists[i])) for i in todo)
+            pad = self.tok.pad_token_id
+            ids = torch.full((len(todo), T), pad, dtype=torch.long)
+            att = torch.zeros(len(todo), T, dtype=torch.long)
+            for j, i in enumerate(todo):
+                L = len(id_lists[i])
+                if L:
+                    ids[j, :L] = torch.tensor(id_lists[i], dtype=torch.long)
+                    att[j, :L] = 1
+                else:                                     # empty text: one pad token, attended, so T_i >= 1
+                    att[j, 0] = 1
+            ids, att = ids.to(self.device), att.to(self.device)
             self.stats["tokens_prompt"] += int(att.sum())
             self.meter.add(tokens_prompt=int(att.sum()))
             with self._enc_ctx(), self.meter.gpu():
@@ -185,6 +213,28 @@ class SemanticServer:
                 self.cache.put(keys[i], v)
         return out
 
+    def _hidden_batch(self, texts: list, max_tokens: int, layer: int) -> tuple:
+        """-> ([N] [T_i, H] tensors of each text's first ``max_tokens`` tokens, [N] full token counts)."""
+        full = self.token_ids(texts)
+        n_tok = [len(x) for x in full]
+        cut = sum(1 for n in n_tok if n > max_tokens)
+        self.stats["texts_truncated"] += cut
+        return self._hidden_ids([x[:max_tokens] for x in full], layer, ("max", max_tokens)), n_tok
+
+    def _chunk_batch(self, texts: list, chunk_tokens: int, layer: int) -> tuple:
+        """Split each text into consecutive chunks of <= chunk_tokens tokens -> (chunk tensors, chunk_of,
+        chunk_index, n_tokens)."""
+        full = self.token_ids(texts)
+        chunks, of, idx = [], [], []
+        for i, ids in enumerate(full):
+            pieces = [ids[j:j + chunk_tokens] for j in range(0, len(ids), chunk_tokens)] or [[]]
+            for c, piece in enumerate(pieces):
+                chunks.append(piece)
+                of.append(i)
+                idx.append(c)
+        self.stats["chunks"] += len(chunks)
+        return self._hidden_ids(chunks, layer, ("chunk", chunk_tokens)), of, idx, [len(x) for x in full]
+
     @torch.no_grad()
     def _generate_batch(self, prompts: list, max_new_tokens: int, greedy: bool, temperature: float,
                         seed: Optional[int], prefixes: Optional[list]) -> list:
@@ -193,9 +243,18 @@ class SemanticServer:
         att = enc["attention_mask"].to(self.device)
         emb = self.model.get_input_embeddings()(ids)
         if prefixes is not None:
+            # soft prefix first: per row [left padding, prefix (K), prompt tokens (L_i)]
             pre = torch.stack([p.to(self.device, emb.dtype) for p in prefixes])          # [n, K, H]
-            emb = torch.cat([emb, pre], 1)
-            att = torch.cat([att, torch.ones(att.shape[0], pre.shape[1], dtype=att.dtype, device=self.device)], 1)
+            n, T = att.shape
+            K = pre.shape[1]
+            lens = att.sum(1).tolist()
+            rows_e, rows_a = [], []
+            for i in range(n):
+                L = int(lens[i])
+                rows_e.append(torch.cat([emb[i, :T - L], pre[i], emb[i, T - L:]], 0))
+                rows_a.append(torch.cat([att[i, :T - L], torch.ones(K, dtype=att.dtype, device=self.device),
+                                         att[i, T - L:]], 0))
+            emb, att = torch.stack(rows_e), torch.stack(rows_a)
         if seed is not None:
             torch.manual_seed(seed)
         kw = dict(do_sample=False, temperature=None, top_p=None, top_k=None) if greedy else \
@@ -205,12 +264,18 @@ class SemanticServer:
         with self.meter.gpu():
             gen = self.model.generate(inputs_embeds=emb, attention_mask=att, max_new_tokens=max_new_tokens,
                                       pad_token_id=self.tok.pad_token_id, return_dict_in_generate=True,
-                                      output_scores=True, **kw)
+                                      output_scores=True, output_logits=True, **kw)
         seqs = gen.sequences                                               # only new tokens (inputs_embeds)
-        # behaviour log-probabilities of the sampled tokens under the distribution actually sampled from (the
-        # processed scores: temperature applied when sampling); one step at a time to avoid an [n, L, V] tensor
-        lp = torch.stack([F.log_softmax(sc.float(), -1).gather(-1, seqs[:, t:t + 1]).squeeze(-1)
-                          for t, sc in enumerate(gen.scores)], 1)          # [n, L]
+        # behaviour log-probabilities of the generated tokens under the distribution actually sampled from (the
+        # processed scores: temperature applied when sampling); one step at a time to avoid an [n, L, V] tensor.
+        # Greedy decoding is deterministic: behaviour log-probability 0 for every token.
+        model_lp = torch.stack([F.log_softmax(lg.float(), -1).gather(-1, seqs[:, t:t + 1]).squeeze(-1)
+                                for t, lg in enumerate(gen.logits)], 1)    # [n, L] raw logits
+        if greedy:
+            lp = torch.zeros_like(model_lp)
+        else:
+            lp = torch.stack([F.log_softmax(sc.float(), -1).gather(-1, seqs[:, t:t + 1]).squeeze(-1)
+                              for t, sc in enumerate(gen.scores)], 1)      # [n, L]
         eos = {self.tok.eos_token_id, self.tok.pad_token_id}
         out = []
         for i in range(seqs.shape[0]):
@@ -221,7 +286,7 @@ class SemanticServer:
                     n = j + 1
                     break
             out.append({"tokens": toks[:n], "text": self.tok.decode(toks[:n], skip_special_tokens=True),
-                        "logprobs": lp[i, :n].tolist()})
+                        "logprobs": lp[i, :n].tolist(), "model_logprobs": model_lp[i, :n].tolist()})
             self.stats["tokens_generated"] += n
             self.meter.add(tokens_generated=n)
         return out
@@ -238,6 +303,8 @@ class SemanticServer:
             if op in ("hidden", "embed"):
                 key = (op, int(pl.get("max_tokens", self.max_tokens)), int(pl.get("layer", self.hidden_layer))
                        if op == "hidden" else -1)
+            elif op == "hidden_chunks":
+                key = (op, int(pl.get("chunk_tokens", self.max_tokens)), int(pl.get("layer", self.hidden_layer)))
             elif op == "generate":
                 key = (op, int(pl.get("max_new_tokens", 32)), bool(pl.get("greedy", True)),
                        float(pl.get("temperature", 1.0)), pl.get("seed"), pl.get("prefix_embeds") is not None)
@@ -276,30 +343,46 @@ class SemanticServer:
                         replies.append((cid, rid, {"tokens": [x["tokens"] for x in res[a:b]],
                                                    "text": [x["text"] for x in res[a:b]],
                                                    "logprobs": [x["logprobs"] for x in res[a:b]],
+                                                   "model_logprobs": [x["model_logprobs"] for x in res[a:b]],
+                                                   "deterministic": bool(key[2]),
                                                    "version": self.decoder_version, "batch_texts": len(texts),
                                                    "batch_clients": len(clients)}))
-                else:
-                    hs = self._hidden_batch(texts, key[1], key[2] if op == "hidden" else -1)
+                elif op == "hidden_chunks":
+                    hs, of, idx, n_tok = self._chunk_batch(texts, key[1], key[2])
                     for cid, rid, a, b in spans:
-                        part = hs[a:b]
-                        T = max(v.shape[0] for v in part)
-                        h = torch.zeros(len(part), T, self.sem_dim, dtype=part[0].dtype)
-                        m = torch.zeros(len(part), T, dtype=torch.bool)
-                        for i, v in enumerate(part):
-                            h[i, :v.shape[0]] = v
-                            m[i, :v.shape[0]] = True
+                        sel = [j for j, o in enumerate(of) if a <= o < b]
+                        part = [hs[j] for j in sel]
+                        h, m = self._pad(part)
+                        replies.append((cid, rid, {"h": h, "mask": m, "chunk_of": [of[j] - a for j in sel],
+                                                   "chunk_index": [idx[j] for j in sel], "n_tokens": n_tok[a:b],
+                                                   "version": self.encoder_version, "batch_texts": len(texts),
+                                                   "batch_clients": len(clients)}))
+                else:
+                    hs, n_tok = self._hidden_batch(texts, key[1], key[2] if op == "hidden" else -1)
+                    for cid, rid, a, b in spans:
+                        h, m = self._pad(hs[a:b])
                         if op == "hidden":
                             res = {"h": h, "mask": m}
                         else:
                             mf = m.float().unsqueeze(-1)
                             res = {"e": (h.float() * mf).sum(1) / mf.sum(1).clamp(min=1)}
                         res.update({"version": self.encoder_version, "batch_texts": len(texts),
-                                    "batch_clients": len(clients)})
+                                    "batch_clients": len(clients), "n_tokens": n_tok[a:b],
+                                    "truncated": [n > key[1] for n in n_tok[a:b]]})
                         replies.append((cid, rid, res))
             except Exception as e:                      # noqa: BLE001 — report to the clients, keep serving
                 for cid, rid, _, _ in spans:
                     replies.append((cid, rid, {"error": f"{type(e).__name__}: {e}"}))
         return replies
+
+    def _pad(self, part: list) -> tuple:
+        T = max(v.shape[0] for v in part)
+        h = torch.zeros(len(part), T, self.sem_dim, dtype=part[0].dtype)
+        m = torch.zeros(len(part), T, dtype=torch.bool)
+        for i, v in enumerate(part):
+            h[i, :v.shape[0]] = v
+            m[i, :v.shape[0]] = True
+        return h, m
 
     def info(self) -> dict:
         return {"model": self.model_name, "sem_dim": self.sem_dim, "encoder_version": self.encoder_version,
@@ -378,16 +461,32 @@ class SemanticClient:
     ``embed``) plus ``generate``. One client per process; requests are synchronous unless `submit`/`result` are
     used to pipeline several."""
 
-    def __init__(self, req_q, resp_q, client_id, timeout_s: float = 300.0):
+    def __init__(self, req_q, resp_q, client_id, timeout_s: float = 300.0, connect: bool = True):
         self.req_q, self.resp_q, self.client_id = req_q, resp_q, client_id
         self.timeout_s = timeout_s
         self._n = 0
         self._done: dict = {}
         self._info: Optional[dict] = None
-        self.version: str = ""
+        self._version: str = ""
         self.decoder_version: str = ""
-        self.sem_dim: int = 0
+        self._sem_dim: int = 0
         self.tokens_prompt = 0
+        self.last_truncated: list = []       # flags of the last hidden()/embed() call
+        self.n_truncated = 0                 # texts cut to max_tokens by this client's calls
+        if connect:
+            self.info()                      # protocol attributes are valid from construction on
+
+    @property
+    def sem_dim(self) -> int:
+        if not self._sem_dim:
+            self.info()
+        return self._sem_dim
+
+    @property
+    def version(self) -> str:
+        if not self._version:
+            self.info()
+        return self._version
 
     def submit(self, op: str, payload: dict) -> str:
         self._n += 1
@@ -421,19 +520,33 @@ class SemanticClient:
 
     def info(self) -> dict:
         self._info = self.call("info", {})
-        self.sem_dim = self._info["sem_dim"]
-        self.version = self._info["encoder_version"]
+        self._sem_dim = int(self._info["sem_dim"])
+        self._version = self._info["encoder_version"]
         self.decoder_version = self._info["decoder_version"]
         return self._info
 
+    def _note(self, r: dict) -> None:
+        self._version = r["version"]
+        self.last_truncated = list(r.get("truncated", []))
+        self.n_truncated += sum(self.last_truncated)
+
     def hidden(self, texts: list, max_tokens: int = 512, layer: int = -1) -> tuple:
+        """-> (h [N,T,H], mask [N,T]); texts longer than max_tokens are cut (``last_truncated`` says which; use
+        `hidden_chunks` to encode all of a long text)."""
         r = self.call("hidden", {"texts": list(texts), "max_tokens": max_tokens, "layer": layer})
-        self.version = r["version"]
+        self._note(r)
         return r["h"], r["mask"]
+
+    def hidden_chunks(self, texts: list, chunk_tokens: int = 512, layer: int = -1) -> dict:
+        """Every text split into chunks of <= chunk_tokens tokens -> {"h" [M,T,H], "mask", "chunk_of" [M],
+        "chunk_index" [M], "n_tokens" [N]}."""
+        r = self.call("hidden_chunks", {"texts": list(texts), "chunk_tokens": chunk_tokens, "layer": layer})
+        self._version = r["version"]
+        return r
 
     def embed(self, texts: list, max_tokens: int = 512):
         r = self.call("embed", {"texts": list(texts), "max_tokens": max_tokens})
-        self.version = r["version"]
+        self._note(r)
         return r["e"]
 
     def generate(self, prompts: list, max_new_tokens: int = 32, greedy: bool = True, temperature: float = 1.0,

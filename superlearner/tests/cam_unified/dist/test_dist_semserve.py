@@ -95,7 +95,10 @@ def test_semserve_batches_two_clients_and_reloads_lora_versions(tmp_path):
         emb = (hh.float() * mm[..., None]).sum(1) / mm.sum(1, keepdim=True)
         assert torch.allclose(r1["embed"], emb, atol=0.05, rtol=0.05)
         assert r1["gen"]["text"][0].strip().startswith("Paris")
-        assert all(lp <= 0 for lp in r1["gen"]["logprobs"][0])
+        # greedy decoding is deterministic: behaviour log-probability 0 per token; the model's own log-softmax of
+        # the generated tokens is reported separately
+        assert r1["gen"]["deterministic"] is True and all(lp == 0.0 for lp in r1["gen"]["logprobs"][0])
+        assert all(lp <= 0 for lp in r1["gen"]["model_logprobs"][0]) and min(r1["gen"]["model_logprobs"][0]) < 0
         assert r1["versions"] == [f"base:{MODEL}"]
 
         # ---- versioned LoRA reload: the learner publishes adapter version 1 with non-zero B matrices
@@ -110,7 +113,7 @@ def test_semserve_batches_two_clients_and_reloads_lora_versions(tmp_path):
         time.sleep(0.05)
         gen1 = main.generate(["The capital of France is"], max_new_tokens=6, greedy=True)
         assert gen1["version"].endswith("+lora:v1")
-        assert gen1["logprobs"] != base_gen["logprobs"]        # the decoder path changed with the adapter
+        assert gen1["model_logprobs"] != base_gen["model_logprobs"]   # the decoder path changed with the adapter
         h_after, _ = main.hidden([TEXTS[0]], max_tokens=63)
         assert main.version == f"base:{MODEL}"                  # frozen encoder: version unchanged ...
         assert torch.equal(h_after, h_alone)                    # ... so the same-version cache entry stays valid
@@ -151,5 +154,49 @@ def test_encoder_lora_versions_invalidate_the_hidden_state_cache(tmp_path):
     assert b["version"] != a["version"] and b["version"].endswith("+lora:v3")
     assert srv.cache.hits == 1 and srv.cache.misses == 2   # recomputed, not served from the old version's entry
     assert not torch.allclose(b["h"].float(), a["h"].float(), atol=1.0)
+    del srv
+    torch.cuda.empty_cache()
+
+
+def test_soft_prefix_is_a_prefix_behaviour_logprobs_and_long_texts():
+    """(1) prefix_embeds go BEFORE the prompt: generating from [embeddings of "The capital of"] + " France is" equals
+    generating from the full prompt (greedy, batched with left padding); (2) greedy behaviour log-probabilities are 0,
+    sampled ones are the log-softmax actually sampled from; (3) texts beyond max_tokens are flagged, and
+    hidden_chunks encodes all of them in chunks."""
+    from superlearner.cam_unified.dist.semserve import SemanticServer
+    srv = SemanticServer(MODEL, device="cuda", lora=False)
+    emb = srv.model.get_input_embeddings()
+
+    def pre(text):
+        ids = torch.tensor(srv.tok(text, add_special_tokens=False)["input_ids"], device=srv.device)
+        return emb(ids).detach().cpu()
+    full = ["The capital of France is", "The capital of Germany is, of course,"]
+    tails = [" France is", " Germany is, of course,"]
+    g = lambda pl: srv.handle_batch([("generate", "r", "c", pl)])[0][2]        # noqa: E731
+    ref = g({"prompts": full, "max_new_tokens": 6, "greedy": True})
+    out = g({"prompts": tails, "max_new_tokens": 6, "greedy": True,
+             "prefix_embeds": [pre("The capital of"), pre("The capital of")]})
+    assert out["tokens"] == ref["tokens"] and out["text"][0].strip().startswith("Paris")
+    wrong = g({"prompts": ["The capital of France is"], "max_new_tokens": 6, "greedy": True,
+               "prefix_embeds": [pre(" and also")]})
+    assert wrong["tokens"][0] != ref["tokens"][0]                     # the prefix really conditions generation
+    assert ref["deterministic"] and all(x == 0.0 for row in ref["logprobs"] for x in row)
+    s1 = g({"prompts": full[:1], "max_new_tokens": 5, "greedy": False, "temperature": 1.0, "seed": 0})
+    assert not s1["deterministic"]
+    assert s1["logprobs"][0] == pytest.approx(s1["model_logprobs"][0], abs=2e-3)   # T = 1: same distribution
+    s7 = g({"prompts": full[:1], "max_new_tokens": 5, "greedy": False, "temperature": 0.7, "seed": 0})
+    assert s7["logprobs"][0] != pytest.approx(s7["model_logprobs"][0], abs=1e-3)  # T = 0.7: the sampled one
+    long = " ".join(f"word{i}" for i in range(40))
+    n_long = len(srv.token_ids([long])[0])
+    (_, _, h), = srv.handle_batch([("hidden", "h", "c", {"texts": ["short text", long], "max_tokens": 16})])
+    assert h["truncated"] == [False, True] and h["n_tokens"][1] == n_long > 16
+    assert int(h["mask"][1].sum()) == 16 and srv.stats["texts_truncated"] == 1
+    (_, _, c), = srv.handle_batch([("hidden_chunks", "k", "c", {"texts": ["short text", long], "chunk_tokens": 16})])
+    n_chunks = -(-n_long // 16)
+    assert c["chunk_of"] == [0] + [1] * n_chunks and c["chunk_index"] == [0] + list(range(n_chunks))
+    assert int(c["mask"][1:].sum()) == n_long                         # every token of the long text is encoded
+    # the first chunk of the long text is its truncated encoding (same tokens, same positions; bf16 batch tolerance)
+    a, b = c["h"][1][c["mask"][1]].float(), h["h"][1][h["mask"][1]].float()
+    assert a.shape == b.shape and float((a - b).norm() / b.norm()) < 0.03
     del srv
     torch.cuda.empty_cache()

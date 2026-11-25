@@ -11,9 +11,10 @@ Run directory written by a launch::
     spool/ ckpt/ archive/ traces/ learner/ status/ compute/ logs/ semserve/   (see actor.run_paths)
 
 Processes use the ``spawn`` start method (CUDA-safe; no inherited state). Each child's stdout/stderr go to
-``logs/<name>.log``. Supervision restarts a crashed actor (non-zero exit) under the same actor id — its spool writer
-recovers sequence numbers and leftover segments — and a crashed learner (it resumes from LATEST), each up to
-``max_restarts`` times. Shutdown order: actors (finish the current decision, close the running episode, flush), then
+``logs/<name>.log``. Supervision restarts a crashed actor (non-zero exit) under the same actor id with the next
+``incarnation`` — its spool writer recovers sequence numbers, leftover segments and its write-ahead log, it closes the
+dead incarnation's open episodes, and it draws new seeds, so it neither loses nor replays experience — and a crashed
+learner (it resumes from LATEST), each up to ``max_restarts`` times. Shutdown order: actors (finish the current decision, close the running episode, flush), then
 the learner (drains the queue, final status), then the semantic server.
 
 `benchmark_actors` measures actor throughput for several actor counts on the toy environment (the F04 benchmark).
@@ -115,11 +116,12 @@ class Launcher:
         return p
 
     def _start_actor(self, aid: str) -> None:
-        spec = self.actor_specs[aid]
+        spec = self.actor_specs[aid].to_dict()
+        spec["incarnation"] = self.restarts.get(aid, 0)      # new seeds and lifetimes for a restarted actor
         sem = None
         if self.sem_spec is not None:
             sem = (self.sem_req, self.sem_resp[aid], aid)
-        self._spawn(aid, "superlearner.cam_unified.dist.actor:actor_main", (spec.to_dict(), self.actor_stop, sem))
+        self._spawn(aid, "superlearner.cam_unified.dist.actor:actor_main", (spec, self.actor_stop, sem))
 
     def _start_learner(self) -> None:
         self._spawn("learner", "superlearner.cam_unified.dist.learner:learner_main",
@@ -356,8 +358,8 @@ def benchmark_actors(out_dir: str, n_actors=(1, 4, 8), seconds: float = 20.0, en
     ``with_learner=True``: end-to-end. The spool is bounded (``max_spool_bytes``, policy "block"), so the measured
     decisions/s is the sustained system rate: when the learner's ingestion saturates, actors block
     (``actor_blocked_s``) instead of the spool growing without bound. The bound also sets policy staleness: on the
-    toy benchmark a 64 MB spool let 4-8 actors run so far ahead that most data exceeded max_lag=16, while 4-16 MB kept
-    the lag at 1-6 updates (all of it V-trace corrected, none discarded).
+    toy benchmark a 64 MB spool let 4-8 actors run so far ahead that most data exceeded a max lag of 16, while 4-16 MB
+    kept the lag at 1-7 updates (V-trace corrected; the learner uses the validated max lag, `offpolicy.LagRouter`).
     ``with_learner=False``: experience-generation capacity of the actors alone (initial weights are published
     once; segments accumulate durably in the spool, which must be large enough for the run)."""
     results = []
@@ -367,7 +369,7 @@ def benchmark_actors(out_dir: str, n_actors=(1, 4, 8), seconds: float = 20.0, en
         L = None
         if with_learner:
             L = LearnerSpec(run_dir=run, model_kwargs={"seed": seed, "lr": 1e-2}, min_decisions=min_decisions,
-                            max_batch_decisions=max_batch_decisions, max_lag=16, torch_threads=2, queue_kwargs=qk)
+                            max_batch_decisions=max_batch_decisions, max_lag=None, torch_threads=2, queue_kwargs=qk)
         else:
             from .publish import CheckpointPublisher
             from .toyworld import make_tiny_learner

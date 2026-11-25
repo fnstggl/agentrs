@@ -179,3 +179,57 @@ def test_policy_client_refreshes_only_at_safe_boundaries(tmp_path):
     dec.state_rebuilt()
     assert dec.drift == 0.0
     assert [h[2] for h in dec.history] == ["trajectory", "decision"]
+
+
+def _ones(v: float, n: int = 1000):
+    return {"layer.weight": torch.full((n, 8), float(v)), "layer.bias": torch.full((8,), float(v))}
+
+
+@pytest.mark.parametrize("mode", ["exact", "meta_sum"])
+def test_drift_accounts_for_skipped_versions(tmp_path, mode):
+    """Verifier probe P2-drift: an actor jumping v0 -> v3 sees the full change ‖θ3 − θ0‖/‖θ0‖ = 3, not the last
+    published step's 1/3; and drift keeps accumulating over several refreshes without a latent rebuild."""
+    root = str(tmp_path / "ckpt")
+    pub = CheckpointPublisher(root, keep_last=10)
+    pol = _Policy()
+    pub.publish(_ones(1.0), 0)
+    c = PolicyClient(root, refresh_at="decision", drift_mode=mode)
+    c.wait_for_version(pol, 0)
+    for v in (1, 2, 3):
+        pub.publish(_ones(v + 1.0), v)
+    assert c.maybe_refresh(pol, "decision") and c.version == 3
+    assert c.drift == pytest.approx(3.0, rel=1e-6)
+    assert c.state_version == 0                                  # latent still built under v0
+    pub.publish(_ones(5.0), 4)
+    assert c.maybe_refresh(pol, "decision")
+    assert c.drift == pytest.approx(4.0, rel=1e-6)               # ‖5−1‖/‖1‖ since the state was built
+    c.state_rebuilt()
+    assert c.drift == 0.0 and c.state_version == 4
+    pub.publish(_ones(6.0), 5)
+    assert c.maybe_refresh(pol, "decision") and c.drift == pytest.approx(0.2, rel=1e-6)   # ‖6−5‖/‖5‖
+
+
+def test_meta_sum_drift_is_an_upper_bound_and_infinite_when_the_chain_is_pruned(tmp_path):
+    root = str(tmp_path / "ckpt")
+    pub = CheckpointPublisher(root, keep_last=2)
+    pol = _Policy()
+    g = torch.Generator().manual_seed(0)
+    sds = [{"layer.weight": torch.randn(50, 8, generator=g), "layer.bias": torch.randn(8, generator=g)}
+           for _ in range(4)]
+    pub.publish(sds[0], 0)
+    exact, bound = PolicyClient(root, drift_mode="exact"), PolicyClient(root, drift_mode="meta_sum")
+    for c in (exact, bound):
+        c.wait_for_version(pol, 0)
+    pub.publish(sds[1], 1)
+    for c in (exact, bound):
+        assert c.maybe_refresh(pol, "trajectory")
+    assert bound.drift >= exact.drift - 1e-9 and exact.drift > 0
+    pub.publish(sds[2], 2)
+    pub.publish(sds[3], 3)                    # keep_last=2: v2 and v3 on disk, so the chain 3 -> 2 -> 1 holds
+    for c in (exact, bound):
+        assert c.maybe_refresh(pol, "trajectory")
+    assert bound.drift >= exact.drift - 1e-9
+    pub.publish(sds[0], 4)
+    pub.publish(sds[1], 5)
+    pub.publish(sds[2], 6)                    # v4, v5 pruned: the chain 6 -> 5 -> 4 -> 3 is broken
+    assert bound.maybe_refresh(pol, "trajectory") and bound.drift == float("inf")

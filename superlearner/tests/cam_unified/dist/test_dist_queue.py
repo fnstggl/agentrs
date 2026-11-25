@@ -344,3 +344,55 @@ def test_fast_event_decoder_equals_contract_from_dict():
     for e in evs:
         d = json.loads(json.dumps(encode_record(e)))
         assert decode_event(json.loads(json.dumps(d))) == EventRecord.from_dict(d) == e
+
+
+_WAL_WRITER = r"""
+import os, sys, time
+sys.path.insert(0, {src!r})
+from superlearner.cam_unified.dist.queue import ExperienceQueue
+from superlearner.cam_unified.interfaces import EventRecord
+q = ExperienceQueue({root!r})
+w = q.writer("wa", batch_records=10**6)          # never commits on its own
+for i in range({n}):
+    w.put(EventRecord(event_id="e_wal_%06d" % i, env_id="w", actor_id="wa", episode_id="ep", step=i,
+                      model_version=0, t_sim=float(i), observations=[]))
+print("ready", flush=True)
+time.sleep(60)
+"""
+
+
+def test_writer_wal_recovers_buffered_items_after_sigkill(tmp_path):
+    """An actor killed with SIGKILL before committing its buffer loses nothing: the next writer for the actor id
+    commits the write-ahead log."""
+    import signal
+    import subprocess
+    import sys
+    src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
+    root = str(tmp_path / "spool")
+    p = subprocess.Popen([sys.executable, "-c", _WAL_WRITER.format(src=src, root=root, n=300)],
+                         stdout=subprocess.PIPE, text=True)
+    assert p.stdout.readline().strip() == "ready"
+    p.send_signal(signal.SIGKILL)
+    p.wait(30)
+    q = ExperienceQueue(root)
+    assert q.pending() == []                           # nothing was committed by the dead process
+    w = q.writer("wa", batch_records=10)
+    assert w.stats["wal_recovered_items"] == 300 and w.stats["wal_torn_lines"] == 0
+    assert len(q.pending()) == 1
+    c = q.consumer(lazy_traces=False)
+    r = c.ingest(None)
+    assert [e.event_id for e in r.events] == ["e_wal_%06d" % i for i in range(300)]
+    # a torn final line (killed inside write) is dropped and recorded, never silent
+    with open(w.wal_path, "ab") as fh:
+        fh.write(b'{"k":"event","d":{"event_id":"e_to')
+    w2 = q.writer("wa", batch_records=10)
+    assert w2.stats["wal_torn_lines"] == 1 and w2.stats["wal_recovered_items"] == 0
+    assert any("torn" in e.get("reason", "") for e in q.shed_ledger("wa"))
+    # after a commit the log is empty: a restart re-commits nothing
+    w2.put(EventRecord(event_id="e_new", env_id="w", actor_id="wa", episode_id="ep", step=0, model_version=0,
+                       t_sim=0.0, observations=[]))
+    assert os.path.getsize(w2.wal_path) > 0
+    w2.flush()
+    assert os.path.getsize(w2.wal_path) == 0
+    w3 = q.writer("wa", batch_records=10)
+    assert w3.stats["wal_recovered_items"] == 0

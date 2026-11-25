@@ -17,12 +17,24 @@ probe) — and only then replace ``LATEST`` atomically (write ``LATEST.tmp`` →
 Versions are strictly increasing; a failed validation leaves the version on disk marked ``validated: false`` and
 ``LATEST`` unchanged. Old versions beyond ``keep_last`` are pruned (never the one ``LATEST`` names).
 
+**Restart.** A new publisher on an existing root treats every version directory *above* LATEST as the leftover of a
+publication that never completed (a crash between the directory rename and the LATEST update, or a rejected
+validation): it is renamed to ``.unpublished-v<N>-<t>`` (kept for audit, never referenced, never counted as a
+version), and ``last_version`` becomes LATEST's version — so a resumed learner, which continues from LATEST,
+publishes its next version without a monotonicity conflict. Readers never see those directories (they only follow
+LATEST).
+
 `PolicyClient` (actor side) polls ``LATEST``, loads a newer version with ``weights_only=True`` after verifying its
 sha256, and hands it to the policy **only at safe boundaries** (trajectory boundaries by default; decision boundaries
 when ``refresh_at="decision"``). It reports the version the actor currently runs (stamped on every EventRecord as
-``model_version``) and accumulates the relative parameter change since the actor's latent state was built
-(``drift``), which the actor uses to decide whether its latent state must be reconstructed from raw episode history
-under the new weights instead of being reused (spec 14.3: no blind reuse of stale latent state).
+``model_version``) and ``drift`` = ‖θ_now − θ_state‖ / ‖θ_state‖, the exact relative parameter change between the
+weights now loaded and the weights under which the actor's latent state was built (computed on the actor from both
+state dicts, so skipped versions are accounted for). The actor uses it to decide whether its latent state must be
+reconstructed from raw episode history under the new weights instead of being reused (spec 14.3: no blind reuse of
+stale latent state). ``drift_mode="meta_sum"`` avoids the reference copy for very large models: it sums the published
+per-version absolute changes ``abs_change`` = ‖θ_v − θ_prev‖ along the chain of validated versions adopted since the
+latent state was built and divides by that state's weight norm — an upper bound on the exact drift by the triangle
+inequality, and infinite (forcing a rebuild) if an intermediate version's metadata was pruned.
 """
 from __future__ import annotations
 
@@ -58,10 +70,10 @@ def state_norm(sd: dict) -> float:
     return math.sqrt(sum(float(v.double().pow(2).sum()) for v in sd.values() if v.is_floating_point()))
 
 
-def relative_change(new: dict, old: Optional[dict]) -> Optional[float]:
-    """‖θ_new − θ_old‖₂ / max(‖θ_old‖₂, 1e-12) over shared floating tensors of identical shape (None without old)."""
+def param_change(new: dict, old: Optional[dict]) -> tuple:
+    """(‖θ_new − θ_old‖₂, ‖θ_old‖₂) over shared floating tensors of identical shape ((None, None) without old)."""
     if old is None:
-        return None
+        return None, None
     num = den = 0.0
     for k, v in new.items():
         o = old.get(k)
@@ -69,7 +81,13 @@ def relative_change(new: dict, old: Optional[dict]) -> Optional[float]:
             continue
         num += float((v.double() - o.double()).pow(2).sum())
         den += float(o.double().pow(2).sum())
-    return math.sqrt(num) / max(math.sqrt(den), 1e-12)
+    return math.sqrt(num), math.sqrt(den)
+
+
+def relative_change(new: dict, old: Optional[dict]) -> Optional[float]:
+    """‖θ_new − θ_old‖₂ / max(‖θ_old‖₂, 1e-12) over shared floating tensors of identical shape (None without old)."""
+    a, n = param_change(new, old)
+    return None if a is None else a / max(n, 1e-12)
 
 
 class PublishRejected(RuntimeError):
@@ -87,11 +105,20 @@ class CheckpointPublisher:
         self.fsync = fsync
         self.validate_fn = validate_fn
         self._prev_state: Optional[dict] = None
-        self.last_version = max([v for v in self.versions()] + [-1])
         for fn in os.listdir(self.root):          # leftovers of a crash mid-publication are never referenced
             if fn.startswith(".tmp-"):
                 shutil.rmtree(os.path.join(self.root, fn), ignore_errors=True)
         lt = self.latest()
+        lv = int(lt["version"]) if lt is not None else -1
+        self.unpublished: list = []
+        for v in self.versions():                 # never became LATEST: crash before the pointer update, or rejected
+            if v > lv:
+                dst = os.path.join(self.root, f".unpublished-{_vdir(v)}-{int(time.time() * 1e6)}")
+                os.rename(os.path.join(self.root, _vdir(v)), dst)
+                self.unpublished.append(v)
+        if self.unpublished and self.fsync:
+            _fsync_dir(self.root)
+        self.last_version = lv
         if lt is not None:
             try:
                 self._prev_state = load_weights(os.path.join(self.root, lt["dir"], "weights.pt"))["state_dict"]
@@ -131,9 +158,11 @@ class CheckpointPublisher:
         torch.save(payload, bio)
         data = bio.getvalue()
         digest = hashlib.sha256(data).hexdigest()
-        rel = relative_change(sd, self._prev_state)
+        absc, prev_norm = param_change(sd, self._prev_state)
+        rel = None if absc is None else absc / max(prev_norm, 1e-12)
         m = {"version": version, "sha256": digest, "bytes": len(data), "n_tensors": len(sd),
-             "n_params": int(sum(v.numel() for v in sd.values())), "rel_change": rel,
+             "n_params": int(sum(v.numel() for v in sd.values())), "rel_change": rel, "abs_change": absc,
+             "norm": state_norm(sd),
              "prev_version": self.latest()["version"] if self.latest() else None, "t": time.time(),
              "validated": False, "validation": None, "meta": meta or {}}
         tmp = os.path.join(self.root, f".tmp-{_vdir(version)}-{os.getpid()}")
@@ -230,16 +259,24 @@ class PolicyClient:
     "decision" — also between decisions (the actor then decides whether to rebuild latent state, see `drift`).
     """
 
-    def __init__(self, root: str, refresh_at: str = "trajectory", actor_id: str = ""):
+    def __init__(self, root: str, refresh_at: str = "trajectory", actor_id: str = "", drift_mode: str = "exact"):
         if refresh_at not in ("trajectory", "decision"):
             raise ValueError(refresh_at)
+        if drift_mode not in ("exact", "meta_sum"):
+            raise ValueError(drift_mode)
         self.root = os.path.abspath(root)
         self.refresh_at = refresh_at
         self.actor_id = actor_id
+        self.drift_mode = drift_mode
         self.version = -1
-        self.drift = 0.0              # sum of published rel_change since the latent state was (re)built
+        self.state_version = -1       # weights version under which the latent state was (re)built
+        self.drift = 0.0              # relative parameter change since the latent state was (re)built
         self.history: list = []       # [(version, t_adopted, boundary)]
         self.load_s = 0.0
+        self._loaded: Optional[dict] = None     # state dict currently loaded
+        self._state_ref: Optional[dict] = None  # state dict the latent state was built under ("exact" mode)
+        self._state_norm = 0.0                  # ‖θ‖ of that state ("meta_sum" mode)
+        self._abs_since_state = 0.0             # summed published ‖Δθ‖ since then ("meta_sum" mode)
 
     def newer(self) -> Optional[dict]:
         lt = read_latest(self.root)
@@ -272,14 +309,41 @@ class PolicyClient:
             return False
         t0 = time.perf_counter()
         sd, meta = self.fetch(ptr)
-        if int(meta["version"]) <= self.version:
+        new_v = int(meta["version"])
+        if new_v <= self.version:
             return False
-        policy.load_weights(sd, int(meta["version"]))
+        policy.load_weights(sd, new_v)
         self.load_s += time.perf_counter() - t0
-        self.version = int(meta["version"])
-        self.drift += float(meta.get("rel_change") or 0.0)
+        old_v = self.version
+        self.version = new_v
+        self._loaded = sd
+        if self.drift_mode == "exact":
+            ref = self._state_ref
+            self.drift = float(relative_change(sd, ref)) if ref is not None else 0.0
+        else:
+            self._abs_since_state += self._meta_sum(old_v, new_v)
+            self.drift = self._abs_since_state / max(self._state_norm, 1e-12) if self._state_norm else math.inf
         self.history.append((self.version, time.time(), boundary))
         return True
+
+    def _meta_sum(self, old_v: int, new_v: int) -> float:
+        """Sum of the published ``abs_change`` along the chain of validated versions new_v -> prev_version -> ...
+        -> old_v (each relative to its predecessor). inf when a link is missing (pruned metadata, or no predecessor),
+        so the change cannot be bounded and the caller rebuilds."""
+        tot, cur = 0.0, new_v
+        while cur != old_v:
+            try:
+                with open(os.path.join(self.root, _vdir(cur), "meta.json")) as fh:
+                    m = json.load(fh)
+            except (OSError, json.JSONDecodeError):
+                return math.inf
+            if not m.get("validated") or m.get("prev_version") is None or m.get("abs_change") is None:
+                return math.inf
+            tot += float(m["abs_change"])
+            cur = int(m["prev_version"])
+            if cur < old_v:
+                return math.inf
+        return tot
 
     def wait_for_version(self, policy, min_version: int = 0, timeout_s: float = 120.0, poll_s: float = 0.05) -> int:
         """Block until a validated version >= ``min_version`` exists and load it (actor start-up)."""
@@ -288,7 +352,7 @@ class PolicyClient:
             lt = read_latest(self.root)
             if lt is not None and int(lt["version"]) >= min_version:
                 self.maybe_refresh(policy, "trajectory")
-                self.drift = 0.0
+                self.state_rebuilt()
                 return self.version
             if time.monotonic() - t0 > timeout_s:
                 raise TimeoutError(f"no validated checkpoint >= {min_version} in {self.root} after {timeout_s}s")
@@ -297,3 +361,8 @@ class PolicyClient:
     def state_rebuilt(self) -> None:
         """Call after the latent state was reset or reconstructed under the current weights."""
         self.drift = 0.0
+        self.state_version = self.version
+        self._state_ref = self._loaded if self.drift_mode == "exact" else None
+        self._abs_since_state = 0.0
+        if self.drift_mode == "meta_sum" and self._loaded is not None:
+            self._state_norm = state_norm(self._loaded)

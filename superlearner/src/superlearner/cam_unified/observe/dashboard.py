@@ -18,6 +18,9 @@ Sections of the index (each states plainly when the run recorded no data for it 
 * real versus imagined outcomes (the imagined outcome of the selected candidate against the realised outcome);
 * lifetimes (one row per environment lifetime, linked to its drill-down page: retrospective summary labelled as an
   interpretation, action timeline with predictions vs outcomes, per-decision table with update references);
+  traces are streamed once into per-lifetime partitions (`trace.partition_lifetimes`) and processed one lifetime
+  at a time, so memory is bounded by the largest lifetime, not the run (calibration and real-vs-imagined statistics
+  accumulate incrementally);
 * model updates (update log: version, data consumed per actor, lag, metrics, publication);
 * compute (merged ComputeMeter snapshots per process and per role).
 """
@@ -27,13 +30,15 @@ import html
 import json
 import math
 import os
+import random
 import re
+import shutil
 import time
 from collections import Counter, defaultdict
 from typing import Optional
 
 from .accounting import merge_snapshots, read_snapshots
-from .trace import INTERPRETATION_LABEL, lifetimes, load_traces, retrospective_summary
+from .trace import INTERPRETATION_LABEL, load_partition, partition_lifetimes, retrospective_summary
 
 # ============================================================================ style (reference palette, light + dark)
 
@@ -337,9 +342,11 @@ def collect(run_dir: str) -> dict:
     snaps = read_snapshots(p("compute"))
     return {"run": _read_json(p("run.json"), {}), "summary": _read_json(p("summary.json"), {}),
             "status": status, "latest": _read_json(p("ckpt", "LATEST")), "ckpts": ckpts,
-            "updates": _read_jsonl(p("learner", "updates.jsonl")), "series": _read_jsonl(p("series.jsonl")),
+            "updates": [u for u in _read_jsonl(p("learner", "updates.jsonl")) if "update_id" in u],
+            "rollbacks": [u for u in _read_jsonl(p("learner", "updates.jsonl")) if u.get("rollback")],
+            "series": _read_jsonl(p("series.jsonl")),
             "events": _read_jsonl(p("launcher.jsonl")), "evals": evals, "snaps": snaps,
-            "compute": merge_snapshots(snaps) if snaps else {}, "traces": load_traces(p("traces"))}
+            "compute": merge_snapshots(snaps) if snaps else {}, "traces_root": p("traces")}
 
 
 # ============================================================================ analyses (pure, testable)
@@ -352,69 +359,119 @@ def _num(x) -> Optional[float]:
         return None
 
 
-def calibration(traces: list, n_bins: int = 10) -> dict:
-    """Per outcome key present in both ``predicted`` and ``outcome``: probability-type predictions (all predicted in
+class Calibration:
+    """Incremental world-model calibration over decision traces (`add` one lifetime at a time; `result`).
+
+    Per outcome key present in both ``predicted`` and ``outcome``: probability-type predictions (all predicted in
     [0,1] and all observed in {0,1}) get a reliability table + Brier score; others get MAE and the coverage of the
     ±1σ / ±2σ intervals implied by ``uncertainty[key]`` (a calibrated Gaussian covers ~68% / ~95%)."""
-    pairs = defaultdict(list)
-    for t in traces:
-        for k, pv in (t.predicted or {}).items():
-            p, o = _num(pv), _num((t.outcome or {}).get(k))
-            if p is None or o is None:
+
+    def __init__(self, n_bins: int = 10):
+        self.n_bins = n_bins
+        self.k: dict = {}
+
+    def add(self, traces) -> None:
+        nb = self.n_bins
+        for t in traces:
+            for key, pv in (t.predicted or {}).items():
+                p, o = _num(pv), _num((t.outcome or {}).get(key))
+                if p is None or o is None:
+                    continue
+                u = _num((t.uncertainty or {}).get(key))
+                s = self.k.get(key)
+                if s is None:
+                    s = self.k[key] = {"n": 0, "prob": True, "bins": [[0, 0.0, 0.0] for _ in range(nb)],
+                                       "brier": 0.0, "obs": 0.0, "err": 0.0, "nu": 0, "c1": 0, "c2": 0}
+                s["n"] += 1
+                s["prob"] = s["prob"] and 0.0 <= p <= 1.0 and o in (0.0, 1.0)
+                if 0.0 <= p <= 1.0:
+                    bb = s["bins"][min(nb - 1, int(p * nb))]
+                    bb[0] += 1
+                    bb[1] += p
+                    bb[2] += o
+                s["brier"] += (p - o) ** 2
+                s["obs"] += o
+                s["err"] += abs(p - o)
+                if u is not None and u > 0:
+                    s["nu"] += 1
+                    s["c1"] += abs(o - p) <= u
+                    s["c2"] += abs(o - p) <= 2 * u
+
+    def result(self) -> dict:
+        out = {}
+        for key, s in self.k.items():
+            n = s["n"]
+            if s["prob"]:
+                rel = [(bb[1] / bb[0], bb[2] / bb[0], bb[0]) for bb in s["bins"] if bb[0] > 0]
+                base = s["obs"] / n
+                out[key] = {"type": "probability", "n": n, "brier": s["brier"] / n,
+                            "brier_climatology": base * (1 - base), "reliability": rel,
+                            "ece": sum(abs(mp - mo) * c for mp, mo, c in rel) / n}
+            else:
+                nu = s["nu"]
+                out[key] = {"type": "continuous", "n": n, "mae": s["err"] / n,
+                            "coverage_1sd": s["c1"] / nu if nu else None, "coverage_2sd": s["c2"] / nu if nu else None,
+                            "n_with_uncertainty": nu}
+        return out
+
+
+def calibration(traces: list, n_bins: int = 10) -> dict:
+    c = Calibration(n_bins)
+    c.add(traces)
+    return c.result()
+
+
+class RealVsImagined:
+    """Incremental comparison of the imagined outcome of the selected candidate (matched by tool and args) with the
+    realised outcome, per (key, horizon): running sums for n / means / MAE, and a uniform reservoir of at most
+    ``max_pairs`` (t_sim, imagined, real) points per key for charts."""
+
+    def __init__(self, max_pairs: int = 20000, seed: int = 0):
+        self.max_pairs = max_pairs
+        self.rng = random.Random(seed)
+        self.k: dict = {}
+
+    def add(self, traces) -> None:
+        for t in traces:
+            if not t.imagined or not t.selected:
                 continue
-            pairs[k].append((p, o, _num((t.uncertainty or {}).get(k))))
-    out = {}
-    for k, v in pairs.items():
-        prob = all(0.0 <= p <= 1.0 for p, _, _ in v) and all(o in (0.0, 1.0) for _, o, _ in v)
-        if prob:
-            bins = [[0, 0.0, 0.0] for _ in range(n_bins)]
-            for p, o, _ in v:
-                b = min(n_bins - 1, int(p * n_bins))
-                bins[b][0] += 1
-                bins[b][1] += p
-                bins[b][2] += o
-            rel = [(bb[1] / bb[0], bb[2] / bb[0], bb[0]) for bb in bins if bb[0] > 0]
-            brier = sum((p - o) ** 2 for p, o, _ in v) / len(v)
-            base = sum(o for _, o, _ in v) / len(v)
-            out[k] = {"type": "probability", "n": len(v), "brier": brier,
-                      "brier_climatology": base * (1 - base), "reliability": rel,
-                      "ece": sum(abs(mp - mo) * c for mp, mo, c in rel) / len(v)}
-        else:
-            err = [abs(p - o) for p, o, _ in v]
-            with_u = [(p, o, u) for p, o, u in v if u is not None and u > 0]
-            cov1 = sum(abs(o - p) <= u for p, o, u in with_u) / len(with_u) if with_u else None
-            cov2 = sum(abs(o - p) <= 2 * u for p, o, u in with_u) / len(with_u) if with_u else None
-            out[k] = {"type": "continuous", "n": len(v), "mae": sum(err) / len(err), "coverage_1sd": cov1,
-                      "coverage_2sd": cov2, "n_with_uncertainty": len(with_u)}
-    return out
+            idx = None
+            for i, c in enumerate(t.candidates or []):
+                a = c.get("action", {})
+                if a.get("tool") == t.selected.get("tool") and (a.get("args") or {}) == (t.selected.get("args") or {}):
+                    idx = i
+                    break
+            for im in t.imagined:
+                if idx is not None and im.get("candidate") != idx:
+                    continue
+                for key, v in (im.get("outcomes") or {}).items():
+                    iv, rv = _num(v), _num((t.outcome or {}).get(key))
+                    if iv is None or rv is None:
+                        continue
+                    s = self.k.setdefault((key, im.get("horizon", 1)), {"n": 0, "si": 0.0, "sr": 0.0, "sa": 0.0,
+                                                                        "pairs": []})
+                    s["n"] += 1
+                    s["si"] += iv
+                    s["sr"] += rv
+                    s["sa"] += abs(iv - rv)
+                    if len(s["pairs"]) < self.max_pairs:
+                        s["pairs"].append((t.t_sim, iv, rv))
+                    else:
+                        j = self.rng.randrange(s["n"])
+                        if j < self.max_pairs:
+                            s["pairs"][j] = (t.t_sim, iv, rv)
+
+    def result(self) -> dict:
+        return {f"{k}@h{hz}": {"n": s["n"], "mean_imagined": s["si"] / s["n"], "mean_real": s["sr"] / s["n"],
+                               "mae": s["sa"] / s["n"], "pairs": s["pairs"]} for (k, hz), s in self.k.items()}
 
 
 def real_vs_imagined(traces: list) -> dict:
     """For traces with imagined trajectories: the imagined outcome of the selected candidate (matched by tool and
     args) vs the realised outcome, per outcome key -> {"n", "mean_imagined", "mean_real", "mae", "pairs": [...]}."""
-    out = defaultdict(list)
-    for t in traces:
-        if not t.imagined or not t.selected:
-            continue
-        idx = None
-        for i, c in enumerate(t.candidates or []):
-            a = c.get("action", {})
-            if a.get("tool") == t.selected.get("tool") and (a.get("args") or {}) == (t.selected.get("args") or {}):
-                idx = i
-                break
-        for im in t.imagined:
-            if idx is not None and im.get("candidate") != idx:
-                continue
-            for k, v in (im.get("outcomes") or {}).items():
-                iv, rv = _num(v), _num((t.outcome or {}).get(k))
-                if iv is not None and rv is not None:
-                    out[(k, im.get("horizon", 1))].append((t.t_sim, iv, rv))
-    res = {}
-    for (k, hz), v in out.items():
-        res[f"{k}@h{hz}"] = {"n": len(v), "mean_imagined": sum(x[1] for x in v) / len(v),
-                             "mean_real": sum(x[2] for x in v) / len(v),
-                             "mae": sum(abs(x[1] - x[2]) for x in v) / len(v), "pairs": v}
-    return res
+    r = RealVsImagined()
+    r.add(traces)
+    return r.result()
 
 
 def _rolling(pts: list, k: int) -> list:
@@ -445,11 +502,32 @@ def build_dashboard(run_dir: str, out_dir: Optional[str] = None, max_lifetime_pa
     out_dir = out_dir or os.path.join(run_dir, "dashboard")
     os.makedirs(out_dir, exist_ok=True)
     D = collect(run_dir)
-    traces = D["traces"]
-    lifes = lifetimes(traces)
-    life_files = {}
-    for i, env_id in enumerate(sorted(lifes)[:max_lifetime_pages]):
-        life_files[env_id] = f"lifetime-{i:03d}-{_safe(env_id)}.html"
+    # one streaming pass partitions the traces by lifetime; each lifetime is then loaded, analysed and rendered alone
+    part_dir = os.path.join(out_dir, ".partitions")
+    shutil.rmtree(part_dir, ignore_errors=True)
+    parts = partition_lifetimes(D["traces_root"], part_dir)
+    untagged = os.path.join(part_dir, "_untagged.jsonl")
+    cal_acc, rvi_acc = Calibration(), RealVsImagined()
+    life_files, life_rows = {}, []
+    for i, env_id in enumerate(sorted(parts)):
+        ts = load_partition(parts[env_id], untagged)
+        if not ts:
+            continue
+        cal_acc.add(ts)
+        rvi_acc.add(ts)
+        if len(life_files) < max_lifetime_pages:
+            fn = life_files[env_id] = f"lifetime-{len(life_files):03d}-{_safe(env_id)}.html"
+            with open(os.path.join(out_dir, fn), "w") as fh:
+                fh.write(lifetime_page(env_id, ts, run_dir))
+        sm = retrospective_summary(ts)
+        ph = sm["phases"]
+        link = (f'<a href="{_e(life_files[env_id])}">{_e(env_id)}</a>' if env_id in life_files else _e(env_id))
+        life_rows.append([link, _fmt(len(ts)),
+                          _e(f"{sm['versions'][0]}..{sm['versions'][-1]}" if sm["versions"] else ""),
+                          _fmt(ph[0]["mean_reward"] if ph else None), _fmt(ph[-1]["mean_reward"] if ph else None),
+                          _fmt(len({u for t in ts for u in t.update_refs}))])
+        del ts
+    shutil.rmtree(part_dir, ignore_errors=True)
     secs, nav = [], []
 
     def section(anchor: str, head: str, body: str):
@@ -571,7 +649,7 @@ def build_dashboard(run_dir: str, out_dir: Optional[str] = None, max_lifetime_pa
     section("learning", "Learning curves", body or '<p class="note">No learner updates recorded yet.</p>')
 
     # ---- calibration
-    cal = calibration(traces)
+    cal = cal_acc.result()
     body = ""
     for k, c in sorted(cal.items()):
         if c["type"] == "probability":
@@ -605,7 +683,7 @@ def build_dashboard(run_dir: str, out_dir: Optional[str] = None, max_lifetime_pa
                     '(<code>eval/*.jsonl</code>).</p>')
 
     # ---- real vs imagined
-    rvi = real_vs_imagined(traces)
+    rvi = rvi_acc.result()
     body = ""
     if rvi:
         body += _table(["outcome@horizon", "n", "mean imagined", "mean real", "mean |imagined − real|"],
@@ -620,14 +698,7 @@ def build_dashboard(run_dir: str, out_dir: Optional[str] = None, max_lifetime_pa
             body or '<p class="note">No imagined trajectories were recorded in the decision traces.</p>')
 
     # ---- lifetimes
-    rows = []
-    for env_id, ts in sorted(lifes.items()):
-        s = retrospective_summary(ts)
-        ph = s["phases"]
-        link = (f'<a href="{_e(life_files[env_id])}">{_e(env_id)}</a>' if env_id in life_files else _e(env_id))
-        rows.append([link, _fmt(len(ts)), _e(f"{s['versions'][0]}..{s['versions'][-1]}" if s["versions"] else ""),
-                     _fmt(ph[0]["mean_reward"] if ph else None), _fmt(ph[-1]["mean_reward"] if ph else None),
-                     _fmt(len({u for t in ts for u in t.update_refs}))])
+    rows = life_rows
     section("lifetimes", "Lifetimes",
             (_table(["lifetime (environment)", "decisions", "policy versions", "mean reward, first quarter",
                      "mean reward, last quarter", "updates that used it"], rows, {1, 3, 4, 5}, limit=200)
@@ -643,9 +714,14 @@ def build_dashboard(run_dir: str, out_dir: Optional[str] = None, max_lifetime_pa
                      _fmt(lag.get("n_on_policy")), _fmt(lag.get("n_off_policy")), _fmt(lag.get("n_discarded")),
                      _fmt(lag.get("lag_mean")), _fmt(m.get("loss")), _fmt(m.get("mean_reward")),
                      '<span class="ok">yes</span>' if u.get("published") else "no"])
-    section("updates", "Model updates",
-            _table(["update", "version", "t (s)", "decisions", "by actor", "on-policy traj.", "off-policy traj.",
-                    "discarded traj.", "mean lag", "loss", "mean reward", "published"], rows,
+    rb = D.get("rollbacks") or []
+    rb_note = "".join(f'<p class="note">Learner restart resumed from version {_fmt(r.get("resumed_version"))}: '
+                      f'updates {_e(r.get("rolled_back_versions"))} had not been published, so their '
+                      f'{_fmt(r.get("n_records"))} consumed records were rolled back and re-trained.</p>' for r in rb)
+    section("updates", "Model updates", rb_note +
+            _table(["update", "version", "t (s)", "decisions", "by actor", "on-policy decisions",
+                    "off-policy (V-trace) decisions", "not trained (lag/logp)", "mean lag", "loss", "mean reward",
+                    "published"], rows,
                    {1, 2, 3, 5, 6, 7, 8, 9, 10}) if rows else '<p class="note">No updates recorded.</p>')
 
     # ---- compute
@@ -685,9 +761,6 @@ def build_dashboard(run_dir: str, out_dir: Optional[str] = None, max_lifetime_pa
     path = os.path.join(out_dir, "index.html")
     with open(path, "w") as fh:
         fh.write(index)
-    for env_id, fn in life_files.items():
-        with open(os.path.join(out_dir, fn), "w") as fh:
-            fh.write(lifetime_page(env_id, lifes[env_id], run_dir))
     return path
 
 

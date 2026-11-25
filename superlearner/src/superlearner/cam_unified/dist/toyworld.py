@@ -15,9 +15,10 @@ work, and measured, with a learner whose updates genuinely change behaviour, ind
   [measurements, previous action, previous payoff], softmax over tools, a payoff head p(payoff | h, tool) used for
   predictions and for a one-step lookahead over every candidate (recorded as imagined outcomes), weights swapped
   only by `load_weights`, latent state rebuilt from raw episode history by `rebuild_state`.
-* `TinyLearnerModel` implements `LearnerModelP` (dist/learner.py): recomputes the policy over each trajectory with
-  the current weights, V-trace actor-critic with clipped importance weights from the recorded behaviour
-  log-probabilities (lag > 0) or exact on-policy weights (lag 0), plus BCE for the payoff head on attributed outcomes.
+* `TinyLearnerModel` implements `LearnerModelP` (dist/learner.py): recomputes the policy over each trajectory piece
+  with the current weights (burn-in context, trained decisions, bootstrap step), V-trace actor-critic with clipped
+  importance weights from the recorded behaviour log-probabilities — log ρ = 0 only where the router marked a decision
+  exactly on-policy — plus BCE for the payoff head on attributed outcomes.
 """
 from __future__ import annotations
 
@@ -273,6 +274,8 @@ class TinyRecurrentPolicy:
             a = logp_all.argmax(-1)
         else:
             a = torch.multinomial(logp_all.exp(), 1, generator=self.gen).squeeze(-1)
+        # behaviour log-probability of the action actually taken: greedy argmax is deterministic (μ(a) = 1, log 0),
+        # the softmax value is kept separately as a diagnostic, never as the behaviour probability
         p_pay = torch.sigmoid(q)
         actions, infos = [], []
         for b in range(len(obs_lists)):
@@ -281,9 +284,11 @@ class TinyRecurrentPolicy:
                 infos.append({})
                 continue
             k = int(a[b])
-            lp = float(logp_all[b, k])
+            model_lp = float(logp_all[b, k])
+            lp = 0.0 if self.greedy else model_lp
             names = [t.name for t in tools[b]]
-            act = Action(tool=names[k], logp=lp, logp_parts={"tool": lp}, source=ActionSource.BASELINE)
+            act = Action(tool=names[k], logp=lp, logp_parts={"tool": lp, "model_softmax": model_lp},
+                         source=ActionSource.BASELINE)
             actions.append(act)
             pk = float(p_pay[b, k])
             probs = logp_all[b].exp().tolist()
@@ -297,6 +302,7 @@ class TinyRecurrentPolicy:
                 "belief_before": {"h_norm": float(h_before[b].norm())},
                 "belief_after": {"h_norm": float(self.h[b].norm())},
                 "reasoning": {"iters": 1},
+                "deterministic": bool(self.greedy),
             })
         self.a_prev = F.one_hot(a, self.net.n_tools).float()
         return actions, infos
@@ -329,18 +335,32 @@ def make_tiny_policy(seed: int = 0, **kw) -> TinyRecurrentPolicy:
 class TinyLearnerModel:
     """LearnerModelP for TinyNet: one optimiser step per `update` call.
 
-    Reward of decision t = sum of the payoff observations attributed to it (delayed outcomes, ``attributed_to``);
-    discount γ_t = exp(−κ Δt_t) with Δt from the record (``extra["dt"]``), 0 after the final step."""
+    Input: trajectory pieces from the central learner (`learner.Trajectory`): ``events`` = burn-in context + offered
+    decisions + optional bootstrap decision; ``train_mask`` (after routing) marks the decisions trained; ``lags`` /
+    ``exact`` per decision come from `offpolicy.LagRouter`. The network is unrolled over every event from a zero
+    state (context steps rebuild the recurrent state; they get no loss and ρ = c = 0, so a bootstrap step's value is
+    the V-trace target at a cut). Reward of decision t = sum of the payoff observations attributed to it (delayed
+    outcomes, ``attributed_to``); discount γ_t = exp(−κ Δt_t) with Δt from the record (``extra["dt"]``), 0 after a
+    terminal decision. Importance ratios: log ρ = 0 only for decisions the router marked exactly on-policy, otherwise
+    log π_current − log μ_recorded (V-trace clipping ρ̄, c̄).
+
+    ``train=False`` (the no-learning control) runs the same update with the learning rate set to 0: an optimiser
+    step that cannot change the weights. ``correction="none"`` is an ablation for the lag sweep only: stale decisions
+    are trained as if they were on-policy (log ρ = 0 everywhere) — exactly what spec 14.4 forbids in production."""
 
     def __init__(self, n_feat: int = 8, n_tools: int = 4, hidden: int = 32, lr: float = 3e-3, kappa: float = 16.6,
                  value_coef: float = 0.5, entropy_coef: float = 0.01, payoff_coef: float = 0.5, rho_bar: float = 1.0,
-                 c_bar: float = 1.0, grad_clip: float = 1.0, seed: int = 0, train: bool = True):
+                 c_bar: float = 1.0, grad_clip: float = 1.0, seed: int = 0, train: bool = True,
+                 correction: str = "vtrace"):
+        if correction not in ("vtrace", "none"):
+            raise ValueError(correction)
         torch.manual_seed(seed)
         self.net = TinyNet(n_feat, n_tools, hidden)
-        self.opt = torch.optim.Adam(self.net.parameters(), lr=lr)
+        self.opt = torch.optim.Adam(self.net.parameters(), lr=lr if train else 0.0)
         self.kappa, self.value_coef, self.entropy_coef = kappa, value_coef, entropy_coef
         self.payoff_coef, self.rho_bar, self.c_bar, self.grad_clip = payoff_coef, rho_bar, c_bar, grad_clip
         self.train_enabled = train
+        self.correction = correction
 
     def state_dict(self) -> dict:
         return {k: v.detach().clone() for k, v in self.net.state_dict().items()}
@@ -351,40 +371,50 @@ class TinyLearnerModel:
     def config(self) -> dict:
         return {"n_feat": self.net.n_feat, "n_tools": self.net.n_tools, "hidden": self.net.hidden}
 
-    def _tensors(self, trajs: list):
-        """Trajectories -> padded [B, T(, F)] tensors (built from Python lists, one tensor construction each)."""
+    def _tensors(self, trajs: list, learner_version: int):
+        """Trajectory pieces -> padded [B, T(, F)] tensors (built from Python lists, one tensor construction each).
+        Returns x [B,T,F], r_in [B,T,1], a [B,T], mu [B,T], rew [B,T], pay_y [B,T], pay_m [B,T] bool, dt [B,T],
+        valid [B,T] bool, train [B,T] bool, exact [B,T] bool, lag [B,T] long, terminal [B] bool."""
         Fd = self.net.n_feat
         B, T = len(trajs), max(len(t.events) for t in trajs)
-        xs, rins, acts, mus, rews, pys, pms, dts, masks, lags = ([] for _ in range(10))
+        cols = [[] for _ in range(12)]
         zf = [0.0] * Fd
+        pads = (zf, 0.0, 0, 0.0, 0.0, 0.0, False, 0.0, False, False, False, 0)
+        terminal = []
         for tr in trajs:
-            row = [[], [], [], [], [], [], [], [], []]
-            for e in tr.events:
+            row = [[] for _ in range(12)]
+            lags = tr.lags or [learner_version - int(e.model_version) for e in tr.events]
+            exact = tr.exact or [l == 0 for l in lags]
+            for i, e in enumerate(tr.events):
                 f, rs = featurize(e.observations, Fd)
                 vals = [o.value for rec in tr.outcomes.get(e.event_id, []) for o in rec.observations
                         if o.value is not None and (o.meta or {}).get("key") == "payoff"]
                 tot = float(sum(vals))
-                for lst, v in zip(row, (f, rs, int(e.action.tool.split("_")[-1]), float(e.behavior_logp), tot,
-                                        float(tot > 0.5), bool(vals), float(e.extra.get("dt", 0.0)), True)):
+                trn = bool(tr.train_mask[i])
+                mu = float(e.behavior_logp) if e.behavior_logp is not None else 0.0
+                for lst, v in zip(row, (f, rs, int(e.action.tool.split("_")[-1]), mu, tot, float(tot > 0.5),
+                                        bool(vals), float((e.extra or {}).get("dt", 0.0)), True, trn,
+                                        bool(exact[i]) and trn, int(lags[i]))):
                     lst.append(v)
             pad = T - len(tr.events)
-            for dst, lst, z in zip((xs, rins, acts, mus, rews, pys, pms, dts, masks), row,
-                                   (zf, 0.0, 0, 0.0, 0.0, 0.0, False, 0.0, False)):
+            for dst, lst, z in zip(cols, row, pads):
                 dst.append(lst + [z] * pad)
-            lags.append([tr.lag] * T)
-        return (torch.tensor(xs, dtype=torch.float32), torch.tensor(rins, dtype=torch.float32)[..., None],
-                torch.tensor(acts, dtype=torch.long), torch.tensor(mus, dtype=torch.float32),
-                torch.tensor(rews, dtype=torch.float32), torch.tensor(pys, dtype=torch.float32),
-                torch.tensor(pms, dtype=torch.bool), torch.tensor(dts, dtype=torch.float32),
-                torch.tensor(masks, dtype=torch.bool), torch.tensor(lags, dtype=torch.long))
+            terminal.append(bool(tr.terminal))
+        x, rin, a, mu, rew, py, pm, dt, valid, train, exact, lag = cols
+        return (torch.tensor(x, dtype=torch.float32), torch.tensor(rin, dtype=torch.float32)[..., None],
+                torch.tensor(a, dtype=torch.long), torch.tensor(mu, dtype=torch.float32),
+                torch.tensor(rew, dtype=torch.float32), torch.tensor(py, dtype=torch.float32),
+                torch.tensor(pm, dtype=torch.bool), torch.tensor(dt, dtype=torch.float32),
+                torch.tensor(valid, dtype=torch.bool), torch.tensor(train, dtype=torch.bool),
+                torch.tensor(exact, dtype=torch.bool), torch.tensor(lag, dtype=torch.long),
+                torch.tensor(terminal, dtype=torch.bool))
 
     def update(self, batch) -> dict:
-        # truncated trajectories (actor stopped or crashed mid-episode) lack their final delayed outcomes; training
-        # on them would treat missing payouts as zeros, so they are left out (they stay in the archive)
-        trajs = [t for t in batch.trajectories if not t.truncated]
+        trajs = [t for t in batch.trajectories if any(t.train_mask)]
         if not trajs:
-            return {"skipped": "all trajectories truncated", "n_steps": 0, "n_truncated": len(batch.trajectories)}
-        x, r_in, a, mu, rew, pay_y, pay_m, dt, mask, lag = self._tensors(trajs)
+            return {"optimizer_step": False, "reason": "no trained decision in the batch", "n_steps": 0}
+        x, r_in, a, mu, rew, pay_y, pay_m, dt, valid, train, exact, lag, terminal = \
+            self._tensors(trajs, batch.learner_version)
         B, T = a.shape
         K = self.net.n_tools
         h = self.net.init_h(B)
@@ -402,32 +432,38 @@ class TinyLearnerModel:
         ent = torch.stack(ents, 1)
         val = torch.stack(vals, 1)
         q = torch.stack(qs, 1)
-        last = mask & ~torch.cat([mask[:, 1:], torch.zeros(B, 1, dtype=torch.bool)], 1)
-        disc = semi_markov_discount(dt, self.kappa) * (~last).float() * mask.float()
-        log_rho = importance_log_ratio(logp.detach(), mu, lag)
-        log_rho = torch.where(mask, log_rho, torch.zeros_like(log_rho))
+        last = valid & ~torch.cat([valid[:, 1:], torch.zeros(B, 1, dtype=torch.bool)], 1)
+        end = last & terminal[:, None]                       # no value after a terminal decision
+        disc = semi_markov_discount(dt, self.kappa) * (~end).float() * valid.float()
+        if self.correction == "none":
+            log_rho = importance_log_ratio(logp.detach(), mu, exact=torch.ones_like(train), train=train)
+        else:
+            log_rho = importance_log_ratio(logp.detach(), mu, exact=exact, train=train)
         vs, pg_adv, rho = vtrace(rew, val.detach(), torch.zeros(B), disc, log_rho, self.rho_bar, self.c_bar)
-        m = mask.float()
+        m = train.float()
         n = m.sum().clamp(min=1)
         pg_loss = -(pg_adv * logp * m).sum() / n
         v_loss = ((vs - val).pow(2) * m).sum() / n
         ent_mean = (ent * m).sum() / n
-        pm = (pay_m & mask).float()
+        pm = (pay_m & train).float()
         pay_loss = (F.binary_cross_entropy_with_logits(q, pay_y, reduction="none") * pm).sum() / pm.sum().clamp(min=1)
         loss = pg_loss + self.value_coef * v_loss - self.entropy_coef * ent_mean + self.payoff_coef * pay_loss
-        gn = 0.0
-        if self.train_enabled:
-            self.opt.zero_grad(set_to_none=True)
-            loss.backward()
-            gn = float(torch.nn.utils.clip_grad_norm_(self.net.parameters(), self.grad_clip))
-            self.opt.step()
-        off = (lag > 0) & mask
-        return {"loss": loss.item(), "pg_loss": pg_loss.item(), "v_loss": v_loss.item(), "entropy": ent_mean.item(),
+        self.opt.zero_grad(set_to_none=True)
+        loss.backward()
+        gn = float(torch.nn.utils.clip_grad_norm_(self.net.parameters(), self.grad_clip))
+        self.opt.step()
+        corr = train & ~exact                                # trained with an importance ratio
+        off = train & (lag > 0)
+        return {"optimizer_step": True, "learning_disabled": not self.train_enabled, "loss": loss.item(),
+                "pg_loss": pg_loss.item(), "v_loss": v_loss.item(), "entropy": ent_mean.item(),
                 "payoff_loss": pay_loss.item(), "mean_reward": float((rew * m).sum() / n), "grad_norm": gn,
+                "n_steps": int(m.sum()), "n_context_steps": int((valid & ~train).sum()),
+                "n_exact_steps": int((train & exact).sum()), "n_ratio_steps": int(corr.sum()),
+                "n_offpolicy_steps": int(off.sum()), "n_bootstrap_cuts": int((~terminal).sum()),
                 "rho_mean_offpolicy": float(rho[off].mean()) if off.any() else None,
-                "rho_clipped_frac": float(((log_rho.exp() > self.rho_bar) & off).float().sum() / off.float().sum())
-                if off.any() else None, "n_steps": int(m.sum()),
-                "n_truncated": len(batch.trajectories) - len(trajs)}
+                "rho_mean_ratio_steps": float(rho[corr].mean()) if corr.any() else None,
+                "rho_clipped_frac": float(((log_rho.exp() > self.rho_bar) & corr).float().sum() / corr.float().sum())
+                if corr.any() else None, "correction": self.correction}
 
 
 def make_tiny_learner(seed: int = 0, **kw) -> TinyLearnerModel:
