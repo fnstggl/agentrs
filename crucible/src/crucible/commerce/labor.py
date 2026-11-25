@@ -160,8 +160,7 @@ class Labor(Module):
         """How risky an employer looks from its public record: breached payment contracts, breached commitments,
         and youth of the company."""
         st = world.state
-        breaches = sum(1 for k in st.tables["contracts"].values() if k["status"] == "breached"
-                       and k.get("breached_by") == org)
+        breaches = sum(1 for k in st.find("contracts", "status", "breached") if k.get("breached_by") == org)
         commit = world.modules.get("commit")
         if commit is not None:
             breaches += commit.record(world, org)["breaches"]
@@ -880,8 +879,9 @@ def _register_metrics():
             return 1.0
         t0 = world.now - int(window_s)
         start = set()
-        for cid, c in st.scan("contracts"):
-            if c["employer"] != org or "labor" not in c.get("tags", []):
+        for cid in st.find_ids("contracts", "employer", org):
+            c = st.tables["contracts"][cid]
+            if "labor" not in c.get("tags", []):
                 continue
             ended = c.get("updated") if c["status"] not in ("active", "terminating", "proposed") else None
             if c["t"] <= t0 and (ended is None or ended > t0) and c["status"] != "rejected":

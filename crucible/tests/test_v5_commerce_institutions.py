@@ -378,3 +378,21 @@ def test_institution_world_replays_and_regenerates_exactly():
     w.advance_time(w.now + 3 * DAY)
     rep = OW.verify_reproducible(w)
     assert rep["replay_digest_equal"] and rep["regeneration_hash_equal"]
+
+
+def test_repeated_applications_are_refused_while_one_is_pending():
+    w, (ann, bob, cat), org, acct = _coop(18)
+    dan, _ = OW.join(w, "dan", 0)
+    assert _ex(w, ann, "inst.adopt", org=org, charter={"procedures": {"maj": MAJ}, "default": "maj",
+                                                       "membership": {"admission": "decision"}}).ok
+    assert _ex(w, dan, "inst.join", org=org).ok
+    r = _ex(w, dan, "inst.join", org=org)
+    assert not r.ok and r.error["code"] == "conflict"
+
+
+def test_f2_modules_pass_the_admission_harness():
+    from crucible.worldgen.admission import admit
+    base = ["identity", "bank", "admin", "contracts", "business", "gov"]
+    for mods, cfg in ((["inst"], {}), (["commit"], {}), (["inst", "commit", "labor"], {"labor": {"workers": 4}})):
+        rep = admit(mods, base=base, steps=800, seed=3, configs=cfg)
+        assert rep.passed, (mods, rep.checks, rep.errors[:5])

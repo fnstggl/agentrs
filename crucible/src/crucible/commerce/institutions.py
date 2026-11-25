@@ -1396,6 +1396,10 @@ class Institutions(Module):
         if adm == "open":
             ident(ctx.world).add_member(ctx, org, ctx.actor, "member", "")
             return {"joined": True}
+        for did in st.find_ids("inst_decisions", "org", org):
+            d = st.tables["inst_decisions"][did]
+            if d["status"] == "open" and d["action"]["kind"] == "admit" and d["action"]["person"] == ctx.actor:
+                raise Conflict(f"your application {did} is still being decided")
         r = self.propose(ctx, org, {"kind": "admit", "person": ctx.actor, "role": "member"}, note, applicant=True)
         return {"applied": True, **r}
 
