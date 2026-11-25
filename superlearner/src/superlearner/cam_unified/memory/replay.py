@@ -288,17 +288,37 @@ class ReplaySampler:
 
     # ------------------------------------------------------------------ checkpoint state
     def state_dict(self) -> dict:
-        """Sampler state for a full-lifetime checkpoint (membership tables are persistent and append-only)."""
+        """Sampler state for a full-lifetime checkpoint: cursors, per-stratum membership counts, running statistics,
+        RNG and draw counters. Membership tables are append-only with dense positions, so the counts identify the
+        exact membership at checkpoint time."""
         st = self.rng.getstate()
-        return {"path": self.path, "cursor": self.cursor, "tag_cursor": self.tag_cursor, "draws": dict(self.draws),
+        return {"path": self.path, "cursor": self.cursor, "tag_cursor": self.tag_cursor, "counts": dict(self._n),
+                "surprise_stats": [self._sur.n, self._sur.mean, self._sur.m2],
+                "novelty_stats": [self._nov.n, self._nov.mean, self._nov.m2], "draws": dict(self.draws),
                 "rng": [st[0], list(st[1]), st[2]], "mix": dict(self.mix), "recent_window": self.recent_window,
                 "rare_z": self.rare_z, "novelty_z": self.novelty_z, "alpha_under": self.alpha_under}
 
     def load_state_dict(self, st: dict) -> None:
+        """Restore a checkpoint's sampler state exactly, also when the persistent tables have since moved on (the
+        archive is append-only and may hold later experience): membership beyond the checkpoint's counts is
+        truncated and re-derived from the archive by the next ``sync``."""
+        counts = {k: int(v) for k, v in st["counts"].items()}
+        for (stratum,) in self._db.execute("SELECT DISTINCT stratum FROM members").fetchall():
+            self._db.execute("DELETE FROM members WHERE stratum=? AND pos>=?", (stratum, counts.get(stratum, 0)))
+        self._db.execute("DELETE FROM counts")
+        self._n = counts
+        self.cursor, self.tag_cursor = int(st["cursor"]), int(st["tag_cursor"])
+        self._sur = _Welford(*st["surprise_stats"])
+        self._nov = _Welford(*st["novelty_stats"])
         self.draws = dict(st["draws"])
         r = st["rng"]
         self.rng.setstate((r[0], tuple(r[1]), r[2]))
         self.mix = dict(st["mix"])
+        self.recent_window = int(st["recent_window"])
+        self.rare_z, self.novelty_z, self.alpha_under = float(st["rare_z"]), float(st["novelty_z"]), float(
+            st["alpha_under"])
+        self._cache.clear()
+        self._persist()
 
     def close(self) -> None:
         if self._db is not None:
