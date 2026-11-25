@@ -108,7 +108,7 @@
     "tests/test_v5_semantic_participants.py"
    ],
    "state": "implemented",
-   "notes": "Measured: verified_productive_results 2 (a 2,500-cent payment owed between participants, verified from ledger postings; a rented cloud instance, verified from the instances table). No document, program or question-and-answer exchange was verified."
+   "notes": "Measured: verified_productive_results 2 (a 2,500-cent payment owed between participants, verified from ledger postings; a rented cloud instance, verified from the instances table). No document, program or question-and-answer exchange was verified. A second run after the substrate merge reproduced the run exactly (same token counts and results)."
   },
   {
    "id": "H.8",
@@ -121,7 +121,7 @@
     "tests/test_v5_semantic_participants.py"
    ],
    "state": "implemented",
-   "notes": "Measured: peak VRAM 5,813 MiB, 252 GPU tokens/s, 8.9 rows per batch, 200,616 prompt tokens from the prefix cache, CPU 6.5 tokens/s (fp32, 4 threads); prefix-cache speedup 1.00 on eight argument prompts."
+   "notes": "Measured: peak VRAM 5,813 MiB, 252 GPU tokens/s, 8.9 rows per batch, 200,616 prompt tokens from the prefix cache, CPU 6.5 tokens/s (fp32, 4 threads); prefix-cache speedup 1.00-1.07 on eight argument prompts."
   },
   {
    "id": "H.n1",
