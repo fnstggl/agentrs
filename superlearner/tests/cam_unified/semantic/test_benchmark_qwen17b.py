@@ -135,8 +135,9 @@ def test_qwen3_1p7b_throughput(cuda):
             R = torch.randn(B, cfg.n_state, cfg.d_model, device=cuda)
             goal = rand_tokens(B, 3, cfg.d_model, TokenKind.GOAL, device=cuda, ragged=False)
             belief = rand_tokens(B, cfg.n_particles + 1, cfg.d_model, TokenKind.BELIEF, device=cuda, ragged=False)
-            tools = tok.tools(tool_lists)
-            obs = tok.observations(obs_l, None, [0.0] * B)
+            with torch.no_grad():                        # backward below measures R / bridge / heads / LoRA
+                tools = tok.tools(tool_lists)
+                obs = tok.observations(obs_l, None, [0.0] * B)
             mask = torch.zeros(B, 3, dtype=torch.bool, device=cuda)
             mask[:, 0] = True
             t0 = _sync()

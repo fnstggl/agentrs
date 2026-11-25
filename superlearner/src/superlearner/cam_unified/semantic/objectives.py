@@ -22,7 +22,6 @@
 """
 from __future__ import annotations
 
-import math
 import re
 from typing import Callable, Collection, Optional
 
@@ -30,7 +29,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ..interfaces import ActionSource, ObsKind, TokenKind, TokenSet
+from ..interfaces import ActionSource, TokenKind, TokenSet
 from .layers import RMSNorm, SwiGLU
 from .tokenizer import parse_obs_ref
 
