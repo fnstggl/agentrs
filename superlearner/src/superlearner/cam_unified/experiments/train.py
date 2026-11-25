@@ -77,7 +77,9 @@ def copy_experience(src_ckpt: str, run_dir: str) -> None:
     # file digests cover weights/optim/state only; lifetime.json itself may be rewritten
     with open(os.path.join(own, "lifetime.json"), "w") as fh:
         json.dump(life, fh, indent=1, default=str)
-    shutil.copy(os.path.join(src_ckpt, "weights.safetensors"), os.path.join(run_dir, "init_ckpt", "weights.safetensors"))
+    for f in ("weights.safetensors", "tools.json", "config.json"):
+        if os.path.exists(os.path.join(src_ckpt, f)):
+            shutil.copy(os.path.join(src_ckpt, f), os.path.join(run_dir, "init_ckpt", f))
 
 
 def main(argv=None) -> int:
@@ -105,6 +107,8 @@ def main(argv=None) -> int:
     state = json.load(open(state_path)) if os.path.exists(state_path) else None
     from ..observe.accounting import ComputeMeter
     cfg = S.experiment_config()
+    if state is None and a.init and a.condition.upper() in ("D", "F"):
+        copy_experience(a.init, run)             # before the stack opens (creates) this run's archive / index
     st = S.build_stack(cfg, run_dir=run, seed=a.seed)
     meter = ComputeMeter(f"train:{os.path.basename(run)}", role="learner")
     prev_compute = {}
@@ -122,8 +126,7 @@ def main(argv=None) -> int:
             c = a.condition.upper()
             src = a.init
             if c in ("D", "F"):
-                copy_experience(a.init, run)
-                src = os.path.join(run, "init_ckpt")
+                src = os.path.join(run, "init_ckpt")          # the private copy made by copy_experience
             info = S.load_condition(st, src, c)
             state["init_report"] = {"load": {k: v for k, v in info.items() if k in ("restored", "condition", "version")},
                                     "after": S.state_report(st)}

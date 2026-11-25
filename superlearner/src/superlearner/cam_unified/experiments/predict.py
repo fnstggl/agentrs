@@ -17,7 +17,7 @@ Scores per (task, k), all from each learner's own predictive distribution of the
 * ``sqerr``    - mean squared error of the predictive mean (reward units);
 * ``cover90``  - fraction of query rewards inside the central 90% predictive interval (calibration);
 * ``regret``   - decision quality from the same identical support: the true reward lost by choosing the candidate
-  with the highest predicted mean instead of the best candidate, normalised by the task's private
+  with the highest predicted mean (ties broken uniformly) instead of the best candidate, normalised by the task's private
   (reference - default) net per tick (1 = the whole improvement the reference policy achieves over the defaults).
 
 Condition C adds the predecessor notes of `mechrun.PredecessorNotes` to the reset observations (only learners that
@@ -312,8 +312,11 @@ def score_queries(ep: SupportEpisode, k: int, mean, var, dof=None) -> dict:
     y = q["Y"]
     mean, var = np.asarray(mean, dtype=np.float64), np.asarray(var, dtype=np.float64)
     lp = student_logpdf(y, mean, var, dof) if dof is not None else gaussian_logpdf(y, mean, var)
-    choice = int(np.argmax(mean))
-    reg = float(np.max(y) - y[choice])
+    # the candidate the predictive ranks best; ties (within 1e-3 of the mean predictive sd) are broken uniformly, so
+    # a flat predictive (no information yet) scores the expected regret of a random choice among the tied candidates
+    tol = 1e-6 + 1e-3 * float(np.mean(np.sqrt(np.maximum(var, 0))))
+    tied = mean >= np.max(mean) - tol
+    reg = float(np.max(y) - np.mean(y[tied]))
     return {"logscore": float(np.mean(lp)), "sqerr": float(np.mean((mean - y) ** 2)),
             "cover90": float(np.mean(inside90(y, mean, var, dof))),
             "regret": reg / ep.scale_gap if ep.scale_gap and math.isfinite(ep.scale_gap) and ep.scale_gap > 0
