@@ -158,3 +158,19 @@ def test_learner_policy_lag_accounting_and_routing(tmp_path, mode):
     assert any(not u["trained"] for u in ups)          # batches with only stale data are logged, not trained
     assert L.publisher.latest()["version"] == L.version   # publish_every=1
     L.close()
+
+
+def test_learner_drain_consumes_trace_only_and_duplicate_segments(tmp_path):
+    from superlearner.cam_unified.interfaces import DecisionTrace
+    run = str(tmp_path / "run")
+    L = CentralLearner(run, _RecordingModel(), sink=JsonlArchive(os.path.join(run, "archive")), ingest_segments=1)
+    w = ExperienceQueue(os.path.join(run, "spool")).writer("a", batch_records=100)
+    ids = _episode(w, "a", 0)
+    w.put(trace=DecisionTrace(decision_id=new_id("d_"), event_id=ids[0], env_id="a.0", policy_version=0, t_sim=0.0,
+                              objective=""))
+    w.flush()                                            # a segment holding only a trace
+    _episode(w, "a", 0)
+    L.run(max_updates=0)                                 # stops immediately, then drains the spool
+    assert not L.queue.pending() and L.sink.count() == 8
+    assert L.consumer.stats()["totals"]["traces"] == 1
+    L.close()

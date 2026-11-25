@@ -248,6 +248,9 @@ class CentralLearner:
 
     # ---------------------------------------------------------------- one iteration
     def ingest(self) -> int:
+        """Consume up to ``ingest_segments`` segments. Returns the number of segments consumed or quarantined
+        (0 when the spool is empty), so ``while ingest(): ...`` drains everything, including segments that held
+        only traces or duplicates."""
         res = self.consumer.ingest(self.sink, self.traces, max_segments=self.ingest_segments)
         if res.empty:
             return 0
@@ -267,7 +270,7 @@ class CentralLearner:
         self.counts["ingested_traces"] += len(res.traces)
         self.counts["dup"] += res.n_dup
         self.counts["quarantined"] += len(res.quarantined)
-        return len(res.events)
+        return len(res.segments) + len(res.quarantined)
 
     def backlog(self) -> int:
         """Decisions ingested but not yet trained (ready + open trajectories)."""
