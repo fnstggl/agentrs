@@ -192,9 +192,12 @@ class OpenWorldOperator:
         for g in groups:
             t = tasks[g[0]]
             cfg = {"family": t.world["family"], "seed": int(t.world["seed"]),
-                   "overrides": copy.deepcopy(t.world.get("overrides", {})), "warmup_s": int(t.world.get("warmup_s", 0))}
-            wid = self.srv.create_world({"family": cfg["family"], "overrides": cfg["overrides"]}, cfg["seed"],
-                                        world_id=f"cw-{new_id()[:16]}")
+                   "overrides": copy.deepcopy(t.world.get("overrides", {})), "warmup_s": int(t.world.get("warmup_s", 0)),
+                   "extra_modules": list(t.world.get("extra_modules", []))}
+            gen = {"family": cfg["family"], "overrides": cfg["overrides"]}
+            if cfg["extra_modules"]:
+                gen["extra_modules"] = cfg["extra_modules"]
+            wid = self.srv.create_world(gen, cfg["seed"], world_id=f"cw-{new_id()[:16]}")
             slot = _Slot(wid, cfg, list(g))
             self.slots.append(slot)
             si = len(self.slots) - 1
@@ -503,7 +506,8 @@ def _with_seed(task: Any, seed: int | None) -> Any:
 
 def _world_key(task: Any) -> str:
     w = task.world
-    return json.dumps([w["family"], int(w["seed"]), w.get("overrides", {}), int(w.get("warmup_s", 0))], sort_keys=True)
+    return json.dumps([w["family"], int(w["seed"]), w.get("overrides", {}), int(w.get("warmup_s", 0)),
+                       list(w.get("extra_modules", []))], sort_keys=True)
 
 
 def public_goal(task: Any, horizon_s: int) -> GoalSpec:
