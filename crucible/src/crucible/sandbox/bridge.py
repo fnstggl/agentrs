@@ -21,6 +21,7 @@ LINE_MS = 0.001   # nominal CPU milliseconds per executed Python line in the det
 _LN = [0]
 _TOOL = [None]
 _OWNER = [None]
+_GC = [None]
 _TOOL_NAME = "crucible-trusted-work"
 
 
@@ -45,15 +46,25 @@ def _lines_on():
                 _LN[0] += 1
         mon.register_callback(tid, mon.events.LINE, on_line)
         _TOOL[0] = tid
+    import gc
     import threading
     _OWNER[0] = threading.get_ident()
     _LN[0] = 0
+    # 5.0: gc callbacks installed by other code (e.g. hypothesis' gc timer) do not run inside the measured region:
+    # a collection landing there would add their lines to the count, which then depended on which libraries had
+    # been used earlier in the process. 4.0 processes have no gc callbacks, so their counts are unchanged.
+    _GC[0] = list(gc.callbacks)
+    gc.callbacks.clear()
     mon.set_events(tid, mon.events.LINE)
 
 
 def _lines_off() -> int:
     import sys
     sys.monitoring.set_events(_TOOL[0], 0)
+    import gc                     # after counting stopped: the counted lines are exactly 4.0's
+    if _GC[0]:
+        gc.callbacks.extend(cb for cb in _GC[0] if cb not in gc.callbacks)
+    _GC[0] = None
     return _LN[0]
 
 

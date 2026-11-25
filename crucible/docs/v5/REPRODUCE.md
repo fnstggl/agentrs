@@ -33,3 +33,15 @@ PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --gpu-mb 4000 --label "wha
 ```
 
 Further commands are added here by each workstream as its components land.
+
+## Substrate (workstream A)
+
+```bash
+PYTHONPATH=src python -m pytest -q tests/test_v5_substrate_*.py                  # unit and integration tests
+PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_2_3.py tests/v5/test_gate_SP_2_1.py
+PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 0 --label "substrate bench" -- \
+    env PYTHONPATH=src python -m crucible.substrate.bench --rows 1000000 --table-rows 10000000
+# the 4.0 byte-identity digests in tests/v5_kernel_scenarios.py were recorded on the untouched 4.0 tree:
+#   git archive c07098b crucible/src | tar -x -C /tmp/k40
+#   PYTHONPATH=/tmp/k40/crucible/src python tests/v5_kernel_scenarios.py
+```
