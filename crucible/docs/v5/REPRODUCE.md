@@ -45,3 +45,30 @@ PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 0 --label "substr
 #   git archive c07098b crucible/src | tar -x -C /tmp/k40
 #   PYTHONPATH=/tmp/k40/crucible/src python tests/v5_kernel_scenarios.py
 ```
+
+## Calibration E2: commercial response and software adoption
+
+```bash
+# data (about 1.5 GB under $CRUCIBLE_DATA; GH Archive is streamed: 9.8 GB downloaded and deleted hour by hour)
+PYTHONPATH=src python -c "from crucible.calibration import registry_e2 as r; r.acquire('criteo_uplift_v2.1')"
+PYTHONPATH=src python -m crucible.scale.slots --cpu 4 --label "E2 acquire gharchive" -- \
+    env CRUCIBLE_ACQUIRE_WORKERS=4 PYTHONPATH=src python -c "from crucible.calibration import registry_e2 as r; r.acquire('gharchive_2024-10-07_96h')"
+# fits (the plans in docs/v5/calibration/plans/ were committed before the fits)
+PYTHONPATH=src python -m crucible.scale.slots --cpu 4 --label "E2 fit commercial" -- env PYTHONPATH=src python -m crucible.calibration.fit_commercial
+PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --label "E2 fit software" -- env PYTHONPATH=src python -m crucible.calibration.fit_software --threads 1
+# tests (load the checkpoints through the registry and recompute held-out metrics from the data)
+PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --label "E2 tests" -- \
+    env PYTHONPATH=src python -m pytest -q tests/test_v5_calibration_commercial.py tests/test_v5_calibration_software.py
+```
+
+## Learner interface (workstream L)
+
+```bash
+PYTHONPATH=src python -m crucible.experience tiers                       # which tiers this checkout has
+PYTHONPATH=src python -m crucible.experience run --tier 1 --name mech:scm_additive --seed 0 --steps 120 \
+    --reward-mode observation_only --store /tmp/exp --checkpoint /tmp/ref.pt --out /tmp/run.json   # reproducible
+CRUCIBLE_V5_AUTHOR=ws-L PYTHONPATH=src python -m pytest -q tests/v5/test_gate_R.py tests/v5/test_gate_SP_11_*.py
+PYTHONPATH=src python -m crucible.scale.slots --cpu 4 --label "ws-L: gate S" -- \
+    env CRUCIBLE_V5_AUTHOR=ws-L python -m pytest -q tests/v5/test_gate_S.py   # S.7 starts four worker processes
+```
+See docs/v5/LEARNER_GUIDE.md and docs/v5/components/L.md.

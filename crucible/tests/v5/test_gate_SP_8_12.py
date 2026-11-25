@@ -1,0 +1,205 @@
+"""Gate SP-8.12 - adjustable difficulty along nine axes; the fast simulator and the kernel agree (workstream H).
+
+An axis counts when an admitted family exposes it through `make(family, seed, **difficulty)` and changing it
+changes the world in the way the axis names (sizes, noise, horizon, costs, hidden states, opponent learning rate,
+budgets, options), measured on built worlds. Agreement is measured tick for tick between the vectorised batch
+simulator (many seeds at once) and the same worlds hosted in event-sourced kernel worlds as `rig` facilities with
+ledger money, and between the batch and single worlds."""
+from __future__ import annotations
+
+import time
+
+import numpy as np
+import pytest
+
+from crucible.acceptance.v5.evidence import record
+from crucible.mechanisms.sim import cents
+from crucible.rapid import families as F
+from crucible.rapid import report as RP
+from crucible.rapid.batch import BatchRapid
+from crucible.rapid.families import DIFFICULTY_AXES, build_config
+from crucible.rapid.mechview import kernel_world
+
+pytestmark = [pytest.mark.slow, pytest.mark.timeout(3600)]
+
+
+def _measured(axis: str, family: str):
+    """(value at default, value raised) of the quantity the axis controls, measured on built worlds."""
+    fam = F.FAMILIES[family]
+    v = fam.axes[axis]
+    hi = v * 2 if v else (1.0 if isinstance(v, float) else 1)
+    if axis == "hidden_state_complexity" and family == "srch_tools":
+        hi = v + 2
+    lo_cfg, hi_cfg = build_config(family, 0), build_config(family, 0, **{axis: hi})
+    lo_env, hi_env = F.make(family, 0), F.make(family, 0, **{axis: hi})
+    if axis == "horizon":
+        return lo_env.horizon, hi_env.horizon
+    if axis == "observation_noise":
+        return _noise_sd(lo_env), _noise_sd(hi_env)
+    if axis == "n_variables":
+        return len(lo_env.step(None)["observation"]["numbers"]) + len(lo_cfg.get("features", [[0]])[0]), \
+            len(hi_env.step(None)["observation"]["numbers"]) + len(hi_cfg.get("features", [[0]])[0])
+    if axis == "graph_size":
+        return _size(lo_cfg), _size(hi_cfg)
+    if axis == "experiment_cost":
+        return _cost(lo_env), _cost(hi_env)
+    if axis == "hidden_state_complexity":
+        return _hidden(lo_cfg), _hidden(hi_cfg)
+    if axis == "opponent_capability":
+        return _rival_speed(lo_env), _rival_speed(hi_env)
+    if axis == "resources":
+        return _resources(lo_cfg), _resources(hi_cfg)
+    if axis == "action_complexity":
+        return _options(lo_env), _options(hi_env)
+    raise KeyError(axis)
+
+
+def _noise_sd(env):
+    e = env
+    vals = []
+    for _ in range(30):
+        n = e.step(None)["observation"]["numbers"]
+        vals.append(list(n.values())[0])
+    return float(np.std(np.diff(vals)))
+
+
+def _size(cfg):
+    for k in ("n_nodes", "K", "G"):
+        if k in cfg:
+            return cfg[k]
+    for k in ("theta", "cap", "mu", "eta"):
+        if k in cfg:
+            return len(cfg[k])
+    return len(cfg.get("nodes", []))
+
+
+def _cost(env):
+    c = env._config
+    if "experiment" in c:
+        return c["experiment"]["cost"]
+    return c.get("query_cost", c.get("probe_cost", (c.get("test_cost") or [0])[-1]))
+
+
+def _hidden(cfg):
+    for k in ("T",):
+        if k in cfg:
+            return len(cfg[k])
+    if "stages" in cfg:
+        return cfg["stages"]
+    if "bumps" in cfg:
+        return len(cfg["bumps"])
+    if "job_names" in cfg:
+        return len(cfg["job_names"])
+    return len(cfg.get("cluster_names", []))
+
+
+def _rival_speed(env):
+    eng = env._engine
+    p = eng.config["claim"]["lever"]
+    name = eng.config["nodes"][eng.idx[p]]["lever"]["name"]
+    opp = eng.idx[eng.config["claim"]["opponent"]]
+    vals = []
+    for _ in range(10):
+        env.step({"kind": "levers", "values": {name: 9.0}})
+        vals.append(float(env._state["h"][0, -1, opp]))
+    return vals[-1] - vals[0]
+
+
+def _resources(cfg):
+    for k in ("servers", "seed_total", "reinforce_budget"):
+        if k in cfg:
+            return cfg[k]
+    if "experiment" in cfg:
+        return cfg["experiment"]["budget"]
+    for nd in cfg.get("nodes", []):
+        if nd.get("role") == "capacity":
+            return nd["params"]["init"]
+    return None
+
+
+def _options(env):
+    sp = env.action_space()
+    if "discrete" in sp.kinds:
+        return sum(len(v) for v in sp.limits["decisions"].values())
+    return len(sp.kinds)
+
+
+def test_SP_8_12_difficulty_axes_and_simulator_kernel_agreement():
+    adm = RP.admission_report(seeds=(0, 1, 2))
+    admitted = {n for n, r in adm["reports"].items() if r["admitted"]}
+    axes_ok, where = {}, {}
+    for axis in DIFFICULTY_AXES:
+        fams = [n for n in sorted(admitted) if axis in F.FAMILIES[n].axes]
+        ok = False
+        for fam in fams:
+            a, b = _measured(axis, fam)
+            if a is not None and b is not None and b > a:
+                ok, where[axis] = True, f"{fam}: {a:.4g} -> {b:.4g}"
+                break
+        axes_ok[axis] = ok
+    # fast simulator vs kernel-hosted twin, tick for tick, with ledger money
+    mism, compared = 0, 0
+    rng = np.random.default_rng(42)
+    t0 = time.process_time()
+    for fam in ("net_routing", "hc_confounded", "mk_elastic", "posm_sign_switch"):
+        if fam not in admitted:
+            continue
+        for seed in (0, 1):
+            w, actor, mech = kernel_world(fam, seed)
+            fast = BatchRapid(fam, [seed]) if fam != "posm_sign_switch" else None
+            from crucible.mechanisms.sim import MechSim
+            from crucible.rapid.env import world_seed_of
+            sim = MechSim(mech, world_seed_of(fam, seed), "r1")
+            gauges = [g.name for g in sim.engine.gauges(0)]
+            lev = sim.engine.levers(0)
+            for t in range(40):
+                vals = np.array([[lv.lo + rng.random() * (lv.hi - lv.lo) for lv in lev]])
+                settings = {lv.name: float(v) for lv, v in zip(lev, vals[0])}
+                res = w.execute(actor, {"tool": "rig.set", "args": {"settings": settings}})
+                assert res.ok, res.error
+                w.advance_time(w.now + 3600)
+                rep = w.execute(actor, {"tool": "rig.read", "args": {}}).result["report"]
+                s = sim.step(settings)
+                compared += 1
+                if fast is not None:
+                    out = fast.step(vals)
+                    vis = [k for k, n in enumerate(fast.engine.gauge_names) if n in gauges] \
+                        if fast.engine.kind == "primitive_graph" else list(range(len(gauges)))
+                    fr = {gauges[j]: float(out["readings"][0, k]) for j, k in enumerate(vis)}
+                    if fr != {g: rep["readings"][g] for g in gauges} or \
+                            cents(out["revenue"][0]) != rep["revenue_cents"] or cents(out["cost"][0]) != rep["cost_cents"]:
+                        mism += 1
+                if s.readings[0] != rep["readings"] or s.revenue[0] != rep["revenue_cents"] or \
+                        s.cost[0] != rep["cost_cents"]:
+                    mism += 1
+            assert w.check_invariants() == []
+    twin_cpu = time.process_time() - t0
+    # batch vs single worlds, and the speed of the batch path
+    b = BatchRapid("net_routing", list(range(64)))
+    t1 = time.perf_counter()
+    for t in range(30):
+        vals = b.lo + rng.random((64, b.n_levers)) * (b.hi - b.lo)
+        out = b.step(vals)
+    batch_s = time.perf_counter() - t1
+    envs = [F.make("net_routing", s) for s in range(16)]
+    t2 = time.perf_counter()
+    single_mism = 0
+    b2 = BatchRapid("net_routing", list(range(16)))
+    for t in range(30):
+        vals = b2.lo + rng.random((16, b2.n_levers)) * (b2.hi - b2.lo)
+        out = b2.step(vals)
+        for i in range(16):
+            r = envs[i].step({"kind": "levers", "values": {n: float(v) for n, v in zip(b2.lever_names[i], vals[i])}})
+            if list(r["observation"]["numbers"].values()) != list(out["readings"][i]):
+                single_mism += 1
+    single_s = time.perf_counter() - t2
+    record("SP-8.12", {"difficulty_axes": sum(axes_ok.values()), "sim_kernel_mismatches": mism,
+                       "sim_kernel_ticks_compared": compared, "batch_single_mismatches": single_mism,
+                       "batch_steps_per_s": float(64 * 30 / max(batch_s, 1e-9)),
+                       "single_and_batch_steps_per_s": float(16 * 30 / max(single_s, 1e-9)),
+                       "twin_cpu_s": float(twin_cpu)},
+           notes="Axes measured: " + "; ".join(f"{k}: {v}" for k, v in where.items()) +
+                 f". Missing: {[k for k, v in axes_ok.items() if not v]}. Twins: net_routing (graph_dynamical, "
+                 "vectorised), hc_confounded and mk_elastic (primitive_graph, vectorised), posm_sign_switch "
+                 "(state_machine, through MechSim), each in a kernel world hosting a rig facility with real money.")
+    assert sum(axes_ok.values()) == 9 and mism == 0 and single_mism == 0

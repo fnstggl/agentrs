@@ -1,0 +1,410 @@
+{
+ "domain": "content_selection",
+ "features": [
+  "text_cos",
+  "text_cos_z",
+  "cat_share",
+  "subcat_share",
+  "log_hist_len",
+  "pop_ctr_24h",
+  "pop_log_clicks_per_1k",
+  "age_log_hours",
+  "slate_size_log"
+ ],
+ "target": "clicked: the user opened the news item",
+ "feature_map": {
+  "text_cos": "cosine between the item's text embedding and the mean embedding of the individual's consumed items (here: 128-d LSA of TF-IDF; with another encoder map by quantile, card feature_quantiles)",
+  "text_cos_z": "text_cos standardised within the slate the individual is shown (scale-free; use as is)",
+  "cat_share": "(individual's past consumption in the item's category + s) / (past consumption + 1), s = population share of the category",
+  "subcat_share": "the same for the finer topic (subcategory)",
+  "log_hist_len": "log1p(number of items in the individual's consumption history)",
+  "pop_ctr_24h": "(clicks + 10 m) / (impressions + 10) of the item in the previous 24 simulated hours, m = card prior_rate",
+  "pop_log_clicks_per_1k": "log1p(1000 * clicks of the item in the previous 24 h / individuals active in those 24 h)",
+  "age_log_hours": "log1p(hours since the item was first shown on the platform)",
+  "slate_size_log": "log1p(number of items in the slate / page the individual is shown)"
+ },
+ "metrics": {
+  "n": 2740998,
+  "log_loss": 0.14648386140288772,
+  "brier": 0.03608500229040924,
+  "ece": 0.0031205592730635043,
+  "auc": 0.7836337440933777,
+  "mean_pred": 0.03769445840009813,
+  "mean_obs": 0.040635928957263014,
+  "impressions": 73152,
+  "impression_auc": 0.6933853818762519,
+  "mrr": 0.3423513033543578,
+  "ndcg5": 0.37781553390446193,
+  "ndcg10": 0.4395941894847388
+ },
+ "baseline_metrics": {
+  "n": 2740998,
+  "log_loss": 0.15386780936411137,
+  "brier": 0.037028631743417334,
+  "ece": 0.0017733321651249604,
+  "auc": 0.7320613297457966,
+  "mean_pred": 0.038880582150515,
+  "mean_obs": 0.040635928957263014,
+  "impressions": 73152,
+  "impression_auc": 0.6477270535674217,
+  "mrr": 0.3085934732187971,
+  "ndcg5": 0.33894778581030593,
+  "ndcg10": 0.4004926860979528,
+  "baseline": "B1_popularity"
+ },
+ "candidates": {
+  "B0_constant": {
+   "complexity": "baseline: constant",
+   "n_params": 1,
+   "val": {
+    "n": 243973,
+    "log_loss": 0.16294096107993447,
+    "brier": 0.03693558507597882,
+    "ece": 0.002914140858171349,
+    "auc": 0.5,
+    "mean_pred": 0.04131593122021961,
+    "mean_obs": 0.03840179036204826,
+    "impressions": 6052,
+    "impression_auc": 0.5,
+    "mrr": 0.20451717334588243,
+    "ndcg5": 0.2051785519778956,
+    "ndcg10": 0.2662116650911627
+   },
+   "test": {
+    "n": 2740998,
+    "log_loss": 0.16996579303137585,
+    "brier": 0.038985112638120906,
+    "ece": 0.000680002262956593,
+    "auc": 0.5,
+    "mean_pred": 0.04131593122021961,
+    "mean_obs": 0.040635928957263014,
+    "impressions": 73152,
+    "impression_auc": 0.5,
+    "mrr": 0.21778485785063592,
+    "ndcg5": 0.2229988123288621,
+    "ndcg10": 0.2856858205497788
+   }
+  },
+  "B1_popularity": {
+   "complexity": "baseline: popularity logistic (3 features)",
+   "n_params": 4,
+   "val": {
+    "n": 243973,
+    "log_loss": 0.1499972846362558,
+    "brier": 0.035378819078003755,
+    "ece": 0.0020207579527137167,
+    "auc": 0.7090863273407952,
+    "mean_pred": 0.036385759795069146,
+    "mean_obs": 0.03840179036204826,
+    "impressions": 6052,
+    "impression_auc": 0.6391760869148592,
+    "mrr": 0.2801461047394685,
+    "ndcg5": 0.2941480333443014,
+    "ndcg10": 0.3567449634322325
+   },
+   "test": {
+    "n": 2740998,
+    "log_loss": 0.15386780936411137,
+    "brier": 0.037028631743417334,
+    "ece": 0.0017733321651249604,
+    "auc": 0.7320613297457966,
+    "mean_pred": 0.038880582150515,
+    "mean_obs": 0.040635928957263014,
+    "impressions": 73152,
+    "impression_auc": 0.6477270535674217,
+    "mrr": 0.3085934732187971,
+    "ndcg5": 0.33894778581030593,
+    "ndcg10": 0.4004926860979528
+   }
+  },
+  "M1_logistic": {
+   "complexity": "L2 logistic, 9 features",
+   "n_params": 10,
+   "val": {
+    "n": 243973,
+    "log_loss": 0.14581386252410913,
+    "brier": 0.034836393988524283,
+    "ece": 0.0025439264273030477,
+    "auc": 0.7433517051488105,
+    "mean_pred": 0.03586171161560856,
+    "mean_obs": 0.03840179036204826,
+    "impressions": 6052,
+    "impression_auc": 0.6568130518626715,
+    "mrr": 0.3115553262393723,
+    "ndcg5": 0.337919143891587,
+    "ndcg10": 0.3950275080659722
+   },
+   "test": {
+    "n": 2740998,
+    "log_loss": 0.14984221789117783,
+    "brier": 0.03651790032354911,
+    "ece": 0.0025350898165413926,
+    "auc": 0.7613035409518406,
+    "mean_pred": 0.03814423260501576,
+    "mean_obs": 0.040635928957263014,
+    "impressions": 73152,
+    "impression_auc": 0.6712672941055556,
+    "mrr": 0.3324898823953131,
+    "ndcg5": 0.3686694603648645,
+    "ndcg10": 0.4286205645800487
+   }
+  },
+  "M2_gbdt": {
+   "complexity": "GBDT, 400 trees x 31 leaves",
+   "n_params": 36400,
+   "val": {
+    "n": 243973,
+    "log_loss": 0.14254793682892564,
+    "brier": 0.034427528138105644,
+    "ece": 0.001228748831688345,
+    "auc": 0.7671516193670173,
+    "mean_pred": 0.03717953037881585,
+    "mean_obs": 0.03840179036204826,
+    "impressions": 6052,
+    "impression_auc": 0.6792796884000462,
+    "mrr": 0.3198342295739385,
+    "ndcg5": 0.34937827184201775,
+    "ndcg10": 0.4076487751506261
+   },
+   "test": {
+    "n": 2740998,
+    "log_loss": 0.14648386140288772,
+    "brier": 0.03608500229040924,
+    "ece": 0.0031205592730635043,
+    "auc": 0.7836337440933777,
+    "mean_pred": 0.03769445840009813,
+    "mean_obs": 0.040635928957263014,
+    "impressions": 73152,
+    "impression_auc": 0.6933853818762519,
+    "mrr": 0.3423513033543578,
+    "ndcg5": 0.37781553390446193,
+    "ndcg10": 0.4395941894847388
+   }
+  }
+ },
+ "selection": {
+  "rule": "argmin validation primary metric (ties to the simpler); keep only if no simple baseline is better on test",
+  "primary_metric": "log_loss",
+  "lower_is_better": true,
+  "validation": {
+   "B0_constant": 0.16294096107993447,
+   "B1_popularity": 0.1499972846362558,
+   "M1_logistic": 0.14581386252410913,
+   "M2_gbdt": 0.14254793682892564
+  },
+  "test": {
+   "B0_constant": 0.16996579303137585,
+   "B1_popularity": 0.15386780936411137,
+   "M1_logistic": 0.14984221789117783,
+   "M2_gbdt": 0.14648386140288772
+  },
+  "baselines": [
+   "B0_constant",
+   "B1_popularity"
+  ],
+  "candidates": [
+   "B0_constant",
+   "B1_popularity",
+   "M1_logistic",
+   "M2_gbdt"
+  ],
+  "selected_on_validation": "M2_gbdt",
+  "best_baseline_on_test": "B1_popularity",
+  "kept": "M2_gbdt",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better on the primary metric"
+ },
+ "uncertainty": {
+  "metric": "log_loss",
+  "kept": "M2_gbdt",
+  "baseline": "B1_popularity",
+  "kept_test": 0.14648386140288772,
+  "baseline_test": 0.15386780936411137,
+  "difference": -0.007383947961223658,
+  "ci95": [
+   -0.007560452968250327,
+   -0.00716860693153816
+  ],
+  "kept_ci95": [
+   0.1455264597418325,
+   0.14750251338134382
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 50000
+  }
+ },
+ "provenance": {
+  "datasets": [
+   "mind_small"
+  ],
+  "identification": "observational",
+  "population": "50,000 sampled Microsoft News users (English, US), anonymised",
+  "platform": "Microsoft News (msn.com) news feed",
+  "period": "2019-11-09 to 2019-11-15",
+  "evaluation_plan": {
+   "path": "docs/v5/calibration/plans/E1_evaluation_plan.json",
+   "sha256": "5ae089ed1f363e9c447a4902e0d040393fdb140811e818a46d03b8a4748c97d2",
+   "commit": "d6f476707b262180b872c0f12f6f1ca0211de1dc",
+   "committed_at": "2026-11-25T06:32:03+00:00"
+  },
+  "fit": {
+   "commit": "d86f683cc56d382bcb67012bd301e1c9be67e2df",
+   "seconds": 210.4426326751709,
+   "command": "python -m crucible.calibration.fit_e1 --models content,watch,return,session,news"
+  },
+  "domain": "content_selection",
+  "kept_candidate": "M2_gbdt"
+ },
+ "limits": "Evidence: MIND-small, 50,000 sampled Microsoft News users (English, US market), impressions 2019-11-09..15 chosen by the production recommender. The simulator may use this model for the probability that an individual opens an article shown in a slate of news/article recommendations, given text affinity to its history, topic shares, popularity, freshness and slate size. It may NOT infer: (1) clicks on video or social posts (use content_consumption); (2) behaviour of populations, languages or periods other than US Microsoft News in November 2019; (3) the causal effect of showing an item (exposure was chosen by a recommender; there is no randomised exposure in MIND); (4) dwell or reading time (not in the data); (5) raw affinity values from a different encoder (use text_cos_z, or quantile-map text_cos). Popularity counts come from a 50k-user sample and are used per capita. News first shown on 2019-11-09 have left-censored ages.",
+ "report": "docs/v5/calibration/reports/news_click.json",
+ "fitted_at": "2026-11-25T07:17:27Z",
+ "prior_rate": 0.04050665145154455,
+ "feature_quantiles": {
+  "levels": [
+   0.0,
+   0.01,
+   0.05,
+   0.1,
+   0.25,
+   0.5,
+   0.75,
+   0.9,
+   0.95,
+   0.99,
+   1.0
+  ],
+  "text_cos": [
+   -0.204228,
+   -0.022282,
+   0.001199,
+   0.031024,
+   0.084984,
+   0.155675,
+   0.237049,
+   0.318087,
+   0.371015,
+   0.489528,
+   1.0
+  ],
+  "text_cos_z": [
+   -3.337728,
+   -1.788495,
+   -1.372464,
+   -1.134308,
+   -0.70484,
+   -0.115431,
+   0.583999,
+   1.338083,
+   1.802343,
+   2.705068,
+   8.294955
+  ],
+  "cat_share": [
+   0.0,
+   0.000476,
+   0.001396,
+   0.002954,
+   0.018191,
+   0.092095,
+   0.238857,
+   0.41598,
+   0.538495,
+   0.757028,
+   0.971219
+  ],
+  "subcat_share": [
+   0.0,
+   1e-06,
+   1.2e-05,
+   3.9e-05,
+   0.000273,
+   0.002708,
+   0.04563,
+   0.126498,
+   0.191518,
+   0.344253,
+   0.907882
+  ],
+  "log_hist_len": [
+   0.0,
+   0.0,
+   1.098612,
+   1.609438,
+   2.302585,
+   3.135494,
+   3.828641,
+   4.430817,
+   4.75359,
+   5.347108,
+   6.326149
+  ],
+  "pop_ctr_24h": [
+   0.000427,
+   0.002737,
+   0.006737,
+   0.010365,
+   0.018208,
+   0.031613,
+   0.052927,
+   0.090839,
+   0.122484,
+   0.263433,
+   0.608734
+  ],
+  "pop_log_clicks_per_1k": [
+   0.0,
+   0.0,
+   0.0,
+   0.052483,
+   0.315357,
+   0.956784,
+   1.848309,
+   2.849324,
+   3.411273,
+   4.645615,
+   5.33671
+  ],
+  "age_log_hours": [
+   0.0,
+   0.693147,
+   1.609438,
+   1.94591,
+   2.564949,
+   2.890372,
+   3.401197,
+   4.007333,
+   4.234107,
+   4.663439,
+   4.787492
+  ],
+  "slate_size_log": [
+   1.098612,
+   1.609438,
+   2.564949,
+   2.995732,
+   3.583519,
+   4.204693,
+   4.682131,
+   4.969813,
+   5.170484,
+   5.545177,
+   5.703782
+  ]
+ },
+ "text_representation": {
+  "method": "TF-IDF (sublinear, English stop words, min_df 3, <= 50k terms) of title + abstract fitted on train-file news -> truncated SVD 128 (seed 0) -> L2 norm",
+  "profile": "normalised mean of history vectors"
+ },
+ "mechanisms": [
+  "population.article_choice"
+ ],
+ "schema": "crucible.v5.model_card/1",
+ "name": "news_click",
+ "version": 1,
+ "kind": "gbdt_binary",
+ "checkpoint": "params.npz",
+ "files": {
+  "params.npz": "d78501a8e8be1afce9bbcd774f716e86bc8c74214518da888849012993d57825"
+ }
+}

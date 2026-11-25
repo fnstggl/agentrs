@@ -24,6 +24,11 @@
   ``reset`` with the same task continues the same world (persistent actor; only the episode counters and the reward
   contract's baseline restart).
 * **Snapshots.** `snapshot`/`restore` use the kernel's world snapshot blob plus the adapter's evaluator state.
+* **Reward modes** (Crucible 5.0, `crucible.experience.modes`). ``reward_mode="legacy_shaped_reward"`` (default) is
+  the behaviour above. ``"observation_only"``: reward 0.0, no ``progress``/``score``/``success``/``eval`` in ``info``
+  and no termination on verified outcomes (truncation only); `evaluate()` (operator side) is unchanged.
+  ``"verified_terminal_outcome"``: reward 1.0 once at the first verified success, else 0.0; ``info["eval"]`` at the
+  end of an episode carries only ``success``/``failed``.
 """
 from __future__ import annotations
 
@@ -94,7 +99,11 @@ class CrucibleAdapter(EnvironmentAdapter):
 
     def __init__(self, max_steps: int = 10, dt: int = 3600, max_events: int = 10, history: int = 3,
                  lifetime: str = "fresh", split: str = "dev", prefix_kw: Optional[dict] = None,
-                 handle: str = "agent", overrides: Optional[dict] = None):
+                 handle: str = "agent", overrides: Optional[dict] = None,
+                 reward_mode: str = "legacy_shaped_reward"):
+        from ..experience.modes import check_mode
+        self.reward_mode = check_mode(reward_mode)
+        self._paid = False
         if lifetime not in ("fresh", "continue"):
             raise ValueError("lifetime must be 'fresh' or 'continue'")
         self.max_steps, self.dt, self.max_events, self.k_hist = max_steps, int(dt), max_events, history
@@ -129,6 +138,7 @@ class CrucibleAdapter(EnvironmentAdapter):
         self.task = task
         self.contract = RewardContract(self.goal)
         self.contract.begin(self.world, self.actor)
+        self._paid = False
         self.k = 0
         self._done = False
         self.episode_counters = self._zero_counters()
@@ -228,6 +238,8 @@ class CrucibleAdapter(EnvironmentAdapter):
         reward = float(self.contract.step_reward(self.world, self.actor))
         st = self.contract.status(self.world, self.actor)
         self.k += 1
+        if self.reward_mode != "legacy_shaped_reward":
+            return self._step_mode(reward, st, info)
         terminated = bool(st["success"] or st["failed"])
         truncated = (not terminated) and self.k >= self.max_steps
         self._done = terminated or truncated
@@ -238,6 +250,23 @@ class CrucibleAdapter(EnvironmentAdapter):
                   "counters": copy.deepcopy(self.episode_counters), "goal_id": self.goal.id}
             info.update(success=ev["success"], score=ev["progress"], counters=ev["counters"], eval=ev)
         info["progress"] = float(st["progress"])
+        return StepResult(self._obs, reward, terminated, truncated, info)
+
+    def _step_mode(self, reward: float, st: dict, info: dict) -> StepResult:
+        """Steps in the observation-only and verified-terminal modes (see the module docstring)."""
+        if self.reward_mode == "observation_only":
+            reward, terminated = 0.0, False
+        else:
+            reward = 0.0
+            if st["success"] and not self._paid:
+                self._paid, reward = True, 1.0
+            terminated = bool(st["success"] or st["failed"])
+        truncated = (not terminated) and self.k >= self.max_steps
+        self._done = terminated or truncated
+        self._refresh_tools()
+        self._obs = self._make_obs(self.view.observe())
+        if self._done and self.reward_mode == "verified_terminal_outcome":
+            info["eval"] = {"success": bool(st["success"]), "failed": bool(st["failed"])}
         return StepResult(self._obs, reward, terminated, truncated, info)
 
     def evaluate(self) -> EvalResult:

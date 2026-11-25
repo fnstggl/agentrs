@@ -13,6 +13,13 @@ ticks ran at fallback settings or idle because the operator could not pay.
 
 An episode is one pass over the task's horizon. `step` reports `done` when the horizon is reached; the caller then
 calls `reset(which=done)` (optionally with new tasks for those slots) before stepping those slots again.
+
+Reward modes (Crucible 5.0, `crucible.experience.modes`): ``reward_mode="legacy_shaped_reward"`` (the default) is the
+4.0 behaviour byte for byte. ``"observation_only"`` removes every reward path: `step` returns zeros and the reward
+slot of the observation (scalars[0]) stays 0; revenue, cost, funds and time (scalars[1:5]) are unchanged, because
+they are what the operator's own account shows. ``"verified_terminal_outcome"`` returns 0 on every tick and, on the
+tick that ends an episode, 1.0 if the public objective was reached (`Task.success`) and 0.0 otherwise; the reward
+slot of the observation stays 0 as well.
 """
 from __future__ import annotations
 
@@ -21,6 +28,7 @@ from typing import Sequence
 
 import numpy as np
 
+from ..experience.modes import LEGACY, VERIFIED, check_mode
 from .learner import EnvSpec
 from .tasks import ENDOWMENT_TICKS, Task
 
@@ -35,7 +43,9 @@ def money_scale(task: Task) -> float:
 
 
 class MechVecEnv:
-    def __init__(self, tasks: Sequence[Task], spec: EnvSpec | None = None, seat: int = 0, money: bool = True):
+    def __init__(self, tasks: Sequence[Task], spec: EnvSpec | None = None, seat: int = 0, money: bool = True,
+                 reward_mode: str = LEGACY):
+        self.reward_mode = check_mode(reward_mode)
         self.spec = spec or EnvSpec()
         self.seat = int(seat)
         self.money = bool(money)
@@ -132,6 +142,14 @@ class MechVecEnv:
         if a.shape != (self.n, self.spec.max_levers):
             raise ValueError(f"actions must have shape {(self.n, self.spec.max_levers)}, got {a.shape}")
         values = self._lo + (a + 1.0) * 0.5 * (self._hi - self._lo)
+        return self.step_values(values)
+
+    def step_values(self, values: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
+        """`step` with lever values in their own units ([n, max_levers]; the simulator clips them to range, as
+        `rig.set` does). `crucible.experience` uses it so that a setting chosen through a tool runs exactly."""
+        values = np.asarray(values, dtype=np.float64)
+        if values.shape != (self.n, self.spec.max_levers):
+            raise ValueError(f"values must have shape {(self.n, self.spec.max_levers)}, got {values.shape}")
         reward = np.zeros(self.n, dtype=np.float32)
         net = np.zeros(self.n)
         t0 = time.perf_counter()
@@ -143,7 +161,9 @@ class MechVecEnv:
             res = sim.step(x if sim.n_seats == 1 else [x if s == self.seat else None for s in range(sim.n_seats)])
             rev, cost = float(res.revenue[self.seat]), float(res.cost[self.seat])
             net[i] = rev - cost
-            reward[i] = net[i] / self._scale[i]
+            legacy = self.reward_mode == LEGACY
+            if legacy:
+                reward[i] = net[i] / self._scale[i]
             ep = self._ep[i]
             ep["net"] += net[i]
             ep["revenue"] += rev
@@ -153,11 +173,13 @@ class MechVecEnv:
             status = sim.last[self.seat]["status"]
             if status in ("fallback", "idle"):
                 ep[status] += 1
-            self._write_obs(i, res.readings[self.seat], float(reward[i]), rev, cost)
+            self._write_obs(i, res.readings[self.seat], float(reward[i]) if legacy else 0.0, rev, cost)
             self.steps += 1
             if sim.t >= self._h[i]:
                 self.done[i] = True
                 self._finish(i)
+                if self.reward_mode == VERIFIED:
+                    reward[i] = 1.0 if self.finished[-1]["success"] else 0.0
         self.sim_seconds += time.perf_counter() - t0
         return self._obs.copy(), reward, self.done.copy(), {"net_cents": net}
 

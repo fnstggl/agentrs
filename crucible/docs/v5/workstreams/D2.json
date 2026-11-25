@@ -1,0 +1,182 @@
+{
+ "workstream": "D2",
+ "branch": "worktree-wf_62a0cf0b-bb3-2",
+ "commit": "HEAD of the branch (see git log)",
+ "requirements": [
+  {
+   "id": "H.1",
+   "implementation_files": [
+    "src/crucible/semantic/service.py",
+    "src/crucible/semantic/recording.py",
+    "src/crucible/semantic/modules.py",
+    "src/crucible/semantic/participants.py",
+    "src/crucible/semantic/scenarios.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_service.py",
+    "tests/test_v5_semantic_participants.py"
+   ],
+   "state": "implemented",
+   "notes": "Measured locally: semantic_participants 8 (all eight admitted participants acted; 129 actions in a 33-module open_digital world with 196 tools, 24 rounds). The world is a 4.0 family, not the v5 standard population profile (workstream B not merged)."
+  },
+  {
+   "id": "H.2",
+   "implementation_files": [
+    "src/crucible/semantic/service.py",
+    "src/crucible/semantic/participants.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_service.py",
+    "tests/test_v5_semantic_participants.py"
+   ],
+   "state": "implemented",
+   "notes": "Measured: model_weight_copies 1, participants_sharing_weights 8 (same weights object and embedding storage)."
+  },
+  {
+   "id": "H.3",
+   "implementation_files": [
+    "src/crucible/semantic/participants.py",
+    "src/crucible/semantic/scenarios.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_service.py",
+    "tests/test_v5_semantic_participants.py"
+   ],
+   "state": "implemented",
+   "notes": "Measured: distinct_goals 8, distinct_histories 8."
+  },
+  {
+   "id": "H.4",
+   "implementation_files": [
+    "src/crucible/semantic/participants.py",
+    "src/crucible/semantic/capbench/tasks.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_service.py",
+    "tests/test_v5_semantic_participants.py"
+   ],
+   "state": "implemented",
+   "notes": "Measured: tool_selection_accuracy 0.6083 (73/120, 95% CI 0.519-0.691) on held-out situations from 12 unseen templates, 10 options; p vs random 4.4e-42; random 0.10, BM25 0.167. Passes the 0.6 threshold by a small margin; the interval's lower bound is below 0.6."
+  },
+  {
+   "id": "H.5",
+   "implementation_files": [
+    "src/crucible/semantic/service.py",
+    "src/crucible/semantic/capbench/tasks.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_service.py",
+    "tests/test_v5_semantic_participants.py"
+   ],
+   "state": "implemented",
+   "notes": "Measured: comprehension_accuracy 0.900 (CI 0.833-0.942), p vs chance 3.3e-51, unseen genres 0.817."
+  },
+  {
+   "id": "H.6",
+   "implementation_files": [
+    "src/crucible/semantic/service.py",
+    "src/crucible/semantic/recording.py",
+    "src/crucible/semantic/modules.py",
+    "src/crucible/semantic/participants.py",
+    "src/crucible/semantic/scenarios.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_service.py",
+    "tests/test_v5_semantic_participants.py"
+   ],
+   "state": "implemented",
+   "notes": "Measured: consequential_actions_executed 15 (4 participants), counted from the event log."
+  },
+  {
+   "id": "H.7",
+   "implementation_files": [
+    "src/crucible/semantic/service.py",
+    "src/crucible/semantic/recording.py",
+    "src/crucible/semantic/modules.py",
+    "src/crucible/semantic/participants.py",
+    "src/crucible/semantic/scenarios.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_service.py",
+    "tests/test_v5_semantic_participants.py"
+   ],
+   "state": "implemented",
+   "notes": "Measured: verified_productive_results 2 (a 2,500-cent payment owed between participants, verified from ledger postings; a rented cloud instance, verified from the instances table). No document, program or question-and-answer exchange was verified. A second run after the substrate merge reproduced the run exactly (same token counts and results)."
+  },
+  {
+   "id": "H.8",
+   "implementation_files": [
+    "src/crucible/semantic/service.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_service.py",
+    "tests/test_v5_semantic_participants.py"
+   ],
+   "state": "implemented",
+   "notes": "Measured: peak VRAM 5,813 MiB, 252 GPU tokens/s, 8.9 rows per batch, 200,616 prompt tokens from the prefix cache, CPU 6.5 tokens/s (fp32, 4 threads); prefix-cache speedup 1.00-1.07 on eight argument prompts."
+  },
+  {
+   "id": "H.n1",
+   "implementation_files": [
+    "src/crucible/semantic/service.py",
+    "src/crucible/semantic/capbench/__init__.py",
+    "src/crucible/semantic/capbench/tasks.py",
+    "src/crucible/semantic/capbench/models.py",
+    "src/crucible/semantic/capbench/run.py",
+    "src/crucible/semantic/capbench/__main__.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_service.py",
+    "tests/test_v5_semantic_participants.py"
+   ],
+   "state": "implemented",
+   "notes": "Measured: semantic_model_params 596,049,920 (Qwen3-0.6B); smaller_alternatives_benchmarked 2 (SmolLM2-135M, SmolLM2-360M) in the gate test, plus two trained heads (2.1M, 23.1M) in SP-3.2b."
+  },
+  {
+   "id": "SP-3.2b",
+   "implementation_files": [
+    "src/crucible/semantic/capbench/__init__.py",
+    "src/crucible/semantic/capbench/tasks.py",
+    "src/crucible/semantic/capbench/models.py",
+    "src/crucible/semantic/capbench/run.py",
+    "src/crucible/semantic/capbench/__main__.py",
+    "src/crucible/semantic/service.py",
+    "src/crucible/semantic/participants.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_3_2b.py"
+   ],
+   "state": "implemented",
+   "notes": "Measured: model_sizes_compared 6 (2.1M n-gram head, 23.1M MiniLM+head, SmolLM2-135M, SmolLM2-360M, Qwen3-0.6B, Qwen3-1.7B), capabilities_benchmarked 8. Smallest effective (all test items / unseen templates): content Qwen3-0.6B / Qwen3-0.6B; situation n-gram head / Qwen3-1.7B; tool choice Qwen3-0.6B; communication SmolLM2-135M; incentives n-gram head / Qwen3-1.7B; negotiation Qwen3-1.7B / none; programming Qwen3-1.7B; strategy Qwen3-1.7B / Qwen3-1.7B."
+  }
+ ],
+ "dependencies_used": [
+  "A (crucible.substrate.inference.recorded and weights_hash, merged)"
+ ],
+ "limitations": [
+  "Participants are weak agents: in the Gate H run 74 of 129 calls were rejected and 2 of 8 goals were met; no document, program or two-sided exchange by Qwen3-0.6B.",
+  "Gate H runs in the 4.0 open_digital world family; the v5 standard population (workstream B) is not merged.",
+  "H.4 passes by a small margin (0.608, CI lower bound 0.519).",
+  "Thinking mode makes each tool choice cost about 380 generated tokens; decoding is a plain PyTorch loop (no CUDA graphs or paged KV cache).",
+  "The prefix cache saves prefill only; with a 150-token shared system prompt it did not change wall time; in bfloat16 it can change greedy outputs (5 of 8 identical).",
+  "int8 dynamic quantization is CPU only and was not benchmarked for quality; no GPU quantization kernel is available in the environment.",
+  "Evaluation sets are template-generated from world situations; communication is checked automatically, not by a reader."
+ ],
+ "integration_notes": [
+  "semantic/modules.py imports semantic/recording.py (kernel module semantic_inference, host admin). If D1 also creates semantic/modules.py, keep both import lines.",
+  "Worlds that host semantic participants add the module with extra_modules=['semantic_inference'].",
+  "SemanticService needs max_new_tokens >= think_tokens + arg_tokens of its participants (640 for the defaults); SemanticGroup.participant raises otherwise.",
+  "Benchmark weights (1.09 GB) were downloaded to the shared HF cache: SmolLM2-135M-Instruct, SmolLM2-360M-Instruct, all-MiniLM-L6-v2. No package was installed.",
+  "Gate H takes about 13 minutes (7 GB GPU, 4 CPUs); SP-3.2b about 40 minutes (10 GB GPU, 2 CPUs).",
+  "The participant parameters most likely to matter for v5 domains: SemanticParticipant.choice_method, think_tokens, arg_mode, n_candidates, context_chars."
+ ]
+}

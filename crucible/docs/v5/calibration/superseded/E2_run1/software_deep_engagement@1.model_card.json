@@ -1,0 +1,354 @@
+{
+ "schema": "crucible.v5.calibration.model_card/1",
+ "name": "software_deep_engagement",
+ "version": 1,
+ "id": "software_deep_engagement@1",
+ "workstream": "E2",
+ "domain": "software_collaboration_and_adoption",
+ "loader": "crucible.calibration.software:DeepEngagementModel",
+ "features": [
+  "repo_stars_24h",
+  "repo_forks_24h",
+  "repo_issue_events_24h",
+  "repo_pr_events_24h",
+  "repo_pushes_24h",
+  "repo_releases_24h",
+  "repo_events_24h",
+  "repo_org",
+  "repo_created_in_window",
+  "repo_age_hours",
+  "actor_events_24h",
+  "actor_stars_24h",
+  "actor_forks_24h",
+  "actor_issue_events_24h",
+  "actor_pr_events_24h",
+  "actor_pushes_24h",
+  "actor_repo_events_24h",
+  "hour_sin",
+  "hour_cos"
+ ],
+ "feature_docs": {
+  "repo_stars_24h": "stars the repository received in the 24 complete hours before the star's hour [log1p]",
+  "repo_forks_24h": "forks of the repository in that window [log1p]",
+  "repo_issue_events_24h": "issues opened/closed/commented on the repository in that window [log1p]",
+  "repo_pr_events_24h": "pull requests and reviews on the repository in that window [log1p]",
+  "repo_pushes_24h": "pushes (commit batches) to the repository in that window [log1p]",
+  "repo_releases_24h": "releases published in that window [log1p]",
+  "repo_events_24h": "all public events on the repository in that window [log1p]",
+  "repo_org": "1 if the repository is owned by an organisation [raw]",
+  "repo_created_in_window": "1 if the repository was created (observed) before the star within the data window [raw]",
+  "repo_age_hours": "hours since creation when repo_created_in_window, else 0 [log1p]",
+  "actor_events_24h": "all public events by the developer in the 24 complete hours before the star's hour [log1p]",
+  "actor_stars_24h": "stars given by the developer in that window [log1p]",
+  "actor_forks_24h": "forks made by the developer in that window [log1p]",
+  "actor_issue_events_24h": "issue events by the developer in that window [log1p]",
+  "actor_pr_events_24h": "pull-request events by the developer in that window [log1p]",
+  "actor_pushes_24h": "pushes by the developer in that window [log1p]",
+  "actor_repo_events_24h": "the developer's events on this repository in that window [log1p]",
+  "hour_sin": "sin(2 pi h / 24), h = UTC hour of the star [raw]",
+  "hour_cos": "cos(2 pi h / 24) [raw]"
+ },
+ "target": "deeper engagement (fork, issue or issue comment, pull request or review) by the same developer on the same repository within 24 h of the developer's first star",
+ "outputs": [
+  "p_deep_engagement_24h"
+ ],
+ "identification": {
+  "kind": "observational",
+  "statement": "Associations in public GitHub activity; nothing was randomized."
+ },
+ "population": "public GitHub accounts and public repositories whose events reached GitHub's public events API and GH Archive between 2024-10-07 and 2024-10-10 UTC (Monday to Thursday); bot accounts excluded from units",
+ "dataset": {
+  "name": "gharchive_2024-10-07_96h",
+  "synthetic": false,
+  "url": "https://data.gharchive.org/",
+  "dataset": "gharchive_2024-10-07_96h",
+  "dataset_manifest": "docs/v5/calibration/datasets/gharchive_2024-10-07_96h.json"
+ },
+ "checkpoint": {
+  "file": "software_deep_engagement.npz",
+  "sha256": "5ae065937a112f0fbc7ace9a9539f8f616052353e24511c63b17c022da6a3007",
+  "bytes": 117338,
+  "format": "npz (allow_pickle=False)"
+ },
+ "report": "docs/v5/calibration/reports/software_deep_engagement@1.json",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E2_software_adoption.plan.json",
+  "sha256": "22d302cf334d80809dc8e38ee677d0715a0c5db6e8a7529f633301c7502e4716",
+  "commit": "7d4fb1e20a6350a30f4294f4dd85729ac3e21e38",
+  "committed_at": "2026-11-25T06:26:32+00:00"
+ },
+ "fit": {
+  "started_at": "2026-11-25T06:50:06+00:00",
+  "code": "src/crucible/calibration/fit_software.py",
+  "commit": "2d8fa30d400a081c09387cbfc00ca11c68434e0e",
+  "dirty_paths": [],
+  "clean": true,
+  "command": "python -m crucible.calibration.fit_software",
+  "threads": 1,
+  "environment": {
+   "python": "3.12.15",
+   "numpy": "2.5.4",
+   "scikit_learn": "1.9.1",
+   "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39"
+  },
+  "split": {
+   "train": [
+    24,
+    48
+   ],
+   "validation": [
+    48,
+    60
+   ],
+   "test": [
+    60,
+    72
+   ],
+   "strict_train": [
+    24,
+    36
+   ]
+  },
+  "counts": {
+   "train": 188168,
+   "validation": 104974,
+   "test": 83304,
+   "strict_train": 104842
+  },
+  "sub_models": {
+   "constant_rate": {
+    "rate": 0.03863568725819481,
+    "wall_s": 0.1,
+    "portable_max_abs_diff": 0.0
+   },
+   "logistic": {
+    "n_iter": 59,
+    "wall_s": 2.0,
+    "portable_max_abs_diff": 1.1102230246251565e-16
+   },
+   "gbdt": {
+    "n_iter": 69,
+    "wall_s": 4.9,
+    "portable_max_abs_diff": 4.440892098500626e-16
+   }
+  },
+  "tables": {
+   "path": "$CRUCIBLE_DATA/gharchive_2024-10-07_96h/tables_v1.npz",
+   "build_s": 22.5
+  }
+ },
+ "metrics": {
+  "log_loss": 0.1269419238649803,
+  "brier": 0.0297012370936558,
+  "ece": 0.005432989240041186,
+  "auc": 0.7360163682940357,
+  "average_precision": 0.15828053603371542,
+  "mean_predicted": 0.03675904615862615,
+  "mean_observed": 0.03251944684528954,
+  "n": 83304
+ },
+ "baseline_metrics": {
+  "log_loss": 0.14392510387007668,
+  "brier": 0.03149934081895438,
+  "ece": 0.006247231209390077,
+  "auc": 0.5,
+  "average_precision": 0.03251944684528954,
+  "mean_predicted": 0.038635687258194815,
+  "mean_observed": 0.03251944684528954,
+  "n": 83304
+ },
+ "candidates": {
+  "constant_rate": {
+   "complexity": 0,
+   "validation": {
+    "log_loss": 0.1711545051970408,
+    "brier": 0.03931638005098659,
+    "ece": 0.006974275709209004,
+    "auc": 0.5,
+    "average_precision": 0.04099110255872883,
+    "mean_predicted": 0.03863568725819482,
+    "mean_observed": 0.04099110255872883,
+    "n": 104974
+   },
+   "test": {
+    "log_loss": 0.14392510387007668,
+    "brier": 0.03149934081895438,
+    "ece": 0.006247231209390077,
+    "auc": 0.5,
+    "average_precision": 0.03251944684528954,
+    "mean_predicted": 0.038635687258194815,
+    "mean_observed": 0.03251944684528954,
+    "n": 83304
+   },
+   "test_new_users": {
+    "log_loss": 0.14754309681867092,
+    "brier": 0.03253799725068321,
+    "ece": 0.005086635479133008,
+    "auc": 0.5,
+    "average_precision": 0.03364508270727926,
+    "mean_predicted": 0.03863568725819482,
+    "mean_observed": 0.03364508270727926,
+    "n": 58701
+   }
+  },
+  "logistic": {
+   "complexity": 1,
+   "validation": {
+    "log_loss": 0.1389275942346276,
+    "brier": 0.032398734774581765,
+    "ece": 0.0031804262621324447,
+    "auc": 0.7529226935138795,
+    "average_precision": 0.31407244089114883,
+    "mean_predicted": 0.040341898816284166,
+    "mean_observed": 0.04099110255872883,
+    "n": 104974
+   },
+   "test": {
+    "log_loss": 0.13222831959207965,
+    "brier": 0.031049525649644433,
+    "ece": 0.005111251993933768,
+    "auc": 0.7274191894719165,
+    "average_precision": 0.13323375166899998,
+    "mean_predicted": 0.03607959182645754,
+    "mean_observed": 0.03251944684528954,
+    "n": 83304
+   },
+   "test_new_users": {
+    "log_loss": 0.13833834830370487,
+    "brier": 0.031947854271248854,
+    "ece": 0.0057183311956543964,
+    "auc": 0.6783122957927448,
+    "average_precision": 0.10938711634617893,
+    "mean_predicted": 0.03738071438118975,
+    "mean_observed": 0.03364508270727926,
+    "n": 58701
+   }
+  },
+  "gbdt": {
+   "complexity": 2,
+   "validation": {
+    "log_loss": 0.13699951234888635,
+    "brier": 0.03200823677768477,
+    "ece": 0.003376811055544814,
+    "auc": 0.753847806018271,
+    "average_precision": 0.3352653472854911,
+    "mean_predicted": 0.03813519721478051,
+    "mean_observed": 0.04099110255872883,
+    "n": 104974
+   },
+   "test": {
+    "log_loss": 0.1269419238649803,
+    "brier": 0.0297012370936558,
+    "ece": 0.005432989240041186,
+    "auc": 0.7360163682940357,
+    "average_precision": 0.15828053603371542,
+    "mean_predicted": 0.03675904615862615,
+    "mean_observed": 0.03251944684528954,
+    "n": 83304
+   },
+   "test_new_users": {
+    "log_loss": 0.1351322443633783,
+    "brier": 0.031025768033012765,
+    "ece": 0.005381377170195207,
+    "auc": 0.6850263737254411,
+    "average_precision": 0.13458023044660103,
+    "mean_predicted": 0.037337727099263536,
+    "mean_observed": 0.03364508270727926,
+    "n": 58701
+   }
+  }
+ },
+ "selection": {
+  "rule": "lowest validation log loss; confirmed on test by paired bootstrap",
+  "kept": "gbdt",
+  "baseline": "constant_rate",
+  "comparisons": [
+   {
+    "kept": "gbdt",
+    "other": "constant_rate",
+    "metric": "log_loss (test)",
+    "kept_minus_other": {
+     "mean": -0.016983180005096358,
+     "se": 0.0009256261740468604,
+     "ci95": [
+      -0.018626850428393505,
+      -0.015019401508309807
+     ],
+     "n_boot": 200
+    },
+    "kept_significantly_worse": false,
+    "validation_kept_minus_other": -0.03415499284815446
+   },
+   {
+    "kept": "gbdt",
+    "other": "logistic",
+    "metric": "log_loss (test)",
+    "kept_minus_other": {
+     "mean": -0.005286395727099345,
+     "se": 0.0004546971895537175,
+     "ci95": [
+      -0.006072501648551303,
+      -0.0042839308882500265
+     ],
+     "n_boot": 200
+    },
+    "kept_significantly_worse": false,
+    "validation_kept_minus_other": -0.0019280818857412563
+   }
+  ],
+  "worse_model_kept": 0
+ },
+ "calibration_metrics": [
+  "log_loss",
+  "brier",
+  "ece_15_equal_mass_bins",
+  "auc",
+  "average_precision",
+  "reliability_by_decile"
+ ],
+ "limits": "Population: public GitHub, 2024-10-07..10 UTC (four weekdays of one autumn week). Developers on GitHub are skewed towards professional, English-speaking and North-American/European/Asian time zones; private repositories and private activity are invisible. GH Archive records the public events API, which drops events under load and omits some activity; counts are lower bounds. Stars are cheap signals inflated by automation and star farming; a star is not evidence of useful adoption (MASTER_SPEC 6.5). These models describe engagement dynamics, not usefulness. Observational associations only: nothing was randomized, so the models do not say what promotion, ranking or buying stars would cause. Short horizon: features look back 24 h and outcomes forward 24 h; long-run adoption, retention, maintenance and dependency incorporation are not observed. Bots are identified only by the '[bot]' login suffix; other automation accounts remain in the data. Deep engagement is measured only as public fork / issue / pull-request events by the same account on the same repository within 24 h of the first star; later engagement, use without public events (cloning, installing, running) and engagement through other accounts are invisible. Stars by repository owners (login equals owner) and by '[bot]' accounts are excluded; only the first star per developer-repository pair in the window is a unit.",
+ "extrapolation_limits": [
+  "Population: public GitHub, 2024-10-07..10 UTC (four weekdays of one autumn week). Developers on GitHub are skewed towards professional, English-speaking and North-American/European/Asian time zones; private repositories and private activity are invisible.",
+  "GH Archive records the public events API, which drops events under load and omits some activity; counts are lower bounds.",
+  "Stars are cheap signals inflated by automation and star farming; a star is not evidence of useful adoption (MASTER_SPEC 6.5). These models describe engagement dynamics, not usefulness.",
+  "Observational associations only: nothing was randomized, so the models do not say what promotion, ranking or buying stars would cause.",
+  "Short horizon: features look back 24 h and outcomes forward 24 h; long-run adoption, retention, maintenance and dependency incorporation are not observed.",
+  "Bots are identified only by the '[bot]' login suffix; other automation accounts remain in the data.",
+  "Deep engagement is measured only as public fork / issue / pull-request events by the same account on the same repository within 24 h of the first star; later engagement, use without public events (cloning, installing, running) and engagement through other accounts are invisible.",
+  "Stars by repository owners (login equals owner) and by '[bot]' accounts are excluded; only the first star per developer-repository pair in the window is a unit."
+ ],
+ "simulator_mapping": {
+  "unit": "a developer (population individual or agent) starring/watching a repository in the software ecosystem for the first time",
+  "repo_stars_24h": "star/watch actions on the repository in the previous 24 simulated hours",
+  "repo_forks_24h": "code.fork calls on the repository in that window",
+  "repo_issue_events_24h": "issue tracker events (issues.create, issues.comment, issues.close) on the repository's project",
+  "repo_pr_events_24h": "pull-request / review events on the repository",
+  "repo_pushes_24h": "code.commit calls (one push per commit batch)",
+  "repo_releases_24h": "package or repository releases",
+  "repo_events_24h": "all of the above plus any other public repository event",
+  "repo_org": "repository owned by an organisation principal",
+  "repo_created_in_window": "repository created by code.create_repo before the star (always observable in the simulator; in the data only creations inside the window were seen)",
+  "repo_age_hours": "simulated hours since creation (the data only covered ages up to about 72 h; cap at 72 when using)",
+  "actor_*": "the same counts for the developer's own actions in the previous 24 simulated hours",
+  "hour_sin/hour_cos": "simulated hour of day",
+  "output": "probability that the developer forks, files/comments an issue or opens/reviews a pull request on that repository within 24 simulated hours",
+  "transform": "matrix_from_counts(raw) applies log1p to count features"
+ },
+ "fidelity_mechanisms": [
+  "developer_light_to_deep_engagement"
+ ],
+ "provenance": {
+  "dataset": "gharchive_2024-10-07_96h",
+  "source": "https://data.gharchive.org/",
+  "license": {
+   "summary": "Public GitHub events as archived by GH Archive. Use is governed by GitHub's Terms of Service and the Acceptable Use Policies' information-usage restrictions (research and archival use allowed; personal information must not be used for spamming, sold, or used to identify people). GH Archive's own code is MIT licensed.",
+   "text_locations": [
+    "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+    "https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies",
+    "https://github.com/igrigorik/gharchive.org/blob/master/LICENSE"
+   ]
+  },
+  "fit_commit": "2d8fa30d400a081c09387cbfc00ca11c68434e0e",
+  "plan_commit": "7d4fb1e20a6350a30f4294f4dd85729ac3e21e38"
+ }
+}
