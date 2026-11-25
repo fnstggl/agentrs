@@ -791,6 +791,15 @@ class CamUnifiedAgent:
             if r.startswith("mem:"):
                 out.append(r[4:])
                 continue
+            if r.startswith("seg:"):                   # E's memory segment: the segment and its source event ids
+                out.append(r)
+                ret = self.model.retriever
+                if ret is not None and callable(getattr(ret, "resolve_ref", None)):
+                    try:
+                        out.extend(str(e) for e in ret.resolve_ref(r))
+                    except (KeyError, RuntimeError, ValueError):
+                        pass
+                continue
             if r.startswith("act:"):
                 if self._last_eid.get(b):
                     out.append(self._last_eid[b])

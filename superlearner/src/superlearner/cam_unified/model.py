@@ -1043,11 +1043,54 @@ class CamUnifiedModel(nn.Module):
 
     def memory_tokens(self, ids: list, now: Optional[list] = None) -> Optional[TokenSet]:
         """Differentiable MEMORY tokens of stored retrieved ids (None when the retriever cannot rebuild them)."""
-        if self.retriever is None or not hasattr(self.retriever, "memory_tokens"):
+        if self.retriever is None:
             return None
-        M = self.retriever.memory_tokens(ids, now)
-        check_tokens(M, len(ids), self.cfg.d_model, "retriever.memory_tokens")
-        return as_kind(M, TokenKind.MEMORY)
+        if hasattr(self.retriever, "memory_tokens"):
+            M = self.retriever.memory_tokens(ids, now)
+            check_tokens(M, len(ids), self.cfg.d_model, "retriever.memory_tokens")
+            return as_kind(M, TokenKind.MEMORY)
+        return self.stored_memory_tokens(ids, now)
+
+    @torch.no_grad()
+    def stored_memory_tokens(self, ids: list, now: Optional[list] = None) -> Optional[TokenSet]:
+        """MEMORY tokens of stored retrieved segment ids read back from the retriever's memory index (E's
+        MemoryIndex: the same stored values `retrieve` returned when acting, as long as the served embedding version
+        is unchanged), laid out as `Retriever.retrieve` lays them out: [B, k*T, D], refs "seg:<id>", time = segment
+        end - now. No gradient (the values are the index's, as when acting). None without a readable index."""
+        r = self.retriever
+        idx = getattr(r, "index", None)
+        version = r.served_version() if callable(getattr(r, "served_version", None)) else None
+        if idx is None or version is None or not any(ids):
+            return None
+        B, D = len(ids), self.cfg.d_model
+        T = int(getattr(r, "n_mem", self.cfg.mem_segment_tokens))
+        k = max(len(i) for i in ids)
+        dev = self.device
+        x = torch.zeros(B, k, T, D, device=dev)
+        tm = torch.zeros(B, k, T, device=dev)
+        valid = torch.zeros(B, k, dtype=torch.bool, device=dev)
+        flat = [str(s) for row in ids for s in row]
+        kids = idx.kids_of(version, flat)
+        metas = {m["seg_id"]: m for m in idx.segments([s for s, kd in zip(flat, kids) if kd >= 0])}
+        have = [kd for kd in kids if kd >= 0]
+        vals = idx.values(version, have).to(dev) if have else None
+        p = q = 0
+        for b, row in enumerate(ids):
+            nb = float(now[b]) if now is not None else 0.0
+            for j, s in enumerate(row):
+                if kids[p] >= 0 and str(s) in metas:
+                    x[b, j] = vals[q].to(x.dtype)
+                    tm[b, j] = float(metas[str(s)]["t_end"]) - nb
+                    valid[b, j] = True
+                    q += 1
+                elif kids[p] >= 0:
+                    q += 1
+                p += 1
+        self._count("memory.stored_tokens", int(valid.sum()))
+        refs = [[(f"seg:{row[j]}" if j < len(row) else None) for j in range(k) for _ in range(T)] for row in ids]
+        return TokenSet(x.reshape(B, k * T, D), valid.unsqueeze(-1).expand(B, k, T).reshape(B, k * T),
+                        torch.full((B, k * T), int(TokenKind.MEMORY), dtype=torch.long, device=dev),
+                        tm.reshape(B, k * T), torch.full((B, k * T), -1, dtype=torch.long, device=dev), refs)
 
     # ---------------------------------------------------------------- the step equation
     def _goal_and_belief(self, goals: list, fast: Optional[FastState], B: int) -> tuple:

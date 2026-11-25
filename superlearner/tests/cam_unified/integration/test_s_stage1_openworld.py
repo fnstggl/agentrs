@@ -21,7 +21,7 @@ pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUD
 SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
 TINY = dict(n_layers=2, d_model=64, n_heads=4, n_state=8, d_particle=32, n_particles=8, bayes_feat=8,
             stoch_groups=8, stoch_classes=8, mem_key_dim=32, reason_layers=1, max_ctx_tokens=64, n_prefix=4,
-            max_entities=32, n_options=4, max_arg_tokens=24, imag_horizons=(2,), mem_segment=8)
+            max_entities=32, n_options=4, max_arg_tokens=24, imag_horizons=(2,), mem_segment=2)
 
 
 def _system_config(**kw):
@@ -96,6 +96,14 @@ def test_real_stack_vertical_path_on_a_real_ow_tiny_world(stage1_run):
         got = arc.get(ids)                                                  # every consumed event id resolves
         assert all(u["update_id"] in r.training_provenance.get("used_in_updates", []) for r in got)
     assert ups[0]["core_hash_after"] == ups[1]["core_hash_before"]
+    # lifetime memory: the first update consolidated archived events into segments (E's Consolidator -> MemoryIndex);
+    # later decisions retrieved them (E's Retriever), the trace names the segments and their source events, and the
+    # second update linked the consumed memory to its weight change (parametric-consolidation provenance)
+    assert all(x["retrieved"] == 0 for x in rows[:3]) and any(x["retrieved"] > 0 for x in rows[3:])
+    assert ups[0]["consolidated"]["segments1"] >= 1 and ups[1]["memory_linked"] >= 1
+    from superlearner.cam_unified.observe.trace import load_traces
+    seg_refs = [r for t in load_traces(os.path.join(rd, "traces")) for r in t.context_refs if r.startswith("seg:")]
+    assert seg_refs
     # the policy at a fixed probe context changed with the weights
     pr = _rows(os.path.join(rd, "probes", "probes.jsonl"))
     assert [p["version"] for p in pr] == [0, 1, 2]
