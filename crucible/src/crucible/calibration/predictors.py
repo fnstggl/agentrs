@@ -195,25 +195,33 @@ class QuantileNet:
 
 
 class BinnedQuantiles:
-    """Quantiles of the target per bin of feature `col` (edges inclusive on the right of each bin)."""
+    """Quantiles of the target per bin of feature `col`, optionally crossed with an integer group feature
+    `group_col` (e.g. consumed / skipped). `edges` are interior bin edges; `table` is [G, B, Q]."""
     kind = "binned_quantiles"
 
-    def __init__(self, col: int, edges, table, levels):
+    def __init__(self, col: int, edges, table, levels, group_col: int = -1):
         self.col = int(col)
-        self.edges = np.asarray(edges, float)            # interior edges, len B-1
-        self.table = np.asarray(table, float)            # [B, Q]
+        self.group_col = int(group_col)
+        self.edges = np.asarray(edges, float)
+        t = np.asarray(table, float)
+        self.table = t if t.ndim == 3 else t[None]
         self.levels = np.asarray(levels, float)
 
     def params(self) -> dict:
-        return {"col": np.array([self.col]), "edges": self.edges, "table": self.table, "levels": self.levels}
+        return {"col": np.array([self.col]), "group_col": np.array([self.group_col]), "edges": self.edges,
+                "table": self.table, "levels": self.levels}
 
     @classmethod
     def from_params(cls, P, card=None):
-        return cls(int(P["col"][0]), P["edges"], P["table"], P["levels"])
+        return cls(int(P["col"][0]), P["edges"], P["table"], P["levels"],
+                   int(P["group_col"][0]) if "group_col" in P else -1)
 
     def predict(self, X):
-        b = np.searchsorted(self.edges, np.asarray(X, float)[:, self.col], side="left")
-        return self.table[b]
+        X = np.asarray(X, float)
+        b = np.searchsorted(self.edges, X[:, self.col], side="left") if len(self.edges) else np.zeros(len(X), int)
+        g = np.zeros(len(X), int) if self.group_col < 0 else \
+            np.clip(X[:, self.group_col].astype(int), 0, self.table.shape[0] - 1)
+        return self.table[g, b]
 
     def sample(self, X, u):
         return interpolate_quantiles(self.predict(X), self.levels, u)
@@ -246,14 +254,21 @@ class GammaPoisson:
 
 
 def interpolate_quantiles(Q: np.ndarray, levels: np.ndarray, u: np.ndarray) -> np.ndarray:
-    """Inverse-CDF sampling from per-row quantiles: linear between levels, flat tails beyond the outer levels."""
+    """Inverse-CDF sampling from per-row quantiles: linear between levels; below the first and above the last level
+    the CDF is linear over one outer-gap width (the same convention as `metrics.pit_fast`)."""
     Q = np.asarray(Q, float)
-    u = np.clip(np.asarray(u, float), levels[0], levels[-1])
-    j = np.clip(np.searchsorted(levels, u, side="right") - 1, 0, len(levels) - 2)
-    lo, hi = levels[j], levels[j + 1]
-    t = (u - lo) / (hi - lo)
+    lv = np.asarray(levels, float)
+    u = np.asarray(u, float)
+    uc = np.clip(u, lv[0], lv[-1])
+    j = np.clip(np.searchsorted(lv, uc, side="right") - 1, 0, len(lv) - 2)
+    t = (uc - lv[j]) / (lv[j + 1] - lv[j])
     rows = np.arange(len(Q))
-    return Q[rows, j] + t * (Q[rows, j + 1] - Q[rows, j])
+    y = Q[rows, j] + t * (Q[rows, j + 1] - Q[rows, j])
+    lo = u < lv[0]
+    hi = u > lv[-1]
+    y[lo] = Q[lo, 0] - (lv[0] - u[lo]) / lv[0] * (Q[lo, 1] - Q[lo, 0])
+    y[hi] = Q[hi, -1] + (u[hi] - lv[-1]) / (1 - lv[-1]) * (Q[hi, -1] - Q[hi, -2])
+    return y
 
 
 KINDS = {c.kind: c for c in (Constant, Logistic, TreeEnsemble, QuantileNet, BinnedQuantiles, GammaPoisson)}
