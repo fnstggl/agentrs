@@ -157,10 +157,6 @@ def revenue_report(world, owner: str, window_s: int = 30 * DAY) -> dict:
     excluded = flagged_payers(world, owner)
     rf = related_flows(world, owner, window_s=window_s)
     indep_by_kind: dict[str, int] = {}
-    one_time = subs_rev = fees = other = 0
-    for p, rec in rf["payers"].items():
-        if rec["flagged"]:
-            continue
     # revenue by kind from unflagged payers (gross of circular share; the circular part is in `excluded_cents`)
     mine = set(st.find_ids("accounts", "owner", owner))
     done: set[str] = set()

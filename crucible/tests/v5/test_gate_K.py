@@ -11,8 +11,7 @@ from fractions import Fraction
 
 import pytest
 
-from _commerce_kit import (DAY, balance, failures, healthy, join, make_world, media_business, mint, org_account,
-                           saas_business)
+from _commerce_kit import DAY, balance, failures, healthy, join, make_world, media_business, mint, org_account
 from crucible.acceptance.v5.evidence import record
 from crucible.commerce import integrity, revenue
 
