@@ -64,6 +64,23 @@ def test_dependency_and_stars_are_not_adoption_only_execution_is(world):
     assert w.check_invariants() == []
 
 
+def test_private_dependents_stay_private(world):
+    w = world
+    must(w, "ben", "code.create_repo", name="secret")
+    must(w, "ben", "code.commit", repo="ben/secret", files={"app.py": APP})
+    must(w, "ben", "pkg.depend", repo="ben/secret", package="vecmath")
+    ev = [e for e in w.log if e.type == "pkg.dependency"][-1]
+    assert ev.vis == ("p:ben",)
+    w.advance_time(w.now + 7 * 3600)                     # a needs-graph update
+    g = w.query("p:cat", "needs.graph", {})
+    assert not any("ben/secret" in e["src"] for e in g["edges"])
+    assert any("ben/secret" in e["src"] for e in w.query("p:ben", "needs.graph", {})["edges"])
+    must(w, "ben", "code.create_repo", name="secret2")
+    must(w, "ben", "code.commit", repo="ben/secret2", files={"app.py": APP + "\n"})
+    pr = must(w, "ben", "pkg.pr_open", repo="ben/secret", source_repo="ben/secret2", title="t")["pr"]
+    assert not ex(w, "cat", "pkg.pr_diff", pr=pr).ok
+
+
 def test_reviews_must_be_read_independent_and_approving_before_merge(world):
     w = world
     must(w, "dan", "pkg.fork", package="vecmath", name="vec-fork")

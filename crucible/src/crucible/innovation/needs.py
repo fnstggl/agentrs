@@ -512,13 +512,23 @@ class Needs(Module):
     @endpoint("graph", S.obj({"node": S.s_str(maxLength=120), "limit": S.s_int(minimum=1, maximum=2000)}),
               read_only=True)
     def ep_graph(self, ctx, node=None, limit=500):
-        """The public structure of the needs graph (as of the last update): nodes and typed relations. Relations of
-        other principals' own use (user:* nodes) are omitted."""
+        """The public structure of the needs graph (as of the last update): nodes and typed relations. Other
+        principals' own use, compute instances and private repositories are omitted."""
         st = ctx.state
-        mine = {f"user:{p}" for p in ctx.world.principals_of(ctx.actor)}
+        me = ctx.world.principals_of(ctx.actor)
+        private = ("user:", "compute:", "capacity:", "repo:")
 
         def visible(n):
-            return not n.startswith("user:") or n in mine
+            """Participants' own use, instances and dependent repositories are private to their owner (a public
+            repository's dependencies are public)."""
+            if not n.startswith(private):
+                return True
+            if n.startswith("repo:"):
+                r = st.get("repos", n.split(":", 1)[1])
+                if r is not None and r["visibility"] == "public":
+                    return True
+            rec = st.get("needs_nodes", n)
+            return rec is not None and rec["owner"] in me
         edges = [{"src": e["src"], "rel": e["rel"], "dst": e["dst"]} for _, e in st.scan("needs_edges")
                  if visible(e["src"]) and visible(e["dst"]) and (node is None or node in (e["src"], e["dst"]))]
         nodes = sorted({x for e in edges for x in (e["src"], e["dst"])})

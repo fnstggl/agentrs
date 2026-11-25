@@ -178,6 +178,10 @@ class Packages(Module):
     def _maintainer(self, ctx, p):
         ident(ctx.world).authorize(ctx, p["owner"], "code.write", scope=p["repo"])
 
+    def _repo_vis(self, ctx, r):
+        """Facts about a dependent repository are public only if the repository is."""
+        return "public" if r["visibility"] == "public" else tuple(sorted({r["owner"], ctx.actor}))
+
     def _independent(self, world, a: str, b: str) -> bool:
         from ..goals.metrics import is_related
         return not is_related(world, a, b)
@@ -507,7 +511,7 @@ class Packages(Module):
                                                                    f"(locked {rel['version']})")
         ctx.emit("pkg.dependency", {"id": f"{repo}|{package}", "repo": repo, "package": package,
                                     "constraint": constraint, "version": rel["version"], "commit": rel["commit"],
-                                    "owner": r["owner"], "by": ctx.actor, "lock_commit": cid}, vis="public")
+                                    "owner": r["owner"], "by": ctx.actor, "lock_commit": cid}, vis=self._repo_vis(ctx, r))
         return {"locked": rel["version"], "commit": cid,
                 "import": f"deps.{import_dir(p['repo'])}.{p['module']}"}
 
@@ -535,14 +539,14 @@ class Packages(Module):
         ctx.emit("pkg.compat", {"id": f"{repo}|{package}|{rel['version']}", "repo": repo, "package": package,
                                 "from": cur["version"], "to": rel["version"], "compatible": ok,
                                 "tests": {"passed": res["passed"], "failed": res["failed"]}, "by": ctx.actor},
-                 vis="public")
+                 vis=self._repo_vis(ctx, r))
         if not ok:
             return {"upgraded": False, "version": cur["version"], "reason": "tests fail with " + rel["version"],
                     "tests": {"passed": res["passed"], "failed": res["failed"]}}
         cid = self._write_lock(ctx, repo, package, constraint, rel, f"upgrade {package} to {rel['version']}")
         ctx.emit("pkg.dependency", {"id": f"{repo}|{package}", "repo": repo, "package": package,
                                     "constraint": constraint, "version": rel["version"], "commit": rel["commit"],
-                                    "owner": r["owner"], "by": ctx.actor, "lock_commit": cid}, vis="public")
+                                    "owner": r["owner"], "by": ctx.actor, "lock_commit": cid}, vis=self._repo_vis(ctx, r))
         return {"upgraded": True, "version": rel["version"], "commit": cid}
 
     # ================================================================== execution (adoption evidence)
@@ -641,7 +645,7 @@ class Packages(Module):
         ctx.emit("pkg.pr", {"id": pid, "repo": repo, "source_repo": source_repo, "source_commit": src["head"],
                             "base_commit": tgt["head"], "author": ctx.actor, "title": title, "body": body[:5000],
                             "files": sorted(changes), "changes_digest": digest(changes),
-                            "tests": {"passed": res["passed"], "failed": res["failed"]}}, vis="public")
+                            "tests": {"passed": res["passed"], "failed": res["failed"]}}, vis=self._repo_vis(ctx, tgt))
         return {"pr": pid, "files": sorted(changes), "tests": {"passed": res["passed"], "failed": res["failed"]}}
 
     def _pr_changes(self, st, pr) -> dict:
@@ -658,7 +662,8 @@ class Packages(Module):
         review can count)."""
         st = ctx.state
         p = st.get("pkg_prs", pr)
-        if p is None:
+        code = ctx.world.modules["code"]
+        if p is None or not code.can_read(ctx, p["repo"]):
             raise NotFound("no pull request " + pr)
         ch = self._pr_changes(st, p)
         if not st.has("pkg_reads", f"{pr}|{ctx.actor}"):
@@ -674,7 +679,7 @@ class Packages(Module):
         author are recorded but never count as independent."""
         st = ctx.state
         p = st.get("pkg_prs", pr)
-        if p is None:
+        if p is None or not ctx.world.modules["code"].can_read(ctx, p["repo"]):
             raise NotFound("no pull request " + pr)
         if p["status"] != "open":
             raise Conflict(f"pull request is {p['status']}")
@@ -685,7 +690,8 @@ class Packages(Module):
         rid = st.new_id("prrev")
         ctx.emit("pkg.review", {"id": rid, "pr": pr, "reviewer": ctx.actor, "verdict": verdict, "comment": comment[:5000],
                                 "independent": self._independent(ctx.world, ctx.actor, p["author"]),
-                                "source_commit": p["source_commit"]}, vis="public")
+                                "source_commit": p["source_commit"]},
+                 vis=self._repo_vis(ctx, st.tables["repos"][p["repo"]]))
         return {"review": rid}
 
     @endpoint("pr_merge", S.obj({"pr": S.s_str(maxLength=40)}, ["pr"]), cost_s=60)
@@ -712,7 +718,7 @@ class Packages(Module):
         if tgt["head"] != p["base_commit"]:
             raise Conflict("the target changed since the pull request was opened; reopen it")
         cid = code.commit_files(ctx, p["repo"], self._pr_changes(st, p), f"merge {pr}: {p['title']}", ctx.actor)
-        ctx.emit("pkg.merged", {"id": pr, "commit": cid, "by": ctx.actor}, vis="public")
+        ctx.emit("pkg.merged", {"id": pr, "commit": cid, "by": ctx.actor}, vis=self._repo_vis(ctx, tgt))
         return {"merged": True, "commit": cid}
 
     @endpoint("fork", S.obj({"package": S.s_str(maxLength=40), "name": S.s_str(pattern=NAME_RE, maxLength=40)},

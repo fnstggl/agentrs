@@ -18,7 +18,9 @@ Participants that have a recurring problem of a public format (a `crucible.econo
 
 Decisions depend only on what the participant experienced: its own test scores, failures, prices. No creator
 label, rating or score reaches the decision. Participants are rule-based behavioural participants owned by
-workstream G until the population (workstream B) provides its own; `AdoptionPolicy` is the reusable behaviour.
+workstream G until the population (workstream B) provides its own; the behaviour is in `Adopters.discover`,
+`Adopters.evaluate` and `Adopters.step`, which act only through tools as the participant (`ctx.call(...,
+as_principal=p)`), so a population activity handler can call them for its own individuals.
 """
 from __future__ import annotations
 
