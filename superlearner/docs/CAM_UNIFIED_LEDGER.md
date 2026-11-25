@@ -35,9 +35,22 @@ that lack files/tests/verification). Append; do not rewrite history.
 - Launched a read-only mapping workflow over Crucible OpenWorld, goals/worldgen, research envs, LLM integration,
   superlearner reuse, actors/self-play (results summarised in `CAM_UNIFIED_ARCHITECTURE.md` §0).
 
+- Mapping workflow finished (6 readers + critic; `cam_unified_stage0_maps.json`, `cam_unified_stage0_critic.json`).
+  Critic found contract/Crucible mismatches (seconds vs days, seq cursors, cents, 1k-token code args, clock owner);
+  fixed in contract v2 (`b68cc0e`) with decisions 5–11 in the architecture doc.
+- Confirmed facts that shape the science: no learned or frozen-LLM agent has ever earned independent revenue in an
+  OpenWorld economy; the privileged Builder reaches OW-1 in 25–35 simulated days; the non-privileged ExampleInductor
+  solves the 8-day ow_tiny open-economy goal on day 4 (day 3 on ow_market); ow_works offers a dense numeric rig
+  return inside the full world. CAM 7.0's C-4 negative transfer is confounded by restored replay + AdamW state.
+
 ## Active jobs
 
-(none)
+| Started (UTC) | Job | Where |
+|---|---|---|
+| 2026-11-25 03:1x | Wave-1 build workflow `wf_c9e0d81b-aaa`: workstreams A, B, C, D, E, F, G, I implement in worktrees `/workspace/wt/<id>` (branches `ws/<id>` from `b68cc0e`), each followed by an independent verifier (H) and a fix pass | `/root/.claude/projects/-workspace/8a8c4e56-2384-4271-b874-3a6441f3bc23/workflows/scripts/cam-unified-build-wave1-wf_c9e0d81b-aaa.js` |
+
+Resume after an interruption: `Workflow({scriptPath: <that file>, resumeFromRunId: "wf_c9e0d81b-aaa"})` (finished agents
+replay from cache); worktrees and their commits persist on disk.
 
 ## Decisions
 
