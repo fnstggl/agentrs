@@ -13,6 +13,10 @@ Two objects are created together by `open_world(tasks, ...)`:
   operator through a closure-based port, so attribute traversal of the adapter (what a learner could do with it)
   reaches none of them (tests walk the object graph). Its records never contain the world family, seed or the
   kernel's world id (the id is a hash of the spec).
+  **The in-process adapter is API discipline, not a security boundary**: Python code in the same process can
+  always reach the operator (through the port's closures, `gc.get_objects()`, frames ...). Learner runs use
+  `open_world_isolated` (worlds, operator and evaluator in a spawned process; only records cross the pipe) - that
+  is the hidden-state firewall; `open_world` is for scripted controls, calibration and tests.
 
 Semantics (contract v2):
 
@@ -28,16 +32,26 @@ Semantics (contract v2):
   with cost_s + think_s, or the agent's own ``wait``). It is split at the evaluator's daily check times so sustain
   streaks are counted exactly (critic: one jump over several days would run every due check on the end state).
 * **wait tool.** A harness tool ``{"seconds": int <= max_wait_s}``: no world call, its duration is the wait.
+  The contract's special `Action.tool` values are honoured: ``"noop"`` is an ok no-op of duration 0, and
+  ``"advance_time"`` (``{"seconds": int}`` or ``{"days": float}``) is the wait tool.
+* **Tools** are fresh copies on every call (no consumer can alias the kernel's schemas); the conversion is cached on
+  a digest of the full tool list, so a redeployed service with a new price, description or schema is seen at once.
+* **Exactly-once, also after trimming.** Converted events the bounded buffer drops are spilled to a per-env file
+  *as delivered* (visibility decided at ingest, never re-filtered with later org memberships), so
+  `collect_events` returns exactly the delivered stream for any cursor.
 * **Money / time units** as given (cents, seconds -> days only for record times and durations).
 """
 from __future__ import annotations
 
 import bisect
 import copy
+import hashlib
 import json
 import os
 import pickle
 import random
+import shutil
+import tempfile
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Sequence
 
@@ -47,6 +61,11 @@ from . import ow_convert as C
 
 DAY = 86400
 WAIT_TOOL = "wait"
+NOOP_TOOL = "noop"                 # contract special values of Action.tool
+ADVANCE_TOOL = "advance_time"
+# world.runtime entries operator-side metrics keep incrementally; checkpoints carry them (a restored world starts
+# its event log at the snapshot, so they could not be rebuilt from it)
+PERSISTENT_RUNTIME_KEYS = ("cam.coop_index",)
 _SYLL_C, _SYLL_V = "bdfgklmnprstvz", "aeiou"
 
 
@@ -64,6 +83,22 @@ def wait_tool(max_wait_s: int) -> ToolSchema:
                                                                     "description": "simulated seconds to wait"}},
                        "required": ["seconds"], "additionalProperties": False},
                       returns="{waited_s}", duration_hint=None, meta={"harness": True, "read_only": True})
+
+
+def harness_wait_seconds(action: Action, max_wait_s: int) -> tuple[Optional[int], list[str]]:
+    """Seconds of a ``wait`` / ``advance_time`` action, or (None, errors). ``advance_time`` takes ``{"seconds": int}``
+    or ``{"days": float}`` (contract time unit); both are bounded by `max_wait_s`."""
+    from crucible.core import schema as S
+    args = dict(action.args or {})
+    if action.tool == ADVANCE_TOOL and "days" in args and "seconds" not in args:
+        d = args.pop("days")
+        if args:
+            return None, [f"args.{k}: unexpected" for k in args]
+        if not isinstance(d, (int, float)) or isinstance(d, bool) or not (d > 0):
+            return None, ["args.days: must be a positive number"]
+        args = {"seconds": max(1, int(round(float(d) * DAY)))}
+    errs = S.validate(wait_tool(max_wait_s).parameters, args)
+    return (None, errs) if errs else (int(args["seconds"]), [])
 
 
 def _ensure_crucible() -> None:
@@ -104,7 +139,8 @@ class _Env:
     own_accounts: set = field(default_factory=set)
     summary: dict = field(default_factory=dict)
     first: list = field(default_factory=list)           # observations still to deliver at the first observation
-    tools: tuple = ((), [])           # (names, ToolSchemas) cache
+    tools: tuple = ("", "[]")         # (digest of the server's tool list, JSON of the converted ToolSchemas)
+    spill: str = ""                    # file of converted events dropped from the buffer (JSONL, seq order)
     goal: Optional[GoalSpec] = None
     stats: dict = field(default_factory=lambda: {"actions": 0, "rejected": 0, "waits": 0, "events": 0})
 
@@ -117,7 +153,9 @@ class OpenWorldOperator:
     def __init__(self, tasks: Sequence[Any] | Callable[[int, int], Any], n_envs: int | None = None, *,
                  shared_world: bool = False, store_url: str = "memory://", max_wait_s: int = 86400,
                  handles: Sequence[str] | None = None, seed: int = 0, participants: Sequence[tuple] = (),
-                 participant_dt: int = 3600, buffer_limit: int = 500_000, fork_identical: bool = False):
+                 participant_dt: int = 3600, buffer_limit: int = 500_000, fork_identical: bool = False,
+                 max_numeric_summary: int = C.DEFAULT_MAX_NUMERIC_SUMMARY,
+                 max_numeric_result: int = C.DEFAULT_MAX_NUMERIC_RESULT):
         _ensure_crucible()
         from crucible.api import WorldServer
         if callable(tasks):
@@ -145,6 +183,8 @@ class OpenWorldOperator:
                     self._templates[id(spec)] = None
         self.participant_dt = int(participant_dt)
         self.buffer_limit = int(buffer_limit)
+        self.max_numeric_summary, self.max_numeric_result = int(max_numeric_summary), int(max_numeric_result)
+        self._spill_dir = tempfile.mkdtemp(prefix="cam_ow_spill_")
         self.fork_identical = bool(fork_identical)
         self.rng = random.Random(seed)
         self.srv = WorldServer(store_url, lease_ttl_s=None, max_events=10 ** 9, max_scan=10 ** 12,
@@ -226,7 +266,9 @@ class OpenWorldOperator:
             used = set()
             for b in g:
                 e = _Env(b, si, tasks[b])
-                h = self.handles[b] if self.handles else neutral_handle(self.rng)
+                # a task may require a seat (e.g. OW-3's engineer "eng"); otherwise an opaque neutral handle
+                h = self.handles[b] if self.handles else (getattr(tasks[b], "actor_handle", None)
+                                                          or neutral_handle(self.rng))
                 while h in used:
                     h = neutral_handle(self.rng)
                 used.add(h)
@@ -244,12 +286,22 @@ class OpenWorldOperator:
                                               entity_type="person", t=w.now / DAY, source="identity",
                                               evidence=EvidenceKind.OBSERVATIONAL, meta={"self": True}))
                 e.buffer, e.caused = list(e.first[1:]), {}
+                e.spill = os.path.join(self._spill_dir, f"ep{self.episode}_env{b}.jsonl")
                 e.pulled = e.delivered = seq0
                 e.buffer_base = 0             # the genesis replay covers every visible event from the world's start
                 self.envs[b] = e
-            for (h, spec, endow) in self.participant_specs:
+            # independently controlled participants: the operator's own list, else the ones the task requires (a
+            # zero-argument factory on the task, called per world: fresh policies everywhere)
+            pspecs = self.participant_specs
+            pf = getattr(tasks[g[0]], "participant_factory", None)
+            task_level = not pspecs and callable(pf)
+            if task_level:
+                pspecs = list(pf())
+            for (h, spec, endow) in pspecs:
                 import numpy as np
-                if callable(spec) and not hasattr(spec, "act"):
+                if task_level:
+                    pol = spec
+                elif callable(spec) and not hasattr(spec, "act"):
                     pol = spec()
                 else:
                     tmpl = self._templates.get(id(spec))
@@ -286,6 +338,9 @@ class OpenWorldOperator:
             e.buffer.append(C.event_observation(d, e.own_accounts, e.caused.get(int(d["seq"])), e.own_principals))
         if len(e.buffer) > self.buffer_limit:
             drop = len(e.buffer) - self.buffer_limit
+            with open(e.spill, "a") as fh:          # as delivered: visibility and provenance fixed at ingest
+                for o in e.buffer[:drop]:
+                    fh.write(o.to_json() + "\n")
             e.buffer_base = e.buffer[drop - 1].seq
             e.buffer = e.buffer[drop:]
 
@@ -319,7 +374,7 @@ class OpenWorldOperator:
             out = new
         e.delivered = e.pulled
         now = self.srv.world(self.slots[e.slot].wid).now
-        return out + C.summary_observations(e.summary, now, e.principal)
+        return out + C.summary_observations(e.summary, now, e.principal, self.max_numeric_summary)
 
     def observe(self, b: int) -> list[Observation]:
         e = self.envs[b]
@@ -334,28 +389,37 @@ class OpenWorldOperator:
         since = int(since)
         if since >= e.buffer_base:
             return self._after(e, since), e.pulled
-        wid = self.slots[e.slot].wid
-        old = [C.event_observation(d, e.own_accounts, e.caused.get(int(d["seq"])), e.own_principals)
-               for d in self.srv.replay_events(wid, since, e.buffer_base, actor=e.ident)
-               if not (d["type"] in ("cmd", "cmd.rejected") and d["actor"] == e.principal)]
+        old = []
+        with open(e.spill) as fh:                    # exactly what was ingested (and delivered), not re-filtered
+            for line in fh:
+                o = Observation.from_dict(json.loads(line))
+                if o.seq is not None and o.seq > since:
+                    old.append(o)
         return old + list(e.buffer), e.pulled
 
     # ------------------------------------------------------------------ tools and actions
     def tools(self, b: int) -> list[ToolSchema]:
+        """The actor's tools now, as fresh ToolSchema objects (never shared with the kernel or with earlier calls).
+        The conversion is cached on a digest of the server's complete tool list (names, descriptions with prices,
+        schemas, annotations), so any change - e.g. a host redeployed with a new manifest - shows immediately."""
         e = self.envs[b]
         specs = self.srv.available_tools(self.slots[e.slot].wid, e.ident)
-        names = tuple(s["name"] for s in specs)
-        if names != e.tools[0]:
-            e.tools = (names, [C.tool_schema(s) for s in specs] + [wait_tool(self.max_wait_s)])
-        return list(e.tools[1])
+        blob = json.dumps(specs, sort_keys=True, separators=(",", ":"), default=str)
+        dig = hashlib.sha256(blob.encode()).hexdigest()
+        if dig != e.tools[0]:
+            ts = [C.tool_schema(s) for s in specs] + [wait_tool(self.max_wait_s)]
+            e.tools = (dig, json.dumps([t.to_dict() for t in ts]))
+        return [ToolSchema.from_dict(d) for d in json.loads(e.tools[1])]
 
     def execute(self, b: int, action: Action) -> ExecutionResult:
         e = self.envs[b]
         wid = self.slots[e.slot].wid
         w = self.srv.world(wid)
         t_s = w.now
-        if action.tool == WAIT_TOOL:
+        if action.tool in (WAIT_TOOL, ADVANCE_TOOL):
             return self._wait(e, action, t_s)
+        if action.tool == NOOP_TOOL:
+            return noop_result(action, t_s / DAY)
         s0 = w.seq
         r = self.srv.execute_action(wid, e.ident, {"tool": action.tool, "args": dict(action.args or {})})
         ps = w.principals_of(e.principal)
@@ -367,7 +431,7 @@ class OpenWorldOperator:
         mine = [o for o in self._after(e, s0) if o.caused_by == action.action_id]
         delta = sum(o.value for o in mine if o.kind is ObsKind.TRANSACTION and o.value is not None)
         cost_s = int(r.get("cost_s", 0) or 0)
-        obs = C.result_observations(r, action.tool, t_s, action.action_id)
+        obs = C.result_observations(r, action.tool, t_s, action.action_id, self.max_numeric_result)
         e.stats["actions"] += 1
         err = None if r.get("ok") else str((r.get("error") or {}).get("code", "error"))
         if err:
@@ -378,21 +442,8 @@ class OpenWorldOperator:
                                      "cash_delta_cents": float(delta)})
 
     def _wait(self, e: _Env, action: Action, t_s: int) -> ExecutionResult:
-        from crucible.core import schema as S
-        errs = S.validate(wait_tool(self.max_wait_s).parameters, action.args or {})
         e.stats["waits"] += 1
-        if errs:
-            obs = [Observation(ObsKind.ERROR, content="invalid_action: " + "; ".join(errs[:4]), t=t_s / DAY,
-                               source=WAIT_TOOL, evidence=EvidenceKind.CONTROLLED, caused_by=action.action_id,
-                               meta={"tool": WAIT_TOOL, "code": "invalid_action", "message": "; ".join(errs[:4]),
-                                     "details": None})]
-            return ExecutionResult(False, obs, "invalid_action", started_t=t_s / DAY, finished_t=t_s / DAY,
-                                   meta={"tool": WAIT_TOOL, "harness": True})
-        s = int(action.args["seconds"])
-        obs = [Observation(ObsKind.TOOL_RESULT, content=json.dumps({"waited_s": s}), t=t_s / DAY, source=WAIT_TOOL,
-                           evidence=EvidenceKind.CONTROLLED, caused_by=action.action_id, meta={"tool": WAIT_TOOL})]
-        return ExecutionResult(True, obs, None, 0.0, s / DAY, t_s / DAY, (t_s + s) / DAY,
-                               meta={"tool": WAIT_TOOL, "harness": True, "cost_s": 0})
+        return wait_result(action, t_s, self.max_wait_s)
 
     # ------------------------------------------------------------------ the clock
     def _advance_slot(self, si: int, until: int, hooks: bool = True) -> None:
@@ -427,7 +478,8 @@ class OpenWorldOperator:
             principal, pol, ident = slot.participants[i]
             o = self.srv.observe(slot.wid, ident, max_events=200, include_tools="never")
             obs = {**o.summary, "time": o.time, "principal": principal, "events": o.events, "events_dropped": o.dropped}
-            a = pol.act(obs, self.srv.available_tools(slot.wid, ident))
+            tools = json.loads(json.dumps(self.srv.available_tools(slot.wid, ident), default=str))   # own copies
+            a = pol.act(obs, tools)
             if a is not None:
                 pol.observe_result(a, self.srv.execute_action(slot.wid, ident, a))
 
@@ -482,8 +534,15 @@ class OpenWorldOperator:
         for e in self.envs:
             self._pull(e)
         snaps = [self.srv.snapshot_world(s.wid) for s in self.slots]
+        runtime = [{k: self.srv.world(s.wid).runtime[k] for k in PERSISTENT_RUNTIME_KEYS
+                    if k in self.srv.world(s.wid).runtime} for s in self.slots]
+        spills = {}
+        for e in self.envs:
+            if e.spill and os.path.exists(e.spill):
+                with open(e.spill, "rb") as fh:
+                    spills[e.index] = fh.read()
         state = {"snaps": snaps, "slots": [(s.wid, s.config, s.envs) for s in self.slots], "episode": self.episode,
-                 "rng": self.rng.getstate(),
+                 "runtime": runtime, "spills": spills, "rng": self.rng.getstate(),
                  "envs": [{k: v for k, v in e.__dict__.items() if k not in ("ident",)} |
                           {"ident": (e.ident.world_id, e.ident.principal, e.ident.token, e.ident.account)}
                           for e in self.envs]}
@@ -503,9 +562,10 @@ class OpenWorldOperator:
         with open(path, "rb") as f:
             state = pickle.load(f)
         self.slots = []
-        for sid, (wid, cfg, envs) in zip(state["snaps"], state["slots"]):
+        for k, (sid, (wid, cfg, envs)) in enumerate(zip(state["snaps"], state["slots"])):
             new = self.srv.restore_world(sid, name=f"{wid}")
             self.slots.append(_Slot(new, cfg, list(envs)))
+            self.srv.world(new).runtime.update((state.get("runtime") or [{}] * len(state["snaps"]))[k])
         self.episode = state["episode"]
         self.rng.setstate(state["rng"])
         for i, d in enumerate(state["envs"]):
@@ -515,6 +575,12 @@ class OpenWorldOperator:
                     setattr(e, k, v)
             _, principal, token, account = d["ident"]
             e.ident = ActorIdentity(self.slots[e.slot].wid, principal, token, account)
+            e.spill = os.path.join(self._spill_dir, f"ep{self.episode}_env{i}.jsonl")
+            if i in state.get("spills", {}):
+                with open(e.spill, "wb") as fh:
+                    fh.write(state["spills"][i])
+            elif os.path.exists(e.spill):
+                os.remove(e.spill)
             self.envs[i] = e
             # the restored world continues at the snapshot: the session cursor of the fork starts there
             w = self.srv.world(self.slots[e.slot].wid)
@@ -525,6 +591,33 @@ class OpenWorldOperator:
         if not self._closed:
             self._closed = True
             self.srv.close()
+            shutil.rmtree(self._spill_dir, ignore_errors=True)
+
+
+def noop_result(action: Action, t_days: float) -> ExecutionResult:
+    """The contract's ``noop``: nothing happens, no time passes."""
+    obs = [Observation(ObsKind.TOOL_RESULT, content="{}", t=t_days, source=NOOP_TOOL, evidence=EvidenceKind.CONTROLLED,
+                       caused_by=action.action_id, meta={"tool": NOOP_TOOL})]
+    return ExecutionResult(True, obs, None, 0.0, 0.0, t_days, t_days, meta={"tool": NOOP_TOOL, "harness": True,
+                                                                            "cost_s": 0})
+
+
+def wait_result(action: Action, t_s: int, max_wait_s: int) -> ExecutionResult:
+    """`wait` / ``advance_time``: no world call; the result's duration is the requested wait (the harness advances
+    the operator clock by it). Invalid arguments give a structured ``invalid_action`` error."""
+    secs, errs = harness_wait_seconds(action, max_wait_s)
+    tool = action.tool
+    if errs:
+        obs = [Observation(ObsKind.ERROR, content="invalid_action: " + "; ".join(errs[:4]), t=t_s / DAY,
+                           source=tool, evidence=EvidenceKind.CONTROLLED, caused_by=action.action_id,
+                           meta={"tool": tool, "code": "invalid_action", "message": "; ".join(errs[:4]),
+                                 "details": None})]
+        return ExecutionResult(False, obs, "invalid_action", started_t=t_s / DAY, finished_t=t_s / DAY,
+                               meta={"tool": tool, "harness": True})
+    obs = [Observation(ObsKind.TOOL_RESULT, content=json.dumps({"waited_s": secs}), t=t_s / DAY, source=tool,
+                       evidence=EvidenceKind.CONTROLLED, caused_by=action.action_id, meta={"tool": tool})]
+    return ExecutionResult(True, obs, None, 0.0, secs / DAY, t_s / DAY, (t_s + secs) / DAY,
+                           meta={"tool": tool, "harness": True, "cost_s": 0})
 
 
 def _with_seed(task: Any, seed: int | None) -> Any:
@@ -555,9 +648,13 @@ def public_goal(task: Any, horizon_s: int) -> GoalSpec:
                 if win:
                     metrics[lf["metric"] + ".window_days"] = float(win) / DAY
     metrics.update(getattr(task, "public_metrics", {}) or {})
+    meta = {"sustain_checks": int(getattr(task, "sustain_checks", 1) or 1)}
+    scale = getattr(task, "reward_scale_cents", None)
+    if isinstance(scale, (int, float)):
+        meta["reward_scale_cents"] = float(scale)          # cents per unit of the task's verified reward
     return GoalSpec(goal_id=new_id("g_"), text=str(getattr(task, "description", "")), metrics=metrics,
                     deadline_days=horizon_s / DAY, family=str(getattr(task, "protocol", "") or "openworld"),
-                    meta={"sustain_checks": int(getattr(task, "sustain_checks", 1) or 1)})
+                    meta=meta)
 
 
 # ============================================================================================== agent side
@@ -629,7 +726,7 @@ class OpenWorldAdapter:
 def open_world(tasks: Sequence[Any] | Callable[[int, int], Any], n_envs: int | None = None, *,
                shared_world: bool = False, store_url: str = "memory://", max_wait_s: int = 86400,
                handles: Sequence[str] | None = None, seed: int = 0, participants: Sequence[tuple] = (),
-               participant_dt: int = 3600, fork_identical: bool = False) -> tuple[OpenWorldAdapter, OpenWorldOperator]:
+               participant_dt: int = 3600, fork_identical: bool = False, **kw) -> tuple[OpenWorldAdapter, OpenWorldOperator]:
     """Create the agent-side adapter and its operator.
 
     `tasks`: GoalContract-like objects (``world = {family, seed, overrides[, warmup_s]}``, ``endowment`` cents,
@@ -640,11 +737,16 @@ def open_world(tasks: Sequence[Any] | Callable[[int, int], Any], n_envs: int | N
     when it cannot be copied and there is one world; a zero-argument factory is called per world) -
     heterogeneous populations next to the worlds' own minds, firms and consumers. `fork_identical`: environments
     whose tasks name the same world are ephemeral forks of one base world (created and warmed up once), so paired
-    controls face identical conditions.
-    Hand the adapter to the harness; keep the operator (and the evaluator built from it) away from the learner."""
+    controls face identical conditions. A task may carry ``actor_handle`` (a seat the task needs, used unless
+    `handles` is given) and ``participant_factory`` (a zero-argument callable returning the participants the task
+    needs, used unless `participants` is given); `protocols.TaskProtocol.make_task` attaches both.
+    Other keyword arguments go to `OpenWorldOperator` (``buffer_limit``, ``max_numeric_summary`` ...).
+    Hand the adapter to the harness; keep the operator (and the evaluator built from it) away from the learner. In
+    one process this separation is API discipline only (see the module docstring): learner runs use
+    `open_world_isolated`."""
     op = OpenWorldOperator(tasks, n_envs, shared_world=shared_world, store_url=store_url, max_wait_s=max_wait_s,
                            handles=handles, seed=seed, participants=participants, participant_dt=participant_dt,
-                           fork_identical=fork_identical)
+                           fork_identical=fork_identical, **kw)
     return OpenWorldAdapter(_make_port(op), op.n, max_wait_s), op
 
 
@@ -766,6 +868,8 @@ def open_world_isolated(tasks: Sequence[Any], n_envs: int | None = None, *, eval
                         **kw) -> tuple:
     """Like `open_world`, but the WorldServer, the worlds and the evaluator live in a separate (spawned) process:
     the learner's process holds no kernel object at all - the hidden-state firewall is an OS process boundary.
+    This is the constructor for learner runs (CAM, baselines); checkpoints go through `RemoteOperator` /
+    `RemoteEvaluator` (``run_lifetime(..., operator=rop)`` with a durable ``store_url``).
     `tasks` must be picklable (a list, not a lambda factory). Returns (adapter, RemoteOperator, RemoteEvaluator |
     None); pass ``evaluator={}`` (OpenWorldEvaluator keyword arguments) to host an evaluator."""
     r = _Remote((list(tasks), n_envs), kw, evaluator)

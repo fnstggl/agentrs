@@ -14,9 +14,15 @@ Rules (contract v2, architecture decisions 6-7):
 * **Lossless content**: an event observation's ``content`` is the canonical JSON of ``{type, actor, payload}`` and a
   tool result's ``content`` is the JSON of the complete result, so a consumer can reconstruct exactly what the actor
   saw (`event_dict`, `result_dict` invert the conversion; tests check the round trip against the server).
+* **Bounded NUMERIC tokens, never silently**: a summary module or a tool result yields at most `max_numeric` NUMERIC
+  records (breadth-first, top-level fields first); when more numeric leaves exist, the TEXT / TOOL_RESULT record that
+  carries the complete JSON says how many were left out (``meta["numeric_truncated"]``, ``meta["numeric_total"]``).
+* **No aliasing**: `tool_schema` deep-copies the kernel's schema dicts (`Endpoint.spec()` returns the endpoint's own
+  parameter dict), so nothing a consumer does to a ToolSchema can change the world's validation rules.
 """
 from __future__ import annotations
 
+import copy
 import json
 import math
 import re
@@ -141,9 +147,14 @@ def _is_num(v: Any) -> bool:
     return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(float(v))
 
 
-def numeric_leaves(obj: Any, prefix: tuple = (), limit: int = 32, depth: int = 3) -> list[tuple[tuple, float]]:
-    """(path, value) of the finite numbers in a nested dict (lists are not expanded: they are records, not
-    measurements), breadth-first so top-level fields come first."""
+DEFAULT_MAX_NUMERIC_SUMMARY = 48      # NUMERIC records per module summary
+DEFAULT_MAX_NUMERIC_RESULT = 32       # NUMERIC records per tool result
+NUMERIC_DEPTH = 3
+
+
+def all_numeric_leaves(obj: Any, prefix: tuple = (), depth: int = NUMERIC_DEPTH) -> list[tuple[tuple, float]]:
+    """(path, value) of every finite number in a nested dict down to `depth` levels (lists are not expanded: they
+    are records, not measurements), breadth-first so top-level fields come first."""
     out: list[tuple[tuple, float]] = []
     frontier = [(prefix, obj)]
     for _ in range(depth):
@@ -154,12 +165,21 @@ def numeric_leaves(obj: Any, prefix: tuple = (), limit: int = 32, depth: int = 3
             for k, v in x.items():
                 if _is_num(v):
                     out.append((p + (str(k),), float(v)))
-                    if len(out) >= limit:
-                        return out
                 elif isinstance(v, dict):
                     nxt.append((p + (str(k),), v))
         frontier = nxt
     return out
+
+
+def numeric_leaves(obj: Any, prefix: tuple = (), limit: int = 32, depth: int = NUMERIC_DEPTH
+                   ) -> list[tuple[tuple, float]]:
+    """The first `limit` of `all_numeric_leaves` (callers that truncate must report it, see `_truncation_meta`)."""
+    return all_numeric_leaves(obj, prefix, depth)[:max(0, int(limit))]
+
+
+def _truncation_meta(n_total: int, limit: int) -> dict:
+    """meta entries of the record carrying the full JSON when NUMERIC records were left out."""
+    return {"numeric_total": int(n_total), "numeric_truncated": int(n_total - limit)} if n_total > limit else {}
 
 
 def _entity_for_path(path: tuple, default: Optional[str]) -> tuple[Optional[str], Optional[str]]:
@@ -227,19 +247,23 @@ def event_dict(obs: Observation) -> dict:
 
 
 # ---------------------------------------------------------------------------------------------- summaries
-def summary_observations(summary: dict, now_s: int, principal: str) -> list[Observation]:
+def summary_observations(summary: dict, now_s: int, principal: str,
+                         max_numeric: int = DEFAULT_MAX_NUMERIC_SUMMARY) -> list[Observation]:
     """Per-module summaries (`Module.observe`) as records: one TEXT observation per module carrying the module's
-    canonical JSON (lossless), one NUMERIC per numeric leaf (balances in cents, unread counts, ...), and one RELATION
-    per organisation the actor belongs to (role as the relation label)."""
+    canonical JSON (lossless), one NUMERIC per numeric leaf (balances in cents, unread counts, ...; at most
+    `max_numeric` per module, the TEXT record's meta says how many more there were), and one RELATION per
+    organisation the actor belongs to (role as the relation label)."""
     t = float(now_s) / DAY
     out: list[Observation] = []
     for mod in sorted(summary):
         val = summary[mod]
+        leaves = all_numeric_leaves(val) if isinstance(val, dict) else []
         out.append(Observation(ObsKind.TEXT, content=compact_json(val), entity=principal, entity_type="person", t=t,
-                               source=f"summary:{mod}", meta={"summary_module": mod}))
+                               source=f"summary:{mod}",
+                               meta={"summary_module": mod, **_truncation_meta(len(leaves), max_numeric)}))
         if not isinstance(val, dict):
             continue
-        for path, v in numeric_leaves(val, (), limit=48):
+        for path, v in leaves[:max(0, int(max_numeric))]:
             ent, ety = _entity_for_path(path, principal)
             out.append(Observation(ObsKind.NUMERIC, value=v, unit=unit_for(path, mod), entity=ent,
                                    entity_type=ety or ("person" if ent == principal else None), t=t,
@@ -264,11 +288,12 @@ def summary_dict(observations: Iterable[Observation]) -> dict:
 
 # ---------------------------------------------------------------------------------------------- tools
 def tool_schema(spec: dict) -> ToolSchema:
-    """An MCP-shaped Crucible tool spec as a ToolSchema (``costSeconds`` -> duration_hint in days)."""
-    ann = dict(spec.get("annotations") or {})
+    """An MCP-shaped Crucible tool spec as a ToolSchema (``costSeconds`` -> duration_hint in days). The schema and
+    annotations are deep copies: the kernel hands out its endpoints' own dicts."""
+    ann = copy.deepcopy(dict(spec.get("annotations") or {}))
     cost_s = ann.get("costSeconds")
     return ToolSchema(name=spec["name"], description=spec.get("description", ""),
-                      parameters=spec.get("inputSchema") or {"type": "object", "properties": {}},
+                      parameters=copy.deepcopy(spec.get("inputSchema")) or {"type": "object", "properties": {}},
                       returns="JSON result {ok, result | error{code, message, details}}",
                       duration_hint=None if cost_s is None else float(cost_s) / DAY,
                       meta={"read_only": bool(ann.get("readOnlyHint", False)), "host": ann.get("host"),
@@ -280,26 +305,29 @@ def tool_spec(ts: ToolSchema) -> dict:
     """Inverse of `tool_schema` (the MCP-shaped dict a Crucible `Policy` expects)."""
     ann = {"readOnlyHint": ts.meta.get("read_only", False), "costSeconds": ts.meta.get("cost_s"),
            "host": ts.meta.get("host"), "builtin": ts.meta.get("builtin"), "version": ts.meta.get("version")}
-    return {"name": ts.name, "description": ts.description, "inputSchema": ts.parameters,
+    return {"name": ts.name, "description": ts.description, "inputSchema": copy.deepcopy(ts.parameters),
             "annotations": {k: v for k, v in ann.items() if v is not None}}
 
 
 # ---------------------------------------------------------------------------------------------- results
-def result_observations(res: dict, tool: str, t_s: int, caused_by: Optional[str], max_numeric: int = 32
-                        ) -> list[Observation]:
+def result_observations(res: dict, tool: str, t_s: int, caused_by: Optional[str],
+                        max_numeric: int = DEFAULT_MAX_NUMERIC_RESULT) -> list[Observation]:
     """A Crucible action result ({ok, t, tool, cost_s, result | error}) as TOOL_RESULT (complete JSON) + NUMERIC
-    leaves of the result, or ERROR (code, message, details kept in meta for exact reconstruction)."""
+    leaves of the result (at most `max_numeric`; the TOOL_RESULT meta reports any left out), or ERROR (code,
+    message, details kept in meta for exact reconstruction)."""
     t = float(t_s) / DAY
     if res.get("ok"):
         body = res.get("result")
         ents = entities_in(body) if isinstance(body, (dict, list)) else []
         ent, ety = ents[0] if ents else (None, None)
+        leaves = all_numeric_leaves(body) if isinstance(body, dict) else []
         out = [Observation(ObsKind.TOOL_RESULT, content=compact_json(body), entity=ent, entity_type=ety,
                            target=ents[1][0] if len(ents) > 1 else None, t=t, source=tool,
                            evidence=EvidenceKind.CONTROLLED, caused_by=caused_by,
-                           meta={"tool": tool, "replayed": bool(res.get("replayed", False))})]
+                           meta={"tool": tool, "replayed": bool(res.get("replayed", False)),
+                                 **_truncation_meta(len(leaves), max_numeric)})]
         if isinstance(body, dict):
-            for path, v in numeric_leaves(body, (), limit=max_numeric):
+            for path, v in leaves[:max(0, int(max_numeric))]:
                 e2, ty2 = _entity_for_path(path, ent)
                 out.append(Observation(ObsKind.NUMERIC, value=v, unit=unit_for(path, tool.split(".", 1)[0]),
                                        entity=e2, entity_type=ty2 or ety, t=t, source=tool,

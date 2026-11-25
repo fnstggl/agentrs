@@ -6,10 +6,16 @@
 `run_lifetime` drives long horizons (90-180 simulated days and beyond) and records, per decision, a contract
 `EventRecord` (the agent's view before acting, the action, its result, the verified return increment, the
 semi-Markov duration) to an optional JSONL transcript. Checkpoints (operator state + evaluator state + agent
-state + the not yet consumed observation batch + loop counters) are written atomically every
-`checkpoint_every_days`; ``resume=True`` continues from the latest one, in this or another process (the world
-store must be durable, e.g. ``sqlite:///...``). Compute is accounted per phase (agent, environment execution,
-simulation + evaluation, learning) plus the agent's own `usage()`.
+state + the not yet consumed observation batch + loop counters + the transcript's byte offset) are written
+atomically every `checkpoint_every_days`; ``resume=True`` continues from the latest one, in this or another
+process (the world store must be durable, e.g. ``sqlite:///...``), after truncating the transcript to the
+checkpoint's offset, so the file holds one lifetime with every step exactly once. Compute is accounted per phase
+(agent, environment execution, simulation + evaluation, learning) plus the agent's own `usage()`.
+
+Semi-Markov duration: ``Transition.dt`` and ``EventRecord.extra["dt_days"]`` are the simulated time that actually
+elapsed for the decision (next observation time minus this one). The duration the decision asked for
+(result duration + think time) is kept as ``extra["dt_requested_days"]``; the two differ in a shared world, where
+one synchronous round lasts as long as its longest action, and when an environment ends inside the step.
 
 Separation: the harness is operator-side code. It hands the agent only the adapter's records and scalar rewards;
 `IndependentGoalResult.details` and evaluator objects stay here (they go to `LifetimeResult.final`, the
@@ -156,10 +162,23 @@ def run_lifetime(agent, adapter, evaluator=None, *, days: Optional[float] = None
         success_day = [None] * B
         updates = []
     B = len(batch.env_ids)
-    tw = open(transcript, "a") if transcript else None
-    if tw and step == 0:
-        tw.write(json.dumps({"header": {"format": "cam-unified-lifetime/1", "env_ids": batch.env_ids,
-                                        "think_s": think_s, "episode_id": episode_id}}) + "\n")
+    tw = None
+    if transcript:
+        if resumed_from is not None:
+            # the interrupted run may have written steps after its last checkpoint: they are an abandoned branch
+            off = st.get("transcript_offset")
+            if off is None:
+                raise ValueError("the checkpoint has no transcript offset (it was written without a transcript)")
+            size = os.path.getsize(transcript) if os.path.exists(transcript) else -1
+            if size < off:
+                raise ValueError(f"transcript {transcript} is shorter ({size} B) than at the checkpoint ({off} B)")
+            with open(transcript, "r+b") as fh:
+                fh.truncate(off)
+            tw = open(transcript, "a")
+        else:
+            tw = open(transcript, "w")             # a transcript is one lifetime
+            tw.write(json.dumps({"header": {"format": "cam-unified-lifetime/1", "env_ids": batch.env_ids,
+                                            "think_s": think_s, "episode_id": episode_id}}) + "\n")
     calls_this = 0
     try:
         while True:
@@ -197,6 +216,7 @@ def run_lifetime(agent, adapter, evaluator=None, *, days: Optional[float] = None
             nxt = meter.timed("advance", adapter.advance_time, dts)
             rewards = evaluator.take_rewards() if evaluator is not None else [0.0] * B
             mv = int(model_version()) if model_version else int(getattr(agent, "model_version", 0) or 0)
+            elapsed_dt = [float(nxt.t[b]) - float(batch.t[b]) for b in range(B)]    # the semi-Markov duration
             records = []
             for b in range(B):
                 a, r = actions[b], results[b]
@@ -207,12 +227,13 @@ def run_lifetime(agent, adapter, evaluator=None, *, days: Optional[float] = None
                     observations=batch.observations[b], action=a, result=r, reward=float(rewards[b]),
                     cost=float(r.cost) if r is not None else 0.0, done=bool(nxt.done[b]),
                     behavior_logp=None if a is None else a.logp, provenance=Provenance.REAL,
-                    evidence=EvidenceKind.CONTROLLED, extra={"dt_days": dts[b], "skipped": a is None}))
+                    evidence=EvidenceKind.CONTROLLED, extra={"dt_days": elapsed_dt[b], "dt_requested_days": dts[b],
+                                                             "skipped": a is None}))
                 if evaluator is not None and success_day[b] is None:
                     st = getattr(evaluator, "success_t", None)
                     if st is not None and st[b] is not None:
                         success_day[b] = float(st[b]) / DAY - t_start[b]   # days since the episode began
-            tr = Transition(records, nxt, list(rewards), list(nxt.done), dts)
+            tr = Transition(records, nxt, list(rewards), list(nxt.done), elapsed_dt)
             meter.timed("observe", agent.observe, tr)
             if tw:
                 for rec in records:
@@ -236,9 +257,13 @@ def run_lifetime(agent, adapter, evaluator=None, *, days: Optional[float] = None
                     agent.save(os.path.join(d, "agent"))
                 ckpts.append(d)
                 next_ckpt += checkpoint_every_days
+                off = None
                 if tw:
                     tw.flush()
+                    os.fsync(tw.fileno())
+                    off = tw.tell()
                 _write_atomic(os.path.join(d, "loop.pkl"), pickle.dumps({
+                    "transcript_offset": off,
                     "batch": batch, "step": step, "returns": returns, "t_start": t_start, "episode_id": episode_id,
                     "actor_ids": actor_ids, "next_ckpt": next_ckpt, "success_day": success_day,
                     "updates": updates, "env_ids": list(batch.env_ids), "goals": adapter.goals(), "ckpts": ckpts}))

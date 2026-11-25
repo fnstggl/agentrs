@@ -57,7 +57,7 @@ def test_example_inductor_agent_reaches_verified_success_through_adapter(tmp_pat
     assert all(r.action.source is ActionSource.SCRIPTED for r in acted)
     for r in acted[:30]:
         expect = r.result.duration + 600 / 86400
-        assert r.extra["dt_days"] == pytest.approx(expect)
+        assert r.extra["dt_days"] == pytest.approx(expect) and r.extra["dt_requested_days"] == pytest.approx(expect)
     times = [r.t_sim for r in recs]
     assert times == sorted(times)
     # the deploy's own consequences are linked to its action
@@ -99,29 +99,116 @@ class PollAgent:
         self.k, self.model_version, self.seen_rewards = d["k"], d["v"], d["r"]
 
 
-def _life(store, ckdir, stop=None, resume=False, days=3.0):
+def _life(store, ckdir, stop=None, resume=False, days=3.0, transcript=None):
     ad, op = open_world([tiny_goal(days=4)], seed=7, store_url=store)
     ev = OpenWorldEvaluator(op)
     agent = PollAgent()
-    res = run_lifetime(agent, ad, ev, days=days, think_s=600, update_every=10, operator=op, checkpoint_dir=ckdir,
-                       checkpoint_every_days=1.0, resume=resume, stop_after_decisions=stop)
-    dig = op.world(0).digest()
-    t = op.world(0).now
-    ad.close()
+    try:
+        res = run_lifetime(agent, ad, ev, days=days, think_s=600, update_every=10, operator=op, checkpoint_dir=ckdir,
+                           checkpoint_every_days=1.0, resume=resume, stop_after_decisions=stop, transcript=transcript)
+        dig = op.world(0).digest()
+        t = op.world(0).now
+    finally:
+        ad.close()
     return res, dig, t, agent
 
 
+def _records(path):
+    lines = open(path).read().splitlines()
+    assert json.loads(lines[0])["header"]["format"] == "cam-unified-lifetime/1"
+    assert not any("header" in json.loads(x) for x in lines[1:])         # one lifetime, one header
+    return [EventRecord.from_dict(json.loads(x)) for x in lines[1:]]
+
+
+def _view(r):
+    """What a record says, without the random ids (action ids are new per process)."""
+    return (r.step, r.t_sim, r.action.tool if r.action else None, json.dumps(r.action.args if r.action else None,
+                                                                             sort_keys=True),
+            r.result.ok if r.result else None, r.extra["dt_days"], r.reward, len(r.observations))
+
+
 def test_checkpoint_resume_reproduces_uninterrupted_lifetime(tmp_path):
-    full, dig_full, t_full, a_full = _life(f"sqlite:///{tmp_path}/a.db", str(tmp_path / "ck_a"))
+    full, dig_full, t_full, a_full = _life(f"sqlite:///{tmp_path}/a.db", str(tmp_path / "ck_a"),
+                                           transcript=str(tmp_path / "a.jsonl"))
     assert len(full.checkpoints) >= 2
-    # interrupted after ~1.5 days of decisions, then a fresh operator/adapter/agent resumes from disk
-    part, _, t_part, _ = _life(f"sqlite:///{tmp_path}/b.db", str(tmp_path / "ck_b"), stop=95)
+    # interrupted after ~1.5 days of decisions (well after its last checkpoint), then a fresh operator / adapter /
+    # agent resumes from disk; the steps the interrupted run wrote after that checkpoint must not survive
+    tb = str(tmp_path / "b.jsonl")
+    part, _, t_part, _ = _life(f"sqlite:///{tmp_path}/b.db", str(tmp_path / "ck_b"), stop=95, transcript=tb)
     assert 1.0 <= t_part / 86400 < 3.0 and part.checkpoints
-    rest, dig_rest, t_rest, a_rest = _life(f"sqlite:///{tmp_path}/b.db", str(tmp_path / "ck_b"), resume=True)
+    n_interrupted = len(_records(tb))
+    rest, dig_rest, t_rest, a_rest = _life(f"sqlite:///{tmp_path}/b.db", str(tmp_path / "ck_b"), resume=True,
+                                           transcript=tb)
     assert rest.resumed_from is not None
     assert t_rest == t_full and dig_rest == dig_full
     assert rest.steps == full.steps and a_rest.k == a_full.k and a_rest.model_version == a_full.model_version
     assert rest.returns == pytest.approx(full.returns)
+    # transcript: every step exactly once, identical to the uninterrupted lifetime's
+    ra, rb = _records(str(tmp_path / "a.jsonl")), _records(tb)
+    steps = [r.step for r in rb]
+    assert steps == list(range(full.steps)) and len(set(steps)) == len(steps)
+    assert n_interrupted == 95 and len(rb) == full.steps
+    assert [_view(r) for r in rb] == [_view(r) for r in ra]
+    # a resume whose transcript lost data since the checkpoint is refused rather than silently forked
+    with open(tb, "r+b") as fh:
+        fh.truncate(10)
+    with pytest.raises(ValueError):
+        _life(f"sqlite:///{tmp_path}/b.db", str(tmp_path / "ck_b"), resume=True, transcript=tb)
+
+
+def test_shared_world_records_elapsed_semi_markov_duration():
+    """Shared world: one synchronous round lasts as long as its longest action; every row's dt is the time that
+    actually elapsed for it, the duration it asked for is kept separately."""
+    goal = tiny_goal(days=2)
+    ad, op = open_world([goal, goal], shared_world=True, seed=1)
+    ev = OpenWorldEvaluator(op)
+
+    class Two:
+        def act(self, obs, tools):
+            return [Action("bank.accounts", {}), Action(WAIT_TOOL, {"seconds": 43200})]
+
+        def observe(self, tr):
+            pass
+
+        def update(self):
+            return {}
+    seen = []
+    run_lifetime(Two(), ad, ev, max_decisions=3, think_s=600, on_step=lambda k, tr: seen.append(tr))
+    ad.close()
+    assert len(seen) == 3
+    for tr in seen:
+        for b, r in enumerate(tr.records):
+            elapsed = tr.next_obs.t[b] - r.t_sim
+            assert r.extra["dt_days"] == pytest.approx(elapsed) and tr.dt[b] == pytest.approx(elapsed)
+            assert elapsed == pytest.approx((43200 + 600) / 86400)          # the round's longest action
+        req0 = tr.records[0].extra["dt_requested_days"]
+        assert req0 == pytest.approx(tr.records[0].result.duration + 600 / 86400) and req0 < 0.01
+        assert tr.records[1].extra["dt_requested_days"] == pytest.approx((43200 + 600) / 86400)
+
+
+def test_isolated_operator_checkpoint_resume(tmp_path):
+    """The learner-run constructor (worlds + evaluator in another process) checkpoints and resumes through
+    RemoteOperator / RemoteEvaluator exactly like the in-process operator."""
+    from superlearner.cam_unified.envs.openworld import open_world_isolated
+
+    def life(store, ck, stop=None, resume=False, transcript=None):
+        ad, rop, rev = open_world_isolated([tiny_goal(days=4)], evaluator={}, seed=7, store_url=store)
+        agent = PollAgent()
+        try:
+            res = run_lifetime(agent, ad, rev, days=2.0, think_s=600, update_every=10, operator=rop,
+                               checkpoint_dir=ck, checkpoint_every_days=1.0, resume=resume,
+                               stop_after_decisions=stop, transcript=transcript)
+        finally:
+            ad.close()
+        return res, agent
+    full, a_full = life(f"sqlite:///{tmp_path}/a.db", str(tmp_path / "ck_a"), transcript=str(tmp_path / "a.jsonl"))
+    tb = str(tmp_path / "b.jsonl")
+    part, _ = life(f"sqlite:///{tmp_path}/b.db", str(tmp_path / "ck_b"), stop=90, transcript=tb)
+    assert part.checkpoints and 1.0 <= part.t_days[0] < 2.0
+    rest, a_rest = life(f"sqlite:///{tmp_path}/b.db", str(tmp_path / "ck_b"), resume=True, transcript=tb)
+    assert rest.resumed_from is not None and rest.steps == full.steps and rest.t_days == full.t_days
+    assert rest.returns == pytest.approx(full.returns) and a_rest.k == a_full.k
+    assert [_view(r) for r in _records(tb)] == [_view(r) for r in _records(str(tmp_path / "a.jsonl"))]
 
 
 def test_heterogeneous_population_in_one_shared_world():

@@ -15,9 +15,19 @@ authoritative world state on the evaluator side; none is ever an agent input.
   fork** of the world by its due time (counterfactual check in a forked kernel), and does not repeat an
   already-met goal. `SelfDirectedObjective` rewards (optionally) only accepted self-goals that the kernel later
   verifies as met, and records periodic held-out probe progress (`heldout_probe`) - evaluator-side only.
-* OW-7 `joint_utility` / metric ``cam_joint_utility``: third-party revenue of the actor and of its independently
-  controlled partners (each excluding what they paid each other), counted only when a verified dependency exists
-  (money paid for the partner's work or a completed contract between them). Messages and agreements count nothing.
+* OW-7 `joint_utility` / metric ``cam_joint_utility``: **jointly produced** third-party value - the revenue the
+  actor's services earned from third parties (households and unrelated participants) on requests whose execution
+  used a partner's service (a successful call from the actor's service to a partner host *inside* that request),
+  plus the same in the other direction (partner services using the actor's), each capped by the side's
+  independent revenue (Crucible's anti-circularity). Payments between the two sides are transfers and count
+  nothing; neither does either side's independent business (the earlier definition counted the partner's whole
+  household revenue once 500 cents had been paid - a shortcut). The link is read from the kernel's event log by
+  `CoopIndex` (operator side; nested calls run inside the caller's request, so their events precede the caller's
+  ``cloud.usage`` record; household billing of an offer-hour is split by the dependency of its executed requests).
+  `partner_dependence` / ``cam_partner_dependence`` is the causal audit: in a pair of evaluator forks, one with the
+  partners' services stopped, the actor's partner-calling services must lose most of their third-party revenue over
+  the next day - a service that calls the partner but does not need it fails. Reliability of the calls is reported.
+  Messages, proposals and agreements count nothing.
 """
 from __future__ import annotations
 
@@ -48,9 +58,13 @@ def _register() -> None:
         metric("cam_partner_payments", "Cents the principal's group paid its partners' groups for their work over the "
                "window (verified ledger flows).", subject={"principal": "principal"})(m_partner_payments)
     if "cam_joint_utility" not in METRICS:
-        metric("cam_joint_utility", "Third-party revenue of the principal and its partners, each excluding payments "
-               "between them, counted only with a verified dependency (cents).",
-               subject={"principal": "principal"})(m_joint_utility)
+        metric("cam_joint_utility", "Third-party revenue earned by the principal's services on requests that used a "
+               "partner's service (and vice versa), capped by independent revenue; transfers between the two sides "
+               "count nothing (cents).", subject={"principal": "principal"})(m_joint_utility)
+    if "cam_partner_dependence" not in METRICS:
+        metric("cam_partner_dependence", "Share of the third-party revenue of the principal's partner-calling services "
+               "that disappears over the next day in an evaluator fork where the partners' services are stopped "
+               "(counterfactual audit, 0..1).", subject={"principal": "principal"})(m_partner_dependence)
     _REGISTERED = True
 
 
@@ -411,41 +425,272 @@ class SelfDirectedObjective:
 
 
 # ============================================================================================== OW-7
+COOP_KEY = "cam.coop_index"          # world.runtime entry (persisted by OpenWorldOperator checkpoints)
+SYSTEM = "sys"                       # Crucible's system principal (actor of household demand served by consumers)
+
+
+class CoopIndex:
+    """Incremental index of *call-linked* service revenue, from the kernel's event log (operator side only).
+
+    Crucible runs a nested service call synchronously inside the caller's request, so for a caller service
+    ``svc:h`` the events of every call it makes during one request (the callee's ``cloud.usage`` with actor
+    ``svc:h``) precede the ``cloud.usage`` record (n = 1) that closes h's request. The index replays the log once,
+    in order, and keeps:
+
+    * ``rev[(t, host, owner, payer, callees)] -> cents``: money a host earned at time t from `payer` on requests
+      during which it successfully called the hosts in `callees` (frozenset, empty = used nobody). Household demand
+      is billed per offer-hour after a batch of executed (sampled) requests plus extrapolated ones; the bill is
+      split in proportion to the dependency of the executed requests of that batch. A per-call payment (sale txn
+      by the caller, before the request) is booked when the request it paid for succeeds (failed calls are
+      refunded by the kernel and booked nowhere).
+    * ``calls[(t, caller service, callee host)] -> [ok, failed]``: service-to-service calls (reliability).
+
+    `seq` is the last event processed; `start_seq` / `start_t` the first one covered (a world restored or forked
+    from a snapshot starts its log there; `OpenWorldOperator` checkpoints persist the index so it continues)."""
+
+    def __init__(self, start_seq: int, start_t: int):
+        self.start_seq = self.seq = int(start_seq)
+        self.start_t = int(start_t)
+        self.pending: dict = {}        # caller service principal -> callee hosts that answered ok in its open request
+        self.batch: dict = {}          # host -> [executed ok household requests, {callees: n}]
+        self.sale: dict = {}           # host -> (payer, cents) of a per-call payment awaiting its request
+        self.rev: dict = {}
+        self.calls: dict = {}
+        self.events = 0
+
+    def update(self, world) -> "CoopIndex":
+        if world.seq <= self.seq:
+            return self
+        st = world.state
+        deps = st.tables.get("deployments") or {}
+        hosts = st.tables.get("hosts") or {}
+        for ev in world.events_range(self.seq, world.seq):
+            if ev.type == "cloud.usage":
+                self._usage(ev, deps)
+            elif ev.type == "bank.txn":
+                self._txn(ev, hosts)
+            self.events += 1
+        self.seq = world.seq
+        return self
+
+    def _add(self, t: int, host: str, owner: str, payer: str, callees: frozenset, cents: float) -> None:
+        k = (int(t), host, owner, payer, callees)
+        self.rev[k] = self.rev.get(k, 0.0) + float(cents)
+
+    def _usage(self, ev, deps: dict) -> None:
+        p = ev.payload
+        d = deps.get(p.get("dep"))
+        if d is None:
+            return
+        host, owner, svc = d["host"], d["owner"], d.get("svc")
+        actor, outcome, n = ev.actor, p.get("outcome"), int(p.get("n", 0) or 0)
+        if isinstance(actor, str) and actor.startswith("svc:") and actor != svc:      # answered a service's call
+            c = self.calls.setdefault((int(ev.t), actor, host), [0, 0])
+            c[0 if outcome == "ok" else 1] += 1
+            if outcome == "ok" and n == 1:
+                self.pending.setdefault(actor, set()).add(host)
+        if n != 1:                     # refused before running (unavailable / overload): no request was executed
+            return
+        callees = frozenset(self.pending.pop(svc, ())) if svc else frozenset()
+        if actor == SYSTEM:            # household demand (consumers process): billed per batch, see _txn
+            if outcome == "ok":
+                b = self.batch.setdefault(host, [0, {}])
+                b[0] += 1
+                b[1][callees] = b[1].get(callees, 0) + 1
+            return
+        sale = self.sale.pop(host, None)
+        if sale is not None and sale[0] == actor and outcome == "ok":
+            self._add(ev.t, host, owner, actor, callees, sale[1])
+
+    def _txn(self, ev, hosts: dict) -> None:
+        p = ev.payload
+        ref = p.get("ref")
+        if p.get("kind") != "sale" or not (isinstance(ref, str) and ref.startswith("svc:")):
+            return
+        host = ref[4:]
+        posts = [(a, int(x)) for a, x in (p.get("postings") or []) if isinstance(x, (int, float))]
+        hh = sum(-x for a, x in posts if a == "acct_households" and x < 0)
+        if hh > 0:
+            owner = (hosts.get(host) or {}).get("owner", "")
+            b = self.batch.pop(host, None)
+            if b and b[0] > 0:
+                for callees, k in b[1].items():
+                    self._add(ev.t, host, owner, "households", callees, hh * k / b[0])
+            else:
+                self._add(ev.t, host, owner, "households", frozenset(), hh)
+        else:
+            self.sale[host] = (p.get("by"), sum(x for _, x in posts if x > 0))
+
+    # ------------------------------------------------------------------ queries
+    def revenue(self, t0: float, owners: set, excluded: set, partner_hosts: set | None = None,
+                hosts: set | None = None) -> tuple[float, float]:
+        """(cents earned with t > t0 by hosts owned by `owners` from payers outside `excluded` on requests that
+        called a host in `partner_hosts`, the same without the dependency condition). `hosts` restricts the
+        earning hosts."""
+        dep = tot = 0.0
+        for (t, host, owner, payer, callees), c in self.rev.items():
+            if t <= t0 or owner not in owners or payer in excluded or (hosts is not None and host not in hosts):
+                continue
+            tot += c
+            if partner_hosts and callees & partner_hosts:
+                dep += c
+        return dep, tot
+
+    def dependent_hosts(self, t0: float, owners: set, partner_hosts: set) -> set:
+        """Hosts owned by `owners` that earned money on partner-calling requests after t0."""
+        return {host for (t, host, owner, payer, callees), c in self.rev.items()
+                if t > t0 and owner in owners and c > 0 and callees & partner_hosts}
+
+    def call_stats(self, t0: float, callers: set, callee_hosts: set) -> tuple[int, int]:
+        ok = bad = 0
+        for (t, caller, host), (a, b) in self.calls.items():
+            if t > t0 and caller in callers and host in callee_hosts:
+                ok, bad = ok + a, bad + b
+        return ok, bad
+
+
+def coop_index(world) -> CoopIndex:
+    """The world's `CoopIndex`, brought up to the current event (created at the oldest event the world holds)."""
+    idx = world.runtime.get(COOP_KEY)
+    if idx is None or idx.seq > world.seq or idx.seq < world.log_base:
+        base = int(world.log_base)
+        first = world.events_range(base, base + 1) if world.seq > base else []
+        idx = CoopIndex(base, int(first[0].t) if first else int(world.now))
+        world.runtime[COOP_KEY] = idx
+    return idx.update(world)
+
+
+def _groups(world, principal: str, partners: Sequence[str]) -> tuple[set, set]:
+    from crucible.goals.metrics import related_parties
+    rel_a = related_parties(world, principal)
+    rel_p: set = set()
+    for q in partners:
+        rel_p |= related_parties(world, q)
+    return rel_a, rel_p - rel_a
+
+
+def _hosts_of(world, group: set, live_only: bool = False) -> set:
+    """Hosts of deployments owned by `group` (ever, or only those whose current deployment is live)."""
+    st = world.state
+    deps = st.tables.get("deployments") or {}
+    if live_only:
+        return {h for h, r in (st.tables.get("hosts") or {}).items()
+                if r.get("owner") in group and r.get("deployment")
+                and (deps.get(r["deployment"]) or {}).get("status") == "live"}
+    return {d["host"] for d in deps.values() if d.get("owner") in group}
+
+
 def joint_utility(world, principal: str, partners: Sequence[str], window_s: int = 14 * DAY,
                   min_exchange_cents: int = 1) -> dict:
-    """Jointly produced utility of the actor's group A (the principal's related persons and organisations) and its
-    partners' groups P (each partner's related persons and organisations, minus A): revenue each side earned from
-    third parties (Crucible's independent revenue, minus what the two sides paid each other), counted only when a
-    verified dependency exists - money paid for the other side's work, or a completed contract between them."""
-    from crucible.goals.metrics import m_revenue_from, related_parties, revenue_analysis
+    """Jointly produced third-party value of the actor's group A (the principal's related persons, organisations
+    and services) and its partners' groups P (minus A) over the window (cents), see the module docstring:
+
+    ``joint = min(dep_A, max(0, ext_A)) + min(dep_P, max(0, ext_P))`` where ``dep_A`` is A's call-linked revenue
+    from third parties on requests that used a P host (`CoopIndex`), ``ext_A`` A's independent revenue minus what
+    P paid it; symmetrically for P. Zero unless money was exchanged (>= `min_exchange_cents`, paid for the other
+    side's work). Also reports the transfers, both sides' independent revenue (not counted), the reliability of
+    A's calls to P, and completed contracts between them."""
+    from crucible.goals.metrics import m_revenue_from, revenue_analysis
     st = world.state
-    rel_a = related_parties(world, principal)
+    rel_a, rel_p = _groups(world, principal, partners)
     A = sorted(p for p in rel_a if p.startswith(("p:", "o:")))
-    P = sorted({q for p in partners for q in related_parties(world, p) if q.startswith(("p:", "o:"))} - set(rel_a))
+    P = sorted(q for q in rel_p if q.startswith(("p:", "o:")))
     paid_to = sum(float(m_revenue_from(world, q, a, window_s)) for q in P for a in A)
     paid_by = sum(float(m_revenue_from(world, a, q, window_s)) for a in A for q in P)
     a_ext = sum(float(revenue_analysis(world, a, window_s)["independent"]) for a in A) - paid_by
     p_ext = sum(float(revenue_analysis(world, q, window_s)["independent"]) for q in P) - paid_to
+    idx = coop_index(world)
+    t0 = world.now - int(window_s)
+    hA, hP = _hosts_of(world, rel_a), _hosts_of(world, rel_p)
+    excluded = rel_a | rel_p
+    dep_a, tot_a = idx.revenue(t0, rel_a, excluded, hP)
+    dep_p, tot_p = idx.revenue(t0, rel_p, excluded, hA)
+    calls_ok, calls_bad = idx.call_stats(t0, rel_a, hP)
     completed = 0
     if "contracts" in st.tables:
         for _, c in st.scan("contracts"):
             parties = set(c.get("parties") or [])
             if c.get("status") == "completed" and parties & set(A) and parties & set(P):
                 completed += 1
-    dependency = (paid_to + paid_by) >= min_exchange_cents or completed > 0
-    joint = (max(0.0, a_ext) + max(0.0, p_ext)) if dependency else 0.0
-    return {"joint": joint, "actor_external": a_ext, "partners_external": p_ext, "paid_to_partners": paid_to,
-            "paid_by_partners": paid_by, "completed_contracts": completed, "dependency": bool(dependency),
-            "actor_group": A, "partner_group": P}
+    exchange = (paid_to + paid_by) >= min_exchange_cents
+    joint_a = min(dep_a, max(0.0, a_ext))
+    joint_p = min(dep_p, max(0.0, p_ext))
+    joint = (joint_a + joint_p) if exchange else 0.0
+    return {"joint": float(joint), "joint_actor_side": float(joint_a), "joint_partner_side": float(joint_p),
+            "actor_dependent_revenue": dep_a, "actor_service_revenue": tot_a,
+            "partner_dependent_revenue": dep_p, "partner_service_revenue": tot_p,
+            "actor_external": a_ext, "partners_external": p_ext, "paid_to_partners": paid_to,
+            "paid_by_partners": paid_by, "exchange": bool(exchange), "dependency": bool(exchange and joint > 0),
+            "partner_calls_ok": calls_ok, "partner_calls_failed": calls_bad,
+            "partner_call_reliability": calls_ok / (calls_ok + calls_bad) if calls_ok + calls_bad else None,
+            "completed_contracts": completed, "actor_group": A, "partner_group": P,
+            "actor_hosts": sorted(hA), "partner_hosts": sorted(hP),
+            "index_from_t_days": idx.start_t / DAY, "window_covered": bool(idx.start_t <= max(0, t0))}
+
+
+def partner_dependence(world, principal: str, partners: Sequence[str], window_s: int = 14 * DAY,
+                       audit_s: int = DAY) -> dict:
+    """Counterfactual audit of OW-7's dependency (evaluator side, two isolated forks of the current state): the
+    actor's services that earned call-linked revenue in the window are run for `audit_s` with the partners'
+    services live (fork 0) and with every live partner service stopped (fork 1, a recorded system intervention in
+    the fork only). ``dependence = 1 - revenue_1 / revenue_0`` of those services' third-party revenue (0 when they
+    earned nothing in fork 0). A service that calls a partner but does not need its work keeps its revenue in
+    fork 1 and scores ~0. Cached per (state, arguments)."""
+    from crucible.core.kernel import World
+    key = ("cam.partner_dependence", principal, tuple(partners), int(window_s), int(audit_s))
+    cache = world.runtime.setdefault("cam.partner_dependence", {})
+    hit = cache.get(key)
+    if hit is not None and hit[0] == (world.seq, world.now):
+        return hit[1]
+    rel_a, rel_p = _groups(world, principal, partners)
+    idx = coop_index(world)
+    hP_all = _hosts_of(world, rel_p)
+    live_p = sorted(_hosts_of(world, rel_p, live_only=True))
+    calling = idx.dependent_hosts(world.now - int(window_s), rel_a, hP_all)
+    out = {"dependence": 0.0, "with_partners": 0.0, "without_partners": 0.0, "audited_hosts": sorted(calling),
+           "partner_hosts_stopped": live_p, "audit_s": int(audit_s)}
+    if calling and live_p:
+        blob = world.snapshot_blob()
+        forks = []
+        try:
+            for k in (0, 1):
+                forks.append(World.from_blob(blob, world_id=f"{world.world_id}.coop{k}"))
+            for h in live_p:
+                forks[1].system_call("cloud.undeploy", {"host": h})
+            until = world.now + int(audit_s)
+            revs = []
+            for fw in forks:
+                fw.advance_time(until)
+                _, tot = coop_index(fw).revenue(world.now, rel_a, rel_a | rel_p, None, hosts=calling)
+                revs.append(tot)
+        finally:
+            for fw in forks:
+                fw.close()
+        r0, r1 = revs
+        out.update(with_partners=r0, without_partners=r1,
+                   dependence=float(max(0.0, 1.0 - r1 / r0)) if r0 > 0 else 0.0)
+    for k in [k for k, v in cache.items() if v[0] != (world.seq, world.now)]:
+        del cache[k]
+    cache[key] = ((world.seq, world.now), out)
+    return out
 
 
 def m_partner_payments(world, principal: str, partners: list, window_s: int = 14 * DAY) -> float:
-    return float(joint_utility(world, principal, partners, window_s)["paid_to_partners"])
+    from crucible.goals.metrics import m_revenue_from
+    rel_a, rel_p = _groups(world, principal, partners)
+    A = [p for p in rel_a if p.startswith(("p:", "o:"))]
+    P = [q for q in rel_p if q.startswith(("p:", "o:"))]
+    return float(sum(float(m_revenue_from(world, q, a, window_s)) for q in P for a in A))
 
 
 def m_joint_utility(world, principal: str, partners: list, window_s: int = 14 * DAY,
                     min_exchange_cents: int = 1) -> float:
     return float(joint_utility(world, principal, partners, window_s, min_exchange_cents)["joint"])
+
+
+def m_partner_dependence(world, principal: str, partners: list, window_s: int = 14 * DAY,
+                         audit_s: int = DAY) -> float:
+    return float(partner_dependence(world, principal, partners, window_s, audit_s)["dependence"])
 
 
 _register_on_import = True

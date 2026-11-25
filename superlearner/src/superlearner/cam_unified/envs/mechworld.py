@@ -10,13 +10,19 @@ so every row has its own clock) and presents it as entities, measurements and to
   observations: every gauge reading (in the surface's unit), every lever setting in force (with its public range in
   meta), revenue / cost / net cents and the operator's funds in cents;
 * tools: ``set_<lever>`` with one typed numeric argument bounded by the public range (integer levers take
-  integers), and the harness ``wait``. A setting applies from the next tick (as `rig.set`).
+  integers), and the harness ``wait``; the contract's ``noop`` (nothing, duration 0) and ``advance_time``
+  (``{"seconds"}`` or ``{"days"}``, = wait) are honoured. A setting applies from the next tick (as `rig.set`).
 
-Money and settings are as the simulator states them; only gauges are shown at the surface's declared presentation
-scale (unit label says which). Everything private - the task's default/reference/random nets, the family, the seed,
-the engine's truth and diagnostics - stays in `MechWorldOperator` / `MechWorldEvaluator`: the verified return is the
-tick's net cents over the task's public money scale (exactly `MechVecEnv`'s reward), the independent result is
-`Task.score` / `Task.success` and the episode record of `MechVecEnv.drain()`.
+Money, settings and gauge readings are numbers exactly as the simulator states them (contract: no unit conversion).
+Only a *declared invariance condition* (`worldgen.invariance_pair`, ``Surface(scale_units=True)``) presents gauges
+at a different scale, as a different environment would - the unit label then names the scale (e.g.
+``milli-reading``); the default surface never rescales. Everything private - the task's default/reference/random
+nets, the family, the seed, the engine's truth and diagnostics - stays in `MechWorldOperator` /
+`MechWorldEvaluator`: the verified return is the tick's net cents over the task's public money scale (exactly
+`MechVecEnv`'s reward; recorded in ``GoalSpec.meta["reward_scale_cents"]``), the independent result is
+`Task.score` / `Task.success` on the episode's final net and the episode record of `MechVecEnv.drain()`; success
+is decided at the end of the episode (the net can fall back after crossing the goal - the first crossing is
+reported separately as ``reached_day``).
 
 Also here: `RigTask`, the dense-reward rig task *inside the real OpenWorld* (``ow_works``: ``rig.list / take / spec /
 set / read`` through `OpenWorldAdapter`), with `RigNetObjective` (verified net cents from the facility's own
@@ -38,7 +44,7 @@ import numpy as np
 
 from ..interfaces import (Action, EvidenceKind, ExecutionResult, GoalSpec, IndependentGoalResult, Observation,
                           ObservationBatch, ObsKind, ToolSchema, new_id)
-from .openworld import WAIT_TOOL, wait_tool
+from .openworld import ADVANCE_TOOL, NOOP_TOOL, WAIT_TOOL, noop_result, wait_result, wait_tool
 from .worldgen import Surface
 
 DAY = 86400
@@ -152,7 +158,8 @@ class MechWorldOperator:
         metrics["horizon_ticks"] = float(t.horizon)
         return GoalSpec(goal_id=new_id("g_"), text=text, metrics=metrics,
                         deadline_days=t.horizon * self.tick_s / DAY, family="mechworld",
-                        meta={"starting_balance_cents": int(t.endowment), "tick_s": self.tick_s})
+                        meta={"starting_balance_cents": int(t.endowment), "tick_s": self.tick_s,
+                              "reward_scale_cents": float(scale)})
 
     def _brief(self, e: _MEnv) -> str:
         import re
@@ -205,15 +212,10 @@ class MechWorldOperator:
         from crucible.core import schema as S
         e = self.envs[b]
         t = e.t_s / DAY
-        if action.tool == WAIT_TOOL:
-            errs = S.validate(wait_tool(self.max_wait_s).parameters, action.args or {})
-            if errs:
-                return self._err(action, t, "invalid_action", "; ".join(errs[:4]))
-            s = int(action.args["seconds"])
-            return ExecutionResult(True, [Observation(ObsKind.TOOL_RESULT, json.dumps({"waited_s": s}), t=t,
-                                                      source=WAIT_TOOL, evidence=EvidenceKind.CONTROLLED,
-                                                      caused_by=action.action_id, meta={"tool": WAIT_TOOL})],
-                                   None, 0.0, s / DAY, t, t + s / DAY, meta={"tool": WAIT_TOOL, "harness": True})
+        if action.tool in (WAIT_TOOL, ADVANCE_TOOL):
+            return wait_result(action, e.t_s, self.max_wait_s)
+        if action.tool == NOOP_TOOL:
+            return noop_result(action, t)
         name = action.tool[4:] if action.tool.startswith("set_") else None
         if name not in e.lever_shown:
             return self._err(action, t, "unknown_tool", f"unknown tool {action.tool!r}")
@@ -451,19 +453,23 @@ class MechWorldEvaluator:
         n = operator.n
         self.pending, self.total = [0.0] * n, [0.0] * n
         self.success_t: list = [None] * n
+        self.reached_t: list = [None] * n
         operator.tick_hooks.append(self._on_tick)
         operator.episode_hooks.append(self._begin)
 
     def _begin(self, b: int) -> None:
         self.pending[b] = self.total[b] = 0.0
         self.success_t[b] = None
+        self.reached_t[b] = None
 
     def _on_tick(self, b: int, net: float, reward: float, last: dict) -> None:
         self.pending[b] += reward
         self.total[b] += reward
         e = self._op.envs[b]
-        if self.success_t[b] is None and e.task.goal_net_cents is not None and e.net_total >= e.task.goal_net_cents:
-            self.success_t[b] = e.t_s
+        if self.reached_t[b] is None and e.task.goal_net_cents is not None and e.net_total >= e.task.goal_net_cents:
+            self.reached_t[b] = e.t_s           # first crossing (the net may still fall back)
+        if bool(e.env.done[0]) and self.success_t[b] is None and e.task.success(e.net_total):
+            self.success_t[b] = e.t_s           # the outcome: Task.success on the final net, at the episode's end
 
     def take_reward(self, b: int) -> float:
         r, self.pending[b] = self.pending[b], 0.0
@@ -477,7 +483,7 @@ class MechWorldEvaluator:
         t = e.task
         ticks = max(1, e.ticks)
         score = t.score(e.net_total / ticks)
-        ok = t.success(e.net_total)
+        ok = bool(e.env.done[0]) and t.success(e.net_total)      # decided on the final net of the episode
         rec = e.record or {}
         return IndependentGoalResult(
             goal_id=e.goal.goal_id, achieved=bool(ok), score=0.0 if score is None else float(score),
@@ -485,14 +491,19 @@ class MechWorldEvaluator:
             t=e.t_s / DAY, evaluator=self.name,
             details={"family": t.family, "seed": t.seed, "default_net": t.default_net,
                      "reference_net": t.reference_net, "random_net": t.random_net, "validated": t.validated,
-                     "episode_record": rec, "normalised_score": score})
+                     "episode_record": rec, "normalised_score": score, "episode_done": bool(e.env.done[0]),
+                     "success_t": self.success_t[int(env_index)],
+                     "reached_day": None if self.reached_t[int(env_index)] is None
+                     else self.reached_t[int(env_index)] / DAY})
 
     def state_dict(self) -> bytes:
-        return pickle.dumps({"pending": self.pending, "total": self.total, "success_t": self.success_t})
+        return pickle.dumps({"pending": self.pending, "total": self.total, "success_t": self.success_t,
+                             "reached_t": self.reached_t})
 
     def load_state(self, blob: bytes) -> None:
         d = pickle.loads(blob)
         self.pending, self.total, self.success_t = d["pending"], d["total"], d["success_t"]
+        self.reached_t = d.get("reached_t", [None] * len(self.success_t))
 
 
 # ============================================================================================== rig in OpenWorld
@@ -502,7 +513,9 @@ DEFAULT_RIG = "works"
 @dataclass
 class RigTask:
     """The ow_works hidden-mechanism facility as a dense-reward OpenWorld task (operator-side object). Success:
-    verified net income of the actor's rig seat over the run >= `goal_net_cents` (facility records, `rig_net`)."""
+    verified net income of the actor's rig seat over the run (decided at the horizon) >= `goal_net_cents` (facility
+    records, `rig_net`). Reward unit: `reward_scale_cents` cents (default Crucible's public money scale, the
+    starting balance / `research.tasks.ENDOWMENT_TICKS`, as `MechVecEnv` uses), recorded in the GoalSpec."""
     world: dict
     endowment: int = 1_000_000
     horizon_s: int = 4 * DAY
@@ -510,7 +523,14 @@ class RigTask:
     rig: str = DEFAULT_RIG
     protocol: str = "ow_rig"
     sustain_checks: int = 1
-    reward_scale: float = 1.0          # cents per unit of reward (default: one reward unit per cent)
+    reward_scale: Optional[float] = None    # cents per reward unit; None = endowment / ENDOWMENT_TICKS
+
+    @property
+    def reward_scale_cents(self) -> float:
+        if self.reward_scale:
+            return float(self.reward_scale)
+        from crucible.research.tasks import ENDOWMENT_TICKS
+        return max(1.0, float(self.endowment) / ENDOWMENT_TICKS)
 
     @property
     def description(self) -> str:
@@ -533,13 +553,15 @@ class RigTask:
 
 class RigNetObjective:
     """Dense verified reward: the change of the actor's realised facility net (operator metric `rig_net`, from the
-    facility's own records) since the previous step, in units of `reward_scale` cents."""
+    facility's own records) since the previous step, in units of the task's `reward_scale_cents`. Success is the
+    net at the horizon (first crossing reported as ``reached_t``)."""
 
     def __init__(self, task: RigTask):
         self.task = task
         self.prev: dict = {}
         self.start: dict = {}
         self.success_t: dict = {}
+        self.reached_t: dict = {}
 
     def _net(self, world, actor) -> float:
         from crucible.goals.metrics import evaluate_metric
@@ -551,9 +573,12 @@ class RigNetObjective:
 
     def step_reward(self, world, actor) -> float:
         v = self._net(world, actor)
-        r = (v - self.prev[actor]) / self.task.reward_scale
+        r = (v - self.prev[actor]) / self.task.reward_scale_cents
         self.prev[actor] = v
-        if actor not in self.success_t and v >= self.task.goal_net_cents and v != 0:
+        reached = v >= self.task.goal_net_cents and v != 0
+        if actor not in self.reached_t and reached:
+            self.reached_t[actor] = world.now
+        if actor not in self.success_t and reached and world.now - self.start[actor] >= self.task.horizon_s:
             self.success_t[actor] = world.now
         return float(r)
 
@@ -565,8 +590,8 @@ class RigNetObjective:
         el = world.now - self.start.get(actor, 0)
         return {"success": actor in self.success_t, "failed": actor not in self.success_t and el >= self.task.horizon_s,
                 "progress": float(np.clip(v / g, 0.0, 1.0)) if self.task.goal_net_cents > 0 else 0.0,
-                "success_t": self.success_t.get(actor), "elapsed_s": el,
-                "metrics": {"rig_net": v, "rig_ticks": ticks}}
+                "success_t": self.success_t.get(actor), "reached_t": self.reached_t.get(actor), "elapsed_s": el,
+                "reward_scale_cents": self.task.reward_scale_cents, "metrics": {"rig_net": v, "rig_ticks": ticks}}
 
 
 def _rig_control_base():

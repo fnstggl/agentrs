@@ -40,6 +40,12 @@ def test_catalogue_holdouts_are_disjoint():
     assert rel["scm_invu"]["relation_to_catalogue_training"] == "structural"
     assert rel["scm_feedback"]["relation_to_catalogue_training"] == "compositional"
     assert rel["scm_stock_gate"]["relation_to_catalogue_training"] == "compositional"
+    # Crucible's scm_regime (a test family) is within this training distribution (the regime motif is trained in
+    # combinations): it is listed as an in-distribution evaluation, never as transfer
+    assert rel["scm_regime"]["relation_to_catalogue_training"] == "within"
+    assert "scm_regime" in rep["in_distribution_evaluations"]
+    assert all(rel[n]["crucible_split"] not in W.TRAINABLE_SPLITS for n in rep["in_distribution_evaluations"])
+    assert any(g.startswith("technical_failures") for g in rep["known_gaps"])
 
 
 def test_every_family_builds_and_responds():
@@ -68,6 +74,25 @@ def test_sampled_families_pass_crucible_validity():
         t = T.make_task(fam, 424_242, validate=True)     # a training-range seed: no val set is spent
         assert t.validated and t.reference_net is not None and t.reference_net > t.default_net, fam
         assert t.goal_net_cents is not None
+
+
+def test_validity_sample_covers_every_split_and_engine():
+    """One family of every (split, engine) cell of the catalogue passes Crucible's validity checks."""
+    rep = W.validity_sample(per_cell=1)
+    cells = {(f.split, f.engine) for f in W.catalogue()}
+    assert set(rep["cells"]) == {f"{sp}/{en}" for sp, en in cells}
+    bad = [r for r in rep["rows"] if not r["valid"]]
+    assert bad == [], bad
+    assert all(r["reference_net"] > r["default_net"] for r in rep["rows"])
+
+
+@pytest.mark.slow
+def test_validity_of_the_whole_catalogue(tmp_path):
+    """Every family of the catalogue through Crucible's validity checks (recorded by the calibrate CLI; slow)."""
+    rep = W.validity_sample(per_cell=None)
+    assert len(rep["rows"]) == len(W.catalogue())
+    bad = [r["family"] for r in rep["rows"] if not r["valid"]]
+    assert bad == [], bad
 
 
 def test_split_guard_refuses_heldout_families_and_seeds():
@@ -101,6 +126,36 @@ def test_split_guard_refuses_heldout_families_and_seeds():
     assert [t.family for t in got] == ["cw1_scm_delay", "cw1_abm_util_wom"] * 2 and got[2].seed == 11
 
 
+def test_split_guard_declarations_only_tighten_and_cover_openworld_seeds():
+    # a declaration may hold a trainable family out, never relabel a held-out one as trainable
+    g = W.SplitGuard(extra={"ow_market": "test"})
+    with pytest.raises(W.HeldOutFamilyError):
+        g.check("ow_market")
+    for fam in ("ow_heldout", "scm_invu", W.families("val")[0]):
+        with pytest.raises(ValueError):
+            W.SplitGuard(extra={fam: "train"})
+    with pytest.raises(ValueError):
+        W.SplitGuard(extra_pairs={("ow_heldout", 1): "train"})
+    # OpenWorld tasks: the seed is checked (validation-range convention) and protocol-declared pairs are honoured
+    from crucible.goals.contracts import GoalContract
+    from crucible.research import llm_eval as L
+
+    def ow(fam, seed):
+        return L.open_economy_goal(world_family=fam, seed=seed, overrides={}, days=3)
+    g = W.SplitGuard(extra_pairs={("ow_market", 7): "val"})
+    g.check_task(ow("ow_market", 6))
+    with pytest.raises(W.HeldOutFamilyError):
+        g.check_task(ow("ow_market", 7))
+    with pytest.raises(W.HeldOutFamilyError):
+        g.check_task(ow("ow_market", T.VAL_SEED0 + 1))
+    # a task labelled with a held-out split (e.g. from a Crucible val/test goal suite) never trains
+    t = ow("ow_market", 6)
+    t.split = "test"
+    with pytest.raises(W.HeldOutFamilyError):
+        g.check_task(t)
+    assert isinstance(t, GoalContract)
+
+
 def test_surfaces_change_appearance_only():
     a, b = W.invariance_pair(3)
     orig = ["ab12", "cd34", "ef56", "gh78"]
@@ -109,3 +164,6 @@ def test_surfaces_change_appearance_only():
     assert a.phrase("goal", horizon=96, goal=500) != b.phrase("goal", horizon=96, goal=500)
     plain = W.Surface(1, rename=False, shuffle=False, scale_units=False, reword=False)
     assert plain.names(orig) == orig and plain.order(4) == [0, 1, 2, 3] and plain.unit() == ("reading", 1.0)
+    # the default surface shows numbers as the simulator states them; only declared invariance pairs rescale
+    assert all(W.Surface(k).unit() == ("reading", 1.0) for k in range(20))
+    assert {W.invariance_pair(k)[0].unit() for k in range(20)} != {("reading", 1.0)}

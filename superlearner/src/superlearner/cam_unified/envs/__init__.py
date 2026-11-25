@@ -11,12 +11,15 @@ Two sides, never mixed:
   owns the clock, the goal verifiers and hidden state; its outputs reach the learner only as scalar verified
   return increments through `harness.run_lifetime`.
 
-Entry points: `openworld.open_world(tasks)` -> (adapter, operator) and `openworld_eval.OpenWorldEvaluator(operator)`;
-`openworld.open_world_isolated(tasks, evaluator={})` puts the worlds and the evaluator in a separate process (an OS
-boundary instead of API discipline); `mechworld.mech_world(tasks)` + `MechWorldEvaluator`; `harness.run_lifetime(agent,
-adapter, evaluator)` with any `agent_protocol.AgentP` (`PolicyAgent` for Crucible policies, `MixedAgent` for
-heterogeneous populations); `worldgen.register_families()` / `SplitGuard`; `protocols.load("ow1")` etc. with
-`calibrate()`; `demos.record_demos`; `baselines.FrozenSemanticAgent`.
+Entry points: **learner runs** use `openworld.open_world_isolated(tasks, evaluator={})` (worlds, operator and
+evaluator in a spawned process: the hidden-state firewall is an OS boundary; checkpoints through the returned
+`RemoteOperator`) or `protocols.load("ow7").open(split, i, isolated=True)`; `openworld.open_world(tasks)` ->
+(adapter, operator) with `openworld_eval.OpenWorldEvaluator(operator)` keeps everything in one process - API
+discipline, **not** a security boundary (closures and `gc` reach the operator) - for scripted controls, calibration
+and tests. `mechworld.mech_world(tasks)` + `MechWorldEvaluator`; `harness.run_lifetime(agent, adapter, evaluator)`
+with any `agent_protocol.AgentP` (`PolicyAgent` for Crucible policies, `MixedAgent` for heterogeneous populations);
+`worldgen.register_families()` / `SplitGuard` / `validity_sample`; `protocols.load("ow1")` etc. with
+`calibrate()` / `open()`; `demos.record_demos`; `baselines.FrozenSemanticAgent`.
 
 Importing this package does not import torch (the harness and adapters are record-only); `baselines` loads a
 language model only when asked.

@@ -38,10 +38,10 @@ def goal():
     return L.open_economy_goal(world_family="ow_tiny", seed=1, overrides={"n_consumers": 800}, days=8)
 
 
-def _run(agent, decisions):
+def _run(agent, decisions, on_step=None):
     ad, op = open_world([goal()], seed=0)
     ev = OpenWorldEvaluator(op)
-    res = run_lifetime(agent, ad, ev, max_decisions=decisions, think_s=600)
+    res = run_lifetime(agent, ad, ev, max_decisions=decisions, think_s=600, on_step=on_step)
     ad.close()
     return res
 
@@ -81,13 +81,27 @@ def test_memory_variant_persists_notes_across_episodes(backend, tmp_path):
 
 def test_matched_planning_variant_counts_candidates(backend):
     agent = FrozenSemanticAgent("planning", backend=backend, max_new_tokens=96, n_candidates=3)
-    res = _run(agent, 2)
+    steps = []
+    res = _run(agent, 4, on_step=lambda k, tr: steps.append(tr.records[0]))
     u = res.accounting["agent"]
-    assert u["candidates"] == 6 and u["calls"] == 6              # N generations per decision
-    assert u["score_forwards"] == u["valid_candidates"] or u["score_forwards"] <= u["valid_candidates"]
-    for t in agent.policies[0].transcript:
-        for c in t["candidates"]:
+    assert u["candidates"] == 12 and u["calls"] == 12            # N generations per decision
+    assert u["valid_candidates"] > 0                              # some schema-valid candidates were scored ...
+    tr = agent.policies[0].transcript
+    assert len(tr) == len(steps) == 4
+    n_scored = 0
+    for rec, step in zip(tr, steps):
+        for c in rec["candidates"]:
             assert 0.0 <= c["p_yes"] <= 1.0
+        n_scored += len(rec["candidates"])
+        if rec["candidates"]:
+            # ... the executed action is the frozen scorer's argmax, and the harness executed exactly that
+            best = max(rec["candidates"], key=lambda c: c["p_yes"])["action"]
+            assert rec["action"] == best
+            assert (step.action.tool, step.action.args) == (best["tool"], best["args"])
+        else:
+            assert step.action.tool == "wait"                     # no valid candidate: the policy waits a turn
+    # one scoring forward per distinct valid candidate (duplicates are scored once)
+    assert u["score_forwards"] == n_scored and 0 < n_scored <= u["valid_candidates"]
 
 
 def test_frozen_llm_as_independent_participant(backend):

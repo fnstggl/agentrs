@@ -235,9 +235,20 @@ def holdout_report() -> dict:
         if split == "train" and ({"gate", "nfx", "bundle", "commons"} & {k for k, v in rules.items() if v}):
             problems.append(f"abm {key}: held-out rule in training")
     covered = set().union(*(f.dimensions for f in train))
-    return {"problems": problems, "crucible_relations": crucible_relations(), "n": {s: sum(1 for f in cat if f.split == s) for s in ("train", "val", "test")},
+    rel = crucible_relations()
+    return {"problems": problems, "crucible_relations": rel,
+            "n": {s: sum(1 for f in cat if f.split == s) for s in ("train", "val", "test")},
             "train_dimensions": sorted(covered),
-            "heldout_only_dimensions": sorted(set().union(*(f.dimensions for f in cat)) - covered)}
+            "heldout_only_dimensions": sorted(set().union(*(f.dimensions for f in cat)) - covered),
+            # Crucible held-out families whose structure lies *within* this catalogue's training distribution (e.g.
+            # scm_regime: the regime motif is trained in combinations): evaluations on them are in-distribution
+            # and must be reported as such, not as transfer
+            "in_distribution_evaluations": sorted(n for n, r in rel.items()
+                                                  if r["relation_to_catalogue_training"] == "within"
+                                                  and r["crucible_split"] not in TRAINABLE_SPLITS),
+            # every Crucible techsys family is a Crucible val/test family: technical failures cannot enter
+            # training without leaking Crucible's own holdouts, so that dimension is evaluation-only (W01 gap)
+            "known_gaps": ["technical_failures: evaluation-only (all Crucible techsys families are held out)"]}
 
 
 _CRUCIBLE_VOCAB = {"delay", "stock", "feedback", "regime", "gate", "threshold", "interaction", "confounder", "invu"}
@@ -280,10 +291,17 @@ TRAINABLE_SPLITS = ("train", "dev")
 class SplitGuard:
     """Refuses held-out experience in training streams. Knows the splits of Crucible's mechanism families
     (`MECH_FAMILIES`), Crucible's world families (`worldgen.generator.FAMILIES`), this catalogue, Crucible's goal
-    held-out families, and any `extra` {family: split} declarations (task protocols add their own). Unknown names
-    are refused unless ``allow_unknown``."""
+    held-out families, and any `extra` {family: split} / `extra_pairs` {(family, seed): split} declarations (task
+    protocols add their own). Declarations can only **tighten**: relabelling a family Crucible (or the catalogue)
+    holds out as trainable raises `ValueError`. Unknown names are refused unless ``allow_unknown``.
 
-    def __init__(self, extra: Optional[dict] = None, allow_unknown: bool = False, seed_limit: Optional[int] = None):
+    Seeds: Crucible reserves seeds above ``research.tasks.TRAIN_SEED_MAX`` for validation/sealed sets of mechanism
+    tasks; Crucible declares no seed ranges for OpenWorld world families, so the guard applies the same convention
+    to them (seeds above the limit never train) plus any (family, seed) pairs a protocol declares held out. A task
+    whose own ``split`` label is not trainable (e.g. a Crucible goal from a val/test suite) is refused too."""
+
+    def __init__(self, extra: Optional[dict] = None, allow_unknown: bool = False, seed_limit: Optional[int] = None,
+                 extra_pairs: Optional[dict] = None):
         import crucible
         crucible.load_all_modules()
         from crucible.goals.contracts import HELDOUT_GOAL_FAMILIES
@@ -303,7 +321,18 @@ class SplitGuard:
             self.splits[f.name] = f.split
         for g in HELDOUT_GOAL_FAMILIES:
             self.splits[g] = "test"
-        self.splits.update(extra or {})
+        for fam, sp in (extra or {}).items():
+            base = self.splits.get(fam)
+            if base is not None and base not in TRAINABLE_SPLITS and sp in TRAINABLE_SPLITS:
+                raise ValueError(f"declaration would relabel the {base} family {fam!r} as {sp!r}; declarations can "
+                                 f"only tighten a split")
+            if base is None or sp not in TRAINABLE_SPLITS:
+                self.splits[fam] = sp
+        self.pairs: dict = {}
+        for (fam, seed), sp in (extra_pairs or {}).items():
+            if sp in TRAINABLE_SPLITS and self.splits.get(fam) not in (None,) + TRAINABLE_SPLITS:
+                raise ValueError(f"pair ({fam!r}, {seed}) of a {self.splits[fam]} family cannot be declared {sp!r}")
+            self.pairs[(fam, int(seed))] = sp
         self.allow_unknown = allow_unknown
         self.seed_limit = TRAIN_SEED_MAX if seed_limit is None else int(seed_limit)
         self.checked = 0
@@ -320,6 +349,9 @@ class SplitGuard:
         if seed is not None and int(seed) > self.seed_limit:
             raise HeldOutFamilyError(f"{what} {family!r} seed {seed} is outside the training seed range "
                                      f"(0..{self.seed_limit}); validation/sealed seeds never train")
+        psp = self.pairs.get((family, int(seed))) if seed is not None else None
+        if psp is not None and psp not in TRAINABLE_SPLITS:
+            raise HeldOutFamilyError(f"{what} {family!r} seed {seed} is declared {psp}; it must never train")
         self.checked += 1
 
     def check_task(self, task: Any) -> None:
@@ -330,7 +362,12 @@ class SplitGuard:
             return self.check(task.family, getattr(task, "seed", None), "mechanism family")
         world = getattr(task, "world", None)
         if isinstance(world, dict) and "family" in world:
-            self.check(world["family"], None, "world family")
+            label = getattr(task, "split", None)
+            if isinstance(label, str) and label not in TRAINABLE_SPLITS:
+                raise HeldOutFamilyError(f"task {getattr(task, 'id', '?')} is labelled {label!r}; it must never "
+                                         f"train")
+            seed = world.get("seed")
+            self.check(world["family"], None if seed is None else int(seed), "world family")
             gf = getattr(task, "family", None)
             if gf in self.splits:
                 self.check(gf, None, "goal family")
@@ -395,6 +432,54 @@ def validate_catalogue(seeds: Iterable[int] = (0, 1), families_: Optional[Iterab
     return out
 
 
+def validity_sample(per_cell: Optional[int] = 1, seed: int = 424_242, families_: Optional[Iterable[str]] = None
+                    ) -> dict:
+    """Crucible's own validity checks (`research.tasks.make_task(validate=True)`: purity, boundedness,
+    consequences, discoverability, difficulty, a reference policy found by search beating the defaults) on a sample
+    of **every** (split, engine) cell of the catalogue - `per_cell` families each (None = all families) - at a
+    training-range seed, so no validation seed is spent. Returns {"rows": [...], "cells": {(split, engine): n_ok
+    / n}} where a row records whether the task validated, its default / reference nets, the draws Crucible
+    rejected before accepting one, and the wall time."""
+    import time as _time
+    from crucible.research.tasks import make_task
+    register_families()
+    cat = catalogue()
+    if families_ is not None:
+        chosen = [f for f in cat if f.name in set(families_)]
+    else:
+        cells: dict = {}
+        for f in cat:
+            cells.setdefault((f.split, f.engine), []).append(f)
+        chosen = []
+        for key in sorted(cells):
+            fs = cells[key]
+            if per_cell is None or per_cell >= len(fs):
+                chosen += fs
+            else:     # spread over the cell deterministically (first, last, middle ...)
+                idx = sorted({int(round(i * (len(fs) - 1) / max(1, per_cell - 1))) for i in range(per_cell)}) \
+                    if per_cell > 1 else [0]
+                chosen += [fs[i] for i in idx]
+    rows, summary = [], {}
+    for f in chosen:
+        t0 = _time.time()
+        try:
+            t = make_task(f.name, int(seed), validate=True)
+            ok = bool(t.validated and t.reference_net is not None and t.default_net is not None
+                      and t.reference_net > t.default_net)
+            row = {"family": f.name, "split": f.split, "engine": f.engine, "relation": f.relation, "valid": ok,
+                   "default_net": t.default_net, "reference_net": t.reference_net, "goal_net_cents": t.goal_net_cents,
+                   "rejected_draws": [list(x) for x in t.rejected], "error": None}
+        except Exception as e:  # noqa: BLE001 - a family Crucible cannot validate is a finding, not a crash
+            row = {"family": f.name, "split": f.split, "engine": f.engine, "relation": f.relation, "valid": False,
+                   "error": f"{type(e).__name__}: {e}"[:300]}
+        row["wall_s"] = round(_time.time() - t0, 2)
+        rows.append(row)
+        c = summary.setdefault(f"{f.split}/{f.engine}", [0, 0])
+        c[0] += int(row["valid"])
+        c[1] += 1
+    return {"seed": int(seed), "rows": rows, "cells": summary}
+
+
 # ============================================================================================== surfaces
 _UNITS = (("reading", 1.0), ("milli-reading", 1000.0), ("kilo-reading", 0.001), ("centi-reading", 100.0),
           ("deci-reading", 10.0))
@@ -420,13 +505,14 @@ WORDING = {
 
 @dataclass
 class Surface:
-    """Presentation of one episode: neutral names, observation/tool ordering, gauge units (a declared presentation
-    scale with its unit label: the value shown is reading x scale) and wording. Two surfaces over the same task are
-    an invariance pair: identical dynamics, different appearance."""
+    """Presentation of one episode: neutral names, observation/tool ordering, wording and - only in a declared
+    invariance condition (``scale_units=True``) - the gauge presentation scale with its unit label (the value shown
+    is reading x scale; the default shows readings exactly as the simulator states them). Two surfaces over the same
+    task are an invariance pair: identical dynamics, different appearance."""
     seed: int
     rename: bool = True
     shuffle: bool = True
-    scale_units: bool = True
+    scale_units: bool = False
     reword: bool = True
 
     def __post_init__(self):
@@ -451,9 +537,44 @@ class Surface:
         return WORDING[key][self.variant].format(**kw)
 
 
-def invariance_pair(seed: int) -> tuple:
-    """Two different surfaces for the same task (different names, order, units, wording)."""
-    a, b = Surface(2 * int(seed) + 1), Surface(2 * int(seed) + 2)
+def invariance_pair(seed: int, scale_units: bool = True) -> tuple:
+    """Two different surfaces for the same task (different names, order, wording and, in this declared invariance
+    condition, gauge presentation scales)."""
+    a, b = Surface(2 * int(seed) + 1, scale_units=scale_units), Surface(2 * int(seed) + 2, scale_units=scale_units)
     if b.variant == a.variant:
         b.variant = (a.variant + 1) % 3
     return a, b
+
+
+def main(argv=None) -> int:
+    """``python -m superlearner.cam_unified.envs.worldgen --validity [--per-cell N] [--record PATH]``: run
+    `validity_sample` and append the result as one JSON line."""
+    import argparse
+    import json
+    import os
+    import time as _time
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--validity", action="store_true")
+    ap.add_argument("--per-cell", type=int, default=None, help="families per (split, engine) cell (default: all)")
+    ap.add_argument("--seed", type=int, default=424_242)
+    ap.add_argument("--record", default=None)
+    a = ap.parse_args(argv)
+    if not a.validity:
+        ap.error("nothing to do (use --validity)")
+    t0 = _time.time()
+    rep = validity_sample(per_cell=a.per_cell, seed=a.seed)
+    rep.update(version=VERSION, n_families=len(catalogue()), wall_s=round(_time.time() - t0, 1),
+               t_wall=_time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime()))
+    for c, (k, n) in sorted(rep["cells"].items()):
+        print(f"{c:16s} {k}/{n} valid")
+    bad = [r["family"] for r in rep["rows"] if not r["valid"]]
+    print(f"invalid: {bad}  wall {rep['wall_s']}s")
+    if a.record:
+        os.makedirs(os.path.dirname(os.path.abspath(a.record)), exist_ok=True)
+        with open(a.record, "a") as fh:
+            fh.write(json.dumps(rep, default=str) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

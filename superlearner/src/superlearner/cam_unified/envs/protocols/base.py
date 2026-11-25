@@ -15,6 +15,12 @@ Controls have roles:
 A task is *feasible* when a ceiling or control succeeds and no shortcut does; *fairly feasible* when a
 non-privileged control succeeds. The record keeps evaluator-only details (integrity report, verifier state) for the
 experimenter; nothing of it is a learner input.
+
+Feasibility requirements travel **with the task**: `TaskProtocol.make_task` returns tasks carrying the seat the
+actor must hold (``actor_handle``, e.g. OW-3's engineer ``eng``), the independently controlled participants the
+world needs (``participant_factory``, e.g. OW-7's partner) and the declared split of their (family, seed); and
+`open_world` honours the first two. `TaskProtocol.open(split, i)` builds (adapter, operator, evaluator) for one
+declared task, in-process or process-isolated (learner runs).
 """
 from __future__ import annotations
 
@@ -53,16 +59,64 @@ class TaskProtocol:
     notes: str = ""
     arms: list = field(default_factory=list)      # comparison conditions the experiment runs (spec / Part 19)
 
+    def __post_init__(self):
+        raw = self.make_task
+        if getattr(raw, "_cam_protocol_task", False):
+            return
+
+        def make_task(world_family: str, seed: int, *a, _raw=raw, **kw):
+            t = _raw(world_family, seed, *a, **kw)
+            if self.handles:
+                t.actor_handle = self.handles[0]
+            if self.participants is not None:
+                t.participant_factory = self.participants
+            sp = self.split_of(world_family, seed)
+            if sp is not None:
+                t.split = sp
+            return t
+        make_task._cam_protocol_task = True
+        make_task.__doc__ = raw.__doc__
+        self.make_task = make_task
+
+    def split_of(self, world_family: str, seed: int) -> Optional[str]:
+        """The declared split of one (world family, seed), or None when it is not declared."""
+        for sp, rows in self.splits.items():
+            if (world_family, int(seed)) in [(f, int(x)) for f, x in rows]:
+                return sp
+        return None
+
     def tasks(self, split: str = "train") -> list:
         return [self.make_task(f, s) for f, s in self.splits.get(split, [])]
 
     def split_declarations(self) -> dict:
-        """{world family: split} for `worldgen.SplitGuard(extra=...)`."""
-        out = {}
+        """{world family: split} for `worldgen.SplitGuard(extra=...)`; a family declared in several splits gets
+        the most restrictive one (test > val > train/dev)."""
+        rank = {"test": 3, "heldout": 3, "val": 2, "train": 1, "dev": 0}
+        out: dict = {}
         for sp, rows in self.splits.items():
             for f, _ in rows:
-                out.setdefault(f, sp)
+                if f not in out or rank.get(sp, 3) > rank.get(out[f], 3):
+                    out[f] = sp
         return out
+
+    def pair_declarations(self) -> dict:
+        """{(world family, seed): split} for `worldgen.SplitGuard(extra_pairs=...)`."""
+        return {(f, int(x)): sp for sp, rows in self.splits.items() for f, x in rows}
+
+    def open(self, split: str = "train", i: int = 0, *, isolated: bool = False, evaluator: Optional[dict] = None,
+             **kw) -> tuple:
+        """(adapter, operator, evaluator) for the i-th declared task of `split`, with the seat and participants the
+        task needs. ``isolated=True`` (learner runs) puts worlds, operator and evaluator in a spawned process and
+        returns (adapter, RemoteOperator, RemoteEvaluator). `evaluator`: OpenWorldEvaluator keyword arguments."""
+        fam, seed = self.splits[split][i]
+        task = self.make_task(fam, seed)
+        if isolated:
+            from ..openworld import open_world_isolated
+            return open_world_isolated([task], evaluator=dict(evaluator or {}), **kw)
+        from ..openworld import open_world
+        from ..openworld_eval import OpenWorldEvaluator
+        ad, op = open_world([task], **kw)
+        return ad, op, OpenWorldEvaluator(op, **(evaluator or {}))
 
     def describe(self) -> dict:
         return {"name": self.name, "title": self.title, "spec_ref": self.spec_ref, "horizon_days": self.horizon_days,
@@ -85,11 +139,9 @@ class TaskProtocol:
             raise ValueError("no controls selected")
         out_tasks = []
         for (fam, s) in self.splits[split][:n_tasks]:
-            task = self.make_task(fam, s)
+            task = self.make_task(fam, s)       # carries its seat and participants (one actor per fork)
             t0 = time.time()
-            handles = [self.handles[0]] * len(ctrls) if self.handles else None   # one actor per fork (own world)
-            ad, op = open_world([task] * len(ctrls), fork_identical=True, seed=seed, handles=handles,
-                                participants=self.participants() if self.participants else ())
+            ad, op = open_world([task] * len(ctrls), fork_identical=True, seed=seed)
             ev = OpenWorldEvaluator(op, integrity=True)
             agent = PolicyAgent(lambda b: ctrls[b].factory(), idle_wait_s=ctrls[0].idle_wait_s)
             try:

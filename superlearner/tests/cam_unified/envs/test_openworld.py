@@ -115,7 +115,136 @@ def test_wait_tool_and_rate_limit_free_clock(env):
     assert not bad.ok and bad.error == "invalid_action"
 
 
-def test_lossless_event_cursor_and_exactly_once_delivery():
+def test_contract_special_tools_noop_and_advance_time(env):
+    """interfaces.Action.tool may be "noop" or "advance_time" (contract special values), never sent to the world."""
+    ad, op, ev = env
+    ad.reset()
+    seq0 = op.world(0).seq
+    n = ad.execute([Action("noop", {})])[0]
+    assert n.ok and n.duration == 0.0 and n.error is None and n.meta["harness"]
+    a = ad.execute([Action("advance_time", {"seconds": 5400})])[0]
+    assert a.ok and a.duration == pytest.approx(5400 / 86400)
+    d = ad.execute([Action("advance_time", {"days": 0.25})])[0]
+    assert d.ok and d.duration == pytest.approx(0.25)
+    assert op.world(0).seq == seq0                      # nothing reached the world (no command, no rejection)
+    for bad in ({"days": -1}, {"days": 30}, {"seconds": 10, "days": 1}, {"hours": 2}):
+        r = ad.execute([Action("advance_time", bad)])[0]
+        assert not r.ok and r.error == "invalid_action", bad
+    assert ad.observe().t == [0.0]
+    nb = ad.advance_time([a.duration])                  # the harness moves the clock by the returned duration
+    assert nb.t[0] == pytest.approx(5400 / 86400)
+
+
+def test_tool_schemas_are_fresh_copies_never_kernel_aliases():
+    """Learner-side code that edits a schema it was handed (normalising, adding defaults) cannot change the world's
+    validation rules - neither for this world nor for worlds created later in the process."""
+    ad, op = open_world([tiny_goal()], seed=1)
+    try:
+        ad.reset()
+        assert ad.execute([Action("use.categories", {})])[0].ok
+        t = next(t for t in ad.available_tools()[0] if t.name == "use.categories")
+        kernel = [e for e in op.world(0).endpoints.values() if e.name == "use.categories"][0]
+        assert t.parameters is not kernel.params and t.parameters == kernel.params
+        t.parameters.setdefault("required", []).append("never_supplied")
+        t.parameters.setdefault("properties", {})["never_supplied"] = {"type": "string"}
+        t.meta["cost_s"] = 10 ** 6
+        r = ad.execute([Action("use.categories", {})])[0]
+        assert r.ok, r.observations[0].content
+        assert "never_supplied" not in kernel.params.get("properties", {})
+        again = next(t for t in ad.available_tools()[0] if t.name == "use.categories")
+        assert again is not t and "never_supplied" not in again.parameters.get("properties", {})
+        assert again.meta["cost_s"] != 10 ** 6
+        # the round trip to a Crucible policy's dict is a copy as well
+        spec = C.tool_spec(again)
+        spec["inputSchema"]["properties"]["x"] = {"type": "integer"}
+        assert "x" not in again.parameters.get("properties", {})
+    finally:
+        ad.close()
+    ad2, op2 = open_world([tiny_goal()], seed=2)          # a world created later in the same process
+    try:
+        ad2.reset()
+        assert ad2.execute([Action("use.categories", {})])[0].ok
+    finally:
+        ad2.close()
+
+
+def test_tool_list_reflects_a_redeployed_service():
+    """A host redeployed with a new manifest (description, price, parameters) shows the new tool at once, although
+    its name did not change."""
+    ad, op = open_world([tiny_goal()], seed=1)
+    try:
+        ad.reset()
+
+        def ex(tool, **args):
+            r = ad.execute([Action(tool, args)])[0]
+            assert r.ok, (tool, r.observations[0].content)
+            return json.loads(r.observations[0].content)
+        me = op.principal(0)
+        repo = ex("code.create_repo", name="probe")["repo"]
+        src = "def solve(args, caller):\n    return {'x': 1}\n"
+
+        def manifest(doc, price, extra_param=None):
+            params = {"type": "object", "properties": {}, "additionalProperties": True}
+            if extra_param:
+                params["properties"][extra_param] = {"type": "string"}
+            return json.dumps({"entry": "service.py", "description": doc, "endpoints": {
+                "solve": {"handler": "solve", "doc": doc, "price_cents": price, "params": params}}})
+        ex("code.commit", repo=repo, files={"crucible.json": manifest("version one", 5), "service.py": src},
+           message="v1")
+        prov = sorted(ex("cloud.providers"), key=lambda p: p["price_core_hour_cents"])[0]["provider"]
+        acct = next(a["account"] for a in ex("bank.accounts") if a["owner"] == me)
+        inst = ex("cloud.rent", provider=prov, cores=1, account=acct)["instance"]
+        ex("cloud.deploy", repo=repo, host="probehost", instance=inst)
+        ad.advance_time([0.01])
+        t1 = {t.name: t for t in ad.available_tools()[0]}["probehost.solve"]
+        assert "version one" in t1.description and "5 cents" in t1.description
+        ex("code.commit", repo=repo, files={"crucible.json": manifest("version TWO", 9, "mode")}, message="v2")
+        ex("cloud.deploy", repo=repo, host="probehost", instance=inst)
+        ad.advance_time([0.01])
+        t2 = {t.name: t for t in ad.available_tools()[0]}["probehost.solve"]
+        fresh = [s for s in op.srv.available_tools(op.slots[0].wid, op.envs[0].ident) if s["name"] == "probehost.solve"][0]
+        assert "version TWO" in t2.description and "9 cents" in t2.description
+        assert t2.description == fresh["description"] and "mode" in t2.parameters["properties"]
+    finally:
+        ad.close()
+
+
+def test_numeric_records_are_bounded_but_truncation_is_flagged():
+    summary = {"bank": {"balances": {f"acct_{i:06d}": i * 100 for i in range(60)}, "n": 60}}
+    obs = C.summary_observations(summary, 0, "p:me")
+    text = [o for o in obs if o.kind is ObsKind.TEXT][0]
+    nums = [o for o in obs if o.kind is ObsKind.NUMERIC]
+    assert len(nums) == C.DEFAULT_MAX_NUMERIC_SUMMARY
+    assert text.meta["numeric_total"] == 61 and text.meta["numeric_truncated"] == 61 - C.DEFAULT_MAX_NUMERIC_SUMMARY
+    assert C.summary_dict(obs) == summary                      # the TEXT record still carries everything
+    small = C.summary_observations({"bank": {"n": 2}}, 0, "p:me")
+    assert "numeric_truncated" not in small[0].meta
+    res = {"ok": True, "t": 0, "tool": "x.y", "cost_s": 1, "result": {f"k{i}": i for i in range(40)}}
+    ro = C.result_observations(res, "x.y", 0, "a_1", max_numeric=10)
+    assert len([o for o in ro if o.kind is ObsKind.NUMERIC]) == 10 and ro[0].meta["numeric_truncated"] == 30
+    # the limits are operator configuration
+    ad, op = open_world([tiny_goal()], seed=1, max_numeric_summary=1, max_numeric_result=2)
+    try:
+        ad.reset()
+        for name in ("savings", "reserve"):            # three accounts: three balance leaves in the bank summary
+            assert ad.execute([Action("bank.open_account", {"owner": op.principal(0), "name": name})])[0].ok
+        b = ad.observe()
+        texts = [o for o in b.observations[0] if o.kind is ObsKind.TEXT and o.meta.get("summary_module")]
+        flagged = [o for o in texts if o.meta.get("numeric_truncated")]
+        assert flagged
+        for o in texts:
+            n = len([x for x in b.observations[0] if x.kind is ObsKind.NUMERIC
+                     and x.meta.get("field", "").startswith(o.meta["summary_module"] + ".")])
+            assert n <= 1 and n + o.meta.get("numeric_truncated", 0) == o.meta.get("numeric_total", n)
+        bank = next(o for o in texts if o.meta["summary_module"] == "bank")
+        assert bank.meta["numeric_total"] >= 3 and bank.meta["numeric_truncated"] >= 2
+        r = ad.execute([Action("bank.accounts", {})])[0]
+        assert r.ok and len([o for o in r.observations if o.kind is ObsKind.NUMERIC]) <= 2
+    finally:
+        ad.close()
+
+
+def test_lossless_event_cursor_and_exactly_once_delivery(tmp_path):
     """Every actor-visible event is delivered exactly once through reset/observe/advance, collect_events(0)
     returns all of them, and both equal the server's actor-filtered log (minus the actor's own command records)."""
     ad, op = open_world([tiny_goal(days=3)], seed=5)
@@ -161,11 +290,21 @@ def test_lossless_event_cursor_and_exactly_once_delivery():
         for ev in w.events_range(0, w.seq):
             if ev.seq in set(truth):
                 assert w.visible(ev, ps)
-        # buffer fallback: a tiny buffer still answers old cursors losslessly through the actor-filtered log
+        # a tiny buffer spills what it drops *as delivered*: old cursors return exactly the delivered records
+        # (visibility and provenance fixed at ingest, never re-filtered with later org memberships)
         op.buffer_limit = 10
         op._ingest(op.envs[0], [])
+        assert len(op.envs[0].buffer) == 10 and op.envs[0].buffer_base > 0
         old, _ = ad.collect_events([0])
         assert [o.seq for o in old[0]] == truth
+        assert [o.to_dict() for o in old[0]] == [o.to_dict() for o in allc[0]]
+        mid, _ = ad.collect_events([k])
+        assert [o.to_dict() for o in mid[0]] == [o.to_dict() for o in part[0]]
+        # the spilled part travels with operator checkpoints
+        op.checkpoint(str(tmp_path / "op.pkl"))
+        op.restore(str(tmp_path / "op.pkl"))
+        again, cur2 = ad.collect_events([0])
+        assert [o.to_dict() for o in again[0]] == [o.to_dict() for o in allc[0]] and cur2 == cur
     finally:
         ad.close()
 
