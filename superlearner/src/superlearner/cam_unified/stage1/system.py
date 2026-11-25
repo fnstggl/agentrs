@@ -67,6 +67,8 @@ class SystemConfig:
     # each checkpoint. A's encoder output depends on the batch a text is encoded in (bf16, padding), so states
     # recomputed after a restart differ from the cached ones the interrupted process used
     checkpoint_semantic_cache: bool = True
+    # per-objective magnitude cap (CamUnifiedAgent.loss_cap; None = off): see the agent's constructor
+    loss_cap: Optional[float] = 10.0
 
     def cam_config(self) -> CamConfig:
         return make_config(self.scale, **dict(self.overrides))
@@ -162,7 +164,7 @@ def build_system(run_dir: str, sc: SystemConfig, semantic=None, exclude_events: 
     agent = CamUnifiedAgent(model, archive=archive, recorder=recorder, replay=replay, trainer=trainer, index=index,
                             consolidator=consolidator, actor_id=sc.actor_id, seed=sc.seed, seq_len=sc.seq_len,
                             n_seqs=sc.n_seqs, adapt_seq_len=sc.adapt_seq_len, adapt_n_seqs=sc.adapt_n_seqs,
-                            greedy=sc.greedy, fresh_max_steps=sc.fresh_max_steps)
+                            greedy=sc.greedy, fresh_max_steps=sc.fresh_max_steps, loss_cap=sc.loss_cap)
     agent.exclude_events = view.exclude
     ops = CheckpointOps(agent)
     return System(cfg, sc, run_dir, sem, model, trainer, archive, artifacts, view, index, replay, consolidator,

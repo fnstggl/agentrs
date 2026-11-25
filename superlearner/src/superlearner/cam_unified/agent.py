@@ -345,7 +345,8 @@ class CamUnifiedAgent:
                  consolidator=None, actor_id: str = "actor0", seed: int = 0, seq_len: int = 8, n_seqs: int = 4, adapt_seq_len: int = 65,
                  adapt_n_seqs: int = 2, greedy: bool = False, objectives: Optional[dict] = None,
                  fresh_max_steps: int = 256, decision_budget: Optional[int] = None,
-                 funds_fn: Optional[Callable] = None, awr_beta: float = 1.0, awr_max_weight: float = 20.0):
+                 funds_fn: Optional[Callable] = None, awr_beta: float = 1.0, awr_max_weight: float = 20.0,
+                 loss_cap: Optional[float] = None, loss_cap_beta: float = 0.9):
         self.model = model
         self.config: CamConfig = model.cfg
         self.archive = archive
@@ -366,6 +367,14 @@ class CamUnifiedAgent:
         self.funds_fn = funds_fn or (lambda obs: default_funds(obs, model.money_unit))
         self.awr_beta = awr_beta
         self.awr_max_weight = awr_max_weight
+        # magnitude cap per objective (spec 12.5 "do not let a large reconstruction loss dominate decision-relevant
+        # learning"): an objective whose running magnitude m_k (EMA of |L_k|, detached) exceeds `loss_cap` enters
+        # the combined loss as L_k * loss_cap / m_k (same gradient direction, bounded scale). D's trainer clips the
+        # *global* gradient norm, so without it one objective of magnitude 1e3 shrinks every other objective's step
+        # by the same factor. None = off. The scales are logged per update (balance/<objective>).
+        self.loss_cap = loss_cap
+        self.loss_cap_beta = float(loss_cap_beta)
+        self.loss_mag: dict = {}
         self.py_rng = random.Random(seed)
         self.torch_rng = torch.Generator().manual_seed(seed)
         self.seed = seed
@@ -1071,6 +1080,16 @@ class CamUnifiedAgent:
         if not losses:
             self.model.eval()
             return {"updated": False, "reason": "no training data yet", "version": self.version}
+        raw_losses = {k: float(v.detach()) for k, v in losses.items()}
+        if self.loss_cap is not None:
+            for k, v in list(losses.items()):
+                m = abs(raw_losses[k])
+                prev = self.loss_mag.get(k)
+                self.loss_mag[k] = m if prev is None else self.loss_cap_beta * prev + (1 - self.loss_cap_beta) * m
+                sc = min(1.0, float(self.loss_cap) / max(self.loss_mag[k], 1e-12))
+                metrics[f"balance/{k}"] = sc
+                if sc < 1.0:
+                    losses[k] = v * sc
         tm = self._trainer_step(losses, consumed)
         self.model.eval()
         if tm.get("skipped"):                         # D's trainer refused a non-finite loss / gradient: no step
@@ -1111,8 +1130,8 @@ class CamUnifiedAgent:
                 self._last_fresh.pop(r, None)
         self.fresh = survivors
         self.timing["update_s"] += time.perf_counter() - t0
-        entry = {"update_id": update_id, "version": self.version, "losses": {k: float(v.detach())
-                                                                             for k, v in losses.items()},
+        entry = {"update_id": update_id, "version": self.version, "losses": raw_losses,
+                 "scaled_losses": {k: float(v.detach()) for k, v in losses.items()},
                  "consumed_decisions": consumed, "consumed_events": sorted({e for e, _ in consumed_events}),
                  "replay_events": replay_ids, "replay_decisions": replay_decisions,
                  "adapt_seq_T": None if aseq is None else len(aseq.steps), "memory_linked": mem_used,

@@ -326,7 +326,9 @@ class HarnessAgent:
                "n_decisions": len(out.get("consumed_decisions") or []),
                "by_actor": {self.agent.actor_id: len(out.get("consumed_decisions") or [])},
                "metrics": {"loss": tr.get("total"), **{k: v for k, v in (out.get("losses") or {}).items()}},
-               "losses": out.get("losses"), "weighted": tr.get("weighted"), "total": tr.get("total"),
+               "losses": out.get("losses"), "scaled_losses": out.get("scaled_losses"),
+               "balance": {k.split("/", 1)[1]: v for k, v in out.items() if k.startswith("balance/")},
+               "weighted": tr.get("weighted"), "total": tr.get("total"),
                "grad_norm": tr.get("grad_norm"), "group_grad_norm": tr.get("group_grad_norm"),
                "clipped": tr.get("clipped"), "backbone_grad_norm": bb.get("norm"), "backbone_share": bb.get("share"),
                "backbone_cosine": bb.get("cosine"), "dominant": bb.get("dominant"), "stage": tr.get("stage"),
@@ -429,7 +431,7 @@ class HarnessAgent:
                           "last_actions": st.last_actions, "last_now": st.last_now.cpu(),
                           "fast_prev": None if st.fast_prev is None else st.fast_prev},
             "fresh": a.fresh, "last_fresh": a._last_fresh, "post": a._post, "last_eid": a._last_eid,
-            "lp_valid": list(a._lp_valid), "t0": list(a._t0), "funds": a._funds, "funds0": list(a._funds0),
+            "loss_mag": dict(a.loss_mag), "lp_valid": list(a._lp_valid), "t0": list(a._t0), "funds": a._funds, "funds0": list(a._funds0),
             "ep_decisions": list(a._ep_decisions), "adapt_k_hist": dict(a.adapt_k_hist), "dropped": dict(a.dropped),
             "update_log": a.update_log, "timing": dict(a.timing), "provenance_stats": dict(a.provenance_stats),
             "exclude_events": sorted(self.sys.view.exclude), "exclude_gseq": sorted(self.sys.view.exclude_gseq),
@@ -547,6 +549,7 @@ class HarnessAgent:
         a.adapt_k_hist = Counter({int(k): int(v) for k, v in extra["adapt_k_hist"].items()})
         a.dropped, a.update_log, a.timing = dict(extra["dropped"]), list(extra["update_log"]), dict(extra["timing"])
         a.provenance_stats = dict(extra["provenance_stats"])
+        a.loss_mag = dict(extra.get("loss_mag") or {})
         tok = sysm.model.tokenizer
         if extra.get("tool_registry") is not None and hasattr(tok, "_tool_by_key"):
             from collections import OrderedDict
