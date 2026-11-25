@@ -1,0 +1,44 @@
+{
+ "workstream": "F2",
+ "branch": "worktree-wf_62a0cf0b-bb3-4",
+ "commit": "52383f4",
+ "requirements": [
+  {
+   "id": "SP-6.6",
+   "implementation_files": [
+    "src/crucible/commerce/institutions.py",
+    "src/crucible/commerce/contracts.py",
+    "src/crucible/commerce/labor.py",
+    "src/crucible/commerce/orgworld.py",
+    "src/crucible/commerce/modules.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_6.py",
+    "tests/test_v5_commerce_institutions.py",
+    "tests/test_v5_commerce_contracts.py",
+    "tests/test_v5_commerce_labor.py"
+   ],
+   "state": "implemented",
+   "notes": "Gate measured on this branch on three worlds (seeds 66, 1, 2; 16 simulated workers, about 45 simulated days each; the minimum over the worlds is recorded; seeds 1-8 checked separately give the same counts): institution_features 14 of 14 (formation, growth, restructuring, dissolution, hiring and delegation, shared projects, resource allocation, decision procedures, contracts and commitments, governance changes, independent negotiation, cooperative ventures, membership changes, disputes and resolution), core_law_modifications_blocked 9 of 9 attempts across the four protected laws (core accounting law, security boundary, hidden evaluation criteria, world state), each made through the organisation's own authorised mechanism and counted only if refused with the protected state unchanged; 0 invariant violations; replay digest and regeneration hash equal. Evidence is produced on the integration branch by the gate test; no evidence file is committed here."
+  }
+ ],
+ "dependencies_used": [],
+ "limitations": [
+  "Simulated workers are per-person dictionary records (about 3 events per worker-day; 300 workers x 30 days = 1.9 s wall); population-scale workers need the columnar substrate (workstream A), which was not merged when this was written.",
+  "Cross-module notifications use chained 4.0 hooks (gov_check, on_member_left, on_contract_ended, on_task_assigned, on_inst_decision) instead of substrate.bus subscriptions.",
+  "Charter rules govern tools by name pattern and amount; non-tool institutional actions are governed by a 4.0 gov constitution only through rules matching inst.<kind>.",
+  "On absorption the absorbed organisation's employment contracts end (its people are invited to the acquirer and must be re-hired); merger consideration for the absorbed company's shareholders is not modelled.",
+  "Agent work on inst tasks is verified by the lead's acceptance (no measured quality) unless it is the deliverable of a commitment with a predicate; only simulated work carries a measured quality.",
+  "The simulated worker decision and voting models (offers, quitting, votes) are hand-specified, not calibrated against data."
+ ],
+ "integration_notes": [
+  "crucible/commerce/modules.py is shared with F1: F2's line is `from . import contracts, institutions, labor`; if F1 also creates modules.py the merge is an add/add conflict resolved by keeping both import lines.",
+  "Module names and hosts introduced: inst (host inst), commit (host commit), labor (host labor). State tables are prefixed (inst_*, commitments, commit_offers, labor_*). System accounts: acct_inst_escrow, acct_commit_escrow.",
+  "Evaluator metrics registered at import (goals/metrics.py registry, subject = org): labor_employees, labor_retention, project_completion, project_quality, project_delivered.",
+  "inst chains itself into identity's gov_check hook after the 4.0 gov check (re-chained in on_load when gov was installed later), so worlds with both gov and inst enforce both; worlds without inst are byte-identical to before.",
+  "The labour market writes the meta key labor_hours:<org> that the 4.0 gov profit distribution (basis labor) already reads; values are wage-valued labour in cents.",
+  "Substrate (INTERFACE_CONTRACTS section 1) was not merged into feat/crucible-5-openworld at the time of this work (crucible/substrate holds only __init__.py); nothing in F2 imports it. Natural follow-ups once it lands: declare inst/commit tables in substrate.primitives under the kinds institution and contract if workstream A wants them registered (4.0 contracts/orgs remain the owners of contract/organization), back simulated workers with pop columns via ids.ensure_principal, and move the hook chains to bus subscriptions.",
+  "For workstream I (labour marketplace and organisational ecosystem domains): orgworld.spec(seed, workers=n, extra=(...)) builds a world family; Labor.create_sim_worker / add_worker let generators create workers with chosen skill profiles; project_delivered / project_quality give independent outcome evaluation.",
+  "Tests that ran: tests/test_v5_commerce_institutions.py (19), tests/test_v5_commerce_contracts.py (9), tests/test_v5_commerce_labor.py (9), tests/v5/test_gate_SP_6_6.py (1); related 4.0 files (test_open_institutions, test_economy, test_admission, test_goals, test_internet_society, test_services_comm, test_kernel, test_invariants, test_open_society, test_open_security, test_hardening, test_redteam) all pass."
+ ]
+}

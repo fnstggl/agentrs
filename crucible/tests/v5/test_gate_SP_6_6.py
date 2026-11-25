@@ -32,11 +32,12 @@ from crucible.goals.metrics import METRICS, evaluate_metric  # noqa: E402
 
 DAY = 86400
 SEED = 66
+SEEDS = (66, 1, 2)          # the gate is measured on three independent worlds; the minimum counts
 
 
 class Gate:
-    def __init__(self):
-        self.w = OW.create(SEED, workers=16)
+    def __init__(self, seed: int = SEED):
+        self.w = OW.create(seed, workers=16)
         self.features: dict[str, tuple[bool, str]] = {}
         self.attempts: list[dict] = []
         self.p = {}
@@ -81,8 +82,8 @@ def _protected_snapshot(w):
             "grants": sorted(st.tables["grants"]), "charters": {k: v["version"] for k, v in st.scan("inst_charters")}}
 
 
-def run_gate() -> tuple[dict, Gate]:
-    g = Gate()
+def run_gate(seed: int = SEED) -> tuple[dict, Gate]:
+    g = Gate(seed)
     w = g.w
     st = w.state
     t0 = time.time()
@@ -494,7 +495,7 @@ def run_gate() -> tuple[dict, Gate]:
          "decisions": len(st.tables["inst_decisions"]),
          "simulated_worker_ballots": sum(1 for b in st.tables["inst_ballots"].values()
                                          if st.get("labor_workers", b["voter"]) and st.tables["labor_workers"][b["voter"]]["sim"]),
-         "wall_s": round(time.time() - t0, 2), "seed": SEED}
+         "wall_s": round(time.time() - t0, 2), "seed": seed}
     for name, (ok, _) in g.features.items():
         m[f"feature_{name}"] = ok
     return m, g
@@ -502,8 +503,22 @@ def run_gate() -> tuple[dict, Gate]:
 
 @pytest.mark.timeout(900)
 def test_SP_6_6_adaptable_institutions_within_stable_constraints():
-    m, g = run_gate()
-    notes = {"features": {k: v[1] for k, v in g.features.items()}, "attempts": g.attempts}
+    runs = [run_gate(seed) for seed in SEEDS]
+    m, g = runs[0]
+    m = dict(m)
+    for k in ("institution_features", "core_law_modifications_blocked", "laws_covered"):
+        m[f"{k}_seed{SEEDS[0]}"] = m[k]
+        m[k] = min(r[0][k] for r in runs)                     # the weakest world is what is claimed
+    m["invariant_violations"] = sum(r[0]["invariant_violations"] for r in runs)
+    m["money_conserved"] = all(r[0]["money_conserved"] for r in runs)
+    m["replay_digest_equal"] = all(r[0]["replay_digest_equal"] for r in runs)
+    m["regeneration_hash_equal"] = all(r[0]["regeneration_hash_equal"] for r in runs)
+    m["seeds"] = ",".join(str(s) for s in SEEDS)
+    m["per_seed"] = "; ".join(f"seed {r[0]['seed']}: features {r[0]['institution_features']}/{r[0]['features_total']}, "
+                              f"blocked {r[0]['core_law_modifications_blocked']}/{r[0]['core_law_attempts']}"
+                              for r in runs)
+    notes = {"features": {k: v[1] for k, v in g.features.items()}, "attempts": g.attempts,
+             "failed_by_seed": {r[0]["seed"]: [k for k, v in r[1].features.items() if not v[0]] for r in runs}}
     record("SP-6.6", m, command="PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_6_6.py",
            notes=json.dumps(notes, sort_keys=True)[:20000])
     failed = {k: v[1] for k, v in g.features.items() if not v[0]}
