@@ -452,7 +452,7 @@ class CoopIndex:
         self.start_seq = self.seq = int(start_seq)
         self.start_t = int(start_t)
         self.pending: dict = {}        # caller service principal -> callee hosts that answered ok in its open request
-        self.batch: dict = {}          # host -> [executed ok household requests, {callees: n}]
+        self.batch: dict = {}          # host -> [t, executed ok household requests, {callees: n}] (one offer-hour)
         self.sale: dict = {}           # host -> (payer, cents) of a per-call payment awaiting its request
         self.rev: dict = {}
         self.calls: dict = {}
@@ -490,13 +490,18 @@ class CoopIndex:
             if outcome == "ok" and n == 1:
                 self.pending.setdefault(actor, set()).add(host)
         if n != 1:                     # refused before running (unavailable / overload): no request was executed
+            sale = self.sale.get(host)
+            if sale is not None and sale[0] == actor:      # its payment is refunded: nothing earned
+                del self.sale[host]
             return
         callees = frozenset(self.pending.pop(svc, ())) if svc else frozenset()
         if actor == SYSTEM:            # household demand (consumers process): billed per batch, see _txn
             if outcome == "ok":
-                b = self.batch.setdefault(host, [0, {}])
-                b[0] += 1
-                b[1][callees] = b[1].get(callees, 0) + 1
+                b = self.batch.get(host)
+                if b is None or b[0] != int(ev.t):         # a batch is one offer-hour (one timestamp)
+                    b = self.batch[host] = [int(ev.t), 0, {}]
+                b[1] += 1
+                b[2][callees] = b[2].get(callees, 0) + 1
             return
         sale = self.sale.pop(host, None)
         if sale is not None and sale[0] == actor and outcome == "ok":
@@ -505,17 +510,22 @@ class CoopIndex:
     def _txn(self, ev, hosts: dict) -> None:
         p = ev.payload
         ref = p.get("ref")
-        if p.get("kind") != "sale" or not (isinstance(ref, str) and ref.startswith("svc:")):
+        if not (isinstance(ref, str) and ref.startswith("svc:")):
             return
         host = ref[4:]
+        if p.get("kind") == "refund":                      # a failed paid call: its payment came back
+            self.sale.pop(host, None)
+            return
+        if p.get("kind") != "sale":
+            return
         posts = [(a, int(x)) for a, x in (p.get("postings") or []) if isinstance(x, (int, float))]
         hh = sum(-x for a, x in posts if a == "acct_households" and x < 0)
         if hh > 0:
             owner = (hosts.get(host) or {}).get("owner", "")
             b = self.batch.pop(host, None)
-            if b and b[0] > 0:
-                for callees, k in b[1].items():
-                    self._add(ev.t, host, owner, "households", callees, hh * k / b[0])
+            if b and b[0] == int(ev.t) and b[1] > 0:
+                for callees, k in b[2].items():
+                    self._add(ev.t, host, owner, "households", callees, hh * k / b[1])
             else:
                 self._add(ev.t, host, owner, "households", frozenset(), hh)
         else:

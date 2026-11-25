@@ -480,7 +480,8 @@ def test_process_isolated_operator_firewall_and_success():
 
 def test_sandbox_boundary_through_the_adapter(env):
     """G01: everything the agent can call is an in-world simulated host; operator tools are refused; agent code runs
-    in Crucible's sandbox (no sockets, no host filesystem, resource limits); tool output is returned as data."""
+    in Crucible's sandbox (no sockets, no host filesystem, CPU-time / memory limits, no fork); tool output is
+    returned as data."""
     ad, op, ev = env
     ad.reset()
     tools = ad.available_tools()[0]
@@ -500,7 +501,23 @@ def test_sandbox_boundary_through_the_adapter(env):
            "    try:\n"
            "        return {'fs': open('/etc/passwd').read()[:10]}\n"
            "    except Exception as e:\n"
-           "        return {'fs': type(e).__name__}\n")
+           "        return {'fs': type(e).__name__}\n"
+           "def spin(args, caller):\n"
+           "    while True:\n"
+           "        pass\n"
+           "def hog(args, caller):\n"
+           "    try:\n"
+           "        return {'mem': len(bytearray(8 * 1024 ** 3))}\n"
+           "    except MemoryError:\n"
+           "        return {'mem': 'MemoryError'}\n"
+           "def fork(args, caller):\n"
+           "    try:\n"
+           "        pid = os.fork()\n"
+           "        if pid == 0:\n"
+           "            os._exit(0)\n"
+           "        return {'fork': 'allowed'}\n"
+           "    except Exception as e:\n"
+           "        return {'fork': type(e).__name__}\n")
     assert ad.execute([Action("code.commit", {"repo": repo, "files": {"p.py": src}})])[0].ok
     rn = ad.execute([Action("code.run", {"repo": repo, "target": "p.py:net", "input": {}})])[0]
     rf = ad.execute([Action("code.run", {"repo": repo, "target": "p.py:fs", "input": {}})])[0]
@@ -508,5 +525,11 @@ def test_sandbox_boundary_through_the_adapter(env):
     out_f = json.loads(rf.observations[0].content)
     assert rn.ok and out_n["ok"] and out_n["result"]["net"] == "PermissionError", out_n     # seccomp: no sockets
     assert rf.ok and out_f["ok"] and out_f["result"]["fs"] == "PermissionError", out_f      # landlock: no host files
+    # resource limits: CPU time, memory, no process creation
+    out = {t: json.loads(ad.execute([Action("code.run", {"repo": repo, "target": f"p.py:{t}", "input": {}})])[0]
+                         .observations[0].content) for t in ("spin", "hog", "fork")}
+    assert out["spin"]["ok"] is False and out["spin"]["error"]["type"] == "Timeout", out["spin"]
+    assert out["hog"]["ok"] and out["hog"]["result"]["mem"] == "MemoryError", out["hog"]
+    assert out["fork"]["ok"] and out["fork"]["result"]["fork"] == "PermissionError", out["fork"]
     # tool output is data: the record carries it as a string, nothing in the adapter evaluates it
     assert isinstance(rn.observations[0].content, str)

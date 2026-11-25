@@ -74,6 +74,15 @@ def test_tasks_carry_their_seat_and_participants():
         assert [m["title"] for m in w.state.find("members", "person", "p:eng")] == ["network engineer"]   # the seat
     finally:
         ad.close()
+    # the learner-run path: the same task in another process, seen only through records
+    ad, rop, rev = p3.open("train", 0, isolated=True)
+    try:
+        b = ad.reset()
+        me = [o for o in b.observations[0] if o.meta.get("self")]
+        assert me[0].entity == "p:eng" and rop.pid != __import__("os").getpid()
+        assert rev.evaluate_goal(0).achieved is False
+    finally:
+        ad.close()
     p7 = P.load("ow7")
     t7 = p7.make_task("ow_tiny", 1)
     assert callable(t7.participant_factory)

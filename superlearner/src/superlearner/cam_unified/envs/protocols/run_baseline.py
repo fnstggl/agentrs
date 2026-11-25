@@ -19,8 +19,6 @@ def main(argv=None) -> int:
     from . import load
     from ..baselines import FrozenSemanticAgent, make_backend
     from ..harness import run_lifetime
-    from ..openworld import open_world
-    from ..openworld_eval import OpenWorldEvaluator
     ap = argparse.ArgumentParser()
     ap.add_argument("protocol")
     ap.add_argument("--split", default="dev")
@@ -34,14 +32,16 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     p = load(a.protocol)
     fam, seed = p.splits[a.split][a.index]
-    task = p.make_task(fam, seed)
     t0 = time.time()
     be = make_backend(a.model, "cuda")
     agent = FrozenSemanticAgent(a.variant, backend=be, max_new_tokens=a.max_new_tokens)
-    ad, op = open_world([task], seed=0)
-    ev = OpenWorldEvaluator(op, integrity=True)
-    res = run_lifetime(agent, ad, ev, days=a.days, think_s=a.think_s)
-    ad.close()
+    # the baseline is a learner-side agent: worlds, operator and evaluator run in another process (only records
+    # cross), with the seat and participants the task needs
+    ad, rop, ev = p.open(a.split, a.index, isolated=True, evaluator={"integrity": True}, seed=0)
+    try:
+        res = run_lifetime(agent, ad, ev, days=a.days, think_s=a.think_s)
+    finally:
+        ad.close()
     pol = agent.policies[0]
     rec = {"protocol": a.protocol, "world_family": fam, "seed": seed, "split": a.split, "model": a.model,
            "variant": a.variant, "days": a.days, "decisions": res.steps, "achieved": res.final[0]["achieved"],
