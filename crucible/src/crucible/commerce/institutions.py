@@ -672,15 +672,16 @@ class Institutions(Module):
                                    "electorate": [[p, el[p]] for p in sorted(el)], "by": proposer,
                                    "reason": str(reason)[:2000], "closes": closes},
                  vis=tuple(sorted(set(el) | {proposer, org})))
-        if proc["type"] == "officer" and proposer in el:
-            return self.vote(ctx, did, proposer, "yes")     # an officer acting within its authority
+        if not el:
+            return self.tally(ctx, did, final=True)
         hook = ctx.world.hooks.get("on_inst_decision")
-        if hook:
+        if hook and not (proc["type"] == "officer" and proposer in el):
             for voter in sorted(el):
                 if voter != proposer:
                     hook(ctx, did, voter)
-        if not el:
-            return self.tally(ctx, did, final=True)
+        if proposer in el:
+            # a proposer who is an elector votes for its own proposal (an officer thereby decides at once)
+            return self.vote(ctx, did, proposer, "yes")
         return {"decision": did, "status": "open", "closes": closes}
 
     def vote(self, ctx: Ctx, did: str, voter: str, choice: str) -> dict:
