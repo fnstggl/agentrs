@@ -18,7 +18,7 @@ from __future__ import annotations
 import numpy as np
 
 from . import portable
-from .registry_e2 import FittedModel
+from .registry import FittedModel
 
 OUTCOMES = ("visit", "conversion")
 ARMS = ("control", "treated")

@@ -1,11 +1,12 @@
 """Gate F: empirical behavioural grounding (MASTER_SPEC Part 17, Gate F; owner workstream E).
 
 Every metric is computed at test time from what is registered: the model cards and checkpoints under
-`docs/v5/calibration/models/`, their held-out reports, and the dataset registry (`crucible.calibration.datasets()`),
-so models registered by any calibration workstream count once merged. F.3 also recomputes the held-out test metric
-of each E1 model from the verified datasets and the saved checkpoint, so a report cannot claim what the saved model
-does not achieve. The full module needs the KuaiRand-Pure and MIND-small data (`acquire` downloads and verifies them
-when absent) and takes a few minutes; run it through the slot scheduler with 2 CPUs.
+`docs/v5/calibration/models/` (both card schemas, read through `registry.card_view`), their held-out reports, and the
+dataset registry (`crucible.calibration.datasets()`), so models registered by any calibration workstream count once
+merged. F.3 also recomputes the held-out test metric of every qualifying model from the verified datasets and the
+saved checkpoint, so a report cannot claim what the saved model does not achieve. The full module needs every
+dataset a registered model cites (`acquire` downloads and verifies them when absent) and takes a few minutes; run it
+through the slot scheduler with 2 CPUs.
 """
 import importlib
 import os
@@ -79,6 +80,12 @@ def test_F_2_content_consumption_and_randomized_commercial_response(state):
     card = R.read_card("content_consumption")
     assert card["provenance"]["identification"] == "randomized_exposure"
     assert not card["selection"]["kept_is_baseline"]
+    # so must the randomised commercial-response models
+    for name in rc:
+        sel = R.card_view(R.read_card(name))["selection"]
+        sign = 1 if sel["lower_is_better"] else -1
+        assert not sel["kept_is_baseline"]
+        assert sign * sel["test"][sel["kept"]] < min(sign * sel["test"][b] for b in sel["baselines"])
     metrics["content_consumption_test_log_loss"] = card["metrics"]["log_loss"]
     metrics["content_consumption_baseline_log_loss"] = card["baseline_metrics"]["log_loss"]
     record("F.2", metrics, command=CMD, artifacts=_artifacts(recs),
@@ -91,16 +98,18 @@ def test_F_2_content_consumption_and_randomized_commercial_response(state):
 @pytest.mark.timeout(3600)
 def test_F_3_heldout_reports_reproduce_from_checkpoints(state):
     recs, m = state
-    rep = reproduce.reproduce_kuairand()
-    rep.update(reproduce.reproduce_news())
+    rep = reproduce.reproduce_all()
     worst = max(r["abs_diff"] / max(abs(r["reported"]), 1e-9) for r in rep.values())
-    metrics = {"heldout_reports": m["heldout_reports"], "e1_reports_reproduced": len(rep),
+    metrics = {"heldout_reports": m["heldout_reports"], "reports_reproduced": len(rep),
                "max_relative_difference": float(worst), **_context(m)}
     for name, r in rep.items():
         metrics[f"{name}.{r['metric']}"] = r["recomputed"]
     record("F.3", metrics, command=CMD, artifacts=_artifacts(recs),
-           notes="held-out test metrics recomputed with registry.load on the verified datasets")
-    assert set(rep) == set(reproduce.E1_MODELS)
+           notes="held-out test metrics recomputed with registry.load on the verified datasets (commercial_response: "
+                 "on the report's seeded 100,000-user test audit subsample)")
+    # every qualifying model's held-out metric is recomputed, whichever workstream registered it
+    assert set(rep) == {r["name"] for r in recs if r.get("qualifies")}
+    assert set(reproduce.E1_MODELS) | set(reproduce.E2_MODELS) <= set(rep)
     assert worst < 1e-4, rep
     for r in recs:
         if r.get("qualifies"):
@@ -111,8 +120,7 @@ def test_F_3_heldout_reports_reproduce_from_checkpoints(state):
 
 def test_F_4_baseline_comparisons(state):
     recs, m = state
-    wins = [r["name"] for r in recs if r.get("qualifies") and r["baseline_compared"]
-            and not r["card"]["selection"].get("kept_is_baseline", True)]
+    wins = [r["name"] for r in recs if r.get("qualifies") and r["baseline_compared"] and not r["kept_is_baseline"]]
     metrics = {"baseline_comparisons": m["baseline_comparisons"], "learned_models_beating_baseline": len(wins),
                **_context(m)}
     for r in recs:
@@ -128,11 +136,14 @@ def test_F_5_calibration_metrics(state):
     metrics = {"calibration_metric_reports": m["calibration_metric_reports"], **_context(m)}
     for r in recs:
         if r.get("qualifies"):
-            cal = r["report"]["calibration"]
-            for k in audit.CALIBRATION_KEYS:
-                if isinstance(cal.get(k), (int, float)):
-                    metrics[f"{r['name']}.{k}"] = float(cal[k])
-    record("F.5", metrics, command=CMD, artifacts=_artifacts(recs))
+            for k, v in audit.calibration_values(r["report"]).items():
+                metrics[f"{r['name']}.{k}"] = v
+            for k, bins in audit.calibration_tables(r["report"]).items():
+                metrics[f"{r['name']}.{k}.bins"] = bins
+    record("F.5", metrics, command=CMD, artifacts=_artifacts(recs),
+           notes="held-out calibration of the kept model: scalar measures (ECE, Brier, PIT KS, coverage, count "
+                 "calibration error, per outcome where there are several) and reliability tables (bins of mean "
+                 "predicted vs mean observed)")
     _assert_met("F.5", metrics)
 
 
@@ -145,24 +156,30 @@ def test_F_6_checkpoints_saved_and_hash_verified(state, tmp_path, monkeypatch):
         X = np.array([[q[n][5] for n in f.features]]) if q else np.ones((1, len(f.features)))
         y = f.predict(X)
         assert np.all(np.isfinite(y))
-    # tampering is detected: a copy with one flipped byte fails load and is counted as a mismatch
-    name = recs[0]["name"]
+    # tampering is detected: for one model of each card schema, a copy with one flipped byte fails load and is
+    # counted as a mismatch
+    schemas = {}
+    for r in recs:
+        schemas.setdefault(r["schema"], r["name"])
+    assert set(schemas) == set(R.CARD_SCHEMAS), schemas
     fake = tmp_path / "models"
-    shutil.copytree(R.model_dir(name), fake / name)
-    ck = fake / name / "params.npz"
-    b = bytearray(ck.read_bytes())
-    b[len(b) // 2] ^= 0xFF
-    ck.write_bytes(bytes(b))
+    for name in schemas.values():
+        shutil.copytree(R.model_dir(name), fake / name)
+        ck = fake / name / R.checkpoint_file(R.read_card(name))
+        b = bytearray(ck.read_bytes())
+        b[len(b) // 2] ^= 0xFF
+        ck.write_bytes(bytes(b))
     monkeypatch.setattr(R, "MODELS_DIR", str(fake))
-    with pytest.raises(IOError):
-        R.load(name)
-    tampered = audit.examine(name)
+    tampered = []
+    for name in schemas.values():
+        with pytest.raises(IOError):
+            R.load(name)
+        tampered.append(audit.examine(name))
     monkeypatch.undo()
-    assert tampered["hash_mismatches"] == 1 and not tampered["qualifies"]
+    assert all(t["hash_mismatches"] == 1 and not t["qualifies"] for t in tampered)
     metrics = {"checkpoints_saved": m["checkpoints_saved"], "checkpoint_hash_mismatches":
                m["checkpoint_hash_mismatches"], "tamper_detected": True,
-               "largest_checkpoint_bytes": max(os.path.getsize(os.path.join(R.model_dir(r["name"]), f))
-                                               for r in recs for f in r["card"]["files"])}
+               "largest_checkpoint_bytes": max(R.verify_checkpoint(r["name"])["largest_bytes"] for r in recs)}
     record("F.6", metrics, command=CMD, artifacts=_artifacts(recs))
     assert metrics["largest_checkpoint_bytes"] <= R.MAX_CHECKPOINT_BYTES
     _assert_met("F.6", metrics)
@@ -178,14 +195,17 @@ def test_F_7_dataset_provenance_and_checksums(state):
             res = DS.verify(n)
             if all(v == "ok" for v in res.values()):
                 verified += 1
-    # the datasets E1's models rest on are present and verify (acquire downloads them if absent)
-    for n in ("kuairand_pure", "mind_small"):
+    # every dataset a qualifying model rests on is present and verifies (acquire downloads it if absent)
+    cited = sorted({n for r in recs if r.get("qualifies") for n in r["real_datasets"]})
+    assert {"kuairand_pure", "mind_small", "criteo_uplift_v2.1", "gharchive_2024-10-07_96h"} <= set(cited)
+    for n in cited:
         DS.acquire(n)
-        assert all(v == "ok" for v in DS.verify(n).values())
-        assert DS.validate_schema(n) == []
+        res = DS.verify(n)
+        assert res and all(v == "ok" for v in res.values()), (n, {k: v for k, v in res.items() if v != "ok"})
+        assert DS.validate_schema(n) == [], n
     metrics = {"datasets_with_checksums": m["datasets_with_checksums"], "provenance_records": m["provenance_records"],
                "datasets_registered": len(ds), "datasets_verified_locally": verified,
-               "datasets": ",".join(sorted(ds))}
+               "datasets_cited_by_qualifying_models": len(cited), "datasets": ",".join(sorted(ds))}
     record("F.7", metrics, command=CMD, artifacts=_artifacts(recs),
            notes="checksums: SHA-256 for every downloaded file (and every extracted file models use); provenance: "
                  "publisher, source, citation, population, platform, period, retrieval date, licence and the "

@@ -11,7 +11,8 @@ Records come from two places:
 
 The *important behavioural mechanisms* are computed, not listed by hand:
 
-1. every mechanism a registered fitted model grounds (`model_card.json` field ``mechanisms``);
+1. every mechanism a registered fitted model grounds (`registry.card_view(card)["mechanisms"]`: the card field
+   ``mechanisms``, or ``fidelity_mechanisms`` in loader-schema cards);
 2. every 4.0 register mechanism whose kinds include ``behavioural``;
 3. every kernel module that a v5 behaviour package registers (population, social, commerce, innovation, multiagent,
    civ, domains, semantic): it needs at least one register row naming it in the ``module`` column.
@@ -113,7 +114,7 @@ def important_mechanisms() -> list[dict]:
     imp = []
     for name in (m.split("@")[0] for m in R.list_models()):
         card = R.read_card(name)
-        for mech in card.get("mechanisms", []):
+        for mech in R.card_view(card)["mechanisms"]:
             imp.append({"id": mech, "why": f"grounded by fitted model {name}", "match": "mechanism"})
     for r in v40_records():
         if "behavioural" in r["kinds"]:

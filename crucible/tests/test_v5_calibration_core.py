@@ -171,11 +171,14 @@ def test_registry_round_trip_and_tamper_detection(tmp_path, monkeypatch):
 
 def test_committed_models_load_and_predict():
     names = R.list_models()
-    assert len(names) >= 6
+    assert len(names) >= 9
     for n in names:
         f = R.load(n)
-        assert f.provenance["datasets"] and f.limits and f.features
-        assert set(f.features) <= set(f.card["feature_map"])           # every input has a simulator mapping
+        assert isinstance(f, R.FittedModel) and f.id == n
+        assert f.provenance["datasets"] == f.datasets and f.datasets and f.limits and f.features
+        assert f.domain in R.DOMAINS and f.identification in R.IDENTIFICATION
+        assert set(f.features) <= set(f.feature_map)                    # every input has a simulator mapping
+        assert R.card_problems(f.card) == [], (n, R.card_problems(f.card))
         q = f.card.get("feature_quantiles")
         if q:
             X = np.array([[q[c][i] for c in f.features] for i in range(len(q["levels"]))])
@@ -183,6 +186,61 @@ def test_committed_models_load_and_predict():
             assert np.all(np.isfinite(y))
             if f.kind in ("gbdt_binary", "logistic"):
                 assert np.all((y > 0) & (y < 1))
+
+
+def test_one_registry_serves_both_card_schemas():
+    import crucible.calibration as C
+    from crucible.calibration import registry_e2
+    from crucible.calibration.commercial import CommercialResponseModel
+    from crucible.calibration.software import DeepEngagementModel, RepoGrowthModel
+    names = C.list_models()
+    assert {"content_consumption@1", "content_consumption_feed@1", "watch_duration@1", "return_daily@1",
+            "session_rate@1", "news_click@1", "commercial_response@1", "software_deep_engagement@1",
+            "software_repo_growth@1"} <= set(names)
+    schemas = {R.card_view(R.read_card(n))["schema"] for n in names}
+    assert schemas == set(R.CARD_SCHEMAS)
+    # loader-schema cards load through the same entry point as their own classes
+    for n, cls in (("commercial_response@1", CommercialResponseModel), ("software_deep_engagement@1",
+                                                                        DeepEngagementModel),
+                   ("software_repo_growth@1", RepoGrowthModel)):
+        f = C.load(n)
+        assert type(f) is cls and isinstance(f, C.FittedModel)
+        g = registry_e2.load(n)                                       # the compatibility layer is the same registry
+        assert type(g) is cls and np.array_equal(g.predict(f.arrays["probe/X"]), f.predict(f.arrays["probe/X"]))
+    ad = C.load("commercial_response@1")
+    assert ad.domain == "advertising_response" and ad.view["domain_label"] == "commercial_intervention_response"
+    assert ad.identification == "randomized_controlled_trial"
+    assert ad.view["identification_label"] == "randomized_experiment"
+    # both sampling argument orders give the same draws
+    growth = C.load("software_repo_growth@1")
+    X = growth.arrays["probe/X"][:50]
+    assert np.array_equal(growth.sample(X, np.random.default_rng(1)), growth.sample(np.random.default_rng(1), X))
+    # every dataset a card names is served by the one datasets()
+    ds = C.datasets()
+    assert {d for n in names for d in R.card_view(R.read_card(n))["datasets"]} <= set(ds)
+    with pytest.raises(R.CalibrationError):
+        C.load("commercial_response@2")
+    with pytest.raises(R.CalibrationError):
+        registry_e2.load("commercial_response")                       # E2's strict name form is kept
+
+
+def test_card_views_agree_with_both_schemas():
+    for n in R.list_models():
+        card = R.read_card(n)
+        v = R.card_view(card)
+        sel = v["selection"]
+        assert v["files"] == R.card_files(card) and R.checkpoint_file(card) in v["files"]
+        assert sel["kept"] in sel["test"] and sel["primary_metric"] in card["metrics"]
+        assert card["metrics"][sel["primary_metric"]] == pytest.approx(sel["test"][sel["kept"]], abs=1e-12)
+        assert v["plans"] and all(p["path"] and p["commit"] and p["sha256"] for p in v["plans"])
+        assert v["mechanisms"] and v["report"]
+    e2 = R.card_view(R.read_card("software_repo_growth"))
+    assert [p["role"] for p in e2["plans"]] == ["plan", "amendment"]
+    assert e2["selection"]["primary_metric"] == "mean_poisson_deviance" and e2["selection"]["baselines"] == ["proportional"]
+    assert R.card_view(R.read_card("commercial_response"))["selection"]["primary_metric"] == \
+        "primary_pooled_logloss_visit_plus_conversion"
+    with pytest.raises(R.CardError):
+        R.card_schema({"schema": "something/else", "name": "x"})
 
 
 def test_watch_model_samples_plausible_watch_times():
@@ -199,11 +257,19 @@ def test_watch_model_samples_plausible_watch_times():
 # ---------------------------------------------------------------- datasets
 def test_dataset_entries_are_complete():
     ds = DS.datasets()
-    assert {"kuairand_pure", "mind_small"} <= set(ds)
+    assert {"kuairand_pure", "mind_small", "criteo_uplift_v2.1", "gharchive_2024-10-07_96h"} <= set(ds)
     for n, e in ds.items():
-        assert all(len(f["sha256"]) == 64 and f["url"].startswith("https://") for f in e["files"]), n
+        assert all(len(f["sha256"]) == 64 and f["url"].startswith("https://") and f["path"] for f in e["files"]), n
         assert audit.provenance_complete(e), n
         assert e["synthetic"] is False
+        assert e["sha256"] and e["size"] > 0 and e["schema"]
+    # manifest-backed entries keep the manifest's own fields next to the normalised ones
+    cr = ds["criteo_uplift_v2.1"]
+    assert cr["manifest"] == "docs/v5/calibration/datasets/criteo_uplift_v2.1.json"
+    assert cr["license"]["spdx"] == cr["license"]["name"] == "CC-BY-NC-SA-4.0" and cr["license"]["text_location"]
+    assert cr["files"][0]["file"] == cr["files"][0]["path"] and cr["files"][0]["bytes"] == cr["files"][0]["size"]
+    assert cr["acquirer"] == "crucible.calibration.criteo" and cr["extracted"]
+    assert len(ds["gharchive_2024-10-07_96h"]["files"]) == 96
 
 
 def test_acquire_verifies_checksums(tmp_path, monkeypatch):
@@ -284,3 +350,22 @@ def test_audit_rejects_models_without_empirical_provenance(tmp_path, monkeypatch
     only_synth = audit.gate_f_metrics([recs["synthetic"]])
     assert only_synth["synthetic_only_domains"] == 1 and only_synth["empirical_domains_fitted"] == 0
     assert m["baseline_comparisons"] == 0                     # no baseline comparison in the report
+
+
+def test_audit_reads_loader_schema_reports():
+    rec = audit.examine("software_repo_growth")
+    rep = rec["report"]
+    assert rec["schema"] == R.LOADER_SCHEMA and rec["qualifies"], rec["problems"]
+    assert rep["heldout_splits"] == ["test", "test_new_repos"] and rep["splits"]["test"]["rows"] == 321303
+    bc = rep["baseline_comparison"]
+    card = rec["card"]
+    assert bc["baseline"] == "proportional" and bc["kept"] == card["selection"]["kept"]
+    assert bc["kept_test"] == card["metrics"]["mean_poisson_deviance"]
+    assert bc["baseline_test"] == card["baseline_metrics"]["mean_poisson_deviance"]
+    assert bc["ci95"][1] < 0 and bc["difference"] == pytest.approx(bc["kept_test"] - bc["baseline_test"])
+    assert audit.calibration_tables(rep) == {"calibration_by_decile": 10} and rec["calibration_reported"]
+    com = audit.examine("commercial_response")
+    assert com["identification"] == "randomized_controlled_trial" and com["domain"] in audit.COMMERCIAL_DOMAINS
+    assert com["report"]["splits"]["test"]["rows"] == 2795919
+    assert {"visit_ece", "conversion_ece"} <= set(audit.calibration_values(com["report"]))
+    assert audit.gate_f_metrics([rec, com], datasets_scope="cited")["datasets_with_checksums"] == 2

@@ -1,16 +1,20 @@
 """Workstream E2: software collaboration and adoption models (GH Archive), loaded through the registry.
 
 Uses the committed checkpoints, cards and reports and the extracted GH Archive window under $CRUCIBLE_DATA. A missing
-dataset is a failure, not a skip: run `crucible.calibration.registry_e2.acquire("gharchive_2024-10-07_96h")` and
-`python -m crucible.calibration.fit_software` (which also writes the evaluated tables).
+dataset is a failure, not a skip: run `crucible.calibration.acquire("gharchive_2024-10-07_96h")` and
+`python -m crucible.calibration.fit_software` (which also writes the evaluated tables). Models load through the
+unified registry (`crucible.calibration.registry`, the module behind `crucible.calibration.load`).
 """
+import importlib
 import json
 import os
 
 import numpy as np
 import pytest
 
-from crucible.calibration import registry_e2 as R
+from crucible.calibration import audit
+from crucible.calibration import datasets as all_datasets
+from crucible.calibration import registry as R
 from crucible.calibration import scoring_e2 as S
 from crucible.calibration.software import DEEP_FEATURES, GROWTH_FEATURES, DeepEngagementModel, RepoGrowthModel
 
@@ -43,7 +47,7 @@ def test_models_load_with_verified_hashes(deep, growth):
     for m in (deep, growth):
         v = R.verify_checkpoint(m.id)
         assert v["ok"] and v["bytes"] < 5_000_000
-        assert m.identification == "observational"
+        assert m.identification == "observational" and m.domain == "software_adoption"
         assert R.card_problems(m.card) == []
         assert "2024-10-07" in m.card["population"] and "public GitHub" in m.card["population"]
         assert len(m.card["extrapolation_limits"]) >= 6
@@ -117,15 +121,16 @@ def test_selection_rule_and_prespecification(deep, growth):
         assert {c["other"] for c in m.card["selection"]["comparisons"]} == set(cands) - {best}
         for c in m.card["selection"]["comparisons"]:
             assert c["kept_significantly_worse"] == (c["kept_minus_other"]["ci95"][0] > 0)
-        pre = R.prespecified_before_fit(m.id)
+        pre = audit.plan_check(m.card)
         assert pre["ok"], pre
+        assert [p["role"] for p in pre["plans"]] == ["plan", "amendment"]
 
 
 def test_negative_binomial_sampling_matches_mean_and_dispersion(growth, tables):
     X = tables["growth/d2/X"][:2000]
     rng = np.random.default_rng(3)
     mu = growth.predict(X)
-    draws = np.stack([growth.sample(rng, X) for _ in range(400)])
+    draws = np.stack([growth.sample(X, rng) for _ in range(400)])
     m = draws.mean(0); v = draws.var(0)
     big = mu > 1
     assert np.mean(np.abs(m - mu) / np.sqrt((mu + growth.dispersion * mu ** 2) / 400)) < 1.5
@@ -156,10 +161,16 @@ def test_tables_rebuild_deterministically_from_extracted_events(tables):
 
 def test_dataset_manifest_matches_extracted_window():
     from crucible.calibration import gharchive as G
-    man = R.datasets()[G.DATASET]
+    man = all_datasets()[G.DATASET]
     assert man["synthetic"] is False and len(man["files"]) == G.HOURS
     assert all(len(f["sha256"]) == 64 for f in man["files"])
     assert man["license"]["text_locations"] and man["provenance"]["privacy"]
+    assert audit.provenance_complete(man)
+    # the one dataset registry verifies the window through gharchive's hooks (raw hours are deleted by design)
+    DS = importlib.import_module("crucible.calibration.datasets")     # the module (the package exports the function)
+    res = DS.verify(G.DATASET)
+    assert len(res) == G.HOURS and set(res.values()) == {"ok"}
+    assert DS.validate_schema(G.DATASET) == []
     with open(os.path.join(G.dataset_dir(), "acquisition.json")) as fh:
         acq = json.load(fh)
     by_file = {f["file"]: f for f in acq["files"]}

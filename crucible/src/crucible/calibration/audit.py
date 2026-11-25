@@ -1,19 +1,20 @@
 """Gate measurements for empirical calibration (Gate F, SP-5.5), computed from what is registered at call time.
 
-Nothing here is a fixed list of E1's models: every directory under `docs/v5/calibration/models/` with a
-`model_card.json` is examined, so models registered by other workstreams (E2's commercial-response models) count as
-soon as they are merged. A model counts as *empirically fitted* only if
+Nothing here is a fixed list of models: every directory under `docs/v5/calibration/models/` with a `model_card.json`
+is examined, whichever of the registry's two card schemas it uses (`registry.SCHEMA`, `registry.LOADER_SCHEMA`).
+Cards are read through `registry.card_view` and held-out reports through `report_view`, so the models of both fitting
+toolchains are measured by the same rules. A model counts as *empirically fitted* only if
 
 * its checkpoint files exist and match the SHA-256 recorded in its card, and `registry.load` reconstructs it;
-* its provenance names at least one dataset that `datasets()` knows, every file of which has a SHA-256, and which
-  is not synthetic;
-* its held-out report exists and evaluates the model on at least one held-out split with data.
-
-Field aliases (`domain` / `provenance.domain`, `identification` / `provenance.identification`) are accepted so a card
-written by another workstream's tooling is read the same way.
+* its card names at least one dataset that `datasets()` knows, every file of which has a SHA-256, and which is not
+  synthetic;
+* its held-out report exists and evaluates the model on at least one held-out split with data;
+* its (canonical) domain is one of `registry.DOMAINS`.
 """
 from __future__ import annotations
 
+import datetime as _dt
+import hashlib
 import json
 import os
 import re
@@ -29,14 +30,15 @@ COMMERCIAL_DOMAINS = ("advertising_response", "purchase_behavior", "commercial_r
 CALIBRATION_KEYS = ("ece", "brier", "pit_ks", "coverage_80", "coverage_90", "count_calibration_error",
                     "calibration_error", "calibration_in_the_large")
 MIN_LIMITS_CHARS = 200
+LOADER_REPORT_SCHEMA = "crucible.v5.calibration.report/1"     # reports written by fitmeta_e2
 
 
 def _domain(card: dict) -> str:
-    return card.get("domain") or card.get("provenance", {}).get("domain") or ""
+    return R.card_view(card)["domain"]
 
 
 def _identification(card: dict) -> str:
-    return (card.get("provenance", {}).get("identification") or card.get("identification") or "").lower()
+    return R.card_view(card)["identification"]
 
 
 def _report(card: dict) -> dict | None:
@@ -48,6 +50,70 @@ def _report(card: dict) -> dict | None:
         return None
     with open(p, encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def _kept_rows(raw: dict, split: str, kept_metrics: dict) -> int:
+    rows = kept_metrics.get("n")
+    if rows is None:                                  # per-arm models report n per pooled outcome
+        pooled = kept_metrics.get("pooled") or {}
+        rows = next((x.get("n") for x in pooled.values() if isinstance(x, dict) and x.get("n")), None)
+    if rows is None:
+        rows = (raw.get("counts") or {}).get(split) or ((raw.get("split") or {}).get("counts") or {}).get(split)
+    return int(rows or 0)
+
+
+def report_view(card: dict, raw: dict | None) -> dict | None:
+    """The report in the audit's layout: ``heldout_splits``, ``splits`` {split: {rows, users}},
+    ``baseline_comparison`` {metric, kept, baseline, kept_test, baseline_test, difference, ci95}, ``calibration``
+    (the kept model's held-out calibration measures) and ``extrapolation_limits`` (text).
+
+    Reports written by fitlib already have this layout. A `LOADER_REPORT_SCHEMA` report is re-indexed: every number
+    is the report's or the card's own, except ``difference`` = kept_test - baseline_test; ``ci95`` is the report's
+    paired-bootstrap interval of the same difference."""
+    if raw is None:
+        return None
+    if raw.get("schema") != LOADER_REPORT_SCHEMA:
+        return raw
+    sel = R.card_view(card)["selection"]
+    kept = sel["kept"]
+    held = raw.get("heldout") or {}
+    splits = {s: {"rows": _kept_rows(raw, s, (by or {}).get(kept) or {})} for s, by in held.items()}
+    base = sel["baselines"][0] if sel["baselines"] else None
+    bc = {}
+    if kept in sel["test"] and base in sel["test"]:
+        comp = next((c for c in sel["comparisons"] if c.get("other") == base), {})
+        km = comp.get("kept_minus_other") or {}
+        bc = {"metric": sel["primary_metric"], "kept": kept, "baseline": base, "kept_test": sel["test"][kept],
+              "baseline_test": sel["test"][base], "difference": sel["test"][kept] - sel["test"][base],
+              "ci95": km.get("ci95"), "bootstrap": {"resamples": km.get("n_boot"), "paired": True}}
+    lim = raw.get("extrapolation_limits") or card.get("extrapolation_limits") or ""
+    return {"schema": raw.get("schema"), "model": raw.get("model"),
+            "heldout_splits": [s for s in held if s != "validation"], "splits": splits, "baseline_comparison": bc,
+            "calibration": dict((((raw.get("calibration_metrics") or {}).get(kept) or {}).get("test")) or {}),
+            "extrapolation_limits": " ".join(lim) if isinstance(lim, list) else str(lim)}
+
+
+def _is_calibration_key(k: str) -> bool:
+    return k in CALIBRATION_KEYS or any(k.endswith("_" + c) for c in CALIBRATION_KEYS)
+
+
+def _is_calibration_table(v) -> bool:
+    return isinstance(v, list) and len(v) >= 2 and all(
+        isinstance(b, dict) and ("mean_pred" in b or "mean_predicted" in b) and ("mean_obs" in b or "mean_observed" in b)
+        for b in v)
+
+
+def calibration_values(rep: dict | None) -> dict[str, float]:
+    """Scalar held-out calibration measures of a report view (ECE, Brier, PIT KS, coverage, ... per outcome)."""
+    cal = (rep or {}).get("calibration") or {}
+    return {k: float(v) for k, v in cal.items()
+            if _is_calibration_key(k) and isinstance(v, (int, float)) and not isinstance(v, bool)}
+
+
+def calibration_tables(rep: dict | None) -> dict[str, int]:
+    """Reliability tables (bins of mean predicted vs mean observed) of a report view: {key: number of bins}."""
+    cal = (rep or {}).get("calibration") or {}
+    return {k: len(v) for k, v in cal.items() if _is_calibration_table(v)}
 
 
 def dataset_ok(name: str, ds: dict) -> bool:
@@ -68,21 +134,23 @@ def heldout_splits(rep: dict) -> list[str]:
     return out
 
 
-def examine(name: str, ds: dict | None = None) -> dict:
+def examine(name: str, ds: dict | None = None, models_dir: str | None = None) -> dict:
     """Everything the gates need to know about one registered model."""
     ds = datasets() if ds is None else ds
-    d = R.model_dir(name)
-    rec = {"name": name, "problems": []}
+    d = R.model_dir(name, models_dir)
+    rec = {"name": name, "problems": [], "models_dir": models_dir}
     try:
-        card = R.read_card(name)
-    except Exception as e:                       # unreadable card
+        card = R.read_card(name, models_dir)
+        view = R.card_view(card)
+    except Exception as e:                       # unreadable card or unknown schema
         rec["problems"].append(f"card unreadable: {e}")
-        rec.update(card=None, qualifies=False, hash_mismatches=1, checkpoint=False)
+        rec.update(card=None, view=None, qualifies=False, hash_mismatches=1, checkpoint=False)
         return rec
     rec["card"] = card
+    rec["view"] = view
     bad = R.verify_files(card, d)
     rec["hash_mismatches"] = len(bad)
-    files = card.get("files", {})
+    files = view["files"]
     rec["checkpoint"] = bool(files) and all(os.path.isfile(os.path.join(d, f)) and
                                             os.path.getsize(os.path.join(d, f)) <= R.MAX_CHECKPOINT_BYTES
                                             for f in files)
@@ -90,38 +158,38 @@ def examine(name: str, ds: dict | None = None) -> dict:
         rec["problems"].append(f"checkpoint hash mismatch: {bad}")
     loaded = False
     try:
-        R.load(f"{name}@{card['version']}")
+        R.load(f"{name}@{card['version']}", models_dir)
         loaded = True
     except Exception as e:
         rec["problems"].append(f"load failed: {e}")
-    names = card.get("provenance", {}).get("datasets", [])
+    names = view["datasets"]
     real = [n for n in names if dataset_ok(n, ds)]
     if not real:
         rec["problems"].append(f"no checksummed, non-synthetic dataset among {names}")
-    rep = _report(card)
+    raw = _report(card)
+    rep = report_view(card, raw)
     ho = heldout_splits(rep) if rep else []
     if not ho:
         rec["problems"].append("no held-out report with data")
-    rec.update(domain=_domain(card), identification=_identification(card), datasets=names, real_datasets=real,
-               report=rep, heldout=ho, loaded=loaded)
+    sel = view["selection"]
+    rec.update(schema=view["schema"], domain=view["domain"], domain_label=view["domain_label"],
+               identification=view["identification"], datasets=names, real_datasets=real, report=rep,
+               report_raw=raw, heldout=ho, loaded=loaded, kept_is_baseline=sel["kept_is_baseline"])
     rec["qualifies"] = loaded and not bad and bool(real) and bool(ho) and rec["domain"] in R.DOMAINS
     if rec["domain"] not in R.DOMAINS:
         rec["problems"].append(f"domain {rec['domain']!r} is not one of registry.DOMAINS")
     bc = (rep or {}).get("baseline_comparison") or {}
-    sel = card.get("selection") or (rep or {}).get("selection") or {}
     rec["baseline_compared"] = bool(rep) and all(k in bc for k in ("kept_test", "baseline_test", "baseline")) and \
-        bc.get("baseline") in (sel.get("baselines") or [bc.get("baseline")])
-    cal = (rep or {}).get("calibration") or {}
-    rec["calibration_reported"] = any(isinstance(cal.get(k), (int, float)) for k in CALIBRATION_KEYS)
-    limits_card = card.get("limits") or ""
+        bc.get("baseline") in (sel["baselines"] or [bc.get("baseline")])
+    rec["calibration_reported"] = bool(calibration_values(rep)) or bool(calibration_tables(rep))
     limits_rep = (rep or {}).get("extrapolation_limits") or ""
-    rec["limits_documented"] = len(limits_card) >= MIN_LIMITS_CHARS and len(limits_rep) >= MIN_LIMITS_CHARS
+    rec["limits_documented"] = len(view["limits"]) >= MIN_LIMITS_CHARS and len(limits_rep) >= MIN_LIMITS_CHARS
     return rec
 
 
-def all_records() -> list[dict]:
+def all_records(models_dir: str | None = None) -> list[dict]:
     ds = datasets()
-    return [examine(m.split("@")[0], ds) for m in R.list_models()]
+    return [examine(m.split("@")[0], ds, models_dir) for m in R.list_models(models_dir)]
 
 
 def provenance_complete(e: dict) -> bool:
@@ -131,9 +199,16 @@ def provenance_complete(e: dict) -> bool:
     return all(str(p.get(k) or "").strip() for k in need) and bool(lic.get("name")) and bool(lic.get("text_location"))
 
 
-def gate_f_metrics(records: list[dict] | None = None) -> dict:
+def gate_f_metrics(records: list[dict] | None = None, datasets_scope: str = "registered") -> dict:
+    """Gate F quantities. Datasets are counted over every registered dataset (``datasets_scope="registered"``) or
+    only over those the given records cite (``"cited"``)."""
     recs = all_records() if records is None else records
     ds = datasets()
+    if datasets_scope == "cited":
+        cited = {n for r in recs for n in r.get("datasets", [])}
+        ds = {n: e for n, e in ds.items() if n in cited}
+    elif datasets_scope != "registered":
+        raise ValueError("datasets_scope must be 'registered' or 'cited'")
     q = [r for r in recs if r.get("qualifies")]
     domains_all = {r.get("domain") for r in recs if r.get("card")}
     domains_q = {r["domain"] for r in q}
@@ -165,85 +240,182 @@ def _is_ancestor(a: str, b: str) -> bool:
     return _git("merge-base", "--is-ancestor", a, b).returncode == 0
 
 
-def plan_check(card: dict) -> dict:
-    """Is the card's evaluation plan committed, unchanged at the recorded hash, earlier than the checkpoint, and does
-    it prespecify the model's primary and secondary metrics?"""
-    import hashlib
-    plan = card.get("provenance", {}).get("evaluation_plan") or {}
-    out = {"plan": plan.get("path"), "ok": False, "problems": []}
-    if not plan.get("path") or not plan.get("commit") or not plan.get("sha256"):
-        out["problems"].append("card has no evaluation_plan {path, sha256, commit}")
-        return out
-    show = subprocess.run(["git", "show", f"{plan['commit']}:./{plan['path']}"], cwd=R.CRUCIBLE_ROOT,
-                          capture_output=True)
-    if show.returncode != 0:
-        out["problems"].append(f"plan {plan['path']} not found at commit {plan['commit'][:9]}")
-        return out
-    if hashlib.sha256(show.stdout).hexdigest() != plan["sha256"]:
-        out["problems"].append("plan content at the recorded commit does not match the recorded sha256")
-    if not _is_ancestor(plan["commit"], "HEAD"):
-        out["problems"].append("plan commit is not in HEAD's history")
-    card_rel = os.path.relpath(os.path.join(R.model_dir(card["name"]), "model_card.json"), R.CRUCIBLE_ROOT)
-    added = _git("log", "--diff-filter=A", "--format=%H", "--", card_rel).stdout.split()
-    first_add = added[-1] if added else None
-    out["card_first_commit"] = first_add
-    if first_add:
-        if first_add == plan["commit"] or not _is_ancestor(plan["commit"], first_add):
-            out["problems"].append("the checkpoint was committed in or before the plan's commit")
-    fit_commit = card.get("provenance", {}).get("fit", {}).get("commit")
-    if fit_commit and not (_is_ancestor(plan["commit"], fit_commit)):
-        out["problems"].append("the fit ran at a commit that does not contain the plan")
+def _commit_time(commit: str) -> _dt.datetime | None:
+    r = _git("show", "-s", "--format=%cI", commit)
     try:
-        spec = json.loads(show.stdout.decode("utf-8"))["models"][card["name"]]
-    except Exception:
-        out["problems"].append(f"plan does not specify model {card['name']}")
+        return _dt.datetime.fromisoformat(r.stdout.strip()) if r.returncode == 0 else None
+    except ValueError:
+        return None
+
+
+def _plan_file_check(p: dict, card_first: str | None, fit_commit: str | None, fit_started: str | None) -> dict:
+    """One plan or amendment recorded in a card: present at the recorded commit with the recorded SHA-256, unchanged
+    since, in HEAD's history, committed before the fit started (when the card records the start), contained in the
+    fit commit and committed before the card was first committed."""
+    out = {"path": p.get("path"), "role": p.get("role", "plan"), "commit": p.get("commit"),
+           "sha256_card": p.get("sha256"), "problems": [], "content": None}
+    if not p.get("path") or not p.get("commit") or not p.get("sha256"):
+        out["problems"].append("no {path, sha256, commit} recorded")
         return out
-    sel = card.get("selection", {})
-    if spec.get("primary_metric") != sel.get("primary_metric"):
-        out["problems"].append(f"primary metric {sel.get('primary_metric')} differs from the plan's "
-                               f"{spec.get('primary_metric')}")
+    show = subprocess.run(["git", "show", f"{p['commit']}:./{p['path']}"], cwd=R.CRUCIBLE_ROOT, capture_output=True)
+    if show.returncode != 0:
+        out["problems"].append(f"not found at commit {p['commit'][:9]}")
+        return out
+    out["sha256_at_commit"] = hashlib.sha256(show.stdout).hexdigest()
+    if out["sha256_at_commit"] != p["sha256"]:
+        out["problems"].append("content at the recorded commit does not match the recorded sha256")
+    now = os.path.join(R.CRUCIBLE_ROOT, p["path"])
+    out["sha256_now"] = R.sha256_file(now) if os.path.isfile(now) else None
+    if out["sha256_now"] != p["sha256"]:
+        out["problems"].append("the file changed after it was recorded (or is missing)")
+    if not _is_ancestor(p["commit"], "HEAD"):
+        out["problems"].append("its commit is not in HEAD's history")
+    committed = _commit_time(p["commit"])
+    out["committed_at"] = committed.isoformat() if committed else None
+    if fit_started:
+        started = _dt.datetime.fromisoformat(fit_started)
+        if committed is None or not committed < started:
+            out["problems"].append(f"committed at {out['committed_at']}, not before the fit started at {fit_started}")
+    if card_first and (card_first == p["commit"] or not _is_ancestor(p["commit"], card_first)):
+        out["problems"].append("the checkpoint was committed in or before its commit")
+    if fit_commit and not _is_ancestor(p["commit"], fit_commit):
+        out["problems"].append("the fit ran at a commit that does not contain it")
+    try:
+        out["content"] = json.loads(show.stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        out["problems"].append("not a JSON plan")
+    return out
+
+
+def _spec_problems_keyed(card: dict, sel: dict, spec: dict | None) -> list[str]:
+    """fitlib plans: ``models`` {name: {primary_metric, secondary_metrics, candidates {id: description}}}."""
+    if spec is None:
+        return [f"plan does not specify model {card['name']}"]
+    probs = []
+    if spec.get("primary_metric") != sel["primary_metric"]:
+        probs.append(f"primary metric {sel['primary_metric']} differs from the plan's {spec.get('primary_metric')}")
     reported = set(card.get("metrics", {}))
     missing = [m for m in [spec.get("primary_metric")] + list(spec.get("secondary_metrics", [])) if m not in reported]
     if missing:
-        out["problems"].append(f"prespecified metrics not reported: {missing}")
+        probs.append(f"prespecified metrics not reported: {missing}")
     planned = set(spec.get("candidates", {}))
-    if planned and set(sel.get("candidates", [])) != planned:
-        out["problems"].append(f"candidates {sorted(sel.get('candidates', []))} differ from the plan's {sorted(planned)}")
+    if planned and set(sel["candidates"]) != planned:
+        probs.append(f"candidates {sorted(sel['candidates'])} differ from the plan's {sorted(planned)}")
+    return probs
+
+
+def _spec_problems_listed(view: dict, plan: dict, plan_path: str, amendments: list[dict]) -> list[str]:
+    """fitmeta_e2 plans: ``models`` [id, ...]; per-model sections {id, candidates [{id, role}], metrics [...,
+    "<key> (primary)"]}, or, for a one-model plan, top-level ``candidates`` and a ``primary_metric`` defined in words
+    (stored by the fitting script under a key starting with ``primary``). Candidates absent from the plan must be
+    introduced by an amendment of this plan (an amendment that names them and lists the plan in ``amends``)."""
+    mid, sel = view["id"], view["selection"]
+    if mid not in plan["models"]:
+        return [f"plan does not name {mid}"]
+    section = next((v for v in plan.values() if isinstance(v, dict) and v.get("id") == mid), None)
+    spec = section or plan
+    cands = spec.get("candidates") or []
+    planned = [c["id"] for c in cands]
+    planned_baselines = [c["id"] for c in cands if c.get("role") == "baseline"]
+    probs = []
+    primary = sel["primary_metric"]
+    metrics = spec.get("metrics") if isinstance(spec.get("metrics"), list) else []
+    tagged = [str(m)[:-len("(primary)")].strip() for m in metrics if str(m).endswith("(primary)")]
+    if tagged:
+        if primary not in tagged:
+            probs.append(f"primary metric {primary} differs from the plan's {tagged}")
+    elif spec.get("primary_metric"):
+        if not str(primary or "").startswith("primary"):
+            probs.append(f"primary metric {primary} is not the plan's composite primary metric")
+    else:
+        probs.append("plan names no primary metric")
+    not_run = [c for c in planned if c not in sel["candidates"]]
+    if not_run:
+        probs.append(f"planned candidates not evaluated: {not_run}")
+    amending = [json.dumps(a) for a in amendments if plan_path in (a.get("amends") or [])]
+    for c in sel["candidates"]:
+        if c not in planned and not any(re.search(rf"\b{re.escape(c)}\b", t) for t in amending):
+            probs.append(f"candidate {c} is in neither the plan nor an amendment of it")
+    if planned_baselines and not set(sel["baselines"]) <= set(planned_baselines):
+        probs.append(f"baselines {sel['baselines']} are not the plan's {planned_baselines}")
+    return probs
+
+
+def plan_check(card: dict, models_dir: str | None = None) -> dict:
+    """Is the card's evaluation plan (and every amendment) committed, unchanged at the recorded hash, earlier than
+    the checkpoint and the fit, and does it prespecify the model's primary metric and candidate set?"""
+    view = R.card_view(card)
+    plans = view["plans"]
+    out = {"model": view["id"], "plan": plans[0]["path"] if plans else None, "plans": [], "source": "git",
+           "ok": False, "problems": []}
+    if not plans:
+        out["problems"].append("card has no evaluation plan {path, sha256, commit}")
+        return out
+    card_rel = os.path.relpath(os.path.join(R.model_dir(view["name"], models_dir), "model_card.json"),
+                               R.CRUCIBLE_ROOT)
+    added = _git("log", "--diff-filter=A", "--format=%H", "--", card_rel).stdout.split()
+    out["card_first_commit"] = added[-1] if added else None
+    fit = view["fit"]
+    checks = [_plan_file_check(p, out["card_first_commit"], fit.get("commit"), fit.get("started_at")) for p in plans]
+    for c in checks:
+        out["problems"] += [f"{c['role']} {c['path']}: {x}" for x in c["problems"]]
+        out["plans"].append({k: v for k, v in c.items() if k != "content"})
+    plan = checks[0]["content"]
+    if plan is not None:
+        sel = view["selection"]
+        models = plan.get("models")
+        if isinstance(models, dict):
+            out["problems"] += _spec_problems_keyed(card, sel, models.get(view["name"]))
+        elif isinstance(models, list):
+            out["problems"] += _spec_problems_listed(view, plan, plans[0]["path"],
+                                                     [c["content"] for c in checks[1:] if c["content"] is not None])
+        else:
+            out["problems"].append(f"plan does not specify model {view['name']}")
     out["ok"] = not out["problems"]
     return out
 
 
 def selection_check(card: dict) -> dict:
-    """Was a worse model kept? The kept model must follow the rule (validation argmin unless a baseline beat it on
-    test) and must be no worse than any simple baseline on the primary test metric."""
-    sel = card.get("selection") or {}
+    """Was a worse model kept? The kept model must follow the rule (validation argmin, ties to the simpler, unless a
+    baseline beat it on test) and must be no worse than any simple baseline on the primary test metric; when the card
+    records paired-bootstrap comparisons, every other candidate is compared and none is significantly better."""
+    sel = R.card_view(card)["selection"]
     out = {"ok": False, "problems": []}
-    val, test, bases = sel.get("validation") or {}, sel.get("test") or {}, sel.get("baselines") or []
-    kept = sel.get("kept")
-    if not (val and test and bases and kept in test):
+    val, test, bases = sel["validation"], sel["test"], sel["baselines"]
+    kept = sel["kept"]
+    if not (val and test and bases and kept in test and kept in val):
         out["problems"].append("selection record incomplete (validation, test, baselines, kept)")
         return out
-    sign = 1 if sel.get("lower_is_better", True) else -1
+    sign = 1 if sel["lower_is_better"] else -1
     if any(sign * test[b] < sign * test[kept] - 1e-12 for b in bases if b in test):
         out["problems"].append(f"kept {kept} is worse on test than a simple baseline")
-    best_val = min(val, key=lambda k: sign * val[k])
+    cx = sel["complexity"]
+    best_val = min(val, key=lambda k: (sign * val[k], cx.get(k) if isinstance(cx.get(k), (int, float)) else 0))
     if kept != best_val and sign * val[kept] > sign * val[best_val] + 1e-4 and kept not in bases:
         out["problems"].append(f"kept {kept} is not the validation-best candidate {best_val}")
-    if card.get("metrics", {}).get(sel.get("primary_metric")) is not None and \
-            abs(card["metrics"][sel["primary_metric"]] - test[kept]) > 1e-9:
+    reported = card.get("metrics", {}).get(sel["primary_metric"])
+    if reported is not None and abs(reported - test[kept]) > 1e-9:
         out["problems"].append("card metrics are not the kept candidate's test metrics")
+    if sel["worse_model_kept"] is not None:
+        comps = sel["comparisons"]
+        worse = sum(1 for c in comps if ((c.get("kept_minus_other") or {}).get("ci95") or [0])[0] > 0)
+        if int(sel["worse_model_kept"]) != 0 or worse:
+            out["problems"].append(f"a significantly better candidate was not kept (worse_model_kept = "
+                                   f"{sel['worse_model_kept']}, comparisons with the interval above 0: {worse})")
+        if {c.get("other") for c in comps} != set(val) - {kept}:
+            out["problems"].append("not every other candidate is compared with the kept model on test")
     out["ok"] = not out["problems"]
     return out
 
 
 def sp55_metrics(records: list[dict] | None = None) -> dict:
     recs = all_records() if records is None else records
-    cards = [r["card"] for r in recs if r.get("card")]
-    plans = {c["name"]: plan_check(c) for c in cards}
-    sels = {c["name"]: selection_check(c) for c in cards}
+    cards = [(r["card"], r.get("models_dir")) for r in recs if r.get("card")]
+    plans = {c["name"]: plan_check(c, md) for c, md in cards}
+    sels = {c["name"]: selection_check(c) for c, _ in cards}
     return {"models_checked": len(cards),
             "metrics_prespecified_before_fit": bool(cards) and all(p["ok"] for p in plans.values()),
             "models_without_prespecified_plan": sum(1 for p in plans.values() if not p["ok"]),
             "worse_model_kept": sum(1 for s in sels.values() if not s["ok"]),
-            "learned_model_kept": sum(1 for c in cards if not c.get("selection", {}).get("kept_is_baseline", True)),
+            "learned_model_kept": sum(1 for c, _ in cards if not R.card_view(c)["selection"]["kept_is_baseline"]),
             "_plans": plans, "_selection": sels}

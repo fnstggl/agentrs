@@ -15,7 +15,7 @@ from __future__ import annotations
 import numpy as np
 
 from . import portable
-from .registry_e2 import FittedModel
+from .registry import FittedModel, x_and_rng
 
 # Feature definitions shared by the fitting script and the simulator mapping (name -> transform, meaning).
 DEEP_FEATURES = [
@@ -89,8 +89,11 @@ class RepoGrowthModel(_Counts):
     def dispersion(self) -> float:
         return float(self.arrays["nb_alpha"][0])
 
-    def sample(self, rng: np.random.Generator, X: np.ndarray) -> np.ndarray:
-        """Draw next-day star counts: Poisson-gamma (negative binomial, variance mu + alpha mu^2)."""
+    def sample(self, X: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+        """Draw next-day star counts: Poisson-gamma (negative binomial, variance mu + alpha mu^2).
+
+        Same argument order as every registry model, `sample(X, rng)`; the original `sample(rng, X)` also works."""
+        X, rng = x_and_rng(X, rng)
         mu = np.maximum(self.predict(X), 1e-12)
         r = 1.0 / self.dispersion
         return rng.poisson(rng.gamma(shape=r, scale=mu / r))

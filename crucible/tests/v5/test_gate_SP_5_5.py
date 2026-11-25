@@ -1,13 +1,17 @@
 """SP-5.5: prespecified held-out metrics; learned models compared with simple baselines and the better one kept
 (owner workstream E).
 
-For every registered model (any workstream) the test checks, from git history and the model card:
+For every registered model (any workstream, either card schema; `audit.plan_check`, `audit.selection_check`) the
+test checks, from git history and the model card:
 
-* the evaluation plan recorded in the card exists at the recorded commit with the recorded SHA-256, that commit is
-  in HEAD's history, it precedes the commit that first added the model card and is contained in the fit commit, and
-  the plan names the model's primary metric, secondary metrics and candidate set;
+* the evaluation plan and every amendment recorded in the card exist at the recorded commit with the recorded
+  SHA-256 and are unchanged since, that commit is in HEAD's history, precedes the commit that first added the model
+  card, is contained in the fit commit and (when the card records the fit's start) was committed before the fit
+  started, and the plan names the model's primary metric, its secondary metrics (fitlib plans) and its candidate set
+  (a candidate absent from the plan must be introduced by an amendment of it);
 * the kept model follows the prespecified rule (validation argmin, replaced by a simple baseline only when that
-  baseline is better on test) and is no worse than any simple baseline on the primary test metric.
+  baseline is better on test), is no worse than any simple baseline on the primary test metric, and, where the card
+  records paired-bootstrap comparisons, no other candidate is significantly better on test.
 """
 import copy
 
@@ -48,3 +52,29 @@ def test_SP_5_5_checks_catch_violations():
     bad["selection"]["primary_metric"] = "auc"
     assert not audit.plan_check(bad)["ok"]
     assert audit.selection_check(card)["ok"] and audit.plan_check(card)["ok"], audit.plan_check(card)
+
+
+def test_SP_5_5_checks_catch_violations_in_loader_schema_cards():
+    """The same checks on a card of the other schema (plan + amendment, paired-bootstrap selection record)."""
+    card = R.read_card("commercial_response")
+    assert audit.selection_check(card)["ok"] and audit.plan_check(card)["ok"], audit.plan_check(card)
+    assert [p["role"] for p in audit.plan_check(card)["plans"]] == ["plan", "amendment"]
+    # the added candidate is prespecified only by the amendment
+    bad = copy.deepcopy(card)
+    bad["plan_amendments"] = []
+    assert any("t_gbdt_reg" in p for p in audit.plan_check(bad)["problems"])
+    # a fit that started before the amendment was committed
+    bad = copy.deepcopy(card)
+    bad["fit"]["started_at"] = "2026-11-25T07:00:00+00:00"
+    assert not audit.plan_check(bad)["ok"]
+    # an amendment whose recorded hash is not the committed file
+    bad = copy.deepcopy(card)
+    bad["plan_amendments"][0]["sha256"] = "0" * 64
+    assert not audit.plan_check(bad)["ok"]
+    # a kept model other than the validation-best candidate, and a recorded significantly better candidate
+    bad = copy.deepcopy(card)
+    bad["selection"]["kept"] = "t_logistic"
+    assert not audit.selection_check(bad)["ok"]
+    bad = copy.deepcopy(card)
+    bad["selection"]["worse_model_kept"] = 1
+    assert not audit.selection_check(bad)["ok"]

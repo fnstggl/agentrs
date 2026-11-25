@@ -1,14 +1,19 @@
 """Workstream E2: the randomized commercial-response model (Criteo Uplift v2.1), loaded through the registry.
 
 These tests use the committed checkpoint, card and report, and (where stated) the dataset under $CRUCIBLE_DATA. A
-missing dataset is a failure, not a skip: run `crucible.calibration.registry_e2.acquire("criteo_uplift_v2.1")`.
+missing dataset is a failure, not a skip: run `crucible.calibration.acquire("criteo_uplift_v2.1")`. Models load
+through the unified registry (`crucible.calibration.registry`, the module behind `crucible.calibration.load`);
+`registry_e2` is only the compatibility layer whose E2-restricted gate metrics are checked at the end.
 """
+import importlib
 import os
 
 import numpy as np
 import pytest
 
-from crucible.calibration import registry_e2 as R
+from crucible.calibration import audit, registry_e2
+from crucible.calibration import datasets as all_datasets
+from crucible.calibration import registry as R
 from crucible.calibration import scoring_e2 as S
 from crucible.calibration.commercial import ARMS, OUTCOMES, CommercialResponseModel
 
@@ -29,7 +34,7 @@ def _criteo():
     from crucible.calibration import criteo
     d = criteo.dataset_dir()
     if not os.path.exists(os.path.join(d, "features.npy")):
-        pytest.fail(f"Criteo dataset not acquired at {d}: run registry_e2.acquire('criteo_uplift_v2.1')")
+        pytest.fail(f"Criteo dataset not acquired at {d}: run crucible.calibration.acquire('criteo_uplift_v2.1')")
     return criteo
 
 
@@ -37,7 +42,10 @@ def test_registry_loads_checkpoint_with_verified_hash(model):
     assert isinstance(model, CommercialResponseModel)
     v = R.verify_checkpoint(MID)
     assert v["ok"] and v["bytes"] < 5_000_000
-    assert model.identification == "randomized_experiment"
+    # canonical identification vocabulary; the card's own term is kept in the view
+    assert model.identification == "randomized_controlled_trial"
+    assert model.view["identification_label"] == "randomized_experiment"
+    assert model.domain == "advertising_response"
     assert model.features == [f"f{i}" for i in range(12)]
     assert model.outputs == ["p_visit_control", "p_visit_treated", "p_conversion_control", "p_conversion_treated"]
     assert R.card_problems(model.card) == []
@@ -83,9 +91,10 @@ def test_selection_follows_the_prespecified_rule(model, report):
 
 
 def test_plan_was_committed_before_the_fit():
-    pre = R.prespecified_before_fit(MID)
+    pre = audit.plan_check(R.read_card(MID))
     assert pre["ok"], pre
     assert pre["source"] == "git"
+    assert registry_e2.prespecified_before_fit(MID)["ok"]
 
 
 def test_heldout_audit_metrics_reproduce_from_the_data(model, report):
@@ -208,23 +217,30 @@ def test_scoring_matches_reference_implementations():
 
 def test_dataset_manifest_and_local_checksums():
     criteo = _criteo()
-    man = R.datasets()["criteo_uplift_v2.1"]
+    man = all_datasets()["criteo_uplift_v2.1"]
     assert man["synthetic"] is False and man["license"]["spdx"] == "CC-BY-NC-SA-4.0"
     assert man["license"]["text_locations"] and man["provenance"]["design"]
+    assert audit.provenance_complete(man)
     f = man["files"][0]
     assert f["sha256"] == criteo.SHA256 and f["bytes"] == criteo.BYTES
     path = os.path.join(criteo.dataset_dir(), f["file"])
     assert R.sha256_file(path) == f["sha256"]
     for d in man["derived_files"]:
         assert R.sha256_file(os.path.join(criteo.dataset_dir(), d["file"])) == d["sha256"]
+    # the one dataset registry verifies and validates it through the acquirer module's hooks
+    DS = importlib.import_module("crucible.calibration.datasets")     # the module (the package exports the function)
+    res = DS.verify("criteo_uplift_v2.1")
+    assert set(res) == {f["file"]} | {d["file"] for d in man["derived_files"]} and set(res.values()) == {"ok"}
+    assert DS.validate_schema("criteo_uplift_v2.1") == []
 
 
 def test_registry_gate_metrics_for_e2_models():
-    g = R.gate_metrics()
+    g = registry_e2.gate_metrics()
     assert g["checkpoint_hash_mismatches"] == 0 and g["checkpoints_saved"] == 3
     assert g["heldout_reports"] == 3 and g["baseline_comparisons"] == 3 and g["calibration_metric_reports"] == 3
     assert g["datasets_with_checksums"] == 2 and g["provenance_records"] == 2
     assert g["extrapolation_limit_sections"] == 3 and g["synthetic_only_domains"] == 0
     assert g["metrics_prespecified_before_fit"] is True and g["worse_model_kept"] == 0
-    assert set(g["empirical_domains"]) == {"commercial_intervention_response", "software_collaboration_and_adoption"}
+    # canonical registry.DOMAINS (the cards say commercial_intervention_response, software_collaboration_and_adoption)
+    assert set(g["empirical_domains"]) == {"advertising_response", "software_adoption"}
     assert g["card_problems"] == {}
