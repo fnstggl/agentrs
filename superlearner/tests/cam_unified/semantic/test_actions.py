@@ -247,6 +247,8 @@ def test_behaviour_cloning_raises_demo_logprob(gen, tok, enc, cfg):
         gen.load_state_dict(gen_state)
         tok.load_state_dict(tok_state)
         enc.load_trainable_state_dict(lora_state)
+        gen.zero_grad(set_to_none=True)
+        tok.zero_grad(set_to_none=True)
 
 
 def test_candidates_and_selection_provenance(gen, tok, cfg):

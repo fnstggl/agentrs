@@ -122,14 +122,19 @@ class ObservationTokenizer(nn.Module):
         self.max_obs_chars = max_obs_chars
         self.autocast = autocast
         self.pool = SegmentAttentionPool(H, D, cfg.n_heads)
-        self.q_obs = nn.Parameter(torch.randn(Q, D) * 0.02)
-        self.q_tool = nn.Parameter(torch.randn(1, D) * 0.02)
-        self.q_goal = nn.Parameter(torch.randn(Q, D) * 0.02)
-        self.q_act = nn.Parameter(torch.randn(self.n_action_arg_tokens, D) * 0.02)
+        # pooling queries start diverse (std 1) so the Q tokens of one observation attend differently from step 0
+        self.q_obs = nn.Parameter(torch.randn(Q, D))
+        self.q_tool = nn.Parameter(torch.randn(1, D))
+        self.q_goal = nn.Parameter(torch.randn(Q, D))
+        self.q_act = nn.Parameter(torch.randn(self.n_action_arg_tokens, D))
+        # additive type embeddings start small: the (RMS-normalised) content must dominate the initial tokens
         self.obs_kind = nn.Embedding(len(OBS_KINDS), D)
         self.ev_kind = nn.Embedding(len(EV_KINDS), D)
         self.pos = nn.Embedding(max(Q, self.n_action_arg_tokens) + 1, D)
         self.role_emb = nn.Embedding(4, D)               # 0 obs, 1 tool, 2 goal, 3 action
+        for e in (self.obs_kind, self.ev_kind, self.pos, self.role_emb):
+            nn.init.normal_(e.weight, std=0.02)
+        self.content_norm = RMSNorm(D)
         self.numf = NumericFeatures(cfg.n_fourier)
         self.num_mlp = nn.Sequential(nn.Linear(self.numf.dim, D), nn.SiLU(), nn.Linear(D, D))
         self.unit_proj = nn.Sequential(RMSNorm(H), nn.Linear(H, D))
@@ -175,14 +180,14 @@ class ObservationTokenizer(nn.Module):
         seg = torch.cat([torch.full((s.shape[0],), i, dtype=torch.long, device=s.device) for i, s in enumerate(states)])
         flat = self.enc.standardize_states(torch.cat(states, 0))      # fixed per-dimension standardisation
         q = queries.unsqueeze(0).expand(len(texts), -1, -1)
-        return self.pool(flat, seg, q)
+        return self.content_norm(self.pool(flat, seg, q))
 
     def _numeric(self, values: list, units: list, descs: list) -> torch.Tensor:
         v = torch.tensor(values, dtype=torch.float64, device=self.device)
         x = self.num_mlp(self.numf(v))
         x = x + self.unit_proj(self.enc.embed([u or "unitless" for u in units]).to(self.device))
         x = x + self.desc_proj(self.enc.embed(descs).to(self.device))
-        return x
+        return self.content_norm(x)
 
     @staticmethod
     def _semantic(o: Observation) -> bool:

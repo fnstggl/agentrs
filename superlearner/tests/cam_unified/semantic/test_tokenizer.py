@@ -164,11 +164,13 @@ def test_goal_and_action_tokens(tok, cfg):
     assert (a.kind[a.mask] == TokenKind.ACTION).all()
     a2 = tok.action([Action("set_price", {"product": "prod_1", "price": 99.0})])
     assert (a.x[0, 1:] - a2.x[0, 1:]).norm() > 1e-3            # arguments matter
-    assert torch.allclose(a.x[0, 0], a2.x[0, 0], atol=5e-3)      # same tool token (bf16 batch noise only)
+    assert torch.nn.functional.cosine_similarity(a.x[0, 0], a2.x[0, 0], dim=0) > 0.999   # same tool token
 
 
 def test_gradients_reach_pooling_and_projections_not_qwen(tok, enc, cfg):
     tok.zero_grad(set_to_none=True)
+    for p in enc.peft.parameters():
+        p.grad = None
     obs = one_of_every_kind()
     ts = tok.observations([obs], [EntityRegistry(cfg.max_entities, seed=0)], [0.0])
     loss = ts.x.pow(2).mean() + tok.tools([sample_tools(2)]).x.pow(2).mean()
@@ -177,5 +179,5 @@ def test_gradients_reach_pooling_and_projections_not_qwen(tok, enc, cfg):
         assert getattr(tok, name).grad is not None and getattr(tok, name).grad.abs().sum() > 0, name
     assert tok.pool.kv.weight.grad.abs().sum() > 0 and tok.num_mlp[0].weight.grad.abs().sum() > 0
     assert tok.unit_proj[1].weight.grad.abs().sum() > 0
-    assert all(p.grad is None for p in enc.peft.parameters())
+    assert all(p.grad is None for p in enc.peft.parameters())    # cached states are constants for the tokenizer
     assert not any(k.startswith("enc") for k in tok.state_dict())

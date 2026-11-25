@@ -1,11 +1,11 @@
 """Semantic learning objectives (spec 2.3) as real losses over the workstream-A components.
 
 * MaskedSemanticObjective  - masked semantic-token prediction: observation tokens are replaced by a learned mask
-  vector, the core (any UnifiedCoreP: forward(Z, ctx) -> (Z, ctx_out)) contextualises the set, a predictor maps the
+  vector (+ the index of the token inside its observation; time/entity/kind stay in the TokenSet fields), the core (any UnifiedCoreP: forward(Z, ctx) -> (Z, ctx_out)) contextualises the set, a predictor maps the
   outputs at the masked positions to the (stop-gradient) original tokens; InfoNCE against all masked targets of the
   batch (no collapse to a constant prediction).
 * ToolConsequenceObjective - tool-call consequence prediction: from state features and the ACTION tokens predict the
-  embedding of the observed result tokens (TOOL_RESULT / EXEC_RESULT / ERROR); InfoNCE over the batch.
+  (projected) embedding of the observed result tokens (TOOL_RESULT / EXEC_RESULT / ERROR); InfoNCE over the batch.
 * EntityGroundingObjective - contrastive mention <-> entity matching with multiple positives: an observation token
   whose content mentions an entity's persistent id (or is about it) must score that entity's token above the other
   entities of the same episode. `mention_labels` extracts the supervision from the records (string match of ids).
@@ -43,19 +43,35 @@ def info_nce(pred: torch.Tensor, target: torch.Tensor, temperature: float = 0.1,
 
 
 class MaskedSemanticObjective(nn.Module):
-    def __init__(self, d: int, mask_frac: float = 0.15, temperature: float = 0.1):
+    def __init__(self, d: int, mask_frac: float = 0.15, temperature: float = 0.1, max_group: int = 16):
         super().__init__()
         self.mask_emb = nn.Parameter(torch.randn(d) * 0.02)
+        self.group_pos = nn.Embedding(max_group, d)      # which token of its observation a masked token was
+        nn.init.normal_(self.group_pos.weight, std=0.02)
+        self.max_group = max_group
         self.pred = nn.Sequential(RMSNorm(d), SwiGLU(d), nn.Linear(d, d))
         self.mask_frac = mask_frac
         self.temperature = temperature
+
+    @staticmethod
+    def group_index(tokens: TokenSet) -> torch.Tensor:
+        """[B, N] index of each token inside its run of tokens with the same ref (its observation)."""
+        out = torch.zeros(tokens.mask.shape, dtype=torch.long)
+        if tokens.refs is not None:
+            for b, row in enumerate(tokens.refs):
+                prev, k = object(), 0
+                for j, r in enumerate(row):
+                    k = k + 1 if (r is not None and r == prev) else 0
+                    out[b, j] = k
+                    prev = r
+        return out.to(tokens.x.device)
 
     def forward(self, core_fn: Callable[[TokenSet], torch.Tensor], tokens: TokenSet,
                 generator: Optional[torch.Generator] = None) -> tuple:
         """core_fn(ctx TokenSet) -> ctx_out [B, N, D]. Returns (loss, {"acc", "n_masked"})."""
         eligible = tokens.mask & ((tokens.kind == TokenKind.OBS_SEM) | (tokens.kind == TokenKind.OBS_NUM))
-        r = torch.rand(tokens.mask.shape, generator=generator, device=tokens.x.device if generator is None else
-                       generator.device).to(tokens.x.device)
+        rdev = generator.device if generator is not None else tokens.x.device
+        r = torch.rand(tokens.mask.shape, generator=generator, device=rdev).to(tokens.x.device)
         sel = eligible & (r < self.mask_frac)
         for b in range(tokens.B):                       # at least one masked token per row that has any
             if bool(eligible[b].any()) and not bool(sel[b].any()):
@@ -64,7 +80,9 @@ class MaskedSemanticObjective(nn.Module):
         if not bool(sel.any()):
             z = tokens.x.sum() * 0.0
             return z, {"acc": 0.0, "n_masked": 0}
-        x = torch.where(sel.unsqueeze(-1), self.mask_emb.to(tokens.x.dtype).expand_as(tokens.x), tokens.x)
+        gpos = self.group_pos(self.group_index(tokens).clamp(max=self.max_group - 1))
+        masked_in = (self.mask_emb + gpos).to(tokens.x.dtype)
+        x = torch.where(sel.unsqueeze(-1), masked_in, tokens.x)
         out = core_fn(TokenSet(x, tokens.mask, tokens.kind, tokens.time, tokens.entity, tokens.refs, tokens.entity2))
         pred = self.pred(out[sel])
         target = tokens.x[sel].detach()
@@ -84,6 +102,7 @@ class ToolConsequenceObjective(nn.Module):
         self.q = nn.Parameter(torch.randn(1, d) * 0.02)
         self.att = nn.MultiheadAttention(d, n_heads, batch_first=True)
         self.mlp = nn.Sequential(RMSNorm(2 * d), nn.Linear(2 * d, d), nn.SiLU(), nn.Linear(d, d))
+        self.tgt = nn.Sequential(RMSNorm(d), nn.Linear(d, d))   # target projection (CPC-style W_k), trained jointly
         self.temperature = temperature
 
     def predict(self, state: torch.Tensor, action: TokenSet) -> torch.Tensor:
@@ -95,8 +114,10 @@ class ToolConsequenceObjective(nn.Module):
         return self.mlp(torch.cat([state, a.squeeze(1)], -1))
 
     def forward(self, state: torch.Tensor, action: TokenSet, result: TokenSet) -> tuple:
+        """InfoNCE between the prediction and the projected result tokens; the negatives (other rows' results) prevent
+        collapse, so gradients may also flow into the result tokens' encoder."""
         pred = self.predict(state, action)
-        target = pool_rows(result).detach()
+        target = self.tgt(pool_rows(result))
         loss, acc = info_nce(pred, target, self.temperature)
         cos = F.cosine_similarity(pred.float(), target.float(), dim=-1).mean()
         return loss, {"acc": float(acc), "cos": float(cos)}

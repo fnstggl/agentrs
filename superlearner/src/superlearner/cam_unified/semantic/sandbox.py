@@ -164,18 +164,20 @@ class CodeSandbox:
     def run(self, code: Optional[str] = None, files: Optional[dict] = None, entry: Optional[str] = None,
             args: Any = None, t: float = 0.0, source: str = "sandbox", caused_by: Optional[str] = None,
             entity: Optional[str] = None) -> ExecutionResult:
-        files = dict(files or {})
+        files = {str(k): v for k, v in (files or {}).items() if v is not None}
         if code is not None:
             files["main.py"] = code
-        if not files:
-            raise ValueError("nothing to run")
-        if not entry and "main.py" not in files:
-            raise ValueError("a script run needs main.py (or pass entry='file.py:function')")
         self.runs += 1
         try:
+            if not files:
+                raise ValueError("nothing to run: no files")
+            if not entry and "main.py" not in files:
+                raise ValueError("a script run needs main.py (or an entry 'file.py:function')")
+            if entry and entry.partition(":")[0] not in files and entry.partition(":")[0] + ".py" not in files:
+                raise ValueError(f"entry {entry!r} names a file that was not written")
             res = self._crucible(files, entry, args) if self.backend == "crucible" else \
                 self._subprocess(files, entry, args)
-        except ValueError as e:                    # unsafe path, file too large, too many files: a real outcome
+        except ValueError as e:     # nothing to run, unsafe path, file too large, too many files: a real outcome
             res = {"ok": False, "error": {"type": "InvalidProgram", "message": str(e)}, "result": None, "stdout": ""}
         stdout = res.get("stdout") or ""
         meta = {"backend": self.backend, "wall_ms": res.get("wall_ms"), "cpu_ms": res.get("cpu_ms"),
