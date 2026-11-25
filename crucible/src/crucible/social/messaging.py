@@ -236,6 +236,26 @@ class Messaging(Module):
         out.sort(key=lambda r: (-r["last_t"], r["conversation"]))
         return out[:limit]
 
+    def history(self, ctx: Ctx, conversation: str, limit: int) -> dict:
+        c = self._conv(ctx, conversation)
+        st = ctx.state
+        rows = sorted((st.tables["msg_messages"][k] | {"message": k}
+                       for k in st.find_ids("msg_messages", "conversation", conversation)),
+                      key=lambda r: (r["k"], r["message"]))
+        mine = st.tables["msg_members"][f"{conversation}|{ctx.actor}"]
+        rows = [r for r in rows if r["k"] > mine["since"]]
+        return {"conversation": conversation, "kind": c["kind"], "title": c["title"], "n": c["n"],
+                "unread": c["n"] - mine["read"], "members": self._members(st, conversation),
+                "messages": [{"message": r["message"], "sender": r["sender"], "text": r["text"], "item": r["item"],
+                              "ref": r["ref"], "reply_to": r["reply_to"], "t": r["t"]} for r in rows[-limit:]]}
+
+    @endpoint("history", S.obj({"conversation": S.s_str(maxLength=20),
+                                "limit": S.s_int(minimum=1, maximum=200, default=50)}, ["conversation"]),
+              read_only=True, cost_s=2)
+    def ep_history(self, ctx, conversation, limit=50):
+        """The latest messages of a conversation, without marking them read."""
+        return self.history(ctx, conversation, limit)
+
     @endpoint("read", S.obj({"conversation": S.s_str(maxLength=20),
                              "limit": S.s_int(minimum=1, maximum=200, default=50)}, ["conversation"]), cost_s=5)
     def ep_read(self, ctx, conversation, limit=50):

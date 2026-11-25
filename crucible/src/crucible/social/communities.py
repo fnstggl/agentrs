@@ -742,6 +742,17 @@ class Communities(Module):
                         community=community, access=access)
         return {"id": cid, "community": community}
 
+    @endpoint("comment", S.obj({"id": S.s_str("a post of a community", pattern=C.CID_RE.pattern, maxLength=14),
+                                "text": S.s_str(minLength=1, maxLength=C.MAX_COMMENT),
+                                "parent": S.s_str("comment id to reply to", maxLength=20)}, ["id", "text"]), cost_s=20)
+    def ep_comment(self, ctx, id, text, parent=None):
+        """Reply to a community post (or to a comment on it) - the community's posting rules apply."""
+        rec = C.module(ctx.world)._rec(ctx, id)
+        if not rec["community"]:
+            raise InvalidAction(f"{id} is not a community post")
+        return {"comment": C.module(ctx.world).add_comment(ctx, ctx.actor, id, text, parent),
+                "community": rec["community"]}
+
     @endpoint("feed", S.obj({"community": _COMM, "limit": S.s_int(minimum=1, maximum=50, default=20),
                              "offset": S.s_int(minimum=0, maximum=10_000, default=0)}, ["community"]),
               read_only=True, cost_s=5)
