@@ -100,6 +100,84 @@ OVERLAPS: dict[str, list[dict]] = {
 #: tables kernel structures own; modules never declare them
 _KERNEL_TABLES = ("principals", "sched", "idem", "knowledge")
 
+# ---------------------------------------------------------------------------------------------------- typed events
+# The events that create or move the shared facts of the 4.0 owners, registered with their payload schemas (the
+# shapes the 4.0 modules emit; extra keys are tolerated so that 4.0 logs keep validating). The 5.0 owners register
+# their own (artifact.*, asset.*, cols.*).
+_S, _I, _O = {"type": "string"}, {"type": "integer"}, {"type": "object", "additionalProperties": True}
+_SN, _IN, _ON = {"type": ["string", "null"]}, {"type": ["integer", "null"]}, \
+    {"type": ["object", "null"], "additionalProperties": True}
+
+
+def _ev(props: dict, required: list[str]) -> dict:
+    return {"type": "object", "properties": props, "required": required, "additionalProperties": True}
+
+
+PRIMITIVE_EVENTS: dict[str, tuple[str, str, dict]] = {
+    # type: (kind, owner module, schema)
+    "principal.add": ("identity", KERNEL, _ev({"id": _S, "kind": {"type": "string",
+                                                                   "enum": ["person", "org", "service", "system"]},
+                                                "info": _O, "status": _S}, ["id", "kind", "info"])),
+    "id.person": ("identity", "identity", _ev({"id": _S, "handle": _S, "name": _S, "kind": _S, "info": _O},
+                                               ["id", "handle", "name", "kind", "info"])),
+    "id.org": ("organization", "identity", _ev({"id": _S, "handle": _S, "name": _S, "kind": _S, "founder": _SN,
+                                                "info": _O}, ["id", "handle", "name", "kind", "founder", "info"])),
+    "id.member": ("organization", "identity", _ev({"org": _S, "person": _S, "role": {"type": "string", "enum": [
+        "owner", "admin", "member"]}, "title": _S}, ["org", "person", "role"])),
+    "id.grant": ("permission", "identity", _ev({"id": _S, "grantee": _S, "owner": _S, "cap": _S, "scope": _SN,
+                                                "limit": _IN, "expires": _IN, "by": _S},
+                                               ["id", "grantee", "owner", "cap", "scope", "limit", "expires", "by"])),
+    "bank.account": ("account", "bank", _ev({"id": _S, "owner": _S, "kind": _S, "name": _S, "overdraft": _I},
+                                            ["id", "owner", "kind", "name", "overdraft"])),
+    "bank.txn": ("money", "bank", _ev({"id": _S, "postings": {"type": "array", "minItems": 1, "items": {
+        "type": "array", "minItems": 2, "maxItems": 2}}, "kind": _S, "memo": _S, "ref": _SN, "by": _S},
+        ["id", "postings", "kind", "memo", "ref", "by"])),
+    "code.repo": ("software_repository", "code", _ev({"id": _S, "owner": _S, "visibility": _S, "description": _S,
+                                                      "license": _S}, ["id", "owner", "visibility"])),
+    "cloud.deployment": ("service", "cloud", _ev({"id": _S, "host": _S, "owner": _S, "repo": _S, "commit": _S,
+                                                  "instance": _S, "manifest": _O, "svc": _S},
+                                                 ["id", "host", "owner", "repo", "commit"])),
+    "forum.board": ("community", "forum", _ev({"id": _S, "title": _S, "description": _S}, ["id", "title"])),
+    "forum.follow": ("relationship", "forum", _ev({"id": _S, "follower": _S, "target": _S},
+                                                  ["id", "follower", "target"])),
+    "docs.create": ("knowledge_artifact", "docs", _ev({"id": _S, "owner": _S, "title": _S, "body": _S,
+                                                       "visibility": _S, "by": _S}, ["id", "owner", "title"])),
+    "gov.constitution": ("institution", "gov", _ev({"org": _S, "rules": {"type": "array"}, "distribution": _ON},
+                                                   ["org", "rules"])),
+    "market.listing": ("product", "market", _ev({"id": _S, "seller": _S, "kind": _S, "title": _S, "description": _S,
+                                                 "price": {"type": "integer", "minimum": 0}, "host": _SN,
+                                                 "endpoint": _SN, "need": _SN, "repo": _SN, "sku": _SN},
+                                                ["id", "seller", "kind", "title", "price"])),
+    "contracts.proposed": ("contract", "contracts", _ev({"id": _S, "proposer": _S, "parties": {
+        "type": "array", "items": _S, "minItems": 1}, "clauses": {"type": "array"}, "title": _S, "text": _S,
+        "expires": _I, "employee": _SN, "employer": _SN}, ["id", "proposer", "parties", "clauses"])),
+    "contracts.signed": ("contract", "contracts", _ev({"id": _S, "party": _S, "accounts": _O}, ["id", "party"])),
+    "contracts.status": ("contract", "contracts", _ev({"id": _S, "status": _S, "reason": _SN}, ["id", "status"])),
+    "caps.published": ("tool_definition", "caps", _ev({"id": _S, "provider": _S, "host": _S, "title": _S,
+                                                       "params": _O, "requires": {"type": "array"},
+                                                       "endpoints": _O, "commit": _S},
+                                                      ["id", "provider", "host", "endpoints"])),
+    "sched.add": ("time", KERNEL, _ev({"id": _S, "at": {"type": "integer", "minimum": 0}, "prio": _I, "n": _I,
+                                       "proc": _S, "args": _O, "period": _IN},
+                                      ["id", "at", "prio", "n", "proc", "args", "period"])),
+    "make.stock_add": ("resource_inventory", "industry", _ev({"fac": _S, "sku": _S, "qty": {"type": "integer",
+                                                                                            "minimum": 0}},
+                                                             ["fac", "sku", "qty"])),
+    "make.stock_take": ("resource_inventory", "industry", _ev({"fac": _S, "sku": _S, "qty": {"type": "integer",
+                                                                                             "minimum": 0}},
+                                                              ["fac", "sku", "qty"])),
+}
+
+
+def _register_primitive_events() -> None:
+    from . import bus
+    for name, (kind, mod, schema) in PRIMITIVE_EVENTS.items():
+        bus.event_type(name, schema, owner=mod, doc=f"4.0 {kind} fact ({OWNERS[kind]['module']}."
+                                                     f"{OWNERS[kind]['table']})")
+
+
+_register_primitive_events()
+
 
 def kinds() -> list[str]:
     return list(OWNERS)

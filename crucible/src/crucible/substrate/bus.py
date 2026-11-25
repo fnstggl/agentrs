@@ -104,6 +104,8 @@ def enforce(world, owner: str | None = None) -> int:
     for name, t in sorted(_TYPES.items()):
         if owner is not None and t["owner"] != owner:
             continue
+        if name in FORBIDDEN:      # kernel commit/failure-path types cannot be subscribed to (validated by tests)
+            continue
         subscribe(world, name, _validator(name), owner="kernel")
         n += 1
     return n
