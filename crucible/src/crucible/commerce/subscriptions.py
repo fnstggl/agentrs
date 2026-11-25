@@ -294,6 +294,7 @@ class Subscriptions(Module):
                                  "txn": txn, "reverses": inv["txn"], "reason": reason[:300]},
                  vis=tuple(sorted({inv["customer"], inv["merchant"]})))
         s = st.tables["sub_subs"][inv["subscription"]]
+        inv = st.tables["sub_invoices"][invoice]
         if s["last_invoice"] == invoice and int(inv["refunded"]) >= int(inv["amount"]):
             ctx.emit("subs.status", {"id": inv["subscription"], "changes": {"period_paid": False}}, vis=self._vis(s))
         return txn
@@ -551,7 +552,8 @@ class Subscriptions(Module):
                             "price_cents": s["price"], "current_amount_cents": s["current_amount"],
                             "trial_end": s["trial_end"], "period_end": s["period_end"],
                             "cancel_at_period_end": s["cancel_at_period_end"], "credit_cents": s["credit"],
-                            "cancel_reason": s["cancel_reason"], "periods_paid": s["periods_paid"]})
+                            "cancel_reason": s["cancel_reason"], "periods_paid": s["periods_paid"],
+                            "mandate": s["mandate"], "account": s["account"]})
         return out[-limit:]
 
     @endpoint("invoices", S.obj({"subscription": S.s_str(maxLength=40)}, ["subscription"]), read_only=True)
