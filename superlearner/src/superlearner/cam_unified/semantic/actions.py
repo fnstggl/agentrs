@@ -62,13 +62,13 @@ from ..config import CamConfig
 from ..interfaces import Action, ActionSource, TokenSet, ToolSchema
 from .bridge import LatentBridge, decision_context
 from .constraints import tables_for
-from .grammar import (ArgHeads, GrammarError, GrammarOptions, HoleFiller, ToolGrammar, drive_walks, encode_value,
-                      holes_of, materialize, number_candidates)
+from .grammar import (ArgHeads, GrammarError, GrammarOptions, HoleFiller, LengthHead, ToolGrammar, drive_walks,
+                      encode_value, holes_of, materialize, number_candidates)
 from .layers import ContextReader, RMSNorm, masked_entropy, masked_log_softmax
 from .tokenizer import numeric_descriptor, obs_ref, parse_obs_ref, render_observation
 
 BUILTIN_NAMES = ("wait", "noop")
-DECODE_VERSION = 2
+DECODE_VERSION = 3          # 3: free strings carry the LengthHead stop-hazard mixture (grammar.LengthHead)
 PART_KEYS = ("tool", "evidence", "heads", "tokens")
 
 
@@ -149,6 +149,9 @@ class ActionGenerator(nn.Module):
         self.lora = nn.ParameterList(encoder.lora_parameters())
         self.tables = tables_for(encoder.tok, encoder.vocab_size, encoder.device, encoder.model_name)
         self.filler = HoleFiller(encoder, self.tables, self.opts, max_prompt_tokens)
+        # learned stop hazard of free strings (length prior of the untrained decoder; grammar.LengthHead)
+        self.length_head = LengthHead(D, H) if self.opts.length_prior else None
+        self.filler.length_head = self.length_head
         self._grammars: dict = {}
         self.ungenerable: dict = {}
         self.reduced: dict = {}                      # tool name -> [{"path", "kind", "detail"}]
@@ -425,6 +428,23 @@ class ActionGenerator(nn.Module):
                 if teacher is not None and teacher[b].get("prompt") and teacher[b]["prompt"] != prompt_sha[b]:
                     raise GrammarError(f"row {b}: decoder prompt differs from the recorded one (different tool "
                                        f"schema or evidence content)")
+                if teacher is not None and "len_prior" in teacher[b] and \
+                        bool(teacher[b]["len_prior"]) != (self.length_head is not None):
+                    raise GrammarError(f"row {b}: the action was sampled with{'' if teacher[b]['len_prior'] else 'out'}"
+                                       f" the string length prior; this generator has{'' if self.length_head else ' no'}"
+                                       f" length head")
+            if hole_rows and self.length_head is not None:
+                # per-hole learned stop-logit offsets from the slot's schema embedding, the tool token and the
+                # decision summary qt (a function of R, G, B): CAM's state conditions how long strings get
+                items = [(b, k) for b in hole_rows for k in range(len(programs[b].holes))]
+                emb = self.enc.embed([programs[b].holes[k].node.slot_text[: self.opts.slot_chars] for b, k in items])
+                ri = torch.tensor([b for b, _ in items], device=dev)
+                off = self.length_head.offsets(emb.to(dev), tool_tok[ri], qt[ri])
+                i0 = 0
+                for b in hole_rows:
+                    n_h = len(programs[b].holes)
+                    programs[b].hz_off = off[i0: i0 + n_h]
+                    i0 += n_h
             qwen_steps = 0
             if hole_rows:
                 rt = torch.tensor(hole_rows, device=dev)
@@ -603,7 +623,7 @@ class ActionGenerator(nn.Module):
                    "prompt": out["prompt_sha"].get(b), "prompt_truncated": int(out["prompt_trunc"].get(b, 0)),
                    "temperature": float(temperature), "greedy": bool(greedy),
                    "allowed": None if out["allowed"] is None else out["allowed"][b],
-                   "reduced": len(g.reductions)}
+                   "reduced": len(g.reductions), "len_prior": self.length_head is not None}
             ev_entities = sorted({obs_lists[b][i].entity for i in out["evidence"][b] if obs_lists[b][i].entity})
             code = args.get("code") if isinstance(args.get("code"), str) else None
             dur = tool.duration_hint
