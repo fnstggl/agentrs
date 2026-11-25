@@ -1,6 +1,9 @@
 """ObservationTokenizer: every ObsKind, numeric sensitivity, entity binding, budget trimming, tool/goal/action tokens."""
 from __future__ import annotations
 
+import json
+
+import pytest
 import torch
 
 from superlearner.cam_unified.interfaces import (Action, EntityRegistry, EvidenceKind, GoalSpec, Observation, ObsKind,
@@ -75,6 +78,11 @@ def test_every_obskind_tokens_kinds_refs_time_and_entities(enc, cfg):
     assert "#seq:1042" in ts.refs[0][per_obs[14][0]] and "@sha256:" in ts.refs[0][per_obs[6][0]]
     # semantic observations retain their original content in the rendered text (exactness lives in the record)
     assert "2000 ms" in render_observation(obs[8])
+    # versioned schema: records round-trip through JSON, a newer schema version is refused explicitly
+    assert all(Observation.from_dict(json.loads(o.to_json())) == o for o in obs)
+    future = Observation(ObsKind.TEXT, "from the future", schema_version=99)
+    with pytest.raises(ValueError):
+        tok.observations([[future]], None, [0.0])
 
 
 def test_numeric_tokens_are_sensitive_to_value_and_unit(tok, cfg):

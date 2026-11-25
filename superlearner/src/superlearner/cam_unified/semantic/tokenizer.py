@@ -39,7 +39,8 @@ import torch
 import torch.nn as nn
 
 from ..config import CamConfig
-from ..interfaces import Action, EvidenceKind, GoalSpec, Observation, ObsKind, TokenKind, TokenSet, ToolSchema
+from ..interfaces import (OBS_SCHEMA_VERSION, Action, EvidenceKind, GoalSpec, Observation, ObsKind, TokenKind, TokenSet,
+                          ToolSchema)
 from .layers import NumericFeatures, RMSNorm, SegmentAttentionPool
 
 OBS_KINDS = list(ObsKind)
@@ -227,6 +228,11 @@ class ObservationTokenizer(nn.Module):
     def observations_with_stats(self, obs: list, registries: Optional[list], now: Sequence[float]):
         """[B] list[Observation] -> (TokenSet [B, N, D], stats {kept_obs, dropped_obs, dropped_tokens, n_tokens})."""
         B = len(obs)
+        for lst in obs:
+            for o in lst or []:
+                if o.schema_version > OBS_SCHEMA_VERSION:
+                    raise ValueError(f"observation schema version {o.schema_version} is newer than the tokenizer's "
+                                     f"{OBS_SCHEMA_VERSION}")
         kept: list = []
         stats = {"kept_obs": [], "dropped_obs": [], "dropped_tokens": [], "n_tokens": []}
         for b in range(B):

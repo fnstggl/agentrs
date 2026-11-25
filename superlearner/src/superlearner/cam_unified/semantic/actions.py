@@ -218,10 +218,8 @@ class ActionGenerator(nn.Module):
             tools2, lists2 = self._augment_tools(tools, tool_lists)
             T = tools2.N
             grams = [[self.grammar(t) for t in lists2[b]] for b in range(B)]
-            gen_mask = torch.zeros(B, T, dtype=torch.bool, device=dev)
-            for b in range(B):
-                for j, g in enumerate(grams[b]):
-                    gen_mask[b, j] = g.generable
+            gm = [[g.generable for g in grams[b]] + [False] * (T - len(grams[b])) for b in range(B)]
+            gen_mask = torch.tensor(gm, dtype=torch.bool, device=dev).reshape(B, T)
             allowed = tools2.mask & gen_mask
             if tool_mask is not None:
                 allowed = allowed & tool_mask.to(dev)[:, :T]
@@ -387,12 +385,20 @@ class ActionGenerator(nn.Module):
         dev, D = self.device, self.D
         n = len(rows)
         M = max(len(groups[b][0]) for b in rows)
-        keys = torch.zeros(n, M, D, device=dev)
-        kmask = torch.zeros(n, M, dtype=torch.bool, device=dev)
+        src_b, src_t, dst, cnt_dst = [], [], [], []
+        km = [[False] * M for _ in range(n)]
         for j, b in enumerate(rows):
             for m, toks in enumerate(groups[b][1]):
-                keys[j, m] = obs.x[b, torch.tensor(toks, device=dev)].float().mean(0)
-                kmask[j, m] = True
+                src_b += [b] * len(toks)
+                src_t += toks
+                dst += [j * M + m] * len(toks)
+                km[j][m] = True
+        vals = obs.x[torch.tensor(src_b, device=dev), torch.tensor(src_t, device=dev)].float()
+        di = torch.tensor(dst, device=dev)
+        keys = torch.zeros(n * M, D, device=dev).index_add(0, di, vals)
+        cnt = torch.zeros(n * M, device=dev).index_add(0, di, torch.ones(len(dst), device=dev))
+        keys = (keys / cnt.clamp_min(1.0).unsqueeze(1)).view(n, M, D)       # mean of each observation's tokens
+        kmask = torch.tensor(km, dtype=torch.bool, device=dev)
         rt = torch.tensor(rows, device=dev)
         q = self.ev_reader((self.ev_query + self.ev_tool(tool_tok[rt])).unsqueeze(1), ctx_x[rt], ctx_m[rt]).squeeze(1)
         K = self.ev_k(keys)
