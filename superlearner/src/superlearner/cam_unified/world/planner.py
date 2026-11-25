@@ -29,6 +29,7 @@ log-probabilities are kept for diagnostics under ``logp_parts["decoder"]`` / ``l
 """
 from __future__ import annotations
 
+import abc
 import copy
 import math
 from dataclasses import dataclass, field
@@ -70,7 +71,8 @@ def _set_actions(st: ImagState, cand: Candidates, which: torch.Tensor) -> None:
     st.actions = [cand.actions[int(b)][int(i)] for b, i in zip(st.branch_of.tolist(), which.tolist())]
 
 
-class _Planner:
+class _Planner(abc.ABC):
+    """Shared budget accounting and result packaging; subclasses implement ``min_budget`` and ``plan``."""
     method = "base"
 
     def __init__(self, imagination: Imagination, budget: int, horizon: Optional[int] = None,
@@ -85,9 +87,9 @@ class _Planner:
         v = st.value if st.value is not None else torch.zeros_like(st.ret)
         return st.ret + st.disc * v - self.im.uncertainty_coef * st.penalty
 
+    @abc.abstractmethod
     def min_budget(self, n: int, horizon: Optional[int] = None) -> int:
         """Smallest per-environment transition budget this planner can run within for n candidates."""
-        raise NotImplementedError
 
     def _check_budget(self, n: int) -> None:
         need = self.min_budget(n, self.horizon)

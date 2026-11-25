@@ -132,7 +132,9 @@ class StateNorm(nn.Module):
 
     Latent states of a residual backbone are dominated by a component shared by all samples; prediction heads
     read (Z - mean) / std with running statistics so sample-specific content is visible at unit scale. Inputs whose
-    trailing shape is not (S, D) pass through unchanged. ``update`` is called by the owner with detached states."""
+    trailing shape is not (S, D) pass through unchanged. ``update`` is called by the owner with detached states
+    after every head has read the statistics (``WorldModel.loss`` updates at its end), so a batch is never
+    normalised with its own statistics; before the first update the normalisation is the identity."""
 
     def __init__(self, n_state: int, d_model: int, momentum: float = 0.02):
         super().__init__()
