@@ -1165,6 +1165,7 @@ class HoleFiller:
         tok = enc.tok
         self.stub_ids = tok("<think>\n\n</think>\n\n", add_special_tokens=False)["input_ids"]
         self.length_head: Optional[LengthHead] = None       # set by the action generator (opts.length_prior)
+        self.merged_acting = True                           # sample() decodes with merged LoRA weights (enc.acting)
 
     # ---------------------------------------------------------------- prompts and programs
     def _clip_ids(self, ids: list, keep: int) -> tuple:
@@ -1363,7 +1364,13 @@ class HoleFiller:
     def sample(self, programs: list, prefix: torch.Tensor, ctx: list, temperature: float, greedy: bool,
                generator: Optional[torch.Generator] = None):
         """Fill the holes of every program in place. prefix [R, P, H]. Returns (logp [R], entropy [R], n_sampled [R],
-        n_steps)."""
+        n_steps). Decodes on the acting path (`enc.acting`: merged LoRA weights when `merged_acting`); the returned
+        logp is the incremental diagnostic value - the behaviour log-probability is the learner-path `score`. One
+        device->host transfer per step (the sampled tokens and the empty-mask flag together)."""
+        with self.enc.acting(self.merged_acting):
+            return self._sample(programs, prefix, ctx, temperature, greedy, generator)
+
+    def _sample(self, programs, prefix, ctx, temperature, greedy, generator):
         enc = self.enc
         R = len(programs)
         dev = enc.device
@@ -1395,10 +1402,9 @@ class HoleFiller:
             live = [0] * R
             if rows:
                 m, mc = self.masks(specs)
-                if not bool(m.any(1).all()):
-                    raise GrammarError("empty token mask during hole sampling")
+                empty = ~m.any(1)
                 hz = self.hazard(programs, [(r, st[r]["hi"], st[r]["used"]) for r in rows])
-                lp = stop_mixture_log_softmax(logits[rows], m, mc, temperature, hz)
+                lp = stop_mixture_log_softmax(logits[rows], m | empty.unsqueeze(1), mc, temperature, hz)
                 if greedy:
                     tok = lp.argmax(-1)
                 else:
@@ -1408,7 +1414,10 @@ class HoleFiller:
                 rr = torch.tensor(rows, device=dev)
                 logp.index_add_(0, rr, chosen)
                 ent.index_add_(0, rr, e)
-                tok_l = tok.tolist()
+                host = torch.cat([tok, empty.any().long().view(1)]).tolist()      # the step's only sync
+                if host[-1]:
+                    raise GrammarError("empty token mask during hole sampling")
+                tok_l = host[:-1]
                 for j, r in enumerate(rows):
                     t = tok_l[j]
                     feed[r] = t

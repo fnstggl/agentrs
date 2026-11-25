@@ -158,6 +158,7 @@ class QwenSemantic:
     def mark_updated(self) -> None:
         """Call after every optimiser step that changed the LoRA weights."""
         self._updates += 1
+        self._merged = None                                          # merged acting weights are rebuilt on demand
         if self.encoder_lora:                                        # old entries can never be served again
             self._cache.clear()
             self._cache_bytes = 0
@@ -421,3 +422,63 @@ class QwenSemantic:
     def new_cache(self):
         from transformers import DynamicCache
         return DynamicCache()
+
+    # ------------------------------------------------------------------ acting with merged LoRA (contract v3 #12)
+    def _lora_layers(self) -> list:
+        """(module, A, B, scale) of every LoRA-wrapped linear layer of the decoder (default adapter)."""
+        out = []
+        if self.peft is None:
+            return out
+        for m in self.peft.modules():
+            la, lb = getattr(m, "lora_A", None), getattr(m, "lora_B", None)
+            if isinstance(la, nn.ModuleDict) and "default" in la and isinstance(lb, nn.ModuleDict):
+                out.append((m, la["default"].weight, lb["default"].weight, float(m.scaling["default"])))
+        return out
+
+    def _lora_fingerprint(self) -> tuple:
+        """Changes whenever any LoRA tensor is modified (in-place optimiser steps bump the tensor version counter;
+        loads replace storage), without a device synchronisation."""
+        return tuple((p.data_ptr(), p._version) for _, a, b, _ in self._lora_layers() for p in (a, b))
+
+    def merged_weights(self) -> list:
+        """[(base linear layer, merged weight W + scale * B @ A in the model dtype)] for the layers whose LoRA delta is
+        non-zero (cached until a LoRA tensor changes; float32 product, one rounding to the model dtype)."""
+        fp = self._lora_fingerprint()
+        cache = getattr(self, "_merged", None)
+        if cache is not None and cache[0] == fp:
+            return cache[1]
+        out = []
+        with torch.no_grad():
+            for m, A, Bw, scale in self._lora_layers():
+                if not bool(Bw.any()):
+                    continue                       # zero delta (e.g. at init): the base weight is the merged weight
+                base = m.get_base_layer()
+                W = base.weight
+                out.append((base, (W.float() + scale * (Bw.float() @ A.float())).to(W.dtype)))
+        self._merged = (fp, out)
+        self.stats["merged_builds"] = self.stats.get("merged_builds", 0) + 1
+        return out
+
+    @contextlib.contextmanager
+    def acting(self, merged: bool = True):
+        """Acting-path decoder: the LoRA adapter disabled and each adapted linear layer's weight replaced by its merged
+        weight W + scale * B A for the duration (fewer kernels per decode step). The logits equal the LoRA path's up to
+        the rounding of the merged weight (bit-identical while every LoRA delta is zero); callers that report a
+        behaviour log-probability recompute it on the learner path (ActionGenerator.sample rescoring). The frozen base
+        weights are restored on exit, so the encoder path and its hidden-state cache are unaffected."""
+        if not merged or self.peft is None:
+            yield
+            return
+        swaps = self.merged_weights()
+        saved = []
+        try:
+            with torch.no_grad():
+                for base, Wm in swaps:
+                    saved.append((base.weight, base.weight.data))
+                    base.weight.data = Wm
+            with self.peft.disable_adapter():
+                yield
+        finally:
+            with torch.no_grad():
+                for p, data in saved:
+                    p.data = data
