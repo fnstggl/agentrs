@@ -1,0 +1,170 @@
+crucible openworld benchmark (quick); load [3.42, 4.13, 3.6], 48 cpus, cgroup quota 11.52 cores; 74 families, running 16
+[kernel] ...
+[kernel] ok in 3.2s
+[families] ...
+  mech_abm_commons idle: 0.01s wall, 0.10s cpu
+  mech_abm_commons idle: 0.01s wall, 0.03s cpu
+  mech_abm_commons agents: 0.06s wall, 0.08s cpu
+  mech_abm_commons_tools idle: 0.03s wall, 0.05s cpu
+  mech_abm_commons_tools idle: 0.03s wall, 0.05s cpu
+  mech_abm_commons_tools agents: 0.08s wall, 0.11s cpu
+  mech_scm_additive idle: 0.01s wall, 0.06s cpu
+  mech_scm_additive idle: 0.01s wall, 0.05s cpu
+  bazaar idle: 0.90s wall, 1.00s cpu
+  bazaar idle: 0.92s wall, 1.01s cpu
+  mech_scm_additive_tools idle: 0.02s wall, 0.07s cpu
+  mech_scm_additive agents: 0.04s wall, 0.10s cpu
+  mech_scm_additive_tools idle: 0.02s wall, 0.09s cpu
+  mech_tech_cascade idle: 0.01s wall, 0.04s cpu
+  mech_tech_cascade idle: 0.01s wall, 0.03s cpu
+  mech_tech_cascade_tools idle: 0.02s wall, 0.05s cpu
+  mech_scm_additive_tools agents: 0.06s wall, 0.12s cpu
+  mech_tech_cascade agents: 0.04s wall, 0.07s cpu
+  mech_tech_cascade_tools idle: 0.02s wall, 0.05s cpu
+  mech_tech_cascade_tools agents: 0.06s wall, 0.10s cpu
+  open_digital idle: 0.34s wall, 0.40s cpu
+  open_digital idle: 0.37s wall, 0.42s cpu
+  open_industry idle: 0.03s wall, 0.12s cpu
+  open_industry idle: 0.03s wall, 0.12s cpu
+  open_industry agents: 0.11s wall, 0.19s cpu
+  ow_composite idle: 0.67s wall, 0.77s cpu
+  ow_composite idle: 0.67s wall, 0.78s cpu
+  open_digital agents: 1.32s wall, 1.06s cpu
+  bazaar agents: 2.93s wall, 2.14s cpu
+  ow_frontier idle: 0.37s wall, 0.45s cpu
+  ow_heldout idle: 0.29s wall, 0.39s cpu
+  ow_frontier idle: 0.42s wall, 0.55s cpu
+  ow_heldout idle: 0.25s wall, 0.30s cpu
+  ow_market idle: 0.44s wall, 0.52s cpu
+  ow_frontier agents: 1.28s wall, 1.17s cpu
+  ow_composite agents: 2.07s wall, 1.85s cpu
+  ow_heldout agents: 1.03s wall, 0.91s cpu
+  ow_market idle: 0.44s wall, 0.50s cpu
+  ow_tiny idle: 0.13s wall, 0.18s cpu
+  ow_tiny idle: 0.13s wall, 0.16s cpu
+  ow_works idle: 0.15s wall, 0.20s cpu
+  ow_works idle: 0.15s wall, 0.24s cpu
+  ow_tiny agents: 0.71s wall, 0.55s cpu
+  tiny idle: 0.35s wall, 0.38s cpu
+  ow_market agents: 1.29s wall, 1.19s cpu
+  ow_works agents: 0.72s wall, 0.60s cpu
+  tiny idle: 0.36s wall, 0.39s cpu
+  tiny agents: 1.14s wall, 0.92s cpu
+[families] ok in 7.9s
+[storage] ...
+[storage] ok in 6.5s
+[memory] ...
+[memory] ok in 4.6s
+[scaling] ...
+[scaling] ok in 6.2s
+[rollout] ...
+[rollout] ok in 1.9s
+[browser] ...
+[browser] ok in 4.9s
+[episode_cost] ...
+[episode_cost] ok in 0.0s (episodes of [2] simulated days were measured in this run; the standard 30-day figure is produced by the full run and is not extrapolated here)
+[llm] ...
+[llm] not_measured in 0.0s (not measured in this run)
+wrote /workspace/agentrs/.worktrees/crucible-5/crucible/docs/benchmarks/openworld.json
+
+Crucible OpenWorld benchmark - quick - 2026-11-25T05:53:34+0000
+machine: 48 cpus, cgroup CPU quota 11.52 cores, 188.5 GB RAM, python 3.12.15
+load average: [3.42, 4.13, 3.6] at the start, [4.85, 4.48, 3.74] at the end; all tenants together used 2.62 cores; share of scheduler periods in which the container was throttled: 0.0
+this run: 35.92 s wall, 87.14 CPU-s (2.426 cores used on average by the benchmark processes), 4 worlds at a time
+NOTE: Measured on a shared machine. Wall-clock rates are pessimistic whenever other tenants use the container's CPU quota (see machine.cgroup_cpu_quota_cores and each section's conditions.cgroup_throttled_fraction and loadavg). Rates per CPU-second remove the time spent waiting for a core, but not the slowdown from sharing caches and hyper-threads with other tenants, so they are pessimistic too, only less. Nothing in this file is extrapolated.
+
+== kernel transactions per second (1 process): ok [load [3.42, 4.13, 3.6] -> [5.15, 4.48, 3.71], throttled 0.0, 3.236 s]
+  measure                                            per wall-second              per CPU-second      ok     n
+  bank.transfer (journaled transaction)         7978 (7682.9-8273.1)        7978 (7682.9-8273.2)     1.0     2
+  mixed tool calls (9 tools)                    8902.9 (8683-9122.7)        8903 (8683.2-9122.9)     1.0     2
+  bank.accounts (recorded read)                  25920 (25404-26437)         25926 (25403-26448)     1.0     2
+  replay from genesis (digest checked)           47931 (47615-48248)         47932 (47615-48248)     1.0     2
+  recorded for 3.0 (2026-11-20 22:14:42, other load): 7731.8 transfers, 19709.2 reads, 41814.0 replayed events per wall-s
+
+== simulated days per second, per world family: ok [load [5.15, 4.48, 3.71] -> [5.36, 4.54, 3.74], throttled 0.0, 7.873 s]
+  idle: 1 simulated day(s) x 2 repetitions; agents: one run of 2 day(s), every agent acting each 3600 simulated s; 4 worlds at a time
+  family                                     idle d/wall-s          idle d/cpu-s     agents     agents    events/d   peak MB      cost
+                                                                                   d/wall-s    d/cpu-s      (idle)    (idle)     model
+  bazaar                                   1.1 (1.09-1.11)       1.1 (1.09-1.11)      0.681      0.945        2504        60  measured
+  mech_abm_commons                        69.5 (68.5-70.4)      69.5 (68.5-70.4)       36.3       36.3         154        57  measured
+  mech_abm_commons_tools                              36.8                  36.8         24         24         866        57  determin
+  mech_scm_additive                          174 (172-175)         174 (172-175)       57.1       57.1         154        57  measured
+  mech_scm_additive_tools                 53.5 (53.2-53.8)      53.5 (53.2-53.8)       33.2       33.3         866        56  determin
+  mech_tech_cascade                                    123                   123         51         51         154        57  measured
+  mech_tech_cascade_tools                 48.5 (48.3-48.8)      48.5 (48.3-48.8)       31.4       31.4         866        54  determin
+  open_digital                            2.85 (2.73-2.97)      2.85 (2.73-2.97)       1.52        1.8        2231        60  determin
+  open_industry                           29.4 (29.2-29.6)      29.4 (29.2-29.6)       17.7       17.7        1533        64  determin
+  ow_composite                            1.49 (1.49-1.49)      1.49 (1.49-1.49)      0.965       1.08        3429        65  determin
+  ow_frontier                             2.55 (2.37-2.73)      2.55 (2.37-2.73)       1.56       1.68        2796        65  determin
+  ow_heldout                               3.7 (3.42-3.99)       3.7 (3.42-3.99)       1.94       2.17        2449        60  determin
+  ow_market                               2.27 (2.27-2.27)      2.27 (2.27-2.27)       1.55       1.66        2772        62  determin
+  ow_tiny                                 7.69 (7.43-7.95)      7.69 (7.43-7.95)       2.82       3.22        1057        64  determin
+  ow_works                                6.76 (6.64-6.87)      6.76 (6.64-6.87)       2.77       3.17        1215        59  determin
+  tiny                                    2.82 (2.78-2.86)      2.82 (2.78-2.86)       1.76       2.01        1032        63  measured
+  not run in this mode (58): cheap_compute_closed_markets, engineering_lab, engineering_lab_heldout, entrenched_incumbents, expensive_compute_open_distribution, fragmented_networks, ... (+52 more, listed in the JSON)
+
+== events and storage per simulated day (SQLite), snapshot, fork, replay: ok [load [5.36, 4.54, 3.74] -> [5.17, 4.52, 3.74], throttled 0.0, 6.537 s]
+  family                           events/d       kB/d   B/event   snap kB         snapshot ms             fork ms  replay ev/s  digests
+  mech_abm_commons                      144         28     357.4        67    2.33 (2.33-2.35)     5.85 (5.49-6.4)        10838    equal
+  mech_abm_commons_tools                844        164     215.6        49     1.7 (1.69-1.71)    5.44 (5.35-5.44)        34194    equal
+  mech_scm_additive                     144         32     398.6         5     0.37 (0.37-0.4)     3.03 (2.9-3.17)        35042    equal
+  mech_scm_additive_tools               844        156     220.4         7    0.43 (0.43-0.45)    2.98 (2.91-3.13)        58287    equal
+  mech_tech_cascade                     144        132    1072.1         5    0.37 (0.37-0.39)     1.47 (1.46-1.5)        32104    equal
+  mech_tech_cascade_tools               844        172     234.7         6      0.5 (0.5-0.51)     1.94 (1.8-2.52)        59316    equal
+  open_digital                         2008        556     291.8       182    8.83 (8.78-8.85)    15.5 (15.5-16.4)        21256    equal
+  ow_composite                         3030        900     324.7       243    12.4 (12.3-12.4)    24.8 (23.6-25.4)        19371    equal
+  ow_frontier                          2432        736     325.9       221    10.9 (10.8-11.2)        20.2 (19-21)        19672    equal
+  ow_heldout                           2130        652     330.1       219    10.3 (10.3-10.4)    18.4 (17.9-19.1)        18787    equal
+  ow_market                            2467        776     329.1       215    11.5 (11.4-11.6)      20.5 (20-22.3)        19106    equal
+  ow_tiny                               918        212     271.7        45    2.19 (2.17-2.19)    5.46 (5.42-6.19)        22280    equal
+  ow_works                             1050        244     267.6        57    3.53 (3.53-3.59)    9.73 (9.55-9.87)        14995    equal
+  tiny                                  909        324     360.9        50     2.41 (2.4-2.42)    5.83 (5.83-6.59)        20184    equal
+  not run in this mode (60): bazaar, open_industry, cheap_compute_closed_markets, engineering_lab, engineering_lab_heldout, entrenched_incumbents, ... (+54 more, listed in the JSON)
+
+== resident memory per world vs population (a fresh process per world): ok [load [5.17, 4.52, 3.74] -> [5.0, 4.49, 3.73], throttled 0.0, 4.629 s]
+  family                     population   principals    world MB   process peak     arrays MB   snapshot MB
+  bazaar                           1030           75         5.3           58.9          0.08          0.07
+  bazaar                          10030           75         7.8           61.3          0.82          0.37
+  bazaar                         100030           75        42.1           95.5           8.2         3.348
+
+== parallel worlds through WorldPool: ok [load [5.0, 4.49, 3.73] -> [4.92, 4.48, 3.74], throttled 0.0, 6.152 s]
+  world: {'family': 'tiny', 'overrides': {}}, 2 simulated day(s) each, 2 repetition(s); pool start-up 0.55 s (not included)
+  parallel worlds      sim-days/wall-s (total)    speedup   efficiency          per-world wall s   throttled
+  1 of 8 workers              3.27 (3.25-3.29)        1.0          1.0       0.585 (0.582-0.589)         0.0
+  2 of 8 workers               5.91 (5.8-6.02)      1.806        0.903       0.631 (0.623-0.661)         0.0
+  4 of 8 workers              11.8 (11.7-11.9)      3.619        0.905       0.635 (0.622-0.639)         0.0
+  8 of 8 workers              22.3 (22.2-22.4)      6.807        0.851       0.638 (0.616-0.692)         0.0
+
+== asynchronous rollout workers (RolloutFarm): ok [load [4.92, 4.48, 3.74] -> [4.92, 4.49, 3.74], throttled 0.0, 1.941 s]
+  workers       agent steps/wall-s     sim-days/wall-s    speedup    tasks       exact
+  1                            134                2.83        1.0        4        True
+  4                            476                10.1      3.548       16        True
+
+== one real Chromium session: ok [load [4.92, 4.49, 3.74] -> [4.85, 4.48, 3.74], throttled 0.0, 4.895 s]
+  Chromium goto (navigate + observe)                8.23 actions/s  128 (94.9-130) ms each  (69.6x the API cost)
+  Chromium observe (read the current page)        131.95 actions/s  7.51 (7.05-8.34) ms each
+  API net.fetch of the same page                   572.9 actions/s
+
+== GPU (read-only nvidia-smi: other tenants' load, the suite uses no GPU): ok [load [3.42, 4.13, 3.6] -> [4.85, 4.48, 3.74], throttled 0.0, 35.916 s]
+  gpu 0 NVIDIA RTX A6000: utilisation 0 %, memory 2 of 46068 MB, 10 samples
+
+== cost per experimental episode (world only; the policy's own compute is extra): ok - episodes of [2] simulated days were measured in this run; the standard 30-day figure is produced by the full run and is not extrapolated here [load [5.15, 4.48, 3.71] -> [5.36, 4.54, 3.74], throttled 0.0, 7.873 s]
+  family                            days       CPU-s    peak MB     wall s    steps         USD
+  bazaar                               2        3.10       63.6        3.1      192           -
+  mech_abm_commons                     2        0.08       56.9        0.1      144           -
+  mech_abm_commons_tools               2        0.10       56.9        0.1      144           -
+  mech_scm_additive                    2        0.10       60.2        0.1      144           -
+  mech_scm_additive_tools              2        0.12       58.7        0.1      144           -
+  mech_tech_cascade                    2        0.07       60.2        0.1      144           -
+  mech_tech_cascade_tools              2        0.10       58.7        0.1      144           -
+  open_digital                         2        1.40       62.3        1.4      192           -
+  open_industry                        2        0.19       66.6        0.2      144           -
+  ow_composite                         2        2.21       70.8        2.2      192           -
+  ow_frontier                          2        1.39       65.9        1.4      192           -
+  ow_heldout                           2        1.15       66.6        1.2      192           -
+  ow_market                            2        1.42       69.2        1.4      192           -
+  ow_tiny                              2        0.77       66.4        0.8      192           -
+  ow_works                             2        0.82       62.6        0.8      192           -
+  tiny                                 2        1.20       60.1        1.2      192           -
+
+== LLM inference throughput: not_measured - not measured in this run

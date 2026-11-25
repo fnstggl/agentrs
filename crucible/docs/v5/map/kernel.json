@@ -1,0 +1,505 @@
+{
+ "subsystem": "kernel (core/, storage/, modes.py, cli.py; WORLD_KERNEL.md), mapped at HEAD 777f28c on feat/crucible-5-openworld",
+ "summary": "Crucible 4.0's kernel is an event-sourced, single-writer, single-threaded state machine (src/crucible/core/kernel.py, 1085 lines). Each actor command (`World.execute(actor, {tool,args,idempotency_key?})`), scheduled process run (`advance_time` -> `_run_job`) and system call (`system_call`/`_run_system`) is one transaction. Handlers (endpoint functions and processes) receive a `Ctx`. They read `ctx.state`, draw seeded randomness from `ctx.rng()` or `world.rng_for()`, and call `ctx.emit(type, payload, vis)`. Each emitted event is applied right away by its registered applier (`_emit` -> `_apply`). `StateStore` journals every write, so a `CrucibleError` rolls the whole command back, and nested `Ctx.call`/`run_as` use savepoints. A rejected command is still recorded, as a `cmd.rejected` event. At commit, the counters that handlers allocated are written as a `ctr` event, every event is chained with blake2b-128 (`chain_hash(prev, canonical_bytes(body))`), and post-commit listeners fire.\n\nModules are `Module` subclasses that register globally with `@register_module` into `MODULES`. A world is a `WorldSpec(family, seed, modules=[{name,config}], params)`. When a world is built, decorated methods (`@endpoint` -> tool `<host>.<name>`, `@applier(type)`, `@process(name)` -> `<module>.<name>`) are bound and `install()` declares tables. `genesis(ctx)` emits the initial content.\n\nTime is integer seconds in `meta[\"clock\"]` and moves only through `advance_time`. Jobs live in the `sched` table and run from a heap ordered by (at, prio, n).\n\nVisibility is a property of each event: a tuple of principals, `\"public\"` or `\"internal\"`, widened by the identity hook `principals_of`.\n\nPersistence goes through the `Store` ABC (memory / SQLite WAL / Postgres json), which holds an append-only contiguous log per world, immutable snapshot blobs (zlib+pickle), fork lineage, single-writer leases and a key/blob table.\n\nReproducibility is checked three ways:\n- `replay` re-runs the appliers and verifies the hash chain.\n- `regenerate` re-runs the handlers from recorded `cmd`/`time`/`proc` events and must give the same hashes. Recorded `ctx.external` outcomes are injected (sandbox output, CPU time, LLM text).\n- `make_anchor`/`verify_anchor` detect rewritten or truncated logs.\n\nAround the kernel:\n- Discovery: `world.find_tools/hosts/validate/help/api` in core/discovery.py.\n- A JSON-Schema subset for tool arguments.\n- An admission harness for new modules (worldgen/admission.py).\n- An evaluator-side metrics registry (goals/metrics.py).\n- An invariant monitor (evaluation/invariants.py).\n- The `WorldServer` API with persisted observation cursors.\n- The `crucible` CLI.\n\nMeasured on this tree: 42 registered modules, 241 `@applier`, 244 `@endpoint` and 46 `@process` declarations.",
+ "key_files": [
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/core/kernel.py",
+   "role": "Event, ActionResult, WorldSpec, Endpoint, decorators (endpoint/applier/process), Module, MODULES/register_module, Ctx (emit/rng/call/run_as/external/reserve/fill/schedule), World (construction, execute/query/system_call, advance_time/scheduler, core appliers, visibility/observe, flush/snapshot/from_blob/load/fork/replay/regenerate, invariants)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/core/state.py",
+   "role": "StateStore: tables of dict records with secondary indexes, dense numpy arrays, meta; journaled begin/savepoint/rollback_to/commit; counters/new_id; pickle dumps/loads; order-independent digest/table_digests"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/core/canonical.py",
+   "role": "canonical_bytes (sorted JSON, repr floats, allow_nan=False), digest (blake2b), chain_hash, to_jsonable"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/core/errors.py",
+   "role": "Error taxonomy (codes), CrucibleError.persist (events that survive rollback), contain() per-record savepoint for batch processes, InvariantViolation/ProtocolError"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/core/schema.py",
+   "role": "Strict JSON-Schema subset: obj/s_str/s_int/.. builders, validate, with_defaults, check_schema (admission of agent-declared schemas)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/core/discovery.py",
+   "role": "4.0 discovery endpoints on host 'world' (find_tools BM25, hosts, validate dry-run, help, api), interface_stamp/catalogue_hash, structured error hints (returned only, not recorded), render_catalogue"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/storage/base.py",
+   "role": "Store ABC (create_world, append_events contiguous, read_events, snapshots, leases, blobs, lineage), make_anchor/verify_anchor tamper evidence"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/storage/memory.py",
+   "role": "MemoryStore backend (deep copies, lock)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/storage/sqlite.py",
+   "role": "SQLiteStore (WAL, BEGIN IMMEDIATE contiguity check, events_type index, snapshots, blobs)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/storage/postgres.py",
+   "role": "PostgresStore (json not jsonb for exact hashing, advisory lock per world, COPY appends) and open_store(url) dispatcher"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/modes.py",
+   "role": "4.0 operating modes A synthetic / B offline grounding (load_reference) / C supervised real-world (RealWorldGateway, env CRUCIBLE_MODE_C_APPROVAL) - NOT the v5 Part 2.1 modes"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/cli.py",
+   "role": "`crucible` CLI (entry point crucible.cli:main): world create/list/inspect/run/snapshot/fork/replay/verify, actor join/run, experiment, selfplay, evaluate, trace, report, counterfactual, emergence, tasks, openeval, read-only views, dashboard, serve"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/docs/WORLD_KERNEL.md",
+   "role": "Kernel contract: model, state store, how to write a module, 7 module rules, principals/discovery, persistence, reproducibility table"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/api/local.py",
+   "role": "WorldServer: operator/actor API on a store, token auth, persisted per-actor observation cursors (blobs), observe/execute_action/advance_time/snapshot/fork(ephemeral)/restore/replay_events/evaluate_world; ensure_modules auto-import"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/services/identity.py",
+   "role": "Supplies kernel hooks principals_of / may_act_as; authorize() permission model (roles, MEMBER_CAPS, grants with limits, gov_check)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/services/cloud.py",
+   "role": "Dynamic tools: world.resolvers.append(_resolve), hooks host_endpoints/is_host/host_owner -> agent-deployed services become tools"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/goals/metrics.py",
+   "role": "Evaluator-side metrics registry METRICS/@metric(name, doc, subject, instant), predicate language, check_predicate_scope"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/worldgen/admission.py",
+   "role": "admit(): admission harness every new module must pass (schemas, no crashes, invariants, replay, regeneration, snapshot/fork, visibility, PROTECTED_HOOKS)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/evaluation/invariants.py",
+   "role": "InvariantMonitor: re-derives ledger/contract/compute/scheduler/inventory laws from raw state; attach() via world.listeners"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/sandbox/bridge.py",
+   "role": "run_in_ctx / run_trusted_in_ctx: records sandbox outcomes via ctx.reserve/fill; cost_model deterministic (LINE_MS=0.001 per executed line) vs measured CPU"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/agents/base.py",
+   "role": "Policy interface (act(obs, tools)), Runner (rounds + dt), AsyncRunner (independent clocks from cost_s + think time, batch_group.act_batch)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/analytics/__init__.py",
+   "role": "world_events/_read_lineage: historical event reads following fork lineage (store + in-memory window)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/analytics/trace.py",
+   "role": "timeline/explain/causal_chain: provenance reconstructed heuristically from the log"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/__init__.py",
+   "role": "load_all_modules(): imports every module package so MODULES is populated"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/scale/slots.py",
+   "role": "(first v5 commit 777f28c) machine-wide CPU/GPU/job slots with usage log - outside the kernel but relevant to v5 13.7"
+  }
+ ],
+ "public_interfaces": [
+  {
+   "name": "Event",
+   "shape": "@dataclass(slots=True) Event(seq:int, t:int, type:str, actor:str, cmd:int|None, payload:dict, vis:tuple|str, hash:str=''); body()->dict; to_dict(); from_dict(d)",
+   "location": "src/crucible/core/kernel.py:38",
+   "notes": "vis: tuple of principal ids | 'public' | 'internal'. hash covers body() (everything except hash)."
+  },
+  {
+   "name": "ActionResult",
+   "shape": "ActionResult(ok:bool, result=None, error:dict|None=None, events:list[int], cost_s:int=0, t:int=0, replayed:bool=False, tool:str=''); to_dict()->{ok,t,tool,cost_s,result|error[,replayed]}",
+   "location": "src/crucible/core/kernel.py:65",
+   "notes": "error = {code, message, details?}; codes from core/errors.py"
+  },
+  {
+   "name": "WorldSpec",
+   "shape": "WorldSpec(family:str, seed:int, modules:list[{'name':str,'config':dict}], params:dict={}, kernel:str='crucible-kernel/1'); to_dict/from_dict; hash()=digest(to_dict())",
+   "location": "src/crucible/core/kernel.py:87",
+   "notes": "Kernel-read params: log_retain (default 2_000_000, :347), discovery (:411,:654), error_hints (discovery.py:833), max_actions_per_hour (:620). Module-read: cost_model ('deterministic'|measured default), allow_weak_sandbox, sandbox_mem_mb, sandbox_job_s, sandbox_max_workers (services/code.py:171-180), llm_minds (actors/llm_minds.py:27)."
+  },
+  {
+   "name": "Endpoint",
+   "shape": "Endpoint(name, host, params:dict, handler, doc='', cost_s=1, read_only=False, returns='', owner='sys', builtin=True, version='1'); spec()->{name, description, inputSchema, annotations:{readOnlyHint, costSeconds, host, builtin, version}}",
+   "location": "src/crucible/core/kernel.py:110",
+   "notes": "MCP-shaped tool spec"
+  },
+  {
+   "name": "endpoint / applier / process decorators",
+   "shape": "@endpoint(name, params=None, *, doc='', cost_s=1, read_only=False, returns='', version=None); @applier(event_type); @process(name)",
+   "location": "src/crucible/core/kernel.py:130-150",
+   "notes": "Bound in World._add_module (:416). Tool = f'{host}.{name}', process = f'{module.name}.{name}'. Duplicate endpoint or applier -> ProtocolError."
+  },
+  {
+   "name": "Module",
+   "shape": "class Module: name:str; host:str|None; version='1'; depends:tuple[str,...]; __init__(config); install(world); genesis(ctx); on_load(world); observe(world, actor)->dict|None; check_invariants(world)->list[str]; close()",
+   "location": "src/crucible/core/kernel.py:153",
+   "notes": "register with @register_module (:190) into global MODULES (:187)"
+  },
+  {
+   "name": "Ctx",
+   "shape": "Ctx(world, actor, cmd, origin=None, depth=0); .state .actor .origin .cmd .now .tool .tool_args .read_only .gov_approved .ext_key; emit(type, payload=None, vis=None)->Event; rng(*keys)->np.random.Generator; fail(exc, msg, **details); call(tool, args=None, as_principal=None, brokered=False); run_as(principal, fn, *a, **kw); reserve()->(slot, recorded|None); fill(slot, kind, out); external(kind, fn); schedule(at, proc, args=None, prio=50, period=None, key=None)->sid; unschedule(sid)",
+   "location": "src/crucible/core/kernel.py:198-332",
+   "notes": "vis default = (ctx.actor,). rng = world.rng_for('cmd', world.seq, n_draw, *keys). Call depth limit 8. admin host forbidden unless principal == sys."
+  },
+  {
+   "name": "World construction and lifecycle",
+   "shape": "World(spec, world_id, store=None, *, strict=False); World.create(spec, world_id=None, store=None, strict=False); World.load(store, world_id, strict=False, verify=True); World.from_blob(blob, world_id=None, store=None, fork=False, strict=False); w.fork(world_id, store=None); World.replay(spec, events, world_id='replay', verify=True, base_blob=None); World.regenerate(spec, events, world_id='regen')",
+   "location": "src/crucible/core/kernel.py:337, 445, 929, 901, 946, 956, 997",
+   "notes": "default world_id f'w-{spec.hash()[:12]}'; kernel-level fork id f'{parent}.f{seq}'"
+  },
+  {
+   "name": "World actions",
+   "shape": "execute(actor, action:dict)->ActionResult; query(actor, tool, args=None)->Any (read-only, always rolled back); system_call(tool, args=None, as_principal='sys')->Any (recorded)",
+   "location": "src/crucible/core/kernel.py:587, 681, 703",
+   "notes": "execute never raises for in-world failures. Only principals with kind person|service and status active can act."
+  },
+  {
+   "name": "World time and scheduler",
+   "shape": "advance_time(until:int, max_jobs:int|None=None)->int runs; next_job_time()->int|None; now (property)",
+   "location": "src/crucible/core/kernel.py:727, 749, 468",
+   "notes": "jobs run as sys, one transaction each, ordered by (at, prio, n); a failure is recorded as proc.failed and the job is rescheduled if periodic"
+  },
+  {
+   "name": "World observation",
+   "shape": "visible(ev, principals:set)->bool; events_range(from_seq, to_seq=None)->list[Event]; visible_events(actor, since_seq, limit=50)->(events, dropped); observe(actor)->{'time','principal', <module>: summary}; available_tools(principal)->list[spec]; principals_of(actor)->set; may_act_as(actor, principal)->bool; learn(ctx, principal, kind, value); knows(principal, kind, value)",
+   "location": "src/crucible/core/kernel.py:845-874, 517, 480-496",
+   "notes": "principals_of and may_act_as come from hooks set by identity.py:51-52"
+  },
+  {
+   "name": "World persistence",
+   "shape": "flush(); snapshot_blob()->bytes (zlib(pickle{spec, world_id, seq, hash, state, kernel})); snapshot()->sid 's-'+digest([world_id, seq, hash])[:16]; digest()->str; check_invariants()->list[str]; close()",
+   "location": "src/crucible/core/kernel.py:877-1062",
+   "notes": ""
+  },
+  {
+   "name": "World registries",
+   "shape": "modules:dict[str,Module]; endpoints:dict[str,Endpoint]; appliers:dict[str,Callable[[Event],None]]; processes:dict[str,Callable]; resolvers:list[Callable[[tool,principal],Endpoint|None]]; listeners:list[Callable[[Event],None]]; hooks:dict[str,Any]; runtime:dict; stats:{commands,rejected,events,procs}",
+   "location": "src/crucible/core/kernel.py:353-361",
+   "notes": "hooks, listeners and runtime are not saved in snapshots"
+  },
+  {
+   "name": "StateStore",
+   "shape": "declare_table(name, index=()); get/has/count/ids/scan/find_ids/find/find_one; put/insert/patch/delete; meta_get/meta_set; next_counter(name)->int; new_id(prefix)->'prefix_000001'; array(name) read-only view; array_mut(name); set_array(name, value); begin/savepoint/rollback_to/commit/rollback; in_tx; dumps()/loads(); digest(); table_digests()",
+   "location": "src/crucible/core/state.py:31-280",
+   "notes": "index fields must be scalars; get() returns a MappingProxyType"
+  },
+  {
+   "name": "canonical helpers",
+   "shape": "canonical_bytes(x)->bytes; canonical_json(x); digest(x, size=16)->hex; chain_hash(prev:str, body:bytes)->hex; to_jsonable(x)",
+   "location": "src/crucible/core/canonical.py:35-70",
+   "notes": ""
+  },
+  {
+   "name": "Errors",
+   "shape": "CrucibleError(message, **details, persist=[(type,payload,vis)]) with .code; subclasses InvalidAction, UnknownTool, Unauthenticated, Forbidden, NotFound, Conflict, InsufficientFunds, CapacityExceeded, RateLimited, ServiceUnavailable, Timeout, SandboxError, BudgetExhausted; contain(ctx, fn, *a, **kw)->Exception|None; InvariantViolation; ProtocolError",
+   "location": "src/crucible/core/errors.py:6-98",
+   "notes": ""
+  },
+  {
+   "name": "Schema subset",
+   "shape": "obj(properties, required, **kw); s_str/s_int/s_num/s_bool/s_enum/s_arr/s_any_obj; validate(schema, value, path='args')->list[str]; with_defaults(schema, args); check_schema(schema)->list[str]",
+   "location": "src/crucible/core/schema.py:26-158",
+   "notes": "additionalProperties defaults to False"
+  },
+  {
+   "name": "Discovery endpoints",
+   "shape": "world.find_tools{query, limit=8, detail=False, host?}; world.hosts{summary_chars=72}; world.validate{tool, args?}; world.help{topic}; world.api{}; plus world.whoami/clock/describe{host}",
+   "location": "src/crucible/core/discovery.py:1010-1067; kernel.py:389-414",
+   "notes": "all read-only, cost 0; disabled with params.discovery=false"
+  },
+  {
+   "name": "Store ABC",
+   "shape": "create_world(world_id, spec, parent); world_info(id)->{id, spec, parent, created, status, writer, lease_until}|None; list_worlds(); set_status; append_events(id, events) (contiguous, else StoreConflict); read_events(id, from_seq=0, to_seq=None) (seq > from, <= to); last_seq; put_snapshot(sid, world_id, seq, hash, blob); get_snapshot(sid)->(meta, blob); list_snapshots; latest_snapshot; acquire(id, owner, ttl_s=60)->bool; release; put_blob/get_blob; lineage(id)",
+   "location": "src/crucible/storage/base.py:35-99",
+   "notes": "open_store('memory://'|'sqlite:///p'|'postgresql://..') at storage/postgres.py:160"
+  },
+  {
+   "name": "Anchors",
+   "shape": "make_anchor(world)->{schema:'crucible-anchor/1', world_id, seq, hash, spec}; verify_anchor(store, anchor, world_id=None)->list[str]",
+   "location": "src/crucible/storage/base.py:110-153",
+   "notes": ""
+  },
+  {
+   "name": "WorldServer (API on top of the kernel)",
+   "shape": "WorldServer(store_url='memory://', *, store=None, strict=False, autoflush=True, lease_ttl_s=600.0, max_events=50, max_scan=200_000, persist_sessions=True, renderer=None, hide_own_commands=True); create_world(config, seed=None, world_id=None); join_world(world_id, handle, kind, endowment); observe(world_id, actor, max_events=None, include_tools='changed', peek=False)->Observation; execute_action(world_id, actor, action)->dict; advance_time(world_id, until=None, dt=None, max_jobs=None); snapshot_world; fork_world(snapshot_id, new_world_id=None, ephemeral=False, inherit_tokens=True); restore_world; replay_events(world_id, from_seq=0, to_seq=None, actor=None); evaluate_world(world_id, evaluator_context=None)",
+   "location": "src/crucible/api/local.py:213-757",
+   "notes": "Observation dataclass at :103; evaluate_world calls hooks['evaluate'] if present"
+  },
+  {
+   "name": "Metrics registry",
+   "shape": "METRICS: dict[str, Callable[..., float]]; @metric(name, doc='', subject: dict[arg, 'principal'|'host'|'repo']|None=None, instant=False); evaluate_metric(world, name, args=None)->float; predicate {metric, args, op, value} | {all|any:[...]} | {not:p}",
+   "location": "src/crucible/goals/metrics.py:18-45",
+   "notes": "27 metrics registered across goals/metrics.py (15), usefulness/module.py (5), mechanisms/module.py (3), worlds/engineering_lab.py (3), redteam/toy.py (1)"
+  },
+  {
+   "name": "Admission harness",
+   "shape": "admit(new_modules:list[str], base=None ['identity','bank','admin'], steps=400, actors=4, seed=0, configs=None)->AdmissionReport(module, passed, checks, errors)",
+   "location": "src/crucible/worldgen/admission.py:37",
+   "notes": "PROTECTED_HOOKS = ('principals_of','may_act_as','bank') at :27"
+  },
+  {
+   "name": "Policy / runners",
+   "shape": "Policy.reset(actor, rng); act(obs:dict, tools:list[dict])->dict|None; observe_result(action, result); usage()->dict; Runner(world, agents, dt=600, seed=0, objectives=None, record=True, max_events=30).round()/run(n); AsyncRunner(world, agents, seed=0, think_mean_s=600, think_s=None, max_events=30).run_until(t_end)",
+   "location": "src/crucible/agents/base.py:18, 66, 142",
+   "notes": "The existing learner contract that works with any architecture. Batched decisions through policy.batch_group.act_batch([(policy, obs, tools)])."
+  },
+  {
+   "name": "CLI",
+   "shape": "crucible world create|list|inspect|run|snapshot|fork|replay|verify; actor join|run; experiment run; selfplay run; evaluate; trace; report; counterfactual; emergence; tasks; openeval; internet|society|markets|infrastructure|census; dashboard; serve. Common flags --store URL (default $CRUCIBLE_STORE or sqlite:///./crucible-data/crucible.db), --json, --lease-ttl",
+   "location": "src/crucible/cli.py:1114 (build_parser), 1314 (main)",
+   "notes": "`world verify` = load with hash check + invariants + regeneration (cli.py:343). `world replay --verify` (cli.py:295)."
+  }
+ ],
+ "data_model_and_state": "State is held in one `StateStore` per world (core/state.py:31) and has three parts.\n- `tables`: name -> {record id -> plain JSON-like dict}. Secondary indexes are declared with `declare_table(name, index=(fields,))` and kept as sets of ids. Reads are MappingProxyType views and iterate in sorted-id order.\n- `arrays`: named numpy arrays for background populations (consumers c_*, shoppers s_*). They are written by aggregate appliers such as `consumers.hour` (economy/consumers.py:431).\n- `meta`: clock, seq, hash, cmd_counter and `ctr:<name>` counters.\n\nCore tables (kernel.py:374-387):\n- `principals` (index kind): {kind: person|org|service|system, status, info, created, actions, hour, hour_actions, time_used}.\n- `sched`: {at, prio, n, proc, args, period}.\n- `idem`: {ok, result, error}, keyed f'{actor}|{key}'.\n- `knowledge` (index principal): {principal, kind, value, t}. It records hosts a principal has discovered, which drives the dynamic tool lists.\n\nCore event types and their appliers: cmd, cmd.rejected, proc, proc.failed, time, sched.add, sched.del, idem, ext, principal.add, principal.update, know, note, ctr.\n\nEvent flow:\n1. A handler or process calls `ctx.emit`.\n2. `World._emit` (kernel.py:529) assigns seq and t=now, applies the event at once and appends it to ctx.events.\n3. `_commit` (kernel.py:550) adds a `ctr` event for counters allocated in the transaction, chains the hashes, commits the journal, appends to the in-memory log (trimmed beyond `log_retain`, flushing to the store first) and to `_unflushed`, then calls the listeners.\n\nA failure calls `_rollback` and `_reject` records a `cmd.rejected` event, which carries any ext outcomes plus the error's `persist` events.\n\nRegistries:\n- Global `MODULES` (by module name). A module must be imported to register (`crucible.load_all_modules()`, or `api.local.ensure_modules`, which scans packages services/economy/sandbox/web/worlds/actors/goals/evaluation/bench).\n- Per-world `endpoints`, `appliers` and `processes`, built from the decorators in `_add_module` (kernel.py:416). The `world.*` core endpoints are added by `endpoints_core`.\n- Extension seams: `resolvers` (dynamic tools, used by cloud.py:51), `hooks` (a single-slot dict: principals_of, may_act_as, host_endpoints, is_host, host_owner, gov_check, txn_observers, evaluate, on_* callbacks, ...), `listeners` (post-commit callbacks) and `runtime` (non-state caches rebuilt in `on_load`).\n\nIdentifiers:\n- Principals: p:<handle>, o:<handle>, svc:<host>, sys.\n- Allocated ids: `new_id(prefix)` -> prefix_000001.\n- Jobs: job_00000001, or the key given.\n- Worlds: w-<spec hash 12>; kernel forks <parent>.f<seq>; WorldServer forks <base>.f<n> and restores <name>.r<n>.\n- Snapshots: s-<digest16>.\n\nPersistence:\n- A Store holds the tables worlds, events (PK world_id+seq, index on type), snapshots and blobs. The Postgres variants are prefixed crucible_.\n- WorldServer keeps token hashes, per-actor observation cursors (sessions) and aliases in the blob table under 'crucible-api/...'.\n\nHow a new module adds things:\n- State: tables in `install()`; arrays by `set_array` inside an applier.\n- Events: `ctx.emit('<host>.<what>', payload, vis)` plus `@applier('<host>.<what>')`.\n- Tools: `@endpoint`.\n- Processes: `@process` plus `ctx.schedule`.\n- Observation summaries: `observe()`.\n- Invariants: `check_invariants()`.",
+ "extension_points": [
+  "New world module: subclass core.kernel.Module (kernel.py:153) with @register_module (kernel.py:190), in a file under one of api/local.py `_MODULE_PACKAGES` (services, economy, sandbox, web, worlds, actors, goals, evaluation, bench; api/local.py:47) so that `ensure_modules` can auto-import it by name, and also import it from `crucible.load_all_modules()` (src/crucible/__init__.py:5). Enable it per world through WorldSpec.modules=[{'name','config'}].",
+  "New state: declare tables and indexes in Module.install(world) via world.state.declare_table(name, index=(...)) (state.py:43). No state writes there; dense population arrays are created with state.set_array inside an applier (pattern: economy/consumers.py:124 'consumers.genesis').",
+  "New typed events: ctx.emit('<host>.<what>', payload, vis) (kernel.py:223) plus a unique @applier('<host>.<what>') (kernel.py:139). Typed payload validation would have to be added here (e.g. an optional schema= on @applier checked in World._emit, kernel.py:529) without changing Event.body(), or old logs no longer hash the same.",
+  "New tools: @endpoint(name, S.obj(...), doc, cost_s, read_only, version) (kernel.py:130) -> '<host>.<name>'. Runtime-created tools: append a resolver to world.resolvers (kernel.py:357; example services/cloud.py:51,98) and call world.learn(ctx, principal, 'host', host) (kernel.py:489) to make them discoverable. hooks['host_endpoints'] is already taken by cloud.",
+  "Scheduled and event-driven behaviour: @process(name) (kernel.py:146) plus ctx.schedule(at, '<module>.<name>', args, prio, period, key) (kernel.py:316). Module-level event triggers poll the log (services/workflows.py:234 pr_poll). Hooks named on_* are fired synchronously by modules (e.g. hooks['on_mail_delivered']).",
+  "Recording nondeterministic or neural inference: ctx.external(kind, fn) (kernel.py:305) or ctx.reserve()/ctx.fill(slot, kind, out) (kernel.py:293-303). Examples: actors/llm_minds.py:104 ('llm'), sandbox/bridge.py:70/100. A v5 inference-record schema (model id/version/weights hash, input digest/ref, sampling params, decision) belongs in the `out` dict.",
+  "Observation: Module.observe(world, actor) summaries (kernel.py:177; merged in World.observe, kernel.py:868) and the vis argument of emit. A broader visibility model would hook into World.visible (kernel.py:845) and hooks['principals_of'] (kernel.py:480, provided by identity.py:498). principals_of is a protected hook.",
+  "Permissions: identity.authorize(ctx, owner, cap, amount, scope) (services/identity.py:96) plus grants. Acting as another principal goes through hooks['may_act_as'] (kernel.py:485; identity.py:508).",
+  "Invariants: Module.check_invariants (kernel.py:180), and the independent laws in evaluation/invariants.py InvariantMonitor (attach via world.listeners, :82).",
+  "Post-commit observers (not recorded, not called during replay): world.listeners.append(fn(Event)) (kernel.py:358; used by evaluation/invariants.py:96, evaluation/longrun.py:100, scale/pool.py:1025).",
+  "Runtime caches: Module.on_load(world) plus world.runtime (kernel.py:175, 360). Never touch state there.",
+  "Evaluator metrics: @metric(name, doc, subject={...}, instant) in goals/metrics.py:30. Evaluator hook: world.hooks['evaluate'](world, ctx), consumed by WorldServer.evaluate_world (api/local.py:741).",
+  "Module admission gate: worldgen.admission.admit([names]) (admission.py:37), which every new module must pass.",
+  "World parameters: WorldSpec.params keys (log_retain, discovery, error_hints, max_actions_per_hour, cost_model, ...). New behaviour should be gated on params or config so that old specs replay byte-identically (precedent: params.discovery=false restores the exact 3.0 interface).",
+  "Storage backends: subclass storage.base.Store (base.py:35) and register a URL scheme in storage/postgres.py:160 open_store.",
+  "Learner integration with any architecture: agents.base.Policy (base.py:18), Runner/AsyncRunner (batch_group.act_batch for batched inference), WorldServer.observe/execute_action (api/local.py:546/590), plus the Gym/PettingZoo/MCP/HTTP adapters in api/.",
+  "CLI: add subparsers in cli.py build_parser (cli.py:1114) with p.set_defaults(func=cmd_x)."
+ ],
+ "reuse_for_v5": [
+  {
+   "v5_part": "2.3 Shared world substrate (authoritative state, cross-module transactions)",
+   "how": "Keep World/Ctx/StateStore as the substrate unchanged. One transaction per command or process, nested Ctx.call/run_as savepoints, errors.contain for per-record isolation in batch processes, and money only through bank. This already gives cross-module transactional integrity. Add the new shared primitives as ordinary modules with tables and events."
+  },
+  {
+   "v5_part": "2.3 Deterministic replay / neural inference recording",
+   "how": "Use ctx.external/reserve/fill: the outcome is recorded once in the 'ext' event (keyed by the transaction's first seq) and injected during World.regenerate. Extend the recorded `out` to hold model version, weights hash, input digest and sampled decision. Batch one forward pass for many participants inside one process transaction, so it is one ext record."
+  },
+  {
+   "v5_part": "10.4 / Gate P Civilization persistence (snapshots, resume, forks, historical queries, recorded replay, independent replication)",
+   "how": "World.snapshot/from_blob/load/fork/replay/regenerate, WorldServer.fork_world(ephemeral)/restore_world, Store lineage, make_anchor/verify_anchor, and `crucible world run/snapshot/fork/replay --verify/verify`. Historical reads go through analytics.world_events (follows lineage). InvariantMonitor attached during long runs."
+  },
+  {
+   "v5_part": "11.1 Universal interaction contract (observe / execute / observe_since)",
+   "how": "World.observe + World.visible_events(actor, since_seq, limit) map onto observe_since(agent, cursor). WorldServer.observe keeps persisted cursors, and replay_events(actor=...) gives explicit ranges. execute returns ActionResult with exact numeric results. Wrap these in a thin interface that does not depend on any learner, instead of replacing them."
+  },
+  {
+   "v5_part": "11.2 Open-ended tool interface",
+   "how": "Endpoint.spec() (MCP shape), dynamic resolvers for agent-deployed services, the knowledge-driven available_tools, discovery.py (find_tools, validate, help, api with catalogue hash) and the schema subset are reused as they are."
+  },
+  {
+   "v5_part": "11.3 / Gate R Observation-only mode",
+   "how": "vis='internal' already separates evaluator and audit facts from actor-visible events. Evaluator metrics live outside the world in goals/metrics.py, whose METRIC_SUBJECTS rule bars in-world reads of other parties' data. Legacy shaped reward lives only in objective.step_reward in Runner/gym_env, so observation_only can return 0 there without kernel changes."
+  },
+  {
+   "v5_part": "11.5 Long-horizon experience",
+   "how": "Integer simulated clock, the sched heap with periodic and keyed jobs, wf triggers and flows (services/workflows.py), cost_s durations used by AsyncRunner for independent actor clocks, and delayed consequences through scheduled processes."
+  },
+  {
+   "v5_part": "13.2 Event-driven computation",
+   "how": "Participants that are processes woken by ctx.schedule (cost nothing while idle; SCALING.md:33). AsyncRunner wake-up heap and batch_group for batched decisions of agents that wake together. wf on_event triggers as a model for event-driven activation."
+  },
+  {
+   "v5_part": "13.6 Large-population simulation",
+   "how": "StateStore.arrays plus deterministic aggregate appliers seeded by world.rng_for(key, hour) (consumers.hour pattern, economy/consumers.py:431). The event log then records compact hourly summaries instead of per-individual events. Use this pattern for routine population transitions."
+  },
+  {
+   "v5_part": "Clarification 1: learner integration independent of CAM",
+   "how": "agents.base.Policy (act(obs, tools)), Runner/AsyncRunner, training/trajectories RecordingRunner, and WorldServer/Gym/PettingZoo adapters already make no assumption about the learning architecture. Scripted, neural, statistical and LLM reference agents plug in through Policy, and their actions are recorded as cmd events, so recorded trajectories replay without re-running the policy."
+  },
+  {
+   "v5_part": "Module admission and Gate W integrity",
+   "how": "worldgen.admission.admit must be run on every new v5 module (replay, regeneration, snapshot/fork, visibility, protected hooks, invariants). Kernel-level admin-host refusal, PROTECTED_HOOKS and the anchors provide integrity evidence."
+  },
+  {
+   "v5_part": "13.7 / 13.8 Resource scheduler and performance reporting",
+   "how": "scale/slots.py (machine-wide CPU/GPU/job budgets, first v5 commit). world.stats, analytics/metrics_export.world_metrics/prometheus_text, bench/run.py and the docs/benchmarks/*.json formats give the 4.0 baseline to compare against."
+  },
+  {
+   "v5_part": "Gate A Baseline preservation",
+   "how": "tests/test_kernel.py, test_kernel_props.py (hypothesis), test_storage.py (3 backends), test_discovery.py, test_api.py, test_admission.py and `crucible world verify` give the baseline. Gate new kernel behaviour behind params so that existing logs keep identical hashes."
+  }
+ ],
+ "gaps_vs_v5_spec": [
+  {
+   "v5_part": "2.3 Typed events",
+   "gap": "Event types are free strings with untyped dict payloads. There is no event-schema registry, no payload validation at emit, and no event-type versioning or upcasting. 'Typed events' is a naming convention only.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "2.3 Approved state interfaces / no duplicate shared facts",
+   "gap": "Tables have no owning module: any applier can put/patch any table. Shared facts are exposed through ad-hoc single-slot hooks (resource_owner, host_owner, is_host, ...), where a later registration silently overwrites an earlier one. Only 3 hooks are protected, and only in the admission harness. Nothing declares or enforces which module is the source of truth for which fact.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "2.3 Common primitives: content artifacts, knowledge artifacts, assets/resource inventories, relationships, communities, institutions",
+   "gap": "The kernel core provides only principals, scheduler, idempotency and knowledge (host discovery). Identity, orgs, money, contracts, repos, services and listings exist as separate modules. There is no unified artifact primitive (content hash, media type, versions, provenance, publish/unpublish), no generic asset/inventory primitive, and no relationship/community graph primitive. Relationships are scattered across society trust, forum and members.",
+   "size": "large"
+  },
+  {
+   "v5_part": "4.2 / 4.3 / 13.5 Content artifacts and encoder caching",
+   "gap": "There is no content-addressed, immutable, lineage-aware artifact store. Store.put_blob is a mutable key/bytes table (INSERT OR REPLACE), is not covered by snapshots or the hash chain, and is used today only for API tokens and sessions. Event payloads must be JSON-native, so images, audio and video cannot go into events and need hash references to a CAS. There is no cache keyed by (artifact hash, encoder version, preprocessing).",
+   "size": "large"
+  },
+  {
+   "v5_part": "2.3 Provenance / 11.5 causal provenance",
+   "gap": "Events carry only actor, cmd (command number) and the shared transaction. There is no explicit cause link: which event woke a process, which observation and inference produced a decision, which trigger fired. analytics.trace.causal_chain reconstructs provenance heuristically (regex over ids in payloads).",
+   "size": "medium"
+  },
+  {
+   "v5_part": "2.3 Nondeterministic neural inference record",
+   "gap": "ctx.external records only {kind, out}. The LLM path (llm_minds.py:101-104) stores text, gen_tokens and the backend name, but no model version or weights hash, no input digest or reproducible reference, no sampling parameters or seed, and no batched record format for many participants in one forward pass. External agents' Policy.version is not written to the world log.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "2.3 Observation visibility",
+   "gap": "vis is only a principal tuple, 'public' or 'internal', expanded by principals_of (org owner/admin). There is no community, follower or role-scoped audience, no field-level redaction (a visible event exposes its whole payload), no delayed or embargoed visibility, and no separate channel for authorised verified-outcome labels. Broadcasting to a large audience means listing every principal in the tuple.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "3.3 / 4.6 / Gate B / Gate V: 10k to 10M+ distinct identities, compressed event records",
+   "gap": "Addressable identities are dict records in principals/persons (persons are sorted on every scan or ids() call), so 10M is infeasible in memory. The array populations (consumers, shoppers) have no principal ids and cannot act or be addressed. StateStore.array_mut journals a full copy of an array on its first write in each transaction (state.py:165-169), which is O(N) per transaction for 10M-element arrays. digest() and the pickle snapshot are O(state). Every event is a Python object, the in-memory log holds up to 2M of them, and there is no columnar or compressed event record for per-identity consumption events. Lazy materialisation of compact ids into principals is needed.",
+   "size": "large"
+  },
+  {
+   "v5_part": "13.2 Event-driven computation (activate participants on meaningful events)",
+   "gap": "The kernel has no indexed subscription or wake-on-event mechanism. wf triggers poll the in-memory log in a process (O(events x triggers), services/workflows.py:234-262). on_* hooks are ad hoc and synchronous. Listeners run outside transactions, are not recorded and are not called on replay, so they cannot drive world behaviour. There is no kernel event aggregation for batching wake-ups.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "10.4 / Gate P 30-365 day runs",
+   "gap": "The measured 365-day ow_market run produced about 1.2M events, 310-360 MB of log and 1.4-1.6 GB peak memory, in about 70 minutes (SCALING.md:130). v5 populations (10k participants plus neural agents) multiply this. World.regenerate works only from genesis (full re-execution; there is no snapshot-based regeneration window). Snapshots are full copies with no structural sharing. There is no log archival, tiering or compaction.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "10.4 Historical queries",
+   "gap": "The Store API reads only by seq range. Despite the SQL events_type index, there is no query by type, entity, time window or actor. Callers filter in Python (analytics.world_events). World.events_range reads only the world's own store rows, not its fork lineage.",
+   "size": "small"
+  },
+  {
+   "v5_part": "Gate A Baseline preservation / versioning",
+   "gap": "KERNEL_VERSION is recorded in WorldSpec and snapshots but never checked on load or replay. Module.version is not recorded in WorldSpec.modules. Changing an existing applier or handler in v5 therefore silently changes how old logs replay or regenerate. A version check is needed, plus gating of new behaviour behind params or config.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "2.1 Modes A/B/C",
+   "gap": "src/crucible/modes.py already defines Mode A/B/C as synthetic training / offline grounding / supervised real-world (with RealWorldGateway). v5 Modes A/B/C mean controlled experimental / standalone semantic / integrated civilization. The names collide, and v5 needs separate tier/profile identifiers, e.g. stored in WorldSpec.params.",
+   "size": "small"
+  },
+  {
+   "v5_part": "11.5 Actions with different durations",
+   "gap": "Endpoint.cost_s only increments principals.time_used (in the _ap_cmd applier). The kernel neither blocks the actor nor advances the clock. Duration semantics live only in the external AsyncRunner, so long-running actions and commitments must be modelled per module with scheduled jobs. There is no kernel 'busy until' or asynchronous action handle.",
+   "size": "small"
+  },
+  {
+   "v5_part": "11.1 observe_since(agent, cursor)",
+   "gap": "The equivalents exist (World.visible_events(actor, since_seq, limit); WorldServer.observe with a server-held cursor; replay_events(actor=...)). There is no single cursor-explicit call returning structured, typed observations with tool-schema deltas, resource usage and pending consequences across all three tiers.",
+   "size": "small"
+  },
+  {
+   "v5_part": "Gate W Cross-world contamination",
+   "gap": "Forks share no mutable state (pickle copy), and world.runtime is per world. Process-global module-level caches exist, however (e.g. actors/llm_minds._BACKENDS, analytics/metrics_export._RATE, and the global MODULES/METRICS registries mutated at import). There is no test that state cannot leak between worlds run in the same process.",
+   "size": "small"
+  },
+  {
+   "v5_part": "13.3 / 13.6 Parallelism",
+   "gap": "A world is single-threaded by design (the kernel serialises commands), and scaling is by replicas. There is no in-world parallel execution or sharding, so batched neural inference for in-world participants must happen inside a single process transaction.",
+   "size": "medium"
+  }
+ ],
+ "risks_and_gotchas": [
+  "Emitted payloads must never be mutated afterwards. The kernel does not copy them for speed, and mutation breaks the hash chain on replay (docs/SECURITY.md:143-147).",
+  "Payloads must be JSON-native. canonical_bytes uses allow_nan=False, and SQLite/Postgres store json.dumps. canonical._norm would hash a numpy array by content, but the store cannot serialise one. Only action args are pre-checked (_json_ok, kernel.py:594).",
+  "Ctx.rng draws from rng_for('cmd', world.seq, draw_counter, *keys) (kernel.py:226-228). Any change in emit or draw order, or extra emits before a draw, changes the randomness and breaks regeneration. Nested calls bump _rng_n by sub._rng_n+1000.",
+  "Exception to 'handlers never write state': StateStore.next_counter/new_id write meta from handlers. This is reconciled by the 'ctr' event that _commit emits (kernel.py:551-555). The applier _ap_proc mutates ev.t in place (kernel.py:810-812).",
+  "Appliers may use seeded randomness keyed only on payload or time (e.g. consumers.hour uses rng_for('consumers-pop', hour)). They must never use global RNG, wall clock or I/O.",
+  "Listeners run after commit, are not recorded, and are not called by replay, load or from_blob. Anything derived from them must be rebuilt from state in on_load. world.stats is not persisted.",
+  "events_range (kernel.py:852) reads only this world's own store rows. For a fork, history before the fork point is not returned. With store=None (World.fork default) a read before log_base raises ProtocolError. Use analytics.world_events/_read_lineage for lineage-aware history.",
+  "Snapshots are zlib-compressed pickles (code execution if a store is untrusted) and are tied to Python class layout. Only load trusted stores (storage/base.py docstring).",
+  "KERNEL_VERSION is never checked and module versions are not recorded. Editing an existing applier silently re-interprets old logs, a direct risk to Gate A reproducibility of 4.0 results.",
+  "hooks is a plain dict: two modules setting the same key overwrite each other silently. Only principals_of, may_act_as and bank are guarded, and only by the admission harness, not at runtime.",
+  "Measured cost model (the default): sandbox CPU time is nondeterministic, so independently advanced forks diverge. Exact forks and counterfactuals need params.cost_model='deterministic', which undercounts native-code work (numpy, builtins) and can be exploited for cheap compute (LIMITATIONS.md:29-32).",
+  "Only principals with kind person or service and status active can execute (kernel.py:598). Organisations act only through nested calls with as_principal plus may_act_as. admin.* tools are refused for every in-world principal.",
+  "Error hints from discovery.with_hints are added to the returned result only. The recorded cmd.rejected keeps the 3.0 error, so hints are not in the log (recomputable).",
+  "World.create registers the world in the store before genesis runs. If genesis fails, an empty world record is left in the store.",
+  "Regeneration re-runs genesis through World.create(spec) and needs the full log from genesis (cli world verify passes lineage events). It is O(history).",
+  "With no store, log_retain trimming drops old events permanently. With a store, trimming forces a flush first. The default is 2,000,000 events held in memory.",
+  "WorldServer.observe scans at most max_scan=200,000 events back (counted as 'unscanned'). hide_own_commands=True hides the actor's own cmd and cmd.rejected events.",
+  "The task called this tree 'Crucible 4.0's final commit', but HEAD is 777f28c, one commit later (compute slots, scale/slots.py), and 4a7591e added the v5 spec. All line numbers above are at 777f28c.",
+  "As instructed, I did not run the test suite; I did not verify that the tests pass at this HEAD. The only commands run were quick imports: 42 registered modules, and a minimal identity+bank+admin world has 37 appliers, 36 endpoints and 6 genesis events.",
+  "The modes.py naming of Modes A/B/C conflicts with the v5 Part 2.1 meaning (see gaps). selfplay/modes.py is a third, unrelated 'modes' module."
+ ],
+ "tests": [
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_kernel.py",
+   "covers": "Rollback of failing commands, system calls and handler crashes; nested call savepoints (caught/uncaught, arrays, counters); idempotency keys including regeneration; rate limit; admin refusal; clock monotonicity; scheduler order and periodic jobs; max_jobs regeneration; process failures; private-event visibility; hash-chain tamper detection in replay and on store load; snapshot/fork isolation, blob roundtrip, fork of a fork; tool listing and describe; malformed actions; regeneration independent of argument key order. Uses the _ktest module (host kt)."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_kernel_props.py",
+   "covers": "Hypothesis random command sequences over identity/bank/admin: invariants, money conservation, idempotent retries, authorisation, and replay/regeneration/snapshot reload equality."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_storage.py",
+   "covers": "Store conformance for memory, sqlite and postgres (postgres marked and skipped without binaries): contiguous appends, conflicts, fork base seq, exact payload roundtrip (-0.0, 2**70), snapshots, leases, blobs, fork lineage, load after crash, second-writer rejection across threads and processes, throughput benchmark."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_discovery.py",
+   "covers": "Discovery endpoints are read-only and free; versioned specs and catalogue hash; BM25 ranking determinism; no leaking of undiscovered services; validate is a dry run; help has no guidance; returned hints versus recorded 3.0 error; discovery actions replay/regenerate/fork exactly; catalogue renderer budget."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_api.py",
+   "covers": "WorldServer create/join/observe/act, tokens, snapshot/fork/replay/restore/evaluate, SQLite persistence across server instances, parse_action, rendering, Gym/PettingZoo/HTTP/WebSocket adapters."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_admission.py",
+   "covers": "Existing services pass admit(); a nondeterministic module and a money-minting module are rejected."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_invariants.py",
+   "covers": "InvariantMonitor detects ledger edits, unbalanced or orphan postings, overdrafts, unrecorded minting, contract/ledger mismatches, capacity issues, bankrupt operation, scheduler problems, goods conservation and the log head; violations carry the causing seq."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_hardening.py",
+   "covers": "Includes anchors detecting a rewritten suffix and a truncated tail (:782); a fork into a new store is its own world and lineage terminates (:819); deterministic cost does not depend on worker freshness (:1208); a fork with fresh sandbox workers evolves exactly like its parent (:1230); per-record containment in processes (:209)."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_longrun.py",
+   "covers": "Long-run harness: replay check, broken-process and collapsed-sector flags, shocks, resume from snapshot with replay of the resumed part."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_open_substrate.py",
+   "covers": "Exact regeneration of an open world with triggers and sandboxed services (:233); triggers and flows are atomic (:82, :107)."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_scale.py",
+   "covers": "Same spec gives the same digest for any worker count, checkpoint/resume in another process, rollout accounting, bench_kernel records."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_v5_slots.py",
+   "covers": "(v5 commit 777f28c) machine-wide compute slots: budget fitting, dead-holder reclaim, waiting, thread/GPU env, cgroup quota."
+  }
+ ],
+ "determinism_replay_persistence": "How reproducibility is checked:\n\n1. Replay (World.replay, kernel.py:956). Recorded events are applied through the appliers, from genesis or on top of a snapshot blob. The hash chain is checked: h = blake2b16(prev_hex || canonical_json(body)), and the genesis hash is '0'*32. A sequence gap raises InvariantViolation. The state digest (StateStore.digest, an order-independent blake2b over sorted tables, arrays and meta) must equal the original.\n\n2. Regeneration (World.regenerate, kernel.py:997). This re-executes the handlers. It builds World.create(spec), then for each recorded event, in order:\n   - `cmd` with n set: execute.\n   - `cmd` with system=True: system_call.\n   - `cmd.rejected`: execute again. The idempotency key is recovered from the following idem event; malformed actions are re-recorded.\n   - `proc`: advance_time(at, max_jobs=1).\n   - `time`: advance_time(to).\n   External outcomes are injected keyed by ext_key, the first seq of their transaction. They are collected from 'ext' events and from the ext/ext_key fields of cmd.rejected and proc.failed. The result must produce identical hashes. This is the determinism test that worldgen.admission applies to every module and that `crucible world verify` runs.\n\n3. Persistence:\n   - Store.append_events is contiguous-only (StoreConflict otherwise), which together with acquire/release leases gives a single writer.\n   - World.flush writes the _unflushed events. WorldServer autoflushes after each mutating call.\n   - snapshot() stores zlib(pickle{spec, world_id, seq, hash, state, kernel}) under the id s-<digest16>.\n   - World.load (crash recovery) takes the latest snapshot and replays the events after it with verification. A fork without a base snapshot raises.\n\n4. Forks. World.from_blob(fork=True) creates a new world id <parent>.f<seq> with parent={world, seq, hash} in the store, and puts the base snapshot under the fork id. Copy-on-snapshot means no shared mutable objects. WorldServer.fork_world(ephemeral=True) keeps the fork in a private MemoryStore. restore_world forks and moves an alias, marking the old world 'superseded'; history is never rewritten.\n\n5. Anchors. make_anchor/verify_anchor (storage/base.py:110-153) detect rewritten suffixes, truncated tails and broken chains that the chain alone cannot catch against someone with write access to the store.\n\n6. Cost models.\n   - Endpoint.cost_s is a nominal duration in simulated seconds, recorded in principals.time_used and used by AsyncRunner. It does not advance the clock.\n   - params.cost_model governs recorded sandbox CPU. 'measured' (the default) uses process_time or worker cpu_ms and is nondeterministic across forks. 'deterministic' counts executed lines through sys.monitoring at LINE_MS=0.001 ms per line (sandbox/bridge.py:20-58, 100-123; services/code.py:179). Generated families force it (worldgen/generator.py:191, ow_families.py:152, mech_families.py:84), and so does `crucible world create --deterministic`.\n   - Outcomes are always recorded, so replay and regeneration stay exact under either model.\n\n7. Limits. KERNEL_VERSION and module versions are not enforced on load. Regeneration always starts from genesis. Snapshots are full O(state) copies.",
+ "performance_facts": [
+  "Fully transactional commands (bank.transfer: validation, authorisation, journaled transaction, 3-4 events, hash chain): 7,732/s; recorded read commands (bank.accounts): 19,709/s; event replay from genesis with exact digest check: 41,814 events/s (docs/SCALING.md:12-14, machine of 48 vCPUs, under concurrent load).",
+  "Storage append, batches of 500 (memory/SQLite/PostgreSQL): 43k/81k/39k events/s; one event per transaction: 41k/23k/1.4k events/s; read: 48k/67k/50k events/s. PostgreSQL ran with fsync off (docs/SCALING.md:15-19).",
+  "bazaar world, 1k/6k/25k/100k consumers: 0.82/0.97/0.99/2.19 wall s per simulated day; 2,198/2,351/2,626/3,417 events per sim-day; snapshot 7/15/41/162 ms (0.09/0.27/0.88/3.41 MB); fork 17/23/55/212 ms; digest 34/30/25/47 ms (docs/SCALING.md:23-28).",
+  "Snapshot and fork are pickle copies, O(state): about 200 ms at 100k consumers. A single world is single-threaded; 16 replica worlds give 6.9 simulated days/s aggregate (docs/SCALING.md:66; docs/LIMITATIONS.md:43-44).",
+  "NPC workers 50/500/2,000: 0.32/0.36/0.34 s per simulated day (event-driven, free while idle); scripted agents: 19 ms per agent step including world advance (docs/SCALING.md:33-36).",
+  "open_industry: 0.033 s per simulated day, 1,254 events/day, 671 kB snapshot, 41 ms fork, 39.7k events/s replay. open_mixed (2,000 API consumers, 20,000 households): 1.28 s/day, 801 kB snapshot, 58 ms fork, 21.3k events/s replay. 90 simulated days of open_mixed: 295k events in 136 s wall, replayed from SQLite with identical digest (docs/SCALING.md:83-90).",
+  "Crucible 4.0 quick benchmark under an 11.52-core cgroup quota: ledger transfers 4,442 per wall-second (7,196 per CPU-second); replay 26,345 events per wall-second; resident memory 4 MB at 1,000 people and 40 MB at 100,000 people (docs/SCALING.md:120-129; raw docs/benchmarks/openworld.json).",
+  "365-day ow_market run: about 1.2M events, 310-360 MB of log, 1.4-1.6 GB peak memory, about 70 minutes under load (docs/SCALING.md:130).",
+  "Sandbox: one-shot program 91 ms; call on a persistent service worker 0.106 ms (docs/SCALING.md:47-48).",
+  "10/50/200 scripted reading agents on independent clocks (AsyncRunner, 6 simulated hours): 1,325/2,338/2,431 actions per wall second (docs/SCALING.md:101).",
+  "Default in-memory log retention: params.log_retain = 2,000,000 events (kernel.py:347); WorldServer max_scan 200,000, max_events 50 (api/local.py:222-223)."
+ ]
+}

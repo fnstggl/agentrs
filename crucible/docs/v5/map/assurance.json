@@ -1,0 +1,565 @@
+{
+ "subsystem": "assurance (red team, real-world gate, invariant monitor, long-run harness, invention/counterfactual forks, fidelity register, analytics)",
+ "summary": "Crucible 4.0's assurance layer runs on the evaluator side and reads authoritative state and the event log. None of it is a tool. It has six parts:\n\n(1) Red team (src/crucible/redteam). A three-phase Probe contract: an operator sets up, the attacker acts only through World.execute (while it acts, system_call raises ProbeViolation), and an independent Evaluator gives the verdict. After every probe, integrity_postcheck checks invariants, the ledger, conservation and exact replay, and can override a \"held\" verdict. The catalogue has 81 probes in 7 attack classes; 25 of them are per-family mechanism scans. A KNOWN_OPEN ratchet lists 1 open finding (an event-log suffix rewrite that needs an external anchor), and deliberately vulnerable toys show the framework can catch real holes. Latest report: 79 held, 1 integrity_break, 1 not_applicable.\n\n(2) Real-world gate (src/crucible/realworld). RealWorldBridge refuses everything without an operator-owned authorisation file. It enforces an allow-list after DNS resolution and pins each connection to the checked address. It blocks private and metadata addresses, enforces budgets and rate limits, and needs live approval for any action other than GET/HEAD. Everything goes into a blake2b hash-chained log. Outcomes come only from measure(fn). RealWorldResult refuses json, pickle and copy, and SealedHoldoutGuard counts holdout evaluations.\n\n(3) InvariantMonitor (evaluation/invariants.py). It recomputes ledger, contract, compute, company, scheduler, inventory and process laws from raw tables, on demand or every N simulated seconds.\n\n(4) run_long (evaluation/longrun.py). Daily and weekly liveness relative to recent levels per need-sector, collapse and recovery with a proximate cause, recorded operator shocks, snapshot and resume, and a final replay digest check. Recorded runs: 365 days x 3 seeds (ow_market), 180 x 2 (ow_frontier) and 90 x 2 (ow_heldout), all healthy, no focal agents.\n\n(5) Forks. invention.py diffs a structural census of matched forks and places each difference by causal order 0-4, with no_response and removal arms and multi-seed suites. counterfactual.py provides fork_compare and Intervention factories.\n\n(6) fidelity.py. A 55-mechanism register (37 plausible-hypothesis, 18 known-unrealistic, 0 calibrated), validate_register, which refuses a calibration claim without in-repo evidence, nine simulated measures, all marked \"no reference data\", and fidelity_report.\n\nanalytics (trace and metrics_export) adds read-only causal debugging over the event log.\n\nEverything here is architecture-agnostic: it is learner-independent and reads state, not agent claims. The main gaps against v5 are:\n- no social, content or audience coverage in the probes, invariants, liveness, census or register;\n- no empirical calibration;\n- only one established causal chain class (compute capacity);\n- no cross-world contamination probe;\n- scale limits (2M-event log retention, invariant checks that scan the whole history).",
+ "key_files": [
+  {
+   "path": "src/crucible/redteam/framework.py",
+   "role": "Probe contract (Operator/Attacker/Evaluator phases), outcome classes, integrity_postcheck, run_probe/run_probes, default_world_factory, sandbox_available"
+  },
+  {
+   "path": "src/crucible/redteam/suite.py",
+   "role": "all_probes catalogue (modules reward, reward_code, money, leakage, integrity, content, independence) and KNOWN_OPEN ratchet (1 open finding)"
+  },
+  {
+   "path": "src/crucible/redteam/reward.py",
+   "role": "22 reward-exploitation probes: circular payments (n-ring, cross-principal, 7 intermediary channels), sock puppets, fake members, rating spam, commit inflation, operator tools, self-goals, flash balance, credit attribution"
+  },
+  {
+   "path": "src/crucible/redteam/reward_code.py",
+   "role": "4 sandbox probes: self-generated demand, accomplice adopters, search-rank link farm, re-entrant service call"
+  },
+  {
+   "path": "src/crucible/redteam/money.py",
+   "role": "12 payment/unbounded-resource probes (third-party penalties, loans as revenue, dissolution debts, refunds, escrow, extreme amounts, idempotency, double spend, settlement race, spending-limit bypass, adverse fine print)"
+  },
+  {
+   "path": "src/crucible/redteam/leakage.py",
+   "role": "EndpointScan with canaries built from hidden state (hidden_canaries, hard-coded table list), deliverable oracle, breach-record leak"
+  },
+  {
+   "path": "src/crucible/redteam/integrity.py",
+   "role": "8 world-integrity probes: replay/regeneration after fuzz, conservation, nested failure isolation, contract settlement, concurrency ordering, crash recovery, tamper detection, suffix rewrite (open)"
+  },
+  {
+   "path": "src/crucible/redteam/independence.py",
+   "role": "evaluator-independence probes: goal/verifier outside world, need truth, static import reachability (FORBIDDEN prefixes), per-family hidden mechanism scans over mech_* families, sandbox filesystem, cross-tenant signalling"
+  },
+  {
+   "path": "src/crucible/redteam/content.py",
+   "role": "prompt injection has no authority; public flow runs as the runner"
+  },
+  {
+   "path": "src/crucible/redteam/toy.py",
+   "role": "deliberately vulnerable toys (naive metric, rt_toybank module) and EXPECTED outcomes, the sanity check for the framework"
+  },
+  {
+   "path": "src/crucible/realworld/bridge.py",
+   "role": "RealWorldBridge: the only outbound HTTP path, with fail-closed checks, pinned connections, budgets, approval, measure(), holdouts; forbid_in_this_process latch"
+  },
+  {
+   "path": "src/crucible/realworld/authorization.py",
+   "role": "strict operator authorisation document schema and file-ownership checks"
+  },
+  {
+   "path": "src/crucible/realworld/results.py",
+   "role": "RealWorldResult (non-serialisable), export_results(*.realworld.json), assert_no_real_world, SealedHoldoutGuard"
+  },
+  {
+   "path": "src/crucible/realworld/log.py",
+   "role": "append-only blake2b hash-chained JSONL log (ChainedLog, verify_log)"
+  },
+  {
+   "path": "src/crucible/realworld/netguard.py",
+   "role": "NetworkGuard socket patch proving that code opens no network connection"
+  },
+  {
+   "path": "src/crucible/modes.py",
+   "role": "Mode A/B/C separation; RealWorldGateway (Mode C gate, env-token + approval callback)"
+  },
+  {
+   "path": "src/crucible/evaluation/invariants.py",
+   "role": "InvariantMonitor: continuous re-derivation of ledger/contract/compute/company/scheduler/inventory/process laws; Violation records"
+  },
+  {
+   "path": "src/crucible/evaluation/longrun.py",
+   "role": "run_long harness, Disturb operator-shock module (host admin), relative liveness, inject_shock, CSV/JSON output, snapshot/resume, final replay"
+  },
+  {
+   "path": "src/crucible/evaluation/invention.py",
+   "role": "invention trials: census, consequences ordered by causal position 0-4, Arm/run_arm, invention_trial, fades_after, invention_suite with proportion CIs"
+  },
+  {
+   "path": "src/crucible/evaluation/counterfactual.py",
+   "role": "Intervention factories and fork_compare (baseline vs intervened forks, deltas, dependents)"
+  },
+  {
+   "path": "src/crucible/evaluation/fidelity.py",
+   "role": "55-mechanism fidelity REGISTER, STATUSES, validate_register, coverage check (uncovered_modules), simulated MEASURES, fidelity_report"
+  },
+  {
+   "path": "src/crucible/evaluation/emergence.py",
+   "role": "tool reuse, diffusion, HHI, specialisation, strategy diversity, dependency graph, useful_novelty (counterfactual removal)"
+  },
+  {
+   "path": "src/crucible/evaluation/open_internet/__init__.py",
+   "role": "15 open-endedness measures and ablate() over CONDITIONS (invention_removed, communication_off, demand_off, propagation_off)"
+  },
+  {
+   "path": "src/crucible/evaluation/open_endedness.py",
+   "role": "structural census and ablation over ablate_* params"
+  },
+  {
+   "path": "src/crucible/evaluation/audit.py",
+   "role": "integrity_report: self-dealing, circular, pulled, financed, rejected admin, shell orgs, breaches"
+  },
+  {
+   "path": "src/crucible/evaluation/trust_boundary.py",
+   "role": "assess(): actions on adversarial in-world content"
+  },
+  {
+   "path": "src/crucible/evaluation/harness.py",
+   "role": "goal harness, locked test partition with acknowledgement string and access log"
+  },
+  {
+   "path": "src/crucible/analytics/trace.py",
+   "role": "timeline, explain, causal_chain over the event log (read-only)"
+  },
+  {
+   "path": "src/crucible/analytics/metrics_export.py",
+   "role": "world_metrics JSON and Prometheus text exposition"
+  },
+  {
+   "path": "examples/redteam_report.py",
+   "role": "writes docs/experiments/ow_redteam.json (report plus sanity_check, ratchet, environment)"
+  },
+  {
+   "path": "examples/long_run4.py",
+   "role": "CLI driver for run_long (family, seeds, days, arms, shock, snapshot, resume, controls, jobs)"
+  },
+  {
+   "path": "examples/ow_invention_suite.py",
+   "role": "invention classes capacity/pricing/frontier with control/treatment/no_response/removal arms"
+  },
+  {
+   "path": "docs/LIMITATIONS.md",
+   "role": "known limits incl. remaining exploits, 0/55 calibrated, finite founder pool, untested HTTPS path"
+  },
+  {
+   "path": "docs/SECOND_ORDER_EMERGENCE.md",
+   "role": "the one established second-order chain (autoscaler -> provider exhaustion -> placement broker), 3 seeds, scripted"
+  },
+  {
+   "path": "docs/LONG_HORIZON_EVALUATION.md",
+   "role": "goal validation and calibration panel, 120-day 3.0 runs, final LLM challenge (negative)"
+  },
+  {
+   "path": "docs/OPEN_ENDEDNESS_AUDIT.md",
+   "role": "17 closed-world assumptions and their status; remaining limitations"
+  },
+  {
+   "path": "docs/WORLD_FIDELITY.md",
+   "role": "per-subsystem mechanistic/stylised/absent table"
+  },
+  {
+   "path": "docs/experiments/ow_redteam.json",
+   "role": "latest red-team report: 81 probes, 79 held, 1 integrity_break (known open), 1 NA"
+  },
+  {
+   "path": "docs/experiments/ow_longrun365_ow_market_s{1,2,3}_full.json",
+   "role": "recorded 365-day runs (also 180-day ow_frontier, 90-day ow_heldout and open_digital files)"
+  },
+  {
+   "path": "tests/conftest.py",
+   "role": "acceptance fixture (_Acceptance: claim/measure/caveat/log) writing docs/experiments/acceptance/<name>.json when CRUCIBLE_RECORD_ACCEPTANCE=1"
+  }
+ ],
+ "public_interfaces": [
+  {
+   "name": "Probe",
+   "shape": "class Probe: name:str; attack_class:str ('<class>/<sub>'); description:str (>80 chars, test-enforced); world:dict (requirements passed as kwargs to the world factory); needs_sandbox:bool; slow:bool; setup(op: Operator)->None; attack(a: Attacker)->None; verdict(ev: Evaluator)->Verdict",
+   "location": "src/crucible/redteam/framework.py:328",
+   "notes": "run_probe works on copy.copy(probe). Attack-phase powers: Attacker.act/raw/must/strike/observe/tools/account/wait/control/bystander*. AttackRefused from strike() => held."
+  },
+  {
+   "name": "Verdict",
+   "shape": "@dataclass Verdict(outcome: str in OUTCOMES, summary: str, evidence: dict = {}, also: list[str] = [], severity: str = '' (critical|high|medium|low|info), fix: str = '')",
+   "location": "src/crucible/redteam/framework.py:75",
+   "notes": "OUTCOMES = (held, false_success, money_created, leak, integrity_break, false_failure, legitimate_strategy, not_applicable, error); FINDINGS = the 5 bad ones (framework.py:52-54)."
+  },
+  {
+   "name": "run_probes",
+   "shape": "run_probes(world_factory: Callable[..., World] | None, probes: Iterable[Probe], progress: Callable | None = None) -> dict {schema:'crucible-redteam/1', n, counts, by_class, findings:[{name,result,also,severity,summary,fix}], errors:[names], probes:[row]}",
+   "location": "src/crucible/redteam/framework.py:510",
+   "notes": "row keys: name, attack_class, attack, result, also, severity, summary, evidence, fix, postcheck{ok,invariants,ledger,sum_of_balances,replay}, events, sim_days, steps, transcript, notes, wall_s"
+  },
+  {
+   "name": "default_world_factory",
+   "shape": "default_world_factory(consumers=False, open_world=False, seed=1, store=None, params=None, overrides=None, world_id=None, strict=False, drop=(), family=None, extra_modules=()) -> World",
+   "location": "src/crucible/redteam/framework.py:350",
+   "notes": "family 'tiny', or 'open_digital' (n_consumers 300) when open_world; '__first_mech_family__' picks the first mech_* family. _call_factory (framework.py:420) returns not_applicable when a custom factory lacks a requested kwarg."
+  },
+  {
+   "name": "integrity_postcheck",
+   "shape": "integrity_postcheck(world: World, replay: bool = True, max_replay_events: int = 400_000) -> {invariants, ledger, sum_of_balances, overdrawn, replay: 'exact'|'diverged'|'skipped'|'failed: ...', ok}",
+   "location": "src/crucible/redteam/framework.py:303",
+   "notes": "replay only when world.log_base == 0 and seq <= max_replay_events"
+  },
+  {
+   "name": "all_probes / KNOWN_OPEN",
+   "shape": "all_probes(include_slow: bool = True, include_sandbox: bool = True) -> list[Probe]; KNOWN_OPEN: dict[str, str] = {'integrity.event_log_suffix_rewrite_needs_anchor': 'integrity_break'}",
+   "location": "src/crucible/redteam/suite.py:12, :32",
+   "notes": "module tuple at suite.py:15"
+  },
+  {
+   "name": "hidden_canaries / find_canaries",
+   "shape": "hidden_canaries(world, exclude_owners: set[str]) -> dict[needle, label]; find_canaries(text: str, canaries: dict) -> list[(needle,label)]",
+   "location": "src/crucible/redteam/leakage.py:49, :105",
+   "notes": "hard-coded tables: npc_workers, npc_firms, npc_lenders, credentials, minds, accounts, ops_days, svc_days, cons_summary; first 40 values of each float array; module configs of consumers/civ/society/shocks/rig/use"
+  },
+  {
+   "name": "RealWorldBridge",
+   "shape": "RealWorldBridge(authorization: Authorization | None = None, *, log_path: str | None = None, approve: Callable[[dict], bool] | None = None, clock=time.time, resolver=None, timeout_s=10.0); .from_file(path, *, log_path, approve=None, **kw); .request(method, url, *, body: bytes|None=None, headers: dict|None=None, note='') -> RealResponse(status, headers, body, url, hops); .get(url); .measure(name, fn: Callable[[_Reader], Any], holdout: str|None=None) -> RealWorldResult; .evaluate_holdout(holdout, name, fn); .holdout_remaining(holdout); .enabled; .close()",
+   "location": "src/crucible/realworld/bridge.py:98-362",
+   "notes": "raises BridgeRefused; MAX_REDIRECTS=5; non-GET/HEAD redirects are returned, not followed; log body kinds: open, request, response, refusal, approval, measurement, holdout, close"
+  },
+  {
+   "name": "Authorization document",
+   "shape": "JSON keys REQUIRED={acknowledgement (== ACK exactly), authorised_by, experiment, purpose, base_urls (1-20), methods (subset of GET,HEAD,POST,PUT,PATCH,DELETE), limits {max_requests<=100000, max_rate_per_s, max_bytes<=1e10, max_wall_s<=7d}, expires ('YYYY-MM-DDTHH:MM:SSZ', <=90 days), approval_required: bool}; OPTIONAL={allow_private_addresses: ['ip'|'ip:port'], holdouts: {name: int budget}}; unknown keys refused",
+   "location": "src/crucible/realworld/authorization.py:31-36, parse_authorization :124, load_authorization(path, *, now=None) :180",
+   "notes": "file must be a regular file owned by current uid, not group- or other-writable, and not under CRUCIBLE_SANDBOX_DIR (default /var/tmp/crucible-sbx)"
+  },
+  {
+   "name": "RealWorldResult / export_results / assert_no_real_world / SealedHoldoutGuard",
+   "shape": "export_results(path ending '.realworld.json', results) -> path (doc schema 'crucible-realworld-results/1', origin 'real-world'); assert_no_real_world(obj, where='synthetic results') raises ContaminationError; SealedHoldoutGuard(budgets: dict[str,int], ledger_path=None, log: ChainedLog|None=None).charge(holdout, purpose='') -> int remaining / .evaluate(holdout, fn, purpose) / .remaining(holdout)",
+   "location": "src/crucible/realworld/results.py:34, :87, :82, :112",
+   "notes": "RealWorldResult refuses __reduce__, __copy__, __deepcopy__ and setattr"
+  },
+  {
+   "name": "forbid_in_this_process",
+   "shape": "forbid_in_this_process(reason: str = 'this process hosts synthetic worlds') -> None",
+   "location": "src/crucible/realworld/bridge.py:55",
+   "notes": "one-way latch; not called by any entrypoint in src/ or examples/ (grep)"
+  },
+  {
+   "name": "RealWorldGateway (Mode C)",
+   "shape": "RealWorldGateway(evaluation: str, approve: Callable[[dict], bool] | None = None); .enabled() -> bool (env CRUCIBLE_MODE_C_APPROVAL startswith f'{evaluation}:' and approve set); .request(action: dict) -> dict, raises ModeError",
+   "location": "src/crucible/modes.py:45",
+   "notes": "only gates; in-memory log list"
+  },
+  {
+   "name": "InvariantMonitor",
+   "shape": "InvariantMonitor(world, *, run_module_checks=True, proc_failure_limit=3, slack_s=7200, claim_slack_s=2*DAY); .attach(every_s: int = DAY) -> self; .detach(); .check() -> list[Violation]; .summary() -> {checks, wall_s, violations, by_kind, process_failures, money}; .violations (first detection per (kind, where)); check_world(world) -> list[Violation]",
+   "location": "src/crucible/evaluation/invariants.py:58, :82, :128, :478, :487",
+   "notes": "Violation(kind, where, seq, t, amounts: dict, detail) at :43. Kinds include ledger.*, contract.*, claim.*, invoice.*, mandate.*, escrow.*, compute.*, company.defunct_operating, equity.*, sched.*, inventory.*, energy.over_capacity, process.repeated_failure, kernel.head_mismatch, module.<name>."
+  },
+  {
+   "name": "run_long",
+   "shape": "run_long(family: str, seed: int, days: int, overrides: dict|None=None, out_dir: str|None=None, check_every_days: float = 1, *, extra_modules=(), agents=None [(handle, policy, endowment_cents)], shock: dict|None=None {day, kind: bankrupt_largest|bankrupt_sector|provider_outage, sector|provider|hours}, collapse_fraction=0.5, recover_fraction=0.8, proc_failure_limit=3, label=None, snapshot_every_days=None, resume=False, replay_check=True, world: World|None=None, base_blob: bytes|None=None, before_day=None, progress=None, close=True, min_history_days=7) -> summary dict",
+   "location": "src/crucible/evaluation/longrun.py:385",
+   "notes": "summary keys: family, seed, days, label, world, spec_hash, modules, extra_modules, overrides, check_every_days, events, commands, rejected_commands, weeks, output, household_budget, liveness, flags, invariants, economy, cost, incidents, entry, shock, replay, wall_s, healthy, files; writes <label>.json and <label>_days.csv (CSV_BASE + '<sector>:<CSV_SECTOR>'); snapshot files <label>.snap and <label>.state.pkl"
+  },
+  {
+   "name": "Disturb module / inject_shock",
+   "shape": "kernel Module name='disturb', host='admin' (operator-only): admin.shock_bankrupt {org}, admin.shock_outage {provider, hours 1..720}; inject_shock(world, shock: dict) -> report dict",
+   "location": "src/crucible/evaluation/longrun.py:55, :324",
+   "notes": "shocks are recorded system calls, so disturbed runs replay"
+  },
+  {
+   "name": "invention_trial / invention_suite / Arm",
+   "shape": "@dataclass Arm(name, agents: Callable[[World], list], intervention: Intervention | Callable[[World], Intervention] | None = None, at_day: float|None=None, provenance: dict[str,str] = {}); invention_trial(world, arms: list[Arm], inventors: set[str], horizon_days: float, *, control='control', dt=3600, seed=1, rel=0.25, check_determinism=False) -> {fork_time, fork_day, horizon_days, exact, determinism_check, control, inventors, provenance, invariants, digests, arms{name:{consequences, by_order, kinds, withdrawn_at_day?, fades?}}, census, wall_s}; invention_suite(build: Callable[[int], (World, list[Arm], set[str])], seeds, horizon_days, **kw) -> {seeds, horizon_days, summary{arm:{'order:kind':{seeds,p,lo,hi,low_n}}}, per_seed}",
+   "location": "src/crucible/evaluation/invention.py:358, :386, :460",
+   "notes": "census(world, t0) :49; consequences(treat, control, inventors, rel=0.25) -> list[Consequence(kind, key, order 0..4, treatment, control, first_t, actors, evidence)] :170/:201; fades_after(removal, treatment, key, cut_day, window=5) :448"
+  },
+  {
+   "name": "fork_compare / Intervention",
+   "shape": "fork_compare(world, intervention: Intervention, horizon_s: int, agents=None, *, dt=3600, seed=0, check_determinism=False, keep_forks=False) -> {intervention, applied, horizon_s, fork_seq, fork_time, exact, determinism_check, before, baseline, treatment, delta, dependents, wall_s, text}; Intervention(description, calls: list[(tool,args,as_principal)], params: dict|None, fn, resolve, target_hosts); factories system_call, undeploy_host, close_listings, suspend_principal, set_params, custom, combine",
+   "location": "src/crucible/evaluation/counterfactual.py:218, :39-111",
+   "notes": "exact only under params.cost_model == 'deterministic'"
+  },
+  {
+   "name": "Fidelity register",
+   "shape": "@dataclass(frozen) Mechanism(id, modules: tuple, source: str, kinds: tuple in KINDS, status in STATUSES, rule: str, caveat: str='', evidence: dict|None = {reference, comparison: 'path::function', dataset (calibrated only)}); REGISTER: list[Mechanism] (55); STATUSES=('calibrated','stylised-fact-checked','plausible-hypothesis','known-unrealistic'); KINDS=(interface, causal, behavioural, economic, temporal, strategic, distributional, transfer); validate_register(register=None)->list[str]; register_for_module(name); modules_with_behavioural_rules(world); uncovered_modules(world); MEASURES {adoption_curves, retention_and_churn, price_elasticity, concentration, entry_exit, reliability_distribution, compute_utilisation, demand_timing, size_distribution}; fidelity_report(worlds, counterfactual=False) -> schema 'crucible-fidelity/1'",
+   "location": "src/crucible/evaluation/fidelity.py:43-44, :50, :71, :276-333, :727, :755",
+   "notes": "every measure result has comparison NO_REFERENCE ('no reference data in repository')"
+  },
+  {
+   "name": "useful_novelty",
+   "shape": "useful_novelty(world, horizon_s=2*DAY, hosts=None, agents=None, tol=0.0, dt=3600) -> {hosts:{h:{useful, reductions, others_ok_delta, owner_revenue_delta, exact, summary}}, n_candidates, n_useful}",
+   "location": "src/crucible/evaluation/emergence.py:364",
+   "notes": "counterfactual removal by undeploy_host"
+  },
+  {
+   "name": "open_internet.ablate / measure",
+   "shape": "measure(world, t0=0) -> 15 measures; ablate(make_world: Callable[[dict,int],World], make_agents: Callable[[World,bool],list], days, seeds, ...) over CONDITIONS {factual, invention_removed, communication_off, demand_off, propagation_off}",
+   "location": "src/crucible/evaluation/open_internet/__init__.py:27, :295, :335",
+   "notes": ""
+  },
+  {
+   "name": "analytics",
+   "shape": "world_events(world, from_seq=0, to_seq=None, ...) follows fork lineage in the store; trace.timeline(world, entity, since=0, *, expand=True, include_noise=False, ...); trace.explain(world, entity, since=0) -> dict; trace.causal_chain(world, seq, max_depth=12, max_links=60); metrics_export.world_metrics(world, window_s=DAY); prometheus_text(world, metrics=None)",
+   "location": "src/crucible/analytics/__init__.py:40; src/crucible/analytics/trace.py:185, :315, :733; src/crucible/analytics/metrics_export.py:50, :222",
+   "notes": "read-only"
+  },
+  {
+   "name": "acceptance record fixture",
+   "shape": "fixture acceptance -> _Acceptance with .claim(text), .measure(**kw), .caveat(text), .log(name, value); with CRUCIBLE_RECORD_ACCEPTANCE=1 writes docs/experiments/acceptance/<test name minus 'test_'>.json {test, claim, measured, caveats, logs, reproduce, outcome, failure?, wall_s, recorded_at}",
+   "location": "tests/conftest.py:24-70",
+   "notes": "the outcome is what pytest reported, never self-declared"
+  }
+ ],
+ "data_model_and_state": "Assurance code holds almost no state of its own. It reads the kernel's authoritative state (world.state.tables / arrays / meta), the in-memory event log (world.log, log_base, events_range) and the store.\n\n- Red team: per-run state lives on a shallow copy of each Probe. The Evaluator holds a baseline {seq, t, attacker_wealth}. controlled_closure() expands attacker principals to orgs they own or administer and to the service principals they operate. Reports are plain JSON (schema crucible-redteam/1).\n- InvariantMonitor: keeps violations (first detection per (kind, where)) and _txn_seq (txn id -> seq of the posting event). It also keeps the stock base and delta tallies, proc_failures, the periodic-job registry and money facts. It subscribes via world.listeners and runs check() on 'time'/'proc' events once every_s has elapsed, outside transactions. It reads private kernel structures (world._heap, world.processes).\n- run_long: _Recorder (listener with per-day tallies, an incident list and bytes per event via json.dumps), _Liveness (trailing served history per sector, open episodes) and the monitor. Resume state is pickled to <label>.state.pkl next to the <label>.snap world snapshot (World.snapshot_blob, pickle + zlib).\n- Invention/counterfactual: worlds forked from one snapshot_blob into in-memory World.from_blob copies. Interventions are recorded system_calls, except set_params, which mutates spec.params and emits an internal 'note' event whose applier is a no-op (core/kernel.py:385).\n- Fidelity: a static Python list REGISTER of frozen Mechanism dataclasses keyed by string id (e.g. 'demand.price_response'), mapped to kernel module names.\n- Real-world: an on-disk JSONL chain {i, prev, body, hash} (blake2b-16, GENESIS '0'*32, O_APPEND, fsync per record). Budgets and holdout counts are recomputed from the log on open, so they survive restarts. Results are kept only in RealWorldResult objects and *.realworld.json files.\n- Ids: principals 'p:<handle>', organisations 'o:<handle>', services 'svc:<host>'. Entity ids follow kernel prefixes (acct_, ctr_, lst_, inst_, ...). Probe names are dotted 'class.what[param]'.",
+ "extension_points": [
+  "New probe module: add a module with `probes() -> list[Probe]` to the tuple at src/crucible/redteam/suite.py:15. New findings must be added to KNOWN_OPEN (suite.py:32) or tests/test_redteam.py fails. MUST_HOLD in tests/test_redteam.py:18 lists probes that must hold.",
+  "v5 world factory for the red team: run_probes(factory, probes) accepts any callable. Probe.world requirements are passed as kwargs through _call_factory (framework.py:420); a factory that lacks a requested kwarg gives not_applicable. Families can also be added through default_world_factory(family=..., extra_modules=...) (framework.py:350).",
+  "Canary coverage for new private state: extend the table/field list and the module-config list in hidden_canaries (src/crucible/redteam/leakage.py:49-102), e.g. participant memories, recommender internals, neural participant hidden states, private messages.",
+  "Mechanism-family leak scans: independence.mechanism_families() (independence.py:512) picks up every registered FAMILIES entry starting with 'mech_' (excluding '_tools') hosted by the 'rig' module. New Tier 1 families registered that way are scanned automatically; other prefixes are not.",
+  "Static reachability guard: extend StaticReachability.FORBIDDEN (independence.py:151) with v5 evaluator, verifier, sealed-set and dataset packages so world mechanics cannot import them.",
+  "InvariantMonitor laws: add per-subsystem checks in check() (invariants.py:128-160), e.g. a _social(st) or _audience(st) check, and event tallies in _on_event (invariants.py:108). Violation(kind, where, seq, t, amounts, detail) is generic.",
+  "Long-run liveness: _Recorder.on_event (longrun.py:116) for new activity counters (posts, views, community joins, recurring payments); _Liveness.day takes any 'sectors' dict (longrun.py:279); new shock kinds in inject_shock (longrun.py:324) backed by new operator-only endpoints on the Disturb module (longrun.py:55, host 'admin'); hooks before_day(world, day), progress(row), agents=[(handle, policy, endowment)].",
+  "Causal chains (10.3/Gate L): extend invention.census (invention.py:49) with social, content, community and research tables, and consequences() (invention.py:201) with order placement for them. New Intervention factories go in counterfactual.py:64-111 (e.g. remove_content, ban_community, disable_recommender, withdraw_lineage). Arm(intervention, at_day, provenance) gives the removal arms.",
+  "Fidelity register: append Mechanism entries via _m(...) in REGISTER (fidelity.py:71-271). Change STATUSES/KINDS (fidelity.py:43-44) and Mechanism fields (fidelity.py:50) for the v5 six-level scheme plus population/platform/time-period/limitations. validate_register (fidelity.py:280) is where to enforce 'not calibrated merely because it is a neural network'. New measures go in MEASURES (fidelity.py:727). Coverage is checked by uncovered_modules (fidelity.py:331) over modules_with_behavioural_rules, which covers packages crucible.economy/actors/worlds/mechanisms/usefulness or any module with a scheduled process (fidelity.py:316).",
+  "Real-world experiments: RealWorldBridge.measure(name, fn) / evaluate_holdout (bridge.py:318/:343) are the only result sources. Call forbid_in_this_process() (bridge.py:55) at the start of world-hosting entrypoints, and assert_no_real_world() (results.py:82) in synthetic results writers.",
+  "Acceptance evidence: the `acceptance` fixture (tests/conftest.py:48) writes machine-readable gate records; ACCEPTANCE_DIR (conftest.py:13) would need a v5 subdirectory or prefix.",
+  "Store anchors: storage.base.make_anchor(world) / verify_anchor(store, anchor) (src/crucible/storage/base.py:110/:117) exist but are not called by run_long or any harness; this is where the open suffix-rewrite finding can be closed."
+ ],
+ "reuse_for_v5": [
+  {
+   "v5_part": "Gate W / Part 16 (sandbox, evaluator isolation, reward hacking, accounting, network, private state)",
+   "how": "Reuse the redteam framework unchanged: three-phase contract, ProbeViolation guard on system_call, integrity_postcheck override, KNOWN_OPEN ratchet and toy sanity check. Its 81 probes already cover reward hacking, metric inflation, accounting integrity, evaluator isolation, hidden-answer extraction, sandbox filesystem/network and cross-tenant signalling. Add social and cross-world probe modules and run the suite with a v5 civilization world factory. examples/redteam_report.py already emits machine-readable evidence."
+  },
+  {
+   "v5_part": "Part 16 real-world boundary (adapter disabled by default, authorization, budgets)",
+   "how": "Keep crucible.realworld as the real-world adapter. It is off without an operator file and has allow-lists, resource budgets, live approval, a hash-chained log and sealed-holdout budgets. tests/test_realworld_gate.py (14 tests) is the acceptance evidence, including a NetworkGuard proof that a default process makes no network connection. Wire forbid_in_this_process into world-hosting entrypoints."
+  },
+  {
+   "v5_part": "Gate P / Part 10.4 (30/90/180/365-day runs, invariants, snapshot/resume, replay)",
+   "how": "Reuse run_long + InvariantMonitor + examples/long_run4.py for multi-seed runs: relative liveness with proximate causes, recorded shocks, snapshot/resume, final replay digest and per-day CSV. Recorded 90/180/365-day 4.0 runs serve as baselines. Extend the recorder and invariants to social activity and run at the v5 population profiles."
+  },
+  {
+   "v5_part": "Gate L / Part 10.3 (multi-stage chains with counterfactual removal)",
+   "how": "Reuse invention_trial/invention_suite. It provides matched forks from one snapshot, order 0-4 placement by causal position, no_response and removal arms, fades_after, per-seed proportion CIs and participant provenance labels (scripted / LLM / trained). Reuse fork_compare and emergence.useful_novelty for single-artifact removal, and open_internet.ablate for mechanism ablations. Extend the census to social, content and research tables to get the required social and technical chains."
+  },
+  {
+   "v5_part": "Part 5.4 fidelity register",
+   "how": "Reuse the Mechanism dataclass, the REGISTER-per-module mapping, validate_register's refusal of evidence-free calibration claims, and the uncovered_modules coverage test. Migrate the 4 statuses to the 6 v5 levels, add population/platform/time-period/limitations fields, and add entries for entry, use, rig and all v5 modules."
+  },
+  {
+   "v5_part": "Part 5.5 validation / Gate F",
+   "how": "The validate_register 'calibrated needs reference + comparison path::function + dataset' rule and fidelity_report's per-kind separation can carry the fitted models' held-out evaluations. The MEASURES functions (adoption curves, retention/churn, price elasticity incl. in-world counterfactual) produce the simulated side of comparisons."
+  },
+  {
+   "v5_part": "Gate K recurring revenue integrity",
+   "how": "evaluation/audit.integrity_report (circular flows of any length, self-dealing, shell orgs) plus the reward.circular.*, sock_puppet.* and fake_adopters probes already detect circular and related-party transactions."
+  },
+  {
+   "v5_part": "Gate X / Part 17 machine-readable evidence",
+   "how": "Reuse the acceptance fixture pattern (claim, measured, caveats, outcome from pytest, never self-declared) and examples/run_acceptance.py, with a separate v5 directory."
+  },
+  {
+   "v5_part": "Architecture-independent learner integration (Clarification 1)",
+   "how": "Everything in assurance is learner-agnostic: verdicts read authoritative state, not agent claims. Arm.provenance records participant type, and the calibration panel (evaluation/calibration.py) supports idle/random/scripted/LLM members. Future CAM versions or reference learners plug in as agents/policies, with no change to these instruments."
+  }
+ ],
+ "gaps_vs_v5_spec": [
+  {
+   "v5_part": "5.4 Fidelity register",
+   "gap": "Status vocabulary is 4 levels (calibrated, stylised-fact-checked, plausible-hypothesis, known-unrealistic). v5 requires 6: empirically fitted / validated not fitted / inspired by published research / plausible unvalidated / deliberate simplification / known unrealistic. All 55 entries need re-classification; known-unrealistic must be split into deliberate simplification vs known unrealistic.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "5.4 Fidelity register",
+   "gap": "The Mechanism record has no fields for the population, platform, time period and limitations of the supporting evidence (only evidence{reference, comparison, dataset}).",
+   "size": "small"
+  },
+  {
+   "v5_part": "5.4 Fidelity register",
+   "gap": "The register does not even cover 4.0's own behavioural modules: uncovered_modules() returns ['entry','use'] for ow_market and ['rig'] for mech_abm_utility (verified with python -c). tests/test_fidelity.py only checks open_digital, open_industry and engineering_lab. There are no entries for any v5 mechanism (browsing, attention, recommendation, content understanding, watch duration, communities, neural/semantic participants, recurring revenue, emerging needs).",
+   "size": "medium"
+  },
+  {
+   "v5_part": "5.1/5.2/5.5 empirical grounding (Gate F)",
+   "gap": "There is no reference data, no dataset acquisition/versioning/checksum pipeline, no time or user-level holdouts, and no held-out metrics (log loss, Brier, calibration error, ranking quality, watch-duration distributions, retention curves). Every fidelity measure reports comparison 'no reference data in repository'. 0 of 55 mechanisms are calibrated.",
+   "size": "large"
+  },
+  {
+   "v5_part": "5.4 Fidelity register",
+   "gap": "validate_register requires the calibration dataset to be a file inside the repo (fidelity.py:309). Licensed large datasets (MIND, KuaiRand, Criteo) need a manifest plus checksum plus acquisition-script form of evidence instead.",
+   "size": "small"
+  },
+  {
+   "v5_part": "10.3 / Gate L",
+   "gap": "Only one chain class is established: autoscaler -> provider exhaustion -> placement broker -> provider repricing (compute/economy, 3 seeds). Peak pricing (new loss in 1/3 seeds) and latent-demand frontier (1/3) are weak. There is no social chain and no technical/scientific chain outside compute. The census (invention.py:49) reads only ops, capabilities, orgs, providers, listings, cloud and consumer tables, nothing for content, communities, recommendation or research.",
+   "size": "large"
+  },
+  {
+   "v5_part": "10.3 / Gate L",
+   "gap": "Inventors and responders are scripted controls built as matched pairs (CapacityInventor/PlacementBroker reacting to report classes), so the chains are not 'independently generated'. v5 needs chains arising from adaptive or learned participants, or must label scripted feasibility accurately (the provenance field exists).",
+   "size": "large"
+  },
+  {
+   "v5_part": "10.3 / Gate L",
+   "gap": "The removal arm withdraws only the inventor's own service. OPENWORLD_REPORT \u00a73.6 shows imitators kept the new loss alive until the whole lineage was withdrawn. A generic lineage-removal Intervention is not a reusable factory in counterfactual.py.",
+   "size": "small"
+  },
+  {
+   "v5_part": "10.4 / Gate P",
+   "gap": "There is no recorded 30-day run (the in-test acceptance run is 28 days). Recorded 90/180/365-day runs have no focal agents (commands = 0), use 4.0 families at about 4,000 statistical consumers rather than the v5 population profiles (1k/10k/100k/10M+ with neural/semantic participants), and have 2-3 seeds and one forced bankruptcy each.",
+   "size": "large"
+  },
+  {
+   "v5_part": "10.4 / Gate P 'continuing economic and social activity'",
+   "gap": "Liveness is computed only from need-sector API demand (consumers.hour / cons_summary) plus firm entry and exit. There are no measures for social activity (posts, views, follows, communities, browsing sessions), products, technologies or institutions persisting and evolving.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate P replay at scale",
+   "gap": "The kernel keeps at most log_retain = 2,000,000 events in memory (kernel.py:347,565). Beyond that run_long skips the replay ('the log does not start at genesis') but still reports healthy=True, because the test is `identical is not False` (longrun.py:525-528). Store-less worlds (run_long's default) never clear world._unflushed (kernel.py:571/880), so trimming does not free memory. integrity_postcheck replays only up to 400k events.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate P / Gate V scalability of the monitor",
+   "gap": "InvariantMonitor._ledger rescans every transaction and posting on each check, so cost grows with history: about 0.59 s per check at 90 days and about 2.4 s at 365 days. 872-928 s of a 4,100-4,300 s 365-day run (about 21%) goes to the monitor. v5 populations need incremental checks.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate P 'no unexplained invariant violations' for v5 state",
+   "gap": "There are no invariants for v5 subsystems: audience metrics equal recorded exposure/view events (no direct writes), recommendation exposure logs, content ownership and licensing, community membership, subscription and recurring-revenue schedules, participant identity persistence, model checkpoint/version lineage.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate P independent replication / historical queries",
+   "gap": "run_long has no cross-process or cross-machine replication step and writes no external anchor (make_anchor and verify_anchor are unused). After resume, the replay covers only the post-snapshot suffix. Historical queries exist only as analytics.trace timeline/explain/causal_chain, not as a query API over snapshots.",
+   "size": "small"
+  },
+  {
+   "v5_part": "Gate W cross-world contamination",
+   "gap": "No probe or test checks for data leaking between worlds: shared sandbox workers, caches, shared model weights or embeddings, store rows of other worlds, or the curriculum/proposal interface. grep finds no cross-world probe in redteam/ or tests/.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate W metric manipulation / Part 16 'direct writes to audience metrics'",
+   "gap": "There are no probes for fake views, watch time, follows or engagement rings, bot audiences, recommendation gaming, sock-puppet communities, or engagement bought with one-cent orders. The current metric-inflation probes cover only commits, ratings and search rank. Documented residual exploits (colluders across the netting window, one-cent rating, padded doorway pages, N agents costing N ad impressions, sustain checks only at harness steps) are in LIMITATIONS.md but not ratcheted as probes.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate W private participant state",
+   "gap": "hidden_canaries scans a hard-coded list of 4.0 tables (npc_*, minds, credentials, accounts, ops_days, svc_days, cons_summary) and only the first 40 values of each float array. v5 private state (participant memory, recurrent hidden states, shared-weight personas, private messages, recommender user models) is not scanned.",
+   "size": "small"
+  },
+  {
+   "v5_part": "Gate W coverage of v5 worlds",
+   "gap": "default_world_factory builds only 'tiny', 'open_digital' or the first mech_* family. The red team has never been run against ow_* or v5 integrated civilizations. MechanismScan covers only mech_* families with the 'rig' module (25 today; mech_tech_lostwork is not_applicable).",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate W 'independent adversarial review'",
+   "gap": "The probes were written by the same development effort, and no independent reviewer or QA-agent pass is recorded.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Part 16 consent, moderation, abuse prevention",
+   "gap": "There is no moderation, abuse-report or consent mechanism beyond net.login consent for site identity. 'moderat' appears nowhere in services/. Nothing in assurance tests these.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Part 16 resource exhaustion at world scale",
+   "gap": "Resource limits are tested for sandboxed code (rlimits, seccomp fork block) and per-actor rate limits exist. No probe floods content, recommendation or browsing with many identities, or exhausts world-level budgets at 10M-identity scale.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Part 16 real-world adapter",
+   "gap": "forbid_in_this_process() and assert_no_real_world() are not called by any world-hosting entrypoint or results writer (grep over src and examples). The HTTPS path is untested (LIMITATIONS.md:158). There is no platform-compliance check (robots, terms of service, platform API rules). There are two separate gates: modes.RealWorldGateway, whose token check is prefix-only, and realworld.RealWorldBridge.",
+   "size": "small"
+  },
+  {
+   "v5_part": "Gate X / Part 17 evidence",
+   "gap": "The 4.0 acceptance records in docs/experiments/acceptance/ use letters A-P with different meanings from the v5 gates (4.0 H = long-term sustainability vs v5 H = semantic generalists; 4.0 P = security vs v5 P = long horizon; 4.0 L = parametric learning vs v5 L = endogenous opportunities). The 4.0 H test checks recorded long runs only 'when present', which is not acceptable as a v5 gate.",
+   "size": "small"
+  },
+  {
+   "v5_part": "Gate W store-level integrity",
+   "gap": "The open finding integrity.event_log_suffix_rewrite_needs_anchor stays open. Snapshot blobs (pickle + zlib) and run_long's <label>.state.pkl are unpickled without authentication, so anyone with store or file write access could run code on load.",
+   "size": "small"
+  }
+ ],
+ "risks_and_gotchas": [
+  "tests/test_fidelity.py::test_register_is_valid_and_claims_no_calibration asserts counts['calibrated'] == 0 and counts['stylised-fact-checked'] == 0. It will fail as soon as v5 adds genuinely fitted entries, so it must be rewritten, not deleted.",
+  "The KNOWN_OPEN ratchet makes any new probe that reports a finding fail tests/test_redteam.py unless it is listed with severity and fix. MUST_HOLD (tests/test_redteam.py:18) pins 21 probes that must report held.",
+  "A custom world factory that lacks a kwarg a probe requests (e.g. open_world, consumers, family) makes the probe report not_applicable (framework.py:428-430), not held. A v5 red-team report must count NA rows, not just findings.",
+  "Exactness: forks and fork-vs-parent equality are exact only with params.cost_model == 'deterministic'. Under measured CPU cost two forks diverge, and invention_trial/fork_compare report exact=False. The deterministic model undercounts native-code work (LIMITATIONS.md:30-32).",
+  "Intervention with params (set_params) mutates world.spec.params in place and emits an internal 'note' event whose applier is a no-op (core/kernel.py:385). From code reading, an intervened fork cannot be reproduced by replaying spec + log. Not verified by running.",
+  "run_long replay: after resume, base_blob is the snapshot and only the post-snapshot log is replayed. Above 2M in-memory events the replay is skipped while 'healthy' stays True (longrun.py:513-528).",
+  "Store-less worlds keep every event alive in World._unflushed even after log trimming (kernel.py:571, flush only at :877-880). run_long creates worlds without a store, so long v5 runs will grow memory roughly linearly with events (365-day 4.0 runs already peaked at 1.36-1.58 GB RSS).",
+  "_Recorder.on_event serialises every event with json.dumps just to count log bytes (longrun.py:120), a per-event cost that grows with v5 event volume.",
+  "InvariantMonitor depends on private kernel internals (world._heap, world.processes, state.meta 'seq'/'hash'). The kernel workstream must keep them or update the monitor.",
+  "The Disturb module (operator shock tools) is a registered kernel module living in crucible.evaluation.longrun. Evaluation code is therefore among the 'world module' roots, and StaticReachability.FORBIDDEN excludes only crucible.realworld, crucible.redteam, crucible.evaluation.harness and crucible.research.sealed (independence.py:151). Other evaluation modules are not guarded against import from world code.",
+  "The 4.0 long runs had no focal agents, a single forced bankruptcy at day 120 (365-day runs), and every collapse recovered ('did not exercise a market that stays dead', OPENWORLD_REPORT \u00a73.5). The founder pool is finite (14 per world, LIMITATIONS.md:156), so horizons beyond a year can run out of entrants. Simulated prices can ratchet down.",
+  "All demonstrated competence in the second-order chains is scripted (SECOND_ORDER_EMERGENCE.md \u00a76; OPENWORLD_REPORT \u00a73.6). v5 10.3 explicitly says scripted policies only establish feasibility and must be labelled.",
+  "A probe that holds shows that one concrete attack fails, not that no attack exists (ACCEPTANCE.md J caveat). The residual exploits in LIMITATIONS.md:144-154 are documented but have no ratcheted probes.",
+  "The sandbox is process-level: Landlock + seccomp + one shared unprivileged uid, no VM, gVisor or bubblewrap on this host. Requests for VM-grade isolation are refused rather than run (SECURITY.md; tests/test_open_security.py).",
+  "modes.RealWorldGateway.enabled() accepts any CRUCIBLE_MODE_C_APPROVAL value starting with '<evaluation>:'. The token is not verified, and the gate rests on the human approval callback.",
+  "The realworld bridge HTTPS path (_PinnedHTTPS) has never been exercised. Tests use a loopback HTTP server only (LIMITATIONS.md:158).",
+  "Gate-letter collision: the 4.0 acceptance fixture writes docs/experiments/acceptance/<name>.json. Using v5 letters with the same file names would overwrite or confuse 4.0 records.",
+  "The machine is shared and a regression run is in progress. Full red-team runs (about 146 s for 81 probes) and long runs (about 4,100 s per 365-day seed) were not re-run here. All numbers come from recorded JSON files and docs.",
+  "Not confirmed: whether any v5-branch code (beyond commit 777f28c's scale/slots) already touches these modules. The worktree was assumed to be at 4.0 plus the spec and slots commits (git log shows 777f28c on top of 4a7591e)."
+ ],
+ "tests": [
+  {
+   "path": "tests/test_redteam.py",
+   "covers": "8 tests: the framework flags deliberately vulnerable toys (the post-check catches a direct state write); the attack phase cannot use operator powers, impersonate or use undeclared bystanders; catalogue consistency (>=55 unique names, 7 classes); fast catalogue against real worlds with the ratchet, money conserved and MUST_HOLD held; evidence specificity; slow scan/conservation probes (marked slow); sandbox probes (marked sandbox); sandbox probes report not_applicable when Landlock is missing"
+  },
+  {
+   "path": "tests/test_hardening.py",
+   "covers": "25 regression tests for the 28 red-team holes closed in 3.0->4.0 (circular revenue, shell companies, wages and loans never due, penalties, dissolution, settlement, spending limits, fine print, fake adopters, link farms, oracle, anchors via make_anchor/verify_anchor), each next to the honest use of the same mechanism"
+  },
+  {
+   "path": "tests/test_realworld_gate.py",
+   "covers": "14 tests: bridge refuses without authorisation; strict document validation; allowed GET is logged and pinned; allow-list/redirect/private/metadata refusals before connecting; live approval fails closed; limits and expiry; log tamper detection; outcomes only from measure(); sealed holdout budget survives restarts; real-world results cannot enter synthetic stores; no tool reaches the bridge; NetworkGuard blocks before the OS; a default Crucible process opens no network connection"
+  },
+  {
+   "path": "tests/test_invariants.py",
+   "covers": "18 tests: healthy tiny/bazaar/open_digital+entry/open_industry/engineering_lab worlds stay clean under continuous monitoring, and each violation class is detected on a deliberately corrupted copy (balances, postings, orphans, overdrafts, unrecorded minting, contracts vs ledger, claims/invoices/mandates/escrow, compute capacity and unpaid compute, defunct companies operating, scheduler, goods and log head, module checks, causing seq, repeated process failure, industrial stock/energy/reserves)"
+  },
+  {
+   "path": "tests/test_longrun.py",
+   "covers": "10 tests: every field produced and replay passes; a broken process is flagged although demand is healthy; collapse flagged with day and proximate cause; recorded shock with recovery via entry; operator shock tools refused for in-world actors; whole-sector bankruptcy; resume from snapshot with the resumed part replaying; underserved sectors flagged; agents act hourly and rejected commands counted; Disturb passes the admission harness"
+  },
+  {
+   "path": "tests/test_invention.py",
+   "covers": "4 tests: consequences placed by causal position not name; identical forks give no consequences; fades_after compares the same days; matched forks show a loss mechanism that exists only with the invention"
+  },
+  {
+   "path": "tests/test_fidelity.py",
+   "covers": "9 tests: register valid and claims no calibration; calibration without in-repo evidence refused; register covers every behavioural module in open_digital/open_industry/engineering_lab; adoption curves, concentration, retention/churn, price elasticity, entry/exit, reliability, utilisation, timing, size; measures deterministic; report separates eight kinds and invents no reference"
+  },
+  {
+   "path": "tests/test_open_security.py",
+   "covers": "7 tests: honest backend detection and refusal of unavailable backends; VM-requiring workloads fail closed; sandboxed service cannot call operator tools or act for others; delegate cannot bypass constitution; minds' private state not exposed by any tool"
+  },
+  {
+   "path": "tests/test_internet_adversarial.py",
+   "covers": "4 tests: trust_boundary separates naive from careful agents; firms not fooled by unverifiable claims for long; operating modes separated and Mode C refused by default; hermetic browser cannot reach outside hosts"
+  },
+  {
+   "path": "tests/test_sandbox.py",
+   "covers": "6 tests: isolation matrix, limits and failures, brokered world calls only, persistent worker/test runner, deterministic line accounting, unsafe paths rejected"
+  },
+  {
+   "path": "tests/test_acceptance.py",
+   "covers": "4.0 gates A-P with machine-readable records; H (long-term sustainability: 28-day in-test run with shock plus checks of recorded 90/180/365-day runs when present), J (reward-hacking probes subset), P (security probes plus backend detection), G (invention/second-order)"
+  },
+  {
+   "path": "tests/test_calibration.py",
+   "covers": "panel calibration separates the competent control from baselines and names failure categories"
+  },
+  {
+   "path": "tests/test_v5_slots.py",
+   "covers": "(5.0 commit 777f28c, outside this subsystem) machine-wide compute slots: budget fitting, dead-holder reclaim, waiting, env/GPU hiding with a usage log, cgroup quota"
+  }
+ ],
+ "performance_facts": [
+  "365-day ow_market (3 seeds): 1,141,696-1,301,588 events; 10.77-11.34 s per simulated day; total wall 4,077-4,293 s; peak RSS 1,355-1,581 MB; event log 845-991 KB per simulated day; invariant monitor 872-928 s over 366 checks (about 2.4 s/check, about 21% of wall); final replay 129-149 s, identical. Source: docs/experiments/ow_longrun365_ow_market_s{1,2,3}_full.json ('cost', 'replay').",
+  "180-day ow_frontier (2 seeds): 579,027-623,717 events; 10.41-10.87 s/sim-day; peak RSS 709-772 MB; invariant monitor 258-288 s; replay 235-278 s. Source: docs/experiments/ow_longrun180_ow_frontier_s{1,2}_full.json.",
+  "90-day ow_heldout (2 seeds): 244,315-266,739 events; 4.88-6.50 s/sim-day; peak RSS 308-351 MB; invariant monitor 54-66 s over 91 checks (about 0.6-0.7 s/check). Source: docs/experiments/ow_longrun90_ow_heldout_s{1,2}_full.json.",
+  "90-day open_digital base/entry arms: 177,120-240,387 events; 3.06-16.90 s/sim-day; peak RSS 209-357 MB. Source: docs/experiments/ow_longrun_open_digital_s{1,2}_{base,entry}.json.",
+  "Across 7 long runs, about 5.3M events in total, with 0 process failures, 0 invariant violations and exact replay (OPENWORLD_REPORT.md:27, \u00a73.5 table: ow_market 5 collapses (0 unrecovered), 33 entries / 11 exits; final week vs median 1.01-1.05).",
+  "365-day ow_market s1 shock: bankruptcy of the largest seller at day 120. The later collapse was flagged on day 292 ('provider outage') and recovered on day 293. Economy: 12 entries, 7 exits, 4 bankruptcies, 15 active firms at the end (from 10). Source: ow_longrun365_ow_market_s1_full.json.",
+  "Red team: 81 probes in 145.8 s wall with the sandbox available. Result: 79 held, 1 integrity_break (known open), 1 not_applicable (mech_tech_lostwork), 0 errors. Source: docs/experiments/ow_redteam.json ('environment', 'counts').",
+  "Red-team hardening before/after: 51 held, 16 false successes, 9 integrity breaks, 3 leaks, 1 false failure, 1 NA became 79 held, 1 open, 1 NA (OPENWORLD_REPORT.md \u00a73.7).",
+  "Acceptance wall times: H long-term 219 s (28-day ow_market run, 77,931 events, 29 invariant checks), J reward hacking 70 s, P security 6 s, G invention 292 s (docs/ACCEPTANCE.md; docs/experiments/acceptance/H_long_term_sustainability.json).",
+  "Kernel (quick suite, shared machine with an 11.5-core quota): 4,400 ledger transactions/s; 26,000 replayed events/s; 10 simulated days/s across 8 parallel small worlds (1.2 for one); 40 MB for a world with 100,000 consumers (OPENWORLD_REPORT.md \u00a73.7). Snapshots are full copies, about 200 ms at 100k consumers (LIMITATIONS.md:44).",
+  "Second-order chain (open_tight_compute, 70 days, 3 seeds): factual 4.78-5.07M requests served vs 3.29-3.89M counterfactual; capacity_unavailable 401-535 events vs 0; cheap provider price peaked at 407-440 vs 75 cents per core-hour (docs/SECOND_ORDER_EMERGENCE.md).",
+  "Fidelity register: 55 mechanisms, 37 plausible-hypothesis and 18 known-unrealistic, 0 calibrated, 0 stylised-fact-checked; validate_register() returns [] (verified with python -c on src/crucible/evaluation/fidelity.py)."
+ ],
+ "determinism_replay_persistence": "Worlds are event-sourced and hash-chained, so replay is exact. World.replay(spec, events, world_id='replay', verify=True, base_blob=None) re-applies events and checks the chain (core/kernel.py:956). Snapshots are World.snapshot_blob() (pickle protocol 5 plus zlib, holding spec, world_id, seq, hash, state and kernel version), loaded with World.from_blob.\n\nThe assurance code uses this in five places:\n- integrity_postcheck replays from genesis after every probe, but only when log_base == 0 and seq <= 400,000, and compares digest and last_hash.\n- run_long replays at the end: from genesis, from base_blob for forks or resumed runs, or skips when the log is trimmed. It snapshots every N days to <label>.snap with the harness state in <label>.state.pkl, written via tmp + os.replace.\n- invention_trial and fork_compare fork from one snapshot blob and can re-run the control arm to check determinism (check_determinism=True). Forks are exact only under cost_model='deterministic', which is reported as 'exact'.\n- Counterfactual interventions are recorded system calls, so the intervened fork's log states what changed. The exception is set_params (an internal no-op note).\n- Shocks go through the operator-only Disturb tools as recorded commands, so disturbed runs replay and regenerate.\n\nReal-world persistence is separate: an append-only blake2b-16 chained JSONL log with fsync per record, verified on open and never extended when corrupt. Request and byte budgets, wall time and holdout counts are re-derived from the log, so they survive restarts.\n\nStore-level tamper evidence: the chain alone cannot detect a rewritten suffix or a truncated tail (the open finding). storage.base.make_anchor/verify_anchor can detect both, but no harness calls them.\n\nThe in-memory log keeps 2M events (spec param log_retain); older events must come from the store (events_range raises ProtocolError without one). census move detection and the fidelity _events() helper read the in-memory log."
+}

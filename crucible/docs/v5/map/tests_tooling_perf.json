@@ -1,0 +1,498 @@
+{
+ "subsystem": "tests_tooling_perf",
+ "summary": "Crucible 4.0 has a flat pytest suite in tests/ (57 modules, 720 `def test_` functions plus 65 parametrize decorators). The suite is documented as \"1,057 passed\", but that count is older than meta_np (c07098b, adds tests/test_meta_np.py) and the new slots commit 777f28c (tests/test_v5_slots.py). pyproject.toml declares four markers: slow, browser, postgres and sandbox. There is no gpu or acceptance marker. GPU, torch and web tests use skipif or importorskip. Sandbox-marked tests do not auto-skip. A global pytest-timeout of 600 s applies to every test.\n\nThe acceptance tests A-P live in tests/test_acceptance.py. Each one calls the `acceptance` fixture (tests/conftest.py) to record its claim, measured numbers, caveats and logs. The record is written only when CRUCIBLE_RECORD_ACCEPTANCE=1, and its outcome comes from the pytest report hook, not from the test itself. examples/run_acceptance.py runs each test in its own pytest subprocess. It deletes stale records first, then writes docs/experiments/acceptance/<letter>_<name>.json, summary.json (commit plus a dirty flag) and docs/ACCEPTANCE.md. The checker trusts pytest's exit code. There is no requirement manifest, no hashing of evidence and no checking of where evidence came from. Several tests (D, G, H, O) read committed experiment JSON only if it is present.\n\nThe 4.0 benchmark suite is crucible.scale.bench (examples/bench_openworld.py). It has a fixed schema \"crucible-bench-openworld/1\" with 10 sections: kernel, families, storage, memory, scaling, rollout, browser, gpu, episode_cost and llm. Each row carries its load and cgroup conditions and a spread (median, min, max, samples), and validate() checks the document. The recorded docs/benchmarks/openworld.json is quick mode only: 16 of 74 families, measured while the shared 11.52-core cgroup quota was throttled 96.7% of the time. The 3.0 files bench.json and internet.json are protected from overwrite.\n\nMeasured headline numbers:\n- 4,442 bank transfers per wall-second (7,196 per CPU-second).\n- 26,345 replayed events per second.\n- 0.15 to 84 simulated days per wall-second, depending on family.\n- 10.1 aggregate simulated days per second across 8 parallel tiny worlds.\n- 40 MB resident memory for a world with 100k statistical consumers.\n- 7.5 real-Chromium actions per second.\n- About 11 s per simulated day for 365-day ow_market runs (1.4 GB RSS, about 0.9 MB of log per day).\n\nNothing measures peak VRAM, model throughput, token counts, approximation error or population profiles. Mechanism tick throughput exists only as asserted floors inside tests.\n\nDependencies: the core needs only numpy and pyyaml. The extras are web, browser, postgres, rl (torch, gymnasium, pettingzoo) and dev. matplotlib and transformers are needed by code but declared in no extra. Acceptance test N checks a clean install of the core and dev extras only.",
+ "key_files": [
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_acceptance.py",
+   "role": "Crucible 4.0 acceptance tests A-P (one function per letter, lines 96-785); helper _evidence() at line 31 reads committed docs/experiments JSON when present; module fixture software_world (line 63) shared by A, I, M"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/conftest.py",
+   "role": "Puts src/ on sys.path, sets BLAS threads=1, pytest_runtest_makereport hook (line 16) and the `acceptance` fixture/_Acceptance recorder (lines 24-63) that writes docs/experiments/acceptance/<name>.json only under CRUCIBLE_RECORD_ACCEPTANCE=1"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/examples/run_acceptance.py",
+   "role": "Acceptance runner: one pytest subprocess per letter, stale-record removal, summary.json with commit and dirty flag, regenerates docs/ACCEPTANCE.md; --only, --timeout"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/docs/experiments/acceptance/summary.json",
+   "role": "Machine-readable acceptance summary: commit 2a983b9 (checkpoint 4, not the final 4.0 commit), tree clean, 16/16 PASSED, recorded 2026-11-23T05:45:39Z"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/docs/ACCEPTANCE.md",
+   "role": "Generated table of A-P results, wall time, record link and main caveat"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/scale/bench.py",
+   "role": "4.0 benchmark suite: Probe conditions (cgroup quota, throttling, loadavg), stat(), sections, run_suite(), validate(), format_table(), CLI main()"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/examples/bench_openworld.py",
+   "role": "Thin entry point for crucible.scale.bench.main writing docs/benchmarks/openworld.json"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/docs/benchmarks/openworld.json",
+   "role": "Recorded 4.0 benchmark (quick mode, 2026-11-23, schema crucible-bench-openworld/1)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/docs/benchmarks/bench.json",
+   "role": "Recorded 3.0 benchmark (crucible.bench.run): kernel, population 1k-100k consumers, npcs, agents, replicas, open; protected from overwrite"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/docs/benchmarks/internet.json",
+   "role": "Recorded 3.0 synthetic-internet benchmark (examples/bench_internet.py): API fetch, Chromium page load, async agents"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/bench/run.py",
+   "role": "3.0 benchmark module (`python -m crucible.bench.run`) that produced bench.json"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/docs/SCALING.md",
+   "role": "Human-readable measured performance (3.0 and 4.0 tables, bottlenecks, limits)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_scale.py",
+   "role": "WorldPool/RolloutFarm correctness (determinism across worker counts, crash containment, resume, orphan cleanup, backpressure) and bench schema stability test (line 701)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/scale/slots.py",
+   "role": "NEW in 777f28c (after 4.0): machine-wide CPU/GPU-memory/job slot ledger with flock and usage log; `python -m crucible.scale.slots --cpu N --gpu-mb M -- cmd`"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/pyproject.toml",
+   "role": "Package crucible 0.4.0, core deps numpy+pyyaml, extras web/browser/postgres/rl/dev, pytest markers and timeout=600"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/requirements.lock.txt",
+   "role": "Tested versions (Python 3.12.15): numpy 2.5.4, torch 2.14.1+cu126, transformers 5.23.0, matplotlib 3.11.2, playwright 1.44.0, etc."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/docs/REPRODUCE_OPENWORLD.md",
+   "role": "Requirements table (what is optional), regression and acceptance commands, every experiment command, sealed-set procedure, determinism guarantees"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/docs/OPENWORLD_REPORT.md",
+   "role": "4.0 final report: results, A-P table with limits, status categories, limitations"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/IMPLEMENTATION_STATUS.md",
+   "role": "Status ledger; claims last full run 1,057 passed + 16/16 acceptance"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_behavior.py",
+   "role": "LEGACY_DIGESTS (line 105): golden 3.0 world digests checked against current code - the existing baseline-preservation pattern"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/learner.py",
+   "role": "Architecture-neutral Learner contract, EnvSpec observation layout, Usage accounting (params, infer_tokens, gpu seconds)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/learners/__init__.py",
+   "role": "Learner registry (hold, random, probe_exploit, hill_climb, ppo_gru, ppo_gru_flat, model_based, evo_probe, meta_np)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/protocols.py",
+   "role": "Protocols used by acceptance D, K, L, O: evaluate, lifetime, compare, timescales, internalisation, transfer"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/examples/ow_benchmark.py",
+   "role": "Learner benchmark CLI (baseline, lifetime, compare, timescales, internalisation, transfer, sealed, report, list); outputs docs/experiments/ow_benchmark_<exp>_<tag>.json"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/examples/long_run4.py",
+   "role": "Long-run harness CLI producing ow_longrun* JSON/CSV used by acceptance H"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/sealed.py",
+   "role": "Sealed sets: salt outside repo (~/.crucible/sealed_salt), access log, budget, call-stack guard"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/pg_fixture.py",
+   "role": "Throwaway PostgreSQL cluster fixture (CRUCIBLE_PG_BIN, default /usr/lib/postgresql/16/bin), skips when binaries/psycopg missing"
+  }
+ ],
+ "public_interfaces": [
+  {
+   "name": "acceptance fixture / _Acceptance",
+   "shape": "fixture acceptance(request) -> _Acceptance with .claim(text:str), .measure(**kw), .caveat(text:str), .log(name:str, value); record dict keys {test, claim, measured, caveats, logs, reproduce, outcome, failure?, wall_s, recorded_at}; written to ACCEPTANCE_DIR/<node.name minus first 'test_'>.json only if os.environ['CRUCIBLE_RECORD_ACCEPTANCE']=='1'",
+   "location": "tests/conftest.py:24-63",
+   "notes": "outcome is taken from item._crucible_call (set by pytest_runtest_makereport hook at conftest.py:16), so a failing test is recorded as failing; failure text truncated to last 4000 chars"
+  },
+  {
+   "name": "run_acceptance CLI",
+   "shape": "python examples/run_acceptance.py [--only A,I,M] [--timeout 3000]; summary.json = {commit, tree_had_uncommitted_changes, recorded_at, tests:{<letter>:{test,title,node,pytest_exit,pytest_summary,wall_s,record,result:'PASSED'|'FAILED'|'SKIPPED',claim,caveats}}}",
+   "location": "examples/run_acceptance.py:87 (main), :41 run_one(letter, node, timeout) -> dict, :35 node_ids() regex ^def test_([A-P])_(\\w+)\\(, :71 write_markdown(rows)",
+   "notes": "result derived from pytest exit code and the word 'skipped' in the last stdout line; git dirty check limited to src and tests"
+  },
+  {
+   "name": "bench.run_suite",
+   "shape": "run_suite(mode='quick'|'full', only=None, skip=(), families=None, workers=None, out=None, price_per_cpu_hour=None, llm_file=None, seed=1, max_per_group=None, merge=True, imports=(), argv=None, log=print, section_kwargs=None) -> dict",
+   "location": "src/crucible/scale/bench.py:890",
+   "notes": "raises ValueError if out basename in PROTECTED_OUTPUTS ('bench.json','internet.json') or unknown sections; validates its own output and raises AssertionError on schema problems; merges unselected sections from an existing file"
+  },
+  {
+   "name": "bench document schema",
+   "shape": "SCHEMA='crucible-bench-openworld/1'; TOP_KEYS=(schema,generated,mode,argv,machine,caveat,discovery,run,sections); SECTIONS=(kernel,families,storage,memory,scaling,rollout,browser,gpu,episode_cost,llm); SECTION_KEYS=(status,reason,generated,mode,wall_s,conditions,params,rows); status in {ok,error,skipped,not_run,not_measured}; ok rows need reps, workers, loadavg",
+   "location": "src/crucible/scale/bench.py:50-55, validate(doc)->list[str] at :1093",
+   "notes": "frozen by tests/test_scale.py:701 test_suite_document_schema_is_stable"
+  },
+  {
+   "name": "bench CLI",
+   "shape": "python examples/bench_openworld.py [--quick] [--only S,..] [--skip S,..] [--families a,b|all] [--max-per-group N] [--workers N] [--seed 1] [--out PATH] [--no-merge] [--price-per-cpu-hour X] [--llm-file F] [--import mods] [--list]",
+   "location": "src/crucible/scale/bench.py:1288 main(argv=None, default_out=None) -> dict",
+   "notes": "families discovered at run time via crucible.worldgen.families(); quick mode caps mech_*/ow_* at 6 per group"
+  },
+  {
+   "name": "Probe / stat",
+   "shape": "Probe() then .done(**extra) -> {loadavg_start, loadavg_end, cpu_count, cgroup_cpu_quota_cores, cgroup_cores_used_all_tenants, cgroup_throttled_fraction, bench_cpu_s, bench_cores_used, wall_s}; stat(samples, nd=4) -> {n, median, min, max, mean, stdev, samples}",
+   "location": "src/crucible/scale/bench.py:117, :143",
+   "notes": "cgroup v1 and v2 supported; reusable for any v5 measurement"
+  },
+  {
+   "name": "bench section functions",
+   "shape": "bench_kernel(n_actors=200, n_cmds=20000, reps=3, seed=0); bench_families(families, idle_days=1.0, agent_days=2.0, reps=2, ...); bench_storage(families, days=2, workers=2, seed=1, ...); bench_memory(points, days=1.0, workers=2, seed=1, ...); bench_scaling(counts=(1,2,4,8), spec='tiny', days=1.0, reps=1, ...); bench_rollout(worker_counts=(1,4), tasks_per_worker=4, steps=16, ...); bench_browser(n=20, seed=1, wait_s=30.0); each returns {status?, reason?, params, rows}",
+   "location": "src/crucible/scale/bench.py:346,446,559,609,638,682,740",
+   "notes": "family runs go through WorldPool worker processes (spawn)"
+  },
+  {
+   "name": "Learner contract",
+   "shape": "class Learner(spec: EnvSpec, seed=0, device='cpu'): reset_context(n, which=None); act(obs[n,obs_dim], explore=True)->[n,act_dim] in [-1,1]; observe(obs, action, reward, done, next_obs); update()->{'updates':int,...}; freeze(frozen=True); save(path); load(path); usage()->Usage",
+   "location": "src/crucible/research/learner.py:103",
+   "notes": "EnvSpec(max_levers=12, max_gauges=16, horizon=120) at :50 -> obs_dim 61 (gauges, gauge_mask, last_action, lever_mask, last_reward, last_revenue, last_cost, funds, time), act_dim 12; Usage at :86 has env_steps, updates, train/infer cpu/gpu s, infer_tokens, search_evals, params, extra"
+  },
+  {
+   "name": "learner registry",
+   "shape": "register(name, factory(spec, seed, device, **kw)->Learner, *, kind, has_weights, learns_across_episodes, defaults=None, doc='', adapts_within_episode=True); available()->list[str]; describe(name)->dict; make(name, spec=None, seed=0, device='cpu', **kwargs)->Learner",
+   "location": "src/crucible/research/learners/__init__.py:45, :57, :61, :70",
+   "notes": "this is the architecture-independent plug-in point that acceptance K iterates over"
+  },
+  {
+   "name": "research protocols",
+   "shape": "from_registry(name, spec=None, device='cpu', **kw)->Callable[[int],Learner]; evaluate(learner, tasks, *, spec, n_envs=16, segments=4, ...)->dict; internalisation(factory, train_tasks, eval_tasks, budget_env_steps, *, seed, spec, n_envs, ...)->dict; transfer(factory, source, targets, *, source_budget, adapt_budget, eval_every, seeds, ...)->dict; compare(learners, train_tasks, eval_sets, budget_env_steps, eval_every, *, seeds, reference, ...)->dict",
+   "location": "src/crucible/research/protocols.py:151, :472, :1164, :1466, :1730",
+   "notes": "internalisation returns valid, violations, frozen_unchanged, update_count, env_interactions, compute, gain, verdict ('internalised'|'no_gain_detected')"
+  },
+  {
+   "name": "numeric envs",
+   "shape": "MechVecEnv(tasks, spec=None, seat=0, money=True).reset(which=None, tasks=None)->obs; .step(actions[n,max_levers])->(obs, reward, done, info); KernelMechEnv(task, spec=None, handle='agent', tools=False, store=None, strict=True) same reset/step through rig.* tool calls in a kernel World",
+   "location": "src/crucible/research/envs.py:37; src/crucible/research/bridge.py:22",
+   "notes": "acceptance K asserts bit-equal obs/rewards between the two for ppo_gru and model_based"
+  },
+  {
+   "name": "Policy / Runner",
+   "shape": "Policy.reset(actor, rng); Policy.act(obs:dict, tools:list[dict])->dict|None; Policy.observe_result(action, result); Policy.usage()->dict; Runner(world, agents:[(actor, Policy)], dt=600, seed=0, objectives=None, record=True, max_events=30).run(rounds)->{actor: Trajectory}",
+   "location": "src/crucible/agents/base.py:18, :66 (AsyncRunner :142)",
+   "notes": "text/tool-level agent interface used by A, B, G and LLM agents"
+  },
+  {
+   "name": "compute slots",
+   "shape": "Budget(cpus, gpu_mb, jobs).from_env() reads CRUCIBLE_SLOT_CPUS (default floor(cgroup quota)-2), CRUCIBLE_SLOT_GPU_MB (24000), CRUCIBLE_SLOT_JOBS (8); acquire(cpu, gpu_mb, label, budget=None, poll_s=2.0, timeout_s=None, pid=None)->dict; run(cmd, cpu=1, gpu_mb=0, label='', budget=None, timeout_s=None)->int; CLI python -m crucible.scale.slots --cpu N --gpu-mb M --label L -- cmd | --status",
+   "location": "src/crucible/scale/slots.py:51, :112, :147, :183",
+   "notes": "ledger dir CRUCIBLE_SLOTS_DIR default /tmp/crucible-slots; added after 4.0 in 777f28c"
+  },
+  {
+   "name": "long-run harness",
+   "shape": "run_long(family, seed, days, overrides=None, out_dir=None, check_every_days=1, *, extra_modules=(), agents=None, shock=None, collapse_fraction=0.5, recover_fraction=0.8, proc_failure_limit=3, label=None, snapshot_every_days=None, resume=False, replay_check=True, world=None, base_blob=None, before_day=None, progress=None, close=True, min_history_days=7)->dict",
+   "location": "src/crucible/evaluation/longrun.py:385",
+   "notes": "returns weeks, flags, invariants, liveness, cost{wall_s_days, s_per_sim_day, rss_mb_max, log_bytes, log_bytes_per_day}, replay{identical, wall_s}, healthy"
+  },
+  {
+   "name": "red-team runner",
+   "shape": "run_probes(world_factory, probes, progress=None)->{'probes':[{name, attack_class, result,...}], 'errors':[...], 'counts':...}; all_probes(include_slow=True, include_sandbox=True); sandbox_available()->(bool, str)",
+   "location": "src/crucible/redteam/framework.py:510, :406; src/crucible/redteam/__init__.py:15",
+   "notes": "used by acceptance J and P"
+  },
+  {
+   "name": "pytest markers and timeout",
+   "shape": "[tool.pytest.ini_options] testpaths=['tests'], timeout=600, markers: slow, browser, postgres, sandbox",
+   "location": "pyproject.toml:28-36",
+   "notes": "no gpu, acceptance or gate markers"
+  },
+  {
+   "name": "LEGACY_DIGESTS golden fingerprints",
+   "shape": "{scenario: {consumers: md5, digest: md5, last_event_hash: md5, events: int}} compared by _fingerprint(w)",
+   "location": "tests/test_behavior.py:105",
+   "notes": "recorded from 3.0 commit 11e5613; template for Gate A golden digests of 4.0 families"
+  },
+  {
+   "name": "sealed sets",
+   "shape": "create_set(name, families=None, n_per_family=8, budget=1, ...); open_set(name, ack, purpose, caller=None, workers=1)->SealedSet; evaluate(subjects, name, ack, purpose, *, ...); describe(name=None); rotate(name, ack, reason, budget=None)",
+   "location": "src/crucible/research/sealed.py:175, :355, :397, :206, :216",
+   "notes": "files sealed_salt, sealed_access.jsonl, sealed_sets.json under sealed_dir() (CRUCIBLE_SEALED_DIR or ~/.crucible)"
+  }
+ ],
+ "data_model_and_state": "Acceptance evidence is a set of flat JSON files. Each 4.0 acceptance test builds an in-memory `_Acceptance.rec` dict (test node id, claim, measured, caveats, logs, reproduce command). The conftest fixture adds outcome, failure, wall_s and recorded_at at teardown and writes it to docs/experiments/acceptance/<Letter>_<name>.json, only when CRUCIBLE_RECORD_ACCEPTANCE=1. examples/run_acceptance.py keeps summary.json, keyed by letter (merged across --only runs, with one commit SHA and one dirty flag for the whole file), and re-renders docs/ACCEPTANCE.md from it. No record is linked to a requirement ID, and no record carries a content hash of the artifacts it relies on. The commit is stored per summary, not per record.\n\nLong experiments write their own JSON to docs/experiments/*.json (ow_longrun*, ow_selfplay_*, ow_benchmark_*_final.json, ow_learners_curve_*.json, plus checkpoints in docs/experiments/checkpoints/*.pt). Tests read these back through _evidence(name), which returns None when the file is missing.\n\nBenchmarks are one JSON document per suite (docs/benchmarks/openworld.json). It has a schema string, a top-level machine block and conditions, and one entry per section ({status, reason, generated, mode, wall_s, conditions, params, rows}). Rows carry stat() spreads. Partial runs merge into the existing file, and each kept section keeps its own `generated` stamp.\n\nState outside the repository:\n- the validated-task cache (CRUCIBLE_CACHE, default ~/.cache/crucible);\n- the sealed salt, access log and registry (~/.crucible or CRUCIBLE_SEALED_DIR);\n- the compute-slot ledger (/tmp/crucible-slots).\n\nThrowaway PostgreSQL clusters are created per test session (pg_fixture.py). Hypothesis is used in tests/test_kernel_props.py.",
+ "determinism_replay_persistence": "The tests themselves verify determinism. Acceptance M checks five things on the software world (7,362 events): World.replay(spec, events) reproduces the digest and last_hash; World.regenerate re-executes commands to the same head hash and seq; usefulness_report gives the same result on the replayed world; forks equal their parent, and two forks advanced 6 h stay identical (deterministic cost model only); SQLiteStore resume and make_anchor/verify_anchor work. M also checks that make_task(family, seed) is deterministic.\n\nOther determinism checks:\n- tests/test_scale.py:187: the same world-job spec gives the same digest for any worker count.\n- tests/test_scale.py:225: fork and spawn start methods give the same world.\n- tests/test_scale.py:281 and :344: checkpoint and resume in another process.\n- bench_families records same_digest_across_reps.\n- bench_storage records fork_digest_equal and replay_digest_equal.\n- Every recorded long run has replay.identical=true from genesis (for example 1,190,406 events replayed in 148.5 s).\n- Acceptance E and H also assert replay equality.\n\nStated guarantees (REPRODUCE_OPENWORLD.md section 6): replay is always exact. Regeneration is exact because non-recomputable outcomes are recorded. Fork-equals-parent and cross-process equality hold only under params.cost_model=\"deterministic\", which covers all ow_* and mech_*_tools families; mech_* without _tools and bazaar use the \"measured\" cost model. Frozen-LLM runs are reproducible only from their recorded transcripts.\n\nTest-level reproducibility: every acceptance record stores a `reproduce` pytest node command. Learner experiments are resumable units with checkpoints. Acceptance test N reproduces a smoke run (4 families, 12 h, replay plus invariants) and 3 test files (68 passed) in a fresh uv venv with an empty HOME, from a clone of HEAD.",
+ "extension_points": [
+  "tests/conftest.py:48 `acceptance` fixture: generalise to a v5 recorder that takes gate and requirement IDs and writes to docs/v5/evidence/gate_<X>/<req>.json with per-record commit, dirty flag, machine conditions (bench.Probe) and sha256 of the artifacts it cites; keep the outcome-from-pytest-hook behaviour (conftest.py:16).",
+  "examples/run_acceptance.py run_one() (line 41): the subprocess-per-test pattern (stale-record deletion, timeout, pytest exit code) is the core of a v5 runner; the Part 21 command `python -m crucible.acceptance.v5 --verify-all` can wrap it but must read docs/v5/ACCEPTANCE_MANIFEST.json and re-validate evidence instead of trusting exit codes.",
+  "pyproject.toml [tool.pytest.ini_options] markers (lines 31-36): add gate markers (e.g. `gate(\"V\")`), `gpu`, `acceptance_v5`; per-test `@pytest.mark.timeout(...)` for long gates (global timeout=600 at line 30).",
+  "pyproject.toml [project.optional-dependencies] (lines 12-17): add extras for v5 components (multimodal encoders, calibration, numba) and declare the undeclared matplotlib/transformers.",
+  "src/crucible/scale/bench.py run_suite `do(name, fn)` (lines 954-1016) plus SECTIONS (line 51): new measurement sections plug in here, but SECTIONS/SCHEMA are frozen by tests/test_scale.py:701, so v5 should add a new suite module/schema (e.g. crucible-bench-v5/1 -> docs/benchmarks/v5.json) reusing Probe/stat/validate and add openworld.json to PROTECTED_OUTPUTS (line 55).",
+  "src/crucible/scale/bench.py run_suite kernel 'recorded_3_0' block (lines 1023-1034): the pattern for embedding the prior-version baseline next to a new measurement (13.8 'compare against Crucible 4.0').",
+  "src/crucible/research/learners/__init__.py register() (line 45): any architecture (future CAM included) joins every protocol and acceptance K by registering a factory; K iterates L.available().",
+  "src/crucible/research/learner.py Usage (line 86): params, infer_tokens, train_gpu_s/infer_gpu_s fields feed 13.8 parameter and token reporting.",
+  "src/crucible/agents/base.py Policy (line 18) / Runner (line 66): text-tool agent integration for Tier 2/3 (LLM and scripted reference agents).",
+  "src/crucible/scale/slots.py run()/acquire() (lines 112, 147): wrap every v5 heavy acceptance or benchmark job so its usage log is the compute-budget compliance evidence for Gate V.",
+  "tests/test_behavior.py LEGACY_DIGESTS (line 105): pattern for a Gate A golden-fingerprint table of all 74 4.0 world families and 25 mechanism families recorded at the v5 branch point."
+ ],
+ "reuse_for_v5": [
+  {
+   "v5_part": "Part 17 / 1.3 acceptance checker",
+   "how": "Reuse the conftest `acceptance` recorder (claim/measure/caveat/log + outcome from pytest hook), run_acceptance.run_one subprocess isolation and stale-record deletion, and bench.validate-style schema checks; add manifest entries (ID, workstream, deps, files, tests, command, criteria, status, evidence paths, reviewer, commit) and a checker that recomputes criteria from evidence JSON and exits nonzero."
+  },
+  {
+   "v5_part": "Gate A baseline preservation",
+   "how": "Run `python -m pytest -q --ignore=tests/test_acceptance.py` plus `python examples/run_acceptance.py` at the v5 branch point under scale/slots; reuse tests/test_behavior.py LEGACY_DIGESTS pattern to freeze 4.0 family fingerprints; reuse acceptance N (clean venv) and the sealed-set tests (tests/test_research_protocols.py:1138-1276) for isolation; keep docs/experiments/acceptance and docs/benchmarks/openworld.json untouched as the 4.0 reference."
+  },
+  {
+   "v5_part": "Gate V / 13.8 performance",
+   "how": "Reuse bench.Probe (cgroup quota/throttling/load), stat() spreads, WorldPool/RolloutFarm for parallel worlds, bench_kernel/families/storage/memory/scaling sections as the '4.0 equivalent workload' comparator, and Usage.params/infer_tokens for model reporting."
+  },
+  {
+   "v5_part": "Gate S replacement: architecture-independent learner integration (clarification 1)",
+   "how": "Acceptance K (tests/test_acceptance.py:652) and L (:710) are direct templates: every registry learner through one contract with equal budgets, kernel-vs-simulator equivalence, and ppo_gru internalisation with frozen-weight hashing and a null control demonstrating real neural parameter updates."
+  },
+  {
+   "v5_part": "Gate P long-horizon",
+   "how": "Reuse evaluation.longrun.run_long and examples/long_run4.py (90/180/365-day runs with seeds, shocks, replay, invariant monitor) and acceptance H's check of recorded runs; add a 30-day run per documented population profile."
+  },
+  {
+   "v5_part": "Gate W security",
+   "how": "Reuse acceptance J and P (redteam.run_probes, sandbox_available, backends.enforce_min_isolation) and examples/redteam_report.py."
+  },
+  {
+   "v5_part": "Gate X clean checkout",
+   "how": "Reuse acceptance N (uv venv, empty HOME, clone of HEAD, smoke worlds, test subset); widen to the full regression suite and all extras used by acceptance."
+  },
+  {
+   "v5_part": "Gate U generalization protocols",
+   "how": "Reuse acceptance D and O plus research.protocols (transfer, internalisation, timescales, compare) and research.sealed for new sealed sets (the 4.0 set ow-final is spent)."
+  }
+ ],
+ "gaps_vs_v5_spec": [
+  {
+   "v5_part": "1.3 acceptance manifest and checker",
+   "gap": "No docs/v5/ACCEPTANCE_MANIFEST.json and no checker. The 4.0 runner trusts pytest exit codes and status strings. It does not validate evidence content or hashes, does not track per-requirement IDs, dependencies, reviewer status or implementing commit, and does not exit nonzero for unverified requirements.",
+   "size": "large"
+  },
+  {
+   "v5_part": "Part 21 hard completion command",
+   "gap": "`python -m crucible.acceptance.v5 --verify-all` does not exist. There is no src/crucible/acceptance package.",
+   "size": "large"
+  },
+  {
+   "v5_part": "Part 17 machine-readable evidence per gate",
+   "gap": "Records carry no commit hash per record (only summary.json does), no artifact hashes, no hardware or conditions block, and no gate or requirement linkage. Evidence from committed experiments is optional (_evidence returns None and the test still passes) and its provenance is not checked.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate A",
+   "gap": "No regression baseline recorded at the v5 branch point. The 1,057 figure and the A-P records (commit 2a983b9) predate meta_np (c07098b), which changes what K iterates. No frozen fingerprint guards the benchmark definitions (25 MECH_FAMILIES with splits 7 train/7 val/11 test, 74 world families, task versions). No test executes all 74 world families: N smokes 4, quick bench ran 16. No automated check that prior results reproduce.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate V: population profiles",
+   "gate": "",
+   "gap": "There is no Development/Standard/Large/Internet-scale profile concept (Part 3.3) and therefore no benchmark of one. The memory benchmark scales statistical consumers of `bazaar` only (1k/10k/100k quick; up to 400k in full mode, which was never run).",
+   "size": "large"
+  },
+  {
+   "v5_part": "Gate V / Gate I ten-million identities",
+   "gap": "The largest tested population is 200,000 consumers (tests/test_scale.py:685) and the largest benchmarked is 100,030. Nothing processes 10M distinct consumption events or identities.",
+   "size": "large"
+  },
+  {
+   "v5_part": "Gate V: batched inference, event-driven computation, content-representation caching",
+   "gap": "No benchmark section measures batched neural or LLM inference, event-driven activation counts, or embedding-cache hit rates. The llm section only copies an external file and was 'not_measured'.",
+   "size": "large"
+  },
+  {
+   "v5_part": "Gate V / 13.8 peak VRAM, parameter counts, token counts",
+   "gap": "The gpu section records only other tenants' nvidia-smi load. No per-run VRAM peak, no model parameter count in the bench (Usage.params exists only in learner records) and no inference-token totals.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate V / 13.6 / 13.8 approximation error",
+   "gap": "No approximate-versus-individual simulation comparison exists, so there are no error measurements for adoption, audience, revenue, diffusion, retention, intervention effects or rare events.",
+   "size": "large"
+  },
+  {
+   "v5_part": "Gate V machine-specific throughput targets with change control",
+   "gap": "No target file exists. Tests assert only ad-hoc floors (MechSim >=5000 CPU ticks/s, kernel-hosted >=400, techsys >=3000, abm n=500 >=1000, rollout speedup >1.3). Nothing records targets before the benchmarks are run.",
+   "size": "small"
+  },
+  {
+   "v5_part": "Gate V explicit compute-budget compliance",
+   "gap": "scale/slots.py (777f28c) provides a budget and usage log, but the bench and acceptance runners do not use it. No document records the declared budget against actual usage.",
+   "size": "small"
+  },
+  {
+   "v5_part": "13.8 performance reporting",
+   "gap": "Missing: participant decisions per second for v5 participants, simulated days per wall-clock hour as a reported field (derivable), inference tokens, approximation error, and a like-for-like 4.0 comparison. The 4.0 record is quick mode only, 16 of 74 families, measured under 96.7% cgroup throttling, and the 30-day episode table was never run.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate X clean checkout and no skipped acceptance tests",
+   "gap": "N installs only [dev] and runs 3 test files (68 tests). The full suite needs matplotlib, which no extra declares. N skips rather than fails when uv is missing. run_acceptance reports SKIPPED as a non-failing result.",
+   "size": "small"
+  },
+  {
+   "v5_part": "Clarification 1: learner integration replacing Gate S",
+   "gap": "K and L cover only the numeric hidden-mechanism facility (EnvSpec obs_dim 61). Untested: one learner interface across Tier 1/2/3, an observation-only mode, persistent experience storage, parallel-environment adapters for the semantic and civilization tiers, and a checkpoint round-trip through a world-agnostic interface. A documented connection path for future CAM versions also does not exist.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Test tooling: markers and timeouts",
+   "gap": "There are no gpu, gate or acceptance markers, and sandbox tests do not auto-skip. The global 600 s pytest timeout would kill long gate runs (30 to 365 days, 10M events) unless they are overridden.",
+   "size": "small"
+  }
+ ],
+ "risks_and_gotchas": [
+  "Letter collision: the 4.0 acceptance tests are named A-P and the v5 gates are A-X with different meanings. conftest writes docs/experiments/acceptance/<node.name minus 'test_'>.json, run_acceptance.py's regex only matches ^def test_([A-P])_, and run_acceptance overwrites docs/ACCEPTANCE.md. A v5 gate test named test_A_... would overwrite the 4.0 record A_*.json. v5 needs its own directory (docs/v5/evidence/ already exists, empty gate_A) and its own runner.",
+  "The 4.0 acceptance records were produced at commit 2a983b9 (summary.json), not at the final 4.0 commit 435878b or the current HEAD. Between 2a983b9 and 435878b only examples/ow_cam_baseline.py and tests/test_entry.py changed. c07098b then registered meta_np (torch transformer, 286,279 params), which acceptance K now also loops over, and K has not been re-run since.",
+  "The test count is unconfirmed. Docs say 1,057 passed, but test_meta_np.py (c07098b) and test_v5_slots.py (777f28c) were added later. Static count: 720 test functions plus 65 parametrize decorators. I did not run pytest --collect-only (read-only rule).",
+  "HEAD has moved beyond the 4a7591e stated in the task: 777f28c added src/crucible/scale/slots.py and tests/test_v5_slots.py.",
+  "Sandbox-marked tests (A, B, G, H, I, J, M, P and several in test_hardening, test_invention, test_mech_rig and test_redteam) do not skip automatically. They need root, Landlock and seccomp, and P asserts sandbox_available(). Only tests/test_sandbox.py has a module-level skipif.",
+  "pytest-timeout=600 applies to every test (pyproject.toml:30). run_acceptance --timeout 3000 is only the subprocess timeout. Test B already takes about 327 s.",
+  "Acceptance D, G, H and O cite committed experiment JSON via _evidence() and pass when it is absent. H's filename filter also ignores ow_longrun_vacated_* runs. Under v5 ('a gate is not passed merely because documentation exists') evidence must be mandatory and verified.",
+  "The benchmark numbers are pessimistic and noisy. Quick mode was measured with cgroup_throttled_fraction 0.967 on a shared 11.52-core quota, so wall rates differ several-fold from 3.0's bench.json on the same workload (bazaar: 1.03 simulated days/s in 3.0 vs 0.156 in 4.0 quick, also with a different cost model). Comparisons must re-run both versions back to back, or use per-CPU-second rates.",
+  "Doc inconsistency: SCALING.md says quick mode covers '15 of the 73 world families', while openworld.json discovery lists 74 families with 16 selected, and 74 is confirmed by worldgen.families() after load_all_modules().",
+  "test_suite_document_schema_is_stable (tests/test_scale.py:701) pins SECTIONS, SCHEMA and keys exactly, so extending bench.py breaks a regression test (Gate A). Also, openworld.json is not in PROTECTED_OUTPUTS, so re-running bench_openworld.py would overwrite the 4.0 baseline record.",
+  "Dependency drift: requirements.lock.txt pins playwright==1.44.0 (installed, with chromium-1117) but pyproject's browser extra requires playwright>=1.48. matplotlib (imported unconditionally by crucible/research/report.py, used by tests/test_research_protocols.py:1278,1311 and examples/ow_benchmark.py) and transformers (agents/llm.py HFBackend) are locked but in no extra. pandas and pyarrow are installed but unlocked. numba, scipy, sklearn, onnxruntime, sentence_transformers, open_clip, librosa, soundfile, cv2, av and torchaudio are not installed, which matters for the 13.3 Numba benchmark and the Gate E encoders.",
+  "State outside the repository: the sealed salt (~/.crucible/sealed_salt; the ow-final set is spent and its salt is lost if the machine is destroyed), the task cache (~/.cache/crucible) and the slot ledger (/tmp/crucible-slots). Clean-checkout and isolation checks must set CRUCIBLE_SEALED_DIR, CRUCIBLE_CACHE and CRUCIBLE_SLOTS_DIR explicitly.",
+  "Acceptance K does `from test_learners import easy_task`. This relies on pytest's rootdir sys.path insertion (there is no tests/__init__.py), so a v5 checker under src/ cannot import test helpers.",
+  "Acceptance N clones `git rev-parse --show-toplevel` (the agentrs repo root) and installs <clone>/crucible[dev]. It needs a committed HEAD. I did not verify how it behaves when run from a git worktree.",
+  "Mechanism tick throughput exists only as asserted floors and printed lines in tests (test_mech_rig.py:215, test_mech_techsys.py:1335, test_mech_abm.py:1236). No artifact records it.",
+  "The numeric learner observation includes a last_reward scalar (EnvSpec scalars). For Gate R reward-leakage tests and an observation-only mode, this field is the native reward and would have to be zeroed or removed, while K and L currently rely on rewards.",
+  "The machine is shared: the GPU (RTX A6000, 46 GB) had 23.9 GB in use by other tenants when benchmarked, the pid budget is 2,816 (a Chromium uses about 80-100 threads) and the CPU quota is 11.52 cores. A regression run is in progress now. Heavy v5 gates must be scheduled through scale/slots."
+ ],
+ "tests": [
+  {
+   "path": "tests/test_acceptance.py::test_A_real_software_creation (line 96, sandbox)",
+   "covers": "ow_tiny (800 consumers, appdb) for 6 simulated days. A scripted ExampleInductor (wrapped with a db.get/db.put usage ledger), a GarbageSeller and a Shopper act. Checks: the builder used only whitelisted public tools; commits, deployment and listing exist; >1000 metered requests and compute cost >0; verified and battery quality >0.99; the shopper found the service via search.query and market.view and got status 200 with score >0.99; the ledger persists in app_docs, survives a fork and is readable only by the owner; invariants are clean"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_I_genuine_customer_value (line 147, sandbox)",
+   "covers": "Same world. The garbage service is cheaper, listed and claims 'best quality'. Checks: verified quality 0; >100 answered requests with 0 accepted or paid; revenue 0 vs >20,000 cents for the working service; negative margin; customers <15% of the working service's; retention <0.2 vs >0.6; rating <2.6"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_C_unknown_mechanism_discovery (line 196)",
+   "covers": "informed_vs_deprived on 12 scm_additive/scm_gate validation tasks with equal probe cost. Commit phase: paired lo >0.3, p <0.01, frac_better >=0.75. Whole episode: lo >0. tech_pipeline is measured but not asserted"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_G_invention_and_second_order_effects (line 224, sandbox)",
+   "covers": "open_tight_compute forked at the first ops request. invention_trial compares an idle control with a CapacityInventor over 6 days, with an exact counterfactual and a determinism check. Checks: >=2 independent adopters; a new 'capacity_unavailable' loss (>=10 events) absent in the control; reactions by others"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_H_long_term_sustainability (line 276, sandbox)",
+   "covers": "run_long on ow_market for 28 days with a bankrupt_largest shock on day 14. Checks: no process failures or invariant violations, replay identical, weekly served >0 with the last week >0.6 of the maximum, no unrecovered collapse. Also checks committed ow_longrun*_full.json and open_digital runs when present"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_J_reward_hacking_resistance (line 315, sandbox)",
+   "covers": "Fast red-team probes for reward_exploitation, payment_loopholes and unbounded_resources. Every result must be held, legitimate_strategy or not_applicable, and five reward-exploitation classes must all be held"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_M_reproducibility (line 347, sandbox)",
+   "covers": "Replay, regeneration, evaluator equality on replay, forks versus parent, SQLite store resume with head anchor verification, and task determinism"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_P_security (line 407, sandbox)",
+   "covers": "Nine named independence/leak probes plus the adversarial_content class are all held. VM-grade isolation is refused (enforce_min_isolation 'vm' and require('firecracker') raise SandboxUnavailable)"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_B_multiple_viable_strategies (line 469, sandbox)",
+   "covers": "ow_works seeds 1-4, 20 days, target +20,000 cents. Selling software (ExampleInductor) and operating a facility (RigExperimenter) both meet the target in >=2 worlds, with disjoint tools and income kinds (sale vs rig_settle). Idle never meets it. Hidden configurations differ per seed"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_D_structural_transfer (line 529)",
+   "covers": "model_based learner from scm_additive+scm_gate to scm_invu (6,000 source steps, 3,000 adaptation steps). Checks disjoint families, equal experience between pretrained and scratch, and n=6 paired. Asserts no particular effect"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_E_autonomous_competition (line 565)",
+   "covers": "abm_duopoly. SPSA learners trained against aggressive and passive profiles end with different policies (distance >0.05) and score higher own-opponent than cross-opponent. Co-trained pairs change theta. 24 kernel ticks of rig.set per seat replay exactly"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_F_cooperation (line 619)",
+   "covers": "tech_handoff, 3 worlds. A trained pair beats the best single trained learner with a default partner, and beats both-default, in every world"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_K_architecture_neutral_evaluation (line 652)",
+   "covers": "Every registry learner (>=5 kinds) acts through MechVecEnv with the same shapes, bounds and env-step budget. ppo_gru and model_based get bit-equal obs and rewards through KernelMechEnv tool calls. P.compare uses identical evaluation schedules and task ids"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_L_parametric_learning (line 710)",
+   "covers": "ppo_gru internalisation over 28,800 steps on easy hand tasks. Checks a valid protocol, frozen-weight hashes unchanged, update_count >0, verdict 'internalised' with gain lo >0. Null control probe_exploit gives 'no_gain_detected'"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_N_clean_installation (line 739, slow)",
+   "covers": "uv venv with an empty HOME and a clone of HEAD, install crucible[dev], smoke-run 4 families for 12 h (replay plus invariants), then run test_kernel, test_research_stats and test_mech_scm in the clean checkout. Skips without uv"
+  },
+  {
+   "path": "tests/test_acceptance.py::test_O_independent_generalization (line 785)",
+   "covers": "Held-out test families scm_feedback, scm_regime, abm_network_fx and tech_contention (disjoint from train). Frozen evaluation of hold, probe_exploit and committed trained ppo_gru/model_based checkpoints when present"
+  },
+  {
+   "path": "tests/test_scale.py",
+   "covers": "WorldPool spec validation, digest equality across worker counts and start methods, failure containment, checkpoint/resume across processes, worker recycling, no orphan processes on interrupt or kill, RolloutFarm versioning, exact accounting, backpressure, throughput growth with workers. Also checks bench kernel, families, storage, memory and scaling outputs and the frozen openworld schema"
+  },
+  {
+   "path": "tests/test_storage.py",
+   "covers": "memory, sqlite and postgres stores: appends, ranges, forks, snapshots, leases, blobs, crash reload, single-writer guarantees, concurrent writers, throughput benchmark"
+  },
+  {
+   "path": "tests/test_behavior.py",
+   "covers": "Behaviour models, plus 3.0 legacy byte-identical digests (LEGACY_DIGESTS) as the baseline-preservation regression"
+  },
+  {
+   "path": "tests/test_learners.py",
+   "covers": "Learner registry contract: action shapes, reset_context leaves weights alone, freeze is bit-exact, save/load round trip, seed determinism, usage accounting, short training improvements for ppo_gru and model_based, kernel tool-call equivalence. Provides easy_task() used by K and L"
+  },
+  {
+   "path": "tests/test_research_protocols.py",
+   "covers": "Protocol positive and negative controls with purpose-built learners (within-episode only, weights only, memoriser, none), sealed-set salt privacy, access logging, budget and unreachability from learner and world code, reports, the benchmark CLI in a fresh process"
+  },
+  {
+   "path": "tests/test_mech_rig.py / test_mech_techsys.py / test_mech_abm.py",
+   "covers": "Mechanism engines and the rig facility. Throughput floors asserted on CPU time: MechSim >=5000 ticks/s, kernel-hosted >=400, techsys >=3000 per single-seat family, abm_utility with 500 customers >=1000"
+  },
+  {
+   "path": "tests/test_longrun.py",
+   "covers": "Long-run harness fields, replay check, collapse cause flags, shock recovery, resume from snapshot, operator-tool admission"
+  },
+  {
+   "path": "tests/test_redteam.py / tests/test_hardening.py",
+   "covers": "Red-team framework on vulnerable toys, in-world-only powers, no probe errors outside KNOWN_OPEN, slow and sandbox probes, hardening fixes"
+  },
+  {
+   "path": "tests/test_v5_slots.py",
+   "covers": "NEW (777f28c): slot budget fitting, dead-holder reclaim, waiting, thread and GPU env setting with usage logging, cgroup quota read"
+  },
+  {
+   "path": "tests/test_web.py / tests/test_internet.py",
+   "covers": "Web forms equal recorded commands; browser-marked real-Chromium workflow equivalence and closed network (skip without Playwright/Chromium)"
+  },
+  {
+   "path": "tests/test_agents_llm.py",
+   "covers": "LLM agent interfaces; real Qwen3-0.6B GPU tests behind skipif(_gpu_and_model)"
+  }
+ ],
+ "performance_facts": [
+  "Kernel, 4.0 quick (docs/benchmarks/openworld.json sections.kernel; 200 actors, 4,000 cmds, 2 reps, throttled 1.0): bank.transfer 4,441.8 cmds/wall-s (7,196.0/cpu-s), 3.0 events per command; mixed 9-tool workload 3,944.4/wall-s (6,861.1/cpu-s); bank.accounts read 18,120.1/wall-s; replay from genesis 26,345.4 events/wall-s (42,617.6/cpu-s).",
+  "Kernel, 3.0 (docs/benchmarks/bench.json, 2026-11-20): 7,731.8 transfers/s, 19,709.2 read cmds/s, 41,814 replay events/s; sandbox one-shot program 90.72 ms, persistent call 0.106 ms; storage append in batches of 500: 43k/81k/39k events/s for memory/SQLite/PostgreSQL (docs/SCALING.md, from tests/test_storage.py).",
+  "World families, 4.0 quick idle (openworld.json sections.families), simulated days per wall-s / per cpu-s / events per day: mech_scm_additive 84.3/84.8/154; mech_tech_cascade 35.7/65.8/154; mech_abm_commons 8.2/53.0/154; *_tools variants 3.9-9.6 with 866 events/day; open_industry 4.45/16.6/1,533; ow_tiny (600 consumers) 1.27/5.17/1,057; ow_works (800) 1.09/4.29/1,215; ow_market (4,000) 0.303/1.32/2,772; ow_composite (4,000) 0.252/0.944/3,429; bazaar (6,000) 0.156/0.616/2,506. World creation (create_s) 0.013-0.44 s.",
+  "Population scale (bench.json 3.0, bazaar): 1,000/6,000/25,000/100,000 consumers -> 0.82/0.97/0.99/2.19 wall-s per simulated day; snapshot 6.9/15.4/40.9/162.3 ms (0.09/0.27/0.88/3.41 MB); fork 16.7-212 ms; all forks digest-equal.",
+  "Memory (openworld.json sections.memory, fresh process per world): bazaar with 1,030/10,030/100,030 population -> world RSS 4.1/7.5/39.9 MB, peak RSS 57.5/61.0/93.4 MB, state arrays 0.08/0.82/8.2 MB, 0.549/0.36/0.094 simulated days/s. tests/test_scale.py:685 exercises 200,006 consumers.",
+  "Parallel worlds (sections.scaling, tiny, 2 days each): 1/2/4/8 worlds -> 1.15/1.41/4.68/10.13 aggregate simulated days per wall-s (speedup 8.79 at 8). 3.0 replicas (3,000 consumers each): 1->0.63, 8->5.81, 16->6.85 aggregate days/s.",
+  "Rollout (sections.rollout, RandomPolicy, tiny): 113.3 steps/wall-s with 1 worker, 485.1 with 4 (speedup 4.28); accounting exact.",
+  "Storage (sections.storage, SQLite WAL, 2 days): bytes per event 216-1,072 (ow_* about 268-330); ow_market 2,467 events/day, snapshot 220 KB, fork 21 ms, replay 10,298 events/s; ow_composite 3,030 events/day, snapshot 249 KB.",
+  "Browser (sections.browser): Chromium goto 7.54 actions/s (132.65 ms, 105.9x the API cost), observe 59.75/s, API net.fetch 799.1/s. 3.0 internet.json: API fetch 630.6/s (1.59 ms), Chromium mean 124.6 ms, async scripted agents 10/50/200 -> 1,325/2,338/2,431 actions per wall-s.",
+  "Agent decisions (bench.json 3.0): 3 scripted agents, 216 steps, 19.15 ms per agent step including world advance. Tier-2 minds 56/506/2,006 -> 0.306/0.386/0.437 s per simulated day (about 0.07 ms per mind per day, SCALING.md).",
+  "Episode cost (sections.episode_cost, 2-day episodes, not the 30-day standard): world-process CPU 0.127-4.105 s per episode (mech 0.13-0.27 s, ow_* 1.75-3.06 s, bazaar 4.1 s); peak RSS 56-72 MB; usd null (no price given).",
+  "Long runs (docs/experiments/ow_longrun*_full.json cost blocks): ow_market 365 days x3 seeds, 1.14-1.30M events, 10.8-11.3 s per simulated day (about 318-333 simulated days per wall-hour), 1.36-1.58 GB RSS max, 0.84-0.99 MB log per day, replay 129-149 s; ow_frontier 180 days x2: 0.58-0.62M events, 10.4-10.9 s/day, 709-772 MB; ow_heldout 90 days x2: 4.9-6.5 s/day, 308-351 MB.",
+  "Learner training cost (docs/experiments/ow_learners_curve_*_s0.json usage): ppo_gru 35,763 params, 210,912 env steps, 800 updates, 2,323 s wall, 345.8 train cpu-s; model_based 1,426 params, 126,496 steps, 782 updates, 1,418 s; meta_np 286,279 params, 326,496 steps, 37,712 updates, 5,801 s wall, 4,556 train gpu-s. Acceptance L: ppo_gru 28,800 env interactions, 600 updates, env_sim 5.82 s (about 4,950 simulated env steps/s batched over 16 envs), 90.8 train cpu-s.",
+  "LLM cost (docs/SCALING.md, from final_challenge_*.json): Qwen3-4B on the A6000 in bf16 took about 3.5 s of generation per decision with prompts of about 4.6k tokens. The bench llm section is 'not_measured'.",
+  "Acceptance wall times (docs/experiments/acceptance/summary.json): A 35 s, B 327 s, C 20 s, D 173 s, E 114 s, F 84 s, G 292 s, H 219 s, I 22 s, J 70 s, K 74 s, L 231 s, M 32 s, N 66 s, O 45 s, P 6 s. The regression suite takes about 45 min in three parallel groups (REPRODUCE_OPENWORLD.md section 2).",
+  "Machine (openworld.json machine): 48 logical CPUs, 11.52-core cgroup quota, 188.5 GB RAM, pid budget 2,816 (905 in use), RTX A6000 46,068 MB with 23,869 MB used by other tenants at sample time, Python 3.12.15."
+ ]
+}

@@ -44,7 +44,10 @@ __all__ = ["API_VERSION", "WorldServer", "ActorIdentity", "Observation", "Action
            "ensure_modules"]
 
 _BLOB = "crucible-api"
-_MODULE_PACKAGES = ("services", "economy", "sandbox", "web", "worlds", "actors", "goals", "evaluation", "bench")
+_MODULE_PACKAGES = ("services", "economy", "sandbox", "web", "worlds", "actors", "goals", "evaluation", "bench",
+                    # Crucible 5.0 packages (docs/v5/ARCHITECTURE.md)
+                    "substrate", "population", "social", "semantic", "commerce", "innovation", "rapid", "domains", "civ",
+                    "multiagent", "experience")
 _HIDDEN_HOSTS = ("admin",)  # operator-only tools are never listed to in-world actors
 
 

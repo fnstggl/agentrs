@@ -1,0 +1,445 @@
+{
+ "subsystem": "agents_llm_and_learner_compat",
+ "summary": "Crucible 4.0 has two separate learner contracts and a set of adapters. Neither depends on CAM.\n\n(1) Tool-world agents: `agents.base.Policy` (base.py:18). It has `reset(actor, rng)`, `act(obs: dict, tools: list[MCP spec]) -> {\"tool\",\"args\"}|None` and `observe_result(action, result)`. Two drivers run it. `Runner` (base.py:66) is synchronous: every actor acts once per round in a seeded order, then the clock advances by `dt`. `AsyncRunner` (base.py:142) is an event-driven SMDP: each agent sleeps for `cost_s` plus a think time, and agents sharing a `batch_group.act_batch` hook can be decided together (nothing implements that hook). A Policy gets no reward, done flag or update hook.\n\n(2) Numeric batched learners: `research.learner.Learner` (learner.py:103). It works on obs `[n,61]` and returns actions `[n,12]` in [-1,1], with `reset_context/act/observe/update/freeze/save/load/usage`. It is driven by `research.envs.MechVecEnv`, `learners.training.train` and `research.protocols.lifetime/evaluate/transfer`. `research.bridge.KernelMechEnv` runs the same learner through `rig.*` tool calls with identical obs and reward (tested). CAM 7.0 (`cam7/agent.py:28`) imports this contract from Crucible. The dependency runs CAM -> Crucible, never the other way.\n\nLLM agents: `agents.llm.LLMPolicy` (llm.py:214) is a frozen Hugging Face causal LM, default Qwen/Qwen3-1.7B. It loads with `local_files_only`, decodes greedily with thinking off, and emits one JSON tool call per turn, parsed by `api.render.parse_action`. Two prompt interfaces exist. \"v3\" is the 3.0 prompt byte for byte. \"v4\" uses the `core.discovery.render_catalogue` tool list and structured errors. `EvalLLMPolicy` (llm_eval.py:117) adds history budgets. Each turn records a transcript entry (prompt hash, tokens, text, action). `ReplayLLM` re-executes a run without the model and raises an error if a prompt diverges.\n\nOther learners:\n- Neural RL: `agents/rl.py` is A2C over a factored pointer-network policy, about 764k parameters, with checkpoint and resume.\n- Statistical: `agents/learners.py` has numpy REINFORCE pricing and ad learners.\n- Scripted controls: `agents/scripted.py` and `agents/inventors.py`.\n\nAdapters:\n- `integrations/agentrs_cam2.py` (CAM 2.0) and `integrations/agentrs_sl.py` (superlearner). Both import `agentrs` at module import time.\n- `api/gym_env.py` and `api/pettingzoo_env.py`: text observations and text actions.\n- `scale/rollout.py`: `WorldEnv`/`RolloutFarm`, with parameter versions on every rollout.\n\nExperience export: `training/trajectories.py` writes `crucible-traj/1` JSONL/NPZ. The dashboard (FastAPI, read-only) displays these trajectories.\n\nA future learner such as CAM Unified (contract v2 `EnvAdapter`) can be written entirely on `WorldServer`:\n- `execute` never moves the clock.\n- `advance_time` is separate.\n- `seq` cursors exist.\n- `replay_events(actor=)` is lossless.\n\nWhat is missing is a unified, typed experience record across tiers, explicit reward modes, and batched shared LLM inference.",
+ "key_files": [
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/agents/base.py",
+   "role": "Policy interface (l.18-35), Step/Trajectory records (l.38-63), synchronous Runner (l.66-132), event-driven AsyncRunner with batch_group hook (l.142-228)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/agents/llm.py",
+   "role": "Frozen LLM agent: HFBackend (l.56-107), EchoLLM test double (l.110), ReplayLLM (l.134), prompt_hash (l.155), render_actor_observation/render_tool_list (l.160-210), LLMPolicy v3/v4 (l.214-354)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/agents/rl.py",
+   "role": "Lightweight neural reference learner for tool worlds: FactoredPolicy (MLP+GRU+pointer heads, l.87-115), FactoredActor (l.136), A2CLearner (l.252), Lifetime persistent/fork + checkpoint/resume (l.329-517), RLPolicy wrapper (l.521)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/agents/learners.py",
+   "role": "Statistical learners in tool worlds: _Softmax REINFORCE, PricingLearner, AdLearner (scripted prefix + learned daily decision)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/agents/scripted.py",
+   "role": "Controls: IdlePolicy, RandomPolicy (schema-valid random args), ScriptPolicy generator protocol, Builder, Employer, Composer, BountyHunter"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/agents/inventors.py",
+   "role": "Scripted competent inventor controls (CapacityInventor, PeakPricingInventor, MaintenanceInventor, ProcessResearcher, PlacementBroker, SiteAuthor, EvidenceAggregator)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/learner.py",
+   "role": "Architecture-neutral numeric learner contract: EnvSpec obs layout (l.20-83), Usage (l.86), Learner (l.103-148). Imported by CAM 7.0"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/envs.py",
+   "role": "MechVecEnv batched Tier-1 env (reset(which,tasks)/step), run_episodes; reward = net/money_scale; obs scalar[0] = last reward"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/bridge.py",
+   "role": "KernelMechEnv: the same numeric learner driving a kernel world through rig.set/rig.read/bank.accounts tool calls"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/learners/__init__.py",
+   "role": "Learner registry (register/available/describe/make) and 9 built-in learners (hold, random, probe_exploit, hill_climb, ppo_gru, ppo_gru_flat, model_based, evo_probe, meta_np)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/learners/training.py",
+   "role": "train/evaluate loops over the Learner contract; train_pool disk cache (used by CAM7 train.py)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/llm_eval.py",
+   "role": "Frozen-LLM evaluation harness: EvalLLMPolicy, interface_audit, run_mechanism, run_open_economy, RunStore (persisted transcripts), controls"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/integrations/__init__.py",
+   "role": "Shared plumbing: agent_tools, ActorView (l.49-76), deployed_service_prefix, make_goal_world (l.128), EntityMemory, ActionTemplates factored action space, obs_features hashed features (l.477)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/integrations/agentrs_cam2.py",
+   "role": "CAM 2.0 EnvironmentAdapter (CrucibleAdapter); hard import of agentrs.cam2 at module load"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/integrations/agentrs_sl.py",
+   "role": "Superlearner World adapter; hard import of agentrs.sl"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/api/gym_env.py",
+   "role": "Gymnasium CrucibleEnv: text obs + time, text/dict action, reset_mode continue/fork, time_mode fixed/cost/none, Objective protocol"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/api/pettingzoo_env.py",
+   "role": "PettingZoo CrucibleParallelEnv multi-agent (seeded action order per step)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/api/local.py",
+   "role": "WorldServer: observe (l.546), execute_action (l.590), advance_time (l.608), snapshot/fork, replay_events lossless actor-filtered (l.722); Observation dataclass (l.103)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/api/render.py",
+   "role": "render_observation, action_format_help, normalize_action, parse_action (fences, <tool_call>, OpenAI/MCP shapes, <think> stripping)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/scale/rollout.py",
+   "role": "WorldEnv SMDP env (step -> obs, reward, done, info{sim_dt}); RolloutFarm async workers with param_version/params_hash per Rollout"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/training/trajectories.py",
+   "role": "RecordingRunner and crucible-traj/1 JSONL/NPZ experience export, event export, ImitationDataset"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/goals/contracts.py",
+   "role": "GoalVerifier.status (progress, l.189) and RewardContract(shaping, success_bonus) begin/step_reward/status (l.196-232): the reward-mode lever"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/dashboard/app.py",
+   "role": "Read-only FastAPI researcher dashboard; /w/{wid}/trajectories (l.731) from crucible-traj records, /w/{wid}/agents (l.1103)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/docs/RL_INTEGRATION.md",
+   "role": "Integration doc: lifetimes table, LLM policy, CAM 2.0 adapter, SL adapter, neural RL experiment and measured results/limitations"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/cam7-ref/superlearner/src/superlearner/cam7/agent.py",
+   "role": "READ-ONLY reference: Cam7Learner(Learner) uses research.learner contract; relies on exact EnvSpec scalar positions; T_MAX=256"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/cam7-ref/superlearner/src/superlearner/cam7/worlds.py",
+   "role": "READ-ONLY reference: registers x2_* mech families into crucible MECH_FAMILIES using mech_family and private scm._COMMON"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/cam7-ref/superlearner/src/superlearner/cam_unified/interfaces.py",
+   "role": "READ-ONLY reference: CAM Unified contract v2 (EnvAdapter, GoalEvaluator, Observation/ToolSchema/Action/ExecutionResult/EventRecord records) - what a future CAM expects"
+  }
+ ],
+ "public_interfaces": [
+  {
+   "name": "Policy",
+   "shape": "class Policy: name='policy'; kind='abstract' (scripted|random|heuristic|llm|rl|human); version='1'; reset(self, actor: str, rng: np.random.Generator) -> None; act(self, obs: dict, tools: list[dict]) -> dict | None  # {'tool': str, 'args': dict}, None = wait; observe_result(self, action: dict, result: dict) -> None; usage(self) -> dict",
+   "location": "src/crucible/agents/base.py:18",
+   "notes": "No reward/done/update/save hooks; obs = World.observe(actor) + 'events' (seq,t,type,actor,payload) + 'events_dropped'; tools = MCP-shaped specs"
+  },
+  {
+   "name": "Runner",
+   "shape": "Runner(world: World, agents: Iterable[tuple[str, Policy]], dt: int = 600, seed: int = 0, objectives: dict | None = None, record: bool = True, max_events: int = 30); .round(); .run(rounds) -> dict[actor, Trajectory]",
+   "location": "src/crucible/agents/base.py:66",
+   "notes": "Seeded permutation per round; objectives[actor].begin/step_reward feed Step.reward only (policy never sees it); ignores batch_group"
+  },
+  {
+   "name": "AsyncRunner",
+   "shape": "AsyncRunner(world, agents, seed=0, think_mean_s=600.0, think_s=None, max_events=30); .run_until(t_end: int) -> int; .schedule: list[(t, actor, tool|None)]; batching via policy.batch_group.act_batch([(policy, obs, tools)]) -> [action]",
+   "location": "src/crucible/agents/base.py:142",
+   "notes": "Agents wake at now + max(1,cost_s) + think; no act_batch implementation exists in the repo"
+  },
+  {
+   "name": "Step / Trajectory",
+   "shape": "Step(t, actor, policy, obs, n_tools, action, result, events: list[int], reward=0.0, wall_ms=0.0); Trajectory(actor, policy, world_id, world_spec_hash, steps).to_records()",
+   "location": "src/crucible/agents/base.py:38",
+   "notes": "In-memory trajectory; exported by training/trajectories.step_records"
+  },
+  {
+   "name": "LLMPolicy",
+   "shape": "LLMPolicy(model='Qwen/Qwen3-1.7B', device='cuda', max_new_tokens=256, temperature=0.0, history=6, system_prompt=None, goal='', backend=None, tool_chars=9000, max_events=25, payload_chars=200, record_prompts=False, seed=0, tool_order='alpha', interface='v3'|'v4', result_chars=2000, host_summaries=None); .set_goal(text); .build_messages(obs, tools) -> (messages, new_tools); .transcript: list[dict]; .usage() -> {model, calls, prompt_tokens, gen_tokens, parse_failures, waits, truncated_prompts, gen_s, max_new_tokens, max_context, interface{version, tool_chars, renderer, tool_order, result_chars, history}}",
+   "location": "src/crucible/agents/llm.py:214",
+   "notes": "Transcript record keys: turn, t, prompt_hash, prompt_chars, prompt_tokens, gen_tokens, text, new_tools, [truncated], [messages], [parse_error|wait|action], [result{ok,error,tool}]; per-turn sampling seed = seed*100003+turn"
+  },
+  {
+   "name": "LLM backend protocol",
+   "shape": "generate(messages: list[{'role','content'}], max_new_tokens=256, temperature=0.0, seed: int|None=None) -> GenResult(text: str, prompt_tokens: int, gen_tokens: int, truncated: bool=False, wall_s: float=0.0); optional attrs name, max_context, enable_thinking, fingerprint(), is_test_double",
+   "location": "src/crucible/agents/llm.py:46",
+   "notes": "Implemented by HFBackend(model, device='cuda', dtype=None, max_context=8192, enable_thinking=False) l.56, EchoLLM l.110, ReplayLLM(transcript, check_prompts=True) l.134, llm_eval._CloseThought proxy"
+  },
+  {
+   "name": "parse_action / normalize_action",
+   "shape": "parse_action(text: Any) -> {'tool': str, 'args': dict[, 'idempotency_key': str]} | {'error': {'code': 'parse_error', 'message': str}, 'raw'?: str}",
+   "location": "src/crucible/api/render.py:295",
+   "notes": "Accepts JSON, code fences, <tool_call>/<action>/<function_call> tags, name{json}, OpenAI {'function':..}/{'tool_calls':[...]}, MCP {'name','arguments'}; strips complete <think> blocks; lenient JSON"
+  },
+  {
+   "name": "Learner (numeric contract)",
+   "shape": "class Learner(spec: EnvSpec, seed=0, device='cpu'): reset_context(n: int, which: np.ndarray|None=None); act(obs: [n, obs_dim] float32, explore=True) -> [n, act_dim] in [-1,1]; observe(obs, action, reward[n], done[n], next_obs); update() -> {'updates': int, ...}; freeze(frozen=True); save(path); load(path); usage() -> Usage",
+   "location": "src/crucible/research/learner.py:103",
+   "notes": "Used by CAM 7.0 (Cam7Learner) and all 9 registered baselines; freeze means no weight change and no experience read/write"
+  },
+  {
+   "name": "EnvSpec",
+   "shape": "EnvSpec(max_levers=12, max_gauges=16, horizon=120); obs_dim = 2*G + 2*L + 5 = 61; act_dim = L = 12; slices gauges[0:16] symlog, gauge_mask[16:32], last_action[32:44] in [-1,1], lever_mask[44:56], scalars[56:61] = (last_reward, last_revenue, last_cost, funds/endowment, tick/horizon)",
+   "location": "src/crucible/research/learner.py:50",
+   "notes": "CAM7 indexes scalars[1..4] directly; layout is a de-facto frozen API"
+  },
+  {
+   "name": "Usage",
+   "shape": "Usage(env_steps=0, updates=0, train_cpu_s=0.0, train_gpu_s=0.0, infer_cpu_s=0.0, infer_gpu_s=0.0, infer_tokens=0, search_evals=0, params=0, extra={})",
+   "location": "src/crucible/research/learner.py:86"
+  },
+  {
+   "name": "learners registry",
+   "shape": "register(name, factory(spec, seed, device, **kw) -> Learner, *, kind, has_weights, learns_across_episodes, defaults=None|dict|callable, doc='', adapts_within_episode=True); available() -> list[str]; describe(name) -> dict; make(name, spec=None, seed=0, device='cpu', **kwargs) -> Learner (unknown kwargs raise TypeError)",
+   "location": "src/crucible/research/learners/__init__.py:45"
+  },
+  {
+   "name": "MechVecEnv",
+   "shape": "MechVecEnv(tasks: Sequence[Task], spec: EnvSpec|None=None, seat=0, money=True); reset(which=None, tasks=None) -> obs[n,61]; step(actions[n,12]) -> (obs, reward[n] float32, done[n] bool, {'net_cents': [n]}); drain() -> list[episode record]; lever_mask(); public()",
+   "location": "src/crucible/research/envs.py:37",
+   "notes": "reward = net income / (endowment / ENDOWMENT_TICKS); episode records carry score/success (evaluator side)"
+  },
+  {
+   "name": "KernelMechEnv",
+   "shape": "KernelMechEnv(task, spec=None, handle='agent', tools=False, store=None, strict=True); reset() -> obs[1,61]; step(actions) -> (obs, reward[1], done[1], {'net_cents','status'}); summary(); .calls tool log",
+   "location": "src/crucible/research/bridge.py:22",
+   "notes": "reset only once (kernel worlds are not rewound)"
+  },
+  {
+   "name": "protocols.lifetime",
+   "shape": "lifetime(learner, train_tasks, budget_env_steps: int, eval_every: int, eval_sets, *, spec=None, n_envs=16, update_every=1, explore=True, segments=4, checkpoint_dir=None, resume=True, thresholds=(GOAL_FRACTION,), sustain=2, budgets=None, require_disjoint=False, verify_frozen=True, label='', on_point=None, max_points=None) -> dict",
+   "location": "src/crucible/research/protocols.py:791",
+   "notes": "The protocol CAM7 experiments/train.py calls unchanged"
+  },
+  {
+   "name": "WorldServer (agent ops)",
+   "shape": "available_tools(world_id, actor) -> list[MCP spec]; observe(world_id, actor, *, max_events=None, include_tools='changed'|'always'|'never', peek=False) -> Observation(world_id, principal, time:int s, seq, events, dropped, summary, last_result, tools_changed, tools, new_tools, removed_tools, unscanned, observed, text, api); execute_action(world_id, actor, action: dict|str) -> {ok, t, tool, cost_s, result|error}; advance_time(world_id, until=None, *, dt=None, max_jobs=None); snapshot_world; fork_world(snapshot_id, ..., ephemeral=False); replay_events(world_id, from_seq=0, to_seq=None, actor=None) -> list[event dict]",
+   "location": "src/crucible/api/local.py:540",
+   "notes": "API_VERSION='crucible-api/1'; replay_events with actor is the lossless actor-visible event stream"
+  },
+  {
+   "name": "World.execute / ActionResult",
+   "shape": "World.execute(actor: str, action: {'tool','args'[,'idempotency_key']}) -> ActionResult(ok, result, error: dict|None, events: list[int], cost_s: int, t: int, replayed=False, tool=''); .to_dict() -> {ok, t, tool, cost_s, result|error[, replayed]}",
+   "location": "src/crucible/core/kernel.py:587",
+   "notes": "Never advances the clock (SMDP-compatible); in-world failures are ok=False with error code"
+  },
+  {
+   "name": "Tool spec (MCP-shaped)",
+   "shape": "{'name': '<host>.<endpoint>', 'description': str, 'inputSchema': JSON schema, 'annotations': {'readOnlyHint': bool, 'costSeconds': int, 'host': str, 'builtin': bool, 'version': str}}",
+   "location": "src/crucible/core/kernel.py:124",
+   "notes": "Endpoint.returns is not included in spec()"
+  },
+  {
+   "name": "CrucibleEnv (Gymnasium)",
+   "shape": "CrucibleEnv(server=None, world_id=None, actor=None, *, spec=None, seed=None, handle='agent', endowment=0, objective=None, reset_mode='continue'|'fork', base_snapshot=None, ephemeral_forks=True, dt=60, time_mode='fixed'|'cost'|'none', min_dt=1, max_steps=100, max_events=30, max_text_length=65536, max_action_length=8192, renderer=None, include_tools='changed', driver=None, render_mode=None); observation_space Dict{text: Text, time: Box(1)}; action_space Text",
+   "location": "src/crucible/api/gym_env.py:47",
+   "notes": "info carries objective status incl. 'progress' (privileged)"
+  },
+  {
+   "name": "CrucibleParallelEnv (PettingZoo)",
+   "shape": "CrucibleParallelEnv(server=None, world_id=None, actors=None, *, spec=None, seed=None, agents=None, n_agents=2, endowment=0, objectives=None, renderers=None, reset_mode='continue', base_snapshot=None, ephemeral_forks=True, dt=60, max_steps=100, max_events=30, ..., order_seed=0, driver=None); step(actions: dict[agent, Any])",
+   "location": "src/crucible/api/pettingzoo_env.py:23"
+  },
+  {
+   "name": "Objective / RewardContract",
+   "shape": "begin(world, actor); step_reward(world, actor) -> float; status(world, actor) -> {success, failed, progress, streak, elapsed_s, success_t, initially_true}; RewardContract(goal, shaping=1.0, success_bonus=1.0, check_every_s=DAY)",
+   "location": "src/crucible/goals/contracts.py:196",
+   "notes": "reward = shaping*(phi_t - phi_{t-1}) + success_bonus once"
+  },
+  {
+   "name": "WorldEnv / Rollout",
+   "shape": "WorldEnv(ref: {'family','seed','overrides','extra_modules'}|{'snapshot'}, *, handle='learner', endowment=3_000_000, think_s=600, horizon_days=None, objective=None, objective_kwargs=None, max_events=30, imports=(), strict=False); reset() -> obs dict; step(action|None) -> (obs, reward, done, {'sim_dt','result','t'}); Rollout(task_id, ok, ..., param_version, params_hash, obs, actions, rewards, results, sim_dt, sim_t, final_obs, ...)",
+   "location": "src/crucible/scale/rollout.py:106",
+   "notes": "Default reward without objective = change of own balances in cents"
+  },
+  {
+   "name": "crucible-traj/1 record",
+   "shape": "{format, world_id, spec_hash, seq_before, seq_after, actor, policy, policy_kind, policy_version, step, t, observation, tools, n_tools, action, tool, args, result, ok, reward, events, wall_ms}",
+   "location": "src/crucible/training/trajectories.py:79",
+   "notes": "JSONL and columnar NPZ (allow_pickle=False); RecordingRunner fills tools/seq/policy_version"
+  },
+  {
+   "name": "CAM Unified EnvAdapter (external reference, not a dependency)",
+   "shape": "reset(seeds) -> ObservationBatch(env_ids, observations, t[days], done); observe(); available_tools() -> [B] list[ToolSchema(name, description, parameters, returns, cost_hint, duration_hint days)]; execute([B] Action|None) -> [B] ExecutionResult(ok, observations, error, cost cents, duration days, started_t, finished_t); collect_events(since: [B] seq) -> ([B] list[Observation], [B] cursors) lossless; advance_time([B] days); goals() -> [B] GoalSpec; close()",
+   "location": "/workspace/agentrs/.worktrees/cam7-ref/superlearner/src/superlearner/cam_unified/interfaces.py:288",
+   "notes": "CONTRACT_VERSION=2; 'Executing never moves the clock: only the harness's advance_time does (SMDP)'; GoalEvaluator.evaluate_goal -> IndependentGoalResult (details never fed to learner)"
+  }
+ ],
+ "data_model_and_state": "State lives in the kernel `World`. The `Policy` and `Learner` objects keep only agent-side state.\n\nPolicy state per agent:\n- `Policy.reset(actor, rng)` gives each agent a seeded `np.random.default_rng([seed, i])` (base.py:83, 169).\n- `LLMPolicy` keeps `hist` (its last `history` actions with results), `known_tools` (used to announce new tools), `last_result`, `turn` and an append-only `transcript` list (llm.py:237-252).\n- `ScriptPolicy` keeps a generator: `r = yield call(...)` (scripted.py:84-119).\n- `RLPolicy` and `FactoredActor` keep an `EntityMemory` plus GRU hidden state `h` and `prev` embedding (rl.py:136-159, 535-540).\n\nObservation cursors are kept per driver: `Runner.cursor[actor]`, `ActorView.cursor`, `WorldEnv.cursor`, and `WorldServer._Session.cursor`, which persists to the store (local.py:146-151, 530). All are `World.seq` event numbers.\n\nActions and outcomes:\n- Actions are plain dicts `{tool, args}` and are validated by the kernel against the tool's JSON schema.\n- An executed action creates kernel events: a `cmd` event plus module events, hash-chained.\n- Results come back as `ActionResult` dicts.\n- Rewards are computed outside the world by objective objects: `RewardContract`/`GoalVerifier` read the verified world state. Objectives are kept in `Runner.objectives`, `CrucibleEnv.objective`, `Lifetime.contract` and `CrucibleAdapter.contract`.\n\nNumeric Tier 1 (`MechVecEnv`):\n- Holds one simulator per slot plus lever bounds and masks.\n- `reset(which, tasks)` swaps tasks into slots.\n- Operator-side episode records go to `env.finished`; `drain()` returns them.\n\nLearners own their own experience:\n- CAM7 keeps whole-episode replay and saves it next to its weights as `<path>.replay.npy` (cam7/agent.py:439-448).\n- `A2CLearner` keeps a rollout buffer.\n\nPersistence:\n- `Lifetime.save` writes `ckpt.pt` atomically via `os.replace` (rl.py:460-475). It contains weights, optimiser, normaliser, recurrent state, `EntityMemory`, RNG states, world snapshot blob and the pickled `RewardContract`.\n- `Learner.save`/`load` handle numeric learners.\n- `protocols.lifetime` commits a resumable state after every evaluation point.\n- `training/trajectories` exports `crucible-traj/1` and `crucible-events/1` files.\n- `RolloutFarm` stamps every `Rollout` with `param_version` and `params_hash` (blake2b-64 of the parameter blob).\n- `HFBackend.fingerprint()` is a sha256 over per-tensor sums (llm.py:73-78).\n\nIDs:\n- Actors are principals, e.g. `p:agent`, `o:<org>`, `svc:<host>`.\n- Tools are named `<host>.<endpoint>`.\n- `world_id` and `spec_hash` tag every trajectory.\n\nThe dashboard reads worlds through a `ReadOnlyStore` and never writes.",
+ "determinism_replay_persistence": "Runners:\n- `Runner` uses a seeded permutation of actors per round (base.py:106). `AsyncRunner` uses a seeded wake-up heap plus a seeded order among agents due at the same time (base.py:190-198).\n- Each policy gets `default_rng([seed, i])`.\n- The PettingZoo env orders acting agents with `default_rng([order_seed, episode, steps])` (pettingzoo_env.py:142).\n\nLLM:\n- Decoding is greedy by default (`temperature=0`, `do_sample=False`), so runs are deterministic for a fixed model, prompt and hardware (llm.py:97-102). GPU determinism is tested on Qwen3-0.6B (tests/test_agents_llm.py:122, skipped without a GPU).\n- Sampling calls `torch.manual_seed(seed*100003+turn)`, which reseeds the global torch RNG.\n- `prompt_hash` = sha256 of the JSON messages, first 16 hex characters (llm.py:155).\n- `ReplayLLM` re-issues the recorded texts in order. It raises `RuntimeError('replay diverged ...')` when a prompt hash differs and `IndexError` when the transcript is exhausted. tests/test_agents_llm.py:100 shows the world digests are identical between the original run and the replay.\n- `LLMPolicy` keeps transcripts in memory only. `llm_eval.RunStore` persists them as one JSONL file per run.\n\nNumeric learners:\n- `test_a_seed_determines_everything` (tests/test_learners.py:341).\n- Save/load reproduces actions exactly (l.319).\n- Freeze blocks every weight change bit for bit (l.296).\n- CAM7 reseeds its evaluation generators in `reset_context`, so frozen evaluation is reproducible (cam7/agent.py:153-157).\n- `KernelMechEnv` and `MechVecEnv` give bit-identical observations and rewards (tests/test_learners.py:466).\n\nRL:\n- `Lifetime.resume` restores weights, optimiser, RNGs and the world blob, then continues the run. The partial rollout in flight at save time is discarded (rl.py:477-517); this is tested at tests/test_agents_llm.py:328.\n\nWorld:\n- Snapshots, forks and the hash-chained event log come from the kernel.\n- `WorldServer.replay_events` follows the fork lineage.\n- The CAM 2.0 adapter snapshot/restore reproduces the world digest (tested).",
+ "performance_facts": [
+  "Qwen3-1.7B LLMPolicy, greedy, run_goal, dt=1h, 48 decisions: service level 0: 3284 prompt / 47 generated tokens per call, 6.2 s generation per call; revenue level 0: 3434 / 47 tokens, 4.9 s per call; both runs repeated one rejected call and made progress 0.00 (docs/RL_INTEGRATION.md:83-94)",
+  "Crucible 4.0 final report: frozen Qwen3-4B with the corrected interface scored -0.001 (0 of 6 facility tasks; read gauges every turn, never set a lever); Qwen3-1.7B scored -0.046 (0 of 3); 0 truncated prompts; in the open economy Qwen3-4B called search.query 192 of 192 times and built nothing (docs/OPENWORLD_REPORT.md:162-173)",
+  "CAM 2.0 (MiniWoB-trained checkpoint, frozen Qwen3-1.7B, 65M controller) reached 0 of 8 open-economy goals versus 6 of 8 for the scripted Builder (docs/OPENWORLD_REPORT.md:175-178)",
+  "CAM 2.0 smoke run: Qwen3-0.6B with 596M parameters (0 trainable), CAM 58.1M trainable, 64 env steps, 2 PPO updates, ok calls 11/64, schema rejections 45/64, 158 s wall including model load on an RTX A6000 (docs/RL_INTEGRATION.md:128-139)",
+  "FactoredPolicy (agents/rl.py): 764k parameters, 524k of them the hashed-token embedding table (docs/RL_INTEGRATION.md:185)",
+  "Neural RL panel (c), fork, 50 operations tools, 100 weeks: a2c mean weekly revenue over the last 20 weeks $429 vs frozen $100, random $117, idle $496; a2c beat frozen and random on every seed but stayed below idle (docs/RL_INTEGRATION.md:251-262)",
+  "Exploration bottleneck: probability of the one useful repricing call is about 1/2,400 per decision with all 133 tools and about 1/700 with the 50 operations tools (docs/RL_INTEGRATION.md:301-305)",
+  "Superlearner reward_audit across 3 families took 32 min on a shared CPU (docs/RL_INTEGRATION.md:177-178)",
+  "EnvSpec default obs_dim = 61, act_dim = 12 (verified by import: python -c, this session)",
+  "Locally cached LLM checkpoints under /workspace/.hf_home/hub: Qwen3-0.6B, Qwen3-1.7B, Qwen3-4B, Qwen3-14B; no SmolLM and no ~1B model (ls, this session)",
+  "ActionTemplates cannot offer 3 of 133 tools in a tiny world because they need free-form content (docs/RL_INTEGRATION.md:51-54)"
+ ],
+ "extension_points": [
+  "New learner for Tier 1 numeric worlds: subclass crucible.research.learner.Learner (learner.py:103) and optionally register it with crucible.research.learners.register(name, factory, kind=, has_weights=, learns_across_episodes=, defaults=) (learners/__init__.py:45). It then runs unchanged under MechVecEnv, KernelMechEnv (kernel tool calls), learners.training.train/evaluate and research.protocols.lifetime/evaluate/transfer/timescales/internalisation. This is how CAM 7 connects (cam7/experiments/train.py:21-65)",
+  "New agent for Tier 2/3 tool worlds: subclass crucible.agents.base.Policy (base.py:18) and run it under Runner, AsyncRunner, RecordingRunner, llm_eval.run_mechanism/run_open_economy or training.league.League",
+  "Batched decisions: set policy.batch_group to an object with act_batch([(policy, obs, tools)]) -> [action]; AsyncRunner.run_until groups agents due at the same time (base.py:204-212). This is where a shared batched LLM inference service would plug in. Runner.round does not support it yet (base.py:105-127)",
+  "LLM backend: any object with generate(messages, max_new_tokens, temperature, seed) -> GenResult (llm.py:46-53, 80-107), passed as LLMPolicy(backend=...). One backend instance can be shared by many LLMPolicy objects because the backend holds no per-agent state",
+  "Prompt interface versions: LLMPolicy interface in ('v3','v4') (llm.py:222-227); override build_messages(obs, tools) as EvalLLMPolicy does (llm_eval.py:142-177) to add a v5 prompt without touching v3",
+  "Reward modes: the Objective protocol begin/step_reward/status (gym_env.py:17-20) and RewardContract(goal, shaping=, success_bonus=) (goals/contracts.py:199). legacy_shaped_reward is the default; verified_terminal_outcome is shaping=0, success_bonus=1; observation_only is objective=None, which already gives reward 0.0 in CrucibleEnv (gym_env.py:22, 164)",
+  "Out-of-process learners: WorldServer API (api/local.py:540-621, 722-739) plus api/http_server.py, api/mcp_server.py (MCP tools/list, tools/call) and the Gym/PettingZoo wrappers. A CAM Unified EnvAdapter can be written entirely on these",
+  "Parallel/async rollouts: RolloutFarm(n_workers, make_world='module:callable', make_policy='module:callable', params=...) with WorldEnv(ref, objective=...) (scale/rollout.py:106-212, 354-447). publish(params) gives every Rollout a param_version",
+  "Experience persistence: training.trajectories.RecordingRunner, step_records, export_jsonl/export_npz/export_events_jsonl (trajectories.py:43-248). The dashboard loads these with make_app(trajectories=[...]) (dashboard/app.py:339-365)",
+  "Structured neural learner in tool worlds: crucible.integrations.ActionTemplates/EntityMemory/obs_features (integrations/__init__.py:174-528) with agents.rl.FactoredActor/A2CLearner/Lifetime and the RLPolicy wrapper (rl.py:136-551)",
+  "Tier 1 families: crucible.mechanisms.base.mech_family decorator and MECH_FAMILIES registry (mechanisms/base.py:194-197). External code such as cam7/worlds.py registers families in-process through these without changing Crucible files"
+ ],
+ "reuse_for_v5": [
+  {
+   "v5_part": "Clarification: lightweight reference learner with actual neural parameter updates",
+   "how": "Reuse research.learners ppo_gru (Tier 1). tests/test_learners.py:425 already shows a frozen-score improvement and l.296 a bit-for-bit freeze. Reuse agents/rl.py A2C FactoredPolicy (Tier 2/3 tool worlds): tests/test_agents_llm.py:328 asserts the parameters change and that resume is exact. Record weight hashes with research.protocols.learner_hash (protocols.py:341)."
+  },
+  {
+   "v5_part": "Clarification: scripted, statistical, small neural and lightweight language-model validation agents",
+   "how": "Scripted: agents/scripted.py Builder, Employer, Composer, BountyHunter and agents/inventors.py; research.learners probe_exploit/hill_climb; llm_eval.RigExperimenter. Statistical: model_based (Bayesian last layer), evo_probe, agents/learners.py PricingLearner/AdLearner (numpy REINFORCE). Small neural: ppo_gru, ppo_gru_flat, meta_np, FactoredPolicy A2C. LM agents: LLMPolicy/EvalLLMPolicy on the cached Qwen3-0.6B/1.7B."
+  },
+  {
+   "v5_part": "Part 11.1 universal interaction contract",
+   "how": "Build the v5 experience interface on the kernel semantics that already match CAM Unified contract v2: World.execute never moves the clock, ActionResult.cost_s is the action duration, advance_time is operator-side, World.seq is the event cursor. Use WorldServer.replay_events(actor=...) as the lossless observe_since. Wrap MechVecEnv/KernelMechEnv for Tier 1 so both tiers emit one typed record."
+  },
+  {
+   "v5_part": "Part 11.3 observation-only mode",
+   "how": "Map the three modes onto the existing objective plumbing: legacy_shaped_reward = RewardContract defaults; verified_terminal_outcome = RewardContract(shaping=0, success_bonus=1); observation_only = no objective (reward 0.0, already supported in CrucibleEnv and WorldEnv-with-objective). Keep GoalVerifier on the evaluator side. CAM7 already learns only from observed revenue/cost scalars and ignores the reward argument (cam7/agent.py:284-298, 376), so it is a natural observation-only consumer."
+  },
+  {
+   "v5_part": "Part 11.6 (replaced by architecture-independent learner integration) and multiple world types",
+   "how": "Run one learner across world types: Learner via MechVecEnv and KernelMechEnv (Tier 1, and Tier 1 inside a kernel world); Policy via Runner/AsyncRunner/RolloutFarm (Tier 2/3 ow_* worlds); Gym/PettingZoo for third-party RL. Use RolloutFarm for parallel worlds with versioned parameters, and Lifetime.save/resume and Learner.save/load for checkpoints."
+  },
+  {
+   "v5_part": "Part 3.2 Class 4 compact semantic generalists and Gate H",
+   "how": "Use LLMPolicy (v4 interface or a new v5 one) as the semantic participant. Pass one shared HFBackend instance to N LLMPolicy objects (shared weights, separate hist/goal/transcript). Implement batch_group.act_batch so AsyncRunner decides co-waking agents in one batched generate. Reuse usage() token accounting and llm_eval.interface_audit for the memory and inference measurements."
+  },
+  {
+   "v5_part": "Part 12 multi-agent / self-play learners",
+   "how": "Runner and AsyncRunner already host heterogeneous policies in one world. CrucibleParallelEnv gives a PettingZoo surface. training/league.py has Elo/TrueSkill and PFSP sampling. RecordingRunner records policy_kind and policy_version per step."
+  },
+  {
+   "v5_part": "Persistent experience collection",
+   "how": "Extend crucible-traj/1 (training/trajectories.py) with reward-mode, model-version and observation-mode fields instead of inventing a new store. The NPZ columnar format and ImitationDataset already exist, and the dashboard /w/{wid}/trajectories page renders these records."
+  },
+  {
+   "v5_part": "Clarification: preserve compatibility with existing learner interfaces",
+   "how": "Freeze research.learner.EnvSpec/Learner/Usage and the scalar layout. Also keep the functions and signatures CAM7 calls: MechVecEnv, eval_tasks, train_pool, protocols.lifetime/evaluate/transfer/transfer_targets/save_result, learners.make, learners.model_based.BIAS_SD, mechanisms.base.MECH_FAMILIES/mech_family and mechanisms.scm._COMMON. Keep Policy.act/observe_result and the MCP tool-spec shape."
+  },
+  {
+   "v5_part": "Document how future CAM versions connect",
+   "how": "Write the mapping from CAM Unified's EnvAdapter to WorldServer: reset maps to create_world/fork_world plus join_world; observe to observe; available_tools to available_tools (inputSchema becomes parameters, costSeconds/86400 becomes duration_hint); execute to execute_action (duration = cost_s/86400); collect_events to replay_events(actor=); advance_time(days) to advance_time(dt=days*86400); GoalEvaluator to GoalVerifier.status / evaluate_world. The numeric CAM7 path is the existing Learner contract."
+  }
+ ],
+ "gaps_vs_v5_spec": [
+  {
+   "v5_part": "11.1 Universal interaction contract across all three tiers",
+   "gap": "There are two incompatible learner contracts. Tier 1 uses numeric batched Learner arrays [n,61]->[n,12]. Tier 2/3 use per-agent Policy dict observations and MCP tool calls. No single observe/execute/observe_since interface or typed experience record spans both, and there is no adapter that turns a Tier 1 MechVecEnv episode into the same record type as a tool-world step.",
+   "size": "large"
+  },
+  {
+   "v5_part": "11.1 Observation contract contents",
+   "gap": "Module summaries are free-form nested dicts. Money is integer cents by convention only, with no units, entity ids or entity-relation fields, no artifact references, no semantic representations and no explicit missing/uncertain markers. The Gym/PettingZoo observation is text plus time only, and render_observation cuts each module summary to 400 chars (render.py:131), which is the lossy text-only path the spec forbids for exact quantities. The structured dict is reachable only through WorldServer.observe().summary or World.observe.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "11.1 observe_since / 11.5 delayed consequences and provenance",
+   "gap": "Runner, ActorView and WorldEnv use World.visible_events, which keeps only the newest `limit` events (30-40) and clamps to the in-memory log window (kernel.py:862-866), so observations are lossy. Compact event dicts drop Event.cmd, the command provenance link (local.py:208-209, base.py:100). Only WorldServer.replay_events(actor=) is lossless, and it needs a store.",
+   "size": "small"
+  },
+  {
+   "v5_part": "11.3 Observation-only mode with explicit legacy_shaped_reward / verified_terminal_outcome / observation_only",
+   "gap": "No mode switch exists. Privileged goal progress reaches the learner through info: CrucibleEnv info['objective'] includes progress (gym_env.py:168-172), PettingZoo infos[a]['objective'] (pettingzoo_env.py:153-161), and the CAM 2.0 adapter sets info['progress'] every step (agentrs_cam2.py:240). In MechVecEnv, obs scalars[0] is the native reward (envs.py:102). WorldEnv's default reward is the change in balance (rollout.py:197-199). There are no reward-leakage tests.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "11.6 / Gate S as replaced by the clarification (architecture-independent learner integration)",
+   "gap": "The pieces exist (Learner for Tier 1, Policy, RolloutFarm, checkpoints, trajectory export), but nothing runs one learner through Tier 1, Tier 2 and Tier 3 with experience storage, parameter updates, checkpoint reload and parallel worlds in one reproducible command. Policy has no reward/done/update/save hooks, so a learning Policy must build its own loop, as agents/rl.py Lifetime does. Acceptance tests for these requirements do not exist.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Clarification: independence from CAM",
+   "gap": "integrations/agentrs_cam2.py and agentrs_sl.py import agentrs.* at module import. tests/test_agents_llm.py inserts ../../src into sys.path and its CAM 2.0 and superlearner tests have no importorskip, so the Crucible suite depends on the AGENTRS repository. RL_INTEGRATION.md frames integration around CAM 2.0 and the superlearner. These parts must become optional and the docs must be reframed around architecture-independent requirements.",
+   "size": "small"
+  },
+  {
+   "v5_part": "3.2 Class 4 and 13.4 shared small-model inference service",
+   "gap": "HFBackend runs one unbatched model.generate per agent turn. There is no quantization, prefix/KV caching, retrieval of relevant state, CPU-feasibility path or inference concurrency limit. act_batch is never implemented, and Runner ignores batch_group. Each LLMPolicy loads its own model unless the caller passes in a shared backend.",
+   "size": "large"
+  },
+  {
+   "v5_part": "3.2 Class 4 model comparison and capability benchmarks",
+   "gap": "There is no benchmark comparing million-parameter encoders, distilled models, ~0.5-0.6B and ~1B models on the 8 listed capabilities (content understanding, situation interpretation, tool choice, communication, incentive adaptation, negotiation, writing/repairing programs, strategy). Locally cached models are Qwen3-0.6B, 1.7B, 4B and 14B only, with no ~1B checkpoint and no SmolLM. No license or tool-use verification is recorded.",
+   "size": "large"
+  },
+  {
+   "v5_part": "Gate H compact semantic generalists",
+   "gap": "Eight semantic participants with shared weights and separate goals and histories are mechanically possible with a shared backend, but this has never been demonstrated or measured (VRAM is not recorded). No LLM run so far produced a verified productive result: Qwen3-4B and 14B built nothing (LIMITATIONS.md:97).",
+   "size": "medium"
+  },
+  {
+   "v5_part": "11.2 Tool calling for language agents",
+   "gap": "Tool calls are parsed from free text. The model's native chat-template function calling (tokenizer tools=) is not used. Endpoint.spec() omits the `returns` description (kernel.py:119 vs 124-127), and price and cost appear only inside description text (scripted.py:370 regex).",
+   "size": "small"
+  },
+  {
+   "v5_part": "12.2 Learning and versioning",
+   "gap": "Policy.version is a static '1'. LLMPolicy does not put the backend fingerprint in its records (policy_config in llm_eval does record the model and configuration). Model hashes per step exist only through RolloutFarm.params_hash and protocols.learner_hash for numeric learners.",
+   "size": "small"
+  },
+  {
+   "v5_part": "3.4 / Gate G-Q structured neural learners creating products",
+   "gap": "ActionTemplates cannot fill free-form arguments (code.commit files, contract clauses), so tools that require them are not offered (integrations/__init__.py:11-18). Only LLM agents can write code or prose, which limits small-neural participants in Gate J/L-type activity.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Dashboard / reporting of learner experience",
+   "gap": "The trajectories page shows reward, tools and ok counts only. It has no views of observation mode, policy versions or weight hashes, per-agent LLM token usage, or learner update histories.",
+   "size": "small"
+  }
+ ],
+ "risks_and_gotchas": [
+  "Observations are inconsistent across drivers. Runner.observe hides only the actor's own 'cmd' events (base.py:101), while ActorView (integrations/__init__.py:68) and WorldServer (local.py:564, hide_own_commands) also hide 'cmd.rejected'. The same Policy therefore sees different observations under Runner and under ActorView or WorldServer.",
+  "World.visible_events(actor, since, limit) silently clamps since_seq to log_base and keeps only the newest `limit` events (kernel.py:862-866). Learners driven by Runner (max_events=30), ActorView (40) or WorldEnv (30) lose events without being able to recover them.",
+  "LLMPolicy defaults to interface='v3', the Crucible 3.0 prompt kept byte for byte (llm.py:222), which is the interface that confounded the 3.0 LLM results. v4, or EvalLLMPolicy with history_chars and last_action_line=False, must be selected explicitly.",
+  "HFBackend silently falls back to CPU when CUDA is unavailable (llm.py:63-64). With temperature>0 it calls torch.manual_seed, reseeding the global torch RNG and perturbing other in-process torch learners (llm.py:98-99).",
+  "HFBackend truncates long prompts by keeping the first third and the tail of the token budget (llm.py:92-94), cutting the middle where history and events sit. It is flagged per turn as 'truncated'.",
+  "LLMPolicy.observe_result attaches results only when `hist[-1]['action'] is action` (identity check, llm.py:344-347). A driver that copies or normalises the action dict before calling observe_result loses the result from history and transcript.",
+  "ReplayLLM replays strictly in order per policy. Multi-agent replay needs one transcript per policy and the identical world schedule. LLMPolicy never writes transcripts to disk itself (only llm_eval.RunStore does).",
+  "HFBackend.fingerprint hashes only per-tensor parameter sums (llm.py:73-78). This weak identity can collide and is expensive on large models.",
+  "CAM 7 (read-only reference) depends on exact numeric layout details. It indexes scalars[1] revenue, [2] cost, [3] funds and [4] time (cam7/agent.py:72-88, 166-172), infers the episode horizon from the size of the first time increment (agent.py:87-88), treats time<1.0 as a live episode (agent.py:169), and truncates history at T_MAX=256 ticks (agent.py:33, 76-77). Changing EnvSpec, its scalar order, time normalisation or horizons above 256 breaks CAM7 silently.",
+  "cam7/worlds.py imports the private symbol crucible.mechanisms.scm._COMMON and registers families into the global MECH_FAMILIES at import time. Renaming either breaks CAM7 experiment 2. cam7/experiments/exp2.py also imports research.learners.model_based.BIAS_SD.",
+  "The cam7-ref worktree HEAD is b775cba ('cam unified ledger'), on the CAM Unified line, not the plain feat/cam-7.0 commit f3cee12. The cam_unified contract (CONTRACT_VERSION=2) is unfinished and may change. Treat it as compatibility guidance only.",
+  "CrucibleAdapter (CAM 2.0) and the superlearner adapter import agentrs at module import, so importing them fails without the AGENTRS src on sys.path. tests/test_agents_llm.py CAM2/SL tests assume /workspace/agentrs/.worktrees/crucible-5/src exists.",
+  "Gym CrucibleEnv and CrucibleParallelEnv expose objective status including 'progress' in info. Any wrapper (e.g. SB3 VecEnv info passthrough) can feed this privileged value to a learner.",
+  "Policy receives no reward. Runner objectives reward only the recorded Step.reward, so on-policy learning inside a Policy has to compute its own signal from observations (as PricingLearner does from cloud.status) or use an external loop (rl.Lifetime).",
+  "Exploration in tool worlds is the documented bottleneck. In single persistent lives, 18 of 18 a2c/random lifetimes destroyed their service within three weeks (RL_INTEGRATION.md:279-283). v5 acceptance must separate this algorithmic difficulty from environment failure.",
+  "AsyncRunner's batch_group path exists, but no implementation of act_batch exists anywhere (grep: only redteam/integrity.py:331 sets batch_group=None), so batching has never been exercised with a real batched backend.",
+  "Not verified in this session: whether all v4 prompt components fit in max_context=8192 for large ow_* worlds (OPENWORLD_REPORT says 0 truncated for Qwen3-4B runs); parameter counts of ppo_gru/meta_np (not measured); the agentrs_sl adapter internals beyond its documented behaviour; selfplay/ and league internals. No tests were run (read-only constraint)."
+ ],
+ "tests": [
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_agents_llm.py",
+   "covers": "LLMPolicy plumbing with EchoLLM through Runner: valid call, unparseable reply, wait, MCP tag, prompt contents, no admin tools (l.51). Tool-list summarisation and new-tool announcement (l.80). Transcript replay gives the identical world digest, and divergence is detected (l.100). Real Qwen3-0.6B greedy determinism and token counts, GPU only (l.122). CAM 2.0 adapter mapping, invalid JSON, kernel validation codes, snapshot/continue, runner pipeline, log-prob replay (l.149-257, need agentrs). ActionTemplates (l.272). Superlearner adapter and reward audit (l.295, needs agentrs). RL Lifetime parameter updates, checkpoint and exact resume (l.328)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_llm_interface4.py",
+   "covers": "The v4 catalogue names every host at any budget while v3 can hide them (l.24). v4 structured error detail, with the v3 prompt unchanged (l.46). usage() records the interface and per-turn truncation (l.66)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_learners.py",
+   "covers": "Learner contract for all registered learners: registry (l.208), action shape, bounds and masks (l.230), reset_context keeps weights (l.248), freeze bit for bit (l.296), save/load reproduces actions (l.319), seed determinism (l.341), usage accounting (l.354). A ppo_gru and model_based short training run improves the frozen score (l.425, 439). Identical behaviour through kernel tool calls (KernelMechEnv, l.466). Training pool cache (l.490)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_research_envs.py",
+   "covers": "Every family fits EnvSpec and splits are disjoint (l.36). The public task view has no private numbers (l.61). Observation layout, masks and reward units (l.89). Replaying and swapping tasks (l.115). The kernel world and the simulator are the same problem (l.139)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_api.py",
+   "covers": "WorldServer create/join/observe/act (l.89), tokens and auth (l.136), snapshot/fork/replay/restore/evaluate (l.162), parse_action formats (l.243), deterministic rendering (l.264), Gym continue/fork modes and env checker (l.305-357), PettingZoo parallel (l.377), HTTP/WebSocket/MCP routes (l.420-587)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_llm_eval.py",
+   "covers": "Frozen-LLM evaluation harness (EvalLLMPolicy, interface audit, mechanism/open-economy runs, RunStore); function list not enumerated in this session"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_research_protocols.py",
+   "covers": "research.protocols lifetime/evaluate/transfer/internalisation, the protocols CAM7 experiments call"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_dashboard_internet.py",
+   "covers": "Dashboard open-world pages (internet, society, markets, agents, infrastructure), views never change the world (l.102), tolerance of missing modules, CLI views"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_internet.py",
+   "covers": "Uses AsyncRunner with several agents in an internet world (l.292-301)"
+  }
+ ]
+}

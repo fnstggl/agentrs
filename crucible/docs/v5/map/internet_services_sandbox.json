@@ -1,0 +1,596 @@
+{
+ "subsystem": "internet_services_sandbox",
+ "summary": "Crucible 4.0's synthetic internet is 22 kernel modules in src/crucible/services/ (182 @endpoint tools). They share one event-sourced World: identity, ledger, permissions and knowledge. id, bank, mail, forum, search, docs, code, issues, cal, support, ads, market, cloud, biz, contracts, jobs, wf, caps, deal, gov, net and db (appdb) are all ordinary Modules. Handlers emit events, appliers mutate tables, and money moves only through bank.move.\n\nThe social layer is text only:\n- forum: boards fixed at genesis, posts, replies, votes, follows, and one hot-score feed.\n- mail: delayed delivery and bounces.\n- docs: versioned public or private documents.\n- search: BM25 multiplied by a pluggable rank_signal.\n- ads: keyword bid campaigns shown as sponsored search results, charged per impression.\n\nSoftware and hosting:\n- code: content-addressed string blobs (64 KB per file, 2 MB per repo), linear history, a crucible.json deps list, code.run and code.test in the sandbox.\n- cloud: providers, instances, `cloud.deploy` of a repo whose manifest declares endpoints and optionally a `web` section with routes and static files. Each deployment is a sandboxed service principal svc:<host>. Calls are metered in compute units against instance capacity, and the service can overload, suffer outages or be suspended for unpaid bills.\n- net: one recorded `net.fetch` command per HTTP request. It also provides DNS names, sessions, consent login, rate limits and a daily crawler that indexes pages and builds a link-authority signal. appdb gives each app its own storage namespace.\n\nTool discovery:\n- `World.available_tools` lists the built-in tools plus every host the principal has 'learned' (from search results, reads, `world.describe`).\n- `world.find_tools`, `world.hosts`, `world.validate`, `world.help` and `world.api` support lookup and dry runs.\n- MCP sends `tools/list_changed` when the list changes.\n- `wf` flows and triggers compose tools; `caps.publish` and `caps.install` delegate scoped grants to a service.\n\nBrowser mode is a FastAPI and Jinja front end (web/app.py). GET pages go through `World.query`, which always rolls back; POST /_act calls `World.execute`. Playwright BrowserSession resolves only *.crucible and blocks all other requests. A test asserts that a browser session and the same headless calls produce bit-identical event logs.\n\nSandbox: boot.py drops to uid nobody, sets NO_NEW_PRIVS and applies Landlock ABI 4 (filesystem plus TCP). seccomp denies socket, exec, fork, ptrace, mount, bpf, io_uring and similar calls. runner.py sets rlimits (address space, CPU, process count, open files, file size, no core dumps), a wall-clock timeout per job, and JSON-lines RPC through `crucible_sdk.call`. Only numpy can be imported. Outcomes are recorded through ctx.reserve/fill so regeneration is exact.\n\nReal-world access is OFF by default (modes.py and realworld/ bridge), and a red-team probe suite covers Gate-W-style attacks. There are no image, audio or video artifacts, no media tooling, no recommendation engines beyond the forum feed, search and ads, and simulated people do not browse web sites.",
+ "key_files": [
+  {
+   "path": "src/crucible/services/__init__.py",
+   "role": "imports/registers all 22 service modules"
+  },
+  {
+   "path": "src/crucible/services/forum.py",
+   "role": "boards/posts/replies/votes/follows/hot feed (only social platform); create_board internal-only"
+  },
+  {
+   "path": "src/crucible/services/search.py",
+   "role": "BM25 search, index()/unindex() internal API, host extraction + learn() discovery, sponsored hook consumer"
+  },
+  {
+   "path": "src/crucible/services/ads.py",
+   "role": "keyword search-ad campaigns, sponsored hook, per-impression billing via bank.move, one charged impression per searcher per day"
+  },
+  {
+   "path": "src/crucible/services/mail.py",
+   "role": "private async messaging with latency/bounces, on_mail_delivered hook"
+  },
+  {
+   "path": "src/crucible/services/docs.py",
+   "role": "versioned documents (body<=100k chars), visibility/shares; public docs indexed (kind doc)"
+  },
+  {
+   "path": "src/crucible/services/code.py",
+   "role": "repos, content-addressed str blobs, commits, fork, deps via crucible.json, code.run/code.test in sandbox, compute charging, sandbox_pool()"
+  },
+  {
+   "path": "src/crucible/services/cloud.py",
+   "role": "providers/instances/deployments, manifest validation (endpoints + web), metering/overload/outages/billing, DNS resolver, trusted vs sandboxed execution"
+  },
+  {
+   "path": "src/crucible/services/net.py",
+   "role": "net.fetch HTTP fabric, names (register/point/whois), sessions/login consent, rate limits, crawler + link authority; AppDB (host db)"
+  },
+  {
+   "path": "src/crucible/services/market.py",
+   "role": "listings (api/code/goods/service), escrow, verified ratings (payers only)"
+  },
+  {
+   "path": "src/crucible/services/capabilities.py",
+   "role": "caps registry: publish/install (scoped grants + triggers), switchback trials, independent-adopter evidence, technology graph"
+  },
+  {
+   "path": "src/crucible/services/workflows.py",
+   "role": "triggers (schedule/on_event), typed flows (tool composition), run_later async jobs, public flows indexed"
+  },
+  {
+   "path": "src/crucible/services/issues.py",
+   "role": "issue tracker bound to repos, on_issue_assigned hook"
+  },
+  {
+   "path": "src/crucible/services/identity.py",
+   "role": "principals p:/o:/svc:, orgs, grants with limits, authorize/allowed/authorize_standing"
+  },
+  {
+   "path": "src/crucible/core/kernel.py",
+   "role": "World/Ctx/Module/Endpoint, execute/query/system_call, available_tools, learn, world.describe, Ctx.external/reserve/fill"
+  },
+  {
+   "path": "src/crucible/core/discovery.py",
+   "role": "world.find_tools/hosts/validate/help/api; error hints; catalogue renderer"
+  },
+  {
+   "path": "src/crucible/sandbox/runner.py",
+   "role": "SandboxConfig, Worker (rlimits, uid drop, JSON-lines protocol, timeouts), run_program, run_tests, WorkerPool"
+  },
+  {
+   "path": "src/crucible/sandbox/boot.py",
+   "role": "in-sandbox bootstrap: setuid nobody, NO_NEW_PRIVS, Landlock, seccomp DENY/SELF_ONLY lists, crucible_sdk.call, line-count cost model"
+  },
+  {
+   "path": "src/crucible/sandbox/bridge.py",
+   "role": "run_in_ctx / run_trusted_in_ctx: brokered RPC as service principal, outcome recording for regeneration"
+  },
+  {
+   "path": "src/crucible/sandbox/backends.py",
+   "role": "isolation backends detect/wrap/require, enforce_min_isolation (fail closed)"
+  },
+  {
+   "path": "src/crucible/web/app.py",
+   "role": "browser-mode FastAPI app: host routing, login/SSO, curated pages per service, /_act forms, agent web-app proxy via net.fetch, CSP"
+  },
+  {
+   "path": "src/crucible/web/browser.py",
+   "role": "BrowserSession (Playwright Chromium confined to *.crucible), act/observe action format, serve_in_thread"
+  },
+  {
+   "path": "src/crucible/web/critic.py",
+   "role": "api_critic / browser_critic QA of generated sites against authoritative state"
+  },
+  {
+   "path": "src/crucible/api/local.py",
+   "role": "WorldServer native API: create/join/observe/execute_action/advance/snapshot/fork/replay_events/evaluate, tokens, Observation"
+  },
+  {
+   "path": "src/crucible/api/http_server.py",
+   "role": "make_app: OpenEnv /reset /step /ws, MCP POST /mcp, REST /v1"
+  },
+  {
+   "path": "src/crucible/api/mcp_server.py",
+   "role": "MCPHandler stdio/HTTP MCP with tools/list_changed"
+  },
+  {
+   "path": "src/crucible/api/gym_env.py",
+   "role": "CrucibleEnv (Gymnasium) continue/fork modes, objective-based reward"
+  },
+  {
+   "path": "src/crucible/api/pettingzoo_env.py",
+   "role": "CrucibleParallelEnv multi-agent"
+  },
+  {
+   "path": "src/crucible/api/render.py",
+   "role": "deterministic observation/tool rendering; parse_action for LLM output"
+  },
+  {
+   "path": "src/crucible/integrations/__init__.py",
+   "role": "architecture-agnostic learner plumbing: agent_tools, ActorView, EntityMemory, ActionTemplates, obs_features, make_goal_world"
+  },
+  {
+   "path": "src/crucible/integrations/agentrs_cam2.py",
+   "role": "CAM 2.0 EnvironmentAdapter (imports agentrs.cam2 at module top)"
+  },
+  {
+   "path": "src/crucible/integrations/agentrs_sl.py",
+   "role": "AGENTRS superlearner World adapter (imports agentrs.sl at module top)"
+  },
+  {
+   "path": "src/crucible/modes.py",
+   "role": "Mode A/B/C separation; RealWorldGateway refuses by default"
+  },
+  {
+   "path": "src/crucible/realworld/",
+   "role": "authorisation-gated real-world bridge (off by default), NetworkGuard, hash-chained log, RealWorldResult contamination guard"
+  },
+  {
+   "path": "src/crucible/redteam/",
+   "role": "probe framework + catalogue (reward, reward_code, money, leakage, integrity, content, independence); KNOWN_OPEN ratchet"
+  },
+  {
+   "path": "src/crucible/worldgen/sitegen.py",
+   "role": "module webgen: procedural web-app specs, app_files(), seeding generated sites"
+  },
+  {
+   "path": "src/crucible/worldgen/adversarial.py",
+   "role": "module adversary: injection pages, fraudulent capability, spam, false docs"
+  },
+  {
+   "path": "src/crucible/economy/consumers.py",
+   "role": "numpy consumer population: awareness via search/ads/forum/word of mouth, sampled real requests to deployed services, reviews/tickets"
+  },
+  {
+   "path": "docs/SYNTHETIC_INTERNET.md",
+   "role": "service-by-service data/endpoint/invariant reference + browser mode"
+  },
+  {
+   "path": "docs/INTERNET_ARCHITECTURE.md",
+   "role": "3.0 internet layers (names, HTTP, apps, sessions, appdb, crawler, browser)"
+  },
+  {
+   "path": "docs/AGENT_API.md",
+   "role": "crucible-api/1 contract: lifetimes, WorldServer, Gym/PettingZoo, HTTP/MCP"
+  },
+  {
+   "path": "docs/SECURITY.md",
+   "role": "threat model, sandbox layers, network containment, modes, isolation levels"
+  },
+  {
+   "path": "docs/SCALING.md",
+   "role": "measured sandbox/browser/net.fetch/flow performance"
+  }
+ ],
+ "public_interfaces": [
+  {
+   "name": "Module / endpoint decorator",
+   "shape": "@register_module class X(Module): name, host, version, depends; install(world), genesis(ctx), on_load(world), observe(world, actor)->dict|None, check_invariants(world)->list[str]; @endpoint(name, params: JSONSchema, *, doc='', cost_s=1, read_only=False, returns='', version=None); @applier(event_type); @process(name)",
+   "location": "src/crucible/core/kernel.py:130-179",
+   "notes": "Every new v5 platform is a Module; endpoints auto-appear in available_tools, world.find_tools, web /_api, MCP"
+  },
+  {
+   "name": "Endpoint.spec (tool schema)",
+   "shape": "{name, description, inputSchema, annotations:{readOnlyHint, costSeconds, host, builtin, version}}",
+   "location": "src/crucible/core/kernel.py:111-127",
+   "notes": "MCP-shaped tool spec used by all surfaces"
+  },
+  {
+   "name": "World.execute",
+   "shape": "execute(actor: str, action: {tool, args, idempotency_key?}) -> ActionResult(ok, result, error, events, cost_s, t, replayed, tool)",
+   "location": "src/crucible/core/kernel.py:587",
+   "notes": "never raises for in-world failures; admin.* rejected; spec.params['max_actions_per_hour'] limiter"
+  },
+  {
+   "name": "World.query",
+   "shape": "query(actor, tool, args=None) -> Any  (read_only endpoints only; transaction always rolled back)",
+   "location": "src/crucible/core/kernel.py:681",
+   "notes": "used for web page renders; learn() side effects do NOT persist"
+  },
+  {
+   "name": "World.available_tools / learn / knows",
+   "shape": "available_tools(principal)->list[spec]; learn(ctx, principal, kind, value) emits 'know' {id:'<p>|<kind>|<value>'}; knows(principal, kind, value)->bool",
+   "location": "src/crucible/core/kernel.py:489-526",
+   "notes": "dynamic tool lists driven by knowledge table rows of kind 'host'"
+  },
+  {
+   "name": "Ctx.call / run_as / external / reserve / fill",
+   "shape": "call(tool, args=None, as_principal=None, brokered=False); run_as(principal, fn, *a); external(kind, fn)->recorded outcome; reserve()->(slot, recorded|None); fill(slot, kind, out)",
+   "location": "src/crucible/core/kernel.py:233-314",
+   "notes": "savepoint rollback on nested failure; call depth limit 8; external outcomes replayed in regeneration"
+  },
+  {
+   "name": "world.* kernel tools",
+   "shape": "world.whoami {}, world.clock {}, world.describe {host}, world.find_tools {query, limit, detail, host}, world.hosts {summary_chars}, world.validate {tool, args}, world.help {topic}, world.api {}",
+   "location": "src/crucible/core/kernel.py:389-414; src/crucible/core/discovery.py:1010",
+   "notes": "spec.params discovery:false removes the 4.0 five; error_hints:false removes hints"
+  },
+  {
+   "name": "search internal API",
+   "shape": "index(ctx, doc_id, kind, title, text, owner, ref=None, hosts=()); unindex(ctx, doc_id); query(world, q, kind=None, limit=10)->list; tokenize(text); extract_hosts(world, text, extra=())",
+   "location": "src/crucible/services/search.py:56-103,211-223",
+   "notes": "MAX_TEXT 8000, MAX_TITLE 200, MAX_HOSTS 16, BM25 K1=1.2 B=0.75, TITLE_W=2"
+  },
+  {
+   "name": "search.query / search.get",
+   "shape": "search.query {q<=200, kind? pattern [a-z][a-z0-9_]{0,23}, limit 1..20} -> {results:[{id,kind,title,snippet,owner,ref,hosts,t,score,sponsored}], matched}; search.get {id}",
+   "location": "src/crucible/services/search.py:277-311",
+   "notes": "learns hosts of every result; sponsored charged via ads.search_impressions"
+  },
+  {
+   "name": "hooks",
+   "shape": "world.hooks['rank_signal'](world, doc)->float; ['sponsored'](world,q,kind,limit)->list; ['is_host'](state,name)->bool; ['host_owner'](state,host); ['host_endpoints'](world,host,principal); ['on_service_call'](ctx,caller,host,ep,status,price); ['on_api_purchase'](ctx,host,payer,price); ['on_mail_delivered'], ['on_calendar_invite'], ['on_issue_assigned'], ['on_ticket_resolved']",
+   "location": "docs/SYNTHETIC_INTERNET.md:264-279; src/crucible/services/cloud.py:47-51; src/crucible/services/net.py:89-96; src/crucible/services/ads.py:55",
+   "notes": "rank_signal is chained (net wraps previous); hooks must be installed in Module.install for replay"
+  },
+  {
+   "name": "forum endpoints + internal API",
+   "shape": "forum.boards {}; forum.post {board, title<=200, body<=20000, tags<=5, as_org?}; forum.reply {post, body, as_org?}; forum.read {post, replies<=100}; forum.list {board, sort new|top|active, limit<=30, offset<=1000}; forum.vote {post, value \u00b11}; forum.follow/unfollow {target: principal|board:<name>}; forum.feed {limit<=30}; forum.delete {post}. Internal: post(ctx, author, board, title, body, tags=(), hosts=()), reply(...), create_board(ctx, name, title, description), feed(world, actor, limit)",
+   "location": "src/crucible/services/forum.py:66-288",
+   "notes": "feed hot=(max(score,0)+1+0.5*replies)/(age_h+2)^1.5, x2 followed; FEED_SOURCE_DEPTH 50; POPULAR_BOARDS 3; MAX_FOLLOWS 200"
+  },
+  {
+   "name": "ads endpoints + internal API",
+   "shape": "ads.create_campaign {account, keywords 1..20, bid_cents 1..10000, daily_budget_cents, title, text?, hosts<=5, ref?, kind?}; ads.pause/resume {campaign}; ads.stats {campaign?}. Internal: sponsored(world,q,kind,limit), record_impressions(ctx, campaign_ids, n=1)->charged ids, search_impressions(ctx, ids), viewers(state, actor)",
+   "location": "src/crucible/services/ads.py:65-293",
+   "notes": "invariant total_spent == impressions*bid == \u03a3 ad_impressions txns"
+  },
+  {
+   "name": "code endpoints",
+   "shape": "code.create_repo {name, owner?, visibility private|public, license closed|open, description}; code.commit {repo, files:{path: str|null}, message}; code.ls/read/log/list; code.fork {repo, name, owner?}; code.set_visibility; code.run {repo, target 'mod:fn', input, ref?, timeout_s 0.1..30} -> {ok,result,error,stdout,cpu_ms,world_calls,charged_cents}; code.test {repo, ref?}",
+   "location": "src/crucible/services/code.py:231-360",
+   "notes": "MAX_FILE 64KiB, MAX_REPO 2MiB, MAX_FILES 200; blob_id = 'b'+blake2b12; params free_cpu_ms_per_day (30000), dev_compute_cents_per_cpu_s (2.0)"
+  },
+  {
+   "name": "cloud.deploy manifest (crucible.json)",
+   "shape": "{\"entry\": \"service.py\", \"endpoints\": {name: {handler, params: JSONSchema, doc, price_cents 0..1e6}} (<=20), \"web\": {\"routes\": {\"GET|POST /path/{p}\": handler} (<=60), \"static\": {\"/x.css\": file}, \"rate_per_min\" 1..10000, \"title\", \"login\": optional|required}, \"description\", \"deps\": [\"owner/repo[@ref]\"] (<=10)}; handler(args, caller) -> JSON; web handler(request, caller) -> {status?, html|json|text|redirect, session?, headers?}",
+   "location": "src/crucible/services/cloud.py:465-585; src/crucible/services/net.py:1-30; src/crucible/services/code.py:79-93",
+   "notes": "deploy smoke-tests import in sandbox; new endpoints become tools <host>.<endpoint> (cost_s fixed 5)"
+  },
+  {
+   "name": "cloud endpoints",
+   "shape": "cloud.providers/rent {provider, cores 1..64, account, owner?}/resize/metrics {host, hours<=168}/release/instances/register_provider/set_price/buy_hardware/deploy {repo, host, instance, ref?}/undeploy/status {host, days<=60}/deployments",
+   "location": "src/crucible/services/cloud.py:278-630",
+   "notes": "CU_PER_CORE_HOUR 100000; params cu_per_ms (50), request_timeout_s (5), suspend_grace_s, opex_cents_per_core_hour, hardware_cents_per_core, hardware_lead_s"
+  },
+  {
+   "name": "net / db endpoints",
+   "shape": "net.register {name, org?, account?}; net.point {name, host}; net.whois {name}; net.fetch {url, method GET|POST, form?, json?} -> {status, content_type, body, location?}; net.login/logout {site}; net.sites {limit}; db.put {collection, id?, doc}; db.get {collection, id, site?}; db.query {collection, where?, order_by?, desc?, limit<=500, site?}; db.delete",
+   "location": "src/crucible/services/net.py:145-314,427-499",
+   "notes": "MAX_BODY 200000; static content types css/js/svg/txt/json only; crawler 6 pages/site/day (crawl_pages_per_site); AppDB MAX_DOCS 20000, MAX_DOC 20000"
+  },
+  {
+   "name": "wf flows/triggers",
+   "shape": "wf.trigger {tool, args, every_s>=600, on_event prefix, as_org, start_in_s, max_runs, label}; wf.define {name, steps:[{id, tool, args, if?, foreach?, optional?}], input_schema, output '${s3.result}', public, description, as_org}; wf.run {flow, input}; wf.run_later {flow, input, in_s}; wf.jobs; wf.flows",
+   "location": "src/crucible/services/workflows.py:131-380",
+   "notes": "tool composition; public flows indexed as kind 'flow'"
+  },
+  {
+   "name": "caps registry",
+   "shape": "caps.publish {host, title, description, tags, params, requires:[{cap, scope}], triggers, monthly_cents, trial_days}; caps.view/search/list/install/uninstall/adopt/pause/installs/evidence/get_evidence/publish_evidence/review/test/categories/graph",
+   "location": "src/crucible/services/capabilities.py:133-735",
+   "notes": "agent-created services become installable affordances with delegated grants"
+  },
+  {
+   "name": "SandboxConfig",
+   "shape": "SandboxConfig(user='nobody', cpu_s=600, mem_mb=1536, job_wall_s=10.0, nproc=512, nofile=64, fsize_mb=16, out_bytes=65536, max_files=200, max_file_bytes=262144, packages=('numpy',), base_dir=$CRUCIBLE_SANDBOX_DIR or /var/tmp/crucible-sbx, allow_weak=False, allow_root=False, count_lines=False)",
+   "location": "src/crucible/sandbox/runner.py:44-60",
+   "notes": "no backend/min_isolation fields (read via getattr + env CRUCIBLE_SANDBOX_BACKEND / CRUCIBLE_MIN_ISOLATION)"
+  },
+  {
+   "name": "Worker / run_program / run_tests / WorkerPool",
+   "shape": "Worker(files: dict[str,str|bytes], cfg=None, label='job').start(); .run(job: {kind: call|import|tests, target, args, caller}, rpc: (tool,args)->(ok,val) | None, timeout=None, max_rpc=50) -> {ok, result, error, stdout, cpu_ms, wall_ms, rpc_calls, work_lines?}; run_program(files, target, args=None, caller=None, cfg=None, rpc=None, timeout=None); run_tests(files, folder='tests', cfg=None, timeout=None); WorkerPool(max_workers=32, cfg=None).get(key, files_fn)",
+   "location": "src/crucible/sandbox/runner.py:135-418",
+   "notes": "world params sandbox_mem_mb (1024), sandbox_job_s (10), sandbox_max_workers (24), allow_weak_sandbox, cost_model=deterministic (code.py:167-182)"
+  },
+  {
+   "name": "bridge",
+   "shape": "run_in_ctx(ctx, kind, worker_fn, job, principal, timeout=None, close_after=False, world_access=True, post=None) -> {ok, result, error, stdout, cpu_ms, rpcs}; run_trusted_in_ctx(ctx, kind, fn, args, caller, principal, post=None)",
+   "location": "src/crucible/sandbox/bridge.py:70-123",
+   "notes": "RPCs run as service principal with brokered=True; recorded for regeneration"
+  },
+  {
+   "name": "in-sandbox SDK",
+   "shape": "import crucible_sdk; crucible_sdk.call(tool: str, **args) -> result (raises crucible_sdk.WorldError with .code)",
+   "location": "src/crucible/sandbox/boot.py:207-224",
+   "notes": "only channel out of the sandbox; max_rpc 50 per job"
+  },
+  {
+   "name": "isolation backends",
+   "shape": "detect()->{backend:{available, reason, isolation}}; wrap(backend, argv, workdir); require(backend); enforce_min_isolation(backend, minimum in process|namespaces|user-space-kernel|vm)",
+   "location": "src/crucible/sandbox/backends.py:40-108",
+   "notes": "only landlock-seccomp available here"
+  },
+  {
+   "name": "WorldServer",
+   "shape": "WorldServer(store_url='memory://', *, store=None, strict=False, autoflush=True, lease_ttl_s=600, max_events=50, max_scan=200000, persist_sessions=True, renderer=None, hide_own_commands=True); create_world(config, seed=None, *, world_id=None); join_world(world_id, handle, kind='agent', endowment=0, *, name, password, controller, info)->ActorIdentity; observe(world_id, actor, *, max_events=None, include_tools='changed', peek=False)->Observation; execute_action(world_id, actor, action)->dict; available_tools; advance_time(world_id, until=None, *, dt=None, max_jobs=None); snapshot_world; fork_world(snapshot_id, new_world_id=None, *, ephemeral=False, inherit_tokens=True); restore_world; replay_events(world_id, from_seq=0, to_seq=None, actor=None); evaluate_world",
+   "location": "src/crucible/api/local.py:213-758",
+   "notes": "API_VERSION 'crucible-api/1' additive-only within /1"
+  },
+  {
+   "name": "Observation",
+   "shape": "Observation(world_id, principal, time, seq, events:[{seq,t,type,actor,payload}], dropped, summary, last_result, tools_changed, tools, new_tools, removed_tools, unscanned, observed, text, api)",
+   "location": "src/crucible/api/local.py:102-129",
+   "notes": "cursor is server-side per (world, actor); no explicit observe_since(cursor) arg"
+  },
+  {
+   "name": "CrucibleEnv / CrucibleParallelEnv",
+   "shape": "CrucibleEnv(server=None, world_id=None, actor=None, *, spec, seed, handle='agent', endowment=0, objective=None, reset_mode='continue'|'fork', base_snapshot, ephemeral_forks=True, dt=60, time_mode='fixed'|'cost'|'none', min_dt=1, max_steps=100, max_events=30, max_text_length=65536, max_action_length=8192, renderer, include_tools='changed', driver, render_mode); objective protocol begin/step_reward/status. CrucibleParallelEnv(server, world_id, actors, *, spec, seed, agents, n_agents=2, endowment, objectives, renderers, reset_mode, ..., order_seed)",
+   "location": "src/crucible/api/gym_env.py:47-60; src/crucible/api/pettingzoo_env.py:23-35",
+   "notes": "reward = objective.step_reward or 0.0; no observation_only mode switch"
+  },
+  {
+   "name": "make_app (HTTP)",
+   "shape": "make_app(server, *, operator_token=None, env=None, env_kwargs=None, ws_env_factory=None, title='Crucible') -> FastAPI; routes POST /reset, /step, GET /state,/health,/metadata,/schema, WS /ws, POST /mcp, /v1/worlds..., /v1/snapshots/{s}/fork|restore",
+   "location": "src/crucible/api/http_server.py:113-424",
+   "notes": "binds 127.0.0.1; no TLS"
+  },
+  {
+   "name": "MCPHandler",
+   "shape": "MCPHandler(server, world_id, actor, *, name_style='dots'|'underscores', observe_tool=True, advance_dt=0, server_name='crucible'); stdio: python -m crucible.api.mcp_server --store --world --token",
+   "location": "src/crucible/api/mcp_server.py:52-258",
+   "notes": "emits notifications/tools/list_changed"
+  },
+  {
+   "name": "make_web_app",
+   "shape": "make_web_app(server_or_world_provider, world_id=None, *, secure_cookies=False, notifications=8) -> FastAPI; CLI python -m crucible.web.app --store --world|--create CONFIG --seed --join HANDLE:PASSWORD[:CENTS] --host --port",
+   "location": "src/crucible/web/app.py:2019-2110",
+   "notes": "routes by Host <host>.crucible or /_h/<host>/; POST /_act {_tool, _csrf, _back, _next, fields}"
+  },
+  {
+   "name": "BrowserSession",
+   "shape": "BrowserSession(app_url, *, start=None, headless=True, timeout_ms=15000, max_text=4000, extra_args=()); act({action: goto|click|fill|select|check|press|submit|back|observe, target|id|selector|text, value, url, key}) -> {ok, error, url, title, text, messages, elements:[{id, role, name, tag, value?, options?, href?, form?, required?}]}; .blocked; .console_errors; .page (raw Playwright)",
+   "location": "src/crucible/web/browser.py:138-415",
+   "notes": "serve_in_thread(app, host='127.0.0.1', port=0) -> (url, stop) at browser.py:422"
+  },
+  {
+   "name": "site critic",
+   "shape": "api_critic(world, site, spec, seed=0)->report dict; browser_critic(app_url, world, site, spec, handle, password, seed=0)",
+   "location": "src/crucible/web/critic.py:50,130",
+   "notes": "validates sites by using them against authoritative state"
+  },
+  {
+   "name": "learner plumbing (architecture-agnostic)",
+   "shape": "agent_tools(world, actor)->list[spec]; ActorView(world, actor, max_events=40).observe()/tools(); EntityMemory(per_key=8, recent=32, numbers_per_key=4); ActionTemplates(memory, actor, max_slots=6, ...).slots(tool)/build(tool, slots, choices); obs_features(obs, last_result, dim=512, max_events=60)->np.ndarray; make_goal_world(goal_family, world_family='tiny', seed=0, level=0, ...)",
+   "location": "src/crucible/integrations/__init__.py:40-533",
+   "notes": "no agentrs dependency; CAM2/SL adapters are separate files that import agentrs"
+  },
+  {
+   "name": "RealWorldGateway / RealWorldBridge",
+   "shape": "RealWorldGateway(evaluation, approve=None).request(action) (needs CRUCIBLE_MODE_C_APPROVAL='<evaluation>:<token>' + approve callback); realworld.RealWorldBridge(...) refuses without authorisation document",
+   "location": "src/crucible/modes.py:44-70; src/crucible/realworld/__init__.py",
+   "notes": "off by default; not importable from world code (red-team probe)"
+  }
+ ],
+ "data_model_and_state": "All authoritative state lives in World.state tables, declared in Module.install with secondary indexes (`st.declare_table(name, index=(...))`). Tables change only through @applier functions run on events from ctx.emit(type, payload, vis). vis is 'public', 'internal', or a tuple of principals, and World.visible_events filters on it.\n\nIds:\n- Ids come from st.new_id(prefix): fpost_*, freply_*, adc_*, inst_*, dep_*, mail_*, doc_*, proj_*, iss_*, tkt_*, flow_*, hw_*.\n- Repo ids are '<handle>/<name>'. Blob ids are 'b'+blake2b(12). Commit ids are 'c'+blake2b(10) over [rid, parent, tree, msg, author, now].\n- Principals: p:<handle> (person), o:<handle> (org), svc:<host> (deployed service, info {operator, host}), sys.\n\nKey tables:\n- forum: forum_boards, forum_posts, forum_replies, forum_votes ('<post>|<voter>'), forum_follows ('<follower>|<target>').\n- search: search_docs.\n- ads: ads_campaigns, ads_kw ('<kw>|<cid>').\n- code: repos, commits, blobs ({content: str, size}), compute_use.\n- cloud: providers, instances, hosts, deployments (with manifest, svc, trusted, cu_est, errors), svc_days, svc_hours.\n- net: domains, web_sessions ('<host>|<visitor>'), web_pages, web_links, web_rate, web_days.\n- appdb: app_docs ('<ns>|<coll>|<id>').\n- knowledge: '<principal>|<kind>|<value>', which drives tool lists.\n\nRuntime caches live in world.runtime (search.index, sandbox_pool, trusted_fns, cloud.running), are never persisted, and are dropped in on_load.\n\nNondeterministic external work (sandbox runs, trusted CPU timing) is recorded as ctx.ext outcomes (reserve/fill or external) in an 'ext' event. Regeneration returns the recorded outcome and re-issues the recorded brokered RPCs in order.\n\nPersistence goes through Store (memory://, sqlite:///, postgresql://) with a hash chain over events and pickle snapshots. WorldServer persists per-actor cursors and tool lists under 'session/<wid>/<principal>', and SHA-256 token hashes under 'crucible-api/tokens/<world>'. Browser-mode sessions and SSO tickets are in memory only.",
+ "determinism_replay_persistence": "The kernel is single-threaded per world.\n\nEach command is one transaction: on CrucibleError it rolls back and records cmd.rejected. Nested ctx.call uses savepoints.\n\nRandomness comes only from ctx.rng(*keys), which is seeded by (spec.seed, 'cmd', seq, counter). Iteration is sorted everywhere, e.g. the BM25 scores accumulate in sorted term order with integer stats.\n\nThe search inverted index is a runtime cache reconciled against records by identity. check_invariants compares it with a from-scratch rebuild (search.py:330-343).\n\nSandbox outputs (stdout, cpu_ms, result, rpcs) are recorded. With params cost_model='deterministic', CPU is counted as executed Python lines (LINE_MS = 0.001 nominal ms per line), and import work is not counted, so cost is the same in fresh and warm workers. Tests: test_deterministic_cost_of_a_request_does_not_depend_on_whether_the_worker_is_fresh and test_a_fork_with_fresh_sandbox_workers_evolves_exactly_like_its_parent.\n\nBrowser equivalence: page GETs use World.query, which always rolls back. A form POST is exactly one World.execute. test_browser_workflow_equals_headless asserts an identical digest, seq and last_hash.\n\nEmitted payloads must never be mutated afterwards (SECURITY.md:143-147).\n\nCode blobs are stored in full inside internal 'code.blob' event payloads, so the event log grows with content size.",
+ "extension_points": [
+  "New social platforms (video, images, newsletters, social graph, communities, messaging): a new `@register_module class X(Module)` with `host`, endpoints, appliers and processes (core/kernel.py:130-179). It registers by import in services/__init__.py:2-3, and its tools then appear automatically in World.available_tools, world.find_tools, world.hosts, MCP and the web `/_api` fallback.",
+  "Discoverable content: call `search.index(ctx, doc_id, kind, title, text, owner, ref, hosts)` (services/search.py:83) with new kinds such as 'video', 'image', 'article' or 'newsletter' (KIND_RE allows any [a-z][a-z0-9_]{0,23}); extend the KINDS list (search.py:43) for its description.",
+  "Recommendation and ranking: chain `world.hooks['rank_signal']` as net.py:89-96 does, and add a feeds hook analogous to `world.hooks['sponsored']` (ads.py:55). Forum.feed(world, actor, limit) (forum.py:247) is the single current feed, a template for a per-platform `Recommender` with hidden evaluator-side parameters.",
+  "Exposure and consumption accounting: follow the ads pattern of an internal event (`ads.impressions`, ads.py:136) plus an invariant checked against the ledger (ads.py:335-358), and the net.hit / web_days counters (net.py:276, 395-402) for impression/view/unique-viewer counters written only by appliers.",
+  "Recorded non-deterministic computation for encoders, embeddings and FFmpeg rendering: `Ctx.external(kind, fn)` or `ctx.reserve()` / `ctx.fill()` (core/kernel.py:293-314), so replay and regeneration stay exact; cache keyed by artifact hash + encoder version in world.runtime.",
+  "Artifact storage: generalize code.blob_id (code.py:30) and `commit_files` (code.py:95) into a content-addressed artifact store (bytes, MIME type, size quotas) whose event carries only the hash; snapshot and fork must include the blobs.",
+  "Media tools inside the sandbox: `SandboxConfig.packages` / `APPROVED_PACKAGES` (runner.py:39, 56), e.g. adding PIL, which is installed. FFmpeg (/usr/bin/ffmpeg exists) needs a separate broker-side worker profile, because seccomp DENY includes execve (boot.py:101).",
+  "Agent-created services adding affordances: the manifest schema in Cloud.validate_manifest / validate_web (cloud.py:522-585) could gain e.g. 'feed', 'media' or 'subscription' sections; endpoints become `<host>.<ep>` tools via the resolver (cloud.py:98-115). `caps.publish` / `caps.install` (capabilities.py:133, 268) handle delegated installs.",
+  "Web front end: `WebApp.route(host, pattern, method)` (web/app.py:732), `_register_pages` (app.py:1047) and the SERVICES menu (app.py:56) for curated pages of new platforms; agent web apps are proxied via `_webapp` (app.py:782) with their own CSP.",
+  "Browser observation: `BrowserSession.observe` / `act` (browser.py:344-391) can be extended with screenshot or media frames, since `self.page` is the raw Playwright page.",
+  "Observation contract (additive under crucible-api/1): fields of the `Observation` dataclass (api/local.py:102-126) and `WorldServer.observe` (local.py:546) for artifact refs, semantic representations and an explicit cursor; `replay_events(world_id, from_seq, to_seq, actor)` (local.py:722) already gives observe_since semantics.",
+  "Reward modes: CrucibleEnv.step (gym_env.py:153-172) computes reward = objective.step_reward. This is where legacy_shaped_reward / verified_terminal_outcome / observation_only switches would go.",
+  "Learner adapters without CAM: integrations/__init__.py (agent_tools, ActorView, EntityMemory, ActionTemplates, obs_features). CAM adapters (agentrs_cam2.py, agentrs_sl.py) stay optional modules.",
+  "Stronger isolation: the backends.wrap / LEVEL_OF table (sandbox/backends.py:65-91).",
+  "Gate W probes: add Probe subclasses in redteam/<area>.py and their `probes()` list; they are collected by redteam/suite.py:12 all_probes, and test_redteam.py ratchets against KNOWN_OPEN."
+ ],
+ "reuse_for_v5": [
+  {
+   "v5_part": "Part 4 (social internet substrate)",
+   "how": "Keep forum (text posts, follows, votes, feed), mail (messaging), docs (articles/blogs), search (discovery) and net web apps (interactive pages) as the text tier. Add video, image, audio, newsletter, subscription and community modules on the same identity/bank/knowledge substrate, so all platforms share the population and world state."
+  },
+  {
+   "v5_part": "4.2 artifacts / 6.5 software",
+   "how": "Generalize the content-addressed blob and commit machinery in code.py into an artifact store. Reuse code.fork, deps in crucible.json with @ref pinning, code.test (sandboxed test runs), issues, and cloud.deploy for executable applications and packages. caps evidence (independent adopters via goals.metrics.related_parties) supports 'genuine adoption, not stars'."
+  },
+  {
+   "v5_part": "4.5 / Gate D",
+   "how": "Forum hot feed (chronological plus follow boost), BM25 with rank_signal (link authority, net.py:98-114), and bid-ranked sponsored ads are three starting mechanisms. Their hook pattern (rank_signal, sponsored) is how new, independently parameterized recommenders can be plugged in."
+  },
+  {
+   "v5_part": "4.6 / 4.8 (exposure and reach, social-economic link)",
+   "how": "The ads impression/charge invariants and the 'one charged impression per searcher per day' viewer identity (ads.viewers, seen_today) show how to keep exposure counters consistent and immune to self-inflation. Consumers' awareness diffusion over a social graph (economy/consumers.py) connects discovery to purchases, infrastructure load (cloud metering) and reviews and tickets."
+  },
+  {
+   "v5_part": "11.2 tool interface",
+   "how": "Reuse as-is: dynamic available_tools from the knowledge table, world.find_tools/hosts/validate/help/api, MCP list_changed, parse_action, wf flows and triggers (tool composition), caps (agent-created services as installable affordances), and code.run with crucible_sdk.call (programs acting in the world)."
+  },
+  {
+   "v5_part": "Gate C (browser workflow)",
+   "how": "make_web_app plus BrowserSession plus test_browser_workflow_equals_headless already show an end-to-end Chromium workflow against real state with event-log equivalence. Extend it to a publish-and-consume media workflow."
+  },
+  {
+   "v5_part": "Gate J (open-ended creation)",
+   "how": "commit, then cloud.deploy, then discovery by consumers through search, ads, forum and word of mouth, then sampled real sandbox execution scored by a need verifier, then household payments, then CU consumption and overload on the instance. That chain is already end to end for API services. The site generator (worldgen/sitegen.py) and critic (web/critic.py) cover web-app products."
+  },
+  {
+   "v5_part": "Part 16 / Gate W",
+   "how": "Keep the sandbox (boot.py Landlock + seccomp, rlimits, uid drop, brokered RPC only) and backends.enforce_min_isolation (fail closed). Keep modes.py and the realworld bridge (off by default, NetworkGuard), the hermetic browser resolver, and the redteam framework with its independence, leakage, integrity, money and reward probes. Reuse tests: test_sandbox, test_open_security, test_internet_adversarial, test_realworld_gate, test_redteam, test_hardening."
+  },
+  {
+   "v5_part": "Clarification 1 (architecture-independent learners)",
+   "how": "WorldServer, CrucibleEnv, CrucibleParallelEnv, MCP and HTTP have no CAM dependency. integrations/__init__.py gives scripted, statistical and neural learners structured action templates and hashed features. CAM2 and SL adapters stay as optional compatibility shims that show how a future CAM connects without environment changes."
+  }
+ ],
+ "gaps_vs_v5_spec": [
+  {
+   "v5_part": "4 platforms",
+   "gap": "Only text forum, mail, docs, search and ads exist. There is no short-form or long-form video, no images, no creator subscriptions, no newsletters, no social network beyond follow edges, no product-discovery platform separate from search and market, and no developer community or Q&A platform.",
+   "size": "large"
+  },
+  {
+   "v5_part": "4.2 actual artifacts + Gate C",
+   "gap": "Everything is text.\n- Code blobs are str with MAX_FILE 64 KiB and MAX_REPO 2 MiB (code.py:25-27).\n- Web static files are limited to css/js/svg/txt/json (net.py:226-227).\n- The browser front end drops multipart file uploads (web/app.py:2057), and templates have no img/audio/video.\n- There are no sandboxed media tools. FFmpeg is installed at /usr/bin/ffmpeg but seccomp blocks execve, and only numpy is importable in the sandbox.\n- There is no update/remove/analytics model for media artifacts.",
+   "size": "large"
+  },
+  {
+   "v5_part": "4.3 / Gate E encoders",
+   "gap": "No text, image, audio or video encoders and no embedding cache keyed by hash and encoder version. Search uses a lowercase regex tokenizer only.",
+   "size": "large"
+  },
+  {
+   "v5_part": "4.1 / Gate B autonomous browsing",
+   "gap": "Simulated people do not browse web sites (INTERNET_ARCHITECTURE.md:65). Consumers are a numpy population with small awareness sets. There is no per-participant attention or time budget for content consumption (the forum.feed limit is a per-call cap), and no return-to or leave-resource behaviour over pages or creators.",
+   "size": "large"
+  },
+  {
+   "v5_part": "4.5 / Gate D recommendation",
+   "gap": "Only the forum hot-score feed, BM25 with rank_signal, and bid-ordered sponsored ads exist. Missing: collaborative filtering, learned engagement prediction, exploration, diversity-aware ranking, per-platform algorithms, algorithm change during a run, finite exposure allocation across competing content, delayed and noisy analytics, and evaluator-hidden algorithm parameters.",
+   "size": "large"
+  },
+  {
+   "v5_part": "4.6 / Gate I reach accounting",
+   "gap": "No impressions, unique exposed identities, views, watch duration, completion, shares or returning-viewer counters for content. Forum posts carry only votes and replies. Ads count charged impressions. net counts hits per day by outcome. No compact-ID or estimated-population mode.",
+   "size": "large"
+  },
+  {
+   "v5_part": "4.7 communities",
+   "gap": "Boards are created only at genesis from config['boards'] (forum.py:60-64), and create_board is internal with no endpoint, so participants cannot form communities. Boards have no membership, roles, moderation, governance, trust, entry/exit or inactivity tracking. The gov module applies to organisations, not forum communities. Delete is author-only, with no reports or moderation queue.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "6.5 software ecosystem",
+   "gap": "No pull requests or merge requests, no independent code review, no releases, tags or semver, no package registry or package search beyond kind 'repo' in search, no compatibility checking, and no branches (history is linear). Dependency incorporation (crucible.json deps <= 10, code.py:82) is not tracked as adoption evidence outside caps.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "11.1 observation contract",
+   "gap": "Observation has no artifact references, semantic representations or resource-usage fields. observe() has no explicit cursor argument (the cursor is server-side), though replay_events(from_seq, actor) covers observe_since. Missing or uncertain information and delayed-consequence provenance are not typed.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "11.2 tool interface",
+   "gap": "Mostly present. Missing: generic file creation outside repos (no per-agent workspace), media content-creation tools, and wrapped screenshot or visual observation in BrowserSession.",
+   "size": "small"
+  },
+  {
+   "v5_part": "11.3 observation-only modes",
+   "gap": "There is no legacy_shaped_reward / verified_terminal_outcome / observation_only mode switch. CrucibleEnv reward is objective.step_reward (gym_env.py:164-167), and the CAM2 adapter uses potential shaping.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Clarification 1 / former 11.6 + Gate S",
+   "gap": "The CAM2 and SL adapters import agentrs.cam2 / agentrs.sl at module top. They fail to import without ../src on sys.path (find_spec('agentrs') is False in the default env), so an architecture-independent reference learner suite is needed for acceptance.",
+   "size": "small"
+  },
+  {
+   "v5_part": "16 security / integrity of social layer",
+   "gap": "The sandbox is process-level only (no VM, gVisor or bubblewrap on this host). The social layer has no participant consent, abuse reporting, moderation or anti-fabricated-engagement mechanisms, and there is no login rate limiting in browser mode. The new audience metrics will need protection against direct writes, which is only proven today for ads, votes and revenue.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate W",
+   "gap": "Sandbox, evaluator isolation, reward hacking, accounting, resource limits, network and private-state tests exist. Missing: an explicit cross-world contamination test (fork isolation exists in test_api, and sandbox pool keys include world_id), audience-metric manipulation probes (sockpuppet views or follows, self-shares), and media-processing resource-exhaustion tests.",
+   "size": "small"
+  },
+  {
+   "v5_part": "Gate J",
+   "gap": "Gate J holds for API-service products used by consumers and for capabilities installed by NPC firms. Web-app products are used only by agents and the crawler, not by the population. No content, media or educational-product category is consumed by the population.",
+   "size": "medium"
+  }
+ ],
+ "risks_and_gotchas": [
+  "SandboxConfig has no `backend` or `min_isolation` fields (runner.py:44-60; confirmed via dataclasses.fields). runner.py:204-206 reads them with getattr, falling back to env CRUCIBLE_SANDBOX_BACKEND / CRUCIBLE_MIN_ISOLATION. SECURITY.md:136 says `SandboxConfig.min_isolation`, but SandboxConfig(min_isolation=...) would raise TypeError.",
+  "seccomp denies execve, fork and vfork (boot.py:101, 139), and APPROVED_PACKAGES is ('numpy',) (runner.py:39); test_isolation_matrix asserts torch import is blocked. Neither FFmpeg (a binary) nor Pillow/torchvision can run inside the current sandbox, so media tooling needs a new sandbox profile or a broker-side recorded tool.",
+  "Code blob contents are carried in full in internal `code.blob` event payloads (code.py:124). Putting media in events would make logs, snapshots and replay grow without bound. A content-addressed store outside the log, with hashes in events, is needed and must be included in snapshot, fork and replay integrity.",
+  "The sandbox pool config is read once from world params and cached in world.runtime['sandbox_pool'] (code.py:167-182). All workers share uid nobody, so RLIMIT_NPROC=512 is a total across workers. Container pids.max is 2816 per memory notes, and each Chromium is about 80 threads (SCALING.md:71); at most about 2 concurrent BrowserSessions are safe.",
+  "BrowserSession has no screenshot method, although INTERNET_ARCHITECTURE.md:20 claims screenshots are available. Only the raw Playwright `page` attribute could take one. Not confirmed as a wrapped API.",
+  "Page views through World.query never record learn() or ad-impression side effects (SYNTHETIC_INTERNET.md:429-433). Any v5 'view' counted from browser page renders would be lost, so a consumption event must be a recorded command.",
+  "Agent web apps get CSP `script-src 'self' 'unsafe-inline'` (web/app.py:821-825), but built-in pages are script-free (app.py:1012). Agent JS runs in Chromium, though only *.crucible is reachable.",
+  "Search check_invariants rebuilds the whole index from scratch (search.py:340-342). ads.seen_today scans the ledger per viewer on every search (ads.py:159-171). forum.feed scans the last 50 posts per followed source (forum.py:257-262). None of these scale to millions of artifacts or viewers.",
+  "Deployed-service endpoints have fixed cost_s=5 (cloud.py:86), and a service cannot call itself in one call chain (cloud.py:200-206).",
+  "Trusted in-process exec of genesis code (cloud.py:242-255) depends on provenance. Any commit through the public tools permanently untrusts a repo (code.py:95-98, 384). New world generators that ship code must preserve this.",
+  "The real-world bridge must never be imported by world code (red-team probe independence.world_code_cannot_import_evaluator_or_bridge). New media or encoder modules must not import crucible.realworld or evaluation internals.",
+  "Payload immutability: emitted event payloads must never be mutated afterwards. The kernel does not copy them (SECURITY.md:143-147).",
+  "Browser-mode sessions, SSO tickets and the mail cache are in memory only (SYNTHETIC_INTERNET.md:456-457). There is no login rate limiting.",
+  "The CAM2/SL integration modules import agentrs at top level, and agentrs is not importable from the default Python path here (importlib find_spec returned False).",
+  "Not run (read-only rules): the test suite and benchmarks. Performance figures are taken from docs only. Current test pass status was not confirmed. LIMITATIONS.md:161 notes test_real_chromium_* is flaky under heavy load.",
+  "Host capabilities measured now via sandbox.runner.capabilities(): landlock_abi=4, landlock_net=True, seccomp=True, nobody=True, root=True. Only landlock-seccomp (process-level) isolation is available."
+ ],
+ "tests": [
+  {
+   "path": "tests/test_sandbox.py",
+   "covers": "isolation matrix: uid 65534; /root, /workspace, /etc/environment, socket, subprocess, fork, multiprocessing, write /tmp and torch import all blocked; MemoryError at 3 GiB; timeout; brokered RPC only; persistent worker; tests runner; deterministic line accounting; unsafe paths"
+  },
+  {
+   "path": "tests/test_open_security.py",
+   "covers": "backend detection honesty, refusal of unavailable backends, vm min-isolation fails closed, sandboxed service cannot call admin or act for others, governance not bypassable, private mind state not exposed"
+  },
+  {
+   "path": "tests/test_internet.py",
+   "covers": "agent web app routes, sessions, login and appdb via API; names, rate limits, outages; crawler indexing and link ranking; noindex/login pages not indexed; real Chromium equals API effects; generated sites pass critic; critic rejects fake success; AsyncRunner reproducibility"
+  },
+  {
+   "path": "tests/test_internet_adversarial.py",
+   "covers": "trust_boundary assessment, firms not fooled by unverifiable claims, Mode C refused by default, hermetic browser cannot reach outside hosts"
+  },
+  {
+   "path": "tests/test_web.py",
+   "covers": "login/SSO/logout, page renders record nothing, forms execute recorded commands, errors shown, XSS escaped, permissions/admin hidden, generic deployed-host page, form_to_args, WorldServer backend token login, browser workflow equals headless (bit-identical log), browser network closed"
+  },
+  {
+   "path": "tests/test_services_comm.py",
+   "covers": "search BM25 ranking, cache across rollbacks, replay/fork, discovery learns hosts; forum votes/follow/feed/delete; mail delays/bounces/org mailbox; docs visibility/versions/search; calendar; issues; support; ads billing/budgets/targeting; observe summaries; scripted session replay and regenerate"
+  },
+  {
+   "path": "tests/test_api.py",
+   "covers": "WorldServer create/join/observe/act, tokens, snapshot/fork isolation/replay/restore/evaluate, sqlite persistence, parse_action, render determinism, gym continue/fork, gym checker, PettingZoo, HTTP OpenEnv/WS/MCP/v1, MCP list_changed (in-process and stdio)"
+  },
+  {
+   "path": "tests/test_discovery.py",
+   "covers": "world.find_tools/hosts/validate/help/api: readonly and free, versioned specs, catalogue hash, never revealing undiscovered services, structured validation, error hints keep 3.0 recorded events, replay/regenerate/fork exactness, catalogue renderer"
+  },
+  {
+   "path": "tests/test_hardening.py",
+   "covers": "money/integrity hardening incl. ads charge once per searcher per day, service cannot call itself, sandboxed code can signal only itself and cannot read the sandbox package, deterministic cost independent of fresh worker, fork with fresh workers evolves identically"
+  },
+  {
+   "path": "tests/test_realworld_gate.py",
+   "covers": "bridge refuses without authorisation, allow-lists, private/metadata addresses, live approval for consequential actions, limits, tamper-evident log, outcomes only from experimenter measurement, sealed holdout budget, no contamination of synthetic stores, no tool reaches the bridge, NetworkGuard, default process makes no network connection"
+  },
+  {
+   "path": "tests/test_redteam.py",
+   "covers": "probe framework on vulnerable toys, attack phase has only in-world powers, catalogue consistency, KNOWN_OPEN ratchet, sandbox probes"
+  },
+  {
+   "path": "tests/test_economy.py",
+   "covers": "end-to-end company -> repo -> deploy -> customers -> revenue chain; agent code never runs in-process even when adopted by a trusted firm"
+  },
+  {
+   "path": "tests/test_dashboard_internet.py",
+   "covers": "internet dashboard pages render without changing the world"
+  }
+ ],
+ "performance_facts": [
+  "One-shot sandboxed program (start, Landlock + seccomp, run, tear down): 91 ms; call on a persistent service worker: 0.106 ms (docs/SCALING.md:47-48)",
+  "net.fetch GET of a generated site via API: 1.59 ms/request, 631 per wall second (docs/SCALING.md:99)",
+  "Same page in real Chromium: first load 292 ms, then 125 ms mean, about 79x the API cost (docs/SCALING.md:100)",
+  "Real Chromium: 7.5 navigations/s (docs/SCALING.md:128, docs/benchmarks/openworld.json)",
+  "One Chromium is about 80 threads; at most about 2 concurrent browsers are safe in this container (docs/SCALING.md:71; SYNTHETIC_INTERNET.md:465)",
+  "10/50/200 scripted agents on independent clocks: 1,325 / 2,338 / 2,431 actions per wall second (docs/SCALING.md:101)",
+  "Capability publish 0.19 ms; 20 triggers x 2,880 fires in 0.60 s; 5-step flow runs about 9,800/s; deal proposals about 3,900/s (docs/SCALING.md:79-82)",
+  "Machine: 48 logical CPUs but an 11.52-core cgroup quota shared with other jobs (docs/SCALING.md:120)",
+  "Deterministic cost model: about 11 ms per sampled request for route-finding incumbents (docs/SCALING.md:88-89)",
+  "Default limits: sandbox_max_workers 24 per world (code.py:180), mem 1024 MB per world param (code.py:177), job_wall_s 10, request_timeout_s 5 (cloud.py:236), crawler 6 pages/site/day (net.py:326)"
+ ]
+}

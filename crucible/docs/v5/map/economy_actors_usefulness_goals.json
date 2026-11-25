@@ -1,0 +1,536 @@
+{
+ "subsystem": "economy_actors_usefulness_goals",
+ "summary": "Crucible 4.0's economy is a set of kernel modules over an event-sourced double-entry ledger in integer cents (services/bank.py). The source accounts are acct_genesis, acct_external and acct_fees. Households share one pooled budget, acct_households, and escrow accounts hold money for open orders.\n\nDemand for digital work comes from `consumers` (economy/consumers.py). It is a vectorised numpy population held as state arrays: one need per consumer, rate, willingness to pay, a 3-way preference vector, loyalty, current provider, satisfaction, a 6-slot awareness set, a \"since\" hour and a 6-neighbour small-world graph. The default size is 5000; 3.0 families use 6000, ow/open families 4000, dev families 600-800.\n\nEvery hour `consumers.hour` does four things:\n- draws Poisson requests per offering;\n- executes `k_samples` real requests (4 by default, 2 in open families) via `cloud.execute`, scored by the need's verifier, and extrapolates the rest;\n- pays price x accepted requests from acct_households to the seller in ONE ledger txn (kind \"sale\") per offering-hour;\n- runs a deterministic applier that hands experience, awareness, choice and voice to per-segment BehaviorModels (legacy, contagion, reputation_gate, explorer, bargain; none calibrated).\n\nLatent needs and derived-demand edges change who currently has a need once a day. `shoppers` buys physical goods by attribute utility. `ops` keeps a per-owner daily P&L by ledger kind, a loss journal and public problem requests.\n\nActors:\n- rule-based NPC firms, workers and lenders (actors/npcs.py);\n- Tier-2 minds with traits, goals, beliefs, Beta trust, memory and an adoption engine (actors/minds.py);\n- prospective founders that screen, survey, estimate, enter and exit (actors/entry.py);\n- innovators and entrepreneurs.\nAll act only through tools as their own principal.\n\nUsefulness has 8 hand-written needs plus 10 procedural CategoryFamilies (specified, exemplified or experiential relation; train, val or test split), composition, and the `use` module: discovery, a paid acceptance lab and a six-measure ledger.\n\nGoals is a metric registry with a typed predicate language. `related_parties` and `revenue_analysis` give independent revenue, netting circular flows by max-flow and excluding financing and pulled payments. On top sit GoalContract, GoalVerifier and RewardContract, 5 goal families, mined and validated tasks with a sealed held-out set, self-goals and a curriculum.\n\nWhat is missing: there are no consumer subscriptions, no MRR/ARR and no consumer refunds. The only recurring charge is the B2B capability fee `monthly_cents//30`, billed daily with kind \"subscription\". Nothing in these packages imports CAM.",
+ "key_files": [
+  {
+   "path": "src/crucible/economy/consumers.py",
+   "role": "Consumers module: vectorised population arrays, the hourly market (demand, sampled execution, household payments), the population applier, latent/derived demand, research.survey, evaluator helpers seed_adopters/demand_state/segment_aggregates"
+  },
+  {
+   "path": "src/crucible/economy/behavior.py",
+   "role": "Behaviour-model registry (legacy/contagion/reputation_gate/explorer/bargain), Hour/Pop views, segments, budget envelopes, Demand (latent + derived edges), CALIBRATION record (all uncalibrated)"
+  },
+  {
+   "path": "src/crucible/economy/needs.py",
+   "role": "Need dataclass and NEEDS registry: 8 built-in formats with generator, exact verifier, reference tiers, work_scale, base_price_cents"
+  },
+  {
+   "path": "src/crucible/economy/operations.py",
+   "role": "Ops module: derived daily P&L per owner by ledger kind (txn observer), loss journal (record_loss), ops.kpis, ops.request/respond problem requests"
+  },
+  {
+   "path": "src/crucible/economy/shoppers.py",
+   "role": "Vectorised household goods demand (default 20000) over item attribute vectors; stockout losses; worker wages fed back to households"
+  },
+  {
+   "path": "src/crucible/economy/industry.py",
+   "role": "Production economy (materials, machines, designs, runs, energy, freight, B2B offers, standing orders, retail)"
+  },
+  {
+   "path": "src/crucible/services/bank.py",
+   "role": "Double-entry ledger: accounts, bank.txn, post/move, transfer, invoices, direct-debit mandates (authorize_debit/cancel_mandate/debit), txn_observers hook, conservation invariant"
+  },
+  {
+   "path": "src/crucible/services/capabilities.py",
+   "role": "Capability registry; the only recurring billing: _bill charges monthly_cents//30 daily, ledger kind 'subscription'; evidence modes A-D; independent adopters"
+  },
+  {
+   "path": "src/crucible/services/market.py",
+   "role": "Listings (api/code/goods/service), escrowed orders, refunds from escrow, disputes/arbitration, paid-only ratings; api listings must name a registered need"
+  },
+  {
+   "path": "src/crucible/services/business.py",
+   "role": "Company registry, cap tables, annual fees, insolvency/bankruptcy, dissolve"
+  },
+  {
+   "path": "src/crucible/actors/npcs.py",
+   "role": "Rule-based NPC firms (pricing, capacity, R&D/bounties, licences, support hiring), workers, lenders"
+  },
+  {
+   "path": "src/crucible/actors/minds.py",
+   "role": "Society module: Tier-2 minds (traits, goals, beliefs, trust, memory, contacts), adoption engine with switchback trials, mind_routines hook"
+  },
+  {
+   "path": "src/crucible/actors/entry.py",
+   "role": "Entry module: prospective founders with savings and traits; screen -> survey -> profit estimate -> found/fund/build/list -> manage/exit"
+  },
+  {
+   "path": "src/crucible/actors/dynamics.py",
+   "role": "Provider repricing/hardware, entrepreneur imitation of capability markets, forum_reader belief diffusion"
+  },
+  {
+   "path": "src/crucible/actors/innovators.py",
+   "role": "NPC innovators: program-grammar controllers, deploy, trial, hill-climb versions"
+  },
+  {
+   "path": "src/crucible/actors/negotiation.py",
+   "role": "Offer valuation, reservation values, concession, counteroffers for minds"
+  },
+  {
+   "path": "src/crucible/actors/llm_minds.py",
+   "role": "Optional frozen-LLM drafting of mind replies, clamped by Tier-2 reservation utility"
+  },
+  {
+   "path": "src/crucible/usefulness/category.py",
+   "role": "NeedCategory/CategoryFamily extension interface, @category_family, instantiate, compose, register_category (materialises into NEEDS), measure_tiers"
+  },
+  {
+   "path": "src/crucible/usefulness/families/__init__.py",
+   "role": "Table of the 10 built-in families with kind/relation/split (test families held out)"
+  },
+  {
+   "path": "src/crucible/usefulness/module.py",
+   "role": "Use module: use.categories/examples/probe/report, hourly ledger, ledger(), battery_quality(), usefulness_report() six measures, use_* metrics"
+  },
+  {
+   "path": "src/crucible/usefulness/agents.py",
+   "role": "Scripted reference agents: ExampleInductor, GarbageSeller, Shopper"
+  },
+  {
+   "path": "src/crucible/goals/metrics.py",
+   "role": "Metric registry and predicate language; related_parties, is_related, revenue_analysis (max-flow circular netting), all economic metrics"
+  },
+  {
+   "path": "src/crucible/goals/contracts.py",
+   "role": "GoalContract, GoalVerifier, RewardContract, the 5 goal families, generate_goal, instantiate"
+  },
+  {
+   "path": "src/crucible/goals/taskgen.py",
+   "role": "Opportunity mining, outcome-only task proposal, TaskValidator 8 checks, sealed held-out set"
+  },
+  {
+   "path": "src/crucible/goals/selfgoals.py",
+   "role": "goals module: private self-goals over 7 agent-observable metrics"
+  },
+  {
+   "path": "src/crucible/goals/curriculum.py",
+   "role": "GoalSampler autocurriculum over (goal family, level, world family)"
+  },
+  {
+   "path": "src/crucible/evaluation/audit.py",
+   "role": "integrity_report: self-dealing, circular, pulled, financed, shell orgs, breaches, flags"
+  },
+  {
+   "path": "src/crucible/worldgen/generator.py",
+   "role": "_recipe builds the consumers/civ/shocks config; 3.0 families (6000 consumers), open families (4000)"
+  },
+  {
+   "path": "src/crucible/worldgen/ow_families.py",
+   "role": "OpenWorld families over generated categories; segment mixes MIX_*; latent/derived edges; entry founders"
+  },
+  {
+   "path": "src/crucible/worlds/digital_civilization.py",
+   "role": "civ genesis (incumbents, workers, lenders) and Shocks (pref_drift, demand_surge, new_need, compute_shortage, reliability, entrant)"
+  },
+  {
+   "path": "docs/ECONOMY.md",
+   "role": "Economy design doc (money, needs, demand, costs, firms, nonstationarity)"
+  },
+  {
+   "path": "docs/ACTOR_SYSTEM.md",
+   "role": "Execution tiers (vectorised consumers, NPCs, agents) and policy classes"
+  }
+ ],
+ "public_interfaces": [
+  {
+   "name": "Consumers module config",
+   "shape": "{n:int=5000, needs:{need:weight}|None, rate_per_day:[lo,hi]=[5,30], wtp_mult:[0.6,3.0], k_samples:4, search_rate:0.02, review_rate:0.0005, ticket_rate:0.01, wom_rate:0.01, turnover_per_day:0.002, income_per_day_cents:None, personas:12, shop_threshold:0.35, size:[0.3,1.0], loyalty:[0,0.9], rewire:0.15, diurnal, peak_hour, accept_floor, behavior:{model,params} | segments:[{name,share,model,params}], latent:{need:base_fraction}, derived:[{src,dst,weight,scale,lag_days}], activation_rate:0.2, decay_rate}",
+   "location": "src/crucible/economy/consumers.py:68",
+   "notes": "If behavior, segments, latent and derived are all absent, the world must stay byte-identical to 3.0. Segment params may override COMMON_PARAMS (behavior.py:54) and POPULATION_PARAMS (rate_per_day, wtp_mult, loyalty, budget_share; behavior.py:56)."
+  },
+  {
+   "name": "BehaviorModel",
+   "shape": "class BehaviorModel: name:str; uses_search:bool; prune:bool; defaults:dict; arrays:{name:(dtype, trailing_shape, fill, written_hourly)}; slot_arrays:tuple; init(pop, rng); forget(pop, who); searchers(pop, ni)->mask; utility(pop, mk, rng)->(u, exp, ps); experience(pop, mk, rng); awareness(pop, mk, rng); exposed(pop, mk, rng, key, who, slots); word_of_mouth(pop, mk, rng); consider(pop, mk, idx, Ac, valid)->mask; switch_bar(pop, mk, idx)->array|None; choose(pop, mk, rng); review_rate(prm); voice(pop, mk, rng, slot, cust, sm, out)",
+   "location": "src/crucible/economy/behavior.py:205",
+   "notes": "Register with @register_behavior (behavior.py:361) into BEHAVIOR_MODELS. Pop (157) gives one segment's view; Hour (82) holds only what consumers can observe in that hour."
+  },
+  {
+   "name": "Consumers process/applier events",
+   "shape": "consumers.hour payload {t, slots:{slot:{requests,ok,errors,unavailable,overload,q,cpu_ms,revenue,customers[,accepted,parts]}}, seen:{need_idx:[slots]}, sponsored:{...}, public:{slot:{price,rating,n,need}}[, pools]}; consumers.demand {day, inputs:[{src,dst,day,ok,verified}]}; consumers.seed {slot, who}",
+   "location": "src/crucible/economy/consumers.py:366",
+   "notes": "All three are vis=internal. Appliers: ap_hour at :432, ap_demand at :534, ap_seed at :579."
+  },
+  {
+   "name": "research.survey",
+   "shape": "endpoint survey(need:str, account:str) -> {need, consumers_est, requests_per_day_est, median_willingness_to_pay_cents, unserved_share_est, offerings:{host:{share_est, satisfaction_est}}, sample_size}; fee 25,000 cents",
+   "location": "src/crucible/economy/consumers.py:630",
+   "notes": "The tool is called research.survey because the module's host is 'research'. Its estimates are noisy samples."
+  },
+  {
+   "name": "Evaluator-only consumer helpers",
+   "shape": "segment_aggregates(world, need=None)->list[dict]; demand_state(world)->dict; seed_adopters(world, host, who)->int; Consumers.market_shares(world, need=None)->{host:int}",
+   "location": "src/crucible/economy/consumers.py:754",
+   "notes": "These are never exposed as tools. seed_adopters records a consumers.seed event, so the world still replays exactly, but regenerate does not re-run it."
+  },
+  {
+   "name": "Need",
+   "shape": "@dataclass Need(name, title, doc, keywords, work_scale, generate:(rng,size)->(input,hidden), score:(input,hidden,output)->[0,1], tiers:[(label, src)], base_price_cents=3.0); NEEDS:dict; register(n); tier_source(need,tier); best_tier(need); tier_quality(need,tier,n=4)",
+   "location": "src/crucible/economy/needs.py:24",
+   "notes": "NEEDS is a global registry for the whole process."
+  },
+  {
+   "name": "Bank ledger API",
+   "shape": "Bank.post(ctx, postings:[(acct,int)], kind, memo='', ref=None, vis_extra=())->txn_id; Bank.move(ctx, src, dst, amount, kind, memo='', ref=None); Bank.open_account(ctx, owner, name, kind='checking', overdraft=0); Bank.primary_account(state, owner); Bank.debit(ctx, mandate, dst, amount, kind, memo, ref); event bank.txn {id, postings:[[acct,delta]], kind, memo, ref, by}",
+   "location": "src/crucible/services/bank.py:71",
+   "notes": "SYSTEM_ACCOUNTS is at :19. Ledger kinds are free strings; the ones in use include sale, refund, subscription, contract, compute, fee, income, endowment, transfer, wage, loan, purchase."
+  },
+  {
+   "name": "Direct-debit mandates",
+   "shape": "bank.authorize_debit(from_account, payee, max_per_period, period_s=30d, purpose) -> {mandate}; bank.cancel_mandate(mandate)",
+   "location": "src/crucible/services/bank.py:254",
+   "notes": "This is the closest existing primitive to recurring billing with cancellation."
+  },
+  {
+   "name": "txn_observers hook",
+   "shape": "world.hooks['txn_observers']: list[Callable[[Event], None]], called inside the bank.txn applier",
+   "location": "src/crucible/services/bank.py:313",
+   "notes": "Ops uses it (operations.py:58) to build derived accounting that replays exactly."
+  },
+  {
+   "name": "Ops accounting",
+   "shape": "operating_result(day_rec, exclude_inventory=False)->int; Ops.record_loss(ctx, owner, kind, cents, n=1, resource=None); Ops.window(st, owner, n_days, today)->{flows, losses, loss_n, operating_per_day, revenue, operating}; tools ops.kpis(org, days), ops.request(title, body, ...), ops.requests, ops.respond(request, text, capability, price_cents_month), ops.responses, ops.close_request",
+   "location": "src/crucible/economy/operations.py:39",
+   "notes": "NON_OPERATING kinds are listed at :30; ops_days rows are keyed 'owner|day'."
+  },
+  {
+   "name": "metric decorator",
+   "shape": "@metric(name:str, doc:str='', subject:{arg:'principal'|'host'|'repo'}|None=None, instant:bool=False); evaluate_metric(world, name, args)->float; METRIC_SUBJECTS; INSTANT_METRICS",
+   "location": "src/crucible/goals/metrics.py:30",
+   "notes": "A metric without a subject is evaluator-only: contracts cannot use it (check_predicate_scope, :88)."
+  },
+  {
+   "name": "Predicate language",
+   "shape": "{metric, args, op in >=,>,<=,<,==,!=, value:number} | {all:[...]} | {any:[...]} | {not:p}; check_predicate(p)->errors; evaluate_predicate(world, p)->bool; predicate_leaves(p)",
+   "location": "src/crucible/goals/metrics.py:49",
+   "notes": "Nesting depth is at most 6, with 1-20 children per node."
+  },
+  {
+   "name": "related_parties / is_related",
+   "shape": "related_parties(world, principal)->set[str]; is_related(world, principal, other)->bool",
+   "location": "src/crucible/goals/metrics.py:159",
+   "notes": "Parties are related through membership, founding (even after hand-off) or service operator. The rule is conservative."
+  },
+  {
+   "name": "revenue_analysis",
+   "shape": "revenue_analysis(world, principal, window_s=30d, only_payer=None, netting_window_s=None)->{independent, gross, households, returned, pulled, financed, payers:{group:cents}, truncated}",
+   "location": "src/crucible/goals/metrics.py:370",
+   "notes": "Circular flows are netted by Edmonds-Karp max-flow (_max_flow, :336) over payer groups, capped at MAX_FLOW_GROUPS=128. Households always count as independent."
+  },
+  {
+   "name": "Economic metrics",
+   "shape": "independent_revenue(principal, window_s=30d, netting_window_s=None); cash(principal); independent_members(org, min_tenure_s); service_requests_ok(host, window_s=7d); service_availability(host, window_s); repo_commits(repo); org_status_active(org); quality_margin_vs_incumbents(org, need, n, seed) [evaluator, forks]; revenue_from(principal, payer, window_s=14d); loss_events(org, kind, window_s); capability_adopters(principal, min_active_s); search_best_rank(principal, q, kind); search_visibility; use_verified_quality/use_independent_requests/use_customer_value/use_independent_revenue/use_retained_customers(host, window_s)",
+   "location": "src/crucible/goals/metrics.py:486",
+   "notes": "The use_* metrics are defined in usefulness/module.py:527-557 and have no subject."
+  },
+  {
+   "name": "GoalContract",
+   "shape": "@dataclass GoalContract(family, description, world:{family,seed,overrides[,warmup_s]}, principal, success:predicate with $self/$org/$host, progress:{metric,args,target[,baseline]}, horizon_s, sustain_checks=1, endowment=1_000_000, budget={}, split='train', difficulty=0.5, params={}, tags=(), progress_every_s=0); .id; .to_dict(); .validate()",
+   "location": "src/crucible/goals/contracts.py:35",
+   "notes": ""
+  },
+  {
+   "name": "GoalVerifier / RewardContract",
+   "shape": "GoalVerifier(goal, actor): begin(world); predicate(world)->bool; progress(world)->[0,1]; sample(world); daily_check(world); status(world)->{success, failed, progress, streak, elapsed_s, success_t, initially_true}. RewardContract(goal, shaping=1.0, success_bonus=1.0, check_every_s=DAY): begin(world, actor); step_reward(world, actor)->float; status(world, actor)",
+   "location": "src/crucible/goals/contracts.py:102",
+   "notes": "This is the architecture-agnostic objective protocol. It is used by agents/rl.py, integrations/agentrs_cam2.py, integrations/agentrs_sl.py, training/league.py, scale/rollout.py and evaluation/harness.py."
+  },
+  {
+   "name": "Goal generation",
+   "shape": "GOAL_FAMILIES={'outperform','revenue','recruit','service','solvency'}; generate_goal(family, world_family, seed, level, split=None, overrides=None, max_tries=20)->GoalContract; goal_suite(split, n_per, levels, families, world_families, seed0); instantiate(goal, handle='agent', store=None, strict=False)->(world, actor); is_economic(world_family)",
+   "location": "src/crucible/goals/contracts.py:316",
+   "notes": "The revenue family's targets are 100_000/1_000_000/3_000_000/10_000_000 cents per 30-day window (:237)."
+  },
+  {
+   "name": "Task generation/validation",
+   "shape": "mine(world)->[opportunity]; propose(opps, world, endowment)->[GoalContract] (families relieve_loss, adoption, visibility); TaskValidator(controls, random_seed, run_random, stop_at_first_rejection).validate(goal)->ValidationReport; split_for(world); lock_heldout(goals, reports, path)->seal; load_locked(path); assert_disjoint(train, path)",
+   "location": "src/crucible/goals/taskgen.py:47",
+   "notes": ""
+  },
+  {
+   "name": "goals.propose (self-goals)",
+   "shape": "goals.propose(title, predicate, due_in_s, note) -> {goal, due}; goals.mine(status); goals.check_now(goal)",
+   "location": "src/crucible/goals/selfgoals.py:53",
+   "notes": "ALLOWED metrics (:16) are cash, independent_revenue, service_requests_ok, service_availability, repo_commits, independent_members and org_status_active."
+  },
+  {
+   "name": "GoalSampler",
+   "shape": "GoalSampler(world_families, goal_families=None, levels=(0,1,2,3), seed=0, band=(0.05,0.95), p_frontier=0.1, c_unc=0.5, c_nov=0.3, split='train'): sample()->GoalContract; update(goal, success, progress); table()",
+   "location": "src/crucible/goals/curriculum.py:50",
+   "notes": ""
+  },
+  {
+   "name": "category_family",
+   "shape": "@category_family(name, *, kind, relation in specified|exemplified|experiential, split in train|val|test, doc, population=Population(share, rate_per_day, wtp_mult, doc), demand_links=(), resource_intensity=1.0, work_scale=30.0, version='1') decorating build(rng, params)->{title, doc, keywords, generate_raw, score_raw, tiers, base_price_cents[, truth, rule, table_key, render_table, output_key, example_extra, population, work_scale]}",
+   "location": "src/crucible/usefulness/category.py:309",
+   "notes": "Other entry points: instantiate(family, seed, params) (:332), compose(a, b) (:469), from_config({categories, compose}) (:536), and register_category(cat)->Need (:364), which names the need gen.<family>.<uid8>."
+  },
+  {
+   "name": "use module tools and ledger",
+   "shape": "use.categories(category?); use.examples(category, n=3, offset=0); use.probe(category, host, account, endpoint='solve') -> {mean_score, failures, fee_cents, runs_left_today}; use.report(host, days=7); ledger(world, host, window_s)->dict; battery_quality(world, host, n, seed, endpoint)->float|None; usefulness_report(world, host, window_s, battery, seed)->{artifact, correctness, usage, customer_value, viability, adoption, measures}",
+   "location": "src/crucible/usefulness/module.py:86",
+   "notes": "Config: {categories, compose, probe_fee_cents:1500, probe_n:4, probes_per_day:6}."
+  },
+  {
+   "name": "Entry module config",
+   "shape": "DEFAULTS {founders:6, founder_specs:[{capital, risk, competence, informed, patience[, first_scan_day]}], capital_cents:[400k,1.6M], risk/competence/informed/patience:[lo,hi], scan_interval_days:3, first_scan_day:10, hurdle:0.25, noise_sigma:0.9, max_ventures:2, ...}; operator tool admin.entry_pause(paused)",
+   "location": "src/crucible/actors/entry.py:77",
+   "notes": ""
+  },
+  {
+   "name": "Society minds",
+   "shape": "Society.add_mind(ctx, mid, kind in firm|person, org, owner, traits, role='', extra=None); record {kind, org, owner, role, traits, goals, beliefs, trust:{who:[a,b]}, memory, contacts, tried, posted, routines, stats}; world.hooks['mind_routines'][name] = fn(soc, ctx, mid, m, rng)",
+   "location": "src/crucible/actors/minds.py:152",
+   "notes": "Default routines (capacity, pricing, staffing) are registered at :791."
+  },
+  {
+   "name": "NPC registration",
+   "shape": "NPCs.add_firm(ctx, org, owner, need, host, listing, repo, tier, policy=None); add_worker(ctx, person, skills, reservation, role); add_lender(ctx, org, owner, base_rate, max_principal)",
+   "location": "src/crucible/actors/npcs.py:62",
+   "notes": ""
+  },
+  {
+   "name": "integrity_report",
+   "shape": "integrity_report(world, actor, window_s=10000d)->{self_dealing_cents, internal_transfers_cents, circular_cents, pulled_cents, financed_cents, rejected_admin, rejected_forbidden, shell_orgs, breached_contracts, flags}",
+   "location": "src/crucible/evaluation/audit.py:24",
+   "notes": ""
+  },
+  {
+   "name": "Capability subscription billing",
+   "shape": "Capabilities._bill(ctx, install, iid, cap, bank): moves max(1, monthly_cents // 30) per day from the installer to the provider, kind 'subscription', ref 'svc:<host>'; if unpaid the install is paused",
+   "location": "src/crucible/services/capabilities.py:517",
+   "notes": "This is B2B only, and it is the only recurring charge in the codebase."
+  }
+ ],
+ "data_model_and_state": "All state lives in the kernel state store. Tables are declared in each module's `install`; numpy arrays are set with `st.set_array` and changed only inside appliers through `st.array_mut`.\n\n**Consumers**\n- Arrays: c_need int16, c_rate f32, c_wtp f32, c_pref f32[n,3], c_loyal f32, c_prov int32 (-1 means no provider), c_sat f32, c_aware int32[n,6], c_since int32 (hour), c_nbr int32[n,6].\n- Optional 4.0 arrays: c_seg int8; c_active bool; per-model c_thr, c_quit, c_quit_h, c_trust, c_evid, c_eps, c_mslot[n,4], c_mval[n,4].\n- Tables: cons_offers (listing id -> slot, need), cons_summary, cons_voices (transient), cons_ok_days, cons_demand. Meta: cons_needs (ordered need names), cons_hour.\n- Event cycle: process `consumers.hour` (prio 10, hourly) runs the market. It emits money as bank.txn events plus `cloud.usage_bulk`, then emits `consumers.hour` with what consumers could observe. That event's applier updates the arrays with `world.rng_for('consumers-pop', hour)`.\n- `consumers.income` runs daily. `consumers.demand` runs daily, and only when latent or derived demand is configured.\n- Consumers have no individual money; all of them spend from acct_households.\n\n**Bank**\n- Tables accounts, txns, acct_txns, invoices, mandates. Ids come from `st.new_id`. Every txn is one `bank.txn` event whose postings sum to zero.\n\n**Ops**\n- `ops_days` is keyed 'owner|day' with flows by ledger kind and losses. It is derived through txn_observers and the `ops.loss` event.\n- Also ops_requests and ops_responses.\n\n**Use**\n- use_cats, use_days ('host|day'), use_calls ('host|day|caller'), use_probes.\n\n**Actors**\n- npc_firms, npc_workers, npc_lenders, npc_decisions.\n- `minds` rows (kind, org): one per firm or person mind.\n- `founders` rows, with phases scouting, hiring, building, operating, retired.\n- All are updated by `*.update`/`*.add` events. Persona accounts p:customer-00..11 carry the reviews.\n\n**Goals**\n- `self_goals` is in-world.\n- GoalVerifier and RewardContract state (streaks, potentials) lives in Python objects outside the world. It is not persisted.\n\n**Ids**\n- Principals are p:/o:/svc:. Generated needs are named gen.<family>.<uid[:8]>. Goal ids are 'g-'+digest. A consumer appears in tickets only as 'consumer:<index>'.",
+ "determinism_replay_persistence": "**Randomness**\n- Processes draw from `ctx.rng(key)`, for example 'demand', 'firms' and 'entry'.\n- Appliers draw from `world.rng_for(...)` keyed by the world seed and hour or day, so applying an event is a pure function of its payload.\n- Sampled request execution goes through `cloud.execute`. Its scores are recorded as external outcomes, so replay and regeneration reuse them (SCALING.md: scores are stored, not full outputs).\n\n**Backward compatibility**\n- New 4.0 features draw from separate rng streams (`rng_for(seed_key,'segments')`, 'segment', 'latent').\n- A world without behavior, segments, latent or derived keys evolves byte for byte as in 3.0. tests/test_behavior.py::test_unconfigured_worlds_are_byte_identical_to_crucible_3 checks this against digests recorded from the 3.0 tree.\n\n**Replay, regeneration and forks**\n- tests/test_behavior.py::test_replay_regeneration_and_forks_are_exact and tests/test_usefulness.py::test_use_world_replays_regenerates_and_forks_deterministically check them.\n- Snapshots and forks copy the whole state, arrays included (pickle, about 200 ms at 100k consumers).\n\n**Global registries**\n- Generated categories are registered into the process-global NEEDS on `install`, idempotently by uid.\n- At genesis `use` records each category's fingerprint, and `check_invariants` catches a rule that changed without a version bump.\n\n**Not in world state**\n- Evaluator-only measures (quality_margin_vs_incumbents, battery_quality) run in throwaway forks and refuse to run inside a transaction.\n- GoalVerifier memory sits outside the world, so a verifier must be rebuilt or saved separately for long-horizon persistence.\n- The held-out task file is sealed with SHA-256 and set to mode 0o444.",
+ "extension_points": [
+  "New consumer behaviour (including a learned or neural Class-1 model): subclass `BehaviorModel` and decorate with `@register_behavior` (economy/behavior.py:205, :361). Declare per-consumer state in `arrays`; segments select it by name through the `segments` config (behavior.py:822).",
+  "New per-consumer state or decisions inside the hourly update: the `Consumers.ap_hour` step order (consumers.py:432-497). `_genesis_population` (consumers.py:151) shows how to add arrays from separate rng streams without breaking 3.0 digests.",
+  "Derived demand / emerging needs: the `derived` edges and `latent` config, with `Demand.targets` (behavior.py:921). The edges come from `CategoryFamily.demand_links` with seeded weights (category.py:290-293) and are written into worlds by `ow_families._edges` (ow_families.py:57).",
+  "Recurring revenue and subscription ledgers: a new `@register_module` Module with its own tables and events. It can derive accounting from every `bank.txn` via `world.hooks['txn_observers']` (bank.py:313; the ops pattern at operations.py:58,72), bill through `Bank.move`/`Bank.post` with a new kind such as 'subscription', and use mandates (`bank.authorize_debit`/`Bank.debit`/`bank.cancel_mandate`, bank.py:254-293) for pull billing and cancellation.",
+  "Per-call accounting: chain `world.hooks['on_service_call']` (pattern at usefulness/module.py:60-67).",
+  "New verified outcome metrics (MRR, ARR, active subscriptions, churn, profit): `@metric(name, doc, subject={...}, instant=...)` (goals/metrics.py:30). Reuse `related_parties`, `_Groups` and `revenue_analysis` for independence. Add the module dependency in `taskgen.METRIC_MODULES` (taskgen.py:146), and add to `selfgoals.ALLOWED` (selfgoals.py:16) if agents may observe it.",
+  "New goal families (an ARR goal, the 15 digital domains): add a builder `(rng, world, split, level) -> GoalContract` to `GOAL_FAMILIES` (contracts.py:316). Raise `GoalInfeasible` for an executable feasibility check; held-out families go in `HELDOUT_GOAL_FAMILIES` (:318).",
+  "Architecture-agnostic learner objective: the `RewardContract.begin/step_reward/status` protocol (contracts.py:196) and `GoalVerifier` (:102). External learners need only these plus the world tools.",
+  "Mined tasks: `mine()` and `propose()` in taskgen.py:47/81, `default_controls` for competent witnesses (:154), and `FAMILY_TOOLS` (:149).",
+  "New usefulness categories / product kinds: `@category_family` (usefulness/category.py:309), `compose` (:469) and `from_config` (:536). The `use` module config `categories`/`compose` (usefulness/module.py:4).",
+  "Consumers buying from a listing requires `listing.need` in NEEDS (market.py:109-112) and in the world's `cons_needs` (consumers.py:237). A general artifact registry for household demand would have to change these two gates or add a parallel demand path.",
+  "Strategic participants: `world.hooks['mind_routines'][name]` (minds.py:132, :791), `Society.add_mind` (minds.py:152), `NPCs.add_firm/add_worker/add_lender` (npcs.py:62-71) and `Entry` `founder_specs` (entry.py:47,139). Every action goes through `ctx.call(tool, args, as_principal=who)`.",
+  "Loss and problem signals for emerging needs: `world.hooks['ops'].record_loss(ctx, owner, kind, cents, n, resource)` (operations.py:101) and the `ops.request` tool (:165).",
+  "Shocks for nonstationarity: `Shocks` event kinds in worlds/digital_civilization.py:150-208 (pref_drift, demand_surge, new_need, compute_shortage, reliability, entrant).",
+  "World families: the `_recipe`, `_open` (generator.py:56, :187) and `_ow` (ow_families.py:86) parameters, such as n_consumers, segments, latent and entry."
+ ],
+ "reuse_for_v5": [
+  {
+   "v5_part": "6.2 / Gate K recurring revenue integrity",
+   "how": "Build a subscriptions module on Bank.post/move with a 'subscription' kind (already in metrics._RELEASE_KINDS and the ops journal). Pull billing and cancellation can use mandates (authorize_debit/debit/cancel_mandate). Derive an MRR/ARR ledger through txn_observers as ops does. Compute independence with related_parties, _Groups and revenue_analysis (max-flow circular netting, financing and pulled payments excluded), and report with integrity_report. Market escrow refunds (market._refund, kind 'refund') are already excluded from revenue and undone in the flow graph. Capabilities._bill is a working daily-billed B2B subscription to generalise."
+  },
+  {
+   "v5_part": "6.2 profit and costs",
+   "how": "ops.operating_result and Ops.window give a daily operating result by ledger kind, excluding NON_OPERATING kinds. usefulness_report.viability gives revenue minus compute cost per service. Cloud billing, fees and wages are already real ledger flows."
+  },
+  {
+   "v5_part": "Gate K reference strategy",
+   "how": "The scripted Builder (agents/scripted.py:226) already earns independent household revenue (tests/test_economy.py:36, tests/test_goals.py:40). It can be extended to sell a subscription product and serve as the feasible-ARR reference. TaskValidator's idle, random and competent-witness forks can serve as the feasibility and shortcut checks for the ARR goal."
+  },
+  {
+   "v5_part": "3.2 Class 1 large-scale behavioural participants",
+   "how": "Keep the vectorised arrays, the social graph and the BehaviorModel/segment mechanism as the substrate. Add new decision types (browse, return, recommend, leave) as models or steps, and plug calibrated or learned models in as BehaviorModel subclasses with state declared in `arrays`."
+  },
+  {
+   "v5_part": "3.2 Class 3 strategic participants / 9.1 startup economy",
+   "how": "Entry founders (screen, survey, estimate, enter, exit), Tier-2 minds (trust, beliefs, memory, adoption trials) and NPC firms already act only through tools. A neural or LLM policy can replace the rule bodies while keeping the same `ctx.call(..., as_principal=...)` action path."
+  },
+  {
+   "v5_part": "6.3 open-ended product usefulness",
+   "how": "Keep the 10 CategoryFamilies plus compose as research tools. The caps registry (evidence modes A-D, independent adopters) and the use ledger (six measures, related parties excluded) are the basis for a general artifact/capability registry. use.probe is an existing objective test-against-hidden-instances path."
+  },
+  {
+   "v5_part": "6.4 emerging needs / Gate L",
+   "how": "Latent needs plus derived-demand edges (verified volume -> activation with lag), the ops loss journal and the ops.request problem requests already create endogenous demand. demand_state() and seed_adopters() support counterfactual-removal experiments in forks."
+  },
+  {
+   "v5_part": "9.13 digital marketplace",
+   "how": "The market module's escrowed orders, disputes, arbitration, paid-only ratings and the related-party rating ban are reusable trust and transaction mechanics for an agent-operated exchange."
+  },
+  {
+   "v5_part": "11 / clarification 1 (architecture-independent learners, externally verified outcomes)",
+   "how": "GoalContract, GoalVerifier and RewardContract are already learner-agnostic and read only authoritative state. The self-goals module gives private, agent-scoped predicates. Keep this protocol as the outcome interface, and keep CAM adapters (integrations/agentrs_cam2.py) as optional consumers of it."
+  },
+  {
+   "v5_part": "14 curriculum / 15 evaluation",
+   "how": "Reuse GoalSampler (learning progress, uncertainty, frontier), split_for/lock_heldout/load_locked/assert_disjoint for sealed partitions, and the TaskValidator check sequence."
+  }
+ ],
+ "gaps_vs_v5_spec": [
+  {
+   "v5_part": "6.2 / Gate K",
+   "gap": "There is no subscription primitive for consumers or listings. API listings have only a per-request price, and households pay per accepted request in one txn per offering-hour. There is no MRR, ARR, active or cancelled subscription count, or subscription validity anywhere (grep finds nothing). `independent_revenue` is a rolling-window sum (default 30 days), which is exactly what v5 says must not be confused with recurring revenue. The revenue goal at level 3 is 10,000,000 cents per 30 days ($100k per month), not $100k ARR (\u2248$8,333.33 MRR).",
+   "size": "large"
+  },
+  {
+   "v5_part": "6.2 / Gate K",
+   "gap": "Refunds exist only for escrowed marketplace orders before settlement (market.ep_refund). There are no post-settlement or consumer refunds. There are no discounts, no customer-acquisition cost and no churn metric per business. Cancellation exists only as bank.cancel_mandate and capability uninstall or pause.",
+   "size": "large"
+  },
+  {
+   "v5_part": "6.2 'require independent customers' / Gate K independent customer accounting",
+   "gap": "Consumers have no accounts. All household spending is one pooled account, so ledger revenue cannot be attributed to distinct customers; customer counts exist only via c_prov (use.ledger customers). MRR from independent customers with sustained validity needs per-customer subscription records.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate K related-party / circular detection",
+   "gap": "Detection exists and is strong: related_parties, max-flow netting, audit flags and redteam probes. Documented holes remain (LIMITATIONS.md:145-150): colluders acting outside the netting window, one-way payments from a colluder that look like purchases, and payment-graph truncation at 128 groups. There is no per-subscription related-party flagging.",
+   "size": "small"
+  },
+  {
+   "v5_part": "3.1 persistent individual identity",
+   "gap": "A consumer is a row with exactly one need (c_need), shared money, no employment, skills, goals, attention budget, beliefs, community memberships or multi-product history. Workers, founders, minds, persona accounts, shoppers and API consumers are disjoint populations, so no individual spans roles. Turnover keeps preferences (it resets only provider, satisfaction and awareness), although the comment at consumers.py:467 says 'fresh preferences'.",
+   "size": "large"
+  },
+  {
+   "v5_part": "3.2 Class 1 / 5.x calibration",
+   "gap": "Five vectorised models cover a single decision: which API provider to use, plus reviews and tickets. There are no browse, content, community, recommend or disengage decisions. CALIBRATION marks every model as calibrated: False. Reviews are posted by only 12 persona accounts (`personas`), so distinct-reviewer counts do not correspond to distinct identities.",
+   "size": "large"
+  },
+  {
+   "v5_part": "3.2 Class 2/3, 3.4",
+   "gap": "No participant in this subsystem has neural parameters. NPC firms, minds and founders are rule-based; llm_minds only drafts replies and is clamped by the rule-based utility.",
+   "size": "large"
+  },
+  {
+   "v5_part": "3.3 population scaling profiles",
+   "gap": "There is no profile mechanism, only per-family n_consumers. Arrays are dense and fully copied on snapshot or fork, and there is no sparse or lazy state. The measured maximum is 100k consumers at 2.19 s per simulated day; 10M has not been attempted.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "6.3 / Gate J",
+   "gap": "Household demand exists only for listings whose `need` is registered in NEEDS and present in the world's cons_needs (market.py:109-112, consumers.py:237). A newly declared service or novel category cannot be discovered or adopted by consumers (LIMITATIONS.md:10-14). There is no subjective-usefulness mechanism from diverse participant responses.",
+   "size": "large"
+  },
+  {
+   "v5_part": "6.4 emerging needs",
+   "gap": "Derived-demand edges come from a fixed per-family `demand_links` adjacency written in code and drawn into config at generation. They are not reusable relationships between activities, resources, capabilities and constraints, and agent-created capabilities cannot create new need types.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "9.13 digital marketplace",
+   "gap": "The marketplace is a world service (host `market`) with no operator take rate. There is no agent-operated exchange that NPC buyers and sellers choose between, and no network effects.",
+   "size": "large"
+  },
+  {
+   "v5_part": "6.1 businesses and products",
+   "gap": "Present: formation, licensing (code listings), one-time purchases, support tickets, bankruptcy and contracts. Missing: subscription services, educational and media products as product types, and consumer refunds and cancellations.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "9.1 startup economy",
+   "gap": "Product creation, demand discovery (research.survey, ops.requests), competition (NPC firms, entry), retention (behaviour models), costs and profitability exist. Subscription billing and a recurring-revenue objective do not.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate K reference strategy",
+   "gap": "No reference strategy for a recurring-revenue objective exists. The scripted Builder achieves only rolling 30-day independent revenue.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "9 / 9.16 goals across 15 domains",
+   "gap": "There are only 5 goal families (outperform, revenue, recruit, service, solvency) plus 3 mined task families (relieve_loss, adoption, visibility). HELDOUT_GOAL_FAMILIES={'lab_improvement'}.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "11 externally verified outcomes (agent-observable)",
+   "gap": "The use_* metrics declare no subject, so contracts cannot use them. Self-goals allow only 7 metrics.",
+   "size": "small"
+  },
+  {
+   "v5_part": "10.2 endogenous consequences",
+   "gap": "Household income is an exogenous constant. NPC wages feed back only into the goods-shopper budget (shoppers._worker_spending), not into API consumer demand.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "10.4 persistence",
+   "gap": "GoalVerifier and RewardContract state lives outside the world and the store, so long-horizon or persistent civilisations need separate checkpointing of verifier state.",
+   "size": "small"
+  }
+ ],
+ "risks_and_gotchas": [
+  "Byte-identity contract: a world without new config keys must evolve exactly as in 3.0 (tests/test_behavior.py::test_unconfigured_worlds_are_byte_identical_to_crucible_3). Any new array, changed draw order or extra event in Consumers.genesis, pr_hour or ap_hour breaks recorded digests unless it is gated by config and uses its own rng stream.",
+  "Household payments are aggregated as one bank.txn per offering-hour with counterparty 'households'. revenue_analysis counts households as always independent and nets households inflow minus outflow. Adding per-consumer money or subscriptions changes the independence model and the ledger volume (events per simulated day).",
+  "Requests beyond k_samples are extrapolated from the sample (4 by default, 2 in open families). Quality, acceptance (`accept_floor`) and CPU are therefore sampling estimates, and MRR or quality claims built on them carry sampling noise.",
+  "consumers.py:467 says turnover replaces consumers with 'newcomers with fresh preferences', but the code resets only c_prov, c_sat, c_aware and model memory. c_pref, c_wtp, c_need, c_rate and c_loyal persist.",
+  "The survey tool is `research.survey` (Consumers.host='research'), not `consumers.survey`. entry._estimate reads keys `active_consumers_est`/`consumers_with_need_est` that ep_survey never returns, so that code path is inert.",
+  "Generated categories register into the process-global NEEDS. Tests and multi-world processes need `scoped_registry`/`unregister_generated`. ow_families is not imported by worldgen/__init__, so `register_ow_families()` must be called.",
+  "revenue_analysis caches results keyed by (world.seq, now, id(state)) and skips the cache inside transactions. Payer-graph BFS stops at MAX_FLOW_GROUPS=128 (`truncated`), and large customer bases of organisations could hit this. netting_window_s defaults to the window, so colluders can wait it out.",
+  "quality_margin_vs_incumbents and battery_quality fork the world and execute requests. They are expensive, evaluator-only, and raise inside world transactions.",
+  "bindings() picks $org as the actor's sorted first owned organisation and $host as the deployment with the most service_requests_ok. GoalVerifier.predicate tries every owned organisation, and exceptions count as false.",
+  "Capability subscriptions bill monthly_cents//30 per day (a 30-day month). An MRR definition must say how it normalises daily, monthly and annual billing; v5 implies ARR = 12 x MRR.",
+  "Reviews and ratings from consumers are posted by `personas` (default 12) persona accounts (i % personas), so per-reviewer statistics are not per-individual.",
+  "Price elasticity uses clip(2 - price/wtp, 0, 1) with wtp drawn from base_price x [0.6, 3.0]. Default household income buys about 70% of nominal demand at reference prices. Subscription pricing would need its own willingness-to-pay and budget model.",
+  "LIMITATIONS.md: nothing is calibrated (0 of 55 mechanisms); firm minds have no cost floor and prices ratchet down; the founder pool is finite (14 per world in ow families).",
+  "I did not run the test suite or any benchmark (read-only constraint). The performance numbers come from docs/SCALING.md, and pass status of the listed tests was not verified."
+ ],
+ "tests": [
+  {
+   "path": "tests/test_economy.py",
+   "covers": "Need tier ordering and garbage scoring; demand pays for verified quality and better software wins customers; unpaid compute suspends then terminates; capacity enforcement; contract breach and claims; bounties; bankruptcy"
+  },
+  {
+   "path": "tests/test_behavior.py",
+   "covers": "3.0 byte identity; registry and CALIBRATION; bad config refused; per-model causal tests (ads, contagion cascades, bargain price response, explorers); segments; budget envelopes; derived demand lag and decay; activation creates no income; agents see only consequences; replay, regeneration and fork exactness; shocks"
+  },
+  {
+   "path": "tests/test_usefulness.py",
+   "covers": "Family coverage of kinds, relations and splits; category contract; total evaluator; published pool disjoint from scoring; hidden rule per seed; adding a family without touching modules; registration idempotence and collisions; composition; discovery tools public-only; use admission; acceptance lab; ledger related-party exclusion; deterministic replay and forks; existing mechanisms work with generated categories"
+  },
+  {
+   "path": "tests/test_goals.py",
+   "covers": "Generated goals valid and distinct; Builder succeeds while random and idle do not; two strategies succeed; self-dealing and circular payments not counted; rating spam and operator tools rejected; pre-existing success not counted; shaping not farmable; fork evaluation; self-goals scoped; curriculum"
+  },
+  {
+   "path": "tests/test_hardening.py",
+   "covers": "Circular money not revenue (:252); wash sales (:312); shell company still related (:355); loan not revenue (:418); dissolution keeps debt (:449); sustained point-in-time goals (:677); paid-only ratings (:711); wage currency for recruits (:740); bounty revenue (:1027); adopter counting (:1053)"
+  },
+  {
+   "path": "tests/test_entry.py",
+   "covers": "Vacated need re-entered only with entry; overpriced monopoly attracts entrant; saturated market not entered; badly informed founder fails; determinism; hiring developers; lender loans; estimate ordering and noise; admission"
+  },
+  {
+   "path": "tests/test_taskgen.py",
+   "covers": "Mining reported losses into outcome-only goals; visibility task passes all checks; validator rejections; sealed read-only held-out set; CLI"
+  },
+  {
+   "path": "tests/test_redteam.py",
+   "covers": "Red-team framework including reward.circular probes (redteam/reward.py) and toy exploits"
+  },
+  {
+   "path": "tests/test_open_society.py",
+   "covers": "Mind negotiation, contracts, breach and reputation, trust building"
+  },
+  {
+   "path": "tests/test_open_dynamics.py",
+   "covers": "Open families run and keep invariants; providers reprice; entrepreneurs fork an open-source invention"
+  },
+  {
+   "path": "tests/test_npc_innovation.py",
+   "covers": "Innovator program grammar, invent/deploy/iterate, ablation"
+  },
+  {
+   "path": "tests/test_ow_worlds.py",
+   "covers": "OpenWorld families over generated categories"
+  }
+ ],
+ "performance_facts": [
+  "bazaar world, wall seconds per simulated day by consumer count: 1,000 -> 0.82 s, 6,000 -> 0.97 s, 25,000 -> 0.99 s, 100,000 -> 2.19 s (3,417 events per simulated day; snapshot 162 ms / 3.41 MB; fork 212 ms). Cost is dominated by sampled real-request execution until about 100k (docs/SCALING.md:23-31).",
+  "NPC workers: 50 / 500 / 2,000 -> 0.32 / 0.36 / 0.34 s per simulated day (docs/SCALING.md:33).",
+  "Tier-2 minds: 56 / 506 / 2,006 minds -> 0.31 / 0.39 / 0.44 s per simulated day, about 0.07 ms per mind per day (docs/SCALING.md:85-87).",
+  "open_mixed (2,000 API consumers + 20,000 households): 1.28 s per simulated day, snapshot 801 kB, fork 58 ms, replay 21.3k events/s (docs/SCALING.md:84).",
+  "Under the deterministic line-counting cost model, a route-finding incumbent request costs about 11 ms, which is why open families sample 2 requests per offering per hour (docs/SCALING.md:88-90).",
+  "Ledger: 4,442 transfers per wall second (7,196 per CPU second); replay 26,345 events per wall second (docs/SCALING.md:125-126).",
+  "Resident memory of a world: 4 MB at 1,000 people, 40 MB at 100,000 people (docs/SCALING.md:129).",
+  "A 365-day ow_market run: about 1.2M events, 310-360 MB of log, 1.4-1.6 GB peak memory, about 70 minutes under load (docs/SCALING.md:130).",
+  "Agent step: 19 ms of world time per agent step with 3 scripted agents (docs/SCALING.md:35).",
+  "Task validation cost: visibility task about 43 s, loss-relief about 139 s, adoption about 163 s (docs/SCALING.md:112-116).",
+  "Need tier qualities (ECONOMY.md:31-38): for example route.shortest bfs-hops 0.64 vs dijkstra 1.00; match.stable identity 0.12 vs gale-shapley 1.00; forecast.series best 0.60 (has headroom)."
+ ]
+}

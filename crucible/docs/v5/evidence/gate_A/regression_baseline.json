@@ -1,0 +1,25 @@
+{
+ "what": "Crucible 4.0 regression suite at c07098b plus the first two v5 commits, run before any v5 world change",
+ "commit": "777f28cf2ee6948d37d7cda78e54ce00340eeefa",
+ "command": "three parallel pytest groups (see docs/v5/REPRODUCE.md), CUDA hidden, 1 thread each",
+ "tests": 1076,
+ "passed": 1074,
+ "failed": 0,
+ "errors": 0,
+ "skipped": [
+  {
+   "test": "tests.test_agents_llm::test_real_qwen_llm_policy_is_deterministic_and_counts_tokens",
+   "reason": "needs GPU + local Qwen3-0.6B"
+  },
+  {
+   "test": "tests.test_agents_llm::test_cam2_real_qwen_replay_logprob_matches_collection",
+   "reason": "needs GPU + local Qwen3-0.6B"
+  }
+ ],
+ "wall_s": 694,
+ "junit": [
+  "docs/v5/evidence/gate_A/regression_g0.xml",
+  "docs/v5/evidence/gate_A/regression_g1.xml",
+  "docs/v5/evidence/gate_A/regression_g2.xml"
+ ]
+}
