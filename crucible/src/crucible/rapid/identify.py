@@ -130,6 +130,21 @@ def lever_sign(env) -> dict:
             "ok": np.sign(truth) == np.sign(est["difference"]) and abs(est["z"]) >= 2.0}
 
 
+def admission_sign(env) -> dict:
+    """Question (routing): does sending all demand earn more than sending a quarter of it, over this network?"""
+    from .oracles import fork
+    view = PublicView(env)
+    props = _levers(view)
+    act = {"A": {"kind": "levers", "values": {n: 0.5 for n in props}},
+           "B": {"kind": "levers", "values": {n: 0.25 / len(props) for n in props}}}
+    block = max(4, env.horizon // 8)
+    truth = contrast_truth(fork(env), act, _net, block)
+    est = contrast_estimate(view, act, _net, block)
+    return {"question": "does admitting all demand pay more than admitting a quarter", "truth": float(np.sign(truth)),
+            "estimate": float(np.sign(est["difference"])), "z": est["z"], "true_difference": truth,
+            "ok": np.sign(truth) == np.sign(est["difference"]) and abs(est["z"]) >= 2.0}
+
+
 def reinforcement_sign(env) -> dict:
     """Question (cascade): does reinforcing every zone reduce the number of nodes lost per tick?"""
     from .oracles import fork

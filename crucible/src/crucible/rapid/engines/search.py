@@ -241,6 +241,12 @@ class Search(RapidEngine):
             return ["multiplicative", "partial_observability", "state_dependent_effect"]
         return ["complementarity", "measurement_noise", "partial_observability"]
 
+    def latent(self, state) -> np.ndarray:
+        """Hidden state for the informativeness check (evaluator side): the target of the joint search."""
+        if self.sc == "coop":
+            return np.asarray(state["target"], dtype=float)
+        return np.asarray([float(state["left"].sum())]) if "left" in state else np.asarray([float(state["gain"][0])])
+
     def outcome(self, state, ledger):
         ags = self.agents
         rev = sum(ledger["revenue"].values())

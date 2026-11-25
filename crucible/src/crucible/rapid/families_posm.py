@@ -87,10 +87,11 @@ def posm_unlock(rng, d):
     return {"engine": "state_machine", "scenario": "unlock", "horizon": int(d["horizon"]), "stages": L,
             "options": names[:O], "decision_name": names[O], "restart_name": "restart", "code": code, "trap": trap,
             "signal_accuracy": 0.85, "action_cost": 30.0, "payoff": 1500.0, "noise": 0.05,
+            "inspect_cost": 20.0, "inspect_hit": 0.9, "inspect_false": 0.1,
             "gauge_names": names[O + 1:O + 2], "endowment": 100_000,
             "objective": {"type": "maximize_net", "text": "Maximise your net income. The process pays every tick "
                                                           "once it is complete."},
             "brief": f"A process with {O} possible operations and a restart. Each operation you perform gives a "
                      "signal that is right most of the time about whether it moved the process forward; some "
-                     "operations at later stages ruin the process for good. Several operations can be performed in "
-                     "one tick as a sequence."}
+                     "operations at later stages ruin the process for good, and an inspection (query 'inspect') "
+                     "usually shows which. Several operations can be performed in one tick as a sequence."}

@@ -280,7 +280,22 @@ def graph_oracle(env) -> dict:
                     return backups(e)
                 return act
             return fn
+        def adaptive(frac, with_backups):
+            def fn(e):
+                if with_backups and e.t == 0:
+                    return backups(e)
+                alive = e.observe()["arrays"].get("alive_by_zone")
+                if not alive:
+                    return None
+                weak = np.array([1.0 - a for a in alive]) + 0.05
+                tot = float(c["reinforce_budget"]) * frac
+                return {"kind": "allocate", "amounts": {n: tot * float(x / weak.sum()) for n, x in
+                                                        zip(c["zone_names"], weak)}}
+            return fn
         pols = {"none": lambda e: None, "backups": backups}
+        for frac in (0.2, 0.4, 0.6):
+            pols[f"adaptive_{frac}"] = adaptive(frac, False)
+            pols[f"backups+adaptive_{frac}"] = adaptive(frac, True)
         for frac in (0.25, 0.5, 1.0):
             for top in (1, 2, len(risk)):
                 mask = (risk >= np.sort(risk)[-top]).astype(float)

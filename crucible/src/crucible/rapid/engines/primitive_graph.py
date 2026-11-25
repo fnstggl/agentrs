@@ -320,11 +320,12 @@ class PrimitiveGraph(RapidEngine):
         rev, cost = self.money_flows(st, cur)
         return {"values": cur, "readings": read, "revenue": rev, "cost": cost}
 
-    def set_levers(self, st: dict, values: dict[str, float]) -> None:
+    def set_levers(self, st: dict, values: dict[str, float], clip: bool = True) -> None:
+        """Set levers (clipped to their public ranges; the evaluator may set them outside with clip=False)."""
         names = [lv["name"] for lv in self.lev]
         for k, v in values.items():
             j = names.index(k)
-            x = float(np.clip(float(v), self.lev_lo[j], self.lev_hi[j]))
+            x = float(np.clip(float(v), self.lev_lo[j], self.lev_hi[j])) if clip else float(v)
             if self.lev[j].get("integer"):
                 x = float(round(x))
             st["lev"][:, j] = x
@@ -573,7 +574,7 @@ def true_response(eng: PrimitiveGraph, conds: list[dict], gauge: str, ticks: int
     src = eng.idx[g["src"][0]]
     for cond in conds:
         st = eng.empty_state(1)
-        eng.set_levers(st, cond)
+        eng.set_levers(st, cond, clip=False)
         z = np.zeros((1, eng.n_normal))
         u = np.ones((1, eng.n_uniform))           # no missing readings, no selection draws below the cut
         val = None

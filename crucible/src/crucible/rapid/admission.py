@@ -5,9 +5,12 @@
     conservation          every engine's accounting identities (jobs, stock, flow, budgets, money) hold every tick,
                           and cash = endowment + revenue - cost
     controllability       outcomes under different policies differ by more than the world's own noise
-    achievable            the private oracle reaches a clearly better outcome than leaving the world alone
-    informative           observations under one fixed policy differ more between two instances of the family
-                          (different hidden structure) than between two noise draws of one instance
+    achievable            on the same world, the private oracle does clearly better (by more than 1%) than leaving
+                          it alone, and at least as well as every trivial strategy
+    informative           under a fixed policy (waiting, or seeded random actions), time-averaged observations vary
+                          between instances of the family (different hidden parameters) far more than between noise
+                          draws of one instance (the F statistic of a one-way analysis of variance); for hidden-state
+                          machines, alternatively, the hidden state is predictable from the current readings
     identifiability       the family's experimental question is answered correctly from public actions and
                           observations (`identify`)
     no_dominant_strategy  no constant canonical action and no random policy gets close to the oracle
@@ -239,42 +242,112 @@ def _flat_numbers(obs: dict) -> list[float]:
     return out
 
 
-def _stream(env, rng_seed=3) -> list[list[float]]:
-    rng = np.random.default_rng(rng_seed)
-    out = []
-    obs = env.observe()
-    while not env.done:
-        x = P.random_policy(obs, env.action_space(), rng)
-        if len(env.agents()) > 1:
-            r = env.step({a: P.random_policy(env.observe(a), env.action_space(a), rng) for a in env.agents()})
-        else:
-            r = env.step(x)
-        obs = r["observation"]
-        out.append(_flat_numbers(obs))
+def _stable_numbers(obs: dict) -> list[float]:
+    out: list[float] = []
+    for f in ("numbers", "resources"):
+        out += [float(v) for v in obs[f].values() if isinstance(v, (int, float)) and math.isfinite(v)]
+    for v in obs["arrays"].values():
+        out += [float(x) for x in v if isinstance(x, (int, float)) and math.isfinite(x)]
+    for e in obs["entities"]:
+        out += [float(v) for v in e.values() if isinstance(v, (int, float)) and not isinstance(v, bool)]
+        out += [float(v) for v in e.values() if isinstance(v, bool)]
     return out
 
 
-def _stream_distance(a, b) -> float:
-    tot, n = 0.0, 0
-    for x, y in zip(a, b):
-        m = min(len(x), len(y))
-        if len(x) != len(y):
-            tot += 1.0
-            n += 1
-        for i in range(m):
-            tot += abs(x[i] - y[i]) / (abs(x[i]) + abs(y[i]) + 1e-9)
-            n += 1
-    return tot / max(n, 1)
+def _result_leaves(x, path="r", out=None) -> dict:
+    out = {} if out is None else out
+    if isinstance(x, dict):
+        for k, v in x.items():
+            _result_leaves(v, f"{path}.{k}", out)
+    elif isinstance(x, list):
+        for i, v in enumerate(x[:16]):
+            _result_leaves(v, f"{path}[{i}]", out)
+    elif isinstance(x, bool):
+        out[path] = float(x)
+    elif isinstance(x, (int, float)) and math.isfinite(x):
+        out[path] = float(x)
+    return out
 
 
-def _informative(family, seed, difficulty) -> dict:
-    base = make(family, seed, **difficulty)
-    noise = _replicate(base, 0)
-    other = make(family, seed + 1000, **difficulty)
-    other = Env(family, seed + 1000, other._config, difficulty, world_seed=base.world_seed)
-    s0, s1, s2 = _stream(_fork(base)), _stream(noise), _stream(other)
-    dn, ds = _stream_distance(s0, s1), _stream_distance(s0, s2)
-    return {"ok": ds > 1.5 * dn + 1e-6, "distance_between_instances": ds, "distance_between_noise_draws": dn}
+def _features(env, policy: str, rng_seed=3) -> tuple[np.ndarray, list, list]:
+    """Time-averaged numeric observations (by position) under a fixed policy; also, per tick, the observation
+    features (readings plus the numbers in the participant's own action results) and the hidden state of
+    engines that expose one (`latent`, evaluator side)."""
+    rng = np.random.default_rng(rng_seed)
+    rows, ticks, hidden = [], [], []
+    obs = {a: env.observe(a) for a in env.agents()}
+    latent = getattr(env._engine, "latent", None)
+    while not env.done:
+        if policy == "wait":
+            acts = {}
+        else:
+            acts = {a: P.random_policy(obs[a], env.action_space(a), rng) for a in env.agents()}
+        r = env.step(acts if len(env.agents()) > 1 else acts.get(env.agents()[0]))
+        obs = r.get("observations") or {env.agents()[0]: r["observation"]}
+        rows.append([x for a in env.agents() for x in _stable_numbers(obs[a])])
+        f = {}
+        for a in env.agents():
+            f.update({f"{a}.n{i}": v for i, v in enumerate(_stable_numbers(obs[a]))})
+            f.update({f"{a}.{k}": v for k, v in _result_leaves(obs[a]["last_result"]).items()})
+        ticks.append(f)
+        if latent is not None:
+            hidden.append(np.asarray(latent(env._state), dtype=float))
+    m = min(len(x) for x in rows) if rows else 0
+    return (np.asarray([x[:m] for x in rows]).mean(axis=0) if m else np.zeros(0)), ticks, hidden
+
+
+def _f_ratio(groups) -> float:
+    m = min(len(f) for g in groups for f in g)
+    if m == 0:
+        return 0.0
+    X = np.asarray([[f[:m] for f in g] for g in groups])           # (K, R, m)
+    R = X.shape[1]
+    within = X.var(axis=1, ddof=1).mean(axis=0) / R + 1e-12
+    F = X.mean(axis=1).var(axis=0, ddof=1) / within
+    keep = np.isfinite(F)
+    return float(F[keep].max()) if keep.any() else 0.0
+
+
+def _informative(family, seed, difficulty, K: int = 4, R: int = 3) -> dict:
+    out = {}
+    for pol in ("wait", "random"):
+        groups = []
+        for k in range(K):
+            base = make(family, seed + 1000 * k, **difficulty)
+            groups.append([_features(_replicate(base, r), pol)[0] for r in range(R)])
+        out[pol] = _f_ratio(groups)
+    best = max(out.values())
+    res = {"between_within_ratio": out, "instances": K, "noise_draws": R}
+    ok = best >= 10.0
+    env = make(family, seed, **difficulty)
+    if hasattr(env._engine, "latent"):
+        # is the hidden state predictable from what is observed? (out-of-sample R^2 of a ridge read-out, first
+        # half of the ticks to fit, second half to test, pooled over the two fixed policies and two worlds)
+        F_, Y = [], []
+        for pol in ("wait", "random"):
+            for r in range(2):
+                _, ticks, hid = _features(_replicate(env, r), pol)
+                F_ += ticks
+                Y += hid
+        keys = sorted({k for f in F_ for k in f})
+        X = np.asarray([[f.get(k, 0.0) for k in keys] for f in F_])
+        Y = np.asarray(Y)
+        r2s = []
+        n = len(X)
+        idx = np.arange(n)
+        tr, te = idx % 2 == 0, idx % 2 == 1
+        for j in range(Y.shape[1]):
+            y = Y[:, j]
+            if y[te].var() <= 0:
+                continue
+            A = np.c_[np.ones(tr.sum()), X[tr]]
+            beta = np.linalg.solve(A.T @ A + 1e-3 * np.eye(A.shape[1]), A.T @ y[tr])
+            pred = np.c_[np.ones(te.sum()), X[te]] @ beta
+            r2s.append(float(1 - ((y[te] - pred) ** 2).mean() / y[te].var()))
+        if r2s:
+            res["hidden_state_r2"] = max(r2s)
+            ok = ok or max(r2s) >= 0.3
+    return dict(res, ok=bool(ok))
 
 
 def _axes_effective(family, seed) -> dict:
@@ -283,8 +356,8 @@ def _axes_effective(family, seed) -> dict:
     out = {}
     for ax, v in fam.axes.items():
         nv = v * 1.5 if isinstance(v, float) else (int(v) + max(1, int(v) // 2) if v else 1)
-        if ax == "observation_noise" and v == 0:
-            nv = 0.5
+        if not v:
+            nv = 1.0 if isinstance(v, float) else 1
         try:
             out[ax] = digest(build_config(family, seed, **{ax: nv})) != base
         except Exception as e:  # noqa: BLE001 - an axis that crashes the builder is not effective
@@ -319,8 +392,9 @@ def seed_report(family: str, seed: int, difficulty: dict | None = None) -> dict:
     gap = v_or - v_def
     ck["controllability"] = {"ok": spread > 3.0 * noise_sd + 1e-9 and spread > 1e-6, "outcome_spread": spread,
                              "noise_sd": noise_sd}
-    ck["achievable"] = {"ok": gap > max(3.0 * noise_sd, 1e-6) and v_or >= max(triv.values()), "oracle": v_or,
-                        "default": v_def, "how": orc.get("how"), "objective": env._config["objective"]["type"]}
+    margin = 0.01 * (abs(v_def) + abs(v_or)) / 2 + 1e-6
+    ck["achievable"] = {"ok": gap > margin and v_or >= max(triv.values()), "oracle": v_or, "default": v_def,
+                        "margin": margin, "how": orc.get("how"), "objective": env._config["objective"]["type"]}
     ck["informative"] = _informative(family, seed, difficulty)
     ident = identify_run(family, seed, **difficulty)
     ck["identifiability"] = {"ok": bool(ident.get("ok")), **{k: ident.get(k) for k in ("question", "estimate",

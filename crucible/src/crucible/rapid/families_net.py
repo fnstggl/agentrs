@@ -26,14 +26,15 @@ def _routing(rng, d, rewire: bool):
     c1 = [u(rng, 4.0, 15.0) for _ in range(K)]
     c2 = [u(rng, 4.0, 14.0) for _ in range(J)]
     cfg = {"engine": "graph_dynamical", "scenario": "routing", "horizon": int(d["horizon"]), "K": K, "J": J,
-           "assign": assign, "c1": c1, "c2": c2, "toll": [u(rng, 5.0, 60.0) for _ in range(K)],
-           "demand_mean": 0.9 * min(sum(c1), sum(c2)), "demand_sd": 0.03 * sum(c2), "demand_ar": 0.8, "price": 100.0,
-           "hold": 15.0, "noise": float(d["observation_noise"]), "w_default": [0.5] * K,
+           "assign": assign, "c1": c1, "c2": c2, "toll": [u(rng, 5.0, 40.0) for _ in range(K)],
+           "demand_mean": 1.1 * min(sum(c1), sum(c2)), "demand_sd": 0.03 * sum(c2), "demand_ar": 0.8, "price": 150.0,
+           "hold": 5.0, "noise": float(d["observation_noise"]), "w_default": [u(rng, 0.2, 1.0) for _ in range(K)],
            "route_names": names[:K], "gauge_names": names[K:2 * K + 1], "endowment": 300_000,
            "objective": {"type": "maximize_net", "text": "Maximise your net income: delivered flow pays, route "
                                                          "tolls and queued flow cost."},
-           "brief": f"Traffic from one source to one sink over {K} routes. Levers: the weight of each route in your "
-                    "split. Gauges: flow delivered, and the latency of each route."}
+           "brief": f"Traffic from one source to one sink over {K} routes. Levers: the share of demand you send on "
+                    "each route (shares adding up to more than one are scaled down; demand not sent is turned "
+                    "away). Gauges: flow delivered, and the latency of each route."}
     cfg["income_cents_per_tick"] = int(cfg["price"] * (sum(c2) + 1)) + 1
     if rewire:
         a2 = list(assign)
@@ -50,7 +51,7 @@ def _routing(rng, d, rewire: bool):
         distinct_because="flow dynamics on a two-hop network with shared hidden bottleneck links and congestion "
                          "latency; vectorised batch path and a kernel-hosted twin",
         axes={"graph_size": 4, "horizon": 60, "observation_noise": 0.2}, objective="maximize_net",
-        claims=(C + "shared_bottleneck",), identify=I + "lever_sign", lever_view=True)
+        claims=(C + "shared_bottleneck",), identify=I + "admission_sign", lever_view=True)
 def net_routing(rng, d):
     return _routing(rng, d, False)
 
@@ -61,7 +62,7 @@ def net_routing(rng, d):
         distinct_because="adds a hidden topology change (regime change of the network structure) to the routing "
                          "dynamics",
         axes={"graph_size": 4, "horizon": 60, "observation_noise": 0.2}, objective="maximize_net",
-        claims=(C + "topology_shift",), identify=I + "lever_sign", lever_view=True)
+        claims=(C + "topology_shift",), identify=I + "admission_sign", lever_view=True)
 def net_topology_shift(rng, d):
     return _routing(rng, d, True)
 
@@ -127,8 +128,8 @@ def net_cascade(rng, d):
     return {"engine": "graph_dynamical", "scenario": "cascade", "horizon": int(d["horizon"]),
             "adj": A.astype(int).tolist(), "base": base, "cap": cap, "dep": dep, "ctrl": ctrl, "zone": zone,
             "zone_names": names[P + Cm:P + Cm + zones], "node_names": names[:P + Cm],
-            "gauge_names": names[P + Cm + zones:P + Cm + zones + 2], "dem_ar": 0.8, "dem_sd": 0.05, "p_shock": 0.2,
-            "shock": u(rng, 0.3, 0.5), "shed_share": 0.5, "repair_ticks": 5.0, "reinforce_budget": float(d["resources"]),
+            "gauge_names": names[P + Cm + zones:P + Cm + zones + 2], "dem_ar": 0.8, "dem_sd": 0.05, "p_shock": 0.3,
+            "shock": u(rng, 0.35, 0.6), "shed_share": 0.5, "repair_ticks": 5.0, "reinforce_budget": float(d["resources"]),
             "reinf_gain": 0.08, "reinf_cost": 150.0, "edit_cost": 400.0, "backup_cost": 15.0, "price": 300.0,
             "endowment": 200_000,
             "objective": {"type": "maximize_net", "text": "Maximise your net income from the load you serve."},
@@ -158,8 +159,8 @@ def net_repair(rng, d):
             have.add(tuple(sorted((a, b))))
             edges.append((a, b))
     haz = [u(rng, 0.005, 0.02) for _ in edges]
-    for k in rng.choice(len(edges), size=max(2, len(edges) // 5), replace=False):
-        haz[int(k)] = u(rng, 0.08, 0.15)
+    for k in rng.choice(len(edges), size=max(3, len(edges) // 3), replace=False):
+        haz[int(k)] = u(rng, 0.15, 0.3)
     pairs = []
     while len(pairs) < 6:
         a, b = (int(x) for x in rng.integers(N, size=2))
@@ -167,7 +168,7 @@ def net_repair(rng, d):
             pairs.append((a, b))
     return {"engine": "graph_dynamical", "scenario": "repair", "horizon": int(d["horizon"]), "n_nodes": N,
             "edges": [list(e) for e in edges], "hazard": haz, "pairs": [list(p) for p in pairs],
-            "pair_demand": [u(rng, 1.0, 5.0) for _ in pairs], "price": 150.0, "repair_cost": 200.0,
+            "pair_demand": [u(rng, 1.0, 5.0) for _ in pairs], "price": 150.0, "repair_cost": 450.0,
             "build_cost": 2500.0, "extra_hazard": 0.005, "node_names": names[:N],
             "edge_names": names[N:N + len(edges)], "gauge_names": names[-2:], "endowment": 200_000,
             "objective": {"type": "maximize_net", "text": "Maximise your net income from the demand you serve."},

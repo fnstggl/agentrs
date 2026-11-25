@@ -41,9 +41,10 @@ def candidates(space) -> list[dict]:
     return out
 
 
-def explore_commit(view, explore_frac: float = 0.45) -> None:
+def explore_commit(view, explore_frac: float = 0.45) -> dict | None:
     """Try candidate actions in turn (levers one at a time, then the best value of each lever together), measure
-    observed net income per tick, then commit to the best for the rest of the episode."""
+    observed net income per tick, then commit to the best for the rest of the episode. Returns the action it
+    committed to."""
     sp = view.action_space()
     cands = candidates(sp)
     H = view.horizon
@@ -60,7 +61,7 @@ def explore_commit(view, explore_frac: float = 0.45) -> None:
         score.append(float(np.mean(vals)))
     if not score:
         _run(view, lambda v: None)
-        return
+        return None
     best = cands[int(np.argmax(score))]
     if "levers" in sp.kinds:                                 # combine the best level of each lever
         per: dict = {}
@@ -77,6 +78,7 @@ def explore_commit(view, explore_frac: float = 0.45) -> None:
         if trial and np.mean(trial[len(trial) // 2:]) >= max(score):
             best = combo
     _run(view, lambda v: best)
+    return best
 
 
 # ====================================================================== family-specific references
@@ -85,6 +87,8 @@ def science(view, env):
     x1, x2 = [cfg["nodes"][env._engine.idx[n]]["lever"]["name"] for n in cfg["claim"]["levers"]]
     g = cfg["objective"]["gauge"]
     inst = "lab" if cfg.get("experiment", {}).get("instruments") else None
+    if inst:
+        return science_additive(view, env, x1, x2, g)
     X, y = experiment_grid(view, x1, x2, g, grid=5 if inst is None else 4, reps=2 if inst is None else 1,
                            instrument=inst)
     held = cfg["objective"]["heldout"]
@@ -93,6 +97,36 @@ def science(view, env):
         pred = _fit_predict(X, y, Xq)
         view.step({"kind": "message", "to": "journal",
                    "content": {"predictions": [{"set": c, "value": float(v)} for c, v in zip(held, pred)]}})
+    _run(view, lambda v: None)
+
+
+def science_additive(view, env, x1, x2, g):
+    """Sweep each setting on its own with the precise instrument (locating a jump in the second), fit an additive
+    model - a quadratic in the first, a step in the second - and predict."""
+    def measure(a, b):
+        r = view.step({"kind": "experiment", "design": {"set": {x1: float(a), x2: float(b)}, "measure": [g],
+                                                        "ticks": 1, "replicates": 1, "instrument": "lab"}})
+        return r["result"]["results"]["measured"][g]["mean"] if r["result"]["ok"] else None
+    b_grid = np.linspace(0.0, 6.0, 7)
+    yb = [measure(3.0, b) for b in b_grid]
+    a_grid = np.array([0.0, 2.0, 4.0, 6.0])
+    ya = [measure(a, 1.0) for a in a_grid]
+    held = env._config["objective"]["heldout"]
+    if any(v is None for v in yb + ya):
+        _run(view, lambda v: None)
+        return
+    jumps = np.diff(yb)
+    k = int(np.argmax(np.abs(jumps)))
+    theta = 0.5 * (b_grid[k] + b_grid[k + 1])
+    step = float(jumps[k])
+    low_b = 1.0 >= theta
+    coef = np.polyfit(a_grid, ya, 2)
+    preds = []
+    for c in held:
+        base = float(np.polyval(coef, c[x1]))
+        s = (step if c[x2] >= theta else 0.0) - (step if low_b else 0.0)
+        preds.append({"set": c, "value": base + s})
+    view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
     _run(view, lambda v: None)
 
 
@@ -250,6 +284,8 @@ def fault(view, env):
 
 
 def unlock(view, env):
+    """Stage by stage: inspect every option for the warning sign of a trap, try only the options without one
+    (restarting and replaying the known prefix each time), keep the first one that signals progress twice."""
     sp = view.action_space()
     (dname, opts), = sp.limits["decisions"].items()
     options = [o for o in opts if o != "restart"]
@@ -257,17 +293,29 @@ def unlock(view, env):
     step = lambda o: {"kind": "discrete", "decision": dname, "choice": o}  # noqa: E731
     max_len = sp.kinds["sequence"]["properties"]["steps"]["maxItems"] - 1
     paying = False
-    while not paying and len(known) < max_len and not view.done:
-        hits = {o: 0 for o in options}
-        for o in options:
+    while not paying and len(known) < max_len // 2 - 1 and not view.done:
+        prefix = [step("restart")] + [step(k) for k in known]
+        insp = [{"kind": "query", "target": "inspect", "args": {"option": o}} for o in options]
+        warn = {o: 0 for o in options}
+        for _ in range(2 if known else 1):                   # the first stage has no trap; later ones: inspect twice
+            r = view.step({"kind": "sequence", "steps": prefix + insp})
+            if not r["result"]["ok"]:
+                break
+            for x in r["result"]["results"]:
+                if isinstance(x, dict) and x.get("warning"):
+                    warn[x["option"]] += 1
+        safe = sorted((o for o in options if warn[o] < 2), key=lambda o: warn[o])
+        best = None
+        for o in safe:
             if view.done:
                 return
-            seq = [step("restart")] + [step(k) for k in known] + [step(o)]
-            r = view.step({"kind": "sequence", "steps": seq})
+            r = view.step({"kind": "sequence", "steps": (prefix + [step(o)]) * 2})
             if r["result"]["ok"]:
-                hits[o] += int(r["result"]["results"][-1].get("signal", 0))
-        best = max(hits, key=hits.get)
-        if hits[best] == 0:
+                sig = [x.get("signal", 0) for x in r["result"]["results"] if isinstance(x, dict) and "signal" in x]
+                if len(sig) >= 2 and sig[-1] and sig[-1 - len(known) - 1]:
+                    best = o
+                    break
+        if best is None:
             break
         known.append(best)
         if not view.done:                                    # does the sequence known so far already pay?
@@ -294,24 +342,33 @@ def sign_switch(view, env):
 
 
 def maintenance(view, env):
-    c = env._config
-    ages_at_fail: dict = {}
-    last: dict = {}
-    while not view.done:
-        obs = view.observe()
-        ms = {m["id"]: m for m in obs["entities"] if m.get("kind") == "machine"}
-        for mid, m in ms.items():
-            if m["status"] == "repair" and last.get(mid, {}).get("status") == "run":
-                ages_at_fail.setdefault(mid, []).append(last[mid]["runtime"])
-        last = ms
-        due = None
-        for mid, m in ms.items():
-            seen = ages_at_fail.get(mid) or [x for v in ages_at_fail.values() for x in v]
-            limit = 0.5 * float(np.mean(seen)) if seen else 1e9
-            if m["status"] == "run" and m["runtime"] >= limit:
-                due = mid
-        view.step({"kind": "discrete", "decision": "service", "choice": due} if due else None)
-    del c
+    """A practice episode run to failure records each machine's runtime at failure; the scored episode services
+    a machine once its runtime reaches a fraction of that machine's typical failure runtime (the fraction is also
+    chosen in practice)."""
+    import copy
+
+    def episode(v, limits):
+        ages: dict = {}
+        last: dict = {}
+        while not v.done:
+            ms = {m["id"]: m for m in v.observe()["entities"] if m.get("kind") == "machine"}
+            for mid, m in ms.items():
+                if m["status"] == "repair" and last.get(mid, {}).get("status") == "run":
+                    ages.setdefault(mid, []).append(last[mid]["runtime"])
+            last = ms
+            due = [mid for mid, m in ms.items() if m["status"] == "run" and m["runtime"] >= limits.get(mid, 1e9)]
+            v.step({"kind": "discrete", "decision": "service", "choice": due[0]} if due else None)
+        return ages
+    seen = episode(PublicView(copy.deepcopy(env)), {})
+    allv = [x for v in seen.values() for x in v] or [1e9]
+    best, best_net = {}, -np.inf
+    for frac in (0.3, 0.45, 0.6):
+        lim = {m: frac * float(np.mean(seen.get(m) or allv)) for m in env._config["machine_names"]}
+        e = copy.deepcopy(env)
+        episode(PublicView(e), lim)
+        if e.outcome()["net"] > best_net:
+            best, best_net = lim, e.outcome()["net"]
+    episode(view, best)
 
 
 def bottleneck(view, env):
@@ -428,11 +485,47 @@ SPECIFIC = {"sci_functional_law": science, "sci_instruments": science, "srch_fie
             "eng_delayed_controller": controller}
 
 
+def practice_constant(env) -> dict | None:
+    """Learning across episodes: each candidate action is held for a whole practice episode on a copy of the world
+    (which tells delayed and irreversible consequences apart from immediate ones); then the best levers are
+    combined, and combined with each discrete option. Returns the best constant action found."""
+    import copy
+    sp = env.action_space()
+    cands = candidates(sp)
+
+    def total(a):
+        e = copy.deepcopy(env)
+        v = PublicView(e)
+        _run(v, lambda vv: a)
+        return float(e.outcome()["net"])
+    scores = [total(a) for a in cands]
+    scores.append(total(None))
+    cands.append(None)
+    if "levers" in sp.kinds:
+        per: dict = {}
+        for a, s in zip(cands, scores):
+            if a is not None and a["kind"] == "levers":
+                (n, val), = a["values"].items()
+                if n not in per or s > per[n][1]:
+                    per[n] = (val, s)
+        combo = {"kind": "levers", "values": {n: val for n, (val, _) in per.items()}}
+        extra = [combo]
+        for d, opts in sorted(sp.limits.get("decisions", {}).items()):
+            for o in opts[:8]:
+                extra.append({"kind": "sequence", "steps": [{"kind": "discrete", "decision": d, "choice": o}, combo]})
+        for a in extra:
+            cands.append(a)
+            scores.append(total(a))
+    return cands[int(np.argmax(scores))]
+
+
 def play(env) -> dict:
-    view = PublicView(env)
+    """The family's reference on `env`; the generic one learns over practice episodes on copies of the world
+    (`practice_constant`), as a learner would across episodes, then plays the scored episode."""
     fn = SPECIFIC.get(env.family)
-    if fn is None:
-        explore_commit(view)
-    else:
-        fn(view, env)
+    if fn is not None:
+        fn(PublicView(env), env)
+        return env.outcome()
+    best = practice_constant(env)
+    _run(PublicView(env), lambda v: best)
     return env.outcome()

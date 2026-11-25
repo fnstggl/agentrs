@@ -67,8 +67,14 @@ class StateMachine(RapidEngine):
             decs = {c["decision_name"]: list(c["options"]) + [c["restart_name"]]}
             kinds["discrete"] = A.discrete_schema(decs)
             limits["decisions"] = decs
-            kinds["sequence"] = A.sequence_schema(["discrete"], max_steps=2 * int(c["stages"]) + 2)
-            limits["sequence_kinds"] = ["discrete"]
+            kinds["sequence"] = A.sequence_schema(["discrete", "query"], max_steps=2 * int(c["stages"]) + 4)
+            limits["sequence_kinds"] = ["discrete", "query"]
+            kinds["query"] = A.query_schema({"inspect": f"inspect an operation at the current stage for signs of "
+                                                        f"irreversible damage (args: {{\"option\": name}}); right "
+                                                        f"most of the time; costs {c['inspect_cost']}",
+                                             "tools": "the action kinds available to you",
+                                             "history": "your last observations (args: n)",
+                                             "spec": "the public description of this world"})
         return A.ActionSpace(kinds, limits)
 
     # ------------------------------------------------------------------ state
@@ -111,6 +117,15 @@ class StateMachine(RapidEngine):
             f = c["repair_names"].index(action["choice"]) + 1
             state["fix"] = np.array([float(f)])
             return {"repair": action["choice"], "cost": float(c["repair_cost"])}
+        if self.sc == "unlock" and k == "query" and action["target"] == "inspect":
+            o = (action.get("args") or {}).get("option")
+            if o not in c["options"]:
+                raise ActionError("inspect needs args {\"option\": <operation name>}")
+            state["spent"] = state["spent"] + c["inspect_cost"]
+            s = int(state["s"][0])
+            is_trap = s < int(c["stages"]) and c["trap"][s] == c["options"].index(o)
+            p = c["inspect_hit"] if is_trap else c["inspect_false"]
+            return {"option": o, "warning": bool(float(rng.random()) < p), "cost": float(c["inspect_cost"])}
         if self.sc == "unlock" and k == "discrete":
             s = int(state["s"][0])
             state["steps"] = state["steps"] + 1
@@ -200,6 +215,10 @@ class StateMachine(RapidEngine):
             return ["hysteresis", "measurement_noise", "partial_observability", "state_dependent_effect"]
         # progress depends on the order of actions; a trap latches for good; payment only once complete
         return ["hysteresis", "measurement_noise", "partial_observability", "path_dependence", "threshold"]
+
+    def latent(self, state) -> np.ndarray:
+        """The hidden state (evaluator side)."""
+        return np.array([float(state["s"][0])])
 
     def outcome(self, state, ledger):
         a = self.agents[0]

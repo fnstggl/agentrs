@@ -308,7 +308,7 @@ def lookalike_market(rng: np.random.Generator, rule: str, difficulty: dict) -> d
     noise = float(difficulty.get("observation_noise", 0.15))
     horizon = int(difficulty.get("horizon", 60))
     gb = GraphBuilder(rng)
-    price = gb.lever(1.0, 10.0, _u(rng, 4.0, 6.0), cost=0.0)
+    price = gb.lever(1.0, 10.0, _u(rng, 2.0, 9.0), cost=0.0)
     promo = gb.lever(0.0, 10.0, _u(rng, 1.0, 3.0), cost=_u(rng, 60.0, 120.0))
     seg = gb.prim("hidden_confounding", {"mean": 0.0, "sd": 0.5, "ar": 0.8}, role="exogenous")
     visits = gb.prim("saturation", {"cap": _u(rng, 60.0, 90.0), "half": _u(rng, 2.0, 5.0)}, role="intermediate",

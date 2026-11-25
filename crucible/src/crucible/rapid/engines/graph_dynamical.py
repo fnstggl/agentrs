@@ -106,7 +106,9 @@ class GraphDynamical(RapidEngine):
         D = np.maximum(dem, 0.0)
         w = np.maximum(st["w"], 0.0)
         ws = w.sum(axis=1)
-        flow = np.where(ws[:, None] > 0, D[:, None] * w / np.maximum(ws, 1e-12)[:, None], 0.0)
+        # route k carries the share w_k of demand; when the shares add up to more than one they are scaled down,
+        # when to less, the rest of the demand is turned away (admission control)
+        flow = D[:, None] * w / np.maximum(ws, 1.0)[:, None]
         q1 = st["q1"] + flow
         o1 = np.minimum(q1, self.c1)
         q1 = q1 - o1
@@ -116,7 +118,7 @@ class GraphDynamical(RapidEngine):
         o2 = np.minimum(q2, self.c2)
         q2 = q2 - o2
         deliv = o2.sum(axis=1)
-        arrived = st["arrived"] + D * (ws > 0)
+        arrived = st["arrived"] + flow.sum(axis=1)
         cg = prim("congestion")
         lat1, _ = cg.apply(_CONG, {"load": flow + q1, "cap": self.c1}, {}, None, None, t)
         load2 = in2 + q2
