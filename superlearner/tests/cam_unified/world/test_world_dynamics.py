@@ -215,3 +215,53 @@ def test_transition_counter_counts_rows():
     Z = torch.randn(7, cfg.n_state, cfg.d_model)
     wm.prior(Z, rand_tokens(7, 1, cfg.d_model, TokenKind.ACTION, ragged=False), None, 1.0)
     assert wm.n_transitions - n0 == 7
+
+
+def test_imagination_consistent_open_loop_uses_only_sampled_outcomes():
+    """With fast_states + belief update/tokens functions, open-loop rows update a private belief from outcomes
+    sampled from the model -- the real outcomes after the start (here a sentinel value) are never seen."""
+    from superlearner.cam_unified.interfaces import FastState
+    from superlearner.cam_unified.testing import zero_fast_state
+    cfg, wm = _wm(10)
+    T, B = 5, 3
+    batch = rand_sequence(B, T, cfg, seed=11)
+    for st in batch.steps:
+        st.outcomes.y = torch.full_like(st.outcomes.y, 777.0)
+    fasts = [zero_fast_state(B, cfg) for _ in range(T)]
+    seen, calls = [], []
+
+    def upd(fast, Zp, act, ob):
+        seen.append(ob.y[ob.y_mask].detach().clone())
+        calls.append(fast.logw.shape[0])
+        logw = torch.log_softmax(fast.logw + 0.1 * ob.y.sum(-1, keepdim=True).clamp(-5, 5), -1)
+        return FastState(fast.particles, logw, fast.pscale, fast.bayes_mu, fast.bayes_P, fast.bayes_noise,
+                         fast.bayes_n, fast.surprise, fast.steps + 1, fast.channels)
+
+    proj = torch.randn(cfg.d_particle, cfg.d_model)
+
+    def toks(fast):
+        x = torch.cat([fast.particles @ proj, (fast.logw.exp().unsqueeze(-1) * (fast.particles @ proj)).sum(1,
+                                                                                                    keepdim=True)], 1)
+        return TokenSet.from_dense(x, TokenKind.BELIEF)
+
+    out = wm.loss(batch, fast_states=fasts, belief_update_fn=upd, belief_tokens_fn=toks)
+    assert torch.isfinite(out["world"]) and calls, "belief update never called"
+    allv = torch.cat(seen)
+    assert allv.numel() > 0 and not bool((allv == 777.0).any())
+    assert set(calls) <= {B * wm.open_loop_samples * k for k in range(1, T + 1)}
+    out["world"].backward()
+
+
+def test_dev_scale_config_shapes():
+    """The real dev scale (d 384, 32 state tokens, 32x32 categorical latent) runs prior, loss and backward."""
+    from superlearner.cam_unified.config import make_config
+    cfg = make_config("dev")
+    torch.manual_seed(0)
+    wm = WorldModel(cfg, DoubleCore(cfg), train_horizons=(1, 2), open_loop_samples=2, open_loop_starts=2)
+    batch = rand_sequence(2, 3, cfg, N=6, Q=6, seed=12)
+    out = wm.loss(batch)
+    out["world"].backward()
+    assert torch.isfinite(out["world"])
+    Zh, info = wm.prior(torch.randn(2, cfg.n_state, cfg.d_model),
+                        rand_tokens(2, 2, cfg.d_model, TokenKind.ACTION, ragged=False), None, None)
+    assert Zh.shape == (2, 32, 384) and info["logits"].shape == (2, 32, 32) and info["z"].shape == (2, 1024)

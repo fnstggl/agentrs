@@ -360,11 +360,14 @@ def tokens_to(ts, device):
     return None if ts is None else ts.to(device)
 
 
-def train(wm, batches, steps: int, lr: float = 1e-3, beliefs=None, log_every: int = 0, seed: int = 0, belief=None):
-    """Adam on WorldModel.loss over a fixed list of batches (cycled); EMA target updated each step. With a belief
-    double, open-loop rollouts update each row's belief from the model's own sampled outcomes."""
+def train(wm, batches, steps: int, lr: float = 1e-3, beliefs=None, log_every: int = 0, seed: int = 0, belief=None,
+          lr_end_frac: float = 1.0):
+    """Adam on WorldModel.loss over a fixed list of batches (cycled); EMA target updated each step; optional linear
+    learning-rate decay to ``lr_end_frac`` x lr. With a belief double, open-loop rollouts update each row's belief
+    from the model's own sampled outcomes."""
     torch.manual_seed(seed)
     opt = torch.optim.Adam(wm.trainable_parameters(), lr=lr)
+    sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda i: 1.0 - (1.0 - lr_end_frac) * min(1.0, i / max(1, steps)))
     hist = []
     fasts = [belief.sequence_fast(b) for b in batches] if belief is not None else None
     for i in range(steps):
@@ -378,6 +381,7 @@ def train(wm, batches, steps: int, lr: float = 1e-3, beliefs=None, log_every: in
         out["world"].backward()
         torch.nn.utils.clip_grad_norm_(wm.trainable_parameters(), 10.0)
         opt.step()
+        sched.step()
         wm.update_target(0.98)
         hist.append(float(out["world"].detach()))
         if log_every and i % log_every == 0:

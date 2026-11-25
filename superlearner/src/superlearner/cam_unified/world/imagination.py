@@ -27,7 +27,7 @@ archive or environment, and it never mutates the caller's Z or FastState (every 
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, List, Optional
 
 import torch
