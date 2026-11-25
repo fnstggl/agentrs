@@ -148,6 +148,8 @@ def batch_throughput(rows: int = 1_000_000, table_rows: int = 10_000_000, store:
     w.close()
     if st is not None:
         st.close()
+    import shutil
+    shutil.rmtree(tmp, ignore_errors=True)      # the benchmark store is scratch data
     return out
 
 
