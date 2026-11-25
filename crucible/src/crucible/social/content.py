@@ -163,6 +163,9 @@ bus.event_type("content.updated", S.obj({"id": _S, "ref": _S, "version": _I, "ti
                doc="a new version of a catalogue item (new artifact; the history is kept)")
 bus.event_type("content.removed", S.obj({"id": _S, "by": _S, "reason": _S, "role": _S}, ["id", "by", "reason", "role"]),
                owner="content", doc="an item was taken out of every listing, feed and search")
+bus.event_type("content.distributed", S.obj({"id": _S, "aud_item": {"type": "integer", "minimum": 0}},
+                                            ["id", "aud_item"]), owner="content",
+               doc="a public item was indexed for distribution by the audience module (its audience item id)")
 bus.event_type("content.comment", S.obj({"id": _S, "item": _S, "author": _S, "text": _S, "parent": _SN},
                                         ["id", "item", "author", "text"]), owner="content",
                doc="a comment on a catalogue item (or a reply to a comment)")
@@ -331,7 +334,19 @@ class Content(Module):
             "access": access, "format": a["format"], "mime": a["mime"], "size": a["size"],
             "facts": to_jsonable(a["facts"]), "reply_to": reply_to, "by": ctx.actor}, vis="public")
         self._index(ctx, content_id)
+        self._distribute(ctx, content_id)
         return content_id
+
+    def _distribute(self, ctx: Ctx, content_id: str) -> None:
+        """Hand a public item to the audience module (workstream C2) for distribution and exact accounting."""
+        from . import integration
+        if integration.aud_module(ctx.world) is None:
+            return
+        rec = dict(ctx.state.tables["content"][content_id])
+        words = rec["facts"].get("words")
+        item = integration.index_published(ctx, rec, words)
+        if item is not None:
+            bus.emit(ctx, "content.distributed", {"id": content_id, "aud_item": int(item)}, vis="internal")
 
     def update(self, ctx: Ctx, content_id: str, ref: str, *, title=None, tags=None, description=None,
                duration_s=None) -> int:
@@ -378,6 +393,9 @@ class Content(Module):
                                           "role": role}, vis="public")
         from ..services import search
         search.unindex(ctx, content_id)
+        if rec.get("aud_item") is not None:
+            from . import integration
+            integration.unindex(ctx, rec["aud_item"])
 
     def add_comment(self, ctx: Ctx, author: str, content_id: str, text: str, parent: str | None = None) -> str:
         rec = self._rec(ctx, content_id)
@@ -461,7 +479,7 @@ class Content(Module):
             "format": p["format"], "mime": p["mime"], "size": p["size"], "facts": p["facts"],
             "reply_to": p.get("reply_to"), "version": 1, "versions": [{"ref": p["ref"], "t": ev.t}],
             "updated_at": ev.t, "removed_at": None, "removed_by": None, "removal_reason": None, "removal_role": None,
-            "comments": 0})
+            "comments": 0, "aud_item": None})
         st.meta_set("content:n", p["n"] + 1)
         self._grow(p["n"])
         self._set(p["n"], kind=KIND_CODE[p["kind"]], platform=PLATFORM_CODE[p["platform"]],
@@ -492,6 +510,10 @@ class Content(Module):
                  removal_role=p["role"])
         self._set(rec["n"], removed=True)
 
+    @applier("content.distributed")
+    def ap_distributed(self, ev):
+        self.world.state.patch("content", ev.payload["id"], aud_item=ev.payload["aud_item"])
+
     @applier("content.forum_link")
     def ap_forum_link(self, ev):
         self.world.state.insert("content_forum", ev.payload["post"], {"id": ev.payload["id"]})
@@ -521,7 +543,8 @@ class Content(Module):
              "published_at": rec["published_at"], "updated_at": rec["updated_at"], "duration_s": rec["duration_s"],
              "format": rec["format"], "mime": rec["mime"], "size": rec["size"], "access": rec["access"],
              "community": rec["community"], "reply_to": rec["reply_to"], "version": rec["version"],
-             "comments": rec["comments"], "removed": rec["removed"], "facts": to_jsonable(rec["facts"])}
+             "comments": rec["comments"], "removed": rec["removed"], "facts": to_jsonable(rec["facts"]),
+             "aud_item": rec.get("aud_item")}
         if rec["access"] == "public" or own or readable(world, actor, rec):
             d["ref"] = rec["ref"]
         if rec["removed"]:
@@ -646,12 +669,11 @@ class Content(Module):
             raise Forbidden("only the creator can inspect an item's performance")
         out = {"item": self.view(ctx.world, rec, ctx.actor), "comments": rec["comments"]}
         w = ctx.world
-        try:
-            from . import audience as _aud          # workstream C2
-            out["audience"] = _aud.audience(w, rec["n"], principal=ctx.actor)
-        except ImportError:
-            out["audience"] = None
-            out["audience_note"] = "audience analytics are reported by the consumption engine (not in this world)"
+        from . import integration
+        out["audience"] = integration.audience_view(w, rec.get("aud_item"), ctx.actor)
+        if out["audience"] is None:
+            out["audience_note"] = ("audience analytics are reported by the audience module for distributed items "
+                                    "(not in this world, or this item is not distributed)")
         hook = w.hooks.get("social.creator_stats")
         if hook is not None:
             out["creator"] = hook(w, rec["creator"])

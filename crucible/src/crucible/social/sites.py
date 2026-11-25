@@ -2,35 +2,34 @@
 (`tube`), text posts (`posts`), images (`pics`), articles and blogs (`blog`), audio and podcasts (`pods`).
 
 Each platform is a site with its own host and tools, carrying the catalogue kinds of its registry entry
-(crucible.social.platforms). What differs between platforms is real: what may be published there, how a
-participant discovers things (a chronological following feed, latest, tags, channels, trending by recorded
-interactions, and - when the consumption engine of workstream C2 is in the world - the platform's own
-recommender mixture), and how consumption is recorded. All of them share the population, the catalogue, the
-follow graph and the identity space.
+(crucible.social.platforms). What differs between platforms is real: what may be published there and how a
+participant discovers things there. All of them share the population, the catalogue, the follow graph and the
+identity space.
 
 Tools of every site `<host>`:
 
     <host>.publish   publish an artifact you own on this platform (content.publish with the platform fixed)
     <host>.latest    newest items (optionally one tag or kind)
     <host>.channel   one creator's items here
-    <host>.feed      your feed: the platform recommender mixture when the consumption engine is present,
-                     otherwise newest items from accounts you follow, then the newest of everyone else
+    <host>.feed      your feed. For a population individual in a world with workstream C2's distribution module
+                     (`feed`), the platform's own recommender mixture (`feed.home`: the impressions are recorded by
+                     the audience module); otherwise the chronological following feed - newest items of the accounts
+                     you follow - then the newest items of everyone else
     <host>.trending  items of the last hours ranked by recorded comments and public shares in that window
-    <host>.view      open an item of this platform with its comments
-    <host>.watch     consume an item (watch/listen/read for some seconds; like, share, follow) - recorded by the
-                     consumption engine (crucible.social.consumption), the only way audience state changes
+    <host>.view      an item of this platform with its comments
     <host>.comment   comment on an item of this platform
 
-The platform's recommender configuration (`recommenders`, `schedule` in the module config) is evaluator-only: it
-is moved to `world.runtime["recsys_private"]` at install and never appears in an event or a tool result.
+Consumption (reading, watching, listening, liking, sharing with contacts) is recorded by the audience module
+only - population individuals use `feed.watch` (workstream C2) on items they were shown; no tool here changes an
+audience figure.
 """
 from __future__ import annotations
 
 import numpy as np
 
 from ..core import schema as S
-from ..core.errors import InvalidAction, NotFound, ProtocolError
-from ..core.kernel import Ctx, Module, endpoint, register_module
+from ..core.errors import NotFound
+from ..core.kernel import Ctx, Module, register_module
 from ..substrate import ids
 from . import content as C
 from . import graph as G
@@ -41,23 +40,6 @@ _ID = S.s_str("content id c<n>", pattern=C.CID_RE.pattern, maxLength=14)
 DAY = 86400
 
 
-def consumption_engine():
-    """The consumption engine of workstream C2 (crucible.social.consumption), or None when it is not installed."""
-    try:
-        from . import consumption as cons      # noqa: F401
-    except ImportError:
-        return None
-    return cons
-
-
-def recommenders():
-    try:
-        from . import recsys
-    except ImportError:
-        return None
-    return recsys
-
-
 class Site(Module):
     """Base class of a content platform. Subclasses set `name`/`host` (= the platform name) and may add tools."""
     platform: str = ""
@@ -65,18 +47,8 @@ class Site(Module):
     depends = ("identity", "content", "social")
 
     def __init__(self, config=None):
-        cfg = dict(config or {})
-        self._recsys = {k: cfg.pop(k) for k in ("recommenders", "schedule") if k in cfg}
-        super().__init__(cfg)
+        super().__init__(config)
         self.spec = PLATFORMS[self.platform]
-
-    def install(self, world):
-        if self._recsys:
-            world.runtime.setdefault("recsys_private", {})[self.platform] = dict(self._recsys)
-
-    def on_load(self, world):
-        if self._recsys:
-            world.runtime.setdefault("recsys_private", {})[self.platform] = dict(self._recsys)
 
     # ------------------------------------------------------------------ helpers
     def _mine(self, ctx: Ctx, cid: str):
@@ -93,28 +65,7 @@ class Site(Module):
         cat = C.catalogue(world)
         return (cat["platform"] == C.PLATFORM_CODE[self.platform]) & ~cat["removed"]
 
-    def _pop_viewer(self, ctx: Ctx) -> int | None:
-        return ids.index(ctx.actor)
-
-    def _impressions(self, ctx: Ctx, items: list[dict]) -> None:
-        """Items shown to a population individual acting through tools are impressions of the consumption engine."""
-        i = self._pop_viewer(ctx)
-        cons = consumption_engine()
-        if i is None or cons is None or not items or ctx.read_only and ctx.cmd is None:
-            return
-        n = np.array([it["n"] for it in items], dtype=np.int64)
-        cons.impressions(ctx, self.platform, np.full(n.size, i, dtype=np.int64), n, np.arange(n.size, dtype=np.int64))
-
-    # ------------------------------------------------------------------ tools
-    def _publish_schema(self):
-        return S.obj({
-            "ref": S.s_str("artifact reference (see studio.*)", maxLength=71),
-            "title": S.s_str(minLength=1, maxLength=C.MAX_TITLE),
-            "kind": S.s_enum(list(self.spec["kinds"]), f"default {self.spec['kinds'][0]}"),
-            "tags": C._TAGS, "description": S.s_str(maxLength=C.MAX_DESC),
-            "duration_s": S.s_num(minimum=0), "access": S.s_enum(list(C.ACCESS)),
-            "reply_to": S.s_str(maxLength=14), "as_org": S.s_str(maxLength=40)}, ["ref", "title"])
-
+    # ------------------------------------------------------------------ tools (attached by _site_endpoints)
     def do_publish(self, ctx, ref, title, kind=None, tags=(), description="", duration_s=None, access="public",
                    reply_to=None, as_org=None):
         cm = C.module(ctx.world)
@@ -146,23 +97,25 @@ class Site(Module):
         items = C.module(ctx.world).listing(ctx.world, ctx.actor, self._items(ctx.world, ctx.actor, m), limit)
         return {"creator": p, "items": items, "followers": int(G.followers(ctx.world, node).size)}
 
+    def _distributed(self, world) -> bool:
+        aud = world.modules.get("aud")
+        return "feed" in world.modules and aud is not None and self.platform in getattr(aud, "platforms", ())
+
     def feed_items(self, ctx, limit: int) -> tuple[list[dict], str]:
         world = ctx.world
-        rs = recommenders()
-        conf = world.runtime.get("recsys_private", {}).get(self.platform)
+        cm = C.module(world)
+        tbl = world.state.tables["content"]
+        if ids.index(ctx.actor) is not None and self._distributed(world):
+            got = ctx.call("feed.home", {"platform": self.platform, "k": int(limit)})
+            out = []
+            for it in got.get("items", []):
+                cid = (world.state.tables["aud_item_info"].get(str(int(it["item"]))) or {}).get("content_id") \
+                    if isinstance(it, dict) and "item" in it else None
+                if cid and cid in tbl:
+                    out.append(dict(cm.view(world, tbl[cid], ctx.actor), **{"from": "recommended"}))
+            return out, "recommended"
         cat = C.catalogue(world)
         here = self._here(world)
-        cm = C.module(world)
-        if rs is not None and conf and conf.get("recommenders") and self._pop_viewer(ctx) is not None:
-            mix = rs.mixture(world, self.platform) if hasattr(rs, "mixture") else None
-            if mix is None:
-                raise ProtocolError("recsys has no mixture() for platform feeds")
-            cand = np.flatnonzero(here)
-            ranked = mix.rank(world, self.platform, np.array([self._pop_viewer(ctx)]), cand, limit,
-                              ctx.rng("feed", self.platform))
-            tbl = world.state.tables["content"]
-            items = [cm.view(world, tbl[C.cid(int(i))], ctx.actor) for i in ranked[0] if int(i) >= 0]
-            return items, "recommended"
         me = nodes.node_of(world, ctx.actor)
         fol = G.following(world, me) if me is not None else np.zeros(0, np.int64)
         followed = here & np.isin(cat["creator"], fol)
@@ -215,23 +168,6 @@ class Site(Module):
         out["creator_followers"] = int(G.followers(ctx.world, rec["creator_node"]).size)
         return out
 
-    def do_watch(self, ctx, id, seconds, liked=False, shared=False, follow=False):
-        rec = self._mine(ctx, id)
-        cons = consumption_engine()
-        i = self._pop_viewer(ctx)
-        if cons is None:
-            raise NotFound("this world has no consumption engine (crucible.social.consumption)")
-        if i is None:
-            raise InvalidAction("consumption is recorded for population individuals (p<i>) only")
-        dur = rec["duration_s"]
-        sec = float(min(seconds, dur)) if dur else float(seconds)
-        thr = min(30.0, 0.5 * dur) if dur else 30.0
-        one = lambda v, dt: np.array([v], dtype=dt)  # noqa: E731
-        cons.consumption(ctx, self.platform, one(i, np.int64), one(rec["n"], np.int64), one(sec, np.float32),
-                         one(bool(dur) and sec >= dur - 0.5, bool), one(bool(shared), bool), one(bool(follow), bool),
-                         one(bool(liked), bool))
-        return {"id": id, "watched_s": sec, "counts_as_view": sec >= thr, "view_threshold_s": thr}
-
 
 def _site_endpoints(cls):
     """Attach the standard site tools to a Site subclass (the endpoint decorator needs per-class schemas)."""
@@ -262,10 +198,9 @@ def _site_endpoints(cls):
 
     def ep_feed(self, ctx, limit=20):
         items, how = self.feed_items(ctx, limit)
-        self._impressions(ctx, items)
         return {"items": items, "ranking": how}
-    ep_feed.__doc__ = (f"Your {label} feed: ranked by the platform's recommenders, or newest from accounts you "
-                       f"follow, then newest of everyone else.")
+    ep_feed.__doc__ = (f"Your {label} feed: the platform's recommendations (population members, when the platform "
+                       f"distributes), else newest from accounts you follow, then newest of everyone else.")
 
     def ep_trending(self, ctx, limit=20, hours=24):
         return self.do_trending(ctx, limit, hours)
@@ -274,11 +209,6 @@ def _site_endpoints(cls):
     def ep_view(self, ctx, id):
         return self.do_view(ctx, id)
     ep_view.__doc__ = f"An item on {label} with its comments."
-
-    def ep_watch(self, ctx, id, seconds, liked=False, shared=False, follow=False):
-        return self.do_watch(ctx, id, seconds, liked, shared, follow)
-    ep_watch.__doc__ = ("Consume an item for some seconds (and optionally like it, share it, follow its creator); "
-                        "a view needs at least min(30 s, half the duration).")
 
     def ep_comment(self, ctx, id, text, parent=None):
         self._mine(ctx, id)
@@ -297,9 +227,6 @@ def _site_endpoints(cls):
         ("trending", ep_trending, S.obj({"limit": S.s_int(minimum=1, maximum=50, default=20),
                                          "hours": S.s_int(minimum=1, maximum=24 * 30, default=24)}), 2, True),
         ("view", ep_view, S.obj({"id": _ID}, ["id"]), 5, True),
-        ("watch", ep_watch, S.obj({"id": _ID, "seconds": S.s_num(minimum=0, maximum=36_000),
-                                   "liked": S.s_bool(default=False), "shared": S.s_bool(default=False),
-                                   "follow": S.s_bool(default=False)}, ["id", "seconds"]), 30, False),
         ("comment", ep_comment, S.obj({"id": _ID, "text": S.s_str(minLength=1, maxLength=C.MAX_COMMENT),
                                        "parent": S.s_str(maxLength=20)}, ["id", "text"]), 20, False),
     ]

@@ -423,13 +423,9 @@ class Letters(Module):
                           f"A new issue of {n['name']}: {title}\nOpen it: content {cid} "
                           f"(http://letters.crucible/item?id={cid})")
             mailed = len(to)
-        from .sites import consumption_engine
-        cons = consumption_engine()
-        reached = 0
-        if cons is not None and pop.size and not paid:
-            cons.impressions(ctx, "letters", pop.astype(np.int64), np.full(pop.size, rec["n"], np.int64),
-                             np.zeros(pop.size, np.int64))
-            reached = int(pop.size)
+        from . import integration
+        reached = 0 if paid else integration.deliver_impressions(ctx, "letters", pop,
+                                                                 ctx.state.tables["content"][cid].get("aud_item"))
         iid = ctx.state.new_id("issue")
         bus.emit(ctx, "letters.issue", {"id": iid, "newsletter": newsletter, "item": cid, "paid": bool(paid),
                                         "mailed": mailed, "population": reached}, vis="public")
