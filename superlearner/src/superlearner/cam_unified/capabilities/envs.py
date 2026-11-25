@@ -213,9 +213,16 @@ class MechanismEnv(DiagnosticEnv):
     name = "slot"
 
     def __init__(self, B: int, seed: int = 0, horizon: int = 8, mechanisms: Optional[dict] = None,
-                 fixed: Optional[str] = None, unfamiliar: Optional[dict] = None):
+                 fixed: Optional[str] = None, unfamiliar: Optional[dict] = None, kind: str = "gaussian"):
+        """kind "gaussian": mechanisms map to (mu, sigma) of the payout. kind "bernoulli": mechanisms map to
+        (p_ok, _); a pull succeeds (ok, payout 1) with probability p_ok and otherwise fails with error "jammed"
+        (payout 0), so the mechanism shows in the Bernoulli `ok` outcome, which the Kalman/NIG layer (continuous
+        channels only) does not model: only the particles (and the latent state) can adapt its prediction."""
         self.horizon = horizon
-        self.mechanisms = dict(mechanisms or {"low": (-1.0, 0.25), "high": (1.0, 0.25)})
+        self.kind = kind
+        default = {"low": (-1.0, 0.25), "high": (1.0, 0.25)} if kind == "gaussian" else \
+            {"jammy": (0.2, 0.0), "smooth": (0.8, 0.0)}
+        self.mechanisms = dict(mechanisms or default)
         self.fixed = fixed
         self.all_mechanisms = {**self.mechanisms, **(unfamiliar or {})}
         super().__init__(B, seed)
@@ -238,6 +245,15 @@ class MechanismEnv(DiagnosticEnv):
         return GoalSpec("slot", "Collect payouts from the slot machine.")
 
     def _act(self, h, a, rng, b):
+        if self.kind == "bernoulli":
+            ok = rng.random() < h["mu"]
+            y = 1.0 if ok else 0.0
+            h["total"] += y
+            obs = [Observation(ObsKind.NUMERIC, value=round(h["total"], 4), unit="coins", entity="machine",
+                               entity_type="slot machine", source="counter", meta={"metric": "total payout"})]
+            if not ok:
+                obs.append(Observation(ObsKind.ERROR, "The machine jammed; no payout.", source="pull_lever"))
+            return ok, obs, y, None if ok else "jammed"
         y = rng.gauss(h["mu"], h["sigma"])
         h["total"] += y
         return True, [Observation(ObsKind.NUMERIC, value=round(h["total"], 4), unit="coins", entity="machine",
@@ -255,27 +271,44 @@ class ProbeEnv(DiagnosticEnv):
     already present (value 0, "not tested") at the start, so it is an outcome the world model and the beliefs
     predict for every action (the run_test outcome is a +-1 change of it). Without information the risky launch is
     worth p*win - (1-p)*loss < safe; the probe costs now but lets every later decision launch only when good.
-    `informative=False` makes the signal a coin flip independent of the state (the probe is then worthless)."""
+    `informative=False` makes the signal a coin flip independent of the state (the probe is then worthless).
+    `exploring_starts=True` (a training protocol, never used for evaluation) offers only one uniformly drawn tool at
+    the first decision, so every first action occurs in the training data regardless of the policy."""
 
     name = "probe"
+    TOOLS = ("run_test", "launch", "play_safe")
 
     def __init__(self, B: int, seed: int = 0, horizon: int = 2, p_good: float = 0.5, probe_cost: float = 1.0,
                  win: float = 10.0, loss: float = 10.0, safe: float = 1.0, noise: float = 0.0,
-                 informative: bool = True):
+                 informative: bool = True, exploring_starts: bool = False):
         self.horizon = horizon
         self.p_good, self.probe_cost, self.win, self.loss, self.safe, self.noise = p_good, probe_cost, win, loss, safe, \
             noise
         self.informative = informative
+        self.exploring_starts = exploring_starts
         super().__init__(B, seed)
 
     def _new(self, rng, b):
         good = rng.random() < self.p_good
-        return {"good": good, "signal": (good if self.informative else rng.random() < 0.5)}
+        return {"good": good, "signal": (good if self.informative else rng.random() < 0.5),
+                "first_tool": rng.choice(self.TOOLS)}
 
-    def _tools(self, h):
+    def _all_tools(self) -> list:
         return [tool("run_test", "Run a costly test that shows whether launching will succeed."),
                 tool("launch", "Launch the product: a large gain if conditions are right, a large loss otherwise."),
                 tool("play_safe", "Take the small, certain gain.")]
+
+    def _tools(self, h):
+        return self._all_tools()
+
+    def available_tools(self) -> list:
+        out = []
+        for b in range(self.B):
+            ts = self._all_tools()
+            if self.exploring_starts and self.k[b] == 0:
+                ts = [t for t in ts if t.name == self.hidden[b]["first_tool"]]
+            out.append(ts)
+        return out
 
     def _signal(self, v: float) -> Observation:
         return Observation(ObsKind.NUMERIC, value=v, unit="signal", entity="market", entity_type="market",
@@ -358,3 +391,124 @@ class DelayedCueEnv(DiagnosticEnv):
             return True, obs, r, None
         r = 1.0 if a.tool == f"press_{h['cue']}" else 0.0
         return True, [Observation(ObsKind.TEXT, "Correct." if r else "Wrong.", source="judge")], r, None
+
+
+# ============================================================================ C03: causal-model test worlds
+
+
+def _points(total: float) -> Observation:
+    return Observation(ObsKind.NUMERIC, value=round(total, 4), unit="points", entity="me", entity_type="player",
+                       source="scoreboard", meta={"metric": "points"})
+
+
+class DelayEffectEnv(DiagnosticEnv):
+    """Spec 6.6(2): `press_now` pays +1 immediately, `press_later` pays +1 two decisions later (to the decision then
+    taken), `wait_turn` pays 0; `horizon` decisions; small noise. The scoreboard shows the running total."""
+
+    name = "delayfx"
+
+    def __init__(self, B: int, seed: int = 0, horizon: int = 8, noise: float = 0.05):
+        self.horizon = horizon
+        self.noise = noise
+        super().__init__(B, seed)
+
+    def _new(self, rng, b):
+        return {"pending": {}, "total": 0.0}
+
+    def _tools(self, h):
+        return [tool("press_now", "Press the button that pays out immediately."),
+                tool("press_later", "Press the button whose payout arrives after a delay."),
+                tool("wait_turn", "Do nothing this turn.")]
+
+    def _obs0(self, h, b):
+        return [Observation(ObsKind.TEXT, "Two buttons pay out points: one at once, one later.", source="brief"),
+                _points(0.0)]
+
+    def _goal(self, h, b):
+        return GoalSpec("delayfx", "Collect points.")
+
+    def _act(self, h, a, rng, b):
+        k = self.k[b]
+        r = h["pending"].pop(k, 0.0)
+        if a.tool == "press_now":
+            r += 1.0
+        elif a.tool == "press_later":
+            h["pending"][k + 2] = h["pending"].get(k + 2, 0.0) + 1.0
+        r += rng.gauss(0.0, self.noise)
+        h["total"] += r
+        return True, [_points(h["total"])], r, None
+
+
+class InteractionEnv(DiagnosticEnv):
+    """Spec 6.6(3): one tool sets two levers at once (`set_levers` {"x": bool, "w": bool}); the payout is
+    0.5x - 0.5w + 2xw (a pure interaction: an additive model cannot represent it)."""
+
+    name = "interact"
+    SCHEMA = {"type": "object", "properties": {"x": {"type": "boolean", "description": "lever x on"},
+                                               "w": {"type": "boolean", "description": "lever w on"}},
+              "required": ["x", "w"], "additionalProperties": False}
+
+    def __init__(self, B: int, seed: int = 0, horizon: int = 4, noise: float = 0.05):
+        self.horizon = horizon
+        self.noise = noise
+        super().__init__(B, seed)
+
+    @staticmethod
+    def truth(x: bool, w: bool) -> float:
+        return 0.5 * x - 0.5 * w + 2.0 * x * w
+
+    def _new(self, rng, b):
+        return {"total": 0.0}
+
+    def _tools(self, h):
+        return [ToolSchema("set_levers", "Set the two levers x and w of the machine for this turn.", dict(self.SCHEMA),
+                           returns="the payout", duration_hint=0.0)]
+
+    def _obs0(self, h, b):
+        return [Observation(ObsKind.TEXT, "A machine with two levers, x and w.", source="brief"), _points(0.0)]
+
+    def _goal(self, h, b):
+        return GoalSpec("interact", "Collect points.")
+
+    def _act(self, h, a, rng, b):
+        x, w = bool(a.args.get("x")), bool(a.args.get("w"))
+        r = self.truth(x, w) + rng.gauss(0.0, self.noise)
+        h["total"] += r
+        return True, [_points(h["total"])], r, None
+
+
+class SwitchEnv(DiagnosticEnv):
+    """Spec 6.6(4): `pull_lever` pays N(mu, 0.1^2); mu = +1 until an unannounced decision `switch_at` (uniform in
+    [switch_lo, switch_hi], or never with probability p_no_switch), after which mu = -1."""
+
+    name = "switch"
+
+    def __init__(self, B: int, seed: int = 0, horizon: int = 8, switch_lo: int = 2, switch_hi: int = 5,
+                 p_no_switch: float = 0.5, noise: float = 0.1, fixed_switch: Optional[int] = None):
+        self.horizon = horizon
+        self.switch_lo, self.switch_hi, self.p_no_switch, self.noise = switch_lo, switch_hi, p_no_switch, noise
+        self.fixed_switch = fixed_switch
+        super().__init__(B, seed)
+
+    def _new(self, rng, b):
+        if self.fixed_switch is not None:
+            s = self.fixed_switch
+        else:
+            s = None if rng.random() < self.p_no_switch else rng.randint(self.switch_lo, self.switch_hi)
+        return {"switch_at": s, "total": 0.0}
+
+    def _tools(self, h):
+        return [tool("pull_lever", "Pull the lever and collect the payout.")]
+
+    def _obs0(self, h, b):
+        return [Observation(ObsKind.TEXT, "A lever that pays out points.", source="brief"), _points(0.0)]
+
+    def _goal(self, h, b):
+        return GoalSpec("switch", "Collect points.")
+
+    def _act(self, h, a, rng, b):
+        s = h["switch_at"]
+        mu = -1.0 if (s is not None and self.k[b] >= s) else 1.0
+        r = mu + rng.gauss(0.0, self.noise)
+        h["total"] += r
+        return True, [_points(h["total"])], r, None

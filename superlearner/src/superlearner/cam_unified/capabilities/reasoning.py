@@ -76,6 +76,52 @@ def evaluate_chain(model, settings: ReasoningSettings, reason_iters="trained") -
     return out
 
 
+@torch.no_grad()
+def tool_distribution(model, dec, tools: list) -> torch.Tensor:
+    """[B, T] probabilities of every offered tool under the action generator for the decision's inputs (the
+    learner-path recomputation `policy_evaluate`, with the model's current reasoning setting)."""
+    from ..interfaces import Action
+    names = [t.name for t in tools[0]]
+    cols = [model.policy_evaluate(dec.inputs, [Action(tool=n) for _ in range(dec.inputs.B)])["logp"].float().exp()
+            for n in names]
+    return torch.stack(cols, 1).cpu()
+
+
+@torch.no_grad()
+def decision_sensitivity(model, settings: ReasoningSettings, iters=(1, 16), seed0: Optional[int] = None) -> dict:
+    """How strongly the reasoning state reaches the decision: KL between the tool distributions computed with J
+    forced to iters[0] vs iters[1] (same weights and inputs), the mean absolute change of the probabilities, and the
+    KL when the rows' final R are permuted (another episode's reasoning state). Measured on `eval_rows`
+    development episodes."""
+    env = ChainEnv(settings.eval_rows, n_colours=settings.n_colours, hops=settings.hops)
+    seeds = [(settings.eval_seed0 if seed0 is None else seed0) + b for b in range(settings.eval_rows)]
+    dists = {}
+    old = model.reason_iters
+    try:
+        for j in iters:
+            model.reason_iters = int(j)
+            ep = Episode(model, env, ScoreEvaluator(env), seeds, greedy=True)
+            dec, tools = ep.decide()
+            dists[j] = tool_distribution(model, dec, tools)
+        model.reason_iters = old
+        ep = Episode(model, env, ScoreEvaluator(env), seeds, greedy=True)
+        dec, tools = ep.decide()
+        p_own = tool_distribution(model, dec, tools)
+        perm = torch.roll(torch.arange(dec.inputs.B), 1)
+        with model.reasoner.intervention(lambda j, R: R[perm.to(R.device)] if R.shape[0] == len(perm) else R):
+            p_swap = tool_distribution(model, dec, tools)
+    finally:
+        model.reason_iters = old
+
+    def kl(p, q):
+        p, q = p.clamp_min(1e-12), q.clamp_min(1e-12)
+        return float((p * (p.log() - q.log())).sum(-1).mean())
+    a, b = dists[iters[0]], dists[iters[1]]
+    return {"kl_J%d_vs_J%d" % tuple(iters): kl(a, b), "mean_abs_prob_change": float((a - b).abs().mean()),
+            "kl_R_permuted": kl(p_own, p_swap), "max_prob_mean": float(p_own.max(-1).values.mean()),
+            "argmax_changed_J": float((a.argmax(-1) != b.argmax(-1)).float().mean())}
+
+
 def run_reasoning(settings: Optional[ReasoningSettings] = None, device=None, log_every: int = 0) -> dict:
     st = settings or ReasoningSettings()
     t0 = time.time()
@@ -86,9 +132,11 @@ def run_reasoning(settings: Optional[ReasoningSettings] = None, device=None, log
     env = ChainEnv(st.B, n_colours=st.n_colours, hops=st.hops)
     ev = ScoreEvaluator(env)
     before = evaluate_chain(model, st)
+    sens_before = decision_sensitivity(model, st) if cfg.use_reasoning else None
     train = train_agent(stack, env, ev, st.train_rounds, update_every=1,
                         seeds=[st.seed * 10_007 + b for b in range(st.B)], log_every=log_every)
     after = evaluate_chain(model, st)
+    sens_after = decision_sensitivity(model, st) if cfg.use_reasoning else None
     forced = {}
     if cfg.use_reasoning:
         for j in st.test_iters:
@@ -103,5 +151,6 @@ def run_reasoning(settings: Optional[ReasoningSettings] = None, device=None, log
            "untrained": {k: v for k, v in before.items() if k != "tools"},
            "trained": {k: v for k, v in after.items() if k != "tools"},
            "forced_iters": {str(j): {k: v for k, v in r.items() if k != "tools"} for j, r in forced.items()},
+           "sensitivity_untrained": sens_before, "sensitivity_trained": sens_after,
            "chance": chance, "wall_s": time.time() - t0}
     return out

@@ -43,6 +43,7 @@ class ExplorationSettings:
     env_horizon: int = 3
     train_rounds: int = 300
     checkpoints: tuple = (100, 200, 300)
+    update_every: int = 1
     lr: float = 1e-3
     lp_coef: float = 0.1                # cfg.lp_coef default
     eval_rows: int = 64
@@ -120,7 +121,7 @@ def run_exploration(settings: Optional[ExplorationSettings] = None, root: Option
     log = []
     for cp in st.checkpoints:
         seeds = [s + SEED_STRIDE * episodes for s in base]
-        tr = train_agent(stack, env, ev, cp - done, update_every=1, seeds=seeds, log_every=log_every)
+        tr = train_agent(stack, env, ev, cp - done, update_every=st.update_every, seeds=seeds, log_every=log_every)
         episodes += tr["compute"]["episodes"]
         done = cp
         log.append({"rounds": cp, "return_per_row_per_round": mean(tr["reward_per_round"]),

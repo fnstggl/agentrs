@@ -48,17 +48,24 @@ class BeliefSettings:
     eval_seed0: int = 100_000          # development offsets (experiment register)
     mechanisms: dict = field(default_factory=lambda: {"low": (-1.0, 0.25), "high": (1.0, 0.25)})
     unfamiliar: dict = field(default_factory=lambda: {"extreme": (4.0, 0.25)})
+    kind: str = "gaussian"             # gaussian (reward channel, Kalman-bound) | bernoulli (ok channel, particles)
     cfg_overrides: dict = field(default_factory=dict)
 
+    def __post_init__(self):
+        if self.kind == "bernoulli" and self.mechanisms == {"low": (-1.0, 0.25), "high": (1.0, 0.25)}:
+            self.mechanisms = {"jammy": (0.2, 0.0), "smooth": (0.8, 0.0)}
+            self.unfamiliar = {}
 
-def belief_step_stats(model, state, dec, fast0) -> dict:
-    """Per-row statistics of the current belief before executing `dec` (state.fast is B_t)."""
+
+def belief_step_stats(model, state, dec, fast0, q_idx: int = R_IDX) -> dict:
+    """Per-row statistics of the current belief before executing `dec` (state.fast is B_t), for the core outcome
+    query `q_idx` (the reward by default; `ok` for the Bernoulli mechanisms)."""
     fast = state.fast
     specs, prosp = model.prospective_batch(state)
     with torch.no_grad(), model._autocast():
         feat = model.outcome_head.features(dec.Z_hat.to(model.device), prosp)
         d = model.outcome_head.dist(feat, prosp, cond=fast.particles)
-        mk = d.mean().float()[:, :, R_IDX]                                                     # [B,K]
+        mk = d.mean().float()[:, :, q_idx]                                                     # [B,K]
         w = torch.softmax(fast.logw.float(), -1)
         mix_now, var_now, _ = model.base_moments(dec.Z_hat, fast, prosp)
         mix_0, var_0, _ = model.base_moments(dec.Z_hat, fast0, prosp)
@@ -67,16 +74,18 @@ def belief_step_stats(model, state, dec, fast0) -> dict:
     ess = 1.0 / (w * w).sum(-1)
     ent = -(w * torch.log(w.clamp_min(1e-30))).sum(-1)
     return {"particle_mean": mk.cpu(), "w": w.cpu(), "ess": ess.cpu(), "entropy": ent.cpu(),
-            "mixture_mean": mix_now[:, R_IDX].cpu(), "mixture_mean_initial_belief": mix_0[:, R_IDX].cpu(),
-            "full_mean": full_now[:, R_IDX].cpu(), "full_mean_initial_belief": full_0[:, R_IDX].cpu(),
-            "full_var": fvar_now[:, R_IDX].cpu(), "full_var_initial_belief": fvar_0[:, R_IDX].cpu(),
-            "mixture_var": var_now[:, R_IDX].cpu()}
+            "mixture_mean": mix_now[:, q_idx].cpu(), "mixture_mean_initial_belief": mix_0[:, q_idx].cpu(),
+            "full_mean": full_now[:, q_idx].cpu(), "full_mean_initial_belief": full_0[:, q_idx].cpu(),
+            "full_var": fvar_now[:, q_idx].cpu(), "full_var_initial_belief": fvar_0[:, q_idx].cpu(),
+            "mixture_var": var_now[:, q_idx].cpu()}
 
 
 def evaluate_mechanism(stack, settings: BeliefSettings, mechanism: str, seed0: int) -> dict:
     """One evaluation batch with every row on `mechanism`. Returns per-step (k = observations so far) means."""
     env = MechanismEnv(settings.eval_rows, horizon=settings.horizon, mechanisms=settings.mechanisms,
-                       fixed=mechanism, unfamiliar=settings.unfamiliar)
+                       fixed=mechanism, unfamiliar=settings.unfamiliar, kind=settings.kind)
+    q_idx = CORE_INDEX["ok"] if settings.kind == "bernoulli" else R_IDX
+    key = "ok" if settings.kind == "bernoulli" else "reward"
     ev = ScoreEvaluator(env)
     ep = Episode(stack.model, env, ev, [seed0 + b for b in range(settings.eval_rows)], greedy=True)
     fast0 = ep.state.fast.clone()
@@ -87,7 +96,7 @@ def evaluate_mechanism(stack, settings: BeliefSettings, mechanism: str, seed0: i
     per_k = []
     for k in range(settings.horizon):
         dec, tools = ep.decide()
-        s = belief_step_stats(stack.model, ep.state, dec, fast0)
+        s = belief_step_stats(stack.model, ep.state, dec, fast0, q_idx)
         pk = s["particle_mean"]
         near_active = torch.ones_like(pk, dtype=torch.bool)
         for c in competitors:
@@ -97,8 +106,8 @@ def evaluate_mechanism(stack, settings: BeliefSettings, mechanism: str, seed0: i
         bi = rec.info.get("belief_info", {})
         per_k.append({
             "k": k,
-            "pred_mean": mean(d["reward"] for d in dec.predicted),
-            "pred_var": mean(u["reward"] for u in dec.uncertainty),
+            "pred_mean": mean(d[key] for d in dec.predicted),
+            "pred_var": mean(u[key] for u in dec.uncertainty),
             "belief_effect_full": mean((s["full_mean"] - s["full_mean_initial_belief"]).tolist()),
             "belief_effect_mixture": mean((s["mixture_mean"] - s["mixture_mean_initial_belief"]).tolist()),
             "full_var_initial_belief": mean(s["full_var_initial_belief"].tolist()),
@@ -107,7 +116,7 @@ def evaluate_mechanism(stack, settings: BeliefSettings, mechanism: str, seed0: i
             "mass_on_active": mean(mass.tolist()),
             "frac_particles_near_active": mean(near_active.float().mean(-1).tolist()),
             "particle_pred_spread": mean(pk.std(-1).tolist()),
-            "abs_err": mean((torch.tensor([d["reward"] for d in dec.predicted]) - mu).abs().tolist()),
+            "abs_err": mean((torch.tensor([d[key] for d in dec.predicted]) - mu).abs().tolist()),
             "realised_mean": mean(rec.rewards),
             "surprise_z": mean(bi["surprise_z"].float().cpu().tolist()) if "surprise_z" in bi else None,
             "alarm_rate": mean(bi["alarm"].float().cpu().tolist()) if "alarm" in bi else None,
@@ -128,7 +137,7 @@ def run_beliefs(settings: Optional[BeliefSettings] = None, root: Optional[str] =
     tmp = tempfile.mkdtemp(prefix="cam_y_beliefs_") if own_tmp else root
     stack = build_stack(cfg, device=device, seed=st.seed, memory_root=os.path.join(tmp, f"mem_s{st.seed}"),
                         agent_kwargs=dict(seq_len=st.horizon, n_seqs=4, adapt_seq_len=st.horizon, adapt_n_seqs=4))
-    env = MechanismEnv(st.B, horizon=st.horizon, mechanisms=st.mechanisms)
+    env = MechanismEnv(st.B, horizon=st.horizon, mechanisms=st.mechanisms, kind=st.kind)
     ev = ScoreEvaluator(env)
     seeds = [st.seed * 10_007 + b for b in range(st.B)]                     # training seeds (not 100k+)
 
@@ -169,6 +178,8 @@ def summarise(res: dict) -> dict:
     fam = [s[m] for m in mechs]
     s["familiar_mean_pred_var_last"] = mean(x["pred_var_last"] for x in fam)
     s["familiar_expansions_total"] = sum(x["expansions_total"] for x in fam)
+    s["particle_pred_spread_last"] = mean(tr[m]["steps"][-1]["particle_pred_spread"] for m in mechs)
+    s["mechanism_gap"] = max(v[0] for v in mechs.values()) - min(v[0] for v in mechs.values())
     for m in unf:
         s[m]["var_ratio_vs_familiar"] = s[m]["max_pred_var"] / max(1e-12, s["familiar_mean_pred_var_last"])
     s["horizon"] = H

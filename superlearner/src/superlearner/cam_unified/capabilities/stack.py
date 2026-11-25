@@ -76,6 +76,60 @@ class SyncedReplay:
         return getattr(self.sampler, name)
 
 
+class ServingConsolidator:
+    """E's Consolidator as the agent calls it (`step()` in `CamUnifiedAgent.update`), plus making the encoded version
+    searchable. `Consolidator.step()` writes segment keys under the retriever's key_version, but MemoryIndex serves
+    only its `current_version`, which is set by `Consolidator.ensure_current()` / `reencode_step()` - and the agent
+    calls neither, so in the assembled agent every retrieval returned no memory (measured: 0 of all answer decisions
+    retrieved anything with 52 indexed segments; interface change request filed). This adapter calls
+    `ensure_current()` after each step and `reencode_step()` while a migration is pending; everything else is
+    delegated."""
+
+    def __init__(self, consolidator):
+        self.consolidator = consolidator
+        self.n_reencode_calls = 0
+
+    def step(self, *a, **k) -> dict:
+        out = self.consolidator.step(*a, **k)
+        c = self.consolidator
+        c.ensure_current()
+        cur = c.index.current_version
+        if cur is not None and cur != c.retriever.key_version:
+            out["reencode"] = c.reencode_step()
+            self.n_reencode_calls += 1
+        out["served_version"] = c.index.current_version
+        return out
+
+    def __getattr__(self, name):
+        return getattr(self.consolidator, name)
+
+
+class TargetSyncTrainer:
+    """D's CombinedTrainer plus the post-step EMA update of the world model's latent-target encoder.
+
+    `WorldModel.update_target()` must follow every optimiser step (world/dynamics.py: "call after each optimiser
+    step"), but `CamUnifiedAgent.update()` never calls it, so in the assembled agent the EMA target backbone stays
+    at its initial random weights forever (interface change request filed). This adapter performs the documented
+    update after each step; everything else is delegated."""
+
+    def __init__(self, trainer, model, decay: Optional[float] = None):
+        self.trainer = trainer
+        self.model = model
+        self.decay = decay
+        self.n_target_updates = 0
+
+    def step(self, losses: dict, *a, **k):
+        out = self.trainer.step(losses, *a, **k)
+        wm = getattr(self.model, "world_model", None)
+        if wm is not None and hasattr(wm, "update_target"):
+            wm.update_target(self.decay)
+            self.n_target_updates += 1
+        return out
+
+    def __getattr__(self, name):
+        return getattr(self.trainer, name)
+
+
 @dataclass
 class Stack:
     """model + agent + trainer (+ memory collaborators) of one assembled CAM."""
@@ -132,7 +186,7 @@ def build_stack(cfg: Optional[CamConfig] = None, *, device=None, seed: int = 0, 
                 trainer_stage="continual", train_semantic: bool = False, model_kwargs: Optional[dict] = None,
                 agent_kwargs: Optional[dict] = None, trainer_kwargs: Optional[dict] = None,
                 components: Optional[dict] = None, reasoner_kwargs: Optional[dict] = None,
-                exact_rows: bool = False) -> Stack:
+                exact_rows: bool = False, target_decay: Optional[float] = None) -> Stack:
     """Assemble the real CAM stack. `memory_root` (a directory) attaches E's archive + replay + index +
     consolidator (needed for replay-trained objectives and for cfg.use_memory); without it the agent trains on its
     fresh on-policy buffer only. `components` may override individual real components (e.g. a differently
@@ -173,11 +227,12 @@ def build_stack(cfg: Optional[CamConfig] = None, *, device=None, seed: int = 0, 
             index = MemoryIndex(os.path.join(memory_root, "index"), cfg.mem_key_dim, cfg.mem_segment_tokens,
                                 cfg.d_model, device=dev, fsync=False)
             model.retriever.attach_index(index)
-            consolidator = Consolidator(archive, index, model.retriever)
+            consolidator = ServingConsolidator(Consolidator(archive, index, model.retriever))
     if trace_root is not None:
         from ..observe.trace import TraceRecorder
         recorder = TraceRecorder(trace_root)
-    trainer = make_trainer(model, cfg, trainer_stage, train_semantic, **(trainer_kwargs or {}))
+    trainer = TargetSyncTrainer(make_trainer(model, cfg, trainer_stage, train_semantic, **(trainer_kwargs or {})),
+                                model, target_decay)
     akw = dict(archive=archive, recorder=recorder, replay=replay, trainer=trainer, index=index,
                consolidator=consolidator, seed=seed)
     akw.update(agent_kwargs or {})

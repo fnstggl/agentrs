@@ -45,6 +45,8 @@ def main(argv=None) -> int:
     ap.add_argument("--root", default=None)
     ap.add_argument("--set", action="append", default=[])
     ap.add_argument("--log-every", type=int, default=20)
+    ap.add_argument("--device", default=None, help="cpu | cuda (default: cuda when available)")
+    ap.add_argument("--threads", type=int, default=None, help="torch CPU threads")
     a = ap.parse_args(argv)
     S, run = _settings(a.capability)
     kw = {"seed": a.seed}
@@ -62,7 +64,10 @@ def main(argv=None) -> int:
     st = S(**kw)
     t0 = time.time()
     root = a.root or os.path.join(os.path.dirname(os.path.abspath(a.out)), "work")
-    kws = {"log_every": a.log_every}
+    if a.threads:
+        import torch
+        torch.set_num_threads(a.threads)
+    kws = {"log_every": a.log_every, "device": a.device}
     import inspect
     if "root" in inspect.signature(run).parameters:
         kws["root"] = root

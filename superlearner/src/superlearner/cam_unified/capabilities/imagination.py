@@ -62,6 +62,7 @@ class ImaginationSettings:
     win: float = 10.0
     loss: float = 10.0
     safe: float = 1.0
+    exploring_starts: bool = False      # training env offers one random tool at the first decision (ProbeEnv)
     cfg_overrides: dict = field(default_factory=dict)
 
 
@@ -253,7 +254,8 @@ def run_imagination(settings: Optional[ImaginationSettings] = None, root: Option
     stack = build_stack(cfg, device=device, seed=st.seed, memory_root=os.path.join(tmp, f"mem_s{st.seed}"),
                         agent_kwargs=dict(seq_len=st.env_horizon, n_seqs=8, adapt_seq_len=st.env_horizon,
                                           adapt_n_seqs=8))
-    env = ProbeEnv(st.B, horizon=st.env_horizon, probe_cost=st.probe_cost, win=st.win, loss=st.loss, safe=st.safe)
+    env = ProbeEnv(st.B, horizon=st.env_horizon, probe_cost=st.probe_cost, win=st.win, loss=st.loss, safe=st.safe,
+                   exploring_starts=st.exploring_starts)
     ev = ScoreEvaluator(env)
     base = [st.seed * 10_007 + b for b in range(st.B)]
     evals = {"0": evaluate_all(stack.model, st)}
