@@ -5,6 +5,10 @@ A gate test measures something and calls `record(requirement, metrics, ...)`. Th
 metrics, and the artifacts it relied on with their hashes. It does not state whether it passed: the checker decides
 that from the manifest's criteria and the metrics. `python -m crucible.acceptance.v5 run` attaches the JUnit result
 of the run that produced the record.
+
+Only an official run (`python -m crucible.acceptance.v5 run`, which sets CRUCIBLE_V5_RUN_ID) or an explicit `root`
+files the record under docs/v5/evidence/. An ordinary test run writes it to a temporary directory instead, so
+evidence never appears from incidental local runs.
 """
 from __future__ import annotations
 
@@ -73,6 +77,7 @@ def environment() -> dict:
 def record(requirement: str, metrics: dict, *, command: str | None = None, artifacts: list[str] = (),
            notes: str = "", root: str | None = None) -> str:
     """Write the evidence record for `requirement`; returns its path. Metrics must be JSON numbers/bools/strings."""
+    official = root is not None or bool(os.environ.get("CRUCIBLE_V5_RUN_ID"))
     root = root or crucible_root()
     for k, v in metrics.items():
         if not isinstance(v, (int, float, bool, str)) or (isinstance(v, float) and v != v):
@@ -87,7 +92,12 @@ def record(requirement: str, metrics: dict, *, command: str | None = None, artif
            "run_id": os.environ.get("CRUCIBLE_V5_RUN_ID"), "recorded_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
            "tree": tree_state(root), "environment": environment(), "metrics": metrics, "artifacts": arts,
            "notes": notes, "junit": None}
-    path = evidence_path(requirement, root)
+    if official:
+        path = evidence_path(requirement, root)
+    else:                                        # an ordinary test run: measured, but not filed as evidence
+        d = os.path.join(os.environ.get("TMPDIR", "/tmp"), "crucible-v5-unofficial-evidence", gate_of(requirement))
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, f"{requirement}.json")
     tmp = f"{path}.{os.getpid()}.tmp"
     with open(tmp, "w") as fh:
         json.dump(rec, fh, indent=1)
