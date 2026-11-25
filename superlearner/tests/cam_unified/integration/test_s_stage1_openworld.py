@@ -172,8 +172,10 @@ def test_kill_mid_lifetime_and_resume_in_new_processes(tmp_path):
     for x, y in zip(da[-2:], db[-2:]):                                      # the two resumed lifetimes agree
         assert x["step"] == y["step"] and x["tool"] == y["tool"] and x["args"] == y["args"]
         assert abs(x["behavior_logp"] - y["behavior_logp"]) < 1e-3
-    # and the first resumed decision is the one the interrupted process made at that step
-    first = ri["abandoned_decision_rows"][0]
-    x = next(r for r in da if r["step"] == first["step"])
-    print("interrupted vs resumed first decision:", first["tool"], x["tool"], first["behavior_logp"],
-          x["behavior_logp"])
+    # and the resumed decisions are the ones the interrupted process made at those steps (restored weights,
+    # optimiser, beliefs, latent state, RNG streams and semantic caches: an exact continuation)
+    by_step = {r["step"]: r for r in da}
+    for ab in ri["abandoned_decision_rows"]:
+        x = by_step[ab["step"]]
+        assert x["tool"] == ab["tool"] and x["args"] == ab["args"], (ab["step"], ab["tool"], x["tool"])
+        assert abs(x["behavior_logp"] - ab["behavior_logp"]) < 1e-3

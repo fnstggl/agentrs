@@ -63,6 +63,10 @@ class SystemConfig:
     # durability: fsync the archive's WAL after every append (E's actor setting). Events written after the last
     # checkpoint then survive a crash as an explicitly excluded abandoned branch instead of vanishing silently.
     archive_autoflush: bool = True
+    # exact continuation: save the semantic model's content-hash caches (hidden states / pooled embeddings) with
+    # each checkpoint. A's encoder output depends on the batch a text is encoded in (bf16, padding), so states
+    # recomputed after a restart differ from the cached ones the interrupted process used
+    checkpoint_semantic_cache: bool = True
 
     def cam_config(self) -> CamConfig:
         return make_config(self.scale, **dict(self.overrides))

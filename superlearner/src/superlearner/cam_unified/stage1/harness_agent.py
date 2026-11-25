@@ -451,16 +451,45 @@ class HarnessAgent:
         tmp = os.path.join(path, f"agent_state.pt.tmp-{os.getpid()}")
         torch.save(extra, tmp)
         os.replace(tmp, os.path.join(path, "agent_state.pt"))
+        sem_bytes = self._save_semantic_cache(path) if self.sys.sc.checkpoint_semantic_cache else None
         v = self.agent.version
         n_params = sum(p.numel() for p in self.sys.model.parameters())
         meta = {"version": v, "t": time.time(), "validated": True, "validation": {"reason": "full-lifetime save"},
                 "dir": os.path.abspath(path), "n_params": n_params, "bytes": life.get("bytes"),
                 "sha256": core_hash(self.sys.model), "archive_count": self.agent.archive.count(),
-                "decisions": self.agent.n_decisions, "save_s": time.time() - t0}
+                "decisions": self.agent.n_decisions, "save_s": time.time() - t0, "semantic_cache_bytes": sem_bytes}
         _atomic_json(os.path.join(self.run_dir, "ckpt", f"v{v}", "meta.json"), meta)
         _atomic_json(os.path.join(self.run_dir, "ckpt", "LATEST"), meta)
         self._status("running")
         return meta
+
+    def _save_semantic_cache(self, path: str) -> Optional[int]:
+        """The semantic model's content-hash caches as of the checkpoint (see SystemConfig.checkpoint_semantic_cache).
+        Keys carry the encoder version, so a restored entry is only ever served to the same encoder version."""
+        sem = self.sys.semantic
+        if not hasattr(sem, "_cache"):
+            return None
+        blob = {"version": sem.version, "cache": [(k, v.detach().cpu()) for k, v in sem._cache.items()],
+                "ecache": [(k, v.detach().cpu()) for k, v in getattr(sem, "_ecache", {}).items()],
+                "bytes": int(getattr(sem, "_cache_bytes", 0))}
+        tmp = os.path.join(path, f"semantic_cache.pt.tmp-{os.getpid()}")
+        torch.save(blob, tmp)
+        os.replace(tmp, os.path.join(path, "semantic_cache.pt"))
+        return blob["bytes"]
+
+    def _load_semantic_cache(self, path: str) -> Optional[dict]:
+        p = os.path.join(path, "semantic_cache.pt")
+        sem = self.sys.semantic
+        if not os.path.exists(p) or not hasattr(sem, "_cache"):
+            return None
+        from collections import OrderedDict
+        blob = torch.load(p, map_location="cpu", weights_only=False)
+        dev = getattr(sem, "device", None)
+        sem._cache = OrderedDict((k, v.to(dev)) for k, v in blob["cache"])
+        sem._cache_bytes = int(blob["bytes"])
+        if hasattr(sem, "_ecache"):
+            sem._ecache = OrderedDict((k, v.to(dev)) for k, v in blob["ecache"])
+        return {"entries": len(sem._cache), "bytes": sem._cache_bytes, "version_match": blob["version"] == sem.version}
 
     def load(self, path: str) -> dict:
         """Continue the lifetime saved at `path` (possibly written by another process)."""
@@ -532,6 +561,7 @@ class HarnessAgent:
         tr.weights.update(trs["weights"])
         if extra.get("semantic_updates") is not None and hasattr(sysm.semantic, "_updates"):
             sysm.semantic._updates = int(extra["semantic_updates"])
+        sem_cache = self._load_semantic_cache(path)
         self.n_updates = int(extra["harness_agent"]["n_updates"])
         self.t_start = float(extra["harness_agent"]["t_start"])
         self._before = param_snapshot(sysm.model) if self.track_params else None
@@ -567,6 +597,7 @@ class HarnessAgent:
                             "replay_cursor": sysm.replay.cursor, "replay_counts": dict(sysm.replay.stratum_sizes()),
                             "consolidator_cursor": sysm.consolidator.state.get("cursor"),
                             "memory": res.get("memory"), "n_decisions": a.n_decisions, "steps": list(a.steps),
+                            "semantic_cache": sem_cache,
                             "load_s": time.time() - t0}
         _append(os.path.join(self.run_dir, "resume.jsonl"), self.resume_info)
         # 7. global RNG streams last: nothing above may consume randomness after they are restored
