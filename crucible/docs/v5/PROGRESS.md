@@ -29,6 +29,16 @@ Requirements verified: 0 of 241.
 
 Requirements verified: 0 of 241 (no official evidence run yet).
 
+## Milestone 2 - wave 1 systems merged (2026-11-25)
+
+* Merged: D1 encoders and media tooling (7ba706b), D2 inference service, semantic participants and model benchmark
+  (a423433), F1 subscriptions/products/exchanges/business lifecycle (cc74374), F2 institutions/commitments/labour
+  (c30d1ac), G capability registry/needs graph/software ecosystem (8d242a2), L learner interface (d85c8df); the Tier 2
+  domain framework (f08ddb8). 61 kernel modules load, 19 of them new.
+* Integration regression (tests/, without the gate tests): 1,548 tests, 3 failures, 2 skipped. Two failures were a race
+  with an edit in progress (rerun: pass); one is the calibration registry split being unified.
+* Wave 3 started: I1-I4 (12 domains), N1 (registry, curriculum, proposals), N2 (protocols, positive controls), O (security).
+
 ## Next actions
 
 1. Merge wave 1 systems as they land: D1 encoders, D2 inference + benchmark, F1 commerce, F2 institutions,
