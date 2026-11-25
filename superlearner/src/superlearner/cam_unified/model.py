@@ -383,8 +383,13 @@ ALIASES = {"semantic_encoder": "semantic", "encoder": "semantic", "sem": "semant
            "outcomes": "outcome_head", "dynamics": "world_model", "obs_tokenizer": "tokenizer"}
 # optional components loaded from their default path when the module exists (absent while the workstream has not
 # merged, reported in build_report; an import error *inside* an existing module is raised); the planner is never
-# auto-loaded: its `plan(model, PlanRequest)` interface must be confirmed when C merges
+# auto-loaded: its `plan(model, PlanRequest)` interface must be confirmed when C merges.
+# The pretrained semantic model is a *dependency*, not a component of its own: it is auto-loaded only when another
+# component that build_model constructs (from a dotted path or a class) takes it as a constructor parameter (A's
+# ObservationTokenizer(cfg, encoder), ActionGenerator(cfg, encoder, tokenizer)). Assemblies whose tokenizer and
+# action generator are given as instances never load a 0.6-4 B parameter model they would not use.
 AUTO_OPTIONAL = ("semantic", "entity_encoder")
+SEMANTIC_PARAMS = frozenset({"semantic", "semantic_encoder", "encoder", "sem"})
 
 
 def cfg_params(cfg: CamConfig) -> dict:
@@ -466,12 +471,44 @@ def available_components(paths: Optional[dict] = None) -> dict:
     return out
 
 
+def _constructor_params(spec) -> set:
+    """Parameter names of a component's constructor/factory (empty for an instance or an unresolvable path)."""
+    try:
+        target = resolve_path(spec) if isinstance(spec, str) else spec
+    except (ComponentUnavailable, ComponentImportError):
+        return set()
+    if not (inspect.isclass(target) or inspect.isfunction(target) or inspect.ismethod(target)):
+        return set()
+    return _params_of(target)
+
+
+def semantic_needed(cfg: CamConfig, components: dict, paths: dict) -> bool:
+    """True when a component build_model will construct (not an instance) takes the semantic encoder."""
+    need = required_components(cfg)
+    for name in BUILD_ORDER:
+        if name == "semantic":
+            continue
+        if name in components:
+            spec = components[name]
+        elif name in need or name in AUTO_OPTIONAL:
+            spec = paths.get(name)
+        else:
+            continue
+        if spec is None:
+            continue
+        if _constructor_params(spec) & SEMANTIC_PARAMS:
+            return True
+    return False
+
+
 def build_model(cfg: CamConfig, components: Optional[dict] = None, paths: Optional[dict] = None,
                 component_kwargs: Optional[dict] = None, **model_kwargs) -> "CamUnifiedModel":
     """Assemble CamUnifiedModel. `components` maps a name to an instance, class/factory or dotted path (overrides
     `paths`, which overrides DEFAULT_COMPONENT_PATHS). A component set to None is left out (allowed only when it is
     optional for `cfg`). The belief module's Kalman channel count is sized to the outcome-key budget
     (N_CONTINUOUS_CORE + max_numeric_outcomes) when its constructor takes `n_channels` and none is given.
+    The semantic encoder is auto-loaded (default path, or `paths["semantic"]`) only when a component built here
+    takes it (see SEMANTIC_PARAMS); pass components={"semantic": obj} to inject one.
     Raises ComponentUnavailable listing every required component that cannot be built; import errors inside existing
     modules propagate (ComponentImportError)."""
     components = dict(components or {})
@@ -483,6 +520,7 @@ def build_model(cfg: CamConfig, components: Optional[dict] = None, paths: Option
     built: dict = {}
     report: dict = {}
     missing = []
+    sem_auto = "semantic" not in components and semantic_needed(cfg, components, paths)
     for name in BUILD_ORDER:
         if name in components:
             spec = components[name]
@@ -490,6 +528,10 @@ def build_model(cfg: CamConfig, components: Optional[dict] = None, paths: Option
                 built[name] = None
                 report[name] = "absent: set to None"
                 continue
+        elif name == "semantic" and not sem_auto:
+            built[name] = None
+            report[name] = "absent: no component built here takes a semantic encoder"
+            continue
         elif name in need or name in AUTO_OPTIONAL:
             spec = paths.get(name)
         else:
