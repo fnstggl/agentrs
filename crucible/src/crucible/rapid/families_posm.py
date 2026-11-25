@@ -21,7 +21,7 @@ def u(rng, lo, hi):
         distinct_because="a hidden Markov regime process; the lever's effect sign is a function of the hidden "
                          "state, which has to be tracked from noisy readings",
         axes={"hidden_state_complexity": 2, "horizon": 80, "observation_noise": 2.0}, objective="maximize_net",
-        claims=(C + "regime_sign",), identify=I + "lever_sign", lever_view=True)
+        claims=(C + "regime_sign",), identify=I + "regime_switch", lever_view=True)
 def posm_sign_switch(rng, d):
     S = int(d["hidden_state_complexity"])
     names = neutral_names(rng, 2)

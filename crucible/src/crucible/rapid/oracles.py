@@ -202,7 +202,38 @@ def des_oracle(env) -> dict:
                     a[int(np.argmax(a * mu))] -= 1
                 act = {"kind": "allocate", "amounts": {n: float(x) for n, x in zip(c["station_names"], a)}}
                 pols[f"balanced^{tilt}-{drop}"] = _first_then_wait(act)
-        return best_of(env, pols)
+        first = best_of(env, pols)
+        # local search on the allocation: move one server at a time while it helps (simulated on forks)
+        names = c["station_names"]
+        cur = np.maximum(1, np.floor(R * (1.0 / mu) / (1.0 / mu).sum())).astype(int)
+        while cur.sum() > R:
+            cur[int(np.argmax(cur))] -= 1
+
+        def val(a):
+            act = {"kind": "allocate", "amounts": {n: float(x) for n, x in zip(names, a)}}
+            return float(run_fn(fork(env), _first_then_wait(act))["value"])
+        v = val(cur)
+        for _ in range(6):
+            moves = [(i, j) for i in range(len(cur)) for j in range(len(cur)) if i != j and cur[i] > 1]
+            if cur.sum() < R:
+                moves += [(-1, j) for j in range(len(cur))]
+            scored = []
+            for i, j in moves:
+                a = cur.copy()
+                if i >= 0:
+                    a[i] -= 1
+                a[j] += 1
+                scored.append((val(a), i, j))
+            vb, i, j = max(scored)
+            if vb <= v:
+                break
+            if i >= 0:
+                cur[i] -= 1
+            cur[j] += 1
+            v = vb
+        if v > first["value"]:
+            return {"value": v, "how": f"local search allocation {cur.tolist()}", "candidates": first["candidates"]}
+        return first
     if eng.sc == "maintenance":
         eta = np.array(c["eta"])
 

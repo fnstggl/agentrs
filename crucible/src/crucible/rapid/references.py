@@ -305,8 +305,9 @@ def unlock(view, env):
                 if isinstance(x, dict) and x.get("warning"):
                     warn[x["option"]] += 1
         safe = sorted((o for o in options if warn[o] < 2), key=lambda o: warn[o])
+        clean = [o for o in safe if warn[o] == 0]
         best = None
-        for o in safe:
+        for o in clean + safe:                               # unflagged options get a second chance first
             if view.done:
                 return
             r = view.step({"kind": "sequence", "steps": (prefix + [step(o)]) * 2})

@@ -90,6 +90,7 @@ class StateMachine(RapidEngine):
             st["tests"] = np.zeros(1)
         if self.sc == "unlock":
             st["trapped"] = np.zeros(1)
+            st["moved"] = np.zeros(1)
         return st
 
     def copy_state(self, state):
@@ -143,6 +144,7 @@ class StateMachine(RapidEngine):
             elif opt == c["code"][s]:
                 state["s"] = np.array([float(s + 1)])
                 moved = True
+                state["moved"] = state.get("moved", np.zeros(1)) + 1
             else:
                 state["s"] = np.zeros(1)
                 moved = False
@@ -186,6 +188,8 @@ class StateMachine(RapidEngine):
             nums = {c["gauge_names"][0]: float(reading)}
         else:
             L = int(c["stages"])
+            st["moved_last"] = np.array(st["moved"])         # how many operations advanced the process this tick
+            st["moved"] = np.zeros(1)
             unlocked = s >= L and st["trapped"][0] == 0
             rev = float(c["payoff"]) if unlocked else 0.0
             nums = {c["gauge_names"][0]: float(rev / max(1.0, c["payoff"]) + c["noise"] * z)}
@@ -217,7 +221,10 @@ class StateMachine(RapidEngine):
         return ["hysteresis", "measurement_noise", "partial_observability", "path_dependence", "threshold"]
 
     def latent(self, state) -> np.ndarray:
-        """The hidden state (evaluator side)."""
+        """The hidden state (evaluator side); for the staged process also how many operations advanced it in the
+        last tick."""
+        if self.sc == "unlock":
+            return np.array([float(state["s"][0]), float(state.get("moved_last", np.zeros(1))[0])])
         return np.array([float(state["s"][0])])
 
     def outcome(self, state, ledger):

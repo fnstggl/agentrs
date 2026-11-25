@@ -145,6 +145,46 @@ def admission_sign(env) -> dict:
             "ok": np.sign(truth) == np.sign(est["difference"]) and abs(est["z"]) >= 2.0}
 
 
+def regime_switch(env) -> dict:
+    """Question (regime switching): does the lever's effect on sales change sign during the episode? Public: alternate
+    the lever between its ends every tick and estimate the effect over windows of ten ticks. Truth: the hidden
+    regime path of this world visits regimes of both signs for at least ten ticks each."""
+    from .oracles import fork
+    e = fork(env)                                        # the evaluator's copy, taken before anything happens
+    view = PublicView(env)
+    props = _levers(view)
+    (name, p), = props.items()
+    g = list(view.step(None)["observation"]["numbers"])[0]
+    xs, ys = [], []
+    while not view.done:
+        x = p["maximum"] if view.t % 2 == 0 else p["minimum"]
+        r = view.step({"kind": "levers", "values": {name: x}})
+        v = r["observation"]["numbers"].get(g)
+        if v is not None:
+            xs.append(x)
+            ys.append(v)
+    xs, ys = np.asarray(xs), np.asarray(ys)
+    signs = []
+    for k in range(0, len(xs) - 9, 10):
+        a, b = ys[k:k + 10][xs[k:k + 10] == p["maximum"]], ys[k:k + 10][xs[k:k + 10] == p["minimum"]]
+        if len(a) > 1 and len(b) > 1:
+            d = a.mean() - b.mean()
+            se = np.sqrt(a.var(ddof=1) / len(a) + b.var(ddof=1) / len(b)) + 1e-9
+            if abs(d / se) >= 2.0:
+                signs.append(np.sign(d))
+    est = bool(signs) and (1.0 in signs) and (-1.0 in signs)
+    path = []
+    for _ in range(e.horizon - e.t):
+        path.append(int(e._state["s"][0]))
+        e.step(None)
+    slope = env._config["slope"]
+    pos = sum(1 for s in path if slope[s] > 0)
+    neg = sum(1 for s in path if slope[s] < 0)
+    truth = pos >= 10 and neg >= 10
+    return {"question": "does the lever's effect change sign during the episode", "estimate": est, "truth": truth,
+            "ok": est == truth, "window_signs": [float(s) for s in signs]}
+
+
 def reinforcement_sign(env) -> dict:
     """Question (cascade): does reinforcing every zone reduce the number of nodes lost per tick?"""
     from .oracles import fork
