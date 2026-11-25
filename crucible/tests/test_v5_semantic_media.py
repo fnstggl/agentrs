@@ -128,6 +128,27 @@ def test_assemble_video_with_audio_then_transcode_trim_and_extract():
     assert not M.probe(silent)["has_audio"]
 
 
+def test_sampled_frames_come_from_each_segment_in_order():
+    slides = [M.render_text_image(t, width=320, height=240, font_size=60) for t in "ABCDEFGH"]
+    vid = M.assemble_video(slides, None, seconds_per_image=1.0, size=(320, 240))
+    ref = [np.asarray(M.open_image(s)).astype(int) for s in slides]
+    for n in (8, 4):
+        frames = M.extract_frames(vid, n)
+        nearest = [int(np.argmin([np.abs(f.astype(int) - r).mean() for r in ref])) for f in frames]
+        assert nearest == [int(8 * (i + 0.5) / n) for i in range(n)]
+
+
+def test_media_outputs_are_bit_exact():
+    """Same inputs, same bytes (no random container ids): recorded tool runs can be verified by their SHA-256."""
+    speech = M.synth_speech("bit exact", voice="slt")
+    vid = M.assemble_video([M.render_text_image("x", width=64, height=64)], speech, seconds_per_image=1.0,
+                           size=(64, 64))
+    for fmt in ("ogg", "opus", "mp3", "m4a"):
+        assert M.transcode(speech, fmt) == M.transcode(speech, fmt), fmt
+    for fmt in ("webm", "mkv", "mp4"):
+        assert M.transcode(vid, fmt, crf=40) == M.transcode(vid, fmt, crf=40), fmt
+
+
 def test_ffmpeg_refuses_playlists_and_other_files():
     """A crafted HLS playlist pointing at a local file must not be followed (demuxer allow-list)."""
     playlist = b"#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\nfile:///etc/hostname\n#EXT-X-ENDLIST\n"

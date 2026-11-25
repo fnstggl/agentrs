@@ -30,7 +30,12 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--modality", action="append")
     v.add_argument("--json")
     sub.add_parser("audit")
+    b = sub.add_parser("bench", help="throughput per modality on the validation suites (no cache), peak GPU memory")
+    b.add_argument("--modality", action="append")
+    b.add_argument("--json")
     a = ap.parse_args(argv)
+    if a.cmd == "bench":
+        return _bench(a.modality, a.json)
     from . import MODALITIES, encode_bytes, encoder_info, fetch, stats
     if a.cmd == "fetch":
         print(json.dumps(fetch(), indent=1))
@@ -57,6 +62,37 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({k: rep[k] for k in ("files_scanned", "reads", "creator_assigned_quality_fields_read",
                                               "creator_assignable_count", "out_of_scope_files", "exempt")}, indent=1))
         return 1 if rep["creator_assigned_quality_fields_read"] else 0
+    return 0
+
+
+def _bench(modalities, out_json) -> int:
+    """Encode each validation suite twice with no cache (the first pass also loads the models) and report the second
+    pass: artifacts per second, bytes, and the peak GPU memory of the process."""
+    import time
+
+    from . import MODALITIES, encode_bytes_many, models
+    from ..cache import EmbeddingCache
+    from .validation import SUITES
+    res = {"device": models.device()}
+    try:
+        import torch
+        cuda = torch.cuda.is_available()
+    except ImportError:
+        cuda = False
+    for m in modalities or MODALITIES:
+        items = list(SUITES[m]().items.values())
+        encode_bytes_many(items[:2], m, cache=EmbeddingCache(disk=False))           # load the models
+        t0 = time.time()
+        encode_bytes_many(items, m, cache=EmbeddingCache(disk=False))
+        dt = time.time() - t0
+        res[m] = {"artifacts": len(items), "seconds": round(dt, 2), "per_second": round(len(items) / dt, 2),
+                  "mean_bytes": int(sum(len(x) for x in items) / len(items))}
+        print(m, res[m], flush=True)
+    if cuda:
+        res["peak_gpu_mb"] = round(torch.cuda.max_memory_allocated() / 2 ** 20, 1)
+        print("peak GPU MB", res["peak_gpu_mb"])
+    if out_json:
+        json.dump(res, open(out_json, "w"), indent=1)
     return 0
 
 

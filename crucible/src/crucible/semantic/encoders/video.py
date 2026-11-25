@@ -61,7 +61,8 @@ class VideoEncoder(Encoder):
     roles = ("image", "audio", "speech", "text")
     dim = N_SEGMENTS * 512 + 1152 + 8
     batch_size = 4
-    preprocessing = {"frames": N_FRAMES, "frame_times": "segment midpoints", "frame_max_side": 448,
+    preprocessing = {"frames": N_FRAMES, "frame_times": "segment midpoints (one fps-filter pass up to 180 s, seeks beyond)",
+                     "frame_max_side": 448,
                      "segments": N_SEGMENTS, "image_preprocessing": IMAGE.preprocessing,
                      "audio_preprocessing": AUDIO.preprocessing, "no_audio": "audio vector of 1 s silence",
                      "motion": {"fps": 4, "size": 64, "cut_threshold": CUT_THRESHOLD,

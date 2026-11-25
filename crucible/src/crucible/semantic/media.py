@@ -40,6 +40,7 @@ FFPROBE = shutil.which("ffprobe") or "/usr/bin/ffprobe"
 INPUT_FORMATS = ("mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,ogg,mp3,wav,flac,aac,avi,mpegts,gif,image2,png_pipe,"
                  "jpeg_pipe,webp_pipe,bmp_pipe,gif_pipe,flv,asf,s16le,f32le,u8,lavfi")
 TOOL_VERSION = "crucible-media/1"
+SINGLE_PASS_MAX_S = 180.0     # extract_frames decodes videos up to this long in one pass, longer ones by seeking
 # outputs without random container ids (Ogg serials, Matroska UIDs) or encoder version tags: the same inputs give the
 # same bytes, so a recorded tool run can be reproduced and verified by its SHA-256
 BITEXACT = ("-fflags", "+bitexact", "-flags:v", "+bitexact", "-flags:a", "+bitexact", "-map_metadata", "-1")
@@ -207,6 +208,18 @@ def extract_frames(data: bytes, n: int, *, max_side: int = 448, info: dict | Non
     dur = min(float(info["duration_s"] or 0.0), LIMITS.max_duration_s)
     frames = []
     with _Work({"in.bin": data}) as wk:
+        if 0 < dur <= SINGLE_PASS_MAX_S:
+            # short video: one decoding pass; the fps filter started half a step in picks the segment midpoints
+            out = wk.run(_ff("-ss", f"{dur / (2 * n):.4f}", *_safe_input("in.bin"), "-map", "0:v:0",
+                             "-vf", f"fps={n / dur:.6f},scale={w}:{h}:flags=area", "-frames:v", str(n),
+                             "-pix_fmt", "rgb24", "-f", "rawvideo", "-"))
+            k = len(out) // (w * h * 3)
+            frames = [np.frombuffer(out[i * w * h * 3:(i + 1) * w * h * 3], dtype=np.uint8).reshape(h, w, 3).copy()
+                      for i in range(min(k, n))]
+            if frames:
+                while len(frames) < n:                 # a stream that ends early: repeat its last frame
+                    frames.append(frames[-1].copy())
+                return frames
         if dur <= 0:
             times = [0.0]
         else:
