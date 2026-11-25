@@ -150,3 +150,18 @@ def test_imagination_has_no_archive_or_environment_access():
         assert not names & {"EnvAdapter", "execute", "advance_time", "collect_events"}
     im = Imagination(WorldModel(tiny_config(), DoubleCore(tiny_config())))
     assert not any("archive" in k or "env" in k for k in vars(im))
+
+
+def test_rollouts_at_configured_horizons():
+    """cfg.imag_horizons = (4, 8, 16): rollouts of every configured length, counted transitions, finite values."""
+    cfg, w, bel, wm, Z, fast = _setup(4)
+    hooks, _ = probe_hooks(w, bel, Z.device)
+    cand = probe_candidates(w, 2, Z.device)
+    im = Imagination(wm, n_samples=2, outcome_sampling="marginal")
+    assert im.horizon == max(cfg.imag_horizons) == 16
+    for h in cfg.imag_horizons:
+        traj = im.rollout(Z, fast, None, cand, hooks, horizon=h, generator=torch.Generator().manual_seed(h))
+        assert len(traj.steps) == h and traj.n_model_evals == 2 * 4 * 2 * h
+        assert torch.isfinite(traj.returns).all()
+        elapsed = torch.stack([s.dt for s in traj.steps]).sum(0)
+        assert bool((elapsed > 0).all())                  # predicted durations accumulate simulated time

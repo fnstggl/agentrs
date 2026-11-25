@@ -355,6 +355,15 @@ class WorldModel(nn.Module):
         """Typed predictive distribution of the outcomes of the action that led to Zh ([B,Q] or [B,K,Q])."""
         return self.outcome_head.dist(self.outcome_head.features(Zh, outcomes), outcomes, cond)
 
+    def outcome_predictive(self, Z_prev, act: TokenSet, belief: Optional[TokenSet], dt, outcomes: OutcomeBatch,
+                           cond=None, sample: bool = False, generator: Optional[torch.Generator] = None):
+        """p(o_t | Z_{t-1}, a_{t-1}, B, dt [, m^k]): roll the prior one step from the previous state with the
+        executed action (mode of the stochastic latent unless ``sample``) and return the typed outcome distribution,
+        particle-conditioned when ``cond`` [B,K,Dc] is given ([B,K,Q]). This is the action-conditioned likelihood the
+        belief module's importance weights need (``BeliefModuleP.update``)."""
+        Zh, _ = self.prior(Z_prev, act, belief, dt, sample=sample, generator=generator)
+        return self.outcome_dist(Zh, outcomes, cond)
+
     # ------------------------------------------------------------------ loss pieces
     def _latent_dist(self, Zh, Zt, scale) -> torch.Tensor:
         """Per-row standardised squared error between pred(Z^) and the target, mean over tokens and channels -> [R].

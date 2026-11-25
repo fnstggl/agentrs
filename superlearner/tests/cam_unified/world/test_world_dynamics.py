@@ -265,3 +265,24 @@ def test_dev_scale_config_shapes():
     Zh, info = wm.prior(torch.randn(2, cfg.n_state, cfg.d_model),
                         rand_tokens(2, 2, cfg.d_model, TokenKind.ACTION, ragged=False), None, None)
     assert Zh.shape == (2, 32, 384) and info["logits"].shape == (2, 32, 32) and info["z"].shape == (2, 1024)
+
+
+def test_outcome_predictive_is_action_conditioned_and_particle_aware():
+    cfg, wm = _wm(13)
+    B = 3
+    Z = torch.randn(B, cfg.n_state, cfg.d_model)
+    ob = rand_outcomes(B, 6, cfg.d_model, seed=4)
+    with torch.no_grad():
+        wm.outcome_head.param.weight.normal_(0, 0.3)
+        wm.outcome_head.film.weight.normal_(0, 0.1)
+    a1 = rand_tokens(B, 1, cfg.d_model, TokenKind.ACTION, ragged=False, seed=5)
+    a2 = rand_tokens(B, 1, cfg.d_model, TokenKind.ACTION, ragged=False, seed=6)
+    parts = torch.randn(B, cfg.n_particles, cfg.d_particle)
+    d1 = wm.outcome_predictive(Z, a1, None, 1.0, ob, cond=parts)
+    d2 = wm.outcome_predictive(Z, a2, None, 1.0, ob, cond=parts)
+    lp1 = d1.log_prob(ob.y, ob.censored)
+    assert lp1.shape == (B, cfg.n_particles, 6)
+    assert (lp1 - d2.log_prob(ob.y, ob.censored)).abs().max() > 1e-4            # depends on the action
+    assert (lp1[:, 0] - lp1[:, 1]).abs().max() > 1e-5                           # and on the particle
+    torch.testing.assert_close(lp1, wm.outcome_predictive(Z, a1, None, 1.0, ob, cond=parts).log_prob(ob.y,
+                                                                                                  ob.censored))
