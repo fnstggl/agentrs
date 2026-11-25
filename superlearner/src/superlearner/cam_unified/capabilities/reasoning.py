@@ -24,6 +24,7 @@ import torch
 
 from .envs import ChainEnv, ScoreEvaluator
 from .loop import Episode, mean, train_agent
+from .readout import discard_readout_buffer
 from .stack import build_stack, capability_config
 
 
@@ -39,6 +40,7 @@ class ReasoningSettings:
     eval_rows: int = 256
     eval_seed0: int = 100_000
     test_iters: tuple = (1, 2, 4, 8, 16)
+    standardized_readout: bool = False   # experimental condition (capabilities/readout.py)
     cfg_overrides: dict = field(default_factory=dict)
 
 
@@ -66,6 +68,7 @@ def evaluate_chain(model, settings: ReasoningSettings, reason_iters="trained") -
         rec = ep.step()
     finally:
         model.reason_iters = old
+    discard_readout_buffer(model)
     hops = [h["k"] for h in env.hidden]
     iters = [r["iters"] for r in rec.decision.reasoning]
     out = {"tools": [a.tool for a in rec.decision.actions], "acc": mean(rec.rewards), "per_hop": {}}
@@ -112,6 +115,7 @@ def decision_sensitivity(model, settings: ReasoningSettings, iters=(1, 16), seed
             p_swap = tool_distribution(model, dec, tools)
     finally:
         model.reason_iters = old
+        discard_readout_buffer(model)
 
     def kl(p, q):
         p, q = p.clamp_min(1e-12), q.clamp_min(1e-12)
@@ -151,6 +155,7 @@ def actor_gradient_split(stack, env, seeds) -> dict:
     finally:
         model.eval()
         agent.fresh = saved
+        discard_readout_buffer(model)
     return res
 
 
@@ -159,7 +164,8 @@ def run_reasoning(settings: Optional[ReasoningSettings] = None, device=None, log
     t0 = time.time()
     over, J = _condition(st)
     cfg = capability_config(use_imagination=False, use_memory=False, lr=st.lr, **{**over, **st.cfg_overrides})
-    stack = build_stack(cfg, device=device, seed=st.seed, model_kwargs={"reason_iters": J})
+    stack = build_stack(cfg, device=device, seed=st.seed, standardized_readout=st.standardized_readout,
+                        model_kwargs={"reason_iters": J})
     model = stack.model
     env = ChainEnv(st.B, n_colours=st.n_colours, hops=st.hops)
     ev = ScoreEvaluator(env)

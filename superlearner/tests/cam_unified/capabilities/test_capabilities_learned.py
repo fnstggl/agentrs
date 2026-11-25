@@ -38,9 +38,12 @@ def test_a05_trained_agent_adapts_its_predictive_distribution(beliefs_res):
 @pytest.mark.slow
 @pytest.mark.xfail(reason="measured (results/beliefs_s0.json): particle-conditioned reward predictions differ by "
                           "~0.006 across particles against a mechanism gap of 2.0, ESS stays 7.4-7.7 of 8, the particle "
-                          "mixture moves the prediction by -0.02 while the Kalman layer moves it by +-0.96: the FiLM "
-                          "particle conditioning of C's OutcomeHead starts at exactly zero (symmetric start) and the "
-                          "Kalman/NIG layer and the latent state absorb the adaptation", strict=False)
+                          "mixture moves the prediction by -0.02 while the Kalman layer moves it by +-0.96. The FiLM "
+                          "particle conditioning of C's OutcomeHead starts at exactly zero (every particle predicts the "
+                          "same at init: spread 0.000). With film_init_std=0.2 (beliefs_film02_s0.json) the spread "
+                          "starts at 0.06 and shrinks to 0.026; mass on the active mechanism 0.74 / 0.20. For a "
+                          "Bernoulli mechanism (no Kalman channel; beliefs_bern_s0.json) P(ok) stays 0.48 for p=0.2 "
+                          "and p=0.8 after 7 observations: no fast adaptation at all", strict=False)
 def test_a06_particle_weights_concentrate_on_the_active_mechanism(beliefs_res):
     s = beliefs_res["summary"]
     assert s["particle_pred_spread_last"] > 0.25 * s["mechanism_gap"]
@@ -59,11 +62,12 @@ def test_a03_more_reasoning_iterations_are_needed_and_used(semantic_ok):
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(reason="measured (results/exploration_lp_s0.json, exploration_ext_s0.json): both conditions "
-                          "collapse to play_safe within 80 rounds (P(test first) < 1e-4); the hindsight learning "
-                          "progress credited to the informative test is +0.0002 nats (the belief cannot carry the "
-                          "revealed state: particles are degenerate and Kalman channels are per outcome key)",
-                   strict=False)
+@pytest.mark.xfail(reason="measured (results/exploration_lp_s0.json, exploration_ext_s0.json, "
+                          "exploration_lp_film02_s0.json): every condition collapses to play_safe within 80 rounds "
+                          "(P(test first) < 1e-4, identical decisions with and without LP); the hindsight learning "
+                          "progress credited to the informative test is +0.0002 nats: the belief cannot carry the "
+                          "revealed state (degenerate particles; Kalman channels are per outcome key, so the test "
+                          "signal never informs the reward prediction; LP holds Z_hat fixed)", strict=False)
 def test_a09_learning_progress_agent_learns_to_test_when_informative(semantic_ok, tmp_path):
     lp = run_exploration(ExplorationSettings(seed=0, condition="lp", update_every=2, checkpoints=(80, 160, 240),
                                              train_rounds=240), root=str(tmp_path), device=DEV)
@@ -76,9 +80,11 @@ def test_a09_learning_progress_agent_learns_to_test_when_informative(semantic_ok
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(reason="see results/imagination_*.json: with the policy collapsed to play_safe the planner's "
-                          "candidates (sampled from that policy) stop containing the test; with exploring starts the "
-                          "world model does not condition the launch reward on the observed signal", strict=False)
+@pytest.mark.xfail(reason="measured (results/imagination_s0.json, imagination_es_s0.json): the policy collapses to "
+                          "play_safe by round 80, after which the planner's candidates (sampled from that policy) never "
+                          "contain the test (coverage 0.0); with exploring starts the world model still predicts the "
+                          "same launch reward after a positive and a negative test signal (-0.60 vs -0.61, truth +10 / "
+                          "-10) and the policy launches with p ~ 3e-6 after a positive signal", strict=False)
 def test_c05_planner_chooses_the_costly_test_and_ablations_do_not(semantic_ok, tmp_path):
     r = run_imagination(ImaginationSettings(seed=0, exploring_starts=True, update_every=2,
                                             checkpoints=(80, 160, 240), train_rounds=240), root=str(tmp_path),

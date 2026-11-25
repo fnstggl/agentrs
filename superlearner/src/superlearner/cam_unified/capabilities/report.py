@@ -55,6 +55,7 @@ def summarise_file(res: dict) -> dict:
                           "return": _get(e, m, "return"), "changed_vs_policy": _get(e, m, "changed_vs_policy")}
                       for m in ("policy", "planner", "planner_frozen_beliefs", "planner_h1") if m in e}
             ev[cp]["after_forced_test"] = e.get("after_forced_test")
+            ev[cp]["enumerated"] = e.get("enumerated")
             ev[cp]["a07_action_conditioned"] = _get(e, "policy", "a07")
         return {"capability": "imagination", "exploring_starts": st.get("exploring_starts"),
                 "component_kwargs": st.get("component_kwargs"), "value_bounds": res["value_bounds"], "evals": ev}

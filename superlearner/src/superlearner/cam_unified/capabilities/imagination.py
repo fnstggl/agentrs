@@ -38,6 +38,7 @@ from ..outcome_spec import CORE_INDEX
 from ..runtime import SEED_STRIDE
 from .envs import ProbeEnv, ScoreEvaluator
 from .loop import Episode, mean, train_agent
+from .readout import discard_readout_buffer
 from .stack import build_stack, capability_config
 
 R_IDX = CORE_INDEX["reward"]
@@ -64,6 +65,7 @@ class ImaginationSettings:
     safe: float = 1.0
     exploring_starts: bool = False      # training env offers one random tool at the first decision (ProbeEnv)
     component_kwargs: dict = field(default_factory=dict)   # e.g. {"outcome_head": {"film_init_std": 0.05}}
+    standardized_readout: bool = False   # experimental condition (capabilities/readout.py)
     cfg_overrides: dict = field(default_factory=dict)
 
 
@@ -270,6 +272,70 @@ def action_conditioned_predictions_rows(model, dec, state, tools) -> dict:
     return out
 
 
+def copy_state(state):
+    """An independent copy of a CamState (tensors, registries and outcome trackers), so a decision can be computed
+    several times from the same real state."""
+    import copy
+    c = state.select(list(range(state.B)))
+    c.registries = copy.deepcopy(state.registries)
+    c.trackers = copy.deepcopy(state.trackers)
+    c.last_actions = list(state.last_actions)
+    return c
+
+
+@contextlib.contextmanager
+def first_action_restricted(model, tool_name: str):
+    """Evaluation harness: inside the block the planner's FIRST action-generator call (its candidate first actions)
+    is masked to `tool_name` (ActionGenerator.sample's tool_mask); every later call - the imagined continuation - is
+    unrestricted. Lets the imagined return of each intervention be read from the same real state, independently of
+    how often the policy would have proposed it."""
+    ag = model.action_generator
+    orig = ag.sample
+    flag = {"first": True}
+
+    def sample(R, goal, belief, tools, obs, tool_lists, obs_lists, *a, **k):
+        if flag["first"]:
+            flag["first"] = False
+            k["tool_mask"] = torch.tensor([[t.name == tool_name for t in lst] for lst in tool_lists],
+                                          dtype=torch.bool)
+        return orig(R, goal, belief, tools, obs, tool_lists, obs_lists, *a, **k)
+
+    with patched(ag, "sample", sample):
+        yield
+
+
+def enumerated_imagination(model, st: ImaginationSettings, seed0: int) -> dict:
+    """Imagined return of each first intervention from the same real first-decision states (full imagination and
+    the frozen-belief ablation), and the intervention the imagination ranks first."""
+    env = ProbeEnv(st.eval_rows, horizon=st.env_horizon, probe_cost=st.probe_cost, win=st.win, loss=st.loss,
+                   safe=st.safe)
+    ev = ScoreEvaluator(env)
+    ep = Episode(model, env, ev, [seed0 + b for b in range(st.eval_rows)], greedy=True,
+                 generator=torch.Generator().manual_seed(seed0))
+    base = copy_state(ep.state)
+    tools = env.available_tools()
+    out = {}
+    for mode in ("full", "frozen_beliefs"):
+        vals = {}
+        for t in TOOLS:
+            state = copy_state(base)
+            ctx = frozen_imagined_beliefs(model) if mode == "frozen_beliefs" else contextlib.nullcontext()
+            torch.manual_seed(seed0)
+            with config_override(model, use_imagination=True), \
+                    imagination_settings(model, st.imag_horizon, st.imag_candidates, st.imag_samples), \
+                    first_action_restricted(model, t), ctx:
+                dec = model.decide(state, ep.obs_lists, ep.now, tools, ep.goals, greedy=True,
+                                   generator=torch.Generator().manual_seed(seed0))
+            assert all(a.tool == t for a in dec.actions)
+            vals[t] = [mean(it["value"] for it in row) for row in dec.imagined]      # all candidates are t
+        per_row = torch.tensor([[vals[t][b] for t in TOOLS] for b in range(ep.B)])
+        best = per_row.argmax(-1)
+        out[mode] = {"imagined_value": {t: mean(vals[t]) for t in TOOLS},
+                     "argmax_frac": {t: mean(float(int(x) == i) for x in best) for i, t in enumerate(TOOLS)},
+                     "test_minus_safe": mean((per_row[:, 0] - per_row[:, 2]).tolist())}
+    return out
+
+
 def evaluate_all(model, st: ImaginationSettings, modes=("policy", "planner", "planner_frozen_beliefs", "planner_h1")
                  ) -> dict:
     out = {}
@@ -281,6 +347,8 @@ def evaluate_all(model, st: ImaginationSettings, modes=("policy", "planner", "pl
     for mode in modes:
         out[mode].pop("chosen")
     out["after_forced_test"] = after_forced_test(model, st, st.eval_seed0 + 50_000)
+    out["enumerated"] = enumerated_imagination(model, st, st.eval_seed0)
+    discard_readout_buffer(model)
     return out
 
 
@@ -291,7 +359,9 @@ def run_imagination(settings: Optional[ImaginationSettings] = None, root: Option
     cfg = capability_config(use_imagination=False, use_memory=False, lr=st.lr, imag_branches=st.imag_candidates,
                             imag_samples=st.imag_samples, imag_horizons=(st.imag_horizon,), **st.cfg_overrides)
     tmp = root or tempfile.mkdtemp(prefix="cam_y_imag_")
-    stack = build_stack(cfg, device=device, seed=st.seed, component_kwargs=st.component_kwargs, memory_root=os.path.join(tmp, f"mem_s{st.seed}"),
+    stack = build_stack(cfg, device=device, seed=st.seed, standardized_readout=st.standardized_readout,
+                        component_kwargs=st.component_kwargs,
+                        memory_root=os.path.join(tmp, f"mem_s{st.seed}"),
                         agent_kwargs=dict(seq_len=st.env_horizon, n_seqs=8, adapt_seq_len=st.env_horizon,
                                           adapt_n_seqs=8))
     env = ProbeEnv(st.B, horizon=st.env_horizon, probe_cost=st.probe_cost, win=st.win, loss=st.loss, safe=st.safe,

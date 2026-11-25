@@ -152,6 +152,9 @@ class TargetSyncTrainer:
         if wm is not None and hasattr(wm, "update_target"):
             wm.update_target(self.decay)
             self.n_target_updates += 1
+        ag = getattr(self.model, "action_generator", None)
+        if ag is not None and hasattr(ag, "update_readout_stats"):
+            ag.update_readout_stats()                 # experimental readout condition (capabilities/readout.py)
         return out
 
     def __getattr__(self, name):
@@ -215,7 +218,8 @@ def build_stack(cfg: Optional[CamConfig] = None, *, device=None, seed: int = 0, 
                 agent_kwargs: Optional[dict] = None, trainer_kwargs: Optional[dict] = None,
                 components: Optional[dict] = None, reasoner_kwargs: Optional[dict] = None,
                 exact_rows: bool = False, target_decay: Optional[float] = None,
-                component_kwargs: Optional[dict] = None, prospective_ingest: bool = True) -> Stack:
+                component_kwargs: Optional[dict] = None, prospective_ingest: bool = True,
+                standardized_readout: bool = False) -> Stack:
     """Assemble the real CAM stack. `memory_root` (a directory) attaches E's archive + replay + index +
     consolidator (needed for replay-trained objectives and for cfg.use_memory); without it the agent trains on its
     fresh on-policy buffer only. `components` may override individual real components (e.g. a differently
@@ -234,7 +238,12 @@ def build_stack(cfg: Optional[CamConfig] = None, *, device=None, seed: int = 0, 
     torch.manual_seed(seed)
     tok = ObservationTokenizer(cfg, enc).to(dev)
     opts = grammar_opts or GrammarOptions(max_string_tokens=24, max_action_tokens=96, max_key_tokens=16)
-    gen = ActionGenerator(cfg, enc, tok, opts=opts, include_builtins=include_builtins, exact_rows=exact_rows)
+    if standardized_readout:                  # declared experimental condition (capabilities/readout.py)
+        from .readout import StandardizedReadoutActionGenerator
+        gen = StandardizedReadoutActionGenerator(cfg, enc, tok, opts=opts, include_builtins=include_builtins,
+                                                 exact_rows=exact_rows)
+    else:
+        gen = ActionGenerator(cfg, enc, tok, opts=opts, include_builtins=include_builtins, exact_rows=exact_rows)
     comps = {"semantic": enc, "tokenizer": tok, "action_generator": gen}
     ckw = {k: dict(v) for k, v in (component_kwargs or {}).items()}
     if reasoner_kwargs:

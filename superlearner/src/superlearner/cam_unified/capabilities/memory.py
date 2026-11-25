@@ -101,9 +101,21 @@ class MemorySettings:
     cfg_overrides: dict = field(default_factory=dict)
 
 
+def _new_batch(agent) -> None:
+    """Let the agent take a batch of different environments (CamUnifiedAgent.reset refuses to re-batch once it has a
+    state; interface change request filed): archive pending observations, drop the state and the fresh buffer."""
+    agent.flush("reset")
+    agent.state = None
+    agent.fresh = []
+    agent._last_fresh = {}
+
+
 def evaluate_cue(stack, st: MemorySettings) -> dict:
-    """Greedy agent episodes on development seeds with archiving and consolidation (no learner update)."""
+    """Greedy agent episodes on development seeds with archiving and consolidation (no learner update). The agent is
+    re-batched to the evaluation environments and, afterwards, cleared again (no evaluation decision reaches the
+    policy objective)."""
     agent = stack.agent
+    _new_batch(agent)
     env = DelayedCueEnv(st.eval_rows, delay=st.delay, n_colours=st.n_colours, distractors=st.distractors)
     ev = ScoreEvaluator(env)
     old_g, old_rec = agent.greedy, agent.recorder
@@ -156,7 +168,7 @@ def evaluate_cue(stack, st: MemorySettings) -> dict:
                     in_ctx.append(float(cue_eid.get(tr.env_id) in ctx_src))
     finally:
         agent.greedy, agent.recorder = old_g, old_rec
-        agent.flush("end_of_run")
+        _new_batch(agent)
     return {"accuracy": mean(accs), "chance": 1.0 / st.n_colours, "retrieval_hit_rate": mean(hits) if hits else None,
             "retrieved_any_rate": mean(retrieved_any) if retrieved_any else None,
             "cue_memory_in_context_rate": mean(in_ctx) if in_ctx else None,
@@ -172,12 +184,21 @@ def run_memory(settings: Optional[MemorySettings] = None, root: Optional[str] = 
     H = st.delay + 2
     cfg = capability_config(use_imagination=False, use_memory=use_mem, lr=st.lr, mem_segment=8, **st.cfg_overrides)
     tmp = root or tempfile.mkdtemp(prefix="cam_y_memory_")
+    akw = dict(seq_len=H, n_seqs=4, adapt_seq_len=H, adapt_n_seqs=2)
+    # untrained reference on its own stack (same seed -> same initial weights), so evaluation episodes never enter
+    # the training archive
+    stack0 = build_stack(cfg, device=device, seed=st.seed, agent_kwargs=akw,
+                         memory_root=os.path.join(tmp, f"{st.condition}_s{st.seed}_untrained"))
+    scope0 = EpisodeScopedRetrieval(stack0.agent) if st.condition == "memory_episode" else None
+    before = evaluate_cue(stack0, st)
+    if scope0 is not None:
+        scope0.remove()
+    del stack0
     stack = build_stack(cfg, device=device, seed=st.seed, memory_root=os.path.join(tmp, f"{st.condition}_s{st.seed}"),
-                        agent_kwargs=dict(seq_len=H, n_seqs=4, adapt_seq_len=H, adapt_n_seqs=2))
+                        agent_kwargs=akw)
     scope = EpisodeScopedRetrieval(stack.agent) if st.condition == "memory_episode" else None
     env = DelayedCueEnv(st.B, delay=st.delay, n_colours=st.n_colours, distractors=st.distractors)
     ev = ScoreEvaluator(env)
-    before = evaluate_cue(stack, st)
     tr = train_agent(stack, env, ev, st.train_rounds, update_every=st.update_every,
                      seeds=[st.seed * 10_007 + b for b in range(st.B)], log_every=log_every)
     after = evaluate_cue(stack, st)

@@ -282,8 +282,8 @@ class ProbeEnv(DiagnosticEnv):
                  win: float = 10.0, loss: float = 10.0, safe: float = 1.0, noise: float = 0.0,
                  informative: bool = True, exploring_starts: bool = False):
         self.horizon = horizon
-        self.p_good, self.probe_cost, self.win, self.loss, self.safe, self.noise = p_good, probe_cost, win, loss, safe, \
-            noise
+        self.p_good, self.probe_cost, self.win, self.loss = p_good, probe_cost, win, loss
+        self.safe, self.noise = safe, noise
         self.informative = informative
         self.exploring_starts = exploring_starts
         super().__init__(B, seed)

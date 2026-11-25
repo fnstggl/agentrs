@@ -107,7 +107,8 @@ def test_delayed_effect_learning_is_reliable_across_model_seeds():
     for s in (1, 2, 3):
         pred, *_ = _delay_run(s)
         errs.append(float((pred - DELAY_TRUTH).abs().max()))
-        print(f"model seed {s}: delayed {float(pred[1, 2]):.3f} immediate {float(pred[0, 0]):.3f} max err {errs[-1]:.3f}")
+        print(f"model seed {s}: delayed {float(pred[1, 2]):.3f} immediate {float(pred[0, 0]):.3f} "
+              f"max err {errs[-1]:.3f}")
     assert max(errs) < 0.3, errs
 
 

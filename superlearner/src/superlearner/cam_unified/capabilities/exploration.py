@@ -32,6 +32,7 @@ from ..runtime import SEED_STRIDE
 from .envs import ProbeEnv, ScoreEvaluator
 from .imagination import TOOLS, config_override, policy_tool_probs
 from .loop import Episode, mean, train_agent
+from .readout import discard_readout_buffer
 from .stack import build_stack, capability_config
 
 
@@ -53,6 +54,7 @@ class ExplorationSettings:
     loss: float = 10.0
     safe: float = 1.0
     component_kwargs: dict = field(default_factory=dict)   # e.g. {"outcome_head": {"film_init_std": 0.05}}
+    standardized_readout: bool = False   # experimental condition (capabilities/readout.py)
     cfg_overrides: dict = field(default_factory=dict)
 
 
@@ -82,6 +84,13 @@ def evaluate_probe(model, st: ExplorationSettings, informative: bool, seed0: int
             "value_bounds": env.value_bounds()}
 
 
+def _evaluate_both(model, st) -> dict:
+    out = {"informative": evaluate_probe(model, st, True, st.eval_seed0),
+           "uninformative": evaluate_probe(model, st, False, st.eval_seed0 + 10_000)}
+    discard_readout_buffer(model)
+    return out
+
+
 def lp_by_action(archive) -> dict:
     """Hindsight learning progress credited to each action (from the archived decision records)."""
     if archive is None:
@@ -109,15 +118,15 @@ def run_exploration(settings: Optional[ExplorationSettings] = None, root: Option
     lp = st.lp_coef if st.condition == "lp" else 0.0
     cfg = capability_config(use_imagination=False, use_memory=False, lr=st.lr, lp_coef=lp, **st.cfg_overrides)
     tmp = root or tempfile.mkdtemp(prefix="cam_y_explore_")
-    stack = build_stack(cfg, device=device, seed=st.seed, component_kwargs=st.component_kwargs,
+    stack = build_stack(cfg, device=device, seed=st.seed, standardized_readout=st.standardized_readout,
+                        component_kwargs=st.component_kwargs,
                         memory_root=os.path.join(tmp, f"mem_{st.condition}_s{st.seed}"),
                         agent_kwargs=dict(seq_len=st.env_horizon, n_seqs=8, adapt_seq_len=st.env_horizon,
                                           adapt_n_seqs=8))
     env = ProbeEnv(st.B, horizon=st.env_horizon, probe_cost=st.probe_cost, win=st.win, loss=st.loss, safe=st.safe)
     ev = ScoreEvaluator(env)
     base = [st.seed * 10_007 + b for b in range(st.B)]
-    evals = {"0": {"informative": evaluate_probe(stack.model, st, True, st.eval_seed0),
-                   "uninformative": evaluate_probe(stack.model, st, False, st.eval_seed0 + 10_000)}}
+    evals = {"0": _evaluate_both(stack.model, st)}
     done, episodes = 0, 0
     log = []
     for cp in st.checkpoints:
@@ -127,7 +136,6 @@ def run_exploration(settings: Optional[ExplorationSettings] = None, root: Option
         done = cp
         log.append({"rounds": cp, "return_per_row_per_round": mean(tr["reward_per_round"]),
                     "final_losses": tr["final_losses"], "compute": tr["compute"]})
-        evals[str(cp)] = {"informative": evaluate_probe(stack.model, st, True, st.eval_seed0),
-                          "uninformative": evaluate_probe(stack.model, st, False, st.eval_seed0 + 10_000)}
+        evals[str(cp)] = _evaluate_both(stack.model, st)
     return {"settings": asdict(st), "lp_coef": lp, "components": stack.real_component_report(), "train": log,
             "evals": evals, "lp_by_action": lp_by_action(stack.archive), "wall_s": time.time() - t0}
