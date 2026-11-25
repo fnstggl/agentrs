@@ -555,7 +555,11 @@ def _nb_fit(c, e):
         k, r = np.exp(th)
         return -np.sum(gammaln(k + c) - gammaln(k) - gammaln(c + 1) + k * np.log(r / (r + e)) + c * np.log(e / (r + e)))
     mu = c.sum() / e.sum()
-    res = minimize(nll, x0=np.log([1.0, 1.0 / max(mu, 1e-3)]), method="L-BFGS-B")
+    if (c < 0).any() or (e <= 0).any():
+        raise ValueError("counts must be >= 0 and exposures > 0")
+    res = minimize(nll, x0=np.log([1.0, 1.0 / max(mu, 1e-3)]), method="L-BFGS-B", bounds=[(-9, 9), (-9, 9)])
+    if not res.success:
+        raise RuntimeError(f"negative-binomial fit did not converge: {res.message}")
     k, r = np.exp(res.x)
     return float(k), float(r), float(-res.fun)
 

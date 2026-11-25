@@ -202,14 +202,15 @@ def choice_frame(raw: dict, prior_rate: float | None = None) -> pd.DataFrame:
 
 # ------------------------------------------------------------------ activity (return / sessions)
 def sessions_by_day(raw: dict) -> pd.DataFrame:
-    """Per user and day: logged rows and sessions started (30-minute gap), from both logs."""
+    """Per user and day: logged rows and sessions (30-minute gap rule, from both logs) with at least one row that day
+    (a session crossing midnight counts on both days, so every active day has at least one session)."""
     L = raw["logs"][["user_id", "time_ms", "day"]].sort_values(["user_id", "time_ms"], kind="mergesort")
     u = L["user_id"].to_numpy()
     t = L["time_ms"].to_numpy()
     new = np.ones(len(L), bool)
     new[1:] = (u[1:] != u[:-1]) | (t[1:] - t[:-1] > SESSION_GAP_MS)
-    L = L.assign(session_start=new.astype(int))
-    g = L.groupby(["user_id", "day"]).agg(rows=("time_ms", "size"), sessions=("session_start", "sum")).reset_index()
+    L = L.assign(session_id=np.cumsum(new))
+    g = L.groupby(["user_id", "day"]).agg(rows=("time_ms", "size"), sessions=("session_id", "nunique")).reset_index()
     return g
 
 
