@@ -57,9 +57,10 @@ class TwoHot(nn.Module):
         return (self.target(y) * F.log_softmax(logits.float(), -1)).sum(-1)
 
     def mean(self, logits: torch.Tensor) -> torch.Tensor:
-        """Expected value in the raw scale (symexp of the expected symlog value)."""
+        """Expected value in the raw scale, E[r] = sum_i p_i symexp(b_i). (symexp(E[symlog r]) would be biased
+        toward 0 for spread or multimodal rewards, which matters for expected-return planning.)"""
         p = F.softmax(logits.float(), -1)
-        return symexp((p * self.bins.to(p.device)).sum(-1))
+        return (p * symexp(self.bins.to(p.device))).sum(-1)
 
 
 # ----------------------------------------------------------------------------------------------- time features
@@ -289,3 +290,24 @@ def seeded_from(generator: Optional[torch.Generator], device=None):
     with torch.random.fork_rng(devices=devices):
         torch.manual_seed(seed)
         yield
+
+
+# ----------------------------------------------------------------------------------------------- FastState rows
+
+def fast_rows(fast, idx):
+    """Independent copy of rows ``idx`` of a FastState (tensors indexed/cloned, channel dicts copied)."""
+    if fast is None:
+        return None
+    from ..interfaces import FastState
+    il = [int(i) for i in idx]
+    return FastState(*(t[idx].clone() for t in (fast.particles, fast.logw, fast.pscale, fast.bayes_mu, fast.bayes_P,
+                                                  fast.bayes_noise, fast.bayes_n, fast.surprise, fast.steps)),
+                     [dict(fast.channels[i]) for i in il])
+
+
+def fast_cat(states):
+    """Concatenate FastStates along the batch axis."""
+    from ..interfaces import FastState
+    f = lambda name: torch.cat([getattr(s, name) for s in states], 0)
+    return FastState(f("particles"), f("logw"), f("pscale"), f("bayes_mu"), f("bayes_P"), f("bayes_noise"),
+                     f("bayes_n"), f("surprise"), f("steps"), sum((list(s.channels) for s in states), []))

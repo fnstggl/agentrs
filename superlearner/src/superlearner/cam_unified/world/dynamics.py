@@ -41,8 +41,8 @@ import torch.nn.functional as F
 
 from ..config import CamConfig
 from ..interfaces import (Likelihood, OutcomeBatch, SequenceBatch, TokenKind, TokenSet)
-from ._util import (MLP, SECONDS_PER_DAY, AttnPool, StateNorm, TimeEncoder, TwoHot, cat_tokens, gather_tokens,
-                    logmeanexp, masked_mean, outcome_pad, safe_key_padding, stack_tokens)
+from ._util import (MLP, SECONDS_PER_DAY, AttnPool, StateNorm, TimeEncoder, TwoHot, cat_tokens, fast_cat, fast_rows,
+                    gather_tokens, logmeanexp, masked_mean, outcome_pad, safe_key_padding, stack_tokens)
 from .outcomes import OutcomeHead
 
 CONTINUOUS = (int(Likelihood.GAUSSIAN), int(Likelihood.STUDENT_T), int(Likelihood.COUNT))
@@ -428,13 +428,29 @@ class WorldModel(nn.Module):
 
     # ------------------------------------------------------------------ WorldModelP.loss
     def loss(self, batch: SequenceBatch, beliefs: Optional[list] = None, memory: Optional[list] = None,
-             horizons: Optional[Sequence[int]] = None, generator: Optional[torch.Generator] = None) -> dict:
+             horizons: Optional[Sequence[int]] = None, generator: Optional[torch.Generator] = None,
+             fast_states: Optional[list] = None, belief_update_fn: Optional[Callable] = None,
+             belief_tokens_fn: Optional[Callable] = None) -> dict:
         """Full world-model objective on real recorded sequences.
 
         beliefs: optional list of T BELIEF TokenSets (B_t computed from information up to t); memory: optional list
-        of T MEMORY TokenSets for the filter. Returns a dict with the total ("world" == "loss"), each term, the
-        balanced KL and its raw value, per-horizon open-loop errors ("horizon_errors": {h: {...}}) and the detached
-        filter states "Z_post" [T,B,S,D] for downstream users."""
+        of T MEMORY TokenSets for the filter.
+        Imagination-consistent open loop (optional): with ``fast_states`` (list of T real FastStates B_t),
+        ``belief_update_fn(fast, Z_prev, act, OutcomeBatch) -> fast'`` and ``belief_tokens_fn(fast) -> TokenSet``,
+        every open-loop row starts from its real B_t and updates a private copy with outcomes *sampled from the
+        model's own predictions* (the real outcomes after the start are never used), exactly as ``Imagination`` does;
+        otherwise the belief tokens stay at B_t for the whole rollout.
+        Returns a dict with the total ("world" == "loss"), each term, the balanced KL and its raw value,
+        per-horizon open-loop errors ("horizon_errors": {h: {...}}) and the detached filter states "Z_post"
+        [T,B,S,D] for downstream users."""
+        if fast_states is not None and beliefs is None:
+            if belief_tokens_fn is None:
+                raise ValueError("fast_states need belief_tokens_fn")
+            with torch.no_grad():
+                beliefs = [belief_tokens_fn(f) for f in fast_states]
+        bel_dyn = None
+        if fast_states is not None and belief_update_fn is not None and belief_tokens_fn is not None:
+            bel_dyn = (fast_states, belief_update_fn, belief_tokens_fn)
         steps = batch.steps
         T, B = len(steps), steps[0].obs.B
         dev = steps[0].obs.x.device
@@ -507,7 +523,9 @@ class WorldModel(nn.Module):
             kl = cfg.kl_balance * dyn.clamp(min=fn) + (1 - cfg.kl_balance) * rep.clamp(min=fn)
             out["kl"] = masked_mean(kl, ok1)
             out["kl_value"] = masked_mean(dyn.detach(), ok1)
-            z_post = self.sample_latent(post_lp, True, generator)
+            # transitions without a next observation (episode end / sequence padding) have no posterior: use the prior
+            lat_lp = torch.where(ok1.view(-1, 1, 1), post_lp, prior_lp)
+            z_post = self.sample_latent(lat_lp, True, generator)
             Zh1 = self.transition(Zs[:n1], rows(act, t1, b1), rows(bel, t1, b1), dt_r[:n1], z_post)
             terms = self._reduce(self._row_terms(Zh1, 1, t1, b1, ctx, valid_r[:n1], rows(goal, t1, b1),
                                                  self.obs_max_groups))
@@ -515,7 +533,7 @@ class WorldModel(nn.Module):
             out["kl"] = out["kl_value"] = Z_post.sum() * 0
 
         # ---- open-loop multistep with prior samples and recorded actions only
-        ol, herr = self._open_loop_loss(Z_post, B, act, bel, goal, dt, horizons, ctx)
+        ol, herr = self._open_loop_loss(Z_post, B, act, bel, goal, dt, horizons, ctx, bel_dyn)
 
         # ---- anti-collapse regulariser on valid filter states
         var, cov = self._vicreg(Z_post[valid])
@@ -606,9 +624,10 @@ class WorldModel(nn.Module):
             out["obs_logp"] = out["obs"].detach()
         return out
 
-    def _open_loop_loss(self, Z_post, B, act, bel, goal, dt, horizons, ctx: "_SeqCtx"):
+    def _open_loop_loss(self, Z_post, B, act, bel, goal, dt, horizons, ctx: "_SeqCtx", bel_dyn=None):
         """Roll every start open-loop with prior samples and the recorded actions; the heads of all scored horizons
-        are evaluated in one batched call. Returns (mean over horizons of the horizon loss, {h: errors})."""
+        are evaluated in one batched call. With ``bel_dyn`` = (fast_states, update_fn, tokens_fn) each row's belief
+        is updated from its own sampled outcomes. Returns (mean over horizons of the horizon loss, {h: errors})."""
         dev = Z_post.device
         T, valid, done, gen = ctx.T, ctx.valid, ctx.done, ctx.gen
         rows = _rows
@@ -629,6 +648,11 @@ class WorldModel(nn.Module):
         bel_rows = rows(bel, st_r, b_r)
         bel_rows = None if bel_rows is None else rows_rep(bel_rows, S_ol)
         alive = valid[st_r, b_r].clone()                                             # [n_s*B]
+        fast = None
+        if bel_dyn is not None:
+            fs, upd_fn, tok_fn = bel_dyn
+            rep_idx = torch.arange(B, device=dev).repeat_interleave(S_ol)
+            fast = fast_cat([fast_rows(fs[int(t0)], rep_idx) for t0 in starts.tolist()])   # rows (start, b, sample)
         coll = []                                                                    # per scored horizon
         for k in range(1, Hmax + 1):
             n_a = int((starts <= T - k).sum())
@@ -637,6 +661,8 @@ class WorldModel(nn.Module):
             na_rows = n_a * B
             Z = Z[:na_rows * S_ol]
             st_r, b_r, alive = st_r[:na_rows], b_r[:na_rows], alive[:na_rows]
+            if fast is not None and fast.logw.shape[0] > na_rows * S_ol:
+                fast = fast_rows(fast, torch.arange(na_rows * S_ol, device=dev))
             if bel_rows is not None:
                 bel_rows = _slice_tokens(bel_rows, na_rows * S_ol)
             t_idx = st_r + (k - 1)
@@ -645,7 +671,22 @@ class WorldModel(nn.Module):
             dt_k = dt[t_idx, b_r].repeat_interleave(S_ol)
             lp = self.prior_logits(Z, a_k, bel_rows, dt_k)
             zk = self.sample_latent(lp, True, gen)
+            Z_prev = Z
             Z = self.transition(Z, a_k, bel_rows, dt_k, zk)
+            if fast is not None and k < Hmax:
+                # imagined belief update from the model's own sampled outcomes (no real outcome after the start)
+                with torch.no_grad():
+                    ob = ctx.ob_rows(t_idx, b_r)
+                    r = lambda x: x.repeat_interleave(S_ol, 0)
+                    q = OutcomeBatch(rows_rep(ob.q, S_ol), r(ob.lik), r(ob.n_classes), r(ob.y), r(ob.censored),
+                                     r(ob.y_mask), r(ob.channel))
+                    ys = self.outcome_dist(Z, q).sample(gen)
+                    om = q.y_mask.bool()
+                    imagined = OutcomeBatch(q.q, q.lik, q.n_classes, torch.where(om, ys, torch.zeros_like(ys)),
+                                            torch.zeros_like(om), om, q.channel)
+                    out_f = upd_fn(fast, Z_prev.detach(), a_k, imagined)
+                    fast = out_f[0] if isinstance(out_f, tuple) else out_f
+                    bel_rows = tok_fn(fast)
             if k in horizons:
                 coll.append((k, Z, t_idx, b_r, alive.clone(), st_r))
             alive = alive & ~done[t_idx, b_r]

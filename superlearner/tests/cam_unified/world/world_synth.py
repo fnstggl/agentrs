@@ -316,7 +316,11 @@ class HypothesisBelief:
                          fast.surprise.clone(), fast.steps + 1, [dict(c) for c in fast.channels])
 
     def sequence_beliefs(self, batch: SequenceBatch) -> list:
-        """B_t for every step of a real sequence (updated with the real outcomes of steps < t)."""
+        """BELIEF tokens of B_t for every step of a real sequence."""
+        return [self.tokens(f) for f in self.sequence_fast(batch)]
+
+    def sequence_fast(self, batch: SequenceBatch) -> list:
+        """FastState B_t for every step of a real sequence (updated with the real outcomes of steps < t)."""
         B = batch.steps[0].obs.B
         dev = batch.steps[0].obs.x.device
         fast = self.init_fast(B, dev)
@@ -331,7 +335,7 @@ class HypothesisBelief:
                     fast = FastState(fast.particles, torch.where(d.unsqueeze(1), fresh.logw, fast.logw),
                                      fast.pscale, fast.bayes_mu, fast.bayes_P, fast.bayes_noise, fast.bayes_n,
                                      fast.surprise, fast.steps, fast.channels)
-            out.append(self.tokens(fast))
+            out.append(fast)
         return out
 
 
@@ -356,14 +360,20 @@ def tokens_to(ts, device):
     return None if ts is None else ts.to(device)
 
 
-def train(wm, batches, steps: int, lr: float = 1e-3, beliefs=None, log_every: int = 0, seed: int = 0):
-    """Adam on WorldModel.loss over a fixed list of batches (cycled); EMA target updated each step."""
+def train(wm, batches, steps: int, lr: float = 1e-3, beliefs=None, log_every: int = 0, seed: int = 0, belief=None):
+    """Adam on WorldModel.loss over a fixed list of batches (cycled); EMA target updated each step. With a belief
+    double, open-loop rollouts update each row's belief from the model's own sampled outcomes."""
     torch.manual_seed(seed)
     opt = torch.optim.Adam(wm.trainable_parameters(), lr=lr)
     hist = []
+    fasts = [belief.sequence_fast(b) for b in batches] if belief is not None else None
     for i in range(steps):
         j = i % len(batches)
-        out = wm.loss(batches[j], beliefs=None if beliefs is None else beliefs[j])
+        if belief is not None:
+            out = wm.loss(batches[j], fast_states=fasts[j], belief_update_fn=belief.update,
+                          belief_tokens_fn=belief.tokens)
+        else:
+            out = wm.loss(batches[j], beliefs=None if beliefs is None else beliefs[j])
         opt.zero_grad(set_to_none=True)
         out["world"].backward()
         torch.nn.utils.clip_grad_norm_(wm.trainable_parameters(), 10.0)
@@ -371,10 +381,58 @@ def train(wm, batches, steps: int, lr: float = 1e-3, beliefs=None, log_every: in
         wm.update_target(0.98)
         hist.append(float(out["world"].detach()))
         if log_every and i % log_every == 0:
-            print(i, round(hist[-1], 3), {k: round(float(out[k]), 3) for k in ("outcome", "reward", "latent", "kl",
+            print(i, round(hist[-1], 3), {k: round(float(out[k].detach()), 3) for k in ("outcome", "reward", "latent", "kl",
                                                                                 "obs", "open_loop")})
     return hist
 
 
 def device():
     return torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+
+# ------------------------------------------------------------------------------------------------ imagination hooks
+
+def probe_hooks(world: "ProbeWorld", belief: HypothesisBelief, device, update: bool = True, value_fn=None):
+    """Hooks for ProbeWorld imagination: the hypothesis belief double, a policy double that acts on the imagined
+    belief (P(h=1) > 0.8 -> exploit, < 0.2 -> safe, otherwise wait), and the probe-result outcome query (observable
+    only when the action is ``probe``)."""
+    from superlearner.cam_unified.world.imagination import ImaginationHooks
+    names = world.actions
+
+    def act_tokens(ids):
+        return world.act_tokens(ids).to(device)
+
+    def policy(ctx):
+        p1 = belief.p1(ctx.fast)
+        ids = [3 if p > 0.8 else (2 if p < 0.2 else 0) for p in p1.tolist()]
+        return [Action(names[i]) for i in ids], act_tokens(ids)
+
+    def queries(Zp, actions, toks, k):
+        q = world.queries(len(actions))
+        ym = torch.tensor([[a.tool == "probe"] for a in actions])
+        return OutcomeBatch(q.q.to(device), q.lik.to(device), q.n_classes.to(device), q.y.to(device),
+                            q.censored.to(device), ym.to(device), q.channel.to(device), q.keys)
+
+    def upd(f, Zp, a, ob):
+        return belief.update(f, Zp, a, ob)
+
+    def ident(f, Zp, a, ob):
+        return f
+
+    return ImaginationHooks(policy_fn=policy, outcome_queries_fn=queries, belief_update_fn=upd if update else ident,
+                            belief_tokens_fn=belief.tokens, value_fn=value_fn), act_tokens
+
+
+def probe_candidates(world: "ProbeWorld", B: int, device):
+    from superlearner.cam_unified.world.imagination import Candidates
+    n = len(world.actions)
+    return Candidates([[Action(a, logp=-math.log(n)) for a in world.actions] for _ in range(B)],
+                      world.act_tokens(list(range(n)) * B).to(device))
+
+
+def real_start(wm, world: World, belief: HypothesisBelief, B: int, device, seed: int = 500):
+    """Filtered real state after the first observation of fresh episodes, and the real FastState."""
+    sb = batch_to(world.batch(B, seed=seed, plans=[[0] * world.T] * B), device)
+    fast = belief.init_fast(B, device)
+    Z = wm.filter(SequenceBatch(sb.steps[:1]), [belief.tokens(fast)])[-1]
+    return Z, fast

@@ -34,7 +34,7 @@ import torch
 
 from ..interfaces import (Action, FastState, ImaginedStep, ImaginedTrajectory, OutcomeBatch, Provenance, TokenKind,
                           TokenSet)
-from ._util import cat_tokens, masked_mean
+from ._util import cat_tokens, fast_rows, masked_mean
 
 
 # ------------------------------------------------------------------------------------------------ data types
@@ -136,11 +136,7 @@ class ImagState:
 
 def fast_select(fast: Optional[FastState], idx) -> Optional[FastState]:
     """Independent copy of rows ``idx`` of a FastState (tensors cloned, channel dicts copied)."""
-    if fast is None:
-        return None
-    s = fast.select(idx)
-    return FastState(*(t.clone() for t in (s.particles, s.logw, s.pscale, s.bayes_mu, s.bayes_P, s.bayes_noise,
-                                           s.bayes_n, s.surprise, s.steps)), [dict(c) for c in s.channels])
+    return fast_rows(fast, idx)
 
 
 def tokens_select(ts: Optional[TokenSet], idx) -> Optional[TokenSet]:
