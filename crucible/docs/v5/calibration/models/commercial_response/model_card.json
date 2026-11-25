@@ -1,0 +1,816 @@
+{
+ "schema": "crucible.v5.calibration.model_card/1",
+ "name": "commercial_response",
+ "version": 1,
+ "id": "commercial_response@1",
+ "workstream": "E2",
+ "domain": "commercial_intervention_response",
+ "loader": "crucible.calibration.commercial:CommercialResponseModel",
+ "features": [
+  "f0",
+  "f1",
+  "f2",
+  "f3",
+  "f4",
+  "f5",
+  "f6",
+  "f7",
+  "f8",
+  "f9",
+  "f10",
+  "f11"
+ ],
+ "feature_docs": {
+  "f0": "Criteo anonymised feature (random projection, float)",
+  "f1": "Criteo anonymised feature (random projection, float)",
+  "f2": "Criteo anonymised feature (random projection, float)",
+  "f3": "Criteo anonymised feature (random projection, float)",
+  "f4": "Criteo anonymised feature (random projection, float)",
+  "f5": "Criteo anonymised feature (random projection, float)",
+  "f6": "Criteo anonymised feature (random projection, float)",
+  "f7": "Criteo anonymised feature (random projection, float)",
+  "f8": "Criteo anonymised feature (random projection, float)",
+  "f9": "Criteo anonymised feature (random projection, float)",
+  "f10": "Criteo anonymised feature (random projection, float)",
+  "f11": "Criteo anonymised feature (random projection, float)"
+ },
+ "target": "visit and conversion under control and treatment (per-arm probabilities)",
+ "outputs": [
+  "p_visit_control",
+  "p_visit_treated",
+  "p_conversion_control",
+  "p_conversion_treated"
+ ],
+ "identification": {
+  "kind": "randomized_experiment",
+  "statement": "Treatment was randomly assigned within each pooled incrementality test, so per-arm probabilities and their difference given pre-treatment features are experimentally identified intention-to-treat effects (provided the features capture test membership). Treatment ratios differ slightly between the pooled tests (propensity AUC 0.509, max |SMD| 0.048), so the pooled difference in means is not an unbiased average effect; standardised estimates are in post_fit_diagnostics. Exposure is not randomized; the complier (exposure) effect is a Wald estimate under the exclusion restriction.",
+  "conditional_on_features": true
+ },
+ "dataset": {
+  "name": "criteo_uplift_v2.1",
+  "synthetic": false,
+  "url": "https://huggingface.co/datasets/criteo/criteo-uplift/resolve/2424920019e49d52d72c13ac1143ec5d53af276b/criteo-research-uplift-v2.1.csv.gz",
+  "sha256": "2716e1bf0fd157a93b5bf86924d9088419dfbac2022c6cd90030220634f616dc",
+  "manifest": "docs/v5/calibration/datasets/criteo_uplift_v2.1.json",
+  "license": "CC-BY-NC-SA-4.0"
+ },
+ "checkpoint": {
+  "file": "commercial_response.npz",
+  "sha256": "03fadf222425be1dd1a75bd99db0f1bf751e2e608a9e4f70e6fd9a292689550e",
+  "bytes": 830690,
+  "format": "npz (allow_pickle=False)"
+ },
+ "report": "docs/v5/calibration/reports/commercial_response@1.json",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E2_commercial_response.plan.json",
+  "sha256": "4641828c98f15f7e0a6480f01af9677054e0290e5e017a60f99016b281c43d65",
+  "commit": "7d4fb1e20a6350a30f4294f4dd85729ac3e21e38",
+  "committed_at": "2026-11-25T06:26:32+00:00"
+ },
+ "plan_amendments": [
+  {
+   "path": "docs/v5/calibration/plans/E2_amendment_1.plan.json",
+   "sha256": "5b76ff8894f06006130c4d6edde32865e6b8889033de819ee2efb18133bf33f2",
+   "commit": "d0b2a4a3e2badae441a0634a4e54ca38da54c5ff",
+   "committed_at": "2026-11-25T07:02:52+00:00"
+  }
+ ],
+ "stored_candidates": [
+  "constant_effect",
+  "t_logistic",
+  "t_gbdt_reg"
+ ],
+ "fit": {
+  "started_at": "2026-11-25T07:13:48+00:00",
+  "code": "src/crucible/calibration/fit_commercial.py",
+  "commit": "d0b2a4a3e2badae441a0634a4e54ca38da54c5ff",
+  "dirty_paths": [
+   "rucible/docs/v5/REPRODUCE.md",
+   "crucible/tests/test_v5_calibration_software.py",
+   "crucible/docs/v5/components/"
+  ],
+  "clean": false,
+  "command": "python -m crucible.calibration.fit_commercial",
+  "threads": 2,
+  "environment": {
+   "python": "3.12.15",
+   "numpy": "2.5.4",
+   "scikit_learn": "1.9.1",
+   "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39"
+  },
+  "split": {
+   "method": "seeded PCG64 permutation",
+   "seed": 20261125,
+   "digest": "e9b979f40579a03e8b60324ed4549326a3ffcc755f38a5c8446f27437c616649",
+   "counts": {
+    "train": 8387755,
+    "validation": 2795918,
+    "test": 2795919
+   },
+   "treated_share": {
+    "train": 0.8500492682487746,
+    "validation": 0.8500739292067936,
+    "test": 0.8497789099040423
+   }
+  },
+  "sub_models": {
+   "constant_effect/visit_control": {
+    "rate": 0.03820950109322202,
+    "n_train": 1257750,
+    "positives": 48058,
+    "wall_s": 0.1,
+    "portable_max_abs_diff": 0.0
+   },
+   "constant_effect/visit_treated": {
+    "rate": 0.04857836705584358,
+    "n_train": 7130005,
+    "positives": 346364,
+    "wall_s": 0.5,
+    "portable_max_abs_diff": 0.0
+   },
+   "constant_effect/conversion_control": {
+    "rate": 0.0019972172530312066,
+    "n_train": 1257750,
+    "positives": 2512,
+    "wall_s": 0.1,
+    "portable_max_abs_diff": 0.0
+   },
+   "constant_effect/conversion_treated": {
+    "rate": 0.003093125460641332,
+    "n_train": 7130005,
+    "positives": 22054,
+    "wall_s": 0.5,
+    "portable_max_abs_diff": 0.0
+   },
+   "t_logistic/visit_control": {
+    "n_iter": 34,
+    "n_train": 1257750,
+    "positives": 48058,
+    "wall_s": 4.2,
+    "portable_max_abs_diff": 1.1102230246251565e-16
+   },
+   "t_logistic/visit_treated": {
+    "n_iter": 37,
+    "n_train": 7130005,
+    "positives": 346364,
+    "wall_s": 16.5,
+    "portable_max_abs_diff": 2.220446049250313e-16
+   },
+   "t_logistic/conversion_control": {
+    "n_iter": 66,
+    "n_train": 1257750,
+    "positives": 2512,
+    "wall_s": 4.5,
+    "portable_max_abs_diff": 1.1102230246251565e-16
+   },
+   "t_logistic/conversion_treated": {
+    "n_iter": 57,
+    "n_train": 7130005,
+    "positives": 22054,
+    "wall_s": 21.1,
+    "portable_max_abs_diff": 1.1102230246251565e-16
+   },
+   "t_gbdt/visit_control": {
+    "n_iter": 76,
+    "early_stopping": {
+     "iterations_fitted": 96,
+     "best_iteration": 76,
+     "iterations_kept": 76,
+     "validation_loss_at_best": 0.09062018120973396,
+     "validation_loss_at_stop": 0.09062392019610242
+    },
+    "n_train": 1257750,
+    "positives": 48058,
+    "wall_s": 20.3,
+    "portable_max_abs_diff": 2.220446049250313e-16
+   },
+   "t_gbdt/visit_treated": {
+    "n_iter": 298,
+    "early_stopping": {
+     "iterations_fitted": 300,
+     "best_iteration": 298,
+     "iterations_kept": 298,
+     "validation_loss_at_best": 0.10532860365291975,
+     "validation_loss_at_stop": 0.10532868273868985
+    },
+    "n_train": 7130005,
+    "positives": 346364,
+    "wall_s": 165.5,
+    "portable_max_abs_diff": 2.220446049250313e-16
+   },
+   "t_gbdt/conversion_control": {
+    "n_iter": 250,
+    "early_stopping": {
+     "iterations_fitted": 250,
+     "best_iteration": 250,
+     "iterations_kept": 250,
+     "validation_loss_at_best": 0.009395777860045956,
+     "validation_loss_at_stop": 0.009395777860045956
+    },
+    "n_train": 1257750,
+    "positives": 2512,
+    "wall_s": 49.6,
+    "portable_max_abs_diff": 1.1102230246251565e-16
+   },
+   "t_gbdt/conversion_treated": {
+    "n_iter": 1,
+    "early_stopping": {
+     "iterations_fitted": 21,
+     "best_iteration": 1,
+     "iterations_kept": 1,
+     "validation_loss_at_best": 0.020561047191284036,
+     "validation_loss_at_stop": 0.028045844194212955
+    },
+    "n_train": 7130005,
+    "positives": 22054,
+    "wall_s": 11.6,
+    "portable_max_abs_diff": 2.7755575615628914e-17
+   },
+   "t_gbdt_reg/visit_control": {
+    "n_iter": 192,
+    "early_stopping": {
+     "iterations_fitted": 222,
+     "best_iteration": 192,
+     "iterations_kept": 192,
+     "validation_loss_at_best": 0.09055025787719667,
+     "validation_loss_at_stop": 0.0905515461161326
+    },
+    "n_train": 1257750,
+    "positives": 48058,
+    "wall_s": 49.7,
+    "portable_max_abs_diff": 1.1102230246251565e-16
+   },
+   "t_gbdt_reg/visit_treated": {
+    "n_iter": 500,
+    "early_stopping": {
+     "iterations_fitted": 500,
+     "best_iteration": 500,
+     "iterations_kept": 500,
+     "validation_loss_at_best": 0.10528527576460656,
+     "validation_loss_at_stop": 0.10528527576460656
+    },
+    "n_train": 7130005,
+    "positives": 346364,
+    "wall_s": 295.4,
+    "portable_max_abs_diff": 1.1102230246251565e-16
+   },
+   "t_gbdt_reg/conversion_control": {
+    "n_iter": 112,
+    "early_stopping": {
+     "iterations_fitted": 142,
+     "best_iteration": 112,
+     "iterations_kept": 112,
+     "validation_loss_at_best": 0.007908546621488018,
+     "validation_loss_at_stop": 0.007913439824357797
+    },
+    "n_train": 1257750,
+    "positives": 2512,
+    "wall_s": 28.1,
+    "portable_max_abs_diff": 1.1102230246251565e-16
+   },
+   "t_gbdt_reg/conversion_treated": {
+    "n_iter": 315,
+    "early_stopping": {
+     "iterations_fitted": 315,
+     "best_iteration": 315,
+     "iterations_kept": 315,
+     "validation_loss_at_best": 0.01221234163306763,
+     "validation_loss_at_stop": 0.01221234163306763
+    },
+    "n_train": 7130005,
+    "positives": 22054,
+    "wall_s": 178.1,
+    "portable_max_abs_diff": 1.1102230246251565e-16
+   }
+  }
+ },
+ "metrics": {
+  "primary_pooled_logloss_visit_plus_conversion": 0.11425529123936053,
+  "visit_pooled_log_loss": 0.10243654671604335,
+  "visit_pooled_brier": 0.029657421145264394,
+  "visit_pooled_ece": 0.0003762043174792173,
+  "visit_pooled_auc": 0.9473956573842142,
+  "conversion_pooled_log_loss": 0.011818744523317166,
+  "conversion_pooled_brier": 0.0025137549633389975,
+  "conversion_pooled_ece": 4.9578213595138374e-05,
+  "conversion_pooled_auc": 0.9578015081069203,
+  "visit_control_log_loss": 0.08894860710547144,
+  "visit_control_brier": 0.025414042220298836,
+  "visit_control_ece": 0.00041934063350879515,
+  "visit_control_auc": 0.9487973638045036,
+  "visit_treated_log_loss": 0.10482089983169947,
+  "visit_treated_brier": 0.030407551561975398,
+  "visit_treated_ece": 0.000347802434880695,
+  "visit_treated_auc": 0.9470369976965834,
+  "conversion_control_log_loss": 0.008000325293284124,
+  "conversion_control_brier": 0.0016340132153785244,
+  "conversion_control_ece": 0.00014188831263696615,
+  "conversion_control_auc": 0.9593596624488678,
+  "conversion_treated_log_loss": 0.012493751978189992,
+  "conversion_treated_brier": 0.002669272784317244,
+  "conversion_treated_ece": 5.990681174454632e-05,
+  "conversion_treated_auc": 0.957093779081891,
+  "visit_qini_coefficient": 0.08656987815012068,
+  "conversion_qini_coefficient": 0.15917616810975216,
+  "visit_auuc_normalised": 0.2011835162312777,
+  "conversion_auuc_normalised": 0.4200899809218449
+ },
+ "baseline_metrics": {
+  "primary_pooled_logloss_visit_plus_conversion": 0.2091477797282776,
+  "visit_pooled_log_loss": 0.18913796202888578,
+  "visit_pooled_brier": 0.04469086544995775,
+  "visit_pooled_ece": 0.023232500066024148,
+  "visit_pooled_auc": 0.5147137641255228,
+  "conversion_pooled_log_loss": 0.020009817699391873,
+  "conversion_pooled_brier": 0.002926539608456342,
+  "conversion_pooled_ece": 0.0014153798883893077,
+  "conversion_pooled_auc": 0.5270603311583094,
+  "visit_control_log_loss": 0.1620101203038095,
+  "visit_control_brier": 0.036691878724965044,
+  "visit_control_ece": 0.01980416001345199,
+  "visit_control_auc": 0.5,
+  "visit_treated_log_loss": 0.19393353168635313,
+  "visit_treated_brier": 0.04610489972579919,
+  "visit_treated_ece": 0.028021889037940464,
+  "visit_treated_auc": 0.5,
+  "conversion_control_log_loss": 0.013687287780532284,
+  "conversion_control_brier": 0.0018774011535809237,
+  "conversion_control_ece": 0.0013855089762644084,
+  "conversion_control_auc": 0.5,
+  "conversion_treated_log_loss": 0.021127493515425776,
+  "conversion_treated_brier": 0.003112002816022614,
+  "conversion_treated_ece": 0.001529908469327933,
+  "conversion_treated_auc": 0.5,
+  "visit_qini_coefficient": 0.0,
+  "conversion_qini_coefficient": 0.0,
+  "visit_auuc_normalised": 0.0,
+  "conversion_auuc_normalised": 0.0
+ },
+ "candidates": {
+  "constant_effect": {
+   "complexity": 0,
+   "validation": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.20896094236144971,
+    "visit_pooled_log_loss": 0.18938087325308886,
+    "visit_pooled_brier": 0.04476382420258936,
+    "visit_pooled_ece": 0.023230935687271168,
+    "visit_pooled_auc": 0.5146580296074091,
+    "conversion_pooled_log_loss": 0.01958006910836083,
+    "conversion_pooled_brier": 0.0028532965177392048,
+    "conversion_pooled_ece": 0.0013728515302554654,
+    "conversion_pooled_auc": 0.5274851334001939,
+    "visit_control_log_loss": 0.1622753866635983,
+    "visit_control_brier": 0.0367678293787713,
+    "visit_control_ece": 0.01974985628654398,
+    "visit_control_auc": 0.5,
+    "visit_treated_log_loss": 0.19416142111095838,
+    "visit_treated_brier": 0.04617406400036373,
+    "visit_treated_ece": 0.02812940332970002,
+    "visit_treated_auc": 0.5,
+    "conversion_control_log_loss": 0.013280391058145982,
+    "conversion_control_brier": 0.0018121820805052273,
+    "conversion_control_ece": 0.001352189713121521,
+    "conversion_control_auc": 0.5,
+    "conversion_treated_log_loss": 0.02069113244636041,
+    "conversion_treated_brier": 0.0030369160730009666,
+    "conversion_treated_ece": 0.0015180908262513405,
+    "conversion_treated_auc": 0.5,
+    "visit_qini_coefficient": 0.0,
+    "conversion_qini_coefficient": 0.0,
+    "visit_auuc_normalised": 0.0,
+    "conversion_auuc_normalised": 0.0
+   },
+   "test": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.2091477797282776,
+    "visit_pooled_log_loss": 0.18913796202888578,
+    "visit_pooled_brier": 0.04469086544995775,
+    "visit_pooled_ece": 0.023232500066024148,
+    "visit_pooled_auc": 0.5147137641255228,
+    "conversion_pooled_log_loss": 0.020009817699391873,
+    "conversion_pooled_brier": 0.002926539608456342,
+    "conversion_pooled_ece": 0.0014153798883893077,
+    "conversion_pooled_auc": 0.5270603311583094,
+    "visit_control_log_loss": 0.1620101203038095,
+    "visit_control_brier": 0.036691878724965044,
+    "visit_control_ece": 0.01980416001345199,
+    "visit_control_auc": 0.5,
+    "visit_treated_log_loss": 0.19393353168635313,
+    "visit_treated_brier": 0.04610489972579919,
+    "visit_treated_ece": 0.028021889037940464,
+    "visit_treated_auc": 0.5,
+    "conversion_control_log_loss": 0.013687287780532284,
+    "conversion_control_brier": 0.0018774011535809237,
+    "conversion_control_ece": 0.0013855089762644084,
+    "conversion_control_auc": 0.5,
+    "conversion_treated_log_loss": 0.021127493515425776,
+    "conversion_treated_brier": 0.003112002816022614,
+    "conversion_treated_ece": 0.001529908469327933,
+    "conversion_treated_auc": 0.5,
+    "visit_qini_coefficient": 0.0,
+    "conversion_qini_coefficient": 0.0,
+    "visit_auuc_normalised": 0.0,
+    "conversion_auuc_normalised": 0.0
+   }
+  },
+  "t_logistic": {
+   "complexity": 1,
+   "validation": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.1244585007900249,
+    "visit_pooled_log_loss": 0.11196333764304414,
+    "visit_pooled_brier": 0.03141416255491637,
+    "visit_pooled_ece": 0.007845404140935678,
+    "visit_pooled_auc": 0.9296929176386095,
+    "conversion_pooled_log_loss": 0.012495163146980785,
+    "conversion_pooled_brier": 0.0025835743635406103,
+    "conversion_pooled_ece": 0.000384691976999325,
+    "conversion_pooled_auc": 0.9495005820961342,
+    "visit_control_log_loss": 0.09810760863643521,
+    "visit_control_brier": 0.027005507905374024,
+    "visit_control_ece": 0.006246352744701459,
+    "visit_control_auc": 0.9263697432716088,
+    "visit_treated_log_loss": 0.11440704863871563,
+    "visit_treated_brier": 0.03219170936158864,
+    "visit_treated_ece": 0.008150396636390927,
+    "visit_treated_auc": 0.9300116511367261,
+    "conversion_control_log_loss": 0.00855121532919758,
+    "conversion_control_brier": 0.0016626940422868157,
+    "conversion_control_ece": 0.00024392069169456202,
+    "conversion_control_auc": 0.9495917044414816,
+    "conversion_treated_log_loss": 0.013190750412297132,
+    "conversion_treated_brier": 0.0027459884354145646,
+    "conversion_treated_ece": 0.00042995470579960054,
+    "conversion_treated_auc": 0.9489719777158477,
+    "visit_qini_coefficient": 0.08775748940328186,
+    "conversion_qini_coefficient": 0.20537943509468345,
+    "visit_auuc_normalised": 0.20384764951590872,
+    "conversion_auuc_normalised": 0.546247101905216
+   },
+   "test": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.12393978747459988,
+    "visit_pooled_log_loss": 0.1112650542056055,
+    "visit_pooled_brier": 0.0313072124883578,
+    "visit_pooled_ece": 0.007876085193350051,
+    "visit_pooled_auc": 0.9319072242994948,
+    "conversion_pooled_log_loss": 0.012674733268994392,
+    "conversion_pooled_brier": 0.002618979057039977,
+    "conversion_pooled_ece": 0.0004365407594907068,
+    "conversion_pooled_auc": 0.9477201885651564,
+    "visit_control_log_loss": 0.09663362670569905,
+    "visit_control_brier": 0.026826420861846213,
+    "visit_control_ece": 0.006391565106976174,
+    "visit_control_auc": 0.93247078780776,
+    "visit_treated_log_loss": 0.11385154930813061,
+    "visit_treated_brier": 0.03209931193302796,
+    "visit_treated_ece": 0.008189080544598855,
+    "visit_treated_auc": 0.9316391824419603,
+    "conversion_control_log_loss": 0.008658546933171425,
+    "conversion_control_brier": 0.001719000869540506,
+    "conversion_control_ece": 0.0002574788402748093,
+    "conversion_control_auc": 0.9505023934973976,
+    "conversion_treated_log_loss": 0.013384701335234046,
+    "conversion_treated_brier": 0.002778074208511812,
+    "conversion_treated_ece": 0.0004791606927851891,
+    "conversion_treated_auc": 0.9467980252649091,
+    "visit_qini_coefficient": 0.08904613925350911,
+    "conversion_qini_coefficient": 0.20005832618987743,
+    "visit_auuc_normalised": 0.206791698097089,
+    "conversion_auuc_normalised": 0.5282480742783938
+   }
+  },
+  "t_gbdt": {
+   "complexity": 2,
+   "validation": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.12201050989846053,
+    "visit_pooled_log_loss": 0.10312342766844632,
+    "visit_pooled_brier": 0.029772039136033088,
+    "visit_pooled_ece": 0.0003176299952605159,
+    "visit_pooled_auc": 0.9463355368801575,
+    "conversion_pooled_log_loss": 0.018887082230014233,
+    "conversion_pooled_brier": 0.0034280649003046513,
+    "conversion_pooled_ece": 0.002679046609705629,
+    "conversion_pooled_auc": 0.9279156833574942,
+    "visit_control_log_loss": 0.09062018120973396,
+    "visit_control_brier": 0.025616757475387497,
+    "visit_control_ece": 0.0004744104008639364,
+    "visit_control_auc": 0.94501417451255,
+    "visit_treated_log_loss": 0.10532860365291975,
+    "visit_treated_brier": 0.030504898986235728,
+    "visit_treated_ece": 0.00033617598223736097,
+    "visit_treated_auc": 0.946386088403734,
+    "conversion_control_log_loss": 0.009395777852781922,
+    "conversion_control_brier": 0.0017690069813638004,
+    "conversion_control_ece": 0.0003277213119479897,
+    "conversion_control_auc": 0.9380322561923552,
+    "conversion_treated_log_loss": 0.02056104719128366,
+    "conversion_treated_brier": 0.0037206700802297093,
+    "conversion_treated_ece": 0.003100456208466552,
+    "conversion_treated_auc": 0.9318625570267837,
+    "visit_qini_coefficient": 0.08050673668418465,
+    "conversion_qini_coefficient": -0.025930596274208274,
+    "visit_auuc_normalised": 0.18697723592638252,
+    "conversion_auuc_normalised": -0.06930779374948025
+   },
+   "test": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.1215155657602404,
+    "visit_pooled_log_loss": 0.10249667599653384,
+    "visit_pooled_brier": 0.0296783644387209,
+    "visit_pooled_ece": 0.00039570120786431787,
+    "visit_pooled_auc": 0.947335194285052,
+    "conversion_pooled_log_loss": 0.019018889763706553,
+    "conversion_pooled_brier": 0.003450223950750613,
+    "conversion_pooled_ece": 0.002585519264139535,
+    "conversion_pooled_auc": 0.9259491593962609,
+    "visit_control_log_loss": 0.0890978229159263,
+    "visit_control_brier": 0.025456700302483815,
+    "visit_control_ece": 0.0003147832054297043,
+    "visit_control_auc": 0.9485744508413589,
+    "visit_treated_log_loss": 0.10486528069164419,
+    "visit_treated_brier": 0.030424656187284245,
+    "visit_treated_ece": 0.0004157865700779131,
+    "visit_treated_auc": 0.9470023628427112,
+    "conversion_control_log_loss": 0.00936727108107145,
+    "conversion_control_brier": 0.0017975684059713174,
+    "conversion_control_ece": 0.0002807003731771729,
+    "conversion_control_auc": 0.9385439197170463,
+    "conversion_treated_log_loss": 0.02072507082185929,
+    "conversion_treated_brier": 0.0037423749027175298,
+    "conversion_treated_ece": 0.002999866563056121,
+    "conversion_treated_auc": 0.9292685328664642,
+    "visit_qini_coefficient": 0.08434303647657863,
+    "conversion_qini_coefficient": -0.03853771631922243,
+    "visit_auuc_normalised": 0.19601477989686192,
+    "conversion_auuc_normalised": -0.10239906626209543
+   }
+  },
+  "t_gbdt_reg": {
+   "complexity": 2,
+   "validation": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.11464320298716167,
+    "visit_pooled_log_loss": 0.10307611242967958,
+    "visit_pooled_brier": 0.02975352958995374,
+    "visit_pooled_ece": 0.0002720613908165635,
+    "visit_pooled_auc": 0.9463849136465974,
+    "conversion_pooled_log_loss": 0.011567090557482096,
+    "conversion_pooled_brier": 0.002466213477276285,
+    "conversion_pooled_ece": 9.113908778007902e-05,
+    "conversion_pooled_auc": 0.9595025849241542,
+    "visit_control_log_loss": 0.09055025787719667,
+    "visit_control_brier": 0.02559109670050293,
+    "visit_control_ece": 0.0004637470252925131,
+    "visit_control_auc": 0.9451093391085057,
+    "visit_treated_log_loss": 0.10528527576460656,
+    "visit_treated_brier": 0.0304876506900304,
+    "visit_treated_ece": 0.0003176036210204939,
+    "visit_treated_auc": 0.9464320908743018,
+    "conversion_control_log_loss": 0.007908546621488018,
+    "conversion_control_brier": 0.0016012088487776294,
+    "conversion_control_ece": 0.00017890108953836918,
+    "conversion_control_auc": 0.9586256611678713,
+    "conversion_treated_log_loss": 0.01221234163306763,
+    "conversion_treated_brier": 0.0026187728497178695,
+    "conversion_treated_ece": 8.624466483600538e-05,
+    "conversion_treated_auc": 0.9590891354632258,
+    "visit_qini_coefficient": 0.07947960963849998,
+    "conversion_qini_coefficient": 0.14972966170516647,
+    "visit_auuc_normalised": 0.18456664144279752,
+    "conversion_auuc_normalised": 0.3976664385958524
+   },
+   "test": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.11425529123936053,
+    "visit_pooled_log_loss": 0.10243654671604335,
+    "visit_pooled_brier": 0.029657421145264394,
+    "visit_pooled_ece": 0.0003762043174792173,
+    "visit_pooled_auc": 0.9473956573842142,
+    "conversion_pooled_log_loss": 0.011818744523317166,
+    "conversion_pooled_brier": 0.0025137549633389975,
+    "conversion_pooled_ece": 4.9578213595138374e-05,
+    "conversion_pooled_auc": 0.9578015081069203,
+    "visit_control_log_loss": 0.08894860710547144,
+    "visit_control_brier": 0.025414042220298836,
+    "visit_control_ece": 0.00041934063350879515,
+    "visit_control_auc": 0.9487973638045036,
+    "visit_treated_log_loss": 0.10482089983169947,
+    "visit_treated_brier": 0.030407551561975398,
+    "visit_treated_ece": 0.000347802434880695,
+    "visit_treated_auc": 0.9470369976965834,
+    "conversion_control_log_loss": 0.008000325293284124,
+    "conversion_control_brier": 0.0016340132153785244,
+    "conversion_control_ece": 0.00014188831263696615,
+    "conversion_control_auc": 0.9593596624488678,
+    "conversion_treated_log_loss": 0.012493751978189992,
+    "conversion_treated_brier": 0.002669272784317244,
+    "conversion_treated_ece": 5.990681174454632e-05,
+    "conversion_treated_auc": 0.957093779081891,
+    "visit_qini_coefficient": 0.08656987815012068,
+    "conversion_qini_coefficient": 0.15917616810975216,
+    "visit_auuc_normalised": 0.2011835162312777,
+    "conversion_auuc_normalised": 0.4200899809218449
+   }
+  }
+ },
+ "selection": {
+  "rule": "lowest validation pooled log loss (visit + conversion); confirmed on test by paired bootstrap",
+  "kept": "t_gbdt_reg",
+  "baseline": "constant_effect",
+  "comparisons": [
+   {
+    "kept": "t_gbdt_reg",
+    "other": "constant_effect",
+    "metric": "pooled log loss visit + conversion (test)",
+    "kept_minus_other": {
+     "mean": -0.09489248848891711,
+     "se": 0.00031384607729461884,
+     "ci95": [
+      -0.09548737027075745,
+      -0.09424939818603636
+     ],
+     "n_boot": 200
+    },
+    "kept_significantly_worse": false,
+    "validation_kept_minus_other": -0.09431773937428804
+   },
+   {
+    "kept": "t_gbdt_reg",
+    "other": "t_logistic",
+    "metric": "pooled log loss visit + conversion (test)",
+    "kept_minus_other": {
+     "mean": -0.009684496235239369,
+     "se": 9.680189908496567e-05,
+     "ci95": [
+      -0.009871035537808971,
+      -0.009508280257363598
+     ],
+     "n_boot": 200
+    },
+    "kept_significantly_worse": false,
+    "validation_kept_minus_other": -0.009815297802863235
+   },
+   {
+    "kept": "t_gbdt_reg",
+    "other": "t_gbdt",
+    "metric": "pooled log loss visit + conversion (test)",
+    "kept_minus_other": {
+     "mean": -0.00726027452087989,
+     "se": 0.00012103448886131298,
+     "ci95": [
+      -0.007505430835445533,
+      -0.007011269874296842
+     ],
+     "n_boot": 200
+    },
+    "kept_significantly_worse": false,
+    "validation_kept_minus_other": -0.00736730691129886
+   }
+  ],
+  "worse_model_kept": 0
+ },
+ "calibration_metrics": [
+  "log_loss",
+  "brier",
+  "ece_15_equal_mass_bins",
+  "auc",
+  "qini_coefficient",
+  "auuc_normalised"
+ ],
+ "intervention_response": {
+  "visit": {
+   "itt_difference_in_means": {
+    "treated_rate": 0.048452531721489805,
+    "control_rate": 0.03814707408941777,
+    "ate": 0.010305457632072038,
+    "se": 0.00032674987632909977,
+    "ci95": [
+     0.009665027874467002,
+     0.010945887389677073
+    ],
+    "relative_lift": 0.2701506702169547
+   },
+   "model_implied_ate": 0.007384260343921921,
+   "exposure_complier_effect_wald": {
+    "estimate": 0.2852251847419641,
+    "se": 0.009093851946796424,
+    "ci95": [
+     0.2674012349262431,
+     0.3030491345576851
+    ],
+    "exposure_rate_treated": 0.036130952606429616,
+    "assumption": "exclusion restriction: eligibility affects outcomes only through exposure"
+   },
+   "standardised_estimates": {
+    "difference_in_means_unadjusted": 0.010305457632072038,
+    "difference_in_means_se": 0.00032674987632909977,
+    "propensity_stratified": {
+     "estimate": 0.007693058234797263,
+     "se": 0.0003271842108117939,
+     "strata": 18,
+     "ci95": [
+      0.007051777181606147,
+      0.00833433928798838
+     ]
+    },
+    "ipw_hajek": 0.007518043801340656,
+    "model_implied_standardised": 0.007384260343921921
+   }
+  },
+  "conversion": {
+   "itt_difference_in_means": {
+    "treated_rate": 0.0031217473030367695,
+    "control_rate": 0.001880925510587944,
+    "ate": 0.0012408217924488256,
+    "se": 7.602446844182978e-05,
+    "ci95": [
+     0.0010918138343028391,
+     0.001389829750594812
+    ],
+    "relative_lift": 0.6596868326066601
+   },
+   "model_implied_ate": 0.0009605062355454572,
+   "exposure_complier_effect_wald": {
+    "estimate": 0.03434234923072627,
+    "se": 0.0021072812540180396,
+    "ci95": [
+     0.030212077972850915,
+     0.03847262048860163
+    ],
+    "exposure_rate_treated": 0.036130952606429616,
+    "assumption": "exclusion restriction: eligibility affects outcomes only through exposure"
+   },
+   "standardised_estimates": {
+    "difference_in_means_unadjusted": 0.0012408217924488256,
+    "difference_in_means_se": 7.602446844182978e-05,
+    "propensity_stratified": {
+     "estimate": 0.0010686309764863984,
+     "se": 8.015264117936762e-05,
+     "strata": 18,
+     "ci95": [
+      0.0009115317997748379,
+      0.0012257301531979588
+     ]
+    },
+    "ipw_hajek": 0.0011149728559547824,
+    "model_implied_standardised": 0.0009605062355454572
+   }
+  }
+ },
+ "limits": "Absolute rates and effect sizes are not representative: Criteo sub-sampled the data non-uniformly so that the true incrementality level cannot be deduced. Use relative structure (ranking, heterogeneity, the correlation of baseline propensity and effect) and re-base with transport() to the world's own rates. The data pool several incrementality tests of undisclosed advertisers, countries and dates; the population is users reachable by Criteo's display advertising, not a general population. Features f0..f11 are anonymised random projections with no simulator counterpart; the simulator may use only the response-type table, not the feature-level model. The effect is the intention-to-treat effect of eligibility for one advertiser's display campaign over one test period (exposure rate among treated users only 3.6%). It does not identify the response to arbitrary ads, prices, content or repeated campaigns, and it says nothing about long-run, carry-over or saturation effects. No timestamps: no time-based holdout, no dynamics, no seasonality; the holdout is user-level (rows are users) only. Near-duplicate feature vectors occur across rows, so held-out users can resemble training users closely. transport() assumes each type's treatment effect is a constant odds ratio when the baseline rate changes; this is an assumption, not an estimate. Visit and conversion are binary per user over the test period; frequency, basket size and revenue are not observed. Treatment ratios differ slightly between the pooled tests (propensity AUC 0.509): the raw difference in means (visit 0.0103) overstates the standardised average effect (model-implied 0.0074, propensity-stratified 0.0077); the response-type table carries the standardised effects, and a simulated experiment compared with the raw test arms therefore shows a lower effect than the raw difference.",
+ "extrapolation_limits": [
+  "Absolute rates and effect sizes are not representative: Criteo sub-sampled the data non-uniformly so that the true incrementality level cannot be deduced. Use relative structure (ranking, heterogeneity, the correlation of baseline propensity and effect) and re-base with transport() to the world's own rates.",
+  "The data pool several incrementality tests of undisclosed advertisers, countries and dates; the population is users reachable by Criteo's display advertising, not a general population.",
+  "Features f0..f11 are anonymised random projections with no simulator counterpart; the simulator may use only the response-type table, not the feature-level model.",
+  "The effect is the intention-to-treat effect of eligibility for one advertiser's display campaign over one test period (exposure rate among treated users only 3.6%). It does not identify the response to arbitrary ads, prices, content or repeated campaigns, and it says nothing about long-run, carry-over or saturation effects.",
+  "No timestamps: no time-based holdout, no dynamics, no seasonality; the holdout is user-level (rows are users) only. Near-duplicate feature vectors occur across rows, so held-out users can resemble training users closely.",
+  "transport() assumes each type's treatment effect is a constant odds ratio when the baseline rate changes; this is an assumption, not an estimate.",
+  "Visit and conversion are binary per user over the test period; frequency, basket size and revenue are not observed.",
+  "Treatment ratios differ slightly between the pooled tests (propensity AUC 0.509): the raw difference in means (visit 0.0103) overstates the standardised average effect (model-implied 0.0074, propensity-stratified 0.0077); the response-type table carries the standardised effects, and a simulated experiment compared with the raw test arms therefore shows a lower effect than the raw difference."
+ ],
+ "simulator_mapping": {
+  "use": "response types, not features: CommercialResponseModel.sample_types(rng, n) once per simulated individual (store the type index in a population column); when the individual is targeted by an advertising intervention during a campaign period it responds with respond(rng, types, treated=True), otherwise treated=False.",
+  "visit": "a visit to the advertiser's product or storefront during the campaign period (one Bernoulli draw per individual per campaign period)",
+  "conversion": "a purchase from that advertiser during the period; only after a visit",
+  "treated": "the individual is eligible to be targeted by the advertiser's campaign (intention to treat); exposure (an ad actually shown) is a subset",
+  "transport": "transport(control_visit_rate, control_conversion_rate) re-bases the table to the world's own baseline rates keeping each type's odds ratio",
+  "features": "f0..f11 have no simulator counterpart; predict(X) exists only to evaluate and audit the model on Criteo rows"
+ },
+ "fidelity_mechanisms": [
+  "advertising_intervention_response",
+  "advertising_response_heterogeneity"
+ ],
+ "provenance": {
+  "dataset": "criteo_uplift_v2.1",
+  "dataset_sha256": "2716e1bf0fd157a93b5bf86924d9088419dfbac2022c6cd90030220634f616dc",
+  "source": "https://huggingface.co/datasets/criteo/criteo-uplift/resolve/2424920019e49d52d72c13ac1143ec5d53af276b/criteo-research-uplift-v2.1.csv.gz",
+  "license": {
+   "spdx": "CC-BY-NC-SA-4.0",
+   "summary": "Creative Commons Attribution-NonCommercial-ShareAlike 4.0 (dataset card on the Criteo-owned Hugging Face repository). Attribution: Diemert, Betlei, Renaudin and Amini, 'A Large Scale Benchmark for Uplift Modeling', AdKDD 2018. Fitted parameters derived from it are shared under the same license, non-commercially.",
+   "text_locations": [
+    "https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode",
+    "https://huggingface.co/datasets/criteo/criteo-uplift/blob/2424920019e49d52d72c13ac1143ec5d53af276b/README.md"
+   ]
+  },
+  "fit_commit": "d0b2a4a3e2badae441a0634a4e54ca38da54c5ff",
+  "plan_commit": "7d4fb1e20a6350a30f4294f4dd85729ac3e21e38",
+  "citation": "Diemert, Betlei, Renaudin, Amini. A Large Scale Benchmark for Uplift Modeling. AdKDD 2018."
+ },
+ "response_types": {
+  "K": 64,
+  "construction": "validation split, 8 x 8 equal-mass bins of predicted control visit probability and predicted visit effect",
+  "usable": true,
+  "acceptance_rule": "lower bound of the 95% bootstrap interval of the weighted type-level visit-uplift correlation on test > 0",
+  "test_visit_weighted_corr": 0.9695775000412208,
+  "test_visit_weighted_corr_ci95": [
+   0.9481357163730211,
+   0.9784252100867571
+  ],
+  "test_visit_calibration_slope": 0.839167748757684,
+  "test_conversion_weighted_corr": 0.9795228260791524,
+  "honest_estimate_test_visit_weighted_corr": 0.9880212464437308,
+  "honest_estimate_test_visit_calibration_slope": 1.0056901869360786,
+  "honest_estimate_test_visit_weighted_mae": 0.001704806471872607,
+  "model_estimate_test_visit_weighted_mae": 0.0028639176603787314,
+  "default_estimate": "model (prespecified); response_types('honest') is reported as a secondary analysis"
+ },
+ "post_fit_diagnostics": {
+  "report_key": "post_fit_diagnostics",
+  "note": "Post-fit diagnostic (not prespecified, does not change the model or its selection). The data pool several incrementality tests whose treatment ratios differ, so treatment is random within a test but slightly associated with the features in the pooled data. Effects conditional on the features (the per-arm models) remain experimentally identified if the features capture test membership; the pooled difference in means is not a valid average effect, and standardised estimates (model-implied, propensity-stratified, IPW) are reported instead."
+ }
+}

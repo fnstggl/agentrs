@@ -130,7 +130,13 @@ def test_intervention_response_is_reported_with_uncertainty(model, report):
         assert itt["ci95"][0] > 0                     # randomized: eligibility for targeting raises visits and conversions
         cace = ir["exposure_complier_effect_wald"]
         assert cace["estimate"] == pytest.approx(itt["ate"] / cace["exposure_rate_treated"], rel=1e-9)
+        std = ir["standardised_estimates"]
+        assert std["propensity_stratified"]["ci95"][0] > 0
+        assert std["model_implied_standardised"] == pytest.approx(ir["model_implied_ate"], abs=1e-12)
     assert model.card["identification"]["kind"] == "randomized_experiment"
+    assert model.card["identification"]["conditional_on_features"] is True
+    diag = report["post_fit_diagnostics"]
+    assert diag["share_without_overlap"] == 0.0 and 0.5 <= diag["propensity_auc_validation"] < 0.6
 
 
 def test_response_type_table_is_valid_and_heldout_validated(model, report):
@@ -144,8 +150,13 @@ def test_response_type_table_is_valid_and_heldout_validated(model, report):
     assert rt["usable"] == (tv["weighted_corr_ci95"][0] > 0)
     assert rt["usable"] is True
     assert tv["types_compared"] >= 32
-    sim = report["response_types"]["simulated_experiment"]["visit"]
-    assert abs(sim["ate_difference"]) < 4 * sim["ate_difference_se"]
+    # the table's average effect agrees with the design-based, composition-adjusted estimate on held-out users
+    diag = report["post_fit_diagnostics"]["average_effects_test"]
+    w = tab["weight"]
+    for o in OUTCOMES:
+        table_ate = float(np.dot(w, tab[f"p1_{o}"] - tab[f"p0_{o}"]))
+        strat = diag[o]["propensity_stratified"]
+        assert abs(table_ate - strat["estimate"]) < 3 * strat["se"], (o, table_ate, strat)
 
 
 def test_sampling_and_response_reproduce_the_table(model):
@@ -188,7 +199,8 @@ def test_scoring_matches_reference_implementations():
     assert S.auc(y, p) == pytest.approx(M.roc_auc_score(y, p), abs=1e-12)
     assert S.average_precision(y, p) == pytest.approx(M.average_precision_score(y, p), abs=1e-12)
     t = rng.random(5000) < 0.5
-    perfect = y * t - y * (~t)
+    yf = y.astype(float)
+    perfect = yf * t - yf * (~t)
     assert S.qini_coefficient(y, t, perfect)["qini_coefficient"] == pytest.approx(1.0)
     assert S.qini_coefficient(y, t, np.zeros(5000))["qini_coefficient"] == pytest.approx(0.0, abs=1e-12)
     assert S.auuc_normalised(y, t, perfect) == pytest.approx(1.0)

@@ -421,14 +421,118 @@ def main(threads: int = 4, max_rows: int | None = None) -> dict:
     }
     write_report(MODEL_ID, rep)
     print("kept", kept, "worse_model_kept", worse, "types usable", usable, "wall", rep["wall_s"], flush=True)
+    if not max_rows:
+        rep["post_fit_diagnostics"] = diagnostics(threads)
     return rep
+
+
+BALANCE_NOTE = ("Post-fit diagnostic (not prespecified, does not change the model or its selection). The data pool several "
+                "incrementality tests whose treatment ratios differ, so treatment is random within a test but slightly "
+                "associated with the features in the pooled data. Effects conditional on the features (the per-arm models) "
+                "remain experimentally identified if the features capture test membership; the pooled difference in means "
+                "is not a valid average effect, and standardised estimates (model-implied, propensity-stratified, IPW) are "
+                "reported instead.")
+
+
+def diagnostics(threads: int = 2, n_strata: int = 20) -> dict:
+    """Covariate balance between arms and composition-adjusted average effects; writes them into the report and card."""
+    import json
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from threadpoolctl import threadpool_limits
+    from .fitmeta_e2 import jsonable
+    from .registry_e2 import MODELS_DIR, model_card
+    started = now()
+    data = criteo.load(); lab = criteo.splits()
+    X = np.asarray(data["X"], dtype=np.float64); T = np.asarray(data["treatment"]).astype(bool)
+    tr, va, te = (lab == 0), (lab == 1), (lab == 2)
+    s = np.sqrt((X[tr & T].var(0) + X[tr & ~T].var(0)) / 2)
+    smd = (X[tr & T].mean(0) - X[tr & ~T].mean(0)) / s
+    sub = np.random.default_rng(0).choice(np.flatnonzero(tr), 2_000_000, replace=False)
+    with threadpool_limits(threads):
+        pm = HistGradientBoostingClassifier(max_iter=100, random_state=0).fit(X[sub], T[sub])
+        e_va = pm.predict_proba(X[va])[:, 1]; e_te = pm.predict_proba(X[te])[:, 1]
+    tt = T[te]
+    out = {"started_at": started, "note": BALANCE_NOTE,
+           "standardised_mean_differences_train": dict(zip(criteo.FEATURES, smd.tolist())),
+           "max_abs_smd": float(np.max(np.abs(smd))), "expected_abs_smd_if_unconfounded": float(1 / math.sqrt((tr & ~T).sum())),
+           "propensity_model": "HistGradientBoostingClassifier(max_iter=100) on 2,000,000 random training rows",
+           "propensity_auc_validation": S.auc(T[va], e_va),
+           "propensity_quantiles_test": dict(zip(["q01", "q05", "q50", "q95", "q99"], np.quantile(e_te, [.01, .05, .5, .95, .99]).tolist())),
+           "average_effects_test": {}}
+    card = model_card(MODEL_ID)
+    rep_path = os.path.join(REPORTS_DIR, f"{MODEL_ID}.json")
+    with open(rep_path) as fh:
+        rep = json.load(fh)
+    # quantile strata that never split a group of tied propensities (ties are common, and the file order within a tie
+    # group is correlated with treatment, so rank-based splitting would separate the arms)
+    edges = np.unique(np.quantile(e_te, np.linspace(0, 1, n_strata + 1))[1:-1])
+    st = np.searchsorted(edges, e_te, side="right")
+    n_strata = int(st.max()) + 1
+    strata = [{"stratum": k, "n": int((st == k).sum()), "n_control": int(((st == k) & ~tt).sum()),
+               "propensity_min": float(e_te[st == k].min()), "propensity_max": float(e_te[st == k].max())}
+              for k in range(n_strata)]
+    overlap = [s_["n_control"] > 0 and s_["n_control"] < s_["n"] for s_ in strata]
+    out["strata"] = strata
+    out["share_without_overlap"] = float(sum(s_["n"] for s_, ok in zip(strata, overlap) if not ok) / e_te.size)
+    for o in OUTCOMES:
+        y = np.asarray(data[o])[te].astype(np.float64)
+        est, var = 0.0, 0.0
+        n_ok = sum(s_["n"] for s_, ok in zip(strata, overlap) if ok)
+        for k in range(n_strata):
+            if not overlap[k]:
+                continue
+            m = st == k; m1 = m & tt; m0 = m & ~tt
+            p1, p0 = y[m1].mean(), y[m0].mean()
+            wk = m.sum() / n_ok
+            est += wk * (p1 - p0); var += wk ** 2 * (p1 * (1 - p1) / m1.sum() + p0 * (1 - p0) / m0.sum())
+        w1 = tt / e_te; w0 = ~tt / (1 - e_te)
+        ipw = float(np.dot(w1, y) / w1.sum() - np.dot(w0, y) / w0.sum())
+        dim = rep["intervention_response"][o]["itt_difference_in_means"]
+        out["average_effects_test"][o] = {
+            "difference_in_means_unadjusted": dim["ate"], "difference_in_means_se": dim["se"],
+            "propensity_stratified": {"estimate": est, "se": math.sqrt(var), "strata": n_strata,
+                                      "ci95": [est - 1.96 * math.sqrt(var), est + 1.96 * math.sqrt(var)]},
+            "ipw_hajek": ipw, "model_implied_standardised": rep["intervention_response"][o]["model_implied_ate"]}
+    out["finished_at"] = now()
+    rep["post_fit_diagnostics"] = out
+    for o in OUTCOMES:
+        rep["intervention_response"][o]["standardised_estimates"] = out["average_effects_test"][o]
+    write_report(MODEL_ID, rep)
+    card["identification"]["statement"] = (
+        "Treatment was randomly assigned within each pooled incrementality test, so per-arm probabilities and their "
+        "difference given pre-treatment features are experimentally identified intention-to-treat effects (provided the "
+        "features capture test membership). Treatment ratios differ slightly between the pooled tests (propensity AUC "
+        f"{out['propensity_auc_validation']:.3f}, max |SMD| {out['max_abs_smd']:.3f}), so the pooled difference in means is "
+        "not an unbiased average effect; standardised estimates are in post_fit_diagnostics. Exposure is not randomized; "
+        "the complier (exposure) effect is a Wald estimate under the exclusion restriction.")
+    card["identification"]["conditional_on_features"] = True
+    for o in OUTCOMES:
+        card["intervention_response"][o]["standardised_estimates"] = out["average_effects_test"][o]
+    lim = ("Treatment ratios differ slightly between the pooled tests (propensity AUC %.3f): the raw difference in means "
+           "(visit %.4f) overstates the standardised average effect (model-implied %.4f, propensity-stratified %.4f); the "
+           "response-type table carries the standardised effects, and a simulated experiment compared with the raw test "
+           "arms therefore shows a lower effect than the raw difference." % (
+               out["propensity_auc_validation"], out["average_effects_test"]["visit"]["difference_in_means_unadjusted"],
+               out["average_effects_test"]["visit"]["model_implied_standardised"],
+               out["average_effects_test"]["visit"]["propensity_stratified"]["estimate"]))
+    card["extrapolation_limits"] = [l for l in card["extrapolation_limits"] if not l.startswith("Treatment ratios differ")] + [lim]
+    card["limits"] = " ".join(card["extrapolation_limits"])
+    card["post_fit_diagnostics"] = {"report_key": "post_fit_diagnostics", "note": BALANCE_NOTE}
+    with open(os.path.join(MODELS_DIR, NAME, "model_card.json"), "w") as fh:
+        json.dump(jsonable(card), fh, indent=1)
+    print(json.dumps(jsonable(out["average_effects_test"]), indent=1), out["propensity_auc_validation"], flush=True)
+    return out
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--threads", type=int, default=4)
     ap.add_argument("--max-rows", type=int, default=None, help="smoke run on a subsample (set CRUCIBLE_E2_CAL_DIR)")
+    ap.add_argument("--diagnostics", action="store_true", help="only add the post-fit balance diagnostics to the saved model")
     a = ap.parse_args()
     if a.max_rows and not os.environ.get("CRUCIBLE_E2_CAL_DIR"):
         raise SystemExit("--max-rows writes a smoke model; set CRUCIBLE_E2_CAL_DIR to a scratch directory")
-    main(a.threads, a.max_rows)
+    if a.diagnostics:
+        diagnostics(a.threads)
+    else:
+        main(a.threads, a.max_rows)
