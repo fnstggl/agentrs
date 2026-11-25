@@ -177,6 +177,17 @@ class ReplaySampler:
             elif not row[1]:
                 self._flip(stratum, row[0], 1)
 
+    def _append_new(self, items: list) -> None:
+        """Ingestion of events after the cursor: they have no membership rows yet (rows of later events are
+        truncated by ``load_state_dict``), so rows are appended directly; an existing row is left untouched."""
+        for stratum, g in items:
+            n = self._n.get(stratum, 0)
+            cur = self._db.execute("INSERT OR IGNORE INTO members(stratum, pos, gseq, live) VALUES (?,?,?,1)",
+                                   (stratum, n, g))
+            if cur.rowcount:
+                self._n[stratum] = n + 1
+                self._live[stratum] = self._live.get(stratum, 0) + 1
+
     def _remove(self, stratum: str, pos: int) -> None:
         self._flip(stratum, pos, 0)
 
@@ -218,6 +229,7 @@ class ReplaySampler:
             self.archive_epoch = ep
             self.stats["rebuilds"] += 1
         self._db.execute("INSERT OR REPLACE INTO skv(key, value) VALUES ('archive_epoch', ?)", (ep,))
+        self._persist()
 
     def sync(self, max_events: Optional[int] = None) -> int:
         """Bring membership tables up to date with the archive (new events + tag changes). Returns events consumed."""
@@ -235,7 +247,7 @@ class ReplaySampler:
                 n += 1
                 if max_events is not None and n >= max_events:
                     break
-            self._add(items)
+            self._append_new(items)
             self._persist()
             if max_events is not None and n >= max_events:
                 break
