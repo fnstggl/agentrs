@@ -52,6 +52,7 @@ from typing import Any, Callable, Optional
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from .constraints import (JsonStringTables, PatternMasks, UnsupportedSchema, compile_pattern)
 from .layers import ContextReader, RMSNorm, masked_entropy, masked_log_softmax
@@ -75,10 +76,14 @@ class GrammarOptions:
     untyped_depth: int = 2
     default_num_bound: float = 1e15        # replaces a missing minimum / maximum (recorded as a reduction)
     max_copy_candidates: int = 24          # numbers of the selected evidence offered to the copy pointer
-    max_string_tokens: int = 1536          # cfg.max_arg_tokens
+    max_string_tokens: int = 1536          # cfg.max_arg_tokens: the cap of code / file fields (string class "code")
     max_key_tokens: int = 48
     max_action_tokens: int = 3072
     slot_chars: int = 320
+    # schema-derived token caps of the other free-string classes (see `string_class`); never above max_string_tokens
+    short_string_tokens: int = 96          # identifiers, handles, names, titles, short references
+    text_string_tokens: int = 768          # prose: descriptions, bodies, notes, messages, comments
+    length_prior: bool = True              # learned stop hazard mixed into the decoder's closing probability
 
     @property
     def kinds(self) -> list:
@@ -315,6 +320,8 @@ class Node:
     max_len: int = MAX_STRING
     num: Any = None                                 # integer/number: NumberGrid | DecimalSpec
     dropped: list = field(default_factory=list)     # optional properties that can never be generated (logged)
+    str_class: str = "short"                        # string: "short" | "text" | "code" (string_class)
+    tok_cap: int = 0                                # string: schema-derived token cap of the hole (incl. the quote)
 
     @property
     def slot_text(self) -> str:
@@ -341,6 +348,51 @@ class Node:
         if self.kind == "union":
             return any(o.has_number() for o in self.options.values())
         return False
+
+
+STRING_CLASSES = ("short", "text", "code")
+_CODE_NAME = re.compile(r"(?:^|[_\-])(code|source|src|script|program|patch|diff|files?|contents?|html|css|sql|"
+                        r"notebook|module)$", re.IGNORECASE)
+_CODE_DESC = re.compile(r"source code|python|program text|file contents?|script body", re.IGNORECASE)
+_TEXT_NAME = re.compile(r"(?:^|[_\-])(body|text|description|desc|note|notes|message|comment|bio|memo|reason|summary|"
+                        r"readme|prompt|answer|reply|details?|content_text|abstract|instructions?)$", re.IGNORECASE)
+# token caps implied by JSON-schema `format` hints (generous: Qwen tokens per character are >= 1/4 on such text)
+FORMAT_TOKENS = {"date-time": 48, "date": 24, "time": 24, "duration": 32, "email": 96, "idn-email": 96,
+                 "hostname": 96, "idn-hostname": 96, "ipv4": 24, "ipv6": 64, "uuid": 48, "uri": 256, "url": 256,
+                 "iri": 256, "uri-reference": 256, "iri-reference": 256, "json-pointer": 128, "regex": 128}
+
+
+def _field_name(path: str) -> str:
+    """Last named segment of a slot path ('.files.*' -> 'files', '.tags[]' -> 'tags')."""
+    for seg in reversed(re.split(r"[.\[\]]+", path or "")):
+        if seg and seg != "*":
+            return seg
+    return ""
+
+
+def string_class(path: str, desc: str, s: dict) -> str:
+    """Schema-derived class of a free string slot, which sets its token cap and its length prior:
+    "code" (code / file-content fields by name or description: keeps opts.max_string_tokens = cfg.max_arg_tokens),
+    "text" (prose fields by name, or any string whose maxLength is >= 1000 or absent) and "short" (everything else:
+    identifiers, handles, names, titles, references). Names are the environment's own field names; a randomised field
+    name with a long maxLength still lands in "text"."""
+    name = _field_name(path)
+    if _CODE_NAME.search(name) or _CODE_DESC.search(desc or ""):
+        return "code"
+    mx = s.get("maxLength")
+    if _TEXT_NAME.search(name) or mx is None or int(mx) >= 1000:
+        return "text"
+    return "short"
+
+
+def string_token_cap(cls: str, s: dict, opts: "GrammarOptions") -> int:
+    """Token cap of a free-string hole (including its closing quote) before the maxLength bound."""
+    cap = {"code": opts.max_string_tokens, "text": opts.text_string_tokens,
+           "short": opts.short_string_tokens}[cls]
+    fmt = s.get("format")
+    if isinstance(fmt, str) and fmt in FORMAT_TOKENS and cls != "code":
+        cap = FORMAT_TOKENS[fmt]
+    return int(min(cap, opts.max_string_tokens))
 
 
 def _compact(s: dict) -> str:
@@ -382,7 +434,8 @@ def _untyped(path: str, depth: int, opts: GrammarOptions, red: list) -> Node:
     opt = {"null": Node("null", path), "boolean": Node("boolean", path),
            "integer": _number_node("integer", path, "", "", -b, b, opts, sink),
            "number": _number_node("number", path, "", "", -b, b, opts, sink),
-           "string": Node("string", path)}
+           "string": Node("string", path, str_class="text",
+                          tok_cap=min(opts.text_string_tokens, opts.max_string_tokens))}
     if depth > 0:
         opt["object"] = Node("object", path, extra=_untyped(path + ".*", depth - 1, opts, sink))
         opt["array"] = Node("array", path, item=_untyped(path + "[]", depth - 1, opts, sink), lo=0,
@@ -500,9 +553,18 @@ def compile_schema(s: Any, path: str, opts: GrammarOptions, depth: int, red: Opt
         else:
             if not JsonStringTables.feasible(mn, mx, opts.max_string_tokens):
                 raise UnsupportedSchema(f"{path}: length bounds infeasible")
-            if mx > opts.max_string_tokens - 1:
+            cls = string_class(path, desc, s)
+            # a token adds >= 1 decoded character except a lone backslash (which the next token completes), so a
+            # string of at most mx characters never needs more than 2*mx + 1 tokens (incl. the quote); minLength
+            # characters always fit in mn + 1 tokens
+            full = 2 * mx + 1
+            cap = max(min(string_token_cap(cls, s, opts), full), mn + 1)
+            node.str_class, node.tok_cap = cls, cap
+            if cap < full:
+                fmt = s.get("format")
                 red.append({"path": path, "kind": "string_cap",
-                            "detail": f"<= {opts.max_string_tokens - 1} tokens (maxLength {mx})"})
+                            "detail": f"{cls} string <= {cap - 1} tokens (maxLength {mx}"
+                                      f"{', format ' + fmt if isinstance(fmt, str) and fmt in FORMAT_TOKENS else ''})"})
         return node
     if t in ("integer", "number"):
         return _number_node(t, path, desc, st, s.get("minimum"), s.get("maximum"), opts, red)
@@ -526,6 +588,10 @@ class ToolGrammar:
         try:
             red: list = []
             root = compile_schema(params, "", opts, opts.untyped_depth, red)
+            if any(r["kind"] == "untyped" for r in red) and \
+                    min(opts.text_string_tokens, opts.max_string_tokens) < opts.max_string_tokens:
+                red.append({"path": "", "kind": "string_cap", "detail": f"untyped strings <= "
+                            f"{min(opts.text_string_tokens, opts.max_string_tokens) - 1} tokens"})
             if root.kind != "object":
                 raise UnsupportedSchema("top-level arguments schema must be an object")
             self.root = root
@@ -980,6 +1046,101 @@ class Program:
     holes: list                    # list[Hole]
     reserve: list                  # per-hole minimal token need
     cap: list                      # per-hole base cap
+    cls: list = field(default_factory=list)   # per-hole string class index (STRING_CLASSES) of the length prior
+    hz_off: Any = None             # [n_holes] float tensor: learned per-hole stop-logit offsets (None = no prior)
+
+
+def hole_class(h: Hole) -> str:
+    """Length-prior class of a hole: keys and pattern strings are short; free strings carry their slot's class."""
+    if h.kind == "str":
+        return h.node.str_class
+    return "short"
+
+
+class LengthHead(nn.Module):
+    """Learned stop hazard of free-string holes (the length prior of the untrained decoder; trainable end to end).
+
+    At every token of a hole whose constraint allows both closing and continuing, the decoder's next-token
+    distribution is the mixture
+
+        p(t) = lam * [t closes] p_LM(t) / P_close  +  (1 - lam) * p_LM(t)          (P_close = sum over closing tokens)
+
+    i.e. with probability lam the string is closed now (choosing among the closing tokens - a lone '"' or 'abc"' - by
+    the LM's own relative probabilities); otherwise the LM's distribution is used unchanged, so the LM can still close
+    whenever it wants: P(stop) = lam + (1 - lam) P_close >= P_close, and lam -> 0 recovers the pure LM. The hazard is
+    a soft length limit with a per-class ceiling
+
+        lam(n) = sigmoid(m_c) * sigmoid((n - L_c) / w_c + h_theta(slot schema embedding, tool token, CAM summary))
+
+    with n = tokens already in the hole, per-class learned ceiling m_c (logit), location L_c and scale w_c (stored as
+    logs) and a zero-initialised MLP h_theta (so lam depends on CAM's latent state through the tool-pointer summary of
+    [R; G; B] and on the field's schema). Initial values (tokens): short (L 32, w 3, ceiling 0.999), text (192, 24,
+    0.999), code (256, 32, 1/192). An untrained decoder that never closes a string therefore stops after about 28
+    (short), 104 (text) or 441 (code) tokens in expectation (`expected_length`) instead of running to the hard cap
+    (1,536 tokens for code before), while the prior cuts a string the LM would close itself after 12 tokens with
+    probability 0.3% (short) / 0.5% (text) and after 40 tokens 3% (text). The code ceiling keeps long code possible at
+    init: a never-closing code string survives 1,068 tokens (a measured code.commit) with probability 1.4%, i.e. the
+    prior costs such a file ~4 nats. Every parameter
+    receives gradients from the exact log-probabilities (closing and continuing tokens both carry the stop factor), so
+    behaviour cloning / RL move L_c, w_c, m_c and h_theta when other lengths are needed; the hard caps stay the
+    schema-derived ones (string_token_cap)."""
+
+    PRIOR = {"short": (32.0, 3.0, 0.999), "text": (192.0, 24.0, 0.999), "code": (256.0, 32.0, 1.0 / 192.0)}
+
+    def __init__(self, d: int, sem_dim: int):
+        super().__init__()
+        self.slot_proj = nn.Sequential(RMSNorm(sem_dim), nn.Linear(sem_dim, d))
+        self.ff = nn.Sequential(RMSNorm(d), nn.Linear(d, d), nn.SiLU(), nn.Linear(d, 1))
+        nn.init.zeros_(self.ff[-1].weight)
+        nn.init.zeros_(self.ff[-1].bias)
+        pr = [self.PRIOR[c] for c in STRING_CLASSES]
+        self.log_L = nn.Parameter(torch.tensor([p[0] for p in pr]).log())
+        self.log_w = nn.Parameter(torch.tensor([p[1] for p in pr]).log())
+        self.ceil_logit = nn.Parameter(torch.tensor([math.log(p[2] / (1 - p[2])) for p in pr]))
+
+    def offsets(self, slot_emb: torch.Tensor, tool_tok: torch.Tensor, summary: torch.Tensor) -> torch.Tensor:
+        """Per-hole offsets [n] float32 from slot embeddings [n, H], tool tokens [n, D], decision summaries [n, D]."""
+        x = self.slot_proj(slot_emb.to(tool_tok.device)) + tool_tok + summary
+        return self.ff(x).squeeze(-1).float()
+
+    def log_hazard(self, off: torch.Tensor, cls: torch.Tensor, n: torch.Tensor) -> torch.Tensor:
+        """log lam [m] for holes with offsets off [m], class indices cls [m] and n [m] tokens so far."""
+        L = self.log_L.float().exp()[cls]
+        w = self.log_w.float().exp()[cls]
+        return F.logsigmoid(self.ceil_logit.float()[cls]) + F.logsigmoid(off.float() + (n.float() - L) / w)
+
+    def expected_length(self, off: float = 0.0, cls: str = "short", horizon: int = 8192) -> float:
+        """Expected tokens until the prior alone stops a string (an LM that never closes), truncated at `horizon`."""
+        with torch.no_grad():
+            dev = self.log_L.device
+            c = torch.full((horizon,), STRING_CLASSES.index(cls), dtype=torch.long, device=dev)
+            n = torch.arange(horizon, device=dev, dtype=torch.float32)
+            lam = self.log_hazard(torch.full((horizon,), float(off), device=dev), c, n).exp()
+            surv = torch.cumprod(torch.cat([torch.ones(1, device=dev), 1 - lam[:-1]]), 0)
+            return float((surv * lam * (n + 1)).sum() + surv[-1] * (1 - lam[-1]) * horizon)
+
+
+def stop_mixture_log_softmax(logits: torch.Tensor, allowed: torch.Tensor, close: torch.Tensor, temperature,
+                             log_lam: Optional[torch.Tensor]) -> torch.Tensor:
+    """Log-probabilities [P, V] of the stop-hazard mixture (LengthHead) over the allowed tokens; log_lam [P] the log
+    stop hazards (None = the pure tempered LM). Rows that cannot close (or must close) are the pure LM restricted to
+    the mask."""
+    lp = masked_log_softmax(logits, allowed, temperature)
+    if log_lam is None:
+        return lp
+    close = close & allowed
+    has_c = close.any(-1)
+    mix = has_c & (allowed & ~close).any(-1)
+    lse_c = torch.logsumexp(lp.masked_fill(~close, -torch.inf), -1)
+    lse_c = torch.where(has_c, lse_c, torch.zeros_like(lse_c))           # no NaN in the unused branch / backward
+    log_lam = log_lam.float().clamp(max=math.log1p(-1e-6))
+    log_1m = torch.log1p(-log_lam.exp())
+    adj_c = torch.logaddexp(log_lam, log_1m + lse_c) - lse_c             # log(lam + (1-lam) P_c) - log P_c
+    zero = torch.zeros_like(adj_c)
+    adj_c = torch.where(mix, adj_c, zero)
+    adj_n = torch.where(mix, log_1m, zero)
+    out = lp + torch.where(close, adj_c.unsqueeze(1), adj_n.unsqueeze(1))
+    return out.masked_fill(~allowed, -torch.inf)
 
 
 def hole_reserve(h: Hole) -> int:
@@ -1003,6 +1164,8 @@ class HoleFiller:
         self._pmask: dict = {}
         tok = enc.tok
         self.stub_ids = tok("<think>\n\n</think>\n\n", add_special_tokens=False)["input_ids"]
+        self.length_head: Optional[LengthHead] = None       # set by the action generator (opts.length_prior)
+        self.merged_acting = True                           # sample() decodes with merged LoRA weights (enc.acting)
 
     # ---------------------------------------------------------------- prompts and programs
     def _clip_ids(self, ids: list, keep: int) -> tuple:
@@ -1086,14 +1249,17 @@ class HoleFiller:
         cap = []
         for h in holes:
             # a token adds >= 1 decoded character except a lone backslash (which the next token completes), so a
-            # string of at most max_len characters never needs more than 2*max_len + 1 tokens (incl. the quote)
+            # string of at most max_len characters never needs more than 2*max_len + 1 tokens (incl. the quote);
+            # free strings carry their schema-derived cap (string_class / string_token_cap)
             if h.kind == "pattern":
                 cap.append(min(self.opts.max_string_tokens, h.max_len + 1))
             elif h.kind == "key":
                 cap.append(min(self.opts.max_key_tokens, 2 * h.max_len + 1))
+            elif h.node.tok_cap > 0:
+                cap.append(h.node.tok_cap)
             else:
                 cap.append(min(self.opts.max_string_tokens, 2 * h.max_len + 1))
-        return Program(forced, holes, reserve, cap)
+        return Program(forced, holes, reserve, cap, [STRING_CLASSES.index(hole_class(h)) for h in holes])
 
     # ---------------------------------------------------------------- masks
     def _pattern_masks(self, h: Hole) -> PatternMasks:
@@ -1103,15 +1269,18 @@ class HoleFiller:
             self._pmask[id(h.dfa)] = pm
         return pm
 
-    def masks(self, specs: list) -> torch.Tensor:
-        """specs: list of (hole, state, count, remaining) -> allowed-token masks [P, V]."""
+    def masks(self, specs: list) -> tuple:
+        """specs: list of (hole, state, count, remaining) -> (allowed-token masks [P, V], closing-token masks [P, V]:
+        the allowed tokens that end the string, i.e. carry its closing quote)."""
         T = self.tables
         P = len(specs)
         out = torch.zeros(P, T.V, dtype=torch.bool, device=T.valid.device)
+        close = torch.zeros(P, T.V, dtype=torch.bool, device=T.valid.device)
         srows = [i for i, sp in enumerate(specs) if sp[0].kind != "pattern"]
         for i, sp in enumerate(specs):
             if sp[0].kind == "pattern":
                 out[i] = self._pattern_masks(sp[0]).mask(sp[1], sp[2], sp[3], sp[0].min_len, sp[0].max_len)
+                close[i, T.quote_id] = out[i, T.quote_id]
         for c0 in range(0, len(srows), 64):
             rows = srows[c0: c0 + 64]
             dev = T.valid.device
@@ -1128,8 +1297,27 @@ class HoleFiller:
             r1 = rem - 1
             cont0 = (e == 0) & (c1 <= mx) & (need0 + 1 <= r1)
             cont1 = (e == 1) & (c1 + 1 <= mx) & (need1 + 2 <= r1)
-            out[torch.tensor(rows, device=dev)] = close_ok | (v & ~cl & (cont0 | cont1))
-        return out
+            rt = torch.tensor(rows, device=dev)
+            out[rt] = close_ok | (v & ~cl & (cont0 | cont1))
+            close[rt] = close_ok
+        return out, close
+
+    def hazard(self, programs: list, items: list) -> Optional[torch.Tensor]:
+        """Log stop hazards [m] of (row, hole index, tokens so far) items (None when no program carries a length prior)."""
+        head = self.length_head
+        if head is None or not items or all(programs[r].hz_off is None for r, _, _ in items):
+            return None
+        dev = self.tables.valid.device
+        offs = [programs[r].hz_off[k] if programs[r].hz_off is not None else None for r, k, _ in items]
+        zero = torch.zeros((), device=dev)
+        off = torch.stack([o.float() if o is not None else zero for o in offs])
+        cls = torch.tensor([programs[r].cls[k] for r, k, _ in items], dtype=torch.long, device=dev)
+        n = torch.tensor([float(u) for _, _, u in items], device=dev)
+        hz = head.log_hazard(off, cls, n)
+        none = [o is None for o in offs]
+        if any(none):                                      # rows without a prior: no stop mixing (lam = e^-1e4)
+            hz = torch.where(torch.tensor(none, device=dev), torch.full_like(hz, -1e4), hz)
+        return hz
 
     def _advance(self, h: Hole, state: int, count: int, tok: int):
         if h.kind == "pattern":
@@ -1176,7 +1364,13 @@ class HoleFiller:
     def sample(self, programs: list, prefix: torch.Tensor, ctx: list, temperature: float, greedy: bool,
                generator: Optional[torch.Generator] = None):
         """Fill the holes of every program in place. prefix [R, P, H]. Returns (logp [R], entropy [R], n_sampled [R],
-        n_steps)."""
+        n_steps). Decodes on the acting path (`enc.acting`: merged LoRA weights when `merged_acting`); the returned
+        logp is the incremental diagnostic value - the behaviour log-probability is the learner-path `score`. One
+        device->host transfer per step (the sampled tokens and the empty-mask flag together)."""
+        with self.enc.acting(self.merged_acting):
+            return self._sample(programs, prefix, ctx, temperature, greedy, generator)
+
+    def _sample(self, programs, prefix, ctx, temperature, greedy, generator):
         enc = self.enc
         R = len(programs)
         dev = enc.device
@@ -1207,10 +1401,10 @@ class HoleFiller:
             feed = [enc.pad_id] * R
             live = [0] * R
             if rows:
-                m = self.masks(specs)
-                if not bool(m.any(1).all()):
-                    raise GrammarError("empty token mask during hole sampling")
-                lp = masked_log_softmax(logits[rows], m, temperature)
+                m, mc = self.masks(specs)
+                empty = ~m.any(1)
+                hz = self.hazard(programs, [(r, st[r]["hi"], st[r]["used"]) for r in rows])
+                lp = stop_mixture_log_softmax(logits[rows], m | empty.unsqueeze(1), mc, temperature, hz)
                 if greedy:
                     tok = lp.argmax(-1)
                 else:
@@ -1220,7 +1414,10 @@ class HoleFiller:
                 rr = torch.tensor(rows, device=dev)
                 logp.index_add_(0, rr, chosen)
                 ent.index_add_(0, rr, e)
-                tok_l = tok.tolist()
+                host = torch.cat([tok, empty.any().long().view(1)]).tolist()      # the step's only sync
+                if host[-1]:
+                    raise GrammarError("empty token mask during hole sampling")
+                tok_l = host[:-1]
                 for j, r in enumerate(rows):
                     t = tok_l[j]
                     feed[r] = t
@@ -1277,7 +1474,7 @@ class HoleFiller:
         enc = self.enc
         R = len(programs)
         dev = enc.device
-        tails, positions, targets, specs, owner = [], [], [], [], []
+        tails, positions, targets, specs, owner, items = [], [], [], [], [], []
         for r, p in enumerate(programs):
             seq = list(self.stub_ids)
             spent = 0
@@ -1290,6 +1487,7 @@ class HoleFiller:
                     raise GrammarError("hole without recorded tokens")
                 for u, t in enumerate(h.tokens):
                     specs.append((h, s, c, cap - u))
+                    items.append((r, k, u))
                     positions.append(len(seq))      # index inside the tail of the token being predicted
                     targets.append(t)
                     owner.append(r)
@@ -1312,15 +1510,17 @@ class HoleFiller:
         else:
             tau_all = None
         lps, ents = [], []
+        hz_all = self.hazard(programs, items)
         for c0 in range(0, len(targets), chunk):
             sl = slice(c0, c0 + chunk)
             hsel = hid[own[sl], abs_pos[sl]]
             lg = enc.lm_logits(hsel)
-            m = self.masks(specs[sl])
+            m, mc = self.masks(specs[sl])
             bad = ~m.gather(1, tgt[sl].unsqueeze(1)).squeeze(1)
             if bool(bad.any()):
                 raise GrammarError("recorded token outside the replayed constraint mask")
-            lp = masked_log_softmax(lg, m, tau_all[sl] if tau_all is not None else temperature)
+            lp = stop_mixture_log_softmax(lg, m, mc, tau_all[sl] if tau_all is not None else temperature,
+                                          None if hz_all is None else hz_all[sl])
             lps.append(lp.gather(1, tgt[sl].unsqueeze(1)).squeeze(1))
             ents.append(masked_entropy(lp, m))
         # per-row sums over contiguous blocks (owners are in row order): a plain reduction is deterministic, unlike

@@ -113,14 +113,16 @@ def test_log_prob_of_sampled_actions_matches_sampling_logp_fp32(fp32_stack, cfg)
         for b, a in enumerate(acts):
             inc = a.logp_parts["sample_logp"]
             assert abs(float(lp[b]) - inc) < 2e-3 + 2e-4 * a.logp_parts["n_tokens"], (a.tool, float(lp[b]), inc)
+            pre = ""
             if greedy:                     # deterministic behaviour: logp 0, the policy's value kept separately
                 assert a.logp == 0.0 and a.logp_parts["greedy"] and a.logp_parts["policy_logp"] == inc
                 assert not ActionGenerator.importance_weight_usable(a)
+                pre = "policy_"            # behaviour parts are 0 (mu = 1); the policy parts are policy_<part>
             else:
                 assert a.logp == inc
-            assert abs(float(parts["tool"][b]) - a.logp_parts["tool"]) < 1e-4
-            assert abs(float(parts["evidence"][b]) - a.logp_parts["evidence"]) < 1e-4
-            assert abs(float(parts["heads"][b]) - a.logp_parts["args_heads"]) < 1e-4
+            assert abs(float(parts["tool"][b]) - a.logp_parts[pre + "tool"]) < 1e-4
+            assert abs(float(parts["evidence"][b]) - a.logp_parts[pre + "evidence"]) < 1e-4
+            assert abs(float(parts["heads"][b]) - a.logp_parts[pre + "args_heads"]) < 1e-4
             seen_tokens += a.logp_parts["n_tokens"]
     assert seen_tokens > 10                                   # Qwen string tokens were part of the check
 
@@ -190,9 +192,20 @@ def test_temperature_override_and_greedy_behaviour_logp(gen, tok, cfg):
     assert torch.equal(lp_t07, lp_rec) and (lp_t1 - lp_rec).abs().min() > 1e-3   # target policy at tau = 1
     g_acts = gen.sample(R, goal, belief, tools, obs, tool_lists, obs_lists, greedy=True, tool_mask=mask)
     lp_g, _ = gen.log_prob(R, goal, belief, tools, obs, tool_lists, obs_lists, g_acts)
+    parts_g, _ = gen.log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, g_acts)
     for b, a in enumerate(g_acts):
         assert a.logp == 0.0 and a.logp_parts["greedy"] and a.logp_parts["policy_logp"] == float(lp_g[b])
         assert not ActionGenerator.importance_weight_usable(a)
+        # contract v3 #12: every behaviour part of a deterministic action is 0 - "tool" is always filled and is the
+        # intervention's assignment log-probability (exp = 1 for the causal ledger); policy values under policy_*
+        for k in ("tool", "evidence", "args", "args_heads", "args_tokens"):
+            assert a.logp_parts[k] == 0.0 and isinstance(a.logp_parts["policy_" + k], float)
+        assert a.logp_parts["policy_tool"] == float(parts_g["tool"][b])
+        assert a.logp_parts["policy_args"] == a.logp_parts["policy_args_heads"] + a.logp_parts["policy_args_tokens"]
+    # sampled (stochastic) actions always carry the tool part as their assignment log-probability (here the tool
+    # pointer was restricted to one tool, so the assignment probability is exactly 1)
+    assert all(isinstance(a.logp_parts["tool"], float) and "policy_tool" not in a.logp_parts for a in acts)
+    assert all(a.logp_parts["tool"] == 0.0 for a in acts)
 
 
 def test_replay_refuses_a_different_tool_list_or_evidence_candidates(gen, tok, cfg):

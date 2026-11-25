@@ -22,7 +22,7 @@ Token construction (D = cfg.d_model, H = encoder.sem_dim, Q = cfg.sem_tokens_per
   record (evidence pointer, traces, exact retrieval of the artifact).
 * non-finite values (nan, +inf, -inf) get dedicated flag features (the other numeric features see 0) and are counted
   in `last_stats["nonfinite_values"]` / `nonfinite_total`; they never produce NaN tokens.
-* working budget: at most `max_obs_tokens` (default cfg.max_ctx_tokens) observation tokens per row. Observations are
+* working budget: at most `max_obs_tokens` (default cfg.obs_token_budget) observation tokens per row. Observations are
   taken newest first (by t, then arrival order) and the walk stops at the first one that does not fit, so the kept set
   is always a contiguous most-recent suffix; the drop is reported in `last_stats` and the cumulative `dropped_total`
   counters - never silent.
@@ -127,7 +127,9 @@ class ObservationTokenizer(nn.Module):
         D, H, Q = cfg.d_model, encoder.sem_dim, cfg.sem_tokens_per_obs
         self.cfg = cfg
         self.D, self.Q = D, Q
-        self.max_obs_tokens = int(max_obs_tokens or cfg.max_ctx_tokens)
+        # observation share of the per-step working budget (config v3: cfg.max_obs_tokens, 0 = max_ctx_tokens // 2), so
+        # goal, belief, memory and action tokens keep room in the core's context
+        self.max_obs_tokens = int(max_obs_tokens or cfg.obs_token_budget)
         self.max_goal_tokens = int(max_goal_tokens)
         self.n_action_arg_tokens = int(n_action_arg_tokens)
         self.max_obs_chars = max_obs_chars
@@ -407,9 +409,11 @@ class ObservationTokenizer(nn.Module):
             for t in row_tools:
                 if t.name == a.tool and (key is None or t.key == key):
                     return t
-        elif key is not None and key in self._tool_by_key:
+        # not in the row's list (e.g. the generator's built-in wait / noop, which are registered when their TOOL
+        # tokens are built): the registry, exactly by the record's key, else by a uniquely registered name
+        if key is not None and key in self._tool_by_key:
             return self._tool_by_key[key]
-        elif key is None:
+        if key is None:
             keys = list(self._keys_by_name.get(a.tool, {}))
             if len(keys) == 1:
                 return self._tool_by_key[keys[0]]

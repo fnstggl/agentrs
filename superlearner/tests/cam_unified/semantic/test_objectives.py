@@ -150,7 +150,10 @@ def test_tool_consequence_prediction_generalises_to_held_out_actions(tok, cfg, c
     assert mh >= 0.5 and mh >= mb + 0.25, (before, held)
 
 
-def test_entity_grounding_labels_and_contrastive_learning(tok, cfg, cuda):
+def test_entity_grounding_labels_and_contrastive_learning(enc, cfg, cuda):
+    from superlearner.cam_unified.semantic.tokenizer import ObservationTokenizer
+    # all 10 observations must get tokens (the default budget is cfg.obs_token_budget = 32 tokens in the tiny config)
+    tok = ObservationTokenizer(cfg, enc, max_obs_tokens=64)
     ents = ["zx_12", "qv_77", "mm_03", "kp_41", "rt_90"]
     desc = ["a bakery in Lyon", "a GPU cloud provider", "a translation service", "a payments startup",
             "a university lab"]
@@ -180,38 +183,68 @@ def test_entity_grounding_labels_and_contrastive_learning(tok, cfg, cuda):
     assert hist[-1] < hist[0] - 0.5 and info["acc"] >= 0.8, (hist[::10], info)
 
 
+MORE_WORDS = ["orange", "peach", "plum", "kiwi", "melon", "olive", "pepper", "radish", "carrot", "turnip", "walnut",
+              "almond", "hazel", "maple", "cedar", "birch", "willow", "spruce", "lotus", "tulip", "daisy", "violet",
+              "amber", "basil", "clover", "dune", "ember", "fern", "garnet", "harbor", "iris", "jasper"]
+CODE_KINDS = (lambda w: f"print('{w}' * 2)", lambda w: f"raise ValueError('{w} is not allowed')",
+              lambda w: f"print(sorted('{w}'))", lambda w: f"d = {{'{w}': 1}}\nprint(d['{w[::-1]}'])")
+
+
+def _match(obj, C, E, idx, kinds):
+    """(top-1 program<->execution accuracy, kind accuracy of the top-1 match) among the rows `idx`."""
+    import torch.nn.functional as F
+    from superlearner.cam_unified.semantic.objectives import pool_rows
+    with torch.no_grad():
+        p = F.normalize(obj.pc(pool_rows(C.select(idx))).float(), dim=-1)
+        t = F.normalize(obj.pe(pool_rows(E.select(idx))).float(), dim=-1)
+        am = (p @ t.t()).argmax(1).cpu()
+    k = torch.tensor([kinds[i] for i in idx])
+    return float((am == torch.arange(len(idx))).float().mean()), float((k[am] == k).float().mean())
+
+
 def test_code_execution_matching_generalises_to_held_out_programs(tok, cfg, cuda):
-    """Code <-> real sandbox execution matching: trained on 24 programs of four kinds (string output, raised
-    ValueError, sorted characters, KeyError), it matches 8 held-out programs to their executions."""
+    """Code <-> real sandbox execution matching on programs of four kinds (string output, raised ValueError, sorted
+    characters, KeyError) built from words; training and held-out programs use disjoint words (40 / 12 words: 160 / 48
+    programs). Statistics: the 48 held-out programs are matched among themselves, so chance is 1/48 = 0.021 and a
+    matcher that only recognises the kind (and guesses within it) scores 1/12 = 0.083 ("kind-only baseline"). Pass:
+    mean over 3 initialisations of held-out top-1 >= 0.25 (3x the kind-only baseline; a kind-only matcher reaches that
+    over the 144 pooled trials with p < 1e-6, binomial), held-out kind accuracy >= 0.5 (chance 0.25) and a gain of
+    >= 0.2 over the untrained objective. The objective trains on CPU from fixed tokens (deterministic given the
+    tokens; the tokens themselves carry GPU summation-order jitter). Measured on Qwen3-0.6B, 3 runs x 3
+    initialisations: held-out top-1 0.29-0.50 (run means 0.35-0.44), kind accuracy 0.67-0.94; 200 training steps fit
+    the 160 training pairs to >= 0.85 (wave 1: 0.9 on 24 pairs). Wave 1 used 8 held-out programs, where the kind-only
+    baseline is already 0.5 = its threshold, so GPU jitter flipped the outcome; with 32 held-out programs and 12
+    training words the top-1 still ranged 0.16-0.44 between runs - too few training words to generalise stably."""
     from superlearner.cam_unified.semantic.sandbox import CodeSandbox, crucible_sandbox_capabilities
     if not crucible_sandbox_capabilities().get("available"):
         pytest.skip("sandbox unavailable")
     sbx = CodeSandbox()
-    words = list(WORDS)
+    words = list(WORDS) + list(MORE_WORDS)
     random.Random(0).shuffle(words)
-    progs = []
-    for i, w in enumerate(words):
-        progs.append([f"print('{w}' * 2)", f"raise ValueError('{w} is not allowed')", f"print(sorted('{w}'))",
-                      f"d = {{'{w}': 1}}\nprint(d['{w[::-1]}'])"][i % 4])
+    words = words[:52]
+    progs = [CODE_KINDS[k](w) for w in words for k in range(4)]
+    kinds = [k for _ in words for k in range(4)]
     results = [sbx.run(code=p).observations for p in progs]
-    assert sum(r[0].kind == ObsKind.ERROR for r in results) == 16          # ValueError and KeyError programs
+    assert sum(r[0].kind == ObsKind.ERROR for r in results) == 104          # ValueError and KeyError programs
     with torch.no_grad():
         C = tok.action([Action("run_python", {"code": p}) for p in progs], tool_lists=[sample_tools(3)] * len(progs))
         E = tok.observations(results, None, [0.0] * len(progs))
-    tr, te = list(range(24)), list(range(24, 32))
-    before, held = [], []
+    C, E = C.to("cpu"), E.to("cpu")
+    tr, te = list(range(160)), list(range(160, 208))                      # disjoint words
+    before, held, held_kind = [], [], []
     for seed in range(3):                                   # mean over initialisations
         torch.manual_seed(seed)
-        obj = CodeExecutionObjective(cfg.d_model).to(cuda)
-        with torch.no_grad():
-            before.append(obj(C.select(te), E.select(te))[1]["acc"])
-        hist, info = _train(lambda: obj(C.select(tr), E.select(tr)), obj.parameters(), 150)
-        assert hist[-1] < hist[0] - 1.0 and info["acc"] >= 0.9, (hist[::15], info)
-        with torch.no_grad():
-            held.append(obj(C.select(te), E.select(te))[1]["acc"])
-    mb, mh = sum(before) / 3, sum(held) / 3
-    print(f"\ncode<->execution held-out top-1: before {before} after {held} (chance 0.125)")
-    assert mh >= 0.5 and mh >= mb + 0.25, (before, held)
+        obj = CodeExecutionObjective(cfg.d_model)
+        before.append(_match(obj, C, E, te, kinds)[0])
+        hist, info = _train(lambda: obj(C.select(tr), E.select(tr)), obj.parameters(), 200)
+        assert hist[-1] < hist[0] - 1.0 and info["acc"] >= 0.85, (hist[::20], info)
+        top1, kacc = _match(obj, C, E, te, kinds)
+        held.append(top1)
+        held_kind.append(kacc)
+    mb, mh, mk = sum(before) / 3, sum(held) / 3, sum(held_kind) / 3
+    print(f"\ncode<->execution held-out top-1 (48 programs): before {before} after {held} kind acc {held_kind} "
+          f"(chance 0.021, kind-only baseline 0.083)")
+    assert mh >= 0.25 and mk >= 0.5 and mh >= mb + 0.2, (before, held, held_kind)
 
 
 def test_evidence_retrieval_supervision_trains_the_pointer(gen, tok, cfg):
