@@ -69,6 +69,9 @@ class SystemConfig:
     checkpoint_semantic_cache: bool = True
     # per-objective magnitude cap (CamUnifiedAgent.loss_cap; None = off): see the agent's constructor
     loss_cap: Optional[float] = 10.0
+    # deterministic GPU kernels (torch.use_deterministic_algorithms + cuBLAS workspace config): measured without
+    # it, recomputing the same decoder log-probability twice differed by up to 0.23 nats (cuBLAS algorithm choice)
+    deterministic: bool = True
 
     def cam_config(self) -> CamConfig:
         return make_config(self.scale, **dict(self.overrides))
@@ -97,6 +100,16 @@ class System:
 
     def paths(self) -> dict:
         return {k: os.path.join(self.run_dir, k) for k in ("archive", "artifacts", "memory_index", "traces")}
+
+
+def set_deterministic(on: bool) -> None:
+    """Deterministic kernels. The cuBLAS workspace setting must precede the first cuBLAS handle (set it in the
+    environment of the process, as the CLI does, for it to take effect after CUDA was initialised)."""
+    if not on:
+        return
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    torch.use_deterministic_algorithms(True, warn_only=True)
+    torch.backends.cudnn.benchmark = False
 
 
 def seed_everything(seed: int) -> None:
@@ -145,6 +158,7 @@ def build_system(run_dir: str, sc: SystemConfig, semantic=None, exclude_events: 
     run_dir = os.path.abspath(run_dir)
     os.makedirs(run_dir, exist_ok=True)
     cfg = sc.cam_config()
+    set_deterministic(sc.deterministic)
     seed_everything(sc.seed)
     dev = sc.device if (sc.device != "cuda" or torch.cuda.is_available()) else "cpu"
     sem = semantic if semantic is not None else make_semantic(cfg, sc.sem_model, dev)

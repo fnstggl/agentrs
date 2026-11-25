@@ -9,6 +9,8 @@ import os
 import subprocess
 import sys
 
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")     # deterministic cuBLAS (SystemConfig.deterministic)
+
 import pytest
 import torch
 
@@ -179,3 +181,41 @@ def test_kill_mid_lifetime_and_resume_in_new_processes(tmp_path):
         x = by_step[ab["step"]]
         assert x["tool"] == ab["tool"] and x["args"] == ab["args"], (ab["step"], ab["tool"], x["tool"])
         assert abs(x["behavior_logp"] - ab["behavior_logp"]) < 1e-3
+
+
+def test_full_lifetime_round_trip_with_real_components(stage1_run, tmp_path):
+    """E's CheckpointOps through the integrated agent, no doubles: a fresh system over a copy of the run directory
+    restores the latest lifetime checkpoint exactly (weights hash, version, AdamW steps, latent and fast state,
+    entity registries, replay sampler cursor and strata, consolidator cursor), and the policy at the fixed probe
+    contexts equals the value logged at that version."""
+    import shutil
+    from superlearner.cam_unified.stage1.harness_agent import HarnessAgent, core_hash
+    from superlearner.cam_unified.stage1.system import build_system
+    rd, _ = stage1_run
+    cp = str(tmp_path / "copy")
+    shutil.copytree(rd, cp)
+    latest = open(os.path.join(cp, "lifetime_ckpt", "LATEST")).read().strip()
+    ck = os.path.join(cp, "lifetime_ckpt", latest, "agent")
+    life = json.load(open(os.path.join(ck, "lifetime", "lifetime.json")))
+    meta = json.load(open(os.path.join(cp, "ckpt", "LATEST")))
+    state = torch.load(os.path.join(ck, "lifetime", "state.pt"), map_location="cpu", weights_only=False)
+    system = build_system(cp, _system_config())
+    h = HarnessAgent(system)
+    assert core_hash(system.model) != meta["sha256"]                        # freshly initialised weights
+    info = h.load(ck)
+    a = system.agent
+    assert core_hash(system.model) == meta["sha256"] and a.version == life["version"] == meta["version"]
+    assert info["optimizer_steps"] == life["version"] and system.trainer.n_updates == life["version"]
+    assert torch.equal(a.latent_state.cpu(), state["latent_state"])
+    assert torch.equal(a.fast_state.logw.cpu(), state["fast_state"]["logw"])
+    assert [r.slot for r in a.registries] == [r["slot"] for r in state["registries"]]
+    assert system.replay.cursor == life["replay"]["cursor"] and info["replay_counts"] == {
+        k: v for k, v in system.replay.stratum_sizes().items()}
+    assert system.consolidator.state["cursor"] == life["consolidator"]["state"]["cursor"]
+    assert info["archive_count_checkpoint"] == life["archive"]["count"]
+    assert info["abandoned_events"] == system.archive.count() - life["archive"]["count"]
+    logged = {p["version"]: p for p in _rows(os.path.join(rd, "probes", "probes.jsonl"))}[a.version]
+    now = h.probe()
+    for x, y in zip(logged["rows"], now["rows"]):
+        assert abs(x["logp_total"] - y["logp_total"]) < 1e-3 and abs(x["value"] - y["value"]) < 1e-4
+    system.archive.close()

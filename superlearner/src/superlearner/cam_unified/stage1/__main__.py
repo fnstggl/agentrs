@@ -19,6 +19,9 @@ import os
 import shutil
 import sys
 
+# deterministic cuBLAS (SystemConfig.deterministic): must be in the environment before CUDA creates a handle
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
 
 def _overrides(items) -> dict:
     out = {}
