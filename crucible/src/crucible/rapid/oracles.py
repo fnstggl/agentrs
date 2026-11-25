@@ -445,12 +445,27 @@ def _is_pg(eng) -> bool:
     return isinstance(eng, PrimitiveGraph)
 
 
+def _family_hook(env, what: str):
+    """A family's own evaluator-side function ("module:function" in its registry entry), or None."""
+    import importlib
+    from .families import FAMILIES
+    fam = FAMILIES.get(env.family)
+    ref = getattr(fam, what, None) if fam is not None else None
+    if not ref:
+        return None
+    mod, fn = ref.split(":")
+    return getattr(importlib.import_module(mod), fn)
+
+
 def oracle(env) -> dict:
     """The best private reference for this world (evaluated on a fork of it from its current point)."""
     from .engines.discrete_event import DiscreteEvent
     from .engines.graph_dynamical import GraphDynamical
     from .engines.state_machine import StateMachine
     eng = env._engine
+    hook = _family_hook(env, "oracle")
+    if hook is not None:
+        return hook(env)
     obj = (env._config.get("objective") or {}).get("type")
     if obj == "predict_heldout":
         return science_oracle(env)

@@ -7,5 +7,7 @@ from . import discrete_event  # noqa: F401,E402
 from . import graph_dynamical  # noqa: F401,E402
 from . import state_machine  # noqa: F401,E402
 from . import search  # noqa: F401,E402
+from . import planning  # noqa: F401,E402  (H2)
+from . import strategic  # noqa: F401,E402  (H2)
 
 V5_ENGINES = tuple(sorted(ENGINE_KINDS))

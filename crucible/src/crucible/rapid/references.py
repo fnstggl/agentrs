@@ -523,6 +523,11 @@ def practice_constant(env) -> dict | None:
 def play(env) -> dict:
     """The family's reference on `env`; the generic one learns over practice episodes on copies of the world
     (`practice_constant`), as a learner would across episodes, then plays the scored episode."""
+    from .oracles import _family_hook
+    hook = _family_hook(env, "reference")
+    if hook is not None:
+        hook(PublicView(env), env)
+        return env.outcome()
     fn = SPECIFIC.get(env.family)
     if fn is not None:
         fn(PublicView(env), env)

@@ -120,9 +120,9 @@ SPEC_ENGINE_KINDS = {
     "graph dynamical": "graph_dynamical",
     "search/information": "search",
     "executable program": None,
-    "multi-agent strategic": None,
+    "multi-agent strategic": "strategic",
     "scientific experiment": None,
-    "planning/resource": None,
+    "planning/resource": "planning",
     "partially observed state machine": "state_machine",
 }
 
