@@ -152,6 +152,7 @@ class _Registry(dict):
 
 def _load() -> None:
     from . import families_des, families_net, families_pg, families_posm, families_search  # noqa: F401
+    from . import families_h3  # noqa: F401
 
 
 _load()
