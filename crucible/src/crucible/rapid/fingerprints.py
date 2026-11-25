@@ -122,10 +122,12 @@ def instance_fingerprint(env) -> dict:
         nodes = tr.get("nodes") or [e["src"] for e in tr.get("edges", [])] + [e["dst"] for e in tr.get("edges", [])]
         nodes = list(dict.fromkeys(n if not isinstance(n, dict) else n["id"] for n in nodes))
         edges = [e for e in tr.get("edges", []) if "src" in e and "dst" in e]
-        topo = _graph_shape(nodes, edges) if nodes else {"class": "none"}
+        if eng.kind == "graph_dynamical":
+            # a drawn random network: its class and size, not the particular edges a seed produced
+            topo = {"class": "network", "nodes": _bucket(tr["graph"]["nodes"])}
+        else:
+            topo = _graph_shape(nodes, edges) if nodes else {"class": "none"}
         topo["scenario_structure"] = tr.get("scenario")
-        if "graph" in tr:
-            topo["clustering"] = "high" if tr["graph"].get("clustering", 0) > 0.2 else "low"
         if eng.kind == "state_machine":
             topo["states"] = _bucket(tr["states"])
         for e in edges:
@@ -157,8 +159,10 @@ STATEFUL = {"hidden_confounding", "delay", "stock", "decay", "hysteresis", "feed
 
 
 def _lag_bucket(lag: int) -> str:
+    """Instantaneous, one tick, or several ticks: how long a delay is is a coefficient, whether there is one is
+    structure."""
     lag = int(lag)
-    return "0" if lag == 0 else ("1" if lag == 1 else ("2-4" if lag <= 4 else "5+"))
+    return "0" if lag == 0 else ("1" if lag == 1 else "2+")
 
 
 def _observed_structure(env) -> dict:

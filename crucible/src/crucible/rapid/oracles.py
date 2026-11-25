@@ -84,7 +84,7 @@ def eval_schedules(env, X: np.ndarray, choices: dict | None = None, noise=None) 
     names, lo, hi = _levers(env)
     tot = np.zeros(P)
     for k in range(H):
-        if eng.kind == "primitive_graph":
+        if _is_pg(eng):
             st["lev"] = np.clip(X[:, k, :], lo, hi)
             st["levset"] = np.ones_like(st["lev"])
         else:
@@ -440,18 +440,26 @@ def science_oracle(env) -> dict:
     return best_of(env, {"knows_law": fn})
 
 
+def _is_pg(eng) -> bool:
+    from .engines.primitive_graph import PrimitiveGraph
+    return isinstance(eng, PrimitiveGraph)
+
+
 def oracle(env) -> dict:
     """The best private reference for this world (evaluated on a fork of it from its current point)."""
+    from .engines.discrete_event import DiscreteEvent
+    from .engines.graph_dynamical import GraphDynamical
+    from .engines.state_machine import StateMachine
     eng = env._engine
     obj = (env._config.get("objective") or {}).get("type")
     if obj == "predict_heldout":
         return science_oracle(env)
-    if eng.kind == "primitive_graph":
+    if _is_pg(eng):
         return lever_oracle(env, mpc=len(eng.public_levers()) <= 1)
-    if eng.kind == "discrete_event":
+    if isinstance(eng, DiscreteEvent):
         return des_oracle(env)
-    if eng.kind == "graph_dynamical":
+    if isinstance(eng, GraphDynamical):
         return graph_oracle(env)
-    if eng.kind == "state_machine":
+    if isinstance(eng, StateMachine):
         return posm_oracle(env)
     return search_oracle(env)

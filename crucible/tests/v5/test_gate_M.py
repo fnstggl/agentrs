@@ -199,8 +199,7 @@ def _scale_numbers(cfg, f):
 
 
 def test_Mn1_renamed_or_parameter_variants_do_not_count():
-    originals = ["hc_confounded", "des_inventory", "net_routing", "posm_fault_diagnosis", "srch_field",
-                 "coop_split_info"]
+    originals = sorted(F.FAMILIES)
     added = []
     try:
         for n in originals:
@@ -221,8 +220,8 @@ def test_Mn1_renamed_or_parameter_variants_do_not_count():
     dmin, pair = min((FP.distance(real[a], real[b]), (a, b)) for a, b in itertools.combinations(sorted(real), 2))
     record("M.n1", {"cosmetic_variants_counted": len(counted_variants), "variants_tried": len(added),
                     "min_fingerprint_distance": float(dmin), "closest_pair": f"{pair[0]}~{pair[1]}"},
-           notes="Renamed copies and parameter variants (all costs, prices, capacities and coefficients scaled by "
-                 "1.37) of six families on all five engines get distance 0 to their originals and are not counted.")
+           notes="A renamed copy and a parameter variant (costs, prices, capacities and coefficients scaled by "
+                 "1.37) of every registered family get distance 0 to their originals and are not counted.")
     assert not counted_variants and dmin > 0
 
 
