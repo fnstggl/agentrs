@@ -203,3 +203,27 @@ def test_v5_tiers_are_not_substituted():
     if not civ_available():
         with pytest.raises(TierUnavailable):
             make(3, "default", 0)
+
+
+# ---------------------------------------------------------------------------------------------- the CAM 2.0 adapter
+def test_cam2_adapter_reward_modes():
+    """The 4.0 CAM 2.0 adapter (integrations/agentrs_cam2.py; it needs the AGENTRS source, as tests/test_agents_llm.py
+    does) follows the reward modes: no progress, score or success in observation-only infos."""
+    import sys
+    src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+    if src not in sys.path:
+        sys.path.insert(0, src)
+    from agentrs.cam2.envs.base import TaskRef
+    from agentrs.cam2.tools import ToolCall
+    from crucible.experience.leakage import find_keys
+    from crucible.integrations.agentrs_cam2 import CrucibleAdapter
+    seen = {}
+    for mode in ("legacy_shaped_reward", "observation_only", "verified_terminal_outcome"):
+        env = CrucibleAdapter(max_steps=3, reward_mode=mode)
+        env.reset(TaskRef("crucible", "service:tiny:0", 7))
+        steps = [env.step(ToolCall("bank.accounts")) for _ in range(3)]
+        seen[mode] = ([s.info for s in steps], [s.reward for s in steps], [s.terminated for s in steps])
+    assert find_keys(seen["legacy_shaped_reward"][0])                 # 4.0 behaviour: progress in info
+    assert find_keys(seen["observation_only"][0]) == [] and set(seen["observation_only"][1]) == {0.0}
+    assert not any(seen["observation_only"][2])
+    assert all(set(i.get("eval", {})) <= {"success", "failed"} for i in seen["verified_terminal_outcome"][0])
