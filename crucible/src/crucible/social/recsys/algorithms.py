@@ -128,7 +128,8 @@ class CollaborativeFiltering(Base):
             G = Y.T @ Y + np.eye(Y.shape[1]) * p["reg"]
             return {"items": keep.astype(np.int64), "Y": Y.astype(np.float32),
                     "Ginv": np.linalg.inv(G).astype(np.float32), "pop": P.sum(0).astype(np.float32)}
-        return run, {"data_sha256": _sha(P, keep, users), "seed": seed,
+        return run, {"data_sha256": _sha(P, keep, users), "seed": seed, "pairs": int(P.sum()),
+                     "users": int(users.size), "items": int(keep.size),
                      **{k: p[k] for k in ("factors", "reg", "alpha", "iters")}}
 
     def scores(self, world, platform, viewers, cand, rng):
@@ -211,6 +212,7 @@ class Engagement(Base):
         for i in np.unique(it):
             m = it == i
             y[m] = idset.contains(w.state, idset.key("vw", int(i)), v[m])
+        true_pos = float(y.sum())
         flip = rng.random(v.size) < float(self.p["label_noise"])
         y = np.where(flip, 1.0 - y, y)
         prev = training.model(w, platform, self.name)
@@ -220,7 +222,9 @@ class Engagement(Base):
         def run():
             return {"w": training.logistic_fit(X, y, p["l2"], p["iters"], w0).astype(np.float64),
                     "n": np.array([v.size], np.int64), "pos": np.array([y.sum()], np.float64)}
-        return run, {"data_sha256": _sha(X, y, w0 if w0 is not None else np.zeros(0)), "until": int(until)}
+        return run, {"data_sha256": _sha(X, y, w0 if w0 is not None else np.zeros(0)), "until": int(until),
+                     "newest_example_t": int(rows["t"][sel].max()), "examples": int(v.size),
+                     "flipped": int(flip.sum()), "true_positives": true_pos, "delay_s": int(self.p["delay_s"])}
 
     def scores(self, world, platform, viewers, cand, rng):
         mdl = training.model(world, platform, self.name)

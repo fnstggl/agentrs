@@ -243,7 +243,8 @@ class Feed(Module):
         arrays = inference.recorded(ctx, "recsys.fit", f"{rec.name}@{rec.version}", mh,
                                     {"platform": platform, "t": int(ctx.now), **info}, run)
         ref = artifacts.put_array_blob(ctx, {k: np.asarray(v) for k, v in arrays.items()})
-        ctx.emit("feed.model", {"platform": platform, "rec": rec.name, "ref": ref, "t": int(ctx.now)},
+        meta = {k: v for k, v in info.items() if k != "data_sha256"}
+        ctx.emit("feed.model", {"platform": platform, "rec": rec.name, "ref": ref, "t": int(ctx.now), "meta": meta},
                  vis="internal")
         return True
 
@@ -415,5 +416,6 @@ class Feed(Module):
 
 bus.event_type("feed.model", S.obj({"platform": {"type": "string"}, "rec": {"type": "string"},
                                     "ref": {"type": "string", "pattern": artifacts.REF_RE.pattern},
-                                    "t": {"type": "integer"}}, ["platform", "rec", "ref", "t"]), owner="feed",
+                                    "t": {"type": "integer"}, "meta": {"type": "object", "additionalProperties": True}},
+                                   ["platform", "rec", "ref", "t"]), owner="feed",
                doc="a learned recommender was refitted (parameters in the array blob; internal)")

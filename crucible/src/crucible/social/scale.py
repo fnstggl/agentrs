@@ -45,7 +45,7 @@ DEFAULTS = {
     "personal_topic_weight": 0.35, "local_contacts": 8, "long_contacts": 4, "attention_min": [20.0, 120.0],
     "first_active_spread_s": 86400, "tick_s": 900, "init_chunk": 1_000_000,
     "creators": 40, "posts_per_day": 1.0, "creator_platforms": {"posts": 0.7, "articles": 0.3},
-    "publish_interval_s": 3600, "topic_popularity": None, "share_propensity": [0.6, 0.6],
+    "publish_interval_s": 3600, "topic_popularity": None, "share_propensity": [0.6, 0.6], "seed_posts": [],
 }
 POP_COLS_BASE = {
     "satisfaction": ("float32", (), 0.5), "next_active_at": ("int64", (), 2 ** 62), "share_prop": ("float16", (), 1.0),
@@ -167,20 +167,30 @@ class Crowd(Module):
         world.runtime["crowd.graph"] = self.graph
 
     # ------------------------------------------------------------------ genesis
+    def _communities(self, world):
+        """Each community's subjects: `community_topics` topics drawn without replacement in proportion to
+        `topic_popularity` (Gumbel top-k), with Dirichlet weights. Returns (topics [C, k], weights [C, k], p)."""
+        T = len(TOPIC_NAMES)
+        ncomm = -(-self.n // int(self.cfg["community_size"]))
+        pop_w = self.cfg["topic_popularity"]
+        pw = np.ones(T) / T if pop_w is None else np.asarray([float(pop_w.get(t, 0.0)) for t in TOPIC_NAMES])
+        if not np.all(pw >= 0) or pw.sum() <= 0:
+            raise ProtocolError("crowd: topic_popularity needs non-negative weights with a positive sum")
+        pw = pw / pw.sum()
+        k = min(int(self.cfg["community_topics"]), int((pw > 0).sum()))
+        crng = world.rng_for("crowd.communities")
+        with np.errstate(divide="ignore"):
+            keys = np.log(pw)[None, :] + crng.gumbel(size=(ncomm, T))
+        ctop = np.argsort(-keys, axis=1, kind="stable")[:, :k]
+        cw = crng.dirichlet(np.ones(k) * 2.0, size=ncomm)
+        return ctop, cw, pw
+
     def _interests(self, world, idx: np.ndarray) -> np.ndarray:
         """Initial interests (unit vectors in the content representation space) of individuals `idx`."""
         C = textrep.topic_centroids(self.dim)
         T = C.shape[0]
         comm = idx // int(self.cfg["community_size"])
-        ncomm = int(comm.max()) + 1 if idx.size else 0
-        pop_w = self.cfg["topic_popularity"]
-        pw = np.ones(T) / T if pop_w is None else np.asarray([float(pop_w.get(t, 0.0)) for t in TOPIC_NAMES])
-        pw = pw / pw.sum()
-        crng = world.rng_for("crowd.communities", ncomm)
-        k = int(self.cfg["community_topics"])
-        ctop = np.stack([crng.choice(T, size=k, replace=False, p=pw) for _ in range(ncomm)]) if ncomm else \
-            np.zeros((0, k), np.int64)
-        cw = crng.dirichlet(np.ones(k) * 2.0, size=ncomm) if ncomm else np.zeros((0, k))
+        ctop, cw, pw = getattr(self, "_comm_cache", None) or self._communities(world)
         rng = world.rng_for("crowd.interests", int(idx[0]) if idx.size else 0, idx.size)
         v = np.einsum("nk,nkd->nd", cw[comm], C[ctop[comm]])
         personal = rng.choice(T, size=idx.size, p=pw)
@@ -195,6 +205,7 @@ class Crowd(Module):
         lo, hi = (float(x) for x in self.cfg["attention_min"])
         sp_mu, sp_sigma = (float(x) for x in self.cfg["share_propensity"])
         spread = int(self.cfg["first_active_spread_s"])
+        self._comm_cache = self._communities(w)
         for s in range(0, n, chunk):
             idx = np.arange(s, min(n, s + chunk), dtype=np.int64)
             rng = w.rng_for("crowd.init", s)
@@ -214,6 +225,19 @@ class Crowd(Module):
                 ctx.emit("crowd.creator", {"index": int(i), "principal": p}, vis="public")
             ctx.schedule(int(self.cfg["publish_interval_s"]), "crowd.publish", {}, prio=40,
                          period=int(self.cfg["publish_interval_s"]), key="crowd.publish")
+            # an experiment's designed content (e.g. a positive control): the creator most interested in the topic
+            # writes a focused post on it at genesis; it then goes through the ordinary pipeline like any other post
+            for j, sp in enumerate(self.cfg["seed_posts"]):
+                t = TOPIC_NAMES.index(sp["topic"])
+                tw = np.stack([creator_topic_weights(w, int(i)) for i in chosen])
+                i = int(chosen[int(np.argmax(tw[:, t]))])
+                onehot = np.zeros(len(TOPIC_NAMES))
+                onehot[t] = 1.0
+                srng = w.rng_for("crowd.seed_post", j)
+                lo, hi = LENGTH_WORDS[KIND_OF_PLATFORM[sp["platform"]]]
+                title, text, tags = write_text(srng, onehot, int(srng.integers(lo, hi + 1)),
+                                               focus=float(sp.get("focus", 0.9)))
+                publish_post(ctx, i, ids.pid(i), sp["platform"], srng, text=text, title=title, tags=tags)
         ctx.schedule(int(self.cfg["tick_s"]), "crowd.tick", {}, prio=50, period=int(self.cfg["tick_s"]),
                      key="crowd.tick")
         ctx.schedule(DAY, "crowd.daily", {}, prio=10, period=DAY, key="crowd.daily")
@@ -290,7 +314,7 @@ def creator_topic_weights(world, i: int, tau: float = 0.08) -> np.ndarray:
     return s / s.sum()
 
 
-def write_text(rng, topic_weights: np.ndarray, n_words: int) -> tuple[str, str, list[str]]:
+def write_text(rng, topic_weights: np.ndarray, n_words: int, focus: float | None = None) -> tuple[str, str, list[str]]:
     """A post: a title and a body written mostly from one topic (Zipf-weighted words), some from a second topic,
     with function words between. Returns (title, body, tags)."""
     T = len(TOPIC_NAMES)
@@ -302,7 +326,8 @@ def write_text(rng, topic_weights: np.ndarray, n_words: int) -> tuple[str, str, 
     perm_m = rng.permutation(len(words_main))           # each post has its own word ranking
     perm_s = rng.permutation(len(words_second))
     zp = zipf / zipf.sum()
-    focus = float(rng.uniform(0.55, 0.95))              # how focused this post is on its main subject
+    if focus is None:
+        focus = float(rng.uniform(0.55, 0.95))          # how focused this post is on its main subject
     out = []
     for _ in range(n_words):
         r = rng.random()

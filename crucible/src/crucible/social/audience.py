@@ -27,7 +27,7 @@ Audience quantities per item (`QUANTITIES`):
     returning_viewers  unique viewers who, at their first view of this item, had already viewed another item of the
                        same creator
 
-THE VIEW THRESHOLD: a consumption row is a view iff `watch_s >= min(VIEW_MIN_S, VIEW_MIN_FRAC * duration_s)` with
+THE VIEW THRESHOLD (`VIEW_RULE`: a view requires watch_s >= min(30 s, 0.5 x duration_s)): a consumption row is a view iff `watch_s >= min(VIEW_MIN_S, VIEW_MIN_FRAC * duration_s)` with
 VIEW_MIN_S = 30 and VIEW_MIN_FRAC = 0.5, and the viewer is not the item's creator (self-consumption is recorded and
 spends attention but never counts). An exposure is never a view; a view requires a prior exposure of the same
 individual to the same item (enforced: `consumption` refuses rows without one). Likes count once, at the first view.
@@ -56,6 +56,7 @@ from . import idset, textrep
 
 VIEW_MIN_S = 30.0
 VIEW_MIN_FRAC = 0.5
+VIEW_RULE = "a view requires watch_s >= min(30 s, 0.5 x duration_s)"
 COMPLETE_FRAC = 0.95            # `completed` is accepted only for rows that watched at least 95% of the duration
 WORDS_PER_S = 4.0               # reading speed used for the duration of text items (240 words per minute)
 QUANTITIES = ("impressions", "unique_exposed", "views", "unique_viewers", "watch_s", "completions", "repeat_views",
