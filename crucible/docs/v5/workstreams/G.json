@@ -3,47 +3,229 @@
  "branch": "worktree-wf_62a0cf0b-bb3-5",
  "commit": "see git log of the branch (this file is committed with the work it describes)",
  "requirements": [
-  {"id": "J.1", "implementation_files": ["src/crucible/innovation/caps.py", "src/crucible/innovation/pkg.py", "src/crucible/innovation/measure.py", "src/crucible/innovation/scenarios.py", "src/crucible/innovation/reference.py"],
-   "tests": ["tests/v5/test_gate_J.py", "tests/test_v5_innovation_caps.py", "tests/test_v5_innovation_pkg.py"], "state": "implemented",
-   "notes": "4 agent-created executable products (1 declared service that answered 1,092 requests, 3 packages). Creators are scripted reference agents acting through tools."},
-  {"id": "J.2", "implementation_files": ["src/crucible/innovation/caps.py", "src/crucible/innovation/pkg.py", "src/crucible/innovation/measure.py"],
-   "tests": ["tests/v5/test_gate_J.py"], "state": "implemented", "notes": "published = public caps.declared (search-indexed) or public pkg.released; 4 measured."},
-  {"id": "J.3", "implementation_files": ["src/crucible/innovation/caps.py", "src/crucible/innovation/adopt.py", "src/crucible/innovation/measure.py"],
-   "tests": ["tests/v5/test_gate_J.py"], "state": "implemented",
-   "notes": "24 independent discoverers of the service (caps.seen / learned host). Participants are workstream-G need-driven adopters until the workstream-B population exists; measure.discoverers counts any unrelated principal."},
-  {"id": "J.4", "implementation_files": ["src/crucible/innovation/caps.py", "src/crucible/innovation/adopt.py", "src/crucible/innovation/measure.py"],
-   "tests": ["tests/v5/test_gate_J.py"], "state": "implemented", "notes": "24 independent users for whom the service executed (caps.try trials, counted use, paid calls)."},
-  {"id": "J.5", "implementation_files": ["src/crucible/innovation/adopt.py", "src/crucible/innovation/scenarios.py", "src/crucible/innovation/measure.py"],
-   "tests": ["tests/v5/test_gate_J.py"], "state": "implemented",
-   "notes": "Forks of one snapshot before creation: same declaration and price, Dijkstra vs hop-count implementation; 24/24 vs 2/24 adopters; Fisher exact p = 2.0e-11."},
-  {"id": "J.6", "implementation_files": ["src/crucible/innovation/measure.py", "src/crucible/innovation/adopt.py"],
-   "tests": ["tests/v5/test_gate_J.py"], "state": "implemented", "notes": "1,092 ledger sales from 24 independent payers' own accounts (system accounts and related parties excluded)."},
-  {"id": "J.7", "implementation_files": ["src/crucible/innovation/measure.py", "src/crucible/innovation/scenarios.py"],
-   "tests": ["tests/v5/test_gate_J.py"], "state": "implemented", "notes": "+58,364 metered compute units and +9,100 cents compute rent vs the fork in which the agent does not create the product."},
-  {"id": "J.n1", "implementation_files": ["src/crucible/innovation/measure.py"], "tests": ["tests/v5/test_gate_J.py"], "state": "implemented",
-   "notes": "2 categories: api_service (capability registry) and software_package (adopted by execution)."},
-  {"id": "L.1", "implementation_files": ["src/crucible/innovation/caps.py", "src/crucible/innovation/needs.py", "src/crucible/innovation/scenarios.py", "src/crucible/innovation/measure.py"],
-   "tests": ["tests/v5/test_gate_L.py"], "state": "implemented", "notes": "5 effects measured by forks with/without the agent-created capability (needs, switching, base-service compute, overloads, paid calls)."},
-  {"id": "L.2", "implementation_files": ["src/crucible/innovation/needs.py", "src/crucible/innovation/measure.py"],
-   "tests": ["tests/v5/test_gate_L.py", "tests/test_v5_innovation_needs.py"], "state": "implemented", "notes": "7 needs first derived after the first needs update (supply, alternative, provide via complements, package alternative)."},
-  {"id": "L.3", "implementation_files": ["src/crucible/innovation/needs.py", "src/crucible/innovation/measure.py", "src/crucible/innovation/adopt.py"],
-   "tests": ["tests/v5/test_gate_L.py", "tests/test_v5_innovation_needs.py"], "state": "implemented", "notes": "2 needs addressed by things created after they arose (a substitute service adopted by 34 holders; a fixed release adopted by the dependent); both resolved."},
-  {"id": "L.4", "implementation_files": ["src/crucible/innovation/measure.py", "src/crucible/innovation/scenarios.py"],
-   "tests": ["tests/v5/test_gate_L.py"], "state": "implemented",
-   "notes": "4 chains of 4-5 stages in 4 worlds/seeds (capacity, technology-compute, social discovery, software security); first acts are scripted reference agents, later stages arise from generic mechanisms."},
-  {"id": "L.5", "implementation_files": ["src/crucible/innovation/scenarios.py", "src/crucible/innovation/measure.py"],
-   "tests": ["tests/v5/test_gate_L.py"], "state": "implemented", "notes": "3 of 3 removal forks confirm the dependency (exact under the deterministic cost model; invariants clean in every fork)."},
-  {"id": "L.n1", "implementation_files": ["src/crucible/innovation/measure.py"], "tests": ["tests/v5/test_gate_L.py"], "state": "implemented",
-   "notes": "0 credits to creators from system accounts after genesis (runtime) and 0 references to system accounts outside genesis in crucible/innovation (static)."},
-  {"id": "SP-6.3", "implementation_files": ["src/crucible/innovation/caps.py", "src/crucible/innovation/adopt.py", "src/crucible/innovation/measure.py", "src/crucible/innovation/scenarios.py"],
-   "tests": ["tests/v5/test_gate_SP_6_3.py", "tests/test_v5_innovation_caps.py"], "state": "implemented",
-   "notes": "A service created after genesis was discovered, tested on participants' own generated inputs, adopted and used by 24; a useless service was tested by 24 and adopted by 0; independent suite 1.00 vs 0.38."},
-  {"id": "SP-6.4", "implementation_files": ["src/crucible/innovation/needs.py", "src/crucible/innovation/caps.py", "src/crucible/innovation/pkg.py"],
-   "tests": ["tests/v5/test_gate_SP_6_4.py", "tests/test_v5_innovation_needs.py"], "state": "implemented",
-   "notes": "6 relation types used by derivation/addressing paths; 0 special-case triggers (path validity, rule-code literals, rename invariance)."},
-  {"id": "SP-6.5", "implementation_files": ["src/crucible/innovation/pkg.py", "src/crucible/innovation/measure.py", "src/crucible/innovation/reference.py"],
-   "tests": ["tests/v5/test_gate_SP_6_5.py", "tests/test_v5_innovation_pkg.py"], "state": "implemented",
-   "notes": "15 of 15 features from recorded state; 2 adoptions by traced execution (one transitive); stars and declared-only dependencies not counted."}
+  {
+   "id": "J.1",
+   "implementation_files": [
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/scenarios.py",
+    "src/crucible/innovation/reference.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py",
+    "tests/test_v5_innovation_caps.py",
+    "tests/test_v5_innovation_pkg.py"
+   ],
+   "state": "implemented",
+   "notes": "4 agent-created executable products (1 declared service that answered 1,092 requests, 3 packages). Creators are scripted reference agents acting through tools."
+  },
+  {
+   "id": "J.2",
+   "implementation_files": [
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/measure.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "state": "implemented",
+   "notes": "published = public caps.declared (search-indexed) or public pkg.released; 4 measured."
+  },
+  {
+   "id": "J.3",
+   "implementation_files": [
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/adopt.py",
+    "src/crucible/innovation/measure.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "state": "implemented",
+   "notes": "24 independent discoverers of the service (caps.seen / learned host). Participants are workstream-G need-driven adopters until the workstream-B population exists; measure.discoverers counts any unrelated principal."
+  },
+  {
+   "id": "J.4",
+   "implementation_files": [
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/adopt.py",
+    "src/crucible/innovation/measure.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "state": "implemented",
+   "notes": "24 independent users for whom the service executed (caps.try trials, counted use, paid calls)."
+  },
+  {
+   "id": "J.5",
+   "implementation_files": [
+    "src/crucible/innovation/adopt.py",
+    "src/crucible/innovation/scenarios.py",
+    "src/crucible/innovation/measure.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "state": "implemented",
+   "notes": "Forks of one snapshot before creation: same declaration and price, Dijkstra vs hop-count implementation; 24/24 vs 1/24 adopters; Fisher exact p = 1.6e-12 (first run 2.0e-11)."
+  },
+  {
+   "id": "J.6",
+   "implementation_files": [
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/adopt.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "state": "implemented",
+   "notes": "1,092 ledger sales from 24 independent payers' own accounts (system accounts and related parties excluded)."
+  },
+  {
+   "id": "J.7",
+   "implementation_files": [
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/scenarios.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "state": "implemented",
+   "notes": "+57,694 metered compute units and +9,100 cents compute rent vs the fork in which the agent does not create the product."
+  },
+  {
+   "id": "J.n1",
+   "implementation_files": [
+    "src/crucible/innovation/measure.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "state": "implemented",
+   "notes": "2 categories: api_service (capability registry) and software_package (adopted by execution)."
+  },
+  {
+   "id": "L.1",
+   "implementation_files": [
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/needs.py",
+    "src/crucible/innovation/scenarios.py",
+    "src/crucible/innovation/measure.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py"
+   ],
+   "state": "implemented",
+   "notes": "5 effects measured by forks with/without the agent-created capability (needs, switching, base-service compute, overloads, paid calls)."
+  },
+  {
+   "id": "L.2",
+   "implementation_files": [
+    "src/crucible/innovation/needs.py",
+    "src/crucible/innovation/measure.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py",
+    "tests/test_v5_innovation_needs.py"
+   ],
+   "state": "implemented",
+   "notes": "8 needs first derived after the first needs update (supply, alternative, provide via complements, package alternative)."
+  },
+  {
+   "id": "L.3",
+   "implementation_files": [
+    "src/crucible/innovation/needs.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/adopt.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py",
+    "tests/test_v5_innovation_needs.py"
+   ],
+   "state": "implemented",
+   "notes": "2 needs addressed by things created after they arose (a substitute service adopted by 32 holders; a fixed release adopted by the dependent); both resolved."
+  },
+  {
+   "id": "L.4",
+   "implementation_files": [
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/scenarios.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py"
+   ],
+   "state": "implemented",
+   "notes": "4 chains of 4-5 stages in 4 worlds/seeds (capacity, technology-compute, social discovery, software security); first acts are scripted reference agents, later stages arise from generic mechanisms."
+  },
+  {
+   "id": "L.5",
+   "implementation_files": [
+    "src/crucible/innovation/scenarios.py",
+    "src/crucible/innovation/measure.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py"
+   ],
+   "state": "implemented",
+   "notes": "3 of 3 removal forks confirm the dependency (exact under the deterministic cost model; invariants clean in every fork)."
+  },
+  {
+   "id": "L.n1",
+   "implementation_files": [
+    "src/crucible/innovation/measure.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py"
+   ],
+   "state": "implemented",
+   "notes": "0 credits to creators from system accounts after genesis (runtime) and 0 references to system accounts outside genesis in crucible/innovation (static)."
+  },
+  {
+   "id": "SP-6.3",
+   "implementation_files": [
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/adopt.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/scenarios.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_3.py",
+    "tests/test_v5_innovation_caps.py"
+   ],
+   "state": "implemented",
+   "notes": "A service created after genesis was discovered, tested on participants own generated inputs, adopted and used by 24; a useless service was tested by 24 and adopted by 0; independent suite 1.00 vs 0.50."
+  },
+  {
+   "id": "SP-6.4",
+   "implementation_files": [
+    "src/crucible/innovation/needs.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_4.py",
+    "tests/test_v5_innovation_needs.py"
+   ],
+   "state": "implemented",
+   "notes": "6 relation types used by derivation/addressing paths; 0 special-case triggers (path validity, rule-code literals, rename invariance)."
+  },
+  {
+   "id": "SP-6.5",
+   "implementation_files": [
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/reference.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_5.py",
+    "tests/test_v5_innovation_pkg.py"
+   ],
+   "state": "implemented",
+   "notes": "15 of 15 features from recorded state; 2 adoptions by traced execution (one transitive); stars and declared-only dependencies not counted."
+  }
  ],
  "dependencies_used": [],
  "limitations": [

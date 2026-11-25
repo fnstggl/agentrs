@@ -174,7 +174,11 @@ These helpers read only authoritative state and the log, and they work for any p
 (workstream B) exists, its principals are counted the same way. A participant is independent when it is not related
 to the creator.
 
-## Measured (this branch, gate tests run 2026-11-25, 91 s wall for all 17 gate tests)
+## Measured (this branch, gate tests at commits 21892cc / 0d31537, 2026-11-25, 83 s wall for all 17 gate tests)
+
+The scenarios are deterministic for a given commit. Adding or removing an event shifts the sequence-keyed seeds of
+`ctx.rng`, so the exact numbers move a little between commits. The first run, before the evidence rework, gave
+p = 2.0e-11 for J.5, 7 needs for L.2 and +58,364 compute units for J.7.
 
 | requirement | metric | value |
 |---|---|---|
@@ -182,13 +186,13 @@ to the creator.
 | J.2 | published_products | 4 |
 | J.3 | independent_discoverers | 24 (service), 1 (geokit) |
 | J.4 | independent_users | 24 (service), 1 (geokit, executed by a dependent) |
-| J.5 | measured_behavior_adoption_pvalue | 2.0e-11 (24/24 adopters as built vs 2/24 with the weaker implementation) |
+| J.5 | measured_behavior_adoption_pvalue | 1.6e-12 (24/24 adopters as built vs 1/24 with the weaker implementation) |
 | J.6 | independent_transactions | 1,092 sales from 24 independent payers |
-| J.7 | resource_consumption_delta | +58,364 compute units vs the fork without the product; +9,100 cents compute rent |
+| J.7 | resource_consumption_delta | +57,694 compute units vs the fork without the product; +9,100 cents compute rent |
 | J.n1 | product_categories | 2 (api_service, software_package) |
 | L.1 | capability_effects_measured | 5 |
-| L.2 | emerged_needs | 7 (supply, alternative, provide/complement, package alternative) |
-| L.3 | needs_addressed_by_new_services | 2 (34 holders switched to the new service; 1 dependent upgraded to the fixed release) |
+| L.2 | emerged_needs | 8 (supply, alternative, provide/complement, package alternative) |
+| L.3 | needs_addressed_by_new_services | 2 (32 holders switched to the new service; 1 dependent upgraded to the fixed release) |
 | L.4 | independent_chains / min_chain_stages | 4 / 4 |
 | L.5 | counterfactual_removals_confirming | 3 of 3 |
 | L.n1 | special_case_bonuses | 0 |
@@ -199,11 +203,11 @@ to the creator.
 Notes on these numbers:
 
 - **SP-6.3.** All 24 participants found, tested, adopted and used the correct service. The invalid-route service was
-  tested by all 24 and adopted by none. The independent suite scored them 1.00 and 0.38.
+  tested by all 24 and adopted by none. The independent suite scored them 1.00 and 0.50 (0.38 in the first run).
 - **L.5.** The first stage of each chain was removed in a fork of one snapshot:
-  - Withdrawing the service right after creation removed the supply need, the new service and the 62 later
+  - Withdrawing the service right after creation removed the supply need, the new service and the 63 later
     adoptions.
-  - Never building the composite technology: base-service compute 5.69M vs 3.10M compute units, overloads 133 vs 0,
+  - Never building the composite technology: base-service compute 4.60M vs 3.09M compute units, overloads 105 vs 0,
     supply need 1 vs 0.
   - Deleting the forum posts: forum-reader adopters 12 vs 1, search-channel adopters 12 vs 12.
 - **SP-6.4.** The three counted checks are all zero: needs without a valid relation path, literals in the rule code
@@ -211,8 +215,7 @@ Notes on these numbers:
 
 Cost: 20 participants and one service run 3 simulated days in about 2 s. The market scenario takes about 8 s for
 24 participants, 4 days and three counterfactual arms. A 36-participant capacity world runs 7 days in about 9 to
-11 s per arm. The scripted package
-history takes 2.3 s. Sandbox calls run on persistent workers: deployment about 90 ms, call about 6 ms including the
+11 s per arm. The scripted package history takes 2.3 s. Sandbox calls run on persistent workers: deployment about 90 ms, call about 6 ms including the
 world.
 
 ## Limitations
