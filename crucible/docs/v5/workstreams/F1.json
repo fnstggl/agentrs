@@ -1,7 +1,7 @@
 {
  "workstream": "F1",
  "branch": "worktree-wf_62a0cf0b-bb3-3",
- "commit": "b64f6b4",
+ "commit": "4c0c67f",
  "requirements": [
   {
    "id": "K.1",
@@ -131,7 +131,7 @@
  "integration_notes": [
   "crucible/src/crucible/commerce/modules.py imports products, subscriptions, marketplace, business, customers, revenue; F2 adds its own imports to the same file (expect a trivial merge).",
   "Substrate (section 1) was not merged when this work finished: nothing here uses it. When B's population lands, its individuals can use subs.subscribe / prod.buy / xchg.buy unchanged once ids.ensure_principal gives them a principal and account; reference.startup_world can then swap patrons for population individuals.",
-  "substrate.primitives.owner('product') should map to module 'products', table 'products'.",
+  "Substrate (workstream A) was merged at the very end (merge 4c0c67f). primitives.OWNERS maps 'product' to market.listings; F1 keeps its product catalogue in products.products and declares no shared_facts, so check_no_duplicates passes with every F1 module present (no warnings). Workstream A / the orchestrator should decide whether 'product' moves to products.products or an OVERLAPS entry records the two. After the merge the F1 tests (27 fast + K.n1 earlier) and the substrate tests (142) pass together.",
   "New kernel modules: products (prod), subs, xchg, ventures (venture), patrons (no tools). ventures chains world.hooks['on_company_ended']; no 4.0 file was changed.",
   "New evaluator metrics (goals.metrics registry, subject principal): mrr_cents, arr_cents, active_subscriptions, independent_customers, churn_rate, profit_cents, one_time_revenue_cents.",
   "docs/v5/FIDELITY_REGISTER.md: six F1 rows appended to the v5 table (other workstreams append to the same table).",
