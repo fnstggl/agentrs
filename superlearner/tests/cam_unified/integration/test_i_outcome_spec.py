@@ -7,8 +7,8 @@ from superlearner.cam_unified import integration_doubles as dbl
 from superlearner.cam_unified.interfaces import (Action, EntityRegistry, ExecutionResult, Likelihood, Observation,
                                                  ObsKind, TokenKind)
 from superlearner.cam_unified.outcome_spec import (CORE_KEYS, OutcomeQueryEncoder, OutcomeTracker, TokenizerTextEncoder,
-                                                   bind_channels, build_outcome_batch, error_class,
-                                                   outcomes_from_results, symlog)
+                                                   bind_channels, build_outcome_batch, error_class, lookup_channels,
+                                                   make_room, outcomes_from_results, symlog)
 from superlearner.cam_unified.testing import tiny_config, zero_fast_state
 
 
@@ -92,42 +92,70 @@ def test_query_tokens_through_tokenizer_need_no_new_parameters():
     assert tok.text.emb.weight.grad is not None and tok.text.emb.weight.grad.abs().sum() > 0
 
 
-def test_query_cache_is_versioned_and_only_without_grad():
+def test_query_cache_never_serves_embeddings_of_other_weights():
     cfg = tiny_config()
     tok = dbl.DoubleTokenizer(cfg)
-    ver = {"v": 0}
-    te = TokenizerTextEncoder(tok, version_fn=lambda: ver["v"])
+    epoch = {"v": 0}
+    te = TokenizerTextEncoder(tok, epoch_fn=lambda: epoch["v"])
     with torch.no_grad():
         a = te(["cost in cents", "ok"])
         calls = te.calls
         b = te(["ok", "cost in cents"])
-        assert te.calls == calls and torch.allclose(a[0], b[1])               # served from the cache
-        with torch.no_grad():
-            tok.text.emb.weight.add_(1.0)                                     # "update" the tokenizer
+        assert te.calls == calls and torch.allclose(a[0], b[1]) and te.hits >= 2      # served from the cache
+        tok.text.emb.weight.add_(1.0)            # in-place edit nobody announced (same epoch)
         c = te(["ok"])
-        assert torch.allclose(c[0], b[0])                                     # same version -> cached (stale by design)
-        ver["v"] = 1
-        d = te(["ok"])
-        assert te.calls == calls + 1 and not torch.allclose(d[0], b[0])       # new version -> recomputed
+        fresh = (lambda: (te.clear(), te(["ok"]))[1])()
+        assert te.calls >= calls + 1 and not torch.allclose(c[0], b[0]) and torch.allclose(c[0], fresh[0])
+        calls = te.calls
+        te(["ok"])
+        assert te.calls == calls                                              # cached again for the new weights
+        epoch["v"] = 1                                                        # announced change (optimiser step)
+        te(["ok"])
+        assert te.calls == calls + 1
     e = te(["ok"])
     assert e.requires_grad                                                    # grad mode bypasses the cache
 
 
-def test_channels_bound_in_fast_state_and_recycled_least_recent():
+def test_channels_only_for_observed_continuous_keys_with_stable_lru():
     cfg = tiny_config()
     fast = zero_fast_state(1, cfg, C=4)
     tr = OutcomeTracker()
-    s1 = tr.realize([], Action("x"), ExecutionResult(True), [], 0.0)          # 5 core keys > 4 channels
-    ch = bind_channels(fast, 0, s1[:4], tr.last_seen)
-    assert sorted(ch) == [0, 1, 2, 3] and fast.channels[0]["ok"] == ch[0]
-    fast.bayes_mu[0, ch[1]] = 5.0
-    fast.bayes_n[0, ch[1]] = 3
-    tr.last_seen.update({"ok": 10, "error_code": 1, "cost": 10, "duration": 10})
-    ch2 = bind_channels(fast, 0, [s1[4]], tr.last_seen, prior_var=2.0, obs_var=0.5)   # 'reward' evicts error_code
-    assert ch2 == [ch[1]] and "error_code" not in fast.channels[0] and fast.channels[0]["reward"] == ch[1]
-    assert float(fast.bayes_mu[0, ch[1]].abs().sum()) == 0.0 and float(fast.bayes_n[0, ch[1]]) == 0
-    assert torch.allclose(fast.bayes_P[0, ch[1]], torch.eye(cfg.bayes_feat, dtype=torch.float64) * 2.0)
-    assert float(fast.bayes_noise[0, ch[1]]) == 0.5
+    stats = {}
+    s1 = tr.realize([], Action("x"), ExecutionResult(True, cost=3.0), [num(1.0, "a", "e", "u")], 0.0)
+    ch = bind_channels(fast, 0, s1, tr.last_seen, stats=stats)
+    by = dict(zip([s.key for s in s1], ch))
+    assert by["ok"] == -1 and by["error_code"] == -1                           # not continuous: particles only
+    assert sorted(v for v in ch if v >= 0) == [0, 1, 2, 3]                     # cost, duration, reward, lvl:a
+    assert set(fast.channels[0]) == {"cost", "duration", "reward", "lvl:a@e[u]"} and stats.get("unbound", 0) == 0
+    # prospective (unobserved) keys only look up existing bindings, never allocate
+    pro = tr.prospective()
+    look = lookup_channels(fast, 0, pro)
+    assert all((c >= 0) == (s.key in fast.channels[0]) for s, c in zip(pro, look))
+    # a step realising 2 new continuous keys: they take the least recently *realised* slots not realised now
+    fast.bayes_mu[0, by["lvl:a@e[u]"]] = 5.0
+    fast.bayes_n[0, by["lvl:a@e[u]"]] = 3
+    s2 = tr.realize([], Action("x"), ExecutionResult(True), [num(1.0, "b", "e", "u"), num(2.0, "c", "e", "u")], 0.0)
+    keys2 = {s.key for s in s2 if s.observed and int(s.lik) in (0, 1)}
+    assert keys2 == {"cost", "duration", "reward", "lvl:b@e[u]", "lvl:c@e[u]"}
+    stats = {}
+    ch2 = bind_channels(fast, 0, s2, tr.last_seen, prior_var=2.0, obs_var=0.5, stats=stats)
+    # 5 realised continuous keys, 4 slots, only 1 non-realised victim (lvl:a): 1 evicted, 1 does not fit
+    assert stats == {"evicted": 1, "unbound": 1} and "lvl:a@e[u]" not in fast.channels[0]
+    slot = by["lvl:a@e[u]"]
+    assert float(fast.bayes_mu[0, slot].abs().sum()) == 0.0 and float(fast.bayes_n[0, slot]) == 0   # reset to prior
+    assert torch.allclose(fast.bayes_P[0, slot], torch.eye(cfg.bayes_feat, dtype=torch.float64) * 2.0)
+    assert float(fast.bayes_noise[0, slot]) == 0.5
+    # the same realised set again: nothing is evicted (keys realised now are protected), the overflow stays counted
+    stats = {}
+    before = dict(fast.channels[0])
+    bind_channels(fast, 0, s2, tr.last_seen, stats=stats)
+    assert stats == {"evicted": 0, "unbound": 1} and fast.channels[0] == before
+    # make_room alone frees slots without allocating (the Bayes layer allocates)
+    fast2 = zero_fast_state(1, cfg, C=3)
+    fast2.channels[0] = {"old1": 0, "old2": 1, "cost": 2}
+    tr.last_seen.update({"old1": 1, "old2": 5})
+    ev = make_room(fast2, 0, [s for s in s2 if s.key in ("cost", "duration")], tr.last_seen)
+    assert ev == ["old1"] and fast2.channels[0] == {"old2": 1, "cost": 2}
 
 
 def test_outcomes_from_results_functional_api_pads_and_binds():
@@ -144,7 +172,9 @@ def test_outcomes_from_results_functional_api_pads_and_binds():
     assert ob.y.shape == (2, Q) and ob.channel.shape == (2, Q)
     n0 = len(specs[0])
     assert n0 < Q and not ob.y_mask[0, n0:].any() and (ob.channel[0, n0:] == -1).all() and not ob.q.mask[0, n0:].any()
-    assert (ob.channel[0, :n0] >= 0).all() and len(fast.channels[0]) == n0
+    cont = [int(s.lik) in (0, 1) and s.observed for s in specs[0]]
+    assert all((int(c) >= 0) == k for c, k in zip(ob.channel[0, :n0].tolist(), cont))
+    assert len(fast.channels[0]) == sum(cont) == 4                       # cost, duration, reward, num:stock
     k = ob.keys[0].index("num:stock@p1[count]")
     assert math.isclose(float(ob.y[0, k]), symlog(-3.0), rel_tol=1e-6)
     assert math.isclose(float(ob.y[1, ob.keys[1].index("reward")]), 1.0)

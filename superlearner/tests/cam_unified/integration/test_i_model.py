@@ -7,11 +7,12 @@ import torch.nn as nn
 
 from conftest import Stack, make_cfg
 from superlearner.cam_unified import integration_doubles as dbl
-from superlearner.cam_unified.interfaces import (ActionSource, ExecutionResult, Observation, ObsKind, TokenKind,
-                                                 TokenSet)
-from superlearner.cam_unified.model import (DEFAULT_COMPONENT_PATHS, CamUnifiedModel, ComponentUnavailable, ShapeError,
-                                            available_components, build_model, check_tokens, fit_budget,
-                                            required_components)
+from superlearner.cam_unified.interfaces import (Action, ActionSource, ExecutionResult, Observation, ObsKind,
+                                                 TokenKind, TokenSet)
+from superlearner.cam_unified.model import (DEFAULT_COMPONENT_PATHS, CamUnifiedModel, ComponentImportError,
+                                            ComponentUnavailable, ShapeError, available_components, build_model,
+                                            check_tokens, fit_budget, required_components)
+from superlearner.cam_unified.runtime import run_steps
 
 
 def first_obs(st: Stack):
@@ -68,7 +69,16 @@ def test_required_components_follow_ablation_switches():
                                       "bayes": None, "reasoner": None})
     assert m.retriever is None and m.beliefs is None and m.reasoner is None
     assert required_components(cfg2) == {"tokenizer", "core", "outcome_head", "world_model", "action_generator",
+                                         "value_head", "option_policy", "exploration_head"}
+    cfg3 = make_cfg(use_memory=False, use_fast_adaptation=False, use_reasoning=False, use_learned_exploration=False,
+                    n_options=0)
+    assert required_components(cfg3) == {"tokenizer", "core", "outcome_head", "world_model", "action_generator",
                                          "value_head"}
+    # a learned-exploration config without its head, or an options config without the option policy, cannot build
+    for missing in ("exploration_head", "option_policy"):
+        with pytest.raises(ComponentUnavailable) as e:
+            build_model(cfg, components={**comps, missing: None})
+        assert missing in str(e.value)
 
 
 class FakeSemantic(nn.Module):
@@ -206,17 +216,18 @@ def test_imagination_selects_among_cam_candidates_without_touching_real_beliefs(
 
 
 def test_imagined_evaluation_changes_the_real_action():
-    """Same CAM candidates (same sampling seed); only the imagined evaluation differs (value head negated) -> the
-    planner picks a different real action in at least one environment."""
+    """Same CAM candidates (same sampling seed); only the imagined evaluation differs (the outcome head's predicted
+    means negated, so every imagined reward flips sign) -> the planner picks a different real action in at least one
+    environment. (An untrained value head is nearly flat across candidates, so the imagined rewards dominate.)"""
     st = Stack(B=4, cfg=make_cfg(imag_branches=4))
     ob = first_obs(st)
     s0 = copy.deepcopy(st.agent.state)
     torch.manual_seed(123)
     d_a = decide(st, ob, generator=torch.Generator().manual_seed(7))
     with torch.no_grad():
-        last = st.model.value_head.net[-1]
-        last.weight.mul_(-50.0)
-        last.bias.mul_(-50.0)
+        out = st.model.outcome_head.out
+        out.weight[0].mul_(-1.0)
+        out.bias[0].mul_(-1.0)
     st.agent.state = copy.deepcopy(s0)
     torch.manual_seed(123)
     d_b = decide(st, ob, generator=torch.Generator().manual_seed(7))
@@ -225,6 +236,9 @@ def test_imagined_evaluation_changes_the_real_action():
     chosen_a = [a.proposal["chosen"] for a in d_a.actions]
     chosen_b = [a.proposal["chosen"] for a in d_b.actions]
     assert chosen_a != chosen_b
+    for d in (d_a, d_b):
+        for a in d.actions:
+            assert a.proposal["chosen"] == max(range(4), key=lambda i: a.proposal["scores"][i])
 
 
 def test_observe_outcomes_updates_particles_and_kalman_layer():
@@ -236,18 +250,24 @@ def test_observe_outcomes_updates_particles_and_kalman_layer():
     nxt = [list(r.observations) + list(o) for r, o in zip(res, adv.observations)]
     sub = st.agent.state.select([0, 1])
     logw0, n0, mu0 = sub.fast.logw.clone(), sub.fast.bayes_n.clone(), sub.fast.bayes_mu.clone()
+    p0 = sub.fast.particles.clone()
     info = st.model.observe_outcomes(sub, dec, res, nxt, [0.0, 0.0])
     ob_ = info["outcomes"]
     assert ob_.y_mask.any() and ob_.q.x.shape[:2] == ob_.y.shape
-    assert not torch.allclose(sub.fast.logw, logw0)                                   # particle weights moved
+    assert not torch.allclose(sub.fast.particles, p0)                                 # particles moved
+    resampled = info["belief_info"]["resampled"]
+    moved = (sub.fast.logw - logw0).abs().amax(-1) > 1e-6
+    assert bool((moved | resampled).all())                    # weights reweighted (or reset by resampling)
     assert (sub.fast.bayes_n.sum(1) > n0.sum(1)).all()                                # Kalman counts grew
     assert not torch.allclose(sub.fast.bayes_mu, mu0)
     assert info["loglik"].shape == (2,) and torch.isfinite(info["loglik"]).all()
     assert info["lp"] is None                                                         # no previous update yet
     assert sub.fast_prev is not None and torch.allclose(sub.fast_prev.logw, logw0)
     assert {"ess", "entropy", "top_w"} <= set(info["belief_after"][0])
-    for b in range(2):                                                                # channels bound per key
-        assert set(info["specs"][b][i].key for i in range(5)) <= set(sub.fast.channels[b])
+    for b in range(2):           # channels bound for the observed continuous keys only (by the Bayes layer)
+        cont = {s.key for s in info["specs"][b] if s.observed and int(s.lik) in (0, 1)}
+        assert {"cost", "duration", "reward"} <= cont and set(sub.fast.channels[b]) == cont
+        assert "ok" not in sub.fast.channels[b] and info["channels"][b] == {"evicted": 0, "unbound": 0}
 
 
 def test_fit_budget_keeps_priority_kinds_and_most_recent():
@@ -263,3 +283,210 @@ def test_fit_budget_keeps_priority_kinds_and_most_recent():
     assert torch.equal(out.x[0], x[0, [2, 3, 4]])
     with pytest.raises(ShapeError):
         check_tokens(out, 2, D, "bad batch")
+
+
+def test_planner_records_its_argmax_selection_and_uses_the_kalman_layer():
+    st = Stack()
+    ob = first_obs(st)
+    dec = decide(st, ob)
+    n, H = st.model.imag_candidates, st.model.imag_horizon
+    for b, a in enumerate(dec.actions):
+        p = a.proposal
+        assert p["selection"] == "argmax" and p["probs"] == [1.0 if i == p["chosen"] else 0.0 for i in range(n)]
+        assert a.logp_parts["select"] == 0.0 and len(p["generator_logp"]) == n
+        assert abs(p["generator_logp"][p["chosen"]] + a.logp_parts["option"] - a.logp) < 1e-5
+        assert dec.behavior[b] == {"policy": "planner_argmax", "logp_kind": "generator_proposal",
+                                   "selection": "argmax", "n_candidates": n}
+    # imagined Kalman updates of the cloned fast state (the real one is untouched)
+    assert st.model.calls["imagination.bayes.update"] == H
+    # after real outcomes bound channels, imagination predicts with the combined head + Kalman predictive
+    res = st.env.execute(dec.actions)
+    adv = st.env.advance_time([r.duration + st.model.think_days for r in res])
+    nxt = [list(r.observations) + list(o) for r, o in zip(res, adv.observations)]
+    sub = st.agent.state.select([0, 1])
+    st.model.observe_outcomes(sub, dec, res, nxt, [0.0, 0.0])
+    st.agent.state.scatter([0, 1], sub)
+    n_pred = st.model.calls.get("imagination.bayes.predict", 0)
+    decide(st, ob)
+    assert st.model.calls["imagination.bayes.predict"] - n_pred == H
+
+
+def test_kalman_combination_semantics_match_the_bayes_layer():
+    """Bound continuous outcomes: mean = head mixture mean + phi^T mu_c, variance = the Kalman predictive variance
+    (B's BayesLastLayer.combine), the same predictive that adapt_loss scores; unbound ones: the head alone."""
+    st = Stack()
+    ob = first_obs(st)
+    dec = decide(st, ob)
+    res = st.env.execute(dec.actions)
+    adv = st.env.advance_time([r.duration + st.model.think_days for r in res])
+    nxt = [list(r.observations) + list(o) for r, o in zip(res, adv.observations)]
+    sub = st.agent.state.select([0, 1])
+    st.model.observe_outcomes(sub, dec, res, nxt, [0.0, 0.0])
+    m = st.model
+    specs, prosp = m.prospective_batch(sub)
+    with torch.no_grad():
+        mean, var, feat = m.predict_outcomes(dec.Z_hat, sub.fast, prosp)
+        hm, hv, _ = m.base_moments(dec.Z_hat, sub.fast, prosp)
+        phi = m.bayes.features(feat, prosp)
+        cm, cv = m.bayes.predict(sub.fast, phi, prosp)
+    bound = m.kalman_bound(prosp)
+    assert bool(bound.any()) and bool((~bound & prosp.q.mask).any())
+    assert torch.allclose(mean[bound], (hm + cm)[bound], atol=1e-5) and torch.allclose(var[bound], cv[bound])
+    assert torch.allclose(mean[~bound], hm[~bound]) and torch.allclose(var[~bound], hv[~bound])
+    assert set(k for k in sub.fast.channels[0]) >= {"cost", "duration", "reward"}
+    assert all(c == -1 for s, c in zip(specs[0], prosp.channel[0].tolist()) if int(s.lik) not in (0, 1))
+
+
+def test_policy_evaluate_rebuilds_memory_tokens_with_gradients():
+    st = Stack()
+    ob = first_obs(st)
+    dec = decide(st, ob)
+    st.model.retriever.add([type("R", (), {"event_id": f"e{i}", "action": a, "result": ExecutionResult(True),
+                                           "reward": 0.0})() for i, a in enumerate(dec.actions)])
+    dec2 = decide(st, ob)
+    assert all(dec2.inputs.memory_ids) and dec2.retrieved[0]
+    out = st.model.policy_evaluate(dec2.inputs, dec2.actions)
+    assert out["memory_rebuilt"] and torch.allclose(out["logp"], dec2.logp, atol=1e-4)
+    out["logp"].sum().backward()
+    g = st.model.retriever.mem.weight.grad
+    assert g is not None and float(g.abs().sum()) > 0             # memory content projection trained by decisions
+
+
+def test_expected_dt_from_wait_arguments_hints_and_world_model():
+    st = Stack()
+    m = st.model
+    tools = st.env.available_tools()[0]
+    Z = st.model.core.init_state(3)
+    acts = [Action("wait", {"seconds": 43200}), Action("restock", {"product": "p", "count": 2}),
+            Action("set_price", {"product": "p", "price": 100.0}, expected_duration=0.25)]
+    with torch.no_grad():
+        A = m.tokenizer.action(acts)
+        dt = m.expected_dt(Z, A, acts, [tools] * 3)
+    th = m.think_days
+    assert torch.allclose(dt, torch.tensor([0.5 + th, 0.02 + th, 0.25 + th]), atol=1e-6)
+    # a tool without hint or duration arguments: the world model's learned duration when it has one
+    m.world_model.predict_duration = lambda Z, act: torch.full((Z.shape[0],), 0.125)
+    acts2 = [Action("advertise", {"channel": "forum", "budget": 10, "repeat": False})]
+    with torch.no_grad():
+        dt2 = m.expected_dt(Z[:1], m.tokenizer.action(acts2), acts2, [tools])
+    assert torch.allclose(dt2, torch.tensor([0.125 + th]))
+
+
+def test_query_embeddings_never_stale_after_a_weight_load_or_version_reset():
+    st = Stack()
+    run_steps(st.agent, st.env, 2, evaluator=st.evaluator)
+    m = st.model
+    te = m.query_encoder.text_encoder
+    text = ["change in balance of account, in cents"]
+    with torch.no_grad():
+        cached = te(text).clone()
+        m.tokenizer.text.emb.weight.neg_()                          # the verifier's probe: edit weights ...
+        st.agent.version = 0                                        # ... and reset the version
+        served = te(text)
+        te.clear()
+        recomputed = te(text)
+    assert torch.allclose(served, recomputed) and not torch.allclose(served, cached)
+    # load_state_dict bumps the weights epoch
+    sd = {k: v.clone() for k, v in m.state_dict().items()}
+    with torch.no_grad():
+        before = te(text).clone()
+    ep = m.weights_epoch
+    sd["tokenizer.text.emb.weight"].mul_(2.0)
+    m.load_state_dict(sd)
+    assert m.weights_epoch > ep
+    with torch.no_grad():
+        after = te(text)
+    assert not torch.allclose(after, before)
+
+
+def test_fit_budget_counts_dropped_tokens_by_kind():
+    D = 8
+    kinds = torch.tensor([[TokenKind.MEMORY, TokenKind.OBS_SEM, TokenKind.GOAL, TokenKind.MEMORY]])
+    ts = TokenSet(torch.randn(1, 4, D), torch.ones(1, 4, dtype=torch.bool), kinds, torch.zeros(1, 4),
+                  torch.full((1, 4), -1), None)
+    dropped = [{}]
+    fit_budget(ts, 2, dropped)
+    assert dropped == [{"MEMORY": 2}]
+
+
+class ValueOutputHead(nn.Module):
+    """D-shaped distributional value head: forward -> object with .value and .logits; loss(logits, target)."""
+
+    def __init__(self, d_model):
+        super().__init__()
+        self.lin = nn.Linear(d_model, 5)
+        self.register_buffer("bins", torch.linspace(-2, 2, 5))
+        self.n_loss = 0
+
+    def forward(self, R, goal=None):
+        logits = self.lin(R.float().mean(1))
+        return type("ValueOutput", (), {"value": (torch.softmax(logits, -1) * self.bins).sum(-1), "logits": logits})()
+
+    def loss(self, logits, target):
+        self.n_loss += 1
+        idx = (target.detach().clamp(-2, 2) + 2).round().long()
+        return nn.functional.cross_entropy(logits, idx, reduction="none")
+
+
+def test_value_head_returning_value_output_and_d_shaped_constructors():
+    cfg = make_cfg()
+    comps = dbl.double_components(cfg)
+    comps["value_head"] = ValueOutputHead             # class: built with d_model from the config by name
+    st = Stack(cfg=cfg, components=comps)
+    assert isinstance(st.model.value_head, ValueOutputHead)
+    rep = run_steps(st.agent, st.env, 4, evaluator=st.evaluator, update_every=4)
+    assert rep.updates[0]["updated"] and st.model.value_head.n_loss == 1       # the head's own value loss
+    assert all(isinstance(r.extra["value"], float) for r in st.archive.rows if r.action is not None)
+
+
+def test_build_model_sizes_kalman_channels_and_raises_real_import_errors(tmp_path, monkeypatch):
+    cfg = make_cfg()
+    m = build_model(cfg, paths=dbl.DOUBLE_PATHS, max_numeric_outcomes=20)
+    assert m.beliefs.C == 3 + 20 and m.n_channels == 23 and m.max_numeric_outcomes == 20
+    # a module that exists but fails to import is a bug, not "not merged yet"
+    pkg = tmp_path / "brokenpkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "heads.py").write_text("import definitely_not_installed_module_xyz\nclass OptionModule: pass\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    with pytest.raises(ComponentImportError):
+        build_model(cfg, paths={**dbl.DOUBLE_PATHS, "option_policy": "brokenpkg.heads:OptionModule"})
+    with pytest.raises(ComponentImportError):
+        build_model(cfg, paths={**dbl.DOUBLE_PATHS, "option_policy": f"{dbl.__name__}:NoSuchClass"})
+    avail = available_components({"option_policy": "brokenpkg.heads:OptionModule"})
+    assert "failed inside the module" in avail["option_policy"]
+    with pytest.raises(ComponentUnavailable):                          # a module that does not exist yet
+        build_model(cfg, paths={**dbl.DOUBLE_PATHS, "option_policy": "superlearner.cam_unified.nope.heads:X"})
+
+
+class PlainSemantic:
+    """A SemanticEncoder that is not an nn.Module (like A's QwenSemantic): frozen base + LoRA tensors."""
+    sem_dim = 16
+
+    def __init__(self):
+        self.lm = nn.Linear(16, 16)
+        self.lm.requires_grad_(False)
+        self.n_pretrained = sum(p.numel() for p in self.lm.parameters())
+        self.lora = [nn.Parameter(torch.zeros(4, 16)), nn.Parameter(torch.zeros(16, 4))]
+
+    def lora_parameters(self):
+        return list(self.lora)
+
+    def hidden(self, texts, max_tokens):
+        raise NotImplementedError
+
+    def embed(self, texts):
+        raise NotImplementedError
+
+
+def test_count_parameters_counts_a_non_module_semantic_encoder():
+    cfg = make_cfg()
+    comps = dbl.double_components(cfg)
+    sem = PlainSemantic()
+    gen = comps["action_generator"]
+    gen.lora = nn.ParameterList(sem.lora)                     # registered by the action generator (as A does)
+    m = build_model(cfg, components={**comps, "semantic": sem})
+    c = m.count_parameters()
+    assert c["semantic_pretrained"] == {"total": 272 + 128, "trainable": 128, "frozen": 272}
+    uniq = {id(p): p for p in m.parameters()}
+    assert c["cam_total"] + 128 == sum(p.numel() for p in uniq.values())   # LoRA counted once, as semantic

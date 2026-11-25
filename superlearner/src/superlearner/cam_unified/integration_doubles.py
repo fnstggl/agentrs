@@ -1,10 +1,13 @@
 """Minimal but real doubles for the integration tests of workstream I. TESTS ONLY: production code never imports this
-module (checked by tests/cam_unified/integration/test_integration.py::test_production_code_never_imports_doubles).
+module (checked by tests/cam_unified/integration/test_i_agent_runtime.py::test_production_code_never_imports_doubles).
 
 They implement the contract protocols that `testing.py` does not cover (tokenizer, entity encoder, reasoner, beliefs,
 Bayes last layer, world model, retriever, action generator, value / option / exploration heads, archive, replay,
-trainer, trace recorder) plus a pure-python EnvAdapter (`ToyShopEnv`) and its GoalEvaluator. Each double does a small
-genuine computation with gradients so the integration tests fail if a path is disconnected. They are not the
+trainer, trace recorder) plus a pure-python EnvAdapter (`ToyShopEnv`) and its GoalEvaluator. Where a workstream's real
+class already exists in its worktree, the double mirrors that class's API (B's BayesLastLayer: own channel
+allocation, learned prior / noise, differentiable update, log_prob, combine; C's WorldModel: time_tokens and
+loss(seq, beliefs, memory); D's OptionModule / BudgetEncoder / CombinedTrainer.step(losses, consumed)). Each double does
+a small genuine computation with gradients so the integration tests fail if a path is disconnected. They are not the
 workstreams' implementations and do not count towards the completion manifest.
 """
 from __future__ import annotations
@@ -14,6 +17,7 @@ import math
 import random
 import re
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Optional, Sequence
 
 import torch
@@ -21,10 +25,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .config import CamConfig
-from .interfaces import (Action, EventRecord, ExecutionResult, FastState, GoalSpec, IndependentGoalResult,
+from .interfaces import (Action, EventRecord, ExecutionResult, FastState, GoalSpec, IndependentGoalResult, Likelihood,
                          Observation, ObservationBatch, ObsKind, OutcomeBatch, Provenance, TokenKind, TokenSet,
                          ToolSchema)
 from .outcome_spec import stable_hash
+
+F64 = torch.float64
 
 OBS_KINDS = list(ObsKind)
 
@@ -377,20 +383,22 @@ class DoubleEntityEncoder(nn.Module):
                 sel = obs.mask[b] & (obs.entity[b] == s)
                 v = self.ent(obs.x[b][sel].float().mean(0))
                 emb[s] = v
-                r.append((v, TokenKind.ENTITY, float(obs.time[b][sel].max()), s, -1, f"entity_slot:{s}"))
+                r.append((v, TokenKind.ENTITY, float(obs.time[b][sel].max()), s, -1, f"entity:{s}"))
             for n in range(obs.N):
                 if obs.mask[b, n] and int(obs.kind[b, n]) == TokenKind.RELATION and int(e2[b, n]) >= 0:
                     i, j = int(obs.entity[b, n]), int(e2[b, n])
                     ei, ej = emb.get(i, obs.x.new_zeros(D).float()), emb.get(j, obs.x.new_zeros(D).float())
                     r.append((self.rel(torch.cat([ei, ej, obs.x[b, n].float()])), TokenKind.RELATION,
-                              float(obs.time[b, n]), i, j, f"relation:{n}"))
+                              float(obs.time[b, n]), i, j, f"relation:{i}->{j}"))
             rows.append(r)
         return _pack(rows, D, dev, B)
 
 
 class DoubleReasoner(nn.Module):
-    """ReasonerP double: R_{j+1} = Layer(R_j + iter_emb_j, ctx) for J iterations; PonderNet halting
-    p_j = lambda_j prod_{i<j}(1 - lambda_i); output mixture sum_j p_j R_j; ponder = E[iterations]."""
+    """ReasonerP double with the semantics of B's Reasoner: R_{j+1} = Layer(R_j + iter_emb_j, ctx). Fixed J
+    (n_iters given): R = R_J. Adaptive, training: PonderNet mixture sum_j p_j R_j with p_j = lambda_j prod_{i<j}
+    (1 - lambda_i), ponder = E[iterations]. Adaptive, eval (acting): hard halting at the first j whose cumulative
+    halting probability reaches 0.5, R = R_j, iters = j. (Train and eval therefore compute different R, as in B.)"""
 
     def __init__(self, cfg: CamConfig, max_iters: int = 4):
         super().__init__()
@@ -413,11 +421,22 @@ class DoubleReasoner(nn.Module):
             R = self.layer(h, src_key_padding_mask=pad)[:, :S]
             outs.append(R)
             lam.append(torch.sigmoid(self.halt(R.mean(1)).squeeze(-1)) if j < J - 1 else torch.ones(B, device=Z.device))
+        if n_iters is not None:
+            p = torch.zeros(B, J, device=Z.device)
+            p[:, -1] = 1.0
+            it = torch.full((B,), float(J), device=Z.device)
+            return outs[-1], {"halt_p": p, "iters": it, "ponder": it}
         lam = torch.stack(lam, 1).float()
         surv = torch.cumprod(torch.cat([torch.ones(B, 1, device=Z.device), 1 - lam[:, :-1]], 1), 1)
         p = lam * surv
-        Rm = (torch.stack(outs, 1).float() * p.view(B, J, 1, 1)).sum(1).to(Z.dtype)
-        iters = (p * torch.arange(1, J + 1, device=Z.device).float()).sum(1)
+        Rs = torch.stack(outs, 1).float()
+        if self.training:
+            Rm = (Rs * p.view(B, J, 1, 1)).sum(1).to(Z.dtype)
+            iters = (p * torch.arange(1, J + 1, device=Z.device).float()).sum(1)
+            return Rm, {"halt_p": p, "iters": iters, "ponder": iters}
+        stop = (torch.cumsum(p, 1) >= 0.5).float().argmax(1)                      # first j with cum >= 0.5
+        Rm = Rs[torch.arange(B, device=Z.device), stop].to(Z.dtype)
+        iters = (stop + 1).float()
         return Rm, {"halt_p": p, "iters": iters, "ponder": iters}
 
 
@@ -440,7 +459,8 @@ class DoubleBeliefs(nn.Module):
         cfg = self.cfg
         dev = device or self.m0.device
         K, Dp, F_, C, W = cfg.n_particles, cfg.d_particle, cfg.bayes_feat, self.C, cfg.misspec_window
-        return FastState(self.m0.detach().unsqueeze(0).expand(B, K, Dp).clone().to(dev),
+        m0 = self.m0 if torch.is_grad_enabled() else self.m0.detach()     # learned prior particles (adapt loss)
+        return FastState(m0.unsqueeze(0).expand(B, K, Dp).clone().to(dev),
                          torch.full((B, K), -math.log(K), device=dev), torch.full((B, K, Dp), 0.05, device=dev),
                          torch.zeros(B, C, F_, device=dev, dtype=torch.float64),
                          torch.eye(F_, device=dev, dtype=torch.float64).expand(B, C, F_, F_).clone()
@@ -496,58 +516,154 @@ class DoubleBeliefs(nn.Module):
 
 
 class DoubleBayes(nn.Module):
-    """BayesLastLayerP double: phi = tanh(W out_feat); per channel residual ~ phi^T mu_c; Joseph-form Kalman update
-    in float64; predictive variance phi^T P phi + noise."""
+    """BayesLastLayerP double mirroring workstream B's BayesLastLayer ("fixed" noise mode): phi = [tanh(W f); 1];
+    per channel residual r = y - head_mean ~ phi^T w_c + eps, w_c ~ N(mu_c, P_c); learned prior variance (per
+    feature) and noise initialise a slot when the layer allocates it for a newly observed key (`assign_channels`);
+    Joseph-form Kalman update in float64, differentiable in phi, the targets and the learned prior / noise;
+    `log_prob` scores observed residuals under the predictive N(phi^T mu, noise + phi^T P phi)."""
+
+    KINDS = (int(Likelihood.GAUSSIAN), int(Likelihood.STUDENT_T))
 
     def __init__(self, cfg: CamConfig):
         super().__init__()
         self.cfg = cfg
-        self.w = nn.Linear(cfg.d_model, cfg.bayes_feat)
+        self.F = cfg.bayes_feat
+        self.w = nn.Linear(cfg.d_model, self.F - 1)
+        self.log_prior_var = nn.Parameter(torch.full((self.F,), math.log(cfg.bayes_prior_var_init)))
+        self.log_noise = nn.Parameter(torch.tensor(math.log(cfg.bayes_obs_var_init)))
+        self.stats = {"updates": 0, "channel_overflow": 0}
 
-    def features(self, out_feat, outcomes):
-        return torch.tanh(self.w(out_feat.float()))
+    def features(self, out_feat, outcomes, cond=None):
+        phi = torch.tanh(self.w(out_feat.float()))
+        return torch.cat([phi, torch.ones_like(phi[..., :1])], -1)
 
-    def predict(self, fast: FastState, phi, outcomes):
-        B, Q, F_ = phi.shape
-        ch = outcomes.channel.clamp(min=0)
-        mu = fast.bayes_mu.gather(1, ch.unsqueeze(-1).expand(B, Q, F_))                         # [B,Q,F]
-        P = fast.bayes_P.gather(1, ch.view(B, Q, 1, 1).expand(B, Q, F_, F_))
-        ph = phi.double()
-        mean = (ph * mu).sum(-1)
-        var = torch.einsum("bqf,bqfg,bqg->bq", ph, P, ph) + fast.bayes_noise.gather(1, ch)
-        ok = outcomes.channel >= 0
-        return (torch.where(ok, mean, torch.zeros_like(mean)).float(),
-                torch.where(ok, var, torch.zeros_like(var)).float())
+    def prior_var(self):
+        return self.log_prior_var.exp()
 
-    def update(self, fast: FastState, phi, outcomes):
-        mu, P, n = fast.bayes_mu.clone(), fast.bayes_P.clone(), fast.bayes_n.clone()
-        noise = fast.bayes_noise
-        ph = phi.detach().double()
-        B, Q, F_ = ph.shape
-        I = torch.eye(F_, dtype=torch.float64, device=ph.device)
+    def noise(self):
+        return self.log_noise.exp()
+
+    def _suitable(self, outcomes):
+        ok = torch.zeros_like(outcomes.lik, dtype=torch.bool)
+        for k in self.KINDS:
+            ok |= outcomes.lik == k
+        return ok
+
+    def channels_for(self, fast: FastState, outcomes) -> torch.Tensor:
+        B, Q = outcomes.lik.shape
+        ok = self._suitable(outcomes).cpu()
+        ch = torch.full((B, Q), -1, dtype=torch.long)
         for b in range(B):
             for q in range(Q):
-                c = int(outcomes.channel[b, q])
-                if c < 0 or not bool(outcomes.y_mask[b, q]):
+                k = outcomes.keys[b][q] if outcomes.keys is not None and q < len(outcomes.keys[b]) else None
+                if k is not None and bool(ok[b, q]):
+                    ch[b, q] = fast.channels[b].get(k, -1)
+        return ch.to(outcomes.lik.device)
+
+    def assign_channels(self, fast: FastState, outcomes) -> tuple:
+        B, Q = outcomes.lik.shape
+        C = fast.bayes_mu.shape[1]
+        ok = self._suitable(outcomes).cpu()
+        observed = outcomes.y_mask.cpu()
+        channels = [dict(c) for c in fast.channels]
+        fresh = torch.zeros(B, C, dtype=torch.bool)
+        ch = torch.full((B, Q), -1, dtype=torch.long)
+        for b in range(B):
+            d = channels[b]
+            used = set(d.values())
+            for q in range(Q):
+                if not bool(ok[b, q]) or outcomes.keys is None or q >= len(outcomes.keys[b]):
                     continue
-                f = ph[b, q]
-                Pc, r = P[b, c], noise[b, c]
-                s = r + f @ Pc @ f
-                K = (Pc @ f) / s
-                mu[b, c] = mu[b, c] + K * (float(outcomes.y[b, q]) - f @ mu[b, c])
-                A = I - torch.outer(K, f)
-                P[b, c] = A @ Pc @ A.T + r * torch.outer(K, K)
-                n[b, c] += 1
-        return FastState(fast.particles, fast.logw, fast.pscale, mu, P, fast.bayes_noise, n, fast.surprise, fast.steps,
-                         [dict(c) for c in fast.channels])
+                key = outcomes.keys[b][q]
+                if key not in d:
+                    if not bool(observed[b, q]):
+                        continue
+                    free = next((c for c in range(C) if c not in used), None)
+                    if free is None:
+                        self.stats["channel_overflow"] += 1
+                        continue
+                    d[key] = free
+                    used.add(free)
+                    fresh[b, free] = True
+                ch[b, q] = d[key]
+        dev = outcomes.lik.device
+        return ch.to(dev), channels, fresh.to(dev)
+
+    def _gather(self, fast: FastState, ch):
+        B, Q = ch.shape
+        cc = ch.clamp(min=0)
+        ar = torch.arange(B, device=ch.device).unsqueeze(1).expand(B, Q)
+        return fast.bayes_mu[ar, cc], fast.bayes_P[ar, cc], fast.bayes_noise[ar, cc]
+
+    def predictive(self, fast: FastState, phi, outcomes) -> tuple:
+        ch = self.channels_for(fast, outcomes)
+        mu, P, s2 = self._gather(fast, ch)
+        f = phi.to(F64)
+        loc = (f * mu).sum(-1)
+        scale2 = s2 + torch.einsum("bqf,bqfg,bqg->bq", f, P, f)
+        return loc, scale2, ch >= 0
+
+    def predict(self, fast: FastState, phi, outcomes):
+        loc, scale2, bound = self.predictive(fast, phi, outcomes)
+        return (torch.where(bound, loc, torch.zeros_like(loc)).float(),
+                torch.where(bound, scale2, torch.zeros_like(scale2)).float())
+
+    @staticmethod
+    def combine(head_mean, head_var, corr_mean, corr_var, bound):
+        return torch.where(bound, head_mean + corr_mean, head_mean), torch.where(bound, corr_var, head_var)
+
+    def log_prob(self, fast: FastState, phi, outcomes, head_mean=None):
+        loc, scale2, bound = self.predictive(fast, phi, outcomes)
+        r = outcomes.y.to(F64) - (0 if head_mean is None else head_mean.to(F64))
+        lp = -0.5 * (math.log(2 * math.pi) + torch.log(scale2) + (r - loc) ** 2 / scale2)
+        use = bound & outcomes.y_mask
+        return torch.where(use, lp, torch.zeros_like(lp)).float()
+
+    def update(self, fast: FastState, phi, outcomes, head_mean=None) -> FastState:
+        B, Q, Fd = phi.shape
+        dev = phi.device
+        self.stats["updates"] += 1
+        ch, channels, fresh = self.assign_channels(fast, outcomes)
+        mu, P, s2, n = fast.bayes_mu, fast.bayes_P, fast.bayes_noise, fast.bayes_n
+        if bool(fresh.any()):
+            P0 = torch.diag_embed(self.prior_var().to(F64)).expand(B, P.shape[1], Fd, Fd)
+            s20 = self.noise().to(F64).expand(B, s2.shape[1])
+            mu = torch.where(fresh.unsqueeze(-1), torch.zeros_like(mu), mu)
+            P = torch.where(fresh[..., None, None], P0, P)
+            s2 = torch.where(fresh, s20, s2)
+            n = torch.where(fresh, torch.zeros_like(n), n)
+        r_all = outcomes.y.to(F64) - (0 if head_mean is None else head_mean.to(F64))
+        ar = torch.arange(B, device=dev)
+        eye = torch.eye(Fd, dtype=F64, device=dev)
+        for q in range(Q):
+            act = (ch[:, q] >= 0) & outcomes.y_mask[:, q]
+            if not bool(act.any()):
+                continue
+            cc = ch[:, q].clamp(min=0)
+            f = phi[:, q].to(F64)
+            m_c, P_c, s2_c, n_c = mu[ar, cc], P[ar, cc], s2[ar, cc], n[ar, cc]
+            Pf = torch.einsum("bij,bj->bi", P_c, f)
+            S = s2_c + (f * Pf).sum(-1)
+            K = Pf / S.unsqueeze(-1)
+            e = torch.where(act, r_all[:, q], torch.zeros_like(r_all[:, q])) - (f * m_c).sum(-1)
+            m_new = m_c + K * e.unsqueeze(-1)
+            A = eye - K.unsqueeze(-1) * f.unsqueeze(-2)
+            P_new = A @ P_c @ A.transpose(-1, -2) + s2_c[:, None, None] * K.unsqueeze(-1) * K.unsqueeze(-2)
+            P_new = 0.5 * (P_new + P_new.transpose(-1, -2))
+            mu = mu.index_put((ar, cc), torch.where(act.unsqueeze(-1), m_new, m_c))
+            P = P.index_put((ar, cc), torch.where(act[:, None, None], P_new, P_c))
+            n = n.index_put((ar, cc), torch.where(act, n_c + 1, n_c))
+        return FastState(fast.particles, fast.logw, fast.pscale, mu, P, s2, n, fast.surprise, fast.steps, channels)
 
 
 # ============================================================================ world model (C)
 
 class DoubleWorldModel(nn.Module):
-    """WorldModelP double using the SHARED core: Z_hat = core(Z, [act; belief; TIME(dt); NOISE(z)]) with a categorical
-    stochastic latent (straight-through). loss(seq) filters the sequence with the core and trains one-step latent
-    prediction (against the detached filtered next state) plus the outcome NLL of the prior latent."""
+    """WorldModelP double using the SHARED core (API of C's WorldModel): Z_hat = core(Z, [act; belief; TIME(dt);
+    NOISE(z)]) with a categorical stochastic latent (straight-through); time_tokens(dt, mask); loss(seq, beliefs,
+    memory) filters the sequence with the core on [O_t; A_{t-1}; TIME(dt_{t-1}); B_t; M_t; G_t] (episode resets
+    masked) and trains one-step latent prediction (against the detached filtered next state) plus the outcome NLL of
+    the prior latent."""
 
     def __init__(self, cfg: CamConfig, core, outcome_head):
         super().__init__()
@@ -558,6 +674,13 @@ class DoubleWorldModel(nn.Module):
         self.logits = nn.Linear(2 * D, cfg.stoch_dim)
         self.noise = nn.Linear(cfg.stoch_dim, D)
         self.time = nn.Linear(1, D)
+        self.n_filter_calls = 0
+
+    def time_tokens(self, dt, mask=None) -> TokenSet:
+        dt = torch.as_tensor(dt, dtype=torch.float, device=self.time.weight.device).view(-1)
+        x = self.time(torch.log1p(dt.clamp(min=0) * 24).unsqueeze(-1)).unsqueeze(1)
+        return TokenSet.from_dense(x, TokenKind.TIME, time=dt.unsqueeze(1),
+                                   mask=None if mask is None else mask.view(-1, 1).bool())
 
     def prior(self, Z, act: TokenSet, belief: TokenSet, dt, sample: bool = True):
         B = Z.shape[0]
@@ -571,30 +694,44 @@ class DoubleWorldModel(nn.Module):
         else:
             z = probs
         z = z.view(B, G * C)
-        dt = torch.as_tensor(dt, device=Z.device, dtype=torch.float).view(B, 1)
-        tt = TokenSet.from_dense(self.time(torch.log1p(dt.clamp(min=0) * 24)).unsqueeze(1), TokenKind.TIME)
+        dt = torch.as_tensor(dt, device=Z.device, dtype=torch.float).view(B)
+        tt = self.time_tokens(dt)
         nt = TokenSet.from_dense(self.noise(z).unsqueeze(1), TokenKind.NOISE)
         ctx = TokenSet.cat(act, belief, tt, nt)
         ctx = TokenSet(ctx.x.to(Z.dtype), ctx.mask, ctx.kind, ctx.time, ctx.entity, ctx.refs, ctx.entity2)
         Z_hat, _ = self.core(Z, ctx)
         return Z_hat, {"logits": lg, "z": z}
 
-    def loss(self, seq) -> dict:
+    def loss(self, seq, beliefs=None, memory=None) -> dict:
         steps = seq.steps
         B = steps[0].obs.B
-        Z = self.core.init_state(B, device=steps[0].obs.x.device)
-        Zs, prev_act = [], None
-        for st in steps:
-            Z, _ = self.core(Z, TokenSet.cat(st.obs, prev_act, st.goal))
+        dev = steps[0].obs.x.device
+        Z0 = self.core.init_state(B, device=dev)
+        Z = Z0
+        Zs, prev = [], None
+        self.n_filter_calls += 1
+        for t, st in enumerate(steps):
+            parts = [st.obs]
+            if prev is not None:
+                reset = prev.done.bool()
+                Z = torch.where(reset.view(B, 1, 1), Z0, Z)
+                a = prev.act
+                parts += [TokenSet(a.x, a.mask & ~reset.view(B, 1), a.kind, a.time, a.entity, a.refs, a.entity2),
+                          self.time_tokens(prev.dt, ~reset)]
+            parts += [None if beliefs is None else beliefs[t], None if memory is None else memory[t], st.goal]
+            ctx = TokenSet.cat(*[p for p in parts if p is not None])
+            Z, _ = self.core(Z, ctx)
             Zs.append(Z)
-            prev_act = st.act
+            prev = st
         lat, out_nll, n = 0.0, 0.0, 0
         empty = TokenSet.empty(B, self.cfg.d_model, device=Z.device)
         for t in range(len(steps)):
             st = steps[t]
-            Z_hat, _ = self.prior(Zs[t], st.act, empty, st.dt, sample=True)
+            bel = empty if beliefs is None else beliefs[t]
+            Z_hat, _ = self.prior(Zs[t], st.act, bel, st.dt, sample=True)
             if t + 1 < len(steps):
-                lat = lat + ((Z_hat - Zs[t + 1].detach()) ** 2).mean()
+                alive = (~st.done.bool()).float().view(B, 1, 1)
+                lat = lat + (((Z_hat - Zs[t + 1].detach()) ** 2) * alive).mean()
             feat = self.outcome_head.features(Z_hat, st.outcomes)
             lp = self.outcome_head.dist(feat, st.outcomes).log_prob(st.outcomes.y)
             m = st.outcomes.y_mask.float()
@@ -642,6 +779,23 @@ class DoubleRetriever(nn.Module):
 
     def reset_index(self) -> None:
         self.ids, self.feats = [], None
+
+    def memory_tokens(self, ids, now=None) -> TokenSet:
+        """MEMORY tokens of stored retrieved ids, rebuilt with gradients through the content projection (identical
+        to what `retrieve` returned for them). Ids no longer in the bank are masked."""
+        B, D = len(ids), self.cfg.d_model
+        dev = self.mem.weight.device
+        pos = {e: i for i, e in enumerate(self.ids)}
+        k = max([len(r) for r in ids] + [0])
+        rows = [[pos.get(str(e), -1) for e in r] + [-1] * (k - len(r)) for r in ids]
+        idx = torch.tensor(rows, dtype=torch.long, device=dev).view(B, k)
+        mask = idx >= 0
+        if self.feats is None or k == 0:
+            return TokenSet.empty(B, D, device=dev)
+        x = self.mem(self.feats.to(dev)[idx.clamp(min=0)]) * mask.unsqueeze(-1)
+        return TokenSet(x, mask, torch.full((B, k), int(TokenKind.MEMORY), dtype=torch.long, device=dev),
+                        torch.zeros(B, k, device=dev), torch.full((B, k), -1, dtype=torch.long, device=dev),
+                        [[f"mem:{e}" for e in r] + [None] * (k - len(r)) for r in ids])
 
     def query(self, Z, goal: TokenSet, belief: TokenSet):
         return self.q(torch.cat([Z.float().mean(1), _mean_tokens(goal).float(), _mean_tokens(belief).float()], -1))
@@ -750,51 +904,134 @@ class DoubleValueHead(nn.Module):
         return self.net(torch.cat([R.float().mean(1), _mean_tokens(goal).float()], -1)).squeeze(-1)
 
 
+@dataclass
+class DoubleOptionStep:
+    option: torch.Tensor
+    new: torch.Tensor
+    terminated: torch.Tensor
+    logp: torch.Tensor
+    entropy: torch.Tensor
+    beta: torch.Tensor
+    steps: torch.Tensor
+
+
 class DoubleOptionPolicy(nn.Module):
+    """OptionPolicyP double with the API of D's OptionModule: step(R, goal, prev, steps_prev, greedy, generator) ->
+    (option, new, logp, entropy, steps); log_prob(R, goal, prev, steps_prev, option, new); token(option, steps).
+    Selection pi(o | R, G); termination beta(R, o_prev); forced reselection when none is active or at max_steps."""
+
     def __init__(self, cfg: CamConfig):
         super().__init__()
         D = cfg.d_model
+        self.n, self.max_steps = cfg.n_options, cfg.option_max_steps
         self.pi = nn.Linear(2 * D, cfg.n_options)
         self.emb = nn.Embedding(cfg.n_options, D)
-        self.beta = nn.Linear(2 * D, 1)
+        self.beta_l = nn.Linear(2 * D, 1)
+        self.elapsed = nn.Linear(1, D)
 
-    def forward(self, R, goal: TokenSet):
+    def select_logits(self, R, goal):
         return self.pi(torch.cat([R.float().mean(1), _mean_tokens(goal).float()], -1))
 
-    def termination(self, R, option):
-        return torch.sigmoid(self.beta(torch.cat([R.float().mean(1), self.emb(option)], -1)).squeeze(-1) - 1.0)
+    def beta(self, R, option):
+        b = torch.sigmoid(self.beta_l(torch.cat([R.float().mean(1), self.emb(option.clamp_min(0))], -1)).squeeze(-1)
+                          - 1.0)
+        return torch.where(option >= 0, b, torch.ones_like(b))
 
-    def embed(self, option):
-        return self.emb(option)
+    def _terms(self, R, goal, prev, steps_prev):
+        logp_sel = F.log_softmax(self.select_logits(R, goal).float(), -1)
+        ent_sel = -(logp_sel.exp() * logp_sel).sum(-1)
+        forced = (prev < 0) | (steps_prev >= self.max_steps)
+        beta = torch.where(forced, torch.ones(prev.shape, device=R.device), self.beta(R, prev))
+        return logp_sel, ent_sel, forced, beta
+
+    @staticmethod
+    def _lp(logp_sel, ent_sel, forced, beta, option, new):
+        b = beta.clamp(1e-6, 1 - 1e-6)
+        lsel = logp_sel.gather(-1, option.clamp_min(0).unsqueeze(-1)).squeeze(-1)
+        logp = torch.where(forced, lsel, torch.where(new, torch.log(b) + lsel, torch.log1p(-b)))
+        h = -(b * torch.log(b) + (1 - b) * torch.log1p(-b))
+        return logp, torch.where(forced, ent_sel, h + b * ent_sel)
+
+    def step(self, R, goal, prev, steps_prev, greedy: bool = False, generator=None) -> DoubleOptionStep:
+        logp_sel, ent_sel, forced, beta = self._terms(R, goal, prev, steps_prev)
+        if greedy:
+            term = forced | (beta > 0.5)
+            choice = logp_sel.argmax(-1)
+        else:
+            u = torch.rand(prev.shape, device=R.device, generator=generator)
+            term = forced | (u < beta)
+            choice = torch.multinomial(logp_sel.exp(), 1, generator=generator).squeeze(-1)
+        option = torch.where(term, choice, prev)
+        logp, ent = self._lp(logp_sel, ent_sel, forced, beta, option, term)
+        steps = torch.where(term, torch.ones_like(steps_prev), steps_prev + 1)
+        return DoubleOptionStep(option, term, term & (prev >= 0), logp, ent, beta, steps)
+
+    def log_prob(self, R, goal, prev, steps_prev, option, new):
+        logp_sel, ent_sel, forced, beta = self._terms(R, goal, prev, steps_prev)
+        return self._lp(logp_sel, ent_sel, forced, beta, option, new.bool() | forced)
+
+    def token(self, option, steps=None) -> TokenSet:
+        B = option.shape[0]
+        steps = torch.zeros_like(option) if steps is None else steps
+        frac = (steps.float() / float(self.max_steps)).clamp(0, 1).unsqueeze(-1)
+        x = (self.emb(option.clamp_min(0)) + self.elapsed(frac)).unsqueeze(1)
+        dev = option.device
+        return TokenSet(x, (option >= 0).view(B, 1), torch.full((B, 1), int(TokenKind.OPTION), device=dev),
+                        torch.zeros(B, 1, device=dev), torch.full((B, 1), -1, dtype=torch.long, device=dev),
+                        [[f"option:{int(o)}"] for o in option.tolist()])
 
 
 class DoubleExplorationHead(nn.Module):
+    """ExplorationHeadP double with the API of D's BudgetEncoder: forward(b: BudgetState) -> BUDGET token; features
+    per quantity (presence flag, symlog of the remaining amount, remaining fraction of the total)."""
+
     def __init__(self, cfg: CamConfig):
         super().__init__()
-        D = cfg.d_model
-        self.net = nn.Linear(3 * D, D)
+        self.net = nn.Sequential(nn.Linear(9, cfg.d_model), nn.Tanh(), nn.Linear(cfg.d_model, cfg.d_model))
 
-    def forward(self, R, goal: TokenSet, belief: TokenSet) -> TokenSet:
-        x = self.net(torch.cat([R.float().mean(1), _mean_tokens(goal).float(), _mean_tokens(belief).float()], -1))
-        return TokenSet.from_dense(x.unsqueeze(1), TokenKind.BUDGET)
+    def forward(self, b) -> TokenSet:
+        raw = b.stack().float()
+        left, total = raw[:, :3], raw[:, 3:]
+        has = torch.isfinite(left)
+        l0 = torch.where(has, left, torch.zeros_like(left))
+        tot_ok = torch.isfinite(total) & (total > 0)
+        frac = torch.where(has & tot_ok, l0 / torch.where(tot_ok, total, torch.ones_like(total)),
+                           torch.zeros_like(l0)).clamp(-1, 1)
+        f = torch.cat([has.float(), torch.sign(l0) * torch.log1p(l0.abs()), frac], -1)
+        return TokenSet.from_dense(self.net(f).unsqueeze(1), TokenKind.BUDGET)
+
+
+class DoubleUpdateInfo:
+    def __init__(self, mets: dict):
+        self.mets = mets
+
+    def to_dict(self) -> dict:
+        return dict(self.mets)
 
 
 class DoubleTrainer:
-    """TrainerP double: AdamW over the model; L_total = sum_k w_k L_k (cfg.loss_weights, default 1); per-objective
-    gradient norm into the shared core via autograd.grad; per-component gradient norms; clip; step."""
+    """TrainerP double with the call shape of D's CombinedTrainer.step(losses, consumed) -> UpdateInfo: AdamW over the
+    model; L_total = sum_k w_k L_k (cfg.loss_weights, default 1); per-objective gradient norm into the shared core via
+    autograd.grad; per-component gradient norms; clip; step."""
 
     def __init__(self, model: nn.Module, cfg: CamConfig, lr: float = 1e-3):
         self.cfg = cfg
         self.model = model
-        self.optimizers = {"all": torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr,
-                                                    weight_decay=cfg.weight_decay)}
+        self.lr = lr
+        self.optimizers = self.make_optimizers()
         self.history: list = []
+        self.consumed: list = []
+
+    def make_optimizers(self) -> dict:
+        return {"all": torch.optim.AdamW([p for p in self.model.parameters() if p.requires_grad], lr=self.lr,
+                                         weight_decay=self.cfg.weight_decay)}
 
     def reset_optimizer(self) -> None:
         for o in self.optimizers.values():
             o.state.clear()
 
-    def step(self, losses: dict, model) -> dict:
+    def step(self, losses: dict, consumed=None) -> DoubleUpdateInfo:
+        model = self.model
         core_params = [p for p in model.core.parameters() if p.requires_grad]
         mets = {}
         total = 0.0
@@ -811,14 +1048,19 @@ class DoubleTrainer:
             gs = [p.grad for p in mod.parameters() if p.grad is not None]
             if gs:
                 mets[f"gradnorm/{name}"] = float(torch.sqrt(sum((g.float() ** 2).sum() for g in gs)))
+        for pname, p in model.named_parameters():
+            if pname.startswith("bayes.") and p.grad is not None:
+                mets[f"grad/{pname}"] = float(p.grad.float().norm())
         before = [p.detach().clone() for p in core_params]
         torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], self.cfg.grad_clip)
         opt.step()
         mets["param_delta/core"] = float(torch.sqrt(sum(((p.detach() - b) ** 2).sum()
                                                         for p, b in zip(core_params, before))))
         mets["loss_total"] = float(total.detach())
+        mets["n_consumed"] = len(consumed or [])
+        self.consumed.extend(consumed or [])
         self.history.append(mets)
-        return mets
+        return DoubleUpdateInfo(mets)
 
 
 class ListTraceRecorder:
@@ -895,6 +1137,9 @@ class ToyShopEnv:
         for b in range(self.B):
             o = [Observation(ObsKind.TEXT, "You run a small shop. Products sell faster when cheaper or advertised.",
                              t=0.0, source="brief")]
+            o += [self._emit(b, Observation(ObsKind.RELATION, "", entity=p, entity_type="product", target="supplier_1",
+                                            relation="supplied_by", t=0.0, source="catalog"))
+                  for p in self.state[b]["products"]]
             o += self._readings(b)
             obs.append(o)
         self._observe_cursor = [self.seq[b] for b in range(self.B)]
