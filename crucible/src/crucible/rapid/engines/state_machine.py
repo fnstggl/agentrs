@@ -67,7 +67,7 @@ class StateMachine(RapidEngine):
             decs = {c["decision_name"]: list(c["options"]) + [c["restart_name"]]}
             kinds["discrete"] = A.discrete_schema(decs)
             limits["decisions"] = decs
-            kinds["sequence"] = A.sequence_schema(["discrete"], max_steps=int(c["stages"]) + 2)
+            kinds["sequence"] = A.sequence_schema(["discrete"], max_steps=2 * int(c["stages"]) + 2)
             limits["sequence_kinds"] = ["discrete"]
         return A.ActionSpace(kinds, limits)
 

@@ -76,7 +76,7 @@ def posm_fault_diagnosis(rng, d):
         claims=(C + "unlock_needs_all",), identify=I + "unlock_code")
 def posm_unlock(rng, d):
     L, O = int(d["hidden_state_complexity"]), int(d["action_complexity"])
-    names = neutral_names(rng, O + 3)
+    names = neutral_names(rng, O + 2)
     code = [int(x) for x in rng.integers(O, size=L)]
     trap = [-1]                                         # the first operation is safe to explore
     for s in range(1, L):
@@ -85,7 +85,7 @@ def posm_unlock(rng, d):
             t = int(rng.integers(O))
         trap.append(t)
     return {"engine": "state_machine", "scenario": "unlock", "horizon": int(d["horizon"]), "stages": L,
-            "options": names[:O], "decision_name": names[O], "restart_name": names[O + 2], "code": code, "trap": trap,
+            "options": names[:O], "decision_name": names[O], "restart_name": "restart", "code": code, "trap": trap,
             "signal_accuracy": 0.85, "action_cost": 30.0, "payoff": 1500.0, "noise": 0.05,
             "gauge_names": names[O + 1:O + 2], "endowment": 100_000,
             "objective": {"type": "maximize_net", "text": "Maximise your net income. The process pays every tick "

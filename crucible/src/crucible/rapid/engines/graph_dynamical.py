@@ -124,7 +124,7 @@ class GraphDynamical(RapidEngine):
         lat2 = (M * lat2_j[:, None, :]).sum(axis=2)
         read = np.empty((dem.shape[0], self.K + 1))
         read[:, 0] = deliv + self.noise * 10.0 * z[:, 1]
-        read[:, 1:] = lat1 + lat2 + self.noise * z[:, 2:]
+        read[:, 1:] = lat1 + lat2 + self.noise[:, None] * z[:, 2:]
         st.update(q1=q1, q2=q2, o1=o1, delivered=st["delivered"] + deliv, arrived=arrived, read=read)
         rev = self.price * deliv
         cost = (self.toll * flow).sum(axis=1) + self.hold * (q1.sum(axis=1) + q2.sum(axis=1))
@@ -276,11 +276,32 @@ class GraphDynamical(RapidEngine):
         rev = float(c["value"] * val[0])
         cost = float(c["seed_cost"] * seeded)
         counts = [float(adopted[cl == k].sum()) for k in range(len(c["cluster_names"]))]
+        ents = [{"kind": "community", "id": n, "adopters": counts[k], "members": int((cl == k).sum())}
+                for k, n in enumerate(c["cluster_names"])]
         a = self.agents[0]
-        return {"obs": {a: {"numbers": {c["gauge_names"][0]: n_ad},
-                            "arrays": {"adopters_by_cluster": counts},
+        return {"obs": {a: {"numbers": {c["gauge_names"][0]: n_ad}, "entities": ents,
                             "resources": {"seeds_left": float(st["seeds_left"][0])}}},
                 "revenue": {a: rev}, "cost": {a: cost}, "info": {"seeded": seeded}}
+
+    def propagate(self, load, cap, alive0, backup):
+        """Failures within the power layer (load shed onto alive neighbours) and then between layers (a control node
+        without supply fails; a grid node without its control node fails), until nothing changes. Returns which
+        grid nodes are still alive."""
+        c = self.config
+        P = len(c["cap"])
+        dep = np.asarray(c["dep"], dtype=int)
+        ctrl = np.asarray(c["ctrl"], dtype=int)
+        ld = np.where(alive0, load, 0.0)[None, :]
+        adj = self.adj * alive0[None, :] * alive0[:, None]
+        failed = cascade_fn(ld, np.where(alive0, cap, np.inf)[None, :], adj, share=c["shed_share"])[0] > 0.5
+        p_alive = alive0 & ~failed
+        for _ in range(P + len(dep)):
+            c_alive = p_alive[dep] | ((backup >= 0) & p_alive[np.maximum(backup, 0)])
+            lost = p_alive & ~c_alive[ctrl]
+            if not lost.any():
+                break
+            p_alive = p_alive & ~lost
+        return p_alive
 
     def _adv_cascade(self, st, rng, t):
         c = self.config
@@ -300,17 +321,8 @@ class GraphDynamical(RapidEngine):
         cap = np.asarray(c["cap"]) + c["reinf_gain"] * st["reinf"][zone]
         down = st["down"].copy()
         alive0 = down <= 0
-        ld = np.where(alive0, load, 0.0)[None, :]
-        adj = self.adj * alive0[None, :] * alive0[:, None]
-        failed = cascade_fn(ld, np.where(alive0, cap, np.inf)[None, :], adj, share=c["shed_share"])[0] > 0.5
-        p_alive = alive0 & ~failed
         backup = st["backup"].astype(int)
-        for _ in range(P + len(dep)):
-            c_alive = p_alive[dep] | ((backup >= 0) & p_alive[np.maximum(backup, 0)])
-            lost = p_alive & ~c_alive[ctrl]
-            if not lost.any():
-                break
-            p_alive = p_alive & ~lost
+        p_alive = self.propagate(load, cap, alive0, backup)
         newly = alive0 & ~p_alive
         down = np.where(newly, float(c["repair_ticks"]), np.maximum(down - 1.0, 0.0))
         st["down"] = down

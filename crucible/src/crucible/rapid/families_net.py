@@ -72,7 +72,7 @@ def net_topology_shift(rng, d):
         distinct_because="threshold contagion over a stochastic block graph with network effects in value; only "
                          "cluster-level adoption counts are visible",
         axes={"graph_size": 90, "hidden_state_complexity": 3, "resources": 10, "horizon": 40},
-        objective="maximize_net", claims=(C + "concentrated_seeding",), identify=I + "best_cluster")
+        objective="maximize_net", claims=(C + "concentrated_seeding",), identify=I + "containment")
 def net_diffusion(rng, d):
     N, Cn = int(d["graph_size"]), int(d["hidden_state_complexity"])
     names = neutral_names(rng, Cn + 1)
@@ -106,7 +106,7 @@ def net_diffusion(rng, d):
         distinct_because="load-redistribution cascades on a grid coupled to a dependency layer (interdependent "
                          "failure); graph edits add backup supply links",
         axes={"graph_size": 20, "horizon": 60, "resources": 8}, objective="maximize_net",
-        claims=(C + "backup_links_contain_cascades",), identify=I + "lever_sign")
+        claims=(C + "backup_links_contain_cascades",), identify=I + "cascade_size")
 def net_cascade(rng, d):
     P = int(d["graph_size"])
     Cm = max(2, P // 2)
@@ -143,7 +143,7 @@ def net_cascade(rng, d):
         distinct_because="connectivity of origin-destination pairs over a failing graph (breadth of the surviving "
                          "network), repaired by discrete dispatch and graph edits",
         axes={"graph_size": 12, "horizon": 60}, objective="maximize_net", claims=(C + "repair_restores",),
-        identify=I + "lever_sign")
+        identify=I + "repair_sign")
 def net_repair(rng, d):
     N = int(d["graph_size"])
     names = neutral_names(rng, N + 3 * N + 2)

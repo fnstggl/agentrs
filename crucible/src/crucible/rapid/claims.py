@@ -56,7 +56,7 @@ def confounded_reversal(env) -> dict:
     cl = cfg["claim"]
     X = _lever_name(env, cl["lever"])
     sales_gauge = cfg["gauges"][0]["name"]
-    hx, hy = np.asarray(st[f"hist:{X}"][0]), np.asarray(st[f"hist:{sales_gauge}"][0])
+    hx, hy = np.asarray(eng.history_of(st, X)), np.asarray(eng.history_of(st, sales_gauge))
     corr = float(np.corrcoef(hx, hy)[0, 1])
     slope = float(np.polyfit(hx, hy, 1)[0])
     lo = _series(env, _hold({X: 2.0}), 30, cl["outcome"])

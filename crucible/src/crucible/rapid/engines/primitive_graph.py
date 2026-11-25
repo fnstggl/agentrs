@@ -67,8 +67,12 @@ class PrimitiveGraph(RapidEngine):
             nds = [cc["nodes"][i] for cc in cfgs]
             if any(x["id"] != nd["id"] or x["type"] != nd["type"] or x.get("prim") != nd.get("prim") for x in nds):
                 raise ValueError("batched configs differ in structure")
+            shape = lambda x: {p: [(tm[0], int(tm[1])) for tm in ts] for p, ts in  # noqa: E731
+                               (x.get("natural", {}) if x["type"] == "lever" else x).get("ports", {}).items()}
+            if any(shape(x) != shape(nd) for x in nds):
+                raise ValueError("batched configs differ in their wiring or lags")
             if nd["type"] == "prim":
-                self.P[i] = _stack_params([x.get("params", {}) for x in nds], self.B)
+                self.P[i] = _stack_params([x.get("params", {}) for x in nds], self.B, self.prims[i])
             src = "natural" if nd["type"] == "lever" else None
             ports = (nd.get("natural", {}) if src else nd).get("ports", {})
             biases = [(x.get("natural", {}) if src else x).get("bias", {}) for x in nds]
@@ -111,7 +115,7 @@ class PrimitiveGraph(RapidEngine):
             chain = []
             for ci, item in enumerate(g.get("chain", [])):
                 pr = parse_ref(item["prim"])
-                par = _stack_params([cc["gauges"][gi]["chain"][ci].get("params", {}) for cc in cfgs], self.B)
+                par = _stack_params([cc["gauges"][gi]["chain"][ci].get("params", {}) for cc in cfgs], self.B, pr)
                 a, b = pr.draws(par)
                 chain.append((pr, par, (nn, a, nu, b)))
                 nn, nu = nn + a, nu + b
@@ -194,11 +198,12 @@ class PrimitiveGraph(RapidEngine):
         for i, pr in self.prims.items():
             for k, v in pr.init(self.P[i], B).items():
                 st[f"ps:{i}:{k}"] = np.array(v, dtype=float)
-        if self.config.get("warmup"):
-            for g in self.visible_gauges():
-                st[f"hist:{g}"] = np.zeros((B, int(self.config["warmup"])))
-            for lv in self.lev:
-                st[f"hist:{lv['name']}"] = np.zeros((B, int(self.config["warmup"])))
+        if self.config.get("warmup"):                # keyed by position, so instances of one family stack
+            for k, g in enumerate(self.gauges):
+                if not g.get("on_demand"):
+                    st[f"hist:g{k}"] = np.zeros((B, int(self.config["warmup"])))
+            for j in range(len(self.lev)):
+                st[f"hist:l{j}"] = np.zeros((B, int(self.config["warmup"])))
         return st
 
     def init_state(self, rng: np.random.Generator) -> dict:
@@ -212,10 +217,16 @@ class PrimitiveGraph(RapidEngine):
             z, u = self.draw(rng)
             cur, read = self.tick(st, z, u, -W + w)
             for k in vis:
-                st[f"hist:{self.gauges[k]['name']}"][:, w] = read[:, k]
+                st[f"hist:g{k}"][:, w] = read[:, k]
             for j, i in enumerate(self.lev_nodes):
-                st[f"hist:{self.lev[j]['name']}"][:, w] = cur[:, i]
+                st[f"hist:l{j}"][:, w] = cur[:, i]
         return st
+
+    def history_of(self, state: dict, name: str) -> np.ndarray:
+        """The recorded pre-arrival series of a gauge or lever, by public name."""
+        if name in self.gauge_names:
+            return state[f"hist:g{self.gauge_names.index(name)}"][0]
+        return state[f"hist:l{[lv['name'] for lv in self.lev].index(name)}"][0]
 
     def draw(self, rng: np.random.Generator, B: int = 1) -> tuple[np.ndarray, np.ndarray]:
         z = rng.standard_normal(self.n_normal * B).reshape(B, self.n_normal)
@@ -402,7 +413,9 @@ class PrimitiveGraph(RapidEngine):
         W = int(self.config.get("warmup", 0))
         if not W:
             return {}
-        arr = {f"history.{k[5:]}": state[k][0].tolist() for k in sorted(state) if k.startswith("hist:")}
+        names = {f"g{k}": g["name"] for k, g in enumerate(self.gauges)}
+        names.update({f"l{j}": lv["name"] for j, lv in enumerate(self.lev)})
+        arr = {f"history.{names[k[5:]]}": state[k][0].tolist() for k in sorted(state) if k.startswith("hist:")}
         return {"arrays": arr, "text": [f"Records of the {W} ticks before you took over: the settings the previous "
                                         "operator used and what the sensors showed."]}
 
@@ -502,8 +515,12 @@ def _stack_rows(rows: list[list]) -> np.ndarray:
     return np.asarray(rows, dtype=float).reshape(len(rows), -1)
 
 
-def _stack_params(ps: list[dict], B: int) -> dict:
+def _stack_params(ps: list[dict], B: int, prim=None) -> dict:
+    """Parameters of one node across a batch: numbers become (B,) arrays; strings, booleans and integer-typed
+    parameters (lags, counts) are structure and must agree."""
     out = {}
+    ints = {k for k, s in (prim.params.get("properties", {}) if prim is not None else {}).items()
+            if s.get("type") == "integer"}
     for k, v in ps[0].items():
         if isinstance(v, str) or isinstance(v, bool):
             if any(p.get(k) != v for p in ps):
@@ -511,7 +528,7 @@ def _stack_params(ps: list[dict], B: int) -> dict:
             out[k] = v
         elif isinstance(v, (list, tuple)):
             out[k] = list(v) if B == 1 else np.asarray([p[k] for p in ps], dtype=float)
-        elif k in ("lag", "n", "m"):
+        elif k in ints:
             if any(p.get(k) != v for p in ps):
                 raise ValueError(f"batched configs differ in structural parameter {k}")
             out[k] = v
