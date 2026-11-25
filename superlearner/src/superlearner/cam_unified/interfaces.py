@@ -1,4 +1,4 @@
-"""CAM Unified shared interface contract (version 1). Owned by the master architect.
+"""CAM Unified shared interface contract (version 3; see CONTRACT_VERSION and §V3 at the end). Owned by the master architect.
 
 Every workstream codes against these types and signatures; none edits this file. Change requests go to the master,
 who versions them here (`CONTRACT_VERSION`). Shapes use B = batch of environments/actors, S = n_state latent tokens,
@@ -21,7 +21,8 @@ import uuid
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Iterator, Optional, Protocol, Sequence, runtime_checkable
 
-CONTRACT_VERSION = 2   # 1.1: TokenSet.entity2; 2: seq cursors, time/money/duration semantics (stage-0 critic)
+CONTRACT_VERSION = 3   # 1.1: TokenSet.entity2; 2: seq cursors, time/money/duration semantics (stage-0 critic);
+                       # 3: wave-1 change requests (optional fields, optional protocol kwargs, reserved keys; §V3)
 OBS_SCHEMA_VERSION = 1
 
 
@@ -150,8 +151,14 @@ class Action(_Rec):
     expected_cost: Optional[float] = None
     option_id: Optional[int] = None      # active temporally-extended option (hierarchical policy)
     source: ActionSource = ActionSource.CAM_DECODER
-    logp: Optional[float] = None         # behaviour-policy log-probability of the whole action
-    logp_parts: dict = field(default_factory=dict)   # {"tool":..., "evidence":..., "args":..., "option":...}
+    logp: Optional[float] = None         # behaviour log-probability of the whole action on the LEARNER path (v3):
+                                         # 0.0 for a greedy/deterministic action (mu = 1; logp_parts["greedy"]=True,
+                                         # the tau=1 policy value in logp_parts["policy_logp"]); None when mu is
+                                         # unknown (CAM_PLANNER argmax over candidates; decoder value kept in
+                                         # logp_parts["decoder"])
+    logp_parts: dict = field(default_factory=dict)   # floats {"tool", "evidence", "args", "option"}; "tool" is always
+                                         # filled (intervention-level randomization_p); reserved non-float keys:
+                                         # "decode" (decoder replay record), "greedy", "decoder"
     proposal: Optional[dict] = None      # when candidates were proposed: {"n": int, "probs": [...], "chosen": int}
     action_id: str = field(default_factory=lambda: new_id("a_"))
 
@@ -189,6 +196,8 @@ class GoalSpec(_Rec):
     deadline_days: Optional[float] = None
     family: str = ""                     # task family (for curriculum and held-out bookkeeping; not a model input)
     meta: dict = field(default_factory=dict)
+    decision_budget: Optional[int] = None    # v3: remaining consequential decisions (BUDGET token), if limited
+    funds_budget: Optional[float] = None     # v3: spendable funds in the world's money unit, if limited
 
 
 @dataclass
@@ -196,7 +205,8 @@ class IndependentGoalResult(_Rec):
     goal_id: str
     achieved: bool
     score: float                         # normalised progress in [0, 1] (or task-defined)
-    metrics: dict = field(default_factory=dict)       # independently verified values
+    metrics: dict = field(default_factory=dict)       # independently verified values; standard key (v3):
+                                                      # "verified_return" = cumulative verified return (money unit)
     t: float = 0.0
     evaluator: str = ""                  # which evaluator produced it
     details: dict = field(default_factory=dict)       # evaluator-only details: NEVER fed to the learner's inputs
@@ -237,6 +247,15 @@ class EventRecord(_Rec):
     training_provenance: dict = field(default_factory=dict)  # e.g. {"used_in_updates": [...]} appended by learner
     t_wall: float = field(default_factory=time.time)
     extra: dict = field(default_factory=dict)
+    # v3 reserved `extra` keys (kept in extra so the archive schema is unchanged):
+    #   "dt_days"            elapsed simulated days until the next decision (semi-Markov dt; consumers read this)
+    #   "dt_requested_days"  duration the decision asked for (result duration + think, or wait + think)
+    #   "state_version"      weights version under which the latent state Z was built (exact on-policy routing)
+    #   "deterministic"      True when the behaviour action was greedy (mu = 1)
+    #   "incarnation"        actor process incarnation (WAL / restart bookkeeping)
+    #   "kind"               "decision" (default) | "post_action_observations" (action=None world-event record
+    #                        that archives observations delivered after an action; excluded from training windows)
+    # episode_id is unique only within (env_id, actor_id); streams are keyed by that triple.
 
     @staticmethod
     def from_dict(d: dict) -> "EventRecord":
@@ -272,6 +291,8 @@ class DecisionTrace(_Rec):
     outcome: dict = field(default_factory=dict)             # filled when consequences are observed
     update_refs: list = field(default_factory=list)         # learner update ids that consumed this decision
     source: str = ActionSource.CAM_DECODER.value
+    actor_id: str = ""                                      # v3: group traces per actor/episode without a join
+    episode_id: str = ""
 
 
 # ============================================================================ 2. environment boundary
@@ -289,11 +310,13 @@ class EnvAdapter(Protocol):
     """Agent-side view of a batch of environments (MechWorld, OpenWorld, ...). Partially observable: nothing here
     may expose evaluator-only state. Adapters translate their environment into the shared record types."""
 
-    def reset(self, seeds: Sequence[int] | None = None) -> ObservationBatch: ...
+    def reset(self, seeds: Sequence[int] | None = None) -> ObservationBatch: ...  # deterministic in seeds (v3): the same
+    #   seeds replay the same hidden mechanism (multi-trial meta-RL); adapters may add initial_cursors() -> [B] int
+    #   (optional; default FROM_START) for environments resumed mid-stream
     def observe(self) -> ObservationBatch: ...
     def available_tools(self) -> list:                        # [B] list[ToolSchema]
         ...
-    def execute(self, actions: Sequence[Optional[Action]]) -> list:   # [B] ExecutionResult (None action = skip)
+    def execute(self, actions: Sequence[Optional[Action]]) -> list:   # [B] ExecutionResult | None (None action -> None)
         ...
     def collect_events(self, since: Sequence[int]) -> tuple:    # since = [B] opaque event cursors (Crucible: seq)
         ...                                                     # -> ([B] list[Observation], [B] new cursors); lossless
@@ -309,6 +332,8 @@ class GoalEvaluator(Protocol):
     agent never receives `details` or hidden mechanism parameters."""
 
     def evaluate_goal(self, env_index: int) -> IndependentGoalResult: ...
+    # optional (v3), used by the lifetime harness: take_rewards() -> list[float] (verified increments since the last
+    # call), state_dict() / load_state(d) for checkpoint/resume; operators may add checkpoint(path) / restore(path)
 
 
 # ============================================================================ 3. tensor side
@@ -512,33 +537,44 @@ class ObservationTokenizer(Protocol):         # workstream A: cam_unified/semant
     def observations(self, obs: list, registries: list, now: list) -> TokenSet: ...   # [B] list[Observation] -> [B,N,D]
     def tools(self, tools: list) -> TokenSet: ...          # [B] list[ToolSchema] -> one TOOL token per tool [B,T,D]
     def goal(self, goals: list) -> TokenSet: ...           # [B] GoalSpec -> GOAL tokens
-    def action(self, actions: list) -> TokenSet: ...       # [B] Action|None -> ACTION tokens (EncAction_theta)
+    def action(self, actions: list, tool_lists: Optional[list] = None) -> TokenSet: ...   # [B] Action|None -> ACTION
+    # tokens (EncAction_theta), built from the schema the action was taken with (tool_lists[b]) when given
 
 
 class UnifiedCoreP(Protocol):                 # workstream B: cam_unified/core/backbone.py (nn.Module)
     def init_state(self, B: int, device=None) -> Any: ...               # [B,S,D]
-    def forward(self, Z_prev, ctx: TokenSet) -> tuple: ...              # -> (Z [B,S,D], ctx_out [B,N,D])
+    def forward(self, Z_prev, ctx: TokenSet, code_rows=None) -> tuple: ...   # -> (Z [B,S,D], ctx_out [B,N,D]);
+    # code_rows [B] long (v3): which environment's episode slot-code table each row uses (imagination branches)
 
 
 class ReasonerP(Protocol):                    # workstream B: cam_unified/core/reasoning.py
-    def forward(self, Z, ctx: TokenSet, n_iters: Optional[int] = None) -> tuple: ...
-    # -> (R [B,S,D], info {"halt_p": [B,J], "iters": [B] float, "ponder": [B]})
+    def forward(self, Z, ctx: TokenSet, n_iters: Optional[int] = None, code_rows=None) -> tuple: ...
+    # -> (R [B,S,D], info {"halt_p": [B,J], "iters": [B] float, "ponder": [B], v3: "n_computed": [B],
+    #     "expected_iters": [B], adaptive training only "R_all": [B,J,S,D]})
 
 
 class EntityEncoderP(Protocol):               # workstream B: cam_unified/core/entities.py
-    def forward(self, obs_tokens: TokenSet) -> TokenSet: ...            # -> ENTITY + RELATION tokens
+    def forward(self, obs_tokens: TokenSet, type_tokens=None) -> TokenSet: ...   # -> ENTITY + RELATION tokens
 
 
 class BeliefModuleP(Protocol):                # workstream B: cam_unified/core/beliefs.py
     def init_fast(self, B: int, device=None) -> FastState: ...
     def tokens(self, fast: FastState) -> TokenSet: ...                  # B_t tokens [B, K+1, D]
     def update(self, fast: FastState, Z_prev, act: TokenSet, outcomes: OutcomeBatch, outcome_head) -> tuple: ...
-    # -> (fast', info {"ess": [B], "loglik": [B,K], "surprise_z": [B], "resampled": [B], "expanded": [B]})
+    # -> (fast', info {"ess": [B], "loglik": [B,K], "surprise_z": [B], "resampled": [B], "expanded": [B]; v3 also
+    #     "persistent", "alarm", "cusum", "pred_ll", "pred_entropy", "window_z"}). FastState.surprise uses NaN for
+    #     "no entry". Misspecification is a CUSUM: cfg.misspec_z is the sustained z-shift to detect, cfg.misspec_arl
+    #     the target false-alarm average run length. Optional helpers (v3): predictive_log_prob(fast, feat, outcomes,
+    #     outcome_head) -> [B]; mixture_moments(...) -> {mean, var, epistemic}; condition_on_action(Z, act).
+    #     World-model callers may pass a 4-argument callback belief_update_fn(fast, Z_prev, act, outcomes) that
+    #     closes over WorldModel.outcome_predictive (the particle- and action-conditioned likelihood).
 
 
 class BayesLastLayerP(Protocol):              # workstream B: cam_unified/core/bayes.py
     def features(self, out_feat, outcomes: OutcomeBatch) -> Any: ...    # -> phi [B,Q,F]
-    def predict(self, fast: FastState, phi, outcomes: OutcomeBatch) -> tuple: ...   # -> (mean [B,Q], var [B,Q])
+    def predict(self, fast: FastState, phi, outcomes: OutcomeBatch, head_mean=None) -> tuple: ...  # -> (mean, var)
+    # v3 optional members: assign_channels(fast, outcomes), log_prob(fast, phi, outcomes, head_mean), combine(...),
+    # prior_var(), noise(); the Kalman variance replaces the head variance where a channel is bound
     def update(self, fast: FastState, phi, outcomes: OutcomeBatch) -> FastState: ...
 
 
@@ -550,7 +586,9 @@ class OutcomeHeadP(Protocol):                 # workstream C: cam_unified/world/
 class WorldModelP(Protocol):                  # workstream C: cam_unified/world/dynamics.py
     def prior(self, Z, act: TokenSet, belief: TokenSet, dt, sample: bool = True) -> tuple: ...
     # -> (Z_hat [B,S,D], {"logits": [B,G,C], "z": [B,G*C]})
-    def loss(self, batch: "SequenceBatch") -> dict: ...                 # world, kl, outcome, obs, reward, duration, horizon errors
+    def loss(self, batch: "SequenceBatch", beliefs=None, memory=None) -> dict: ...   # world, kl, outcome, obs, reward,
+    # duration, horizon errors; v3 optional members: time_tokens(dt, mask), predict_duration(Z, act),
+    # outcome_predictive(Z_prev, act, belief) (action- and particle-conditioned outcome predictive)
 
 
 @dataclass
@@ -566,11 +604,18 @@ class StepBatch:
     model_version: Any            # [B] long (policy lag)
     goal: Optional[TokenSet] = None
     event_ids: Optional[list] = None
+    # v3 optional learner fields ([B] tensors; stacked by learn.trajectory.Trajectory.from_sequence)
+    cost: Any = None              # experiment cost in the world's money unit
+    trial: Any = None             # trial index within a multi-trial meta-RL episode
+    option: Any = None            # active option id (-1 none)
+    option_start: Any = None      # bool: option began at this step
+    intrinsic: Any = None         # intrinsic (learning-progress) reward
 
 
 @dataclass
 class SequenceBatch:
     steps: list                   # list[StepBatch], length T (aligned; padded rows masked via done/obs.mask)
+    mask: Any = None              # v3: optional [B,T] bool valid decisions (truncated rows padded without a done)
 
 
 @dataclass
@@ -598,7 +643,8 @@ class ImaginedTrajectory:
 class ArchiveP(Protocol):                     # workstream E: cam_unified/memory/archive.py
     def append(self, records: list) -> None: ...      # list[EventRecord]; rejects non-REAL provenance
     def get(self, event_ids: list) -> list: ...
-    def scan(self, **filters) -> Iterator[list]: ...  # chunked, never loads the whole lifetime
+    def scan(self, **filters) -> Iterator[list]: ...  # chunked, never loads the whole lifetime; v3 documented
+    # filters: batch, actor_id, episode_id, env_id, min_version, attributed_to (indexed where supported)
     def count(self) -> int: ...
     def flush(self) -> None: ...
 
@@ -610,14 +656,19 @@ class ArtifactStoreP(Protocol):               # workstream E: cam_unified/memory
 
 class RetrieverP(Protocol):                   # workstream E: cam_unified/memory/retrieval.py (nn.Module)
     def query(self, Z, goal: TokenSet, belief: TokenSet) -> Any: ...     # -> q [B, key_dim]
-    def retrieve(self, q, k: int, filters: Optional[list] = None) -> tuple: ...   # -> (M_t TokenSet, ids [B][k], scores)
+    def retrieve(self, q, k: int, filters: Optional[list] = None, now=None, version=None) -> tuple: ...
+    # -> (M_t TokenSet, ids [B][k], scores). v3: MEMORY tokens carry refs "seg:<segment id>" (any level);
+    # resolve_ref(ref) / context_event_ids(ts) expand them to source event ids. Optional memory_tokens(ids, now)
+    # rebuilds MEMORY tokens with gradients from stored ids. Trainers call Consolidator.reencode_step() regularly;
+    # sync_target() is a no-op while a migration is pending (sync_target(force=True) overrides).
 
 
 class ActionGeneratorP(Protocol):             # workstream A: cam_unified/semantic/actions.py
     def sample(self, R, goal: TokenSet, belief: TokenSet, tools: TokenSet, obs: TokenSet, tool_lists: list,
                obs_lists: list, temperature: float = 1.0, greedy: bool = False) -> list: ...   # -> [B] Action (logp filled)
     def log_prob(self, R, goal: TokenSet, belief: TokenSet, tools: TokenSet, obs: TokenSet, tool_lists: list,
-                 obs_lists: list, actions: list) -> tuple: ...   # -> (logp [B] differentiable, entropy [B])
+                 obs_lists: list, actions: list, temperature=None) -> tuple: ...   # -> (logp [B], entropy [B])
+    # log_prob evaluates the target policy at tau=1 unless temperature is given (off-policy correction)
 
 
 class CheckpointOpsP(Protocol):               # workstream E: cam_unified/memory/checkpoint.py
@@ -627,4 +678,23 @@ class CheckpointOpsP(Protocol):               # workstream E: cam_unified/memory
     def load_full_lifetime(self, path: str) -> None: ...
     def reset_fast_state(self) -> None: ...
     def reset_optimizer(self) -> None: ...
+    # v3: load_parts / load_full_lifetime return a dict with a "memory" reconciliation result; reset_optimizer
+    # returns info. The agent object they operate on exposes: model, config, optimizers, make_optimizers,
+    # schedulers, make_schedulers, fast_state, latent_state, registries, archive, index, replay, consolidator, rng,
+    # version, counters.
     def reset_experience_access(self) -> None: ...
+
+
+# ============================================================================ §V3 conventions (wave-1 requests)
+# Recorded here so every workstream reads one source. Behaviour already implemented by the named owners.
+# * Observation.value: adapters never convert units, except an explicitly declared invariance condition
+#   (core.invariance / envs.mechworld invariance_pair), which may present a gauge at another scale on purpose.
+# * Math-assist inputs (cfg.math_explore_assist) use TokenKind.BELIEF tokens with refs "math_assist:<channel>";
+#   no separate TokenKind is added (keeps N_KINDS and embedding tables stable).
+# * Real-experience loss dicts carry {"provenance": "real"}; world.imagine_train.combine_real_and_imagined refuses
+#   unlabelled dicts.
+# * Behaviour cloning is allowed only under a declared condition listed in cfg.declared_conditions
+#   (e.g. "demo-init:example_inductor"; non-privileged demonstrators only).
+# * Agent-level protocols live with their owners and are structural: envs.agent_protocol.AgentP (harness),
+#   dist.actor ActorPolicyP / dist.learner LearnerModelP (actor-learner), agent.AgentP / model.PlannerP (integration).
+

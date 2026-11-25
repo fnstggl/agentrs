@@ -250,3 +250,31 @@ pretrained arm's meta-training still drew 52–58% source episodes after 120k ta
 
 Acceptance tests `superlearner/tests/cam_unified/acceptance/test_aNN_*.py` for A01–A22, written and run by H against
 the merged integration branch; H alone sets `verified_by` in the manifest.
+
+## 13. Wave 1 result and contract v3 (2026-11-25)
+
+Wave 1 (`wf_c9e0d81b-aaa`, 24 agents): workstreams A–G and the integration skeleton I each implemented in an isolated
+worktree, then an independent verifier (H) re-ran everything and reported 36 major and 84 minor issues, then a fix
+pass addressed them. No file overlaps; all eight branches merged into `feat/cam-7.0-unified` without conflicts.
+Component statuses are folded into the manifest conservatively (a claim the verifier did not support stays
+IN_PROGRESS); `verified_by` stays empty until the acceptance-level H pass.
+
+Contract v3 (`CONTRACT_VERSION = 3`) absorbs the 50 wave-1 interface change requests without breaking anything already
+built: optional dataclass fields (`GoalSpec.decision_budget/funds_budget`, `DecisionTrace.actor_id/episode_id`,
+`StepBatch.cost/trial/option/option_start/intrinsic`, `SequenceBatch.mask`), optional protocol keyword arguments
+(`code_rows`, `type_tokens`, `head_mean`, `tool_lists`, `now`/`version`, `temperature`, `beliefs`/`memory`),
+documented info keys and reserved keys, and four config fields (`max_obs_tokens` → `obs_token_budget`,
+`misspec_arl`, `archive_chunk_bytes`, `declared_conditions`).
+
+12. **Behaviour log-probabilities.** `Action.logp` is the learner-path behaviour log-probability; 0 for greedy actions
+    (μ = 1), `None` when μ is unknown (planner argmax over sampled candidates — such decisions are trained by
+    advantage-weighted regression or treated as off-policy without importance ratios). `logp_parts["tool"]` is always
+    filled and gives the intervention-level assignment probability for the causal ledger.
+13. **Routing facts stay in `EventRecord.extra`** under reserved keys (`dt_days`, `dt_requested_days`,
+    `state_version`, `deterministic`, `incarnation`, `kind`) rather than new columns, so the archive schema written in
+    wave 1 stays valid; `kind = "post_action_observations"` marks action-less records that archive delivered
+    observations.
+14. **No new TokenKind for math-assist inputs** (BELIEF tokens with `math_assist:` refs) so embedding tables keep
+    `N_KINDS = 18`.
+15. **Agent-level protocols stay with their owners** (harness `AgentP`, actor/learner `ActorPolicyP`/`LearnerModelP`,
+    integration `AgentP`/`PlannerP`); they are structural, and listed in the §V3 block of `interfaces.py`.

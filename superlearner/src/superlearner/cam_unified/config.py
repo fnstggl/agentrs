@@ -26,6 +26,8 @@ class CamConfig:
     ffn_mult: float = 8 / 3           # SwiGLU hidden = multiple of 64 nearest ffn_mult * d_model
     dropout: float = 0.0
     max_ctx_tokens: int = 384         # working-memory budget of context tokens per step (O, A, B, M, G); not a lifetime cap
+    max_obs_tokens: int = 0           # observation-token share of that budget (0 = max_ctx_tokens // 2), so memory,
+                                      # goal and belief tokens keep room
     grad_checkpoint: bool = False
 
     # ---- semantic backbone (pretrained, separate parameter count)
@@ -61,6 +63,7 @@ class CamConfig:
     ess_frac: float = 0.5             # resample/rejuvenate when ESS < ess_frac * K
     misspec_z: float = 3.0            # predictive-surprise z-score that triggers uncertainty expansion
     misspec_window: int = 16
+    misspec_arl: float = 1e5          # CUSUM target false-alarm average run length (misspec_z = design shift)
     bayes_feat: int = 32              # features of the Kalman/NIG last layer per outcome channel
     bayes_obs_var_init: float = 1.0
     bayes_prior_var_init: float = 1.0
@@ -82,6 +85,7 @@ class CamConfig:
     mem_segment: int = 32             # events per compressed segment
     mem_segment_tokens: int = 4       # latent memory tokens per segment
     archive_chunk_rows: int = 65536
+    archive_chunk_bytes: int = 32 * 2**20   # the archive tail is sealed at this many bytes as well as rows
     archive_max_bytes: int = 200 * 2**30   # explicit storage limit; exceeding it raises (never silently drops)
 
     # ---- policy / learning
@@ -97,7 +101,7 @@ class CamConfig:
     vtrace_rho: float = 1.0
     vtrace_c: float = 1.0
     entropy_coef: float = 3e-3
-    value_coef: float = 0.5
+    value_coef: float = 0.5           # must equal loss_weights["value"] (learn.trainer raises when they disagree)
     lp_coef: float = 0.1              # learning-progress reward weight (learned exploration)
     loss_weights: dict = field(default_factory=lambda: {
         "world": 1.0, "adapt": 1.0, "actor": 1.0, "value": 0.5, "action": 1.0, "memory": 0.1, "retention": 0.1,
@@ -111,6 +115,7 @@ class CamConfig:
     use_memory: bool = True
     use_reasoning: bool = True
     math_explore_assist: bool = False  # feed CAM 7.0-style KG/EIG scores as policy inputs (baseline condition)
+    declared_conditions: tuple = ()    # experimental conditions in force, e.g. ("demo-init:example_inductor",)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -118,6 +123,10 @@ class CamConfig:
     @property
     def d_ff(self) -> int:
         return int(round(self.ffn_mult * self.d_model / 64)) * 64
+
+    @property
+    def obs_token_budget(self) -> int:
+        return self.max_obs_tokens or self.max_ctx_tokens // 2
 
     @property
     def stoch_dim(self) -> int:

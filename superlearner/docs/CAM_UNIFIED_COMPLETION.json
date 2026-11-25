@@ -37,14 +37,33 @@
    "title": "Deep main model: 16-layer/768/12-head/64-state-token configuration instantiated and run (plus dev 8/384 and large 24/1024); parameter counts reported per component",
    "spec_ref": "1.1, 20",
    "workstream": "B",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/core/backbone.py",
+    "superlearner/src/superlearner/cam_unified/core/bench.py",
+    "superlearner/tests/cam_unified/core/test_core_scales.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/core/test_core_backbone.py::test_dev_config_instantiates_runs_and_reports_parameters",
+    "superlearner/tests/cam_unified/core/test_core_scales.py::test_large_scale_instantiates_runs_and_fits_with_checkpointing",
+    "superlearner/tests/cam_unified/core/test_core_scales.py::test_main_scale_instantiates_runs_forward_backward_and_reports_parameters"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "bf36fceaa82196d8b90570ad987001107832f916",
+   "evidence": [
+    "[B] Main backbone 114,592,258 params (16 x 7,079,552); workstream-B total 150,388,815.",
+    "[B] Large backbone 306,029,570; workstream-B total 368,872,531.",
+    "[B] Main, B=8, ctx 377, fixed J=4: train 155 ms, 5.31 GB.",
+    "[B] Main, default adaptive at init: 11 iterations, 333 ms, 4.19 GB.",
+    "[B] Main, adaptive worst case: 16 iterations, 377 ms, 4.24 GB.",
+    "[B] Large: checkpointed full step 3.10 GB; adaptive full step 11 iterations, 3.20 GB.",
+    "[H verify:B] supported=True: Parameter counts are verified by tests: main backbone 114,592,258 (16 x 7,079,552), workstream-B total 150.4M; large backbone 306,029,570, total 368.9M. I reproduced the main benchmark under the lock: train 125.9 ms, peak 5.32 GB. The large checkpointed step passes at 3.10 GB without the optimizer. Caveat: the benchmarks use fixed J=4. The default adaptive training config computes 16 reasoning iterations, giving 249 ms and 7.76 GB at main, so the evidence does not cover default training. Whether the backbone plus other heads lands in 120-180M is still to be confirmed at integration."
+   ],
+   "limitations": [
+    "[B] Whether the backbone plus C's and D's heads lands in the 120-180M target is confirmed only at integration.",
+    "[B] Timings were measured on a GPU shared with other agents."
+   ],
    "verified_by": null
   },
   {
@@ -52,16 +71,26 @@
    "title": "Semantic understanding: unseen document, code and tool-schema tasks through the full system",
    "spec_ref": "2, 20",
    "workstream": "A",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/semantic/actions.py",
+    "superlearner/src/superlearner/cam_unified/semantic/tokenizer.py"
+   ],
    "dependencies": [
     "A01"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/semantic/test_actions.py::test_unseen_and_renamed_tools_need_no_new_parameters"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "416fa94",
+   "evidence": [
+    "[A] Unseen and renamed tool schemas need no new parameters.",
+    "[H verify:A] supported=True: The IN_PROGRESS status is honest. Only component-level evidence exists: renamed and unseen tools need no new parameters."
+   ],
+   "limitations": [
+    "[A] There is no full-system evaluation on unseen document, code or tool tasks yet; that needs integration with the other workstreams."
+   ],
    "verified_by": null
   },
   {
@@ -69,16 +98,36 @@
    "title": "Numerical latent reasoning: R_{j+1}=Reason(R_j,Z,B,M,G) iterations (1,2,4,8,16) change actual decisions; adaptive budget",
    "spec_ref": "4, 20",
    "workstream": "B",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/core/reasoning.py",
+    "superlearner/tests/cam_unified/core/test_core_reasoning.py"
+   ],
    "dependencies": [
     "A01"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/core/test_core_reasoning.py::test_act_mode_is_the_same_function_in_training_and_evaluation",
+    "superlearner/tests/cam_unified/core/test_core_reasoning.py::test_adaptive_training_unroll_is_bounded_per_row_and_checkpointed",
+    "superlearner/tests/cam_unified/core/test_core_reasoning.py::test_compute_penalty_trains_the_halting_policy",
+    "superlearner/tests/cam_unified/core/test_core_reasoning.py::test_pondernet_evaluation_halts_by_the_training_distribution",
+    "superlearner/tests/cam_unified/core/test_core_reasoning.py::test_pondernet_expected_loss_trains_halting_toward_the_best_iteration",
+    "superlearner/tests/cam_unified/core/test_core_reasoning.py::test_reasoner_runs_on_imagination_branches_with_code_rows",
+    "superlearner/tests/cam_unified/core/test_core_reasoning.py::test_trained_reasoning_depth_is_necessary_for_decisions"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "bf36fceaa82196d8b90570ad987001107832f916",
+   "evidence": [
+    "[B] Trained lookup: J=2 1.000 vs J=1 0.401; the J=2 model forced to J=1 scores 0.177.",
+    "[B] Intermediate state (j=1 < J=2) mediates decisions: resetting the context stream after j=1 gives 0.203; patching only the memory-token streams from a counterfactual-goal run makes decisions follow the donor 1.000; patching R_1, goal or anchor has no effect.",
+    "[B] Branch batches with code_rows equal their environment rows in fixed, ACT-train, ACT-eval and PonderNet-eval modes.",
+    "[B] ACT train and eval outputs are identical.",
+    "[B] The PonderNet expected loss moves the halting mode to the best iteration.",
+    "[H verify:B] supported=True: Supported at unit level only. The reasoner reuses the last reason_layers blocks with an iteration embedding, and fixed and PonderNet-style halting both work. Eval halting really removes halted rows from the batch, and the compute penalty trains E[iters]. The trained ablation reproduces: J=2 1.000, J=1 0.400, J=2 forced to J=1 0.245. Caveats: decisions come from test-local heads, not the real policy; the R intervention hook does not reach the carried context stream (swapping R_1 has no effect); training always unrolls 16 iterations; train uses a mixture of states while eval uses a single state;"
+   ],
+   "limitations": [
+    "[B] Decisions are read by test-local heads, not workstream D's policy or action generator."
+   ],
    "verified_by": null
   },
   {
@@ -86,14 +135,26 @@
    "title": "Generalized entities: variable entities, relationships and events processed (no fixed 12 levers / 16 gauges)",
    "spec_ref": "3, 20",
    "workstream": "B",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/core/entities.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/core/test_core_entities.py::test_out_of_range_slots_are_counted_never_silently_dropped",
+    "superlearner/tests/cam_unified/core/test_core_entities.py::test_relational_rounds_learn_relation_dependent_targets",
+    "superlearner/tests/cam_unified/core/test_core_entities.py::test_variable_entity_counts_and_relation_tokens"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "bf36fceaa82196d8b90570ad987001107832f916",
+   "evidence": [
+    "[B] Relational task MSE: 0.385 with 1 round vs 0.879 with 0 rounds (variance 1.44).",
+    "[B] Out-of-range slots are counted, or rejected with strict_slots.",
+    "[H verify:B] supported=True: Variable entity and relation counts, order invariance, slot-relabel equivariance, the relation budget with a drop counter, type tokens and end-to-end gradients are all tested. The slow relational test reproduces: MSE 0.385 with 1 round vs 0.879 with 0 rounds (variance 1.44). EVENT tokens are consumed as generic observations; as B notes, they come from A. Slots >= max_entities are dropped silently."
+   ],
+   "limitations": [
+    "[B] EVENT tokens are consumed as generic observation tokens; workstream A produces them."
+   ],
    "verified_by": null
   },
   {
@@ -101,14 +162,25 @@
    "title": "Fast adaptation: new observations alter predictive beliefs (Bayesian last layer over learned features, Kalman form)",
    "spec_ref": "5.3, 20",
    "workstream": "B",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/core/bayes.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/core/test_core_bayes.py::test_kalman_recursion_equals_closed_form_known_noise",
+    "superlearner/tests/cam_unified/core/test_core_bayes.py::test_new_observations_alter_predictions_fast_adaptation",
+    "superlearner/tests/cam_unified/core/test_core_bayes.py::test_nig_recursion_equals_cam7_closed_form_posterior"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "bf36fceaa82196d8b90570ad987001107832f916",
+   "evidence": [
+    "[B] Unchanged this round. The verifier reproduced Kalman == closed form (atol 1e-9) and NIG == cam7 (atol 1e-8).",
+    "[H verify:B] supported=True: The fixed-noise Kalman/Joseph recursion equals closed-form Bayesian linear regression (atol 1e-9). The NIG recursion equals cam7 posterior fit, predict and t_nll (atol 1e-8). The fast-adaptation and meta-trained feature tests reproduce (-12.22 to -4.19). The head_mean residual uses a non-protocol keyword argument, which is filed as an interface change request."
+   ],
+   "limitations": [
+    "[B] predict's head_mean keyword is outside the protocol and is filed as an interface change request."
+   ],
    "verified_by": null
   },
   {
@@ -116,14 +188,33 @@
    "title": "Multiple hypotheses: K mechanism particles with importance weights, learned proposal, ESS-triggered rejuvenation, misspecification detection",
    "spec_ref": "5.1-5.4, 20",
    "workstream": "B",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/core/beliefs.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/core/test_core_beliefs.py::test_censored_survival_surprise_is_calibrated",
+    "superlearner/tests/cam_unified/core/test_core_beliefs.py::test_cusum_threshold_gives_the_target_average_run_length",
+    "superlearner/tests/cam_unified/core/test_core_beliefs.py::test_ess_collapse_triggers_resampling_and_rejuvenation",
+    "superlearner/tests/cam_unified/core/test_core_beliefs.py::test_long_horizon_false_alarm_rate_under_a_correct_hypothesis",
+    "superlearner/tests/cam_unified/core/test_core_beliefs.py::test_misspecification_detected_and_uncertainty_expanded",
+    "superlearner/tests/cam_unified/core/test_core_beliefs.py::test_persistent_misspecification_backs_off_and_caps_uncertainty",
+    "superlearner/tests/cam_unified/core/test_core_beliefs.py::test_weights_concentrate_on_the_generating_hypothesis"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "bf36fceaa82196d8b90570ad987001107832f916",
+   "evidence": [
+    "[B] False alarms: 0 in 96k null row-steps, against 86 for the old rule.",
+    "[B] Simulated ARL0 183 vs target 200.",
+    "[B] Persistent misspecification: 4 expansions, then flagged; Sigma held at the cap; particles bounded (253 vs 2e4 before).",
+    "[B] Censored z: mean 0.003, sd 1.000.",
+    "[H verify:B] supported=True: Exact importance weighting, concentration on the generating hypothesis, systematic resampling counts, ESS-triggered rejuvenation, misspecification expansion and learned prior/proposal training all reproduce (null z mean -0.053, sd 0.996; query log-likelihood -72.39 to -5.42). Caveats: the null false-alarm rate is about 0.39 per 1000 row-steps; there is no backoff or scale cap under persistent misspecification; censored outcomes get a miscalibrated z; and calibration was shown only with the hand-wired DoubleOutcomeHead."
+   ],
+   "limitations": [
+    "[B] Calibration was shown with test doubles (DoubleOutcomeHead, an exponential survival head), not C's trained OutcomeHead.",
+    "[B] Backoff memory is the saturation level of Sigma, because FastState has no expansion counter (interface change request filed)."
+   ],
    "verified_by": null
   },
   {
@@ -131,17 +222,37 @@
    "title": "Causal dynamics: stochastic action-conditioned transition p(Z',O',Y'|Z,A,B,dt); different actions -> different predictions; typed outcome likelihoods",
    "spec_ref": "6, 20",
    "workstream": "C",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/world/dynamics.py",
+    "superlearner/src/superlearner/cam_unified/world/outcomes.py"
+   ],
    "dependencies": [
     "A01",
     "A04"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/world/test_world_dynamics.py::test_different_actions_give_different_predictions_from_the_same_state",
+    "superlearner/tests/cam_unified/world/test_world_dynamics.py::test_open_loop_credit_is_the_joint_mixture_gradient",
+    "superlearner/tests/cam_unified/world/test_world_learning.py::test_learns_delayed_versus_immediate_effects",
+    "superlearner/tests/cam_unified/world/test_world_learning.py::test_learns_interaction_of_two_interventions",
+    "superlearner/tests/cam_unified/world/test_world_learning.py::test_predictions_follow_a_mechanism_change_and_a_changed_intermediate_event",
+    "superlearner/tests/cam_unified/world/test_world_outcomes.py::test_categorical_and_count_inputs_are_validated_not_clipped",
+    "superlearner/tests/cam_unified/world/test_world_outcomes.py::test_log_prob_matches_torch_distributions_for_every_likelihood"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "a8f963025e36bed25cdf0a9f6e615fdd911354b8",
+   "evidence": [
+    "[C] Mechanism-change world, spec 6.6(4). Histories before the change are identical and give identical forecasts. After one observed changed outcome, the filtered Y_5..Y_8 predictions were -1.0/-1.0/-1.0/-0.99. The unswitched episode gave 0.58-0.74. The mirrored episode gave +0.94. Calibration over 3 seeds at lr 4e-3 and 450 steps: post-switch <= -0.97, mirrored >= 0.95, unswitched >= 0.42.",
+    "[C] Spec 6.6(6), by intervention. From the same state, the posterior event code of a switched vs an unswitched transition gave event predictions of -1.02 vs +0.96. The next-step predictions were -1.04 vs +0.96.",
+    "[C] Delay world (lr 4e-3, 450 steps): 6/6 scratch runs reached max error <= 0.084 against a 0.3 threshold. The A07 action contrast was 0.95-1.07.",
+    "[C] Interaction contrast 2.09 against a truth of 2.0. Additive linear regression gave 0.00.",
+    "[H verify:C] supported=True: Supported structurally (same Z and z, different actions give different Z-hat, outcomes and prior logits; dt conditions the transition) and by learning (delay world and interaction world pass, and the interaction contrast is genuinely non-additive versus additive linear regression). All likelihoods are checked against torch.distributions references. Spec 6.6(4), mechanism change, is not tested."
+   ],
+   "limitations": [
+    "[C] Shown only on synthetic token worlds with the DoubleCore reference core. Not tested with A's real tokenizer or core, or on Crucible sequences.",
+    "[C] Imagined futures sample the rare, unannounced switch at frequencies that vary by run (0-31% against 12.5% in the data). Prior calibration for low-information events is not established, partly because the event carries less information than kl_free_nats=1.0. 6.6(6) is therefore shown by intervening on the event latent, not by sampled frequencies."
+   ],
    "verified_by": null
   },
   {
@@ -149,17 +260,39 @@
    "title": "Multistep imagination: belief-aware rollouts (h=4,8,16) with imagined belief updates and conditional subsequent actions change a real action",
    "spec_ref": "7, 20",
    "workstream": "C",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/model.py",
+    "superlearner/src/superlearner/cam_unified/world/imagination.py",
+    "superlearner/src/superlearner/cam_unified/world/planner.py"
+   ],
    "dependencies": [
     "A07",
     "A06"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/integration/test_i_model.py::test_imagination_selects_among_cam_candidates_without_touching_real_beliefs",
+    "superlearner/tests/cam_unified/integration/test_i_model.py::test_imagined_evaluation_changes_the_real_action",
+    "superlearner/tests/cam_unified/integration/test_i_model.py::test_planner_records_its_argmax_selection_and_uses_the_kalman_layer",
+    "superlearner/tests/cam_unified/world/test_world_imagination.py::test_imagined_belief_updates_change_subsequent_imagined_actions",
+    "superlearner/tests/cam_unified/world/test_world_imagination.py::test_rollout_layout_provenance_and_real_state_bit_identical",
+    "superlearner/tests/cam_unified/world/test_world_imagination.py::test_rollouts_at_configured_horizons",
+    "superlearner/tests/cam_unified/world/test_world_learning.py::test_planner_chooses_costly_experiment_that_enables_later_payoff"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "a8f963025e36bed25cdf0a9f6e615fdd911354b8,4d49c70",
+   "evidence": [
+    "[C] Spec 7.4 over 3 training seeds, final run. Probe-minus-safe margins were 2.22, 2.97 and 1.79; the first slow run gave 2.36, 3.13 and 2.05. Imagined probe values were 2.29-3.59 (true value about 4.0). E[r | exploit after an imagined positive probe] was 6.88-8.11 (true value 10).",
+    "[C] Investigation of the underestimate. Trajectory-level joint credit raised the seed-0 probe value from 1.40-1.54 (old per-term objective) to 2.85-3.19 at 600 steps. A reward head that reads the belief tokens directly did not help (1.37-1.62), and was removed. kl_free_nats=0.1 did not help (2.01-2.59). Longer training helps: 1200 steps gave 3.05-3.66.",
+    "[I] Imagined particle and Kalman updates run on clones; the real FastState is untouched. Flipping the imagined rewards changes the real action.",
+    "[H verify:C] supported=True: Partially supported. Mechanics are real: per-row FastState clones, the real Z and FastState stay bit-identical even with an in-place-mutating update, imagined beliefs change later actions, and rollouts at h=4/8/16 run. The learned 7.4 diagnostic passed in my run (probe 0.72/0.74 vs safe 0.50). In a second training of the same fixture, probe won across 6 imagination seeds (1.35-1.71). It works only at h=2, with a belief double and a threshold policy, and the post-probe value is far below the true 4.25. PARTIAL is a more accurate status than IMPLEMENTED.",
+    "[H verify:I] supported=True: The tests confirm that the real FastState is unchanged by imagination, that imagined belief updates happen H times, and that negating the value head changes the choice. Imagination ignores the Kalman layer, and the selection's behaviour probability is mislogged."
+   ],
+   "limitations": [
+    "[C] Learned belief-aware planning is shown only at h=2. h=4/8/16 rollouts are tested for mechanics only.",
+    "[C] Uses test doubles for the belief module (HypothesisBelief) and the policy (threshold rule). Not integrated with B's BeliefModule or A's ActionGenerator.",
+    "[I] This is the built-in fallback planner. C's planner (world/planner.py) is not wired: it needs an adapter."
+   ],
    "verified_by": null
   },
   {
@@ -167,16 +300,31 @@
    "title": "Learned exploration: trainable exploratory policy receives outcome/learning-progress gradients; operates without the programmed KG score",
    "spec_ref": "8, 20",
    "workstream": "D",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/learn/explore.py",
+    "superlearner/src/superlearner/cam_unified/learn/meta.py",
+    "superlearner/tests/cam_unified/learn/learn_doubles.py",
+    "superlearner/tests/cam_unified/learn/sweeps/probe_sweep.py"
+   ],
    "dependencies": [
     "A07"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/learn/test_learn_probe_meta_rl.py::test_probe_bandit_meta_rl_learns_to_probe_first_and_beats_greedy"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "4308c88066c330d674e4ef372d254f4f6ea68756",
+   "evidence": [
+    "[D] A trainable recurrent policy, with no KG input, learns from LP plus outcome gradients to probe first. It is Bayes-optimal for H=2..6 (agent seed 0) and does not probe with one decision left.",
+    "[D] Committed sweep (probe_sweep_results.jsonl): with LP, 6/8 seeds are Bayes-optimal for every H in 2..6, mean H2-6 return 267.5 of 270. The two misses are seed 2 not probing at H=2 (49 vs 70) and seed 5 scoring 390 vs 470 at H=6.",
+    "[D] Extrinsic only: 0/8 seeds ever probe (mean 170.3).",
+    "[H verify:D] supported=True: The IN_PROGRESS status is honest. The test-only GRU policy learns to probe first and is Bayes-optimal for H>=2 with no KG input (default test and slow tests pass). The '8/8 seeds' and '0/9 runs' sweeps are not committed. The real ActionGenerator, core and belief path is not yet integrated (acknowledged)."
+   ],
+   "limitations": [
+    "[D] The exploratory policy is a test-only GRU (learn_doubles.ProbeAgent) using production TrialRunner, MetaRLObjective, CombinedTrainer, ValueHead and BudgetEncoder.",
+    "[D] The real ActionGenerator, core and BeliefModule path is not yet integrated, so the status stays IN_PROGRESS."
+   ],
    "verified_by": null
   },
   {
@@ -184,16 +332,41 @@
    "title": "General action generation: CAM-latent-conditioned decoder generates valid tool calls and novel executable code run in a real sandbox",
    "spec_ref": "9, 20",
    "workstream": "A",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/semantic/actions.py",
+    "superlearner/src/superlearner/cam_unified/semantic/bridge.py",
+    "superlearner/src/superlearner/cam_unified/semantic/constraints.py",
+    "superlearner/src/superlearner/cam_unified/semantic/grammar.py",
+    "superlearner/src/superlearner/cam_unified/semantic/sandbox.py"
+   ],
    "dependencies": [
     "A01"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/semantic/test_actions.py::test_default_bf16_behaviour_logp_is_the_learner_logp_on_free_strings",
+    "superlearner/tests/cam_unified/semantic/test_actions.py::test_exact_amount_is_copied_from_the_selected_evidence",
+    "superlearner/tests/cam_unified/semantic/test_actions.py::test_exact_rows_is_bitwise_batch_invariant_and_none_rows_score_zero",
+    "superlearner/tests/cam_unified/semantic/test_actions.py::test_gradients_reach_R_bridge_heads_pointers_lora_tokenizer_not_frozen_qwen",
+    "superlearner/tests/cam_unified/semantic/test_actions.py::test_replay_refuses_a_different_tool_list_or_evidence_candidates",
+    "superlearner/tests/cam_unified/semantic/test_actions.py::test_schema_valid_generation_for_every_ow_tiny_tool",
+    "superlearner/tests/cam_unified/semantic/test_grammar.py::test_every_ow_tiny_numeric_slot_writes_exact_values_and_reductions_are_listed",
+    "superlearner/tests/cam_unified/semantic/test_sandbox.py::test_generated_code_action_executes_and_result_returns_as_tokens",
+    "superlearner/tests/cam_unified/semantic/test_sandbox.py::test_scripts_run_as_main_with_exit_status_on_both_backends[crucible]"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "416fa94",
+   "evidence": [
+    "[A] 145/145 ow_tiny tools give schema-valid calls. Every sampled action is rescored, and its record replays.",
+    "[A] Default bf16 sample logp equals the grad-enabled log_prob bit for bit (16 free-string actions, permuted half-batch). On the 1.7B 1024-token action the difference is 0.0, while the incremental decode drifts 0.065 nats on B=1 and up to 1.25-1.73 nats in B=8 batches.",
+    "[A] After declared-condition BC, the exact amount 1,234,567 cents is copied from the selected invoice evidence.",
+    "[A] A code action written by the decoder executes in Crucible's Landlock+seccomp sandbox and its result comes back as tokens.",
+    "[H verify:A] supported=True: Supported at component level. H reproduced: 145/145 ow_tiny tools schema-valid, every schema compiling with random walks validated, fp32 replay within tolerance, and a decoder-written run_python executed in the Crucible sandbox. Three defects qualify it. (1) Scripts on the Crucible backend run as an import, so `__main__`-guarded programs silently do nothing and sys.exit(0) counts as failure. (2) Default bf16 behaviour logp drift is up to about 1 nat. (3) Most numeric slots, money included, cannot take exact values. The claim that bf16 rescore+exact_rows 'matches exactly across minibatch compos"
+   ],
+   "limitations": [
+    "[A] Tested at component level and on the ow_tiny catalogue through WorldServer.available_tools, not inside a full OpenWorld episode loop.",
+    "[A] Free maps are capped at 4 keys and arrays at 8 items. These caps are recorded as reductions, not removed."
+   ],
    "verified_by": null
   },
   {
@@ -201,14 +374,31 @@
    "title": "Lifetime ingestion: no 256-row or equivalent lifetime cutoff; streaming over >1e6 events",
    "spec_ref": "10, 20",
    "workstream": "E",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/memory/archive.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/memory/test_mem_archive.py::test_default_policy_budget_bounds_everything_under_the_root",
+    "superlearner/tests/cam_unified/memory/test_mem_archive.py::test_more_than_10k_events_without_any_cutoff",
+    "superlearner/tests/cam_unified/memory/test_mem_archive.py::test_more_than_256_events_roundtrip_exactly",
+    "superlearner/tests/cam_unified/memory/test_mem_archive.py::test_scan_is_memory_bounded",
+    "superlearner/tests/cam_unified/memory/test_mem_archive.py::test_unsealed_tail_is_bounded_by_bytes_not_only_rows",
+    "superlearner/tests/cam_unified/memory/test_mem_stress.py::test_one_million_lightweight_records_streaming"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "f9073ef75341ff013d49ecb7146f02dfb7eb31ff",
+   "evidence": [
+    "[E] STRESS_1M: 1,000,000 events at 8,448 ev/s, 388.9 B/event, 38 chunks, RSS +192 MB, scan_records 71.1 s, reopen 2.03 s",
+    "[E] With the default policy, du(root) equals used_bytes() and stays at or below archive_max_bytes after every append",
+    "[E] Tail peak memory: +36.5 MB for 3k and +36.6 MB for 12k ~11 KB records at chunk_bytes=4 MB, versus ~134 MB measured with a row-only bound",
+    "[H verify:E] supported=True: I reproduced it. Default suite: 74 passed, 3 skipped. Slow run: STRESS_1M ingested and counted 1,000,000 events at 8,282 ev/s, 382.3 B/event, RSS +304 MB, scan_records 70.9 s, reopen 2.2 s. No row cap in code. Caveat: with the default cold policy, archive_max_bytes does not bound disk use (major issue), and the tail buffer is row-bounded (~0.94 GB projected for 10 KB records)."
+   ],
+   "limitations": [
+    "[E] A recompression or seal temporarily needs one extra chunk file on disk",
+    "[E] A replay sampler DB placed under root grows between appends and is counted at the next append"
+   ],
    "verified_by": null
   },
   {
@@ -216,14 +406,27 @@
    "title": "Durable episodic memory: append-only archive survives process restart; learned retrieval",
    "spec_ref": "10.2-10.3, 20",
    "workstream": "E",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/memory/archive.py",
+    "superlearner/src/superlearner/cam_unified/memory/index.py",
+    "superlearner/src/superlearner/cam_unified/memory/retrieval.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/memory/test_mem_archive.py::test_restart_recovery_after_crash_mid_chunk_write[after_tmp]",
+    "superlearner/tests/cam_unified/memory/test_mem_archive.py::test_tag_logs_are_not_relogged_on_restart",
+    "superlearner/tests/cam_unified/memory/test_mem_retrieval.py::test_usefulness_trained_retrieval_finds_delayed_cues"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "f9073ef75341ff013d49ecb7146f02dfb7eb31ff",
+   "evidence": [
+    "[E] Learned retrieval on synthetic event tokens: hit@5 goes from 0.000 untrained to 1.000 trained among 3000 segments, all delay bins 1.0",
+    "[H verify:E] supported=True: Crash recovery at the after_tmp, after_rename and after_index points, plus torn-WAL and lost-index rebuild tests, pass and the code paths are real. Learned retrieval is shown only on synthetic event-token tasks (acknowledged). It was not trained inside the CAM core."
+   ],
+   "limitations": [
+    "[E] Learned retrieval is only demonstrated on synthetic event tokens. I tried an end-to-end usefulness-trained test over archived EventRecords with the default HashedEventEncoder; it collapsed to uniform scores within a 300-400 step budget and was removed, not weakened (see limitations)."
+   ],
    "verified_by": null
   },
   {
@@ -231,16 +434,27 @@
    "title": "Continual neural learning: verified shared-core weight updates from real experience (per-group gradient/weight-change logs)",
    "spec_ref": "11, 20",
    "workstream": "E",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/agent.py",
+    "superlearner/src/superlearner/cam_unified/model.py"
+   ],
    "dependencies": [
     "A22"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/integration/test_i_agent_runtime.py::test_adapt_loss_trains_the_kalman_last_layer",
+    "superlearner/tests/cam_unified/integration/test_i_agent_runtime.py::test_replay_context_matches_the_acting_context"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "4d49c70",
+   "evidence": [
+    "[I] Replay is filtered with the acting context and reproduces the acting Z_0 exactly (atol 1e-5). Per-objective core gradients are logged.",
+    "[H verify:I] supported=True: Shared-core updates from replay (on-the-fly tokenisation) and from fresh data are verified with doubles. But the replay contexts leave out the B/M/option tokens the core sees when acting, and the Bayes layer is never trained."
+   ],
+   "limitations": [
+    "[I] Doubles only in the worktree; real B/C/D/E only in the overlay."
+   ],
    "verified_by": null
   },
   {
@@ -248,13 +462,21 @@
    "title": "Plasticity monitoring: dormant units, effective rank, grad interference; sequential retention and new-task acquisition measured",
    "spec_ref": "11.3, 20",
    "workstream": "E",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/memory/plasticity.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/memory/test_mem_plasticity.py::test_dormant_units_detected_exactly",
+    "superlearner/tests/cam_unified/memory/test_mem_plasticity.py::test_sequential_retention_and_new_task_acquisition_are_measured"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "commit": "f9073ef75341ff013d49ecb7146f02dfb7eb31ff",
+   "evidence": [
+    "[E] Unchanged from the verified version; all plasticity tests pass",
+    "[H verify:E] supported=True: Dormant units (via pre-hooks on the consuming Linear), effective rank/srank, per-group gradient norms, weight change, gradient interference, learning_speed and RetentionTracker are implemented and checked against known answers on toy networks."
+   ],
    "limitations": [],
    "verified_by": null
   },
@@ -263,13 +485,22 @@
    "title": "Weights-only evaluation: save_weights/load_weights_only restore no optimizer, replay, context, RNG or env state",
    "spec_ref": "11.5, 20",
    "workstream": "E",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/memory/checkpoint.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/memory/test_mem_checkpoint.py::test_load_weights_only_in_a_fresh_subprocess",
+    "superlearner/tests/cam_unified/memory/test_mem_checkpoint.py::test_load_weights_only_resets_a_used_object_in_process",
+    "superlearner/tests/cam_unified/memory/test_mem_checkpoint.py::test_weights_only_file_contains_only_parameters_buffers_and_config"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "commit": "f9073ef75341ff013d49ecb7146f02dfb7eb31ff",
+   "evidence": [
+    "[E] load_weights_only now also empties the entity registries",
+    "[H verify:E] supported=True: The weights file is safetensors with state_dict tensors plus 4 metadata keys. The test reads the raw header. The fresh-subprocess load (CUDA hidden) reproduces outputs, with optimiser state empty, lr and scheduler at their initial values, archive/index/replay detached, version 0 and fast/latent state fresh. RNG is not touched."
+   ],
    "limitations": [],
    "verified_by": null
   },
@@ -278,16 +509,30 @@
    "title": "Distributed learning: multiple actor processes feed one central learner; one actor's experience changes another actor's later behavior",
    "spec_ref": "14, 20",
    "workstream": "F",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/dist/actor.py",
+    "superlearner/src/superlearner/cam_unified/dist/launcher.py",
+    "superlearner/src/superlearner/cam_unified/dist/learner.py",
+    "superlearner/src/superlearner/cam_unified/dist/toyworld.py"
+   ],
    "dependencies": [
     "A13"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/dist/test_dist_actor_learner.py::test_crashed_actor_is_restarted_and_queue_stays_consistent",
+    "superlearner/tests/cam_unified/dist/test_dist_actor_learner.py::test_one_actors_experience_changes_another_actors_behaviour",
+    "superlearner/tests/cam_unified/dist/test_dist_actor_learner.py::test_restarted_actor_incarnation_gets_new_seeds_and_lifetimes"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "8d15b13a5ac5b3f368bc8123198e7507dee7983a",
+   "evidence": [
+    "[F] Real multiprocess run, with the learner trained on actor1's experience only: actor2 went from 0.281 early to 1.000 late. The identical no-optimisation control ended at 0.238.",
+    "[H verify:F] supported=True: Reproduced: training only on actor1's experience moved actor2's late score from 0.281 to 1.000, while the no-optimisation control stayed at 0.281. The update log and archive confirm the training data came from actor1 only. Note that both actors share mechanism_seed=0 (the same hidden task in different world instances). IN_PROGRESS is the right status, since CAM itself is not plugged in."
+   ],
+   "limitations": [
+    "[F] Shown with the toy policy and learner; the CAM model is not plugged in yet. Both actors share mechanism_seed 0: different worlds and seeds, same hidden task."
+   ],
    "verified_by": null
   },
   {
@@ -295,14 +540,34 @@
    "title": "OpenWorld adapter: observe/available_tools/execute/collect_events/advance_time/evaluate_goal on the actual Crucible OpenWorld (no mocks)",
    "spec_ref": "15, 20",
    "workstream": "G",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/envs/openworld.py",
+    "superlearner/src/superlearner/cam_unified/envs/openworld_eval.py",
+    "superlearner/src/superlearner/cam_unified/envs/ow_convert.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/envs/test_openworld.py::test_contract_special_tools_noop_and_advance_time",
+    "superlearner/tests/cam_unified/envs/test_openworld.py::test_hidden_state_firewall",
+    "superlearner/tests/cam_unified/envs/test_openworld.py::test_lossless_event_cursor_and_exactly_once_delivery",
+    "superlearner/tests/cam_unified/envs/test_openworld.py::test_numeric_records_are_bounded_but_truncation_is_flagged",
+    "superlearner/tests/cam_unified/envs/test_openworld.py::test_process_isolated_operator_firewall_and_success",
+    "superlearner/tests/cam_unified/envs/test_openworld.py::test_round_trip_observe_tools_execute_advance_collect_evaluate",
+    "superlearner/tests/cam_unified/envs/test_openworld.py::test_tool_list_reflects_a_redeployed_service",
+    "superlearner/tests/cam_unified/envs/test_openworld.py::test_tool_schemas_are_fresh_copies_never_kernel_aliases"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[G] Mutating a returned ToolSchema leaves the kernel's endpoint params unchanged, and a world created later in the same process still validates use.categories.",
+    "[G] A redeploy that changes version one/5 c to version TWO/9 c plus a new parameter shows in available_tools at once.",
+    "[G] After trimming to 10 entries, collect_events(0) and collect_events(k) return to_dict-identical records, also after an operator checkpoint and restore.",
+    "[H verify:G] supported=True: The real adapter round trip, the lossless cursor test (checked against the actor-filtered server log), the record reconstruction test, the firewall test and the process-isolated success test all pass. Defects found: tool schemas share the kernel's dict (learner-side edits change world rules process-wide), and the tool cache goes stale after a redeploy. The in-process firewall is API discipline only (closure reachable; disclosed)."
+   ],
+   "limitations": [
+    "[G] The in-process adapter is API discipline only, because the operator is reachable through closures and gc. Learner runs should use open_world_isolated (now documented, tested including checkpoint/resume, and used by run_baseline)."
+   ],
    "verified_by": null
   },
   {
@@ -317,10 +582,15 @@
    ],
    "acceptance_tests": [],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[G] Scripted long-horizon runs exist (OW-1 90 days, Builder success on day 27, re-run this round; OW-4 120 days). The harness checkpoint/resume is tested in-process and isolated.",
+    "[H verify:G] supported=True: IN_PROGRESS is appropriate: scripted 90-day OW-1 and 120-day OW-4 runs exist; there is no CAM run."
+   ],
+   "limitations": [
+    "[G] No CAM run yet."
+   ],
    "verified_by": null
   },
   {
@@ -332,10 +602,15 @@
    "dependencies": [],
    "acceptance_tests": [],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[G] Structural and compositional holdouts are defined and guarded. All 63 families pass Crucible validity. In-distribution evaluations (scm_regime) are listed explicitly.",
+    "[H verify:G] supported=True: IN_PROGRESS is appropriate: holdouts are defined and guarded, nothing has been evaluated on them."
+   ],
+   "limitations": [
+    "[G] Nothing has been evaluated on the holdouts yet."
+   ],
    "verified_by": null
   },
   {
@@ -343,14 +618,32 @@
    "title": "Strategy observability: machine-readable decision traces (context, retrieved memory, candidates, predictions, uncertainty, action, outcome, belief change, policy version, update refs) and HTML dashboard",
    "spec_ref": "18, 20",
    "workstream": "H",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/agent.py",
+    "superlearner/src/superlearner/cam_unified/observe/dashboard.py",
+    "superlearner/src/superlearner/cam_unified/observe/trace.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/dist/test_dist_interference.py::test_sequential_families_measure_retention_and_feed_the_dashboard",
+    "superlearner/tests/cam_unified/integration/test_i_agent_runtime.py::test_30_step_run_exercises_every_call_path",
+    "superlearner/tests/cam_unified/observe/test_observe_dashboard.py::test_dashboard_renders_every_section_from_a_real_run",
+    "superlearner/tests/cam_unified/observe/test_observe_trace.py::test_accumulated_outcomes_env_filtered_loading_and_partitions"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "8d15b13a5ac5b3f368bc8123198e7507dee7983a,4d49c70",
+   "evidence": [
+    "[F] The retention/transfer section now renders from evaluation rows written by a real run (interference.py), not only from hand-written rows.",
+    "[F] Several delayed outcomes of one decision are summed (1.0 + 2.5 = 3.5).",
+    "[I] DecisionTraces carry every spec 18.1 field. context_refs resolve against the archive (<event_id>#obs:i, memory and previous-action event ids, entity:<persistent id>, relation:<id>-><id>). update_refs are linked for fresh and replayed decisions. outcome carries dt, dt_pred, behaviour, channels and drops.",
+    "[H verify:F] supported=True: TraceRecorder (patches, update refs, Parquet export) and the dashboard (every section, per-lifetime pages, missing-data notes) are implemented and structurally tested on a real run. Caveats: retention/transfer was rendered only from synthetic eval rows; multiple delayed outcomes on the same key overwrite each other in traces; restarted actors reuse env ids, which mixes lifetimes. H owns final verification.",
+    "[H verify:I] supported=True: DecisionTrace has all the spec 18.1 fields and update_refs are linked for fresh and replayed decisions. context_refs are positional ('obs:i'), not event or artifact ids. Planner 'probs' do not match the argmax selection."
+   ],
+   "limitations": [
+    "[F] Workstream H owns final verification. The traces are those of the toy policy.",
+    "[I] No HTML dashboard: that is workstream F/H."
+   ],
    "verified_by": null
   },
   {
@@ -358,13 +651,30 @@
    "title": "Durable recovery: verified restart and checkpoint recovery of full lifetime",
    "spec_ref": "11.5, 20",
    "workstream": "E",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/memory/checkpoint.py",
+    "superlearner/src/superlearner/cam_unified/memory/consolidate.py",
+    "superlearner/src/superlearner/cam_unified/memory/index.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/memory/test_mem_checkpoint.py::test_full_lifetime_recovery_after_a_crash",
+    "superlearner/tests/cam_unified/memory/test_mem_checkpoint.py::test_full_lifetime_roundtrip_restores_everything",
+    "superlearner/tests/cam_unified/memory/test_mem_checkpoint.py::test_restore_after_the_memory_index_migrated_past_the_checkpoint[budget]",
+    "superlearner/tests/cam_unified/memory/test_mem_checkpoint.py::test_restore_after_the_memory_index_migrated_past_the_checkpoint[covered]",
+    "superlearner/tests/cam_unified/memory/test_mem_checkpoint.py::test_restore_after_the_memory_index_migrated_past_the_checkpoint[pinned]",
+    "superlearner/tests/cam_unified/memory/test_mem_checkpoint.py::test_restore_after_the_memory_index_migrated_past_the_checkpoint[unpinned]",
+    "superlearner/tests/cam_unified/memory/test_mem_checkpoint.py::test_restore_fails_explicitly_without_a_retriever_for_the_memory",
+    "superlearner/tests/cam_unified/memory/test_mem_consolidate.py::test_a_failed_step_changes_nothing_and_the_retry_matches_a_clean_run"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "commit": "f9073ef75341ff013d49ecb7146f02dfb7eb31ff",
+   "evidence": [
+    "[E] Registries round-trip exactly, including the next bindings and recycled slots",
+    "[E] After a post-checkpoint migration, restore serves or re-encodes to the restored version. The re-encode count equals the segments missing from that version (all of them when unpinned), and keys equal recomputation from raw events",
+    "[H verify:E] supported=False: Only partly true. Crash recovery of the archive, replay and weights/optimiser/RNG works, including the .prev fallback. But save/load_full_lifetime omit the EntityRegistry state. After an index migration that postdates the checkpoint, the restored agent cannot retrieve (IncompatibleMemoryVersion; probe p6). The index pointer is recorded but never verified."
+   ],
    "limitations": [],
    "verified_by": null
   },
@@ -373,14 +683,31 @@
    "title": "Full integration: semantic input -> neural decision -> execution -> outcome -> stored experience -> subsequent weight update",
    "spec_ref": "21 Stage 1, 20",
    "workstream": "H",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/agent.py",
+    "superlearner/src/superlearner/cam_unified/model.py",
+    "superlearner/src/superlearner/cam_unified/outcome_spec.py",
+    "superlearner/src/superlearner/cam_unified/runtime.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/integration/test_i_acceptance.py::test_real_b_c_d_e_components_run_end_to_end",
+    "superlearner/tests/cam_unified/integration/test_i_agent_runtime.py::test_30_step_run_exercises_every_call_path",
+    "superlearner/tests/cam_unified/integration/test_i_agent_runtime.py::test_every_delivered_observation_is_archived"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "4d49c70",
+   "evidence": [
+    "[I] 30-round run with doubles: 60 REAL decision records plus 2 end-of-run world events. 6 updates, each with nonzero core gradient from world, adapt, actor and value. Every head, bayes and retriever changed, and so did each of bayes.w, log_prior_var, log_noise, beliefs.m0, entity_encoder.rel and retriever.mem.",
+    "[I] Overlay with the real B/C/D/E classes and D's CombinedTrainer(stage='continual'): runs end to end. logp_maxdev_lag0 = 0.0, and B's Bayes log_prior_var, log_noise, l1, l2 and norm all updated.",
+    "[I] Overlay with the full real stack (A's Qwen3-0.6B tokenizer and ActionGenerator plus B/C/D/E): 4 rounds and 1 update complete.",
+    "[H verify:I] supported=True: IN_PROGRESS with doubles is accurate: 60 REAL records and 60 traces, 6 updates, nonzero grad_core from world/adapt/actor/value, first-update ratio about 1 (ratio_maxdev 0.0 in my probe). 'Core and every head's parameters changed' is overstated: bayes.w and retriever.mem never change (beliefs.m0 and entity_encoder.rel are double- and environment-specific). The Stage-1 OpenWorld requirement is not met, as the report says."
+   ],
+   "limitations": [
+    "[I] Stage-1 on the real OpenWorld (G) has not been run; only ToyShop has.",
+    "[I] With A's generator, a 1536-token argument recomputes 0.27 nats off (-94.27 vs -94.53). Short actions recompute exactly. This is A-side: KV-cached bf16 decode vs one-pass scoring."
+   ],
    "verified_by": null
   },
   {
@@ -388,14 +715,27 @@
    "title": "Versioned observation schema (text, tool schemas, tool responses, HTML/a11y, code, files, exec results, errors, numbers w/ unit/time/entity/source, relationships, transactions, delayed events, goals)",
    "spec_ref": "2.1",
    "workstream": "A",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/semantic/layers.py",
+    "superlearner/src/superlearner/cam_unified/semantic/tokenizer.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/semantic/test_tokenizer.py::test_budget_trimming_keeps_most_recent_and_reports_drops",
+    "superlearner/tests/cam_unified/semantic/test_tokenizer.py::test_every_obskind_tokens_kinds_refs_time_and_entities",
+    "superlearner/tests/cam_unified/semantic/test_tokenizer.py::test_non_finite_values_give_finite_tokens_and_are_counted",
+    "superlearner/tests/cam_unified/semantic/test_tokenizer.py::test_numeric_tokens_are_sensitive_to_value_and_unit"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "416fa94",
+   "evidence": [
+    "[A] All 17 ObsKinds round-trip through JSON. A newer schema_version is refused. nan/inf give finite tokens and are counted. Trimming keeps a strict-recency suffix.",
+    "[H verify:A] supported=True: Supported: the test checks all 17 ObsKinds for kinds, time, entity, entity2 and refs, plus the JSON round trip and refusal of a newer schema_version. Numeric value, unit, entity and source are kept in the record and the rendered text. IMAGE is encoded from caption and artifact ref only."
+   ],
+   "limitations": [
+    "[A] IMAGE observations are encoded from caption and artifact ref only; no pixels are encoded."
+   ],
    "verified_by": null
   },
   {
@@ -403,13 +743,26 @@
    "title": "Pretrained semantic backbone (Qwen3 1.7B-4B): token hidden states, doc/code embeddings, trainable projections, LoRA, latent-to-language bridge P=W(Z,G,B) as prefix conditioning",
    "spec_ref": "2.2",
    "workstream": "A",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/semantic/bridge.py",
+    "superlearner/src/superlearner/cam_unified/semantic/encoder.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/semantic/test_actions.py::test_latent_state_changes_the_action_distribution",
+    "superlearner/tests/cam_unified/semantic/test_benchmark_qwen17b.py::test_qwen3_1p7b_throughput",
+    "superlearner/tests/cam_unified/semantic/test_encoder.py::test_cache_hits_misses_and_version_semantics",
+    "superlearner/tests/cam_unified/semantic/test_encoder.py::test_parameter_counts_lora_targets_and_frozen_base"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "commit": "416fa94",
+   "evidence": [
+    "[A] Qwen3-1.7B: 1,720,574,976 pretrained and 6,422,528 LoRA parameters.",
+    "[A] Encode throughput 23.7k-30.0k tok/s over 3 reps at load average 4-6 with 4 GPU processes (benchmarks/qwen3_1p7b.json).",
+    "[A] The bridge prefix is RMS-matched to the embedding scale and changes the token log-probabilities.",
+    "[H verify:A] supported=True: Supported at component level. The encoder path (layer hook with early stop, run under peft disable_adapter), chunking with a chunk map, a (sha256, version) LRU bounded by bytes, version semantics, LoRA from cfg, separate parameter counts, exposed input embeddings and the RMS-scaled bridge are all present and tested; H reran the tests and they pass. H reproduced the 1.7B parameter counts exactly (1,720,574,976 pretrained / 6,422,528 LoRA). H's prefill was 18.9k tok/s, not 28.4k: load-dependent."
+   ],
    "limitations": [],
    "verified_by": null
   },
@@ -418,16 +771,32 @@
    "title": "Semantic learning objectives (masked semantic prediction, tool-consequence prediction, entity grounding, code<->execution matching, evidence retrieval, goal-conditioned action selection)",
    "spec_ref": "2.3",
    "workstream": "A",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/semantic/objectives.py"
+   ],
    "dependencies": [
     "S02"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/semantic/test_actions.py::test_behaviour_cloning_raises_demo_logprob",
+    "superlearner/tests/cam_unified/semantic/test_objectives.py::test_code_execution_matching_generalises_to_held_out_programs",
+    "superlearner/tests/cam_unified/semantic/test_objectives.py::test_entity_grounding_labels_and_contrastive_learning",
+    "superlearner/tests/cam_unified/semantic/test_objectives.py::test_evidence_retrieval_supervision_trains_the_pointer",
+    "superlearner/tests/cam_unified/semantic/test_objectives.py::test_masked_observation_prediction_uses_context_not_siblings",
+    "superlearner/tests/cam_unified/semantic/test_objectives.py::test_tool_consequence_prediction_generalises_to_held_out_actions"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "416fa94",
+   "evidence": [
+    "[A] Masked-observation objective: obs_acc is 0.06 (chance) with an uninformative context and 0.84-0.88 with an informative one.",
+    "[A] Held-out top-1, mean over 3 seeds: tool consequence 0.67, code to execution matching 0.71 (chance 0.125).",
+    "[A] Behaviour cloning refuses undeclared, malformed and privileged conditions, and refuses SCRIPTED demonstrations.",
+    "[H verify:A] supported=True: Supported: all five objectives are real losses over real components and fall in training, and behaviour cloning lowers demo NLL by more than 1 nat. Two qualifications: the masked objective leaks the target through sibling tokens of the same observation, and the 'declared condition' check of behaviour cloning accepts any non-empty string."
+   ],
+   "limitations": [
+    "[A] The objectives are trained here with the DoubleCore reference double and synthetic data, not inside the integrated learner."
+   ],
    "verified_by": null
   },
   {
@@ -453,16 +822,29 @@
    "title": "Multistep world-model training on real recorded sequences, open-loop horizons 1..32, error vs horizon vs persistence/no-change/regression baselines",
    "spec_ref": "6.4",
    "workstream": "C",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/world/baselines.py",
+    "superlearner/src/superlearner/cam_unified/world/dynamics.py"
+   ],
    "dependencies": [
     "A07"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/world/test_world_dynamics.py::test_filter_and_forecast_never_see_the_future",
+    "superlearner/tests/cam_unified/world/test_world_dynamics.py::test_loss_is_reproducible_from_the_generator",
+    "superlearner/tests/cam_unified/world/test_world_dynamics.py::test_loss_terms_finite_backprop_and_horizon_errors",
+    "superlearner/tests/cam_unified/world/test_world_learning.py::test_multistep_open_loop_beats_baselines"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "a8f963025e36bed25cdf0a9f6e615fdd911354b8",
+   "evidence": [
+    "[C] Stock world (irregular dt), open-loop MSE at h=1/2/4/8. World model: 0.094 / 0.154 / 0.161 / 0.137. No-change: 0.62 / 0.96 / 1.13 / 1.05. Key-mean: 0.52 / 0.52 / 0.53 / 0.48. Linear regression: 0.21 / 0.26 / 0.26 / 0.27. Trend persistence: 1.26 / 3.47 / 9.78 / 30.8.",
+    "[H verify:C] supported=True: Open loop is genuine: prior samples, recorded actions and durations, no O_{>t}, and the forecast is invariant to perturbing the future (tested). The stock-world test passed, and it asserts the world model beats all four baselines at h=1,2,4,8 on identical targets. Only synthetic sequences and horizons up to 8 are exercised. Horizons above T are silently skipped in loss()."
+   ],
+   "limitations": [
+    "[C] Synthetic sequences only, at horizons up to 8. Training on real recorded Crucible sequences at horizons 16 and 32 is not done. Horizons above T are now warned about and reported."
+   ],
    "verified_by": null
   },
   {
@@ -470,14 +852,25 @@
    "title": "Causal evidence provenance (intervention assignment, randomisation prob, simultaneous changes, confounding, delays, missingness) recorded per event",
    "spec_ref": "6.5",
    "workstream": "C",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/world/causal.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/world/test_world_causal.py::test_assignment_probability_is_the_intervention_choice_not_the_whole_action",
+    "superlearner/tests/cam_unified/world/test_world_causal.py::test_ledger_memory_is_bounded_over_a_lifetime",
+    "superlearner/tests/cam_unified/world/test_world_causal.py::test_ledger_records_assignment_simultaneity_delays_and_missingness",
+    "superlearner/tests/cam_unified/world/test_world_causal.py::test_provenance_features_are_appended_to_event_tokens_only"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "a8f963025e36bed25cdf0a9f6e615fdd911354b8",
+   "evidence": [
+    "[H verify:C] supported=True: CausalLedger fills randomization_p, simultaneous, attributed_to and extra['causal'] (delays, missingness, reliability, confounding), and CausalProvenance adds MLP(features) to EVENT tokens only. It is not wired into the harness. randomization_p from the whole-action logp is close to 0 for long decoded actions."
+   ],
+   "limitations": [
+    "[C] Not yet wired into the harness or A's EVENT tokenizer. Correct tool-level probabilities depend on A's decoder reporting logp_parts['tool']."
+   ],
    "verified_by": null
   },
   {
@@ -502,16 +895,34 @@
    "title": "Planner comparison (beam vs sampling vs policy rollouts) at matched compute; imagination-trained policy with uncertainty weighting, real/imagined separation",
    "spec_ref": "7.2-7.3",
    "workstream": "C",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/world/imagine_train.py",
+    "superlearner/src/superlearner/cam_unified/world/planner.py"
+   ],
    "dependencies": [
     "A08"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/world/test_world_imagine_train.py::test_real_and_imagined_are_kept_separate",
+    "superlearner/tests/cam_unified/world/test_world_learning.py::test_planner_comparison_at_matched_compute",
+    "superlearner/tests/cam_unified/world/test_world_learning.py::test_policy_trained_on_imagined_targets_learns_to_experiment",
+    "superlearner/tests/cam_unified/world/test_world_planner.py::test_compare_planners_refuses_a_budget_any_planner_cannot_meet",
+    "superlearner/tests/cam_unified/world/test_world_planner.py::test_planner_refuses_a_budget_below_its_minimum_cost[beam]",
+    "superlearner/tests/cam_unified/world/test_world_planner.py::test_planners_choose_the_oracle_best_multistep_plan"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "a8f963025e36bed25cdf0a9f6e615fdd911354b8",
+   "evidence": [
+    "[C] Default-suite oracle (exact values): policy rollouts and the full-width beam score [0, 4, -0.5]. Policy rollouts, CEM and the full-width beam choose invest. The width-2 beam prunes invest and chooses idle.",
+    "[C] C04 ablation over 2 seeds. Imagined-only and imagined plus a real value correction both reach P(probe)=0.979-0.984. The real term alone stays at exactly uniform (0.25). Without imagined belief revision, P(probe)=0.003-0.004 and the policy chooses safe (0.86-0.91).",
+    "[C] Matched compute: InvestWorld 288 transitions each. ProbeWorld 4096 for policy rollouts and 4080 for beam and CEM. Only the closed-loop policy rollouts choose probe (2.73/2.87). CEM gives probe -1.51/-2.2.",
+    "[H verify:C] supported=True: Planner comparison reproduced: policy rollouts choose probe (0.77/1.01), CEM and beam choose safe, and beam prunes probe. On InvestWorld, policy rollouts, CEM and the full-width beam choose invest and the width-2 beam prunes it. Evals were 288 and 4080-4096. 'Matched compute' holds only for budgets above each planner's minimum; below that, budgets are silently exceeded (16/28/24 transitions vs a budget of 4 per env). The imagination-trained-policy evidence (P(probe)=0.912 in my run) is not established by its test, because the real term alone passes. My imagined-only ablation does learn probe ("
+   ],
+   "limitations": [
+    "[C] No integration with D's trainer or real archived experience. The real-experience term in the test is a value correction from exact ProbeWorld returns.",
+    "[C] CEM samples per-depth independent categorical distributions."
+   ],
    "verified_by": null
   },
   {
@@ -536,16 +947,39 @@
    "title": "Learning-progress objective with held-out query separation; meta-exploration over full trajectories",
    "spec_ref": "8.3-8.4",
    "workstream": "D",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/learn/explore.py",
+    "superlearner/src/superlearner/cam_unified/learn/meta.py"
+   ],
    "dependencies": [
     "A09"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/learn/test_learn_explore.py::test_intrinsic_reward_is_finite_for_nonfinite_lp_and_zero_for_pure_noise",
+    "superlearner/tests/cam_unified/learn/test_learn_explore.py::test_lp_is_zero_for_pure_noise_and_positive_for_informative_observations",
+    "superlearner/tests/cam_unified/learn/test_learn_explore.py::test_noise_correction_removes_credit_when_an_update_reacts_to_noise",
+    "superlearner/tests/cam_unified/learn/test_learn_explore.py::test_queries_are_disjoint_from_support_and_stay_in_the_episode",
+    "superlearner/tests/cam_unified/learn/test_learn_explore.py::test_with_a_belief_that_reacts_to_noise_only_the_epistemic_correction_rejects_the_noisy_tv",
+    "superlearner/tests/cam_unified/learn/test_learn_meta.py::test_hindsight_lp_through_the_adapter_scores_the_prior_belief_from_the_prior_state",
+    "superlearner/tests/cam_unified/learn/test_learn_probe_meta_rl.py::test_lp_trained_agent_ignores_a_noisy_tv_that_its_belief_reacts_to"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "4308c88066c330d674e4ef372d254f4f6ea68756",
+   "evidence": [
+    "[D] Hindsight LP keeps queries disjoint from the support. Through the contract adapter, B_t^- is scored from Z_t and B_t^+ from Z_{t+1}.",
+    "[D] The epistemic/aleatoric correction is exact: the signal fraction of a reading every hypothesis predicts alike counts as 0.",
+    "[D] With a belief that reacts to the TV (ReactiveArmBelief: miscalibrated prior, uncertainty expansion on readings), the raw LP of watching first is +1.30 nats while the corrected LP is exactly 0.",
+    "[D] A raw-LP experimenter learns to watch the TV (p_watch > 0.9); the corrected one learns to pull (p_watch < 0.1).",
+    "[D] The recurrent agent trained on corrected LP under that reactive belief never watches and is Bayes-optimal for H=2..6.",
+    "[D] Meta-exploration over full trajectories: LP enters the return stream (MetaRLObjective), gated by cfg.use_learned_exploration and the lp_reward stage flag.",
+    "[H verify:D] supported=True: Hindsight LP keeps queries disjoint from the support and inside the episode, and the Gaussian and categorical epistemic/aleatoric splits are correct. The noise correction removes credit when an update reacts to noise. The LP experimenter prefers the probe; the surprise experimenter prefers the TV. My negative controls back the result: with an expensive probe the agent never probes, and with LP annealed to 0 probing persists at Bayes-optimal. Caveat: the noisy-TV policy result is guaranteed by the ArmBelief double. Controlled simulator forks are absent (acknowledged)."
+   ],
+   "limitations": [
+    "[D] Validated with exact or reactive arm-belief test doubles, not B's real BeliefModule.",
+    "[D] A recurrent agent trained on raw LP also never watched (bias 3 and 6): the TV only pays off in raw LP before the probe, and PPO commits to probe-first first. The policy-level contrast is therefore shown with the single-decision experimenter only.",
+    "[D] Controlled simulator forks (spec 8.3 alternative) are not implemented."
+   ],
    "verified_by": null
   },
   {
@@ -553,16 +987,33 @@
    "title": "Exploration baseline comparison (random, greedy, Thompson, CAM7 KG, EIG, learned, learned+math assist)",
    "spec_ref": "8.5",
    "workstream": "D",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/learn/diagnostics.py",
+    "superlearner/src/superlearner/cam_unified/learn/math_assist.py"
+   ],
    "dependencies": [
     "A09"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/learn/test_learn_math_assist.py::test_ported_nig_and_voi_math_equals_cam7",
+    "superlearner/tests/cam_unified/learn/test_learn_math_assist.py::test_structured_kg_baseline_probes_first_and_is_near_bayes_optimal",
+    "superlearner/tests/cam_unified/learn/test_learn_math_assist.py::test_structured_prior_kg_values_the_information_only_probe",
+    "superlearner/tests/cam_unified/learn/test_learn_probe_meta_rl.py::test_exploration_baseline_comparison_on_the_probe_bandit"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "4308c88066c330d674e4ef372d254f4f6ea68756",
+   "evidence": [
+    "[D] Mean return over H=2..6, with the probe-first rate over H=3..6 in brackets (slow test, held-out seeds):\n- random 32.4 (0.165)\n- greedy 186.6 (0)\n- thompson 80.0 (0.085)\n- kg 186.6 (0)\n- eig 186.6 (0)\n- greedy_structured 183.6 (0)\n- thompson_structured 185.9 (0)\n- kg_structured 270.0 (1.0)\n- learned_extrinsic 165.7 (0)\n- learned_lp 270.0 (1.0)\n- learned_lp_math_assist 267.6 (1.0)\n- Bayes-optimal 270.0",
+    "[D] The structured-prior KG values the probe exactly: KG(probe) = 100 - 100/6. It is Bayes-optimal on the probe bandit.",
+    "[H verify:D] supported=True: I reproduced the numbers exactly: random 32.43, greedy 189.5, thompson 82.33, kg 189.5, eig 189.5, learned_extrinsic 165.7, learned_lp 270.0, learned_lp_math_assist 270.0, bayes 270.0. Probe-first rate at H=3..6: learned conditions 1.0, programmed baselines 0.0 to 0.165. Caveat: the KG and EIG baselines use an independent-candidate model that cannot value the probe by construction."
+   ],
+   "limitations": [
+    "[D] The structured baselines receive the task family's hand-specified hypothesis model (ProbeBanditAdapter.structured_prior), which the learned agent never sees.",
+    "[D] The learned agent matches the structured KG but does not beat it.",
+    "[D] Independent-candidate KG/EIG cannot value the probe by construction of that model; this is stated in the module docstring.",
+    "[D] Only on the probe bandit."
+   ],
    "verified_by": null
   },
   {
@@ -570,16 +1021,35 @@
    "title": "Hierarchical options (latent option tokens, termination, semi-Markov credit gamma=exp(-k dt))",
    "spec_ref": "9.4",
    "workstream": "D",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/learn/heads.py",
+    "superlearner/src/superlearner/cam_unified/learn/ppo.py",
+    "superlearner/src/superlearner/cam_unified/learn/returns.py"
+   ],
    "dependencies": [
     "A10"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/learn/test_learn_heads.py::test_option_decision_probabilities_are_normalised_and_forced_termination",
+    "superlearner/tests/cam_unified/learn/test_learn_options.py::test_option_module_from_config_and_sampling_with_a_generator_on_another_device",
+    "superlearner/tests/cam_unified/learn/test_learn_options.py::test_options_trained_through_the_joint_action_log_probability_and_smdp_values",
+    "superlearner/tests/cam_unified/learn/test_learn_returns.py::test_option_targets_semi_markov_hand_computed"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "4308c88066c330d674e4ef372d254f4f6ea68756",
+   "evidence": [
+    "[D] Option decisions have exact log-probabilities that enter the joint PPO log-prob, and PPO selects the paying option (more than 90%).",
+    "[D] Forced termination at max_steps works.",
+    "[D] The option-conditioned critic is trained through ActorCriticObjective.loss(option_value_logits=...). Its targets equal returns.option_targets, with gamma_Delta = exp(-kappa*Delta t) checked per option.",
+    "[D] The critic regresses each (row, option) mean target with mean absolute error below 0.3, and Q(option 1) - Q(option 0) > 2.",
+    "[D] OptionModule.from_config reads cfg.n_options and cfg.option_max_steps.",
+    "[H verify:D] supported=True: Exact option decision log-prob and entropy; the decision probabilities sum to 1; forced termination at max_steps; PPO through the joint logp picks the paying option. option_targets matches hand calculation. However option_targets is not connected to ActorCriticObjective (option_start is ignored), so option-level SMDP value credit exists only in the test."
+   ],
+   "limitations": [
+    "[D] The option critic is trained only on fresh rows. There is no option-level V-trace for stale data.",
+    "[D] The option policy-gradient credit stays per decision (GAE on the joint log-prob)."
+   ],
    "verified_by": null
   },
   {
@@ -587,13 +1057,21 @@
    "title": "Action provenance logging (CAM decoder vs frozen proposal vs planner vs baseline; proposal distribution and selection probs)",
    "spec_ref": "9.5",
    "workstream": "A",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/semantic/actions.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/semantic/test_actions.py::test_candidates_and_selection_provenance",
+    "superlearner/tests/cam_unified/semantic/test_actions.py::test_temperature_override_and_greedy_behaviour_logp"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "commit": "416fa94",
+   "evidence": [
+    "[A] Every action carries source, behaviour logp (learner path), parts and a v2 decode record. Greedy actions are flagged. select_candidate stamps the planner source and the proposal distribution, which survive a JSON round trip.",
+    "[H verify:A] supported=True: Supported: source, logp, logp_parts and the decode record are on every decoder action, and select_candidate stamps the planner source with the proposal distribution {n, probs, chosen, proposal_logp, scores}. The test checks the JSON round trip."
+   ],
    "limitations": [],
    "verified_by": null
   },
@@ -602,14 +1080,45 @@
    "title": "Goal-conditioned actor-critic (PPO on fresh data; V-trace for async) with behavior-policy provenance",
    "spec_ref": "12.3",
    "workstream": "D",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/agent.py",
+    "superlearner/src/superlearner/cam_unified/learn/ppo.py",
+    "superlearner/src/superlearner/cam_unified/learn/returns.py",
+    "superlearner/src/superlearner/cam_unified/learn/trajectory.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/integration/test_i_agent_runtime.py::test_ablation_switches_change_the_path[use_imagination]",
+    "superlearner/tests/cam_unified/integration/test_i_agent_runtime.py::test_gae_semi_markov_matches_manual_computation",
+    "superlearner/tests/cam_unified/learn/test_learn_diagnostics.py::test_budget_conditioned_policy_learns_delayed_credit",
+    "superlearner/tests/cam_unified/learn/test_learn_ppo.py::test_advantage_floor_is_invariant_to_a_constant_reward_offset",
+    "superlearner/tests/cam_unified/learn/test_learn_ppo.py::test_from_sequence_respects_the_contract_padding_convention",
+    "superlearner/tests/cam_unified/learn/test_learn_ppo.py::test_nonfinite_values_in_padding_never_reach_valid_steps",
+    "superlearner/tests/cam_unified/learn/test_learn_ppo.py::test_policy_gradient_sign_follows_advantage",
+    "superlearner/tests/cam_unified/learn/test_learn_ppo.py::test_routing_by_lag_and_by_measured_divergence",
+    "superlearner/tests/cam_unified/learn/test_learn_ppo.py::test_run_epochs_uses_the_objectives_key_and_records_provenance",
+    "superlearner/tests/cam_unified/learn/test_learn_ppo.py::test_value_clipping_on_the_twohot_path_removes_gradient_where_the_clipped_term_dominates",
+    "superlearner/tests/cam_unified/learn/test_learn_returns.py::test_vtrace_matches_direct_definition"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "4308c88066c330d674e4ef372d254f4f6ea68756,4d49c70",
+   "evidence": [
+    "[D] Stale data is routed to V-trace, by policy lag and by the measured k3 KL. PPO ratios are refused beyond the validated lag (StalePolicyError).",
+    "[D] Padding follows the contract's done/obs.mask rule. NaN or inf in padded reward, behaviour log-prob or value slots gives losses and gradients identical to the clean batch, on both the PPO and the V-trace route.",
+    "[D] The advantage floor is unchanged by a reward offset of 10000 cents.",
+    "[D] value_clip is honoured on the two-hot path.",
+    "[D] run_epochs sends 'actor' or 'meta' and attaches every update id to the consumed EventRecords.",
+    "[D] The delayed-reward policy reaches the oracle return of 530 cents.",
+    "[I] Decoder samples go to PPO (ratio about 1 at lag 0). Planner argmax choices go to AWR, with behaviour provenance recorded.",
+    "[H verify:D] supported=True: PPO-clip with V-trace routing by lag and by measured KL, StalePolicyError, and the advantage-sign tests: verified by reading the code and by tests passing. The delayed-reward test reaches the oracle 530 cents. Caveats: from_sequence counts padding as valid; NaN in padded slots poisons the batch; goal conditioning is not exercised by any policy test (acknowledged).",
+    "[H verify:I] supported=True: The GAE semi-Markov test matches a manual computation, and logp is recomputed exactly on fresh data. The estimator is biased for planner-selected actions (the default config), which the report acknowledges."
+   ],
+   "limitations": [
+    "[D] Goal conditioning is exercised only through the BUDGET token and the goal TokenSet inputs of ValueHead. No policy test varies the goal text.",
+    "[D] Shift invariance of the advantage floor assumes equal horizons across rows.",
+    "[I] No V-trace for lagged asynchronous data: D/F own that."
+   ],
    "verified_by": null
   },
   {
@@ -617,17 +1126,37 @@
    "title": "Fast-adaptation support/query training over k in {0..64} with strict separation",
    "spec_ref": "12.2",
    "workstream": "D",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/learn/meta.py"
+   ],
    "dependencies": [
     "A05",
     "A06"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/learn/test_learn_meta.py::test_contract_adapter_action_condition_and_explicit_action_blind_mode",
+    "superlearner/tests/cam_unified/learn/test_learn_meta.py::test_contract_adapter_conditions_queries_on_their_actions_through_the_world_model",
+    "superlearner/tests/cam_unified/learn/test_learn_meta.py::test_every_episode_gets_its_own_support_and_unusable_sizes_are_reported",
+    "superlearner/tests/cam_unified/learn/test_learn_meta.py::test_hindsight_lp_through_the_adapter_scores_the_prior_belief_from_the_prior_state",
+    "superlearner/tests/cam_unified/learn/test_learn_meta.py::test_padded_rows_are_neither_support_nor_query",
+    "superlearner/tests/cam_unified/learn/test_learn_meta.py::test_support_query_strict_separation",
+    "superlearner/tests/cam_unified/learn/test_learn_meta.py::test_support_sizes_and_meta_loss_decreases_on_toy_task"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "4308c88066c330d674e4ef372d254f4f6ea68756",
+   "evidence": [
+    "[D] k is in {0,1,2,4,8,16,32,64}. On the toy task NLL(64) < NLL(8) < NLL(1) < NLL(0), and the loss falls by more than 0.5 nats with gradients through the adaptation.",
+    "[D] Support restarts at each episode start with a fresh belief. Episode 2's scores equal scoring it alone, and episode 1's outcomes never reach them.",
+    "[D] Unusable support sizes are reported in skipped_k, or raise with on_skip='raise'. Padded steps are excluded and the gradients stay finite.",
+    "[D] The contract adapter scores query j from the support-end state rolled through the query actions with WorldModelP.prior. Changing query 4's action changes the scores of queries 4 and 5, not 3. A later latent state that absorbed queries is ignored.",
+    "[D] Scores do not depend on call order, the rollout is memoised (at most 2 prior calls per step), and gradients reach the particles and the world model.",
+    "[H verify:D] supported=False: Partly supported. SupportQueryLoss is correct for k in {0..64}, with strict separation, event-id checks and gradients through the update; the toy loss falls and NLL(64)<NLL(8)<NLL(1)<NLL(0). Missing: the contract-module adapter scores queries without the query actions, keeps its Z index in closure state that depends on call order, and only the first episode of each row is ever used (later episodes and k>=T dropped silently)."
+   ],
+   "limitations": [
+    "[D] Validated with test doubles shaped like BeliefModuleP, OutcomeHeadP and WorldModelP. B's and C's real modules have not been wired in yet.",
+    "[D] k=64 needs episodes of at least 65 decisions. Shorter data reports 64 in skipped_k."
+   ],
    "verified_by": null
   },
   {
@@ -635,14 +1164,34 @@
    "title": "Meta objective J_meta over support sizes; policy-gradient credit for exploratory decisions",
    "spec_ref": "12.4",
    "workstream": "D",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/learn/meta.py",
+    "superlearner/src/superlearner/cam_unified/learn/ppo.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/learn/test_learn_meta.py::test_j_meta_credits_early_exploration_with_later_trial_competence",
+    "superlearner/tests/cam_unified/learn/test_learn_meta.py::test_j_meta_over_support_sizes_weights_competence_after_k_decisions",
+    "superlearner/tests/cam_unified/learn/test_learn_meta.py::test_last_decision_of_a_trial_reaches_the_policy_in_the_next_trial",
+    "superlearner/tests/cam_unified/learn/test_learn_meta.py::test_lp_term_is_gated_by_the_ablation_switch_the_stage_flag_and_scaled_by_lp_coef",
+    "superlearner/tests/cam_unified/learn/test_learn_probe_meta_rl.py::test_j_meta_early_trial_exploration_pays_off_in_the_later_trial",
+    "superlearner/tests/cam_unified/learn/test_learn_probe_meta_rl.py::test_probe_bandit_meta_rl_learns_to_probe_first_and_beats_greedy"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "4308c88066c330d674e4ef372d254f4f6ea68756",
+   "evidence": [
+    "[D] J_meta over support sizes is sum_t W(n_t) r_t with W(n) = sum_{k <= n < k+window} w_k. It is checked analytically against the explicit sum_k w_k J(U(D_1:k)), and decision 0 is credited with later competence.",
+    "[D] Trial weights work. The J_meta loss is reported under 'meta', so loss_weights['meta'] and stage-5 gating apply (in stage 4 the trainer lists 'meta' as disabled).",
+    "[D] TrialRunner delivers the last outcome of a trial at the next trial. In unit tests a one-decision probe trial is exploited in trial 2 (100 cents), and a delayed EVENT is delivered.",
+    "[D] Slow test, 200 iterations: with 2 decisions per trial, per-trial return is [-11.25, 200.0] with probes 1.0 / 0.0. With 1 decision per trial it is [-30.0, 100.0] with probes 1.0 / 0.0.",
+    "[D] At the policy level, competence after k support decisions for the learned agent at H=6 is J_0=-30 and J_1=J_2=J_4=100. Greedy reaches J_1 < 40. All 8 sweep seeds have J_1 >= 87.",
+    "[H verify:D] supported=False: Partly supported. J_meta trial weighting, cost penalty and non-terminal trial boundaries are correct, and I reproduced the slow two-trial test: trial-2 return 200.0, probes 1.0 in trial 1 and 0.0 in trial 2. But TrialRunner drops the observations produced by each trial's last decision, so information from the end of an earlier trial never reaches later trials. The manifest's 'J_meta over support sizes' is only covered through trial weights. The '2/2 prototype seeds' evidence is not reproducible from committed files."
+   ],
+   "limitations": [
+    "[D] Training at the policy level uses trial weights plus LP. One exploratory run with support-size weights {1: 1.0}, window 5 and no LP converged to elimination: return 350.5 at H=6, versus 355.5 for plain extrinsic PPO (slow_test_results.jsonl). Support-size weighting alone does not escape the local optimum.",
+    "[D] There is no gradient through inner adaptation in J_meta. The policy-gradient estimator only, as spec 12.4 allows for non-differentiable real outcomes."
+   ],
    "verified_by": null
   },
   {
@@ -650,14 +1199,34 @@
    "title": "Combined staged training (7 stages) with per-objective gradient contribution tracking into the shared backbone",
    "spec_ref": "12.5",
    "workstream": "D",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/learn/trainer.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/learn/test_learn_ppo.py::test_run_epochs_uses_the_objectives_key_and_records_provenance",
+    "superlearner/tests/cam_unified/learn/test_learn_trainer.py::test_backbone_probe_on_a_large_backbone_uses_exact_norms_and_sampled_cosines",
+    "superlearner/tests/cam_unified/learn/test_learn_trainer.py::test_bf16_autocast_training_step",
+    "superlearner/tests/cam_unified/learn/test_learn_trainer.py::test_clipping_nonfinite_guard_provenance_logging_and_state",
+    "superlearner/tests/cam_unified/learn/test_learn_trainer.py::test_critic_weight_must_be_unambiguous",
+    "superlearner/tests/cam_unified/learn/test_learn_trainer.py::test_per_objective_backbone_contributions_shares_and_cosines",
+    "superlearner/tests/cam_unified/learn/test_learn_trainer.py::test_stage_gating_schedule_and_unknown_objectives"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "4308c88066c330d674e4ef372d254f4f6ea68756",
+   "evidence": [
+    "[D] 7 cumulative stages with flags.",
+    "[D] Param groups with lr_sem, bf16 autocast, clipping and a skip/raise guard for non-finite values.",
+    "[D] Per-objective backbone norms are exact (equal to manual autograd.grad), with shares and cosines.",
+    "[D] Update ids are recorded in training provenance. JSONL logging.",
+    "[D] The 'meta' weight and stage gating are now applied through run_epochs.",
+    "[D] Verifier's GPU measurement (100.7M-parameter MLP backbone, 4 objectives): 73.2 ms per update with the probe versus 26.5 ms without; 2.16 vs 1.88 GiB.",
+    "[H verify:D] supported=True: Seven cumulative stages, param groups with lr_sem, bf16 autocast, clipping, non-finite skip/raise, exact per-objective backbone norms (equal to manual autograd.grad), cosines, provenance ids and JSONL logging: all verified. My GPU run, 100.7M-parameter MLP backbone with 4 objectives: 73.2 ms vs 26.5 ms per update with and without the probe, 2.16 vs 1.88 GiB. The memory matches the claim; the absolute times differ from the claimed 132 vs 57 ms (relative overhead about 2.8x per probed update). The 'meta' weight is bypassed by run_epochs."
+   ],
+   "limitations": [
+    "[D] Validated on test models and on the probe agent, not on the full CAM Unified model."
+   ],
    "verified_by": null
   },
   {
@@ -665,15 +1234,25 @@
    "title": "Hierarchical memory consolidation (raw, segments, longer reps, artifacts, parametric) with learned latent memory tokens and source links",
    "spec_ref": "10.4",
    "workstream": "E",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/memory/consolidate.py"
+   ],
    "dependencies": [
     "A12"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/memory/test_mem_consolidate.py::test_hierarchy_with_source_links",
+    "superlearner/tests/cam_unified/memory/test_mem_consolidate.py::test_step_during_a_migration_builds_every_group_and_interleaves_with_reencode",
+    "superlearner/tests/cam_unified/memory/test_mem_retrieval.py::test_compression_loss_trains_memory_tokens_to_keep_event_information"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "commit": "f9073ef75341ff013d49ecb7146f02dfb7eb31ff",
+   "evidence": [
+    "[E] CONSOLIDATE_100K: 5,478 ev/s, 3,250 level-1 and 406 level-2 segments, 14.9M retriever params",
+    "[E] Compression objective: event identification 0.000 -> 0.484 (chance 0.004)",
+    "[H verify:E] supported=True: The hierarchy (events -> level-1 -> level-2 -> artifact refs -> weight links) and its source links are real and tested. The compression objective raises event identification from 0 to 0.46 on synthetic tokens. Level-2 groups can be silently lost when step() runs during a migration (see the E02 note)."
+   ],
    "limitations": [],
    "verified_by": null
   },
@@ -682,16 +1261,33 @@
    "title": "Memory embedding versioning and re-encoding/migration",
    "spec_ref": "10.5",
    "workstream": "E",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/memory/consolidate.py",
+    "superlearner/src/superlearner/cam_unified/memory/index.py",
+    "superlearner/src/superlearner/cam_unified/memory/retrieval.py"
+   ],
    "dependencies": [
     "A12"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/memory/test_mem_consolidate.py::test_step_during_a_migration_builds_every_group_and_interleaves_with_reencode",
+    "superlearner/tests/cam_unified/memory/test_mem_consolidate.py::test_version_migration_recomputed_from_raw_events",
+    "superlearner/tests/cam_unified/memory/test_mem_index.py::test_pinned_versions_are_not_dropped",
+    "superlearner/tests/cam_unified/memory/test_mem_index.py::test_transaction_rollback_restores_the_index_exactly",
+    "superlearner/tests/cam_unified/memory/test_mem_index.py::test_versions_are_isolated",
+    "superlearner/tests/cam_unified/memory/test_mem_retrieval.py::test_target_versions_and_compatibility"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "f9073ef75341ff013d49ecb7146f02dfb7eb31ff",
+   "evidence": [
+    "[E] step() during a migration, interleaved with a partial reencode_step, ends with a v1 index equal to a from-scratch v1 encoding",
+    "[E] A second sync before promotion is held back (sync_info reason 'migration-pending'), so the served version stays readable",
+    "[H verify:E] supported=False: Partly true. Version-partitioned search, refusal of an unknown version, and re-encoding from raw events all work. But Consolidator.step() raises during a migration and then loses the level-2 group in-process (probes p2 and p7). A second sync_target() before promotion makes retrieve() raise. Neither path is covered by a test."
+   ],
+   "limitations": [
+    "[E] Segments created during a migration are searchable only after the new version is promoted; the old version's encoders no longer exist to encode them"
+   ],
    "verified_by": null
   },
   {
@@ -699,17 +1295,33 @@
    "title": "Memory acceptance: >256, >10k, 1M-record streaming stress; retention vs delay; restart; latency/storage/cost report",
    "spec_ref": "10.6",
    "workstream": "E",
-   "files": [],
+   "files": [
+    "superlearner/tests/cam_unified/memory/test_mem_index.py",
+    "superlearner/tests/cam_unified/memory/test_mem_retrieval.py",
+    "superlearner/tests/cam_unified/memory/test_mem_stress.py"
+   ],
    "dependencies": [
     "A11",
     "A12"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/memory/test_mem_index.py::test_exact_search_finds_cues_among_200k_interfering_keys[cuda]",
+    "superlearner/tests/cam_unified/memory/test_mem_retrieval.py::test_usefulness_trained_retrieval_finds_delayed_cues",
+    "superlearner/tests/cam_unified/memory/test_mem_stress.py::test_million_key_index_search_latency",
+    "superlearner/tests/cam_unified/memory/test_mem_stress.py::test_one_million_lightweight_records_streaming"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "f9073ef75341ff013d49ecb7146f02dfb7eb31ff",
+   "evidence": [
+    "[E] INDEX_1M: 16-query search 21.5 ms, filtered 43.8 ms (GPU shared with another agent's Qwen job), 719 MB",
+    "[E] STRESS_1M as reported under A11",
+    "[H verify:E] supported=True: The IN_PROGRESS status is accurate. My slow run reproduced STRESS_1M, INDEX_1M (16-query search 9.9 ms, filtered 18.9 ms, 1M keys) and CONSOLIDATE_100K (3,095 ev/s, 3,250 level-1 and 406 level-2 segments). Delayed cues through the complete CAM architecture are not done (acknowledged)."
+   ],
+   "limitations": [
+    "[E] Delayed cues through the complete CAM architecture are not done",
+    "[E] Retention vs delay with learned retrieval is shown only on synthetic event tokens; the end-to-end attempt over archived records with the default encoder did not train (see limitations)"
+   ],
    "verified_by": null
   },
   {
@@ -717,15 +1329,28 @@
    "title": "Persistent replay from archive (recent, uniform historical, domain-balanced, failures, innovations, rare, skills, underrepresented)",
    "spec_ref": "11.2",
    "workstream": "E",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/memory/archive.py",
+    "superlearner/src/superlearner/cam_unified/memory/replay.py"
+   ],
    "dependencies": [
     "A12"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/memory/test_mem_replay.py::test_archive_index_rebuild_rederives_membership",
+    "superlearner/tests/cam_unified/memory/test_mem_replay.py::test_corrected_tags_move_events_between_strata_and_restore_exactly",
+    "superlearner/tests/cam_unified/memory/test_mem_replay.py::test_draw_cost_does_not_grow_with_episode_length",
+    "superlearner/tests/cam_unified/memory/test_mem_replay.py::test_episode_ids_reused_across_environments_and_actors_never_mix",
+    "superlearner/tests/cam_unified/memory/test_mem_replay.py::test_strata_proportions_and_membership"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "commit": "f9073ef75341ff013d49ecb7146f02dfb7eb31ff",
+   "evidence": [
+    "[E] STRESS_1M: replay_sync 7.8 s for 1M events; sample 64x32 in 0.23 s",
+    "[E] 64 slices from a 40k-step episode: tracemalloc peak under 1 MB; the query plan uses the ev_stream range",
+    "[H verify:E] supported=True: All 8 strata are present. Proportions and membership are tested, the sampler is not FIFO, and state rollback is exact. Defects: slices are scoped by episode_id only (they mix environments when ids are reused), each draw costs O(episode length), and membership never removes corrected tags."
+   ],
    "limitations": [],
    "verified_by": null
   },
@@ -734,16 +1359,26 @@
    "title": "Plasticity mechanisms tested independently (continual backprop, selective reinit, adaptive LR, gradient-conflict mitigation, replay distillation)",
    "spec_ref": "11.3",
    "workstream": "E",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/memory/plasticity.py"
+   ],
    "dependencies": [
     "A14"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/memory/test_mem_plasticity.py::test_adaptive_group_lr_composes_with_a_scheduler_and_a_fresh_optimizer_reset",
+    "superlearner/tests/cam_unified/memory/test_mem_plasticity.py::test_mechanism_wrapper_applies_exactly_the_switched_on_mechanisms"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "f9073ef75341ff013d49ecb7146f02dfb7eb31ff",
+   "evidence": [
+    "[E] With the mechanism on, the StepLR schedule is identical to the one with it off; each SGD step uses scheduled lr x multiplier exactly",
+    "[H verify:E] supported=True: Continual backprop, selective reinit (ReDo), AdaptiveGroupLR, PCGrad and replay distillation (mse/kl) each sit behind a switch and are each tested on toy networks. AdaptiveGroupLR overrides LR schedulers. Context-dependent parameter use is not implemented; it was not in the brief and is acknowledged."
+   ],
+   "limitations": [
+    "[E] Context-dependent parameter use is not implemented (not in the brief)"
+   ],
    "verified_by": null
   },
   {
@@ -751,14 +1386,37 @@
    "title": "Durable versioned experience queue (batching, dedup, backpressure, actor recovery, delayed outcomes, version tags)",
    "spec_ref": "14.2",
    "workstream": "F",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/dist/actor.py",
+    "superlearner/src/superlearner/cam_unified/dist/queue.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/dist/test_dist_actor_learner.py::test_sigkilled_actor_loses_no_buffered_experience",
+    "superlearner/tests/cam_unified/dist/test_dist_queue.py::test_backpressure_block_waits_for_consumer",
+    "superlearner/tests/cam_unified/dist/test_dist_queue.py::test_backpressure_shed_is_recorded_not_silent",
+    "superlearner/tests/cam_unified/dist/test_dist_queue.py::test_blocked_segment_is_ordered_by_its_actual_commit",
+    "superlearner/tests/cam_unified/dist/test_dist_queue.py::test_consumer_crash_between_sink_and_commit_is_reconciled",
+    "superlearner/tests/cam_unified/dist/test_dist_queue.py::test_dedup_across_and_within_segments",
+    "superlearner/tests/cam_unified/dist/test_dist_queue.py::test_delayed_outcomes_traces_and_version_tags",
+    "superlearner/tests/cam_unified/dist/test_dist_queue.py::test_killed_writer_processes_restart_without_loss_or_duplicates",
+    "superlearner/tests/cam_unified/dist/test_dist_queue.py::test_writer_recovers_committed_tmp_and_quarantines_partial",
+    "superlearner/tests/cam_unified/dist/test_dist_queue.py::test_writer_wal_recovers_buffered_items_after_sigkill"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "8d15b13a5ac5b3f368bc8123198e7507dee7983a",
+   "evidence": [
+    "[F] A SIGKILLed writer holding 300 uncommitted items: the next writer recovers all 300 from the WAL, and the consumer gets exactly that id sequence. A torn line is counted and recorded in the shed ledger.",
+    "[F] Under the launcher, an actor whose whole current episode existed only in its WAL was SIGKILLed after more than 1500 decisions. The restarted incarnation recovered more than 3000 items. Every step of both dead episodes is in the archive, contiguous from 0, with no duplicate ids. Both episodes were closed with episode_end, the learner trained at least 1000 of those decisions, and there were no sequence gaps.",
+    "[F] A segment that waited on backpressure now sorts after a segment committed during its wait. The old pre-admission timestamp would sort it first.",
+    "[H verify:F] supported=True: The queue mechanics are real and pass their tests: segments written to .tmp, fsynced and atomically renamed; a SQLite seen-set for dedup; consumer crash reconciliation through sink.get; .tmp recovery and quarantine; block, raise and shed backpressure with a ledger; delayed outcomes; version tags. Caveats: an actor killed with SIGKILL loses its uncommitted buffer without any record of it (the 900/900 evidence comes from a deterministic re-sending test writer). Ordering and the spool limit are approximate across concurrent writers."
+   ],
+   "limitations": [
+    "[F] Ordering across actors is approximate within the write/rename window (documented); per-actor ordering is exact.",
+    "[F] Concurrent writers can overshoot max_spool_bytes by at most N segments (documented).",
+    "[F] The WAL is not fsynced per put: it survives a process kill but not a power loss of the tail written since the last fsynced segment."
+   ],
    "verified_by": null
   },
   {
@@ -766,14 +1424,37 @@
    "title": "Atomic checkpoint publication and safe-boundary policy refresh with latent-state reconstruction",
    "spec_ref": "14.3",
    "workstream": "F",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/dist/actor.py",
+    "superlearner/src/superlearner/cam_unified/dist/publish.py",
+    "superlearner/src/superlearner/cam_unified/dist/toyworld.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/dist/test_dist_actor_learner.py::test_decision_boundary_refresh_reconstructs_latent_state[0.0-True]",
+    "superlearner/tests/cam_unified/dist/test_dist_actor_learner.py::test_decision_boundary_refresh_reconstructs_latent_state[1000000000.0-False]",
+    "superlearner/tests/cam_unified/dist/test_dist_learner_segments.py::test_publisher_killed_between_rename_and_latest",
+    "superlearner/tests/cam_unified/dist/test_dist_learner_segments.py::test_restart_after_a_rejected_version_above_latest",
+    "superlearner/tests/cam_unified/dist/test_dist_publish.py::test_behavioural_probe_keeps_a_degraded_version_from_actors",
+    "superlearner/tests/cam_unified/dist/test_dist_publish.py::test_concurrent_readers_see_only_complete_monotone_versions",
+    "superlearner/tests/cam_unified/dist/test_dist_publish.py::test_drift_accounts_for_skipped_versions[exact]",
+    "superlearner/tests/cam_unified/dist/test_dist_publish.py::test_drift_accounts_for_skipped_versions[meta_sum]",
+    "superlearner/tests/cam_unified/dist/test_dist_publish.py::test_meta_sum_drift_is_an_upper_bound_and_infinite_when_the_chain_is_pruned",
+    "superlearner/tests/cam_unified/dist/test_dist_publish.py::test_policy_client_refreshes_only_at_safe_boundaries",
+    "superlearner/tests/cam_unified/dist/test_dist_publish.py::test_validation_failures_never_reach_latest"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "8d15b13a5ac5b3f368bc8123198e7507dee7983a",
+   "evidence": [
+    "[F] Verifier probe P2-drift fixed: a jump from v0 to v3 now gives drift 3.0 (it was 0.333), and drift keeps accumulating to 4.0 across a second refresh without a rebuild.",
+    "[F] Verifier probe P2 fixed: a restarted learner with a rejected v4 above LATEST 3 publishes v4. A publisher killed between rename and LATEST (a real os._exit in a subprocess) leaves v3 set aside, and the next publish of v3 is validated.",
+    "[F] Behavioural gate: a sabotaged update (always lever_3) scored about the fraction of contexts where lever_3 is best. It was rejected ('validate_fn rejected'), LATEST stayed on the last good version, and the actor kept running it.",
+    "[H verify:F] supported=False: Atomic weights-only publication and concurrent-reader safety are supported (test passes). However, PolicyClient.drift underestimates the weight change whenever versions are skipped (probe: 0.333 vs a true 3.0), so the 'rebuild latent when drift exceeds a threshold' mechanism is unreliable. A restarted learner also fails with PublishRejected if an unvalidated version directory exists above LATEST (probe2). Downgrade to IN_PROGRESS until both are fixed."
+   ],
+   "limitations": [
+    "[F] PayoutProbe is specific to the toy model. CAM needs its own held-out probe passed as validate_factory; without one, validation is structural only (sha256, weights_only reload, keys, shapes, finite values)."
+   ],
    "verified_by": null
   },
   {
@@ -781,14 +1462,39 @@
    "title": "Policy-lag tracking and off-policy correction",
    "spec_ref": "14.4",
    "workstream": "F",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/dist/lag_validation.json",
+    "superlearner/src/superlearner/cam_unified/dist/lagsweep.py",
+    "superlearner/src/superlearner/cam_unified/dist/learner.py",
+    "superlearner/src/superlearner/cam_unified/dist/offpolicy.py",
+    "superlearner/src/superlearner/cam_unified/dist/toyworld.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/dist/test_dist_lagsweep.py::test_injected_lag_is_exact_and_correction_matters",
+    "superlearner/tests/cam_unified/dist/test_dist_lagsweep.py::test_router_default_is_the_stored_validated_lag",
+    "superlearner/tests/cam_unified/dist/test_dist_learner_segments.py::test_long_episode_trains_continuously_in_bootstrapped_segments",
+    "superlearner/tests/cam_unified/dist/test_dist_learner_segments.py::test_mixed_version_trajectory_is_routed_per_decision",
+    "superlearner/tests/cam_unified/dist/test_dist_learner_segments.py::test_model_no_step_and_model_skipped_decisions_are_not_counted_as_trained",
+    "superlearner/tests/cam_unified/dist/test_dist_learner_segments.py::test_router_exactness_rules",
+    "superlearner/tests/cam_unified/dist/test_dist_learner_segments.py::test_tiny_model_uses_importance_ratios_where_not_exact",
+    "superlearner/tests/cam_unified/dist/test_dist_learner_segments.py::test_vtrace_cut_bootstraps_from_the_next_value",
+    "superlearner/tests/cam_unified/dist/test_dist_offpolicy.py::test_learner_policy_lag_accounting_and_routing[discard]",
+    "superlearner/tests/cam_unified/dist/test_dist_offpolicy.py::test_learner_policy_lag_accounting_and_routing[vtrace]"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "8d15b13a5ac5b3f368bc8123198e7507dee7983a",
+   "evidence": [
+    "[F] Verifier probe P1 fixed: versions [0]*5+[7]*3 at learner version 7 with max_lag 4 now give per-decision lags [7]*5+[0]*3. Only the 3 fresh decisions train; the 5 stale ones are logged as lag_over_max. The fresh ones count as exact only when the latent state was rebuilt under v7.",
+    "[F] Verifier probe P5 fixed: a 100-decision episode with min_decisions 4 trains in 6 bootstrapped mid-episode segments plus a terminal one while the episode is still in the spool. Every decision is trained exactly once and ingestion never pauses.",
+    "[F] Lag sweep (3 seeds, 60 updates, V-trace), mean learning-curve area: 0.907 / 0.906 / 0.905 / 0.902 / 0.895 / 0.898 / 0.897 at lags 0 / 1 / 2 / 4 / 8 / 16 / 32. Uncorrected: 0.907 / 0.902 / 0.893 / 0.881 / 0.835 / 0.831 / 0.835. Validated max lag = 32: V-trace keeps 98.5% of the lag-0 area over chance there, while uncorrected training drops to 89% at lag 8, below the 90% criterion.",
+    "[F] End-to-end benchmark: 0 decisions discarded. Lags 0-2 with 1 actor and up to 7 with 4-8 actors. Exactly-on-policy decisions: 4096, 320 and 576.",
+    "[H verify:F] supported=False: Routing is correct and tested when weights refresh at trajectory boundaries. With refresh_at='decision' (which F02 relies on), trajectories with mixed versions are routed by their max version: decisions at lag 7 are trained as on-policy with log-rho forced to 0 (probe P1). That violates spec 14.4. max_lag is a constant, not a validated lag. My benchmark rerun reproduced '0 discarded, lags up to 7, ~97% V-trace' at 4-8 actors."
+   ],
+   "limitations": [
+    "[F] The validated max lag is the largest lag tested (32) within a 60-update horizon. The toy, a contextual bandit with delayed payout and a high-coverage behaviour policy, did not break V-trace at any tested lag. The validation applies to TinyLearnerModel on ToyWorld only; CAM's learner must re-run dist/lagsweep.py with its own model."
+   ],
    "verified_by": null
   },
   {
@@ -796,16 +1502,35 @@
    "title": "Distributed runs with 1, 4, 8 (16) actors: throughput, compute, sample efficiency, staleness, interference",
    "spec_ref": "14.5",
    "workstream": "F",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/dist/interference.py",
+    "superlearner/src/superlearner/cam_unified/dist/launcher.py",
+    "superlearner/src/superlearner/cam_unified/dist/results/bench_toy.json",
+    "superlearner/src/superlearner/cam_unified/dist/results/interference_toy.json"
+   ],
    "dependencies": [
     "A16"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/dist/test_dist_bench.py::test_actor_throughput_1_4_8",
+    "superlearner/tests/cam_unified/dist/test_dist_interference.py::test_mixed_schedule_alternates_families_into_one_learner",
+    "superlearner/tests/cam_unified/dist/test_dist_interference.py::test_sequential_families_measure_retention_and_feed_the_dashboard"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "8d15b13a5ac5b3f368bc8123198e7507dee7983a",
+   "evidence": [
+    "[F] Actors only, 15 s each: 1931 / 5942 / 9470 / 11025 decisions/s for 1 / 4 / 8 / 16 actors. CPU 11.6 / 45.1 / 89.8 / 175.6 s; summed peak RSS 1.4 / 3.6 / 6.4 / 12.2 GB.",
+    "[F] End to end: 1692 / 1872 / 1809 decisions/s for 1 / 4 / 8 actors, bound by the single learner's ingestion (actors blocked 7-9 s of 15). Time to a 0.8 score: 6.5 / 10.0 / 14.6 s; to 0.9: 7.5 / 12.1 s, not reached with 8 actors.",
+    "[F] Retention and interference (toy, 2 families, 3 seeds, 30 updates' worth of data per family): mixed training costs 0.085 (family 0) and 0.095 (family 1) of final held-out score versus training on one family alone. Sequential training drops family 0 from 0.990 to 0.770 (retention 0.78) and reaches only 0.350 on family 1, against 0.98 when learned alone. Zero-shot transfer is 0.190, below chance 0.25.",
+    "[H verify:F] supported=True: My 10 s/run rerun matches F's numbers: actors only 2150/7241/11597 decisions/s for 1/4/8 actors; end to end 1764/2218/1920; single-learner ingestion bound; time to 0.8 score 6.0 s with 1 actor and 9.5 s with 4, not reached with 8. 16 actors were benchmarked only in actors-only mode, and retention and interference were not measured, as F's report says. IN_PROGRESS is appropriate. The stall on episodes longer than max_backlog is not visible on the 16-step toy."
+   ],
+   "limitations": [
+    "[F] Retention and interference were measured in-process, with one actor per family, so that the family schedule is exact; they were not measured in a multiprocess launcher run.",
+    "[F] 16 actors were measured in actors-only mode only.",
+    "[F] The WAL costs roughly 10-18% of actors-only throughput against the previous measurement.",
+    "[F] Throughput numbers are for the toy environment, not OpenWorld or CAM."
+   ],
    "verified_by": null
   },
   {
@@ -813,14 +1538,27 @@
    "title": "Sandbox boundary: no public internet, no real accounts/payments/deployment, untrusted tool content, resource limits",
    "spec_ref": "15.4",
    "workstream": "G",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/envs/openworld.py",
+    "superlearner/src/superlearner/cam_unified/envs/ow_convert.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/envs/test_openworld.py::test_sandbox_boundary_through_the_adapter"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[G] Admin tools are refused.",
+    "[G] Agent code gets PermissionError for sockets, for /etc/passwd and for os.fork.",
+    "[G] An infinite loop ends with Timeout (exceeded 10.0s), and an 8 GB allocation raises MemoryError.",
+    "[G] Tool output reaches the agent as data.",
+    "[H verify:G] supported=True: Admin tools are refused, and code.run gets PermissionError for sockets and for /etc/passwd (test passes). Resource limits are not tested, and the learner process is not sandboxed (disclosed)."
+   ],
+   "limitations": [
+    "[G] The learner process itself is not sandboxed. The isolation is of the worlds from the learner, not the reverse."
+   ],
    "verified_by": null
   },
   {
@@ -834,10 +1572,16 @@
    ],
    "acceptance_tests": [],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[G] OW-1 protocol with operating profit and netting.",
+    "[G] The calibration re-run this round reproduces Builder day 27. The committed record also has example_inductor_300k succeeding on day 26.",
+    "[H verify:G] supported=True: Protocol and calibration reproduced (day 27 Builder, day 26 fair control). The operating-profit metric is registered and tested."
+   ],
+   "limitations": [
+    "[G] No CAM runs."
+   ],
    "verified_by": null
   },
   {
@@ -851,10 +1595,16 @@
    ],
    "acceptance_tests": [],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[G] OW-2 protocol and its calibration record.",
+    "[H verify:G] supported=True: The record matches the claim. Both controls succeed on day 3 of 30, so the threshold looks easy (disclosed)."
+   ],
+   "limitations": [
+    "[G] Both controls succeed on day 3 of 30, so the threshold looks easy.",
+    "[G] No CAM runs."
+   ],
    "verified_by": null
   },
   {
@@ -868,10 +1618,17 @@
    ],
    "acceptance_tests": [],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[G] OW-3 protocol and record: greedy 0.848; the baseline, invalid and idle controls fail.",
+    "[G] The engineer seat now travels with the task (actor_handle), and TaskProtocol.open gives p:eng (tested in-process and isolated).",
+    "[H verify:G] supported=True: The record matches the claim: greedy 0.848; baseline, invalid and idle fail. No non-privileged control (disclosed)."
+   ],
+   "limitations": [
+    "[G] No non-privileged control exists.",
+    "[G] No CAM runs."
+   ],
    "verified_by": null
   },
   {
@@ -885,10 +1642,15 @@
    ],
    "acceptance_tests": [],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[G] OW-4 RecoveryObjective and 120-day record (Builder recovered 48.4 days after the hidden shock).",
+    "[H verify:G] supported=True: The record matches: Builder recovered after 48.4 days with the shock at hidden day 56.6. The RecoveryObjective test passes."
+   ],
+   "limitations": [
+    "[G] No CAM runs."
+   ],
    "verified_by": null
   },
   {
@@ -903,10 +1665,14 @@
    ],
    "acceptance_tests": [],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[H verify:G] supported=True: IN_PROGRESS: no calibration and no industrial control (disclosed)."
+   ],
+   "limitations": [
+    "[G] No calibration and no industrial control."
+   ],
    "verified_by": null
   },
   {
@@ -921,10 +1687,15 @@
    ],
    "acceptance_tests": [],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[G] AntiTrivialFilter and SelfDirectedObjective are tested on real worlds.",
+    "[H verify:G] supported=True: AntiTrivialFilter and the self-directed objective are tested on real worlds. The calibration does not show feasibility (disclosed)."
+   ],
+   "limitations": [
+    "[G] The calibration does not show feasibility."
+   ],
    "verified_by": null
   },
   {
@@ -932,16 +1703,35 @@
    "title": "OW-7 cooperation and coordination with independent participants",
    "spec_ref": "16 OW-7",
    "workstream": "G",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/envs/goals.py",
+    "superlearner/src/superlearner/cam_unified/envs/protocols/ow7.py"
+   ],
    "dependencies": [
     "A18"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/envs/test_goals.py::test_coop_index_survives_checkpoint_restore",
+    "superlearner/tests/cam_unified/envs/test_goals.py::test_joint_utility_gives_nothing_for_payments_and_independent_business",
+    "superlearner/tests/cam_unified/envs/test_goals.py::test_joint_utility_is_call_linked_relay_value",
+    "superlearner/tests/cam_unified/envs/test_goals.py::test_partner_dependence_audit_in_forks",
+    "superlearner/tests/cam_unified/envs/test_protocols.py::test_ow7_cooperation_calibration_dev"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[G] The verifier's shortcut is closed: joint utility now counts only third-party revenue earned on requests that used a partner service. The index is cross-checked against the kernel's use_calls table and the household ledger.",
+    "[G] Counterfactual audit: the relay loses 100% of its revenue when the partner is undeployed in a fork.",
+    "[G] Calibration record: the relay succeeds on day 12. pay_partner_shortcut (65,900 c own revenue plus 891 c paid) gets joint 0 and fails. idle fails.",
+    "[H verify:G] supported=False: The calibration record is reproduced (success on day 7), but the joint-utility predicate counts the partner's independent revenue once 500 c has been paid. In my rerun that alone exceeds the joint threshold, and the control paid only 1,581 c against 41,084 c of own revenue. Feasibility of a real cooperation outcome is not shown, and the shortcut is untested."
+   ],
+   "limitations": [
+    "[G] Only the dev world has been calibrated.",
+    "[G] The audit tests availability, not content: a service that fails whenever the partner fails but ignores the partner's output would pass it.",
+    "[G] Contract-based cooperation without service calls is reported but not credited.",
+    "[G] No CAM runs."
+   ],
    "verified_by": null
   },
   {
@@ -949,14 +1739,35 @@
    "title": "Task feasibility calibration with scripted builders / evaluator-only diagnostics",
    "spec_ref": "16",
    "workstream": "G",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/envs/protocols/base.py",
+    "superlearner/src/superlearner/cam_unified/envs/protocols/calibrate.py",
+    "superlearner/src/superlearner/cam_unified/envs/protocols/ow1.py",
+    "superlearner/src/superlearner/cam_unified/envs/protocols/ow2.py",
+    "superlearner/src/superlearner/cam_unified/envs/protocols/ow3.py",
+    "superlearner/src/superlearner/cam_unified/envs/protocols/ow4.py",
+    "superlearner/src/superlearner/cam_unified/envs/protocols/ow5.py",
+    "superlearner/src/superlearner/cam_unified/envs/protocols/ow6.py",
+    "superlearner/src/superlearner/cam_unified/envs/protocols/ow7.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/envs/test_protocols.py::test_open_economy_calibration_in_forks",
+    "superlearner/tests/cam_unified/envs/test_protocols.py::test_ow1_builder_calibration_90_days",
+    "superlearner/tests/cam_unified/envs/test_protocols.py::test_ow7_cooperation_calibration_dev"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[G] Fork-based calibration with ceiling, control and shortcut roles.",
+    "[G] Records exist for open_economy, ow1, ow2, ow3, ow4, ow6 and ow7 (re-recorded with the new metric).",
+    "[G] The slow test writes to tmp_path; committed records come only from the CLIs.",
+    "[H verify:G] supported=True: Fork-based calibration with ceiling, control and shortcut roles works. Records exist for open_economy, ow1, ow2, ow3, ow4, ow6 and ow7; OW-5 has none (disclosed)."
+   ],
+   "limitations": [
+    "[G] OW-5 has no calibration record."
+   ],
    "verified_by": null
   },
   {
@@ -964,14 +1775,28 @@
    "title": "Diverse procedurally generated mechanism worlds (delays, nonlinearity, feedback, constraints, partial obs, hidden state, competitors, regime change, network effects, failures, dependencies) with disjoint structural holdouts",
    "spec_ref": "13.1-13.2",
    "workstream": "G",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/envs/worldgen.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/envs/test_worldgen.py::test_catalogue_holdouts_are_disjoint",
+    "superlearner/tests/cam_unified/envs/test_worldgen.py::test_split_guard_declarations_only_tighten_and_cover_openworld_seeds",
+    "superlearner/tests/cam_unified/envs/test_worldgen.py::test_validity_of_the_whole_catalogue",
+    "superlearner/tests/cam_unified/envs/test_worldgen.py::test_validity_sample_covers_every_split_and_engine"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[G] All 63 families pass Crucible's validity checks (recorded).",
+    "[G] Holdout invariants hold.",
+    "[G] scm_regime is listed as an in-distribution evaluation.",
+    "[H verify:G] supported=False: 63 families build and respond, and the holdout invariants hold. But technical failures exist only in held-out families, Crucible's scm_regime is within the training distribution, and only 4 families were validity-checked. PARTIAL is more accurate than IMPLEMENTED."
+   ],
+   "limitations": [
+    "[G] The technical-failure dimension is evaluation-only, because every Crucible techsys family is a Crucible val/test family and training on them would leak Crucible's holdouts. Hence IN_PROGRESS rather than IMPLEMENTED, as the verifier advised."
+   ],
    "verified_by": null
   },
   {
@@ -979,14 +1804,31 @@
    "title": "Invariance/equivariance training pairs (identities, tool names, units, ordering, wording)",
    "spec_ref": "13.3",
    "workstream": "B",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/core/invariance.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/core/test_core_invariance.py::test_infonce_negatives_only_from_different_worlds",
+    "superlearner/tests/cam_unified/core/test_core_invariance.py::test_invariance_from_surface_randomized_records_end_to_end",
+    "superlearner/tests/cam_unified/core/test_core_invariance.py::test_prediction_equivariance_transfers_supervision_across_units",
+    "superlearner/tests/cam_unified/core/test_core_invariance.py::test_presentation_rerenders_json_with_identical_content",
+    "superlearner/tests/cam_unified/core/test_core_invariance.py::test_rewording_never_touches_identifiers_paths_urls_or_json_keys"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "bf36fceaa82196d8b90570ad987001107832f916",
+   "evidence": [
+    "[B] JSON keys and identifier values, paths and URLs are preserved; the surface URL equals the surface action arg; invert_action round-trips; goal 'by' and numbers are preserved; only listed synonyms appear.",
+    "[B] Presentation content is preserved in all 5 renderings.",
+    "[B] Prediction equivariance transfers cents supervision to dollars: relative error 0.0056 vs 0.894 without it.",
+    "[B] Records -> SurfaceRandomizer -> tokens -> core -> InfoNCE: held-out top1 0.094 -> 1.000.",
+    "[H verify:B] supported=False: Partially supported. The InfoNCE with negatives only from different worlds is correct and verified against a manual computation, and the held-out training result reproduces (top1 0.0625 to 0.969). However, the SurfaceRandomizer's rewording rewrites JSON keys, snake_case identifiers, file paths and URLs, while action args are not remapped, and several synonyms change meaning. The views are therefore not dynamically equivalent, and the docstring claim 'never touches identifiers' is false. Interface-presentation randomisation and prediction equivariance are missing."
+   ],
+   "limitations": [
+    "[B] The end-to-end test uses a test-local hashing tokenizer, not A's ObservationTokenizer.",
+    "[B] HTML-to-a11y presentation conversion is not implemented; presentation covers JSON tool results only."
+   ],
    "verified_by": null
   },
   {
@@ -994,14 +1836,24 @@
    "title": "Intervention-sensitive contrastive/predictive representation objective",
    "spec_ref": "13.4",
    "workstream": "C",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/world/causal.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/world/test_world_causal.py::test_contrastive_is_scale_free_per_channel_and_masks_non_candidates_exactly",
+    "superlearner/tests/cam_unified/world/test_world_causal.py::test_contrastive_targets_follow_response_similarity",
+    "superlearner/tests/cam_unified/world/test_world_causal.py::test_intervention_contrastive_separates_controllable_dynamics_not_surface"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "a8f963025e36bed25cdf0a9f6e615fdd911354b8",
+   "evidence": [
+    "[H verify:C] supported=True: InterventionContrastive is implemented (soft response-similarity InfoNCE plus look-alike hard negatives) and the synthetic kNN test passes. It is tested in isolation only and not part of D's objective."
+   ],
+   "limitations": [
+    "[C] Tested in isolation on synthetic mechanism data. Not part of D's combined objective yet."
+   ],
    "verified_by": null
   },
   {
@@ -1009,14 +1861,27 @@
    "title": "Automated learning-progress curriculum with diversity constraints (no held-out leakage)",
    "spec_ref": "13.5",
    "workstream": "D",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/learn/curriculum.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/learn/test_learn_curriculum.py::test_curriculum_prefers_learnable_arms_and_keeps_the_diversity_floor",
+    "superlearner/tests/cam_unified/learn/test_learn_curriculum.py::test_curriculum_state_round_trip",
+    "superlearner/tests/cam_unified/learn/test_learn_curriculum.py::test_held_out_families_are_refused_everywhere"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "4308c88066c330d674e4ef372d254f4f6ea68756",
+   "evidence": [
+    "[D] Absolute-LP curriculum with a per-family diversity floor, epsilon exploration and a novelty bonus.",
+    "[D] The split guard raises at construction, add_arm, update, sample and load_state_dict.",
+    "[D] The ChangingMechanism family now has a non-constant normalised score (oracle fixed).",
+    "[H verify:D] supported=True: Absolute-LP curriculum with a per-family floor, an epsilon term and a novelty bonus. The guard raises at construction, add_arm, update, sample and load_state_dict. Validated only with a simulated learner (acknowledged)."
+   ],
+   "limitations": [
+    "[D] Validated with a simulated learner only."
+   ],
    "verified_by": null
   },
   {
@@ -1024,14 +1889,28 @@
    "title": "Heterogeneous opponents/participants (behavioral actors, learned policies, historical checkpoints, LLM minds)",
    "spec_ref": "13.6",
    "workstream": "G",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/envs/agent_protocol.py",
+    "superlearner/src/superlearner/cam_unified/envs/baselines.py",
+    "superlearner/src/superlearner/cam_unified/envs/harness.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/envs/test_baselines.py::test_frozen_llm_as_independent_participant",
+    "superlearner/tests/cam_unified/envs/test_harness.py::test_heterogeneous_population_in_one_shared_world",
+    "superlearner/tests/cam_unified/envs/test_harness.py::test_shared_world_records_elapsed_semi_markov_duration",
+    "superlearner/tests/cam_unified/envs/test_openworld.py::test_heterogeneous_participants_act_independently"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "f0b4d8e",
+   "evidence": [
+    "[G] Shared-world rows now record the elapsed dt (equal to the round's longest action) and keep the requested dt separately.",
+    "[H verify:G] supported=True: Shared-world MixedAgent, scripted and random participants, and a frozen LLM participant are all tested. Two qualifications: shared-world rows record the wrong dt, and historical-checkpoint participants are not exercised (disclosed)."
+   ],
+   "limitations": [
+    "[G] Historical CAM checkpoints as participants are not exercised (MixedAgent accepts any AgentP; this needs a CAM learner checkpoint)."
+   ],
    "verified_by": null
   },
   {
@@ -1118,14 +1997,32 @@
    "title": "Compute accounting (GPU/CPU time, tokens, env steps, decisions, simulated time, memory, cost) and throughput benchmarks for dev/main/large",
    "spec_ref": "22, 1.1",
    "workstream": "F",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/dist/launcher.py",
+    "superlearner/src/superlearner/cam_unified/observe/accounting.py",
+    "superlearner/src/superlearner/cam_unified/runtime.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/dist/test_dist_semserve.py::test_semserve_batches_two_clients_and_reloads_lora_versions",
+    "superlearner/tests/cam_unified/integration/test_i_agent_runtime.py::test_cuda_bf16_run_reports_gpu_accounting",
+    "superlearner/tests/cam_unified/integration/test_i_agent_runtime.py::test_dev_scale_30_step_run",
+    "superlearner/tests/cam_unified/observe/test_observe_accounting.py::test_gpu_seconds_measure_device_work",
+    "superlearner/tests/cam_unified/observe/test_observe_accounting.py::test_snapshots_are_atomic_and_merge_without_double_counting"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IN_PROGRESS",
+   "commit": "8d15b13a5ac5b3f368bc8123198e7507dee7983a,4d49c70",
+   "evidence": [
+    "[F] The compute summary merges every process incarnation. semserve reports gpu_s > 0 and token counts; CPU-only actors and the learner report 0 GPU.",
+    "[I] gpu_span_s is separate from gpu_busy_s (profiler kernel time); the test asserts 0 < busy <= span. dev-scale numbers are in measurements.",
+    "[H verify:F] supported=True: ComputeMeter and merging work, and the semserve process reports gpu_s > 0 and token counts while actors show 0 GPU MB (tests pass). gpu_s is the device-elapsed time of the wrapped sections, including idle gaps, which the code documents. Cost is reported only when a price is given. IN_PROGRESS is appropriate.",
+    "[H verify:I] supported=False: The dev-scale run exists and passes, but gpu_s is a CUDA-event wall span (10.38 s vs 10.43 s wall), not GPU busy time, and the token count is tokenizer items. No main or large measurements."
+   ],
+   "limitations": [
+    "[F] No dev/main/large CAM throughput benchmarks yet: they need the integrated model. Monetary cost is reported only when a price is given.",
+    "[I] No main or large benchmarks. inference_tokens counts tokenizer items for the doubles."
+   ],
    "verified_by": null
   },
   {
@@ -1165,15 +2062,29 @@
    "title": "Governance docs: SPEC, LEDGER, ARCHITECTURE, EXPERIMENTS, COMPLETION manifest; durable backups",
    "spec_ref": "0.3-0.4",
    "workstream": "H",
-   "files": [],
+   "files": [
+    "superlearner/docs/CAM_UNIFIED_SPEC.md",
+    "superlearner/docs/CAM_UNIFIED_LEDGER.md",
+    "superlearner/docs/CAM_UNIFIED_ARCHITECTURE.md",
+    "superlearner/docs/CAM_UNIFIED_EXPERIMENTS.md",
+    "superlearner/docs/CAM_UNIFIED_COMPLETION.json"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/test_manifest.py::test_manifest_schema_and_statuses"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
+   "status": "IN_PROGRESS",
    "commit": null,
    "evidence": [],
-   "limitations": [],
+   "limitations": [
+    "Durable backups: code is pushed to GitHub; checkpoints and run outputs have no authorized off-box destination yet."
+   ],
    "verified_by": null
   }
- ]
+ ],
+ "wave1": {
+  "workflow": "wf_c9e0d81b-aaa",
+  "note": "statuses folded from fix-pass claims, downgraded where the independent component verifier did not support a claim; verified_by stays null until the acceptance-level H pass (A01-A22)."
+ }
 }
