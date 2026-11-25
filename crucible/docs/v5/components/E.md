@@ -184,9 +184,12 @@ F.3 recomputes the held-out metric of all nine models from the data and the chec
   test splits;
 * `commercial_response` on the report's seeded audit subsample of 100,000 test users.
 
-For E2 the largest absolute difference is 1.4e-17. SP-5.5 checks 9 models: every plan is prespecified before its
-fit, `worse_model_kept` is 0, and 9 learned models were kept. SP-5.4 finds 31 important mechanisms, all with a
-complete record, and 12 v5 register rows with no problems.
+Across the nine models the largest relative difference between the reported and the recomputed metric is 1.9e-16.
+
+SP-5.5 checks 9 models: every plan is prespecified before its fit, `worse_model_kept` is 0, and 9 learned models
+were kept. SP-5.4 finds 31 important mechanisms, all with a complete record, and 12 v5 register rows with no
+problems. These numbers come from a run of the six test modules at commit 1426ada on a clean tree: 59 tests passed in
+7 min 18 s with 2 CPUs.
 
 ## Reproducing
 
