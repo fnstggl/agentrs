@@ -1,0 +1,353 @@
+{
+ "what": "toy actor throughput, 15 s per actor count (tests/cam_unified/dist/test_dist_bench.py, CAM_BENCH_SECONDS=15), under the gpu_heavy lock",
+ "t": 1795586007.2195747,
+ "actors_only": [
+  {
+   "n_actors": 1,
+   "decisions_per_s_steady": 1930.9213727838267,
+   "ingested_records_per_s_steady": null,
+   "trained_decisions_per_s_steady": null,
+   "decisions": 26280,
+   "learner_version": null,
+   "actor_blocked_s": {
+    "actor0": 0.0
+   },
+   "restarts": {},
+   "learning_speed": {
+    "0.5": null,
+    "0.8": null,
+    "0.9": null
+   },
+   "lag": null,
+   "compute": {
+    "cpu_s": 11.646253999999999,
+    "gpu_s": 0.0,
+    "wall_s": 15.617740392684937,
+    "env_steps": 26280.0,
+    "decisions": 26280.0,
+    "sim_days": 1094.999999999939,
+    "records": 26280.0,
+    "updates": 0.0,
+    "samples_trained": 0.0,
+    "peak_rss_mb_max": 715.3359375,
+    "peak_rss_mb_sum": 1401.74609375,
+    "peak_gpu_mb_max": 0.0
+   }
+  },
+  {
+   "n_actors": 4,
+   "decisions_per_s_steady": 5941.683150314913,
+   "ingested_records_per_s_steady": null,
+   "trained_decisions_per_s_steady": null,
+   "decisions": 86384,
+   "learner_version": null,
+   "actor_blocked_s": {
+    "actor1": 0.0,
+    "actor2": 0.0,
+    "actor3": 0.0,
+    "actor0": 0.0
+   },
+   "restarts": {},
+   "learning_speed": {
+    "0.5": null,
+    "0.8": null,
+    "0.9": null
+   },
+   "lag": null,
+   "compute": {
+    "cpu_s": 45.145641,
+    "gpu_s": 0.0,
+    "wall_s": 15.869816780090332,
+    "env_steps": 86384.0,
+    "decisions": 86384.0,
+    "sim_days": 3599.3333333330734,
+    "records": 86384.0,
+    "updates": 0.0,
+    "samples_trained": 0.0,
+    "peak_rss_mb_max": 715.7265625,
+    "peak_rss_mb_sum": 3578.6328125,
+    "peak_gpu_mb_max": 0.0
+   }
+  },
+  {
+   "n_actors": 8,
+   "decisions_per_s_steady": 9469.575104202755,
+   "ingested_records_per_s_steady": null,
+   "trained_decisions_per_s_steady": null,
+   "decisions": 140784,
+   "learner_version": null,
+   "actor_blocked_s": {
+    "actor5": 0.0,
+    "actor2": 0.0,
+    "actor6": 0.0,
+    "actor1": 0.0,
+    "actor0": 0.0,
+    "actor7": 0.0,
+    "actor3": 0.0,
+    "actor4": 0.0
+   },
+   "restarts": {},
+   "learning_speed": {
+    "0.5": null,
+    "0.8": null,
+    "0.9": null
+   },
+   "lag": null,
+   "compute": {
+    "cpu_s": 89.806113,
+    "gpu_s": 0.0,
+    "wall_s": 15.746296644210815,
+    "env_steps": 140784.0,
+    "decisions": 140784.0,
+    "sim_days": 5865.9999999997835,
+    "records": 140784.0,
+    "updates": 0.0,
+    "samples_trained": 0.0,
+    "peak_rss_mb_max": 715.90625,
+    "peak_rss_mb_sum": 6443.15625,
+    "peak_gpu_mb_max": 0.0
+   }
+  },
+  {
+   "n_actors": 16,
+   "decisions_per_s_steady": 11024.724259374208,
+   "ingested_records_per_s_steady": null,
+   "trained_decisions_per_s_steady": null,
+   "decisions": 170500,
+   "learner_version": null,
+   "actor_blocked_s": {
+    "actor2": 0.0,
+    "actor9": 0.0,
+    "actor0": 0.0,
+    "actor4": 0.0,
+    "actor13": 0.0,
+    "actor15": 0.0,
+    "actor3": 0.0,
+    "actor7": 0.0,
+    "actor8": 0.0,
+    "actor12": 0.0,
+    "actor1": 0.0,
+    "actor5": 0.0,
+    "actor14": 0.0,
+    "actor10": 0.0,
+    "actor11": 0.0,
+    "actor6": 0.0
+   },
+   "restarts": {},
+   "learning_speed": {
+    "0.5": null,
+    "0.8": null,
+    "0.9": null
+   },
+   "lag": null,
+   "compute": {
+    "cpu_s": 175.645062,
+    "gpu_s": 0.0,
+    "wall_s": 15.979897022247314,
+    "env_steps": 170500.0,
+    "decisions": 170500.0,
+    "sim_days": 7104.166666666915,
+    "records": 170500.0,
+    "updates": 0.0,
+    "samples_trained": 0.0,
+    "peak_rss_mb_max": 716.34375,
+    "peak_rss_mb_sum": 12174.34375,
+    "peak_gpu_mb_max": 0.0
+   }
+  }
+ ],
+ "e2e": [
+  {
+   "n_actors": 1,
+   "decisions_per_s_steady": 1692.2098169643295,
+   "ingested_records_per_s_steady": 3569.5266669680223,
+   "trained_decisions_per_s_steady": 1795.814499635615,
+   "decisions": 23360,
+   "learner_version": 72,
+   "actor_blocked_s": {
+    "actor0": 0.0
+   },
+   "restarts": {},
+   "learning_speed": {
+    "0.5": {
+     "t_s": 5.0152747631073,
+     "decisions": 3760,
+     "trained_decisions": 2560,
+     "learner_version": 10
+    },
+    "0.8": {
+     "t_s": 6.519398927688599,
+     "decisions": 6616,
+     "trained_decisions": 5888,
+     "learner_version": 21
+    },
+    "0.9": {
+     "t_s": 7.522441387176514,
+     "decisions": 8684,
+     "trained_decisions": 8128,
+     "learner_version": 28
+    }
+   },
+   "lag": {
+    "lag_hist": {
+     "0": 4096,
+     "1": 17856,
+     "2": 1408
+    },
+    "counts": {
+     "on_policy": 4096,
+     "off_policy": 19264,
+     "exact_on_policy": 4096
+    },
+    "max_lag": 32
+   },
+   "compute": {
+    "cpu_s": 21.879715,
+    "gpu_s": 0.0,
+    "wall_s": 16.598947286605835,
+    "env_steps": 23360.0,
+    "decisions": 23360.0,
+    "sim_days": 973.3333333332516,
+    "records": 70080.0,
+    "updates": 72.0,
+    "samples_trained": 23360.0,
+    "peak_rss_mb_max": 717.8203125,
+    "peak_rss_mb_sum": 2150.6875,
+    "peak_gpu_mb_max": 0.0
+   }
+  },
+  {
+   "n_actors": 4,
+   "decisions_per_s_steady": 1871.668281412441,
+   "ingested_records_per_s_steady": 4169.456033038121,
+   "trained_decisions_per_s_steady": 1999.6370770693031,
+   "decisions": 30528,
+   "learner_version": 58,
+   "actor_blocked_s": {
+    "actor2": 7.193169752135873,
+    "actor0": 7.313821715768427,
+    "actor3": 7.295348198153079,
+    "actor1": 7.154742363840342
+   },
+   "restarts": {},
+   "learning_speed": {
+    "0.5": {
+     "t_s": 6.024872303009033,
+     "decisions": 9612,
+     "trained_decisions": 7488,
+     "learner_version": 15
+    },
+    "0.8": {
+     "t_s": 10.043188095092773,
+     "decisions": 19392,
+     "trained_decisions": 16704,
+     "learner_version": 33
+    },
+    "0.9": {
+     "t_s": 12.05348801612854,
+     "decisions": 23348,
+     "trained_decisions": 20800,
+     "learner_version": 41
+    }
+   },
+   "lag": {
+    "lag_hist": {
+     "0": 320,
+     "1": 768,
+     "2": 1216,
+     "3": 896,
+     "4": 832,
+     "5": 4096,
+     "6": 20608,
+     "7": 768
+    },
+    "counts": {
+     "on_policy": 320,
+     "off_policy": 29184,
+     "exact_on_policy": 320
+    },
+    "max_lag": 32
+   },
+   "compute": {
+    "cpu_s": 31.103619000000002,
+    "gpu_s": 0.0,
+    "wall_s": 17.560258388519287,
+    "env_steps": 30528.0,
+    "decisions": 30528.0,
+    "sim_days": 1272.0000000000048,
+    "records": 91584.0,
+    "updates": 58.0,
+    "samples_trained": 29504.0,
+    "peak_rss_mb_max": 717.52734375,
+    "peak_rss_mb_sum": 4299.6953125,
+    "peak_gpu_mb_max": 0.0
+   }
+  },
+  {
+   "n_actors": 8,
+   "decisions_per_s_steady": 1809.1911225902763,
+   "ingested_records_per_s_steady": 4033.0022550866547,
+   "trained_decisions_per_s_steady": 1895.4057595707516,
+   "decisions": 30208,
+   "learner_version": 56,
+   "actor_blocked_s": {
+    "actor1": 8.518029790371656,
+    "actor3": 8.610796871595085,
+    "actor5": 8.54018610296771,
+    "actor4": 8.613673251122236,
+    "actor6": 8.582559837494045,
+    "actor7": 8.62557562906295,
+    "actor2": 8.613377198111266,
+    "actor0": 8.67937776632607
+   },
+   "restarts": {},
+   "learning_speed": {
+    "0.5": {
+     "t_s": 7.033504962921143,
+     "decisions": 13132,
+     "trained_decisions": 9792,
+     "learner_version": 19
+    },
+    "0.8": {
+     "t_s": 14.569455623626709,
+     "decisions": 29032,
+     "trained_decisions": 26176,
+     "learner_version": 51
+    },
+    "0.9": null
+   },
+   "lag": {
+    "lag_hist": {
+     "0": 576,
+     "1": 512,
+     "2": 512,
+     "3": 512,
+     "4": 896,
+     "5": 640,
+     "6": 3968,
+     "7": 21120
+    },
+    "counts": {
+     "on_policy": 576,
+     "off_policy": 28160,
+     "exact_on_policy": 576
+    },
+    "max_lag": 32
+   },
+   "compute": {
+    "cpu_s": 37.836213,
+    "gpu_s": 0.0,
+    "wall_s": 17.688952684402466,
+    "env_steps": 30208.0,
+    "decisions": 30208.0,
+    "sim_days": 1258.666666666665,
+    "records": 90624.0,
+    "updates": 56.0,
+    "samples_trained": 28736.0,
+    "peak_rss_mb_max": 729.46484375,
+    "peak_rss_mb_sum": 7177.40234375,
+    "peak_gpu_mb_max": 0.0
+   }
+  }
+ ]
+}
