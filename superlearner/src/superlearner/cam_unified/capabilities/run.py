@@ -2,7 +2,7 @@
 
     python -m superlearner.cam_unified.capabilities.run <capability> --seed S --out result.json [--set key=value ...]
 
-capability: beliefs | reasoning | imagination | exploration | memory | causal. `--set` overrides fields of the
+capability: beliefs | reasoning | imagination | exploration | memory | causal | diagnostics. `--set` overrides fields of the
 capability's settings dataclass (values parsed as JSON when possible, e.g. --set train_rounds=300
 --set "hops=[1,2,3]"). Working files (archives, indices) go under --root."""
 from __future__ import annotations
@@ -31,6 +31,9 @@ def _settings(cap: str):
     if cap == "memory":
         from .memory import MemorySettings, run_memory
         return MemorySettings, run_memory
+    if cap == "diagnostics":
+        from .diagnostics import DiagnosticsSettings, run_diagnostics
+        return DiagnosticsSettings, run_diagnostics
     if cap == "causal":
         from .causal import CausalSettings, run_causal
         return CausalSettings, run_causal

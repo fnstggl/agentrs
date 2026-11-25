@@ -32,7 +32,7 @@ import torch
 from ..interfaces import ObservationBatch
 from ..runtime import SEED_STRIDE
 from .envs import DelayedCueEnv, ScoreEvaluator
-from .loop import mean, train_agent
+from .loop import mean, rebatch, train_agent
 from .stack import build_stack, capability_config
 
 
@@ -101,21 +101,12 @@ class MemorySettings:
     cfg_overrides: dict = field(default_factory=dict)
 
 
-def _new_batch(agent) -> None:
-    """Let the agent take a batch of different environments (CamUnifiedAgent.reset refuses to re-batch once it has a
-    state; interface change request filed): archive pending observations, drop the state and the fresh buffer."""
-    agent.flush("reset")
-    agent.state = None
-    agent.fresh = []
-    agent._last_fresh = {}
-
-
 def evaluate_cue(stack, st: MemorySettings) -> dict:
     """Greedy agent episodes on development seeds with archiving and consolidation (no learner update). The agent is
     re-batched to the evaluation environments and, afterwards, cleared again (no evaluation decision reaches the
     policy objective)."""
     agent = stack.agent
-    _new_batch(agent)
+    rebatch(agent)
     env = DelayedCueEnv(st.eval_rows, delay=st.delay, n_colours=st.n_colours, distractors=st.distractors)
     ev = ScoreEvaluator(env)
     old_g, old_rec = agent.greedy, agent.recorder
@@ -168,7 +159,7 @@ def evaluate_cue(stack, st: MemorySettings) -> dict:
                     in_ctx.append(float(cue_eid.get(tr.env_id) in ctx_src))
     finally:
         agent.greedy, agent.recorder = old_g, old_rec
-        _new_batch(agent)
+        rebatch(agent)
     return {"accuracy": mean(accs), "chance": 1.0 / st.n_colours, "retrieval_hit_rate": mean(hits) if hits else None,
             "retrieved_any_rate": mean(retrieved_any) if retrieved_any else None,
             "cue_memory_in_context_rate": mean(in_ctx) if in_ctx else None,

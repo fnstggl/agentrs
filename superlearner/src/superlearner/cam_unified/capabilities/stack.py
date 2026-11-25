@@ -225,7 +225,13 @@ def build_stack(cfg: Optional[CamConfig] = None, *, device=None, seed: int = 0, 
     fresh on-policy buffer only. `components` may override individual real components (e.g. a differently
     configured real Reasoner); they are still real classes. `exact_rows=False` batches the action generator's learner
     path (its documented fast mode): the diagnostics' tools have no string arguments, so the batched tool pointer
-    equals the row-wise one up to float rounding (PPO ratios at lag 0 are reported as policy/logp_maxdev_lag0)."""
+    equals the row-wise one up to float rounding (PPO ratios at lag 0 are reported as policy/logp_maxdev_lag0).
+
+    Integration adapters (each documents the defect it works around; interface change requests filed):
+    SyncedReplay (E's sampler needs sync(), the agent calls add()), TargetSyncTrainer (the agent never updates the
+    world model's EMA target), ServingConsolidator (the agent never makes the consolidated memory version current),
+    ProspectiveIngest (first-decision outcome queries miss the observations delivered at reset; disable with
+    prospective_ingest=False). `standardized_readout=True` is an experimental condition (capabilities/readout.py)."""
     from ..agent import CamUnifiedAgent
     from ..model import build_model
     from ..semantic.actions import ActionGenerator

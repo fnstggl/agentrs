@@ -118,6 +118,16 @@ class Episode:
         return self.execute(dec, tools)
 
 
+def rebatch(agent) -> None:
+    """Let the agent take a batch of different environments next (CamUnifiedAgent.reset refuses to re-batch once
+    it has a state; interface change request filed): archive pending observations, drop the per-environment state
+    and the fresh on-policy buffer (decisions of another batch must not enter the next policy update)."""
+    agent.flush("reset")
+    agent.state = None
+    agent.fresh = []
+    agent._last_fresh = {}
+
+
 def mean(xs) -> float:
     xs = [float(x) for x in xs if x is not None and math.isfinite(float(x))]
     return sum(xs) / len(xs) if xs else float("nan")

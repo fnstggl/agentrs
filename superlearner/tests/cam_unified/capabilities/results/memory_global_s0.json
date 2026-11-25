@@ -1,0 +1,96 @@
+{
+ "settings": {
+  "seed": 0,
+  "condition": "memory",
+  "B": 16,
+  "delay": 10,
+  "n_colours": 4,
+  "distractors": 2,
+  "train_rounds": 360,
+  "update_every": 1,
+  "lr": 0.001,
+  "eval_rows": 32,
+  "eval_episodes": 2,
+  "eval_seed0": 100000,
+  "cfg_overrides": {}
+ },
+ "components": {
+  "semantic": "superlearner.cam_unified.semantic.encoder.QwenSemantic",
+  "tokenizer": "superlearner.cam_unified.semantic.tokenizer.ObservationTokenizer",
+  "core": "superlearner.cam_unified.core.backbone.UnifiedCore",
+  "entity_encoder": "superlearner.cam_unified.core.entities.EntityEncoder",
+  "reasoner": "superlearner.cam_unified.core.reasoning.Reasoner",
+  "beliefs": "superlearner.cam_unified.core.beliefs.BeliefModule",
+  "bayes": "superlearner.cam_unified.core.bayes.BayesLastLayer",
+  "outcome_head": "superlearner.cam_unified.world.outcomes.OutcomeHead",
+  "world_model": "superlearner.cam_unified.world.dynamics.WorldModel",
+  "retriever": "superlearner.cam_unified.memory.retrieval.Retriever",
+  "action_generator": "superlearner.cam_unified.semantic.actions.ActionGenerator",
+  "value_head": "superlearner.cam_unified.learn.heads.ValueHead",
+  "option_policy": null,
+  "exploration_head": "superlearner.cam_unified.learn.heads.BudgetEncoder",
+  "planner": "superlearner.cam_unified.model.LatentImaginationPlanner"
+ },
+ "train": {
+  "n_updates": 360,
+  "final_losses": {
+   "actor": 0.0024420501345957745,
+   "adapt": 0.593654802441597,
+   "value": 1.0572975158691407,
+   "world": 11.662379360198974
+  },
+  "compute": {
+   "wall_s": 1079.121751763858,
+   "cpu_s": 2102.196792453,
+   "act_s": 40.09461228735745,
+   "env_s": 0.3896976802498102,
+   "observe_s": 36.006352526601404,
+   "update_s": 1002.5722257494926,
+   "gpu_span_s": 0.0,
+   "gpu_busy_s": null,
+   "gpu_kernels": null,
+   "env_steps": 5760,
+   "decisions": 5760,
+   "sim_days": 40.00000000000013,
+   "updates": 360,
+   "episodes": 30,
+   "peak_gpu_mem_bytes": 0,
+   "max_rss_bytes": 3350319104,
+   "inference_tokens": null,
+   "archive_records": 6240
+  },
+  "return_per_episode_first3": [
+   -0.1625,
+   0.0,
+   -0.00625
+  ],
+  "return_per_episode_last3": [
+   0.0,
+   0.0,
+   -0.03125
+  ]
+ },
+ "untrained": {
+  "accuracy": 0.0,
+  "chance": 0.25,
+  "retrieval_hit_rate": 0.046875,
+  "retrieved_any_rate": 1.0,
+  "cue_memory_in_context_rate": 0.046875,
+  "index_segments": 192,
+  "top_k": 4
+ },
+ "trained": {
+  "accuracy": 0.0,
+  "chance": 0.25,
+  "retrieval_hit_rate": 0.0,
+  "retrieved_any_rate": 1.0,
+  "cue_memory_in_context_rate": 0.0,
+  "index_segments": 1824,
+  "top_k": 4
+ },
+ "retriever_has_loss": false,
+ "retriever_has_memory_tokens": false,
+ "wall_s": 1159.1906504631042,
+ "command": "python -m superlearner.cam_unified.capabilities.run memory --seed 0 --set condition=memory --device cpu --threads 2 --out /workspace/agentrs/runs/cam_unified/wave2/Y/exp/memory_global_s0.json --root /workspace/agentrs/runs/cam_unified/wave2/Y/exp/work_memory_global_s0",
+ "wall_s_total": 1159.2661311626434
+}

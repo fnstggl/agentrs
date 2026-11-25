@@ -23,7 +23,7 @@ from typing import Optional
 import torch
 
 from .envs import ChainEnv, ScoreEvaluator
-from .loop import Episode, mean, train_agent
+from .loop import Episode, mean, rebatch, train_agent
 from .readout import discard_readout_buffer
 from .stack import build_stack, capability_config
 
@@ -127,7 +127,7 @@ def decision_sensitivity(model, settings: ReasoningSettings, iters=(1, 16), seed
 
 
 def actor_gradient_split(stack, env, seeds) -> dict:
-    """Where the policy objective's gradient goes: one round of the agent on `env` (fresh on-policy buffer), then
+    """Where the policy objective's gradient goes: one episode of the agent on `env` (fresh on-policy buffer), then
     the agent's own `objective_policy` losses back-propagated separately; gradient L2 norm per component group
     (no optimiser step; the buffer is restored). Shows whether decision learning reaches the latent reasoning state
     (core / reasoner) or acts on the tool embeddings and pointer."""
@@ -135,10 +135,16 @@ def actor_gradient_split(stack, env, seeds) -> dict:
     from ..runtime import run_steps
     agent, model = stack.agent, stack.model
     saved = list(agent.fresh)
-    run_steps(agent, env, 1, evaluator=ScoreEvaluator(env), update_every=None, seeds=seeds)
+    if agent.state is not None and list(agent.env_ids) != list(env.env_ids):
+        rebatch(agent)
+        saved = []
+    run_steps(agent, env, int(getattr(env, "horizon", 1)), evaluator=ScoreEvaluator(env), update_every=None,
+              seeds=seeds)                              # one whole episode per row (every decision gets a target)
     model.train()
     try:
         out = objective_policy(agent, UpdateBatch(None, None, list(agent.fresh), model))
+        if not out:
+            return {}
         groups = {"action_generator": [p for n, p in model.named_parameters()
                                        if n.startswith("action_generator.") and p.requires_grad],
                   "tokenizer": [p for p in model.tokenizer.parameters() if p.requires_grad],

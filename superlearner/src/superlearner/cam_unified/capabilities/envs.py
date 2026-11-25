@@ -18,6 +18,8 @@ failure of the full stack can be attributed. Hidden mechanism fields (`hidden`) 
   probe the safe action is better, with it the agent can exploit only when it pays.
 * `DelayedCueEnv` (E03): a cue colour shown at the first decision must be reported many decisions later, after
   interfering observations.
+* `DelayEffectEnv`, `InteractionEnv`, `SwitchEnv` (C03, spec 6.6): an immediate vs a delayed payout, a pure
+  interaction of two simultaneous interventions, an unannounced mechanism switch.
 """
 from __future__ import annotations
 
