@@ -63,6 +63,7 @@ PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --label "E2 tests" -- \
 
 ## Learner interface (workstream L)
 
+```bash
 PYTHONPATH=src python -m crucible.experience tiers                       # which tiers this checkout has
 PYTHONPATH=src python -m crucible.experience run --tier 1 --name mech:scm_additive --seed 0 --steps 120 \
     --reward-mode observation_only --store /tmp/exp --checkpoint /tmp/ref.pt --out /tmp/run.json   # reproducible
