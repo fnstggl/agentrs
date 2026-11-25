@@ -276,8 +276,8 @@ def strat_price_war(rng, d):
             "rival_kind": ["propensity", kind1], "hi": [u(rng, 15.0, 18.0), u(rng, 15.0, 18.0)],
             "cut": u(rng, 0.6, 1.5), "follow": u(rng, 0.3, 0.7), "gap": u(rng, 0.3, 1.0), "trigger": u(rng, 11.5, 13.5),
             "punish": int(rng.integers(3, 6)), "eta": float(d["opponent_capability"]), "temp": u(rng, 0.03, 0.06),
-            "v0": [100.0, 100.0], "appeal": 6.0, "sens": 0.4, "market": 100.0, "market_sd": 0.1, "p_min": 8.0,
-            "p_max": 26.0, "p_default": 14.0, "endowment": 50_000,
+            "v0": [100.0, 100.0], "appeal": 15.1, "sens": 1.0, "market": 100.0, "market_sd": 0.1, "p_min": 8.0,
+            "p_max": 26.0, "p_default": 12.0, "endowment": 50_000,
             "objective": {"type": "maximize_net", "text": "Maximise your profit (price minus unit cost 10, times "
                                                           "units sold)."},
             "brief": f"You set your price (lever {names[0]}) every period against rivals {names[1]} and {names[2]}. "
@@ -290,7 +290,7 @@ def strat_price_war(rng, d):
             "and some fight until the entrant has persisted; pre-entry prices signal incumbents' costs.",
         distinct_because="discrete irreversible entry and exit decisions per market against incumbent response "
                          "policies (fight, accommodate, fight-until-persistent) with noisy cost signalling",
-        axes={"graph_size": 4, "horizon": 40, "observation_noise": 0.8}, objective="maximize_net",
+        axes={"graph_size": 5, "horizon": 40, "observation_noise": 0.8}, objective="maximize_net",
         participants=("incumbent:tough", "incumbent:soft", "incumbent:reputation_learner"), **hooks("entry"))
 def strat_entry(rng, d):
     M = max(2, int(d["graph_size"]))
@@ -300,13 +300,13 @@ def strat_entry(rng, d):
     if M - nt >= 2 and rng.random() < 0.6:
         kinds[nt + 1] = "reputation"
     kinds = [kinds[int(i)] for i in rng.permutation(M)]
-    inc_cost = [u(rng, 5.0, 7.0) if k == "tough" else (u(rng, 9.0, 12.0) if k == "soft" else u(rng, 7.0, 9.0))
+    inc_cost = [u(rng, 5.0, 6.5) if k == "tough" else (u(rng, 9.5, 12.0) if k == "soft" else u(rng, 7.5, 9.0))
                 for k in kinds]
     op = [u(rng, 50.0, 70.0) for _ in range(M)]
     return {"engine": "strategic", "scenario": "entry", "horizon": int(d["horizon"]), "market_names": names,
             "inc_kind": kinds, "inc_cost": inc_cost, "markup": 3.0, "price_sd": float(d["observation_noise"]),
             "patience": [int(rng.integers(3, 7)) for _ in range(M)], "p_fight_tough": 0.85, "p_fight_soft": 0.1,
-            "rev_acc": [u(rng, 90.0, 140.0) for _ in range(M)], "op_cost": op,
+            "rev_acc": [x * u(rng, 1.7, 2.0) for x in op], "op_cost": op,
             "rev_fight": [x * u(rng, 0.1, 0.3) for x in op], "entry_cost": 150.0, "endowment": 50_000,
             "objective": {"type": "maximize_net", "text": "Maximise your profit across markets minus entry costs."},
             "brief": f"{M} markets ({', '.join(names)}) each have an incumbent. Entering a market costs 150; once in, "
@@ -359,20 +359,20 @@ def strat_bargain(rng, d):
             "valuations and budget that best-responds to a moving average of your past allocations.",
         distinct_because="resource competition by allocation: contest success functions over sites against a "
                          "fictitious-play opponent; static allocations are countered, the opponent's lag can be used",
-        axes={"graph_size": 5, "resources": 10, "opponent_capability": 0.5, "horizon": 40}, objective="maximize_net",
-        participants=("opponent:fictitious_play",), **hooks("blotto"))
+        axes={"graph_size": 5, "resources": 10, "opponent_capability": 0.85, "horizon": 40},
+        objective="maximize_net", participants=("opponent:fictitious_play",), **hooks("blotto"))
 def strat_blotto(rng, d):
     K = int(d["graph_size"])
     names = neutral_names(rng, K)
     return {"engine": "strategic", "scenario": "blotto", "horizon": int(d["horizon"]), "site_names": names,
-            "prize": [float(round(u(rng, 40.0, 120.0))) for _ in range(K)], "opp_value": [u(rng, 0.6, 1.4) for _ in range(K)],
-            "budget": float(d["resources"]), "opp_budget": u(rng, 0.8, 1.2) * float(d["resources"]), "budget_sd": 0.05,
-            "decisive": u(rng, 1.0, 2.0), "memory": min(0.95, float(d["opponent_capability"])), "unit_cost": 3.0,
+            "prize": [float(round(u(rng, 50.0, 140.0))) for _ in range(K)], "opp_value": [u(rng, 0.3, 1.9) for _ in range(K)],
+            "budget": float(d["resources"]), "opp_budget": u(rng, 1.1, 1.6) * float(d["resources"]), "budget_sd": 0.05,
+            "decisive": u(rng, 1.5, 3.0), "memory": min(0.95, float(d["opponent_capability"])), "unit_cost": 12.0,
             "endowment": 50_000,
             "objective": {"type": "maximize_net", "text": "Maximise the prizes you win minus 3 per unit of effort."},
             "brief": f"Each period you and an opponent put effort into {K} sites ({', '.join(names)}); your share of "
                      "a site's prize grows with your effort relative to the opponent's. You see the opponent's "
-                     f"efforts after each contest. Effort costs 3 per unit; at most {d['resources']} units per period."}
+                     f"efforts after each contest. Effort costs 12 per unit; at most {d['resources']} units per period."}
 
 
 @family("strat_interdiction", engine="strategic", category="8.8", item="8.8.5", split="train",
@@ -472,8 +472,8 @@ def team_commons(rng, d):
             "shock_sd": 0.15, "survey_sd": float(d["observation_noise"]), "endowment": 50_000,
             "objective": {"type": "maximize_net", "text": "Maximise the team's landings value minus effort costs."},
             "brief": f"Three of you fish {P} grounds ({', '.join(names)}). Each period choose a ground (or rest) and "
-                     "an effort (0-10, 6 per unit). Your catch grows with effort and the ground's stock; boats on "
-                     "the same ground get in each other's way. Stocks regrow, but a stock fished too low may not "
+                     "an effort (0-10, 6 per unit). Each unit of effort catches about 2% of the ground's stock; "
+                     "boats on the same ground get in each other's way. Stocks regrow, but a stock fished too low may not "
                      "recover. You see your catch and a noisy survey of your ground; landings sell for 5."}
 
 
@@ -495,9 +495,9 @@ def team_discovery(rng, d):
     labels = [f"class_{k + 1}" for k in range(T)]
     return {"engine": "strategic", "scenario": "discovery", "horizon": int(d["horizon"]), "agents": ["a0", "a1"],
             "ingr_a": names[:n], "ingr_b": names[n:], "typeA": types(), "typeB": types(),
-            "qualA": [u(rng, 0.5, 1.5) for _ in range(n)], "qualB": [u(rng, 0.5, 1.5) for _ in range(n)],
+            "qualA": [u(rng, 0.6, 1.5) for _ in range(n)], "qualB": [u(rng, 0.6, 1.5) for _ in range(n)],
             "labelA": [labels[int(i)] for i in rng.permutation(T)], "labelB": [labels[int(i)] for i in rng.permutation(T)],
-            "base_yield": 100.0, "yield_sd": 5.0, "unit_price": 2.0, "try_cost": 40.0,
+            "base_yield": 100.0, "yield_sd": 3.0, "unit_price": 2.0, "try_cost": 40.0,
             "assay_cost": float(d["experiment_cost"]), "purity_sd": 0.25, "endowment": 50_000,
             "objective": {"type": "maximize_net", "text": "Maximise the team's yield revenue minus test and assay "
                                                           "costs."},

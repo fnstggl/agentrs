@@ -341,7 +341,7 @@ class Strategic(RapidEngine):
                     p, mode = floor, 1
                 else:
                     p = float(c["hi"][r])
-            prices.append(p)
+            prices.append(round(p, 2))                       # posted prices are in cents
             modes.append(mode)
         return prices, modes
 
