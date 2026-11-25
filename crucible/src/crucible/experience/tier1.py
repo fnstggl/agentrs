@@ -175,6 +175,7 @@ class MechExperienceEnv(BaseExperienceEnv):
 
     def execute(self, agent: str, action: dict) -> dict:
         self._check(agent)
+        self.last_changed = False
         tool = action.get("tool") if isinstance(action, dict) else None
         args = action.get("args", {}) if isinstance(action, dict) else None
         if not isinstance(tool, str) or not isinstance(args, dict):
@@ -201,16 +202,20 @@ class MechExperienceEnv(BaseExperienceEnv):
         seq = self._emit("cmd", {"tool": tool, "args": json_copy(args), "cost_s": int(meta["cost_s"])}, (agent,),
                          actor=agent)
         s = self._seat[agent]
+        before = dict(self._desired[s])
         try:
             out = getattr(self, "_t_" + tool.replace(".", "_"))(agent, s, args, seq)
             res = {"ok": True, "t": int(self._now), "tool": tool, "cost_s": int(meta["cost_s"]), "result": out}
         except _Refused as e:
             res = {"ok": False, "t": int(self._now), "tool": tool, "cost_s": int(meta["cost_s"]),
                    "error": {"code": e.code, "message": str(e)}}
+        res["action_seq"] = seq                                # what `cause.action_seq` of its consequences names
         self._actions[agent] += 1
         self._time_used[agent] += int(meta["cost_s"])
         self._last_result[agent] = res
         self.steps += 1
+        self.last_changed = self._desired[s] != before        # the facility will run differently
+        self.changes += int(self.last_changed)
         return json_copy(res)
 
     # tools ---------------------------------------------------------------------------------------------
@@ -430,7 +435,7 @@ class MechExperienceEnv(BaseExperienceEnv):
         sim = self.sims
         st = {k: hashlib.sha256(np.ascontiguousarray(v).tobytes()).hexdigest() for k, v in sorted(sim.state.items())}
         return _digest([int(sim.t), [dict(x) for x in sim.settings], [None if f is None else float(f) for f in sim.funds],
-                        st, [dict(d) for d in self._desired], len(self._log)])
+                        st, [dict(d) for d in self._desired]])
 
     def describe(self) -> dict:
         d = super().describe()

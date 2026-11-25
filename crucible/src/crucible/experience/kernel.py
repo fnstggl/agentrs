@@ -48,6 +48,9 @@ HIDDEN = {
     "lab": "lab: the hidden traffic process of the engineering lab is not observable",
 }
 PAGE = 100_000
+# event types that record an action without changing what the world is (the command itself, recorded external
+# outcomes, idempotency records, counters, knowledge of a host)
+BOOKKEEPING = frozenset({"cmd", "cmd.rejected", "ext", "idem", "ctr", "know", "note"})
 
 
 class KernelExperienceEnv(BaseExperienceEnv):
@@ -57,7 +60,8 @@ class KernelExperienceEnv(BaseExperienceEnv):
                  reward_mode: str = LEGACY, objectives: Any = None, tier: int = 0, name: str | None = None,
                  extra_modules: Iterable[str] = (), experiments: bool = True, store=None, strict: bool = False,
                  max_events: int = 500, max_text: int = 200, max_artifacts: int = 200, join_kind: str = "agent",
-                 evaluator: Callable[[Any, str], dict] | None = None, world_id: str | None = None):
+                 evaluator: Callable[[Any, str], dict] | None = None, world_id: str | None = None,
+                 semantic: bool | str = "auto", max_semantic: int = 8):
         from ..core.kernel import World, WorldSpec
         import crucible
         crucible.load_all_modules()
@@ -79,6 +83,11 @@ class KernelExperienceEnv(BaseExperienceEnv):
             label = name or spec.family
         super().__init__(check_mode(reward_mode), label, self.world.spec.seed)
         self.max_events, self.max_text, self.max_artifacts = int(max_events), int(max_text), int(max_artifacts)
+        self._encode = _semantic_encoder() if semantic in ("auto", True) else None
+        if semantic is True and self._encode is None:
+            raise ImportError("semantic=True needs crucible.semantic.encode (workstream D)")
+        self.max_semantic = int(max_semantic)
+        self._sem: dict[str, list] = {}
         self.gate = RewardGate(self.reward_mode)
         self.evaluator = evaluator
         self._agents: list[str] = []
@@ -250,12 +259,21 @@ class KernelExperienceEnv(BaseExperienceEnv):
 
     def execute(self, agent: str, action: dict) -> dict:
         self._check(agent)
+        self.last_changed = False
         if not isinstance(action, dict):
             res = error_result(self.world.now, "", "invalid_action", "action must be {'tool': str, 'args': object}")
         else:
             act = {k: action[k] for k in ("tool", "args", "idempotency_key") if k in action}
             act.setdefault("args", {})
-            res = self.world.execute(agent, act).to_dict()
+            ar = self.world.execute(agent, act)
+            res = ar.to_dict()
+            if ar.events:
+                res["action_seq"] = int(ar.events[0])      # what `cause.action_seq` of its consequences names
+            if ar.ok and ar.events:
+                # changed: the action's transaction recorded more than its own bookkeeping
+                evs = self.world.events_range(min(ar.events) - 1, max(ar.events))
+                self.last_changed = any(e.type not in BOOKKEEPING for e in evs)
+                self.changes += int(self.last_changed)
         cnt = self._counts[agent]
         cnt["executes"] += 1
         cnt["rejected"] += 0 if res.get("ok") else 1
@@ -315,6 +333,8 @@ class KernelExperienceEnv(BaseExperienceEnv):
         if len(deliver) < len(pending):
             missing.append(f"events: {len(pending) - len(deliver)} more visible events after cursor {cursor}; read "
                            f"them with observe_since(agent, {cursor})")
+        if self._encode is not None:
+            arrays.update(self._semantic(arts, missing))
         missing += self._pending_notes(agent)
         missing += [HIDDEN[m] for m in sorted(w.modules) if m in HIDDEN]
         p = w.principal(agent) or {}
@@ -338,6 +358,24 @@ class KernelExperienceEnv(BaseExperienceEnv):
                            entities=ents, resources=resources, analytics=analytics,
                            last_result=json_copy(self._last_result[agent]), missing=missing, cursor=int(cursor),
                            objective=self._objective_text.get(agent))
+
+    def _semantic(self, arts: list[dict], missing: list[str]) -> dict[str, list]:
+        """Semantic representations of the readable v5 artifacts (``sha256:`` refs) through the shared encoders
+        (`crucible.semantic.encode`, recorded inference); at most `max_semantic` new encodings per observation."""
+        out, new = {}, 0
+        for a in arts:
+            ref = a["ref"]
+            if not ref.startswith("sha256:"):
+                continue
+            if ref not in self._sem:
+                if new >= self.max_semantic:
+                    missing.append(f"semantic: {ref} not encoded yet (encoding budget per observation reached)")
+                    continue
+                vec = self._encode(self.world, ref, _modality(a.get("mime")))
+                self._sem[ref] = [float(x) for x in vec]
+                new += 1
+            out[f"semantic.{ref}"] = list(self._sem[ref])
+        return out
 
     def _pending_notes(self, agent: str) -> list[str]:
         st = self.world.state
@@ -382,3 +420,23 @@ class KernelExperienceEnv(BaseExperienceEnv):
 
     def close(self) -> None:
         self.world.close()
+
+
+def _semantic_encoder():
+    """`crucible.semantic.encode` when workstream D's encoders are present, else None."""
+    try:
+        from .. import semantic
+    except ImportError:
+        return None
+    fn = getattr(semantic, "encode", None)
+    return fn if callable(fn) else None
+
+
+def _modality(mime: Any) -> str:
+    m = str(mime or "")
+    for prefix, mod in (("image/", "image"), ("audio/", "audio"), ("video/", "video")):
+        if m.startswith(prefix):
+            return mod
+    if m in ("text/x-python", "application/x-python", "text/x-script.python", "application/javascript"):
+        return "code"
+    return "text"

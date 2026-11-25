@@ -56,6 +56,8 @@ class BaseExperienceEnv:
         self.seed = int(seed)
         self.verifications = 0             # how many independent verifier outcomes `verify()` has produced
         self.steps = 0
+        self.changes = 0                   # executed actions that changed world state (operator-side count)
+        self.last_changed = False          # whether the latest executed action changed world state
 
     def describe(self) -> dict:
         return {"interface": INTERFACE_VERSION, "tier": self.tier, "kind": self.kind, "name": self.name,

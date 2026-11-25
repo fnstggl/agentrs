@@ -203,7 +203,8 @@ def validate_action(a: Any) -> list[str]:
 
 
 def validate_result(r: Any, where: str = "result") -> list[str]:
-    """`execute` returns ``{"ok", "t", "tool", "cost_s", "result" | "error"}``."""
+    """`execute` returns ``{"ok", "t", "tool", "cost_s", "result" | "error"}`` and, when the action was recorded,
+    ``"action_seq"`` (the seq its consequences' `cause` names)."""
     if not isinstance(r, dict):
         return [f"{where} is not a dict"]
     errs = []
