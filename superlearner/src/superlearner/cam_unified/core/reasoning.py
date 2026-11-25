@@ -4,7 +4,9 @@
 
 Reason_theta is the last `cfg.reason_layers` blocks of the shared backbone (same weights), applied to
 [R_j + IterEmb(j) + KindEmb(REASON) + StatePos; anchor Z_t (kind STATE) ; context tokens], followed by the backbone's
-output norm. The context (Z_t anchor + belief / memory / goal tokens) is embedded once per call.
+output norm. The context (Z_t anchor + belief / memory / goal tokens) is embedded once per call and its residual
+stream is carried from iteration to iteration (weight-tied looped computation), so later iterations can build on
+intermediate results held by context tokens.
 
 Depth: fixed J (`n_iters`, e.g. 1, 2, 4, 8, 16) or adaptive halting (PonderNet): at iteration j a halting head gives
 lambda_j = sigmoid(h(R_j)); the halting distribution p_j = lambda_j prod_{i<j}(1 - lambda_i) (the last computed
@@ -49,7 +51,7 @@ class Reasoner(nn.Module):
 
     def __init__(self, cfg: CamConfig, core: UnifiedCore, default_iters: Optional[int] = None,
                  halt_threshold: float = 0.5, halt_eps: float = 1e-3, prior_lambda: float = 0.25,
-                 init_lambda: float = 0.25, sample_halt: bool = False):
+                 init_lambda: float = 0.25, sample_halt: bool = False, iter_emb_std: float = 0.5):
         super().__init__()
         self.cfg = cfg
         self._core = (core,)
@@ -59,7 +61,10 @@ class Reasoner(nn.Module):
         self.default_iters = default_iters or cfg.reason_iters[len(cfg.reason_iters) // 2]
         self.halt_threshold, self.halt_eps = halt_threshold, halt_eps
         self.prior_lambda, self.sample_halt = prior_lambda, sample_halt
-        self.iter_emb = nn.Parameter(torch.randn(self.J_max + 1, D) * 0.02)
+        # R is RMS-normalised (unit scale per element): the iteration embedding must start at a comparable scale,
+        # or every iteration computes the same function and iterations cannot specialise (measured: with std 0.02 a
+        # 2-iteration lookup composition is not learned in 4000 steps; with 0.5 it is learned in < 3000).
+        self.iter_emb = nn.Parameter(torch.randn(self.J_max + 1, D) * iter_emb_std)
         self.halt_norm = RMSNorm(D)
         self.halt_head = nn.Linear(D, 1)
         nn.init.normal_(self.halt_head.weight, std=0.02)
@@ -96,8 +101,11 @@ class Reasoner(nn.Module):
         return torch.cat([anchor, hc], 1), torch.cat([torch.ones(B, S, dtype=torch.bool, device=Z.device),
                                                       sel.mask], 1)
 
-    def step(self, R: Tensor, j: int, hctx: Tensor, cmask: Tensor) -> Tensor:
-        """One reasoning iteration: R_j [b,S,D] -> R_{j+1} [b,S,D] (float32)."""
+    def step(self, R: Tensor, j: int, hctx: Tensor, cmask: Tensor) -> tuple:
+        """One reasoning iteration: (R_j [b,S,D], context stream [b,L,D]) -> (R_{j+1} [b,S,D] float32, context
+        stream after the reused blocks). The context's residual stream is carried across iterations, so J
+        iterations of k reused blocks compose like J*k weight-tied layers over [R; Z; ctx] (context tokens can
+        accumulate what earlier iterations computed, e.g. which item matched a query)."""
         core = self.core
         S = R.shape[1]
         hr = core.embed_state(R, TokenKind.REASON) + self.iter_emb[min(j, self.J_max)]
@@ -105,7 +113,7 @@ class Reasoner(nn.Module):
         mask = torch.cat([torch.ones(R.shape[0], S, dtype=torch.bool, device=R.device), cmask], 1)
         mask = None if bool(mask.all()) else mask
         h = core.run_blocks(h, mask, self.blocks)
-        return core.out_norm(h[:, :S]).float()
+        return core.out_norm(h[:, :S]).float(), h[:, S:]
 
     def halt_lambda(self, R: Tensor) -> Tensor:
         """Conditional halting probability lambda(R) [b] from mean-pooled state tokens."""
@@ -134,7 +142,8 @@ class Reasoner(nn.Module):
         B = Z.shape[0]
         R = Z.float()
         for j in range(1, J + 1):
-            R = self._apply_intervention(j, self.step(R, j, hctx, cmask))
+            R, hctx = self.step(R, j, hctx, cmask)
+            R = self._apply_intervention(j, R)
         halt_p = torch.zeros(B, J, device=Z.device)
         halt_p[:, -1] = 1.0
         iters = torch.full((B,), float(J), device=Z.device)
@@ -147,7 +156,8 @@ class Reasoner(nn.Module):
         remain = torch.ones(B, device=Z.device)
         ps, Rs = [], []
         for j in range(1, self.J_max + 1):
-            R = self._apply_intervention(j, self.step(R, j, hctx, cmask))
+            R, hctx = self.step(R, j, hctx, cmask)
+            R = self._apply_intervention(j, R)
             lam = self.halt_lambda(R)
             last = j == self.J_max
             p = remain if last else remain * lam
@@ -186,7 +196,8 @@ class Reasoner(nn.Module):
         iters = torch.zeros(B, device=dev)
         J_used = 0
         for j in range(1, self.J_max + 1):
-            R = self._apply_intervention(j, self.step(R, j, hctx[active], cmask[active]))
+            R, hctx = self.step(R, j, hctx, cmask)
+            R = self._apply_intervention(j, R)
             lam = self.halt_lambda(R)
             last = j == self.J_max
             p = remain[active] if last else remain[active] * lam
@@ -201,7 +212,7 @@ class Reasoner(nn.Module):
                 P[done, j - 1] = P[done, j - 1] + remain[done]
                 remain[done] = 0.0
                 keep = ~stop
-                active, R = active[keep], R[keep]
+                active, R, hctx, cmask = active[keep], R[keep], hctx[keep], cmask[keep]
             if active.numel() == 0:
                 break
         P = P[:, :J_used]

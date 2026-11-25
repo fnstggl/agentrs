@@ -112,6 +112,8 @@ class EntityEncoder(nn.Module):
         self.incident_bias = nn.Parameter(torch.full((H,), 1.0))
         self.out_norm = RMSNorm(D)
         init_transformer_weights(self, max(1, n_rounds))
+        nn.init.normal_(self.kind_emb.weight, std=0.5)                      # comparable to RMS-normalised tokens
+        nn.init.normal_(self.time_enc.proj.weight, std=0.5 / self.time_enc.proj.in_features ** 0.5)
         self.stats = {"calls": 0, "dropped_relations": 0}
         self.last_counts: Optional[tuple] = None
 

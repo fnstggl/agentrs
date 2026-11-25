@@ -147,7 +147,7 @@ def test_invariance_training_matches_views_and_keeps_worlds_apart():
     st0 = evaluate()
     opt = torch.optim.Adam(list(core.parameters()) + list(lf.parameters()), lr=1e-3)
     g = torch.Generator().manual_seed(1)
-    for _ in range(150):
+    for _ in range(300):
         v1, v2, w = _views(32, 16, train_worlds[torch.randperm(48, generator=g)[:16]], cfg, g)
         loss, st, _, _ = invariance_loss_from_views(core, lf, v1, v2, w)
         opt.zero_grad()

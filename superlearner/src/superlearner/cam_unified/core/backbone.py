@@ -53,10 +53,13 @@ class UnifiedCore(nn.Module):
         autocast: run the blocks under bf16 autocast (default: True on CUDA, False on CPU).
         kind_priority: override of DEFAULT_KIND_PRIORITY for the context budget.
         qk_norm: per-head RMS normalisation of queries/keys.
+        emb_std: initial scale of the additive kind / state-slot / time / entity-code embeddings. Token content enters
+            RMS-normalised (unit scale per element), so these embeddings start at a comparable scale instead of the
+            usual 0.02 — otherwise kind, slot and time information is invisible at initialisation and slow to learn.
     """
 
     def __init__(self, cfg: CamConfig, autocast: Optional[bool] = None, kind_priority: Optional[dict] = None,
-                 qk_norm: bool = True, slot_seed: int = 1234):
+                 qk_norm: bool = True, slot_seed: int = 1234, emb_std: float = 0.5):
         super().__init__()
         self.cfg = cfg
         D, S = cfg.d_model, cfg.n_state
@@ -74,6 +77,11 @@ class UnifiedCore(nn.Module):
         init_transformer_weights(self.blocks, cfg.n_layers)
         init_transformer_weights(self.time_enc, cfg.n_layers)
         init_transformer_weights(self.slot_codes, cfg.n_layers)
+        nn.init.normal_(self.kind_emb.weight, std=emb_std)
+        nn.init.normal_(self.state_pos, std=emb_std)
+        nn.init.normal_(self.time_enc.proj.weight, std=emb_std / self.time_enc.proj.in_features ** 0.5)
+        for pr in self.slot_codes.proj:
+            nn.init.normal_(pr.weight, std=emb_std)
         prio = dict(DEFAULT_KIND_PRIORITY)
         if kind_priority:
             prio.update({TokenKind(k): v for k, v in kind_priority.items()})

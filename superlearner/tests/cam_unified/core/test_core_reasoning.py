@@ -1,4 +1,5 @@
 """Latent reasoning R_{j+1} = Reason(R_j, Z, B, M, G) (A03): depth and interventions change decisions; halting."""
+import pytest
 import torch
 import torch.nn as nn
 
@@ -175,3 +176,83 @@ def test_fixed_mode_when_adaptive_disabled():
     rs.train()
     R, info = rs(Z, ctx)
     assert torch.all(info["iters"] == rs.default_iters)
+
+
+# ---------------------------------------------------------------------------- depth matters after training (slow)
+
+def _lookup_batch(B, cfg, g, hops=1, M=6, C=6, Dc=16, device="cpu"):
+    """Memory tokens: node code c_n, next node's code, one-hot label of the next node; a GOAL token holds the start
+    node's code. Answer: the label reached after `hops` next-pointer steps. With hops=1 this needs a query-dependent
+    lookup (find the token whose code equals the goal's code), i.e. two dependent attention steps."""
+    import torch.nn.functional as F
+    codes = F.normalize(torch.randn(B, M, Dc, generator=g), dim=-1)
+    perm = torch.stack([torch.randperm(M, generator=g) for _ in range(B)])
+    labels = torch.randint(0, C, (B, M), generator=g)
+    x = torch.zeros(B, M + 1, cfg.d_model)
+    x[:, :M, :Dc] = codes
+    x[:, :M, Dc:2 * Dc] = torch.gather(codes, 1, perm.unsqueeze(-1).expand(-1, -1, Dc))
+    x[:, :M, 2 * Dc:2 * Dc + C] = F.one_hot(torch.gather(labels, 1, perm), C).float()
+    s = torch.randint(0, M, (B,), generator=g)
+    ar = torch.arange(B)
+    x[:, M, :Dc] = codes[ar, s]
+    x[:, M, 3 * Dc] = 1.0
+    node = s.clone()
+    for _ in range(hops - 1):
+        node = perm[ar, node]
+    y = torch.gather(labels, 1, perm)[ar, node]
+    kind = torch.full((B, M + 1), int(TokenKind.MEMORY))
+    kind[:, M] = int(TokenKind.GOAL)
+    ts = TokenSet(x, torch.ones(B, M + 1, dtype=torch.bool), kind, torch.zeros(B, M + 1),
+                  torch.full((B, M + 1), -1), None)
+    return ts.to(device), y.to(device)
+
+
+def _train_lookup(J, steps, device, seed=0):
+    import torch.nn.functional as F
+    torch.manual_seed(seed)
+    cfg = tiny_config(reason_layers=1, adaptive_reasoning=False)
+    core = UnifiedCore(cfg, autocast=False).to(device)
+    rs = Reasoner(cfg, core).to(device)
+    head = nn.Linear(cfg.d_model, 6).to(device)
+    opt = torch.optim.Adam(list(core.parameters()) + list(rs.parameters()) + list(head.parameters()), lr=1e-3)
+    g = torch.Generator().manual_seed(seed + 1)
+    for _ in range(steps):
+        ctx, y = _lookup_batch(128, cfg, g, device=device)
+        R, _ = rs(core.init_state(128, device), ctx, n_iters=J)
+        loss = F.cross_entropy(head(R.mean(1)), y)
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+
+    def acc(n_iters, intervene=None, target_shift=0):
+        with torch.no_grad():
+            ctx, y = _lookup_batch(2048, cfg, torch.Generator().manual_seed(99), device=device)
+            if intervene is None:
+                R, _ = rs(core.init_state(2048, device), ctx, n_iters=n_iters)
+            else:
+                with rs.intervention(intervene):
+                    R, _ = rs(core.init_state(2048, device), ctx, n_iters=n_iters)
+            return float((head(R.mean(1)).argmax(-1) == torch.roll(y, target_shift, 0)).float().mean())
+    return acc, rs
+
+
+@pytest.mark.slow
+def test_trained_reasoning_depth_is_necessary_for_decisions():
+    """A03 ablation at matched training budget: a decision that needs a query-dependent lookup (two dependent
+    attention steps through one reused block) is learned with J=2 latent iterations and not with J=1; on the J=2
+    model, forcing J=1 at test time destroys the decisions, and transplanting another row's final reasoning state
+    makes the decision follow that row — the reasoning output is what the decision reads.
+    (Measured: swapping R after iteration 1 alone does not change decisions — the intermediate result of this task
+    is held by the carried context stream, which the intervention hook does not touch.)"""
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    acc2, _ = _train_lookup(2, 3000, dev)
+    acc1, _ = _train_lookup(1, 3000, dev)
+    a22, a21, a1 = acc2(2), acc2(1), acc1(1)
+    a2_r1 = acc2(2, lambda j, R: torch.roll(R, 1, 0) if j == 1 else R)
+    a2_final = acc2(2, lambda j, R: torch.roll(R, 1, 0) if j == 2 else R)
+    a2_final_follow = acc2(2, lambda j, R: torch.roll(R, 1, 0) if j == 2 else R, target_shift=1)
+    print(f"lookup decisions: J=2 trained {a22:.3f}; same model forced J=1 {a21:.3f}; J=1 trained {a1:.3f}; "
+          f"R_1 swapped {a2_r1:.3f}; final R swapped: own label {a2_final:.3f}, donor's label {a2_final_follow:.3f}")
+    assert a22 > 0.9
+    assert a1 < 0.6 and a21 < 0.6
+    assert a2_final < 0.3 and a2_final_follow > 0.9
