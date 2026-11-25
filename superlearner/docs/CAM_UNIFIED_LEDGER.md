@@ -73,6 +73,12 @@ and their commits persist on disk. Completed: wave 1 `wf_c9e0d81b-aaa` (merged).
 - Contract v3 (`6a67351`, architecture §13): the 50 wave-1 change requests folded in additively. Manifest statuses
   folded conservatively (claims a verifier did not support stay IN_PROGRESS; `verified_by` empty until the
   acceptance-level H pass).
+- Merged suite (merged code + contract v3, 7 parallel groups): 735 passed, 3 failed, 13 skipped. Failures, all
+  assigned to wave 2: `semantic/test_objectives.py::test_code_execution_matching_generalises_to_held_out_programs`
+  (statistical threshold on 8 held-out programs; passed on 2 re-runs; A2),
+  `world/test_world_learning.py::test_learns_delayed_versus_immediate_effects` (delayed effect under-learned in 2 of
+  4 runs: 0.43 vs 1.0; Y to diagnose), `integration/test_i_model.py::test_count_parameters_dedupes_shared_modules_and_separates_semantic`
+  (doubles test now auto-loads the merged real Qwen3-1.7B; S). Logs: `runs/cam_unified/logs/suite_v3/`.
 - Lesson: never run the suite under `flock gpu_heavy.lock` — tests take that lock themselves (self-deadlock).
 
 ## Next steps
