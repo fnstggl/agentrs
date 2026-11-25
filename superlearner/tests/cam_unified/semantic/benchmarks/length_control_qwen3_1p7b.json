@@ -1,0 +1,184 @@
+{
+ "model": "Qwen/Qwen3-1.7B",
+ "conditions": {
+  "baseline": {
+   "meta": {
+    "started": "2026-11-25T08:15:05",
+    "load_avg_start": [
+     5.50537109375,
+     5.96875,
+     5.5908203125
+    ],
+    "gpu_start": {
+     "gpu": "NVIDIA RTX A6000",
+     "memory_used_mb": 2944,
+     "memory_total_mb": 49140,
+     "utilization_pct": 20,
+     "compute_processes": 1,
+     "other_processes_mb": 2934
+    },
+    "commit": "b1b9909",
+    "load_avg_end": [
+     4.80078125,
+     5.7080078125,
+     5.525390625
+    ],
+    "gpu_end": {
+     "gpu": "NVIDIA RTX A6000",
+     "memory_used_mb": 20349,
+     "memory_total_mb": 49140,
+     "utilization_pct": 89,
+     "compute_processes": 2,
+     "other_processes_mb": 11282
+    },
+    "peak_gpu_mb": 8400
+   },
+   "runs": [
+    {
+     "B": 8,
+     "n_actions": 17,
+     "schema_valid": 17,
+     "schema_valid_frac": 1.0,
+     "tokens_mean": 24.88,
+     "tokens_max": 245,
+     "tokens_p90": 28,
+     "qwen_steps_total": 352,
+     "prompt_tokens_mean_per_batch": 824.7,
+     "wall_s_total": 22.1,
+     "wall_s_per_action": 1.3002
+    },
+    {
+     "B": 1,
+     "n_actions": 17,
+     "schema_valid": 17,
+     "schema_valid_frac": 1.0,
+     "tokens_mean": 23.53,
+     "tokens_max": 230,
+     "tokens_p90": 37,
+     "qwen_steps_total": 468,
+     "prompt_tokens_mean_per_batch": 125.7,
+     "wall_s_total": 25.53,
+     "wall_s_per_action": 1.502
+    }
+   ],
+   "tools": "every 9th ow_tiny tool (17)"
+  },
+  "length": {
+   "meta": {
+    "started": "2026-11-25T08:15:05",
+    "load_avg_start": [
+     5.50537109375,
+     5.96875,
+     5.5908203125
+    ],
+    "gpu_start": {
+     "gpu": "NVIDIA RTX A6000",
+     "memory_used_mb": 2944,
+     "memory_total_mb": 49140,
+     "utilization_pct": 20,
+     "compute_processes": 1,
+     "other_processes_mb": 2934
+    },
+    "commit": "b1b9909",
+    "load_avg_end": [
+     14.89013671875,
+     11.72216796875,
+     8.23779296875
+    ],
+    "gpu_end": {
+     "gpu": "NVIDIA RTX A6000",
+     "memory_used_mb": 16196,
+     "memory_total_mb": 49140,
+     "utilization_pct": 100,
+     "compute_processes": 3,
+     "other_processes_mb": 5830
+    },
+    "peak_gpu_mb": 8426
+   },
+   "runs": [
+    {
+     "B": 8,
+     "n_actions": 145,
+     "schema_valid": 145,
+     "schema_valid_frac": 1.0,
+     "tokens_mean": 24.46,
+     "tokens_max": 576,
+     "tokens_p90": 46,
+     "qwen_steps_total": 2069,
+     "prompt_tokens_mean_per_batch": 1228.9,
+     "wall_s_total": 149.26,
+     "wall_s_per_action": 1.0294
+    },
+    {
+     "B": 1,
+     "n_actions": 145,
+     "schema_valid": 145,
+     "schema_valid_frac": 1.0,
+     "tokens_mean": 22.99,
+     "tokens_max": 217,
+     "tokens_p90": 49,
+     "qwen_steps_total": 4092,
+     "prompt_tokens_mean_per_batch": 164.5,
+     "wall_s_total": 271.27,
+     "wall_s_per_action": 1.8708
+    }
+   ],
+   "tools": "all 145 ow_tiny tools",
+   "subset_runs": [
+    {
+     "B": 8,
+     "n_actions": 17,
+     "schema_valid": 17,
+     "schema_valid_frac": 1.0,
+     "tokens_mean": 21.0,
+     "tokens_max": 193,
+     "tokens_p90": 28,
+     "qwen_steps_total": 310,
+     "prompt_tokens_mean_per_batch": 753.0,
+     "wall_s_total": 22.06,
+     "wall_s_per_action": 1.2977
+    },
+    {
+     "B": 1,
+     "n_actions": 17,
+     "schema_valid": 17,
+     "schema_valid_frac": 1.0,
+     "tokens_mean": 17.18,
+     "tokens_max": 156,
+     "tokens_p90": 30,
+     "qwen_steps_total": 355,
+     "prompt_tokens_mean_per_batch": 141.4,
+     "wall_s_total": 23.73,
+     "wall_s_per_action": 1.3958
+    }
+   ],
+   "expected_length_prior": {
+    "short": 28.2,
+    "text": 104.2,
+    "code": 440.7
+   },
+   "step_ms": {
+    "B1": {
+     "lora_path": {
+      "median_ms": 49.73,
+      "min_ms": 46.84
+     },
+     "acting_path": {
+      "median_ms": 32.79,
+      "min_ms": 32.16
+     }
+    },
+    "B8": {
+     "lora_path": {
+      "median_ms": 49.74,
+      "min_ms": 47.37
+     },
+     "acting_path": {
+      "median_ms": 34.66,
+      "min_ms": 33.31
+     }
+    }
+   }
+  }
+ }
+}

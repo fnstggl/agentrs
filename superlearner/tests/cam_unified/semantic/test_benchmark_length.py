@@ -7,7 +7,8 @@ the shared GPU lock, one condition group per locked job:
 
 Conditions (untrained decoder: random R/G/B, zero-initialised LoRA unless stated; dev config, bf16, eager decode):
 * baseline - wave-1 decoding: every free string capped at cfg.max_arg_tokens, no length prior, LoRA path when
-  acting (a subset of the tools: it is slow by construction, which is the point);
+  acting (a subset of the tools: it is slow by construction, which is the point); baseline_all: the same on every
+  tool at B=8;
 * length   - schema-derived caps + LengthHead prior, LoRA path when acting;
 * merged   - length control + merged-LoRA acting (contract v3 #12; zero delta at init = adapter disabled);
 * trained  - a non-zero LoRA delta (as after training): LoRA path vs merged acting, same tools and seed.
@@ -141,13 +142,17 @@ def test_length_control_and_acting_throughput_qwen3_1p7b(cuda):
     for c in conds:
         torch.manual_seed(0)
         rec = {"meta": dict(meta), "runs": []}
-        if c == "baseline":
+        if c in ("baseline", "baseline_all"):
             opts = GrammarOptions(max_string_tokens=cfg.max_arg_tokens, max_action_tokens=2 * cfg.max_arg_tokens,
                                   short_string_tokens=cfg.max_arg_tokens, text_string_tokens=cfg.max_arg_tokens,
                                   length_prior=False)
             gen = ActionGenerator(cfg, enc, tok, opts=opts, merged_acting=False)
-            rec["tools"] = "every 9th ow_tiny tool (%d)" % len(subset)
-            rec["runs"] = [_run(gen, tok, cfg, tools, subset, 8), _run(gen, tok, cfg, tools, subset, 1)]
+            if c == "baseline":
+                rec["tools"] = "every 9th ow_tiny tool (%d)" % len(subset)
+                rec["runs"] = [_run(gen, tok, cfg, tools, subset, 8), _run(gen, tok, cfg, tools, subset, 1)]
+            else:
+                rec["tools"] = "all %d ow_tiny tools (B=8 only)" % len(names)
+                rec["runs"] = [_run(gen, tok, cfg, tools, names, 8)]
         elif c in ("length", "merged"):
             gen = ActionGenerator(cfg, enc, tok, merged_acting=(c == "merged"))
             rec["tools"] = "all %d ow_tiny tools" % len(names)
