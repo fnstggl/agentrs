@@ -20,7 +20,7 @@ import pytest
 from crucible.acceptance.v5.evidence import record
 
 MODEL = os.environ.get("CRUCIBLE_SEMANTIC_MODEL", "Qwen/Qwen3-0.6B")
-ROUNDS = int(os.environ.get("CRUCIBLE_GATE_H_ROUNDS", "12"))
+ROUNDS = int(os.environ.get("CRUCIBLE_GATE_H_ROUNDS", "24"))
 SMALLER = ("HuggingFaceTB/SmolLM2-135M-Instruct", "HuggingFaceTB/SmolLM2-360M-Instruct")
 CMD = "PYTHONPATH=src python -m crucible.acceptance.v5 run --gate H"
 

@@ -73,18 +73,28 @@ def weights_hash(module_or_state_dict: Any) -> str:
     import torch
     sd = module_or_state_dict.state_dict() if hasattr(module_or_state_dict, "state_dict") else module_or_state_dict
     h = hashlib.sha256()
-    for name in sorted(sd):
-        t = sd[name]
+
+    def add(name, t):
+        if isinstance(t, (tuple, list)):          # packed parameters of quantized layers
+            for k, x in enumerate(t):
+                add(f"{name}.{k}", x)
+            return
         if not isinstance(t, torch.Tensor):
-            continue
+            return
         t = t.detach()
         if t.is_quantized:
+            if t.qscheme() in (torch.per_tensor_affine, torch.per_tensor_symmetric):
+                h.update(repr((t.q_scale(), t.q_zero_point())).encode())
+            else:
+                add(name + ".scales", t.q_per_channel_scales())
             t = t.int_repr()
         t = t.contiguous().cpu()
         h.update(name.encode())
         h.update(str(t.dtype).encode())
         h.update(repr(tuple(t.shape)).encode())
-        h.update(t.view(torch.uint8).numpy().tobytes() if t.numel() else b"")
+        h.update(t.reshape(-1).view(torch.uint8).numpy().tobytes() if t.numel() else b"")
+    for name in sorted(sd):
+        add(name, sd[name])
     return h.hexdigest()
 
 

@@ -94,7 +94,7 @@ def test_consequential_actions_are_read_from_the_log():
 
 def test_society_verifiers_accept_scripted_successes_and_reject_nothing_done():
     from crucible.semantic.service import SemanticService
-    svc = SemanticService(SMALL, device="cpu")            # weights load lazily: verifiers never touch the model
+    svc = SemanticService(SMALL, device="cpu", max_new_tokens=640)   # weights load lazily: never used here
     soc = SC.build_society(svc, record=False)
     w, P = soc.world, soc.principals
     assert not any(v["verified"] for v in SC.verify(w, soc).values())
@@ -121,7 +121,7 @@ def test_society_verifiers_accept_scripted_successes_and_reject_nothing_done():
 
 def test_program_verifier_rejects_wrong_code():
     from crucible.semantic.service import SemanticService
-    svc = SemanticService(SMALL, device="cpu")
+    svc = SemanticService(SMALL, device="cpu", max_new_tokens=640)
     soc = SC.build_society(svc, record=False)
     w, P = soc.world, soc.principals
     w.execute(P["eli"], {"tool": "code.create_repo", "args": {"name": "textutils"}})
@@ -138,7 +138,7 @@ def small_service():
         local_revision(SMALL)
     except FileNotFoundError:
         pytest.fail(f"{SMALL} is not in the local Hugging Face cache (download it once, about 270 MB)")
-    s = SemanticService(SMALL, device="cpu", max_batch=8, max_new_tokens=48)
+    s = SemanticService(SMALL, device="cpu", max_batch=8, max_new_tokens=160)
     yield s
     s.close()
 
@@ -154,8 +154,8 @@ def test_batched_group_turns_are_recorded_and_regenerate_without_the_model(small
     r = SP.BatchedRunner(w, agents, dt=600, seed=3)
     r.run(2)
     infer = [e for e in w.events_range(0) if e.type == "semantic.inference"]
-    # one choose batch per round for all three, plus at most one argument batch per round
-    assert 2 <= len(infer) <= 4 and group.calls["choose"] == 2
+    # per round: one tool-choice batch for all three, then at most one value-choice and one value-writing batch
+    assert 2 <= len(infer) <= 6 and 2 <= group.calls["choose"] <= 4
     assert set(infer[0].payload["principals"]) == {a for a, _ in agents}
     assert all(p.stats["turns"] == 2 for _, p in agents)
     assert len({id(p.history) for _, p in agents}) == 3

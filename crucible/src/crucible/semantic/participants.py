@@ -49,6 +49,7 @@ SYSTEM_PROMPT = (
 WAIT = {"name": "wait", "description": "Do nothing this turn (your goal is done, or you are waiting for someone).",
         "inputSchema": {"type": "object", "properties": {}}}
 DISCOVERY = ("world.find_tools",)
+THINKING_MODELS = ("qwen3",)      # model families with a native, switchable thinking mode
 LETTERS = "ABCDEFGHIJKLMNOP"
 _TOKEN = re.compile(r"[a-z0-9]+")
 
@@ -239,7 +240,7 @@ class SemanticParticipant(Policy):
                             "text": f"You called {action.get('tool')} {R.compact_json(action.get('args', {}), 160)}: "
                                     + R.render_result(result, self.result_chars)})
         if action.get("tool") == "world.find_tools" and result.get("ok"):
-            found = [t.get("name") for t in (result.get("result") or {}).get("tools", []) if t.get("name")]
+            found = [t.get("name") for t in (result.get("result") or {}).get("results", []) if t.get("name")]
             self.discovered = list(dict.fromkeys(found + self.discovered))[:12]
 
     def usage(self) -> dict:
@@ -512,6 +513,8 @@ class SemanticGroup:
 
     def participant(self, goal: str, **kw) -> SemanticParticipant:
         p = SemanticParticipant(self, goal, **kw)
+        if not any(f in self.service.model_id.lower() for f in THINKING_MODELS):
+            p.choice_method, p.think_args = "mean", False   # the model has no thinking mode: score the tool names
         need = max(p.think_tokens if p.choice_method == "think" else 0,
                    p.arg_tokens + (p.think_tokens if p.think_args else 0))
         if need > self.service.max_new_tokens:   # the service would cut the reasoning short, silently
