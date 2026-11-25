@@ -15,7 +15,7 @@ distribution on dissolution. A charter is operational: its schema is closed and 
 * `majority` / `supermajority` - share of the votes cast (default thresholds 1/2 and 2/3) with a quorum;
 * `unanimous` - every elector approves;
 * `weighted` - votes weighted by shares held, recorded contributions (money paid into the organisation's projects,
-  and labour valued at its wage) or tenure;
+  and labour hours valued at one public hourly rate) or tenure;
 * `delegated` - liquid democracy: an elector may delegate its vote (`inst.delegate_vote`); weight flows along the
   chain to whoever votes, a direct vote overrides the delegation, cycles abstain;
 * `consensus` - passes when the window closes without an objection (a single `no` blocks it);
@@ -1166,15 +1166,16 @@ class Institutions(Module):
                                        "contributor": contributor, "cents": int(amount), "kind": "money",
                                        "account": account}, vis=tuple(sorted({contributor, prj["owner"]})))
 
-    def record_labor(self, ctx, org: str, person: str, cents: int, project: str | None = None) -> None:
-        """Labour contributed to an organisation, valued at the worker's wage (used for contribution weights and
-        profit sharing by labour): called by the labour market when recorded hours are worked."""
-        if cents <= 0:
+    def record_labor(self, ctx, org: str, person: str, hours: float, cents: int, project: str | None = None) -> None:
+        """Labour contributed to an organisation: `hours` worked, valued at `cents` (the labour market values an
+        hour at one public rate for everybody, so contribution weights never reveal an individual's wage). Used for
+        contribution-weighted procedures and for 4.0 profit sharing by labour (`labor_hours:<org>`)."""
+        if cents <= 0 or hours <= 0:
             return
         n = ctx.state.next_counter(f"labor:{org}")
         ctx.emit("inst.contribution", {"id": f"labor|{org}|{person}|{n}", "project": project, "org": org,
-                                       "contributor": person, "cents": int(cents), "kind": "labor", "account": None},
-                 vis=(org, person))
+                                       "contributor": person, "cents": int(cents), "kind": "labor", "account": None,
+                                       "hours": round(float(hours), 3)}, vis=(org, person))
 
     def allocate(self, ctx, pid, task, amount) -> None:
         st = ctx.state
@@ -1730,10 +1731,10 @@ class Institutions(Module):
             prj = st.tables["inst_projects"][p["project"]]
             st.patch("inst_projects", p["project"], pool=prj["pool"] + p["cents"])
         if p["kind"] == "labor":
-            # profit sharing by labour (4.0 gov distribution basis 'labor') reads these hours-valued weights
+            # profit sharing by labour (4.0 gov distribution basis 'labor') reads these recorded hours
             k = f"labor_hours:{p['org']}"
             cur = dict(st.meta.get(k) or {})
-            cur[p["contributor"]] = cur.get(p["contributor"], 0) + p["cents"]
+            cur[p["contributor"]] = round(cur.get(p["contributor"], 0) + p.get("hours", 0.0), 3)
             st.meta_set(k, cur)
 
     @applier("inst.task")

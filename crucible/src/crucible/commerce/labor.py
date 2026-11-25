@@ -42,7 +42,6 @@ from ..services.identity import ident
 DAY = 86400
 MONTH = 30 * DAY
 SKILLS = ("software", "data", "design", "writing", "research", "operations", "sales", "management")
-HOURS_PER_MONTH = 160
 
 
 def _clip(x, lo=0.0, hi=1.0) -> float:
@@ -460,8 +459,7 @@ class Labor(Module):
             else:
                 inst.set_progress(ctx, tid, prog)
         if worked > 0:
-            hourly = (w["salary"] or w["reservation"]) / HOURS_PER_MONTH
-            inst.record_labor(ctx, org, person, int(worked * hourly))
+            inst.record_labor(ctx, org, person, worked, int(round(worked * int(self.cfg("labor_hour_cents", 2_500)))))
         # satisfaction: pay against the market, interest in the work, fatigue, unpaid wages
         market = self.market_wage(st, w) or w["reservation"]
         pay = _clip(w["salary"] / max(1, market), 0.0, 1.5) / 1.5 if w["salary"] else 0.0

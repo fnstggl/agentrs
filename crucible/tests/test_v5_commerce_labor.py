@@ -204,7 +204,9 @@ def test_team_lead_delegation_and_labour_contributions_weight_votes():
     w.advance_time(w.now + 10 * DAY)
     assert w.state.tables["inst_tasks"][t]["status"] == "done"
     worked = w.modules["inst"].contribution_of(w.state, org, team[0])
-    assert worked > 0 and w.state.meta[f"labor_hours:{org}"][team[0]] == worked     # gov profit sharing reads it
+    hours = w.state.meta[f"labor_hours:{org}"][team[0]]                         # gov profit sharing reads it
+    days = sum(1 for r in w.state.find("inst_contributions", "contributor", team[0]) if r["kind"] == "labor")
+    assert hours > 0 and abs(worked - hours * 2_500) <= days                    # one public rate, not the wage
     assert _ex(w, boss, "inst.adopt", org=org, charter={
         "procedures": {"labor": {"type": "weighted", "weights": "contribution"}}, "default": "labor"}).ok
     r = _ex(w, boss, "inst.propose", org=org, action={"kind": "unit_create", "name": "core"})
