@@ -162,3 +162,54 @@ class PolicyAgent:
                 if isinstance(v, (int, float)) and not isinstance(v, bool):
                     u[k] = u.get(k, 0) + v
         return u
+
+
+class MixedAgent:
+    """A heterogeneous population as one `AgentP`: each member agent controls a subset of the batch rows (e.g. the
+    current CAM learner, historical CAM checkpoints, frozen language agents and scripted Crucible actors joined to
+    one shared world with ``open_world(shared_world=True)``). Members only see their own rows; `update` is
+    delegated (frozen members return zero updates)."""
+
+    def __init__(self, members: Sequence[tuple]):
+        self.members = [(agent, [int(i) for i in rows]) for agent, rows in members]
+        seen = [i for _, rows in self.members for i in rows]
+        if len(seen) != len(set(seen)):
+            raise ValueError("a batch row belongs to exactly one member")
+        self.n = len(seen)
+        if sorted(seen) != list(range(self.n)):
+            raise ValueError("members must cover rows 0..B-1")
+        self.model_version = 0
+
+    @staticmethod
+    def _sub(batch: ObservationBatch, rows: list) -> ObservationBatch:
+        return ObservationBatch([batch.env_ids[i] for i in rows], [batch.observations[i] for i in rows],
+                                [batch.t[i] for i in rows], [batch.done[i] for i in rows])
+
+    def begin(self, env_ids: list, goals: list) -> None:
+        for agent, rows in self.members:
+            if hasattr(agent, "begin"):
+                agent.begin([env_ids[i] for i in rows], [goals[i] for i in rows])
+
+    def act(self, obs: ObservationBatch, tools: list) -> list:
+        out: list = [None] * len(obs.env_ids)
+        for agent, rows in self.members:
+            acts = agent.act(self._sub(obs, rows), [tools[i] for i in rows])
+            for i, a in zip(rows, acts):
+                out[i] = a
+        return out
+
+    def observe(self, transition: Transition) -> None:
+        for agent, rows in self.members:
+            agent.observe(Transition([transition.records[i] for i in rows], self._sub(transition.next_obs, rows),
+                                     [transition.rewards[i] for i in rows], [transition.dones[i] for i in rows],
+                                     [transition.dt[i] for i in rows]))
+
+    def update(self) -> dict:
+        out = {}
+        for k, (agent, _) in enumerate(self.members):
+            out[f"member{k}:{getattr(agent, 'name', type(agent).__name__)}"] = agent.update()
+        return out
+
+    def usage(self) -> dict:
+        return {f"member{k}": (agent.usage() if hasattr(agent, "usage") else {})
+                for k, (agent, _) in enumerate(self.members)}

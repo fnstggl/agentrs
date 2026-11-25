@@ -314,3 +314,26 @@ def test_heterogeneous_participants_act_independently():
         assert acts.get(op.principal(0), 0) == 0         # the CAM seat did nothing; the others acted on their own
     finally:
         ad.close()
+
+
+def test_process_isolated_operator_firewall_and_success():
+    """The worlds and the evaluator live in another process: this process never holds a kernel object, and the
+    agent still reaches verified success through the records alone."""
+    import os
+    from crucible.usefulness.agents import ExampleInductor
+    from superlearner.cam_unified.envs.agent_protocol import PolicyAgent
+    from superlearner.cam_unified.envs.harness import run_lifetime
+    from superlearner.cam_unified.envs.openworld import open_world_isolated
+    gc.collect()
+    worlds_before = sum(1 for o in gc.get_objects() if type(o) is World)
+    ad, rop, rev = open_world_isolated([tiny_goal(days=6)], evaluator={}, seed=0)
+    try:
+        assert rop.pid != os.getpid()
+        res = run_lifetime(PolicyAgent([ExampleInductor()]), ad, rev, think_s=600)
+        assert res.final[0]["achieved"] is True
+        assert res.returns[0] == pytest.approx(2.0)
+        gc.collect()
+        assert sum(1 for o in gc.get_objects() if type(o) is World) == worlds_before
+        assert not [x for x in _walk(ad) + _walk(rev) if isinstance(x, _FORBIDDEN_TYPES)]
+    finally:
+        ad.close()

@@ -628,3 +628,140 @@ def open_world(tasks: Sequence[Any] | Callable[[int, int], Any], n_envs: int | N
                            handles=handles, seed=seed, participants=participants, participant_dt=participant_dt,
                            fork_identical=fork_identical)
     return OpenWorldAdapter(_make_port(op), op.n, max_wait_s), op
+
+
+# ============================================================================================== process isolation
+def _operator_main(conn, args: tuple, kw: dict, eval_kw: Optional[dict]) -> None:
+    """Child process: owns the WorldServer, every World and the evaluator; answers actor operations and operator
+    requests with records only."""
+    try:
+        op = OpenWorldOperator(*args, **kw)
+        ev = None
+        if eval_kw is not None:
+            from .openworld_eval import OpenWorldEvaluator
+            ev = OpenWorldEvaluator(op, **eval_kw)
+        conn.send(("ok", {"n": op.n}))
+    except Exception as e:  # noqa: BLE001
+        conn.send(("err", repr(e)))
+        return
+    handlers = {
+        "reset": op.reset, "observe": op.observe, "tools": op.tools, "execute": op.execute, "collect": op.collect,
+        "advance": op.advance, "now": op.now_days, "done": op.done, "checkpoint": op.checkpoint, "restore": op.restore,
+        "goals": lambda: [copy.deepcopy(e.goal) for e in op.envs], "env_ids": lambda: [e.env_id for e in op.envs],
+        "batch_state": lambda: ([e.env_id for e in op.envs], [op.now_days(b) for b in range(op.n)],
+                                [op.done(b) for b in range(op.n)]),
+    }
+    if ev is not None:
+        handlers.update({"take_rewards": ev.take_rewards, "evaluate_goal": ev.evaluate_goal,
+                         "success_t": lambda: list(ev.success_t), "eval_state": ev.state_dict,
+                         "eval_load": ev.load_state})
+    while True:
+        try:
+            cmd, a = conn.recv()
+        except EOFError:
+            break
+        if cmd == "close":
+            op.close()
+            conn.send(("ok", None))
+            break
+        try:
+            conn.send(("ok", handlers[cmd](*a)))
+        except Exception as e:  # noqa: BLE001 - reported to the caller, the server keeps running
+            conn.send(("err", f"{type(e).__name__}: {e}"))
+
+
+class _Remote:
+    __slots__ = ("_conn", "_proc", "pid", "n")
+
+    def __init__(self, args, kw, eval_kw):
+        import multiprocessing as mp
+        ctx = mp.get_context("spawn")
+        a, b = ctx.Pipe()
+        self._proc = ctx.Process(target=_operator_main, args=(b, args, kw, eval_kw), daemon=True)
+        self._proc.start()
+        self._conn = a
+        st, v = a.recv()
+        if st != "ok":
+            raise RuntimeError(f"operator process failed to start: {v}")
+        self.pid, self.n = self._proc.pid, v["n"]
+
+    def call(self, cmd: str, *a):
+        self._conn.send((cmd, a))
+        st, v = self._conn.recv()
+        if st != "ok":
+            raise RuntimeError(v)
+        return v
+
+    def close(self) -> None:
+        if self._proc.is_alive():
+            try:
+                self.call("close")
+            except Exception:  # noqa: BLE001
+                pass
+            self._proc.join(timeout=10)
+
+
+class RemoteOperator:
+    """Harness-side handle of an operator running in its own process: checkpoints only (the worlds are not here)."""
+
+    def __init__(self, remote: _Remote):
+        self._r = remote
+        self.pid = remote.pid
+        self.n = remote.n
+
+    def checkpoint(self, path: str) -> dict:
+        return self._r.call("checkpoint", path)
+
+    def restore(self, path: str) -> None:
+        return self._r.call("restore", path)
+
+    def close(self) -> None:
+        self._r.close()
+
+
+class RemoteEvaluator:
+    """Harness-side `GoalEvaluator` proxy for the evaluator living with the worlds in the operator process."""
+
+    name = "crucible.goals.GoalVerifier"
+
+    def __init__(self, remote: _Remote):
+        self._r = remote
+
+    def take_rewards(self) -> list:
+        return self._r.call("take_rewards")
+
+    def evaluate_goal(self, env_index: int):
+        return self._r.call("evaluate_goal", int(env_index))
+
+    @property
+    def success_t(self) -> list:
+        return self._r.call("success_t")
+
+    def state_dict(self) -> bytes:
+        return self._r.call("eval_state")
+
+    def load_state(self, blob: bytes) -> None:
+        self._r.call("eval_load", blob)
+
+
+def open_world_isolated(tasks: Sequence[Any], n_envs: int | None = None, *, evaluator: Optional[dict] = None,
+                        **kw) -> tuple:
+    """Like `open_world`, but the WorldServer, the worlds and the evaluator live in a separate (spawned) process:
+    the learner's process holds no kernel object at all - the hidden-state firewall is an OS process boundary.
+    `tasks` must be picklable (a list, not a lambda factory). Returns (adapter, RemoteOperator, RemoteEvaluator |
+    None); pass ``evaluator={}`` (OpenWorldEvaluator keyword arguments) to host an evaluator."""
+    r = _Remote((list(tasks), n_envs), kw, evaluator)
+    p = _ActorPort()
+    p.reset = lambda seeds: r.call("reset", seeds)
+    p.observe = lambda b: r.call("observe", b)
+    p.tools = lambda b: r.call("tools", b)
+    p.execute = lambda b, a: r.call("execute", b, a)
+    p.collect = lambda b, since: r.call("collect", b, since)
+    p.advance = lambda d: r.call("advance", list(d))
+    p.goals = lambda: r.call("goals")
+    p.now = lambda b: r.call("now", b)
+    p.done = lambda b: r.call("done", b)
+    p.env_ids = lambda: r.call("env_ids")
+    p.close = lambda: r.close()
+    return (OpenWorldAdapter(p, r.n, kw.get("max_wait_s", 86400)), RemoteOperator(r),
+            RemoteEvaluator(r) if evaluator is not None else None)

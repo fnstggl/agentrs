@@ -122,3 +122,24 @@ def test_checkpoint_resume_reproduces_uninterrupted_lifetime(tmp_path):
     assert t_rest == t_full and dig_rest == dig_full
     assert rest.steps == full.steps and a_rest.k == a_full.k and a_rest.model_version == a_full.model_version
     assert rest.returns == pytest.approx(full.returns)
+
+
+def test_heterogeneous_population_in_one_shared_world():
+    """Three independently controlled participants in one world under one operator clock: a competent seller, a
+    random actor and an idle one, each driven by its own agent through the shared-world adapter."""
+    from crucible.agents.scripted import IdlePolicy, RandomPolicy
+    from superlearner.cam_unified.envs.agent_protocol import MixedAgent
+    goal = tiny_goal(days=6)
+    ad, op = open_world([goal, goal, goal], shared_world=True, seed=5)
+    ev = OpenWorldEvaluator(op)
+    agent = MixedAgent([(PolicyAgent([ExampleInductor()]), [0]),
+                        (PolicyAgent([RandomPolicy()]), [1]),
+                        (PolicyAgent([IdlePolicy()]), [2])])
+    res = run_lifetime(agent, ad, ev, think_s=600)
+    w = op.world(0)
+    acts = {k: p.get("actions", 0) for k, p in w.state.scan("principals")}
+    ad.close()
+    assert len(op.slots) == 1
+    assert res.final[0]["achieved"] and not res.final[1]["achieved"] and not res.final[2]["achieved"]
+    assert acts[op.principal(0)] >= 15 and acts[op.principal(1)] >= 1 and acts[op.principal(2)] == 0
+    assert res.t_days[0] == res.t_days[1] == res.t_days[2]          # one clock
