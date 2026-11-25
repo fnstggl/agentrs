@@ -68,16 +68,22 @@ def test_growing_use_creates_a_supply_need_that_a_new_service_addresses(cap):
 
 def test_need_events_are_visible_to_holders_only(cap):
     w = cap["world"]
+    derived = {}
     for ev in w.log:
         if ev.type == "needs.derived" and ev.payload["holders"]:
-            assert ev.vis == tuple(sorted(ev.payload["holders"]))
+            assert ev.vis == tuple(sorted(ev.payload["holders"])) and "evidence" not in ev.payload
+            derived[ev.payload["id"]] = ev.payload["holders"]
+        if ev.type == "needs.evidence":                   # operators' metrics never travel in visible events
+            assert ev.vis == "internal"
     for nid, n in w.state.scan("needs_open"):
         for h in n["holders"]:                    # current holders see it (a user who switched away no longer holds it)
             assert nid in {x["need"] for x in w.query(h, "needs.mine", {"status": "any"})}
     n = next(n for _, n in w.state.scan("needs_open") if n["kind"] == "supply")
-    op = next(h for h, role in n["holders"].items() if role == "operator")
-    mine_op = [x for x in w.query(op, "needs.mine", {"status": "any"}) if x["need"] == n["id"]]
-    assert mine_op and mine_op[0]["evidence"]["unmet_24h"] > 0               # the operator sees its own metrics
+    for op, own in n["own"].items():                                       # each operator sees only its own metrics
+        if op in n["holders"]:
+            mine_op = [x for x in w.query(op, "needs.mine", {"status": "any"}) if x["need"] == n["id"]]
+            assert mine_op and mine_op[0]["evidence"] == dict(own) and own["activity"].startswith("svc:")
+            assert w.state.get("needs_nodes", own["activity"])["owner"] == op
     holder = next(h for _, x in w.state.scan("needs_open") for h, r in x["holders"].items() if r == "user")
     join(w, "stranger", 10)
     assert w.query("p:stranger", "needs.mine", {"status": "any"}) == []

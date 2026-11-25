@@ -274,11 +274,11 @@ class Needs(Module):
                 cons_e = next(e for e in ins(r, "consumes") if e["src"] == c)
                 prods = outs(c, "produces")
                 targets = [(p["dst"], [cons_e, bounds[0], p]) for p in prods] or [(r, [cons_e, bounds[0]])]
+                ev = {"peak_util": obs["peak_util"], "unmet_24h": int(o["unmet"]), "demand_24h": int(o["demand"])}
                 for tgt, path in targets:
                     found.append({"kind": "supply", "target": tgt, "rule": "consumes", "path": path,
-                                  "magnitude": int(o["unmet"]), "holders": holders_of_activity(c),
-                                  "evidence": {"peak_util": obs["peak_util"], "unmet_24h": int(o["unmet"]),
-                                               "demand_24h": int(o["demand"])}})
+                                  "magnitude": int(o["unmet"]), "holders": holders_of_activity(c), "evidence": ev,
+                                  "own": {nodes[c]["owner"]: {**ev, "activity": c}} if nodes[c]["owner"] else {}})
 
         # ---- requires: something required that nobody (healthy) produces, or that is constrained
         for n in sorted(nodes):
@@ -336,11 +336,14 @@ class Needs(Module):
         for f in found:
             key = f"{f['kind']}|{f['target']}"
             if key not in merged:
-                merged[key] = {**f, "key": key, "holders": dict(f["holders"])}
+                merged[key] = {**f, "key": key, "holders": dict(f["holders"]), "own": dict(f.get("own") or {})}
             else:
                 m = merged[key]
                 for h, role in f["holders"].items():
                     m["holders"].setdefault(h, role)
+                for h, ev in (f.get("own") or {}).items():
+                    if h not in m["own"] or ev["unmet_24h"] > m["own"][h]["unmet_24h"]:
+                        m["own"][h] = ev
                 m["magnitude"] = max(m["magnitude"], f["magnitude"])
         return [merged[k] for k in sorted(merged)]
 
@@ -406,12 +409,14 @@ class Needs(Module):
             cur = [st.tables["needs_open"][i] for i in st.find_ids("needs_open", "target", d["target"])
                    if st.tables["needs_open"][i]["key"] == k and st.tables["needs_open"][i]["status"] != "resolved"]
             holders = sorted(d["holders"])
+            # evidence is evaluator-side (internal); an operator reads only its own part through needs.mine
             if not cur:
                 nid = st.new_id("need")
                 ctx.emit("needs.derived", {"id": nid, "key": k, "kind": d["kind"], "target": d["target"],
                                            "rule": d["rule"], "path": d["path"], "magnitude": d["magnitude"],
-                                           "holders": d["holders"], "evidence": d["evidence"]},
+                                           "holders": d["holders"]},
                          vis=tuple(holders) if holders else "internal")
+                ctx.emit("needs.evidence", {"id": nid, "evidence": d["evidence"], "own": d["own"]}, vis="internal")
             else:
                 n = cur[0]
                 nid = n["id"]
@@ -421,8 +426,11 @@ class Needs(Module):
                 if n["absent"]:
                     ch["absent"] = 0
                 if ch or n["magnitude"] != d["magnitude"]:
-                    ctx.emit("needs.changed", {"id": nid, "magnitude": d["magnitude"], "evidence": d["evidence"], **ch},
+                    ctx.emit("needs.changed", {"id": nid, "magnitude": d["magnitude"], **ch},
                              vis=tuple(sorted(set(holders) | set(n["holders"]))) or "internal")
+                if n["evidence"] != d["evidence"] or n["own"] != d["own"]:
+                    ctx.emit("needs.evidence", {"id": nid, "evidence": d["evidence"], "own": d["own"]},
+                             vis="internal")
         for nid in st.find_ids("needs_open", "status", "open") + st.find_ids("needs_open", "status", "addressed"):
             n = st.tables["needs_open"][nid]
             vis = tuple(sorted(n["holders"])) or "internal"
@@ -463,7 +471,7 @@ class Needs(Module):
                         "rule": n["rule"], "roles": roles, "opened": n["t"],
                         "path": [{k: e[k] for k in ("src", "rel", "dst")} for e in n["path"]],
                         "addressed_by": [a["by"] for a in n["addressed_by"]],
-                        "evidence": dict(n["evidence"]) if "operator" in roles else {}})
+                        "evidence": next((dict(n["own"][p]) for p in sorted(mine) if p in n["own"]), {})})
         return out
 
     @endpoint("publish", S.obj({"need": S.s_str(maxLength=40), "text": S.s_str(maxLength=2000)}, ["need"]))
@@ -550,7 +558,7 @@ class Needs(Module):
     def ap_derived(self, ev):
         p = dict(ev.payload)
         p.update(status="open", t=ev.t, absent=0, addressed_by=[], addressed_t=None, resolved_t=None,
-                 max_magnitude=p["magnitude"], holders_ever=sorted(p["holders"]))
+                 max_magnitude=p["magnitude"], holders_ever=sorted(p["holders"]), evidence={}, own={})
         self.world.state.insert("needs_open", p["id"], p)
 
     @applier("needs.changed")
@@ -559,12 +567,16 @@ class Needs(Module):
         p = ev.payload
         n = st.tables["needs_open"][p["id"]]
         ch = {"magnitude": p["magnitude"], "max_magnitude": max(n["max_magnitude"], p["magnitude"])}
-        for k in ("holders", "absent", "evidence"):
+        for k in ("holders", "absent"):
             if k in p:
                 ch[k] = p[k]
         if "holders" in p:
             ch["holders_ever"] = sorted(set(n["holders_ever"]) | set(p["holders"]))
         st.patch("needs_open", p["id"], **ch)
+
+    @applier("needs.evidence")
+    def ap_evidence(self, ev):
+        self.world.state.patch("needs_open", ev.payload["id"], evidence=ev.payload["evidence"], own=ev.payload["own"])
 
     @applier("needs.addressed")
     def ap_addressed(self, ev):
