@@ -1,7 +1,7 @@
 {
  "workstream": "F2",
  "branch": "worktree-wf_62a0cf0b-bb3-4",
- "commit": "52383f4",
+ "commit": "26077df",
  "requirements": [
   {
    "id": "SP-6.6",
@@ -39,6 +39,6 @@
   "The labour market writes the meta key labor_hours:<org> that the 4.0 gov profit distribution (basis labor) already reads; values are hours worked per person (contributions value an hour at one public rate, config labor_hour_cents, so weights do not reveal wages).",
   "Substrate (INTERFACE_CONTRACTS section 1) was not merged into feat/crucible-5-openworld at the time of this work (crucible/substrate holds only __init__.py); nothing in F2 imports it. Natural follow-ups once it lands: declare inst/commit tables in substrate.primitives under the kinds institution and contract if workstream A wants them registered (4.0 contracts/orgs remain the owners of contract/organization), back simulated workers with pop columns via ids.ensure_principal, and move the hook chains to bus subscriptions.",
   "For workstream I (labour marketplace and organisational ecosystem domains): orgworld.spec(seed, workers=n, extra=(...)) builds a world family; Labor.create_sim_worker / add_worker let generators create workers with chosen skill profiles; project_delivered / project_quality give independent outcome evaluation.",
-  "Tests that ran: tests/test_v5_commerce_institutions.py (19), tests/test_v5_commerce_contracts.py (9), tests/test_v5_commerce_labor.py (9), tests/v5/test_gate_SP_6_6.py (1); related 4.0 files (test_open_institutions, test_economy, test_admission, test_goals, test_internet_society, test_services_comm, test_kernel, test_invariants, test_open_society, test_open_security, test_hardening, test_redteam) all pass."
+  "Tests that ran: tests/test_v5_commerce_institutions.py (19), tests/test_v5_commerce_contracts.py (9), tests/test_v5_commerce_labor.py (9), tests/v5/test_gate_SP_6_6.py (1); related 4.0 files (test_open_institutions, test_economy, test_admission, test_goals, test_internet_society, test_services_comm, test_kernel, test_invariants, test_open_society, test_open_security, test_hardening, test_redteam) all pass. Full tests/test_*.py suite in three slot-scheduled groups: 1,143 passed, 2 skipped (GPU), 1 failed under heavy machine load - tests/test_invention.py::test_matched_forks_show_a_loss_mechanism_that_exists_only_with_the_invention (its sandbox determinism check; the world uses no F2 module) - which passed when rerun alone."
  ]
 }
