@@ -74,10 +74,12 @@ def organic():
 
 def _notes(pc):
     p = pc["progress"]
-    traj = [(r["t"] // H, r["top_unique_viewers"], r["distinct_views"]) for r in p]
+    traj = [(r["t"] // H, r["item0_unique_viewers"], r["top_item"], r["top_unique_viewers"], r["distinct_views"])
+            for r in p]
     return (f"Positive-control run: {pc['m']['distinct_identities']} identities, {pc['m']['simulated_hours']:.0f} "
             f"simulated hours, {pc['m']['events']} events, create {pc['m']['create_wall_s']} s, run "
-            f"{pc['m']['run_wall_s']} s. Hourly (hour, item-0 unique viewers, distinct qualifying views): {traj}")
+            f"{pc['m']['run_wall_s']} s. Hourly (hour, item-0 unique viewers, top item, its unique viewers, "
+            f"distinct qualifying views): {traj}")
 
 
 def test_I1_ten_million_identities(positive_control):

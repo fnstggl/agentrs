@@ -11,9 +11,9 @@
   consumption against budgets, views without a prior exposure (forced views), share generations, and the reach of
   one item.
 
-Realism: these runs demonstrate computational capacity and that large reach can arise from the ordinary mechanisms.
-The behaviour, interest and graph models are unvalidated (FIDELITY_REGISTER); no claim is made that the size or
-shape of the cascades is empirically realistic.
+No realism is claimed: these runs demonstrate computational capacity and that large reach can arise from the
+ordinary mechanisms, while the behaviour, interest and graph models are unvalidated (FIDELITY_REGISTER), so the size
+and shape of the cascades are not claimed to be empirically realistic.
 """
 from __future__ import annotations
 
@@ -75,7 +75,8 @@ def run(world: World, until: int, *, step: int = 3600, progress=None) -> list[di
         viewers = AUD.item_col(world, "viewers")
         rec = {"t": int(t), "wall_s": round(time.time() - t0, 1), "items": ni,
                "impressions": int(AUD.item_col(world, "imp").sum()), "views": int(AUD.item_col(world, "views").sum()),
-               "distinct_views": int(viewers.sum()), "top_item": int(np.argmax(viewers)) if ni else -1,
+               "distinct_views": int(viewers.sum()), "item0_unique_viewers": int(viewers[0]) if ni else 0,
+               "top_item": int(np.argmax(viewers)) if ni else -1,
                "top_unique_viewers": int(viewers.max()) if ni else 0}
         out.append(rec)
         if progress is not None:
