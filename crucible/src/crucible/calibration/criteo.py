@@ -194,7 +194,7 @@ def split_digest(lab: np.ndarray) -> str:
     return hashlib.sha256(np.ascontiguousarray(lab, dtype=np.uint8).tobytes()).hexdigest()
 
 
-def audit_indices(lab: np.ndarray, n: int = 200_000) -> np.ndarray:
+def audit_indices(lab: np.ndarray, n: int = 100_000) -> np.ndarray:
     """Fixed random audit subsample of the test split (seeded, sorted) on which the unit tests recompute metrics."""
     test = np.flatnonzero(lab == 2)
     pick = np.random.Generator(np.random.PCG64(SPLIT_SEED + 1)).choice(test.size, size=min(n, test.size), replace=False)

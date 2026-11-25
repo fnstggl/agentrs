@@ -220,12 +220,21 @@ def prespecified_before_fit(model_name: str) -> dict:
     time must precede the fit's start time recorded in the card, and the plan's SHA-256 at that commit, in the card
     and in the working tree must agree.
     """
+    import datetime as _dt
     card = model_card(model_name)
-    plan = card["plan"]
+    started = _dt.datetime.fromisoformat(card["fit"]["started_at"])
+    checks = [_plan_check(p, started) for p in [card["plan"], *card.get("plan_amendments", [])]]
+    out = {"model": model_name, "fit_started_at": card["fit"]["started_at"], **checks[0],
+           "amendments": checks[1:], "ok": all(c["ok"] for c in checks)}
+    out["source"] = "git" if all(c["source"] == "git" for c in checks) else "card"
+    return out
+
+
+def _plan_check(plan: dict, started) -> dict:
+    import datetime as _dt
     path = os.path.join(CRUCIBLE_ROOT, plan["path"])
-    out = {"model": model_name, "plan": plan["path"], "fit_started_at": card["fit"]["started_at"]}
-    out["plan_sha256_now"] = sha256_file(path) if os.path.exists(path) else None
-    out["plan_sha256_card"] = plan["sha256"]
+    out = {"plan": plan["path"], "plan_sha256_now": sha256_file(path) if os.path.exists(path) else None,
+           "plan_sha256_card": plan["sha256"]}
     try:
         first = _git("log", "--diff-filter=A", "--format=%H %cI", "--", plan["path"]).splitlines()[-1].split()
         out["plan_commit"], out["plan_committed_at"] = first[0], first[1]
@@ -237,9 +246,7 @@ def prespecified_before_fit(model_name: str) -> dict:
         out["plan_commit"], out["plan_committed_at"] = plan.get("commit"), plan.get("committed_at")
         out["plan_sha256_at_commit"] = plan["sha256"]
         out["source"] = "card"
-    import datetime as _dt
     committed = _dt.datetime.fromisoformat(out["plan_committed_at"]) if out["plan_committed_at"] else None
-    started = _dt.datetime.fromisoformat(card["fit"]["started_at"])
     out["ok"] = bool(committed is not None and committed < started
                      and out["plan_sha256_at_commit"] == out["plan_sha256_card"] == out["plan_sha256_now"])
     return out

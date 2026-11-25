@@ -23,15 +23,23 @@ from . import criteo, portable
 from . import scoring_e2 as S
 from .commercial import OUTCOMES, ARMS, OUTPUTS, TYPE_FIELDS, assign_cells
 from .fitmeta_e2 import code_state, environment, now, plan_ref, write_card, write_checkpoint, write_report, digest
+from .gbdt_e2 import truncate_to_best
 from .registry_e2 import load as registry_load, rel, REPORTS_DIR
 
 NAME = "commercial_response"
 VERSION = 1
 MODEL_ID = f"{NAME}@{VERSION}"
 PLAN = "E2_commercial_response.plan.json"
-CANDIDATES = ("constant_effect", "t_logistic", "t_gbdt")
+AMENDMENTS = ("E2_amendment_1.plan.json",)
+CANDIDATES = ("constant_effect", "t_logistic", "t_gbdt", "t_gbdt_reg")
 BASELINE = "constant_effect"
-COMPLEXITY = {"constant_effect": 0, "t_logistic": 1, "t_gbdt": 2}
+COMPLEXITY = {"constant_effect": 0, "t_logistic": 1, "t_gbdt": 2, "t_gbdt_reg": 2}
+GBDT_PARAMS = {   # t_gbdt as prespecified; t_gbdt_reg added by amendment 1 (stronger leaf regularisation)
+    "t_gbdt": {"learning_rate": 0.1, "max_leaf_nodes": 31, "min_samples_leaf": 200, "l2_regularization": 1.0,
+               "max_iter": 300, "n_iter_no_change": 20},
+    "t_gbdt_reg": {"learning_rate": 0.05, "max_leaf_nodes": 31, "min_samples_leaf": 1000, "l2_regularization": 10.0,
+                   "max_iter": 500, "n_iter_no_change": 30},
+}
 N_BOOT = 200
 N_P0_BINS = 8
 N_TAU_BINS = 8
@@ -51,17 +59,17 @@ def fit_sub(cand: str, Xtr, ytr, Xva, yva, threads: int):
             lr.fit((Xtr - mean) / scale, ytr)
         ref = lambda X, lr=lr, m=mean, s=scale: lr.predict_proba((X - m) / s)[:, 1]
         return portable.export_linear(lr.coef_, lr.intercept_, mean, scale, "logit"), ref, {"n_iter": int(lr.n_iter_[0])}
-    if cand == "t_gbdt":
+    if cand in ("t_gbdt", "t_gbdt_reg"):
         from sklearn.ensemble import HistGradientBoostingClassifier
+        params = GBDT_PARAMS[cand]
         with threadpool_limits(threads):
-            hgb = HistGradientBoostingClassifier(learning_rate=0.1, max_leaf_nodes=31, min_samples_leaf=200,
-                                                 l2_regularization=1.0, max_iter=300, early_stopping=True,
-                                                 n_iter_no_change=20, scoring="loss", random_state=0)
+            hgb = HistGradientBoostingClassifier(**params, early_stopping=True, scoring="loss", random_state=0)
             hgb.fit(Xtr, ytr, X_val=Xva, y_val=yva)
+        es = truncate_to_best(hgb)              # amendment 1: keep the best validation iteration
         def ref(X, hgb=hgb):
             with threadpool_limits(threads):
                 return hgb.predict_proba(X)[:, 1]
-        return portable.export_hgb(hgb, "logit"), ref, {"n_iter": int(hgb.n_iter_)}
+        return portable.export_hgb(hgb, "logit"), ref, {"n_iter": int(hgb.n_iter_), "early_stopping": es}
     raise ValueError(cand)
 
 
@@ -196,6 +204,7 @@ def main(threads: int = 4, max_rows: int | None = None) -> dict:
     started_at = now()
     state = code_state()
     plan = plan_ref(PLAN)
+    amendments = [plan_ref(a) for a in AMENDMENTS]
     data = criteo.load()
     lab_full = criteo.splits()
     X = np.asarray(data["X"], dtype=np.float32)
@@ -288,7 +297,10 @@ def main(threads: int = 4, max_rows: int | None = None) -> dict:
     probe = pos_in_test[:256]
     arrays["probe/X"] = Xs["test"][probe]
     arrays["probe/pred"] = np.column_stack([preds["test"][kept][f"{o}_{a}"][probe] for o in OUTCOMES for a in ARMS])
-    ckpt = write_checkpoint(NAME, arrays)
+    # tree candidates other than the kept one are not shipped (checkpoints stay < 5 MB); their metrics are in the report
+    stored = [c for c in CANDIDATES if c == kept or not c.startswith("t_gbdt")]
+    ckpt = write_checkpoint(NAME, {k: v for k, v in arrays.items()
+                                   if k.split("/", 1)[0] not in CANDIDATES or k.split("/", 1)[0] in stored})
 
     def summary(m):
         return {"primary_pooled_logloss_visit_plus_conversion": m["primary"],
@@ -319,7 +331,7 @@ def main(threads: int = 4, max_rows: int | None = None) -> dict:
                     "manifest": "docs/v5/calibration/datasets/criteo_uplift_v2.1.json", "license": criteo.LICENSE["spdx"]},
         "checkpoint": ckpt,
         "report": rel(os.path.join(REPORTS_DIR, f"{MODEL_ID}.json")),
-        "plan": plan,
+        "plan": plan, "plan_amendments": amendments, "stored_candidates": stored,
         "fit": {"started_at": started_at, "code": "src/crucible/calibration/fit_commercial.py", **state,
                 "command": "python -m crucible.calibration.fit_commercial", "threads": threads, "environment": environment(),
                 "split": split_info, "sub_models": fit_info},
@@ -353,10 +365,10 @@ def main(threads: int = 4, max_rows: int | None = None) -> dict:
     # ------------------------------------------------------------------ round trip through the registry: audit + types validation
     model = registry_load(MODEL_ID)
     Xa = X[audit_idx].astype(np.float64)
-    audit = {"indices": "criteo.audit_indices(splits()) (seeded random 200k test rows)", "n": int(audit_idx.size),
+    audit = {"indices": "criteo.audit_indices(splits()) (seeded random 100k test rows)", "n": int(audit_idx.size),
              "indices_digest": digest(audit_idx.astype(np.int64)), "candidates": {}}
     ta = T[audit_idx]; yva = YV[audit_idx]; yca = YC[audit_idx]
-    for cand in CANDIDATES:
+    for cand in stored:
         Pa = model.candidate_predict(cand, Xa)
         P = {f"{o}_{a}": Pa[:, i] for i, (o, a) in enumerate([(o, a) for o in OUTCOMES for a in ARMS])}
         ref = np.column_stack([preds["test"][cand][f"{o}_{a}"][pos_in_test] for o in OUTCOMES for a in ARMS])
@@ -367,8 +379,9 @@ def main(threads: int = 4, max_rows: int | None = None) -> dict:
                                      **{f"{o}_pooled_ece": m["pooled"][o]["ece"] for o in OUTCOMES},
                                      **{f"{o}_qini_coefficient": m["uplift"][o]["qini_coefficient"] for o in OUTCOMES},
                                      "max_abs_diff_vs_estimator": float(np.max(np.abs(Pa - ref)))}
-    Pt = model.predict(Xs["test"])
-    cell_test = assign_cells(Pt[:, 0], Pt[:, 1] - Pt[:, 0], p0_edges, tau_edges)
+    # test cells from the estimator's predictions (equal to the shipped portable model: see the audit's max_abs_diff)
+    Pt0 = preds["test"][kept]["visit_control"]; Pt1 = preds["test"][kept]["visit_treated"]
+    cell_test = assign_cells(Pt0, Pt1 - Pt0, p0_edges, tau_edges)
     tv = type_validation(model.response_types(), cell_test, ys["test"]["visit"], ys["test"]["conversion"], test_t)
     tv_honest = type_validation(model.response_types("honest"), cell_test, ys["test"]["visit"], ys["test"]["conversion"], test_t)
     usable = bool(tv["visit"]["weighted_corr_ci95"][0] > 0)
@@ -386,7 +399,8 @@ def main(threads: int = 4, max_rows: int | None = None) -> dict:
     write_card(NAME, card)
 
     rep = {
-        "schema": "crucible.v5.calibration.report/1", "model": MODEL_ID, "plan": plan, "dataset": card["dataset"],
+        "schema": "crucible.v5.calibration.report/1", "model": MODEL_ID, "plan": plan, "plan_amendments": amendments,
+        "dataset": card["dataset"],
         "identification": card["identification"], "split": split_info,
         "heldout": {"validation": {c: results[c]["validation"] for c in CANDIDATES}, "test": {c: results[c]["test"] for c in CANDIDATES}},
         "selection": card["selection"],

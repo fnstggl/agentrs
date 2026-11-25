@@ -28,10 +28,12 @@ from . import gharchive as G
 from . import portable
 from . import scoring_e2 as S
 from .fitmeta_e2 import code_state, digest, environment, now, plan_ref, write_card, write_checkpoint, write_report
+from .gbdt_e2 import truncate_to_best
 from .registry_e2 import REPORTS_DIR, load as registry_load, rel
 from .software import DEEP_FEATURES, GROWTH_FEATURES, transform
 
 PLAN = "E2_software_adoption.plan.json"
+AMENDMENTS = ("E2_amendment_1.plan.json",)
 TABLES_VERSION = "1"
 N_BOOT = 200
 DAY = 86400
@@ -170,7 +172,15 @@ def _hgb_cls(Xtr, ytr, Xva, yva, threads):
         m = HistGradientBoostingClassifier(learning_rate=0.1, max_leaf_nodes=31, min_samples_leaf=100, l2_regularization=1.0,
                                            max_iter=300, early_stopping=True, n_iter_no_change=20, scoring="loss",
                                            random_state=0).fit(Xtr, ytr, X_val=Xva, y_val=yva)
-    return m
+    return m, truncate_to_best(m)          # amendment 1: keep the best validation iteration
+
+
+GROWTH_GBDT = {   # gbdt_poisson as prespecified; gbdt_poisson_reg added by amendment 1
+    "gbdt_poisson": {"learning_rate": 0.1, "max_leaf_nodes": 31, "min_samples_leaf": 100, "max_iter": 300,
+                     "n_iter_no_change": 20},
+    "gbdt_poisson_reg": {"learning_rate": 0.05, "max_leaf_nodes": 31, "min_samples_leaf": 200, "l2_regularization": 10.0,
+                         "max_iter": 500, "n_iter_no_change": 30},
+}
 
 
 def fit_deep(cand, Xtr, ytr, Xva, yva, threads):
@@ -186,8 +196,8 @@ def fit_deep(cand, Xtr, ytr, Xva, yva, threads):
         return (portable.export_linear(lr.coef_, lr.intercept_, mean, scale, "logit"),
                 lambda X: lr.predict_proba((X - mean) / scale)[:, 1], {"n_iter": int(lr.n_iter_[0])})
     if cand == "gbdt":
-        m = _hgb_cls(Xtr, ytr, Xva, yva, threads)
-        return portable.export_hgb(m, "logit"), (lambda X: m.predict_proba(X)[:, 1]), {"n_iter": int(m.n_iter_)}
+        m, es = _hgb_cls(Xtr, ytr, Xva, yva, threads)
+        return portable.export_hgb(m, "logit"), (lambda X: m.predict_proba(X)[:, 1]), {"n_iter": int(m.n_iter_), "early_stopping": es}
     raise ValueError(cand)
 
 
@@ -211,13 +221,13 @@ def fit_growth(cand, Xtr, ytr, Xva, yva, threads):
             pr = PoissonRegressor(alpha=1e-4, max_iter=3000, tol=1e-8).fit((Xtr - mean) / scale, ytr)
         return (portable.export_linear(pr.coef_, [pr.intercept_], mean, scale, "log"),
                 lambda X: pr.predict((X - mean) / scale), {"n_iter": int(pr.n_iter_)})
-    if cand == "gbdt_poisson":
+    if cand in GROWTH_GBDT:
         from sklearn.ensemble import HistGradientBoostingRegressor
         with threadpool_limits(threads):
-            m = HistGradientBoostingRegressor(loss="poisson", learning_rate=0.1, max_leaf_nodes=31, min_samples_leaf=100,
-                                              max_iter=300, early_stopping=True, n_iter_no_change=20, scoring="loss",
+            m = HistGradientBoostingRegressor(loss="poisson", **GROWTH_GBDT[cand], early_stopping=True, scoring="loss",
                                               random_state=0).fit(Xtr, ytr, X_val=Xva, y_val=yva)
-        return portable.export_hgb(m, "log"), (lambda X: m.predict(X)), {"n_iter": int(m.n_iter_)}
+        es = truncate_to_best(m)
+        return portable.export_hgb(m, "log"), (lambda X: m.predict(X)), {"n_iter": int(m.n_iter_), "early_stopping": es}
     raise ValueError(cand)
 
 
@@ -263,6 +273,7 @@ def main(threads: int = 4) -> dict:
     started_at = now()
     state = code_state()
     plan = plan_ref(PLAN)
+    amendments = [plan_ref(a) for a in AMENDMENTS]
     ev = G.load_events()
     print("events", ev["t"].size, flush=True)
     t0 = time.time()
@@ -328,7 +339,7 @@ def main(threads: int = 4) -> dict:
         "identification": {"kind": "observational", "statement": "Associations in public GitHub activity; nothing was randomized."},
         "population": POPULATION,
         "dataset": {"name": G.DATASET, "synthetic": False, "url": G.BASE_URL, **manifest},
-        "checkpoint": ckpt, "report": rel(os.path.join(REPORTS_DIR, f"{mid}.json")), "plan": plan,
+        "checkpoint": ckpt, "report": rel(os.path.join(REPORTS_DIR, f"{mid}.json")), "plan": plan, "plan_amendments": amendments,
         "fit": {"started_at": started_at, "code": "src/crucible/calibration/fit_software.py", **state,
                 "command": "python -m crucible.calibration.fit_software", "threads": threads, "environment": environment(),
                 "split": {k: list(v) for k, v in SPLIT_HOURS.items()}, "counts": {s: int(m.sum()) for s, m in sp.items()},
@@ -367,7 +378,7 @@ def main(threads: int = 4) -> dict:
     audit = {"rows": "all test rows", "n": int(sp["test"].sum()), "max_abs_diff_vs_estimator": float(np.max(np.abs(pt - preds[(kept, "test")]))),
              "log_loss": S.log_loss(y[sp["test"]], pt), "baseline_log_loss": S.log_loss(y[sp["test"]], model.candidate_predict("constant_rate", X[sp["test"]]))}
     reports[mid] = {
-        "schema": "crucible.v5.calibration.report/1", "model": mid, "plan": plan, "dataset": card["dataset"],
+        "schema": "crucible.v5.calibration.report/1", "model": mid, "plan": plan, "plan_amendments": amendments, "dataset": card["dataset"],
         "identification": card["identification"], "population": POPULATION,
         "split": card["fit"]["split"], "counts": card["fit"]["counts"], "label_rates": label_rates,
         "heldout": {"validation": {c: results[c]["validation"] for c in cands}, "test": {c: results[c]["test"] for c in cands},
@@ -383,7 +394,8 @@ def main(threads: int = 4) -> dict:
     b1 = tab["growth/d1/train_bucket"].astype(bool)
     gX = {"train": X1[b1], "validation": X1[~b1], "test": X2}; gy = {"train": y1[b1], "validation": y1[~b1], "test": y2}
     new_repo = np.isin(tab["growth/d2/repo"], tab["growth/d1/repo"][b1], invert=True)
-    gc = ("proportional", "poisson_glm", "gbdt_poisson"); gcx = {"proportional": 0, "poisson_glm": 1, "gbdt_poisson": 2}
+    gc = ("proportional", "poisson_glm", "gbdt_poisson", "gbdt_poisson_reg")
+    gcx = {"proportional": 0, "poisson_glm": 1, "gbdt_poisson": 2, "gbdt_poisson_reg": 2}
     garr, ginfo, gpred = {}, {}, {}
     for c in gc:
         t1 = time.time()
@@ -438,7 +450,7 @@ def main(threads: int = 4) -> dict:
         "identification": {"kind": "observational", "statement": "Associations in public GitHub activity; nothing was randomized."},
         "population": POPULATION,
         "dataset": {"name": G.DATASET, "synthetic": False, "url": G.BASE_URL, **manifest},
-        "checkpoint": gckpt, "report": rel(os.path.join(REPORTS_DIR, f"{gmid}.json")), "plan": plan,
+        "checkpoint": gckpt, "report": rel(os.path.join(REPORTS_DIR, f"{gmid}.json")), "plan": plan, "plan_amendments": amendments,
         "fit": {"started_at": started_at, "code": "src/crucible/calibration/fit_software.py", **state,
                 "command": "python -m crucible.calibration.fit_software", "threads": threads, "environment": environment(),
                 "split": {"train": "D1 -> D2, repository hash bucket < 80", "validation": "D1 -> D2, bucket >= 80", "test": "D2 -> D3 (time-based)"},
@@ -474,7 +486,7 @@ def main(threads: int = 4) -> dict:
               "mean_poisson_deviance": S.poisson_deviance(gy["test"], mu),
               "baseline_mean_poisson_deviance": S.poisson_deviance(gy["test"], gmodel.candidate_predict("proportional", gX["test"]))}
     reports[gmid] = {
-        "schema": "crucible.v5.calibration.report/1", "model": gmid, "plan": plan, "dataset": gcard["dataset"],
+        "schema": "crucible.v5.calibration.report/1", "model": gmid, "plan": plan, "plan_amendments": amendments, "dataset": gcard["dataset"],
         "identification": gcard["identification"], "population": POPULATION, "split": gcard["fit"]["split"], "counts": gcard["fit"]["counts"],
         "heldout": {"validation": {c: gres[c]["validation"] for c in gc}, "test": {c: gres[c]["test"] for c in gc},
                     "test_new_repos": {c: gres[c]["test_new_repos"] for c in gc}},

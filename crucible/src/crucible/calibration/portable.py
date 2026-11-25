@@ -84,7 +84,7 @@ def export_hgb(est, link: str) -> dict[str, np.ndarray]:
 
 # ----------------------------------------------------------------------------------------------- predictors
 
-def raw_score(arrays: dict[str, np.ndarray], X: np.ndarray, chunk: int = 20000) -> np.ndarray:
+def raw_score(arrays: dict[str, np.ndarray], X: np.ndarray) -> np.ndarray:
     """Score before the link (log-odds, log-mean or identity)."""
     kind = str(arrays["kind"])
     X = np.asarray(X, dtype=np.float64)
@@ -105,23 +105,18 @@ def raw_score(arrays: dict[str, np.ndarray], X: np.ndarray, chunk: int = 20000) 
         feature = arrays["feature"]; threshold = arrays["threshold"]; is_leaf = arrays["is_leaf"]
         left = arrays["left"]; right = arrays["right"]; value = arrays["value"]; miss = arrays["missing_left"]
         out = np.full(n, float(arrays["baseline"][0]))
-        if roots.size == 0:
-            return out
-        steps = int(arrays["max_depth"][0]) + 1
-        for s in range(0, n, chunk):
-            Xc = X[s:s + chunk]
-            m = Xc.shape[0]
-            idx = np.broadcast_to(roots, (m, roots.size)).copy()
-            rows = np.arange(m)[:, None]
-            for _ in range(steps):
-                leaf_now = is_leaf[idx]
-                if leaf_now.all():
-                    break
-                x = Xc[rows, feature[idx]]
-                go_left = (x <= threshold[idx]) | (np.isnan(x) & miss[idx])
-                nxt = np.where(go_left, left[idx], right[idx])
-                idx = np.where(leaf_now, idx, nxt)
-            out[s:s + chunk] += value[idx].sum(axis=1)
+        XT = np.ascontiguousarray(X.T)
+        for r in roots.tolist():                 # one tree at a time, advancing only rows not yet at a leaf
+            idx = np.full(n, r, dtype=np.int64)
+            act = np.arange(n) if not is_leaf[r] else np.zeros(0, dtype=np.int64)
+            while act.size:
+                node = idx[act]
+                x = XT[feature[node], act]
+                go_left = (x <= threshold[node]) | (np.isnan(x) & miss[node])
+                nxt = np.where(go_left, left[node], right[node])
+                idx[act] = nxt
+                act = act[~is_leaf[nxt]]
+            out += value[idx]
         return out
     raise ValueError(f"unknown predictor kind {kind!r}")
 
