@@ -142,10 +142,11 @@ def builder_control(**kw) -> Control:
                    note="deploys the hidden reference solver of the weakest-incumbent need (privileged)")
 
 
-def inductor_control(**kw) -> Control:
+def inductor_control(name: str = "example_inductor", **kw) -> Control:
     from crucible.usefulness.agents import ExampleInductor
-    return Control("example_inductor", lambda: ExampleInductor(**kw), "control",
-                   note="induces a wire format from public worked examples, deploys, lists (non-privileged)")
+    return Control(name, lambda: ExampleInductor(**kw), "control",
+                   note="induces a wire format from public worked examples, deploys, lists (non-privileged)"
+                        + (f"; {kw}" if kw else ""))
 
 
 def garbage_control(**kw) -> Control:

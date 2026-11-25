@@ -57,7 +57,9 @@ PROTOCOL = TaskProtocol(
     splits={"train": [("ow_market", 1), ("ow_market", 2), ("bazaar", 1), ("ow_frontier", 1)],
             "val": [("open_tight_compute", 1)], "test": [("ow_heldout", 1), ("ow_heldout", 2)]},
     horizon_days=90, thresholds=THRESHOLDS,
-    controls=[builder_control(), inductor_control(), idle_control(), random_control()],
+    controls=[builder_control(), inductor_control(),
+              # the inductor's default founder capital (600k cents) exceeds the smallest drawn endowment (500k)
+              inductor_control("example_inductor_300k", capital=300_000), idle_control(), random_control()],
     unsupported=COMMON_UNSUPPORTED + [
         "No subscription / repeat-purchase notion for need-format services: 'recurring' = a 30-day window held for 7 "
         "daily checks.",
