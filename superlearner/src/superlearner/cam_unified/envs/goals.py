@@ -46,6 +46,9 @@ def _register() -> None:
     if "cam_operating_margin" not in METRICS:
         metric("cam_operating_margin", "Operating profit / independent revenue over the window (0 without revenue).",
                subject={"principal": "principal"})(m_operating_margin)
+    if "cam_partner_payments" not in METRICS:
+        metric("cam_partner_payments", "Cents the principal's group paid its partners' groups for their work over the "
+               "window (verified ledger flows).", subject={"principal": "principal"})(m_partner_payments)
     if "cam_joint_utility" not in METRICS:
         metric("cam_joint_utility", "Third-party revenue of the principal and its partners, each excluding payments "
                "between them, counted only with a verified dependency (cents).",
@@ -436,6 +439,10 @@ def joint_utility(world, principal: str, partners: Sequence[str], window_s: int 
     return {"joint": joint, "actor_external": a_ext, "partners_external": p_ext, "paid_to_partners": paid_to,
             "paid_by_partners": paid_by, "completed_contracts": completed, "dependency": bool(dependency),
             "actor_group": A, "partner_group": P}
+
+
+def m_partner_payments(world, principal: str, partners: list, window_s: int = 14 * DAY) -> float:
+    return float(joint_utility(world, principal, partners, window_s)["paid_to_partners"])
 
 
 def m_joint_utility(world, principal: str, partners: list, window_s: int = 14 * DAY,

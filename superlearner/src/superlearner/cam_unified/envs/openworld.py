@@ -117,7 +117,7 @@ class OpenWorldOperator:
     def __init__(self, tasks: Sequence[Any] | Callable[[int, int], Any], n_envs: int | None = None, *,
                  shared_world: bool = False, store_url: str = "memory://", max_wait_s: int = 86400,
                  handles: Sequence[str] | None = None, seed: int = 0, participants: Sequence[tuple] = (),
-                 participant_dt: int = 3600, buffer_limit: int = 500_000):
+                 participant_dt: int = 3600, buffer_limit: int = 500_000, fork_identical: bool = False):
         _ensure_crucible()
         from crucible.api import WorldServer
         if callable(tasks):
@@ -138,10 +138,12 @@ class OpenWorldOperator:
         self.participant_specs = list(participants)
         self.participant_dt = int(participant_dt)
         self.buffer_limit = int(buffer_limit)
+        self.fork_identical = bool(fork_identical)
         self.rng = random.Random(seed)
         self.srv = WorldServer(store_url, lease_ttl_s=None, max_events=10 ** 9, max_scan=10 ** 12,
                                renderer=lambda o: "")
         self.slots: list[_Slot] = []
+        self._base_wids: list[str] = []
         self.envs: list[_Env] = [_Env(i, 0, None) for i in range(self.n)]
         self.episode = 0
         self.clock_hooks: list[Callable[[int], None]] = []       # hook(env_index) at every clock stop
@@ -166,12 +168,13 @@ class OpenWorldOperator:
         raise KeyError(env_id)
 
     def _close_slots(self) -> None:
-        for s in self.slots:
+        for wid in [s.wid for s in self.slots] + list(getattr(self, "_base_wids", [])):
             try:
-                self.srv.close_world(s.wid)
+                self.srv.close_world(wid)
             except Exception:  # noqa: BLE001 - already closed / superseded
                 pass
         self.slots = []
+        self._base_wids = []
 
     def reset(self, seeds: Sequence[int] | None = None) -> list[list[Observation]]:
         """New episode: fresh worlds (one per env, or one shared), actors admitted with neutral handles, warmup run,
@@ -189,15 +192,26 @@ class OpenWorldOperator:
             groups = [list(range(self.n))]
         else:
             groups = [[b] for b in range(self.n)]
+        bases: dict[str, str] = {}
         for g in groups:
             t = tasks[g[0]]
             cfg = {"family": t.world["family"], "seed": int(t.world["seed"]),
                    "overrides": copy.deepcopy(t.world.get("overrides", {})), "warmup_s": int(t.world.get("warmup_s", 0)),
                    "extra_modules": list(t.world.get("extra_modules", []))}
-            gen = {"family": cfg["family"], "overrides": cfg["overrides"]}
-            if cfg["extra_modules"]:
-                gen["extra_modules"] = cfg["extra_modules"]
-            wid = self.srv.create_world(gen, cfg["seed"], world_id=f"cw-{new_id()[:16]}")
+            key = _world_key(t)
+            if self.fork_identical and key in bases:
+                wid = self.srv.fork_world(bases[key], ephemeral=True)
+            else:
+                gen = {"family": cfg["family"], "overrides": cfg["overrides"]}
+                if cfg["extra_modules"]:
+                    gen["extra_modules"] = cfg["extra_modules"]
+                wid = self.srv.create_world(gen, cfg["seed"], world_id=f"cw-{new_id()[:16]}")
+                if cfg["warmup_s"]:            # the world runs (no actor yet) until the opportunity exists
+                    self.srv.advance_time(wid, dt=cfg["warmup_s"])
+                if self.fork_identical:        # identical worlds are forks of one base (paired calibration)
+                    bases[key] = self.srv.snapshot_world(wid)
+                    self._base_wids.append(wid)
+                    wid = self.srv.fork_world(bases[key], ephemeral=True)
             slot = _Slot(wid, cfg, list(g))
             self.slots.append(slot)
             si = len(self.slots) - 1
@@ -226,14 +240,12 @@ class OpenWorldOperator:
                 e.pulled = e.delivered = seq0
                 e.buffer_base = 0             # the genesis replay covers every visible event from the world's start
                 self.envs[b] = e
-            for (h, pol, endow) in self.participant_specs:
+            for (h, spec, endow) in self.participant_specs:
                 import numpy as np
+                pol = spec() if (callable(spec) and not hasattr(spec, "act")) else copy.deepcopy(spec)
                 ident = self.srv.join_world(wid, h, endowment=int(endow))
                 pol.reset(ident.principal, np.random.default_rng(self.rng.randrange(2 ** 31)))
                 slot.participants.append([ident.principal, pol, ident])
-            warm = cfg["warmup_s"]
-            if warm:                      # the world runs (actors idle) until the opportunity exists
-                self._advance_slot(si, w.now + warm, hooks=False)
             slot.next_participant_t = w.now
             for b in g:
                 e = self.envs[b]
@@ -448,6 +460,8 @@ class OpenWorldOperator:
         credentials) in `path`. Participants with generator-based scripts cannot be checkpointed."""
         if any(s.participants for s in self.slots):
             raise ValueError("checkpoint with independently controlled participants is not supported")
+        if self.fork_identical:
+            raise ValueError("checkpoint of ephemeral forks is not supported (fork_identical=False for lifetimes)")
         for e in self.envs:
             self._pull(e)
         snaps = [self.srv.snapshot_world(s.wid) for s in self.slots]
@@ -598,15 +612,19 @@ class OpenWorldAdapter:
 def open_world(tasks: Sequence[Any] | Callable[[int, int], Any], n_envs: int | None = None, *,
                shared_world: bool = False, store_url: str = "memory://", max_wait_s: int = 86400,
                handles: Sequence[str] | None = None, seed: int = 0, participants: Sequence[tuple] = (),
-               participant_dt: int = 3600) -> tuple[OpenWorldAdapter, OpenWorldOperator]:
+               participant_dt: int = 3600, fork_identical: bool = False) -> tuple[OpenWorldAdapter, OpenWorldOperator]:
     """Create the agent-side adapter and its operator.
 
     `tasks`: GoalContract-like objects (``world = {family, seed, overrides[, warmup_s]}``, ``endowment`` cents,
     ``horizon_s``, ``description``; `goals.contracts.GoalContract` and the protocol tasks qualify), one per env or
     one for all, or a factory ``(env_index, seed | None) -> task``. `participants`: [(handle, crucible Policy,
     endowment_cents)] independently controlled actors added to every world and driven every `participant_dt`
-    simulated seconds (heterogeneous populations; the worlds' own minds, firms and consumers are always there).
+    simulated seconds (a Policy instance is deep-copied per world; a zero-argument factory is called per world) -
+    heterogeneous populations next to the worlds' own minds, firms and consumers. `fork_identical`: environments
+    whose tasks name the same world are ephemeral forks of one base world (created and warmed up once), so paired
+    controls face identical conditions.
     Hand the adapter to the harness; keep the operator (and the evaluator built from it) away from the learner."""
     op = OpenWorldOperator(tasks, n_envs, shared_world=shared_world, store_url=store_url, max_wait_s=max_wait_s,
-                           handles=handles, seed=seed, participants=participants, participant_dt=participant_dt)
+                           handles=handles, seed=seed, participants=participants, participant_dt=participant_dt,
+                           fork_identical=fork_identical)
     return OpenWorldAdapter(_make_port(op), op.n, max_wait_s), op
