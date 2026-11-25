@@ -1,9 +1,11 @@
 """CamUnifiedAgent: per-environment state around CamUnifiedModel (spec Parts 11, 12, 14, 18.1, 20 A22).
 
-AgentP shape (used by runtime.run_steps and, later, workstream F's actors and G's OpenWorld harness):
+AgentP shape (used by runtime.run_steps, workstream F's actors and - through `stage1.harness_agent.HarnessAgent` -
+G's OpenWorld lifetime harness `envs.harness.run_lifetime`):
 
     act(obs_batch: ObservationBatch, tools_batch: [B] list[ToolSchema]) -> [B] Action | None   (None = done env)
     observe(results: [B] ExecutionResult, rewards: [B] float, next_obs: ObservationBatch) -> list[EventRecord]
+    observe(transition: envs.agent_protocol.Transition) -> list[EventRecord]      (harness call shape)
     update() -> dict                                    (one learner step; no-op when cfg.continual_updates is False)
     reset(env_ids: list[str] | None) -> None
     flush() -> list[EventRecord]                        (end of a run: archive undelivered post-action observations)
@@ -22,6 +24,14 @@ the acting context, and (b) the fresh on-policy buffer (actor + value with GAE u
 gamma = exp(-kappa * dt), plus the reasoner's compute cost): PPO-clip for decoder-sampled decisions (exact behaviour
 probability), advantage-weighted regression for planner-selected ones (the argmax selection has no tractable
 behaviour probability), then hands them to the injected trainer, which weights, back-propagates and steps.
+With workstream E's classes: the Consolidator runs every update (archived events -> memory segments in the
+MemoryIndex; its first segments make the index serve their version), the ReplaySampler is synced from the archive
+before sampling, every consumed event (fresh decisions and replayed records) gets the update id in its archived
+training provenance (`EventArchive.mark_used` -> `EventRecord.training_provenance["used_in_updates"]`), memory
+consumed by fresh decisions is linked to the update (`Consolidator.link_weights`), and events of an abandoned branch
+(`exclude_events`, set after a resume) are never drawn. With workstream F's TraceRecorder, one DecisionTrace per
+decision is recorded and update refs are patched in by event id per lifetime. `loss_cap` bounds the magnitude of any
+one objective before the trainer's global gradient clip (off by default).
 
 Checkpoint attribute contract (the duck-typed contract of workstream E's memory/checkpoint.py:CheckpointOps):
     model, config, weights_exclude, optimizers (+ setter; make_optimizers when the trainer has it), schedulers,
