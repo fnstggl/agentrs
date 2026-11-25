@@ -471,7 +471,10 @@ class Labor(Module):
             interest = _clip(sum(w["interests"].get(k, 0.0) * x for k, x in used.items()) / tot * len(SKILLS) / 2)
         else:
             interest = 0.45
-        fatigue = _clip(w["fatigue"] + worked / (w["hours_week"] / 7.0) * 0.06 - 0.05)
+        # fatigue builds with the share of its daily hours a worker actually works and recovers in proportion to
+        # itself: sustained full-time work settles near 0.4; idleness brings it back towards 0
+        frac = worked / max(1e-6, w["hours_week"] / 7.0)
+        fatigue = _clip(w["fatigue"] + 0.03 * frac - 0.075 * w["fatigue"])
         target = w["wage_weight"] * pay + (1 - w["wage_weight"]) * interest - 0.3 * fatigue - 0.25 * w["unpaid"]
         sat = round(_clip(0.85 * w["satisfaction"] + 0.15 * target), 4)
         tenure_days = (ctx.now - w["joined"]) // DAY if w["joined"] is not None else 0
