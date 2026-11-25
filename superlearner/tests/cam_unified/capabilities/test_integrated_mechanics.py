@@ -5,6 +5,7 @@ several seeds) are the slow tests in test_capabilities_learned.py with their com
 from __future__ import annotations
 
 import ast
+import contextlib
 import os
 
 import pytest
@@ -14,7 +15,7 @@ from superlearner.cam_unified.capabilities import envs as E
 from superlearner.cam_unified.capabilities.beliefs import BeliefSettings, evaluate_mechanism
 from superlearner.cam_unified.capabilities.causal import measure_imagination_isolated, same_fast
 from superlearner.cam_unified.capabilities.imagination import (config_override, frozen_imagined_beliefs,
-                                                               imagination_settings)
+                                                               imagination_settings, record_imagined_updates)
 from superlearner.cam_unified.capabilities.loop import Episode, mean
 from superlearner.cam_unified.capabilities.reasoning import ReasoningSettings, evaluate_chain
 from superlearner.cam_unified.capabilities.stack import build_stack, capability_config
@@ -109,29 +110,29 @@ def test_c03_7_imagination_never_touches_environment_archive_or_real_beliefs(sta
 
 def test_a08_planner_imagines_multistep_with_revised_beliefs(stack, device):
     """A08 mechanics in the integrated planner (LatentImaginationPlanner over CAM's own candidates): every candidate
-    first action is rolled forward 2 imagined decisions; the FastState clone of each branch is revised by the
-    imagined outcomes (its particle ESS departs from the real belief's), the second imagined action is sampled from
-    the policy on that revised belief, and the real action is the argmax of the imagined scores. The
-    frozen-belief ablation used by the learned test keeps every branch at the real belief."""
+    first action is rolled forward 2 imagined decisions; each branch's FastState clone is revised by its imagined
+    outcomes (particles and Kalman means change; recorded by instrumentation that does not alter behaviour), the
+    second imagined action is sampled from the policy on the revised belief, and the real action is the argmax of
+    the imagined scores. The frozen-belief ablation used by the learned test performs no revision."""
     model = stack.model
     env = E.ProbeEnv(8, horizon=3)
     for mode in ("full", "frozen"):
         ep = Episode(model, env, E.ScoreEvaluator(env), list(range(100_700, 100_708)), greedy=True,
                      generator=torch.Generator().manual_seed(5))
-        w = torch.softmax(ep.state.fast.logw.float(), -1)
-        real_ess = (1.0 / (w * w).sum(-1)).cpu()
-        ctx = frozen_imagined_beliefs(model) if mode == "frozen" else torch.no_grad()
-        with config_override(model, use_imagination=True), imagination_settings(model, 2, 4, 2), ctx:
+        real = ep.state.fast.clone()
+        ctx = frozen_imagined_beliefs(model) if mode == "frozen" else contextlib.nullcontext()
+        with config_override(model, use_imagination=True), imagination_settings(model, 2, 4, 2), \
+                record_imagined_updates(model) as log, ctx:
             dec, _ = ep.decide()
+        assert same_fast(real, ep.state.fast)                   # the real belief is untouched
         tr = dec.trajectory
         assert tr is not None and len(tr.steps) == 2 and tr.provenance.value == "imagined"
-        rows = tr.branch_of.cpu()
-        ess = torch.stack([s.belief_ess.float().cpu() for s in tr.steps], 1)       # [Bb, 2]
-        dev_ess = (ess - real_ess[rows].unsqueeze(1)).abs()
         if mode == "full":
-            assert float(dev_ess.max()) > 1e-3, dev_ess
+            ops = {e["op"] for e in log}
+            assert ops == {"beliefs.update", "kalman_update"}, ops
+            assert max(max(e["particles"], e["bayes_mu"]) for e in log) > 1e-4, log
         else:
-            assert float(dev_ess.max()) < 1e-5, dev_ess
+            assert not log                                      # frozen: no imagined revision at all
         for b, a in enumerate(dec.actions):
             sc = a.proposal["scores"]
             assert a.proposal["chosen"] == max(range(len(sc)), key=sc.__getitem__)
@@ -147,3 +148,23 @@ def test_fast_state_comparison_is_nan_aware(stack):
     assert same_fast(f, g)
     g.logw[0, 0] += 1.0
     assert not same_fast(f, g)
+
+
+def test_e03_memory_pipeline_delivers_the_cue_to_the_answer_decision(semantic_ok, device, tmp_path):
+    """E03 pipeline through the complete architecture (no training): the agent archives every decision (E's
+    EventArchive), consolidation turns them into segments with keys (Consolidator + Retriever encoders + MemoryIndex),
+    the version is served, and at the answer decision - 11 decisions after the cue, which is no longer in the working
+    context - retrieval scoped to the episode returns the segment holding the cue event, whose MEMORY tokens are in
+    that decision's core context (DecisionTrace.context_refs). Without the serving adapter E's index serves nothing
+    (interface change request)."""
+    from superlearner.cam_unified.capabilities.memory import EpisodeScopedRetrieval, MemorySettings, evaluate_cue
+    cfg = capability_config(use_imagination=False, use_memory=True, mem_segment=8)
+    st = build_stack(cfg, device=device, seed=0, memory_root=str(tmp_path / "mem"),
+                     agent_kwargs=dict(seq_len=12, n_seqs=2, adapt_seq_len=12, adapt_n_seqs=2))
+    scope = EpisodeScopedRetrieval(st.agent)
+    ms = MemorySettings(eval_rows=4, eval_episodes=1, delay=10)
+    out = evaluate_cue(st, ms)
+    scope.remove()
+    assert out["index_segments"] and out["index_segments"] >= 4
+    assert out["retrieved_any_rate"] == 1.0 and out["retrieval_hit_rate"] == 1.0, out
+    assert out["cue_memory_in_context_rate"] == 1.0, out

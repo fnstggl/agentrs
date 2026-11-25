@@ -72,12 +72,16 @@ class EpisodeScopedRetrieval:
                 k["retrieval_filters"] = self._filters
             return orig_decide(*a, **k)
 
+        self._old = (agent.__dict__.get("act"), self.model.__dict__.get("decide"))
         agent.act = act
-        self.model.decide = decide
+        self.model.__dict__["decide"] = decide
 
     def remove(self) -> None:
-        del self.agent.act
-        del self.model.decide
+        for obj, name, old in ((self.agent, "act", self._old[0]), (self.model, "decide", self._old[1])):
+            if old is None:
+                obj.__dict__.pop(name, None)
+            else:
+                obj.__dict__[name] = old
 
 
 @dataclass
@@ -105,7 +109,7 @@ def evaluate_cue(stack, st: MemorySettings) -> dict:
     old_g, old_rec = agent.greedy, agent.recorder
     rec = ListRecorder()
     agent.greedy, agent.recorder = True, rec
-    accs, hits, n_segments, retrieved_any = [], [], [], []
+    accs, hits, n_segments, retrieved_any, in_ctx = [], [], [], [], []
     try:
         for e in range(st.eval_episodes):
             ob = env.reset([st.eval_seed0 + SEED_STRIDE * e + b for b in range(st.eval_rows)])
@@ -145,11 +149,17 @@ def evaluate_cue(stack, st: MemorySettings) -> dict:
                     for sid in ids:
                         src.update(stack.model.retriever.resolve_ref("seg:" + sid))
                     hits.append(float(cue_eid.get(tr.env_id) in src))
+                    ctx_src = set()
+                    for ref in tr.context_refs:
+                        if isinstance(ref, str) and ref.startswith("seg:"):
+                            ctx_src.update(stack.model.retriever.resolve_ref(ref))
+                    in_ctx.append(float(cue_eid.get(tr.env_id) in ctx_src))
     finally:
         agent.greedy, agent.recorder = old_g, old_rec
         agent.flush("end_of_run")
     return {"accuracy": mean(accs), "chance": 1.0 / st.n_colours, "retrieval_hit_rate": mean(hits) if hits else None,
             "retrieved_any_rate": mean(retrieved_any) if retrieved_any else None,
+            "cue_memory_in_context_rate": mean(in_ctx) if in_ctx else None,
             "index_segments": n_segments[-1] if n_segments else None,
             "top_k": stack.cfg.mem_top_k}
 

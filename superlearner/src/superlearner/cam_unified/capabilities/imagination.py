@@ -63,6 +63,7 @@ class ImaginationSettings:
     loss: float = 10.0
     safe: float = 1.0
     exploring_starts: bool = False      # training env offers one random tool at the first decision (ProbeEnv)
+    component_kwargs: dict = field(default_factory=dict)   # e.g. {"outcome_head": {"film_init_std": 0.05}}
     cfg_overrides: dict = field(default_factory=dict)
 
 
@@ -77,17 +78,56 @@ def config_override(model, **kw):
         model.cfg = old
 
 
+_MISSING = object()
+
+
+@contextlib.contextmanager
+def patched(obj, name: str, value):
+    """Set an instance attribute for the block and restore exactly what was there before (nesting-safe)."""
+    old = obj.__dict__.get(name, _MISSING)
+    obj.__dict__[name] = value
+    try:
+        yield
+    finally:
+        if old is _MISSING:
+            obj.__dict__.pop(name, None)
+        else:
+            obj.__dict__[name] = old
+
+
 @contextlib.contextmanager
 def frozen_imagined_beliefs(model):
     """Ablation: inside the block the belief module's and the Kalman layer's updates return their input state, so an
     imagined branch keeps the belief of the real state (no imagined belief revision). Used only around planning."""
-    model.beliefs.update = lambda fast, *a, **k: (fast, {})
-    model.kalman_update = lambda fast, *a, **k: fast
-    try:
+    with patched(model.beliefs, "update", lambda fast, *a, **k: (fast, {})), \
+            patched(model, "kalman_update", lambda fast, *a, **k: fast):
         yield model
-    finally:
-        del model.beliefs.update
-        del model.kalman_update
+
+
+@contextlib.contextmanager
+def record_imagined_updates(model):
+    """Instrumentation (no behaviour change): records, for every belief-module and Kalman update made inside the
+    block, how much the FastState changed - max |delta| of particles, log-weights and Kalman means. Yields the list."""
+    log: list = []
+    upd, kal = model.beliefs.update, model.kalman_update
+
+    def delta(a, b) -> dict:
+        return {"particles": float((a.particles - b.particles).abs().max()),
+                "logw": float((a.logw - b.logw).abs().max()),
+                "bayes_mu": float((a.bayes_mu - b.bayes_mu).abs().max())}
+
+    def b_update(fast, *a, **k):
+        new, info = upd(fast, *a, **k)
+        log.append({"op": "beliefs.update", **delta(new, fast)})
+        return new, info
+
+    def k_update(fast, *a, **k):
+        new = kal(fast, *a, **k)
+        log.append({"op": "kalman_update", **delta(new, fast)})
+        return new
+
+    with patched(model.beliefs, "update", b_update), patched(model, "kalman_update", k_update):
+        yield log
 
 
 @contextlib.contextmanager
@@ -251,7 +291,7 @@ def run_imagination(settings: Optional[ImaginationSettings] = None, root: Option
     cfg = capability_config(use_imagination=False, use_memory=False, lr=st.lr, imag_branches=st.imag_candidates,
                             imag_samples=st.imag_samples, imag_horizons=(st.imag_horizon,), **st.cfg_overrides)
     tmp = root or tempfile.mkdtemp(prefix="cam_y_imag_")
-    stack = build_stack(cfg, device=device, seed=st.seed, memory_root=os.path.join(tmp, f"mem_s{st.seed}"),
+    stack = build_stack(cfg, device=device, seed=st.seed, component_kwargs=st.component_kwargs, memory_root=os.path.join(tmp, f"mem_s{st.seed}"),
                         agent_kwargs=dict(seq_len=st.env_horizon, n_seqs=8, adapt_seq_len=st.env_horizon,
                                           adapt_n_seqs=8))
     env = ProbeEnv(st.B, horizon=st.env_horizon, probe_cost=st.probe_cost, win=st.win, loss=st.loss, safe=st.safe,

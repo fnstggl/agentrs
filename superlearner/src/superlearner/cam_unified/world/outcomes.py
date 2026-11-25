@@ -402,7 +402,12 @@ class OutcomeHead(nn.Module):
 
     def __init__(self, cfg: CamConfig, cond_dim: Optional[int] = None, n_layers: int = 1, max_classes: int = 32,
                  survival_edges: Optional[torch.Tensor] = None, min_df: float = 2.1, min_std: float = 1e-3,
-                 nb_support: int = 256, count_log_max: float = 20.0, validate: bool = True):
+                 nb_support: int = 256, count_log_max: float = 20.0, validate: bool = True,
+                 film_init_std: float = 0.0):
+        """film_init_std: initial std of the particle-conditioning FiLM weights (0 = exact zero init: at
+        initialisation every particle predicts the same outcome distribution, and the mixture's first-order gradient
+        moves all particles' predictions together - the symmetric start does not break by itself; a small positive
+        value starts the hypotheses slightly apart)."""
         super().__init__()
         D = cfg.d_model
         self.cfg = cfg
@@ -425,7 +430,10 @@ class OutcomeHead(nn.Module):
         self.out_norm = nn.LayerNorm(D)
         self.cond_dim = cond_dim or cfg.d_particle
         self.film = nn.Linear(self.cond_dim, 2 * D)
-        nn.init.zeros_(self.film.weight)
+        if film_init_std > 0:
+            nn.init.normal_(self.film.weight, std=film_init_std)
+        else:
+            nn.init.zeros_(self.film.weight)
         nn.init.zeros_(self.film.bias)
         self.cond_mix = MLP(D, 2 * D, D, zero_out=True)
         self.state_norm = None          # set by the WorldModel: running standardisation of latent-state inputs

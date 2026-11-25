@@ -104,6 +104,34 @@ class ServingConsolidator:
         return getattr(self.consolidator, name)
 
 
+class ProspectiveIngest:
+    """Make the observations of the current decision visible to the outcome tracker before the prospective outcome
+    queries are built. `CamUnifiedModel.decide` builds them from `OutcomeTracker.prospective()`, but the tracker
+    ingests a decision's input observations only later, in `realize` - so at an episode's first decision the numeric
+    keys delivered at reset (e.g. ProbeEnv's test signal) are not queried, cannot be predicted, and cannot be
+    imagined by the planner (interface change request filed). `ingest` is idempotent (realize re-ingests the same
+    values as its "before" values), so ingesting at decision time changes nothing else. Installed as an instance
+    attribute wrapping `decide`; `remove()` restores it."""
+
+    def __init__(self, model):
+        self.model = model
+        self._old = model.__dict__.get("decide")
+        inner = model.decide
+
+        def decide(state, obs_lists, *a, **k):
+            for tr, obs in zip(state.trackers, obs_lists):
+                tr.ingest(obs)
+            return inner(state, obs_lists, *a, **k)
+
+        model.__dict__["decide"] = decide
+
+    def remove(self) -> None:
+        if self._old is None:
+            self.model.__dict__.pop("decide", None)
+        else:
+            self.model.__dict__["decide"] = self._old
+
+
 class TargetSyncTrainer:
     """D's CombinedTrainer plus the post-step EMA update of the world model's latent-target encoder.
 
@@ -186,7 +214,8 @@ def build_stack(cfg: Optional[CamConfig] = None, *, device=None, seed: int = 0, 
                 trainer_stage="continual", train_semantic: bool = False, model_kwargs: Optional[dict] = None,
                 agent_kwargs: Optional[dict] = None, trainer_kwargs: Optional[dict] = None,
                 components: Optional[dict] = None, reasoner_kwargs: Optional[dict] = None,
-                exact_rows: bool = False, target_decay: Optional[float] = None) -> Stack:
+                exact_rows: bool = False, target_decay: Optional[float] = None,
+                component_kwargs: Optional[dict] = None, prospective_ingest: bool = True) -> Stack:
     """Assemble the real CAM stack. `memory_root` (a directory) attaches E's archive + replay + index +
     consolidator (needed for replay-trained objectives and for cfg.use_memory); without it the agent trains on its
     fresh on-policy buffer only. `components` may override individual real components (e.g. a differently
@@ -207,7 +236,7 @@ def build_stack(cfg: Optional[CamConfig] = None, *, device=None, seed: int = 0, 
     opts = grammar_opts or GrammarOptions(max_string_tokens=24, max_action_tokens=96, max_key_tokens=16)
     gen = ActionGenerator(cfg, enc, tok, opts=opts, include_builtins=include_builtins, exact_rows=exact_rows)
     comps = {"semantic": enc, "tokenizer": tok, "action_generator": gen}
-    ckw = {}
+    ckw = {k: dict(v) for k, v in (component_kwargs or {}).items()}
     if reasoner_kwargs:
         ckw["reasoner"] = dict(reasoner_kwargs)
     index = archive = replay = consolidator = recorder = None
@@ -215,6 +244,7 @@ def build_stack(cfg: Optional[CamConfig] = None, *, device=None, seed: int = 0, 
         raise ValueError("cfg.use_memory needs memory_root (E's MemoryIndex / EventArchive live on disk)")
     comps.update(components or {})
     model = build_model(cfg, components=comps, component_kwargs=ckw, **(model_kwargs or {})).to(dev)
+    ingest = ProspectiveIngest(model) if prospective_ingest else None
     if memory_root is not None:
         from ..memory.archive import EventArchive
         from ..memory.consolidate import Consolidator
@@ -238,4 +268,7 @@ def build_stack(cfg: Optional[CamConfig] = None, *, device=None, seed: int = 0, 
     akw.update(agent_kwargs or {})
     agent = CamUnifiedAgent(model, **akw)
     return Stack(cfg, model, agent, trainer, enc, archive, replay, index, consolidator, recorder, memory_root,
-                 {"device": str(dev), "build_report": dict(model.build_report)})
+                 {"device": str(dev), "build_report": dict(model.build_report),
+                  "adapters": {"replay": "SyncedReplay", "trainer": "TargetSyncTrainer",
+                               "consolidator": "ServingConsolidator" if consolidator is not None else None,
+                               "prospective_ingest": ingest is not None}})

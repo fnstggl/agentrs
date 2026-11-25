@@ -122,6 +122,38 @@ def decision_sensitivity(model, settings: ReasoningSettings, iters=(1, 16), seed
             "argmax_changed_J": float((a.argmax(-1) != b.argmax(-1)).float().mean())}
 
 
+def actor_gradient_split(stack, env, seeds) -> dict:
+    """Where the policy objective's gradient goes: one round of the agent on `env` (fresh on-policy buffer), then
+    the agent's own `objective_policy` losses back-propagated separately; gradient L2 norm per component group
+    (no optimiser step; the buffer is restored). Shows whether decision learning reaches the latent reasoning state
+    (core / reasoner) or acts on the tool embeddings and pointer."""
+    from ..agent import UpdateBatch, objective_policy
+    from ..runtime import run_steps
+    agent, model = stack.agent, stack.model
+    saved = list(agent.fresh)
+    run_steps(agent, env, 1, evaluator=ScoreEvaluator(env), update_every=None, seeds=seeds)
+    model.train()
+    try:
+        out = objective_policy(agent, UpdateBatch(None, None, list(agent.fresh), model))
+        groups = {"action_generator": [p for n, p in model.named_parameters()
+                                       if n.startswith("action_generator.") and p.requires_grad],
+                  "tokenizer": [p for p in model.tokenizer.parameters() if p.requires_grad],
+                  "core": list(model.core.parameters()),
+                  "reasoner": list(model.reasoner.parameters()) if model.reasoner is not None else [],
+                  "value_head": list(model.value_head.parameters())}
+        res = {}
+        for name, loss in out["losses"].items():
+            model.zero_grad(set_to_none=True)
+            loss.backward(retain_graph=True)
+            res[name] = {g: float(torch.sqrt(sum((p.grad.float() ** 2).sum() for p in ps if p.grad is not None)))
+                         if any(p.grad is not None for p in ps) else 0.0 for g, ps in groups.items()}
+        model.zero_grad(set_to_none=True)
+    finally:
+        model.eval()
+        agent.fresh = saved
+    return res
+
+
 def run_reasoning(settings: Optional[ReasoningSettings] = None, device=None, log_every: int = 0) -> dict:
     st = settings or ReasoningSettings()
     t0 = time.time()
@@ -133,10 +165,13 @@ def run_reasoning(settings: Optional[ReasoningSettings] = None, device=None, log
     ev = ScoreEvaluator(env)
     before = evaluate_chain(model, st)
     sens_before = decision_sensitivity(model, st) if cfg.use_reasoning else None
+    grad_env = ChainEnv(st.B, n_colours=st.n_colours, hops=st.hops)
+    grads_before = actor_gradient_split(stack, grad_env, [st.eval_seed0 + 90_000 + b for b in range(st.B)])
     train = train_agent(stack, env, ev, st.train_rounds, update_every=1,
                         seeds=[st.seed * 10_007 + b for b in range(st.B)], log_every=log_every)
     after = evaluate_chain(model, st)
     sens_after = decision_sensitivity(model, st) if cfg.use_reasoning else None
+    grads_after = actor_gradient_split(stack, grad_env, [st.eval_seed0 + 91_000 + b for b in range(st.B)])
     forced = {}
     if cfg.use_reasoning:
         for j in st.test_iters:
@@ -152,5 +187,6 @@ def run_reasoning(settings: Optional[ReasoningSettings] = None, device=None, log
            "trained": {k: v for k, v in after.items() if k != "tools"},
            "forced_iters": {str(j): {k: v for k, v in r.items() if k != "tools"} for j, r in forced.items()},
            "sensitivity_untrained": sens_before, "sensitivity_trained": sens_after,
+           "policy_grad_norms_untrained": grads_before, "policy_grad_norms_trained": grads_after,
            "chance": chance, "wall_s": time.time() - t0}
     return out

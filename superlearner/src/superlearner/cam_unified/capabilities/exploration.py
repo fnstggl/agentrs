@@ -52,6 +52,7 @@ class ExplorationSettings:
     win: float = 10.0
     loss: float = 10.0
     safe: float = 1.0
+    component_kwargs: dict = field(default_factory=dict)   # e.g. {"outcome_head": {"film_init_std": 0.05}}
     cfg_overrides: dict = field(default_factory=dict)
 
 
@@ -108,7 +109,7 @@ def run_exploration(settings: Optional[ExplorationSettings] = None, root: Option
     lp = st.lp_coef if st.condition == "lp" else 0.0
     cfg = capability_config(use_imagination=False, use_memory=False, lr=st.lr, lp_coef=lp, **st.cfg_overrides)
     tmp = root or tempfile.mkdtemp(prefix="cam_y_explore_")
-    stack = build_stack(cfg, device=device, seed=st.seed,
+    stack = build_stack(cfg, device=device, seed=st.seed, component_kwargs=st.component_kwargs,
                         memory_root=os.path.join(tmp, f"mem_{st.condition}_s{st.seed}"),
                         agent_kwargs=dict(seq_len=st.env_horizon, n_seqs=8, adapt_seq_len=st.env_horizon,
                                           adapt_n_seqs=8))

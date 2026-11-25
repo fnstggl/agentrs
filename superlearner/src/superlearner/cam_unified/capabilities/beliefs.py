@@ -49,6 +49,7 @@ class BeliefSettings:
     mechanisms: dict = field(default_factory=lambda: {"low": (-1.0, 0.25), "high": (1.0, 0.25)})
     unfamiliar: dict = field(default_factory=lambda: {"extreme": (4.0, 0.25)})
     kind: str = "gaussian"             # gaussian (reward channel, Kalman-bound) | bernoulli (ok channel, particles)
+    component_kwargs: dict = field(default_factory=dict)   # e.g. {"outcome_head": {"film_init_std": 0.05}}
     cfg_overrides: dict = field(default_factory=dict)
 
     def __post_init__(self):
@@ -135,7 +136,7 @@ def run_beliefs(settings: Optional[BeliefSettings] = None, root: Optional[str] =
     cfg = capability_config(use_imagination=False, use_memory=False, lr=st.lr, **st.cfg_overrides)
     own_tmp = root is None
     tmp = tempfile.mkdtemp(prefix="cam_y_beliefs_") if own_tmp else root
-    stack = build_stack(cfg, device=device, seed=st.seed, memory_root=os.path.join(tmp, f"mem_s{st.seed}"),
+    stack = build_stack(cfg, device=device, seed=st.seed, component_kwargs=st.component_kwargs, memory_root=os.path.join(tmp, f"mem_s{st.seed}"),
                         agent_kwargs=dict(seq_len=st.horizon, n_seqs=4, adapt_seq_len=st.horizon, adapt_n_seqs=4))
     env = MechanismEnv(st.B, horizon=st.horizon, mechanisms=st.mechanisms, kind=st.kind)
     ev = ScoreEvaluator(env)
