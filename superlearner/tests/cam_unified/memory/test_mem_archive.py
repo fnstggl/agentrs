@@ -395,3 +395,144 @@ def test_reader_follows_a_live_writer_and_sizing_is_persistent(tmp_path):
     again = EventArchive(root)
     assert again.chunk_rows == 100
     again.close()
+
+
+def _du(path: str) -> int:
+    tot = 0
+    for root, _d, files in os.walk(path):
+        for f in files:
+            tot += os.lstat(os.path.join(root, f)).st_size
+    return tot
+
+
+def test_default_policy_budget_bounds_everything_under_the_root(tmp_path):
+    """With the DEFAULT cold policy the explicit budget bounds the archive's whole directory: chunks, WAL, tag logs,
+    SQLite files, manifest and a replay sampler database living in the same root."""
+    from superlearner.cam_unified.config import make_config
+    from superlearner.cam_unified.memory.replay import ReplaySampler
+    limit = 3_000_000
+    root = str(tmp_path / "a")
+    a = EventArchive(root, make_config("dev", archive_max_bytes=limit, archive_chunk_rows=300))
+    assert a.cold_policy == ("compress",) and not a.cold_external
+    rs = ReplaySampler(a)                                     # its database is root/replay.sqlite
+    n, raised = 0, False
+    try:
+        while n < 100_000:
+            a.append(_text_events(150, n))
+            n += 150
+            a.flush()
+            assert _du(root) <= limit                         # measured on disk, not just the archive's own estimate
+            assert a.used_bytes() == _du(root)                # the accounting covers every file under root
+            a.tag([f"env0-0-{n - 1:09d}"], success=True)
+            rs.sync()
+    except StorageLimitExceeded:
+        raised = True
+    assert raised and a.count() == n and a.stats["compressed_chunks"] >= 1
+    assert _du(root) <= limit + 200_000                       # + the sampler's growth since the last append
+    assert os.path.getsize(os.path.join(root, "replay.sqlite")) > 0
+    ids = [f"env0-0-{i:09d}" for i in range(0, n, 157)]
+    assert [r.event_id for r in a.get(ids)] == ids            # nothing was dropped to make room
+    rs.close()
+    a.close()
+
+
+def test_move_policy_requires_an_external_cold_volume_with_its_own_budget(tmp_path):
+    with pytest.raises(ValueError, match="outside the archive root"):
+        EventArchive(str(tmp_path / "a"), cold_policy=("compress", "move"))
+    with pytest.raises(ValueError, match="outside the archive root"):
+        EventArchive(str(tmp_path / "b"), cold_policy=("move",), cold_dir=str(tmp_path / "b" / "cold2"),
+                     cold_max_bytes=10**6)
+    with pytest.raises(ValueError, match="cold_max_bytes"):
+        EventArchive(str(tmp_path / "c"), cold_policy=("move",), cold_dir=str(tmp_path / "cold"))
+    ok = EventArchive(str(tmp_path / "d"), cold_policy=("move",), cold_dir=str(tmp_path / "cold"), cold_max_bytes=10**6)
+    assert ok.cold_external
+    ok.close()
+
+
+_TAIL_RSS = """
+import json, os, sys
+from memhelpers import light_events
+from superlearner.cam_unified.memory.archive import EventArchive
+root, n, cb = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+a = EventArchive(root, chunk_rows=65536, chunk_bytes=cb, fsync=False)
+w = light_events(200, start=10**8)
+for e in w:
+    e.observations[0].content = os.urandom(5000).hex()
+a.append(w)
+a.seal()                                          # warm-up: imports and the first Parquet write are not working set
+
+
+def hwm_kb():
+    for line in open("/proc/self/status"):
+        if line.startswith("VmHWM:"):
+            return int(line.split()[1])
+
+
+def rss_kb():
+    for line in open("/proc/self/status"):
+        if line.startswith("VmRSS:"):
+            return int(line.split()[1])
+
+
+with open("/proc/self/clear_refs", "w") as fh:  # reset the peak-RSS mark to the current RSS
+    fh.write("5")
+base = rss_kb()
+mx = 0
+for i in range(0, n, 200):
+    evs = light_events(200, start=i)
+    for e in evs:
+        e.observations[0].content = os.urandom(5000).hex()     # ~11 KB per record
+    a.append(evs)
+    mx = max(mx, a.info()["wal_bytes"])
+peak = hwm_kb()
+print(json.dumps({"growth_mb": (peak - base) / 1024, "max_wal_bytes": mx, "chunks": a.info()["chunks"],
+                  "count": a.count(), "base_mb": base / 1024}))
+a.close()
+"""
+
+
+def test_unsealed_tail_is_bounded_by_bytes_not_only_rows(tmp_path):
+    """Large records: the tail is sealed by ``chunk_bytes`` long before ``chunk_rows``; peak memory does not grow
+    with the number of records ingested (12k x 11 KB records would hold ~135 MB in a row-bounded tail)."""
+    cb = 4_000_000
+    out = {}
+    for n in (3000, 12000):
+        r = _run(_TAIL_RSS, str(tmp_path / f"a{n}"), str(n), str(cb))
+        assert r.returncode == 0, r.stderr[-2000:]
+        out[n] = m = json.loads(r.stdout.strip().splitlines()[-1])
+        assert m["count"] == n + 200 and m["max_wal_bytes"] < cb and m["chunks"] >= (n + 200) * 11_000 // (2 * cb)
+    print("tail memory growth (MB) by records ingested:", {n: round(m["growth_mb"], 1) for n, m in out.items()})
+    assert 0 < out[3000]["growth_mb"] and out[12000]["growth_mb"] < out[3000]["growth_mb"] + 25
+    assert out[12000]["growth_mb"] < 90
+    re = EventArchive(str(tmp_path / "a12000"))
+    assert re.count() == 12200 and re.info()["wal_bytes"] < cb and re.chunk_rows == 65536
+    ids = [f"env0-0-{i:09d}" for i in range(0, 12000, 1999)]
+    assert [x.event_id for x in re.get(ids)] == ids
+    re.close()
+
+
+def test_tag_logs_are_not_relogged_on_restart(tmp_path):
+    root = str(tmp_path / "a")
+    a = EventArchive(root, chunk_rows=100)
+    evs = light_events(250)
+    a.append(evs)
+    a.tag([evs[10].event_id], success=True)                 # a sealed row
+    a.tag([evs[230].event_id], success=False, surprise=3.5)  # a row still in the WAL tail
+    a.tag([evs[10].event_id], success=False)                 # a correction
+    n_changes = len(a.tag_changes(0))
+    assert n_changes == 3 and a.tag_changes(0, with_keys=True)[1][2] == ["success", "surprise"]
+    epoch = a.index_epoch
+    a.close()
+    for _ in range(3):
+        b = EventArchive(root, chunk_rows=100)
+        assert len(b.tag_changes(0)) == n_changes            # replaying the tag log changes nothing committed
+        m = b.meta([evs[10].event_id, evs[230].event_id])
+        assert [x["success"] for x in m] == [0, 0] and m[1]["surprise"] == 3.5
+        assert b.index_epoch == epoch
+        b.close()
+    for suf in ("", "-wal", "-shm"):                         # a lost index is rebuilt with a new epoch
+        if os.path.exists(os.path.join(root, "index.sqlite" + suf)):
+            os.unlink(os.path.join(root, "index.sqlite" + suf))
+    c = EventArchive(root, chunk_rows=100)
+    assert c.index_epoch != epoch and [x["success"] for x in c.meta([evs[10].event_id, evs[230].event_id])] == [0, 0]
+    c.close()

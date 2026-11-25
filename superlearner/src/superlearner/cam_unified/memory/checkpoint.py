@@ -10,8 +10,11 @@ Agent attribute contract (duck-typed; only ``model`` and ``config`` are required
     schedulers       optional dict name -> LR scheduler;           make_schedulers() -> dict
     fast_state       optional FastState (per-environment beliefs; never weights);  init_fast_state() -> FastState
     latent_state     optional Z_t tensor;                                          init_latent_state() -> tensor
-    registries       optional per-environment EntityRegistry list (episode-local; reset with the fast state)
+    registries       optional per-environment EntityRegistry list (episode-local; saved/restored and reset together
+                     with the fast state, so restored beliefs / latent state keep referring to the same slots)
     archive, index, replay, consolidator   optional EventArchive / MemoryIndex / ReplaySampler / Consolidator handles
+    (retriever)      any module of ``model`` with ``attach_index`` / ``key_version`` (e.g. ``Retriever``) gets the
+                     restored index attached; its readable versions are pinned in the index by full-lifetime saves
     rng              optional torch.Generator, numpy Generator, random.Random, or a dict of them
     version          optional int model version (number of learner updates)
     counters         optional JSON-serialisable dict (steps, episodes, ...)
@@ -22,10 +25,13 @@ Files:
   (parameters and buffers only). Metadata = {"format", "config" (JSON), "param_digest", "excluded_prefixes"}. Nothing
   else: no optimiser moments, replay, RNG, version, counters, fast/latent state, context or environment state.
 * full lifetime (``save_full_lifetime``): a directory written as ``<path>.tmp`` then renamed: ``weights.safetensors``,
-  ``optim.pt`` (optimiser + scheduler state), ``state.pt`` (fast state, latent state, RNG states), ``lifetime.json``
-  (version, counters, config, archive / index / replay pointers and sampler state, consolidator state, file digests).
-  The archive itself is never copied into a checkpoint (it is append-only and verified by pointer: count + chunk
-  digests); ``EventArchive.backup`` makes verified copies.
+  ``optim.pt`` (optimiser + scheduler state), ``state.pt`` (fast state, latent state, entity registries, RNG states),
+  ``lifetime.json`` (version, counters, config, archive / index / replay pointers and sampler state, consolidator
+  pointer, file digests). The archive itself is never copied into a checkpoint (it is append-only and verified by
+  pointer: count + chunk digests); ``EventArchive.backup`` makes verified copies. The memory index is not copied
+  either: the save pins (``MemoryIndex.pin``) the embedding versions the checkpoint's retriever can read, so a later
+  migration cannot drop them, and a restore reconciles the index with the restored retriever (serves the checkpoint's
+  version, or re-encodes from raw events to the restored target version; see ``load_parts``).
 
 ``load_parts`` / ``load_transfer_condition`` restore chosen parts of a full-lifetime checkpoint, giving spec 13.7's
 transfer conditions: A fresh model+optimiser, B pretrained weights only, C weights + optimiser state, D weights +
@@ -47,7 +53,7 @@ import torch
 from safetensors import safe_open
 from safetensors.torch import load_file, save_file
 
-from ..interfaces import FastState
+from ..interfaces import EntityRegistry, FastState
 from ._fs import fsync_dir, fsync_file, sha256_file
 from .errors import ArchiveCorrupted, CheckpointMismatch
 
@@ -201,10 +207,40 @@ def _fast_from_dict(d, device=None):
                         for k, v in d.items()})
 
 
+def _registry_to_dict(r) -> dict:
+    if not isinstance(r, EntityRegistry):
+        raise TypeError(f"registries must be EntityRegistry objects, got {type(r).__name__}")
+    st = r.rng.getstate()
+    return {"max": int(r.max), "slot": dict(r.slot), "etype": dict(r.etype), "last_seen": dict(r.last_seen),
+            "free": list(r.free), "rng": [st[0], list(st[1]), st[2]]}
+
+
+def _registry_from_dict(d: dict) -> EntityRegistry:
+    r = EntityRegistry(int(d["max"]))
+    r.slot, r.etype, r.last_seen = dict(d["slot"]), dict(d["etype"]), dict(d["last_seen"])
+    r.free = list(d["free"])
+    r.rng.setstate((d["rng"][0], tuple(d["rng"][1]), d["rng"][2]))
+    return r
+
+
 def _model_device(model):
     for p in model.parameters():
         return p.device
     return torch.device("cpu")
+
+
+class _quiet_scheduler_warning:
+    """Silence torch's "scheduler.step() before optimizer.step()" warning for the constructor-equivalent step."""
+
+    def __enter__(self):
+        import warnings
+        self._cm = warnings.catch_warnings()
+        self._cm.__enter__()
+        warnings.filterwarnings("ignore", message=".*lr_scheduler.step.*")
+        return self
+
+    def __exit__(self, *a):
+        return self._cm.__exit__(*a)
 
 
 # ============================================================================ the operations
@@ -220,6 +256,10 @@ class CheckpointOps:
     @property
     def exclude(self) -> tuple:
         return tuple(getattr(self.agent, "weights_exclude", ()) or ())
+
+    def _retrievers(self) -> list:
+        return [m for m in self.agent.model.modules()
+                if hasattr(m, "attach_index") and hasattr(m, "detach_index") and hasattr(m, "compatible_versions")]
 
     # ------------------------------------------------------------------ weights
     def save_weights(self, path: str) -> dict:
@@ -258,7 +298,9 @@ class CheckpointOps:
         return info
 
     # ------------------------------------------------------------------ full lifetime
-    def save_full_lifetime(self, path: str) -> dict:
+    def save_full_lifetime(self, path: str, pin_memory: bool = True) -> dict:
+        """Write a full-lifetime checkpoint directory (see the module docstring). ``pin_memory`` pins the memory
+        versions this checkpoint's retriever can read, so restoring it never needs a full re-encode."""
         a = self.agent
         path = os.path.abspath(path)
         tmp = f"{path}.tmp-{os.getpid()}"
@@ -270,8 +312,10 @@ class CheckpointOps:
                "schedulers": {k: s.state_dict() for k, s in (getattr(a, "schedulers", None) or {}).items()}}
         torch.save(opt, os.path.join(tmp, "optim.pt"))
         lat = getattr(a, "latent_state", None)
+        regs = getattr(a, "registries", None)
         state = {"fast_state": _fast_to_dict(getattr(a, "fast_state", None)),
                  "latent_state": None if lat is None else lat.detach().cpu().clone(),
+                 "registries": None if regs is None else [_registry_to_dict(r) for r in regs],
                  "rng": _rng_capture(getattr(a, "rng", None))}
         torch.save(state, os.path.join(tmp, "state.pt"))
         life = {"format": LIFETIME_FORMAT, "saved": time.time(), "version": int(getattr(a, "version", 0) or 0),
@@ -283,14 +327,24 @@ class CheckpointOps:
             arc.flush()
             life["archive"] = arc.pointer()
         idx = getattr(a, "index", None)
+        pin_name = f"ckpt:{path}"
+        pinned = []
         if idx is not None:
+            if pin_memory:
+                have = set(idx.versions())
+                pinned = sorted({v for r in self._retrievers() for v in r.compatible_versions()} & have)
+                if pinned:      # merged with the old pin until the new checkpoint is in place
+                    idx.pin(pin_name + "#saving", pinned)
             life["index"] = idx.pointer()
+            life["index"]["pinned"] = pinned
+            life["index"]["retriever_versions"] = sorted({v for r in self._retrievers()
+                                                          for v in r.compatible_versions()})
         rep = getattr(a, "replay", None)
         if rep is not None:
             life["replay"] = rep.state_dict()
         con = getattr(a, "consolidator", None)
         if con is not None:
-            life["consolidator"] = con.state_dict()
+            life["consolidator"] = con.pointer()
         life["files"] = {f: sha256_file(os.path.join(tmp, f)) for f in ("weights.safetensors", "optim.pt", "state.pt")}
         with open(os.path.join(tmp, "lifetime.json"), "w") as fh:
             json.dump(life, fh, indent=1, default=str)
@@ -305,10 +359,16 @@ class CheckpointOps:
             os.replace(path, prev)
         os.replace(tmp, path)
         fsync_dir(os.path.dirname(path))
+        if idx is not None and pin_memory:
+            if pinned:
+                idx.pin(pin_name, pinned)
+            else:
+                idx.unpin(pin_name)
+            idx.unpin(pin_name + "#saving")
         if prev is not None:
             shutil.rmtree(prev, ignore_errors=True)
-        return {"path": path, "seconds": time.time() - t0, "bytes": sum(os.path.getsize(os.path.join(path, f))
-                                                                         for f in os.listdir(path))}
+        return {"path": path, "seconds": time.time() - t0, "pinned_versions": pinned,
+                "bytes": sum(os.path.getsize(os.path.join(path, f)) for f in os.listdir(path))}
 
     def _read_lifetime(self, path: str) -> dict:
         path = os.path.abspath(path)
@@ -327,15 +387,23 @@ class CheckpointOps:
         life["_dir"] = path
         return life
 
-    def load_full_lifetime(self, path: str) -> dict:
-        """Restore everything: weights, optimisers/schedulers, RNG, version, counters, fast and latent state, archive
-        (verified by pointer), index, replay cursors/RNG and consolidator state."""
+    def load_full_lifetime(self, path: str, memory_reencode_budget: Optional[int] = None) -> dict:
+        """Restore everything: weights, optimisers/schedulers, RNG, version, counters, fast and latent state, entity
+        registries, archive (verified by pointer), index (reconciled with the restored retriever), replay cursors/RNG
+        and consolidator state."""
         return self.load_parts(path, weights=True, optimizer=True, experience=True, fast_state=True, rng=True,
-                               counters=True)
+                               counters=True, memory_reencode_budget=memory_reencode_budget)
 
     def load_parts(self, path: str, weights: bool = True, optimizer: bool = False, experience: bool = False,
-                   fast_state: bool = False, rng: bool = False, counters: bool = False) -> dict:
-        """Restore selected parts of a full-lifetime checkpoint; everything not restored is reset to fresh."""
+                   fast_state: bool = False, rng: bool = False, counters: bool = False,
+                   memory_reencode_budget: Optional[int] = None) -> dict:
+        """Restore selected parts of a full-lifetime checkpoint; everything not restored is reset to fresh.
+
+        With ``experience`` the memory index is reconciled with the restored retriever: if the index serves a
+        version the retriever cannot read (it migrated after the checkpoint), the checkpoint's pinned version is
+        served again when it covers every segment, else segments are re-encoded from raw events to the restored
+        target version (``memory_reencode_budget`` segments now, None = all); until that completes ``retrieve``
+        returns empty memory instead of raising. The outcome is ``result["memory"]``."""
         a = self.agent
         life = self._read_lifetime(path)
         d = life["_dir"]
@@ -362,6 +430,9 @@ class CheckpointOps:
             if hasattr(a, "latent_state"):
                 lat = st["latent_state"]
                 a.latent_state = None if lat is None else lat.to(_model_device(a.model))
+            if hasattr(a, "registries") or st.get("registries") is not None:
+                regs = st.get("registries")
+                a.registries = [] if regs is None else [_registry_from_dict(r) for r in regs]
             restored.append("fast_state")
         else:
             self.reset_fast_state()
@@ -379,12 +450,13 @@ class CheckpointOps:
                 a.version = 0
             if hasattr(a, "counters"):
                 a.counters = {}
+        memory = None
         if experience:
-            self._attach_experience(life)
+            memory = self._attach_experience(life, memory_reencode_budget)
             restored.append("experience")
         else:
             self.reset_experience_access()
-        return {"restored": restored, "version": life["version"], "dir": d}
+        return {"restored": restored, "version": life["version"], "dir": d, "memory": memory}
 
     def load_transfer_condition(self, path: Optional[str], condition: str) -> dict:
         """Spec 13.7: "A" fresh model and optimiser (no load; weights re-initialised by ``agent.reinit()`` when
@@ -412,7 +484,7 @@ class CheckpointOps:
         r["condition"] = c
         return r
 
-    def _attach_experience(self, life: dict) -> None:
+    def _attach_experience(self, life: dict, budget: Optional[int] = None) -> dict:
         a = self.agent
         p = life.get("archive")
         if p is not None:
@@ -448,13 +520,62 @@ class CheckpointOps:
                 rep.load_state_dict(p)
                 a.replay = rep
         p = life.get("consolidator")
+        if p is not None:
+            con = getattr(a, "consolidator", None)
+            if con is None:
+                con = self._make_consolidator(p)
+                a.consolidator = con
+            con.load_state_dict(p["state"] if "state" in p else p)
+        return self._reconcile_memory(life, budget)
+
+    def _make_consolidator(self, p: Optional[dict] = None):
+        """Rebuild a Consolidator over the restored archive / index / retriever (fails explicitly if one is missing)."""
+        a = self.agent
+        rets = self._retrievers()
+        if getattr(a, "archive", None) is None or getattr(a, "index", None) is None or not rets:
+            raise CheckpointMismatch("the checkpoint holds consolidation state, but the agent has no archive, memory "
+                                     "index or retriever module to rebuild the consolidator")
+        from .consolidate import Consolidator
+        p = p or {}
+        return Consolidator(a.archive, a.index, rets[0], segment_len=p.get("segment_len"), fanout=p.get("fanout"),
+                            batch_segments=p.get("batch_segments", 64))
+
+    def _reconcile_memory(self, life: dict, budget: Optional[int]) -> dict:
+        """Make the index serve a version the restored retriever can read (see ``load_parts``)."""
+        a = self.agent
+        idx = getattr(a, "index", None)
+        rets = self._retrievers()
+        if idx is None or not rets:
+            return {"status": "no-memory"}
+        ret = rets[0]
+        compat = ret.compatible_versions()
+        cur = idx.current_version
+        if cur is None or cur in compat:
+            return {"status": "served", "version": cur}
+        want = (life.get("index") or {}).get("current_version")
+        for v in (want, ret.key_version):                  # prefer what the checkpoint served
+            if v is not None and v in compat and v in idx.versions() and idx.coverage(v) >= 1.0:
+                idx.set_current(v)
+                return {"status": "restored-version", "version": v, "replaced": cur}
+        if getattr(a, "archive", None) is None:
+            raise CheckpointMismatch(f"memory index serves {cur}, which the restored retriever cannot read, and no "
+                                     "archive is attached to re-encode it from raw events")
         con = getattr(a, "consolidator", None)
-        if p is not None and con is not None:
-            con.load_state_dict(p)
+        if con is None or con.retriever is not ret:
+            con = self._make_consolidator((life.get("consolidator") or {}))
+            if getattr(a, "consolidator", None) is None:
+                a.consolidator = con
+        r = con.reencode_step(max_items=budget)
+        if idx.current_version in compat:
+            return {"status": "reencoded", "version": idx.current_version, "replaced": cur,
+                    "reencoded": r["reencoded"], "dropped": r["dropped"]}
+        ret.await_version(ret.key_version)
+        return {"status": "reencode-pending", "version": ret.key_version, "served": cur, "coverage": r["coverage"],
+                "reencoded": r["reencoded"]}
 
     # ------------------------------------------------------------------ resets
     def reset_fast_state(self) -> None:
-        """Fresh per-environment adaptive state: fast beliefs, latent state, entity registries."""
+        """Fresh per-environment adaptive state: fast beliefs, latent state, entity registries (emptied)."""
         a = self.agent
         init = getattr(a, "init_fast_state", None)
         a.fast_state = init() if callable(init) else None
@@ -464,21 +585,45 @@ class CheckpointOps:
         if hasattr(a, "registries"):
             a.registries = []
 
-    def reset_optimizer(self) -> None:
-        """Fresh optimisers (no moments, initial learning rates) and schedulers."""
+    def reset_optimizer(self) -> dict:
+        """Fresh optimisers (no moments, initial learning rates) and schedulers (back at epoch 0).
+
+        Prefers the agent's ``make_optimizers`` / ``make_schedulers``. Without them, moments are cleared in place,
+        each group's lr is set back to its ``initial_lr`` (recorded by LR schedulers) and every scheduler is re-run
+        from epoch 0 as at construction. Groups whose initial lr is unknown (no scheduler, no factory) keep their
+        current lr and are listed in the result (``AdaptiveGroupLR`` never leaves its multiplier in ``lr``)."""
         a = self.agent
+        info = {"factory": False, "unknown_initial_lr": []}
         mk = getattr(a, "make_optimizers", None)
         if callable(mk):
             a.optimizers = mk()
+            info["factory"] = True
         else:
-            for o in (getattr(a, "optimizers", None) or {}).values():
+            for name, o in (getattr(a, "optimizers", None) or {}).items():
                 o.state.clear()
-                for g in o.param_groups:
+                for i, g in enumerate(o.param_groups):
                     if "initial_lr" in g:
                         g["lr"] = g["initial_lr"]
+                    else:
+                        info["unknown_initial_lr"].append((name, i))
         mk = getattr(a, "make_schedulers", None)
         if callable(mk):
             a.schedulers = mk()
+        elif getattr(a, "schedulers", None):
+            if info["factory"]:
+                raise CheckpointMismatch("the agent re-creates its optimisers (make_optimizers) but not its schedulers "
+                                         "(make_schedulers); the old schedulers would keep driving the old optimisers")
+            for s in a.schedulers.values():
+                if not isinstance(s, torch.optim.lr_scheduler.LRScheduler):
+                    raise CheckpointMismatch(f"cannot reset scheduler {type(s).__name__} in place; provide "
+                                             "make_schedulers()")
+                for g in s.optimizer.param_groups:
+                    g["lr"] = g["initial_lr"]
+                s.last_epoch = -1
+                s._step_count = 0                 # exactly what the constructor's initial step starts from
+                with _quiet_scheduler_warning():
+                    s.step()
+        return info
 
     def reset_experience_access(self) -> None:
         """Detach archive, memory index, replay and consolidator (the data on disk is untouched)."""

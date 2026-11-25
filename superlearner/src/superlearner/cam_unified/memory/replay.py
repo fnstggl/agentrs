@@ -1,9 +1,13 @@
 """Persistent stratified replay over the durable archive (spec 11.2, architecture §8). Not a FIFO buffer.
 
-The source of every sample is the ``EventArchive``. The sampler keeps, in its own SQLite file, append-only
-*membership tables* per stratum (dense positions -> archive gseq) that it updates incrementally by change-data capture
-(new events after its cursor, and later tag updates via ``EventArchive.tag_changes``). Drawing uniformly from a
-stratum is then one indexed lookup at a random position, exact over the whole lifetime and independent of its length.
+The source of every sample is the ``EventArchive``. The sampler keeps, in its own SQLite file, *membership tables* per
+stratum (dense positions -> archive gseq, plus a ``live`` flag) that it updates incrementally by change-data capture:
+new events after its cursor are appended, and later tag updates (``EventArchive.tag_changes`` with the changed keys)
+re-evaluate exactly the strata those keys decide, so a corrected outcome (e.g. success True -> False) leaves ``skills``
+and enters ``failures``. Leaving a stratum clears ``live`` (positions stay dense); every flip is logged so a checkpoint's
+membership can be restored exactly. Drawing uniformly from a stratum is one indexed lookup at a random position with
+rejection of non-live rows (exact; an indexed fallback bounds the rejection loop), independent of the lifetime's length.
+If the archive's index was rebuilt (new ``index_epoch``: change numbers restarted), membership is re-derived.
 
 Strata (``STRATA``):
 
@@ -16,9 +20,11 @@ Strata (``STRATA``):
     skills            successful skills: ``success == 1`` or a ``skill`` tag
     underrepresented  a domain with probability proportional to (n_domain)^-alpha, then uniform within it
 
-Each draw returns a contiguous, step-ordered slice of the anchor event's episode (``ReplaySlice``) for sequence
-training. Empty strata pass their mass proportionally to the non-empty ones (reported in ``last_mix``). A bounded LRU
-of decoded records (``cache_events``) and the optional ``ActiveCache`` of slices keep the working set bounded.
+Each draw returns a contiguous, (step, gseq)-ordered slice of the anchor event's own (env, actor, episode) stream
+(``ReplaySlice``; episode ids may repeat across environments / actors) for sequence training, fetched with two
+indexed window lookups, so a draw costs O(length) whatever the episode's length. Empty strata pass their mass
+proportionally to the non-empty ones (reported in ``last_mix``). A bounded LRU of decoded records (``cache_events``)
+and the optional ``ActiveCache`` of slices keep the working set bounded.
 """
 from __future__ import annotations
 
@@ -35,6 +41,12 @@ DEFAULT_MIX = {"recent": 0.20, "uniform": 0.20, "domain": 0.15, "failures": 0.15
                "skills": 0.075, "underrepresented": 0.05}
 
 
+# tag key -> strata whose membership it decides (re-evaluated on a later tag update)
+_AFFECTS = {"success": ("failures", "skills"), "failed": ("failures",), "skill": ("skills",),
+            "innovation": ("innovations",), "novelty": ("innovations",), "surprise": ("rare",), "family": ("dom",)}
+_TAGGED = ("failures", "skills", "innovations", "rare")
+
+
 @dataclass
 class ReplaySlice:
     stratum: str
@@ -44,6 +56,8 @@ class ReplaySlice:
     event_ids: list
     records: Optional[list] = None    # EventRecords (when requested)
     meta: dict = field(default_factory=dict)
+    env_id: str = ""
+    actor_id: str = ""
 
     def __len__(self) -> int:
         return len(self.event_ids)
@@ -69,7 +83,7 @@ class _Welford:
 class ReplaySampler:
     """Args:
         archive: the ``EventArchive``.
-        path: sampler database (default ``<archive.root>/replay.sqlite``).
+        path: sampler database (default ``<archive.root>/replay.sqlite``; counted in the archive's byte budget).
         mix: stratum -> probability (normalised; missing strata get 0).
         recent_window: events of the ``recent`` stratum.
         rare_z / novelty_z: z-score thresholds of ``rare`` / ``innovations``.
@@ -95,22 +109,40 @@ class ReplaySampler:
         self._cache: "OrderedDict[str, object]" = OrderedDict()
         self.draws = {k: 0 for k in STRATA}
         self.last_mix: dict = {}
+        self.stats = {"rejections": 0, "fallback_draws": 0, "flips": 0, "rebuilds": 0}
         self._db = sqlite3.connect(self.path, check_same_thread=False)
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.executescript("""
         CREATE TABLE IF NOT EXISTS members (stratum TEXT NOT NULL, pos INTEGER NOT NULL, gseq INTEGER NOT NULL,
-                                            PRIMARY KEY (stratum, pos));
+                                            live INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (stratum, pos));
         CREATE UNIQUE INDEX IF NOT EXISTS members_g ON members(stratum, gseq);
-        CREATE TABLE IF NOT EXISTS counts (stratum TEXT PRIMARY KEY, n INTEGER NOT NULL);
+        CREATE INDEX IF NOT EXISTS members_gseq ON members(gseq);
+        CREATE TABLE IF NOT EXISTS counts (stratum TEXT PRIMARY KEY, n INTEGER NOT NULL, live INTEGER);
+        CREATE TABLE IF NOT EXISTS mlog (seq INTEGER PRIMARY KEY AUTOINCREMENT, stratum TEXT NOT NULL,
+                                         pos INTEGER NOT NULL, before INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value REAL);
+        CREATE TABLE IF NOT EXISTS skv (key TEXT PRIMARY KEY, value TEXT);
         """)
+        for tbl, col, decl in (("members", "live", "INTEGER NOT NULL DEFAULT 1"), ("counts", "live", "INTEGER")):
+            if col not in {r[1] for r in self._db.execute(f"PRAGMA table_info({tbl})")}:
+                self._db.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {decl}")
         self._db.commit()
-        self._n = {s: n for s, n in self._db.execute("SELECT stratum, n FROM counts")}
+        self._load_counts()
         kv = {k: v for k, v in self._db.execute("SELECT key, value FROM kv")}
         self.cursor = int(kv.get("cursor", -1))
         self.tag_cursor = int(kv.get("tag_cursor", 0))
         self._sur = _Welford(int(kv.get("sur_n", 0)), kv.get("sur_mean", 0.0), kv.get("sur_m2", 0.0))
         self._nov = _Welford(int(kv.get("nov_n", 0)), kv.get("nov_mean", 0.0), kv.get("nov_m2", 0.0))
+        r = self._db.execute("SELECT value FROM skv WHERE key='archive_epoch'").fetchone()
+        self.archive_epoch = None if r is None else r[0]
+
+    def _load_counts(self) -> None:
+        self._n, self._live = {}, {}
+        for s, n, live in self._db.execute("SELECT stratum, n, live FROM counts"):
+            self._n[s] = int(n)
+            if live is None:                       # table from before the live flag: every member is live
+                live = self._db.execute("SELECT COUNT(*) FROM members WHERE stratum=? AND live=1", (s,)).fetchone()[0]
+            self._live[s] = int(live)
 
     # ------------------------------------------------------------------ membership (change-data capture)
     def _strata_of(self, r: dict, update_stats: bool) -> list:
@@ -134,20 +166,65 @@ class ReplaySampler:
         return out
 
     def _add(self, items: list) -> None:
-        rows = []
+        """Make (stratum, gseq) live members: append at the next dense position, or revive a non-live row."""
         for stratum, g in items:
-            rows.append((stratum, g))
-        for stratum, g in rows:
-            n = self._n.get(stratum, 0)
-            cur = self._db.execute("INSERT OR IGNORE INTO members(stratum, pos, gseq) VALUES (?,?,?)", (stratum, n, g))
-            if cur.rowcount:
+            row = self._db.execute("SELECT pos, live FROM members WHERE stratum=? AND gseq=?", (stratum, g)).fetchone()
+            if row is None:
+                n = self._n.get(stratum, 0)
+                self._db.execute("INSERT INTO members(stratum, pos, gseq, live) VALUES (?,?,?,1)", (stratum, n, g))
                 self._n[stratum] = n + 1
+                self._live[stratum] = self._live.get(stratum, 0) + 1
+            elif not row[1]:
+                self._flip(stratum, row[0], 1)
+
+    def _remove(self, stratum: str, pos: int) -> None:
+        self._flip(stratum, pos, 0)
+
+    def _flip(self, stratum: str, pos: int, live: int) -> None:
+        self._db.execute("INSERT INTO mlog(stratum, pos, before) VALUES (?,?,?)", (stratum, pos, 1 - live))
+        self._db.execute("UPDATE members SET live=? WHERE stratum=? AND pos=?", (live, stratum, pos))
+        self._live[stratum] = self._live.get(stratum, 0) + (1 if live else -1)
+        self.stats["flips"] += 1
+
+    def _retag(self, g: int, meta: dict, keys) -> None:
+        """Re-evaluate the strata decided by the changed tag ``keys`` (None = all) for event ``g``."""
+        affected = set()
+        for k in (keys or _AFFECTS):
+            affected.update(_AFFECTS.get(k, ()))
+        if not affected:
+            return
+        want = {s for s in self._strata_of(meta, update_stats=False)
+                if (s.startswith("dom:") and "dom" in affected) or s in affected}
+        cur = {}
+        for stratum, pos, live in self._db.execute("SELECT stratum, pos, live FROM members WHERE gseq=?", (g,)):
+            if (stratum.startswith("dom:") and "dom" in affected) or stratum in affected:
+                cur[stratum] = (pos, live)
+        for stratum, (pos, live) in cur.items():
+            if live and stratum not in want:
+                self._remove(stratum, pos)
+        self._add([(s, g) for s in sorted(want) if not cur.get(s, (0, 0))[1]])
+
+    def _check_epoch(self) -> None:
+        ep = getattr(self.archive, "index_epoch", None)
+        if ep is None:
+            return
+        if self.archive_epoch is None:
+            self.archive_epoch = ep
+        elif ep != self.archive_epoch:            # archive index rebuilt: its change numbers restarted
+            self._db.executescript("DELETE FROM members; DELETE FROM counts; DELETE FROM mlog; DELETE FROM kv;")
+            self._n, self._live = {}, {}
+            self.cursor, self.tag_cursor = -1, 0
+            self._sur, self._nov = _Welford(), _Welford()
+            self.archive_epoch = ep
+            self.stats["rebuilds"] += 1
+        self._db.execute("INSERT OR REPLACE INTO skv(key, value) VALUES ('archive_epoch', ?)", (ep,))
 
     def sync(self, max_events: Optional[int] = None) -> int:
         """Bring membership tables up to date with the archive (new events + tag changes). Returns events consumed."""
         cols = ["gseq", "env_id", "failed", "success", "novelty", "surprise", "innovation", "skill", "family"]
         if not self.archive.readonly:
             self.archive.flush()             # membership only for durable events (their gseqs are final)
+        self._check_epoch()
         n = 0
         for rows in self.archive.scan_meta(batch_size=8192, columns=cols, gseq_min=self.cursor + 1):
             items = []
@@ -163,22 +240,28 @@ class ReplaySampler:
             if max_events is not None and n >= max_events:
                 break
         while True:
-            ch = self.archive.tag_changes(self.tag_cursor, limit=8192)
+            ch = self.archive.tag_changes(self.tag_cursor, limit=8192, with_keys=True)
             if not ch:
                 break
-            gs = sorted({g for _, g in ch if g <= self.cursor})
-            items = []
-            for meta in self._meta_by_gseq(gs, cols):
-                for s in self._strata_of(meta, update_stats=False):
-                    if not s.startswith("dom:"):
-                        items.append((s, meta["gseq"]))
-            self._add(items)
+            keys_of: dict = {}
+            for _, g, keys in ch:
+                if g > self.cursor:
+                    continue                   # not ingested yet: its membership comes with its current tags
+                if keys is None or keys_of.get(g, ()) is None:
+                    keys_of[g] = None
+                else:
+                    keys_of[g] = tuple(sorted(set(keys_of.get(g, ())) | set(keys)))
+            metas = {m["gseq"]: m for m in self._meta_by_gseq(sorted(keys_of), cols)}
+            for g in sorted(keys_of):
+                if g in metas:
+                    self._retag(g, metas[g], keys_of[g])
             self.tag_cursor = ch[-1][0]
             self._persist()
         return n
 
     def _persist(self) -> None:
-        self._db.executemany("INSERT OR REPLACE INTO counts(stratum, n) VALUES (?,?)", list(self._n.items()))
+        self._db.executemany("INSERT OR REPLACE INTO counts(stratum, n, live) VALUES (?,?,?)",
+                             [(s, n, self._live.get(s, 0)) for s, n in self._n.items()])
         kv = {"cursor": self.cursor, "tag_cursor": self.tag_cursor, "sur_n": self._sur.n, "sur_mean": self._sur.mean,
               "sur_m2": self._sur.m2, "nov_n": self._nov.n, "nov_mean": self._nov.mean, "nov_m2": self._nov.m2}
         self._db.executemany("INSERT OR REPLACE INTO kv(key, value) VALUES (?,?)", list(kv.items()))
@@ -194,15 +277,21 @@ class ReplaySampler:
 
     # ------------------------------------------------------------------ sizes
     def stratum_sizes(self) -> dict:
+        """Live members per stratum (``recent`` / ``uniform`` are ranges of the archive)."""
         N = self.cursor + 1
         doms = self.domains()
         return {"recent": min(N, self.recent_window), "uniform": N, "domain": sum(doms.values()),
-                "failures": self._n.get("failures", 0), "innovations": self._n.get("innovations", 0),
-                "rare": self._n.get("rare", 0), "skills": self._n.get("skills", 0),
+                "failures": self._live.get("failures", 0), "innovations": self._live.get("innovations", 0),
+                "rare": self._live.get("rare", 0), "skills": self._live.get("skills", 0),
                 "underrepresented": sum(doms.values())}
 
     def domains(self) -> dict:
-        return {s[4:]: n for s, n in self._n.items() if s.startswith("dom:") and n > 0}
+        return {s[4:]: n for s, n in self._live.items() if s.startswith("dom:") and n > 0}
+
+    def members(self, stratum: str) -> list:
+        """Live member gseqs of a stratum (``"dom:<name>"`` for a domain), ascending (for inspection / tests)."""
+        return [r[0] for r in self._db.execute("SELECT gseq FROM members WHERE stratum=? AND live=1 ORDER BY gseq",
+                                               (stratum,))]
 
     # ------------------------------------------------------------------ sampling
     def _pick(self, stratum: str, n: int) -> list:
@@ -222,13 +311,26 @@ class ReplaySampler:
             out = []
             for _ in range(n):
                 d = self.rng.choices(names, weights=w)[0]
-                out.append(self._at("dom:" + d, self.rng.randrange(doms[d])))
+                out.append(self._draw("dom:" + d))
             return out
-        m = self._n.get(stratum, 0)
-        return [self._at(stratum, self.rng.randrange(m)) for _ in range(n)]
+        return [self._draw(stratum) for _ in range(n)]
 
-    def _at(self, stratum: str, pos: int) -> int:
-        return int(self._db.execute("SELECT gseq FROM members WHERE stratum=? AND pos=?", (stratum, pos)).fetchone()[0])
+    def _draw(self, stratum: str, tries: int = 32) -> int:
+        """Uniform live member: random dense position, rejecting non-live rows; after ``tries`` rejections an exact
+        indexed draw among the live rows (bounded cost even when many members left the stratum)."""
+        n, live = self._n.get(stratum, 0), self._live.get(stratum, 0)
+        if live <= 0:
+            raise ValueError(f"stratum {stratum} has no live members")
+        for _ in range(tries if live < n else 1):
+            g, ok = self._db.execute("SELECT gseq, live FROM members WHERE stratum=? AND pos=?",
+                                     (stratum, self.rng.randrange(n))).fetchone()
+            if ok:
+                return int(g)
+            self.stats["rejections"] += 1
+        self.stats["fallback_draws"] += 1
+        k = self.rng.randrange(live)
+        return int(self._db.execute("SELECT gseq FROM members WHERE stratum=? AND live=1 ORDER BY pos LIMIT 1 OFFSET ?",
+                                    (stratum, k)).fetchone()[0])
 
     def sample_anchors(self, n: int) -> list:
         """[(stratum, gseq)] for n draws following the mix (empty strata redistributed)."""
@@ -251,23 +353,24 @@ class ReplaySampler:
         return out
 
     def sample(self, n: int, length: int, with_records: bool = True) -> list:
-        """n contiguous episode slices of up to ``length`` steps, each containing its stratum's anchor event."""
+        """n contiguous slices of up to ``length`` events of the anchor's own (env, actor, episode) stream, each
+        containing its stratum's anchor event; the window position is uniform among those containing the anchor."""
         anchors = self.sample_anchors(n)
         if not anchors:
             return []
-        metas = {m["gseq"]: m for m in self._meta_by_gseq(sorted({g for _, g in anchors}),
-                                                          ["gseq", "episode_id", "step", "event_id"])}
+        cols = ["gseq", "env_id", "actor_id", "episode_id", "step", "event_id"]
+        metas = {m["gseq"]: m for m in self._meta_by_gseq(sorted({g for _, g in anchors}), cols)}
         out = []
+        L = int(length)
         for stratum, g in anchors:
             m = metas[g]
-            ep = self.archive.episode_steps(m["episode_id"])
-            i = next(j for j, (_s, e, gg) in enumerate(ep) if gg == g)
-            lo = max(0, i - length + 1)
-            hi = min(i, max(0, len(ep) - length))
+            ep, i = self.archive.stream_window(m["env_id"], m["actor_id"], m["episode_id"], m["step"], g, L - 1, L - 1)
+            lo = max(0, i - L + 1)
+            hi = min(i, max(0, len(ep) - L))
             start = self.rng.randint(lo, hi) if hi >= lo else lo
-            part = ep[start:start + length]
-            sl = ReplaySlice(stratum, g, m["episode_id"], [s for s, _, _ in part], [e for _, e, _ in part])
-            out.append(sl)
+            part = ep[start:start + L]
+            out.append(ReplaySlice(stratum, g, m["episode_id"], [s for s, _, _ in part], [e for _, e, _ in part],
+                                   env_id=m["env_id"], actor_id=m["actor_id"]))
         if with_records:
             self._attach_records(out)
         return out
@@ -290,11 +393,13 @@ class ReplaySampler:
 
     # ------------------------------------------------------------------ checkpoint state
     def state_dict(self) -> dict:
-        """Sampler state for a full-lifetime checkpoint: cursors, per-stratum membership counts, running statistics,
-        RNG and draw counters. Membership tables are append-only with dense positions, so the counts identify the
-        exact membership at checkpoint time."""
+        """Sampler state for a full-lifetime checkpoint: cursors, per-stratum positions and live counts, the last
+        membership-flip number, running statistics, RNG and draw counters. Positions are dense and append-only and
+        every live flip is logged, so this identifies the exact membership at checkpoint time."""
         st = self.rng.getstate()
+        mseq = self._db.execute("SELECT COALESCE(MAX(seq), 0) FROM mlog").fetchone()[0]
         return {"path": self.path, "cursor": self.cursor, "tag_cursor": self.tag_cursor, "counts": dict(self._n),
+                "live": dict(self._live), "mlog_seq": int(mseq), "archive_epoch": self.archive_epoch,
                 "surprise_stats": [self._sur.n, self._sur.mean, self._sur.m2],
                 "novelty_stats": [self._nov.n, self._nov.mean, self._nov.m2], "draws": dict(self.draws),
                 "rng": [st[0], list(st[1]), st[2]], "mix": dict(self.mix), "recent_window": self.recent_window,
@@ -302,14 +407,28 @@ class ReplaySampler:
 
     def load_state_dict(self, st: dict) -> None:
         """Restore a checkpoint's sampler state exactly, also when the persistent tables have since moved on (the
-        archive is append-only and may hold later experience): membership beyond the checkpoint's counts is
-        truncated and re-derived from the archive by the next ``sync``."""
+        archive is append-only and may hold later experience): positions beyond the checkpoint's counts are
+        truncated, live flips after it are undone, and later events / tag changes are re-derived by the next
+        ``sync``."""
         counts = {k: int(v) for k, v in st["counts"].items()}
+        mseq = int(st.get("mlog_seq", 0))
+        for stratum, pos, before in self._db.execute(
+                "SELECT stratum, pos, before FROM mlog WHERE seq > ? ORDER BY seq DESC", (mseq,)).fetchall():
+            self._db.execute("UPDATE members SET live=? WHERE stratum=? AND pos=?", (before, stratum, pos))
+        self._db.execute("DELETE FROM mlog WHERE seq > ?", (mseq,))
         for (stratum,) in self._db.execute("SELECT DISTINCT stratum FROM members").fetchall():
             self._db.execute("DELETE FROM members WHERE stratum=? AND pos>=?", (stratum, counts.get(stratum, 0)))
         self._db.execute("DELETE FROM counts")
         self._n = counts
+        if "live" in st:
+            self._live = {k: int(v) for k, v in st["live"].items()}
+        else:
+            self._live = {s: int(c) for s, c in self._db.execute(
+                "SELECT stratum, SUM(live) FROM members GROUP BY stratum")}
         self.cursor, self.tag_cursor = int(st["cursor"]), int(st["tag_cursor"])
+        if st.get("archive_epoch") is not None:
+            self.archive_epoch = st["archive_epoch"]
+            self._db.execute("INSERT OR REPLACE INTO skv(key, value) VALUES ('archive_epoch', ?)", (self.archive_epoch,))
         self._sur = _Welford(*st["surprise_stats"])
         self._nov = _Welford(*st["novelty_stats"])
         self.draws = dict(st["draws"])

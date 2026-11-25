@@ -478,27 +478,43 @@ class SelectiveReinit:
 
 class AdaptiveGroupLR:
     """Per optimiser param-group LR multipliers that steer the EMA of the relative update ||dW|| / ||W|| toward
-    ``target`` (multiplicative, damped by ``beta``, per-step factor clipped to [1/2, 2], overall [min_mult, max_mult])."""
+    ``target`` (multiplicative, damped by ``beta``, per-step factor clipped to [1/2, 2], overall [min_mult, max_mult]).
+
+    The multiplier is applied on top of whatever lr the group holds (an LR scheduler's or the user's) only for the
+    duration of ``optimizer.step()``: ``before_step`` scales ``lr`` by the multiplier, ``after_step`` restores the
+    scheduled value. Schedules therefore run unchanged, optimiser state dicts never contain a multiplied lr, and a
+    fresh-optimiser reset is not affected by the multipliers (``state_dict`` / ``reset`` cover them separately).
+    Usage: ``alr.before_step(); opt.step(); alr.after_step(); sched.step()``."""
 
     def __init__(self, optimizer, target: float = 1e-3, beta: float = 0.5, min_mult: float = 0.05,
                  max_mult: float = 20.0, ema: float = 0.9):
         self.opt = optimizer
         self.target, self.beta, self.min_mult, self.max_mult, self.ema = target, beta, min_mult, max_mult, ema
-        for g in optimizer.param_groups:
-            g.setdefault("base_lr", g["lr"])
         self.mult = [1.0] * len(optimizer.param_groups)
         self.r_ema: list = [None] * len(optimizer.param_groups)
         self._pre = None
+        self._sched = None
+
+    def effective_lr(self) -> list:
+        """lr each group will use at the next step: scheduled lr x multiplier."""
+        return [g["lr"] * m for g, m in zip(self.opt.param_groups, self.mult)]
 
     def before_step(self) -> None:
+        if self._sched is not None:
+            raise ValueError("after_step() was not called for the previous before_step()")
         self._pre = [[p.detach().clone() for p in g["params"]] for g in self.opt.param_groups]
+        self._sched = [g["lr"] for g in self.opt.param_groups]
+        for g, m in zip(self.opt.param_groups, self.mult):
+            g["lr"] = g["lr"] * m
 
     @torch.no_grad()
     def after_step(self) -> list:
         if self._pre is None:
             raise ValueError("before_step() was not called")
         info = []
-        for i, (g, pre) in enumerate(zip(self.opt.param_groups, self._pre)):
+        for i, (g, pre, lr_s) in enumerate(zip(self.opt.param_groups, self._pre, self._sched)):
+            used = g["lr"]
+            g["lr"] = lr_s                                  # the schedule's value, untouched
             d = math.sqrt(sum(float((p - q).float().pow(2).sum()) for p, q in zip(g["params"], pre)))
             w = math.sqrt(sum(float(q.float().pow(2).sum()) for q in pre))
             r = d / (w + 1e-12)
@@ -506,11 +522,21 @@ class AdaptiveGroupLR:
             if self.r_ema[i] > 0:
                 f = (self.target / self.r_ema[i]) ** self.beta
                 self.mult[i] = min(self.max_mult, max(self.min_mult, self.mult[i] * min(2.0, max(0.5, f))))
-            g["lr"] = g["base_lr"] * self.mult[i]
             info.append({"group": g.get("name", i), "ratio": r, "ratio_ema": self.r_ema[i], "mult": self.mult[i],
-                         "lr": g["lr"]})
+                         "lr_used": used, "lr_scheduled": lr_s})
         self._pre = None
+        self._sched = None
         return info
+
+    def state_dict(self) -> dict:
+        return {"mult": list(self.mult), "r_ema": list(self.r_ema)}
+
+    def load_state_dict(self, st: dict) -> None:
+        self.mult, self.r_ema = list(st["mult"]), list(st["r_ema"])
+
+    def reset(self) -> None:
+        self.mult = [1.0] * len(self.opt.param_groups)
+        self.r_ema = [None] * len(self.opt.param_groups)
 
 
 class PCGrad:

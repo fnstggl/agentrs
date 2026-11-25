@@ -256,8 +256,62 @@ def test_adaptive_group_lr_steers_relative_update_size():
     opt_off, _, r_off = run(False)
     opt_on, alr, r_on = run(True)
     assert [g["lr"] for g in opt_off.param_groups] == [0.01, 0.01]
-    assert alr.mult[1] >= 10 and opt_on.param_groups[1]["lr"] == pytest.approx(0.01 * alr.mult[1])
+    assert alr.mult[1] >= 10 and alr.effective_lr()[1] == pytest.approx(0.01 * alr.mult[1])
+    assert [g["lr"] for g in opt_on.param_groups] == [0.01, 0.01]   # the multiplier never stays in the group's lr
     assert sum(r_on[-10:]) > 8 * sum(r_off[-10:])             # vanishing group's updates were revived
+
+
+def test_adaptive_group_lr_composes_with_a_scheduler_and_a_fresh_optimizer_reset():
+    """The multiplier rides on top of the scheduled lr during the step only: the schedule is exactly the one without
+    the mechanism, the step really uses scheduled lr x multiplier, and a fresh-optimiser reset restores initial lrs."""
+    from superlearner.cam_unified.memory.checkpoint import CheckpointOps
+
+    def run(on):
+        torch.manual_seed(0)
+        net = nn.Linear(4, 1)
+        opt = torch.optim.SGD(net.parameters(), lr=0.1)
+        sched = torch.optim.lr_scheduler.StepLR(opt, step_size=5, gamma=0.5)
+        alr = AdaptiveGroupLR(opt, target=0.05) if on else None
+        g = torch.Generator().manual_seed(1)
+        lrs, used = [], []
+        for _ in range(20):
+            x = torch.randn(32, 4, generator=g)
+            loss = ((net(x) - x.sum(1, keepdim=True)) ** 2).mean()
+            opt.zero_grad()
+            loss.backward()
+            w0, g0 = net.weight.detach().clone(), net.weight.grad.detach().clone()
+            if alr:
+                m = alr.mult[0]
+                alr.before_step()
+            opt.step()
+            if alr:
+                alr.after_step()
+                # plain SGD: dW = -lr_used * grad, with lr_used = scheduled lr x the multiplier of this step
+                torch.testing.assert_close(net.weight.detach(), w0 - opt.param_groups[0]["lr"] * m * g0)
+                used.append(m)
+            sched.step()
+            lrs.append(opt.param_groups[0]["lr"])
+        return lrs, used, opt, sched, alr
+    lr_off, _, _, _, _ = run(False)
+    lr_on, used, opt, sched, alr = run(True)
+    assert lr_on == lr_off == [0.1 * 0.5 ** ((i + 1) // 5) for i in range(20)]    # schedule unchanged
+    assert max(used) > 1.5 or min(used) < 0.67                                       # the mechanism did act
+
+    class Agent:                                         # no factories: reset in place
+        pass
+    ag = Agent()
+    ag.model, ag.config = nn.Linear(4, 1), {}
+    ag.optimizers, ag.schedulers = {"o": opt}, {"o": sched}
+    CheckpointOps(ag).reset_optimizer()
+    assert opt.param_groups[0]["lr"] == 0.1 and sched.last_epoch == 0 and not opt.state
+    fresh = torch.optim.lr_scheduler.StepLR(torch.optim.SGD(nn.Linear(4, 1).parameters(), lr=0.1), 5, 0.5)
+    assert {k: v for k, v in sched.state_dict().items() if k != "base_lrs"} == \
+        {k: v for k, v in fresh.state_dict().items() if k != "base_lrs"}
+    st = alr.state_dict()
+    alr.reset()
+    assert alr.mult == [1.0]
+    alr.load_state_dict(st)
+    assert alr.mult == st["mult"]
 
 
 def test_pcgrad_removes_gradient_conflict():

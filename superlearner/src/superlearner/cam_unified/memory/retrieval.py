@@ -12,7 +12,16 @@ Components (all trainable unless noted):
 * Target snapshot: ``target_*`` are frozen copies of event/segment/long encoders that produced the keys stored in the
   index. ``key_version`` = f"seg-{n}-{digest}" names that snapshot; ``sync_target()`` makes a new version (re-encoding
   then happens through ``Consolidator.reencode_step``). Queries are only compared with keys of a version this module
-  produced (``compatible_versions``), never with obsolete vectors of an unknown encoder.
+  produced (``compatible_versions`` = the target version and the version the index served when the target was last
+  synced), never with obsolete vectors of an unknown encoder. ``sync_target`` is a no-op when the online encoders equal
+  the target (no spurious re-encode) and while a migration is pending (the index has not promoted the target yet), so
+  the served version always stays compatible; ``force=True`` abandons the unpromoted version instead.
+
+Width and size: the transformers of the segment / long / query encoders run at ``width`` (default ``d_model`` up to 256,
+else ``d_model // 2`` rounded to the heads) with projections from/to ``d_model``; the default ``HashedEventEncoder``
+embeds at ``min(d_model, 128)``. At dev scale (d_model 384) the online encoders hold ~7.6M parameters and the frozen
+target copies ~6.7M (``param_split()``); the target copies are part of the weights because the stored keys are only
+reproducible from them (re-encoding after a restore needs them).
 
 Training signals (selection is not differentiable, spec 10.3):
 
@@ -37,6 +46,8 @@ from ._nn import CrossBlock, RMSNorm, SelfBlock, TimeFeatures, autocast_for
 from .errors import IncompatibleMemoryVersion
 from .featurize import HashedEventEncoder
 
+SEG_REF = "seg:"          # TokenSet.refs prefix of memory tokens (scalar source id of the segment)
+
 
 class _Handle:
     """Holds a non-module resource on an nn.Module without deep-copying / pickling it."""
@@ -48,28 +59,41 @@ class _Handle:
         return _Handle(self.obj)
 
 
+def default_width(d_model: int, n_heads: int) -> int:
+    """Internal width of the memory transformers: d_model up to 256, else ~d_model/2 (a multiple of n_heads)."""
+    if d_model <= 256:
+        return d_model
+    w = (d_model // 2) // n_heads * n_heads
+    return max(n_heads * 16, w)
+
+
 class SegmentEncoder(nn.Module):
     """Event-token segment -> latent memory tokens + retrieval key.
 
-    forward(x [n,L,D], mask [n,L] bool, dt [n,L] days relative to the segment end) -> (mem [n,T,D], key [n,Kd])."""
+    forward(x [n,L,D], mask [n,L] bool, dt [n,L] days relative to the segment end) -> (mem [n,T,D], key [n,Kd]).
+    The transformer runs at ``width`` (default D); memory tokens are projected back to D."""
 
-    def __init__(self, d: int, key_dim: int, n_tokens: int, n_heads: int, n_layers: int = 2, max_len: int = 256):
+    def __init__(self, d: int, key_dim: int, n_tokens: int, n_heads: int, n_layers: int = 2, max_len: int = 256,
+                 width: Optional[int] = None):
         super().__init__()
-        self.d, self.n_tokens, self.max_len = d, n_tokens, max_len
-        self.inp = nn.Linear(d, d)
-        self.time = TimeFeatures(d)
-        self.pos = nn.Embedding(max_len, d)
-        self.blocks = nn.ModuleList([SelfBlock(d, n_heads) for _ in range(n_layers)])
-        self.queries = nn.Parameter(torch.randn(n_tokens, d) * 0.02)
-        self.pool = CrossBlock(d, n_heads)
-        self.post = SelfBlock(d, n_heads)
-        self.out_norm = RMSNorm(d)
-        self.key_head = nn.Sequential(RMSNorm(d), nn.Linear(d, d), nn.SiLU(), nn.Linear(d, key_dim))
+        w = int(width or d)
+        self.d, self.width, self.n_tokens, self.max_len = d, w, n_tokens, max_len
+        self.inp = nn.Linear(d, w)
+        self.time = TimeFeatures(w)
+        self.pos = nn.Embedding(max_len, w)
+        self.blocks = nn.ModuleList([SelfBlock(w, n_heads) for _ in range(n_layers)])
+        self.queries = nn.Parameter(torch.randn(n_tokens, w) * 0.02)
+        self.pool = CrossBlock(w, n_heads)
+        self.post = SelfBlock(w, n_heads)
+        self.out_norm = RMSNorm(w)
+        self.key_head = nn.Sequential(RMSNorm(w), nn.Linear(w, w), nn.SiLU(), nn.Linear(w, key_dim))
         # contrastive reconstruction decoder (compression objective)
-        self.dec_pos = nn.Embedding(max_len, d)
-        self.dec_time = TimeFeatures(d)
-        self.dec = CrossBlock(d, n_heads)
-        self.dec_out = nn.Linear(d, d)
+        self.dec_pos = nn.Embedding(max_len, w)
+        self.dec_time = TimeFeatures(w)
+        self.dec = CrossBlock(w, n_heads)
+        self.dec_out = nn.Linear(w, d)
+        self.out_proj = nn.Linear(w, d) if w != d else nn.Identity()      # memory tokens back to d_model
+        self.dec_in = nn.Linear(d, w) if w != d else nn.Identity()
 
     def forward(self, x, mask, dt):
         n, L, _ = x.shape
@@ -86,8 +110,9 @@ class SegmentEncoder(nn.Module):
             m = self.queries.unsqueeze(0).expand(n, -1, -1)
             m = self.pool(m, h, mask)
             m = self.post(m)
-            mem = self.out_norm(m).float()
-            key = self.key_head(mem.mean(1)).float()
+            mw = self.out_norm(m)
+            key = self.key_head(mw.mean(1)).float()
+            mem = self.out_proj(mw).float()
         return mem, F.normalize(key, dim=-1)
 
     def reconstruct(self, mem, L: int, dt):
@@ -96,20 +121,22 @@ class SegmentEncoder(nn.Module):
         pos = torch.arange(L, device=mem.device)
         with autocast_for(mem):
             qx = self.dec_pos(pos).unsqueeze(0).expand(n, -1, -1) + self.dec_time(dt)
-            y = self.dec(qx, mem)
+            y = self.dec(qx, self.dec_in(mem))
             return self.dec_out(y).float()
 
 
 class QueryNet(nn.Module):
-    """q = Q_theta(Z, G, B): [B,S,D] + TokenSets -> [B, key_dim] (L2-normalised)."""
+    """q = Q_theta(Z, G, B): [B,S,D] + TokenSets -> [B, key_dim] (L2-normalised); attention at ``width``."""
 
-    def __init__(self, d: int, key_dim: int, n_heads: int, n_query: int = 2):
+    def __init__(self, d: int, key_dim: int, n_heads: int, n_query: int = 2, width: Optional[int] = None):
         super().__init__()
+        w = int(width or d)
         self.kind = nn.Embedding(int(TokenKind.N_KINDS), d)
-        self.q = nn.Parameter(torch.randn(n_query, d) * 0.02)
-        self.att = CrossBlock(d, n_heads)
-        self.att2 = CrossBlock(d, n_heads)
-        self.head = nn.Sequential(RMSNorm(d), nn.Linear(d, d), nn.SiLU(), nn.Linear(d, key_dim))
+        self.ctx_proj = nn.Linear(d, w) if w != d else nn.Identity()
+        self.q = nn.Parameter(torch.randn(n_query, w) * 0.02)
+        self.att = CrossBlock(w, n_heads)
+        self.att2 = CrossBlock(w, n_heads)
+        self.head = nn.Sequential(RMSNorm(w), nn.Linear(w, w), nn.SiLU(), nn.Linear(w, key_dim))
 
     def forward(self, Z, goal: Optional[TokenSet] = None, belief: Optional[TokenSet] = None):
         B, S, _ = Z.shape
@@ -121,6 +148,7 @@ class QueryNet(nn.Module):
                 ms.append(ts.mask)
         ctx, mask = torch.cat(xs, 1), torch.cat(ms, 1)
         with autocast_for(Z):
+            ctx = self.ctx_proj(ctx)
             h = self.q.unsqueeze(0).expand(B, -1, -1)
             h = self.att(h, ctx, mask)
             h = self.att2(h, ctx, mask)
@@ -136,20 +164,23 @@ class Retriever(nn.Module):
         index: a ``MemoryIndex`` (attach later with ``attach_index``).
         event_encoder: records -> [n, D] module (default ``HashedEventEncoder(cfg.d_model)``).
         fanout: level-1 segments per level-2 representation (bounds the long encoder's input length).
+        width: internal width of the segment / long / query transformers (default ``default_width``).
     """
 
     def __init__(self, cfg, index=None, event_encoder: Optional[nn.Module] = None, n_seg_layers: int = 2,
-                 n_query_tokens: int = 2, fanout: int = 8, tau_init: float = 0.07):
+                 n_query_tokens: int = 2, fanout: int = 8, tau_init: float = 0.07, width: Optional[int] = None):
         super().__init__()
         D, Kd, T = cfg.d_model, cfg.mem_key_dim, cfg.mem_segment_tokens
+        W = int(width or default_width(D, cfg.n_heads))
         self.cfg = cfg
-        self.d, self.key_dim, self.n_mem = D, Kd, T
+        self.d, self.key_dim, self.n_mem, self.width = D, Kd, T, W
         self.segment_len = cfg.mem_segment
         self.fanout = fanout
         self.event_encoder = event_encoder if event_encoder is not None else HashedEventEncoder(D)
-        self.segment_encoder = SegmentEncoder(D, Kd, T, cfg.n_heads, n_seg_layers, max_len=max(cfg.mem_segment, 8))
-        self.long_encoder = SegmentEncoder(D, Kd, T, cfg.n_heads, 1, max_len=max(fanout * T, 8))
-        self.query_net = QueryNet(D, Kd, cfg.n_heads, n_query_tokens)
+        self.segment_encoder = SegmentEncoder(D, Kd, T, cfg.n_heads, n_seg_layers, max_len=max(cfg.mem_segment, 8),
+                                              width=W)
+        self.long_encoder = SegmentEncoder(D, Kd, T, cfg.n_heads, 1, max_len=max(fanout * T, 8), width=W)
+        self.query_net = QueryNet(D, Kd, cfg.n_heads, n_query_tokens, width=W)
         self.log_tau = nn.Parameter(torch.tensor(math.log(tau_init)))
         self.target_event_encoder = copy.deepcopy(self.event_encoder)
         self.target_segment_encoder = copy.deepcopy(self.segment_encoder)
@@ -162,19 +193,35 @@ class Retriever(nn.Module):
         self.register_buffer("prev_n", torch.full((), -1, dtype=torch.long))
         self.register_buffer("prev_digest", torch.zeros(8, dtype=torch.uint8))
         self._index = _Handle(index)
+        self._awaiting = None                  # version a restore scheduled for re-encoding (memory empty until then)
+        self.sync_info: dict = {}
+        self.retrieve_stats = {"calls": 0, "empty_awaiting_migration": 0}
         self._refresh_digest()
 
     # ------------------------------------------------------------------ versions
     def _targets(self):
         return (self.target_event_encoder, self.target_segment_encoder, self.target_long_encoder)
 
-    def _refresh_digest(self) -> None:
+    def _onlines(self):
+        return (self.event_encoder, self.segment_encoder, self.long_encoder)
+
+    @staticmethod
+    def _digest_of(modules) -> torch.Tensor:
         h = hashlib.sha256()
-        for m in self._targets():
+        for m in modules:
             for k, v in sorted(m.state_dict().items()):
                 h.update(k.encode())
                 h.update(v.detach().float().cpu().numpy().tobytes())
-        self.target_digest.copy_(torch.tensor(list(h.digest()[:8]), dtype=torch.uint8))
+        return torch.tensor(list(h.digest()[:8]), dtype=torch.uint8)
+
+    def _refresh_digest(self) -> None:
+        self.target_digest.copy_(self._digest_of(self._targets()))
+
+    def param_split(self) -> dict:
+        """Parameter counts: online (trainable) encoders, frozen target copies, query net."""
+        cnt = lambda ms: sum(p.numel() for m in ms for p in m.parameters())   # noqa: E731
+        return {"online_encoders": cnt(self._onlines()), "target_copies": cnt(self._targets()),
+                "query_net": cnt([self.query_net]), "total": sum(p.numel() for p in self.parameters())}
 
     @staticmethod
     def _ver(n: int, digest: torch.Tensor) -> str:
@@ -191,17 +238,50 @@ class Retriever(nn.Module):
             out.add(self._ver(int(self.prev_n), self.prev_digest))
         return out
 
+    def served_version(self) -> Optional[str]:
+        """The attached index's current version when it is one this module can read, else None."""
+        idx = self.index
+        cur = None if idx is None or getattr(idx, "closed", False) else idx.current_version
+        return cur if cur in self.compatible_versions() else None
+
+    @property
+    def migration_pending(self) -> bool:
+        """True while the index still serves the previous version (re-encoding to ``key_version`` not promoted)."""
+        s = self.served_version()
+        return s is not None and s != self.key_version
+
     @torch.no_grad()
-    def sync_target(self) -> str:
-        """Snapshot the online encoders as the new target version; the previous one stays searchable until the
-        index's re-encoding to the new version completes."""
-        self.prev_n.copy_(self.target_n)
-        self.prev_digest.copy_(self.target_digest)
-        for tgt, src in zip(self._targets(), (self.event_encoder, self.segment_encoder, self.long_encoder)):
+    def sync_target(self, force: bool = False) -> str:
+        """Snapshot the online encoders as the new target version and return it. The version the index serves stays
+        compatible until the re-encoding to the new version is promoted. No-op (returns the unchanged version, see
+        ``sync_info``) when the online encoders equal the target, or while a previous migration is pending; with
+        ``force`` a pending, unpromoted version is abandoned (the served version stays compatible)."""
+        if torch.equal(self._digest_of(self._onlines()), self.target_digest.cpu()):
+            self.sync_info = {"synced": False, "reason": "unchanged", "version": self.key_version}
+            return self.key_version
+        served = self.served_version()
+        if served is not None and served != self.key_version:
+            if not force:
+                self.sync_info = {"synced": False, "reason": "migration-pending", "served": served,
+                                  "pending": self.key_version, "version": self.key_version}
+                return self.key_version
+            # forced: keep the served version in the compatibility slot, drop the unpromoted target
+        else:
+            self.prev_n.copy_(self.target_n)
+            self.prev_digest.copy_(self.target_digest)
+        abandoned = self.key_version if served is not None and served != self.key_version else None
+        for tgt, src in zip(self._targets(), self._onlines()):
             tgt.load_state_dict(src.state_dict())
         self.target_n += 1
         self._refresh_digest()
+        self.sync_info = {"synced": True, "version": self.key_version, "abandoned": abandoned,
+                          "compatible": sorted(self.compatible_versions())}
         return self.key_version
+
+    def await_version(self, version: Optional[str]) -> None:
+        """Serve empty memory (instead of raising) while the index's current version is incompatible and a
+        re-encoding to ``version`` is scheduled (used by checkpoint restore); cleared once it is served."""
+        self._awaiting = version
 
     def train(self, mode: bool = True):
         super().train(mode)
@@ -219,6 +299,7 @@ class Retriever(nn.Module):
 
     def detach_index(self) -> None:
         self._index = _Handle(None)
+        self._awaiting = None
 
     # ------------------------------------------------------------------ encoders
     def encode_records(self, records: Sequence, target: bool = True) -> torch.Tensor:
@@ -247,23 +328,33 @@ class Retriever(nn.Module):
     def retrieve(self, q, k: Optional[int] = None, filters: Optional[list] = None, now=None,
                  version: Optional[str] = None) -> tuple:
         """Top-k memory segments for each query row -> (M_t TokenSet [B, k*T, D] of kind MEMORY, ids [B][<=k] segment
-        ids, scores [B, k] (-inf = empty slot)).
+        ids, scores [B, k] (-inf = empty slot; ``ids[b][j]`` is the segment of ``scores[b, j]``, empty slots are
+        trailing)).
 
-        ``M_t.refs[b][i]`` is the tuple of source event ids of the segment the token belongs to (exact originals via
-        ``EventArchive.get``); ``M_t.time`` = segment end time minus ``now`` (days; ``now`` [B] or None = 0).
-        Searches the index's current version (it must be one this module produced)."""
+        ``M_t.refs[b][i]`` is the scalar source id ``"seg:<segment id>"`` of the segment the token belongs to;
+        ``resolve_ref`` / ``context_event_ids`` expand it to the exact source event ids (originals via
+        ``EventArchive.get``). ``M_t.time`` = segment end time minus ``now`` (days; ``now`` [B] or None = 0).
+        Searches the index's current version (it must be one this module produced; an explicitly requested
+        incompatible ``version`` raises, as does an incompatible current version unless a restore scheduled the
+        re-encoding, in which case memory is empty until the new version is served)."""
         k = int(k or self.cfg.mem_top_k)
         B = q.shape[0]
         dev = q.device
         idx = self.index
+        self.retrieve_stats["calls"] += 1
         if idx is None or not getattr(self.cfg, "use_memory", True) or k == 0:
             return self._empty(B, dev)
         v = version or idx.current_version
         if v is None or idx.count(v) == 0:
             return self._empty(B, dev)
         if v not in self.compatible_versions():
+            if version is None and self._awaiting is not None:
+                self.retrieve_stats["empty_awaiting_migration"] += 1
+                return self._empty(B, dev)
             raise IncompatibleMemoryVersion(
                 f"index version {v} was not produced by this retriever (compatible: {sorted(self.compatible_versions())})")
+        if self._awaiting is not None and version is None:
+            self._awaiting = None
         res = idx.search(v, q.detach(), k, filters)
         kids = res.kids
         valid = kids >= 0
@@ -279,12 +370,8 @@ class Retriever(nn.Module):
             x[vm] = vals
             nowt = torch.zeros(B, device=dev) if now is None else torch.as_tensor(now, dtype=torch.float32, device=dev)
             tm[vm] = (t_end.unsqueeze(-1) - nowt.unsqueeze(1).expand(B, k)[vm].unsqueeze(-1)).expand(-1, T)
-            src = {m["seg_id"]: tuple(m["event_ids"]) if m["event_ids"] else tuple(idx.source_events(m["seg_id"]))
-                   for m in metas}
-        else:
-            src = {}
         mask = torch.from_numpy(valid).to(dev).unsqueeze(-1).expand(B, k, T).reshape(B, k * T)
-        refs = [[(src[s] if s is not None else None) for s in row for _ in range(T)] for row in res.seg_ids]
+        refs = [[(SEG_REF + s if s is not None else None) for s in row for _ in range(T)] for row in res.seg_ids]
         ts = TokenSet(x.reshape(B, k * T, D), mask, torch.full((B, k * T), int(TokenKind.MEMORY), dtype=torch.long,
                                                                    device=dev),
                       tm.reshape(B, k * T), torch.full((B, k * T), -1, dtype=torch.long, device=dev), refs)
@@ -295,6 +382,31 @@ class Retriever(nn.Module):
         ts = TokenSet.empty(B, self.d, device=dev)
         ts.refs = [[] for _ in range(B)]
         return ts, [[] for _ in range(B)], torch.zeros(B, 0, device=dev)
+
+    # ------------------------------------------------------------------ source links of retrieved tokens
+    def resolve_ref(self, ref) -> list:
+        """A memory token's ref ``"seg:<id>"`` -> the exact source event ids of that segment (any level)."""
+        if not isinstance(ref, str) or not ref.startswith(SEG_REF):
+            raise ValueError(f"not a memory segment ref: {ref!r}")
+        if self.index is None:
+            raise RuntimeError("no memory index attached")
+        return self.index.source_events(ref[len(SEG_REF):])
+
+    def context_event_ids(self, ts: TokenSet) -> list:
+        """[B] lists of unique source event ids behind the MEMORY tokens of ``ts`` (e.g. for
+        ``DecisionRecord.context_refs``); non-memory refs (event ids, artifact refs) are passed through."""
+        out = []
+        for row in (ts.refs or [[] for _ in range(ts.B)]):
+            seen, ids = set(), []
+            for r in row:
+                if r is None:
+                    continue
+                for e in (self.resolve_ref(r) if isinstance(r, str) and r.startswith(SEG_REF) else [r]):
+                    if e not in seen:
+                        seen.add(e)
+                        ids.append(e)
+            out.append(ids)
+        return out
 
     # ------------------------------------------------------------------ training objectives
     @property

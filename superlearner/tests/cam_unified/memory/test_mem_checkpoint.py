@@ -12,11 +12,12 @@ import pytest
 import torch
 
 from memhelpers import ToyAgent, light_events, probe_input
+from superlearner.cam_unified.interfaces import EntityRegistry
 from superlearner.cam_unified.memory.archive import EventArchive
 from superlearner.cam_unified.memory.checkpoint import (WEIGHTS_METADATA_KEYS, CheckpointOps, config_from_dict,
                                                         inspect_weights, read_weights)
 from superlearner.cam_unified.memory.consolidate import Consolidator
-from superlearner.cam_unified.memory.errors import CheckpointMismatch
+from superlearner.cam_unified.memory.errors import CheckpointMismatch, IncompatibleMemoryVersion
 from superlearner.cam_unified.memory.index import MemoryIndex
 from superlearner.cam_unified.memory.replay import ReplaySampler
 from superlearner.cam_unified.testing import tiny_config
@@ -45,6 +46,10 @@ def _lived_agent(tmp_path, seed=0) -> ToyAgent:
     ag.replay.sample(4, 8)
     ag.train_steps(5, seed=seed)
     torch.rand(3, generator=ag.rng["torch"])
+    ag.registries = [EntityRegistry(6, seed=seed + 1), EntityRegistry(6, seed=seed + 2)]
+    for t, e in enumerate(["prod_1", "prod_2", "store_a", "prod_3"]):
+        ag.registries[0].bind(e, t=float(t), etype=e.split("_")[0])
+    ag.registries[1].bind("cust_9", t=3.0)
     return ag
 
 
@@ -147,6 +152,7 @@ def test_load_weights_only_resets_a_used_object_in_process(tmp_path):
     assert sum(len(s) for s in dst.optimizers["core"].state.values()) == 0
     assert dst.archive is None and dst.model.retriever.index is None and dst.version == 0
     assert float(dst.latent_state.abs().sum()) == 0.0 and dst.fast_state.channels == [{}, {}]
+    assert dst.registries == []                               # entity bindings are context, not weights
     src.archive.close()
 
 
@@ -161,6 +167,8 @@ def test_full_lifetime_roundtrip_restores_everything(tmp_path):
     nxt_np = ag.rng["np"].random(3)
     nxt_global = torch.rand(2)
     nxt_replay = ag.replay.sample_anchors(10)
+    regs = [(dict(r.slot), dict(r.etype), dict(r.last_seen), list(r.free)) for r in ag.registries]
+    nxt_slots = [ag.registries[0].bind(e, t=9.0) for e in ("prod_4", "prod_5", "prod_6")]   # incl. a recycled slot
     exp_avg = {k: v["exp_avg"].clone() for k, v in zip(range(99), ag.optimizers["core"].state.values())}
     # restore into a fresh object (experience handles are reopened from the checkpoint's pointers)
     ag.archive.close()
@@ -180,6 +188,8 @@ def test_full_lifetime_roundtrip_restores_everything(tmp_path):
     assert fresh.version == 5 and fresh.counters == {"steps": 5}
     assert torch.equal(fresh.fast_state.particles, ag.fast_state.particles)
     assert fresh.fast_state.channels == ag.fast_state.channels and torch.equal(fresh.latent_state, ag.latent_state)
+    assert [(r.slot, r.etype, r.last_seen, r.free) for r in fresh.registries] == regs   # same slot bindings
+    assert [fresh.registries[0].bind(e, t=9.0) for e in ("prod_4", "prod_5", "prod_6")] == nxt_slots
     assert fresh.archive.count() == 450 and fresh.archive.root == str(tmp_path / "archive")
     assert fresh.model.retriever.index is fresh.index and fresh.index.count() > 0
     assert fresh.replay.sample_anchors(10) == nxt_replay
@@ -316,3 +326,96 @@ def test_full_lifetime_recovery_after_a_crash(tmp_path):
     assert torch.equal(torch.rand(3, generator=old.rng["torch"]), nxt["rand"])
     assert old.replay.sync() == 310                        # later experience (incl. the 10 above) re-enters
     old.archive.close()
+
+
+def _perturb(ret, seed=0):
+    g = torch.Generator().manual_seed(seed)
+    with torch.no_grad():
+        for p in list(ret.segment_encoder.parameters()) + list(ret.event_encoder.parameters()):
+            p.add_(0.05 * torch.randn(p.shape, generator=g))
+
+
+@pytest.mark.parametrize("scenario", ["pinned", "unpinned", "budget", "covered"])
+def test_restore_after_the_memory_index_migrated_past_the_checkpoint(tmp_path, scenario):
+    """The lifetime continues after a full-lifetime checkpoint: more segments, a target sync and a completed index
+    migration. Restoring the checkpoint must give a retriever that can read the index (no IncompatibleMemoryVersion),
+    with keys reproducible from raw events by the restored encoders."""
+    ag = _lived_agent(tmp_path)
+    ops = CheckpointOps(ag)
+    ck = str(tmp_path / "life")
+    v0 = ag.model.retriever.key_version
+    info = ops.save_full_lifetime(ck, pin_memory=scenario != "unpinned")
+    con_state = ag.consolidator.state_dict()
+    if scenario != "unpinned":
+        assert info["pinned_versions"] == [v0] and ag.index.pins() == {f"ckpt:{ck}": [v0]}
+    else:
+        assert ag.index.pins() == {}
+    if scenario != "covered":                                  # experience after the checkpoint, before the sync
+        ag.archive.append(light_events(160, start=450, episode_len=50))
+        ag.consolidator.step()
+    _perturb(ag.model.retriever)
+    v1 = ag.model.retriever.sync_target()
+    if scenario != "covered":                                  # ... and after it (segments only in v1)
+        ag.archive.append(light_events(80, start=610, episode_len=50))
+        ag.consolidator.step()
+    r = ag.consolidator.reencode_step(max_items=None)
+    assert r["promoted"] and ag.index.current_version == v1
+    assert r["kept_pinned"] == ([] if scenario == "unpinned" else [v0])
+    n_seg = ag.index.count()
+    n_missing_v0 = len(ag.index.missing(v0))                   # segments the restore must re-encode
+    assert n_missing_v0 == (n_seg if scenario == "unpinned" else 0 if scenario == "covered" else n_missing_v0)
+    assert scenario in ("covered", "unpinned") or 0 < n_missing_v0 < n_seg
+    for h in (ag.archive, ag.replay, ag.index):
+        h.close()
+    fresh = ToyAgent(_cfg(), seed=77)
+    assert fresh.consolidator is None
+    budget = 4 if scenario == "budget" else None
+    res = CheckpointOps(fresh).load_full_lifetime(ck, memory_reencode_budget=budget)
+    mem, ret, idx = res["memory"], fresh.model.retriever, fresh.index
+    assert ret.key_version == v0 and fresh.consolidator is not None        # rebuilt from the checkpoint's pointer
+    assert fresh.consolidator.retriever is ret and fresh.consolidator.fanout == ag.consolidator.fanout
+    q = torch.nn.functional.normalize(torch.randn(2, fresh.config.mem_key_dim), dim=-1)
+    if scenario == "covered":
+        assert mem["status"] == "restored-version" and idx.current_version == v0
+    elif scenario == "budget":
+        assert mem["status"] == "reencode-pending" and mem["reencoded"] == 4 and idx.current_version == v1
+        M, ids, _ = ret.retrieve(q, 3)                             # empty memory instead of an exception
+        assert M.N == 0 and ids == [[], []] and ret.retrieve_stats["empty_awaiting_migration"] == 1
+        with pytest.raises(IncompatibleMemoryVersion):
+            ret.retrieve(q, 3, version=v1)                         # an explicit request is still refused
+        assert fresh.consolidator.reencode_step(max_items=None)["promoted"]
+    else:
+        assert mem["status"] == "reencoded" and idx.current_version == v0
+        assert mem["reencoded"] == n_missing_v0                    # pinned: only the post-sync segments; else all
+    assert idx.current_version == v0 and idx.coverage(v0) == 1.0
+    if scenario != "covered":
+        assert v1 not in idx.versions()                            # the abandoned timeline's version is gone
+    _, ids, _ = ret.retrieve(q, 3)
+    assert [len(x) for x in ids] == [3, 3]
+    l1 = [r[0] for r in idx._db.execute("SELECT seg_id FROM segments WHERE level=1 ORDER BY gseq_start DESC LIMIT 5")]
+    metas = idx.segments(l1)
+    k_ref, _ = fresh.consolidator._encode1([fresh.archive.get(m["event_ids"]) for m in metas], metas, target=True)
+    torch.testing.assert_close(idx.keys(v0, idx.kids_of(v0, l1)), k_ref.half().float(), atol=2e-3, rtol=0)
+    assert fresh.consolidator.state == con_state
+    fresh.consolidator.step()                                     # later experience is re-derived idempotently
+    assert idx.count() == n_seg and idx.coverage(v0) == 1.0
+    fresh.archive.close()
+
+
+def test_restore_fails_explicitly_without_a_retriever_for_the_memory(tmp_path):
+    ag = _lived_agent(tmp_path)
+    ck = str(tmp_path / "life")
+    CheckpointOps(ag).save_full_lifetime(ck)
+    ag.archive.close()
+    ag.index.close()
+    ag.replay.close()
+
+    class Bare:
+        pass
+    b = Bare()
+    b.model, b.config = torch.nn.Linear(2, 2), _cfg()
+    b.archive = b.index = b.replay = b.consolidator = None
+    with pytest.raises(CheckpointMismatch, match="retriever"):
+        CheckpointOps(b).load_parts(ck, weights=False, experience=True)
+    if b.archive is not None:
+        b.archive.close()

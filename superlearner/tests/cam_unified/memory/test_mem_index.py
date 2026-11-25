@@ -196,9 +196,10 @@ def test_persistence_and_truncation_of_uncommitted_rows(tmp_path):
 
 
 @pytest.mark.parametrize("device", DEVICES[-1:])
-def test_delayed_cue_retrieval_after_many_interfering_keys(tmp_path, device):
-    """Retention vs delay: a cue key is stored, then up to 200k interfering keys arrive (random keys plus 'near'
-    distractors at cosine ~0.6 to the cue); a noisy query (cosine ~0.9) must still find the cue."""
+def test_exact_search_finds_cues_among_200k_interfering_keys(tmp_path, device):
+    """Index-level check (not a learned-retention test; see test_mem_retrieval for learned delayed cues through the
+    archive): exact search over sharded fp16 keys keeps finding cue keys as up to 200k interfering keys (random +
+    'near' distractors at cosine ~0.6) are added, i.e. nothing is evicted or approximated away; reports latency."""
     kd, T, D = 64, 1, 4
     idx = MemoryIndex(str(tmp_path / "i"), kd, T, D, shard_rows=65536, device=device)
     rng = np.random.default_rng(0)
@@ -231,4 +232,77 @@ def test_delayed_cue_retrieval_after_many_interfering_keys(tmp_path, device):
         report[delay] = (hit1, hit5, lat)
         assert hit5 >= 0.95, (delay, report)
     print("delayed cue retrieval (hit@1, hit@5, search seconds for 64 queries) by #interfering keys:", report)
+    idx.close()
+
+
+@pytest.mark.parametrize("device", DEVICES)
+def test_nonfinite_keys_are_refused_and_nonfinite_queries_match_nothing(tmp_path, device):
+    kd, T, D = 8, 1, 4
+    idx = MemoryIndex(str(tmp_path / "i"), kd, T, D, device=device)
+    keys = _unit(np.random.default_rng(0).standard_normal((100, kd))).astype(np.float32)
+    idx.add_segments([{"seg_id": f"s{i}", "level": 1} for i in range(100)])
+    bad = keys.copy()
+    bad[37] = np.nan
+    with pytest.raises(ValueError, match="non-finite keys"):
+        idx.add("v", [f"s{i}" for i in range(100)], bad, np.zeros((100, T, D)))
+    big = np.zeros((100, T, D), np.float32)
+    big[3] = 1e6                                             # beyond fp16: would be stored as inf
+    with pytest.raises(ValueError, match="non-finite values"):
+        idx.add("v", [f"s{i}" for i in range(100)], keys, big)
+    assert idx.count("v") == 0
+    idx.add("v", [f"s{i}" for i in range(100)], keys, np.zeros((100, T, D)))
+    q = torch.from_numpy(np.stack([keys[5], np.full(kd, np.nan, np.float32), keys[9]]))
+    r = idx.search("v", q, 3)
+    assert r.kids[0, 0] == 5 and r.kids[2, 0] == 9
+    assert (r.kids[1] == -1).all() and torch.isinf(r.scores[1]).all() and r.seg_ids[1] == [None] * 3
+    assert not torch.isnan(r.scores).any() and idx.stats["nonfinite_queries"] == 1
+    idx.close()
+
+
+def test_transaction_rollback_restores_the_index_exactly(tmp_path):
+    kd, T, D = 8, 2, 4
+    root = str(tmp_path / "i")
+    idx = MemoryIndex(root, kd, T, D, shard_rows=16, device="cpu")
+    keys, vals, metas = _fill(idx, "v", 40, kd, T, D)
+    q = torch.from_numpy(_unit(np.random.default_rng(5).standard_normal((3, kd))).astype(np.float32))
+    before = idx.search("v", q, 5)
+    n_seg = idx.count()
+    new = [{"seg_id": f"n{i}", "level": 1, "t_start": 100.0 + i, "t_end": 101.0 + i} for i in range(30)]
+    rng = np.random.default_rng(9)
+    with pytest.raises(RuntimeError, match="boom"):
+        with idx.transaction():
+            idx.add_segments(new)
+            idx.add("v", [m["seg_id"] for m in new], _unit(rng.standard_normal((30, kd))), rng.standard_normal((30, T, D)))
+            idx.add_segments([{"seg_id": "w0", "level": 1}])
+            idx.add("brand-new-version", ["w0"], _unit(rng.standard_normal((1, kd))), np.zeros((1, T, D)))
+            idx.set_state("cursor", 123)
+            assert idx.count("v") == 70                       # visible inside the transaction
+            raise RuntimeError("boom")
+    assert idx.count() == n_seg and idx.count("v") == 40 and idx.get_state("cursor") is None
+    assert "brand-new-version" not in idx.versions() and idx.stats["rollbacks"] == 1
+    after = idx.search("v", q, 5)
+    assert (after.kids == before.kids).all()
+    vdirs = os.listdir(os.path.join(root, "versions"))
+    assert len(vdirs) == 1                                    # the uncommitted version's files are gone
+    shard = os.path.join(root, "versions", vdirs[0], "keys_00002.f16")
+    assert os.path.getsize(shard) == 8 * kd * 2               # rows 32..39 only; the 30 rolled-back rows were cut
+    idx.add_segments(new)                                     # the index keeps working after the rollback
+    k = idx.add("v", [m["seg_id"] for m in new], _unit(rng.standard_normal((30, kd))), rng.standard_normal((30, T, D)))
+    assert k.tolist() == list(range(40, 70))
+    idx.close()
+
+
+def test_pinned_versions_are_not_dropped(tmp_path):
+    kd, T, D = 8, 1, 4
+    idx = MemoryIndex(str(tmp_path / "i"), kd, T, D, device="cpu")
+    _fill(idx, "v0", 20, kd, T, D)
+    _fill(idx, "v1", 20, kd, T, D, seed=1)
+    idx.set_current("v1")
+    idx.pin("ckpt:/x/life", ["v0"])
+    with pytest.raises(ValueError, match="pinned"):
+        idx.drop_version("v0")
+    assert idx.pinned_versions() == {"v0"} and idx.pointer()["pins"] == {"ckpt:/x/life": ["v0"]}
+    idx.unpin("ckpt:/x/life")
+    idx.drop_version("v0")
+    assert list(idx.versions()) == ["v1"]
     idx.close()

@@ -13,10 +13,16 @@ Storage (``root/``)::
     versions/<vdir>/vals_<s>.f16       append-only fp16 rows [rows, value_tokens * value_dim]
 
 Key ids (``kid``) are dense per version (0..n-1); shard s holds kids [s*shard_rows, (s+1)*shard_rows). Rows are
-appended + fsynced before their SQLite rows commit; bytes beyond the committed row count (a crash between the two) are
-truncated on open. Search = chunked ``q @ K^T`` on the GPU in float32 from fp16 keys with a running top-k merge;
-metadata prefilters (time range, entity, env, episode, actor, level, gseq bound) come from SQLite and are applied
-either as a mask (broad filters) or by gathering only the candidate keys (narrow filters). Results are exact.
+appended + fsynced before their SQLite rows commit; bytes beyond the committed row count (a crash between the two, or a
+rolled-back ``transaction()``) are truncated, and version directories without a committed row are removed. Search =
+chunked ``q @ K^T`` on the GPU in float32 from fp16 keys with a running top-k merge; metadata prefilters (time range,
+entity, env, episode, actor, level, gseq bound) come from SQLite and are applied either as a mask (broad filters) or by
+gathering only the candidate keys (narrow filters). Results are exact. Non-finite keys/values are refused at ``add``;
+non-finite query rows return no results (never a NaN "best" match).
+
+``transaction()`` groups several ``add_segments`` / ``add`` / ``set_state`` calls into one SQLite commit (the
+consolidator stores its cursor in the same commit as the segments it produced). ``pin(name, versions)`` protects
+versions from ``drop_version`` (a full-lifetime checkpoint pins the versions its retriever can read).
 """
 from __future__ import annotations
 
@@ -27,6 +33,7 @@ import re
 import sqlite3
 import time
 from collections import OrderedDict, namedtuple
+from contextlib import contextmanager
 from typing import Callable, Optional, Sequence
 
 import numpy as np
@@ -83,7 +90,9 @@ class MemoryIndex:
         self._gpu: "OrderedDict" = OrderedDict()
         self._mm: dict = {}
         self._cols: dict = {}
-        self.stats = {"searches": 0, "search_s": 0.0, "added": 0, "reencoded": 0}
+        self.stats = {"searches": 0, "search_s": 0.0, "added": 0, "reencoded": 0, "nonfinite_queries": 0,
+                      "rollbacks": 0}
+        self._tx = 0
         if not readonly:
             os.makedirs(os.path.join(self.root, "versions"), exist_ok=True)
         path = os.path.join(self.root, "index.sqlite")
@@ -130,7 +139,16 @@ class MemoryIndex:
 
     def _truncate_uncommitted(self) -> None:
         kw, vw = self.key_dim * 2, self.value_tokens * self.value_dim * 2
-        for v, vdir, n in self._db.execute("SELECT version, vdir, n_rows FROM versions").fetchall():
+        committed = self._db.execute("SELECT version, vdir, n_rows FROM versions").fetchall()
+        vroot = os.path.join(self.root, "versions")
+        known = {vdir for _, vdir, _ in committed}
+        for vdir in (os.listdir(vroot) if os.path.isdir(vroot) else []):
+            if vdir not in known:                          # first add() of a version never committed / dropped
+                d = os.path.join(vroot, vdir)
+                for f in os.listdir(d):
+                    os.unlink(os.path.join(d, f))
+                os.rmdir(d)
+        for v, vdir, n in committed:
             d = os.path.join(self.root, "versions", vdir)
             if not os.path.isdir(d):
                 continue
@@ -146,6 +164,39 @@ class MemoryIndex:
                     with open(p, "r+b") as fh:
                         fh.truncate(rows * w)
 
+    # ================================================================== transactions
+    def _commit(self) -> None:
+        if self._tx == 0:
+            self._db.commit()
+
+    @contextmanager
+    def transaction(self):
+        """All index writes inside the block commit together; on an exception they are rolled back, shard bytes beyond
+        the committed rows are truncated and the in-memory caches are dropped, so the index is exactly as before."""
+        if self.readonly:
+            raise PermissionError("index opened read-only")
+        if self._tx:                                       # nested: the outermost block decides
+            self._tx += 1
+            try:
+                yield self
+            finally:
+                self._tx -= 1
+            return
+        self._tx = 1
+        try:
+            yield self
+        except BaseException:
+            self._tx = 0
+            self._db.rollback()
+            self._truncate_uncommitted()
+            self._mm.clear()
+            self._cols.clear()
+            self._gpu.clear()
+            self.stats["rollbacks"] += 1
+            raise
+        self._tx = 0
+        self._db.commit()
+
     # ================================================================== state
     def get_state(self, key: str, default=None):
         r = self._db.execute("SELECT value FROM state WHERE key=?", (key,)).fetchone()
@@ -154,7 +205,11 @@ class MemoryIndex:
     def set_state(self, key: str, value, commit: bool = True) -> None:
         self._db.execute("INSERT OR REPLACE INTO state(key, value) VALUES (?,?)", (key, json.dumps(value)))
         if commit:
-            self._db.commit()
+            self._commit()
+
+    @property
+    def closed(self) -> bool:
+        return self._db is None
 
     @property
     def current_version(self) -> Optional[str]:
@@ -174,6 +229,24 @@ class MemoryIndex:
         """Versions other than the current one (their keys must not be searched as if current)."""
         cur = self.current_version
         return [v for v in self.versions() if v != cur]
+
+    # ------------------------------------------------------------------ pins
+    def pin(self, name: str, versions) -> None:
+        """Protect ``versions`` from ``drop_version`` under ``name`` (replaces an earlier pin of that name)."""
+        pins = self.get_state("pins", {}) or {}
+        pins[str(name)] = sorted({str(v) for v in versions})
+        self.set_state("pins", pins)
+
+    def unpin(self, name: str) -> None:
+        pins = self.get_state("pins", {}) or {}
+        if pins.pop(str(name), None) is not None:
+            self.set_state("pins", pins)
+
+    def pins(self) -> dict:
+        return dict(self.get_state("pins", {}) or {})
+
+    def pinned_versions(self) -> set:
+        return {v for vs in self.pins().values() for v in vs}
 
     def count(self, version: Optional[str] = None) -> int:
         if version is None:
@@ -206,7 +279,7 @@ class MemoryIndex:
                 f"SELECT DISTINCT seg_id FROM seg_entities WHERE seg_id IN ({','.join('?' * len(new))})", list(new))}
             self._db.executemany("INSERT INTO seg_entities(seg_id, entity) VALUES (?,?)",
                                  [e for e in ents if e[0] not in have])
-        self._db.commit()
+        self._commit()
         return added
 
     def segment(self, seg_id: str) -> dict:
@@ -249,7 +322,7 @@ class MemoryIndex:
         t = time.time()
         self._db.executemany("INSERT INTO weight_links VALUES (?,?,?,?)",
                              [(s, str(update_id), int(model_version), t) for s in seg_ids])
-        self._db.commit()
+        self._commit()
 
     def weight_links(self, seg_id: str) -> list:
         return [{"update_id": u, "model_version": v} for u, v in self._db.execute(
@@ -258,12 +331,19 @@ class MemoryIndex:
     # ================================================================== keys / values
     def add(self, version: str, seg_ids: Sequence[str], keys, values) -> np.ndarray:
         """Store keys [n, key_dim] and values [n, value_tokens, value_dim] of registered segments under ``version``.
-        Segments that already have a key in this version are skipped. Returns the kids (dense per version)."""
+        Segments that already have a key in this version are skipped. Returns the kids (dense per version).
+        Raises ``ValueError`` for non-finite keys or values (also values beyond the fp16 range), which would otherwise
+        win (NaN) or poison every later search."""
         if self.readonly:
             raise PermissionError("index opened read-only")
         seg_ids = list(seg_ids)
         keys = _np16(keys).reshape(len(seg_ids), self.key_dim)
         values = _np16(values).reshape(len(seg_ids), self.value_tokens * self.value_dim)
+        for name, arr in (("keys", keys), ("values", values)):
+            bad = ~np.isfinite(arr).all(1)
+            if bad.any():
+                raise ValueError(f"{int(bad.sum())} non-finite {name} rows (NaN/inf after the fp16 cast), e.g. "
+                                 f"segment {seg_ids[int(np.nonzero(bad)[0][0])]}; nothing was stored")
         known = {r[0] for r in self._db.execute(
             f"SELECT seg_id FROM segments WHERE seg_id IN ({','.join('?' * len(seg_ids))})", seg_ids)} if seg_ids else set()
         unknown = [s for s in seg_ids if s not in known]
@@ -280,7 +360,7 @@ class MemoryIndex:
         else:
             vdir, n0 = r
         if len(sel) == 0:
-            self._db.commit()
+            self._commit()
             return have
         d = os.path.join(self.root, "versions", vdir)
         os.makedirs(d, exist_ok=True)
@@ -307,7 +387,7 @@ class MemoryIndex:
         self._db.executemany("INSERT INTO keys(version, kid, seg_id) VALUES (?,?,?)",
                              [(version, int(k), seg_ids[i]) for k, i in zip(kids, sel)])
         self._db.execute("UPDATE versions SET n_rows=? WHERE version=?", (n0 + len(sel), version))
-        self._db.commit()
+        self._commit()
         have[sel] = kids
         self.stats["added"] += len(sel)
         return have
@@ -470,6 +550,10 @@ class MemoryIndex:
         qd = torch.as_tensor(q, dtype=torch.float32).to(self.device)
         if qd.dim() != 2 or qd.shape[1] != self.key_dim:
             raise ValueError(f"query shape {tuple(qd.shape)} != [B, {self.key_dim}]")
+        bad = ~torch.isfinite(qd).all(1)                       # a NaN/inf query row matches nothing
+        if bool(bad.any()):
+            qd = torch.where(bad.unsqueeze(1), torch.zeros_like(qd), qd)
+            self.stats["nonfinite_queries"] += int(bad.sum())
         B, n = qd.shape[0], self.count(version)
         best_s = torch.full((B, k), float("-inf"), device=self.device)
         best_i = torch.full((B, k), -1, dtype=torch.long, device=self.device)
@@ -497,6 +581,9 @@ class MemoryIndex:
                     else:
                         s, i = self._scan(version, qg, k, cand, n)
                 best_s[rows_t], best_i[rows_t] = s, i
+        if bool(bad.any()):
+            best_s[bad] = float("-inf")
+            best_i[bad] = -1
         return self._result(version, best_s, best_i, out_dev, t0)
 
     def _result(self, version, best_s, best_i, out_dev, t0) -> SearchResult:
@@ -520,7 +607,7 @@ class MemoryIndex:
             base = s * self.shard_rows
             for c0 in range(0, K.shape[0], self.search_chunk):
                 Kc = K[c0:c0 + self.search_chunk].float()
-                sc = q @ Kc.T                                     # [B, c]
+                sc = _finite_scores(q @ Kc.T)                     # [B, c]
                 g0 = base + c0
                 if mfull is not None:
                     sc = sc.masked_fill(~mfull[g0:g0 + Kc.shape[0]], float("-inf"))
@@ -538,14 +625,14 @@ class MemoryIndex:
             loc = torch.from_numpy(cand[sh == s] - s * self.shard_rows).to(self.device)
             parts.append(self._shard_tensor(version, int(s))[loc])
         K = torch.cat(parts).float()                               # [C, key_dim]
-        sc = q @ K.T
+        sc = _finite_scores(q @ K.T)
         kk = min(k, sc.shape[1])
         ts, ti = sc.topk(kk, dim=1)
         B = q.shape[0]
         bs = torch.full((B, k), float("-inf"), device=self.device)
         bi = torch.full((B, k), -1, dtype=torch.long, device=self.device)
         bs[:, :kk] = ts
-        bi[:, :kk] = torch.from_numpy(cand).to(self.device)[ti]
+        bi[:, :kk] = torch.where(torch.isfinite(ts), torch.from_numpy(cand).to(self.device)[ti], torch.full_like(ti, -1))
         return bs, bi
 
     # ================================================================== versions / re-encoding
@@ -585,16 +672,19 @@ class MemoryIndex:
                 break
         return done
 
-    def drop_version(self, version: str) -> None:
-        """Delete a stale version's keys and files (refuses the current version)."""
+    def drop_version(self, version: str, force: bool = False) -> None:
+        """Delete a stale version's keys and files (refuses the current version, and pinned versions unless
+        ``force``)."""
         if version == self.current_version:
             raise ValueError("cannot drop the current version")
+        if not force and version in self.pinned_versions():
+            raise ValueError(f"version {version} is pinned by {[n for n, vs in self.pins().items() if version in vs]}")
         r = self._db.execute("SELECT vdir FROM versions WHERE version=?", (version,)).fetchone()
         if r is None:
             return
         self._db.execute("DELETE FROM keys WHERE version=?", (version,))
         self._db.execute("DELETE FROM versions WHERE version=?", (version,))
-        self._db.commit()
+        self._commit()
         d = os.path.join(self.root, "versions", r[0])
         for f in os.listdir(d) if os.path.isdir(d) else []:
             os.unlink(os.path.join(d, f))
@@ -609,7 +699,7 @@ class MemoryIndex:
     def pointer(self) -> dict:
         return {"root": self.root, "key_dim": self.key_dim, "value_tokens": self.value_tokens,
                 "value_dim": self.value_dim, "shard_rows": self.shard_rows, "current_version": self.current_version,
-                "versions": self.versions(), "segments": self.count()}
+                "versions": self.versions(), "segments": self.count(), "pins": self.pins()}
 
     def storage_bytes(self) -> int:
         from ._fs import dir_bytes
@@ -624,7 +714,13 @@ class MemoryIndex:
         self._mm.clear()
 
 
+def _finite_scores(sc: torch.Tensor) -> torch.Tensor:
+    """NaN scores (from overflow) rank below every real match instead of above it."""
+    return sc.masked_fill(torch.isnan(sc), float("-inf"))
+
+
 def _np16(x) -> np.ndarray:
     if isinstance(x, torch.Tensor):
         x = x.detach().float().cpu().numpy()
-    return np.asarray(x, dtype=np.float16)
+    with np.errstate(over="ignore"):              # overflow -> inf is detected and refused by the caller
+        return np.asarray(x, dtype=np.float16)

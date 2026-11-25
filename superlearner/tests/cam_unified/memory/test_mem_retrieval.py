@@ -50,10 +50,15 @@ def test_retrieve_returns_memory_tokens_with_event_refs(tmp_path):
     for b in range(B):
         for j, s in enumerate(ids[b]):
             meta = idx.segment(s)
-            refs = M.refs[b][j * T]
-            assert refs == tuple(idx.source_events(s)) and len(refs) == meta["n_events"]
-            assert [r.event_id for r in arc.get(list(refs))] == list(refs)       # exact originals reachable
+            assert M.refs[b][j * T:(j + 1) * T] == [f"seg:{s}"] * T                # one scalar source id per token
+            src = ret.resolve_ref(M.refs[b][j * T])
+            assert src == idx.source_events(s) and len(src) == meta["n_events"]
+            assert [r.event_id for r in arc.get(src)] == src                   # exact originals reachable
             assert torch.allclose(M.time[b, j * T:(j + 1) * T], torch.full((T,), meta["t_end"] - now[b]))
+    ctx_ids = ret.context_event_ids(M)                     # e.g. DecisionRecord.context_refs
+    assert ctx_ids[1] == list(dict.fromkeys(e for s in ids[1] for e in idx.source_events(s)))
+    with pytest.raises(ValueError):
+        ret.resolve_ref("env0-0-000000001")
     vals = idx.values(idx.current_version, idx.kids_of(idx.current_version, ids[0][:1]))
     assert torch.allclose(M.x[0, :T], vals[0])
     arc.close()
@@ -75,12 +80,15 @@ def test_target_versions_and_compatibility():
     ret = Retriever(cfg)
     v0 = ret.key_version
     assert ret.compatible_versions() == {v0}
+    assert ret.sync_target() == v0 and ret.sync_info["reason"] == "unchanged"   # nothing to re-encode
     with torch.no_grad():
         next(ret.segment_encoder.parameters()).add_(1.0)
     v1 = ret.sync_target()
     assert v1 != v0 and v1.startswith("seg-1-") and ret.compatible_versions() == {v0, v1}
-    v2 = ret.sync_target()
-    assert ret.compatible_versions() == {v1, v2}            # two versions back is obsolete
+    with torch.no_grad():
+        next(ret.event_encoder.parameters()).add_(1.0)
+    v2 = ret.sync_target()                                   # no index attached: nothing is pending
+    assert v2.startswith("seg-2-") and ret.compatible_versions() == {v1, v2}    # two versions back is obsolete
     sd = ret.state_dict()
     other = Retriever(cfg)
     other.load_state_dict(sd)

@@ -13,11 +13,18 @@ Levels, each keeping source links to the one below:
 
 Keys/values are the *versioned values store*: they live in the ``MemoryIndex`` partition of the retriever's
 ``key_version``. ``reencode_step`` migrates every segment to a new version by recomputing from the raw events (level 1)
-and from the new version's level-1 values (level 2), then promotes it; obsolete versions are dropped.
+and from the new version's level-1 values (level 2), then promotes it; obsolete, unpinned versions are dropped.
 
-The consolidation cursor (last archive gseq consumed) and the open (not yet full) segments are stored in the index's
-SQLite ``state`` table in the same commit as the segments they produce, so a restart neither loses nor duplicates
-segments (segment ids are deterministic: ``s1_<first gseq>``, ``s2_<first child gseq>``).
+Ingestion during a migration (``step()`` after ``Retriever.sync_target()`` and before the new version is promoted):
+new segments are encoded in the new (target) version only, because the previous version's encoders no longer exist;
+they become searchable when the new version is promoted (the served version keeps answering queries meanwhile). A
+level-2 group whose level-1 children were encoded under the old version gets those children re-encoded from their raw
+events on demand (exactly what ``reencode_step`` would compute for them), so groups are never lost or left open.
+
+``step()`` is atomic: it works on a copy of the consolidation state and writes the segments, their keys/values and the
+new state (cursor = last archive gseq consumed, open segments / groups) in ONE ``MemoryIndex.transaction()``; on any
+exception nothing is written and the in-memory state is unchanged, so a retry (or a restart) neither loses nor
+duplicates segments (segment ids are deterministic: ``s1_<first gseq>``, ``s2_<first child gseq>``).
 """
 from __future__ import annotations
 
@@ -56,52 +63,66 @@ class Consolidator:
         self.device = device if device is not None else next(retriever.parameters()).device
         st = index.get_state(_STATE_KEY)
         self.state = st if st is not None else {"cursor": -1, "open1": {}, "open2": {}, "n1": 0, "n2": 0}
-        self.stats = {"events": 0, "segments1": 0, "segments2": 0, "encode_s": 0.0}
+        self.stats = {"events": 0, "segments1": 0, "segments2": 0, "encode_s": 0.0, "children_reencoded": 0}
 
     # ------------------------------------------------------------------ ingestion
     def step(self, max_events: int = 100_000, close_all: bool = False) -> dict:
         """Consume archived events after the cursor, emit full (or episode-final) segments, encode and index them.
-        ``close_all`` also closes every open segment / group (e.g. at the end of a lifetime phase)."""
+        ``close_all`` also closes every open segment / group (e.g. at the end of a lifetime phase). Atomic (see the
+        module docstring): on an exception neither the index nor ``self.state`` changes."""
         version = self.retriever.key_version
         if not self.archive.readonly:
             self.archive.flush()             # only durable events become segments (their gseqs are final)
+        st = json.loads(json.dumps(self.state))          # work on a copy; committed together with the segments
         emitted1: list = []
         n_ev = 0
-        for rows in self.archive.scan_meta(batch_size=4096, gseq_min=self.state["cursor"] + 1,
+        for rows in self.archive.scan_meta(batch_size=4096, gseq_min=st["cursor"] + 1,
                                            columns=["gseq", "event_id", "env_id", "actor_id", "episode_id", "done"]):
             for r in rows:
                 stream = f"{r['env_id']}|{r['actor_id']}|{r['episode_id']}"
-                cur = self.state["open1"].setdefault(stream, [])
+                cur = st["open1"].setdefault(stream, [])
                 cur.append([r["event_id"], r["gseq"]])
                 if len(cur) >= self.segment_len or r["done"]:
-                    emitted1.append((stream, self.state["open1"].pop(stream)))
-                self.state["cursor"] = r["gseq"]
+                    emitted1.append((stream, st["open1"].pop(stream)))
+                st["cursor"] = r["gseq"]
                 n_ev += 1
                 if n_ev >= max_events:
                     break
             if n_ev >= max_events:
                 break
         if close_all:
-            emitted1.extend(self.state["open1"].items())
-            self.state["open1"] = {}
-        metas1 = self._encode_level1(emitted1, version) if emitted1 else []
-        metas2 = []
-        for m in metas1:
-            s2 = f"{m['env_id']}|{m['actor_id']}"
-            grp = self.state["open2"].setdefault(s2, [])
-            grp.append(m["seg_id"])
-            if len(grp) >= self.fanout:
-                metas2.append(self.state["open2"].pop(s2))
-        if close_all:
-            metas2.extend(g for g in self.state["open2"].values() if g)
-            self.state["open2"] = {}
-        made2 = self._encode_level2(metas2, version) if metas2 else []
-        self.index.set_state(_STATE_KEY, self.state)
+            emitted1.extend(st["open1"].items())
+            st["open1"] = {}
+        counts = {"segments1": 0, "segments2": 0, "children_reencoded": 0}
+        t_enc = self.stats["encode_s"]
+        try:
+            with self.index.transaction():
+                metas1 = self._encode_level1(emitted1, version, counts) if emitted1 else []
+                metas2 = []
+                for m in metas1:
+                    s2 = f"{m['env_id']}|{m['actor_id']}"
+                    grp = st["open2"].setdefault(s2, [])
+                    grp.append(m["seg_id"])
+                    if len(grp) >= self.fanout:
+                        metas2.append(st["open2"].pop(s2))
+                if close_all:
+                    metas2.extend(g for g in st["open2"].values() if g)
+                    st["open2"] = {}
+                made2 = self._encode_level2(metas2, version, counts) if metas2 else []
+                self.index.set_state(_STATE_KEY, st)
+        except BaseException:
+            self.stats["encode_s"] = t_enc
+            raise
+        self.state = st
         self.stats["events"] += n_ev
+        for k, v in counts.items():
+            self.stats[k] += v
+        cur = self.index.current_version
         return {"events": n_ev, "segments1": len(metas1), "segments2": len(made2), "version": version,
-                "open_streams": len(self.state["open1"])}
+                "open_streams": len(st["open1"]), "children_reencoded": counts["children_reencoded"],
+                "served_version": cur, "migration_pending": cur is not None and cur != version}
 
-    def _encode_level1(self, emitted: list, version: str) -> list:
+    def _encode_level1(self, emitted: list, version: str, counts: dict) -> list:
         """emitted: [(stream, [[event_id, gseq], ...])] -> registered + keyed level-1 segment metas."""
         out = []
         for i in range(0, len(emitted), self.batch_segments):
@@ -131,10 +152,10 @@ class Consolidator:
             self.index.add_segments(metas)
             self.index.add(version, [m["seg_id"] for m in metas], keys, vals)
             out.extend(metas)
-            self.stats["segments1"] += len(metas)
+            counts["segments1"] += len(metas)
         return out
 
-    def _encode_level2(self, groups: list, version: str) -> list:
+    def _encode_level2(self, groups: list, version: str, counts: dict) -> list:
         metas = []
         for g in groups:
             ch = self.index.segments(g)
@@ -152,11 +173,34 @@ class Consolidator:
                           "artifact_refs": sorted({a for c in ch for a in c["artifact_refs"]}), "entities": ents})
         for i in range(0, len(metas), self.batch_segments):
             part = metas[i:i + self.batch_segments]
+            counts["children_reencoded"] += self._ensure_child_keys(version, [c for m in part for c in m["child_ids"]])
             keys, vals = self._encode2(part, version, target=True)
             self.index.add_segments(part)
             self.index.add(version, [m["seg_id"] for m in part], keys, vals)
-            self.stats["segments2"] += len(part)
+            counts["segments2"] += len(part)
         return metas
+
+    def _ensure_child_keys(self, version: str, seg_ids: list) -> int:
+        """Level-1 children without a key in ``version`` (encoded before a ``sync_target``) are re-encoded from their
+        raw events with the current target encoders, i.e. exactly what the migration computes for them."""
+        if version != self.retriever.key_version:
+            raise RuntimeError(f"cannot encode for {version}: the retriever's target version is "
+                               f"{self.retriever.key_version}")
+        kids = self.index.kids_of(version, seg_ids)
+        miss = [s for s, k in zip(seg_ids, kids) if k < 0]
+        if not miss:
+            return 0
+        done = 0
+        for i in range(0, len(miss), self.batch_segments):
+            part = miss[i:i + self.batch_segments]
+            metas = self.index.segments(part)
+            if any(m["level"] != 1 for m in metas):
+                raise RuntimeError("level-2 children must be level-1 segments")
+            groups = [self.archive.get(m["event_ids"]) for m in metas]
+            keys, vals = self._encode1(groups, metas, target=True)
+            self.index.add(version, part, keys, vals)
+            done += len(part)
+        return done
 
     # ------------------------------------------------------------------ encoders (shared by ingestion and migration)
     @torch.no_grad()
@@ -216,12 +260,17 @@ class Consolidator:
         if cov >= 1.0 and self.index.current_version != version:
             self.index.set_current(version)
             promoted = True
-        dropped = []
+        dropped, kept = [], []
         if drop_old and self.index.current_version == version:
+            pinned = self.index.pinned_versions()
             for v in self.index.stale_versions():          # obsolete vectors are deleted, never searched again
+                if v in pinned:                            # ... unless a full-lifetime checkpoint still needs them
+                    kept.append(v)
+                    continue
                 self.index.drop_version(v)
                 dropped.append(v)
-        return {"version": version, "reencoded": n, "coverage": cov, "promoted": promoted, "dropped": dropped}
+        return {"version": version, "reencoded": n, "coverage": cov, "promoted": promoted, "dropped": dropped,
+                "kept_pinned": kept}
 
     def ensure_current(self) -> None:
         """Make the index's current version the retriever's version when it already covers everything (first use)."""
@@ -247,8 +296,14 @@ class Consolidator:
             self.archive.mark_used(ev, update_id)
 
     def state_dict(self) -> dict:
+        """Consolidation state (cursor, open segments / groups) for a full-lifetime checkpoint."""
         return json.loads(json.dumps(self.state))
 
     def load_state_dict(self, st: dict) -> None:
         self.state = json.loads(json.dumps(st))
         self.index.set_state(_STATE_KEY, self.state)
+
+    def pointer(self) -> dict:
+        """Everything needed to rebuild this consolidator over the same archive / index / retriever."""
+        return {"state": self.state_dict(), "segment_len": self.segment_len, "fanout": self.fanout,
+                "batch_segments": self.batch_segments}

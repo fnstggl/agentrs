@@ -3,6 +3,7 @@ later tag updates, restart persistence, bounded caches."""
 from __future__ import annotations
 
 import collections
+import os
 import random
 
 import numpy as np
@@ -163,3 +164,123 @@ def test_caches_are_bounded(tmp_path):
     assert len(ac.slices) == 40
     assert all(len(s) <= 8 for s in ac.batch(64))
     a.close()
+
+
+def test_episode_ids_reused_across_environments_and_actors_never_mix(tmp_path):
+    """Harness-local episode counters ("ep0", "ep1", ...) repeat across environments and actors: every slice stays
+    inside one (env, actor, episode) stream, is contiguous in step order and contains its anchor."""
+    a = EventArchive(str(tmp_path / "a"), chunk_rows=2000)
+    evs, streams = [], {}
+    for k, (env, actor) in enumerate([("envA", "a0"), ("envB", "a0"), ("envA", "a1"), ("envC", "a2")]):
+        part = light_events(300, env=env, actor=actor, episode_len=100, seed=k)
+        for e in part:
+            e.event_id = f"{env}-{actor}-{e.event_id}"
+            e.episode_id = f"ep{e.step // 1000 + int(e.event_id[-9:]) // 100}"     # "ep0".."ep2" in every stream
+            streams.setdefault((env, actor, e.episode_id), []).append(e.step)
+        evs += part
+    random.Random(0).shuffle(evs)                              # streams interleave in the archive
+    a.append(evs)
+    rs = ReplaySampler(a, seed=2)
+    rs.sync()
+    for sl in rs.sample(400, length=24):
+        key = {(r.env_id, r.actor_id, r.episode_id) for r in sl.records}
+        assert key == {(sl.env_id, sl.actor_id, sl.episode_id)}
+        steps = [r.step for r in sl.records]
+        assert steps == list(range(steps[0], steps[0] + 24)) and len(sl) == 24
+        assert sl.anchor_gseq in [m["gseq"] for m in a.meta(sl.event_ids)]
+    assert a.episode_steps("ep1", env_id="envB", actor_id="a0") == sorted(
+        a.episode_steps("ep1", env_id="envB", actor_id="a0"))
+    assert [s for s, _, _ in a.episode_steps("ep1", env_id="envB", actor_id="a0")] == list(range(100))
+    a.close()
+
+
+def test_draw_cost_does_not_grow_with_episode_length(tmp_path):
+    """A lifelong episode without resets: a draw fetches a window around its anchor (indexed), never the episode."""
+    import time
+    import tracemalloc
+    a = EventArchive(str(tmp_path / "a"), chunk_rows=65536, fsync=False)
+    for i in range(0, 40_000, 10_000):
+        a.append(light_events(10_000, start=i, episode_len=10 ** 9))
+    rs = ReplaySampler(a, seed=0)
+    rs.sync()
+    plan = a._db.execute("EXPLAIN QUERY PLAN SELECT step, event_id, gseq FROM events INDEXED BY ev_stream WHERE "
+                         "episode_id=? AND env_id=? AND actor_id=? AND step <= ? AND (step < ? OR gseq < ?) ORDER BY "
+                         "step DESC, gseq DESC LIMIT ?", ("x", "y", "z", 5, 5, 5, 3)).fetchall()
+    assert any("ev_stream" in str(r) and "step<?" in str(r).replace(" ", "") for r in plan), plan
+    rs.sample(4, 32, with_records=False)
+    tracemalloc.start()
+    t0 = time.time()
+    sl = rs.sample(64, 32, with_records=False)
+    dt = time.time() - t0
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert len(sl) == 64 and all(len(s) == 32 and s.steps == list(range(s.steps[0], s.steps[0] + 32)) for s in sl)
+    assert peak < 1_000_000, peak                               # a 40k-row episode list alone is several MB
+    assert dt < 2.0, dt
+    a.close()
+
+
+def test_corrected_tags_move_events_between_strata_and_restore_exactly(tmp_path):
+    a = EventArchive(str(tmp_path / "a"), chunk_rows=1000)
+    evs = light_events(600, episode_len=60)
+    for e in evs:
+        e.result.ok = True
+        e.extra["family"] = "fam_a" if int(e.event_id[-9:]) < 300 else "fam_b"
+    a.append(evs)
+    rs = ReplaySampler(a, seed=4)
+    rs.sync()
+    a.tag([e.event_id for e in evs[100:150]], success=True)
+    rs.sync()
+    assert rs.members("skills") == list(range(100, 150)) and rs.members("failures") == []
+    st = rs.state_dict()
+    want_draws = rs.sample_anchors(200)
+    a.tag([e.event_id for e in evs[120:140]], success=False)    # the outcome was corrected
+    a.tag([e.event_id for e in evs[0:10]], family="fam_b")       # a family re-labelled
+    rs.sync()
+    assert rs.members("skills") == list(range(100, 120)) + list(range(140, 150))
+    assert rs.members("failures") == list(range(120, 140))
+    assert rs.members("dom:fam_a") == list(range(10, 300)) and rs.members("dom:fam_b")[:10] == list(range(10))
+    sizes = rs.stratum_sizes()
+    assert sizes["skills"] == 30 and sizes["failures"] == 20 and rs.domains() == {"fam_a": 290, "fam_b": 310}
+    got = rs.sample_anchors(3000)
+    assert {g for s, g in got if s == "skills"} <= set(range(100, 120)) | set(range(140, 150))
+    assert {g for s, g in got if s == "failures"} <= set(range(120, 140))
+    assert rs.stats["flips"] == 30
+    a.tag([e.event_id for e in evs[120:125]], success=True)     # corrected back: rows are revived, not appended
+    rs.sync()
+    assert rs.members("skills") == list(range(100, 125)) + list(range(140, 150)) and rs._n["skills"] == 50
+    rs.load_state_dict(st)                                      # the checkpoint's exact membership and draws
+    assert rs.members("skills") == list(range(100, 150)) and rs.members("failures") == []
+    assert rs.domains() == {"fam_a": 300, "fam_b": 300}
+    assert rs.sample_anchors(200) == want_draws
+    rs.sync()                                                   # later corrections re-enter from the change log
+    assert rs.members("failures") == list(range(125, 140)) and rs.domains() == {"fam_a": 290, "fam_b": 310}
+    rs.close()
+    re = ReplaySampler(a, seed=0)                               # persisted, not re-derived
+    assert re.members("failures") == list(range(125, 140)) and re.sync() == 0
+    re.close()
+    a.close()
+
+
+def test_archive_index_rebuild_rederives_membership(tmp_path):
+    root = str(tmp_path / "a")
+    a = EventArchive(root, chunk_rows=200)
+    evs = light_events(500)
+    a.append(evs)
+    a.tag([e.event_id for e in evs[:40]], success=True)
+    rs = ReplaySampler(a, seed=1)
+    rs.sync()
+    before = {s: rs.members(s) for s in ("skills", "failures")}
+    rs.close()
+    a.close()
+    for suf in ("", "-wal", "-shm"):
+        if os.path.exists(os.path.join(root, "index.sqlite" + suf)):
+            os.unlink(os.path.join(root, "index.sqlite" + suf))
+    b = EventArchive(root, chunk_rows=200)
+    rs = ReplaySampler(b, seed=1)
+    b.tag([evs[45].event_id], success=True)                    # change number 1 again in the rebuilt index
+    rs.sync()
+    assert rs.stats["rebuilds"] == 1
+    assert rs.members("skills") == before["skills"] + [45] and rs.members("failures") == before["failures"]
+    rs.close()
+    b.close()

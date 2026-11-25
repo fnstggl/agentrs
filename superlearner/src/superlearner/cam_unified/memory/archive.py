@@ -4,17 +4,26 @@ There is no lifetime ingestion cap anywhere in this module: the only bound is an
 (``archive_max_bytes``), and reaching it raises ``StorageLimitExceeded`` after the cold-archive policy ran. Records
 are never dropped silently, never evicted, and never truncated to a fixed number of rows.
 
+Budget: ``max_bytes`` bounds everything under ``root`` (sealed chunks, WAL including its unflushed buffer, tag logs,
+SQLite index and journal, manifest, and any other file placed there, e.g. the replay sampler's database). The default
+cold policy only recompresses (``("compress",)``). Moving chunks ("move") is allowed only to an explicitly configured
+``cold_dir`` outside ``root`` with its own explicit ``cold_max_bytes``; chunks there count against that budget instead.
+Transient extra: one temporary chunk file while a chunk is being sealed or recompressed.
+
 On-disk layout (``root/``)::
 
     manifest.json              committed chunk list (the commit record): number, file, rows, bytes, sha256, first gseq,
-                               tier ("hot" fast zstd, "z" recompressed), location ("root" | "cold")
-    chunks/chunk_<n>.<tier>.parquet   sealed, immutable Parquet chunks of ``chunk_rows`` events (row groups of
-                               ``row_group_rows``): flat indexed columns + JSON-encoded nested fields; hot tier = fast
-                               codec (lz4), "z" tier = zstd level ``cold_compression_level``
-    wal/wal_<gseq0>.jsonl      write-ahead log of the not-yet-sealed tail (durable after ``flush()``)
+                               tier ("hot" = fast codec, lz4 by default; "z" = recompressed with strong zstd),
+                               location ("root" | "cold")
+    chunks/chunk_<n>.<tier>.parquet   sealed, immutable Parquet chunks of at most ``chunk_rows`` events and about
+                               ``chunk_bytes`` of WAL bytes (row groups of ``row_group_rows``): flat indexed columns +
+                               JSON-encoded nested fields; "z" tier = zstd level ``cold_compression_level``
+    wal/wal_<gseq0>.jsonl      write-ahead log of the not-yet-sealed tail (durable after ``flush()``); the tail held in
+                               memory is bounded by ``chunk_rows`` rows and ``chunk_bytes`` bytes
     tags/tags_<k>.jsonl        append-only log of later tag updates and training-use marks (durable after ``flush()``)
     index.sqlite               secondary index (rebuildable from chunks + WAL + tag logs)
-    cold/ (or ``cold_dir``)    chunks moved off the primary volume by the "move" cold policy
+    cold/                      internal cold directory (counted in ``max_bytes``); an external ``cold_dir`` lives
+                               on another volume
 
 Write protocol of a chunk: Parquet to a temp file -> fsync -> atomic rename -> fsync(dir) -> index transaction ->
 manifest (temp -> fsync -> rename) -> WAL rotation. Restart recovery: temp files are removed; a renamed chunk the
@@ -143,11 +152,14 @@ class EventArchive:
         root: archive directory.
         cfg: ``CamConfig`` supplying ``archive_chunk_rows`` and ``archive_max_bytes`` (overridable below).
         chunk_rows: events per sealed Parquet chunk.
-        max_bytes: explicit budget of the primary volume (sealed chunks in ``root`` + WAL + tag logs + index).
+        chunk_bytes: also seal once the buffered tail holds this many WAL bytes (bounds the writer's memory for large
+            records; chunks then hold fewer than ``chunk_rows`` rows).
+        max_bytes: explicit budget of everything under ``root`` (see the module docstring).
         cold_policy: ordered actions tried when a write would exceed ``max_bytes``: ``"compress"`` (rewrite the oldest
             hot chunks with ``cold_compression_level`` zstd, in place) and/or ``"move"`` (move the oldest chunks to
-            ``cold_dir``). ``()`` = raise immediately. Data is never deleted.
-        cold_dir: directory of the cold volume (default ``root/cold``); ``cold_max_bytes`` its own budget.
+            the external ``cold_dir``). ``()`` = raise immediately. Data is never deleted.
+        cold_dir: cold volume (default ``root/cold``, internal and inside the budget). "move" requires a ``cold_dir``
+            outside ``root`` and an explicit ``cold_max_bytes`` (its own budget).
         artifacts: optional ``ArtifactStore``; observation content longer than ``inline_limit`` characters is stored
             there verbatim and the archived observation keeps a truncated copy plus ``artifact_ref``.
         allow_counterfactual: accept ``Provenance.COUNTERFACTUAL`` (explicitly declared experimental conditions only).
@@ -157,15 +169,16 @@ class EventArchive:
     """
 
     def __init__(self, root: str, cfg=None, *, chunk_rows: Optional[int] = None, max_bytes: Optional[int] = None,
-                 cold_policy: Sequence[str] = ("compress", "move"), cold_dir: Optional[str] = None,
+                 cold_policy: Sequence[str] = ("compress",), cold_dir: Optional[str] = None,
                  cold_max_bytes: Optional[int] = None, artifacts=None, inline_limit: int = 16384,
                  allow_counterfactual: bool = False, autoflush: bool = False, readonly: bool = False,
                  row_group_rows: int = 2048, compression: str = "lz4", compression_level: Optional[int] = None,
                  cold_compression_level: int = 19, index_reserve_bytes: int = 1_500_000,
-                 fsync: bool = True):
+                 fsync: bool = True, chunk_bytes: int = 32 << 20):
         self.root = os.path.abspath(root)
         self._chunk_rows_arg = chunk_rows or (cfg.archive_chunk_rows if cfg is not None else None)
         self.chunk_rows = int(self._chunk_rows_arg or 65536)
+        self.chunk_bytes = int(chunk_bytes)
         self.max_bytes = max_bytes if max_bytes is not None else (cfg.archive_max_bytes if cfg is not None else None)
         if isinstance(cold_policy, str):
             cold_policy = (cold_policy,)
@@ -192,10 +205,14 @@ class EventArchive:
         self._lock_fh = None
         self._wal_fh = None
         self._wal_written = 0
+        self._tag_written = 0
+        self._tags_closed_bytes = 0
         self._rebuild_tags = False
         self._tag_fh = None
         self._pf_cache: "OrderedDict[int, pq.ParquetFile]" = OrderedDict()
         self._buf = {c: [] for c in COLUMNS}
+        self._buf_sizes: list = []
+        self._buf_bytes = 0
         self._buf_g0 = 0
         for d in ("chunks", "wal", "tags"):
             if not readonly:
@@ -213,6 +230,13 @@ class EventArchive:
             self.chunk_rows = int(self._manifest["chunk_rows"])      # reopened without explicit sizing
         self._manifest.setdefault("chunk_rows", self.chunk_rows)
         self.cold_dir = os.path.abspath(cold_dir or self._manifest.get("cold_dir") or os.path.join(self.root, "cold"))
+        self.cold_external = not (self.cold_dir == self.root or self.cold_dir.startswith(self.root + os.sep))
+        if "move" in self.cold_policy:
+            if not self.cold_external:
+                raise ValueError("cold policy 'move' needs cold_dir on a separate volume outside the archive root "
+                                 "(moving inside root frees nothing from the budget)")
+            if self.cold_max_bytes is None:
+                raise ValueError("cold policy 'move' needs an explicit cold_max_bytes budget for the cold volume")
         if not readonly:
             os.makedirs(self.cold_dir, exist_ok=True)
             self._manifest["cold_dir"] = self.cold_dir
@@ -256,15 +280,17 @@ class EventArchive:
         for row in rows:
             for c in COLUMNS:
                 self._buf[c].append(row[c])
+        self._buf_sizes.extend(len(x) for x in lines)
+        self._buf_bytes += need
         self._index_rows(rows, chunk=-1, g0=None)
         self._db.commit()
         self._next += len(rows)
         self.stats["appended"] += len(rows)
         if self.autoflush:
             self.flush()
-        while self._buf_len() >= self.chunk_rows:
+        while self._buf_len() and (self._buf_len() >= self.chunk_rows or self._buf_bytes >= self.chunk_bytes):
             try:
-                self._seal(self.chunk_rows)
+                self._seal(min(self.chunk_rows, self._buf_len()))
             except StorageLimitExceeded:
                 # the rows of this call are accepted and durable in the WAL (they fitted the budget); sealing is
                 # retried on the next append, and the next append that does not fit raises
@@ -328,7 +354,8 @@ class EventArchive:
 
     def scan_meta(self, batch_size: int = 4096, columns: Optional[Sequence[str]] = None, order: str = "gseq",
                   **filters) -> Iterator[list]:
-        """Stream index rows (dicts of the flat columns) without reading any chunk."""
+        """Stream index rows (dicts of the flat columns) without reading any chunk; ``order="step"`` orders by
+        (episode, env, actor, step, gseq), i.e. stream by stream."""
         cols = list(columns or _IDX)
         for c in cols:
             if c not in _IDX:
@@ -339,7 +366,7 @@ class EventArchive:
         conn = self._reader()
         try:
             cur = conn.execute(f"SELECT {','.join(cols)} FROM events {where} ORDER BY "
-                               f"{'gseq' if order == 'gseq' else 'episode_id, step, gseq'}", params)
+                               f"{'gseq' if order == 'gseq' else 'episode_id, env_id, actor_id, step, gseq'}", params)
             while True:
                 part = cur.fetchmany(batch_size)
                 if not part:
@@ -361,9 +388,15 @@ class EventArchive:
         where, params = self._where(filters)
         return int(self._db.execute(f"SELECT COUNT(*) FROM events {where}", params).fetchone()[0])
 
-    def episode_steps(self, episode_id: str, step_min: Optional[int] = None, step_max: Optional[int] = None) -> list:
-        """[(step, event_id, gseq)] of one episode ordered by step (for contiguous replay slices)."""
+    def episode_steps(self, episode_id: str, step_min: Optional[int] = None, step_max: Optional[int] = None,
+                      env_id: Optional[str] = None, actor_id: Optional[str] = None) -> list:
+        """[(step, event_id, gseq)] of one episode ordered by (step, gseq). Episode ids need not be unique across
+        environments / actors: pass ``env_id`` and ``actor_id`` to select one (env, actor, episode) stream."""
         f = {"episode_id": episode_id}
+        if env_id is not None:
+            f["env_id"] = env_id
+        if actor_id is not None:
+            f["actor_id"] = actor_id
         if step_min is not None:
             f["step_min"] = step_min
         if step_max is not None:
@@ -371,6 +404,23 @@ class EventArchive:
         where, params = self._where(f)
         return [tuple(r) for r in self._db.execute(
             f"SELECT step, event_id, gseq FROM events {where} ORDER BY step, gseq", params)]
+
+    def stream_window(self, env_id: str, actor_id: str, episode_id: str, step: int, gseq: int, before: int,
+                      after: int) -> tuple:
+        """The event ``gseq`` with up to ``before`` preceding and ``after`` following events of its own
+        (env, actor, episode) stream in (step, gseq) order -> ([(step, event_id, gseq)], index of the event).
+        Two indexed range lookups: the cost is independent of the episode's length."""
+        base = ("SELECT step, event_id, gseq FROM events INDEXED BY ev_stream WHERE episode_id=? AND env_id=? AND "
+                "actor_id=? AND ")
+        key = [episode_id, env_id, actor_id]
+        b = self._db.execute(base + "step <= ? AND (step < ? OR gseq < ?) ORDER BY step DESC, gseq DESC LIMIT ?",
+                             key + [step, step, gseq, int(before)]).fetchall()
+        me = self._db.execute("SELECT step, event_id, gseq FROM events WHERE gseq=?", (gseq,)).fetchone()
+        if me is None:
+            raise KeyError(f"gseq {gseq} not in the archive")
+        f = self._db.execute(base + "step >= ? AND (step > ? OR gseq > ?) ORDER BY step, gseq LIMIT ?",
+                             key + [step, step, gseq, int(after)]).fetchall()
+        return [tuple(r) for r in reversed(b)] + [tuple(me)] + [tuple(r) for r in f], len(b)
 
     def resolve(self, obs) -> str:
         """Full original content of an archived observation (follows ``artifact_ref`` when it was offloaded)."""
@@ -390,7 +440,9 @@ class EventArchive:
         vals = {k: _tag_value(k, v) for k, v in tags.items()}
         locs = self._gseqs(event_ids)
         for eid, g in locs:
-            self._tag_fh.write(_jd({"g": g, "e": eid, "t": vals}) + "\n")
+            line = _jd({"g": g, "e": eid, "t": vals}) + "\n"
+            self._tag_fh.write(line)
+            self._tag_written += len(line)
         self._apply_tags([(g, vals) for _, g in locs])
         self._db.commit()
         return len(locs)
@@ -400,37 +452,59 @@ class EventArchive:
         self._writable()
         locs = self._gseqs(event_ids)
         for eid, g in locs:
-            self._tag_fh.write(_jd({"g": g, "e": eid, "u": str(update_id)}) + "\n")
+            line = _jd({"g": g, "e": eid, "u": str(update_id)}) + "\n"
+            self._tag_fh.write(line)
+            self._tag_written += len(line)
         self._db.executemany("INSERT INTO used(event_id, update_id) VALUES (?,?)", [(e, str(update_id)) for e, _ in locs])
         self._db.commit()
         return len(locs)
 
-    def tag_changes(self, since: int = 0, limit: int = 100_000) -> list:
-        """[(seq, gseq)] of tag updates after change number ``since`` (change-data capture for the replay sampler)."""
-        return [tuple(r) for r in self._db.execute(
-            "SELECT seq, gseq FROM tag_log WHERE seq > ? ORDER BY seq LIMIT ?", (int(since), int(limit)))]
+    def tag_changes(self, since: int = 0, limit: int = 100_000, with_keys: bool = False) -> list:
+        """[(seq, gseq)] of tag updates after change number ``since`` (change-data capture for the replay sampler);
+        ``with_keys``: [(seq, gseq, [changed tag keys] or None if unknown)]."""
+        rows = self._db.execute("SELECT seq, gseq, keys FROM tag_log WHERE seq > ? ORDER BY seq LIMIT ?",
+                                (int(since), int(limit))).fetchall()
+        if with_keys:
+            return [(q, g, None if k is None else k.split(",")) for q, g, k in rows]
+        return [(q, g) for q, g, _ in rows]
+
+    @property
+    def index_epoch(self) -> Optional[str]:
+        """Identity of this archive's SQLite index; changes when the index is rebuilt (change numbers restart)."""
+        try:
+            r = self._db.execute("SELECT value FROM akv WHERE key='epoch'").fetchone()
+        except sqlite3.OperationalError:
+            return None
+        return None if r is None else r[0]
 
     # ------------------------------------------------------------------ storage management
     def used_bytes(self) -> int:
-        """Bytes on the primary volume: chunks kept in ``root`` + WAL + tag logs + SQLite index."""
-        tot = sum(c["bytes"] for c in self._manifest["chunks"] if c["loc"] == "root")
-        for d in ("wal", "tags"):
-            p = os.path.join(self.root, d)
-            if os.path.isdir(p):
-                for f in os.listdir(p):
-                    try:
-                        tot += os.path.getsize(os.path.join(p, f))
-                    except OSError:
-                        pass
-        for suf in ("", "-wal", "-shm"):
-            p = os.path.join(self.root, "index.sqlite" + suf)
-            if os.path.exists(p):
-                tot += os.path.getsize(p)
-        if self._wal_fh is not None:          # bytes still in the Python-level write buffer of the active WAL
-            tot += max(0, self._wal_written - os.path.getsize(self._wal_fh.name))
+        """Bytes counted against ``max_bytes``: everything under ``root`` (committed chunks from the manifest, the
+        active WAL incl. its unflushed buffer, tag logs, SQLite files, manifest and any other file) plus chunks in an
+        internal cold directory. Chunks on an external cold volume are counted by ``cold_bytes`` instead."""
+        tot = sum(c["bytes"] for c in self._manifest["chunks"] if c["loc"] == "root" or not self.cold_external)
+        wd, td = os.path.join(self.root, "wal"), os.path.join(self.root, "tags")
+        tot += self._wal_written if self._wal_fh is not None else _dir_bytes(wd)
+        tot += (self._tags_closed_bytes + self._tag_written) if self._tag_fh is not None else _dir_bytes(td)
+        skip = {os.path.join(self.root, d) for d in ("chunks", "wal", "tags")}
+        if not self.cold_external:
+            skip.add(self.cold_dir)                 # its chunks are counted from the manifest above
+        try:
+            entries = list(os.scandir(self.root))
+        except OSError:
+            entries = []
+        for e in entries:
+            if e.path in skip:
+                continue
+            try:
+                tot += _dir_bytes(e.path, skip) if e.is_dir(follow_symlinks=False) else \
+                    e.stat(follow_symlinks=False).st_size
+            except OSError:
+                pass
         return tot
 
     def cold_bytes(self) -> int:
+        """Bytes of chunks on the cold volume (external: its own budget ``cold_max_bytes``)."""
         return sum(c["bytes"] for c in self._manifest["chunks"] if c["loc"] == "cold")
 
     def chunks(self) -> list:
@@ -438,7 +512,8 @@ class EventArchive:
 
     def info(self) -> dict:
         return {"root": self.root, "count": self.count(), "sealed": self._sealed_rows(), "wal_rows": self._buf_len(),
-                "chunks": len(self._manifest["chunks"]), "used_bytes": self.used_bytes(), "cold_bytes": self.cold_bytes(),
+                "wal_bytes": self._buf_bytes, "chunks": len(self._manifest["chunks"]), "used_bytes": self.used_bytes(),
+                "cold_bytes": self.cold_bytes(), "cold_external": self.cold_external,
                 "max_bytes": self.max_bytes, "tiers": {t: sum(1 for c in self._manifest["chunks"] if c["tier"] == t)
                                                        for t in ("hot", "z")},
                 "stats": dict(self.stats), "recovery": dict(self.recovery)}
@@ -693,7 +768,8 @@ class EventArchive:
             env_id TEXT, actor_id TEXT, episode_id TEXT, step INTEGER, model_version INTEGER, t_sim REAL, t_wall REAL,
             provenance TEXT, goal_id TEXT, reward REAL, cost REAL, done INTEGER, tool TEXT, ok INTEGER,
             failed INTEGER, success INTEGER, surprise REAL, novelty REAL, family TEXT, innovation INTEGER, skill TEXT);
-        CREATE INDEX IF NOT EXISTS ev_episode ON events(episode_id, step);
+        DROP INDEX IF EXISTS ev_episode;
+        CREATE INDEX IF NOT EXISTS ev_stream ON events(episode_id, env_id, actor_id, step);
         CREATE INDEX IF NOT EXISTS ev_env_t ON events(env_id, t_sim);
         CREATE INDEX IF NOT EXISTS ev_t ON events(t_sim);
         CREATE INDEX IF NOT EXISTS ev_chunk ON events(chunk);
@@ -703,8 +779,13 @@ class EventArchive:
         CREATE TABLE IF NOT EXISTS used (event_id TEXT NOT NULL, update_id TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS used_event ON used(event_id);
         CREATE TABLE IF NOT EXISTS chunks (n INTEGER PRIMARY KEY, rows INTEGER, gseq0 INTEGER, sha256 TEXT);
-        CREATE TABLE IF NOT EXISTS tag_log (seq INTEGER PRIMARY KEY AUTOINCREMENT, gseq INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS tag_log (seq INTEGER PRIMARY KEY AUTOINCREMENT, gseq INTEGER NOT NULL, keys TEXT);
+        CREATE TABLE IF NOT EXISTS akv (key TEXT PRIMARY KEY, value TEXT);
         """)
+        if "keys" not in {r[1] for r in self._db.execute("PRAGMA table_info(tag_log)")}:
+            self._db.execute("ALTER TABLE tag_log ADD COLUMN keys TEXT")
+        import uuid
+        self._db.execute("INSERT OR IGNORE INTO akv(key, value) VALUES ('epoch', ?)", (uuid.uuid4().hex,))
         self._db.commit()
 
     def _index_rows(self, rows: list, chunk: int, g0: Optional[int]) -> None:
@@ -750,11 +831,19 @@ class EventArchive:
             raise KeyError(f"{len(missing)} event ids not in the archive, e.g. {missing[:3]}")
         return [(e, found[e]) for e in event_ids]
 
-    def _apply_tags(self, items: list) -> None:
+    def _apply_tags(self, items: list, only_changed: bool = False) -> None:
+        """Apply tag dicts to index rows (+ buffered tail) and log each change for the replay sampler's CDC.
+        ``only_changed``: skip rows that already hold these values (re-applying a tag log after a restart)."""
         for g, vals in items:
+            if not vals:
+                continue
+            if only_changed:
+                cur = self._db.execute(f"SELECT {','.join(vals)} FROM events WHERE gseq=?", (g,)).fetchone()
+                if cur is not None and all(c == v for c, v in zip(cur, vals.values())):
+                    continue
             sets = ",".join(f"{k}=?" for k in vals)
             self._db.execute(f"UPDATE events SET {sets} WHERE gseq=?", [*vals.values(), g])
-            self._db.execute("INSERT INTO tag_log(gseq) VALUES (?)", (g,))
+            self._db.execute("INSERT INTO tag_log(gseq, keys) VALUES (?,?)", (g, ",".join(sorted(vals))))
             k = g - self._buf_g0
             if 0 <= k < self._buf_len():
                 for key, v in vals.items():
@@ -834,8 +923,8 @@ class EventArchive:
             fsync_file(tmp)
         size = os.path.getsize(tmp)
         if self.max_bytes is not None:
-            wal_share = self._wal_bytes() * n / max(1, self._buf_len())
-            over = self.used_bytes() + size - wal_share - self.max_bytes     # steady state after the seal
+            remaining = sum(self._buf_sizes[n:])                              # the WAL is rewritten to these rows
+            over = self.used_bytes() + size - max(0, self._wal_written - remaining) - self.max_bytes   # after seal
             if over > 0 and self._make_room(over) < over:
                 os.unlink(tmp)
                 raise StorageLimitExceeded(
@@ -852,6 +941,8 @@ class EventArchive:
         self._write_manifest()
         for c in COLUMNS:
             del self._buf[c][:n]
+        self._buf_bytes -= sum(self._buf_sizes[:n])
+        del self._buf_sizes[:n]
         self._buf_g0 = g0 + n
         self._rotate_logs()
         self.stats["sealed_chunks"] += 1
@@ -1053,10 +1144,16 @@ class EventArchive:
         """Load the unsealed tail from the WAL files (torn last lines ignored) and index it."""
         end = self._sealed_rows()
         self._buf = {c: [] for c in COLUMNS}
+        self._buf_sizes, self._buf_bytes = [], 0
         self._buf_g0 = end
         if not self.readonly:
+            # tag values already committed (and change-logged) for tail rows survive their re-indexing from the WAL
+            saved = {r[0]: (r[1], dict(zip(TAG_KEYS, r[2:]))) for r in self._db.execute(
+                f"SELECT gseq, event_id, {','.join(TAG_KEYS)} FROM events WHERE chunk=-1")}
             self._db.execute("DELETE FROM entities WHERE gseq IN (SELECT gseq FROM events WHERE chunk=-1)")
             self._db.execute("DELETE FROM events WHERE chunk=-1")
+        else:
+            saved = {}
         d = os.path.join(self.root, "wal")
         files = sorted(os.listdir(d)) if os.path.isdir(d) else []
         nxt, rows = end, []
@@ -1076,12 +1173,25 @@ class EventArchive:
                 if row["gseq"] != nxt:
                     break
                 rows.append(row)
+                self._buf_sizes.append(len(line) + 1)
                 nxt += 1
         for row in rows:
             for c in COLUMNS:
                 self._buf[c].append(row[c])
+        self._buf_bytes = sum(self._buf_sizes)
         if not self.readonly and rows:
             self._index_rows(rows, chunk=-1, g0=None)
+            for k, row in enumerate(rows):
+                eid, tags = saved.get(row["gseq"], (None, None))
+                if eid != row["event_id"]:
+                    continue
+                diff = {t: v for t, v in tags.items() if v != _tag_value(t, row[t]) and not (
+                    t in ("family", "skill") and v in (None, "") and row[t] in (None, ""))}
+                if diff:
+                    self._db.execute(f"UPDATE events SET {','.join(f'{t}=?' for t in diff)} WHERE gseq=?",
+                                     [*diff.values(), row["gseq"]])
+                    for t, v in diff.items():
+                        self._buf[t][k] = bool(v) if t in ("failed", "innovation") else v
         self.recovery["wal_rows"] = len(rows)
         self._next = nxt
         if not self.readonly:
@@ -1090,12 +1200,15 @@ class EventArchive:
             self._db.commit()
 
     def _replay_tag_logs(self, all_files: bool) -> None:
+        """Re-apply logged tags (the newest log segment; all of them after an index rebuild). Only the net effect per
+        event is applied, and only where it differs from the index, so restarts add no change-log rows."""
         d = os.path.join(self.root, "tags")
         if not os.path.isdir(d):
             return
         files = sorted(f for f in os.listdir(d) if f.endswith(".jsonl"))
         if not all_files:
             files = files[-1:]
+        net: "OrderedDict[int, dict]" = OrderedDict()
         for f in files:
             with open(os.path.join(d, f), "rb") as fh:
                 data = fh.read()
@@ -1110,9 +1223,10 @@ class EventArchive:
                 if self._db.execute("SELECT 1 FROM events WHERE gseq=? AND event_id=?", (g, e["e"])).fetchone() is None:
                     continue                                  # tagged event did not survive (was never durable)
                 if "t" in e:
-                    self._apply_tags([(g, e["t"])])
+                    net.setdefault(g, {}).update(e["t"])
                 elif "u" in e and all_files:
                     self._db.execute("INSERT INTO used(event_id, update_id) VALUES (?,?)", (e["e"], e["u"]))
+        self._apply_tags(list(net.items()), only_changed=True)
 
     def _open_logs(self) -> None:
         wd = os.path.join(self.root, "wal")
@@ -1121,11 +1235,15 @@ class EventArchive:
         # rewrite the tail into one fresh WAL file so the active file starts exactly at the buffer start
         tmp = name + ".new"
         with open(tmp, "w") as fh:
+            sizes = []
             for k in range(self._buf_len()):
-                fh.write(_jd({c: self._buf[c][k] for c in COLUMNS}) + "\n")
+                line = _jd({c: self._buf[c][k] for c in COLUMNS}) + "\n"
+                fh.write(line)
+                sizes.append(len(line))
             fh.flush()
             if self.do_fsync:
                 os.fsync(fh.fileno())
+        self._buf_sizes, self._buf_bytes = sizes, sum(sizes)
         os.replace(tmp, name)
         for f in existing:
             if os.path.join(wd, f) != name:
@@ -1137,7 +1255,9 @@ class EventArchive:
         td = os.path.join(self.root, "tags")
         tags = sorted(f for f in os.listdir(td) if f.endswith(".jsonl"))
         tname = os.path.join(td, tags[-1]) if tags else os.path.join(td, f"tags_{self._manifest['next_chunk']:08d}.jsonl")
+        self._tags_closed_bytes = _dir_bytes(td) - (os.path.getsize(tname) if os.path.exists(tname) else 0)
         self._tag_fh = open(tname, "a", buffering=1 << 16)
+        self._tag_written = os.path.getsize(tname)
 
     def _rotate_logs(self) -> None:
         """After a seal: the new WAL holds only the remaining tail; a new tag-log segment starts."""
@@ -1149,11 +1269,15 @@ class EventArchive:
         name = os.path.join(wd, f"wal_{self._buf_g0:012d}.jsonl")
         tmp = name + ".new"
         with open(tmp, "w") as fh:
+            sizes = []
             for k in range(self._buf_len()):
-                fh.write(_jd({c: self._buf[c][k] for c in COLUMNS}) + "\n")
+                line = _jd({c: self._buf[c][k] for c in COLUMNS}) + "\n"
+                fh.write(line)
+                sizes.append(len(line))
             fh.flush()
             if self.do_fsync:
                 os.fsync(fh.fileno())
+        self._buf_sizes, self._buf_bytes = sizes, sum(sizes)
         os.replace(tmp, name)
         if old_name != name:
             os.unlink(old_name)
@@ -1165,8 +1289,10 @@ class EventArchive:
         if self.do_fsync:
             os.fsync(self._tag_fh.fileno())
         self._tag_fh.close()
-        self._tag_fh = open(os.path.join(self.root, "tags", f"tags_{self._manifest['next_chunk']:08d}.jsonl"), "a",
-                            buffering=1 << 16)
+        self._tags_closed_bytes += self._tag_written
+        tname = os.path.join(self.root, "tags", f"tags_{self._manifest['next_chunk']:08d}.jsonl")
+        self._tag_fh = open(tname, "a", buffering=1 << 16)
+        self._tag_written = os.path.getsize(tname)
 
     def _writable(self) -> None:
         if self.readonly:
@@ -1185,6 +1311,20 @@ def _tag_value(k: str, v):
     if k in ("surprise", "novelty"):
         return float(v)
     return str(v)
+
+
+def _dir_bytes(path: str, skip: Optional[set] = None) -> int:
+    """Bytes of the files under ``path`` (not following symlinks), excluding the directories in ``skip``."""
+    tot = 0
+    for root, dirs, files in os.walk(path):
+        if skip:
+            dirs[:] = [d for d in dirs if os.path.join(root, d) not in skip]
+        for f in files:
+            try:
+                tot += os.lstat(os.path.join(root, f)).st_size
+            except OSError:
+                pass
+    return tot
 
 
 def _batches(xs: list, n: int):
