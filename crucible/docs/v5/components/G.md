@@ -47,9 +47,10 @@ labelled `provider_supplied` and is never counted as independent.
 `caps.adopt_service` requires a successful `caps.try` by the adopter itself. After adoption, every real call the
 adopter makes is counted (`caps.use`). Independence is always decided by `goals.metrics.is_related`.
 
-The v5 tables exist only with module config `{"registry": true}`. Worlds without it, including every 4.0 family,
-keep their exact state digests and event logs. Calling the v5 endpoints there gives `invalid_action`, except
-`caps.search {query}`, which then searches published capabilities only.
+The v5 tables and endpoints exist only with module config `{"registry": true}`. Worlds without it, including every
+4.0 family, keep their exact tool catalogue, state digests and event logs: the v5 endpoints are withdrawn at install
+and `caps.search` keeps its 4.0 schema there. This is checked by `tests/test_diagnostics.py`, which reproduces the 3.0
+catalogue of 191 tools, and by `test_registry_is_opt_in_so_4_0_worlds_keep_their_tools_and_state`.
 
 ### Needs graph (`needs`)
 
