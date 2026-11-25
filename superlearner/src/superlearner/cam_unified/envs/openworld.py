@@ -242,7 +242,16 @@ class OpenWorldOperator:
                 self.envs[b] = e
             for (h, spec, endow) in self.participant_specs:
                 import numpy as np
-                pol = spec() if (callable(spec) and not hasattr(spec, "act")) else copy.deepcopy(spec)
+                if callable(spec) and not hasattr(spec, "act"):
+                    pol = spec()
+                elif si == 0:                   # the first world uses the instance itself
+                    pol = spec
+                else:
+                    try:
+                        pol = copy.deepcopy(spec)
+                    except TypeError as e:
+                        raise TypeError("a participant used in several worlds must be given as a zero-argument "
+                                        f"factory ({type(spec).__name__} cannot be copied: {e})") from e
                 ident = self.srv.join_world(wid, h, endowment=int(endow))
                 pol.reset(ident.principal, np.random.default_rng(self.rng.randrange(2 ** 31)))
                 slot.participants.append([ident.principal, pol, ident])
@@ -619,7 +628,8 @@ def open_world(tasks: Sequence[Any] | Callable[[int, int], Any], n_envs: int | N
     ``horizon_s``, ``description``; `goals.contracts.GoalContract` and the protocol tasks qualify), one per env or
     one for all, or a factory ``(env_index, seed | None) -> task``. `participants`: [(handle, crucible Policy,
     endowment_cents)] independently controlled actors added to every world and driven every `participant_dt`
-    simulated seconds (a Policy instance is deep-copied per world; a zero-argument factory is called per world) -
+    simulated seconds (a Policy instance serves the first world and is deep-copied for further ones; a
+    zero-argument factory is called per world) -
     heterogeneous populations next to the worlds' own minds, firms and consumers. `fork_identical`: environments
     whose tasks name the same world are ephemeral forks of one base world (created and warmed up once), so paired
     controls face identical conditions.

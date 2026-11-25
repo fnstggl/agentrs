@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from .. import goals as _goals          # noqa: F401 - registers cam_operating_profit
 from . import ow3
-from .base import COMMON_UNSUPPORTED, Control, TaskProtocol, builder_control, idle_control, random_control
+from .base import COMMON_UNSUPPORTED, TaskProtocol, builder_control, idle_control, random_control
 
 DAY = 86400
 SOURCE_FAMILIES = ("ow_market", "ow_frontier", "bazaar", "open_digital")

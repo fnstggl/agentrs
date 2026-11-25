@@ -19,8 +19,7 @@ The sink is a JSONL file and/or any callable taking a list of EventRecords (e.g.
 from __future__ import annotations
 
 import json
-import os
-from typing import Any, Callable, Iterable, Iterator, Optional, Sequence
+from typing import Any, Callable, Iterator, Optional, Sequence
 
 from ..interfaces import ActionSource, EventRecord, Provenance
 from .agent_protocol import PolicyAgent, is_privileged

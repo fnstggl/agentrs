@@ -88,3 +88,20 @@ def test_matched_planning_variant_counts_candidates(backend):
     for t in agent.policies[0].transcript:
         for c in t["candidates"]:
             assert 0.0 <= c["p_yes"] <= 1.0
+
+
+def test_frozen_llm_as_independent_participant(backend):
+    """W05: a frozen language agent is one of the independently controlled participants of a world (driven by the
+    operator through actor operations), next to the world's own minds, firms and consumers."""
+    from crucible.research.llm_eval import EvalLLMPolicy
+    llm = EvalLLMPolicy(backend=backend, interface="v4", max_new_tokens=64, tool_chars=4000)
+    ad, op = open_world([goal()], seed=0, participants=[("llm-03", llm, 100_000)])
+    try:
+        ad.reset()
+        ad.advance_time([3 / 24])                         # three operator-driven participant turns
+        pol = op.slots[0].participants[0][1]
+        assert len(pol.transcript) == 3 and pol.stats["calls"] == 3
+        w = op.world(0)
+        assert w.principal("p:llm-03") is not None
+    finally:
+        ad.close()

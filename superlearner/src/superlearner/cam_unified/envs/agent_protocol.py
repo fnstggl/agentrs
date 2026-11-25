@@ -12,12 +12,12 @@ records are lossless.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Optional, Protocol, Sequence, runtime_checkable
 
 import numpy as np
 
-from ..interfaces import Action, ActionSource, EventRecord, ObservationBatch, ObsKind
+from ..interfaces import Action, ActionSource, ObservationBatch, ObsKind
 from . import ow_convert as C
 from .openworld import WAIT_TOOL
 

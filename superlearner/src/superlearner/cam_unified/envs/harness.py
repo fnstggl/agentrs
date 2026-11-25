@@ -23,7 +23,7 @@ import pickle
 import resource
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 from ..interfaces import EvidenceKind, EventRecord, ObsKind, Provenance, new_id
 from .agent_protocol import Transition

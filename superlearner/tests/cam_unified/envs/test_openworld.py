@@ -337,3 +337,37 @@ def test_process_isolated_operator_firewall_and_success():
         assert not [x for x in _walk(ad) + _walk(rev) if isinstance(x, _FORBIDDEN_TYPES)]
     finally:
         ad.close()
+
+
+def test_sandbox_boundary_through_the_adapter(env):
+    """G01: everything the agent can call is an in-world simulated host; operator tools are refused; agent code runs
+    in Crucible's sandbox (no sockets, no host filesystem, resource limits); tool output is returned as data."""
+    ad, op, ev = env
+    ad.reset()
+    tools = ad.available_tools()[0]
+    hosts = {t.name.split(".", 1)[0] for t in tools if t.name != WAIT_TOOL}
+    assert "admin" not in hosts and all(t.name.count(".") >= 1 for t in tools if t.name != WAIT_TOOL)
+    r = ad.execute([Action("admin.join", {"handle": "sneaky", "endowment": 10 ** 9})])[0]
+    assert not r.ok and r.error in ("forbidden", "unknown_tool")
+    me = op.principal(0)
+    repo = json.loads(ad.execute([Action("code.create_repo", {"name": "probe"})])[0].observations[0].content)["repo"]
+    src = ("import socket, os\n"
+           "def net(args, caller):\n"
+           "    try:\n"
+           "        socket.socket().connect(('1.1.1.1', 80)); return {'net': 'open'}\n"
+           "    except Exception as e:\n"
+           "        return {'net': type(e).__name__}\n"
+           "def fs(args, caller):\n"
+           "    try:\n"
+           "        return {'fs': open('/etc/passwd').read()[:10]}\n"
+           "    except Exception as e:\n"
+           "        return {'fs': type(e).__name__}\n")
+    assert ad.execute([Action("code.commit", {"repo": repo, "files": {"p.py": src}})])[0].ok
+    rn = ad.execute([Action("code.run", {"repo": repo, "target": "p.py:net", "input": {}})])[0]
+    rf = ad.execute([Action("code.run", {"repo": repo, "target": "p.py:fs", "input": {}})])[0]
+    out_n = json.loads(rn.observations[0].content)
+    out_f = json.loads(rf.observations[0].content)
+    assert rn.ok and out_n["ok"] and out_n["result"]["net"] == "PermissionError", out_n     # seccomp: no sockets
+    assert rf.ok and out_f["ok"] and out_f["result"]["fs"] == "PermissionError", out_f      # landlock: no host files
+    # tool output is data: the record carries it as a string, nothing in the adapter evaluates it
+    assert isinstance(rn.observations[0].content, str)

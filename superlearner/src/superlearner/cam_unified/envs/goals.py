@@ -21,8 +21,6 @@ authoritative world state on the evaluator side; none is ever an agent input.
 """
 from __future__ import annotations
 
-import copy
-import math
 from dataclasses import dataclass, field
 from typing import Any, Optional, Sequence
 

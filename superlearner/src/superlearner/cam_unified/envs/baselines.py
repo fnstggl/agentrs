@@ -24,7 +24,7 @@ import math
 import os
 import re
 from collections import Counter
-from typing import Any, Optional, Sequence
+from typing import Optional
 
 from ..interfaces import ActionSource
 from .agent_protocol import PolicyAgent, Transition
