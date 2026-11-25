@@ -116,7 +116,11 @@ def hindsight_learning_progress(beliefs: Sequence[Any], steps: Sequence[Any],
 
     Returns {"lp": [B,T], "n_query": [B,T]}: LP_t summed (or averaged, ``reduce="mean"``) over up to ``horizon``
     later valid steps of the same episode. Support (step t) and queries (t+1..t+H) are disjoint by construction; if the
-    steps carry ``event_ids`` they are checked too."""
+    steps carry ``event_ids`` they are checked too.
+
+    With the contract modules use `meta.belief_callables_from_modules` and wrap the filter's beliefs as
+    ``meta.support_belief(fast_t, t)``: B_t^- is then scored from the latent state Z_t (before o_t) and B_t^+ from
+    Z_{t+1}, each rolled through the query actions by the world model's prior."""
     T = len(steps)
     if len(beliefs) != T:
         raise ValueError("need one prior belief per step")
@@ -168,12 +172,16 @@ def _finite_lp(lp: Tensor) -> Tensor:
     return torch.nan_to_num(lp.float(), nan=0.0, posinf=_BIG, neginf=-_BIG)
 
 
-def noise_corrected_lp(lp: Tensor, signal_frac: Tensor) -> Tensor:
-    """LP_corr = LP * rho, rho in [0, 1] the support outcome's epistemic share. Where rho = 0 (pure noise) the result
-    is exactly 0 whatever LP is (also +-inf / NaN); a NaN rho counts as 0 (no attributable signal)."""
+RHO_EPS = 1e-5     # signal fractions below this are float round-off of an exactly-zero epistemic share
+
+
+def noise_corrected_lp(lp: Tensor, signal_frac: Tensor, rho_eps: float = RHO_EPS) -> Tensor:
+    """LP_corr = LP * rho, rho in [0, 1] the support outcome's epistemic share. Where rho <= ``rho_eps`` (pure noise:
+    every hypothesis predicts the outcome alike, up to float round-off of the mutual information / variance) the
+    result is exactly 0 whatever LP is (also +-inf / NaN); a NaN rho counts as 0 (no attributable signal)."""
     rho = torch.nan_to_num(signal_frac.float(), nan=0.0).clamp(0, 1)
     x = _finite_lp(lp)
-    return torch.where(rho > 0, x * rho, torch.zeros_like(x))
+    return torch.where(rho > rho_eps, x * rho, torch.zeros_like(x))
 
 
 def exploration_reward(lp: Tensor, signal_frac: Optional[Tensor], coef: float, clip: Optional[float] = 10.0,

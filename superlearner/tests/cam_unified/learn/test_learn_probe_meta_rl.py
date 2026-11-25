@@ -4,9 +4,17 @@ cfg.use_learned_exploration and the stage's lp_reward flag, scaled by cfg.lp_coe
 BudgetEncoder) learns to pay for the probe first, exploits its report, conditions on the BUDGET token (no probe when
 one decision is left) and beats the greedy / independent-candidate one-step value-of-information baselines.
 
-Seed sweeps behind the numbers quoted in the claims are reproducible with
-``superlearner/tests/cam_unified/learn/sweeps/probe_sweep.py``; its committed output is
-``superlearner/tests/cam_unified/learn/sweeps/probe_sweep_results.jsonl`` (one JSON row per training run).
+Recorded (200 iterations x 128 episodes per run, CPU, ~1 min each; held-out seeds; deterministic evaluation):
+  learned (LP, agent seed 0)  H=1..6: 14 / 70 / 170 / 270 / 370 / 470 cents == Bayes-optimal for H >= 2
+  seed sweep, LP              6/8 runs Bayes-optimal for every H in 2..6 (mean return H2-6 267.5 of 270); the other two
+                              miss one horizon (seed 2 does not probe at H=2: 49 vs 70; seed 5: 390 vs 470 at H=6)
+  seed sweep, extrinsic only  0/8 runs ever probe (elimination; mean return H2-6 170.3): a local optimum
+  greedy / KG / EIG           H=1..6 about 12-16 / 45-50 / 96 / 160-167 / 249-255 / 343-350 (never probe)
+  structured-prior KG         Bayes-optimal (it is given the hypothesis model the learned agent never sees)
+
+The seed sweep is reproducible with ``superlearner/tests/cam_unified/learn/sweeps/probe_sweep.py``; its committed
+output is ``sweeps/probe_sweep_results.jsonl`` (one JSON row per training run). The outputs of the slow tests of this
+module (and two exploratory runs) are in ``sweeps/slow_test_results.jsonl``.
 """
 import json
 import os
@@ -118,27 +126,37 @@ def test_j_meta_early_trial_exploration_pays_off_in_the_later_trial():
 
 
 @pytest.mark.slow
-def test_noise_correction_is_what_keeps_the_agent_away_from_a_noisy_tv():
-    """The LP belief reacts to the TV (a miscalibrated filter whose uncertainty expands on surprising readings), so
-    the raw LP of watching is positive. Trained on raw LP the agent learns to watch; with the epistemic signal
-    fraction (0 for a reading every hypothesis predicts alike) it ignores the TV and stays Bayes-optimal."""
+def test_lp_trained_agent_ignores_a_noisy_tv_that_its_belief_reacts_to():
+    """The LP belief reacts to the TV (`ReactiveArmBelief`: miscalibrated prior, uncertainty expansion on every
+    reading), so the raw hindsight LP of watching is positive; the LP reward the agent trains on relies on the
+    epistemic signal fraction (exactly 0 for a reading every hypothesis predicts alike). The agent ignores the TV and
+    stays Bayes-optimal. (The single-decision contrast — a raw-LP experimenter learns to watch — is the default test
+    `test_learn_explore::test_with_a_belief_that_reacts_to_noise_only_the_epistemic_correction_rejects_the_noisy_tv`;
+    the recurrent agent trained on raw LP also converged to probe-first without watching at bias 3 and 6, because
+    the TV only pays off in raw LP *before* the probe and PPO commits to probe-first first.)"""
+    from learn_doubles import arm_learning_progress
     torch.set_num_threads(2)
-    out = {}
-    for corrected in (True, False):
-        agent = ProbeAgent(6, D=64, seed=0, noise_tv=True)
-        tr = train_probe_agent(agent, iters=200, B=128, horizon=(1, 6), lp_coef=200.0, seed0=0, noise_tv=True,
-                               belief=ReactiveArmBelief(6), corrected=corrected)
-        ev = evaluate(agent, noise_tv=True)
-        watch = {}
-        for H in (3, 6):
-            ad = ProbeBanditAdapter(200, horizon=H, noise_tv=True)
-            rr = TrialRunner(ad, ad.evaluator).run(agent, list(range(7_000_000, 7_000_200)), greedy=True)
-            watch[H] = sum(a.count("watch") for a in rr.actions) / 200
-        out["corrected" if corrected else "raw_lp"] = {"eval": ev, "watch_per_episode": watch,
-                                                       "train_s": tr["seconds"]}
-    _report("noisy_tv_reactive_belief", out)
-    c, raw = out["corrected"], out["raw_lp"]
-    assert max(c["watch_per_episode"].values()) < 0.05 and c["eval"][6]["probe_first"] > 0.9
-    assert c["eval"][6]["return"] >= BAYES[6] - 15
-    assert raw["watch_per_episode"][6] > 0.5                        # the failure the correction prevents
-    assert raw["eval"][6]["return"] < c["eval"][6]["return"] - 50
+    belief = ReactiveArmBelief(6)
+    # the training signal: watching earns raw LP but no corrected LP (random initial policy, 512 episodes)
+    probe_agent = ProbeAgent(6, D=64, seed=0, noise_tv=True)
+    ad = ProbeBanditAdapter(512, horizon=6, noise_tv=True)
+    res = TrialRunner(ad, ad.evaluator).run(probe_agent, list(range(512)))
+    raw = arm_learning_progress(res, belief, 8, 1.0, corrected=False)
+    cor = arm_learning_progress(res, belief, 8, 1.0, corrected=True)
+    w = raw["watched"] & res.traj.mask
+    w0 = raw["watched"][:, 0]                       # watching first, while the miscalibrated prior is untouched
+    raw_watch, cor_watch = float(raw["intrinsic"][:, 0][w0].mean()), float(cor["intrinsic"][w].abs().max())
+    agent = ProbeAgent(6, D=64, seed=0, noise_tv=True)
+    tr = train_probe_agent(agent, iters=200, B=128, horizon=(1, 6), lp_coef=200.0, seed0=0, noise_tv=True,
+                           belief=belief, corrected=True)
+    ev = evaluate(agent, noise_tv=True)
+    watch = {}
+    for H in (3, 6):
+        ad = ProbeBanditAdapter(200, horizon=H, noise_tv=True)
+        rr = TrialRunner(ad, ad.evaluator).run(agent, list(range(7_000_000, 7_000_200)), greedy=True)
+        watch[H] = sum(a.count("watch") for a in rr.actions) / 200
+    _report("noisy_tv_reactive_belief", {"raw_lp_of_watching_nats": raw_watch, "corrected_lp_of_watching": cor_watch,
+                                         "eval": ev, "watch_per_episode": watch, "train_s": tr["seconds"]})
+    assert raw_watch > 0.5 and cor_watch == 0.0
+    assert max(watch.values()) < 0.05 and ev[6]["probe_first"] > 0.9
+    assert all(ev[H]["return"] >= BAYES[H] - 15 for H in range(2, 7))

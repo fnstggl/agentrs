@@ -6,7 +6,7 @@ import math
 import pytest
 import torch
 
-from learn_doubles import ArmBelief, ParticleThetaBelief, ScalarStep, arm_learning_progress
+from learn_doubles import ArmBelief, ParticleThetaBelief, ReactiveArmBelief, ScalarStep, arm_learning_progress
 from superlearner.cam_unified.interfaces import Action
 from superlearner.cam_unified.learn.diagnostics import ProbeBanditAdapter
 from superlearner.cam_unified.learn.explore import (categorical_decomposition, combine_signal_frac,
@@ -116,11 +116,13 @@ def test_uncertainty_decompositions():
 
 
 class _ExperimentChooser:
-    """Decision 0: probe or watch (learned logits); later decisions pull a uniformly random arm (scripted)."""
+    """Decision 0: ``first[0]`` (probe, or a pull of a random arm) or ``first[1]`` (watch) from learned logits; later
+    decisions pull a uniformly random arm (scripted)."""
 
-    def __init__(self, seed=0):
+    def __init__(self, seed=0, first=("probe", "watch")):
         self.theta = torch.zeros(2, requires_grad=True)
         self.gen = torch.Generator().manual_seed(seed)
+        self.first = first
         self.version = 0
 
     def initial_state(self, B):
@@ -134,7 +136,8 @@ class _ExperimentChooser:
         acts = []
         for b in range(B):
             if bool(state["first"][b]):
-                acts.append(Action("probe" if int(c[b]) == 0 else "watch"))
+                name = self.first[int(c[b])]
+                acts.append(Action("pull", {"arm": int(arm[b])}) if name == "pull" else Action(name))
             else:
                 acts.append(Action("pull", {"arm": int(arm[b])}))
         rec = {"choice": torch.where(state["first"], c, torch.full_like(c, -1))}
@@ -184,3 +187,39 @@ def test_intrinsic_reward_is_finite_for_nonfinite_lp_and_zero_for_pure_noise():
     plp = torch.tensor([[[0.0, float("nan")], [-1.0, float("nan")]]])
     out = mixture_log_prob(plp, torch.log(torch.tensor([[0.5, 0.5]])), torch.tensor([[True, False]]))
     assert torch.isfinite(out).all()
+
+
+@pytest.mark.parametrize("corrected", [True, False])
+def test_with_a_belief_that_reacts_to_noise_only_the_epistemic_correction_rejects_the_noisy_tv(corrected):
+    """The LP belief is miscalibrated and expands its uncertainty on every TV reading (`ReactiveArmBelief`): the raw
+    hindsight LP of watching is then *positive* (a flatter belief predicts later pulls better) and larger than that
+    of an informative pull, so a raw-LP experimenter learns to watch the TV. The signal fraction of a reading every
+    hypothesis predicts alike is exactly 0: the corrected experimenter learns to pull."""
+    torch.manual_seed(0)
+    B = 64
+    ad = ProbeBanditAdapter(B, horizon=4, noise_tv=True)
+    runner = TrialRunner(ad, ad.evaluator)
+    pol = _ExperimentChooser(first=("pull", "watch"))
+    opt = torch.optim.Adam([pol.theta], lr=0.1)
+    belief = ReactiveArmBelief(6, bias=6.0)
+    raw_watch = []
+    for it in range(40):
+        res = runner.run(pol, list(range(it * B, (it + 1) * B)))
+        choice = res.traj.extras["choice"][:, 0]
+        lpr = arm_learning_progress(res, belief, horizon=3, coef=1.0, corrected=corrected)
+        r = lpr["intrinsic"][:, 0]
+        w = choice == 1
+        if bool(w.any()):
+            raw_watch.append(float(lpr["lp"][w, 0].mean()))
+            assert not corrected or float(r[w].abs().max()) == 0.0            # the TV earns exactly nothing
+        logp = torch.log_softmax(pol.theta, -1)[choice]
+        loss = -((r - r.mean()) * logp).mean()
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+    assert sum(raw_watch) / len(raw_watch) > 0.5                          # the belief really reacts to the TV
+    p_watch = torch.softmax(pol.theta.detach(), -1)[1].item()
+    if corrected:
+        assert p_watch < 0.1, p_watch
+    else:
+        assert p_watch > 0.9, p_watch
