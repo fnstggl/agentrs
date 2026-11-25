@@ -38,7 +38,7 @@ import numpy as np
 
 from ..core import schema as S
 from ..core.errors import CrucibleError, NotFound
-from ..core.kernel import Ctx, Module, applier, endpoint, register_module
+from ..core.kernel import Ctx, Module, applier, endpoint, process, register_module
 from ..substrate import artifacts, attention, columns, ids
 from . import core, schema, text
 from .schema import NONE_I32, RES_TABLE, TABLE
@@ -99,8 +99,13 @@ class PopWeb(Module):
         for k in ("popweb.posts", "popweb.hosts", "popweb.search"):
             world.runtime.pop(k, None)
 
-    # ------------------------------------------------------------------ genesis: what people already know
+    # ------------------------------------------------------------------ what people already know at the start
     def genesis(self, ctx):
+        # after the sites of the world exist (installed by processes at time zero with a higher priority)
+        ctx.schedule(ctx.now, "popweb.seed", {}, prio=20, key="popweb.seed")
+
+    @process("seed")
+    def pr_seed(self, ctx):
         st = ctx.state
         hosts = sorted(h for h, rec in st.scan("hosts") if self._is_web(st, h))
         if not hosts:

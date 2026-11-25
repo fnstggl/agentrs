@@ -257,11 +257,14 @@ class PopStrategic(Module):
         return grp
 
     def group(self, world, name: str) -> StrategicGroup:
+        """The group's live network. Its weights must be the ones the state records (a rolled-back command may have
+        trained the live copy): otherwise it is rebuilt from the checkpoints and the logged updates."""
+        rec = world.state.get("pop_strat_groups", name)
+        if rec is None:
+            raise NotFound(f"no strategic group {name}")
         g = self._rt(world).get(name)
-        if g is None:
-            rec = world.state.get("pop_strat_groups", name)
-            if rec is None:
-                raise NotFound(f"no strategic group {name}")
+        meta = world.state.get("pop_policies", f"strategic:{name}")
+        if g is None or (meta is not None and g.weights_hash() != meta["weights_hash"]):
             g = self._rebuild(world, rec)
         return g
 
@@ -287,7 +290,7 @@ class PopStrategic(Module):
         vis = {"visits": 0, "first_visits": 0, "return_visits": 0, "purchases": 0, "revenue_cents": 0}
         if m.get("host"):
             try:
-                vis = ctx.call("popweb.visits", {"host": m["host"]}, as_principal=p).get("total", vis)
+                vis.update(ctx.call("popweb.visits", {"host": m["host"]}, as_principal=p).get("total") or {})
             except CrucibleError:
                 pass
         prev = m.get("seen") or {k: 0 for k in vis}

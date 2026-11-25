@@ -296,7 +296,9 @@ class PopAdaptive(Module):
         if rec is None:
             raise NotFound(f"no adaptive policy group {gid}")
         pol = self._rt(world).get(int(gid))
-        if pol is None:
+        meta = world.state.get("pop_policies", f"adaptive:{int(gid)}")
+        if pol is None or (meta is not None and pol.weights_hash() != meta["weights_hash"]):
+            # never act with weights the state does not record (a rolled-back command may have trained the live copy)
             pol = self._rebuild(world, rec)
         pol.use_memory = bool(rec.get("memory", True))      # the group's settings are state
         return pol

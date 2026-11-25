@@ -29,7 +29,7 @@ import json
 
 import numpy as np
 
-from ..core.kernel import Module, register_module
+from ..core.kernel import Module, process, register_module
 from . import text
 
 BEHAVIOURS = ("rich", "thin", "broken", "flaky", "spam", "offtopic")
@@ -213,20 +213,25 @@ def draw_specs(rng: np.random.Generator, n: int, mix: dict | None = None, shop_s
 
 @register_module
 class PopSites(Module):
-    """Install web sites at genesis, each operated by its own simulated organisation (an endowed account pays its
-    hosting). Config: {"sites": [spec...]} or {"n", "mix", "shop_share", "links", "articles", "cash"}."""
+    """Install web sites, each operated by its own simulated organisation (an endowed account pays its hosting).
+    Config: {"sites": [spec...]} or {"n", "mix", "shop_share", "links", "articles", "cash"}. The installation runs as
+    a one-shot process at time zero (deploying runs sandboxed code, whose recorded outcomes regeneration replays)."""
     name = "popsites"
     depends = ("identity", "bank", "code", "cloud", "net", "appdb")
 
     def genesis(self, ctx):
+        if self.config.get("sites") or int(self.config.get("n", 0)):
+            ctx.schedule(ctx.now, "popsites.install", {}, prio=10, key="popsites.install")
+
+    @process("install")
+    def pr_install(self, ctx):
         cfg = self.config
         w = ctx.world
         specs = list(cfg.get("sites") or draw_specs(w.rng_for("popsites"), int(cfg.get("n", 0)), cfg.get("mix"),
                                                     float(cfg.get("shop_share", 0.4)), int(cfg.get("links", 3)),
                                                     tuple(cfg.get("articles", (6, 12)))))
-        if not specs:
-            return
-        install_sites(ctx, specs, cash=int(cfg.get("cash", 2_000_000)))
+        if specs:
+            install_sites(ctx, specs, cash=int(cfg.get("cash", 2_000_000)))
 
 
 def ensure_provider(ctx) -> str:

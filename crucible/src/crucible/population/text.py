@@ -80,7 +80,7 @@ def _tv(token: str, dim: int) -> tuple[tuple[int, ...], tuple[float, ...]]:
             continue
         seen.add(j)
         idx.append(j)
-        sgn.append(1.0 if h[k] & 1 else -1.0)
+        sgn.append(1.0 if h[k + 1] & 0x80 else -1.0)       # a bit the slot index does not depend on
         if len(idx) == min(NNZ, dim):
             break
     return tuple(idx), tuple(sgn)
