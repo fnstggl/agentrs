@@ -73,6 +73,9 @@ def main(argv=None) -> int:
     s.add_argument("--out", default=None)
     d = sub.add_parser("dashboard")
     d.add_argument("--run-dir", required=True)
+    pp = sub.add_parser("planner-probe")
+    pp.add_argument("--run-dir", required=True)
+    pp.add_argument("--out", required=True)
     m = sub.add_parser("main-scale")
     m.add_argument("--out", required=True)
     m.add_argument("--sem-model", default=None)
@@ -123,6 +126,11 @@ def main(argv=None) -> int:
     if a.cmd == "dashboard":
         from ..observe.dashboard import build_dashboard
         print(build_dashboard(a.run_dir, title="CAM Unified Stage 1 (real OpenWorld)"))
+        return 0
+    if a.cmd == "planner-probe":
+        from .probes import planner_probe_run
+        out = planner_probe_run(os.path.abspath(a.run_dir), a.out)
+        print(json.dumps({k: v for k, v in out.items() if k != "rows"}, indent=1, default=str))
         return 0
     if a.cmd == "main-scale":
         from .probes import main_scale_probe

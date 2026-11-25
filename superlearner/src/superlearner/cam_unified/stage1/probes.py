@@ -96,3 +96,127 @@ def main_scale_probe(sem_model: Optional[str] = None, work_dir: Optional[str] = 
     if not keep:
         shutil.rmtree(work, ignore_errors=True)
     return _jsonable(out)
+
+
+# ============================================================================ planner measurement (spec 7.2, A08)
+
+@torch.no_grad()
+def plan_once(model, inp, horizon: int, belief_aware: bool, n_candidates: int, n_samples: int, cand_seed: int,
+              roll_seed: int):
+    """Re-plan one stored real decision (StepInputs row) with the model's planner: the candidates are drawn from
+    CAM's action generator under `cand_seed` (identical across conditions), the imagined rollouts (stochastic
+    latents, sampled outcomes, later imagined actions) under `roll_seed`; `horizon` imagined decisions, with the
+    row's own belief (cloned FastState updated with imagined outcomes) or without beliefs. Outcome queries are the
+    core keys of a fresh outcome tracker (the per-environment tracked numeric keys are not part of StepInputs)."""
+    import copy as _copy
+    from ..model import PlanRequest, StepInputs, acting_mode
+    from ..outcome_spec import build_outcome_batch
+
+    def seed(s):
+        torch.manual_seed(s)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(s)
+    regs = _copy.deepcopy(inp.registries)
+    live = StepInputs(**{**inp.__dict__, "registries": regs})
+    with acting_mode(model), model._autocast():
+        enc = model.encode_step(live)
+        opt_tok = model._option_token(inp.option, inp.option_steps) if model.option_policy is not None else None
+        goal_in = model._goal_inputs(enc, opt_tok, inp.budget)
+        T = model.tokenizer.tools(inp.tools)
+        specs = [model.new_tracker().prospective() for _ in range(inp.B)]
+        prosp = build_outcome_batch(specs, model.query_encoder, regs, [[-1] * len(s) for s in specs], model.device)
+        dt0 = torch.full((inp.B,), model.think_days, device=model.device)
+        B = inp.B
+        rep = torch.arange(B, device=model.device).repeat_interleave(n_candidates)
+        seed(cand_seed)
+        cands = model.action_generator.sample(enc.R[rep], goal_in.select(rep), enc.belief.select(rep), T.select(rep),
+                                              enc.obs.select(rep), [inp.tools[int(i)] for i in rep],
+                                              [inp.obs_lists[int(i)] for i in rep], temperature=1.0)
+        req = PlanRequest(enc.Z, enc.R, inp.fast if belief_aware else None, goal_in, enc.goal, enc.belief,
+                          enc.memory, T, enc.obs, list(inp.tools), list(inp.obs_lists), prosp, dt0, n_candidates,
+                          horizon, n_samples, None, cands)
+        calls0 = dict(model.calls)
+        seed(roll_seed)
+        plan = model.planner.plan(model, req)
+    used = {k: model.calls.get(k, 0) - calls0.get(k, 0) for k in model.calls
+            if k.startswith(("imagination.", "world_model.prior", "action_generator"))}
+    return plan, used
+
+
+def planner_probe(system, inputs, horizons=(1, 3), cand_seeds=(0, 1, 2, 3), roll_seeds=(10, 11),
+                  n_candidates: int = 2, n_samples: int = 1) -> dict:
+    """For every stored real decision x candidate seed (the SAME CAM candidates in every condition): the planner's
+    argmax choice when imagining 1 vs H decisions ahead, belief-aware vs belief-free, each under two rollout seeds.
+    The rollout-seed pairs of one condition give the noise floor (how often the choice flips with only the imagined
+    samples changed); the condition pairs give the effect of horizon and beliefs."""
+    model = system.model
+    H = max(horizons)
+    conds = [(h, True) for h in horizons] + [(H, False)]
+    name = lambda h, bel: f"h{h}_{'belief' if bel else 'nobelief'}"      # noqa: E731
+    rows = []
+    for b in range(inputs.B):
+        one = inputs.select([b])
+        for cs in cand_seeds:
+            r = {"row": b, "cand_seed": cs, "choices": {}, "scores": {}}
+            sig = None
+            for h, bel in conds:
+                for rs in roll_seeds:
+                    plan, used = plan_once(model, one, h, bel, n_candidates, n_samples, 1000 * b + cs, rs)
+                    p = plan.actions[0].proposal
+                    s_ = [(c["action"]["tool"], json.dumps(c["action"]["args"], sort_keys=True))
+                          for c in plan.candidates[0]]
+                    if sig is None:
+                        sig = s_
+                    if s_ != sig:
+                        raise RuntimeError("candidates differ across conditions (non-deterministic sampling)")
+                    r["choices"][f"{name(h, bel)}@{rs}"] = p["chosen"]
+                    r["scores"][f"{name(h, bel)}@{rs}"] = p["scores"]
+                    if h == H and bel and rs == roll_seeds[0]:
+                        r["model_calls_full"] = used
+            r["candidate_tools"] = [t for t, _ in sig]
+            r["distinct_candidates"] = len(set(sig)) > 1
+            rows.append(r)
+    ok = [r for r in rows if r["distinct_candidates"]]
+
+    def flip(a, b):
+        if not ok:
+            return None
+        return sum(1 for r in ok if r["choices"][a] != r["choices"][b]) / len(ok)
+    r0, r1 = roll_seeds[0], roll_seeds[1]
+    full = name(H, True)
+    out = {"planner": type(model.planner).__name__, "horizons": list(horizons), "n_candidates": n_candidates,
+           "n_samples": n_samples, "n_contexts": inputs.B, "n_pairs_with_distinct_candidates": len(ok),
+           "noise_floor": {name(h, bel): flip(f"{name(h, bel)}@{r0}", f"{name(h, bel)}@{r1}") for h, bel in conds},
+           "effect": {f"{full}_vs_{name(h, bel)}": flip(f"{full}@{r0}", f"{name(h, bel)}@{r0}")
+                      for h, bel in conds if name(h, bel) != full},
+           "model_calls_full": rows[0].get("model_calls_full") if rows else None, "rows": rows}
+    return out
+
+
+def planner_probe_run(run_dir: str, out_path: str) -> dict:
+    """Load the run's latest lifetime checkpoint into a fresh system (this process) and measure the planner on the
+    run's fixed probe contexts (real OpenWorld decisions)."""
+    from .harness_agent import HarnessAgent
+    from .runner import load_spec
+    from .system import SystemConfig
+    import tempfile
+    prev = load_spec(run_dir)
+    sc = SystemConfig(**prev["spec"]["system"])
+    work = tempfile.mkdtemp(prefix="planner_probe_", dir=RUNS)
+    shutil.rmtree(work)
+    shutil.copytree(run_dir, work, ignore=shutil.ignore_patterns("dashboard", "*.tmp*"))
+    try:
+        system = build_system(work, sc)
+        h = HarnessAgent(system)
+        latest = open(os.path.join(work, "lifetime_ckpt", "LATEST")).read().strip()
+        info = h.load(os.path.join(work, "lifetime_ckpt", latest, "agent"))
+        p = h._probe
+        m = system.model
+        res = planner_probe(system, p["inputs"], horizons=(1, m.imag_horizon), n_candidates=m.imag_candidates,
+                            n_samples=m.imag_samples)
+        res.update({"run_dir": run_dir, "checkpoint_version": info["version"], "probe_event_ids": p["event_ids"]})
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    with open(out_path, "w") as fh:
+        json.dump(_jsonable(res), fh, indent=1)
+    return res

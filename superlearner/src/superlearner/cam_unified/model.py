@@ -704,6 +704,7 @@ class PlanRequest:
     horizon: int
     n_samples: int
     generator: Optional[torch.Generator] = None
+    candidates: Optional[list] = None    # [B*n] pre-drawn CAM candidates (row b*n+i); None = the planner samples them
 
 
 @dataclass
@@ -1718,10 +1719,15 @@ class LatentImaginationPlanner:
         dev = req.R.device
         rep = torch.arange(B, device=dev).repeat_interleave(n)                           # candidate rows [B*n]
         ag = model.action_generator
-        model._count("action_generator.sample")
-        cands = ag.sample(req.R[rep], req.goal_in.select(rep), req.belief.select(rep), req.tools.select(rep),
-                          req.obs.select(rep), [req.tool_lists[int(i)] for i in rep],
-                          [req.obs_lists[int(i)] for i in rep], temperature=1.0, greedy=False)
+        if req.candidates is not None:
+            if len(req.candidates) != B * n:
+                raise ShapeError(f"PlanRequest.candidates: {len(req.candidates)} actions for B*n={B * n}")
+            cands = list(req.candidates)
+        else:
+            model._count("action_generator.sample")
+            cands = ag.sample(req.R[rep], req.goal_in.select(rep), req.belief.select(rep), req.tools.select(rep),
+                              req.obs.select(rep), [req.tool_lists[int(i)] for i in rep],
+                              [req.obs_lists[int(i)] for i in rep], temperature=1.0, greedy=False)
         rows = rep.repeat_interleave(ns)                                                  # rollout rows [B*n*ns]
         cand_of_row = torch.arange(B * n, device=dev).repeat_interleave(ns)
         Bb = rows.shape[0]
