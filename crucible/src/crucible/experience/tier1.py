@@ -456,54 +456,134 @@ class RapidExperienceEnv(BaseExperienceEnv):
     """`crucible.rapid.make(family, seed, **difficulty)` behind the ExperienceEnv interface (INTERFACE_CONTRACTS
     section 8: ``reset() -> Observation``, ``step(actions) -> {observation, result, events}``, ``outcome()``).
 
-    `RapidEnv.step` takes ``{agent: action}``; the adapter calls it once per `execute`. Rapid environments advance
-    their own time inside `step`, so `advance` is a no-op that is recorded in `missing`. The legacy reward of a rapid
-    family is the ``reward`` its `step` result carries, if any (Tier 1 v5 families need not have one); the verified
-    outcome is `outcome()["success"]`; `outcome()` itself stays on the evaluator side (`verify`)."""
+    `RapidEnv.step` takes ``{agent: action}``; the adapter calls it once per `execute`, so every executed action is
+    one tick of the world. An action is either a rapid action (``{"kind": ..., ...}``) or the interface's tool form
+    ``{"tool": <kind>, "args": {...}}`` (the tools are the action kinds, whose schemas name the ``kind`` field); the
+    adapter passes the rapid action on. Waiting: ``advance(seconds > 0)`` lets one tick pass with no action when no
+    action was executed since the last tick, so a driver that executes or waits once per decision moves the world
+    one tick per decision either way. The legacy reward of a rapid family is the ``reward`` its `step` result
+    carries, if any (Tier 1 v5 families need not have one); the verified outcome is `outcome()["success"]`;
+    `outcome()` itself stays on the evaluator side (`verify`). Observations always list the current tools (the
+    rapid world sends them only when they change). `rapid_env=` installs an already built `RapidEnv` (a world drawn
+    by `crucible.rapid.generator` outside the family registry)."""
     tier = 1
     kind = "rapid"
 
-    def __init__(self, family: str, seed: int = 0, *, reward_mode: str = LEGACY, **difficulty):
+    def __init__(self, family: str, seed: int = 0, *, reward_mode: str = LEGACY, rapid_env=None, **difficulty):
         from .. import rapid
         if not hasattr(rapid, "make"):
             raise ImportError("crucible.rapid.make is not available (workstream H not merged)")
         super().__init__(check_mode(reward_mode), f"rapid:{family}", seed)
-        self.env = rapid.make(family, int(seed), **difficulty)
+        self.env = rapid_env if rapid_env is not None else rapid.make(family, int(seed), **difficulty)
         first = self.env.reset()
-        ags = list(getattr(self.env, "agents", None) or [first.get("agent", "agent")])
-        self._agents = [str(a) for a in ags]
-        self._obs = {a: dict(first, agent=a) if a != first.get("agent") else first for a in self._agents}
+        ags = getattr(self.env, "agents", None)
+        ags = ags() if callable(ags) else ags
+        self._agents = [str(a) for a in (ags or [first.get("agent", "agent")])]
         self._events: list[dict] = []
+        self._begin(first)
+
+    def _begin(self, first: dict) -> None:
+        self._obs = {a: (dict(first, agent=a) if a != first.get("agent") else first) for a in self._agents}
+        if hasattr(self.env, "observe"):
+            for a in self._agents:
+                self._obs[a] = self.env.observe(a)
         self._pending = {a: 0.0 for a in self._agents}
         self._paid: set[str] = set()
+        self._last: dict[str, dict | None] = {a: None for a in self._agents}
+        self._acted = False                  # an action was executed since the last tick
+        for a in self._agents:
+            self._obs[a] = self._contract_events(dict(self._obs[a]))
 
     def agents(self) -> list[str]:
         return list(self._agents)
 
+    @property
+    def done(self) -> bool:
+        return bool(getattr(self.env, "done", False))
+
+    @property
+    def horizon(self) -> int:
+        return int(getattr(self.env, "horizon", 0))
+
     def observe(self, agent: str) -> Observation:
-        return json_copy(self._obs[agent])
+        obs = json_copy(self._obs[agent])
+        obs["tools"] = self.tools(agent)
+        obs["last_result"] = json_copy(self._last[agent])
+        return obs
+
+    def _contract_events(self, obs: dict) -> dict:
+        """A rapid observation with its events in the interface's event form (seq, t, type, actor, payload,
+        cause), numbered in this adapter's log."""
+        evs = []
+        for e in obs.get("events") or []:
+            if isinstance(e, dict) and {"seq", "t", "type", "actor", "payload", "cause"} <= set(e):
+                evs.append(e)
+                continue
+            e = dict(e) if isinstance(e, dict) else {"type": "event", "value": e}
+            ev = {"seq": len(self._events) + 1, "t": int(e.pop("t", obs.get("t", 0)) or 0),
+                  "type": str(e.pop("type", "event")), "actor": str(e.pop("from", "world")), "payload": e,
+                  "cause": None}
+            self._events.append(ev)
+            evs.append(ev)
+        obs["events"] = evs
+        return obs
 
     def tools(self, agent: str) -> list[dict]:
-        return annotate_tools(list(self._obs[agent].get("tools") or []))
+        """The world's action kinds as interface tools ``rapid.<kind>`` (the ``<host>.<endpoint>`` naming of the
+        Observation contract); each tool's input schema is the kind's action schema."""
+        fn = getattr(self.env, "tools", None)
+        tools = fn(agent) if callable(fn) else (self._obs[agent].get("tools") or [])
+        out = []
+        for t in json_copy(list(tools)):
+            name = str(t.get("name", ""))
+            t["name"] = name if "." in name else f"rapid.{name}"
+            ann = dict(t.get("annotations") or {})
+            ann.setdefault("host", "rapid")
+            ann.setdefault("readOnlyHint", name == "query")
+            t["annotations"] = ann
+            out.append(t)
+        return annotate_tools(out)
 
-    def execute(self, agent: str, action: dict) -> dict:
-        out = self.env.step({agent: action})
+    @staticmethod
+    def _rapid_action(action: Any) -> Any:
+        """A rapid action from either form: ``{"kind": ...}`` as is, ``{"tool": "rapid.<kind>" | "<kind>", "args"}``
+        as its arguments with the kind filled in."""
+        if not isinstance(action, dict) or "kind" in action or "tool" not in action:
+            return action
+        kind = str(action["tool"])
+        kind = kind[len("rapid."):] if kind.startswith("rapid.") else kind
+        args = action.get("args")
+        args = dict(args) if isinstance(args, dict) else {}
+        args.setdefault("kind", kind)
+        return args
+
+    def _absorb(self, out: dict, agent: str | None) -> None:
+        got = {}
+        obs_all = out.get("observations")
+        if isinstance(obs_all, dict):
+            got.update({a: o for a, o in obs_all.items() if a in self._obs and isinstance(o, dict)})
         obs = out.get("observation")
         if isinstance(obs, dict):
-            self._obs[agent] = obs
-        for e in out.get("events") or []:
-            ev = dict(e)
-            ev.setdefault("cause", None)
-            self._events.append(ev)
+            got[str(obs.get("agent") or agent or self._agents[0])] = obs
+        for a, o in got.items():
+            if a in self._obs:
+                self._obs[a] = self._contract_events(dict(o))
+
+    def execute(self, agent: str, action: dict) -> dict:
+        out = self.env.step({agent: self._rapid_action(action)})
+        self._absorb(out, agent)
+        obs = out.get("observation")
+        self._acted = True
         res = dict(out.get("result") or {})
         if self.reward_mode == LEGACY and isinstance(res.get("reward"), (int, float)):
             self._pending[agent] += float(res["reward"])
         res.pop("reward", None)
         self.steps += 1
-        r = {"ok": bool(res.get("ok", False)), "t": int((obs or {}).get("t", 0)), "tool": str(action.get("tool", "")),
+        tool = action.get("tool", action.get("kind", "")) if isinstance(action, dict) else ""
+        r = {"ok": bool(res.get("ok", False)), "t": int((obs or {}).get("t", 0)), "tool": str(tool),
              "cost_s": int(res.get("cost_s", 0))}
         if r["ok"]:
-            r["result"] = res.get("result")
+            r["result"] = res.get("result", res.get("results"))
         else:
             r["error"] = res.get("error") if isinstance(res.get("error"), dict) else {"code": "error",
                                                                                       "message": str(res.get("error"))}
@@ -512,6 +592,7 @@ class RapidExperienceEnv(BaseExperienceEnv):
             if oc.get("success") and agent not in self._paid:
                 self._paid.add(agent)
                 self._pending[agent] += 1.0
+        self._last[agent] = json_copy(r)
         return r
 
     def observe_since(self, agent: str, cursor: int) -> tuple[list[dict], int]:
@@ -519,7 +600,14 @@ class RapidExperienceEnv(BaseExperienceEnv):
         return json_copy(evs), max([int(e.get("seq", 0)) for e in self._events] + [int(cursor)])
 
     def advance(self, seconds: int) -> None:
-        return None
+        """One tick with no action when time passes and no action was executed since the last tick (a wait)."""
+        if int(seconds) > 0 and not self._acted and not self.done:
+            self._absorb(self.env.step(None), None)
+        self._acted = False
+
+    def reset(self) -> None:
+        """A new episode of the same world (same seed, same noise)."""
+        self._begin(self.env.reset())
 
     def reward(self, agent: str) -> float:
         r, self._pending[agent] = self._pending[agent], 0.0
