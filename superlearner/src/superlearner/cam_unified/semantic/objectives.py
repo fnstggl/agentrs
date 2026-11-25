@@ -1,9 +1,12 @@
 """Semantic learning objectives (spec 2.3) as real losses over the workstream-A components.
 
-* MaskedSemanticObjective  - masked semantic-token prediction: observation tokens are replaced by a learned mask
-  vector (+ the index of the token inside its observation; time/entity/kind stay in the TokenSet fields), the core (any UnifiedCoreP: forward(Z, ctx) -> (Z, ctx_out)) contextualises the set, a predictor maps the
-  outputs at the masked positions to the (stop-gradient) original tokens; InfoNCE against all masked targets of the
-  batch (no collapse to a constant prediction).
+* MaskedSemanticObjective  - masked semantic prediction at the observation level: whole observations (every token
+  that shares the observation's ref - its Q pooled semantic tokens and its OBS_NUM token) are replaced by a learned
+  mask vector (+ the index of the token inside its observation; time/entity/kind stay in the TokenSet fields), so the
+  target can only be inferred from the *other* observations; the core (any function ctx TokenSet -> ctx_out
+  [B, N, D], e.g. UnifiedCoreP.forward) contextualises the set, a predictor maps the outputs at the masked positions
+  to the (stop-gradient) original tokens; InfoNCE against all masked targets of the batch (no collapse to a constant
+  prediction). `obs_acc` reports whether the best-scoring target belongs to the right observation.
 * ToolConsequenceObjective - tool-call consequence prediction: from state features and the ACTION tokens predict the
   (projected) embedding of the observed result tokens (TOOL_RESULT / EXEC_RESULT / ERROR); InfoNCE over the batch.
 * EntityGroundingObjective - contrastive mention <-> entity matching with multiple positives: an observation token
@@ -12,19 +15,22 @@
 * CodeExecutionObjective   - code <-> execution matching: symmetric InfoNCE between code representations (ACTION /
   CODE tokens) and the representations of their real sandbox execution results.
 * evidence_retrieval_loss  - supervised evidence pointer: -log pi(evidence = labelled observations | R, tool, obs).
-* behaviour_cloning_loss   - -log pi(actions) of demonstration actions under a declared condition name (e.g.
-  "demo-init:example_inductor"); refuses an undeclared condition.
+* behaviour_cloning_loss   - -log pi(actions) of demonstration actions under a declared experimental condition
+  ("demo-init:<source>", which must be listed in the run's declared conditions and must not name a privileged
+  source such as a builder / reference solver / oracle); demonstration actions must come from a non-privileged
+  source (ActionSource.BASELINE, e.g. the ExampleInductor; SCRIPTED builder transcripts are refused).
 """
 from __future__ import annotations
 
 import math
-from typing import Callable, Optional
+import re
+from typing import Callable, Collection, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ..interfaces import ObsKind, TokenKind, TokenSet
+from ..interfaces import ActionSource, ObsKind, TokenKind, TokenSet
 from .layers import RMSNorm, SwiGLU
 from .tokenizer import parse_obs_ref
 
@@ -40,6 +46,9 @@ def info_nce(pred: torch.Tensor, target: torch.Tensor, temperature: float = 0.1,
         loss = 0.5 * (loss + F.cross_entropy(logits.t(), labels))
     acc = (logits.argmax(1) == labels).float().mean()
     return loss, acc
+
+
+MASKABLE_KINDS = (TokenKind.OBS_SEM, TokenKind.OBS_NUM, TokenKind.RELATION, TokenKind.EVENT)
 
 
 class MaskedSemanticObjective(nn.Module):
@@ -66,20 +75,43 @@ class MaskedSemanticObjective(nn.Module):
                     prev = r
         return out.to(tokens.x.device)
 
+    @staticmethod
+    def observation_ids(tokens: TokenSet) -> torch.Tensor:
+        """[B, N] batch-unique id of each eligible token's observation (its ref), -1 elsewhere."""
+        eligible = (tokens.mask & torch.isin(tokens.kind, torch.tensor(MASKABLE_KINDS, device=tokens.kind.device)))
+        el = eligible.tolist()
+        ids = torch.full(tokens.mask.shape, -1, dtype=torch.long)
+        seen: dict = {}
+        for b in range(tokens.B):
+            for j in range(tokens.N):
+                if not el[b][j]:
+                    continue
+                ref = tokens.refs[b][j] if tokens.refs is not None else None
+                key = (b, ref if ref is not None else ("tok", j))
+                ids[b, j] = seen.setdefault(key, len(seen))
+        return ids.to(tokens.x.device)
+
     def forward(self, core_fn: Callable[[TokenSet], torch.Tensor], tokens: TokenSet,
                 generator: Optional[torch.Generator] = None) -> tuple:
-        """core_fn(ctx TokenSet) -> ctx_out [B, N, D]. Returns (loss, {"acc", "n_masked"})."""
-        eligible = tokens.mask & ((tokens.kind == TokenKind.OBS_SEM) | (tokens.kind == TokenKind.OBS_NUM))
-        rdev = generator.device if generator is not None else tokens.x.device
-        r = torch.rand(tokens.mask.shape, generator=generator, device=rdev).to(tokens.x.device)
-        sel = eligible & (r < self.mask_frac)
-        for b in range(tokens.B):                       # at least one masked token per row that has any
-            if bool(eligible[b].any()) and not bool(sel[b].any()):
-                j = int(torch.nonzero(eligible[b])[0])
-                sel[b, j] = True
-        if not bool(sel.any()):
+        """core_fn(ctx TokenSet) -> ctx_out [B, N, D]. Masks whole observations (each with probability mask_frac, at
+        least one per row that has any) and predicts all their tokens. Returns (loss, {"acc", "obs_acc", "n_masked",
+        "n_masked_obs"})."""
+        oid = self.observation_ids(tokens)
+        n_obs = int(oid.max()) + 1 if bool((oid >= 0).any()) else 0
+        if n_obs == 0:
             z = tokens.x.sum() * 0.0
-            return z, {"acc": 0.0, "n_masked": 0}
+            return z, {"acc": 0.0, "obs_acc": 0.0, "n_masked": 0, "n_masked_obs": 0}
+        rdev = generator.device if generator is not None else tokens.x.device
+        r = torch.rand(n_obs, generator=generator, device=rdev).to(tokens.x.device)
+        pick = r < self.mask_frac
+        row_of = torch.full((n_obs,), -1, dtype=torch.long, device=tokens.x.device)
+        bidx = torch.arange(tokens.B, device=tokens.x.device).unsqueeze(1).expand_as(oid)
+        row_of[oid[oid >= 0]] = bidx[oid >= 0]
+        for b in range(tokens.B):                       # at least one masked observation per row that has any
+            mine = torch.nonzero(row_of == b).flatten()
+            if len(mine) and not bool(pick[mine].any()):
+                pick[mine[0]] = True
+        sel = (oid >= 0) & pick[oid.clamp(min=0)]
         gpos = self.group_pos(self.group_index(tokens).clamp(max=self.max_group - 1))
         masked_in = (self.mask_emb + gpos).to(tokens.x.dtype)
         x = torch.where(sel.unsqueeze(-1), masked_in, tokens.x)
@@ -87,7 +119,12 @@ class MaskedSemanticObjective(nn.Module):
         pred = self.pred(out[sel])
         target = tokens.x[sel].detach()
         loss, acc = info_nce(pred, target, self.temperature)
-        return loss, {"acc": float(acc), "n_masked": int(sel.sum())}
+        with torch.no_grad():
+            o = oid[sel]
+            best = (F.normalize(pred.float(), dim=-1) @ F.normalize(target.float(), dim=-1).t()).argmax(1)
+            obs_acc = float((o[best] == o).float().mean())
+        return loss, {"acc": float(acc), "obs_acc": obs_acc, "n_masked": int(sel.sum()),
+                      "n_masked_obs": int(pick.sum())}
 
 
 def pool_rows(ts: TokenSet) -> torch.Tensor:
@@ -224,12 +261,38 @@ def evidence_retrieval_loss(gen, R, goal, belief, tools, obs, tool_lists, obs_li
     return -lp.mean(), {"logp": lp.detach(), "entropy": ent.detach()}
 
 
+CONDITION_RE = re.compile(r"demo-init:[a-z0-9][a-z0-9_.-]*")
+PRIVILEGED_SOURCES = ("builder", "builders", "reference", "oracle", "privileged", "evaluator", "solver", "hidden",
+                      "truth", "spec", "ground")
+DEMO_ACTION_SOURCES = (ActionSource.BASELINE,)
+
+
+def check_demo_condition(condition: str, declared: Collection[str]) -> str:
+    """Validate a behaviour-cloning condition: "demo-init:<source>", listed in the run's declared conditions, and
+    not naming a privileged source (architecture §11 decision 2). Returns the source name."""
+    if not isinstance(condition, str) or not CONDITION_RE.fullmatch(condition):
+        raise ValueError(f"behaviour cloning condition {condition!r} must look like 'demo-init:<source>'")
+    if declared is None or condition not in set(declared):
+        raise ValueError(f"behaviour cloning condition {condition!r} is not among the declared conditions "
+                         f"{sorted(declared or [])}")
+    src = condition.split(":", 1)[1]
+    bad = [w for w in re.split(r"[_.-]", src) if w in PRIVILEGED_SOURCES]
+    if bad:
+        raise ValueError(f"demonstration source {src!r} looks privileged ({bad}); builder / reference-solver "
+                         f"transcripts are never training data")
+    return src
+
+
 def behaviour_cloning_loss(gen, R, goal, belief, tools, obs, tool_lists, obs_lists, actions: list, condition: str,
-                           evidence: Optional[list] = None) -> tuple:
-    """-mean log pi(demo actions). `condition` must name the declared demonstration condition (spec: BC is a
-    reported experimental condition, never silent). Rows with None actions are excluded."""
-    if not condition or not isinstance(condition, str):
-        raise ValueError("behaviour cloning requires a declared condition name")
+                           declared: Collection[str], evidence: Optional[list] = None) -> tuple:
+    """-mean log pi(demo actions) under the declared condition `condition` (spec: BC is a reported experimental
+    condition, never silent; see check_demo_condition). Every demo action must have a non-privileged source
+    (DEMO_ACTION_SOURCES). Rows with None actions are excluded."""
+    check_demo_condition(condition, declared)
+    for a in actions:
+        if a is not None and a.source not in DEMO_ACTION_SOURCES:
+            raise ValueError(f"demonstration action of tool {a.tool!r} has source {a.source.value!r}; only "
+                             f"{[s.value for s in DEMO_ACTION_SOURCES]} demonstrations may be cloned")
     lp, _ = gen.log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions, evidence)
     total = sum(lp.values())
     rows = [b for b, a in enumerate(actions) if a is not None]

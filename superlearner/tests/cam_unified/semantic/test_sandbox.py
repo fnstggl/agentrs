@@ -53,6 +53,37 @@ def test_isolation_network_filesystem_and_timeout(sbx):
     assert not empty.ok and empty.observations[0].kind == ObsKind.ERROR
 
 
+IDIOMS = {   # program -> (ok, text expected in the observation, error type)
+    "main_guard": ("def main():\n    print(sum(range(11)))\n\nif __name__ == '__main__':\n    main()\n", True, "55", None),
+    "exit0": ("print(55)\nimport sys\nsys.exit(0)\n", True, "55", None),
+    "exit_none": ("print(55)\nraise SystemExit\n", True, "55", None),
+    "exit3": ("print('partial')\nimport sys\nsys.exit(3)\n", False, "partial", "NonZeroExit"),
+    "exit_msg": ("import sys\nsys.exit('fatal: bad input')\n", False, "fatal: bad input", "NonZeroExit"),
+    "exception": ("x = {}\nprint('before')\nx['missing']\n", False, "before", "KeyError"),
+    "no_newline": ("print(55, end='')", True, "55", None),
+}
+
+
+@pytest.mark.parametrize("backend", ["crucible", "subprocess"])
+def test_scripts_run_as_main_with_exit_status_on_both_backends(backend):
+    """main.py runs as __main__ (guarded programs execute), sys.exit(0) is success, other statuses are failures, and
+    the two backends agree; the runner's internal result never leaks into the observation."""
+    sb = CodeSandbox(backend=backend, allow_weak=True, limits=SandboxLimits(timeout_s=5.0))
+    for name, (code, ok, text, err) in IDIOMS.items():
+        r = sb.run(code=code)
+        (o,) = r.observations
+        assert r.ok is ok, (backend, name, o.content)
+        assert text in o.content and "__cam_exit__" not in o.content and "imported" not in o.content, (name, o.content)
+        assert o.kind == (ObsKind.EXEC_RESULT if ok else ObsKind.ERROR)
+        if err:
+            assert r.error.startswith(err), (name, r.error)
+        if ok:
+            assert o.meta["result"] is None and "result:" not in o.content
+    sib = sb.run(files={"main.py": "import helper\nprint(helper.f(4))\n", "helper.py": "def f(x):\n    return x * 10\n"})
+    assert sib.ok and "40" in sib.observations[0].content
+    assert not sb.run(files={"main.py": "print(1)", "__cam_runner__.py": "x = 1"}).ok      # reserved name
+
+
 def test_weak_backend_only_when_explicit():
     with pytest.raises(SandboxUnavailable):
         CodeSandbox(backend="subprocess")

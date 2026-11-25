@@ -11,8 +11,9 @@ import torch
 from superlearner.cam_unified.interfaces import ToolSchema
 from superlearner.cam_unified.semantic.constraints import (ESC, NORMAL, PATTERN_ALPHABET, RegexDFA, UnsupportedSchema,
                                                            simulate_json_string, tables_for)
-from superlearner.cam_unified.semantic.grammar import (GrammarOptions, NumberGrid, ToolGrammar, drive_walks,
-                                                       encode_value, holes_of, materialize, serialize)
+from superlearner.cam_unified.semantic.grammar import (DecimalSpec, GrammarOptions, NumberGrid, ToolGrammar,
+                                                       drive_walks, encode_value, holes_of, materialize,
+                                                       number_candidates, serialize)
 
 CRUCIBLE_PATTERNS = ["[a-z0-9][a-z0-9-]{1,40}", "[a-z][a-z0-9_]{0,23}", "[a-z][a-z0-9-]{2,30}",
                      "[a-z][a-z0-9_-]{0,39}", "[a-z0-9][a-z0-9:._-]{0,30}", "[a-z0-9][a-z0-9._-]{0,60}"]
@@ -91,21 +92,109 @@ def test_json_string_masks_generate_valid_bounded_strings(enc):
             assert min_len <= len(value) <= max_len and len(toks) <= cap
 
 
-def test_number_grid_is_inside_bounds_and_exact_for_small_integer_ranges():
+def test_number_grid_is_exact_for_small_integer_ranges():
     opts = GrammarOptions()
-    g = NumberGrid(1, 50, True, opts)
-    assert g.exact and g.n == 50
+    g = NumberGrid(1, 50, opts)
+    assert g.n == 50
     assert [g.value(i) for i in range(50)] == list(range(1, 51))
     assert all(g.index(v) == v - 1 for v in range(1, 51))
-    big = NumberGrid(1, 10**9, True, opts)
-    assert not big.exact and big.n == opts.num_base ** opts.num_levels
-    vals = [big.value(i) for i in range(big.n)]
-    assert min(vals) == 1 and max(vals) == 10**9 and all(isinstance(v, int) for v in vals)
-    f = NumberGrid(0.0, 1.0, False, opts)
-    vs = [f.value(i) for i in range(0, f.n, 97)]
-    assert all(0.0 <= v <= 1.0 for v in vs) and f.value(0) == 0.0 and f.value(f.n - 1) == 1.0
+    assert not NumberGrid.fits(1, 10 ** 9, opts)
     for level in range(opts.num_levels):                    # digit masks keep the index inside the grid
         assert any(g.digit_mask(level, 0))
+
+
+def _random_decimal(spec, rng):
+    k = rng.choice([i for i, m in enumerate(spec.k_mask()) if m]) if spec.F else 0
+    s = rng.choice([i for i, m in enumerate(spec.sign_mask(k)) if m])
+    L = 1 + rng.choice([i for i, m in enumerate(spec.len_mask(k, s)) if m])
+    n = 0
+    for pos in range(L):
+        d = rng.choice([i for i, m in enumerate(spec.digit_mask(k, s, L, pos, n)) if m])
+        n = n * 10 + d
+    return (k, s, n), spec.value(k, s, n)
+
+
+@pytest.mark.parametrize("lo,hi,integer", [(1, 10 ** 12, True), (-10 ** 9, 10 ** 9, True), (0.1, 2.5, False),
+                                           (-3.25, 1e3, False), (0.0, 1.0, False), (1, 1e12, False), (7, 7, True),
+                                           (-1e15, 1e15, False)])
+def test_decimal_digits_stay_in_bounds_and_have_one_path_per_value(lo, hi, integer):
+    opts = GrammarOptions()
+    spec = DecimalSpec(lo, hi, integer, opts)
+    rng = random.Random(0)
+    for _ in range(400):                                       # random admissible walks: in bounds, unique encoding
+        path, v = _random_decimal(spec, rng)
+        assert lo <= v <= hi and isinstance(v, int if integer else float)
+        k, s, n, approx = spec.encode(v)
+        assert (k, s, n) == path and not approx
+
+
+def test_exact_amounts_are_representable_in_wide_ranges():
+    """Exact cents and timestamps over wide ranges (the old 4096-point symlog grid could not write them)."""
+    opts = GrammarOptions()
+    cents = ToolGrammar(ToolSchema("pay", "", {"type": "object", "properties": {
+        "amount": {"type": "integer", "minimum": 1, "maximum": 10 ** 12},
+        "price": {"type": "number", "minimum": 0},
+        "at": {"type": "integer", "minimum": 0, "maximum": 10 ** 9}}, "required": ["amount", "price", "at"]}), opts)
+    rng = random.Random(4)
+    vals = [1, 2, 10 ** 12, 10 ** 12 - 1, 123456789012, 4999, 1000001] + [rng.randint(1, 10 ** 12) for _ in range(40)]
+    prices = [0.0, 0.01, 12.5, 1999.99, 3.141593, 1e9, 123456.789] + [round(rng.uniform(0, 1e6), 2) for _ in range(40)]
+    for a, p in zip(vals, prices):
+        args = {"amount": a, "price": p, "at": rng.randint(0, 10 ** 9)}
+        choices, holes, flags = [], [], {}
+        encode_value(cents.root, args, opts, choices, holes, flags)
+        assert not flags.get("approx")
+        it = iter(choices)
+        tpl = drive_walks([cents.root], opts, lambda rows, decs: [next(it) for _ in decs])[0]
+        assert next(it, None) is None
+        out = materialize(tpl)
+        assert out == args and type(out["amount"]) is int and _validate(cents.tool.parameters, out) == []
+    # more than float_digits fractional digits round (flagged, never silent)
+    flags = {}
+    encode_value(cents.root, {"amount": 5, "price": 0.1234567, "at": 0}, opts, [], [], flags)
+    assert flags["approx"] == 1
+
+
+def test_numbers_copy_exactly_from_evidence():
+    opts = GrammarOptions()
+    g = ToolGrammar(ToolSchema("bank.transfer", "", {"type": "object", "properties": {
+        "amount": {"type": "integer", "minimum": 1, "maximum": 10 ** 12},
+        "rate": {"type": "number", "minimum": 0, "maximum": 1}}, "required": ["amount", "rate"]}), opts)
+    cands = number_candidates([([(0.035, "interest_rate = 0.035 fraction")],
+                                "invoice inv_9 from acct_7: amount 1,234,567 cents, due day 12; ref 88")], 24)
+    texts = [c.text for c in cands]
+    assert texts[0] == "0.035" and "1,234,567" in texts and "12" in texts and "88" in texts
+    assert "9" not in texts and "7" not in texts                 # digits inside identifiers are not numbers
+    seen_copy = set()
+    rng = random.Random(1)
+    for _ in range(60):
+        rec = []
+
+        def decide(rows, decs):
+            out = []
+            for d in decs:
+                ok = [i for i, m in enumerate(d.mask) if m]
+                c = rng.choice(ok)
+                if d.kind == "numsrc":
+                    assert ok[0] == 0 and all(d.values[i - 1].admissible(d.node) for i in ok[1:])
+                    seen_copy.add((d.node.path, c))
+                out.append(c)
+            rec.extend(out)
+            return out
+        tpl = drive_walks([g.root], opts, decide, [cands])[0]
+        args = materialize(tpl)
+        assert _validate(g.tool.parameters, args) == []
+        choices, flags = [], {}
+        encode_value(g.root, args, opts, choices, [], flags, cands)
+        it = iter(choices)                                        # the encoding replays to the same arguments
+        assert materialize(drive_walks([g.root], opts, lambda r, d: [next(it) for _ in d], [cands])[0]) == args
+    assert any(p == ".amount" and c > 0 for p, c in seen_copy) and any(p == ".rate" and c > 0 for p, c in seen_copy)
+    flags = {}
+    choices = []
+    encode_value(g.root, {"amount": 1234567, "rate": 0.035}, opts, choices, [], flags, cands)
+    assert flags["copied"] == 2                                   # demonstrations copy when the number is shown
+    it = iter(choices)
+    assert materialize(drive_walks([g.root], opts, lambda r, d: [next(it) for _ in d], [cands])[0]) == \
+        {"amount": 1234567, "rate": 0.035}
 
 
 def _random_fill(template, rng):
@@ -148,6 +237,52 @@ def test_every_ow_tiny_schema_compiles_and_random_walks_are_valid(ow_tiny_tools)
                 assert json.loads(text) == args
             n_args += 1
     assert n_args == 25 * len(ow_tiny_tools)
+
+
+def _numeric_nodes(node, out):
+    if node.kind in ("integer", "number"):
+        out.append(node)
+    for _, c, _ in node.props:
+        _numeric_nodes(c, out)
+    for c in [node.extra, node.item] + list(node.options.values()):
+        if c is not None:
+            _numeric_nodes(c, out)
+    return out
+
+
+def test_every_ow_tiny_numeric_slot_writes_exact_values_and_reductions_are_listed(ow_tiny_tools):
+    """All numeric slots of the real catalogue write exact values at their bounds and at random points inside (money
+    in cents, timestamps, budgets); every capability reduction is listed per tool."""
+    opts = GrammarOptions()
+    rng = random.Random(7)
+    n_slots, kinds = 0, {}
+    for t in ow_tiny_tools:
+        g = ToolGrammar(t, opts)
+        for r in g.reductions:
+            kinds[r["kind"]] = kinds.get(r["kind"], 0) + 1
+        for node in _numeric_nodes(g.root, []):
+            spec = node.num
+            n_slots += 1
+            lo, hi = spec.lo, spec.hi
+            if node.kind == "integer":
+                vals = [lo, hi, (lo + hi) // 2] + [rng.randint(lo, hi) for _ in range(10)]
+            else:
+                vals = [float(lo), float(hi)] + [round(rng.uniform(max(lo, -1e6), min(hi, 1e6)), 2) for _ in range(10)]
+            for v in vals:
+                ch, fl = [], {}
+                encode_value(node, v, opts, ch, [], fl)
+                it = iter(ch)
+                gen = drive_walks([node], opts, lambda r, d: [next(it) for _ in d])[0]
+                assert gen == v and not fl.get("approx"), (t.name, node.path, v, gen)
+    assert n_slots >= 90
+    # the caps the verifier listed are surfaced: arrays capped below maxItems, free maps, defaulted bounds
+    red = {(t.name, r["path"], r["kind"]) for t in ow_tiny_tools for r in ToolGrammar(t, opts).reductions}
+    for name, path in [("mail.send", ".to"), ("ads.create_campaign", ".keywords"), ("cal.create", ".attendees"),
+                       ("contracts.propose", ".clauses"), ("issues.create", ".labels")]:
+        assert (name, path, "array_cap") in red
+    assert ("cal.create", ".start", "default_bound") in red and ("bank.invoice", ".due_in", "default_bound") in red
+    assert kinds.get("map_cap", 0) >= 1 and kinds.get("string_cap", 0) >= 1
+    print("ow_tiny numeric slots:", n_slots, "reductions:", kinds)
 
 
 def test_encode_value_inverts_the_walk(ow_tiny_tools):

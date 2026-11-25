@@ -1,6 +1,8 @@
 """Semantic learning objectives (spec 2.3): each loss is computed on real components and decreases when trained."""
 from __future__ import annotations
 
+import random
+
 import pytest
 import torch
 
@@ -33,44 +35,119 @@ def _texts_obs(n, t0=0.0):
             for i in range(n)]
 
 
-def test_masked_semantic_prediction_trains_core_and_predictor(tok, cfg, cuda):
-    obs_lists = [_texts_obs(6), _texts_obs(6, t0=1.0)[::-1], _texts_obs(5, t0=2.0)]
+SUBJECTS = ["The bakery", "A GPU cloud", "The forum", "Our repository", "The mayor", "A payments startup", "The lab",
+            "Customer seg_A", "The warehouse", "A translator", "The reactor", "The ad campaign"]
+FACTS = ["raised prices by 3 percent.", "reported a failing deploy.", "asked for a refund.", "hired two engineers.",
+         "lost its biggest client.", "doubled its weekly sales.", "moved to a new office.", "published a bug report."]
+
+
+def _pool_tokens(tok, n):
+    """Q pooled tokens of n distinct texts (encoded once): [n, Q, D]."""
+    texts = [f"{SUBJECTS[i % len(SUBJECTS)]} {FACTS[(i // len(SUBJECTS) + i) % len(FACTS)]} (case {i})"
+             for i in range(n)]
     with torch.no_grad():
-        ts = tok.observations(obs_lists, None, [10.0, 10.0, 10.0])
-    torch.manual_seed(0)
-    core = DoubleCore(cfg).to(cuda)
-    # the reference double has no time encoding; workstream B's backbone encodes TokenSet.time - emulate that here
-    freqs = torch.exp(torch.linspace(-2.0, 2.0, 8, device=cuda))
-    tenc = torch.nn.Linear(16, cfg.d_model).to(cuda)
-
-    def core_fn(ctx):
-        ang = ctx.time.unsqueeze(-1) * freqs
-        x = ctx.x + tenc(torch.cat([torch.sin(ang), torch.cos(ang)], -1))
-        return core(core.init_state(ctx.B), type(ctx)(x, ctx.mask, ctx.kind, ctx.time, ctx.entity, ctx.refs))[1]
-
-    obj = MaskedSemanticObjective(cfg.d_model, mask_frac=0.25).to(cuda)
-    g = torch.Generator(device=cuda).manual_seed(0)
-    gi = obj.group_index(ts)
-    assert gi[0, :cfg.sem_tokens_per_obs].tolist() == list(range(cfg.sem_tokens_per_obs))
-    hist, info = _train(lambda: obj(core_fn, ts, generator=g),
-                        list(core.parameters()) + list(obj.parameters()) + list(tenc.parameters()), 80)
-    assert info["n_masked"] > 0
-    assert sum(hist[-5:]) / 5 < sum(hist[:5]) / 5 - 0.5, hist[::10]
+        ts = tok.observations([[Observation(ObsKind.TEXT, t, t=0.0, source="feed")] for t in texts], None, [0.0] * n)
+    return ts.x.detach()
 
 
-def test_tool_consequence_prediction_learns_action_to_result(tok, cfg, cuda):
-    tok.register_tools(sample_tools(5))
-    prices = [3.0, 7.5, 12.0, 20.0, 45.0, 90.0, 150.0, 400.0]
-    acts = [Action("set_price", {"product": "prod_1", "price": p}) for p in prices]
-    results = [[Observation(ObsKind.TOOL_RESULT, f'{{"ok": true, "price": {p}, "demand_change": "{"up" if p < 20 else "down"}"}}',
-                            source="set_price")] for p in prices]
-    with torch.no_grad():
-        A = tok.action(acts)
-        Rt = tok.observations(results, None, [0.0] * len(prices))
-    state = torch.zeros(len(prices), cfg.d_model, device=cuda)
-    obj = ToolConsequenceObjective(cfg.d_model, n_heads=cfg.n_heads).to(cuda)
-    hist, info = _train(lambda: obj(state, A, Rt), obj.parameters(), 80)
-    assert hist[-1] < hist[0] - 1.0 and info["acc"] >= 0.75, (hist[::10], info)
+def _pair_batch(pool, B, informative, g, cfg):
+    """Rows of 3 observation pairs; the two members of a pair share a time stamp. informative: the partner has the
+    same content; otherwise the partner is an unrelated text (identical structure, no information)."""
+    from superlearner.cam_unified.interfaces import TokenSet
+    n, Q, D = pool.shape
+    xs, times, refs = [], [], []
+    for _ in range(B):
+        idx = torch.randperm(n, generator=g)[:6].tolist()
+        members = [(idx[k], idx[k] if informative else idx[k + 3]) for k in range(3)]
+        tvals = (-torch.randperm(6, generator=g)[:3].float() - 1.0).tolist()       # 3 distinct days ago
+        seq = []
+        for k, (a, b2) in enumerate(members):
+            seq += [(a, tvals[k]), (b2, tvals[k])]
+        order = torch.randperm(6, generator=g).tolist()
+        seq = [seq[o] for o in order]
+        xs.append(torch.cat([pool[i] for i, _ in seq], 0))
+        times.append(torch.tensor([t for _, t in seq]).repeat_interleave(Q))
+        refs.append([f"obs:{j}" for j in range(6) for _ in range(Q)])
+    x = torch.stack(xs)
+    dev = x.device
+    N = x.shape[1]
+    return TokenSet(x, torch.ones(B, N, dtype=torch.bool, device=dev),
+                    torch.full((B, N), int(TokenKind.OBS_SEM), dtype=torch.long, device=dev),
+                    torch.stack(times).to(dev), torch.full((B, N), -1, dtype=torch.long, device=dev), refs)
+
+
+def test_masked_observation_prediction_uses_context_not_siblings(tok, cfg, cuda):
+    """Whole observations are masked, so the target cannot be read off its own sibling tokens: with an uninformative
+    context the right observation is identified at chance level; when another observation carries the content, the
+    objective learns to retrieve it."""
+    pool = _pool_tokens(tok, 48)
+    Q = cfg.sem_tokens_per_obs
+    results = {}
+    for informative in (True, False):
+        torch.manual_seed(0)
+        core = DoubleCore(cfg).to(cuda)
+        freqs = torch.exp(torch.linspace(-1.0, 1.5, 8, device=cuda))
+        tenc = torch.nn.Linear(16, cfg.d_model).to(cuda)
+
+        def core_fn(ctx):                          # the double has no time encoding; B's backbone encodes it
+            ang = ctx.time.unsqueeze(-1) * freqs
+            x = ctx.x + tenc(torch.cat([torch.sin(ang), torch.cos(ang)], -1))
+            return core(core.init_state(ctx.B), type(ctx)(x, ctx.mask, ctx.kind, ctx.time, ctx.entity, ctx.refs))[1]
+
+        obj = MaskedSemanticObjective(cfg.d_model, mask_frac=0.0).to(cuda)       # exactly one observation per row
+        g = torch.Generator().manual_seed(1)
+        opt = torch.optim.Adam(list(core.parameters()) + list(obj.parameters()) + list(tenc.parameters()), lr=3e-3)
+        for _ in range(350):
+            loss, info = obj(core_fn, _pair_batch(pool, 16, informative, g, cfg))
+            assert info["n_masked_obs"] == 16 and info["n_masked"] == 16 * Q      # all Q tokens of each masked obs
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+        with torch.no_grad():
+            ev = [obj(core_fn, _pair_batch(pool, 16, informative, g, cfg)) for _ in range(8)]
+        results[informative] = (sum(float(l) for l, _ in ev) / 8, sum(i["obs_acc"] for _, i in ev) / 8)
+    (l_inf, acc_inf), (l_un, acc_un) = results[True], results[False]
+    print(f"\nmasked-observation prediction: informative loss {l_inf:.2f} obs_acc {acc_inf:.2f}; "
+          f"uninformative loss {l_un:.2f} obs_acc {acc_un:.2f} (chance {1 / 16:.2f})")
+    assert acc_un < 0.25 and acc_inf > 0.6 and l_inf < l_un - 1.0
+    gi = MaskedSemanticObjective.group_index(_pair_batch(pool, 1, True, torch.Generator().manual_seed(0), cfg))
+    assert gi[0, :Q].tolist() == list(range(Q))
+
+
+WORDS = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet", "kilo", "lima",
+         "mike", "november", "oscar", "papa", "quebec", "romeo", "sierra", "tango", "uniform", "victor", "whiskey",
+         "xray", "yankee", "zulu", "apple", "banana", "cherry", "grape", "lemon", "mango"]
+
+
+def test_tool_consequence_prediction_generalises_to_held_out_actions(tok, cfg, cuda):
+    """Trained on 24 (action, result) pairs, the predictor ranks the right result first for 8 held-out actions it
+    never saw (chance 1/8) - not a memorised table."""
+    words = list(WORDS)
+    random.Random(0).shuffle(words)
+
+    def make(ws):
+        acts = [Action("send_message", {"to": "cust_7", "text": f"Please confirm the {w} order."}) for w in ws]
+        res = [[Observation(ObsKind.TOOL_RESULT, f'{{"ok": true, "delivered": "Please confirm the {w} order.", '
+                                                 f'"thread": "{w}-thread"}}', source="send_message")] for w in ws]
+        with torch.no_grad():
+            return (tok.action(acts, tool_lists=[sample_tools(5)] * len(ws)),
+                    tok.observations(res, None, [0.0] * len(ws)))
+
+    (A, Rt), (A_te, R_te) = make(words[:24]), make(words[24:])
+    zeros = lambda n: torch.zeros(n, cfg.d_model, device=cuda)
+    before, held = [], []
+    for seed in range(3):                                   # mean over initialisations (single runs vary 0.375-0.875)
+        torch.manual_seed(seed)
+        obj = ToolConsequenceObjective(cfg.d_model, n_heads=cfg.n_heads).to(cuda)
+        with torch.no_grad():
+            before.append(obj(zeros(8), A_te, R_te)[1]["acc"])
+        hist, info = _train(lambda: obj(zeros(24), A, Rt), obj.parameters(), 150)
+        assert hist[-1] < hist[0] - 1.0 and info["acc"] == 1.0, (hist[::15], info)
+        with torch.no_grad():
+            held.append(obj(zeros(8), A_te, R_te)[1]["acc"])
+    mb, mh = sum(before) / 3, sum(held) / 3
+    print(f"\ntool consequence held-out top-1: before {before} after {held} (chance 0.125)")
+    assert mh >= 0.5 and mh >= mb + 0.25, (before, held)
 
 
 def test_entity_grounding_labels_and_contrastive_learning(tok, cfg, cuda):
@@ -103,23 +180,38 @@ def test_entity_grounding_labels_and_contrastive_learning(tok, cfg, cuda):
     assert hist[-1] < hist[0] - 0.5 and info["acc"] >= 0.8, (hist[::10], info)
 
 
-def test_code_execution_matching_on_real_sandbox_runs(tok, cfg, cuda):
+def test_code_execution_matching_generalises_to_held_out_programs(tok, cfg, cuda):
+    """Code <-> real sandbox execution matching: trained on 24 programs of four kinds (string output, raised
+    ValueError, sorted characters, KeyError), it matches 8 held-out programs to their executions."""
     from superlearner.cam_unified.semantic.sandbox import CodeSandbox, crucible_sandbox_capabilities
     if not crucible_sandbox_capabilities().get("available"):
         pytest.skip("sandbox unavailable")
     sbx = CodeSandbox()
-    progs = ["print(2 + 2)", "print('hello ' * 2)", "print([i * i for i in range(5)])", "x = 1 / 0",
-             "import math\nprint(round(math.pi, 3))", "print(sorted('banana'))", "raise ValueError('bad input')",
-             "print(sum(range(100)))"]
+    words = list(WORDS)
+    random.Random(0).shuffle(words)
+    progs = []
+    for i, w in enumerate(words):
+        progs.append([f"print('{w}' * 2)", f"raise ValueError('{w} is not allowed')", f"print(sorted('{w}'))",
+                      f"d = {{'{w}': 1}}\nprint(d['{w[::-1]}'])"][i % 4])
     results = [sbx.run(code=p).observations for p in progs]
-    assert sum(r[0].kind == ObsKind.ERROR for r in results) == 2
-    tok.register_tools([sample_tools(3)[2]])
+    assert sum(r[0].kind == ObsKind.ERROR for r in results) == 16          # ValueError and KeyError programs
     with torch.no_grad():
-        C = tok.action([Action("run_python", {"code": p}) for p in progs])
+        C = tok.action([Action("run_python", {"code": p}) for p in progs], tool_lists=[sample_tools(3)] * len(progs))
         E = tok.observations(results, None, [0.0] * len(progs))
-    obj = CodeExecutionObjective(cfg.d_model).to(cuda)
-    hist, info = _train(lambda: obj(C, E), obj.parameters(), 80)
-    assert hist[-1] < hist[0] - 1.0 and info["acc"] >= 0.75, (hist[::10], info)
+    tr, te = list(range(24)), list(range(24, 32))
+    before, held = [], []
+    for seed in range(3):                                   # mean over initialisations
+        torch.manual_seed(seed)
+        obj = CodeExecutionObjective(cfg.d_model).to(cuda)
+        with torch.no_grad():
+            before.append(obj(C.select(te), E.select(te))[1]["acc"])
+        hist, info = _train(lambda: obj(C.select(tr), E.select(tr)), obj.parameters(), 150)
+        assert hist[-1] < hist[0] - 1.0 and info["acc"] >= 0.9, (hist[::15], info)
+        with torch.no_grad():
+            held.append(obj(C.select(te), E.select(te))[1]["acc"])
+    mb, mh = sum(before) / 3, sum(held) / 3
+    print(f"\ncode<->execution held-out top-1: before {before} after {held} (chance 0.125)")
+    assert mh >= 0.5 and mh >= mb + 0.25, (before, held)
 
 
 def test_evidence_retrieval_supervision_trains_the_pointer(gen, tok, cfg):

@@ -130,23 +130,28 @@ def symexp(x: torch.Tensor) -> torch.Tensor:
 
 
 class NumericFeatures(nn.Module):
-    """Scale-free features of raw numbers v [...] -> [..., 2*n_fourier + 4]: symlog value, sign, zero/integer flags and
-    Fourier features sin/cos(w_k * symlog(v)) at geometrically spaced frequencies w_k in [0.05, 50]."""
+    """Scale-free features of raw numbers v [...] -> [..., 2*n_fourier + 7]: symlog value, sign, zero/integer flags,
+    Fourier features sin/cos(w_k * symlog(v)) at geometrically spaced frequencies w_k in [0.05, 50], and nan / +inf /
+    -inf flags. A non-finite value sets its flag and contributes 0 to every other feature (never NaN)."""
 
     def __init__(self, n_fourier: int):
         super().__init__()
         self.register_buffer("freq", torch.exp(torch.linspace(math.log(0.05), math.log(50.0), n_fourier)),
                              persistent=False)
-        self.dim = 2 * n_fourier + 4
+        self.dim = 2 * n_fourier + 7
 
     def forward(self, v: torch.Tensor) -> torch.Tensor:
         v = v.double()
+        finite = torch.isfinite(v)
+        flags = torch.stack([torch.isnan(v), torch.isposinf(v), torch.isneginf(v)], -1).double()
+        v = torch.where(finite, v, torch.zeros_like(v))
         u = symlog(v)
         ang = u.unsqueeze(-1) * self.freq.double()
         is_int = (torch.abs(v - torch.round(v)) < 1e-9).double()
         feats = torch.cat([torch.sin(ang), torch.cos(ang), (u / 10.0).unsqueeze(-1), torch.sign(v).unsqueeze(-1),
                            (v == 0).double().unsqueeze(-1), is_int.unsqueeze(-1)], -1)
-        return feats.float()
+        feats = feats * finite.double().unsqueeze(-1)
+        return torch.cat([feats, flags], -1).float()
 
 
 def masked_log_softmax(logits: torch.Tensor, mask: torch.Tensor, temperature=1.0) -> torch.Tensor:

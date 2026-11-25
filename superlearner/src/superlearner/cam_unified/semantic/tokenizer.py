@@ -20,19 +20,28 @@ Token construction (D = cfg.d_model, H = encoder.sem_dim, Q = cfg.sem_tokens_per
   cross-world meaning; RELATION / MESSAGE / TRANSACTION targets add slot_gain * W_role code[target] and fill entity2.
 * time = obs.t - now (days); refs = "obs:<index>[#seq:<seq>][@<artifact_ref>]" so every token points back to its
   record (evidence pointer, traces, exact retrieval of the artifact).
-* working budget: at most `max_obs_tokens` (default cfg.max_ctx_tokens) observation tokens per row; the most recent
-  observations are kept (by t, then arrival order) and the drop is reported in `last_stats` and the cumulative
-  `dropped_total` counters - never silent.
+* non-finite values (nan, +inf, -inf) get dedicated flag features (the other numeric features see 0) and are counted
+  in `last_stats["nonfinite_values"]` / `nonfinite_total`; they never produce NaN tokens.
+* working budget: at most `max_obs_tokens` (default cfg.max_ctx_tokens) observation tokens per row. Observations are
+  taken newest first (by t, then arrival order) and the walk stops at the first one that does not fit, so the kept set
+  is always a contiguous most-recent suffix; the drop is reported in `last_stats` and the cumulative `dropped_total`
+  counters - never silent.
 
 `tools()` gives one TOOL token per tool from "name + description + JSON schema" text, so an unseen (or renamed) tool
 needs no new parameters. `goal()` gives GOAL tokens (text + one per numeric metric target + deadline). `action()` gives
-ACTION tokens (the tool token of the action's tool + pooled tokens of its arguments JSON / code).
+ACTION tokens (the tool token of the action's tool + pooled tokens of its arguments JSON / code); the tool's schema is
+resolved from the row's tool list when given, else by the ToolSchema.key in the action's decode record, else by a
+name that maps to exactly one registered schema - an ambiguous or unknown tool raises (or, with allow_unknown=True,
+is encoded from its name alone and counted in `unknown_tools`). The schema registry is a bounded LRU
+(`tool_registry_size`) that `clear_tool_registry()` resets, e.g. per episode.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import math
 import weakref
+from collections import OrderedDict
 from typing import Optional, Sequence
 
 import torch
@@ -111,7 +120,8 @@ def tool_text(t: ToolSchema) -> str:
 
 class ObservationTokenizer(nn.Module):
     def __init__(self, cfg: CamConfig, encoder, *, max_obs_tokens: Optional[int] = None, max_goal_tokens: int = 8,
-                 n_action_arg_tokens: int = 3, max_obs_chars: Optional[int] = 200_000, autocast: bool = True):
+                 n_action_arg_tokens: int = 3, max_obs_chars: Optional[int] = 200_000, autocast: bool = True,
+                 tool_registry_size: int = 8192):
         super().__init__()
         object.__setattr__(self, "enc", encoder)          # held by reference: never part of this state_dict
         D, H, Q = cfg.d_model, encoder.sem_dim, cfg.sem_tokens_per_obs
@@ -145,9 +155,13 @@ class ObservationTokenizer(nn.Module):
         self.target_role = nn.Linear(D, D, bias=False)
         nn.init.orthogonal_(self.target_role.weight)
         self._codes = weakref.WeakKeyDictionary()          # EntityRegistry -> [max_entities, D] codes
-        self._tool_by_name: dict = {}
+        self._tool_by_key: OrderedDict = OrderedDict()     # ToolSchema.key -> ToolSchema (LRU)
+        self._keys_by_name: dict = {}                       # name -> {key: None} (insertion-ordered)
+        self.tool_registry_size = int(tool_registry_size)
         self.last_stats: dict = {}
         self.dropped_total = {"obs": 0, "tokens": 0, "goal_tokens": 0}
+        self.nonfinite_total = 0
+        self.unknown_tools = 0
         self.to(encoder.device)
 
     # ------------------------------------------------------------------ helpers
@@ -184,6 +198,10 @@ class ObservationTokenizer(nn.Module):
         return self.content_norm(self.pool(flat, seg, q))
 
     def _numeric(self, values: list, units: list, descs: list) -> torch.Tensor:
+        n_bad = sum(1 for v in values if not math.isfinite(v))
+        if n_bad:
+            self.nonfinite_total += n_bad
+            self.last_stats["nonfinite_values"] = self.last_stats.get("nonfinite_values", 0) + n_bad
         v = torch.tensor(values, dtype=torch.float64, device=self.device)
         x = self.num_mlp(self.numf(v))
         x = x + self.unit_proj(self.enc.embed([u or "unitless" for u in units]).to(self.device))
@@ -234,18 +252,21 @@ class ObservationTokenizer(nn.Module):
                     raise ValueError(f"observation schema version {o.schema_version} is newer than the tokenizer's "
                                      f"{OBS_SCHEMA_VERSION}")
         kept: list = []
-        stats = {"kept_obs": [], "dropped_obs": [], "dropped_tokens": [], "n_tokens": []}
+        stats = {"kept_obs": [], "dropped_obs": [], "dropped_tokens": [], "n_tokens": [], "nonfinite_values": 0}
+        self.last_stats = stats
         for b in range(B):
             lst = obs[b] or []
             order = sorted(range(len(lst)), key=lambda i: (lst[i].t, i), reverse=True)
             budget, keep = self.max_obs_tokens, []
             dropped_tok = 0
-            for i in order:
+            full = False
+            for i in order:                       # newest first; stop at the first observation that does not fit
                 n = self._n_tokens(lst[i])
-                if n <= budget:
+                if not full and n <= budget:
                     keep.append(i)
                     budget -= n
                 else:
+                    full = True
                     dropped_tok += n
             keep.sort()
             kept.append(keep)
@@ -357,8 +378,48 @@ class ObservationTokenizer(nn.Module):
 
     # ------------------------------------------------------------------ tools / goals / actions
     def register_tools(self, tools: Sequence[ToolSchema]) -> None:
+        """Remember the schemas (by ToolSchema.key, bounded LRU) so ACTION tokens can be built for their actions."""
         for t in tools:
-            self._tool_by_name[t.name] = t
+            k = t.key
+            if k in self._tool_by_key:
+                self._tool_by_key.move_to_end(k)
+            else:
+                self._tool_by_key[k] = t
+                self._keys_by_name.setdefault(t.name, {})[k] = None
+            while len(self._tool_by_key) > self.tool_registry_size:
+                old_k, old_t = self._tool_by_key.popitem(last=False)
+                names = self._keys_by_name.get(old_t.name, {})
+                names.pop(old_k, None)
+                if not names:
+                    self._keys_by_name.pop(old_t.name, None)
+
+    def clear_tool_registry(self) -> None:
+        self._tool_by_key.clear()
+        self._keys_by_name.clear()
+
+    def resolve_tool(self, a: Action, row_tools: Optional[Sequence[ToolSchema]] = None,
+                     allow_unknown: bool = False) -> ToolSchema:
+        """The schema an action was taken with: from the row's tool list (by name, and by the decode record's key when
+        present), else by that key in the registry, else by a name with exactly one registered schema."""
+        rec = (a.logp_parts or {}).get("decode") if isinstance(a.logp_parts, dict) else None
+        key = rec.get("key") if isinstance(rec, dict) else None
+        if row_tools is not None:
+            for t in row_tools:
+                if t.name == a.tool and (key is None or t.key == key):
+                    return t
+        elif key is not None and key in self._tool_by_key:
+            return self._tool_by_key[key]
+        elif key is None:
+            keys = list(self._keys_by_name.get(a.tool, {}))
+            if len(keys) == 1:
+                return self._tool_by_key[keys[0]]
+            if len(keys) > 1:
+                raise ValueError(f"tool name {a.tool!r} maps to {len(keys)} registered schemas; pass the row's tool "
+                                 f"list or an action with a decode record")
+        self.unknown_tools += 1
+        if allow_unknown:
+            return ToolSchema(a.tool, "", {})
+        raise ValueError(f"unknown tool {a.tool!r} (key {key}): not in the row's tool list / registry")
 
     def tool_vectors(self, tools: list) -> torch.Tensor:
         """[n] ToolSchema -> TOOL token vectors [n, D]."""
@@ -412,15 +473,16 @@ class ObservationTokenizer(nn.Module):
                                 TokenKind.GOAL, 0.0, -1, -1, goals[b].goal_id))
         return self._pack(rows, B)
 
-    def action(self, actions: list) -> TokenSet:
+    def action(self, actions: list, tool_lists: Optional[list] = None, allow_unknown: bool = False) -> TokenSet:
         """[B] Action|None -> ACTION tokens: [tool token of the action's tool] + n_action_arg_tokens pooled tokens of
-        its arguments JSON (+ code when not inside args); an action with no arguments has the tool token only."""
+        its arguments JSON (+ code when not inside args); an action with no arguments has the tool token only.
+        tool_lists[b] (optional) is the tool list row b's action was chosen from (see resolve_tool)."""
         B = len(actions)
         tools, texts, idx = [], [], []
         for b, a in enumerate(actions):
             if a is None:
                 continue
-            t = self._tool_by_name.get(a.tool) or ToolSchema(a.tool, "", {})
+            t = self.resolve_tool(a, tool_lists[b] if tool_lists is not None else None, allow_unknown)
             tools.append((b, t))
             txt = json.dumps(a.args, sort_keys=True, ensure_ascii=False, default=str) if a.args else ""
             if a.code and (not a.args or a.code not in json.dumps(a.args, ensure_ascii=False)):

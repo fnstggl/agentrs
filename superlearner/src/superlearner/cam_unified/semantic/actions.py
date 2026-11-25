@@ -8,24 +8,49 @@ pi(a | R, G, B) = pi(tool | R, TOOL tokens, availability mask)
 * tool: pointer attention from a ContextReader query over [R; G; B] onto the TOOL tokens of every listed tool plus the
   built-ins `wait` ({"seconds": 1..cfg.max_wait_s}) and `noop` ({}), which are ordinary tools with their own TOOL
   tokens. Masked to the available tools whose schemas the constrained decoder supports (unsupported schemas are
-  counted in `stats["ungenerable"]` with the reason in `ungenerable`). A renamed or unseen tool is just another key.
-* evidence: only for tools whose schema can contain strings - CAM (not the language model) picks up to max_evidence
-  observations (grouped from the observation tokens through their refs) that are shown verbatim to the decoder.
-* arguments: grammar.walk + ArgHeads (skeleton) and grammar.HoleFiller (strings), always schema-valid.
+  counted in `stats["ungenerable"]` with the reason in `ungenerable`; capability reductions of supported schemas are
+  listed per tool in `reduced` and counted in `reduction_counts`). A renamed or unseen tool is just another key.
+* evidence: for tools whose schema contains strings or numbers - CAM (not the language model) picks up to
+  max_evidence observations (grouped from the observation tokens through their refs); they are shown verbatim to the
+  string decoder and their numbers (values and numeric literals) are offered to the number-copy pointer.
+* arguments: grammar.walk + ArgHeads (skeleton, exact numbers) and grammar.HoleFiller (strings), always schema-valid.
 
-`sample()` returns `Action`s with source CAM_DECODER, `logp` (= sum of the parts) and `logp_parts` {tool, evidence,
-args, args_heads, args_tokens, entropy, n_decisions, n_tokens, decode}; `logp_parts["decode"]` is the exact replay
-record. `log_prob()` recomputes the behaviour log-probability and the path entropy of given actions with teacher
-forcing - differentiable into R (and the G/B tokens), the bridge, the pointers, the typed heads and the LoRA weights;
-the pretrained Qwen weights are frozen. Actions without a record (demonstrations) are encoded from their arguments
-(numbers snap to the nearest grid point; flagged) and score without an evidence term unless the record names it.
+Behaviour log-probability. `sample()` decodes incrementally (KV cache, bf16 on GPU). In bf16 that incremental value
+differs from a full teacher-forced forward by up to ~1 nat per action on free strings (verifier: median 0.16, p90
+0.57, max 1.07 nats on Qwen3-0.6B, 3-80 token strings; 0.42 nats for a 1024-token Qwen3-1.7B string; this package's
+test: median 0.13, max 0.53 over 16 actions), and a padded *batched* teacher-forced forward differs from the row-wise
+one by a median ~0.19 nats. So by default (`rescore=True`) every sampled action's `logp` and `logp_parts` are
+recomputed through the learner path `log_prob_parts(exact_rows=self.exact_rows)` before the action is returned; the
+incremental value is kept only as the diagnostic `logp_parts["sample_logp"]` (`max_rescore_drift` tracks the largest
+gap seen). With `exact_rows=True` (default) every component - pointers, typed heads, bridge and Qwen - is evaluated
+row by row on that row's own (un-padded) tokens and every sum is a deterministic reduction, so a row's
+log-probability does not depend on the minibatch it is scored in nor on grad mode: PPO ratios at the behaviour
+parameters are exactly 1 when the learner also uses exact_rows (tested bit-for-bit, with gradients enabled, in a
+permuted half batch). The cost is one forward per row; exact_rows=False batches the learner path at the price of the
+drift above. The guarantee covers this module given the same R/G/B/TOOL/observation tensors: R recomputed by the
+backbone in another batch is outside it. Greedy actions have behaviour log-probability 0 (a deterministic choice):
+`Action.logp = 0.0`, `logp_parts["greedy"] = True` and the policy's tau-softmax log-probability of the greedy path in
+`logp_parts["policy_logp"]`; `importance_weight_usable(a)` is False for them.
+
+Replay safety. `logp_parts["decode"]` is the exact replay record: tool index/name/key, a fingerprint of the ordered
+tool list (keys incl. built-ins), whether the evidence pointer was evaluated and a fingerprint of the evidence
+candidates (observation index, ref and rendered content of every observation with tokens), the evidence picks, every
+head choice, every hole's token ids, the decoder-prompt hash and its truncation count, temperature, greedy flag and
+any tool restriction. `log_prob()` re-walks it with teacher forcing and raises GrammarError when the tool list, the
+evidence candidates or the decoder prompt differ - it never silently scores a different decision. `log_prob(...,
+temperature=t)` evaluates the same path under another temperature (e.g. the target policy at tau = 1). Actions without
+a record (demonstrations) are encoded from their arguments (exact numbers; a number equal to an evidence number is
+encoded as a copy) and score without an evidence term unless evidence labels are given.
 
 Per-action compute: one tool-pointer read, <= max_evidence pointer steps, one ArgHeads read per non-trivial decision
-(batched over rows), and - only when a string hole exists - one Qwen prefill (prompt ~ tool schema + evidence, + n_prefix
-prefix vectors) plus one decoder step per forced/sampled token after the first hole; `last_compute` reports the counts.
+(batched over rows; an exact decimal number costs 2-3 + #digits decisions), and - only when a string hole exists -
+one Qwen prefill (prompt ~ tool schema + evidence, + n_prefix prefix vectors) plus one decoder step per forced/sampled
+token after the first hole; with rescore=True one more teacher-forced Qwen forward per action with holes.
+`last_compute` reports the counts.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from typing import Optional
@@ -38,12 +63,13 @@ from ..interfaces import Action, ActionSource, TokenSet, ToolSchema
 from .bridge import LatentBridge, decision_context
 from .constraints import tables_for
 from .grammar import (ArgHeads, GrammarError, GrammarOptions, HoleFiller, ToolGrammar, drive_walks, encode_value,
-                      holes_of, materialize)
+                      holes_of, materialize, number_candidates)
 from .layers import ContextReader, RMSNorm, masked_entropy, masked_log_softmax
-from .tokenizer import parse_obs_ref, render_observation
+from .tokenizer import numeric_descriptor, obs_ref, parse_obs_ref, render_observation
 
 BUILTIN_NAMES = ("wait", "noop")
-DECODE_VERSION = 1
+DECODE_VERSION = 2
+PART_KEYS = ("tool", "evidence", "heads", "tokens")
 
 
 def builtin_tools(cfg: CamConfig) -> list:
@@ -66,10 +92,30 @@ def _validate(schema: dict, value) -> list:
     return validate(schema, value)
 
 
+def _sha(*parts: str) -> str:
+    h = hashlib.sha256()
+    for p in parts:
+        h.update(p.encode("utf-8", "surrogatepass"))
+        h.update(b"\x00")
+    return h.hexdigest()[:24]
+
+
+def row_tokens(ts: Optional[TokenSet], b: int) -> Optional[TokenSet]:
+    """Row b of a TokenSet cut to its own length (up to its last real token), so a row's computation does not depend
+    on the padding of the batch it came from."""
+    if ts is None:
+        return None
+    m = ts.mask[b]
+    n = int(torch.nonzero(m).max()) + 1 if bool(m.any()) else 0
+    return TokenSet(ts.x[b:b + 1, :n], ts.mask[b:b + 1, :n], ts.kind[b:b + 1, :n], ts.time[b:b + 1, :n],
+                    ts.entity[b:b + 1, :n], None if ts.refs is None else [list(ts.refs[b][:n])],
+                    None if ts.entity2 is None else ts.entity2[b:b + 1, :n])
+
+
 class ActionGenerator(nn.Module):
     def __init__(self, cfg: CamConfig, encoder, tokenizer, *, opts: Optional[GrammarOptions] = None,
                  include_builtins: bool = True, evidence_chars: int = 1500, max_prompt_tokens: int = 3072,
-                 autocast: bool = True, bridge_layers: int = 2, exact_rows: bool = False):
+                 autocast: bool = True, bridge_layers: int = 2, exact_rows: bool = True):
         super().__init__()
         object.__setattr__(self, "enc", encoder)
         object.__setattr__(self, "tok", tokenizer)
@@ -105,9 +151,13 @@ class ActionGenerator(nn.Module):
         self.filler = HoleFiller(encoder, self.tables, self.opts, max_prompt_tokens)
         self._grammars: dict = {}
         self.ungenerable: dict = {}
+        self.reduced: dict = {}                      # tool name -> [{"path", "kind", "detail"}]
+        self.reduction_counts: dict = {}             # reduction kind -> number of slots (over compiled tools)
         self.builtins = builtin_tools(cfg) if include_builtins else []
-        self.stats = {"actions": 0, "ungenerable": 0, "schema_violations": 0, "qwen_steps": 0, "decisions": 0,
-                      "sampled_tokens": 0}
+        self.stats = {"actions": 0, "ungenerable": 0, "reduced_tools": 0, "schema_violations": 0, "qwen_steps": 0,
+                      "decisions": 0, "sampled_tokens": 0, "prompt_truncated_tokens": 0, "copied_numbers": 0,
+                      "rescored": 0, "demo_numbers": 0, "demo_numbers_approx": 0, "demo_numbers_copied": 0}
+        self.max_rescore_drift = 0.0                 # max |incremental sampling logp - learner-path logp| seen
         self.last_compute: dict = {}
         self.to(encoder.device)
 
@@ -134,6 +184,11 @@ class ActionGenerator(nn.Module):
             if not g.generable:
                 self.ungenerable[tool.name] = g.error
                 self.stats["ungenerable"] += 1
+            elif g.reductions:
+                self.reduced[tool.name] = list(g.reductions)
+                self.stats["reduced_tools"] += 1
+                for r in g.reductions:
+                    self.reduction_counts[r["kind"]] = self.reduction_counts.get(r["kind"], 0) + 1
         return g
 
     def tool_lists_with_builtins(self, tool_lists: list) -> list:
@@ -142,6 +197,15 @@ class ActionGenerator(nn.Module):
             names = {t.name for t in lst}
             out.append(list(lst) + [t for t in self.builtins if t.name not in names])
         return out
+
+    @staticmethod
+    def tools_fingerprint(lst: list) -> str:
+        return _sha(*[t.key for t in lst])
+
+    def evidence_fingerprint(self, idx: list, obs_list: list) -> str:
+        """Identity + content of the evidence candidates (observations that have tokens)."""
+        return _sha(*[f"{obs_ref(i, obs_list[i])}|{_sha(render_observation(obs_list[i], self.evidence_chars))}"
+                      for i in idx])
 
     def _augment_tools(self, tools: TokenSet, tool_lists: list):
         """Append TOOL tokens of the built-in tools (computed with the same tokenizer) to every row."""
@@ -188,15 +252,30 @@ class ActionGenerator(nn.Module):
             groups.append((idx, [g[i] for i in idx]))
         return groups
 
-    def _prompt(self, tool: ToolSchema, ev_obs: list) -> str:
-        lines = ["Write the JSON arguments for one call of the tool below. Reply with the JSON object only.",
-                 f"Tool: {tool.name}", f"Description: {tool.description}",
-                 "Arguments schema: " + json.dumps(tool.parameters, ensure_ascii=False, separators=(",", ":"))]
+    def _prompt(self, tool: ToolSchema, ev_obs: list) -> list:
+        """Decoder prompt as prioritised pieces (HoleFiller.fit_pieces shortens evidence first, then the description,
+        the arguments schema last)."""
+        pieces = [("Write the JSON arguments for one call of the tool below. Reply with the JSON object only.\n"
+                   f"Tool: {tool.name}\n", 0),
+                  (f"Description: {tool.description}\n", 2),
+                  ("Arguments schema: " + json.dumps(tool.parameters, ensure_ascii=False, separators=(",", ":"))
+                   + ("\n" if ev_obs else ""), 3)]
         if ev_obs:
-            lines.append("Evidence selected for this decision:")
+            pieces.append(("Evidence selected for this decision:\n", 0))
             for k, o in enumerate(ev_obs):
-                lines.append(f"[{k + 1}] " + render_observation(o, self.evidence_chars))
-        return "\n".join(lines)
+                pieces.append((f"[{k + 1}] " + render_observation(o, self.evidence_chars)
+                               + ("\n" if k + 1 < len(ev_obs) else ""), 1))
+        return pieces
+
+    def number_sources(self, ev_obs: list) -> list:
+        """Copy candidates of the selected evidence (same rendering as the decoder prompt)."""
+        src = []
+        for o in ev_obs:
+            vals = []
+            if o.value is not None:
+                vals.append((o.value, f"{numeric_descriptor(o)} = {o.value!r} {o.unit or ''}".strip()))
+            src.append((vals, render_observation(o, self.evidence_chars)))
+        return number_candidates(src, self.opts.max_copy_candidates)
 
     # ------------------------------------------------------------------ the shared forward
     def _forward(self, R, goal, belief, tools, obs, tool_lists, obs_lists, *, teacher=None, temperature=1.0,
@@ -209,14 +288,20 @@ class ActionGenerator(nn.Module):
             temps = torch.tensor([float(t["temperature"]) if t is not None else 1.0 for t in teacher], device=dev)
             active = [b for b in range(B) if teacher[b] is not None]
         zero = R.new_zeros((), dtype=torch.float32)
-        parts = {k: [zero for _ in range(B)] for k in ("tool", "evidence", "heads", "tokens")}
-        ents = {k: [zero for _ in range(B)] for k in ("tool", "evidence", "heads", "tokens")}
-        n_dec, n_tok = [0] * B, [0] * B
+        parts = {k: [zero for _ in range(B)] for k in PART_KEYS}
+        ents = {k: [zero for _ in range(B)] for k in PART_KEYS}
+        n_dec, n_tok, n_copy = [0] * B, [0] * B, [0] * B
         with self._ac():
             ctx_x, ctx_m = decision_context(R, goal, belief, self.src_emb)
             ctx_x = self.ctx_norm(ctx_x)
             tools2, lists2 = self._augment_tools(tools, tool_lists)
             T = tools2.N
+            tools_sha = [self.tools_fingerprint(lists2[b]) for b in range(B)]
+            if teacher is not None:
+                for b in active:
+                    rec_sha = teacher[b].get("tools")
+                    if rec_sha is not None and rec_sha != tools_sha[b]:
+                        raise GrammarError(f"row {b}: the tool list differs from the one the action was sampled with")
             grams = [[self.grammar(t) for t in lists2[b]] for b in range(B)]
             gm = [[g.generable for g in grams[b]] + [False] * (T - len(grams[b])) for b in range(B)]
             gen_mask = torch.tensor(gm, dtype=torch.bool, device=dev).reshape(B, T)
@@ -258,11 +343,31 @@ class ActionGenerator(nn.Module):
             # ---- evidence pointer
             evidence = [[] for _ in range(B)]
             groups = self._evidence_groups(obs, obs_lists, B)
-            ev_rows = [b for b in active if gsel[b].may_hole and groups[b][0]
-                       and not (teacher is not None and teacher[b].get("evidence") is None)]
+            want = {b: gsel[b].uses_evidence and bool(groups[b][0]) for b in active}
+            ev_sha = {b: self.evidence_fingerprint(groups[b][0], obs_lists[b]) for b in active if want[b]}
+            ev_rows = []
+            for b in active:
+                t = teacher[b] if teacher is not None else None
+                if t is not None and "ev" in t:                               # sampled action: replay exactly
+                    if bool(t["ev"]) != want[b]:
+                        raise GrammarError(f"row {b}: the evidence pointer was {'' if t['ev'] else 'not '}evaluated "
+                                           f"when the action was sampled, but the replay has "
+                                           f"{'no' if not want[b] else 'some'} evidence candidates")
+                    if want[b] and t.get("cands") != ev_sha[b]:
+                        raise GrammarError(f"row {b}: the evidence candidates (observations or their content) differ "
+                                           f"from the ones the action was sampled with")
+                elif t is not None:                                           # demonstration
+                    if t.get("evidence") is None:
+                        continue
+                    if t["evidence"] and not want[b]:
+                        raise GrammarError(f"row {b}: evidence labels given but the row has no evidence candidates")
+                if want[b]:
+                    ev_rows.append(b)
             if ev_rows:
                 self._evidence(ev_rows, groups, obs, tool_tok, ctx_x, ctx_m, temps, teacher, greedy, generator,
                                evidence, parts, ents)
+            ev_obs = {b: [obs_lists[b][i] for i in evidence[b]] for b in active}
+            cands = [self.number_sources(ev_obs[b]) if b in active and evidence[b] else [] for b in range(B)]
             # ---- skeleton walk (typed heads)
             choices = [[] for _ in range(B)]
             forced = None
@@ -277,7 +382,7 @@ class ActionGenerator(nn.Module):
                         forced[b] = list(t["choices"])
                     else:                                                  # demonstration: encode the args
                         cs, hs = [], []
-                        encode_value(gsel[b].root, t["args"], self.opts, cs, hs, flags)
+                        encode_value(gsel[b].root, t["args"], self.opts, cs, hs, flags, cands[b])
                         forced[b] = cs
                         demo_holes[b] = hs
             state = {"h": self.heads.init_state(tool_tok, qt), "ptr": [0] * B}
@@ -301,20 +406,21 @@ class ActionGenerator(nn.Module):
                     ents["heads"][r] = ents["heads"][r] + en[j]
                     choices[r].append(cs[j])
                     n_dec[r] += 1
+                    if decs[j].kind == "numsrc" and cs[j] > 0:
+                        n_copy[r] += 1
                 return cs
 
-            templates = drive_walks(roots, self.opts, decide)
+            templates = drive_walks(roots, self.opts, decide, cands)
             if forced is not None:
                 for b in active:
                     if state["ptr"][b] != len(forced[b]):
                         raise GrammarError(f"row {b}: {len(forced[b]) - state['ptr'][b]} recorded choices unused")
             # ---- strings (Qwen + LoRA, bridge prefix)
             hole_rows = [b for b in active if holes_of(templates[b])]
-            programs, ctx_ids, prompt_sha = {}, {}, {}
+            programs, ctx_ids, prompt_sha, prompt_trunc = {}, {}, {}, {}
             for b in hole_rows:
                 programs[b] = self.filler.program(templates[b])
-                ev_obs = [obs_lists[b][i] for i in evidence[b]]
-                ctx_ids[b] = self.filler.context_ids(self._prompt(chosen[b], ev_obs))
+                ctx_ids[b], prompt_trunc[b] = self.filler.context_ids(self._prompt(chosen[b], ev_obs[b]))
                 prompt_sha[b] = self.filler.prompt_hash(ctx_ids[b])
                 if teacher is not None and teacher[b].get("prompt") and teacher[b]["prompt"] != prompt_sha[b]:
                     raise GrammarError(f"row {b}: decoder prompt differs from the recorded one (different tool "
@@ -356,19 +462,26 @@ class ActionGenerator(nn.Module):
         st = lambda d: torch.stack([v.float() for v in d])
         res = {k: st(v) for k, v in parts.items()}
         ent = {k: st(v) for k, v in ents.items()}
-        self.last_compute = {"rows": B, "decisions": sum(n_dec), "evidence_rows": len(ev_rows), "hole_rows": len(hole_rows),
-                             "tokens": sum(n_tok), "qwen_steps": qwen_steps,
-                             "prompt_tokens": sum(len(ctx_ids[b]) for b in hole_rows)}
+        trunc = sum(prompt_trunc.values())
+        self.last_compute = {"rows": B, "decisions": sum(n_dec), "evidence_rows": len(ev_rows),
+                             "hole_rows": len(hole_rows), "tokens": sum(n_tok), "qwen_steps": qwen_steps,
+                             "prompt_tokens": sum(len(ctx_ids[b]) for b in hole_rows),
+                             "prompt_truncated_tokens": trunc}
         self.stats["decisions"] += sum(n_dec)
         self.stats["qwen_steps"] += qwen_steps
         self.stats["sampled_tokens"] += sum(n_tok)
+        if teacher is not None and flags:
+            self.stats["demo_numbers"] += flags.get("numbers", 0)
+            self.stats["demo_numbers_approx"] += flags.get("approx", 0)
+            self.stats["demo_numbers_copied"] += flags.get("copied", 0)
         restricted = None
         if tool_mask is not None:
             restricted = [torch.nonzero(allowed[b]).flatten().tolist() for b in range(B)]
         return {"logp": res, "entropy": ent, "tool_idx": tool_idx, "tools": chosen, "evidence": evidence,
-                "allowed": restricted,
-                "choices": choices, "templates": templates, "programs": programs, "prompt_sha": prompt_sha,
-                "n_dec": n_dec, "n_tok": n_tok, "active": active, "approx": flags.get("approx", 0)}
+                "allowed": restricted, "tools_sha": tools_sha, "ev": [b in ev_rows for b in range(B)],
+                "ev_sha": ev_sha, "choices": choices, "templates": templates, "programs": programs,
+                "prompt_sha": prompt_sha, "prompt_trunc": prompt_trunc, "n_dec": n_dec, "n_tok": n_tok,
+                "n_copy": n_copy, "active": active, "approx": flags.get("approx", 0)}
 
     def _teacher_tool(self, t: dict, lst: list) -> int:
         idx = t.get("tool")
@@ -385,19 +498,21 @@ class ActionGenerator(nn.Module):
         dev, D = self.device, self.D
         n = len(rows)
         M = max(len(groups[b][0]) for b in rows)
-        src_b, src_t, dst, cnt_dst = [], [], [], []
+        G = max(len(toks) for b in rows for toks in groups[b][1])
+        gb = torch.zeros(n, M, G, dtype=torch.long)
+        gt = torch.zeros(n, M, G, dtype=torch.long)
+        gm = torch.zeros(n, M, G, dtype=torch.bool)
         km = [[False] * M for _ in range(n)]
         for j, b in enumerate(rows):
             for m, toks in enumerate(groups[b][1]):
-                src_b += [b] * len(toks)
-                src_t += toks
-                dst += [j * M + m] * len(toks)
+                gb[j, m, : len(toks)] = b
+                gt[j, m, : len(toks)] = torch.tensor(toks)
+                gm[j, m, : len(toks)] = True
                 km[j][m] = True
-        vals = obs.x[torch.tensor(src_b, device=dev), torch.tensor(src_t, device=dev)].float()
-        di = torch.tensor(dst, device=dev)
-        keys = torch.zeros(n * M, D, device=dev).index_add(0, di, vals)
-        cnt = torch.zeros(n * M, device=dev).index_add(0, di, torch.ones(len(dst), device=dev))
-        keys = (keys / cnt.clamp_min(1.0).unsqueeze(1)).view(n, M, D)       # mean of each observation's tokens
+        gb, gt, gm = gb.to(dev), gt.to(dev), gm.to(dev)
+        vals = obs.x[gb, gt].float() * gm.unsqueeze(-1)                          # [n, M, G, D]
+        # mean of each observation's tokens (dense masked reduction: deterministic, no atomic adds)
+        keys = vals.sum(2) / gm.sum(2).clamp_min(1).unsqueeze(-1).float()
         kmask = torch.tensor(km, dtype=torch.bool, device=dev)
         rt = torch.tensor(rows, device=dev)
         q = self.ev_reader((self.ev_query + self.ev_tool(tool_tok[rt])).unsqueeze(1), ctx_x[rt], ctx_m[rt]).squeeze(1)
@@ -413,6 +528,8 @@ class ActionGenerator(nn.Module):
                 miss = [i for i in want if i not in pos]
                 if miss:
                     raise GrammarError(f"row {b}: recorded evidence {miss} has no observation tokens")
+                if len(want) > self.cfg.max_evidence:
+                    raise GrammarError(f"row {b}: more recorded evidence than max_evidence")
                 rec.append([pos[i] for i in want])
         for step in range(self.cfg.max_evidence):
             live = [j for j in range(n) if not stopped[j] and bool(avail[j].any())]
@@ -449,17 +566,22 @@ class ActionGenerator(nn.Module):
                 q = q.index_add(0, ur, self.ev_update(torch.stack(upd_vals)).to(q.dtype))
         if rec is not None:
             for j, b in enumerate(rows):
-                if len(rec[j]) > self.cfg.max_evidence:
-                    raise GrammarError(f"row {b}: more recorded evidence than max_evidence")
+                if len(evidence[b]) != len(rec[j]):
+                    raise GrammarError(f"row {b}: recorded evidence could not be replayed")
 
     # ------------------------------------------------------------------ public API
     @torch.no_grad()
     def sample(self, R, goal: TokenSet, belief: TokenSet, tools: TokenSet, obs: TokenSet, tool_lists: list,
                obs_lists: list, temperature: float = 1.0, greedy: bool = False, *, generator=None, tool_mask=None,
-               rescore: bool = False, exact_rows: bool = False,
+               rescore: bool = True, exact_rows: Optional[bool] = None,
                source: ActionSource = ActionSource.CAM_DECODER) -> list:
-        """[B] Action with logp / logp_parts / decode record. rescore=True replaces the sampling-time logp by the
-        learner-path recomputation (`log_prob`), so PPO ratios start at exactly 1 even under bf16 drift."""
+        """[B] Action with logp / logp_parts / decode record.
+
+        rescore=True (default): `logp` and its parts are the learner-path values (`log_prob_parts` with exact_rows,
+        default self.exact_rows), so importance ratios start at exactly 1; the incremental-decoding value is kept as
+        logp_parts["sample_logp"]. rescore=False keeps the incremental value as `logp` (diagnostics only: under bf16
+        it differs from log_prob by up to ~1 nat per action). Greedy actions: logp = 0.0 (deterministic behaviour),
+        logp_parts["greedy"] = True, logp_parts["policy_logp"] = tau-softmax log-probability of the greedy path."""
         out = self._forward(R, goal, belief, tools, obs, tool_lists, obs_lists, temperature=temperature,
                             greedy=greedy, generator=generator, tool_mask=tool_mask, sample=True)
         actions = []
@@ -473,11 +595,15 @@ class ActionGenerator(nn.Module):
                 raise GrammarError(f"generated arguments for {tool.name} violate the schema: {errs[:3]}")
             lp = {k: float(v[b]) for k, v in out["logp"].items()}
             ent = sum(float(v[b]) for v in out["entropy"].values())
+            g = self.grammar(tool)
             rec = {"v": DECODE_VERSION, "tool": out["tool_idx"][b], "name": tool.name, "key": tool.key,
+                   "tools": out["tools_sha"][b], "ev": bool(out["ev"][b]), "cands": out["ev_sha"].get(b),
                    "evidence": list(out["evidence"][b]), "choices": list(out["choices"][b]),
                    "holes": [list(h.tokens) for h in (out["programs"][b].holes if b in out["programs"] else [])],
-                   "prompt": out["prompt_sha"].get(b), "temperature": float(temperature), "greedy": bool(greedy),
-                   "allowed": None if out["allowed"] is None else out["allowed"][b]}
+                   "prompt": out["prompt_sha"].get(b), "prompt_truncated": int(out["prompt_trunc"].get(b, 0)),
+                   "temperature": float(temperature), "greedy": bool(greedy),
+                   "allowed": None if out["allowed"] is None else out["allowed"][b],
+                   "reduced": len(g.reductions)}
             ev_entities = sorted({obs_lists[b][i].entity for i in out["evidence"][b] if obs_lists[b][i].entity})
             code = args.get("code") if isinstance(args.get("code"), str) else None
             dur = tool.duration_hint
@@ -490,18 +616,47 @@ class ActionGenerator(nn.Module):
                                               "args": lp["heads"] + lp["tokens"], "args_heads": lp["heads"],
                                               "args_tokens": lp["tokens"], "entropy": ent,
                                               "n_decisions": out["n_dec"][b], "n_tokens": out["n_tok"][b],
+                                              "n_copied": out["n_copy"][b], "sample_logp": total,
+                                              "rescored": False, "greedy": bool(greedy),
                                               "dropped_keys": mstats.get("dropped_keys", 0), "decode": rec}))
+            self.stats["prompt_truncated_tokens"] += rec["prompt_truncated"]
+            self.stats["copied_numbers"] += out["n_copy"][b]
         self.stats["actions"] += len(actions)
+        compute = dict(self.last_compute)
         if rescore:
-            lpr, _ = self.log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions,
-                                         exact_rows=exact_rows)
+            lpr, enr = self.log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions,
+                                           exact_rows=exact_rows)
             for b, a in enumerate(actions):
                 for k_src, k_dst in (("tool", "tool"), ("evidence", "evidence"), ("heads", "args_heads"),
                                      ("tokens", "args_tokens")):
                     a.logp_parts[k_dst] = float(lpr[k_src][b])
                 a.logp_parts["args"] = a.logp_parts["args_heads"] + a.logp_parts["args_tokens"]
+                a.logp_parts["entropy"] = float(sum(enr[k][b] for k in enr))
                 a.logp = float(sum(lpr[k][b] for k in lpr))
+                a.logp_parts["rescored"] = True
+                self.max_rescore_drift = max(self.max_rescore_drift, abs(a.logp - a.logp_parts["sample_logp"]))
+            self.stats["rescored"] += len(actions)
+            compute["rescore"] = dict(self.last_compute)
+        if greedy:
+            for a in actions:
+                a.logp_parts["policy_logp"] = a.logp
+                a.logp = 0.0
+        self.last_compute = compute
         return actions
+
+    @property
+    def demo_number_stats(self) -> dict:
+        """Numbers seen in encoded demonstrations: how many, how many had to be rounded (more than float_digits
+        fractional digits), how many were encoded as evidence copies, and the rounded fraction."""
+        n = self.stats["demo_numbers"]
+        return {"numbers": n, "approx": self.stats["demo_numbers_approx"], "copied": self.stats["demo_numbers_copied"],
+                "approx_fraction": (self.stats["demo_numbers_approx"] / n) if n else 0.0}
+
+    @staticmethod
+    def importance_weight_usable(action: Action) -> bool:
+        """True when Action.logp is a stochastic behaviour log-probability recomputed on the learner path."""
+        p = action.logp_parts or {}
+        return action.logp is not None and bool(p.get("rescored")) and not p.get("greedy")
 
     def _teacher(self, actions: list, evidence: Optional[list] = None) -> list:
         out = []
@@ -521,18 +676,47 @@ class ActionGenerator(nn.Module):
         return out
 
     def log_prob_parts(self, R, goal, belief, tools, obs, tool_lists, obs_lists, actions, evidence=None,
-                       exact_rows: Optional[bool] = None):
-        """({tool, evidence, heads, tokens}: [B] each, {same}: entropies [B]); differentiable. exact_rows (default
-        self.exact_rows) scores the Qwen part row by row (batch-invariant under bf16)."""
-        out = self._forward(R, goal, belief, tools, obs, tool_lists, obs_lists, teacher=self._teacher(actions, evidence),
-                            sample=False, exact_rows=self.exact_rows if exact_rows is None else exact_rows)
-        return out["logp"], out["entropy"]
+                       exact_rows: Optional[bool] = None, temperature: Optional[float] = None):
+        """({tool, evidence, heads, tokens}: [B] each, {same}: entropies [B]); differentiable.
+
+        exact_rows (default self.exact_rows): every row is evaluated alone on its own un-padded tokens (all components),
+        so the result is independent of the minibatch composition. temperature: evaluate the recorded paths under
+        this temperature instead of the recorded one (e.g. the target policy at 1.0)."""
+        teacher = self._teacher(actions, evidence)
+        if temperature is not None:
+            for t in teacher:
+                if t is not None:
+                    t["temperature"] = float(temperature)
+        exact = self.exact_rows if exact_rows is None else exact_rows
+        B = R.shape[0]
+        if not exact or B == 1:
+            out = self._forward(R, goal, belief, tools, obs, tool_lists, obs_lists, teacher=teacher, sample=False,
+                                exact_rows=exact)
+            return out["logp"], out["entropy"]
+        zero = R.new_zeros((), dtype=torch.float32)
+        lps = {k: [zero] * B for k in PART_KEYS}
+        ens = {k: [zero] * B for k in PART_KEYS}
+        tot: dict = {}
+        for b in range(B):
+            if teacher[b] is None:
+                continue
+            o = self._forward(R[b:b + 1], row_tokens(goal, b), row_tokens(belief, b), row_tokens(tools, b),
+                              row_tokens(obs, b), [tool_lists[b]], [obs_lists[b]], teacher=[teacher[b]], sample=False,
+                              exact_rows=True)
+            for k in PART_KEYS:
+                lps[k][b] = o["logp"][k][0]
+                ens[k][b] = o["entropy"][k][0]
+            for k, v in self.last_compute.items():
+                tot[k] = tot.get(k, 0) + v
+        self.last_compute = tot
+        return {k: torch.stack(v) for k, v in lps.items()}, {k: torch.stack(v) for k, v in ens.items()}
 
     def log_prob(self, R, goal: TokenSet, belief: TokenSet, tools: TokenSet, obs: TokenSet, tool_lists: list,
-                 obs_lists: list, actions: list, *, exact_rows: Optional[bool] = None) -> tuple:
+                 obs_lists: list, actions: list, *, exact_rows: Optional[bool] = None,
+                 temperature: Optional[float] = None) -> tuple:
         """ActionGeneratorP.log_prob -> (logp [B], entropy [B]) of the given actions (None rows give 0)."""
         lp, en = self.log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions,
-                                     exact_rows=exact_rows)
+                                     exact_rows=exact_rows, temperature=temperature)
         return sum(lp.values()), sum(en.values())
 
     def evidence_log_prob(self, R, goal, belief, tools, obs, tool_lists, obs_lists, tool_names: list,

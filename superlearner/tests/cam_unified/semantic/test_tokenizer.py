@@ -133,6 +133,28 @@ def test_budget_trimming_keeps_most_recent_and_reports_drops(enc, cfg):
     kept = sorted({parse_obs_ref(r) for r in ts.refs[0] if r is not None})
     assert kept == [4, 5, 6]
     assert small.dropped_total["obs"] == 4
+    # strict recency: the walk stops at the first (newest-first) observation that does not fit - a newer observation
+    # is never dropped while an older, smaller one is kept
+    tight = ObservationTokenizer(cfg, enc, max_obs_tokens=cfg.sem_tokens_per_obs + 1)
+    mixed = [Observation(ObsKind.NUMERIC, value=3.0, unit="count", t=0.0, source="m"),
+             Observation(ObsKind.TEXT, "older text", t=1.0, source="mail"),
+             Observation(ObsKind.TEXT, "newest text", t=2.0, source="mail")]
+    ts2, st2 = tight.observations_with_stats([mixed], None, [2.0])
+    assert sorted({parse_obs_ref(r) for r in ts2.refs[0] if r is not None}) == [2]
+    assert st2["dropped_obs"] == [2] and st2["dropped_tokens"] == [cfg.sem_tokens_per_obs + 1]
+
+
+def test_non_finite_values_give_finite_tokens_and_are_counted(tok, cfg):
+    vals = [float("nan"), float("inf"), float("-inf"), 1e308, 5.0]
+    obs = [Observation(ObsKind.NUMERIC, value=v, unit="ms", t=0.0, source="monitor") for v in vals]
+    n0 = tok.nonfinite_total
+    ts, st = tok.observations_with_stats([obs], None, [0.0])
+    assert torch.isfinite(ts.x).all() and int(ts.mask.sum()) == len(vals)
+    assert st["nonfinite_values"] == 3 and tok.nonfinite_total == n0 + 3
+    x = ts.x[0]
+    assert (x[0] - x[1]).norm() > 1e-3 and (x[1] - x[2]).norm() > 1e-3 and (x[2] - x[4]).norm() > 1e-3
+    g = tok.goal([GoalSpec("g", "keep latency low", {"latency_ms": float("inf")})])
+    assert torch.isfinite(g.x).all()
 
 
 def test_tool_tokens_one_per_tool_unseen_tools_need_no_parameters(tok, cfg):
@@ -164,13 +186,14 @@ def test_goal_and_action_tokens(tok, cfg):
     g_b = tok.goal([GoalSpec("g1", "Earn revenue by selling a service.", {"revenue_cents": 20_000, "requests": 100},
                              8.0)])
     assert (g.x[0, Q] - g_b.x[0, Q]).norm() > 1e-3           # numeric target sensitivity
-    tok.register_tools(sample_tools(5))
+    from superlearner.cam_unified.semantic.actions import builtin_tools
+    row_tools = sample_tools(5) + builtin_tools(cfg)
     acts = [Action("set_price", {"product": "prod_1", "price": 12.5}), None, Action("noop", {}),
             Action("run_python", {"code": "print(1)"}, code="print(1)")]
-    a = tok.action(acts)
+    a = tok.action(acts, tool_lists=[row_tools] * 4)
     assert a.mask.sum(1).tolist() == [1 + tok.n_action_arg_tokens, 0, 1, 1 + tok.n_action_arg_tokens]
     assert (a.kind[a.mask] == TokenKind.ACTION).all()
-    a2 = tok.action([Action("set_price", {"product": "prod_1", "price": 99.0})])
+    a2 = tok.action([Action("set_price", {"product": "prod_1", "price": 99.0})], tool_lists=[row_tools])
     assert (a.x[0, 1:] - a2.x[0, 1:]).norm() > 1e-3            # arguments matter
     assert torch.nn.functional.cosine_similarity(a.x[0, 0], a2.x[0, 0], dim=0) > 0.999   # same tool token
 
@@ -189,3 +212,33 @@ def test_gradients_reach_pooling_and_projections_not_qwen(tok, enc, cfg):
     assert tok.unit_proj[1].weight.grad.abs().sum() > 0
     assert all(p.grad is None for p in enc.peft.parameters())    # cached states are constants for the tokenizer
     assert not any(k.startswith("enc") for k in tok.state_dict())
+
+
+def test_action_tokens_resolve_the_schema_the_action_was_taken_with(enc, cfg):
+    tok = ObservationTokenizer(cfg, enc)
+    op_a = ToolSchema("op", "Increase the reactor temperature.", {"type": "object", "properties": {
+        "delta": {"type": "integer"}}, "required": ["delta"]})
+    op_b = ToolSchema("op", "Send an apology email to a customer.", {"type": "object", "properties": {
+        "delta": {"type": "integer"}, "to": {"type": "string"}}, "required": ["delta"]})
+    act = Action("op", {"delta": 3})
+    tok.register_tools([op_a])
+    x_a = tok.action([act]).x[0, 0]                               # unique name: resolved by name
+    tok.register_tools([op_b])
+    with pytest.raises(ValueError):                               # ambiguous name and no record: refuse
+        tok.action([act])
+    in_a = tok.action([act], tool_lists=[[op_a]]).x[0, 0]         # the row's tool list decides
+    in_b = tok.action([act], tool_lists=[[op_b]]).x[0, 0]
+    assert torch.allclose(in_a, x_a, atol=1e-5) and (in_a - in_b).norm() > 1e-3
+    rec_b = Action("op", {"delta": 3}, logp_parts={"decode": {"key": op_b.key}})
+    assert torch.allclose(tok.action([rec_b]).x[0, 0], in_b, atol=1e-5)   # or the decode record's schema key
+    with pytest.raises(ValueError):
+        tok.action([Action("never_registered_tool", {})])
+    n_unknown = tok.unknown_tools
+    t_unk = tok.action([Action("never_registered_tool", {})], allow_unknown=True)
+    assert t_unk.mask.sum() == 1 and tok.unknown_tools == n_unknown + 1
+    tok.clear_tool_registry()
+    with pytest.raises(ValueError):
+        tok.action([act])
+    small = ObservationTokenizer(cfg, enc, tool_registry_size=2)  # the registry is a bounded LRU
+    small.register_tools(sample_tools(4))
+    assert len(small._tool_by_key) == 2 and set(small._keys_by_name) == {"run_python", "send_message"}

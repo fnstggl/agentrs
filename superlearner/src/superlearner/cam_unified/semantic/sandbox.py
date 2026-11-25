@@ -11,9 +11,16 @@ Backend "subprocess" is a WEAKER fallback (temp cwd, empty environment, rlimits,
 kill) with no filesystem or network isolation; it is only used when explicitly requested with allow_weak=True - there
 is never a silent fallback.
 
-Results come back as `ExecutionResult` with EXEC_RESULT (stdout + JSON result) or ERROR (exception type, message,
-traceback tail, stdout) observations. Executing never moves any simulated clock (`duration` = 0); wall/CPU time are
-in `meta`.
+Both backends run a program through the same generated runner module (`__cam_runner__.py`), so they agree on every
+outcome: a script (`main.py`) runs as `__main__` via `runpy.run_path` (the usual `if __name__ == "__main__":` guard
+runs, sibling modules import); `sys.exit(0)` / `sys.exit(None)` / falling off the end is success, any other exit
+status is a failure with error type `NonZeroExit` (a string exit message is printed to stderr, status 1, as CPython
+does); an uncaught exception is a failure with its type, message and traceback. A function entry
+(`file.py:function`) is called with the JSON input and returns its JSON result.
+
+Results come back as `ExecutionResult` with EXEC_RESULT (stdout + JSON result for function entries) or ERROR
+(exception type, message, traceback tail, stdout) observations. Executing never moves any simulated clock
+(`duration` = 0); wall/CPU time are in `meta`.
 """
 from __future__ import annotations
 
@@ -30,6 +37,61 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from ..interfaces import Action, ExecutionResult, EvidenceKind, Observation, ObsKind, ToolSchema
+
+
+RUNNER_FILE = "__cam_runner__.py"
+EXIT_KEY = "__cam_exit__"
+MARKER = "__CAM_RESULT__"
+RUNNER_SOURCE = r'''"""CAM runner: executes main.py as __main__ or calls file.py:function (generated; not user code)."""
+import json
+import runpy
+import sys
+import traceback
+
+
+def _exit_status(e):
+    c = e.code
+    if c is None:
+        return 0
+    if isinstance(c, int):
+        return int(c)
+    print(c, file=sys.stderr)                 # CPython prints a non-integer exit message and exits with status 1
+    return 1
+
+
+def run_script(_args=None):
+    sys.argv = ["main.py"]
+    try:
+        runpy.run_path("main.py", run_name="__main__")
+    except SystemExit as e:
+        return {"__cam_exit__": _exit_status(e)}
+    return {"__cam_exit__": 0}
+
+
+def call_entry(target, args):
+    mod, _, fn = target.partition(":")
+    mod = mod[:-3] if mod.endswith(".py") else mod
+    m = __import__(mod.replace("/", "."), fromlist=["_"])
+    return getattr(m, fn)(args)
+
+
+if __name__ == "__main__":                    # subprocess backend driver
+    sys.path.insert(0, ".")
+    try:
+        if sys.argv[1] == "script":
+            r = run_script()
+        else:
+            r = call_entry(sys.argv[2], json.loads(sys.stdin.read() or "null"))
+        json.dumps(r)
+        out = {"ok": True, "result": r}
+    except BaseException as e:  # noqa: BLE001 - user code may raise anything
+        out = {"ok": False, "error": {"type": type(e).__name__, "message": str(e)[:2000],
+                                      "traceback": traceback.format_exc(limit=6)[-4000:]}}
+    sys.stdout.flush()
+    sys.stderr.flush()
+    sys.stdout.write("\n__CAM_RESULT__" + json.dumps(out, default=str) + "\n")
+    sys.stdout.flush()
+'''
 
 
 @dataclass
@@ -80,13 +142,13 @@ class CodeSandbox:
         L = self.limits
         cfg = SandboxConfig(job_wall_s=L.timeout_s, mem_mb=L.mem_mb, cpu_s=L.cpu_s, out_bytes=L.out_bytes,
                             max_files=L.max_files, max_file_bytes=L.max_file_bytes)
-        w = Worker(files, cfg, "cam-local")
+        w = Worker({**files, RUNNER_FILE: RUNNER_SOURCE}, cfg, "cam-local")
         try:
             w.start()
             if entry:
                 job = {"kind": "call", "target": entry, "args": args, "two_args": False}
             else:
-                job = {"kind": "import", "target": "main"}
+                job = {"kind": "call", "target": f"{RUNNER_FILE}:run_script", "args": None, "two_args": False}
             return w.run(job)
         finally:
             w.close()
@@ -103,22 +165,9 @@ class CodeSandbox:
                 os.makedirs(os.path.dirname(full), exist_ok=True)
                 with open(full, "w") as f:
                     f.write(content)
-            marker = "__CAM_RESULT__"
-            if entry:
-                mod, _, fn = entry.partition(":")
-                mod = mod[:-3] if mod.endswith(".py") else mod
-                runner = (f"import json, sys, traceback\nsys.path.insert(0, '.')\n"
-                          f"args = json.loads(sys.stdin.read() or 'null')\n"
-                          f"try:\n    import {mod.replace('/', '.')} as _m\n    r = getattr(_m, {fn!r})(args)\n"
-                          f"    print({marker!r} + json.dumps({{'ok': True, 'result': r}}))\n"
-                          f"except BaseException as e:\n"
-                          f"    print({marker!r} + json.dumps({{'ok': False, 'error': {{'type': type(e).__name__, "
-                          f"'message': str(e)[:2000], 'traceback': traceback.format_exc(limit=6)[-4000:]}}}}))\n")
-                with open(os.path.join(work, "__cam_runner__.py"), "w") as f:
-                    f.write(runner)
-                argv = [sys.executable, "-I", "__cam_runner__.py"]
-            else:
-                argv = [sys.executable, "-I", "main.py"]
+            with open(os.path.join(work, RUNNER_FILE), "w") as f:
+                f.write(RUNNER_SOURCE)
+            argv = [sys.executable, "-I", RUNNER_FILE] + (["entry", entry] if entry else ["script"])
             limits = (L.mem_mb, L.cpu_s)
 
             def pre():
@@ -142,21 +191,15 @@ class CodeSandbox:
                 return {"ok": False, "error": {"type": "Timeout", "message": f"exceeded {L.timeout_s}s"},
                         "result": None, "stdout": "", "wall_ms": L.timeout_s * 1000.0, "cpu_ms": None}
             wall = (time.monotonic() - t0) * 1000.0
-            text = out.decode(errors="replace")[: L.out_bytes]
-            if entry:
-                lines = text.splitlines()
-                tail = [ln for ln in lines if ln.startswith(marker)]
-                body = "\n".join(ln for ln in lines if not ln.startswith(marker))
-                if tail:
-                    r = json.loads(tail[-1][len(marker):])
-                    return {"ok": r["ok"], "result": r.get("result"), "error": r.get("error"), "stdout": body,
-                            "wall_ms": wall, "cpu_ms": None}
-                return {"ok": False, "result": None, "error": {"type": "Crashed", "message": f"exit {proc.returncode}"},
-                        "stdout": body, "wall_ms": wall, "cpu_ms": None}
-            ok = proc.returncode == 0
-            err = None if ok else {"type": "NonZeroExit", "message": f"exit status {proc.returncode}",
-                                   "traceback": text[-4000:]}
-            return {"ok": ok, "result": None, "error": err, "stdout": text, "wall_ms": wall, "cpu_ms": None}
+            text = out.decode(errors="replace")
+            at = text.rfind("\n" + MARKER)
+            body = (text if at < 0 else text[:at])[: L.out_bytes]
+            if at >= 0:
+                r = json.loads(text[at + 1 + len(MARKER):].strip())
+                return {"ok": r["ok"], "result": r.get("result"), "error": r.get("error"), "stdout": body,
+                        "wall_ms": wall, "cpu_ms": None}
+            return {"ok": False, "result": None, "error": {"type": "Crashed", "message": f"exit {proc.returncode}"},
+                    "stdout": body, "wall_ms": wall, "cpu_ms": None}
         finally:
             shutil.rmtree(work, ignore_errors=True)
 
@@ -175,8 +218,19 @@ class CodeSandbox:
                 raise ValueError("a script run needs main.py (or an entry 'file.py:function')")
             if entry and entry.partition(":")[0] not in files and entry.partition(":")[0] + ".py" not in files:
                 raise ValueError(f"entry {entry!r} names a file that was not written")
+            if RUNNER_FILE in files:
+                raise ValueError(f"{RUNNER_FILE} is reserved")
             res = self._crucible(files, entry, args) if self.backend == "crucible" else \
                 self._subprocess(files, entry, args)
+            if not entry and res.get("ok"):                       # script: map the exit status
+                status = (res.get("result") or {}).get(EXIT_KEY) if isinstance(res.get("result"), dict) else None
+                if status is None:
+                    res = {**res, "ok": False, "error": {"type": "Crashed", "message": "runner returned no status"}}
+                elif status != 0:
+                    res = {**res, "ok": False, "result": None,
+                           "error": {"type": "NonZeroExit", "message": f"exit status {status}"}}
+                else:
+                    res = {**res, "result": None}
         except ValueError as e:     # nothing to run, unsafe path, file too large, too many files: a real outcome
             res = {"ok": False, "error": {"type": "InvalidProgram", "message": str(e)}, "result": None, "stdout": ""}
         stdout = res.get("stdout") or ""
