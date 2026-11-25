@@ -146,11 +146,16 @@ Gate measurements (tests/v5, recorded by `crucible.acceptance.v5.evidence.record
   9 event hosts), `cross_module_rollback_failures` 0, 20 contained failing sub-calls with 0 failures (each shown
   effective when not failing), replay and regeneration of the whole run exact; recorded inference: 48 cohort
   decisions by a torch MLP with OS-entropy sampling, 0 network calls during regeneration and replay, both exact,
-  `inference_replay_without_rerun` true; 33 typed event types registered. About 7 s.
+  `inference_replay_without_rerun` true; 32 typed event types registered. About 7 s.
 * SP-2.1: `execution_modes` 1 (Mode A via the 4.0 hidden-mechanism families: 25 environments, deterministic,
   responsive to levers). Modes B and C report "no provider registered" until `crucible.domains` and `crucible.civ`
   register providers; the criterion (>= 3) is therefore not met yet, and the test records the number without
   asserting the threshold (the checker decides).
+
+Side channels closed in the artifact tools: an unreadable artifact and a missing one give the same `not_found`;
+storing bytes that another principal already stores produces exactly the same visible event, result (`new` is
+relative to the caller), quota charge and fee as storing new bytes, and the holder's `artifact.info` shows its own
+record, not the first owner's.
 
 ## Limitations
 
