@@ -85,8 +85,8 @@ class TrainerP(Protocol):                     # workstream D: learn/trainer.py:C
     # optional: optimizers (dict) or opt, reset_optimizer(), make_optimizers(), schedulers
 
 
-class MemoryIndexP(Protocol):                 # workstream E: memory/index.py (via its consolidator)
-    def add(self, records: list) -> None: ...
+class MemoryIndexP(Protocol):                 # a records-level memory index (doubles); E's MemoryIndex is instead
+    def add(self, records: list) -> None: ...  # fed by E's Consolidator: step() / link_weights(ids, update_id, v)
 
 
 # ============================================================================ fresh on-policy buffer
@@ -303,6 +303,17 @@ def _obs_key(o: Observation) -> tuple:
     return ("obs", o.kind.value, o.source, o.entity, o.t, o.value, (o.content or "")[:256], o.artifact_ref)
 
 
+def _takes_one_arg(fn) -> bool:
+    if not callable(fn):
+        return False
+    try:
+        ps = [p for p in inspect.signature(fn).parameters.values()
+              if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD) and p.default is p.empty]
+    except (TypeError, ValueError):
+        return False
+    return len(ps) == 1
+
+
 def default_funds(observations: Sequence[Observation], money_unit: str) -> dict:
     """{key: value} of numeric observations that report the agent's money (unit == the world's money unit and a
     balance / funds / cash metric or field); the remaining funds are the sum of the latest values."""
@@ -324,7 +335,7 @@ class CamUnifiedAgent:
     `recorder`, `replay`, `index` and `trainer` may be None (then the corresponding path is skipped and reported)."""
 
     def __init__(self, model: CamUnifiedModel, *, archive=None, recorder=None, replay=None, trainer=None, index=None,
-                 actor_id: str = "actor0", seed: int = 0, seq_len: int = 8, n_seqs: int = 4, adapt_seq_len: int = 65,
+                 consolidator=None, actor_id: str = "actor0", seed: int = 0, seq_len: int = 8, n_seqs: int = 4, adapt_seq_len: int = 65,
                  adapt_n_seqs: int = 2, greedy: bool = False, objectives: Optional[dict] = None,
                  fresh_max_steps: int = 256, decision_budget: Optional[int] = None,
                  funds_fn: Optional[Callable] = None, awr_beta: float = 1.0, awr_max_weight: float = 20.0):
@@ -335,7 +346,7 @@ class CamUnifiedAgent:
         self.replay = replay
         self.trainer = trainer
         self.index = index
-        self.consolidator = None
+        self.consolidator = consolidator
         self.actor_id = actor_id
         self.seq_len = seq_len
         self.n_seqs = n_seqs
@@ -621,7 +632,8 @@ class CamUnifiedAgent:
         self.archive.append(records)
         if self.replay is not None and hasattr(self.replay, "add"):
             self.replay.add(records)
-        if self.config.use_memory and self.index is not None and hasattr(self.index, "add"):
+        # a records-level index is notified directly; E's MemoryIndex is fed by its Consolidator (update())
+        if self.config.use_memory and self.index is not None and _takes_one_arg(getattr(self.index, "add", None)):
             self.index.add(records)
 
     def flush(self, reason: str = "end_of_run", rows: Optional[Sequence[int]] = None) -> list:
@@ -956,6 +968,9 @@ class CamUnifiedAgent:
         t0 = time.perf_counter()
         seq = aux = aseq = aaux = None
         replay_ids, replay_decisions = [], []
+        consolidated = None
+        if self.config.use_memory and self.consolidator is not None and hasattr(self.consolidator, "step"):
+            consolidated = self.consolidator.step()     # new archived events -> memory segments (E)
         if self.replay is not None and self.archive is not None and self.archive.count() > 0:
             seqs = self._sample(self.n_seqs, self.seq_len)
             if seqs:
@@ -995,6 +1010,10 @@ class CamUnifiedAgent:
         linked = sorted(set(consumed) | set(replay_decisions))
         if self.recorder is not None and hasattr(self.recorder, "link_updates") and linked:
             self.recorder.link_updates(linked, update_id)
+        mem_used = sorted({str(i) for st in batch.fresh for ids in (st.inputs.memory_ids if st.inputs else [])
+                           for i in ids})
+        if mem_used and self.consolidator is not None and hasattr(self.consolidator, "link_weights"):
+            self.consolidator.link_weights(mem_used, update_id, self.version)   # parametric-knowledge provenance
         # keep each environment's latest undone decision: it bootstraps the next update's advantages
         keep: dict = {}
         for st in self.fresh:
@@ -1013,7 +1032,8 @@ class CamUnifiedAgent:
         entry = {"update_id": update_id, "version": self.version, "losses": {k: float(v.detach())
                                                                              for k, v in losses.items()},
                  "consumed_decisions": consumed, "replay_events": replay_ids, "replay_decisions": replay_decisions,
-                 "adapt_seq_T": None if aseq is None else len(aseq.steps),
+                 "adapt_seq_T": None if aseq is None else len(aseq.steps), "memory_linked": mem_used,
+                 "consolidated": consolidated,
                  "adapt_k_hist": {int(k): v for k, v in sorted(self.adapt_k_hist.items())}}
         self.update_log.append(entry)
         return {"updated": True, **entry, **metrics, **{f"trainer/{k}": v for k, v in (tm or {}).items()}}

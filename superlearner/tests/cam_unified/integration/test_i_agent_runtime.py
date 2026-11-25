@@ -701,3 +701,45 @@ def test_dev_scale_30_step_run():
     assert len(actions_only(st.archive.rows)) == 60 and all(u["updated"] for u in rep.updates)
     print("dev-scale compute:", json.dumps(rep.compute.to_dict()))
     print("dev-scale params:", json.dumps(st.model.count_parameters()["cam_total"]))
+
+
+class RecordingConsolidator:
+    """Shape of E's memory/consolidate.py:Consolidator as the agent uses it: step() reads the archive itself;
+    link_weights(seg_ids, update_id, model_version) records parametric-knowledge provenance."""
+
+    def __init__(self, archive):
+        self.archive, self.cursor, self.steps, self.links = archive, 0, 0, []
+
+    def step(self):
+        n = self.archive.count() - self.cursor
+        self.cursor = self.archive.count()
+        self.steps += 1
+        return {"events": n}
+
+    def link_weights(self, seg_ids, update_id, model_version):
+        self.links.append((list(seg_ids), update_id, model_version))
+
+
+class SegmentIndex:
+    """E-shaped index: add(version, seg_ids, keys, values) must never be called with records."""
+
+    def add(self, version, seg_ids, keys, values):
+        raise AssertionError("the agent must not feed records to a segment index")
+
+
+def test_consolidator_and_segment_index_wiring():
+    st = Stack(index=SegmentIndex())
+    st.agent.consolidator = RecordingConsolidator(st.archive)
+    rep = run_steps(st.agent, st.env, 6, evaluator=st.evaluator, update_every=3)
+    con = st.agent.consolidator
+    assert con.steps == 2 and rep.updates[0]["consolidated"] == {"events": 6}
+    # the double retriever's bank is filled only through a records-level index; with the segment index it stays
+    # empty, so nothing is retrieved and nothing is linked
+    assert all(not u["memory_linked"] for u in rep.updates) and not con.links
+    # with retrieved memory, the consumed decisions' memory ids are linked to the update
+    st2 = Stack()
+    st2.agent.consolidator = RecordingConsolidator(st2.archive)
+    rep2 = run_steps(st2.agent, st2.env, 6, evaluator=st2.evaluator, update_every=3)
+    linked = [l for l in st2.agent.consolidator.links]
+    assert linked and linked[-1][1] == rep2.updates[-1]["update_id"] and linked[-1][2] == st2.agent.version
+    assert set(linked[-1][0]) <= {r.event_id for r in st2.archive.rows}
