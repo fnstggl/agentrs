@@ -52,7 +52,7 @@ def test_recruitment_negotiation_and_employment_contracts():
     outcomes = {o["status"] for o in first}
     assert outcomes <= {"accepted", "countered", "rejected"} and len(outcomes) >= 2   # workers decide differently
     for o in first:
-        wk = w.state.tables["workers"][o["worker"]]
+        wk = w.state.tables["labor_workers"][o["worker"]]
         if o["status"] == "accepted":
             assert o["salary"] >= 0.9 * wk["reservation"]
     for o in offers:
@@ -101,7 +101,7 @@ def test_dependencies_gate_work_and_quality_is_measured_from_skills():
              depends_on=[t1]).result["task"]
     assert _ex(w, boss, "inst.task_assign", task=t1, assignee=team[0]).ok
     assert _ex(w, boss, "inst.task_assign", task=t2, assignee=team[1]).ok
-    tasks = w.state.tables["project_tasks"]
+    tasks = w.state.tables["inst_tasks"]
     while tasks[t1]["status"] != "done" and w.now < 50 * DAY:
         w.advance_time(w.now + DAY)
         if tasks[t1]["status"] != "done":
@@ -110,7 +110,7 @@ def test_dependencies_gate_work_and_quality_is_measured_from_skills():
     w.advance_time(w.now + 20 * DAY)
     assert tasks[t2]["status"] == "done"
     for tid, who in ((t1, team[0]), (t2, team[1])):
-        wk = w.state.tables["workers"][who]
+        wk = w.state.tables["labor_workers"][who]
         req = tasks[tid]["skills"]
         base = 0.65 + sum(wk["skills"][k] - v for k, v in req.items()) / len(req)
         assert abs(tasks[tid]["quality"] - min(1.0, max(0.0, base))) < 0.2  # skill match plus small task noise
@@ -130,9 +130,9 @@ def test_workers_decline_assignments_they_cannot_fit():
     big = _ex(w, boss, "inst.task_add", project=prj, title="everything", effort_hours=80).result["task"]
     more = _ex(w, boss, "inst.task_add", project=prj, title="more", effort_hours=120).result["task"]
     assert _ex(w, boss, "inst.task_assign", task=big, assignee=who).ok
-    assert w.state.tables["project_tasks"][big]["assignee"] == who
+    assert w.state.tables["inst_tasks"][big]["assignee"] == who
     assert _ex(w, boss, "inst.task_assign", task=more, assignee=who).ok      # 200 hours > four weeks of its time
-    t = w.state.tables["project_tasks"][more]
+    t = w.state.tables["inst_tasks"][more]
     assert t["assignee"] is None and t["status"] == "open"
     assert any(e.type == "labor.declined" and e.payload["worker"] == who for e in w.log)
 
@@ -146,7 +146,7 @@ def test_unpaid_salary_is_a_breach_the_worker_leaves_and_does_not_return():
     assert _ex(w, boss, "bank.transfer", from_account=acct, to=boss, amount=bal).ok   # the owner empties it
     w.advance_time(w.now + 31 * DAY)
     for who in team:
-        wk = w.state.tables["workers"][who]
+        wk = w.state.tables["labor_workers"][who]
         assert wk["employer"] is None and org in wk["blacklist"] and wk["unpaid"] == 1
         assert w.modules["identity"].role(w.state, org, who) is None
     _ex(w, boss, "bank.transfer", from_account=w.modules["bank"].primary_account(w.state, boss), to=acct,
@@ -178,11 +178,11 @@ def test_pay_raise_replaces_the_contract_and_keeps_tenure():
     _hire_team(w, boss, org)
     t = _ex(w, boss, "labor.team", org=org).result[0]
     who, old = t["worker"], t["contract"]
-    joined = w.state.tables["workers"][who]["joined"]
+    joined = w.state.tables["labor_workers"][who]["joined"]
     w.advance_time(w.now + 5 * DAY)
     o = _ex(w, boss, "labor.adjust_pay", worker=who, org=org, salary_cents_month=t["salary"] + 100_000).result["offer"]
     w.advance_time(w.now + DAY + 3600)
-    wk = w.state.tables["workers"][who]
+    wk = w.state.tables["labor_workers"][who]
     assert w.state.tables["labor_offers"][o]["status"] == "accepted"
     assert wk["salary"] == t["salary"] + 100_000 and wk["contract"] != old and wk["joined"] == joined
     assert w.state.tables["contracts"][old]["status"] == "terminated"
@@ -201,7 +201,7 @@ def test_team_lead_delegation_and_labour_contributions_weight_votes():
             skills={"software": 0.4}).result["task"]
     assert _ex(w, lead, "inst.task_assign", task=t, assignee=team[0]).ok
     w.advance_time(w.now + 10 * DAY)
-    assert w.state.tables["project_tasks"][t]["status"] == "done"
+    assert w.state.tables["inst_tasks"][t]["status"] == "done"
     worked = w.modules["inst"].contribution_of(w.state, org, team[0])
     assert worked > 0 and w.state.meta[f"labor_hours:{org}"][team[0]] == worked     # gov profit sharing reads it
     assert _ex(w, boss, "inst.adopt", org=org, charter={

@@ -78,7 +78,7 @@ def _protected_snapshot(w):
                                                                         ("principals_of", "may_act_as", "bank")),
             "hook_ids": [id(w.hooks.get(k)) for k in ("principals_of", "may_act_as", "bank")],
             "owners": sorted(k for k, m in st.tables["members"].items() if m["role"] == "owner"),
-            "grants": sorted(st.tables["grants"]), "charters": {k: v["version"] for k, v in st.scan("charters")}}
+            "grants": sorted(st.tables["grants"]), "charters": {k: v["version"] for k, v in st.scan("inst_charters")}}
 
 
 def run_gate() -> tuple[dict, Gate]:
@@ -117,7 +117,7 @@ def run_gate() -> tuple[dict, Gate]:
         blocked = g.ex("ada", "bank.transfer", from_account=acct, to=g.p["ada"], amount=500_000)
         small = g.ex("ada", "bank.transfer", from_account=acct, to=g.p["lea"], amount=50_000)   # treasurer budget
         OW.add_member(w, org, g.p["ada"], g.p["lea"], role="admin")
-        ok = st.tables["charters"][org]["version"] == 1 and not blocked.ok and "charter" in blocked.error["message"] \
+        ok = st.tables["inst_charters"][org]["version"] == 1 and not blocked.ok and "charter" in blocked.error["message"] \
             and small.ok and st.tables["orgs"][org]["status"] == "active"
         return ok, f"charter v1 in force; owner's 500k transfer refused: {not blocked.ok}; treasurer 50k: {small.ok}"
     g.feature("formation", formation)
@@ -161,10 +161,10 @@ def run_gate() -> tuple[dict, Gate]:
     # ---------------------------------------------------------------- shared projects and resource allocation
     def resource_allocation():
         prj, team = s["prj"], s["team"]
-        pool0 = st.tables["projects"][prj]["pool"]
+        pool0 = st.tables["inst_projects"][prj]["pool"]
         r = g.ok("ada", "inst.propose", org=org, action={"kind": "allocate", "project": prj, "amount": 2_000_000})
         d = g.dec(r["decision"])
-        moved = st.tables["projects"][prj]["pool"] - pool0
+        moved = st.tables["inst_projects"][prj]["pool"] - pool0
         specs = [("backend", 70, {"software": 0.45}, []), ("frontend", 40, {"software": 0.35, "design": 0.2}, [0]),
                  ("visuals", 30, {"design": 0.4}, [])]
         tids = []
@@ -179,22 +179,22 @@ def run_gate() -> tuple[dict, Gate]:
         within = g.ex("ada", "bank.transfer", from_account=acct, to=g.p["cyd"], amount=150_000)   # 200k of 300k
         beyond = g.ex("ada", "bank.transfer", from_account=acct, to=g.p["cyd"], amount=150_000)   # 350k of 300k
         ok = d["status"] == "executed" and d["procedure"]["type"] == "delegated" and moved == 2_000_000 \
-            and st.tables["projects"][prj]["allocated"] == 650_000 and not over.ok and within.ok and not beyond.ok
+            and st.tables["inst_projects"][prj]["allocated"] == 650_000 and not over.ok and within.ok and not beyond.ok
         return ok, (f"allocation decided by delegated vote ({d['status']}), pool +{moved}; 650k allocated to tasks; "
                     f"over-allocation refused; office budget enforced: {within.ok and not beyond.ok}")
     g.feature("resource_allocation", resource_allocation)
 
     def shared_projects():
         prj, team, tids = s["prj"], s["team"], s["tids"]
-        sw = sorted(team, key=lambda p: -st.tables["workers"][p]["skills"]["software"])
-        de = sorted(team, key=lambda p: -st.tables["workers"][p]["skills"]["design"])
+        sw = sorted(team, key=lambda p: -st.tables["labor_workers"][p]["skills"]["software"])
+        de = sorted(team, key=lambda p: -st.tables["labor_workers"][p]["skills"]["design"])
         g.ok("lea", "inst.task_assign", task=tids[0], assignee=sw[0])
         g.ok("lea", "inst.task_assign", task=tids[1], assignee=sw[1] if len(sw) > 1 else sw[0])
         g.ok("lea", "inst.task_assign", task=tids[2], assignee=de[0])
         g.ok("lea", "inst.task_assign", task=s["spec_task"], assignee="lea")
         g.ok("lea", "inst.task_submit", task=s["spec_task"])
         g.ok("ada", "inst.task_review", task=s["spec_task"], accept=True)
-        tasks = st.tables["project_tasks"]
+        tasks = st.tables["inst_tasks"]
         blocked_ok = True
         for _ in range(60):
             g.advance(1)
@@ -302,7 +302,7 @@ def run_gate() -> tuple[dict, Gate]:
         d1 = g.dec(r["decision"])
         open_after_one = d1["status"] == "open"                   # a supermajority of the admins is needed
         g.ok("lea", "inst.vote", decision=r["decision"], choice="yes")
-        v = st.tables["charters"][org]["version"]
+        v = st.tables["inst_charters"][org]["version"]
         again = g.ex("ada", "inst.adopt", org=org, charter=CHARTER)
         r2 = g.ok("ada", "inst.propose", org=org, action={"kind": "tool", "tool": "bank.transfer", "args": {
             "from_account": acct, "to": s["team"][0], "amount": 250_000, "memo": "bonus"}})
@@ -356,7 +356,7 @@ def run_gate() -> tuple[dict, Gate]:
         a0, b0 = OW.balance(w, org), OW.balance(w, beta)
         r = g.ok("ada", "inst.propose", org=prj, action={"kind": "project_close"})
         g.ok("ada", "inst.vote", decision=r["decision"], choice="yes", as_org=org)
-        closed = st.tables["projects"][prj]["status"] == "closed"
+        closed = st.tables["inst_projects"][prj]["status"] == "closed"
         ok = beta_alone == "open" and alloc == "executed" and closed and OW.balance(w, org) == a0 + 600_000 and \
             OW.balance(w, beta) == b0 + 400_000
         return ok, "two companies pooled 1M; allocation needed contribution-weighted majority; pool returned 3:2"
@@ -390,7 +390,7 @@ def run_gate() -> tuple[dict, Gate]:
 
     def growth():
         members = len(st.find_ids("members", "org", org))
-        units = [u for u in st.find("units", "org", org) if u["status"] == "active"]
+        units = [u for u in st.find("inst_units", "org", org) if u["status"] == "active"]
         invites = sum(1 for i in st.tables["invites"].values() if i["org"] == org and i["person"] == g.p["ben"])
         g.ok("ben", "id.respond_invite", invite=next(k for k, i in st.scan("invites") if i["org"] == org and
                                                      i["person"] == g.p["ben"] and i["status"] == "pending"),
@@ -428,7 +428,7 @@ def run_gate() -> tuple[dict, Gate]:
 
     def amend_with(extra):
         def fn():
-            c = json.loads(json.dumps(st.tables["charters"][org]["charter"]))
+            c = json.loads(json.dumps(st.tables["inst_charters"][org]["charter"]))
             c.update(extra)
             r = g.ex("ada", "inst.propose", org=org, action={"kind": "amend", "charter": c})
             return (not r.ok, r.error)
@@ -493,7 +493,7 @@ def run_gate() -> tuple[dict, Gate]:
          "events": rep["events"], "simulated_days": round(w.now / DAY, 2), "simulated_workers": 16,
          "decisions": len(st.tables["inst_decisions"]),
          "simulated_worker_ballots": sum(1 for b in st.tables["inst_ballots"].values()
-                                         if st.get("workers", b["voter"]) and st.tables["workers"][b["voter"]]["sim"]),
+                                         if st.get("labor_workers", b["voter"]) and st.tables["labor_workers"][b["voter"]]["sim"]),
          "wall_s": round(time.time() - t0, 2), "seed": SEED}
     for name, (ok, _) in g.features.items():
         m[f"feature_{name}"] = ok

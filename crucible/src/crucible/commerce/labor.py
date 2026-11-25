@@ -73,7 +73,7 @@ class Labor(Module):
 
     def install(self, world):
         st = world.state
-        st.declare_table("workers", index=("employer", "sim"))
+        st.declare_table("labor_workers", index=("employer", "sim"))
         st.declare_table("labor_posts", index=("org", "status"))
         st.declare_table("labor_apps", index=("post", "worker", "status"))
         st.declare_table("labor_offers", index=("worker", "org", "status", "thread"))
@@ -187,13 +187,13 @@ class Labor(Module):
         p = self._post(st, post)
         if p["status"] != "open":
             raise Conflict("posting closed")
-        if not st.has("workers", worker):
+        if not st.has("labor_workers", worker):
             raise Forbidden("register as a worker first (labor.register)")
         aid = f"{post}|{worker}"
         if st.has("labor_apps", aid):
             raise Conflict("already applied")
         if ident(ctx.world).role(st, p["org"], worker) is not None and \
-                st.tables["workers"][worker]["employer"] == p["org"]:
+                st.tables["labor_workers"][worker]["employer"] == p["org"]:
             raise Conflict("already employed there")
         ctx.emit("labor.application", {"id": aid, "post": post, "worker": worker, "org": p["org"],
                                        "note": str(note)[:2000]}, vis=(worker, p["org"]))
@@ -209,7 +209,7 @@ class Labor(Module):
                                  "kind": kind, "thread": par["thread"] if par else oid,
                                  "round": (par["round"] + 1) if par else 0, "expires": ctx.now + 5 * DAY},
                  vis=(org, worker))
-        w = st.get("workers", worker)
+        w = st.get("labor_workers", worker)
         if frm == "org" and w is not None and w["sim"]:
             delay = int(ctx.world.rng_for("labor-delay", oid).integers(1, 24)) * 3600
             ctx.schedule(ctx.now + delay, "labor.decide", {"offer": oid}, prio=72)
@@ -222,16 +222,16 @@ class Labor(Module):
         o = st.tables["labor_offers"][oid]
         org, worker = o["org"], o["worker"]
         contracts = ctx.world.modules["contracts"]
-        w = st.tables["workers"][worker]
+        w = st.tables["labor_workers"][worker]
         old = w["contract"] if w["employer"] == org else None
         if w["employer"] and w["employer"] != org and w["contract"]:
             # changing jobs: the worker gives notice on its current contract and stops taking its work
             prev, prev_cid = w["employer"], w["contract"]
             if st.tables["contracts"][prev_cid]["status"] == "active":
                 ctx.run_as(worker, lambda sub: contracts.ep_terminate(sub, prev_cid))
-            for tid in st.find_ids("project_tasks", "assignee", worker):
-                if st.tables["project_tasks"][tid]["status"] == "assigned" and \
-                        st.tables["projects"][st.tables["project_tasks"][tid]["project"]]["owner"] == prev:
+            for tid in st.find_ids("inst_tasks", "assignee", worker):
+                if st.tables["inst_tasks"][tid]["status"] == "assigned" and \
+                        st.tables["inst_projects"][st.tables["inst_tasks"][tid]["project"]]["owner"] == prev:
                     ctx.world.modules["inst"].unassign(ctx, tid, f"{worker} moved to {org}")
         clauses = [{"type": "membership", "person": worker, "org": org, "role": "member", "title": o["title"]},
                    {"type": "notice", "seconds": o["notice_days"] * DAY}]
@@ -280,7 +280,7 @@ class Labor(Module):
         o = st.get("labor_offers", oid)
         if o is None or o["status"] != "open" or o["from"] != "org":
             return
-        w = st.tables["workers"][o["worker"]]
+        w = st.tables["labor_workers"][o["worker"]]
         org = o["org"]
         post = st.get("labor_posts", o["post"]) if o["post"] else None
         req = post["skills"] if post else {}
@@ -313,16 +313,16 @@ class Labor(Module):
         """A simulated worker decides whether it can take an assigned task: it declines work it has no hours for
         (more than four weeks of assigned effort) and work for an organisation it is not employed by."""
         st = ctx.state
-        w = st.get("workers", who)
+        w = st.get("labor_workers", who)
         if w is None or not w["sim"]:
             return
-        t = st.tables["project_tasks"][tid]
-        prj = st.tables["projects"][t["project"]]
-        load = sum(x["effort_hours"] * (1 - x["progress"]) for x in st.find("project_tasks", "assignee", who)
+        t = st.tables["inst_tasks"][tid]
+        prj = st.tables["inst_projects"][t["project"]]
+        load = sum(x["effort_hours"] * (1 - x["progress"]) for x in st.find("inst_tasks", "assignee", who)
                    if x["status"] == "assigned")
         employer_ok = w["employer"] is not None and (w["employer"] == prj["owner"] or any(
             r["partner"] == w["employer"] and r["status"] == "joined"
-            for r in st.find("project_partners", "project", t["project"])))
+            for r in st.find("inst_partners", "project", t["project"])))
         cap = 4 * w["hours_week"]
         why = None
         if not employer_ok:
@@ -339,7 +339,7 @@ class Labor(Module):
         if c is None or "labor" not in c.get("tags", []):
             return
         worker, org = c["employee"], c["employer"]
-        w = st.get("workers", worker)
+        w = st.get("labor_workers", worker)
         if w is None or w["contract"] != cid:
             return
         ch = {"employer": None, "contract": None, "salary": 0}
@@ -347,16 +347,16 @@ class Labor(Module):
             ch["blacklist"] = sorted(set(w["blacklist"]) | {org})
             ch["unpaid"] = w["unpaid"] + 1
         self._upd(ctx, worker, **ch)
-        for tid in st.find_ids("project_tasks", "assignee", worker):
-            t = st.tables["project_tasks"][tid]
-            prj = st.tables["projects"][t["project"]]
+        for tid in st.find_ids("inst_tasks", "assignee", worker):
+            t = st.tables["inst_tasks"][tid]
+            prj = st.tables["inst_projects"][t["project"]]
             if t["status"] == "assigned" and prj["owner"] == org:
                 ctx.world.modules["inst"].unassign(ctx, tid, f"{worker} left {org}")
         ctx.emit("labor.left", {"worker": worker, "org": org, "contract": cid, "status": status}, vis=(worker, org))
 
     def on_inst_decision(self, ctx, did, voter) -> None:
         st = ctx.state
-        w = st.get("workers", voter)
+        w = st.get("labor_workers", voter)
         if w is None or not w["sim"]:
             return
         hours = 2 + int(ctx.world.rng_for("labor-vote-delay", did, voter).integers(0, 30))
@@ -375,7 +375,7 @@ class Labor(Module):
         approves, and it does not trust proposals that pay their own proposer."""
         st = ctx.state
         d = st.get("inst_decisions", did)
-        w = st.get("workers", worker)
+        w = st.get("labor_workers", worker)
         if d is None or d["status"] != "open" or w is None:
             return
         a = d["action"]
@@ -398,7 +398,7 @@ class Labor(Module):
         elif a["kind"] == "dissolve":
             yes = sat < 0.3
         elif a["kind"] == "allocate" and a.get("task") and \
-                (st.get("project_tasks", a["task"]) or {}).get("assignee") == worker:
+                (st.get("inst_tasks", a["task"]) or {}).get("assignee") == worker:
             yes = True
         else:
             yes = bool(rng.random() < 0.35 + 0.55 * sat)
@@ -411,7 +411,7 @@ class Labor(Module):
     @process("day")
     def pr_day(self, ctx):
         st = ctx.state
-        for person in st.find_ids("workers", "sim", True):
+        for person in st.find_ids("labor_workers", "sim", True):
             err = contain(ctx, self._worker_day, ctx, person)
             if err is not None:
                 ctx.emit("labor.failed", {"what": "day", "id": person, "error": f"{type(err).__name__}: {err}"[:200]},
@@ -419,7 +419,7 @@ class Labor(Module):
 
     def _worker_day(self, ctx, person):
         st = ctx.state
-        w = st.tables["workers"][person]
+        w = st.tables["labor_workers"][person]
         rng = ctx.rng("labor-day", person)
         if w["employer"] is None:
             self._search(ctx, person, w, rng)
@@ -434,8 +434,8 @@ class Labor(Module):
         hours_left = w["hours_week"] / 7.0 * effort
         worked = 0.0
         used = {}
-        for tid in st.find_ids("project_tasks", "assignee", person):
-            t = st.tables["project_tasks"][tid]
+        for tid in st.find_ids("inst_tasks", "assignee", person):
+            t = st.tables["inst_tasks"][tid]
             if hours_left <= 0.05:
                 break
             if t["status"] != "assigned" or not inst.deps_done(st, tid):
@@ -453,7 +453,7 @@ class Labor(Module):
                 q = task_quality(w["skills"], t["skills"], noise)
                 inst.set_progress(ctx, tid, 1.0)
                 inst.complete_task(ctx, tid, q, person)
-                prj = st.tables["projects"][t["project"]]
+                prj = st.tables["inst_projects"][t["project"]]
                 ctx.emit("labor.perf", {"id": f"{person}|{tid}", "worker": person, "org": org, "task": tid,
                                         "skills": sorted(t["skills"]), "quality": round(q, 4),
                                         "late": bool(prj["deadline"] is not None and ctx.now > prj["deadline"]),
@@ -537,7 +537,7 @@ class Labor(Module):
         """Register yourself as a worker in the labour market (you do assigned work yourself)."""
         if not ctx.actor.startswith("p:"):
             raise Forbidden("persons register as workers")
-        if ctx.state.has("workers", ctx.actor):
+        if ctx.state.has("labor_workers", ctx.actor):
             raise Conflict("already registered")
         self.add_worker(ctx, ctx.actor, {}, {k: 1.0 / len(SKILLS) for k in SKILLS}, reservation_cents_month,
                         sim=False, hours_week=hours_week, declared=list(declared or []))
@@ -593,7 +593,7 @@ class Labor(Module):
 
     def profile(self, world, worker) -> dict:
         st = world.state
-        w = st.get("workers", worker)
+        w = st.get("labor_workers", worker)
         if w is None:
             raise NotFound("not a registered worker")
         rec = {}
@@ -652,7 +652,7 @@ class Labor(Module):
         org = self._org(ctx, org)
         ident(ctx.world).authorize(ctx, org, "org.admin")
         worker = ident(ctx.world).resolve_handle(st, worker)
-        w = st.get("workers", worker)
+        w = st.get("labor_workers", worker)
         if w is None or w["employer"] != org:
             raise NotFound("not your employee")
         c = st.tables["contracts"][w["contract"]]
@@ -724,7 +724,7 @@ class Labor(Module):
         org = self._org(ctx, org)
         ident(ctx.world).authorize(ctx, org, "org.admin")
         worker = ident(ctx.world).resolve_handle(st, worker)
-        w = st.get("workers", worker)
+        w = st.get("labor_workers", worker)
         if w is None or w["employer"] != org or not w["contract"]:
             raise NotFound("not your employee")
         return ctx.world.modules["contracts"].ep_terminate(ctx, w["contract"], as_org=org)
@@ -736,14 +736,14 @@ class Labor(Module):
         org = self._org(ctx, org)
         ident(ctx.world).authorize(ctx, org, "org.admin")
         out = []
-        for person in st.find_ids("workers", "employer", org):
-            w = st.tables["workers"][person]
+        for person in st.find_ids("labor_workers", "employer", org):
+            w = st.tables["labor_workers"][person]
             perf = [r for r in st.find("labor_perf", "worker", person) if r["org"] == org]
             out.append({"worker": person, "salary": w["salary"],
                         "tenure_days": None if w["joined"] is None else round((ctx.now - w["joined"]) / DAY, 1),
                         "contract": w["contract"],
-                        "assigned": [tid for tid in st.find_ids("project_tasks", "assignee", person)
-                                     if st.tables["project_tasks"][tid]["status"] == "assigned"],
+                        "assigned": [tid for tid in st.find_ids("inst_tasks", "assignee", person)
+                                     if st.tables["inst_tasks"][tid]["status"] == "assigned"],
                         "tasks_done_for_you": len(perf),
                         "mean_quality": round(sum(r["quality"] for r in perf) / len(perf), 3) if perf else None})
         return out
@@ -752,7 +752,7 @@ class Labor(Module):
     @applier("labor.worker")
     def ap_worker(self, ev):
         p = ev.payload
-        self.world.state.insert("workers", p["person"], {
+        self.world.state.insert("labor_workers", p["person"], {
             "sim": p["sim"], "skills": p["skills"], "interests": p["interests"], "reservation": p["reservation"],
             "hours_week": p["hours_week"], "wage_weight": p["wage_weight"], "patience": p["patience"],
             "declared": p["declared"], "employer": None, "contract": None, "salary": 0, "joined": None,
@@ -760,7 +760,7 @@ class Labor(Module):
 
     @applier("labor.worker_update")
     def ap_worker_update(self, ev):
-        self.world.state.patch("workers", ev.payload["person"], **ev.payload["changes"])
+        self.world.state.patch("labor_workers", ev.payload["person"], **ev.payload["changes"])
 
     @applier("labor.posting")
     def ap_posting(self, ev):
@@ -801,9 +801,9 @@ class Labor(Module):
     def ap_hired(self, ev):
         p = ev.payload
         st = self.world.state
-        w = st.tables["workers"][p["worker"]]
+        w = st.tables["labor_workers"][p["worker"]]
         joined = w["joined"] if (w["employer"] == p["org"] and w["joined"] is not None) else ev.t
-        st.patch("workers", p["worker"], employer=p["org"], contract=p["contract"], salary=p["salary"], joined=joined)
+        st.patch("labor_workers", p["worker"], employer=p["org"], contract=p["contract"], salary=p["salary"], joined=joined)
 
     @applier("labor.perf")
     def ap_perf(self, ev):
@@ -831,7 +831,7 @@ class Labor(Module):
     def check_invariants(self, world):
         st = world.state
         errs = []
-        for person, w in st.tables["workers"].items():
+        for person, w in st.tables["labor_workers"].items():
             if w["employer"] is not None:
                 c = st.get("contracts", w["contract"]) if w["contract"] else None
                 if c is None:
@@ -845,7 +845,7 @@ class Labor(Module):
 
     def observe(self, world, actor):
         st = world.state
-        w = st.get("workers", actor)
+        w = st.get("labor_workers", actor)
         offers = sum(1 for o in st.find("labor_offers", "worker", actor) if o["status"] == "open" and o["from"] == "org")
         if w is None and not offers:
             return None
@@ -858,25 +858,25 @@ def _register_metrics():
 
     def _project(world, org, project):
         st = world.state
-        if "projects" not in st.tables:
+        if "inst_projects" not in st.tables:
             return None
-        p = st.get("projects", project)
+        p = st.get("inst_projects", project)
         return p if p is not None and p["owner"] == org else None
 
     @metric("labor_employees", "Workers currently employed by the organisation under an active employment contract.",
             subject={"org": "principal"}, instant=True)
     def m_employees(world, org: str) -> float:
         st = world.state
-        if "workers" not in st.tables:
+        if "labor_workers" not in st.tables:
             return 0.0
-        return float(sum(1 for w in st.find("workers", "employer", org) if w["contract"] and
+        return float(sum(1 for w in st.find("labor_workers", "employer", org) if w["contract"] and
                          st.tables["contracts"][w["contract"]]["status"] in ("active", "terminating")))
 
     @metric("labor_retention", "Of the workers employed by the organisation at the start of a window, the fraction "
             "still employed at its end (1.0 when it employed nobody).", subject={"org": "principal"})
     def m_retention(world, org: str, window_s: int = 30 * DAY) -> float:
         st = world.state
-        if "workers" not in st.tables:
+        if "labor_workers" not in st.tables:
             return 1.0
         t0 = world.now - int(window_s)
         start = set()
@@ -889,7 +889,7 @@ def _register_metrics():
         if not start:
             return 1.0
         people = {p for p, _ in start}
-        stay = sum(1 for p in people if (st.get("workers", p) or {}).get("employer") == org)
+        stay = sum(1 for p in people if (st.get("labor_workers", p) or {}).get("employer") == org)
         return stay / len(people)
 
     @metric("project_completion", "Fraction of a project's tasks that are done (project owned by the organisation).",
@@ -898,7 +898,7 @@ def _register_metrics():
         p = _project(world, org, project)
         if p is None:
             return 0.0
-        ts = [t for t in world.state.find("project_tasks", "project", project) if t["status"] != "cancelled"]
+        ts = [t for t in world.state.find("inst_tasks", "project", project) if t["status"] != "cancelled"]
         return sum(t["status"] == "done" for t in ts) / len(ts) if ts else 0.0
 
     @metric("project_quality", "Mean measured quality of a project's done tasks (0 when none is done).",
@@ -907,7 +907,7 @@ def _register_metrics():
         p = _project(world, org, project)
         if p is None:
             return 0.0
-        qs = [t["quality"] for t in world.state.find("project_tasks", "project", project)
+        qs = [t["quality"] for t in world.state.find("inst_tasks", "project", project)
               if t["status"] == "done" and t["quality"] is not None]
         return float(sum(qs) / len(qs)) if qs else 0.0
 
@@ -917,7 +917,7 @@ def _register_metrics():
         p = _project(world, org, project)
         if p is None:
             return 0.0
-        ts = [t for t in world.state.find("project_tasks", "project", project) if t["status"] != "cancelled"]
+        ts = [t for t in world.state.find("inst_tasks", "project", project) if t["status"] != "cancelled"]
         return float(bool(ts) and all(t["status"] == "done" and not t["late"] for t in ts))
 
 

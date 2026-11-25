@@ -114,12 +114,12 @@ class Commitments(Module):
                     raise Forbidden(f"milestone {i}: " + "; ".join(errs[:3]))
                 dv = {"kind": kind, "predicate": d["predicate"]}
             elif kind == "task":
-                tk = st.get("project_tasks", d.get("task")) if "project_tasks" in st.tables and \
+                tk = st.get("inst_tasks", d.get("task")) if "inst_tasks" in st.tables and \
                     isinstance(d.get("task"), str) else None
                 if tk is None or tk["status"] in ("done", "cancelled"):
                     raise InvalidAction(f"milestone {i}: an open inst project task")
-                prj = st.tables["projects"][tk["project"]]
-                partners = {r["partner"] for r in st.find("project_partners", "project", tk["project"])
+                prj = st.tables["inst_projects"][tk["project"]]
+                partners = {r["partner"] for r in st.find("inst_partners", "project", tk["project"])
                             if r["status"] == "joined"}
                 if payer not in partners and payer != prj["lead"]:
                     raise Forbidden(f"milestone {i}: the payer must own or be a partner of the task's project")
@@ -303,7 +303,7 @@ class Commitments(Module):
 
     def task_met(self, st, c, m) -> bool:
         d = m["deliverable"]
-        t = st.get("project_tasks", d["task"]) if "project_tasks" in st.tables else None
+        t = st.get("inst_tasks", d["task"]) if "inst_tasks" in st.tables else None
         if t is None or t["status"] != "done":
             return False
         payee = c["payee"]

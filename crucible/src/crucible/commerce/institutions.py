@@ -144,19 +144,19 @@ class Institutions(Module):
 
     def install(self, world):
         st = world.state
-        st.declare_table("charters")
+        st.declare_table("inst_charters")
         st.declare_table("inst_decisions", index=("org", "status"))
         st.declare_table("inst_ballots", index=("decision",))
         st.declare_table("inst_delegations", index=("org", "delegate"))
-        st.declare_table("units", index=("org", "status"))
-        st.declare_table("unit_members", index=("unit", "person"))
-        st.declare_table("offices", index=("org", "holder"))
-        st.declare_table("office_spend")
-        st.declare_table("projects", index=("owner", "status"))
-        st.declare_table("project_partners", index=("project", "partner"))
-        st.declare_table("project_tasks", index=("project", "assignee", "status"))
-        st.declare_table("contributions", index=("org", "contributor", "project"))
-        st.declare_table("merge_offers", index=("into",))
+        st.declare_table("inst_units", index=("org", "status"))
+        st.declare_table("inst_unit_members", index=("unit", "person"))
+        st.declare_table("inst_offices", index=("org", "holder"))
+        st.declare_table("inst_office_spend")
+        st.declare_table("inst_projects", index=("owner", "status"))
+        st.declare_table("inst_partners", index=("project", "partner"))
+        st.declare_table("inst_tasks", index=("project", "assignee", "status"))
+        st.declare_table("inst_contributions", index=("org", "contributor", "project"))
+        st.declare_table("inst_merge_offers", index=("into",))
         world.hooks["inst"] = self
         self._chain_gov_check(world)
         cur = world.hooks.get("on_member_left")
@@ -319,7 +319,7 @@ class Institutions(Module):
 
     # ================================================================== charter lookup and the authorisation hook
     def charter(self, st, org) -> dict | None:
-        c = st.get("charters", org)
+        c = st.get("inst_charters", org)
         return None if c is None else c["charter"]
 
     def rule_for(self, world, charter: dict, kind: str, tool: str | None, args) -> dict | None:
@@ -375,7 +375,7 @@ class Institutions(Module):
         """Called (through `gov_check`) before a tool runs in an organisation's name. A tool a charter rule governs
         runs only as an approved decision's execution, or by an officer the rule names, within budget."""
         st = ctx.state
-        if not st.has("charters", org) or self.executing(ctx.world, org):
+        if not st.has("inst_charters", org) or self.executing(ctx.world, org):
             return
         c = self.charter(st, org)
         r = self.rule_for(ctx.world, c, "tool", tool, args)
@@ -392,7 +392,7 @@ class Institutions(Module):
 
     # ------------------------------------------------------------------ offices
     def office_rows(self, st, org) -> dict[str, dict]:
-        return {o["title"]: dict(o) for o in st.find("offices", "org", org)}
+        return {o["title"]: dict(o) for o in st.find("inst_offices", "org", org)}
 
     def office_of(self, st, org, person, office: str, tool: str | None = None) -> str | None:
         """The office `person` holds that satisfies an officer procedure naming `office` ('*' = any office)."""
@@ -411,9 +411,9 @@ class Institutions(Module):
     def spend_office(self, ctx, org, title, amount: int) -> None:
         if amount <= 0:
             return
-        o = ctx.state.get("offices", f"{org}|{title}")
+        o = ctx.state.get("inst_offices", f"{org}|{title}")
         key = f"{org}|{title}|{ctx.now // MONTH}"
-        used = (ctx.state.get("office_spend", key) or {}).get("used", 0)
+        used = (ctx.state.get("inst_office_spend", key) or {}).get("used", 0)
         if used + amount > o["budget_cents_month"]:
             raise Forbidden(f"office {title} of {org}: monthly budget exhausted ({used}/{o['budget_cents_month']}); "
                             "use inst.propose")
@@ -421,7 +421,7 @@ class Institutions(Module):
 
     # ================================================================== electorates and weights
     def contribution_of(self, st, org, who) -> int:
-        return sum(int(r["cents"]) for r in st.find("contributions", "contributor", who) if r["org"] == org)
+        return sum(int(r["cents"]) for r in st.find("inst_contributions", "contributor", who) if r["org"] == org)
 
     def electorate(self, world, org: str, proc: dict) -> dict[str, float]:
         st = world.state
@@ -431,13 +431,13 @@ class Institutions(Module):
             return {o["holder"]: 1.0 for t, o in sorted(rows.items())
                     if o["holder"] and (proc["office"] in ("*", t)) and ident(world).role(st, org, o["holder"])}
         if org.startswith("prj_"):
-            joined = {r["partner"]: r["t"] for r in st.find("project_partners", "project", org)
+            joined = {r["partner"]: r["t"] for r in st.find("inst_partners", "project", org)
                       if r["status"] == "joined"}
             w = proc["weights"]
             out = {}
             for p in sorted(joined):
                 if w == "contribution":
-                    x = float(sum(r["cents"] for r in st.find("contributions", "project", org)
+                    x = float(sum(r["cents"] for r in st.find("inst_contributions", "project", org)
                                   if r["contributor"] == p))
                 elif w == "tenure":
                     x = float(1 + (world.now - joined[p]) // DAY)
@@ -450,7 +450,7 @@ class Institutions(Module):
             base = sorted({s["holder"] for s in st.find("shares", "org", org) if s["n"] > 0}) \
                 if "shares" in st.tables else []
         elif el.startswith("unit:"):
-            base = sorted(m["person"] for m in st.find("unit_members", "unit", el[5:]))
+            base = sorted(m["person"] for m in st.find("inst_unit_members", "unit", el[5:]))
         else:
             roles = {"members": ("owner", "admin", "member"), "admins": ("owner", "admin"), "owners": ("owner",),
                      "partners": ("owner", "admin", "member")}[el]
@@ -538,7 +538,7 @@ class Institutions(Module):
                 if head is not None and ident(ctx.world).role(st, org, head) is None:
                     raise InvalidAction("the head of a unit must be a member")
                 parent = action.get("parent")
-                if parent is not None and (not st.has("units", parent) or st.tables["units"][parent]["org"] != org):
+                if parent is not None and (not st.has("inst_units", parent) or st.tables["inst_units"][parent]["org"] != org):
                     raise InvalidAction("parent unit not found")
                 return {"kind": kind, "name": _str(action["name"], NAME, "unit name"), "head": head,
                         "parent": parent,
@@ -558,7 +558,7 @@ class Institutions(Module):
                 return {"kind": kind, "title": title, **o}
             if kind == "office_remove":
                 title = _str(action["title"], NAME, "office title")
-                if not st.has("offices", f"{org}|{title}"):
+                if not st.has("inst_offices", f"{org}|{title}"):
                     raise InvalidAction("no such office")
                 return {"kind": kind, "title": title}
             if kind == "allocate":
@@ -575,7 +575,7 @@ class Institutions(Module):
                     raise InvalidAction("a venture allocates its pool to tasks (partners fund it with "
                                         "inst.project_fund)")
                 if task is not None:
-                    t = st.get("project_tasks", task)
+                    t = st.get("inst_tasks", task)
                     if t is None or t["project"] != action["project"] or t["status"] in ("done", "cancelled"):
                         raise InvalidAction("allocate to an open task of the project")
                 acct = None
@@ -602,7 +602,7 @@ class Institutions(Module):
                 return {"kind": kind, "into": into}
             if kind == "absorb":
                 other = R(action["org"])
-                if not st.has("merge_offers", other) or st.tables["merge_offers"][other]["into"] != org:
+                if not st.has("inst_merge_offers", other) or st.tables["inst_merge_offers"][other]["into"] != org:
                     raise InvalidAction(f"{other} has not decided to merge into {org}")
                 return {"kind": kind, "org": other}
             if kind == "spin_off":
@@ -622,13 +622,13 @@ class Institutions(Module):
         raise InvalidAction(f"unsupported action {kind!r}")
 
     def _unit(self, st, org, uid) -> str:
-        u = st.get("units", uid) if isinstance(uid, str) else None
+        u = st.get("inst_units", uid) if isinstance(uid, str) else None
         if u is None or u["org"] != org or u["status"] != "active":
             raise InvalidAction("no such active unit of this organisation")
         return uid
 
     def _project(self, st, pid):
-        p = st.get("projects", pid) if isinstance(pid, str) else None
+        p = st.get("inst_projects", pid) if isinstance(pid, str) else None
         if p is None:
             raise NotFound("no such project")
         if p["status"] != "open":
@@ -639,7 +639,7 @@ class Institutions(Module):
     def may_propose(self, st, org, who) -> bool:
         idm = ident(self.world)
         if org.startswith("prj_"):
-            for r in st.find("project_partners", "project", org):
+            for r in st.find("inst_partners", "project", org):
                 if r["status"] == "joined" and (r["partner"] == who or (r["partner"].startswith("o:") and
                                                 idm.role(st, r["partner"], who) in ("owner", "admin"))):
                     return True
@@ -662,7 +662,7 @@ class Institutions(Module):
             raise Forbidden("only members (or shareholders, or venture partners) can propose")
         a = self.validate_action(ctx, org, action)
         if org.startswith("prj_"):
-            pname, proc = "venture", dict(st.tables["projects"][org]["procedure"])
+            pname, proc = "venture", dict(st.tables["inst_projects"][org]["procedure"])
         else:
             pname, proc = self.procedure_for(ctx.world, org, a["kind"], a.get("tool"), a.get("args", a))
         el = self.electorate(ctx.world, org, proc)
@@ -907,7 +907,7 @@ class Institutions(Module):
 
     def _sync_offices(self, ctx, org, offices: dict) -> None:
         st = ctx.state
-        cur = {o["title"]: o for o in st.find("offices", "org", org) if not o.get("unit")}
+        cur = {o["title"]: o for o in st.find("inst_offices", "org", org) if not o.get("unit")}
         for title in sorted(cur):
             if title not in offices:
                 ctx.emit("inst.office_removed", {"org": org, "title": title}, vis=(org,))
@@ -919,24 +919,24 @@ class Institutions(Module):
 
     def _dissolve_unit(self, ctx, org, uid) -> None:
         st = ctx.state
-        for m in st.find("unit_members", "unit", uid):
+        for m in st.find("inst_unit_members", "unit", uid):
             ctx.emit("inst.unit_member", {"unit": uid, "person": m["person"], "remove": True}, vis=(org, m["person"]))
-        for cid in sorted(k for k, u in st.tables["units"].items() if u.get("parent") == uid and u["status"] == "active"):
+        for cid in sorted(k for k, u in st.tables["inst_units"].items() if u.get("parent") == uid and u["status"] == "active"):
             self._dissolve_unit(ctx, org, cid)
-        if st.has("offices", f"{org}|unit:{uid}"):
+        if st.has("inst_offices", f"{org}|unit:{uid}"):
             ctx.emit("inst.office_removed", {"org": org, "title": f"unit:{uid}"}, vis=(org,))
         ctx.emit("inst.unit_status", {"id": uid, "status": "dissolved"}, vis=(org,))
 
     def on_member_left(self, ctx, org, person) -> None:
         """A member who leaves (or is removed) gives up its offices, unit seats and vote delegations."""
         st = ctx.state
-        for o in st.find("offices", "holder", person):
+        for o in st.find("inst_offices", "holder", person):
             if o["org"] == org:
                 ctx.emit("inst.office", {"org": org, "title": o["title"], "holder": None,
                                          "budget_cents_month": o["budget_cents_month"], "tools": o["tools"],
                                          "unit": o.get("unit")}, vis=(org,))
-        for m in st.find("unit_members", "person", person):
-            if st.tables["units"][m["unit"]]["org"] == org:
+        for m in st.find("inst_unit_members", "person", person):
+            if st.tables["inst_units"][m["unit"]]["org"] == org:
                 ctx.emit("inst.unit_member", {"unit": m["unit"], "person": person, "remove": True}, vis=(org, person))
         if st.has("inst_delegations", f"{org}|{person}"):
             ctx.emit("inst.delegation", {"org": org, "member": person, "delegate": None}, vis=(org, person))
@@ -963,11 +963,11 @@ class Institutions(Module):
                     raise Conflict(f"{into} has no account to receive {other}'s money")
                 bank.move(ctx, aid, dst, a["balance"], "merger", f"{other} merged into {into}", ref=did)
                 moved += a["balance"]
-        for pid in st.find_ids("projects", "owner", other):
-            if st.tables["projects"][pid]["status"] == "open":
+        for pid in st.find_ids("inst_projects", "owner", other):
+            if st.tables["inst_projects"][pid]["status"] == "open":
                 ctx.emit("inst.project_owner", {"id": pid, "owner": into}, vis=(other, into))
-        for uid in st.find_ids("units", "org", other):
-            if st.tables["units"][uid]["status"] == "active":
+        for uid in st.find_ids("inst_units", "org", other):
+            if st.tables["inst_units"][uid]["status"] == "active":
                 self._dissolve_unit(ctx, other, uid)
         invited = []
         for m in st.find("members", "org", other):
@@ -978,7 +978,7 @@ class Institutions(Module):
                 invited.append(m["person"])
         for m in st.find("members", "org", other):
             ident(ctx.world).remove_member(ctx, other, m["person"], f"merged into {into}")
-        for o in st.find("offices", "org", other):
+        for o in st.find("inst_offices", "org", other):
             ctx.emit("inst.office_removed", {"org": other, "title": o["title"]}, vis=(other,))
         if biz is not None and biz.is_registered(st, other):
             for aid in st.find_ids("accounts", "owner", other):
@@ -995,7 +995,7 @@ class Institutions(Module):
         parent may fund it and keep a minority stake."""
         st = ctx.state
         idm = ident(ctx.world)
-        u = st.tables["units"][a["unit"]]
+        u = st.tables["inst_units"][a["unit"]]
         head = u["head"]
         d = st.tables["inst_decisions"][did]
         if head is None or d["by"] != head:
@@ -1016,7 +1016,7 @@ class Institutions(Module):
                 from ..services.business import SHARES
                 biz.transfer_shares(ctx, new, head, org, int(SHARES * a["parent_stake"]))
         invited = []
-        for m in st.find("unit_members", "unit", a["unit"]):
+        for m in st.find("inst_unit_members", "unit", a["unit"]):
             if m["person"] != head:
                 iid = st.new_id("inv")
                 ctx.emit("id.invite", {"id": iid, "org": new, "person": m["person"], "role": "member",
@@ -1032,13 +1032,13 @@ class Institutions(Module):
         refused if it cannot pay what it owes); any other organisation's money is distributed by the charter's
         basis, and its members are released."""
         st = ctx.state
-        for pid in st.find_ids("projects", "owner", org):
-            if st.tables["projects"][pid]["status"] == "open":
+        for pid in st.find_ids("inst_projects", "owner", org):
+            if st.tables["inst_projects"][pid]["status"] == "open":
                 self.close_project(ctx, pid)
-        for uid in st.find_ids("units", "org", org):
-            if st.tables["units"][uid]["status"] == "active":
+        for uid in st.find_ids("inst_units", "org", org):
+            if st.tables["inst_units"][uid]["status"] == "active":
                 self._dissolve_unit(ctx, org, uid)
-        for o in st.find("offices", "org", org):
+        for o in st.find("inst_offices", "org", org):
             ctx.emit("inst.office_removed", {"org": org, "title": o["title"]}, vis=(org,))
         biz = ctx.world.modules.get("business")
         if biz is not None and biz.is_registered(st, org):
@@ -1149,7 +1149,7 @@ class Institutions(Module):
 
     # ================================================================== projects (shared projects, ventures)
     def project_of(self, st, pid):
-        return st.get("projects", pid)
+        return st.get("inst_projects", pid)
 
     def is_lead(self, ctx, prj, pid) -> bool:
         if ctx.actor == prj["lead"]:
@@ -1179,7 +1179,7 @@ class Institutions(Module):
     def allocate(self, ctx, pid, task, amount) -> None:
         st = ctx.state
         prj = self._project(st, pid)
-        t = st.get("project_tasks", task)
+        t = st.get("inst_tasks", task)
         if t is None or t["project"] != pid or t["status"] in ("done", "cancelled"):
             raise InvalidAction("allocate to an open task of the project")
         free = prj["pool"] - prj["allocated"]
@@ -1189,15 +1189,15 @@ class Institutions(Module):
                  vis=self._pvis(st, pid))
 
     def _pvis(self, st, pid) -> tuple:
-        prj = st.tables["projects"][pid]
+        prj = st.tables["inst_projects"][pid]
         out = {prj["owner"], prj["lead"]}
-        out.update(r["partner"] for r in st.find("project_partners", "project", pid))
-        out.update(t["assignee"] for t in st.find("project_tasks", "project", pid) if t["assignee"])
+        out.update(r["partner"] for r in st.find("inst_partners", "project", pid))
+        out.update(t["assignee"] for t in st.find("inst_tasks", "project", pid) if t["assignee"])
         return tuple(sorted(x for x in out if x))
 
     def invite_partner(self, ctx, pid, partner) -> None:
         st = ctx.state
-        if st.has("project_partners", f"{pid}|{partner}"):
+        if st.has("inst_partners", f"{pid}|{partner}"):
             raise Conflict("already a partner or invited")
         ctx.emit("inst.partner", {"project": pid, "partner": partner, "status": "invited"},
                  vis=tuple(sorted(set(self._pvis(st, pid)) | {partner})))
@@ -1206,12 +1206,12 @@ class Institutions(Module):
         """Close a project: open tasks are cancelled and what is left in its pool returns to the contributors of
         money, pro rata to what each contributed."""
         st = ctx.state
-        prj = st.tables["projects"][pid]
+        prj = st.tables["inst_projects"][pid]
         bank = ctx.world.modules["bank"]
         rest = prj["pool"]
         money = {}
         accts = {}
-        for r in st.find("contributions", "project", pid):
+        for r in st.find("inst_contributions", "project", pid):
             if r["kind"] == "money":
                 money[r["contributor"]] = money.get(r["contributor"], 0) + r["cents"]
                 accts.setdefault(r["contributor"], r["account"])
@@ -1229,8 +1229,8 @@ class Institutions(Module):
                 dst = "acct_fees"                           # nobody left to receive it: forfeited, on record
             bank.move(ctx, ESCROW, dst, share, "refund", f"closing {pid}", ref=pid)
             refunded += share
-        for tid in st.find_ids("project_tasks", "project", pid):
-            if st.tables["project_tasks"][tid]["status"] not in ("done", "cancelled"):
+        for tid in st.find_ids("inst_tasks", "project", pid):
+            if st.tables["inst_tasks"][tid]["status"] not in ("done", "cancelled"):
                 ctx.emit("inst.task_status", {"id": tid, "status": "cancelled", "quality": None}, vis=self._pvis(st, pid))
         ctx.emit("inst.project_status", {"id": pid, "status": "closed", "refunded": refunded}, vis=self._pvis(st, pid))
         return {"closed": pid, "refunded": refunded}
@@ -1239,8 +1239,8 @@ class Institutions(Module):
         """Record a task as done (by the labour market for simulated work, or on the lead's acceptance) and pay
         its allocated reward from the project's pool to whoever did it."""
         st = ctx.state
-        t = st.tables["project_tasks"][tid]
-        prj = st.tables["projects"][t["project"]]
+        t = st.tables["inst_tasks"][tid]
+        prj = st.tables["inst_projects"][t["project"]]
         if t["status"] in ("done", "cancelled"):
             raise Conflict("task already finished")
         if not self.deps_done(st, tid):
@@ -1262,19 +1262,19 @@ class Institutions(Module):
     def set_progress(self, ctx, tid: str, progress: float) -> None:
         st = ctx.state
         ctx.emit("inst.task_progress", {"id": tid, "progress": round(float(progress), 4)},
-                 vis=self._pvis(st, st.tables["project_tasks"][tid]["project"]))
+                 vis=self._pvis(st, st.tables["inst_tasks"][tid]["project"]))
 
     def unassign(self, ctx, tid: str, why: str) -> None:
         """Put an assigned task back to open (its assignee declined it or left); progress made so far is kept."""
         st = ctx.state
-        t = st.tables["project_tasks"][tid]
+        t = st.tables["inst_tasks"][tid]
         if t["status"] in ("assigned", "submitted"):
             ctx.emit("inst.task_unassigned", {"id": tid, "from": t["assignee"], "why": why[:200]},
                      vis=self._pvis(st, t["project"]))
 
     def deps_done(self, st, tid) -> bool:
-        t = st.tables["project_tasks"][tid]
-        return all(st.tables["project_tasks"][d]["status"] == "done" for d in t["depends_on"])
+        t = st.tables["inst_tasks"][tid]
+        return all(st.tables["inst_tasks"][d]["status"] == "done" for d in t["depends_on"])
 
     # ================================================================== endpoints: charters and decisions
     def _org_arg(self, ctx, org) -> str:
@@ -1293,7 +1293,7 @@ class Institutions(Module):
         st = ctx.state
         org = self._org_arg(ctx, org)
         ident(ctx.world).authorize(ctx, org, "org.admin")
-        if st.has("charters", org):
+        if st.has("inst_charters", org):
             raise Conflict("already chartered: amend it with inst.propose {kind: amend}")
         c = self.validate_charter(ctx, org, charter)
         ctx.emit("inst.charter", {"org": org, "charter": c, "by": ctx.actor}, vis="public")
@@ -1305,12 +1305,12 @@ class Institutions(Module):
         """An organisation's charter, offices and units (public)."""
         st = ctx.state
         org = self._org_arg(ctx, org)
-        rec = st.get("charters", org)
+        rec = st.get("inst_charters", org)
         return {"org": org, "charter": dict(rec["charter"]) if rec else None, "version": rec["version"] if rec else 0,
                 "offices": [{k: o[k] for k in ("title", "holder", "budget_cents_month", "tools", "unit")}
-                            for o in st.find("offices", "org", org)],
-                "units": [dict(u, id=uid) for uid in st.find_ids("units", "org", org)
-                          for u in [st.tables["units"][uid]] if u["status"] == "active"]}
+                            for o in st.find("inst_offices", "org", org)],
+                "units": [dict(u, id=uid) for uid in st.find_ids("inst_units", "org", org)
+                          for u in [st.tables["inst_units"][uid]] if u["status"] == "active"]}
 
     @endpoint("propose", S.obj({"org": S.s_str("organisation, or a project id for venture decisions", maxLength=40),
                                 "action": S.s_any_obj("{kind, ...}: tool {tool, args} | amend {charter} | admit "
@@ -1446,7 +1446,7 @@ class Institutions(Module):
             who = self._org_arg(ctx, as_org)
             ident(ctx.world).authorize(ctx, who, "org.admin")
         self._project(st, project)
-        r = st.get("project_partners", f"{project}|{who}")
+        r = st.get("inst_partners", f"{project}|{who}")
         if r is None or r["status"] != "invited":
             raise NotFound("no invitation to this project")
         ctx.emit("inst.partner", {"project": project, "partner": who, "status": "joined" if accept else "declined"},
@@ -1462,13 +1462,13 @@ class Institutions(Module):
         bank = ctx.world.modules["bank"]
         self._project(st, project)
         owner = bank.account_owner(st, account)
-        r = st.get("project_partners", f"{project}|{owner}")
-        member_of_owner = ident(ctx.world).role(st, st.tables["projects"][project]["owner"], owner) is not None
+        r = st.get("inst_partners", f"{project}|{owner}")
+        member_of_owner = ident(ctx.world).role(st, st.tables["inst_projects"][project]["owner"], owner) is not None
         if not (r and r["status"] == "joined") and not member_of_owner:
             raise Forbidden("only partners and members of the owning organisation fund a project")
         ident(ctx.world).authorize(ctx, owner, "bank.spend", amount=amount, scope=account)
         self.fund(ctx, project, owner, account, amount)
-        return {"pool": st.tables["projects"][project]["pool"]}
+        return {"pool": st.tables["inst_projects"][project]["pool"]}
 
     @endpoint("task_add", S.obj({"project": S.s_str(maxLength=40), "title": S.s_str(maxLength=120),
                                  "skills": {"type": "object", "additionalProperties": {"type": "number", "minimum": 0,
@@ -1486,7 +1486,7 @@ class Institutions(Module):
             raise Forbidden("only the project's lead (or a delegate holding inst.lead) adds tasks")
         deps = sorted(set(depends_on or []))
         for d in deps:
-            t = st.get("project_tasks", d)
+            t = st.get("inst_tasks", d)
             if t is None or t["project"] != project:
                 raise InvalidAction(f"dependency {d} is not a task of this project")
         from .labor import SKILLS
@@ -1520,7 +1520,7 @@ class Institutions(Module):
     def ep_task_assign(self, ctx, task, assignee):
         """Assign a task to a member of the owning organisation or a partner (a lead or `inst.lead` delegate)."""
         st = ctx.state
-        t = st.get("project_tasks", task)
+        t = st.get("inst_tasks", task)
         if t is None:
             raise NotFound("no task")
         prj = self._project(st, t["project"])
@@ -1528,7 +1528,7 @@ class Institutions(Module):
             raise Forbidden("only the project's lead (or a delegate holding inst.lead) assigns tasks")
         who = ident(ctx.world).resolve_handle(st, assignee)
         ok = who == prj["lead"] or (prj["owner"].startswith("o:") and ident(ctx.world).role(st, prj["owner"], who))
-        for r in st.find("project_partners", "project", t["project"]):
+        for r in st.find("inst_partners", "project", t["project"]):
             if r["status"] == "joined" and (r["partner"] == who or (r["partner"].startswith("o:") and
                                                                     ident(ctx.world).role(st, r["partner"], who))):
                 ok = True
@@ -1546,7 +1546,7 @@ class Institutions(Module):
     def ep_task_submit(self, ctx, task, note=""):
         """The assignee reports a task done; the lead reviews it (inst.task_review)."""
         st = ctx.state
-        t = st.get("project_tasks", task)
+        t = st.get("inst_tasks", task)
         if t is None or t["assignee"] != ctx.actor:
             raise NotFound("no task assigned to you")
         if t["status"] != "assigned":
@@ -1561,7 +1561,7 @@ class Institutions(Module):
     def ep_task_review(self, ctx, task, accept):
         """Accept a submitted task (pays its reward) or send it back."""
         st = ctx.state
-        t = st.get("project_tasks", task)
+        t = st.get("inst_tasks", task)
         if t is None or t["status"] != "submitted":
             raise NotFound("no submitted task")
         prj = self._project(st, t["project"])
@@ -1577,7 +1577,7 @@ class Institutions(Module):
     def ep_project(self, ctx, project):
         """A project's partners, pool, tasks and their state (for its partners, lead, assignees and members)."""
         st = ctx.state
-        prj = st.get("projects", project)
+        prj = st.get("inst_projects", project)
         if prj is None:
             raise NotFound("no project")
         mine = ctx.world.principals_of(ctx.actor)
@@ -1586,16 +1586,16 @@ class Institutions(Module):
             raise Forbidden("not involved in this project")
         tasks = [{"task": tid, **{k: t[k] for k in ("title", "skills", "effort_hours", "depends_on", "assignee",
                                                     "reward", "status", "progress", "quality")}}
-                 for tid in st.find_ids("project_tasks", "project", project) for t in [st.tables["project_tasks"][tid]]]
+                 for tid in st.find_ids("inst_tasks", "project", project) for t in [st.tables["inst_tasks"][tid]]]
         return {"project": project, **{k: prj[k] for k in ("owner", "title", "lead", "pool", "allocated", "status",
                                                            "deadline", "procedure")},
                 "partners": [{"partner": r["partner"], "status": r["status"]}
-                             for r in st.find("project_partners", "project", project)],
+                             for r in st.find("inst_partners", "project", project)],
                 "contributions": self.contributions(st, project), "tasks": tasks}
 
     def contributions(self, st, pid) -> dict:
         out = {}
-        for r in st.find("contributions", "project", pid):
+        for r in st.find("inst_contributions", "project", pid):
             out[r["contributor"]] = out.get(r["contributor"], 0) + r["cents"]
         return out
 
@@ -1625,8 +1625,8 @@ class Institutions(Module):
     def ap_charter(self, ev):
         st = self.world.state
         p = ev.payload
-        old = st.tables["charters"].get(p["org"])
-        st.put("charters", p["org"], {"charter": p["charter"], "version": (old["version"] + 1) if old else 1,
+        old = st.tables["inst_charters"].get(p["org"])
+        st.put("inst_charters", p["org"], {"charter": p["charter"], "version": (old["version"] + 1) if old else 1,
                                       "t": ev.t, "by": p["by"]})
 
     @applier("inst.proposed")
@@ -1661,24 +1661,24 @@ class Institutions(Module):
     @applier("inst.office")
     def ap_office(self, ev):
         p = ev.payload
-        self.world.state.put("offices", f"{p['org']}|{p['title']}", {
+        self.world.state.put("inst_offices", f"{p['org']}|{p['title']}", {
             "org": p["org"], "title": p["title"], "holder": p["holder"], "budget_cents_month": p["budget_cents_month"],
             "tools": p["tools"], "unit": p.get("unit"), "t": ev.t})
 
     @applier("inst.office_removed")
     def ap_office_removed(self, ev):
-        self.world.state.delete("offices", f"{ev.payload['org']}|{ev.payload['title']}")
+        self.world.state.delete("inst_offices", f"{ev.payload['org']}|{ev.payload['title']}")
 
     @applier("inst.office_spend")
     def ap_office_spend(self, ev):
         st = self.world.state
-        r = st.tables["office_spend"].get(ev.payload["id"]) or {"used": 0}
-        st.put("office_spend", ev.payload["id"], {"used": r["used"] + ev.payload["amount"]})
+        r = st.tables["inst_office_spend"].get(ev.payload["id"]) or {"used": 0}
+        st.put("inst_office_spend", ev.payload["id"], {"used": r["used"] + ev.payload["amount"]})
 
     @applier("inst.unit")
     def ap_unit(self, ev):
         p = ev.payload
-        self.world.state.insert("units", p["id"], {"org": p["org"], "name": p["name"], "head": p["head"],
+        self.world.state.insert("inst_units", p["id"], {"org": p["org"], "name": p["name"], "head": p["head"],
                                                   "parent": p["parent"], "status": "active", "t": ev.t})
 
     @applier("inst.unit_member")
@@ -1686,44 +1686,44 @@ class Institutions(Module):
         p = ev.payload
         k = f"{p['unit']}|{p['person']}"
         if p["remove"]:
-            self.world.state.delete("unit_members", k)
-            u = self.world.state.tables["units"][p["unit"]]
+            self.world.state.delete("inst_unit_members", k)
+            u = self.world.state.tables["inst_units"][p["unit"]]
             if u["head"] == p["person"]:
-                self.world.state.patch("units", p["unit"], head=None)
+                self.world.state.patch("inst_units", p["unit"], head=None)
         else:
-            self.world.state.put("unit_members", k, {"unit": p["unit"], "person": p["person"], "t": ev.t})
+            self.world.state.put("inst_unit_members", k, {"unit": p["unit"], "person": p["person"], "t": ev.t})
 
     @applier("inst.unit_status")
     def ap_unit_status(self, ev):
-        self.world.state.patch("units", ev.payload["id"], status=ev.payload["status"])
+        self.world.state.patch("inst_units", ev.payload["id"], status=ev.payload["status"])
 
     @applier("inst.project")
     def ap_project(self, ev):
         p = ev.payload
-        self.world.state.insert("projects", p["id"], {"owner": p["owner"], "title": p["title"], "lead": p["lead"],
+        self.world.state.insert("inst_projects", p["id"], {"owner": p["owner"], "title": p["title"], "lead": p["lead"],
                                                      "procedure": p["procedure"], "deadline": p["deadline"],
                                                      "pool": 0, "allocated": 0, "status": "open", "t": ev.t})
 
     @applier("inst.project_owner")
     def ap_project_owner(self, ev):
-        self.world.state.patch("projects", ev.payload["id"], owner=ev.payload["owner"])
+        self.world.state.patch("inst_projects", ev.payload["id"], owner=ev.payload["owner"])
 
     @applier("inst.partner")
     def ap_partner(self, ev):
         p = ev.payload
-        self.world.state.put("project_partners", f"{p['project']}|{p['partner']}", {
+        self.world.state.put("inst_partners", f"{p['project']}|{p['partner']}", {
             "project": p["project"], "partner": p["partner"], "status": p["status"], "t": ev.t})
 
     @applier("inst.contribution")
     def ap_contribution(self, ev):
         p = ev.payload
         st = self.world.state
-        st.insert("contributions", p["id"], {"project": p["project"], "org": p["org"], "contributor": p["contributor"],
+        st.insert("inst_contributions", p["id"], {"project": p["project"], "org": p["org"], "contributor": p["contributor"],
                                              "cents": p["cents"], "kind": p["kind"], "account": p["account"],
                                              "t": ev.t})
         if p["kind"] == "money" and p["project"]:
-            prj = st.tables["projects"][p["project"]]
-            st.patch("projects", p["project"], pool=prj["pool"] + p["cents"])
+            prj = st.tables["inst_projects"][p["project"]]
+            st.patch("inst_projects", p["project"], pool=prj["pool"] + p["cents"])
         if p["kind"] == "labor":
             # profit sharing by labour (4.0 gov distribution basis 'labor') reads these hours-valued weights
             k = f"labor_hours:{p['org']}"
@@ -1734,63 +1734,63 @@ class Institutions(Module):
     @applier("inst.task")
     def ap_task(self, ev):
         p = ev.payload
-        self.world.state.insert("project_tasks", p["id"], {
+        self.world.state.insert("inst_tasks", p["id"], {
             "project": p["project"], "title": p["title"], "skills": p["skills"], "effort_hours": p["effort_hours"],
             "depends_on": p["depends_on"], "assignee": None, "reward": 0, "status": "open", "progress": 0.0,
             "quality": None, "t": ev.t, "done_t": None, "late": False})
 
     @applier("inst.task_assigned")
     def ap_task_assigned(self, ev):
-        self.world.state.patch("project_tasks", ev.payload["id"], assignee=ev.payload["assignee"], status="assigned")
+        self.world.state.patch("inst_tasks", ev.payload["id"], assignee=ev.payload["assignee"], status="assigned")
 
     @applier("inst.task_progress")
     def ap_task_progress(self, ev):
-        self.world.state.patch("project_tasks", ev.payload["id"], progress=ev.payload["progress"])
+        self.world.state.patch("inst_tasks", ev.payload["id"], progress=ev.payload["progress"])
 
     @applier("inst.task_unassigned")
     def ap_task_unassigned(self, ev):
-        self.world.state.patch("project_tasks", ev.payload["id"], assignee=None, status="open")
+        self.world.state.patch("inst_tasks", ev.payload["id"], assignee=None, status="open")
 
     @applier("inst.allocated")
     def ap_allocated(self, ev):
         st = self.world.state
         p = ev.payload
-        t = st.tables["project_tasks"][p["task"]]
-        prj = st.tables["projects"][p["project"]]
-        st.patch("project_tasks", p["task"], reward=t["reward"] + p["amount"])
-        st.patch("projects", p["project"], allocated=prj["allocated"] + p["amount"])
+        t = st.tables["inst_tasks"][p["task"]]
+        prj = st.tables["inst_projects"][p["project"]]
+        st.patch("inst_tasks", p["task"], reward=t["reward"] + p["amount"])
+        st.patch("inst_projects", p["project"], allocated=prj["allocated"] + p["amount"])
 
     @applier("inst.task_status")
     def ap_task_status(self, ev):
         st = self.world.state
         p = ev.payload
-        t = st.tables["project_tasks"][p["id"]]
-        prj = st.tables["projects"][t["project"]]
+        t = st.tables["inst_tasks"][p["id"]]
+        prj = st.tables["inst_projects"][t["project"]]
         ch = {"status": p["status"]}
         if p["status"] == "done":
             ch.update(quality=p["quality"], done_t=ev.t, late=p.get("late", False), progress=1.0)
-            st.patch("projects", t["project"], pool=prj["pool"] - p.get("paid", 0),
+            st.patch("inst_projects", t["project"], pool=prj["pool"] - p.get("paid", 0),
                      allocated=prj["allocated"] - t["reward"])
         elif p["status"] == "cancelled":
-            st.patch("projects", t["project"], allocated=prj["allocated"] - t["reward"])
+            st.patch("inst_projects", t["project"], allocated=prj["allocated"] - t["reward"])
             ch["reward"] = 0
-        st.patch("project_tasks", p["id"], **ch)
+        st.patch("inst_tasks", p["id"], **ch)
 
     @applier("inst.project_status")
     def ap_project_status(self, ev):
         p = ev.payload
-        prj = self.world.state.tables["projects"][p["id"]]
-        self.world.state.patch("projects", p["id"], status=p["status"], pool=prj["pool"] - p["refunded"],
+        prj = self.world.state.tables["inst_projects"][p["id"]]
+        self.world.state.patch("inst_projects", p["id"], status=p["status"], pool=prj["pool"] - p["refunded"],
                                closed_t=ev.t)
 
     @applier("inst.merge_offer")
     def ap_merge_offer(self, ev):
         p = ev.payload
-        self.world.state.put("merge_offers", p["org"], {"into": p["into"], "decision": p["decision"], "t": ev.t})
+        self.world.state.put("inst_merge_offers", p["org"], {"into": p["into"], "decision": p["decision"], "t": ev.t})
 
     @applier("inst.merged")
     def ap_merged(self, ev):
-        self.world.state.delete("merge_offers", ev.payload["org"])
+        self.world.state.delete("inst_merge_offers", ev.payload["org"])
 
     @applier("inst.spun_off")
     def ap_spun_off(self, ev):
@@ -1808,14 +1808,14 @@ class Institutions(Module):
     def check_invariants(self, world):
         st = world.state
         errs = []
-        held = sum(p["pool"] for p in st.tables["projects"].values() if p["status"] == "open")
-        closed_left = sum(p["pool"] for p in st.tables["projects"].values() if p["status"] != "open")
+        held = sum(p["pool"] for p in st.tables["inst_projects"].values() if p["status"] == "open")
+        closed_left = sum(p["pool"] for p in st.tables["inst_projects"].values() if p["status"] != "open")
         bal = st.tables["accounts"][ESCROW]["balance"] if st.has("accounts", ESCROW) else 0
         if held != bal:
             errs.append(f"institution escrow {bal} != open project pools {held}")
         if closed_left:
             errs.append(f"closed projects still hold {closed_left} cents")
-        for pid, p in st.tables["projects"].items():
+        for pid, p in st.tables["inst_projects"].items():
             if p["allocated"] < 0 or p["allocated"] > p["pool"]:
                 errs.append(f"{pid}: allocated {p['allocated']} outside [0, pool {p['pool']}]")
         for did, d in st.tables["inst_decisions"].items():
@@ -1835,8 +1835,8 @@ class Institutions(Module):
             d = st.tables["inst_decisions"][did]
             if any(p == actor for p, _ in d["electorate"]) and not st.has("inst_ballots", f"{did}|{actor}"):
                 pending.append(did)
-        tasks = [tid for tid in st.find_ids("project_tasks", "assignee", actor)
-                 if st.tables["project_tasks"][tid]["status"] == "assigned"]
+        tasks = [tid for tid in st.find_ids("inst_tasks", "assignee", actor)
+                 if st.tables["inst_tasks"][tid]["status"] == "assigned"]
         if not pending and not tasks:
             return None
         return {"decisions_to_vote": pending[-20:], "tasks_assigned": tasks[-20:]}

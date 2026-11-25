@@ -163,7 +163,7 @@ def test_amendment_changes_the_procedure_through_the_amendment_rule():
     assert _status(w, did) == "open"                                                      # unanimity needs cat
     _ex(w, cat, "inst.vote", decision=did, choice="yes")
     assert _status(w, did) == "executed"
-    rec = w.state.tables["charters"][org]
+    rec = w.state.tables["inst_charters"][org]
     assert rec["version"] == 2 and rec["charter"]["default"] == "tenure"
     d2 = _propose(w, ann, org, {"kind": "unit_create", "name": "x"})
     assert w.state.tables["inst_decisions"][d2]["procedure"]["weights"] == "tenure"
@@ -208,7 +208,7 @@ def test_membership_admission_rules_expulsion_and_offices_vacate_on_leaving():
     _ex(w, bob, "inst.vote", decision=did, choice="yes")
     _ex(w, dan, "inst.vote", decision=did, choice="yes")
     assert w.modules["identity"].role(w.state, org, cat) is None
-    assert w.state.tables["offices"][f"{org}|clerk"]["holder"] is None      # the office is vacant
+    assert w.state.tables["inst_offices"][f"{org}|clerk"]["holder"] is None      # the office is vacant
     assert not _ex(w, ann, "inst.propose", org=org, action={"kind": "expel", "person": "p:ann"}).ok   # owners stay
 
 
@@ -228,7 +228,7 @@ def test_units_restructuring_and_spin_off_into_a_funded_company():
                [bob, cat])
     unit = d["result"]["unit"]
     assert decide(ann, {"kind": "unit_assign", "unit": unit, "person": "p:cat"}, [bob, cat])["status"] == "executed"
-    assert w.state.tables["offices"][f"{org}|unit:{unit}"]["holder"] == bob
+    assert w.state.tables["inst_offices"][f"{org}|unit:{unit}"]["holder"] == bob
     assert decide(cat, {"kind": "spin_off", "unit": unit, "handle": "acme-labs"}, [ann, bob])["status"] == "failed"
     d = decide(bob, {"kind": "spin_off", "unit": unit, "handle": "acme-labs", "name": "Acme Labs",
                      "budget_cents": 500_000, "parent_stake": 0.2}, [ann, cat])
@@ -238,7 +238,7 @@ def test_units_restructuring_and_spin_off_into_a_funded_company():
     assert OW.balance(w, new) == 500_000
     assert w.state.tables["shares"][f"{new}|{org}"]["n"] == 200_000
     assert any(i["person"] == cat and i["org"] == new for i in w.state.tables["invites"].values())
-    assert w.state.tables["units"][unit]["status"] == "dissolved"
+    assert w.state.tables["inst_units"][unit]["status"] == "dissolved"
     assert w.check_invariants() == []
 
 
@@ -251,13 +251,13 @@ def test_merge_requires_both_decisions_and_moves_money_projects_and_people():
     for who in (ann,):
         did = _propose(w, who, a_org, {"kind": "merge", "into": b_org})        # no charter: owners unanimously
         _ex(w, ann, "inst.vote", decision=did, choice="yes")
-    assert w.state.tables["merge_offers"][a_org]["into"] == b_org
+    assert w.state.tables["inst_merge_offers"][a_org]["into"] == b_org
     did = _propose(w, zed, b_org, {"kind": "absorb", "org": a_org})
     _ex(w, zed, "inst.vote", decision=did, choice="yes")
     assert _status(w, did) == "executed", w.state.tables["inst_decisions"][did]["result"]
     assert w.state.tables["orgs"][a_org]["status"] == "merged"
     assert OW.balance(w, b_org) == 500_000 and OW.balance(w, a_org) == 0
-    assert w.state.tables["projects"][prj]["owner"] == b_org
+    assert w.state.tables["inst_projects"][prj]["owner"] == b_org
     assert {i["person"] for i in w.state.tables["invites"].values() if i["org"] == b_org} == {ann, bob, cat}
     assert w.check_invariants() == []
 
@@ -295,7 +295,7 @@ def test_project_dependencies_allocation_and_rewards_on_review():
     assert _ex(w, ann, "inst.task_review", task=t1, accept=True).ok
     assert OW.balance(w, bob) == before + 100_000
     assert _ex(w, cat, "inst.task_submit", task=t2).ok
-    p = w.state.tables["projects"][prj]
+    p = w.state.tables["inst_projects"][prj]
     assert (p["pool"], p["allocated"]) == (200_000, 0)
     r = _ex(w, ann, "inst.project_close", project=prj).result
     assert r["refunded"] == 200_000 and OW.balance(w, org) == 900_000
