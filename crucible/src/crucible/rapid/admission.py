@@ -47,8 +47,9 @@ SOFT = ("controllability", "informative", "identifiability", "no_dominant_strate
 DOMINANCE_MAX = 0.75          # a trivial strategy may reach at most this share of the oracle's improvement
 REFERENCE_RANGE = (0.05, 0.98)
 EVALUATOR_MODULES = ("crucible.rapid.oracles", "crucible.rapid.admission", "crucible.rapid.claims",
-                     "crucible.rapid.identify", "crucible.rapid.references", "crucible.rapid.fingerprint",
-                     "crucible.rapid.primitive_checks", "crucible.mechanisms.evaluator", "crucible.mechanisms.validity")
+                     "crucible.rapid.identify", "crucible.rapid.references", "crucible.rapid.fingerprints",
+                     "crucible.rapid.primitive_checks", "crucible.rapid.report", "crucible.mechanisms.evaluator",
+                     "crucible.mechanisms.validity")
 WORLD_MODULES = ("crucible.rapid.env", "crucible.rapid.engines", "crucible.rapid.families", "crucible.rapid.actions",
                  "crucible.rapid.observation", "crucible.rapid.mechview", "crucible.rapid.batch",
                  "crucible.rapid.program", "crucible.rapid.generator", "crucible.rapid.primitives")
@@ -146,14 +147,14 @@ def legacy_fingerprints() -> dict:
     if _LEGACY_FP is None:
         from ..mechanisms.base import mech_families
         from ..mechanisms.sim import ensure_engines
-        from .fingerprint import legacy_fingerprint
+        from .fingerprints import legacy_fingerprint
         ensure_engines()
         _LEGACY_FP = {f: legacy_fingerprint(f) for f in mech_families()}
     return _LEGACY_FP
 
 
 def distinctness(family: str) -> dict:
-    from .fingerprint import distance, family_fingerprint, nearest
+    from .fingerprints import distance, family_fingerprint, nearest
     fps = {n: family_fingerprint(n) for n in FAMILIES}
     own = fps[family]
     v5 = nearest(family, fps)

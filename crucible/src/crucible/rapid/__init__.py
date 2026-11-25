@@ -12,7 +12,7 @@ imported from it; `crucible.load_all_modules()` imports that file when it exists
     rapid.fingerprint("net_routing"); rapid.admit("net_routing", seeds=(0, 1, 2))   # evaluator side
 
 World-side modules (env, engines, families, actions, observation, generator, primitives, mechview, batch,
-program) never import the evaluator-side ones (oracles, admission, claims, identify, references, fingerprint,
+program) never import the evaluator-side ones (oracles, admission, claims, identify, references, fingerprints, report,
 primitive_checks); `fingerprint` and `admit` here import them only when called.
 """
 from . import primitives  # noqa: F401
@@ -24,7 +24,7 @@ from .families import CATEGORIES, DIFFICULTY_AXES, FAMILIES, REGISTRY, make  # n
 
 def fingerprint(family: str, **difficulty) -> dict:
     """The measured structural fingerprint of a family (evaluator side)."""
-    from .fingerprint import family_fingerprint
+    from .fingerprints import family_fingerprint
     return family_fingerprint(family, **difficulty)
 
 

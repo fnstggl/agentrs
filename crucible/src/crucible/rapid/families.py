@@ -136,7 +136,7 @@ class _Registry(dict):
     def __getitem__(self, k):
         e = dict.__getitem__(self, k)
         if "fingerprint" not in e:
-            from .fingerprint import family_fingerprint
+            from .fingerprints import family_fingerprint
             e["fingerprint"] = family_fingerprint(k)
         return e
 
