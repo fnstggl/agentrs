@@ -13,6 +13,7 @@ from superlearner.cam_unified.interfaces import TokenSet
 
 
 def _full_step(stack, B, N, J):
+    """One full workstream-B step; J = None runs the default adaptive reasoning (with its compute penalty)."""
     cfg = stack["cfg"]
     core = stack["core"]
     obs, rest = synthetic_context(cfg, B, N, "cuda")
@@ -22,9 +23,13 @@ def _full_step(stack, B, N, J):
     ctx = TokenSet.cat(TokenSet(obs.x, obs.mask, obs.kind, obs.time, obs.entity, None, obs.entity2), ents, btok, rest)
     Z, ctx_out = core(core.init_state(B, "cuda"), ctx)
     R, info = stack["reasoner"](Z, TokenSet.cat(btok, rest), n_iters=J)
-    loss = R.pow(2).mean() + 0.1 * ctx_out.pow(2).mean()
+    loss = R.pow(2).mean() + 0.1 * ctx_out.pow(2).mean() + info["ponder"].mean()
     loss.backward()
-    return Z, R, ctx, loss
+    return Z, R, ctx, loss, info
+
+
+def stack_max_iters():
+    return make_config("main").max_reason_iters
 
 
 def test_main_scale_instantiates_runs_forward_backward_and_reports_parameters(gpu_heavy_lock):
@@ -39,7 +44,7 @@ def test_main_scale_instantiates_runs_forward_backward_and_reports_parameters(gp
     assert 110e6 < core["total"] < 120e6, core["total"]
     assert 120e6 < rep["workstream_B_total"] < 180e6, rep["workstream_B_total"]
     torch.cuda.reset_peak_memory_stats()
-    Z, R, ctx, loss = _full_step(stack, B=8, N=384, J=4)
+    Z, R, ctx, loss, _ = _full_step(stack, B=8, N=384, J=4)
     assert Z.shape == (8, 64, 768) and R.shape == (8, 64, 768) and 340 <= ctx.N <= 400
     assert torch.isfinite(loss)
     for name in ("core", "entities", "beliefs"):
@@ -49,11 +54,32 @@ def test_main_scale_instantiates_runs_forward_backward_and_reports_parameters(gp
     peak = torch.cuda.max_memory_allocated() / 2 ** 30
     print(f"main full step B=8 ctx={ctx.N}: peak {peak:.2f} GB")
     assert peak < 6.0
+    # the default training configuration: adaptive reasoning (bounded per-row unroll, iteration checkpointing)
+    for p in stack["core"].parameters():
+        p.grad = None
+    torch.cuda.reset_peak_memory_stats()
+    Z, R, ctx, loss, info = _full_step(stack, B=8, N=384, J=None)
+    peak_ad = torch.cuda.max_memory_allocated() / 2 ** 30
+    n_it = int(info["n_computed"].max())
+    print(f"main full step, adaptive reasoning: {n_it} iterations computed (E[iters] "
+          f"{float(info['expected_iters'].mean()):.2f}), peak {peak_ad:.2f} GB")
+    assert torch.isfinite(loss) and 1 < n_it < stack["cfg"].max_reason_iters
+    assert stack["reasoner"].halt_head.weight.grad is not None
+    assert peak_ad < 6.0
     del stack
     torch.cuda.empty_cache()
     r = benchmark("main", B=8, N=384, steps=5, warmup=2)
     print("main benchmark:", json.dumps({k: v for k, v in r.items() if k != "params"}))
     assert r["train"]["peak_mem_GB"] < 6.0 and r["train"]["tokens_per_s"] > 0
+    # default adaptive reasoning at the initial parameters (no optimizer step: it would retrain the halting depth on
+    # the synthetic loss), and its worst case: every row runs max_reason_iters (memory bounded by iteration
+    # checkpointing, compute grows with the depth)
+    ra = benchmark("main", B=8, N=384, steps=5, warmup=2, J=None, optimizer=False)
+    print("main benchmark, adaptive reasoning:", json.dumps({k: v for k, v in ra.items() if k != "params"}))
+    rw = benchmark("main", B=8, N=384, steps=5, warmup=2, J=None, optimizer=False, halt_bias=-20.0)
+    print("main benchmark, adaptive worst case:", json.dumps({k: v for k, v in rw.items() if k != "params"}))
+    assert rw["train"]["reason_iters_computed"] == stack_max_iters()
+    assert ra["train"]["peak_mem_GB"] < 6.0 and rw["train"]["peak_mem_GB"] < 6.0
 
 
 @pytest.mark.slow
@@ -71,8 +97,16 @@ def test_large_scale_instantiates_runs_and_fits_with_checkpointing(gpu_heavy_loc
             TokenSet(obs.x, obs.mask, obs.kind, obs.time, obs.entity, None, obs.entity2), rest))
         assert Z.shape == (8, 128, 1024) and torch.isfinite(Z).all()
     torch.cuda.reset_peak_memory_stats()
-    Z, R, ctx, loss = _full_step(stack, B=8, N=384, J=4)
+    Z, R, ctx, loss, _ = _full_step(stack, B=8, N=384, J=4)
     assert torch.isfinite(loss)
     peak = torch.cuda.max_memory_allocated() / 2 ** 30
     print(f"large full step (checkpointing) B=8 ctx={ctx.N}: peak {peak:.2f} GB")
     assert peak < 8.0
+    for m in ("core", "entities", "beliefs", "reasoner"):
+        for p in stack[m].parameters():
+            p.grad = None
+    torch.cuda.reset_peak_memory_stats()
+    Z, R, ctx, loss, info = _full_step(stack, B=8, N=384, J=None)
+    peak_ad = torch.cuda.max_memory_allocated() / 2 ** 30
+    print(f"large full step, adaptive reasoning: {int(info['n_computed'].max())} iterations, peak {peak_ad:.2f} GB")
+    assert torch.isfinite(loss) and peak_ad < 8.0

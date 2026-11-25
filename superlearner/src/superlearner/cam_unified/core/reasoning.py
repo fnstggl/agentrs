@@ -14,7 +14,8 @@ Depth
 * Adaptive (default): at iteration j a halting head gives lambda_j = sigmoid(h(R_j)); the halting distribution is
   p_j = lambda_j prod_{i<j}(1 - lambda_i). **Bounded unroll, per row:** a row stops after the first iteration at which
   its unhalted mass prod_{i<=j}(1 - lambda_i) falls below `halt_eps` (default 0.05, reachable: at the initial
-  lambda = 0.25 that is iteration 11), or at `max_iters` (default cfg.max_reason_iters); its leftover mass is absorbed
+  lambda = 0.25 — zero-initialised halting weights — that is iteration 11 for every row), or at `max_iters`
+  (default cfg.max_reason_iters); its leftover mass is absorbed
   by that last iteration. Finished rows leave the batch, so compute really drops as halting is learned (in training
   and evaluation). In training the unroll is activation-checkpointed per iteration by default
   (`checkpoint_iters=None` = auto), so memory does not grow with the data-dependent depth (each iteration stores only
@@ -102,7 +103,12 @@ class Reasoner(nn.Module):
         self.iter_emb = nn.Parameter(torch.randn(self.J_max + 1, D) * iter_emb_std)
         self.halt_norm = RMSNorm(D)
         self.halt_head = nn.Linear(D, 1)
-        nn.init.normal_(self.halt_head.weight, std=0.02)
+        # zero weights: at initialisation lambda_j = init_lambda for every iteration and row, so the initial halting
+        # distribution is exactly Geometric(init_lambda) and the initial unroll is deterministic,
+        # ceil(log(halt_eps) / log(1 - init_lambda)) = 11 iterations with the defaults, at every scale (with random
+        # weights lambda drifts with R_j — measured at the main scale: below 0.25, so every row ran 16 iterations).
+        # The weights still receive gradients (d logit / d w = halt_norm(mean R)).
+        nn.init.zeros_(self.halt_head.weight)
         nn.init.constant_(self.halt_head.bias, math.log(init_lambda / (1 - init_lambda)))
         self.intervene: Optional[tuple] = None             # (fn, context: bool)
         self._ckpt_now = False
@@ -139,12 +145,13 @@ class Reasoner(nn.Module):
         return torch.cat([anchor, hc], 1), torch.cat([torch.ones(B, S, dtype=torch.bool, device=Z.device),
                                                       sel.mask], 1)
 
-    def _step_impl(self, R: Tensor, hctx: Tensor, mask: Optional[Tensor], j: int) -> tuple:
+    def _step_impl(self, R: Tensor, hctx: Tensor, mask: Optional[Tensor], j: int,
+                   checkpoint_blocks: Optional[bool] = None) -> tuple:
         core = self.core
         S = R.shape[1]
         hr = core.embed_state(R, TokenKind.REASON) + self.iter_emb[min(j, self.J_max)]
         h = torch.cat([hr, hctx], 1)
-        h = core.run_blocks(h, mask, self.blocks, checkpoint_blocks=False if self._ckpt_now else None)
+        h = core.run_blocks(h, mask, self.blocks, checkpoint_blocks=checkpoint_blocks)
         return core.out_norm(h[:, :S]).float(), h[:, S:]
 
     def step(self, R: Tensor, j: int, hctx: Tensor, cmask: Tensor) -> tuple:
@@ -157,7 +164,9 @@ class Reasoner(nn.Module):
         mask = torch.cat([torch.ones(b, S, dtype=torch.bool, device=R.device), cmask], 1)
         mask = None if bool(mask.all()) else mask
         if self._ckpt_now:
-            return checkpoint(self._step_impl, R, hctx, mask, j, use_reentrant=False)
+            # the flag is an argument (not read from self during recomputation, when forward has already returned):
+            # no nested per-block checkpoints inside the iteration checkpoint, in the forward and the recomputation
+            return checkpoint(self._step_impl, R, hctx, mask, j, False, use_reentrant=False)
         return self._step_impl(R, hctx, mask, j)
 
     def halt_lambda(self, R: Tensor) -> Tensor:

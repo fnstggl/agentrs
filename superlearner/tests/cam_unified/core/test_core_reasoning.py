@@ -230,12 +230,13 @@ def test_adaptive_training_unroll_is_bounded_per_row_and_checkpointed():
     calls = []
     orig = rs._step_impl
 
-    def spy(R, hctx, mask, j):
+    def spy(R, hctx, mask, j, checkpoint_blocks=None):
         calls.append((j, R.shape[0], rs._ckpt_now))
-        return orig(R, hctx, mask, j)
+        return orig(R, hctx, mask, j, checkpoint_blocks)
     rs._step_impl = spy
     R, info = rs(Z, ctx)
     n = info["n_computed"]
+    assert torch.all(n == 11), n                                 # 0.75^10 = 0.056 >= 0.05 > 0.75^11 = 0.042
     assert int(n.max()) < cfg.max_reason_iters, n
     # exact stopping rule, recomputed from the per-iteration states: stop at the first j with prod(1 - lambda) < eps
     with torch.no_grad():
@@ -288,8 +289,11 @@ def test_act_mode_is_the_same_function_in_training_and_evaluation():
     assert torch.allclose(R_tr, R_mix, atol=1e-5), "ACT output = sum_j p_j R_j"
 
 
-def test_iteration_checkpointing_gives_identical_values_and_gradients():
-    cfg, core, rs, Z, ctx, policy = _setup(seed=4, n_layers=3, reason_layers=2)
+@pytest.mark.parametrize("core_ckpt", [False, True])
+def test_iteration_checkpointing_gives_identical_values_and_gradients(core_ckpt):
+    """Also with a core that checkpoints its blocks (large config): the iteration checkpoint replaces the per-block
+    ones in the forward and in the recomputation (no nesting, same saved tensors)."""
+    cfg, core, rs, Z, ctx, policy = _setup(seed=4, n_layers=3, reason_layers=2, grad_checkpoint=core_ckpt)
     out = {}
     for ck in (False, True):
         rs.checkpoint_iters = ck
