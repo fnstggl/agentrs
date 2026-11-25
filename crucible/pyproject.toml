@@ -18,6 +18,9 @@ dev = ["pytest>=8", "pytest-timeout>=2", "hypothesis>=6"]
 # offline fitting of calibration models (workstreams E1, E2); world code loads fitted models with numpy only.
 # Installed for E2 on 2026-11-25: scikit-learn 1.9.1, scipy 1.18.1, joblib 1.6.0, threadpoolctl 3.8.0, narwhals 2.29.0
 v5-calibration = ["scikit-learn>=1.6", "scipy>=1.11", "threadpoolctl>=3.5", "pandas>=2.1", "torch>=2.4"]
+# content encoders and media tools (crucible.semantic.encoders, crucible.semantic.media); all already present in the
+# shared environment, nothing was installed. Also needs the ffmpeg/ffprobe binaries (with libflite) on PATH.
+v5-semantic-encoders = ["torch>=2.4", "transformers>=4.50", "pillow>=10", "huggingface_hub>=0.24", "safetensors>=0.4"]
 
 [project.scripts]
 crucible = "crucible.cli:main"
