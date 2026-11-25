@@ -135,7 +135,10 @@ def make(tier: int, name: str, seed: int = 0, reward_mode: str = LEGACY, **kw):
         spec = civ.generate(name, int(seed), pop)
         return KernelExperienceEnv(spec, int(seed), reward_mode=mode, tier=3, name=f"civ:{name}", **kw)
     if tier == 0:
-        return KernelExperienceEnv(kw.pop("spec", None) or name, int(seed), reward_mode=mode, tier=0, name=name, **kw)
+        world = kw.pop("spec", None)
+        if world is None:
+            world = {"family": name, "overrides": kw.pop("overrides")} if "overrides" in kw else name
+        return KernelExperienceEnv(world, int(seed), reward_mode=mode, tier=0, name=name, **kw)
     raise ValueError(f"tier must be 0, 1, 2 or 3, got {tier}")
 
 

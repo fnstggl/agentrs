@@ -20,6 +20,23 @@ class ActionFailed(RuntimeError):
     pass
 
 
+class Recording:
+    """An `ExperienceEnv` seen through a log: every `execute` result (with its `action_seq`) is appended to `log` as
+    ``(agent, action, result)``. This is the agent-side record a learner keeps to investigate its past actions."""
+
+    def __init__(self, env, log: list | None = None):
+        self._env = env
+        self.log = [] if log is None else log
+
+    def execute(self, agent: str, action: dict) -> dict:
+        r = self._env.execute(agent, action)
+        self.log.append((agent, action, r))
+        return r
+
+    def __getattr__(self, name):
+        return getattr(self._env, name)
+
+
 def call(env, agent: str, tool: str, **args) -> Any:
     r = env.execute(agent, {"tool": tool, "args": args})
     if not r.get("ok"):
