@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from superlearner.cam_unified.config import make_config
-from superlearner.cam_unified.interfaces import (Action, FastState, Likelihood, ObsKind, OutcomeBatch, StepBatch,
+from superlearner.cam_unified.interfaces import (Action, Likelihood, ObsKind, OutcomeBatch, StepBatch,
                                                  TokenKind, TokenSet)
 from superlearner.cam_unified.learn.diagnostics import ProbeBanditAdapter
 from superlearner.cam_unified.learn.explore import (categorical_decomposition, combine_signal_frac,
@@ -20,7 +20,7 @@ from superlearner.cam_unified.learn.explore import (categorical_decomposition, c
 from superlearner.cam_unified.learn.heads import BudgetEncoder, BudgetState, ValueHead
 from superlearner.cam_unified.learn.math_assist import CandidateValueModel, MathAssistEncoder
 from superlearner.cam_unified.learn.meta import MetaRLObjective, TrialRunner
-from superlearner.cam_unified.learn.ppo import ActorCriticObjective
+from superlearner.cam_unified.learn.ppo import ActorCriticObjective, run_epochs
 from superlearner.cam_unified.learn.trainer import CombinedTrainer
 
 
@@ -385,16 +385,9 @@ def train_probe_agent(agent: ProbeAgent, iters: int = 200, B: int = 128, horizon
             lpr = arm_learning_progress(res, belief, lp_horizon, coef)
             res.traj.intrinsic = lpr["intrinsic"]
             lp_mean = float(lpr["lp"][res.traj.mask].mean())
-        shaped, prep = meta.prepare(res.traj, agent.version)
-        last = None
-        for _ in range(epochs):
-            r = agent.recompute(res.traj)
-            d = meta.loss(shaped, prep, r["logp"], r["entropy"], value_logits=r["value_logits"],
-                          value_head=r["value_head"])
-            last = trainer.step({"actor": d["actor"], "value": d["value"]})
-            d["update"] = last
-            if d["stop"]:
-                break
+        epochs_out = run_epochs(meta, res.traj, agent.version, agent.recompute, trainer.step, epochs)
+        d = epochs_out[-1]
+        last = d["update"]
         agent.version += 1
         probe_rate = sum(sum(a == "probe" for a in row) for row in res.actions) / max(1, int(res.traj.mask.sum()))
         hist.append({"it": it, "return": float(res.per_trial_return.sum(1).mean()), "kl": d["kl"],

@@ -25,7 +25,6 @@ from typing import Iterable, Optional
 
 import torch
 import torch.nn as nn
-from torch import Tensor
 
 
 @dataclass(frozen=True)

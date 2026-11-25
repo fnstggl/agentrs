@@ -31,7 +31,6 @@ Long-term credit of an experiment comes from putting ``lp_coef * LP_corr`` into 
 """
 from __future__ import annotations
 
-import math
 from typing import Any, Callable, Optional, Sequence
 
 import torch
@@ -197,5 +196,3 @@ def lp_reward_for_trajectory(beliefs: Sequence[Any], steps: Sequence[Any], updat
     res["intrinsic"] = exploration_reward(res["lp"], rho, coef, enabled=enabled)
     return res
 
-
-LOG2 = math.log(2.0)

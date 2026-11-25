@@ -1,7 +1,5 @@
 """Value head (symlog two-hot), option module (exact decision probabilities, termination, OPTION tokens) and the
 BUDGET token encoder."""
-import math
-
 import pytest
 import torch
 

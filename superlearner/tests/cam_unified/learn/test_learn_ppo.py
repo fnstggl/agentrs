@@ -124,3 +124,80 @@ def test_value_clipping_and_twohot_value_path():
                      value_head=head)
     (g,) = torch.autograd.grad(out3["value"], logits)
     assert g.abs().sum() > 0 and torch.isfinite(out3["value"])
+
+
+def test_advantage_normalisation_does_not_amplify_value_noise_of_a_converged_policy():
+    """Deterministic policy + deterministic task: every return is 530 and the advantages are pure value error (+-1).
+    Standardising by their std would make them unit-size noise; the relative floor keeps them small."""
+    B, T = 16, 4
+    g = torch.Generator().manual_seed(0)
+    reward = torch.zeros(B, T)
+    reward[:, -1] = 530.0
+    value = torch.full((B, T + 1), 530.0) + torch.randn(B, T + 1, generator=g)
+    value[:, -1] = 0.0
+    traj = Trajectory(reward=reward, dt=torch.zeros(B, T), done=torch.zeros(B, T, dtype=torch.bool).index_fill_(
+        1, torch.tensor([T - 1]), True), behavior_logp=torch.zeros(B, T),
+        model_version=torch.zeros(B, T, dtype=torch.long), value=value)
+    obj = ActorCriticObjective(kappa=0.0, gae_lambda=0.95)
+    prep = obj.prepare(traj, 0)
+    adv = obj._norm_adv(prep.adv, traj.mask, prep)
+    assert adv.abs().max().item() < 0.2
+    noisy = ActorCriticObjective(kappa=0.0, gae_lambda=0.95, adv_rel_floor=0.0)
+    assert noisy._norm_adv(prep.adv, traj.mask, prep).abs().max().item() > 1.0
+
+
+def _imag(rewards, errors, prov=None):
+    from superlearner.cam_unified.interfaces import ImaginedStep, ImaginedTrajectory, Provenance
+    steps = [ImaginedStep(Z=None, action=[], act_tokens=None, outcome_mean=None, outcome_var=None, value=None,
+                          reward=torch.tensor(r), belief_ess=None, model_error=torch.tensor(e))
+             for r, e in zip(rewards, errors)]
+    return ImaginedTrajectory(steps, returns=None, branch_of=torch.zeros(2), first_candidate=torch.zeros(2),
+                              provenance=prov or Provenance.IMAGINED)
+
+
+def test_imagined_actor_critic_downweights_unreliable_imagination_and_refuses_real_data():
+    from superlearner.cam_unified.interfaces import Provenance
+    from superlearner.cam_unified.learn.ppo import imagined_actor_critic
+    # two branches, horizon 3: branch 0 is predicted reliably, branch 1's model error explodes after step 0
+    imag = _imag([[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]], [[0.0, 0.0], [0.0, 5.0], [0.0, 5.0]])
+    logp = torch.zeros(2, 3, requires_grad=True)
+    value = torch.zeros(2, 4, requires_grad=True)
+    d = imagined_actor_critic(imag, logp, torch.zeros(2, 3), value, torch.zeros(2, 3), kappa=0.0, lam=1.0,
+                              normalize=False)
+    gl, gv = torch.autograd.grad(d["actor"] + d["value"], [logp, value])
+    assert gl[0].abs().min() > 0
+    assert torch.all(gl[1, 1:].abs() < 0.01 * gl[0, 1:].abs())             # weight exp(-5) or less
+    assert gl[1, 0].abs().item() == pytest.approx(gl[0, 0].abs().item())     # step 0 equally reliable
+    assert d["effective_horizon"] < 3.0 and d["effective_horizon"] > 2.0     # (3 + ~1) / 2
+    assert gv[0, 0].item() < 0                                               # value pulled up towards return 3
+    with pytest.raises(ValueError):
+        imagined_actor_critic(_imag([[1.0, 1.0]], [[0.0, 0.0]], Provenance.REAL), torch.zeros(2, 1),
+                              torch.zeros(2, 1), torch.zeros(2, 2), torch.zeros(2, 1))
+
+
+def test_from_config_contract_sequence_and_per_family_percentile_scaling():
+    from superlearner.cam_unified.config import make_config
+    from superlearner.cam_unified.learn.returns import ReturnNormalizer
+    from superlearner.cam_unified.testing import rand_sequence, tiny_config
+    cfg = make_config("dev")
+    obj = ActorCriticObjective.from_config(cfg)
+    assert (obj.kappa, obj.lam, obj.clip, obj.entropy_coef, obj.rho_clip) == (cfg.kappa, cfg.gae_lambda, cfg.ppo_clip,
+                                                                               cfg.entropy_coef, cfg.vtrace_rho)
+    seq = rand_sequence(3, 5, tiny_config(), seed=2)
+    for t, s in enumerate(seq.steps):
+        s.event_ids = [f"e{b}_{t}" for b in range(3)]
+        s.model_version = torch.tensor([0, 4, 3])            # row 1 produced by the current policy, row 2 one behind
+    tr = Trajectory.from_sequence(seq, value=torch.zeros(3, 6))
+    assert tr.reward.shape == (3, 5) and tr.event_ids[1][2] == "e1_2"
+    prep = ActorCriticObjective(max_policy_lag=2).prepare(tr, current_version=4)
+    assert prep.fresh.tolist() == [False, True, True]           # row 0 is 4 versions old (> validated lag 2)
+    # percentile return scaling is per family: a 100x larger family does not shrink the other family's advantages
+    B, T = 4, 3
+    rew = torch.tensor([[1.0, 0.0, 2.0], [0.0, 1.0, 0.0], [100.0, 0.0, 200.0], [0.0, 100.0, 0.0]])
+    traj = Trajectory(reward=rew, dt=torch.zeros(B, T), done=torch.zeros(B, T, dtype=torch.bool),
+                      behavior_logp=torch.zeros(B, T), model_version=torch.zeros(B, T, dtype=torch.long),
+                      value=torch.zeros(B, T + 1), family=["small", "small", "large", "large"])
+    o = ActorCriticObjective(kappa=0.0, gae_lambda=1.0, return_normalizer=ReturnNormalizer(rate=1.0, limit=0.01))
+    p = o.prepare(traj, 0)
+    a = o._norm_adv(p.adv, traj.mask, p)
+    assert torch.allclose(a[0], a[2], atol=1e-4) and torch.allclose(a[1], a[3], atol=1e-4)

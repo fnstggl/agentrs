@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 
 from learn_doubles import KalmanDouble, regression_sequence
-from superlearner.cam_unified.interfaces import Action, FastState, SequenceBatch, StepBatch, TokenKind, TokenSet
+from superlearner.cam_unified.interfaces import Action, FastState
 from superlearner.cam_unified.learn.diagnostics import ProbeBanditAdapter
 from superlearner.cam_unified.learn.meta import (SUPPORT_SIZES, MetaRLObjective, SupportQueryLoss, TrialRunner,
                                                  belief_callables_from_modules)

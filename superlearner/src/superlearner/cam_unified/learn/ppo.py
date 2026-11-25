@@ -84,12 +84,13 @@ class ActorCriticObjective:
                  max_policy_lag: int = 0, max_fresh_kl: float = 0.05, target_kl: Optional[float] = 0.03,
                  value_clip: Optional[float] = None, rho_clip: float = 1.0, c_clip: float = 1.0,
                  vtrace_lambda: float = 1.0, normalize_advantages: bool = True,
-                 return_normalizer: Optional[ReturnNormalizer] = None):
+                 return_normalizer: Optional[ReturnNormalizer] = None, adv_rel_floor: float = 0.05):
         self.kappa, self.lam, self.clip, self.entropy_coef = kappa, gae_lambda, clip, entropy_coef
         self.max_policy_lag, self.max_fresh_kl, self.target_kl = max_policy_lag, max_fresh_kl, target_kl
         self.value_clip, self.rho_clip, self.c_clip, self.vtrace_lambda = value_clip, rho_clip, c_clip, vtrace_lambda
         self.normalize_advantages = normalize_advantages
         self.return_normalizer = return_normalizer
+        self.adv_rel_floor = adv_rel_floor
 
     @staticmethod
     def from_config(cfg, **over) -> "ActorCriticObjective":
@@ -130,7 +131,11 @@ class ActorCriticObjective:
         if self.normalize_advantages and int(m.sum()) > 1:
             mu = masked_mean(adv, m)
             sd = masked_mean((adv - mu) ** 2, m).sqrt()
-            return (adv - mu) / (sd + 1e-6)
+            # floor relative to the return scale: when the policy has become deterministic every return is equal
+            # and the advantages are only value-function error; dividing by their tiny std would turn that noise
+            # into full-size (Adam-normalised) policy steps and destroy a converged policy
+            floor = self.adv_rel_floor * masked_mean(prep.ret.abs(), m) + 1e-6
+            return (adv - mu) / torch.maximum(sd, floor)
         return adv
 
     def loss(self, traj: Trajectory, prep: Prepared, new_logp: Tensor, entropy: Tensor,
@@ -220,20 +225,63 @@ def explained_variance(pred: Tensor, target: Tensor, mask: Tensor) -> float:
     return float(1.0 - (y - p).var() / vy) if float(vy) > 1e-8 else 0.0
 
 
-def run_epochs(objective: ActorCriticObjective, traj: Trajectory, current_version: int,
-               recompute: Callable[[Trajectory], dict], step_fn: Callable[[dict], dict], epochs: int = 4) -> list:
-    """Run up to ``epochs`` passes: ``recompute(traj)`` -> {"logp", "entropy", "value" | "value_logits"};
-    ``step_fn(losses)`` takes the optimiser step (e.g. `CombinedTrainer.step`) and returns its info. Stops early on KL.
+def run_epochs(objective, traj: Trajectory, current_version: int, recompute: Callable[[Trajectory], dict],
+               step_fn: Callable[[dict], object], epochs: int = 4) -> list:
+    """The PPO update loop over one batch, for an `ActorCriticObjective` or a `meta.MetaRLObjective`.
+
+    ``recompute(traj)`` re-evaluates the recorded decisions under the current parameters and returns
+    {"logp": [B,T], "entropy": [B,T], "value": [B,T+1]} or {"value_logits": [B,T+1,n_bins], "value_head": head};
+    ``logp`` is the joint log-probability of the whole recorded action (the action generator's ``log_prob`` plus the
+    option decision's `OptionModule.log_prob`). ``step_fn({"actor": ..., "value": ...})`` takes the optimiser step
+    (e.g. `CombinedTrainer.step`) and returns its info. Stops early when the KL exceeds 1.5 * target_kl.
     Returns the per-epoch loss dicts (with the step info under "update")."""
-    prep = objective.prepare(traj, current_version)
+    p = objective.prepare(traj, current_version)
+    used, prep = p if isinstance(p, tuple) else (traj, p)
     hist = []
-    head = None
     for _ in range(epochs):
         r = recompute(traj)
-        head = r.get("value_head", head)
-        d = objective.loss(traj, prep, r["logp"], r["entropy"], r.get("value"), r.get("value_logits"), head)
+        d = objective.loss(used, prep, r["logp"], r["entropy"], r.get("value"), r.get("value_logits"),
+                           r.get("value_head"))
         d["update"] = step_fn({"actor": d["actor"], "value": d["value"]})
         hist.append(d)
         if d["stop"]:
             break
     return hist
+
+
+def imagined_actor_critic(imag, logp: Tensor, entropy: Tensor, value: Tensor, dt: Tensor, kappa: float = 0.05,
+                          lam: float = 0.95, entropy_coef: float = 3e-3, error_scale: float = 1.0,
+                          normalize: bool = True) -> dict:
+    """Actor-critic on imagined rollouts (spec 7.3), kept apart from real experience.
+
+    imag: `interfaces.ImaginedTrajectory` (provenance must be IMAGINED; its steps carry predicted ``reward`` [Bb] and
+    ``model_error`` [Bb]); logp / entropy [Bb,H]: the policy's log-probability of the contemplated actions,
+    recomputed under the current parameters; value [Bb,H+1]: the critic on the imagined states (last column =
+    bootstrap at the horizon, e.g. ``imag.returns`` is *not* used so the critic stays the learner's own);
+    dt [Bb,H] imagined elapsed days. Each step is weighted by ``w_t = prod_{u<=t} exp(-error_scale * model_error_u)``:
+    once predictions become unreliable the imagined future contributes less, i.e. the effective rollout horizon
+    shrinks with model error instead of treating simulated outcomes as facts. Targets are lambda-returns of the
+    predicted rewards with SMDP discounts. Returns {"actor", "value", "weight_mean", "effective_horizon"}."""
+    from ..interfaces import Provenance
+    if getattr(imag, "provenance", None) != Provenance.IMAGINED:
+        raise ValueError("imagined_actor_critic only accepts IMAGINED trajectories (real data uses PPO / V-trace)")
+    H = len(imag.steps)
+    if logp.shape[1] != H or value.shape[1] != H + 1:
+        raise ValueError("logp [Bb,H], value [Bb,H+1] must match the imagined horizon")
+    r = torch.stack([s.reward.float() for s in imag.steps], 1)
+    err = torch.stack([s.model_error.float().clamp_min(0) for s in imag.steps], 1)
+    w = torch.exp(-error_scale * torch.cumsum(err, 1)).detach()
+    gam = semi_markov_discount(dt, kappa)
+    ones = torch.ones_like(r)
+    from .returns import lambda_returns
+    ret = lambda_returns(r, value.detach().float(), gam, ones, lam)
+    adv = ret - value[:, :H].detach().float()
+    if normalize and adv.numel() > 1:
+        mu = (w * adv).sum() / w.sum().clamp_min(1e-8)
+        sd = ((w * (adv - mu) ** 2).sum() / w.sum().clamp_min(1e-8)).sqrt()
+        adv = (adv - mu) / torch.maximum(sd, 0.05 * ret.abs().mean() + 1e-6)
+    wsum = w.sum().clamp_min(1e-8)
+    actor = -(w * adv * logp.float()).sum() / wsum - entropy_coef * (w * entropy.float()).sum() / wsum
+    val = 0.5 * (w * (value[:, :H].float() - ret) ** 2).sum() / wsum
+    return {"actor": actor, "value": val, "weight_mean": float(w.mean()),
+            "effective_horizon": float(w.sum(1).mean())}

@@ -17,13 +17,13 @@ actor-critic of `ppo.ActorCriticObjective` on trial-weighted, cost-penalised, op
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Protocol, Sequence
 
 import torch
 from torch import Tensor
 
-from ..interfaces import Action, ObservationBatch, SequenceBatch, StepBatch
+from ..interfaces import SequenceBatch
 from .explore import _check_disjoint_ids, mixture_log_prob
 from .heads import BudgetState
 from .ppo import ActorCriticObjective, Prepared

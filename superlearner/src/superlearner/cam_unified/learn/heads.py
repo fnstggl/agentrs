@@ -167,11 +167,12 @@ class ValueHead(nn.Module):
 class OptionStep:
     option: Tensor        # [B] long: option active for this decision
     new: Tensor           # [B] bool: a (re)selection happened at this decision
-    terminated: Tensor    # [B] bool: the previous option was terminated (sampled or forced)
+    terminated: Tensor    # [B] bool: the previous option ended (sampled termination or forced at max_steps)
     logp: Tensor          # [B] log-probability of the option decision (select / continue / terminate+reselect)
     entropy: Tensor       # [B] entropy of the option decision
     beta: Tensor          # [B] termination probability of the previous option (1 if none / forced)
     steps: Tensor         # [B] long: decisions the active option has run so far, including this one
+    voluntary: Tensor = None   # [B] bool: a sampled (not forced) termination of a running option
 
 
 class OptionModule(nn.Module):
@@ -254,7 +255,7 @@ class OptionModule(nn.Module):
         option = torch.where(term, choice, prev)
         logp, ent = self._logp_entropy(logp_sel, ent_sel, forced, beta, option, term)
         steps = torch.where(term, torch.ones_like(steps_prev), steps_prev + 1)
-        return OptionStep(option, term, term & (prev >= 0), logp, ent, beta, steps)
+        return OptionStep(option, term, term & (prev >= 0), logp, ent, beta, steps, term & ~forced)
 
     def _logp_entropy(self, logp_sel, ent_sel, forced, beta, option, new):
         eps = 1e-6
@@ -276,10 +277,11 @@ class OptionModule(nn.Module):
         return self._logp_entropy(logp_sel, ent_sel, forced, beta, option, new)
 
 
-def deliberation_penalty(terminated: Tensor, cost: float) -> Tensor:
+def deliberation_penalty(voluntary: Tensor, cost: float) -> Tensor:
     """Reward shaping ``-cost`` per voluntary option termination (deliberation cost, Harb et al. 2018): encourages
-    options that stay committed unless switching is worth it. terminated [B,T] bool -> [B,T] float."""
-    return -float(cost) * terminated.float()
+    options that stay committed unless switching is worth it. voluntary [B,T] bool (`OptionStep.voluntary`; forced
+    terminations at ``max_steps`` are not penalised) -> [B,T] float."""
+    return -float(cost) * voluntary.float()
 
 
 # ----------------------------------------------------------------------------------------------- budget
