@@ -25,7 +25,7 @@ def u(rng, lo, hi):
 def posm_sign_switch(rng, d):
     S = int(d["hidden_state_complexity"])
     names = neutral_names(rng, 2)
-    stay = u(rng, 0.9, 0.95)
+    stay = u(rng, 0.85, 0.92)
     T = np.full((S, S), (1 - stay) / max(1, S - 1))
     np.fill_diagonal(T, stay)
     slope = [u(rng, 1.5, 3.0) * (1 if k % 2 == 0 else -1) for k in range(S)]
@@ -50,7 +50,7 @@ def posm_fault_diagnosis(rng, d):
     names = neutral_names(rng, 2 * F + 3)
     S = F + 1
     T = np.eye(S)
-    h = u(rng, 0.03, 0.06)
+    h = u(rng, 0.06, 0.1)
     T[0, 0] = 1 - h
     for f in range(1, S):
         T[0, f] = h / F
@@ -60,11 +60,11 @@ def posm_fault_diagnosis(rng, d):
     return {"engine": "state_machine", "scenario": "fault", "horizon": int(d["horizon"]), "T": T.tolist(),
             "p0": [1.0] + [0.0] * F, "loss": [0.0] + [u(rng, 0.35, 0.7) for _ in range(F)], "emit": emit,
             "test_names": names[:F + 1], "test_cost": [float(d["experiment_cost"]) / 3] + [float(d["experiment_cost"])] * F,
-            "repair_names": names[F + 1:2 * F + 1], "repair_cost": 300.0, "output": 30.0, "price": 100.0,
+            "repair_names": names[F + 1:2 * F + 1], "repair_cost": 600.0, "output": 30.0, "price": 100.0,
             "noise": 1.5, "gauge_names": names[2 * F + 1:], "endowment": 200_000,
             "objective": {"type": "maximize_net", "text": "Maximise your net income from the machine's output."},
             "brief": f"A machine that can develop {F} kinds of fault. Gauge: output. You may run tests and order "
-                     "repairs."}
+                     "repairs; a repair takes the machine offline for the tick."}
 
 
 @family("posm_unlock", engine="state_machine", category="8.6", item="8.6.4", split="val",
@@ -76,19 +76,21 @@ def posm_fault_diagnosis(rng, d):
         claims=(C + "unlock_needs_all",), identify=I + "unlock_code")
 def posm_unlock(rng, d):
     L, O = int(d["hidden_state_complexity"]), int(d["action_complexity"])
-    names = neutral_names(rng, O + 2)
+    names = neutral_names(rng, O + 3)
     code = [int(x) for x in rng.integers(O, size=L)]
-    trap = []
-    for s in range(L):
+    trap = [-1]                                         # the first operation is safe to explore
+    for s in range(1, L):
         t = int(rng.integers(O))
         while t == code[s]:
             t = int(rng.integers(O))
         trap.append(t)
     return {"engine": "state_machine", "scenario": "unlock", "horizon": int(d["horizon"]), "stages": L,
-            "options": names[:O], "decision_name": names[O], "code": code, "trap": trap, "signal_accuracy": 0.85,
-            "action_cost": 30.0, "payoff": 1500.0, "noise": 0.05, "gauge_names": names[O + 1:], "endowment": 100_000,
+            "options": names[:O], "decision_name": names[O], "restart_name": names[O + 2], "code": code, "trap": trap,
+            "signal_accuracy": 0.85, "action_cost": 30.0, "payoff": 1500.0, "noise": 0.05,
+            "gauge_names": names[O + 1:O + 2], "endowment": 100_000,
             "objective": {"type": "maximize_net", "text": "Maximise your net income. The process pays every tick "
                                                           "once it is complete."},
-            "brief": f"A process with {O} possible operations. Each operation you perform gives a signal that is "
-                     "right most of the time about whether it moved the process forward. Several operations can be "
-                     "performed in one tick as a sequence."}
+            "brief": f"A process with {O} possible operations and a restart. Each operation you perform gives a "
+                     "signal that is right most of the time about whether it moved the process forward; some "
+                     "operations at later stages ruin the process for good. Several operations can be performed in "
+                     "one tick as a sequence."}

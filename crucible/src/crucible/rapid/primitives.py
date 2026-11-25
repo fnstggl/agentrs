@@ -446,10 +446,12 @@ def ring(m: int) -> np.ndarray:
     return a
 
 
-def cascade(load: np.ndarray, cap: np.ndarray, adj: np.ndarray, max_rounds: int | None = None) -> np.ndarray:
+def cascade(load: np.ndarray, cap: np.ndarray, adj: np.ndarray, max_rounds: int | None = None,
+            share: float = 1.0) -> np.ndarray:
     """Load redistribution on failure. `load`, `cap` (B, m); `adj` (m, m) or (B, m, m) 0/1. Returns the failed mask
-    (B, m) as floats. Each round every newly overloaded component fails and its load is split equally among its
-    alive neighbours (lost if it has none). Exact and deterministic."""
+    (B, m) as floats. Each round every newly overloaded component fails and the fraction `share` of its load is
+    split equally among its alive neighbours (the rest, or all of it when it has none, is shed). Exact and
+    deterministic."""
     load = np.array(load, dtype=float)
     B, m = load.shape
     A = np.broadcast_to(adj, (B, m, m))
@@ -462,8 +464,8 @@ def cascade(load: np.ndarray, cap: np.ndarray, adj: np.ndarray, max_rounds: int 
         alive = ~failed
         nb = A * alive[:, None, :]                      # neighbours of each component that are still alive
         deg = nb.sum(axis=2)
-        share = np.where(new & (deg > 0), load / np.maximum(deg, 1), 0.0)
-        load = load + (nb * share[:, :, None]).sum(axis=1)
+        part = np.where(new & (deg > 0), share * load / np.maximum(deg, 1), 0.0)
+        load = load + (nb * part[:, :, None]).sum(axis=1)
         load = np.where(failed, 0.0, load)
     return failed.astype(float)
 

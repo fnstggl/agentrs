@@ -302,7 +302,7 @@ class GraphDynamical(RapidEngine):
         alive0 = down <= 0
         ld = np.where(alive0, load, 0.0)[None, :]
         adj = self.adj * alive0[None, :] * alive0[:, None]
-        failed = cascade_fn(ld, np.where(alive0, cap, np.inf)[None, :], adj)[0] > 0.5
+        failed = cascade_fn(ld, np.where(alive0, cap, np.inf)[None, :], adj, share=c["shed_share"])[0] > 0.5
         p_alive = alive0 & ~failed
         backup = st["backup"].astype(int)
         for _ in range(P + len(dep)):

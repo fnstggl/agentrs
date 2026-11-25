@@ -61,15 +61,15 @@ def hc_confounded(rng, d):
         claims=(C + "conditional_pathway",), identify=I + "lever_sign", lever_view=True)
 def hc_conditional(rng, d):
     gb = GraphBuilder(rng)
-    A = gb.lever(0.0, 10.0, 3.0, cost=u(rng, 50, 80))
+    A = gb.lever(0.0, 10.0, 1.0, cost=u(rng, 250, 350))
     Bv = gb.lever(0.0, 10.0, 2.0, cost=u(rng, 60, 90))
-    theta = u(rng, 4.0, 6.0)
+    theta = u(rng, 6.5, 8.5)
     gate = gb.prim("threshold", {"theta": theta, "lo": 0.0, "hi": 1.0}, x=[(Bv, 0, 1.0)])
-    eff = gb.prim("saturation", {"cap": u(rng, 25, 35), "half": u(rng, 2, 4)}, x=[(A, 0, 1.0)])
+    eff = gb.prim("saturation", {"cap": u(rng, 50, 70), "half": u(rng, 1.5, 2.5)}, x=[(A, 0, 1.0)])
     path = gb.prim("multiplicative", {"k": 1.0}, a=[(eff, 0, 1.0)], b=[(gate, 0, 1.0)])
     season = gb.prim("hidden_confounding", {"mean": 0.0, "sd": 0.5, "ar": 0.8}, role="exogenous")
     sales = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
-                    bias={"x": u(rng, 25, 35)}, x=[(path, 0, 1.0), (Bv, 0, -0.3), (season, 0, 2.0)])
+                    bias={"x": u(rng, 25, 35)}, x=[(path, 0, 1.0), (Bv, 0, -0.5), (season, 0, 2.0)])
     noise = float(d["observation_noise"])
     gb.gauge(sales, [("measurement_noise", {"sd": noise * 3})])
     gb.gauge(eff, [("measurement_noise", {"sd": noise * 3})], lag=1)
@@ -91,8 +91,8 @@ def hc_conditional(rng, d):
         claims=(C + "feedback_amplifies",), identify=I + "lever_sign", lever_view=True)
 def hc_feedback_hidden(rng, d):
     gb = GraphBuilder(rng)
-    M = gb.lever(0.0, 10.0, 2.0, cost=u(rng, 120, 180))
-    sat = gb.prim("saturation", {"cap": u(rng, 25, 35), "half": u(rng, 3, 5)}, x=[(M, 0, 1.0)])
+    M = gb.lever(0.0, 10.0, 0.5, cost=u(rng, 450, 550))
+    sat = gb.prim("saturation", {"cap": u(rng, 25, 35), "half": u(rng, 3.5, 4.5)}, x=[(M, 0, 1.0)])
     rep = gb.prim("decay", {"rate": 0.1, "init": 0.0}, role="reputation", x=[])
     sales = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
                     bias={"x": u(rng, 15, 25)}, x=[(sat, 0, 1.0), (rep, 1, u(rng, 4.5, 5.5))])
@@ -137,9 +137,9 @@ family("mk_gate", engine="primitive_graph", category="8.1", item="8.1.6", split=
        claims=(C + "market_rule",), identify=I + "market_rule")(_market("gate"))
 family("mk_drift", engine="primitive_graph", category="8.10", item="8.10.1", split="train",
        doc="Look-alike market, rule 'drift': a rival's share grows with the shop's price history; once it crosses "
-           "a hidden level the sign of the price effect flips permanently.",
-       distinct_because="same interface; a regime change triggered by an accumulating competitor stock "
-                        "(endogenous, path-dependent sign change)",
+           "a hidden level, demand becomes several times more price-sensitive, permanently.",
+       distinct_because="same interface; a regime change of the price effect triggered by an accumulating "
+                        "competitor stock (endogenous, path-dependent change of the causal effect)",
        axes={"horizon": 60, "observation_noise": 0.15}, objective="maximize_net",
        claims=(C + "market_rule",), identify=I + "market_rule", lever_view=True)(_market("drift"))
 
@@ -213,13 +213,13 @@ def sci_instruments(rng, d):
         claims=(C + "delayed_return",), identify=I + "lever_sign", lever_view=True)
 def dl_delayed_returns(rng, d):
     gb = GraphBuilder(rng)
-    inv = gb.lever(0.0, 10.0, 0.0, cost=u(rng, 80, 120))
+    inv = gb.lever(0.0, 10.0, 0.0, cost=u(rng, 550, 750))
     lag = int(rng.integers(6, 11))
     pipe = gb.prim("delay", {"lag": lag, "init": 0.0}, x=[(inv, 0, 1.0)])
     cap = gb.prim("stock", {"init": float(d["resources"]), "cap": 1e6}, role="capacity", inflow=[(pipe, 0, 1.0)],
                   outflow=[])
-    gb.nodes[int(cap[1:])]["ports"]["outflow"] = [[cap, 1, 0.05]]
-    out = gb.prim("saturation", {"cap": u(rng, 70, 90), "half": u(rng, 25, 40)}, role="output",
+    gb.nodes[int(cap[1:])]["ports"]["outflow"] = [[cap, 1, 0.08]]
+    out = gb.prim("saturation", {"cap": u(rng, 70, 90), "half": u(rng, 30, 50)}, role="output",
                   x=[(cap, 0, 1.0)])
     sold = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 10.0}, role="outcome", x=[(out, 0, 1.0)])
     gb.gauge(sold, [("measurement_noise", {"sd": float(d["observation_noise"]) * 3})])
@@ -272,7 +272,7 @@ def eng_delayed_controller(rng, d):
     lag = int(rng.integers(2, 5))
     T = gb.prim("decay", {"rate": 0.2, "init": 10.0}, role="temperature", bias={"x": 2.0},
                 x=[(heat, lag, 0.8), (dist, 0, 1.0)])
-    sp = u(rng, 22, 32)
+    sp = u(rng, 16, 25) if rng.random() < 0.5 else u(rng, 35, 44)
     band = u(rng, 1.5, 2.5)
     lo = gb.prim("threshold", {"theta": sp - band, "lo": 0.0, "hi": 1.0}, x=[(T, 0, 1.0)])
     hi = gb.prim("threshold", {"theta": sp + band, "lo": 1.0, "hi": 0.0}, x=[(T, 0, 1.0)])
@@ -299,7 +299,7 @@ def eng_delayed_controller(rng, d):
         lever_view=True)
 def game_adaptive_rival(rng, d):
     gb = GraphBuilder(rng)
-    p = gb.lever(1.0, 10.0, 5.0, cost=0.0)
+    p = gb.lever(1.0, 10.0, 4.0, cost=0.0)
     lr = float(d["opponent_capability"])
     opp = gb.prim("adaptive_opponent", {"lr": lr, "lm": lr, "margin": u(rng, 0.5, 1.0), "lo": 1.0, "hi": 10.0,
                                         "init": u(rng, 4.0, 6.0), "mode": "undercut"}, role="opponent",

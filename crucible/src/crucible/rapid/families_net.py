@@ -23,11 +23,11 @@ def _routing(rng, d, rewire: bool):
     for j in range(J):                                   # every second hop carries at least one route
         assign[j % K] = j
     rng.shuffle(assign)
-    c1 = [u(rng, 8.0, 15.0) for _ in range(K)]
-    c2 = [u(rng, 6.0, 14.0) for _ in range(J)]
+    c1 = [u(rng, 4.0, 15.0) for _ in range(K)]
+    c2 = [u(rng, 4.0, 14.0) for _ in range(J)]
     cfg = {"engine": "graph_dynamical", "scenario": "routing", "horizon": int(d["horizon"]), "K": K, "J": J,
-           "assign": assign, "c1": c1, "c2": c2, "toll": [u(rng, 5.0, 25.0) for _ in range(K)],
-           "demand_mean": 0.8 * sum(c2), "demand_sd": 0.1 * sum(c2) * 0.3, "demand_ar": 0.8, "price": 100.0,
+           "assign": assign, "c1": c1, "c2": c2, "toll": [u(rng, 5.0, 60.0) for _ in range(K)],
+           "demand_mean": 0.9 * min(sum(c1), sum(c2)), "demand_sd": 0.03 * sum(c2), "demand_ar": 0.8, "price": 100.0,
            "hold": 15.0, "noise": float(d["observation_noise"]), "w_default": [0.5] * K,
            "route_names": names[:K], "gauge_names": names[K:2 * K + 1], "endowment": 300_000,
            "objective": {"type": "maximize_net", "text": "Maximise your net income: delivered flow pays, route "
@@ -71,7 +71,7 @@ def net_topology_shift(rng, d):
             "clustered network; seeds are placed by cluster and adopters are worth more as adoption grows.",
         distinct_because="threshold contagion over a stochastic block graph with network effects in value; only "
                          "cluster-level adoption counts are visible",
-        axes={"graph_size": 60, "hidden_state_complexity": 3, "resources": 8, "horizon": 40},
+        axes={"graph_size": 90, "hidden_state_complexity": 3, "resources": 10, "horizon": 40},
         objective="maximize_net", claims=(C + "concentrated_seeding",), identify=I + "best_cluster")
 def net_diffusion(rng, d):
     N, Cn = int(d["graph_size"]), int(d["hidden_state_complexity"])
@@ -84,7 +84,7 @@ def net_diffusion(rng, d):
             p = p_in[cluster[i]] if cluster[i] == cluster[j] else 0.01
             if rng.random() < p:
                 A[i, j] = A[j, i] = 1.0
-    th_mean = [u(rng, 0.15, 0.4) for _ in range(Cn)]
+    th_mean = [u(rng, 0.35, 0.5) for _ in range(Cn)]
     theta = [float(np.clip(th_mean[cluster[i]] + rng.normal(0, 0.05), 0.05, 0.9)) for i in range(N)]
     deg = A.sum(axis=1)
     by_degree = [[int(i) for i in sorted((i for i in range(N) if cluster[i] == k), key=lambda i: (-deg[i], i))]
@@ -105,7 +105,7 @@ def net_diffusion(rng, d):
             "grid and controls it; failures cascade within and between layers.",
         distinct_because="load-redistribution cascades on a grid coupled to a dependency layer (interdependent "
                          "failure); graph edits add backup supply links",
-        axes={"graph_size": 20, "horizon": 60, "resources": 4}, objective="maximize_net",
+        axes={"graph_size": 20, "horizon": 60, "resources": 8}, objective="maximize_net",
         claims=(C + "backup_links_contain_cascades",), identify=I + "lever_sign")
 def net_cascade(rng, d):
     P = int(d["graph_size"])
@@ -114,12 +114,12 @@ def net_cascade(rng, d):
     A = np.zeros((P, P))
     for i in range(P):
         A[i, (i + 1) % P] = A[(i + 1) % P, i] = 1.0
-    for _ in range(P // 3):
+    for _ in range(P):
         i, j = (int(x) for x in rng.integers(P, size=2))
         if i != j:
             A[i, j] = A[j, i] = 1.0
     base = [u(rng, 0.5, 0.8) for _ in range(P)]
-    cap = [b * u(rng, 1.12, 1.35) for b in base]
+    cap = [b * u(rng, 1.3, 1.6) for b in base]
     dep = [int(x) for x in rng.integers(P, size=Cm)]
     ctrl = [int(x) for x in rng.integers(Cm, size=P)]
     zones = 4
@@ -127,9 +127,9 @@ def net_cascade(rng, d):
     return {"engine": "graph_dynamical", "scenario": "cascade", "horizon": int(d["horizon"]),
             "adj": A.astype(int).tolist(), "base": base, "cap": cap, "dep": dep, "ctrl": ctrl, "zone": zone,
             "zone_names": names[P + Cm:P + Cm + zones], "node_names": names[:P + Cm],
-            "gauge_names": names[P + Cm + zones:P + Cm + zones + 2], "dem_ar": 0.8, "dem_sd": 0.05, "p_shock": 0.25,
-            "shock": u(rng, 0.5, 0.8), "repair_ticks": 5.0, "reinforce_budget": float(d["resources"]),
-            "reinf_gain": 0.12, "reinf_cost": 60.0, "edit_cost": 400.0, "backup_cost": 15.0, "price": 300.0,
+            "gauge_names": names[P + Cm + zones:P + Cm + zones + 2], "dem_ar": 0.8, "dem_sd": 0.05, "p_shock": 0.2,
+            "shock": u(rng, 0.3, 0.5), "shed_share": 0.5, "repair_ticks": 5.0, "reinforce_budget": float(d["resources"]),
+            "reinf_gain": 0.08, "reinf_cost": 150.0, "edit_cost": 400.0, "backup_cost": 15.0, "price": 300.0,
             "endowment": 200_000,
             "objective": {"type": "maximize_net", "text": "Maximise your net income from the load you serve."},
             "brief": f"A grid of {P} power nodes and {Cm} control nodes. Each control node draws power from a grid "

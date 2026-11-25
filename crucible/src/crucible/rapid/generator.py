@@ -299,8 +299,9 @@ def lookalike_market(rng: np.random.Generator, rule: str, difficulty: dict) -> d
     elastic  units fall smoothly with price (logistic demand); promotion adds visits with saturation
     signal   buyers read price as quality: units rise with price up to a peak and fall beyond it
     gate     units ignore price until the compatibility requirement (a discrete choice) is met; then elastic
-    drift    the price response is elastic until the rival's share crosses a level, then its sign flips
-             (a regime change triggered by the competition's evolution)
+    drift    the price response is mildly elastic until the rival's share - which grows with the shop's price
+             history - crosses a level; from then on demand is several times more price-sensitive (a regime
+             change triggered by the competition's evolution)
     """
     if rule not in LOOKALIKE_RULES:
         raise ValueError(rule)
@@ -317,8 +318,10 @@ def lookalike_market(rng: np.random.Generator, rule: str, difficulty: dict) -> d
         conv = gb.prim("linear_nonlinear", {"form": "logistic", "a": 0.9, "b": 0.02, "c": -_u(rng, 0.8, 1.4),
                                             "m": mid}, role="conversion", x=[(price, 0, 1.0)])
     elif rule == "signal":
-        conv = gb.prim("non_monotonic", {"peak": _u(rng, 6.5, 8.5), "height": _u(rng, 0.7, 0.9)}, role="conversion",
-                       x=[(price, 0, 1.0)])
+        perceived = gb.prim("linear_nonlinear", {"form": "quadratic", "a": 1.0, "b": 0.0, "c": 0.5},
+                            role="perceived_value", x=[(price, 0, 1.0)])
+        conv = gb.prim("non_monotonic", {"peak": _u(rng, 8.0, 14.0), "height": _u(rng, 0.7, 0.9)}, role="conversion",
+                       x=[(perceived, 0, 1.0)])
     elif rule == "gate":
         compat = gb.discrete([0.0, 1.0], cost=[0.0, _u(rng, 40.0, 80.0)], default=0, role="compatibility")
         el = gb.prim("linear_nonlinear", {"form": "logistic", "a": 0.9, "b": 0.02, "c": -_u(rng, 0.8, 1.4),
@@ -329,7 +332,7 @@ def lookalike_market(rng: np.random.Generator, rule: str, difficulty: dict) -> d
         rival_share = gb.prim("decay", {"rate": 0.08, "init": 0.0}, role="rival_share", x=[(price, 1, 0.012)])
         el = gb.prim("linear_nonlinear", {"form": "linear", "a": -0.08, "b": 0.0}, role="price_effect",
                      x=[(price, 0, 1.0)], bias={"x": -mid})
-        flip = gb.prim("regime_change", {"before": 1.0, "after": -1.0, "at": -1.0, "trig": _u(rng, 0.45, 0.6)},
+        flip = gb.prim("regime_change", {"before": 1.0, "after": 3.5, "at": -1.0, "trig": _u(rng, 0.45, 0.6)},
                        role="regime", x=[(el, 0, 1.0)], trigger=[(rival_share, 1, 1.0)])
         conv = gb.prim("linear_nonlinear", {"form": "logistic", "a": 0.9, "b": 0.02, "c": 6.0, "m": 0.0},
                        role="conversion", x=[(flip, 0, 1.0)])
@@ -343,10 +346,9 @@ def lookalike_market(rng: np.random.Generator, rule: str, difficulty: dict) -> d
     # revenue = units * price: units are the outcome node; the price lever multiplies via a revenue node
     rev = gb.prim("multiplicative", {"k": unit_price / 10.0}, role="revenue", a=[(units, 0, 1.0)],
                   b=[(price, 0, 1.0)])
-    afford = ["levers", "discrete"] if rule == "gate" else ["levers"]
+    afford = ["levers", "discrete"]
     if rule != "gate":                                   # every market offers the same decision interface
-        gb.discrete([0.0, 0.0], cost=[0.0, _u(rng, 40.0, 80.0)], default=0, role="inert_option")
-        afford = ["levers", "discrete"]
+        compat = gb.discrete([0.0, 0.0], cost=[0.0, _u(rng, 40.0, 80.0)], default=0, role="inert_option")
     return gb.build(horizon=horizon, money={"revenue_node": rev, "price": 1.0, "cap": 100.0 * unit_price,
                                             "fixed_cost": 0.0},
                     affordances=afford, warmup=int(difficulty.get("warmup", 0)), endowment=200_000,
@@ -354,4 +356,4 @@ def lookalike_market(rng: np.random.Generator, rule: str, difficulty: dict) -> d
                                                                "what counts."},
                     brief="You run a shop. Levers: your price and your promotion spend. Gauges: units sold, store "
                           "visits, a rival's price index. Decision: an optional certification.",
-                    rule=rule)
+                    rule=rule, claim={"price": price, "promo": promo, "units": units, "compat": compat})

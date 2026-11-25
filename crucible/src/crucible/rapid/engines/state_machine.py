@@ -64,7 +64,7 @@ class StateMachine(RapidEngine):
                                                  spec="the public description of this world"))
             kinds["sequence"] = A.sequence_schema(["discrete", "query"])
         else:
-            decs = {c["decision_name"]: list(c["options"])}
+            decs = {c["decision_name"]: list(c["options"]) + [c["restart_name"]]}
             kinds["discrete"] = A.discrete_schema(decs)
             limits["decisions"] = decs
             kinds["sequence"] = A.sequence_schema(["discrete"], max_steps=int(c["stages"]) + 2)
@@ -118,8 +118,11 @@ class StateMachine(RapidEngine):
             L = int(c["stages"])
             if state["trapped"][0] > 0 or s >= L:
                 return {"signal": 0}
+            if action["choice"] == c["restart_name"]:
+                state["s"] = np.zeros(1)
+                return {"restarted": True}
             opt = c["options"].index(action["choice"])
-            if opt == c["trap"][s]:
+            if opt == c["trap"][s] and c["trap"][s] >= 0:
                 state["trapped"] = np.ones(1)
                 moved = False
             elif opt == c["code"][s]:
@@ -151,6 +154,7 @@ class StateMachine(RapidEngine):
             nums = {c["gauge_names"][0]: float(reading)}
         elif self.sc == "fault":
             fix = int(st["fix"][0])
+            level = None
             if fix >= 0:
                 cost += c["repair_cost"]
                 if fix == s:
@@ -158,7 +162,9 @@ class StateMachine(RapidEngine):
                 else:
                     st["wrong"] = st["wrong"] + 1
                 st["fix"] = np.full(1, -1.0)
-            level = c["output"] * (1.0 - c["loss"][s])
+                level = 0.0                                  # offline while being repaired
+            if level is None:
+                level = c["output"] * (1.0 - c["loss"][s])
             reading = level + c["noise"] * z
             rev = c["price"] * level
             st["s"] = np.array([float(_cat(self.T[s], u))])
