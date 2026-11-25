@@ -197,7 +197,8 @@ def check(p: Provider) -> dict:
     try:
         names = list(p.names())
         if not names:
-            return {"ok": False, "n_envs": 0, "error": "provider lists no environments"}
+            return {"ok": False, "n_envs": 0, "error": "provider lists no environments",
+                    "wall_s": round(time.perf_counter() - t0, 3)}
         name = names[0]
         if p.check is not None:
             res = dict(p.check(p))
