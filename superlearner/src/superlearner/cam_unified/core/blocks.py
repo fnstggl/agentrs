@@ -15,9 +15,11 @@ Shapes: B batch, L sequence length (state + context tokens), D d_model, H heads,
 * `EntitySlotCodes` — binding codes for episode-local entity slots: a fixed random (non-learned) table of unit vectors,
   re-indexed by a random per-episode permutation per batch row, through a learned projection. A slot code therefore
   carries no meaning across episodes; tokens about the same entity share a code within an episode (binding only).
+  The permutation is per-episode state kept in a buffer (saved with the model state, restorable explicitly).
 """
 from __future__ import annotations
 
+import logging
 import math
 from typing import Optional
 
@@ -28,6 +30,7 @@ from torch import Tensor
 
 from ..interfaces import TokenKind
 
+log = logging.getLogger(__name__)
 
 class RMSNorm(nn.Module):
     """y = x / sqrt(mean(x^2) + eps) * g. Computed in float32, returned in the input dtype. x [..., D]."""
@@ -194,52 +197,99 @@ class EntitySlotCodes(nn.Module):
     table [E, Dc]: fixed random unit vectors (buffer; saved with the model so a slot index maps to the same raw code
     in every process). Per-episode randomisation: `new_episode(B)` draws a random permutation of the slots per batch
     row (perm [B, E]); the code of slot s in row b is table[perm[b, s]]. Until `new_episode` is called the permutation
-    is the identity — then per-episode randomness comes from `EntityRegistry`'s random slot binding (seeded per
-    episode). Rows can be remapped with `code_rows` [B'] (e.g. imagination branches -> their real environment's row).
+    is the identity (perm has 0 rows) — then per-episode randomness comes from `EntityRegistry`'s random slot binding
+    (seeded per episode). Rows can be remapped with `code_rows` [B'] (e.g. imagination branches -> their real
+    environment's row).
+
+    `perm` is per-episode state, not a weight: it is a registered (persistent) buffer so that it is saved and restored
+    with the model state (a mid-episode checkpoint restore keeps the codes the latent state Z was computed with), and
+    `load_state_dict` accepts a permutation for any number of rows. `episode_state()` / `load_episode_state()` save
+    and restore it explicitly (e.g. together with the per-environment FastState).
 
     forward(slot [B,N] long, -1 = none, code_rows) -> [B,N,D] (zero where slot < 0), through a learned projection
     with a learned gain. Two projections exist (`which` = 0 primary entity, 1 second entity of a relation) so the
-    direction of a relation is visible."""
+    direction of a relation is visible. Slots >= max_entities have no code: they are counted in
+    `stats["out_of_range_tokens"]` (and logged once), or raise when `strict_slots`."""
 
-    def __init__(self, d: int, max_entities: int, d_code: Optional[int] = None, seed: int = 1234):
+    def __init__(self, d: int, max_entities: int, d_code: Optional[int] = None, seed: int = 1234,
+                 strict_slots: bool = False):
         super().__init__()
         self.E = max_entities
+        self.strict_slots = strict_slots
         dc = d_code or d
         g = torch.Generator().manual_seed(seed)
         table = torch.randn(max_entities, dc, generator=g)
         self.register_buffer("table", table / table.norm(dim=-1, keepdim=True))
+        self.register_buffer("perm", torch.zeros(0, max_entities, dtype=torch.long))   # 0 rows = identity
         self.proj = nn.ModuleList([nn.Linear(dc, d, bias=False) for _ in range(2)])
         self.gain = nn.Parameter(torch.ones(2))
-        self.perm: Optional[Tensor] = None
         self.episodes_started = 0
+        self.stats = {"out_of_range_tokens": 0}
+        self._warned = False
+
+    # ---- per-episode state
+    @property
+    def started(self) -> bool:
+        return self.perm.shape[0] > 0
+
+    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
+        key = prefix + "perm"
+        if key in state_dict and state_dict[key].shape != self.perm.shape:
+            self.perm = torch.empty_like(state_dict[key], device=self.perm.device)   # any number of rows
+        super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
+
+    def episode_state(self) -> dict:
+        """{"slot_perm": perm [B,E] long (0 rows = identity), "episodes_started": int} (CPU copies)."""
+        return {"slot_perm": self.perm.detach().cpu().clone(), "episodes_started": self.episodes_started}
+
+    def load_episode_state(self, state: dict) -> None:
+        perm = state["slot_perm"]
+        assert perm.dim() == 2 and perm.shape[1] == self.E, (tuple(perm.shape), self.E)
+        self.perm = perm.to(self.table.device, torch.long).clone()
+        self.episodes_started = int(state.get("episodes_started", self.episodes_started))
 
     @torch.no_grad()
     def new_episode(self, B: int, rows: Optional[Tensor] = None, generator: Optional[torch.Generator] = None,
                     device=None) -> Tensor:
         """Draw fresh per-episode permutations for all B rows (rows=None) or only for `rows` (environments that just
-        reset). Returns perm [B, E]."""
+        reset). Returns perm [B, E]. A partial reset (`rows` given) requires the current layout to have B rows:
+        a different B is ambiguous (which old row is which?) and raises ValueError; call new_episode(B) first."""
         dev = device or self.table.device
-        if self.perm is None or self.perm.shape[0] != B:
+        if rows is not None and self.perm.shape[0] != B:
+            raise ValueError(f"EntitySlotCodes.new_episode: partial reset of rows {rows} for a batch of {B}, but the "
+                             f"current per-episode layout has {self.perm.shape[0]} rows; call new_episode({B}) "
+                             "(all rows) first")
+        if self.perm.shape[0] != B:
             self.perm = torch.arange(self.E, device=dev).repeat(B, 1)
-            rows = None                                          # a new batch layout: every row is a new episode
         rows = list(range(B)) if rows is None else [int(r) for r in (rows.tolist() if isinstance(rows, Tensor) else rows)]
         for r in rows:
             self.perm[r] = torch.randperm(self.E, generator=generator).to(self.perm.device)
         self.episodes_started += len(rows)
         return self.perm
 
+    def _count_out_of_range(self, slot: Tensor) -> None:
+        n = int((slot >= self.E).sum())
+        if not n:
+            return
+        if self.strict_slots:
+            raise ValueError(f"EntitySlotCodes: {n} tokens with entity slot >= max_entities={self.E}")
+        self.stats["out_of_range_tokens"] += n
+        if not self._warned:
+            self._warned = True
+            log.warning("EntitySlotCodes: %d tokens with entity slot >= max_entities=%d get no binding code "
+                        "(tokenizer registry larger than cfg.max_entities?); counted in stats", n, self.E)
+
     def forward(self, slot: Tensor, which: int = 0, code_rows: Optional[Tensor] = None) -> Tensor:
         B, N = slot.shape
+        self._count_out_of_range(slot)
         valid = (slot >= 0) & (slot < self.E)
         s = slot.clamp(0, self.E - 1)
-        if self.perm is not None:
-            if self.perm.device != slot.device:
-                self.perm = self.perm.to(slot.device)
-            perm = self.perm if code_rows is None else self.perm[code_rows.to(slot.device)]
+        if self.started:
+            perm = self.perm if code_rows is None else self.perm[code_rows.to(self.perm.device)]
             if perm.shape[0] != B:
                 raise ValueError(f"EntitySlotCodes: {perm.shape[0]} per-episode permutations for a batch of {B}; "
                                  "pass code_rows (batch row -> episode row) or call new_episode(B)")
-            s = torch.gather(perm, 1, s)
+            s = torch.gather(perm.to(slot.device), 1, s)
         codes = self.table[s]                                    # [B,N,Dc]
         out = self.proj[which](codes) * self.gain[which]
         return out * valid.unsqueeze(-1).to(out.dtype)

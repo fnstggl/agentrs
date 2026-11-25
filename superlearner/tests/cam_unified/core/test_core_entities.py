@@ -8,7 +8,7 @@ import torch.nn as nn
 from superlearner.cam_unified.core.backbone import UnifiedCore
 from superlearner.cam_unified.core.entities import EntityEncoder, entity_type_tokens
 from superlearner.cam_unified.interfaces import EntityRegistry, TokenKind, TokenSet
-from superlearner.cam_unified.testing import tiny_config
+from superlearner.cam_unified.testing import rand_tokens, tiny_config
 
 
 def _obs(rows, D, seed=0):
@@ -256,3 +256,16 @@ def test_relational_rounds_learn_relation_dependent_targets():
     print(f"relational task: var {var:.3f}  mse rounds=1 {mse1:.3f}  rounds=0 {mse0:.3f}")
     assert mse1 < 0.35 * var
     assert mse1 < 0.6 * mse0
+
+
+def test_out_of_range_slots_are_counted_never_silently_dropped():
+    cfg = tiny_config()
+    enc = EntityEncoder(cfg)
+    obs = rand_tokens(2, 10, cfg.d_model, TokenKind.OBS_SEM, ragged=False, seed=3)
+    obs.entity = torch.tensor([[0, 1, 2, cfg.max_entities, cfg.max_entities + 5, 1, 0, -1, 2, 3]] * 2)
+    out = enc(obs)
+    assert enc.stats["out_of_range_tokens"] == 4
+    assert set(out.entity[0][out.kind[0] == TokenKind.ENTITY].tolist()) == {0, 1, 2, 3}
+    strict = EntityEncoder(cfg, strict_slots=True)
+    with pytest.raises(ValueError, match="max_entities"):
+        strict(obs)

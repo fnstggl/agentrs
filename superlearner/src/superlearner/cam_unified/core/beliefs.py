@@ -15,17 +15,27 @@ Resampling   ESS = 1 / sum_k w_k^2 < cfg.ess_frac * K -> systematic resampling +
              weights reset to uniform.
 Misspecification  per informative step the observed mixture predictive log-likelihood ll_obs is compared with its
              own predictive distribution, estimated by Monte Carlo from the mixture itself (y ~ sum_k w_k p(y | m^k),
-             `n_mc` draws of ll(y)); the mean of those draws is the predicted entropy -H_pred. Two per-step z-scores:
-             "moment": z = (E[ll] - ll_obs) / sd[ll]  (literally the log-lik against its predicted entropy), and
-             "rank" (default): z = Phi^-1(1 - u) with u the mid-rank of ll_obs among the draws — the probability-
-             integral transform of the same comparison. The log-likelihood of a well-specified Gaussian is a shifted
-             chi-square (right-skewed), so the moment z has heavy upper tails and false-alarms; the rank z is N(0,1)
-             under a correctly specified belief whatever the outcome type (per-step |z| <= Phi^-1(1 - 0.5/(n_mc+1))).
-             The window statistic sum(z) / sqrt(n) over the last `cfg.misspec_window` steps exceeding `cfg.misspec_z`
-             (with >= `min_steps` entries) -> inject fresh particles from the proposal conditioned on the latest event
-             (replacing the lowest-weight `inject_frac` of particles; prior scale inflated by `inflate`), inflate every
-             Sigma^k by `inflate`, reset weights to uniform and the surprise window. Every expansion is counted and
-             logged (`counters`, `misspec_log`, python logging).
+             `n_mc` draws of ll(y); censored SURVIVAL queries are simulated through the same observation process:
+             y_sim = min(T_sim, c), censored iff T_sim > c, with c the observed censoring time); the mean of those
+             draws is the predicted entropy -H_pred. Per-step z-scores: "rank" (default): z = Phi^-1(1 - u), u the
+             rank of ll_obs among the draws with random tie-breaking (probability-integral transform; discrete-
+             uniform under a correctly specified belief for any outcome type, ties included, so z ~ N(0,1) truncated
+             at Phi^-1(1 - 0.5/(n_mc+1))); "moment": z = (E[ll] - ll_obs) / sd[ll] (heavy upper tail for Gaussian
+             outcomes: the log-likelihood is a shifted chi-square — no false-alarm guarantee).
+             Sequential test: one-sided CUSUM over the surprise window, S = max(0, max over suffixes of the window of
+             sum_j (z_j - k)), alarm when S > h (with >= `min_steps` entries). k defaults to min(misspec_z, z_max)/2
+             (half the sustained shift to detect); h is set from a target in-control average run length `misspec_arl`
+             (informative steps per row between false alarms; Siegmund's approximation for N(0,1) increments,
+             conservative for the truncated rank z). Under sustained surprise near z_max the alarm fires after about
+             h / (z_max - k) steps (5 with the defaults).
+             Response: inject fresh particles from the proposal conditioned on the latest event (replacing the
+             lowest-weight `inject_frac` of particles; prior scale inflated by `inflate`), inflate every Sigma^k by
+             `inflate`, reset weights to uniform and the surprise window (cooldown: the CUSUM must re-accumulate).
+             Sigma^k is capped at `max_scale_mult` x the prior scale. Persistent misspecification: an alarm while
+             the row's uncertainty is already saturated (median Sigma^k >= cap / inflate, i.e. recent expansions did
+             not help) does not inject or reset weights again — Sigma^k is pinned at the cap and the row is flagged
+             (`info["persistent"]`, counters, log). Every expansion / persistent episode is counted and logged
+             (`counters`, `misspec_log`, python logging).
 
 All operations are batched over environments; the FastState tensors stay in the autograd graph (the caller detaches
 between truncation windows), so the prior, proposal and token encoders train through `predictive_log_prob`
@@ -112,7 +122,8 @@ class BeliefModule(nn.Module):
     """
 
     def __init__(self, cfg: CamConfig, n_channels: int = 16, n_mc: int = 32, surprise_stat: str = "rank",
-                 min_steps: int = 4, z_clip: float = 8.0,
+                 min_steps: int = 4, z_clip: float = 8.0, misspec_arl: float = 1e5, cusum_k: Optional[float] = None,
+                 cusum_h: Optional[float] = None, max_scale_mult: float = 10.0,
                  inject_frac: float = 0.5, inflate: float = 3.0, jitter: float = 0.1, rejuv: float = 0.5,
                  min_scale: float = 1e-3, prior_scale: float = 1.0, contraction: float = 0.95,
                  misspec_enabled: bool = True, resample_enabled: bool = True, autocast: Optional[bool] = None,
@@ -122,9 +133,15 @@ class BeliefModule(nn.Module):
         K, Dp, D = cfg.n_particles, cfg.d_particle, cfg.d_model
         self.K, self.Dp, self.C = K, Dp, n_channels
         assert surprise_stat in ("rank", "moment"), surprise_stat
+        assert inflate > 1.0 and max_scale_mult > inflate, (inflate, max_scale_mult)
         self.n_mc, self.surprise_stat, self.min_steps, self.z_clip = n_mc, surprise_stat, min_steps, z_clip
         self.inject_frac, self.inflate, self.jitter, self.rejuv = inject_frac, inflate, jitter, rejuv
-        self.min_scale = min_scale
+        self.min_scale, self.max_scale_mult = min_scale, max_scale_mult
+        # ---- sequential misspecification test (one-sided windowed CUSUM)
+        self.z_max = self.rank_z_max(n_mc) if surprise_stat == "rank" else z_clip
+        self.cusum_k = cusum_k if cusum_k is not None else 0.5 * min(cfg.misspec_z, self.z_max)
+        self.misspec_arl = misspec_arl
+        self.cusum_h = cusum_h if cusum_h is not None else self.cusum_threshold(self.cusum_k, misspec_arl)
         self.misspec_enabled, self.resample_enabled = misspec_enabled, resample_enabled
         self.autocast = autocast
         # ---- prior
@@ -147,7 +164,7 @@ class BeliefModule(nn.Module):
         self.tok_w = nn.Linear(4, D)
         self.tok_norm = RMSNorm(D)
         self.tok_ffn = SwiGLU(D, cfg.d_ff)
-        self.sum_feat = nn.Linear(6, D)
+        self.sum_feat = nn.Linear(7, D)
         self.sum_emb = nn.Parameter(torch.randn(D) * 0.02)
         self.out_norm = RMSNorm(D)
         init_transformer_weights(self, 2)
@@ -155,7 +172,8 @@ class BeliefModule(nn.Module):
             nn.init.zeros_(lin.weight)
             if lin.bias is not None:
                 nn.init.zeros_(lin.bias)
-        self.counters = {"updates": 0, "resampled_rows": 0, "expanded_rows": 0, "nonfinite_ll": 0}
+        self.counters = {"updates": 0, "resampled_rows": 0, "expanded_rows": 0, "nonfinite_ll": 0,
+                         "alarm_rows": 0, "persistent_row_steps": 0, "persistent_episodes": 0}
         self.misspec_log: collections.deque = collections.deque(maxlen=log_capacity)
 
     def _autocast_ctx(self, device):
@@ -203,6 +221,38 @@ class BeliefModule(nn.Module):
         ent = -(w * logw.clamp_min(-1e4)).sum(-1)
         return w, ess, ent
 
+    @staticmethod
+    def rank_z_max(n_mc: int) -> float:
+        """Largest per-step rank z: Phi^-1(1 - 0.5 / (n_mc + 1))."""
+        return -math.sqrt(2.0) * float(torch.erfinv(torch.tensor(2 * (0.5 / (n_mc + 1)) - 1, dtype=torch.float64)))
+
+    @staticmethod
+    def cusum_arl0(k: float, h: float) -> float:
+        """Siegmund's approximation of the in-control average run length of a one-sided CUSUM with reference k and
+        threshold h for N(0,1) increments: (exp(2kb) - 2kb - 1) / (2k^2), b = h + 1.166."""
+        a = 2.0 * k * (h + 1.166)
+        return (math.exp(min(a, 700.0)) - a - 1.0) / (2.0 * k * k)
+
+    @classmethod
+    def cusum_threshold(cls, k: float, arl0: float) -> float:
+        """Threshold h with cusum_arl0(k, h) = arl0 (bisection)."""
+        lo, hi = 0.0, 200.0
+        for _ in range(200):
+            mid = 0.5 * (lo + hi)
+            if cls.cusum_arl0(k, mid) < arl0:
+                lo = mid
+            else:
+                hi = mid
+        return hi
+
+    def cusum_stat(self, surprise: Tensor) -> tuple:
+        """Windowed one-sided CUSUM of the surprise z-scores (oldest first, NaN = no entry): S [B] = max(0, max over
+        suffixes of sum_j (z_j - k)), and the number of valid entries n [B]."""
+        valid = ~torch.isnan(surprise)
+        inc = torch.where(valid, surprise.clamp(-self.z_clip, self.z_clip) - self.cusum_k, torch.zeros_like(surprise))
+        suffix = inc.flip(-1).cumsum(-1)                                     # sums of the most recent 1, 2, ... entries
+        return suffix.max(-1).values.clamp_min(0.0), valid.sum(-1)
+
     def window_stat(self, surprise: Tensor) -> tuple:
         """(sum(z) / sqrt(n) [B], n [B]) over the valid (non-NaN) entries of the surprise window."""
         valid = ~torch.isnan(surprise)
@@ -227,9 +277,10 @@ class BeliefModule(nn.Module):
             wz, n = self.window_stat(fast.surprise)
             valid = ~torch.isnan(fast.surprise)
             last_mean = torch.where(valid, fast.surprise, torch.zeros_like(fast.surprise)).sum(-1) / n.clamp_min(1)
+            cs, _ = self.cusum_stat(fast.surprise)
             sf = torch.stack([ess / K, ent / logK, last_mean.clamp(-self.z_clip, self.z_clip) / self.z_clip,
                               wz.clamp(-self.z_clip, self.z_clip) / self.z_clip, torch.log1p(fast.steps.float()) / 5,
-                              n.float() / max(1, fast.surprise.shape[1])], -1)
+                              n.float() / max(1, fast.surprise.shape[1]), (cs / self.cusum_h).clamp(max=4.0)], -1)
             summ = (w.unsqueeze(-1) * x).sum(1) + self.sum_feat(sf).float() + self.sum_emb
             h = self.out_norm(torch.cat([x, summ.unsqueeze(1)], 1)).float()
         kind = torch.full((B, K + 1), int(TokenKind.BELIEF), dtype=torch.long, device=dev)
@@ -283,22 +334,37 @@ class BeliefModule(nn.Module):
 
     @torch.no_grad()
     def surprise_z(self, dist, logw: Tensor, y_mask: Tensor, pred_ll: Tensor,
-                   generator: Optional[torch.Generator] = None) -> tuple:
+                   generator: Optional[torch.Generator] = None, y_obs: Optional[Tensor] = None,
+                   censored: Optional[Tensor] = None, lik: Optional[Tensor] = None) -> tuple:
         """Per-step surprise of the observation under the mixture predictive. Returns (z [B], predicted entropy [B]):
-        "rank": z = Phi^-1(1 - u), u = mid-rank of ll_obs among n_mc draws ll(y), y ~ mixture;
-        "moment": z = (E[ll] - ll_obs) / sd[ll]. Positive z = more surprising than the belief expects."""
+        "rank": z = Phi^-1(1 - u), u = (r - 1/2) / (n_mc + 1) with r the rank of ll_obs among the n_mc draws
+        ll(y), y ~ mixture, ties broken uniformly at random (exactly discrete-uniform under the model);
+        "moment": z = (E[ll] - ll_obs) / sd[ll]. Positive z = more surprising than the belief expects.
+        With `censored` [B,Q] (and the observed y_obs [B,Q]) censored queries are simulated through the observation
+        process: y_sim = min(T_sim, c), censored_sim = T_sim > c, c = y_obs (restricted to SURVIVAL when `lik`)."""
         B, K = logw.shape
         w = logw.exp()
+        gen = generator if generator is not None and generator.device == w.device else None
+        cen_obs = None
+        if censored is not None and y_obs is not None:
+            cen_obs = censored.bool() & y_mask
+            if lik is not None:
+                cen_obs = cen_obs & (lik == int(Likelihood.SURVIVAL))
+            if not bool(cen_obs.any()):
+                cen_obs = None
         lls = []
         for _ in range(self.n_mc):
             ys = dist.sample().detach()                                       # [B,K,Q]
-            if generator is not None and generator.device == w.device:
-                k = torch.multinomial(w.float(), 1, generator=generator)
-            else:
-                k = torch.multinomial(w.float(), 1)
+            k = torch.multinomial(w.float(), 1, generator=gen) if gen is not None else torch.multinomial(w.float(), 1)
             Q = ys.shape[-1]
             y = torch.gather(ys, 1, k.unsqueeze(-1).expand(B, 1, Q)).squeeze(1)
-            ll = dist_log_prob(dist, y.unsqueeze(1).expand(B, K, Q))
+            cen_sim = None
+            if cen_obs is not None:
+                c = y_obs.to(y.dtype)
+                cen_sim = cen_obs & (y > c)
+                y = torch.where(cen_obs, torch.minimum(y, c), y)
+                cen_sim = cen_sim.unsqueeze(1).expand(B, K, Q)
+            ll = dist_log_prob(dist, y.unsqueeze(1).expand(B, K, Q), cen_sim)
             ll = torch.nan_to_num(ll, nan=-1e4, neginf=-1e4, posinf=1e4)
             ll = torch.where(y_mask.unsqueeze(1), ll, torch.zeros_like(ll)).sum(-1)
             lls.append(torch.logsumexp(logw + ll, -1))
@@ -308,7 +374,9 @@ class BeliefModule(nn.Module):
         else:
             below = (L < pred_ll.unsqueeze(0)).float().sum(0)
             ties = (L == pred_ll.unsqueeze(0)).float().sum(0)
-            u = (below + 0.5 * ties + 0.5) / (self.n_mc + 1)
+            v = torch.rand(B, generator=gen, device=w.device) if gen is not None else torch.rand(B, device=w.device)
+            r = below + 1 + torch.floor(v * (ties + 1)).clamp(max=ties)       # rank among n_mc + 1, random ties
+            u = (r - 0.5) / (self.n_mc + 1)
             z = -math.sqrt(2.0) * torch.erfinv(2 * u - 1)
         return z, -L.mean(0)
 
@@ -337,9 +405,11 @@ class BeliefModule(nn.Module):
         """One Bayesian-style belief update with the outcomes of the executed action.
 
         Returns (fast', info) with info {"ess": [B] (after reweighting, before resampling), "loglik": [B,K],
-        "surprise_z": [B] (0 where nothing was observed), "resampled": [B] bool, "expanded": [B] bool,
-        "pred_ll": [B] mixture predictive log-lik of the observation, "pred_entropy": [B] its predicted entropy
-        (MC), "window_z": [B], "feat": [B,Q,D]}.
+        "surprise_z": [B] (0 where nothing was observed), "resampled": [B] bool, "expanded": [B] bool (particles
+        injected, scales inflated, weights reset), "persistent": [B] bool (alarm while uncertainty is saturated: no
+        reset, scale pinned at the cap), "alarm": [B] bool (CUSUM test fired), "cusum": [B] CUSUM statistic
+        (threshold `cusum_h`), "pred_ll": [B] mixture predictive log-lik of the observation, "pred_entropy": [B] its
+        predicted entropy (MC), "window_z": [B] sum(z)/sqrt(n) over the window (diagnostic), "feat": [B,Q,D]}.
         `feat` overrides the outcome features (e.g. computed by the world model from its prior state)."""
         B, K, Dp = fast.particles.shape
         dev = fast.particles.device
@@ -355,11 +425,14 @@ class BeliefModule(nn.Module):
         pred_ll = torch.where(has_obs, pred_ll, torch.zeros_like(pred_ll))
 
         # ---- misspecification statistic
-        z, h_pred = self.surprise_z(dist, fast.logw.detach(), outcomes.y_mask, pred_ll.detach(), generator)
+        z, h_pred = self.surprise_z(dist, fast.logw.detach(), outcomes.y_mask, pred_ll.detach(), generator,
+                                    y_obs=outcomes.y, censored=outcomes.censored, lik=outcomes.lik)
         z = torch.where(has_obs, z, torch.zeros_like(z))
         sur = torch.cat([fast.surprise[:, 1:], z.unsqueeze(-1).to(fast.surprise.dtype)], 1)
         sur = torch.where(has_obs.unsqueeze(-1), sur, fast.surprise)
         wz, nz = self.window_stat(sur)
+        cusum, _ = self.cusum_stat(sur)
+        cusum_prev, _ = self.cusum_stat(fast.surprise)
 
         # ---- learned proposal move + scale contraction
         s = self.event_summary(feat, outcomes)
@@ -388,13 +461,18 @@ class BeliefModule(nn.Module):
             logw = torch.where(resampled.unsqueeze(-1), torch.full_like(logw, -math.log(K)), logw)
             self.counters["resampled_rows"] += int(resampled.sum())
 
-        # ---- misspecification -> uncertainty expansion
-        expanded = torch.zeros_like(has_obs)
+        # ---- misspecification -> uncertainty expansion (or, when already saturated, a persistent flag)
+        mu0, sc0 = self.prior(B, Z_prev, dev)
+        cap = (self.max_scale_mult * sc0).unsqueeze(1).detach()                     # [B,1,Dp]
+        alarm = torch.zeros_like(has_obs)
         if self.misspec_enabled:
-            expanded = has_obs & (nz >= self.min_steps) & (wz > self.cfg.misspec_z)
+            alarm = has_obs & (nz >= self.min_steps) & (cusum > self.cusum_h)
+        level = (pscale.detach() / cap).flatten(1).median(1).values                   # [B] in (0, 1]
+        saturated = level >= 1.0 / self.inflate
+        expanded = alarm & ~saturated
+        persistent = alarm & saturated
         if bool(expanded.any()):
             n_inj = max(1, int(round(self.inject_frac * K)))
-            mu0, sc0 = self.prior(B, Z_prev, dev)
             anchor = mu0.unsqueeze(1) + self.inflate * sc0.unsqueeze(1) * randn((B, n_inj, Dp), generator, dev)
             fresh = anchor + self.propose(anchor, s, torch.zeros(B, n_inj, device=dev),
                                           torch.full((B, n_inj), -math.log(K), device=dev))
@@ -410,15 +488,34 @@ class BeliefModule(nn.Module):
             rows = expanded.nonzero().flatten().tolist()
             self.counters["expanded_rows"] += len(rows)
             for r in rows:
-                rec = {"row": r, "step": int(fast.steps[r]) + 1, "window_z": float(wz[r]), "n_injected": n_inj,
-                       "ess_before": float(ess[r])}
+                rec = {"kind": "expansion", "row": r, "step": int(fast.steps[r]) + 1, "cusum": float(cusum[r]),
+                       "window_z": float(wz[r]), "n_injected": n_inj, "ess_before": float(ess[r]),
+                       "scale_level": float(level[r])}
                 self.misspec_log.append(rec)
-                log.info("belief misspecification: row %d step %d window z %.2f -> injected %d particles, scale x%.1f",
-                         r, rec["step"], rec["window_z"], n_inj, self.inflate)
+                log.info("belief misspecification: row %d step %d CUSUM %.2f > %.2f -> injected %d particles, "
+                         "scale x%.1f", r, rec["step"], rec["cusum"], self.cusum_h, n_inj, self.inflate)
+        if bool(persistent.any()):
+            # recent expansions did not explain the data: keep the weights, pin the uncertainty at the cap
+            pscale = torch.where(persistent.view(B, 1, 1), torch.maximum(pscale, cap.expand_as(pscale)), pscale)
+            rows = persistent.nonzero().flatten().tolist()
+            self.counters["persistent_row_steps"] += len(rows)
+            onset = (cusum_prev <= self.cusum_h).tolist()       # the alarm starts now (not carried from last step)
+            for r in rows:
+                if onset[r]:
+                    self.counters["persistent_episodes"] += 1
+                    rec = {"kind": "persistent", "row": r, "step": int(fast.steps[r]) + 1, "cusum": float(cusum[r]),
+                           "window_z": float(wz[r]), "scale_level": float(level[r])}
+                    self.misspec_log.append(rec)
+                    log.warning("belief misspecification persists: row %d step %d CUSUM %.2f with uncertainty "
+                                "saturated -> no further resets; scale pinned at %.1f x prior", r, rec["step"],
+                                rec["cusum"], self.max_scale_mult)
+        self.counters["alarm_rows"] += int(alarm.sum())
+        pscale = torch.minimum(pscale, cap.expand_as(pscale))
 
         new = FastState(particles, logw, pscale, fast.bayes_mu, fast.bayes_P, fast.bayes_noise, fast.bayes_n, sur,
                         fast.steps + has_obs.long(), [dict(c) for c in fast.channels])
         info = {"ess": ess, "loglik": loglik, "surprise_z": z, "resampled": resampled, "expanded": expanded,
+                "persistent": persistent, "alarm": alarm, "cusum": cusum,
                 "pred_ll": pred_ll, "pred_entropy": torch.where(has_obs, h_pred, torch.zeros_like(h_pred)),
                 "window_z": wz, "feat": feat}
         return new, info

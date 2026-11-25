@@ -26,6 +26,7 @@ time = latest observation time, refs "entity:<slot>" / "relation:<i>-><j>".
 from __future__ import annotations
 
 import contextlib
+import logging
 from typing import Callable, Optional, Sequence
 
 import torch
@@ -38,6 +39,7 @@ from .blocks import (Block, KindEmbedding, RMSNorm, SwiGLU, TimeEncoding, count_
                      init_transformer_weights, signed_log_time)
 
 _NEG = -1e9
+log = logging.getLogger(__name__)
 
 
 class _SlotPool(nn.Module):
@@ -76,11 +78,14 @@ class EntityEncoder(nn.Module):
         ffn_hidden: hidden width of the entity / relation SwiGLUs (default d_ff / 2).
         type_dim: dimension of the type token vectors (e.g. the semantic encoder's sem_dim); default d_model.
         max_relations: per-row working budget of relation tokens (most recent pairs kept; drops are counted).
+        strict_slots: raise on entity slots >= cfg.max_entities instead of counting them. Such tokens cannot be
+            bound (the slot range is the per-step entity budget); by default they are excluded from grouping and
+            counted in `stats["out_of_range_tokens"]` (with a one-time warning) — never dropped silently.
     """
 
     def __init__(self, cfg: CamConfig, n_rounds: int = 1, type_dim: Optional[int] = None,
                  max_relations: Optional[int] = None, ffn_hidden: Optional[int] = None,
-                 autocast: Optional[bool] = None):
+                 autocast: Optional[bool] = None, strict_slots: bool = False):
         super().__init__()
         self.cfg = cfg
         D, H = cfg.d_model, cfg.n_heads
@@ -114,7 +119,9 @@ class EntityEncoder(nn.Module):
         init_transformer_weights(self, max(1, n_rounds))
         nn.init.normal_(self.kind_emb.weight, std=0.5)                      # comparable to RMS-normalised tokens
         nn.init.normal_(self.time_enc.proj.weight, std=0.5 / self.time_enc.proj.in_features ** 0.5)
-        self.stats = {"calls": 0, "dropped_relations": 0}
+        self.strict_slots = strict_slots
+        self.stats = {"calls": 0, "dropped_relations": 0, "out_of_range_tokens": 0}
+        self._warned = False
         self.last_counts: Optional[tuple] = None
 
     def _autocast_ctx(self, device):
@@ -171,6 +178,16 @@ class EntityEncoder(nn.Module):
         self.stats["calls"] += 1
         ent = obs.entity
         ent2 = obs._e2()
+        oor = obs.mask & ((ent >= E) | (ent2 >= E))
+        n_oor = int(oor.sum())
+        if n_oor:
+            if self.strict_slots:
+                raise ValueError(f"EntityEncoder: {n_oor} tokens bound to entity slots >= max_entities={E}")
+            self.stats["out_of_range_tokens"] += n_oor
+            if not self._warned:
+                self._warned = True
+                log.warning("EntityEncoder: %d tokens bound to entity slots >= max_entities=%d are not grouped "
+                            "(registry larger than cfg.max_entities?); counted in stats", n_oor, E)
         v1 = obs.mask & (ent >= 0) & (ent < E)
         v2 = obs.mask & (ent2 >= 0) & (ent2 < E)
         slots = torch.arange(E, device=dev)

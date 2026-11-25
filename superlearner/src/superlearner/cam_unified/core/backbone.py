@@ -99,8 +99,17 @@ class UnifiedCore(nn.Module):
         return (z.to(device) if device is not None else z).clone()
 
     def new_episode(self, B: int, rows=None, generator: Optional[torch.Generator] = None) -> Tensor:
-        """Fresh random per-episode entity-slot code permutations for all rows or the given rows."""
+        """Fresh random per-episode entity-slot code permutations for all rows or the given rows (a partial reset
+        with a batch layout of a different size raises ValueError)."""
         return self.slot_codes.new_episode(B, rows=rows, generator=generator)
+
+    def episode_state(self) -> dict:
+        """Per-episode (non-learned) state of the backbone: the entity slot-code permutations. Save it with the
+        per-environment fast/latent state; it is also part of `state_dict()` (persistent buffer)."""
+        return self.slot_codes.episode_state()
+
+    def load_episode_state(self, state: dict) -> None:
+        self.slot_codes.load_episode_state(state)
 
     def _autocast_ctx(self, device: torch.device):
         use = self.autocast if self.autocast is not None else device.type == "cuda"
@@ -161,11 +170,13 @@ class UnifiedCore(nn.Module):
         return Z.float() + self.state_pos + self.kind_emb.weight[int(kind)]
 
     def run_blocks(self, h: Tensor, key_mask: Optional[Tensor], blocks=None,
-                   attn_bias: Optional[Tensor] = None) -> Tensor:
+                   attn_bias: Optional[Tensor] = None, checkpoint_blocks: Optional[bool] = None) -> Tensor:
         """Apply `blocks` (default: all) to h [B,L,D] with key-padding mask [B,L] | None. Activation checkpointing
-        per block when `grad_checkpoint` is set and gradients are being recorded."""
+        per block when `grad_checkpoint` is set and gradients are being recorded (`checkpoint_blocks` overrides the
+        setting, e.g. False when the caller checkpoints a larger unit around this call)."""
         blocks = self.blocks if blocks is None else blocks
-        ckpt = self.grad_checkpoint and torch.is_grad_enabled() and self.training
+        want = self.grad_checkpoint if checkpoint_blocks is None else checkpoint_blocks
+        ckpt = want and torch.is_grad_enabled() and self.training
         for blk in blocks:
             if ckpt:
                 h = checkpoint(blk, h, key_mask, attn_bias, use_reentrant=False)

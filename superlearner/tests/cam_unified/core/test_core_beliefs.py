@@ -175,9 +175,11 @@ def test_misspecification_detected_and_uncertainty_expanded(stat):
     exp_steps = [t for t, i in enumerate(infos) if i["expanded"].any()]
     assert exp_steps and exp_steps[0] <= 6, exp_steps
     first = infos[exp_steps[0]]
+    assert (first["cusum"][first["expanded"]] > bm.cusum_h).all() and first["alarm"][first["expanded"]].all()
     assert (first["window_z"][first["expanded"]] > cfg.misspec_z).all()
-    assert bm.counters["expanded_rows"] >= B and len(bm.misspec_log) == bm.counters["expanded_rows"]
-    assert bm.misspec_log[0]["window_z"] > cfg.misspec_z
+    n_exp_log = sum(r["kind"] == "expansion" for r in bm.misspec_log)
+    assert bm.counters["expanded_rows"] >= B and n_exp_log == bm.counters["expanded_rows"]
+    assert bm.misspec_log[0]["cusum"] > bm.cusum_h and bm.misspec_log[0]["window_z"] > cfg.misspec_z
     late_on = out[True][2][-10:].mean()
     late_off = out[False][2][-10:].mean()
     assert late_on > late_off + 5.0, (late_on, late_off)
@@ -312,3 +314,166 @@ def test_detach_fast_cuts_the_graph():
     fz = bm.init_fast(2, Z=Zc)
     mu, _ = bm.prior(2, Zc)
     assert (mu[0] - mu[1]).abs().max() > 1e-3, "the prior is conditioned on Z"
+
+
+# ---------------------------------------------------------------------------- sequential test: false alarms, backoff
+
+
+def test_cusum_threshold_gives_the_target_average_run_length():
+    """h from Siegmund's approximation gives the requested in-control average run length for N(0,1) increments
+    (window long enough that the windowed CUSUM equals the full one)."""
+    cfg, core = _setup(misspec_window=96)
+    bm = BeliefModule(cfg, misspec_arl=200.0)
+    g = torch.Generator().manual_seed(0)
+    n, T, W = 4000, 3000, cfg.misspec_window
+    win = torch.full((n, W), float("nan"))
+    first = torch.full((n,), T, dtype=torch.long)
+    for t in range(T):
+        win = torch.cat([win[:, 1:], torch.randn(n, 1, generator=g)], 1)
+        s, _ = bm.cusum_stat(win)
+        new = (s > bm.cusum_h) & (first == T)
+        first[new] = t + 1
+    arl = float(first.float().mean())
+    print(f"CUSUM k={bm.cusum_k:.2f} h={bm.cusum_h:.2f}: simulated ARL0 {arl:.0f} (target 200)")
+    assert (first < T).float().mean() > 0.99
+    assert 160 < arl < 250, arl
+
+
+def test_long_horizon_false_alarm_rate_under_a_correct_hypothesis():
+    """96k row-steps of data from a correct hypothesis: the CUSUM detector stays within a false-alarm budget of
+    0.05 per 1000 row-steps (the former window rule, sum(z)/sqrt(n) > misspec_z, fires ~0.4 per 1000 on the same
+    z stream)."""
+    cfg, core = _setup(n_particles=16)
+    head = known_head(cfg, 0.5)
+    B, T = 96, 1000
+    torch.manual_seed(0)
+    bm = BeliefModule(cfg)
+    fs = two_hypotheses(bm, B, +1.0, -1.0, scale=0.02)
+    Z = core.init_state(B).detach()
+    gy, g = torch.Generator().manual_seed(5), torch.Generator().manual_seed(6)
+    old_rule = 0
+    zs = []
+    with torch.no_grad():
+        for t in range(T):
+            y = 1.0 + 0.5 * torch.randn(B, 1, generator=gy)
+            fs, info = bm.update(fs, Z, None, outcomes(y, cfg.d_model), head, generator=g)
+            old_rule += int(((info["window_z"] > cfg.misspec_z) & (t >= bm.min_steps - 1)).sum())
+            zs.append(info["surprise_z"])
+    zs = torch.stack(zs)
+    rate = 1000.0 * bm.counters["alarm_rows"] / (B * T)
+    print(f"null {B * T} row-steps: CUSUM alarms {bm.counters['alarm_rows']} ({rate:.3f}/1000), expansions "
+          f"{bm.counters['expanded_rows']}; old window rule would fire {old_rule} ({1000.0 * old_rule / (B * T):.3f}"
+          f"/1000); z mean {float(zs.mean()):.3f} sd {float(zs.std()):.3f}")
+    assert rate <= 0.05, rate
+    assert old_rule > 10 * max(1, bm.counters["alarm_rows"])
+    assert abs(float(zs.mean())) < 0.05 and 0.9 < float(zs.std()) < 1.1
+
+
+def test_persistent_misspecification_backs_off_and_caps_uncertainty():
+    """Data no particle can represent (outcome noise 30, head noise 0.3): a few expansions, then the row is flagged
+    as persistently misspecified — no further weight resets, Sigma pinned at max_scale_mult x prior scale, particles
+    bounded and finite."""
+    cfg, core = _setup(n_particles=16)
+    head = known_head(cfg, 0.3)
+    B, T = 2, 400
+    torch.manual_seed(0)
+    bm = BeliefModule(cfg)
+    fs = two_hypotheses(bm, B, +1.0, -1.0, scale=0.05)
+    Z = core.init_state(B).detach()
+    gy, g = torch.Generator().manual_seed(2), torch.Generator().manual_seed(3)
+    exp_t, pers_t, pmax = [], [], []
+    with torch.no_grad():
+        for t in range(T):
+            y = 30.0 * torch.randn(B, 1, generator=gy)
+            fs, info = bm.update(fs, Z, None, outcomes(y, cfg.d_model), head, generator=g)
+            exp_t.append(info["expanded"].clone())
+            pers_t.append(info["persistent"].clone())
+            pmax.append(float(fs.particles.abs().max()))
+    E, P = torch.stack(exp_t), torch.stack(pers_t)
+    _, sc0 = bm.prior(B, Z)
+    cap = bm.max_scale_mult * float(sc0.detach().max())
+    print(f"persistent misspecification over {T} steps x {B} rows: expansions {int(E.sum())}, persistent row-steps "
+          f"{int(P.sum())}, episodes {bm.counters['persistent_episodes']}; max pscale {float(fs.pscale.max()):.2f} "
+          f"(cap {cap:.2f}); max |particle| {max(pmax):.1f}")
+    assert int(E.sum()) <= 10 * B, int(E.sum())
+    assert P.any(0).all(), "every row is flagged as persistently misspecified"
+    for b in range(B):
+        t0 = int(P[:, b].float().argmax())
+        assert not E[t0:, b].any(), "no expansions (weight resets) after the row is flagged persistent"
+    assert float(fs.pscale.max()) <= cap * (1 + 1e-5)
+    assert torch.isfinite(fs.particles).all() and max(pmax) < 1e3
+    assert any(r["kind"] == "persistent" for r in bm.misspec_log)
+    assert 1 <= bm.counters["persistent_episodes"] <= 4 * B, bm.counters["persistent_episodes"]
+    # the window rule without backoff/cap expanded every min_steps steps here (199 expansions, |m| ~ 2e4)
+
+
+class _ExpSurvival:
+    """Exponential event-time distribution with right censoring (test double of a SURVIVAL OutcomeDist)."""
+
+    def __init__(self, rate):
+        self.rate = rate
+
+    def log_prob(self, y, censored=None):
+        lp = torch.log(self.rate) - self.rate * y
+        return lp if censored is None else torch.where(censored, -self.rate * y, lp)
+
+    def sample(self, generator=None):
+        return torch.distributions.Exponential(self.rate).sample()
+
+    @property
+    def mean(self):
+        return 1.0 / self.rate
+
+    @property
+    def variance(self):
+        return 1.0 / self.rate ** 2
+
+
+class _ExpSurvivalHead(torch.nn.Module):
+    def features(self, Z, outcomes):
+        return outcomes.q.x
+
+    def dist(self, feat, outcomes, cond=None):
+        B, Q, _ = feat.shape
+        K = cond.shape[1]
+        return _ExpSurvival(torch.exp(cond[..., :1]).expand(B, K, Q))
+
+
+def test_censored_survival_surprise_is_calibrated():
+    """Right-censored event times from the correct hypothesis (rate 1, censoring at 1 day: ~37% censored): with the
+    censored observation process simulated in the Monte Carlo draws the rank z is N(0,1); comparing against
+    uncensored draws (the former computation) is biased."""
+    cfg, core = _setup(n_particles=8)
+    torch.manual_seed(0)
+    bm = BeliefModule(cfg, misspec_enabled=False, resample_enabled=False)
+    head = _ExpSurvivalHead()
+    B, T = 64, 60
+    fs = bm.init_fast(B)
+    fs = FastState(torch.zeros_like(fs.particles), fs.logw, torch.full_like(fs.pscale, 1e-3), fs.bayes_mu, fs.bayes_P,
+                   fs.bayes_noise, fs.bayes_n, fs.surprise, fs.steps, fs.channels)
+    with torch.no_grad():
+        bm.prop[2].weight.zero_()
+    bm.jitter = 0.0
+    Z = core.init_state(B).detach()
+    g = torch.Generator().manual_seed(1)
+    z_fix, z_old, frac_cen = [], [], []
+    with torch.no_grad():
+        for _ in range(T):
+            t_ev = torch.distributions.Exponential(torch.ones(B, 1)).sample()
+            cen = t_ev > 1.0
+            y = torch.where(cen, torch.ones_like(t_ev), t_ev)
+            ob = outcomes(y, cfg.d_model)
+            ob = OutcomeBatch(ob.q, torch.full((B, 1), int(Likelihood.SURVIVAL)), ob.n_classes, y, cen, ob.y_mask,
+                              ob.channel, ob.keys)
+            feat = head.features(Z, ob)
+            ll, dist = bm.particle_loglik(fs, feat, ob, head)
+            pred = torch.logsumexp(fs.logw + ll, -1)
+            z_fix.append(bm.surprise_z(dist, fs.logw, ob.y_mask, pred, g, y_obs=y, censored=cen, lik=ob.lik)[0])
+            z_old.append(bm.surprise_z(dist, fs.logw, ob.y_mask, pred, g)[0])
+            fs, info = bm.update(fs, Z, None, ob, head, generator=g)
+            frac_cen.append(float(cen.float().mean()))
+    zf, zo = torch.cat(z_fix), torch.cat(z_old)
+    print(f"censored survival ({sum(frac_cen) / T:.2f} censored): z with censored draws mean {float(zf.mean()):.3f} "
+          f"sd {float(zf.std()):.3f}; with uncensored draws mean {float(zo.mean()):.3f} sd {float(zo.std()):.3f}")
+    assert abs(float(zf.mean())) < 0.1 and 0.85 < float(zf.std()) < 1.15
+    assert abs(float(zo.mean())) > 0.25 or abs(float(zo.std()) - 1) > 0.25

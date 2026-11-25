@@ -117,6 +117,51 @@ def test_entity_slot_codes_bind_within_episode_and_change_across_episodes():
     assert ((after[0] - mid[0]).abs().amax(-1) > 1e-6).float().mean() > 0.9
 
 
+def test_slot_permutation_is_episode_state_saved_and_restored():
+    """A mid-episode checkpoint restore keeps the slot codes Z was computed with: the permutation is a buffer in
+    state_dict (loadable for any number of rows) and has an explicit episode_state round trip; ambiguous partial
+    resets raise."""
+    cfg = tiny_config()
+    core = UnifiedCore(cfg).eval()
+    ctx = _ctx(B=3, N=12, D=cfg.d_model, seed=4)
+    core.new_episode(3, generator=torch.Generator().manual_seed(2))
+    Z0 = core.init_state(3)
+    Z, _ = core(Z0, ctx)
+    sd = core.state_dict()
+    assert "slot_codes.perm" in sd and sd["slot_codes.perm"].shape == (3, cfg.max_entities)
+    fresh = UnifiedCore(cfg).eval()                           # identity codes, 0 permutation rows
+    assert fresh.slot_codes.perm.shape[0] == 0
+    Zf, _ = fresh(Z0, ctx)
+    assert (Zf - Z).abs().max() > 1e-4, "without the restored permutation the codes differ"
+    fresh.load_state_dict(sd)
+    Zr, _ = fresh(Z0, ctx)
+    assert torch.allclose(Zr, Z, atol=1e-6)
+    st = core.episode_state()
+    other = UnifiedCore(cfg).eval()
+    other.load_state_dict({k: v for k, v in sd.items() if k != "slot_codes.perm"}, strict=False)
+    other.load_episode_state(st)
+    assert torch.allclose(other(Z0, ctx)[0], Z, atol=1e-6)
+    with pytest.raises(ValueError, match="partial reset"):
+        core.new_episode(5, rows=[0])
+    perm_before = core.slot_codes.perm.clone()
+    core.new_episode(3, rows=[1], generator=torch.Generator().manual_seed(3))
+    assert torch.equal(core.slot_codes.perm[0], perm_before[0]) and torch.equal(core.slot_codes.perm[2], perm_before[2])
+    core.new_episode(5)                                         # explicit full reset with a new layout is fine
+    assert core.slot_codes.perm.shape == (5, cfg.max_entities)
+
+
+def test_out_of_range_entity_slots_are_counted_or_rejected():
+    cfg = tiny_config()
+    core = UnifiedCore(cfg).eval()
+    ctx = _ctx(B=2, N=6, D=cfg.d_model, seed=5)
+    ctx.entity[0, 0] = cfg.max_entities + 3
+    core(core.init_state(2), ctx)
+    assert core.slot_codes.stats["out_of_range_tokens"] >= 1
+    strict = EntitySlotCodes(16, 8, strict_slots=True)
+    with pytest.raises(ValueError, match="max_entities"):
+        strict(torch.tensor([[1, 9]]))
+
+
 def test_slot_index_has_no_meaning_beyond_binding():
     """Relabelling slots with a bijection pi while composing the episode permutation with pi^-1 gives identical
     outputs: the backbone sees only the per-episode code, never the raw slot index."""
