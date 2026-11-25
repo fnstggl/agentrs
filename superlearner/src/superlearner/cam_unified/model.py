@@ -1536,6 +1536,42 @@ class CamUnifiedModel(nn.Module):
                 "value": self._value(vout), "value_logits": None if logits is None else logits.float(),
                 "ponder": None if ponder is None else ponder.float(), "memory_rebuilt": mem is not None}
 
+    @torch.no_grad()
+    def policy_probe(self, inp: StepInputs, actions: list) -> dict:
+        """The policy at fixed stored decisions (probe contexts) under the *current* weights, computed exactly as
+        when acting: per row the log-probability parts of the recorded actions (tool / evidence / typed-head / token
+        parts when the generator exposes `log_prob_parts`), the entropies of the corresponding distributions (the
+        tool entropy is the entropy of the full tool-pointer distribution over the row's available tools), the
+        option log-probability and the value V(R, G). Weight changes that change decisions show up here on a context
+        that stays fixed (spec 18.2 'changes in action distributions')."""
+        regs = copy.deepcopy(inp.registries)
+        live = StepInputs(**{**inp.__dict__, "registries": regs})
+        B = inp.B
+        with acting_mode(self), self._autocast():
+            enc = self.encode_step(live)
+            opt_tok, opt_lp = None, torch.zeros(B, device=enc.R.device)
+            if self.option_policy is not None:
+                opt_lp, _ = self.option_policy.log_prob(enc.R, enc.goal, inp.option_prev, inp.option_steps_prev,
+                                                        inp.option, inp.option_new)
+                opt_tok = self._option_token(inp.option, inp.option_steps)
+            goal_in = self._goal_inputs(enc, opt_tok, inp.budget)
+            T = self.tokenizer.tools(inp.tools)
+            ag = self.action_generator
+            if hasattr(ag, "log_prob_parts"):
+                lp, en = ag.log_prob_parts(enc.R, goal_in, enc.belief, T, enc.obs, inp.tools, inp.obs_lists, actions)
+            else:
+                lp0, en0 = ag.log_prob(enc.R, goal_in, enc.belief, T, enc.obs, inp.tools, inp.obs_lists, actions)
+                lp, en = {"total": lp0}, {"total": en0}
+            value = self._value(self.value_head(enc.R, enc.goal))
+        rows = []
+        for b in range(B):
+            rows.append({"logp": {k: float(v[b]) for k, v in lp.items()},
+                         "logp_total": float(sum(float(v[b]) for v in lp.values())),
+                         "entropy": {k: float(v[b]) for k, v in en.items()}, "option_logp": float(opt_lp[b]),
+                         "value": float(value[b]), "reason_iters": float(enc.rinfo["iters"][b])
+                         if enc.rinfo.get("iters") is not None else None})
+        return {"rows": rows, "version": self.version}
+
     def filter_sequence(self, seq, aux: Optional[ReplayAux] = None) -> FilterResult:
         """Run F_theta over a tokenised SequenceBatch with the acting context: Z_t = F(Z_{t-1}, [O_t; A_{t-1};
         TIME(dt_{t-1}); B_t; option_{t-1}; M_t; G_t]), where B_t is re-filtered along the sequence by the belief module
