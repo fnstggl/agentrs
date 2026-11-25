@@ -367,7 +367,9 @@ DEFAULT_COMPONENT_PATHS = {
     "bayes": f"{PKG}.core.bayes:BayesLastLayer",                        # B (cfg)
     "outcome_head": f"{PKG}.world.outcomes:OutcomeHead",                # C (cfg)
     "world_model": f"{PKG}.world.dynamics:WorldModel",                  # C (cfg, core, outcome_head)
-    "planner": f"{PKG}.world.planner:Planner",                          # C (optional; built-in imagination otherwise)
+    "planner": f"{PKG}.world.planner:Planner",                          # C: needs a PlannerP adapter (C's
+    # world/planner.py has Sampling/Beam/PolicyRolloutPlanner over world/imagination.py:Imagination, a different call
+    # shape); never auto-loaded: the built-in LatentImaginationPlanner is used unless components={'planner': ...}
     "retriever": f"{PKG}.memory.retrieval:Retriever",                   # E (cfg, index)
     "value_head": f"{PKG}.learn.heads:ValueHead",                       # D (d_model) -> ValueOutput(.value, .logits)
     "option_policy": f"{PKG}.learn.heads:OptionModule",                 # D (d_model, n_options, max_steps)
@@ -1673,7 +1675,7 @@ class LatentImaginationPlanner:
                 mk = dist_mean(d).float()                                               # [Bb,K,Q]
                 w = torch.softmax(fast.logw.float(), -1)
                 k = torch.multinomial(w.cpu(), 1, generator=req.generator).view(Bb).to(dev)
-                ys = dist_sample(d, req.generator).float()[torch.arange(Bb, device=dev), k]   # [Bb,Q]
+                ys = dist_sample(d, gen_on(req.generator, dev)).float()[torch.arange(Bb, device=dev), k]   # [Bb,Q]
                 base = (w.unsqueeze(-1) * mk).sum(1)
                 var = (w.unsqueeze(-1) * (dist_var(d).float() + mk * mk)).sum(1) - base * base
                 disagree = ((w * (mk[:, :, r_idx] - base[:, r_idx:r_idx + 1]) ** 2).sum(1)).sqrt()
@@ -1688,7 +1690,7 @@ class LatentImaginationPlanner:
             else:
                 d = model.outcome_head.dist(feat, prosp)
                 mean, var = dist_mean(d).float(), dist_var(d).float()
-                ys = dist_sample(d, req.generator).float()
+                ys = dist_sample(d, gen_on(req.generator, dev)).float()
                 disagree = var[:, r_idx].clamp_min(0).sqrt()
             ret = ret + disc * mean[:, r_idx]
             pen = pen + disc * disagree

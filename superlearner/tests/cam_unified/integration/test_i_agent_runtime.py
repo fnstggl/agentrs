@@ -697,7 +697,7 @@ def test_dev_scale_30_step_run():
     cfg = make_config("dev", imag_branches=4, imag_samples=2, imag_horizons=(4,), mem_top_k=8, n_options=8)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     st = Stack(cfg=cfg, device=dev)
-    rep = run_steps(st.agent, st.env, 30, evaluator=st.evaluator, update_every=5, profile_gpu=dev == "cuda")
+    rep = run_steps(st.agent, st.env, 30, evaluator=st.evaluator, update_every=5)   # unprofiled: throughput
     assert len(actions_only(st.archive.rows)) == 60 and all(u["updated"] for u in rep.updates)
     print("dev-scale compute:", json.dumps(rep.compute.to_dict()))
     print("dev-scale params:", json.dumps(st.model.count_parameters()["cam_total"]))

@@ -490,3 +490,30 @@ def test_count_parameters_counts_a_non_module_semantic_encoder():
     assert c["semantic_pretrained"] == {"total": 272 + 128, "trainable": 128, "frozen": 272}
     uniq = {id(p): p for p in m.parameters()}
     assert c["cam_total"] + 128 == sum(p.numel() for p in uniq.values())   # LoRA counted once, as semantic
+
+
+def test_reward_in_beliefs_switch():
+    """Design decision made explicit: by default the verified reward increment is an observed outcome for the belief
+    and Kalman updates; with reward_in_beliefs=False it stays a world-model target only."""
+    for flag in (True, False):
+        cfg = make_cfg()
+        st = Stack(cfg=cfg, components=dbl.double_components(cfg))
+        st.model.reward_in_beliefs = flag
+        seen = []
+        ou = st.model.beliefs.update
+
+        def spy(fast, Z, act, outcomes, head, _ou=ou):
+            seen.append(outcomes)
+            return _ou(fast, Z, act, outcomes, head)
+
+        st.model.beliefs.update = spy
+        run_steps(st.agent, st.env, 2, evaluator=st.evaluator)
+        real = [o for o in seen if o.q.B == 2]                          # the real updates (not imagined rows)
+        assert real
+        for o in real:
+            for b in range(2):
+                q = o.keys[b].index("reward")
+                assert bool(o.y_mask[b, q]) == flag
+        assert ("reward" in st.agent.fast_state.channels[0]) == flag
+        rec = [r for r in st.archive.rows if r.action is not None][-1]
+        assert any(s["key"] == "reward" and s["observed"] for s in rec.extra["outcomes"])   # still a target
