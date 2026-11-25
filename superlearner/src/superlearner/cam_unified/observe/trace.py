@@ -180,7 +180,7 @@ def load_traces(root: str, env_id: Optional[str] = None, flush=None) -> list:
         elif typ == "field":
             base[did][o["field"]] = o["value"]
     out = [DecisionTrace(**d) for d in base.values() if env_id is None or d["env_id"] == env_id]
-    out.sort(key=lambda t: (t.env_id, t.t_sim, t.decision_id))
+    out.sort(key=lambda t: (t.env_id, t.t_sim))          # stable: ties keep recording order
     return out
 
 
@@ -242,7 +242,7 @@ def retrospective_summary(traces: list, window: int = 0) -> dict:
 
     Returns {"label", "n_decisions", "versions", "phases": [{...}], "largest_misses": [...], "statements": [str]}.
     ``window`` decisions per phase (default: a quarter of the lifetime, at least 1)."""
-    traces = sorted(traces, key=lambda t: (t.t_sim, t.decision_id))
+    traces = sorted(traces, key=lambda t: t.t_sim)        # stable: ties keep recording order
     n = len(traces)
     res = {"label": INTERPRETATION_LABEL, "n_decisions": n, "versions": [], "phases": [], "largest_misses": [],
            "statements": []}
@@ -302,5 +302,5 @@ def lifetimes(traces: list) -> dict:
     for t in traces:
         d[t.env_id].append(t)
     for v in d.values():
-        v.sort(key=lambda t: (t.t_sim, t.decision_id))
+        v.sort(key=lambda t: t.t_sim)                     # stable: ties keep recording order
     return dict(d)

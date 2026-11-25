@@ -86,6 +86,8 @@ class ActorSpec:
     max_env_failures: int = 3
     wait_version_s: float = 120.0
     queue_kwargs: dict = field(default_factory=dict)
+    cuda: bool = False              # False: CUDA_VISIBLE_DEVICES="" in the actor process (no GPU context per actor;
+                                    # GPU inference goes through the shared semantic server or an explicit cuda=True)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -363,6 +365,8 @@ class ActorProcess:
 
 def actor_main(spec: dict, stop_event=None, sem_conn: Optional[tuple] = None) -> None:
     """Process entry point (spawn): build the actor from a plain-dict spec and run it."""
+    if not spec.get("cuda", False):
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""          # before any CUDA query in this process
     sem = None
     if sem_conn is not None:
         from .semserve import SemanticClient

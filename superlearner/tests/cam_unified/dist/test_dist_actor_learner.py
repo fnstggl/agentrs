@@ -70,6 +70,9 @@ def test_actor_writes_versioned_records_delayed_outcomes_and_traces(tmp_path):
     for k in ep_reward:
         assert ep_reward[k] == pytest.approx(ep_pay[k] / 10)
     assert {e.env_id for e in dec} == {"toy7.0", "toy7.1", "toy7.2"}
+    for env in ("toy7.0", "toy7.1", "toy7.2"):           # one lifetime per world: its clock runs across episodes
+        ts = [e.t_sim for e in dec if e.env_id == env]
+        assert len(ts) == 40 and all(b > a for a, b in zip(ts, ts[1:]))
     # every decision has a trace linked by event id, with candidates, predictions and imagined alternatives
     assert len(traces) == 120
     for t in traces:
@@ -251,6 +254,9 @@ def test_crashed_actor_is_restarted_and_queue_stays_consistent(tmp_path):
     sink.close()
     lc = s["learner_counts"]
     assert lc.get("updates", 0) > 0
+    comp = json.load(open(os.path.join(run, "compute_summary.json")))
+    assert len([p for p in comp["processes"] if p["role"] == "learner"]) == 2      # both learner incarnations
+    assert all(p["gpu_s"] == 0 and p["peak_gpu_mb"] == 0 for p in comp["processes"])   # CPU-only: no GPU use
     st = json.load(open(os.path.join(run, "status", "learner.json")))
     assert st["assembler"].get("stale_truncated", 0) + st["assembler"].get("episode_end", 0) >= 1
 

@@ -420,6 +420,9 @@ class LearnerSpec:
     queue_kwargs: dict = field(default_factory=dict)
     torch_threads: int = 2
     validate_factory: Optional[str] = None
+    cuda: bool = False              # False: the process never sees the GPU (CUDA_VISIBLE_DEVICES=""), so a CPU-only
+                                    # learner holds no CUDA context on the shared card (torch.optim's step otherwise
+                                    # initialises one through its CUDA-graph capture check)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -427,8 +430,10 @@ class LearnerSpec:
 
 def learner_main(spec: dict, stop_event=None) -> None:
     """Process entry point (spawn)."""
-    import torch
     s = LearnerSpec(**spec)
+    if not s.cuda:
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""          # before any CUDA query in this process
+    import torch
     torch.set_num_threads(s.torch_threads)
     model = resolve(s.model_factory)(**s.model_kwargs)
     sink = None

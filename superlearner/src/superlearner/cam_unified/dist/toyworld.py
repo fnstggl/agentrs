@@ -61,7 +61,8 @@ class ToyWorld:
 
     def _reset_state(self):
         B = self.B
-        self.t = [0.0] * B
+        # a world's simulated clock keeps running across episodes (one lifetime per environment)
+        self.t = list(getattr(self, "t", [0.0] * B))
         self.step_i = [0] * B
         self.ctx = [0] * B
         self.done = [False] * B
