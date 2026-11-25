@@ -124,23 +124,46 @@ class TreeEnsemble:
         return cls(float(P["baseline"][0]), P["roots"], P["feature"], P["threshold"], P["left"], P["right"],
                    P["is_leaf"], P["value"], P["missing_left"], float(P["offset"][0]) if "offset" in P else 0.0)
 
-    def logit(self, X):
-        X = np.asarray(X, float)
-        n = len(X)
-        rows = np.arange(n)
-        out = np.full(n, self.baseline + self.offset)
-        for r in self.roots:
-            node = np.full(n, r, np.int64)
-            active = ~self.is_leaf[node]
-            while active.any():
+    def _layout(self):
+        """Leaves become self-loops with an infinite threshold, so a traversal step needs no leaf test."""
+        if getattr(self, "_lay", None) is None:
+            leaf = self.is_leaf
+            idx = np.arange(len(leaf))
+            child = np.empty(2 * len(leaf), np.intp)
+            child[0::2] = np.where(leaf, idx, self.left)
+            child[1::2] = np.where(leaf, idx, self.right)
+            self._lay = (np.where(leaf, 0, self.feature).astype(np.intp), np.where(leaf, np.inf, self.threshold),
+                         child, self.roots.astype(np.intp))
+        return self._lay
+
+    def logit(self, X, chunk: int = 256):
+        sk = getattr(self, "_sk", None)            # set only inside the fitting process (fast C path)
+        if sk is not None:
+            return np.asarray(sk.decision_function(np.asarray(X, float))).ravel() + self.offset
+        X = np.ascontiguousarray(X, dtype=float)
+        n, F = X.shape
+        T = len(self.roots)
+        feat, thr, child, roots = self._layout()
+        out = np.empty(n)
+        for s in range(0, n, chunk):
+            Xc = X[s:s + chunk]
+            m = len(Xc)
+            flat = Xc.ravel()
+            has_nan = bool(np.isnan(flat).any())
+            node = np.tile(roots, m)                         # one (row, tree) pair per entry
+            base = np.repeat(np.arange(m) * F, T)
+            active = np.arange(len(node))
+            while len(active):                                # only pairs not yet at a leaf advance
                 nd = node[active]
-                x = X[rows[active], self.feature[nd]]
-                nan = np.isnan(x)
-                go_left = np.where(nan, self.missing_left[nd], x <= self.threshold[nd])
-                node[active] = np.where(go_left, self.left[nd], self.right[nd])
-                active = ~self.is_leaf[node]
-            out += self.value[node]
-        return out
+                x = flat[base[active] + feat[nd]]
+                right = x > thr[nd]
+                if has_nan:
+                    right |= np.isnan(x) & ~self.missing_left[nd]
+                nn = child[2 * nd + right]
+                node[active] = nn
+                active = active[~self.is_leaf[nn]]
+            out[s:s + m] = self.value[node].reshape(m, T).sum(1)
+        return out + self.baseline + self.offset
 
     def predict(self, X):
         return _sigmoid(self.logit(X))

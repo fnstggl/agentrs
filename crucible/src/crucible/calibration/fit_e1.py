@@ -64,17 +64,14 @@ CHOICE_LIMITS = (
     "(item_played_before is set on 0.007% of rows), so its coefficient is weakly identified.")
 
 
-def fit_content(raw, cf, t0, cmd) -> list[str]:
-    feats = K.CHOICE_FEATURES
-    pop_idx = [feats.index(f) for f in K.POPULARITY_FEATURES]
-    X = cf[feats].to_numpy(float)
-    y = cf["is_click"].to_numpy(float)
+def content_masks(cf) -> dict:
+    """The prespecified splits of the two choice models (plan: content_consumption, content_consumption_feed)."""
     day = cf["day"].to_numpy()
     sp = cf["split_user"].to_numpy()
     std = cf["is_rand"].to_numpy() == 0
     rnd = ~std
     inr = lambda a, b: (day >= a) & (day <= b)          # noqa: E731
-    m = {
+    return {
         "obs_train": std & (sp == "train") & inr(D(2022, 4, 12), D(2022, 5, 2)),
         "obs_val": std & (sp == "val") & inr(D(2022, 4, 29), D(2022, 5, 2)),
         "obs_test": std & (sp == "test") & inr(D(2022, 5, 3), D(2022, 5, 8)),
@@ -84,6 +81,37 @@ def fit_content(raw, cf, t0, cmd) -> list[str]:
         "rnd_test": rnd & (sp == "test") & inr(D(2022, 5, 3), D(2022, 5, 8)),
         "rnd_transport": rnd & (sp == "test") & inr(D(2022, 4, 22), D(2022, 5, 8)),
     }
+
+
+def watch_masks(cf) -> dict:
+    day = cf["day"].to_numpy()
+    sp = cf["split_user"].to_numpy()
+    std = cf["is_rand"].to_numpy() == 0
+    inr = lambda a, b: (day >= a) & (day <= b)          # noqa: E731
+    return {"train": (sp == "train") & ((std & inr(D(2022, 4, 12), D(2022, 5, 2))) |
+                                        (~std & inr(D(2022, 4, 22), D(2022, 5, 2)))),
+            "val": (sp == "val") & inr(D(2022, 4, 29), D(2022, 5, 2)),
+            "test": (sp == "test") & inr(D(2022, 5, 3), D(2022, 5, 8))}
+
+
+def return_masks(af) -> dict:
+    day = af["day"].to_numpy()
+    sp = af["split_user"].to_numpy()
+    inr = lambda a, b: (day >= a) & (day <= b)          # noqa: E731
+    return {"train": (sp == "train") & inr(D(2022, 4, 29), D(2022, 5, 4)),
+            "val": (sp == "val") & inr(D(2022, 5, 1), D(2022, 5, 4)),
+            "test": (sp == "test") & inr(D(2022, 5, 5), D(2022, 5, 8)),
+            "test_time_only": (sp == "train") & inr(D(2022, 5, 5), D(2022, 5, 8))}
+
+
+def fit_content(raw, cf, t0, cmd) -> list[str]:
+    feats = K.CHOICE_FEATURES
+    pop_idx = [feats.index(f) for f in K.POPULARITY_FEATURES]
+    X = cf[feats].to_numpy(float)
+    y = cf["is_click"].to_numpy(float)
+    std = cf["is_rand"].to_numpy() == 0
+    rnd = ~std
+    m = content_masks(cf)
     Xs = {k: X[v] for k, v in m.items()}
     ys = {k: y[v] for k, v in m.items()}
     # observational fits (shared by both models)
@@ -98,6 +126,7 @@ def fit_content(raw, cf, t0, cmd) -> list[str]:
     r_gb = F.fit_gbdt(Xs["rnd_train"], ys["rnd_train"])
     off = F.fit_offset(o_gb, Xs["rnd_train"], ys["rnd_train"])
     o_gb_recal = P.TreeEnsemble(**{k: v for k, v in _te_kwargs(o_gb).items()}, offset=off)
+    o_gb_recal._sk = o_gb._sk
 
     class Sub:          # a popularity-only logistic as a predictor on the full feature matrix
         def __init__(self, base, idx):
@@ -202,8 +231,7 @@ def fit_content(raw, cf, t0, cmd) -> list[str]:
                             "is_click: the individual kept watching (> ~7 s) a video shown in the feed",
                             rep, {"prior_rate": cf.attrs["prior_rate"],
                                   "feature_quantiles": F.feature_quantiles(Xs["rnd_train"], feats),
-                                  "mechanisms": ["population.content_choice", "population.continue_watching",
-                                                 "population.repeat_consumption"]}))
+                                  "mechanisms": ["population.content_choice", "population.continue_watching"]}))
     return written
 
 
@@ -279,14 +307,7 @@ def fit_watch(cf, t0, cmd) -> list[str]:
     feats = K.WATCH_FEATURES
     X = cf[feats].to_numpy(float)
     y = np.log1p(cf["play_s"].to_numpy(float))
-    day = cf["day"].to_numpy()
-    sp = cf["split_user"].to_numpy()
-    std = cf["is_rand"].to_numpy() == 0
-    inr = lambda a, b: (day >= a) & (day <= b)          # noqa: E731
-    m = {"train": (sp == "train") & ((std & inr(D(2022, 4, 12), D(2022, 5, 2))) |
-                                     (~std & inr(D(2022, 4, 22), D(2022, 5, 2)))),
-         "val": (sp == "val") & inr(D(2022, 4, 29), D(2022, 5, 2)),
-         "test": (sp == "test") & inr(D(2022, 5, 3), D(2022, 5, 8))}
+    m = watch_masks(cf)
     Xtr, ytr, Xva, yva, Xte, yte = X[m["train"]], y[m["train"]], X[m["val"]], y[m["val"]], X[m["test"]], y[m["test"]]
     ci = feats.index("consumed")
     di = feats.index("item_log_duration_s")
@@ -392,7 +413,7 @@ def fit_watch(cf, t0, cmd) -> list[str]:
     return [F.finish("watch_duration", VERSION, "watch_duration", kp, feats, "y = log1p(play_time_s)", rep,
                      {"quantile_levels": levels.tolist(), "prior_rate": cf.attrs["prior_rate"],
                       "feature_quantiles": F.feature_quantiles(Xtr, feats),
-                      "mechanisms": ["population.watch_duration", "social.view_threshold"],
+                      "mechanisms": ["population.watch_duration"],
                       "sampling": "FittedModel.sample(X, rng) draws y; watch_s = expm1(max(y, 0))"})]
 
 
@@ -414,13 +435,7 @@ def fit_return(raw, t0, cmd) -> list[str]:
     feats = K.RETURN_FEATURES
     X = af[feats].to_numpy(float)
     y = af["active"].to_numpy(float)
-    day = af["day"].to_numpy()
-    sp = af["split_user"].to_numpy()
-    inr = lambda a, b: (day >= a) & (day <= b)          # noqa: E731
-    m = {"train": (sp == "train") & inr(D(2022, 4, 29), D(2022, 5, 4)),
-         "val": (sp == "val") & inr(D(2022, 5, 1), D(2022, 5, 4)),
-         "test": (sp == "test") & inr(D(2022, 5, 5), D(2022, 5, 8)),
-         "test_time_only": (sp == "train") & inr(D(2022, 5, 5), D(2022, 5, 8))}
+    m = return_masks(af)
     Xs = {k: X[v] for k, v in m.items()}
     ys = {k: y[v] for k, v in m.items()}
     a7 = feats.index("active_days_7d")
@@ -531,7 +546,7 @@ def fit_return(raw, t0, cmd) -> list[str]:
     return [F.finish("return_daily", VERSION, "browsing_frequency", kp, feats, "active: at least one logged "
                      "exposure on the day", rep,
                      {"feature_quantiles": F.feature_quantiles(Xs["train"], feats),
-                      "mechanisms": ["population.daily_return", "population.platform_habit"]})]
+                      "mechanisms": ["population.daily_return"]})]
 
 
 # ====================================================================== sessions per active day
@@ -574,30 +589,49 @@ def _pois_loglik(c, mu):
     return c * np.log(mu) - mu - gammaln(c + 1)
 
 
-def fit_sessions(raw, t0, cmd) -> list[str]:
+def session_days(raw) -> pd.DataFrame:
     g = K.sessions_by_day(raw)
     g["extra"] = g["sessions"] - 1
     g["bucket"] = g["user_id"].map({u: K.user_bucket(u) for u in g["user_id"].unique()})
     g["split_user"] = K.split_of_bucket(g["bucket"].to_numpy())
+    return g
+
+
+def session_window(g, a, b) -> pd.DataFrame:
+    """Per user: c = extra sessions and e = active days within days a..b."""
+    w = g[(g["day"] >= a) & (g["day"] <= b)]
+    return w.groupby("user_id").agg(c=("extra", "sum"), e=("day", "size"), split=("split_user", "first"))
+
+
+def session_test_arrays(g):
+    """(history counts, history exposures, target counts, target exposures, users) of the prespecified test split."""
+    hist = session_window(g, D(2022, 4, 22), D(2022, 5, 4))
+    targ = session_window(g, D(2022, 5, 5), D(2022, 5, 8))
+    users = targ.index[targ["split"] == "test"]
+    return (hist.reindex(users)["c"].fillna(0).to_numpy(), hist.reindex(users)["e"].fillna(0).to_numpy(),
+            targ.loc[users, "c"].to_numpy(float), targ.loc[users, "e"].to_numpy(float), users)
+
+
+def fit_sessions(raw, t0, cmd) -> list[str]:
+    g = session_days(raw)
 
     def window(a, b):
-        w = g[(g["day"] >= a) & (g["day"] <= b)]
-        return w.groupby("user_id").agg(c=("extra", "sum"), e=("day", "size"), split=("split_user", "first"))
+        return session_window(g, a, b)
 
     hist = window(D(2022, 4, 22), D(2022, 5, 4))
     targ = window(D(2022, 5, 5), D(2022, 5, 8))
     vhist = window(D(2022, 4, 22), D(2022, 4, 30))
     vtarg = window(D(2022, 5, 1), D(2022, 5, 4))
 
-    def evaluate(params, H, T, split):
+    def evaluate(params, H, T, split, glob):
         k, r = params
         users = T.index[T["split"] == split] if split else T.index
         Hc = H.reindex(users)["c"].fillna(0).to_numpy()
         He = H.reindex(users)["e"].fillna(0).to_numpy()
         Tc, Te = T.loc[users, "c"].to_numpy(float), T.loc[users, "e"].to_numpy(float)
-        glob = k / r
+        # B0: one pooled rate for everybody; B1: the individual's raw mean (posterior with a vanishing prior)
         preds = {"B0_global_mean": np.full(len(users), glob),
-                 "B1_own_mean": np.where(He > 0, Hc / np.maximum(He, 1), glob),
+                 "B1_own_mean": (1e-9 + Hc) / (1e-9 + He),
                  "M1_gamma_poisson": (k + Hc) / (r + He)}
         out = {}
         for nm, rate in preds.items():
@@ -608,18 +642,20 @@ def fit_sessions(raw, t0, cmd) -> list[str]:
         return out
 
     tr_users = hist.index[hist["split"] == "train"]
-    kv, rv, _ = _nb_fit(vhist.loc[vhist.index.isin(tr_users), "c"], vhist.loc[vhist.index.isin(tr_users), "e"])
-    val = evaluate((kv, rv), vhist[vhist.index.isin(tr_users)], vtarg[vtarg.index.isin(tr_users)], None)
+    vh = vhist[vhist.index.isin(tr_users)]
+    kv, rv, _ = _nb_fit(vh["c"], vh["e"])
+    val = evaluate((kv, rv), vh, vtarg[vtarg.index.isin(tr_users)], None, float(vh["c"].sum() / vh["e"].sum()))
     k, r, ll = _nb_fit(hist.loc[tr_users, "c"], hist.loc[tr_users, "e"])
-    test = evaluate((k, r), hist, targ, "test")
+    glob = float(hist.loc[tr_users, "c"].sum() / hist.loc[tr_users, "e"].sum())
+    test = evaluate((k, r), hist, targ, "test", glob)
     Tc, Te, preds, users = test.pop("_arrays")
     val.pop("_arrays")
     # population-level predictive check on held-out users (no own history): NB vs homogeneous Poisson
     nb_ll = float(np.mean(_nb_loglik(Tc, Te, k, r)))
-    po_ll = float(np.mean(_pois_loglik(Tc, (k / r) * Te)))
+    po_ll = float(np.mean(_pois_loglik(Tc, glob * Te)))
     rng = np.random.default_rng(0)
     sims_nb = rng.poisson(rng.gamma(k, 1 / r, size=(20, len(Te))) * Te) / Te
-    sims_po = rng.poisson((k / r) * np.tile(Te, (20, 1))) / Te
+    sims_po = rng.poisson(glob * np.tile(Te, (20, 1))) / Te
     obs_rate = Tc / Te
     ks_nb = M.ks_two_sample(obs_rate, sims_nb.ravel())
     ks_po = M.ks_two_sample(obs_rate, sims_po.ravel())
@@ -637,7 +673,7 @@ def fit_sessions(raw, t0, cmd) -> list[str]:
     sel = F.select(cands, "poisson_deviance", ["B0_global_mean", "B1_own_mean"],
                    complexity_order=["B0_global_mean", "B1_own_mean", "M1_gamma_poisson"])
     # the baselines are limits of the same predictor: shape, rate -> infinity (one global rate) or -> 0 (own mean)
-    kept_pred = {"M1_gamma_poisson": P.GammaPoisson(k, r), "B0_global_mean": P.GammaPoisson(1e6, 1e6 * r / k),
+    kept_pred = {"M1_gamma_poisson": P.GammaPoisson(k, r), "B0_global_mean": P.GammaPoisson(1e9, 1e9 / glob),
                  "B1_own_mean": P.GammaPoisson(1e-9, 1e-9)}[sel["kept"]]
     groups = np.asarray(users)
     dev_rows = lambda rate: 2 * (np.where(Tc > 0, Tc * np.log(np.where(Tc > 0, Tc, 1) / np.maximum(rate * Te, 1e-9)), 0)  # noqa: E731
@@ -691,7 +727,7 @@ def fit_sessions(raw, t0, cmd) -> list[str]:
     }
     return [F.finish("session_rate", VERSION, "browsing_frequency", kept_pred, ["count", "exposure"],
                      "extra sessions per active day", rep,
-                     {"mechanisms": ["population.session_frequency", "population.activity_heterogeneity"]})]
+                     {"mechanisms": ["population.session_frequency"]})]
 
 
 def main(argv=None) -> int:

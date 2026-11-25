@@ -70,6 +70,7 @@ def fit_gbdt(X, y, seed: int = 0) -> P.TreeEnsemble:
     if diff > 1e-9:
         raise AssertionError(f"exported trees differ from scikit-learn by {diff}")
     te.n_iter = int(m.n_iter_)
+    te._sk = m                 # evaluation inside the fitting process uses scikit-learn's C predictor
     return te
 
 
@@ -218,6 +219,7 @@ def select(cands: dict, primary: str, baselines: list[str], lower_is_better: boo
                     "better on test", "primary_metric": primary, "lower_is_better": lower_is_better,
             "validation": {k: cands[k]["val"][primary] for k in cands},
             "test": {k: cands[k]["test"][primary] for k in cands},
+            "baselines": list(baselines), "candidates": list(cands),
             "selected_on_validation": selected, "best_baseline_on_test": best_base, "kept": kept,
             "kept_is_baseline": kept in baselines, "reason": reason}
 

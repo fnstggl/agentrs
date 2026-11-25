@@ -188,16 +188,12 @@ def build(data: dict) -> tuple[pd.DataFrame, dict]:
     return df, meta
 
 
-def fit_news(plan_path: str, version: int, cmd: str, t0: float) -> list[str]:
-    data = load()
-    df, meta = build(data)
-    print(f"news features: {len(df)} candidate rows in {time.time() - t0:.0f} s", flush=True)
-    beh = data["beh"]
+def news_masks(df: pd.DataFrame, beh: pd.DataFrame) -> dict:
+    """The prespecified splits of news_click (plan: models.news_click.splits)."""
     train_users = set(beh.loc[beh["part"] == "train", "user_id"])
     ub = df["user_id"].map({u: _bucket(u) for u in df["user_id"].unique()}).to_numpy()
     part = df["part"].to_numpy()
-    hour = df["hour"].to_numpy()
-    day = hour // 24                                     # 0 = 2019-11-09
+    day = df["hour"].to_numpy() // 24                    # 0 = 2019-11-09
     fit_pool = (part == "train") & (ub < 80) & (day >= 1) & (day <= 4)
     imps = np.unique(df.loc[fit_pool, "imp"].to_numpy())
     rng = np.random.default_rng(0)
@@ -208,6 +204,14 @@ def fit_news(plan_path: str, version: int, cmd: str, t0: float) -> list[str]:
     new_user = ~df["user_id"].isin(train_users).to_numpy()
     m["test_new_users"] = m["test"] & new_user
     m["test_returning_users"] = m["test"] & ~new_user
+    return m
+
+
+def fit_news(plan_path: str, version: int, cmd: str, t0: float) -> list[str]:
+    data = load()
+    df, meta = build(data)
+    print(f"news features: {len(df)} candidate rows in {time.time() - t0:.0f} s", flush=True)
+    m = news_masks(df, data["beh"])
     X = df[FEATURES].to_numpy(float)
     y = df["y"].to_numpy(float)
     pop_idx = [FEATURES.index(f) for f in POP_FEATURES]
@@ -298,4 +302,4 @@ def fit_news(plan_path: str, version: int, cmd: str, t0: float) -> list[str]:
                           {"method": "TF-IDF (sublinear, English stop words, min_df 3, <= 50k terms) of title + "
                                      "abstract fitted on train-file news -> truncated SVD 128 (seed 0) -> L2 norm",
                            "profile": "normalised mean of history vectors"})),
-                      "mechanisms": ["population.article_choice", "social.news_feed_click"]})]
+                      "mechanisms": ["population.article_choice"]})]
