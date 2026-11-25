@@ -90,6 +90,8 @@ def main(argv=None) -> int:
     ap.add_argument("--B", type=int, default=8)
     ap.add_argument("--update-every", type=int, default=8)
     ap.add_argument("--budget-decisions", type=int, default=20000)
+    ap.add_argument("--budget-episodes", type=int, default=0, help="stop after this many episodes (0 = no limit)")
+    ap.add_argument("--save-every-batch", action="store_true", help="checkpoint after every batch (acquisition curves)")
     ap.add_argument("--chunk-minutes", type=float, default=22.0)
     ap.add_argument("--save-every-minutes", type=float, default=11.0)
     ap.add_argument("--p-plain", type=float, default=0.5)
@@ -178,7 +180,8 @@ def main(argv=None) -> int:
               f"weights={info['weights'].get('tensors', '?')}", flush=True)
 
     deadline = t_start + 60 * a.chunk_minutes
-    while state["decisions"] < a.budget_decisions and time.time() < deadline:
+    while state["decisions"] < a.budget_decisions and time.time() < deadline and \
+            (not a.budget_episodes or state["episodes"] < a.budget_episodes):
         tasks = stream.batch(a.B)
         u = rng.random()
         cond = "plain" if u < a.p_plain else ("notes" if u < a.p_plain + a.p_notes else "delayed")
@@ -204,10 +207,11 @@ def main(argv=None) -> int:
                              "wall_s": time.time() - t0})
         print(f"[train] batch {cond} h={tasks[0].horizon} dec={dec} total={state['decisions']} "
               f"mean_return={sum(r.returns for r in res) / len(res):.3f} {time.time() - t0:.0f}s", flush=True)
-        if time.time() - last_save > 60 * a.save_every_minutes:
+        if a.save_every_batch or time.time() - last_save > 60 * a.save_every_minutes:
             save()
             last_save = time.time()
-    save()
+    if not state["checkpoints"] or state.get("latest") != os.path.join(run, "ckpt", f"{state['decisions']:08d}"):
+        save()
     return 0
 
 

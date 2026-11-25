@@ -363,6 +363,8 @@ def run_numeric_episodes(learner, tasks: Sequence, *, learn: bool = False, explo
     `delay` ticks late; the learner's training reward is delayed the same way)."""
     from crucible.research.envs import MechVecEnv
     from crucible.research.learner import EnvSpec
+    from .mechrun import ensure_registered
+    ensure_registered()                       # catalogue families must be registered in this process
     spec = EnvSpec(max_levers=32, max_gauges=32)
     env = MechVecEnv(list(tasks), spec)
     obs = env.reset()

@@ -57,6 +57,7 @@ def split_of(family: str) -> str:
 
 
 def load_tasks(name: str) -> list:
+    M.ensure_registered()
     with open(os.path.join(set_dir(name), "tasks.pkl"), "rb") as fh:
         return pickle.load(fh)
 
@@ -357,6 +358,23 @@ def cmd_report(a) -> None:
         rows = [json.loads(l) for l in open(p)]
         for metric in ("logscore", "regret", "sqerr", "cover90"):
             rep[f"predict/{metric}"] = summarise_predict(rows, tasks, metric, reference=a.reference)
+        # condition effects within a learner (same tasks, same seeds, same queries): C - A (what the notes add),
+        # D - A (what delays and hidden gauges cost)
+        eff = {}
+        for tag in sorted({r["tag"] for r in rows}):
+            for split in ("familiar", "heldout"):
+                tl = [t for t in tasks if split_of(t.split(":")[0]) == split]
+                for cond in ("C", "D"):
+                    ra = [r for r in rows if r["tag"] == tag and r["split"] == split and r["cond"] == "A"]
+                    rc = [r for r in rows if r["tag"] == tag and r["split"] == split and r["cond"] == cond]
+                    if not ra or not rc:
+                        continue
+                    ka = {k: _matrix([r for r in ra if r["k"] == k], "logscore", tl) for k in P.K_SET}
+                    kc = {k: _matrix([r for r in rc if r["k"] == k], "logscore", tl) for k in P.K_SET}
+                    eff[f"{tag}/{split}/{cond}-A"] = {"area": ST.paired(ST.area(kc), ST.area(ka)),
+                                                      **{f"k{k}": ST.paired(kc[k], ka[k], n_boot=1000)
+                                                         for k in (0, 1, 2, 4)}}
+        rep["condition_effects/logscore"] = eff
     p = os.path.join(d, "decide.jsonl")
     if os.path.exists(p):
         rows = [json.loads(l) for l in open(p)]

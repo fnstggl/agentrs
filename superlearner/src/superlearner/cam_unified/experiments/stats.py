@@ -13,21 +13,28 @@ from typing import Optional, Sequence
 import numpy as np
 
 
+def _draws(A: np.ndarray, n_boot: int, seed: int) -> np.ndarray:
+    """Bootstrap means of A [S, W] (vectorised): seeds resampled, then worlds resampled, NaN cells skipped."""
+    rng = np.random.default_rng(seed)
+    S, W = A.shape
+    si = rng.integers(0, S, (n_boot, S))
+    wi = rng.integers(0, W, (n_boot, W))
+    sub = A[si[:, :, None], wi[:, None, :]]                        # [n_boot, S, W]
+    ok = np.isfinite(sub)
+    cnt = ok.sum((1, 2))
+    tot = np.where(ok, sub, 0.0).sum((1, 2))
+    out = np.where(cnt > 0, tot / np.maximum(cnt, 1), np.nan)
+    return out[np.isfinite(out)]
+
+
 def two_level(M, n_boot: int = 4000, level: float = 0.95, seed: int = 0) -> dict:
     A = np.atleast_2d(np.asarray(M, dtype=np.float64))
     S, W = A.shape
     ok = np.isfinite(A)
     if not ok.any():
         return {"mean": None, "lo": None, "hi": None, "n_seeds": S, "n_worlds": W, "n_cells": 0}
-    rng = np.random.default_rng(seed)
     point = float(np.nanmean(A))
-    boots = np.empty(n_boot)
-    for i in range(n_boot):
-        si = rng.integers(0, S, S)
-        wi = rng.integers(0, W, W)
-        sub = A[np.ix_(si, wi)]
-        boots[i] = np.nanmean(sub) if np.isfinite(sub).any() else np.nan
-    boots = boots[np.isfinite(boots)]
+    boots = _draws(A, n_boot, seed)
     a = (1 - level) / 2
     return {"mean": point, "lo": float(np.quantile(boots, a)), "hi": float(np.quantile(boots, 1 - a)),
             "n_seeds": S, "n_worlds": W, "n_cells": int(ok.sum())}
@@ -49,13 +56,7 @@ def paired(A, B, n_boot: int = 4000, level: float = 0.95, seed: int = 0) -> dict
 
 
 def _boot_means(D: np.ndarray, n_boot: int, seed: int) -> np.ndarray:
-    rng = np.random.default_rng(seed + 1)
-    S, W = D.shape
-    out = np.empty(n_boot)
-    for i in range(n_boot):
-        sub = D[np.ix_(rng.integers(0, S, S), rng.integers(0, W, W))]
-        out[i] = np.nanmean(sub) if np.isfinite(sub).any() else np.nan
-    return out[np.isfinite(out)]
+    return _draws(D, n_boot, seed + 1)
 
 
 def curve(Ms: dict, n_boot: int = 2000, seed: int = 0) -> dict:
