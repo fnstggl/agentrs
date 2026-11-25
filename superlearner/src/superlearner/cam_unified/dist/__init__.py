@@ -2,9 +2,10 @@
 
 queue      durable, versioned experience spool (ExperienceQueue, SpoolWriter, SpoolConsumer)
 publish    atomic weights-only checkpoint publication (CheckpointPublisher) and actor refresh (PolicyClient)
-offpolicy  policy-lag routing (LagRouter) and semi-Markov V-trace
+offpolicy  per-decision policy-lag routing (LagRouter, validated max lag) and semi-Markov V-trace
+lagsweep   the lag validation sweep behind offpolicy.validated_max_lag (lag_validation.json)
 actor      ActorProcess / ActorSpec / ActorPolicyP
-learner    CentralLearner / LearnerSpec / LearnerModelP / TrajectoryAssembler
+learner    CentralLearner / LearnerSpec / LearnerModelP / TrajectoryAssembler (bootstrapped segments)
 semserve   shared semantic-model server (SemanticServer, SemanticClient)
 launcher   Launcher (spawn + supervise learner, actors, semserve; compute accounting) and actor benchmarks
 sinks      JsonlArchive (standalone ArchiveP sink)

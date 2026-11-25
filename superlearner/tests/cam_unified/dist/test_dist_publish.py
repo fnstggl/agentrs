@@ -233,3 +233,48 @@ def test_meta_sum_drift_is_an_upper_bound_and_infinite_when_the_chain_is_pruned(
     pub.publish(sds[1], 5)
     pub.publish(sds[2], 6)                    # v4, v5 pruned: the chain 6 -> 5 -> 4 -> 3 is broken
     assert bound.maybe_refresh(pol, "trajectory") and bound.drift == float("inf")
+
+
+def test_behavioural_probe_keeps_a_degraded_version_from_actors(tmp_path):
+    """A version is validated only if it does not do worse on held-out worlds than the best validated one: a
+    sabotaged update is published but rejected, LATEST keeps the last good version, and the actor keeps running it."""
+    from superlearner.cam_unified.dist.actor import ActorProcess, ActorSpec, run_paths
+    from superlearner.cam_unified.dist.learner import CentralLearner
+    from superlearner.cam_unified.dist.sinks import JsonlArchive
+    from superlearner.cam_unified.dist.toyworld import PayoutProbe, best_tool_names, make_tiny_learner
+    run = str(tmp_path / "run")
+    probe = PayoutProbe(mechanism_seed=0, margin=0.1)
+    model = make_tiny_learner(seed=0, lr=1e-2)
+    sabotage_at = 16
+    orig = model.update
+
+    def update(batch):
+        out = orig(batch)
+        if batch.learner_version + 1 == sabotage_at:        # this update produces version `sabotage_at`
+            with torch.no_grad():
+                model.net.pi.weight.zero_()
+                model.net.pi.bias.copy_(torch.tensor([0.0, 0.0, 0.0, 30.0]))   # always lever_3
+        return out
+    model.update = update
+    L = CentralLearner(run, model, sink=JsonlArchive(run_paths(run)["archive"]), min_decisions=256,
+                       max_batch_decisions=256, validate_fn=probe, record_traces=False)
+    a = ActorProcess(ActorSpec("a0", run, env_kwargs={"B": 16, "mechanism_seed": 0}, seed=7, batch_records=10 ** 6,
+                               record_traces=False))
+    a.client.wait_for_version(a.policy, 0)
+    while L.version < sabotage_at + 1:
+        a._episode()
+        while L.step() is not None:
+            pass
+    metas = {m: json.load(open(os.path.join(run, "ckpt", f"v{m:08d}", "meta.json")))
+             for m in (sabotage_at - 1, sabotage_at)}
+    good, bad = metas[sabotage_at - 1], metas[sabotage_at]
+    assert good["validated"] and good["validation"]["validate_fn"]["score"] > 0.5
+    assert not bad["validated"] and bad["validation"]["reason"] == "validate_fn rejected"
+    frac_lever3 = best_tool_names(mechanism_seed=0).count("lever_3") / 4
+    assert bad["validation"]["validate_fn"]["score"] == pytest.approx(frac_lever3, abs=0.12)
+    lt = read_latest(os.path.join(run, "ckpt"))
+    assert lt["version"] != sabotage_at
+    a._episode()                                             # trajectory boundary: refresh only to validated weights
+    assert a.client.version != sabotage_at
+    assert [v for v, _, ok in probe.history if not ok][:1] == [sabotage_at]
+    L.close()

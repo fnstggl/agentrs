@@ -722,7 +722,8 @@ class LearnerSpec:
     settle: int = 2
     queue_kwargs: dict = field(default_factory=dict)
     torch_threads: int = 2
-    validate_factory: Optional[str] = None
+    validate_factory: Optional[str] = None      # "module:callable" -> validate_fn(state_dict, meta) -> (ok, info)
+    validate_kwargs: dict = field(default_factory=dict)
     cuda: bool = False              # False: the process never sees the GPU (CUDA_VISIBLE_DEVICES=""), so a CPU-only
                                     # learner holds no CUDA context on the shared card (torch.optim's step otherwise
                                     # initialises one through its CUDA-graph capture check)
@@ -742,7 +743,7 @@ def learner_main(spec: dict, stop_event=None) -> None:
     sink = None
     if s.sink_factory:
         sink = resolve(s.sink_factory)(run_paths(s.run_dir)["archive"], **s.sink_kwargs)
-    validate = resolve(s.validate_factory)() if s.validate_factory else None
+    validate = resolve(s.validate_factory)(**s.validate_kwargs) if s.validate_factory else None
     L = CentralLearner(s.run_dir, model, sink=sink, max_lag=s.max_lag, lag_mode=s.lag_mode,
                        min_decisions=s.min_decisions, max_batch_decisions=s.max_batch_decisions,
                        max_batch_trajectories=s.max_batch_trajectories,

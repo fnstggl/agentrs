@@ -4,7 +4,6 @@ router's default max lag is the one the stored sweep validated."""
 from __future__ import annotations
 
 import json
-import os
 
 import pytest
 

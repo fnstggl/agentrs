@@ -178,3 +178,28 @@ def test_learner_drain_consumes_trace_only_and_duplicate_segments(tmp_path):
     assert not L.queue.pending() and L.sink.count() == 8
     assert L.consumer.stats()["totals"]["traces"] == 1
     L.close()
+
+
+def test_slow_skip_hook_only_touches_this_directory(monkeypatch):
+    """The dist conftest used to skip every @slow test of the session (e.g. superlearner/tests/unified)."""
+    import importlib.util
+    here = os.path.dirname(os.path.abspath(__file__))
+    spec = importlib.util.spec_from_file_location("_dist_conftest", os.path.join(here, "conftest.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    class _Item:
+        def __init__(self, path):
+            self.path, self.fspath, self.keywords, self.markers = path, path, {"slow": True}, []
+
+        def add_marker(self, m):
+            self.markers.append(m)
+
+    class _Cfg:
+        def getoption(self, name):
+            return ""
+    monkeypatch.delenv("CAM_RUN_SLOW", raising=False)
+    mine = _Item(os.path.join(here, "test_dist_bench.py"))
+    other = _Item(os.path.join(here, "..", "..", "unified", "test_adaptive.py"))
+    mod.pytest_collection_modifyitems(_Cfg(), [mine, other])
+    assert len(mine.markers) == 1 and other.markers == []

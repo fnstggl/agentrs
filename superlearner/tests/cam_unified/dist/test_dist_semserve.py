@@ -58,8 +58,9 @@ def test_semserve_batches_two_clients_and_reloads_lora_versions(tmp_path):
     srv = ctx.Process(target=semserve_main, args=(spec, req, resp, stop, sem_dir, comp))
     srv.start()
     try:
-        main = SemanticClient(req, resp["main"], "main", timeout_s=300)
-        info = main.info()                                     # blocks until the model is loaded
+        main = SemanticClient(req, resp["main"], "main", timeout_s=300)    # connects: blocks until loaded
+        assert main.sem_dim == 1024 and main.version == f"base:{MODEL}"   # protocol attributes valid at once
+        info = main.info()
         assert info["model"] == MODEL and info["sem_dim"] == 1024
         assert info["encoder_version"] == f"base:{MODEL}" and info["lora_version"] == -1
         clients = [ctx.Process(target=_client, args=(req, resp[c], c, str(tmp_path / f"{c}.pt"), 8))

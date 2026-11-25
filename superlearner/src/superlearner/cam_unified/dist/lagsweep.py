@@ -39,7 +39,7 @@ from .learner import CentralLearner
 from .offpolicy import VALIDATION_FILE
 from .publish import PolicyClient, read_latest
 from .sinks import JsonlArchive
-from .toyworld import ToyWorld, TinyRecurrentPolicy, make_tiny_learner
+from .toyworld import evaluate_policy, make_tiny_learner
 
 
 class LaggedPolicyClient(PolicyClient):
@@ -62,32 +62,6 @@ class LaggedPolicyClient(PolicyClient):
         if not m.get("validated"):
             return None
         return {"version": target, "dir": d, "sha256": m["sha256"]}
-
-
-@torch.no_grad()
-def evaluate_policy(state_dict: dict, mechanism_seed: int, seed: int, B: int = 64, episode_len: int = 16,
-                    n_tools: int = 4) -> float:
-    """Mean payout rate of the (stochastic) policy with these weights on B held-out worlds of the mechanism."""
-    env = ToyWorld(B=B, episode_len=episode_len, mechanism_seed=mechanism_seed, seed=seed, n_tools=n_tools)
-    pol = TinyRecurrentPolicy(seed=seed, n_tools=n_tools)
-    pol.load_weights(state_dict, 0)
-    obs = env.reset(seeds=[seed * 7919 + b for b in range(B)])
-    goals, tools = env.goals(), env.available_tools()
-    pol.reset(obs, goals, tools)
-    view = [list(o) for o in obs.observations]
-    cursors = [0] * B
-    done = list(obs.done)
-    while not all(done):
-        actions, _ = pol.act(view, tools, goals)
-        actions = [a if not done[b] else None for b, a in enumerate(actions)]
-        res = env.execute(actions)
-        ev1, cursors = env.collect_events(cursors)
-        adv = env.advance_time([res[b].duration if actions[b] is not None else 0.0 for b in range(B)])
-        ev2, cursors = env.collect_events(cursors)
-        view = [list(res[b].observations) + list(ev1[b]) + list(adv.observations[b]) + list(ev2[b])
-                for b in range(B)]
-        done = list(adv.done)
-    return sum(env.delivered) / (B * episode_len)
 
 
 def run_one(out_dir: str, lag: int, seed: int, correction: str = "vtrace", updates: int = 60, envs: int = 16,

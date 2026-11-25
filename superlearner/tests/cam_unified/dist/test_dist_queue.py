@@ -396,3 +396,31 @@ def test_writer_wal_recovers_buffered_items_after_sigkill(tmp_path):
     assert os.path.getsize(w2.wal_path) == 0
     w3 = q.writer("wa", batch_records=10)
     assert w3.stats["wal_recovered_items"] == 0
+
+
+def test_blocked_segment_is_ordered_by_its_actual_commit(tmp_path):
+    """A writer that waited for spool space sorts after segments committed while it waited (its commit time is
+    taken after admission, not before the wait)."""
+    root = str(tmp_path / "spool")
+    q = ExperienceQueue(root, max_spool_bytes=10_000, policy="block")
+    big = ExperienceQueue(root, max_spool_bytes=1 << 30)          # same spool, writers with room to commit
+    fill = big.writer("fill", batch_records=1000)
+    for e in _events(10, actor="fill"):                          # ~14.6 kB: over the 10 kB limit
+        fill.put(e)
+    fill.flush()
+    wb = q.writer("blk", batch_records=1000)
+    for e in _events(3, actor="blk", seed=1):                    # ~4.5 kB
+        wb.put(e)
+    th = threading.Thread(target=wb.flush)
+    th.start()
+    time.sleep(0.3)                                               # "blk" is waiting for space
+    assert th.is_alive() and q.pending()[0].split("-")[1] == "fill"
+    wc = big.writer("late", batch_records=1000)
+    for e in _events(3, actor="late", seed=2):
+        wc.put(e)
+    wc.flush()                                                    # commits while "blk" waits
+    c = q.consumer()
+    assert c.ingest(None, max_segments=1).segments[0].split("-")[1] == "fill"   # frees room for "blk" only
+    th.join(10)
+    assert not th.is_alive() and wb.stats["blocked_s"] > 0.2
+    assert [n.split("-")[1] for n in q.pending()] == ["late", "blk"]

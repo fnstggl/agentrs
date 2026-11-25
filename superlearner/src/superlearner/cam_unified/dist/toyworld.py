@@ -466,5 +466,59 @@ class TinyLearnerModel:
                 if corr.any() else None, "correction": self.correction}
 
 
+@torch.no_grad()
+def evaluate_policy(state_dict: dict, mechanism_seed: int, seed: int, B: int = 64, episode_len: int = 16,
+                    n_tools: int = 4, greedy: bool = False) -> float:
+    """Mean payout rate of the policy with these weights on B held-out worlds of the mechanism (the actor's
+    observation view and SMDP step order)."""
+    env = ToyWorld(B=B, episode_len=episode_len, mechanism_seed=mechanism_seed, seed=seed, n_tools=n_tools)
+    pol = TinyRecurrentPolicy(seed=seed, n_tools=n_tools, greedy=greedy)
+    pol.load_weights(state_dict, 0)
+    obs = env.reset(seeds=[seed * 7919 + b for b in range(B)])
+    goals, tools = env.goals(), env.available_tools()
+    pol.reset(obs, goals, tools)
+    view = [list(o) for o in obs.observations]
+    cursors = [0] * B
+    done = list(obs.done)
+    while not all(done):
+        actions, _ = pol.act(view, tools, goals)
+        actions = [a if not done[b] else None for b, a in enumerate(actions)]
+        res = env.execute(actions)
+        ev1, cursors = env.collect_events(cursors)
+        adv = env.advance_time([res[b].duration if actions[b] is not None else 0.0 for b in range(B)])
+        ev2, cursors = env.collect_events(cursors)
+        view = [list(res[b].observations) + list(ev1[b]) + list(adv.observations[b]) + list(ev2[b])
+                for b in range(B)]
+        done = list(adv.done)
+    return sum(env.delivered) / (B * episode_len)
+
+
+class PayoutProbe:
+    """Behavioural validation gate for `CheckpointPublisher` (``validate_fn(state_dict, meta) -> (ok, info)``): a
+    version is validated only if its payout rate on held-out worlds (fixed seeds, never trained on) is not worse than
+    the best validated version's by more than ``margin``. A rejected version never reaches LATEST, so actors keep the
+    last good weights while the learner keeps training."""
+
+    def __init__(self, mechanism_seed: int = 0, seed: int = 424242, B: int = 64, episode_len: int = 16,
+                 margin: float = 0.1):
+        self.mechanism_seed, self.seed, self.B, self.T, self.margin = mechanism_seed, seed, B, episode_len, margin
+        self.best: Optional[float] = None
+        self.history: list = []
+
+    def __call__(self, state_dict: dict, meta: dict) -> tuple:
+        score = evaluate_policy(state_dict, self.mechanism_seed, self.seed, self.B, self.T)
+        ok = self.best is None or score >= self.best - self.margin
+        info = {"probe": "held-out payout rate", "score": score, "best_validated": self.best, "margin": self.margin}
+        if ok:
+            self.best = score if self.best is None else max(self.best, score)
+        self.history.append((meta.get("version"), score, ok))
+        return ok, info
+
+
+def make_payout_probe(**kw) -> PayoutProbe:
+    """Validator factory by module path (``LearnerSpec.validate_factory``)."""
+    return PayoutProbe(**kw)
+
+
 def make_tiny_learner(seed: int = 0, **kw) -> TinyLearnerModel:
     return TinyLearnerModel(seed=seed, **kw)
