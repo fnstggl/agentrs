@@ -29,6 +29,11 @@ Kernel extension points (outside `substrate/`, all byte-identical for 4.0 worlds
   10M-row columns); `declaring` / `declared_by` (runtime only, never in snapshots or digests).
 * `services/identity.py`: `resolve_handle("p<i>")` returns the population principal itself (4.0 ids always contain
   `:`, bare handles never do, so 4.0 resolution is unchanged).
+* `sandbox/bridge.py` (a 4.0 determinism bug found by the regression run): the deterministic cost model counted the
+  lines of gc callbacks that other code had installed (hypothesis' gc timer) whenever a collection landed inside a
+  measured region, so in-process digests depended on which tests had run before (`tests/test_scale.py` failed after
+  `tests/test_kernel_props.py`). gc callbacks are set aside while counting; a 4.0 process has none, so every 4.0
+  digest is unchanged.
 
 Proof of byte identity: `tests/test_v5_substrate_kernel.py::test_kernel_is_byte_identical_to_crucible_40` replays
 four scenarios (an open world, a randomised 300-command session with rejections and idempotency keys, a mechanism
