@@ -95,14 +95,17 @@ class CombinedTrainer:
       core / heads / semantic: modules or parameter iterables for the three optimiser groups (disjoint).
       backbone: parameters whose per-objective gradient contributions are measured (default: ``core``).
       stage: index 1..7 or stage name; ``stage_schedule``: [(update_count, stage)] automatic advancement.
-      grad_probe_every: measure backbone contributions every N updates (0 = never).
+      grad_probe_every: measure backbone contributions every N updates (0 = never). Norms are exact; pairwise
+        cosines are exact up to ``cos_exact_numel`` backbone parameters and otherwise estimated on a fixed random
+        sample of ``cos_sample`` coordinates (memory O(n_objectives * cos_sample) instead of the full backbone).
       on_nonfinite: "skip" (no step, counted, logged) or "raise".
     """
 
     def __init__(self, cfg, core=None, heads=None, semantic=None, backbone=None, stage=1, loss_weights=None,
                  extra_loss_weights=None, amp: bool = True, device=None, grad_probe_every: int = 10,
                  on_nonfinite: str = "skip", stage_schedule=None, log_path: Optional[str] = None,
-                 history: int = 10_000, betas=(0.9, 0.95), lr_warmup: int = 0, dominance: float = 0.9):
+                 history: int = 10_000, betas=(0.9, 0.95), lr_warmup: int = 0, dominance: float = 0.9,
+                 cos_exact_numel: int = 20_000_000, cos_sample: int = 2_000_000):
         self.cfg = cfg
         groups = {"core": _params(core), "heads": _params(heads), "semantic": _params(semantic)}
         seen: dict = {}
@@ -149,6 +152,7 @@ class CombinedTrainer:
         self.n_skipped = 0
         self.lr_warmup = int(lr_warmup)
         self.dominance = float(dominance)
+        self.cos_exact_numel, self.cos_sample, self._cos_idx = int(cos_exact_numel), int(cos_sample), None
         self.history: deque = deque(maxlen=history)
         self.log_path = log_path
         self.run_id = uuid.uuid4().hex[:8]
@@ -187,23 +191,50 @@ class CombinedTrainer:
     def _all_params(self) -> list:
         return [p for ps in self.groups.values() for p in ps]
 
+    def _sample_index(self) -> list:
+        """Fixed random coordinates per backbone tensor (proportional to its size) for cosine estimates on large
+        backbones; norms are always exact."""
+        if self._cos_idx is None:
+            g = torch.Generator().manual_seed(1234)
+            tot = sum(p.numel() for p in self.backbone)
+            idx = []
+            for p in self.backbone:
+                k = min(p.numel(), max(1, int(round(self.cos_sample * p.numel() / tot))))
+                idx.append(torch.randperm(p.numel(), generator=g)[:k].to(p.device))
+            self._cos_idx = idx
+        return self._cos_idx
+
     def _backbone_probe(self, weighted: dict) -> dict:
         names = list(weighted)
-        flat = {}
+        exact = sum(p.numel() for p in self.backbone) <= self.cos_exact_numel
+        idx = None if exact else self._sample_index()
+        vec, norms = {}, {}
         for n in names:
-            gs = torch.autograd.grad(weighted[n], self.backbone, retain_graph=True, allow_unused=True)
-            flat[n] = torch.cat([(torch.zeros_like(p) if g is None else g).reshape(-1).float()
-                                 for g, p in zip(gs, self.backbone)])
-        norms = {n: float(flat[n].norm()) for n in names}
+            if weighted[n].requires_grad:
+                gs = torch.autograd.grad(weighted[n], self.backbone, retain_graph=True, allow_unused=True)
+            else:
+                gs = [None] * len(self.backbone)
+            sq = torch.zeros((), device=self.backbone[0].device)
+            parts = []
+            for i, (g, p) in enumerate(zip(gs, self.backbone)):
+                k = p.numel() if exact else idx[i].numel()
+                if g is None:
+                    parts.append(torch.zeros(k, device=p.device))
+                    continue
+                gf = g.detach().reshape(-1).float()
+                sq = sq + (gf * gf).sum()
+                parts.append(gf if exact else gf[idx[i]])
+            norms[n] = float(sq.sqrt())
+            vec[n] = torch.cat(parts)
         tot = sum(norms.values())
         share = {n: (norms[n] / tot if tot > 0 else 0.0) for n in names}
         cos = {}
         for i, a in enumerate(names):
             for b in names[i + 1:]:
-                den = flat[a].norm() * flat[b].norm()
-                cos[f"{a}|{b}"] = float((flat[a] @ flat[b]) / den) if float(den) > 0 else 0.0
+                den = vec[a].norm() * vec[b].norm()
+                cos[f"{a}|{b}"] = float((vec[a] @ vec[b]) / den) if float(den) > 0 else 0.0
         dom = max(share, key=share.get) if tot > 0 and max(share.values()) > self.dominance and len(names) > 1 else None
-        return {"norm": norms, "share": share, "cosine": cos, "dominant": dom}
+        return {"norm": norms, "share": share, "cosine": cos, "dominant": dom, "cosine_exact": exact}
 
     def step(self, losses: dict, consumed: Optional[Iterable] = None, probe: Optional[bool] = None) -> UpdateInfo:
         """One optimiser update from the objective tensors in ``losses`` (keys from the loss-weight table).

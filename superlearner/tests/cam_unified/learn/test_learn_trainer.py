@@ -142,3 +142,29 @@ def test_bf16_autocast_training_step():
     info = tr.step({"world": loss})
     assert not info.skipped and info.backbone["norm"]["world"] > 0
     assert not torch.equal(w0, m.world.weight)
+
+
+def test_backbone_probe_on_a_large_backbone_uses_exact_norms_and_sampled_cosines():
+    m = _Model()
+    tr = _trainer(m, stage="explore_meta", grad_probe_every=1, loss_weights={"world": 1.0, "meta": 1.0},
+                  cos_exact_numel=100, cos_sample=64)
+    x = torch.randn(16, 8)
+    h = m.backbone(x)
+    la, lb = h[:, :8].pow(2).sum(), h[:, 8:].sum()
+    bb = list(m.backbone.parameters())
+    ga = torch.autograd.grad(la, bb, retain_graph=True)
+    gb = torch.autograd.grad(lb, bb, retain_graph=True)
+    fa = torch.cat([g.flatten() for g in ga])
+    fb = torch.cat([g.flatten() for g in gb])
+    info = tr.step({"world": la, "meta": lb})
+    assert info.backbone["cosine_exact"] is False
+    assert info.backbone["norm"]["world"] == pytest.approx(float(fa.norm()), rel=1e-5)
+    assert info.backbone["norm"]["meta"] == pytest.approx(float(fb.norm()), rel=1e-5)
+    true_cos = float(fa @ fb / (fa.norm() * fb.norm()))
+    assert -1.0 <= info.backbone["cosine"]["world|meta"] <= 1.0
+    assert abs(info.backbone["cosine"]["world|meta"] - true_cos) < 0.5
+    h2 = m.backbone(x).sum()
+    info2 = tr.step({"world": h2, "meta": -h2})
+    assert info2.backbone["cosine"]["world|meta"] == pytest.approx(-1.0, abs=1e-5)   # exact even when sampled
+    info3 = tr.step({"world": m.backbone(x).sum(), "meta": torch.tensor(0.5)})        # objective without a graph
+    assert info3.backbone["norm"]["meta"] == 0.0
