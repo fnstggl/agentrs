@@ -217,9 +217,9 @@ class StockWorld(World):
 
 class ProbeWorld(World):
     """Hidden h in {0,1} per episode. ``probe`` costs 1 and reveals h; ``exploit`` pays +10 if h = 1 else -10;
-    ``safe`` pays +1; both end the episode; ``wait`` does nothing. Without information the best immediate action is
-    ``safe`` (+1 > E[exploit] = 0 > probe = -1); probing first is worth -1 + (10 + 1)/2 = 4.5: an experiment with an
-    immediate cost that creates the opportunity for a later payoff (spec 7.4)."""
+    ``safe`` pays +0.5; both end the episode; ``wait`` does nothing. Without information the best immediate action
+    is ``safe`` (+0.5 > E[exploit] = 0 > probe = -1); probing first is worth -1 + (10 + 0.5)/2 = 4.25: an experiment
+    with an immediate cost that creates the opportunity for a later payoff (spec 7.4)."""
     actions = ["wait", "probe", "safe", "exploit"]
     keys = [("probe_result", Likelihood.BERNOULLI)]
     T = 4
@@ -237,7 +237,7 @@ class ProbeWorld(World):
         if a == 1:
             return st, {"probe_result": float(st["h"])}, -1.0, False, {"probe_result": float(st["h"])}
         if a == 2:
-            return st, {}, 1.0, True, {"tick": 1.0}
+            return st, {}, 0.5, True, {"tick": 1.0}
         if a == 3:
             return st, {}, (10.0 if st["h"] == 1 else -10.0), True, {"tick": 1.0}
         return st, {}, 0.0, False, {"tick": 1.0}

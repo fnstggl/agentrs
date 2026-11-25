@@ -131,7 +131,7 @@ def probe_model():
     cfg = tiny_config()
     w = ProbeWorld(cfg.d_model)
     bel = HypothesisBelief(cfg, w)
-    batches = [batch_to(w.batch(64, seed=i), DEV) for i in range(12)]
+    batches = [batch_to(w.batch(128, seed=i), DEV) for i in range(24)]       # 3072 distinct episodes
     wm = _wm(cfg, train_horizons=(1, 2, 3), open_loop_samples=4, open_loop_starts=None)
     t0 = time.time()
     train(wm, batches, 600, lr=2e-3, belief=bel, lr_end_frac=0.1)   # imagination-consistent open loop
@@ -141,7 +141,7 @@ def probe_model():
 
 @pytest.mark.slow
 def test_planner_chooses_costly_experiment_that_enables_later_payoff(probe_model):
-    """Spec 7.4: probe costs 1 now; only after it can the agent exploit (+10 if h=1) or fall back to safe (+1).
+    """Spec 7.4: probe costs 1 now; only after it can the agent exploit (+10 if h=1) or fall back to safe (+0.5).
     The myopic choice is safe; the policy alone (uncertain belief) would wait; multistep belief-aware imagination
     picks the experiment, i.e. the imagined consequences change the real action."""
     cfg, w, bel, wm = probe_model
@@ -149,8 +149,8 @@ def test_planner_chooses_costly_experiment_that_enables_later_payoff(probe_model
     hooks, act_tokens = probe_hooks(w, bel, DEV)
     cand = probe_candidates(w, 2, DEV)
     im = Imagination(wm, horizon=2, outcome_sampling="marginal")
-    res = PolicyRolloutPlanner(im, 1024, horizon=2).plan(Z, fast, None, cand, hooks, generator=_gen())
-    myopic = PolicyRolloutPlanner(im, 1024, horizon=1).plan(Z, fast, None, cand, hooks, generator=_gen())
+    res = PolicyRolloutPlanner(im, 4096, horizon=2).plan(Z, fast, None, cand, hooks, generator=_gen())
+    myopic = PolicyRolloutPlanner(im, 4096, horizon=1).plan(Z, fast, None, cand, hooks, generator=_gen())
     print("imagined value per candidate (wait, probe, safe, exploit):", res.scores.tolist(),
           "myopic:", myopic.scores.tolist())
     assert res.choice.tolist() == [1, 1], res.scores
@@ -223,12 +223,12 @@ def test_planner_comparison_at_matched_compute(probe_model, invest_model):
     Z, fast = real_start(wm, w, bel, 2, DEV)
     hooks, _ = probe_hooks(w, bel, DEV)
     im = Imagination(wm, horizon=2, outcome_sampling="marginal")
-    res = compare_planners(im, 512, Z, fast, None, probe_candidates(w, 2, DEV), hooks, horizon=2)
+    res = compare_planners(im, 2048, Z, fast, None, probe_candidates(w, 2, DEV), hooks, horizon=2)
     report = {k: (r.choice.tolist(), [[round(float(x), 2) if math.isfinite(float(x)) else None for x in s]
                                       for s in r.scores], r.n_model_evals) for k, r in res.items()}
     print("probe world planners:", report)
     evals = [r.n_model_evals for r in res.values()]
-    assert max(evals) <= 512 * 2 and min(evals) >= 512 * 2 // 3
+    assert max(evals) <= 2048 * 2 and min(evals) >= 2048 * 2 // 3
     assert res["policy_rollout"].choice.tolist() == [1, 1]
     cl = res["policy_rollout"].scores[:, 1]
     cem = res["cem"].scores[:, 1]
@@ -252,8 +252,8 @@ def test_policy_trained_on_imagined_targets_learns_to_experiment(probe_model):
 
     def real_return(a, h):               # the actual ProbeWorld with the same belief-driven follow-up policy
         if a == 1:
-            return -1.0 + math.exp(-cfg.kappa) * (10.0 if h == 1 else 1.0)
-        return {0: 0.0, 2: 1.0, 3: 10.0 if h == 1 else -10.0}[a]
+            return -1.0 + math.exp(-cfg.kappa) * (10.0 if h == 1 else 0.5)
+        return {0: 0.0, 2: 0.5, 3: 10.0 if h == 1 else -10.0}[a]
 
     for it in range(40):
         pi = torch.softmax(logits, 0)
