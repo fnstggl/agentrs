@@ -119,9 +119,9 @@ SPEC_ENGINE_KINDS = {
     "discrete-event": "discrete_event",
     "graph dynamical": "graph_dynamical",
     "search/information": "search",
-    "executable program": None,
+    "executable program": "program_exec",
     "multi-agent strategic": None,
-    "scientific experiment": None,
+    "scientific experiment": "experiment_lab",
     "planning/resource": None,
     "partially observed state machine": "state_machine",
 }

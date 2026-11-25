@@ -131,7 +131,7 @@ class Env:
             res = {"ok": False, "error": "the episode is over (horizon reached)"}
             return {"observation": self._obs[a0], "result": res, "events": []}
         prog = [a for a, act in per.items() if isinstance(act, dict) and act.get("kind") == "program"]
-        if prog:
+        if prog and not getattr(eng, "handles_programs", False):     # engines that run programs themselves get them
             from .program import run_controller
             return run_controller(self, prog[0], per[prog[0]])
         return self._tick(per)

@@ -49,7 +49,8 @@ REFERENCE_RANGE = (0.05, 0.98)
 EVALUATOR_MODULES = ("crucible.rapid.oracles", "crucible.rapid.admission", "crucible.rapid.claims",
                      "crucible.rapid.identify", "crucible.rapid.references", "crucible.rapid.fingerprints",
                      "crucible.rapid.primitive_checks", "crucible.rapid.report", "crucible.mechanisms.evaluator",
-                     "crucible.mechanisms.validity")
+                     "crucible.mechanisms.validity", "crucible.rapid.eval_program_exec",
+                     "crucible.rapid.eval_experiment_lab")
 WORLD_MODULES = ("crucible.rapid.env", "crucible.rapid.engines", "crucible.rapid.families", "crucible.rapid.actions",
                  "crucible.rapid.observation", "crucible.rapid.mechview", "crucible.rapid.batch",
                  "crucible.rapid.program", "crucible.rapid.generator", "crucible.rapid.primitives")
@@ -94,7 +95,7 @@ def _floats(x, out: set, keyok: bool):
 def secrets(env) -> set[str]:
     """Hidden numbers of a world (repr strings), minus any number that is part of the public spec or schemas."""
     cfg = env._config
-    keys = SECRET_KEYS.get(cfg["engine"], ())
+    keys = tuple(SECRET_KEYS.get(cfg["engine"], ())) + tuple(getattr(env._engine, "SECRET_KEYS", ()))
     out: set[str] = set()
     for k in keys:
         if k in cfg:
