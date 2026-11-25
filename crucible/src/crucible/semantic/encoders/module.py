@@ -53,7 +53,7 @@ class Embeddings(Module):
         for m in MODALITIES:
             e = encoder(m)
             out[m] = {"id": e.id, "version": e.version(), "dim": int(e.dim), "preprocessing_hash": e.preprocessing_hash()}
-        return {"encoders": out, "recorded": self.world.state.count(TABLE)}
+        return {"encoders": out}      # nothing about what others encoded (the table is world-internal)
 
     @endpoint("compare", S.obj({"a": S.s_str("artifact reference sha256:<hex>", pattern=REF_PATTERN),
                                 "b": S.s_str("artifact reference sha256:<hex>", pattern=REF_PATTERN),
