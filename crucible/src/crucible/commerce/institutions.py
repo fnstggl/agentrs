@@ -1543,8 +1543,9 @@ class Institutions(Module):
         ctx.emit("inst.task_assigned", {"id": task, "assignee": who}, vis=self._pvis(st, t["project"]) + (who,))
         hook = ctx.world.hooks.get("on_task_assigned")
         if hook:
-            hook(ctx, task, who)
-        return {"ok": True}
+            hook(ctx, task, who)                  # a simulated worker may decline at once (labour market)
+        accepted = st.tables["inst_tasks"][task]["assignee"] == who
+        return {"ok": True, "assigned": accepted, "status": st.tables["inst_tasks"][task]["status"]}
 
     @endpoint("task_submit", S.obj({"task": S.s_str(maxLength=40), "note": S.s_str(maxLength=2000)}, ["task"]))
     def ep_task_submit(self, ctx, task, note=""):

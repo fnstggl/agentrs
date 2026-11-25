@@ -129,9 +129,10 @@ def test_workers_decline_assignments_they_cannot_fit():
     prj = _ex(w, boss, "inst.project_create", title="huge", as_org=org).result["project"]
     big = _ex(w, boss, "inst.task_add", project=prj, title="everything", effort_hours=80).result["task"]
     more = _ex(w, boss, "inst.task_add", project=prj, title="more", effort_hours=120).result["task"]
-    assert _ex(w, boss, "inst.task_assign", task=big, assignee=who).ok
+    assert _ex(w, boss, "inst.task_assign", task=big, assignee=who).result["assigned"] is True
     assert w.state.tables["inst_tasks"][big]["assignee"] == who
-    assert _ex(w, boss, "inst.task_assign", task=more, assignee=who).ok      # 200 hours > four weeks of its time
+    r = _ex(w, boss, "inst.task_assign", task=more, assignee=who)                # 200 hours > four weeks of its time
+    assert r.ok and r.result["assigned"] is False
     t = w.state.tables["inst_tasks"][more]
     assert t["assignee"] is None and t["status"] == "open"
     assert any(e.type == "labor.declined" and e.payload["worker"] == who for e in w.log)
