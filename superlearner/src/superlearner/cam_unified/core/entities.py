@@ -71,16 +71,20 @@ class EntityEncoder(nn.Module):
 
     Args:
         cfg: CamConfig (d_model, n_heads, d_ff, max_entities, n_fourier).
-        n_rounds: graph-biased attention rounds over [entities; relations].
+        n_rounds: graph-biased attention rounds over [entities; relations] (one round already gives every entity its
+            relations, which carry the partner's embedding: one-hop relational information).
+        ffn_hidden: hidden width of the entity / relation SwiGLUs (default d_ff / 2).
         type_dim: dimension of the type token vectors (e.g. the semantic encoder's sem_dim); default d_model.
         max_relations: per-row working budget of relation tokens (most recent pairs kept; drops are counted).
     """
 
-    def __init__(self, cfg: CamConfig, n_rounds: int = 2, type_dim: Optional[int] = None,
-                 max_relations: Optional[int] = None, autocast: Optional[bool] = None):
+    def __init__(self, cfg: CamConfig, n_rounds: int = 1, type_dim: Optional[int] = None,
+                 max_relations: Optional[int] = None, ffn_hidden: Optional[int] = None,
+                 autocast: Optional[bool] = None):
         super().__init__()
         self.cfg = cfg
         D, H = cfg.d_model, cfg.n_heads
+        hid = ffn_hidden or max(64, (cfg.d_ff // 2) // 64 * 64)
         self.E = cfg.max_entities
         self.max_relations = max_relations or 2 * cfg.max_entities
         self.autocast = autocast
@@ -95,13 +99,13 @@ class EntityEncoder(nn.Module):
         self.unknown_type = nn.Parameter(torch.randn(D) * 0.02)
         self.hist = nn.Linear(4, D)
         self.ent_in = nn.Linear(4 * D, D)
-        self.ent_ffn = SwiGLU(D, cfg.d_ff)
+        self.ent_ffn = SwiGLU(D, hid)
         self.ent_norm = RMSNorm(D)
         # relation encoder R_theta
         self.rel_query = nn.Parameter(torch.randn(D) * 0.02)
         self.rel_pool = _SlotPool(D, H)
         self.rel_in = nn.Linear(4 * D, D)
-        self.rel_ffn = SwiGLU(D, cfg.d_ff)
+        self.rel_ffn = SwiGLU(D, hid)
         self.rel_norm = RMSNorm(D)
         # relational rounds
         self.rounds = nn.ModuleList([Block(D, H, cfg.d_ff) for _ in range(n_rounds)])

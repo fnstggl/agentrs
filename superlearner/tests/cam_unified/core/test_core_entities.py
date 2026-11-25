@@ -249,10 +249,10 @@ def _train_relational(n_rounds, steps, seed=0):
 
 @pytest.mark.slow
 def test_relational_rounds_learn_relation_dependent_targets():
-    """Relationships_i matter: a target that sums related entities' attributes is learned with relational attention
-    rounds and not without them (same budget)."""
-    mse2, var = _train_relational(2, 600)
+    """Relationships_i matter: a target that sums related entities' attributes is learned with the default single
+    relational attention round and not without it (same budget)."""
+    mse1, var = _train_relational(1, 600)
     mse0, _ = _train_relational(0, 600)
-    print(f"relational task: var {var:.3f}  mse rounds=2 {mse2:.3f}  rounds=0 {mse0:.3f}")
-    assert mse2 < 0.35 * var
-    assert mse2 < 0.6 * mse0
+    print(f"relational task: var {var:.3f}  mse rounds=1 {mse1:.3f}  rounds=0 {mse0:.3f}")
+    assert mse1 < 0.35 * var
+    assert mse1 < 0.6 * mse0

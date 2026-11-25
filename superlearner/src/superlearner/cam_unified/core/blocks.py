@@ -38,9 +38,8 @@ class RMSNorm(nn.Module):
         self.weight = nn.Parameter(torch.ones(d))
 
     def forward(self, x: Tensor) -> Tensor:
-        xf = x.float()
-        y = xf * torch.rsqrt(xf.pow(2).mean(-1, keepdim=True) + self.eps)
-        return (y * self.weight.float()).to(x.dtype)
+        # fused kernel, float32 accumulation (x.float() is a no-op for the float32 residual stream)
+        return F.rms_norm(x.float(), (x.shape[-1],), self.weight.float(), self.eps).to(x.dtype)
 
 
 class SwiGLU(nn.Module):
@@ -234,11 +233,13 @@ class EntitySlotCodes(nn.Module):
         valid = (slot >= 0) & (slot < self.E)
         s = slot.clamp(0, self.E - 1)
         if self.perm is not None:
-            perm = self.perm if code_rows is None else self.perm[code_rows]
+            if self.perm.device != slot.device:
+                self.perm = self.perm.to(slot.device)
+            perm = self.perm if code_rows is None else self.perm[code_rows.to(slot.device)]
             if perm.shape[0] != B:
                 raise ValueError(f"EntitySlotCodes: {perm.shape[0]} per-episode permutations for a batch of {B}; "
                                  "pass code_rows (batch row -> episode row) or call new_episode(B)")
-            s = torch.gather(perm.to(slot.device), 1, s)
+            s = torch.gather(perm, 1, s)
         codes = self.table[s]                                    # [B,N,Dc]
         out = self.proj[which](codes) * self.gain[which]
         return out * valid.unsqueeze(-1).to(out.dtype)
