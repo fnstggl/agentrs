@@ -62,3 +62,37 @@ def test_experiments_package_never_imports_test_doubles():
                 names = [(node.module or "")] + [a.name for a in node.names]
             for n in names:
                 assert "testing" not in n.split(".") and "integration_doubles" not in n, (f, n)
+
+
+def test_flat_predictive_scores_the_expected_regret_of_a_random_choice(dev_tasks):
+    from superlearner.cam_unified.experiments import predict as P
+    ep = P.collect_support(dev_tasks[:1], k_max=4, n_queries=6, design_seed=0, ks=(4,))[0]
+    y = ep.queries[4]["Y"]
+    flat = P.score_queries(ep, 4, np.zeros(6), np.ones(6))
+    assert flat["regret_raw"] == pytest.approx(float(y.max() - y.mean()))     # no information: random choice
+    oracle = P.score_queries(ep, 4, y.copy(), np.ones(6))
+    assert oracle["regret_raw"] == 0.0
+
+
+def test_obs_needed_requires_sustained_identification():
+    from superlearner.cam_unified.experiments.exp2 import obs_needed
+    rows = [{"task": "t", "k": k, "regret": r} for k, r in ((0, 0.05), (1, 0.3), (2, 0.08), (4, 0.02), (8, 0.0))]
+    assert obs_needed(rows, "t") == 2                       # k=0 was luck: regret rose again at k=1
+    assert obs_needed([{"task": "t", "k": 0, "regret": 0.5}], "t") is None
+
+
+def test_trajectory_recorder_captures_an_acting_learners_own_support(dev_tasks):
+    from superlearner.cam_unified.experiments import mechrun as M
+    from superlearner.cam_unified.experiments import predict as P
+    from superlearner.cam_unified.experiments.baselines import NIGPredictor
+    from superlearner.cam_unified.experiments.nig_agent import NIGToolAgent
+    w = M.make_world(dev_tasks, seed=1)
+    rec = P.TrajectoryRecorder(w, ks=(0, 4, 16), n_queries=5, seed=2)
+    res = M.run_batch(NIGToolAgent("kg", seed=1), w, learn=False, on_round=rec)
+    eps = rec.episodes()
+    for ep, r in zip(eps, res):
+        assert len(ep.steps) == r.decisions == len(ep.Y) and set(ep.queries) == {0, 4, 16}
+        assert np.allclose(ep.Y, r.rewards)                   # one tick per decision: reward = the tick's reward
+        assert ep.steps[3]["action"].source.value == "baseline"
+        m, v, d = NIGPredictor().predict(ep, 16)
+        assert np.isfinite(P.score_queries(ep, 16, m, v, d)["logscore"])
