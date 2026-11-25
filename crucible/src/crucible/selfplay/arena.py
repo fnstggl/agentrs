@@ -23,6 +23,12 @@ and its own objective. `play` runs individuals against each other; nothing is sh
 One individual lives in one persistent world: the hidden mechanism of a task. Matches in that world differ in
 their per-tick noise (`with_noise`), never in the mechanism, so what an individual has learned stays meaningful
 from match to match. Claims are made over several worlds and learner seeds.
+
+`reward_mode` (Crucible 5.0, `crucible.experience.modes`) works as in `research.envs.MechVecEnv`: the default
+``legacy_shaped_reward`` is the 4.0 behaviour; ``observation_only`` returns zero rewards for every seat and leaves
+every seat's reward slot of the observation at 0 (each seat's own revenue, cost and balance stay observable);
+``verified_terminal_outcome`` returns, on the tick that ends a match, 1.0 for a seat whose own net reached the
+task's public objective, else 0.
 """
 from __future__ import annotations
 
@@ -36,6 +42,7 @@ from typing import Any, Callable, Sequence
 import numpy as np
 
 from ..core.canonical import digest
+from ..experience.modes import LEGACY, VERIFIED, check_mode
 from ..research.envs import money_scale
 from ..research.learner import EnvSpec, Learner
 from ..research.tasks import Task
@@ -143,7 +150,8 @@ class SelfPlayEnv:
     """
 
     def __init__(self, tasks: Sequence[Task], spec: EnvSpec | None = None, funds: Sequence[Sequence[int | None]] | None = None,
-                 trace: bool = False):
+                 trace: bool = False, reward_mode: str = LEGACY):
+        self.reward_mode = check_mode(reward_mode)
         self.spec = spec or EnvSpec()
         self.n = len(tasks)
         if self.n == 0:
@@ -287,6 +295,18 @@ class SelfPlayEnv:
             if a.shape != (n, sp.max_levers):
                 raise ValueError(f"seat {s}: actions must have shape {(n, sp.max_levers)}, got {a.shape}")
             values.append(self._lo[s] + (a + 1.0) * 0.5 * (self._hi[s] - self._lo[s]))
+        return self.step_values(values)
+
+    def step_values(self, values: Sequence[np.ndarray | None]) -> tuple[list[np.ndarray], np.ndarray, np.ndarray, dict]:
+        """`step` with lever values in their own units (one [n, max_levers] array or None per seat; the simulator
+        clips them to range, as `rig.set` does). `crucible.experience` uses it so a tool-chosen setting runs exactly."""
+        S, n, sp = self.n_seats, self.n, self.spec
+        if len(values) != S:
+            raise ValueError(f"one value array per seat ({S}), got {len(values)}")
+        values = [None if v is None else np.asarray(v, dtype=np.float64) for v in values]
+        for s, v in enumerate(values):
+            if v is not None and v.shape != (n, sp.max_levers):
+                raise ValueError(f"seat {s}: values must have shape {(n, sp.max_levers)}, got {v.shape}")
         reward = np.zeros((S, n), dtype=np.float32)
         net, rev_a, cost_a, score = np.zeros((S, n)), np.zeros((S, n)), np.zeros((S, n)), np.zeros((S, n))
         status: list[list[str]] = [[""] * n for _ in range(S)]
@@ -312,7 +332,8 @@ class SelfPlayEnv:
                 rev, cost = res.revenue[s], res.cost[s]
                 d = rev - cost
                 net[s, i], rev_a[s, i], cost_a[s, i], score[s, i] = d, rev, cost, res.score[s]
-                reward[s, i] = d / scale
+                if self.reward_mode == LEGACY:
+                    reward[s, i] = d / scale
                 ep["net"][s] += d
                 ep["revenue"][s] += rev
                 ep["cost"][s] += cost
@@ -325,7 +346,8 @@ class SelfPlayEnv:
                 ea = ep["act"][s]
                 for j, v in enumerate(norm):
                     ea[j] += v
-                self._write_obs(s, i, res.readings[s], float(reward[s, i]), rev, cost, norm)
+                self._write_obs(s, i, res.readings[s], float(reward[s, i]) if self.reward_mode == LEGACY else 0.0,
+                                rev, cost, norm)
             ep["paid"] += sum(res.revenue)
             if self.keep_trace:
                 self.trace[i].append({"t": sim.t - 1, "net": [float(net[s, i]) for s in range(S)],
@@ -338,6 +360,9 @@ class SelfPlayEnv:
             if sim.t >= self._h[i]:
                 self.done[i] = True
                 self._finish(i)
+                if self.reward_mode == VERIFIED:
+                    for s in range(S):
+                        reward[s, i] = 1.0 if self.tasks[i].success(float(ep["net"][s])) else 0.0
         self.sim_seconds += time.perf_counter() - t0
         return ([o.copy() for o in self._obs], reward, self.done.copy(),
                 {"net_cents": net, "revenue_cents": rev_a, "cost_cents": cost_a, "score": score, "status": status})
@@ -396,7 +421,9 @@ class KernelSelfPlayEnv:
     n = 1
 
     def __init__(self, task: Task, spec: EnvSpec | None = None, handles: Sequence[str] | None = None,
-                 funds: Sequence[int] | None = None, store=None, strict: bool = True, extra_handles: Sequence[str] = ()):
+                 funds: Sequence[int] | None = None, store=None, strict: bool = True, extra_handles: Sequence[str] = (),
+                 reward_mode: str = LEGACY):
+        self.reward_mode = check_mode(reward_mode)
         import crucible
         crucible.load_all_modules()
         from ..core.kernel import World
@@ -472,7 +499,8 @@ class KernelSelfPlayEnv:
         o[0, sp.lever_mask][:len(self.levers[seat])] = 1.0
         sc = o[0, sp.scalars]
         if report is not None:
-            sc[0] = report["net_cents"] / self.scale
+            if self.reward_mode == LEGACY:
+                sc[0] = report["net_cents"] / self.scale
             sc[1] = report["revenue_cents"] / self.scale
             sc[2] = report["cost_cents"] / self.scale
         sc[3] = self.balance(seat) / max(1.0, float(self.task.endowment))
@@ -504,8 +532,11 @@ class KernelSelfPlayEnv:
             rd = self._call(s, "rig.read", {})
             rep = rd["report"]
             net[s, 0] = float(rep["net_cents"])
-            reward[s, 0] = rep["net_cents"] / self.scale
+            if self.reward_mode == LEGACY:
+                reward[s, 0] = rep["net_cents"] / self.scale
             self.net[s] += rep["net_cents"]
+            if self.reward_mode == VERIFIED and self.done[0]:
+                reward[s, 0] = 1.0 if self.task.success(float(self.net[s])) else 0.0
             status.append([rep["status"]])
             obs.append(self._obs(s, rep, rd["next_settings"]))
         return obs, reward, self.done.copy(), {"net_cents": net, "status": status}
