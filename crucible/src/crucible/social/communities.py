@@ -343,7 +343,9 @@ class Communities(Module):
         out[hit] = order[pos[hit]]
         return out
 
-    def join_many(self, ctx: Ctx, node_arr: np.ndarray, comm_arr: np.ndarray, via: str) -> int:
+    def join_many(self, ctx: Ctx, node_arr: np.ndarray, comm_arr: np.ndarray, via: str, *, admit: bool = False) -> int:
+        """`admit`: the community itself decided to take these people in (a merge it agreed to): its approval and
+        invitation rules do not apply; bans still do."""
         st = ctx.state
         if node_arr.shape != comm_arr.shape:
             raise InvalidAction("nodes and communities must be equal-length vectors")
@@ -363,8 +365,9 @@ class Communities(Module):
         v = CMEMBER.view(ctx.world)
         status = np.where(rows >= 0, v["status"][np.maximum(rows, 0)], NONE) if v["status"].size else \
             np.full(rows.size, NONE)
-        ok = active & np.isin(status, [NONE, LEFT, INVITED])
-        ok &= ~((policy == "invite") & (status != INVITED))
+        ok = active & np.isin(status, [NONE, LEFT, INVITED] + ([PENDING] if admit else []))
+        if not admit:
+            ok &= ~((policy == "invite") & (status != INVITED))
         # capacity
         for cn in np.unique(comm_arr[ok]):
             cap = by_index(ctx.world, int(cn))["rules"]["max_members"]
@@ -374,8 +377,9 @@ class Communities(Module):
                 ok[idx[max(0, cap - have):]] = False
         if not ok.any():
             return 0
-        admit = ok & ((policy != "approval") | (status == INVITED))
-        queue = ok & ~admit
+        admitted = ok & ((policy != "approval") | (status == INVITED) | bool(admit))
+        queue = ok & ~admitted
+        admit = admitted
         now = ctx.now
         for mask, new_status, kind in ((admit, MEMBER, "community.join"), (queue, PENDING, "community.request")):
             if not mask.any():
@@ -564,9 +568,12 @@ class Communities(Module):
             self._active(into)
             if into["id"] == c["id"]:
                 raise InvalidAction("a community cannot merge into itself")
+            proposer = ctx.state.tables["community_proposals"][proposal]["by"] if proposal else ctx.actor
+            if proposer != SYSTEM and self._role(ctx.world, proposer, into) not in ("moderator", "owner"):
+                raise Forbidden(f"a merge into {into['id']} is proposed by one of its moderators or owners")
             mem = members(ctx.world, c["n"])
             if mem.size:
-                self.join_many(ctx, mem, np.full(mem.size, into["n"], np.int64), "community")
+                self.join_many(ctx, mem, np.full(mem.size, into["n"], np.int64), "community", admit=True)
             bus.emit(ctx, "community.status", {"id": c["id"], "status": "merged", "merged_into": into["id"],
                                                "by": ctx.actor, "reason": str(args.get("reason", ""))[:300]},
                      vis="public")

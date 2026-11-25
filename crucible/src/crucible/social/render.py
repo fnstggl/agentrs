@@ -565,6 +565,66 @@ def assemble_video(images: Sequence[bytes], audio: bytes | None = None, *, secon
         return w.read("out.mp4")
 
 
+def edit_video(data: bytes, *, start_s: float = 0.0, duration_s: float | None = None, width: int | None = None,
+               height: int | None = None, mute: bool = False) -> bytes:
+    """Trim (start, duration), rescale and optionally mute a video; re-encoded to H.264/AAC MP4."""
+    start_s = float(start_s)
+    if not 0 <= start_s <= MAX_VIDEO_S:
+        raise MediaError("start_s out of range")
+    if duration_s is not None and not 0.1 <= float(duration_s) <= MAX_VIDEO_S:
+        raise MediaError("duration_s out of range")
+    vf = ["format=yuv420p"]
+    if width or height:
+        w_ = _side(width or 2, "width") // 2 * 2 if width else -2
+        h_ = _side(height or 2, "height") // 2 * 2 if height else -2
+        vf.insert(0, f"scale={w_}:{h_}")
+    with _Work({"in.mp4": data}) as w:
+        argv = [FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error", "-threads", "1",
+                "-protocol_whitelist", "file,pipe", "-ss", f"{start_s:g}", "-i", "in.mp4"]
+        if duration_s is not None:
+            argv += ["-t", f"{float(duration_s):g}"]
+        argv += ["-vf", ",".join(vf), "-c:v", "libx264", "-preset", "veryfast", "-crf", "28", "-x264-params",
+                 "threads=1"]
+        argv += ["-an"] if mute else ["-c:a", "aac", "-b:a", "96k"]
+        argv += ["-fflags", "+bitexact", "-flags:v", "+bitexact", "-map_metadata", "-1", "-movflags", "+faststart",
+                 "out.mp4"]
+        run_tool(argv, w.dir)
+        return w.read("out.mp4")
+
+
+def video_frame(data: bytes, at_s: float = 0.5, width: int = 480) -> bytes:
+    """One frame of a video as a PNG (a thumbnail)."""
+    with _Work({"in.mp4": data}) as w:
+        run_tool([FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error", "-threads", "1",
+                  "-protocol_whitelist", "file,pipe", "-ss", f"{max(0.0, float(at_s)):g}", "-i", "in.mp4",
+                  "-frames:v", "1", "-vf", f"scale={_side(width, 'width')}:-2", "out.png"], w.dir)
+        return w.read("out.png")
+
+
+def waveform(data: bytes, width: int = 800, height: int = 200) -> bytes:
+    """A waveform picture of a WAV (min/max envelope per pixel column)."""
+    from PIL import Image, ImageDraw
+    try:
+        with wave.open(io.BytesIO(data)) as wf:
+            n, ch, sw = wf.getnframes(), wf.getnchannels(), wf.getsampwidth()
+            raw = wf.readframes(n)
+    except (wave.Error, EOFError) as e:
+        raise MediaError(f"not a WAV: {e}") from None
+    if sw != 2:
+        raise MediaError("waveforms are drawn for 16-bit PCM")
+    x = np.frombuffer(raw, dtype="<i2").astype(np.float64).reshape(-1, ch).mean(axis=1) / 32768.0
+    width, height = _side(width, "width"), _side(height, "height")
+    im = Image.new("RGB", (width, height), (255, 255, 255))
+    d = ImageDraw.Draw(im)
+    if x.size:
+        cols = np.array_split(x, width)
+        mid = height / 2
+        for i, c in enumerate(cols):
+            if c.size:
+                d.line([(i, mid - c.max() * mid), (i, mid - c.min() * mid)], fill=(31, 119, 180))
+    return png(im)
+
+
 # ---------------------------------------------------------------------------------------------------- documents
 def _pdf_escape(s: str) -> str:
     s = s.encode("latin-1", "replace").decode("latin-1")

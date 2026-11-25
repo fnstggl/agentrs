@@ -288,6 +288,20 @@ class Studio(Module):
                            lambda: R.assemble_video(imgs, snd, seconds_per_image=seconds_per_image, width=width,
                                                     height=height, fps=fps), parents=parents, title=title)
 
+    @endpoint("edit_video", S.obj({"ref": _REF, "start_s": S.s_num(minimum=0, maximum=R.MAX_VIDEO_S, default=0.0),
+                                   "duration_s": S.s_num(minimum=0.1, maximum=R.MAX_VIDEO_S),
+                                   "width": S.s_int(minimum=16, maximum=1920), "height": S.s_int(minimum=16,
+                                                                                                 maximum=1920),
+                                   "mute": S.s_bool(default=False), "owner": _OWNER}, ["ref"]), cost_s=120)
+    def ep_edit_video(self, ctx, ref, start_s=0.0, duration_s=None, width=None, height=None, mute=False, owner=None):
+        """Trim, rescale or mute a video (FFmpeg); the result is a new MP4 derived from it."""
+        owner = self._owner(ctx, owner)
+        data, _ = self._read(ctx, ref, ("video",))
+        return self._store(ctx, "studio.edit_video", "video", "video/mp4", owner,
+                           {"start": start_s, "dur": duration_s, "w": width, "h": height, "mute": mute},
+                           lambda: R.edit_video(data, start_s=start_s, duration_s=duration_s, width=width,
+                                                height=height, mute=mute), parents=[ref])
+
     # ------------------------------------------------------------------ create: apps, packages, courses
     def _bundle_size(self, files: dict) -> None:
         if sum(len(v.encode("utf-8")) for v in files.values()) > MAX_FILES_BYTES:
@@ -356,10 +370,24 @@ class Studio(Module):
                              "append": S.s_str(maxLength=100_000), "prepend": S.s_str(maxLength=100_000),
                              "owner": _OWNER}, ["ref"]), cost_s=30)
     def ep_edit(self, ctx, ref, replace=(), append="", prepend="", owner=None):
-        """Edit a text, HTML or page artifact (literal find/replace, append, prepend). Every `find` must occur.
-        The result is a new artifact derived from the original."""
+        """Edit a text, HTML, page or PDF document artifact (literal find/replace, append, prepend). Every `find`
+        must occur. The result is a new artifact derived from the original (a PDF is re-typeset)."""
         owner = self._owner(ctx, owner)
-        data, a = self._read(ctx, ref, ("text", "html", "page"))
+        data, a = self._read(ctx, ref, ("text", "html", "page", "document"))
+        if a["kind"] == "document":
+            title = (a["meta"] or {}).get("title", "")
+            text = F.extract_text(data, "document", a["mime"])
+            if title and text.startswith(title):
+                text = text[len(title):].lstrip()
+            for r in replace:
+                if r["find"] not in text:
+                    raise InvalidAction(f"text not found: {r['find'][:60]!r}")
+                text = text.replace(r["find"], r["with"])
+            if not (replace or append or prepend):
+                raise InvalidAction("nothing to change")
+            text = (prepend or "") + text + (append or "")
+            return self._store(ctx, "studio.edit", "document", a["mime"], owner, {"title": title, "text": text},
+                               lambda: R.pdf_document(title, text, author=owner), parents=[ref], title=title)
         text = data.decode("utf-8")
         for r in replace:
             if r["find"] not in text:
@@ -412,13 +440,23 @@ class Studio(Module):
     @endpoint("preview", S.obj({"ref": _REF, "width": S.s_int(minimum=64, maximum=2000, default=800),
                                 "owner": _OWNER}, ["ref"]), cost_s=20)
     def ep_preview(self, ctx, ref, width=800, owner=None):
-        """Render a text-like artifact (text, HTML, page, PDF, course, app, package) as a PNG preview image."""
+        """Render any artifact as a PNG preview: text-like formats (text, HTML, page, PDF, course, app, package)
+        as a text card, an image as a thumbnail, audio as its waveform, a video as a frame."""
         owner = self._owner(ctx, owner)
-        data, a = self._read(ctx, ref, ("text", "html", "page", "document", "course", "app", "package"))
-        text = F.extract_text(data, a["kind"], a["mime"], limit=6000) or "(no text)"
+        data, a = self._read(ctx, ref, F.FORMATS)
         title = (a["meta"] or {}).get("title") or a["kind"]
-        return self._store(ctx, "studio.preview", "image", "image/png", owner, {"text": text, "title": title, "w": width},
-                           lambda: R.text_card(text[:6000], width=width, title=title, font_size=18), parents=[ref],
+        if a["kind"] == "image":
+            ops = [{"op": "thumbnail", "size": int(width)}]
+            make, inp = (lambda: R.process_image(data, ops)), {"thumb": width}
+        elif a["kind"] == "audio":
+            make, inp = (lambda: R.waveform(data, width=int(width), height=max(64, int(width) // 4))), {"wave": width}
+        elif a["kind"] == "video":
+            make, inp = (lambda: R.video_frame(data, 0.5, int(width))), {"frame": width}
+        else:
+            text = F.extract_text(data, a["kind"], a["mime"], limit=6000) or "(no text)"
+            make, inp = (lambda: R.text_card(text[:6000], width=width, title=title, font_size=18)), \
+                {"text": text, "title": title, "w": width}
+        return self._store(ctx, "studio.preview", "image", "image/png", owner, inp, make, parents=[ref],
                            title=f"preview of {title}")
 
     @endpoint("run", S.obj({"ref": S.s_str("an app artifact you can read", maxLength=71),
@@ -488,9 +526,9 @@ class Studio(Module):
         """The ten artifact formats, their media types and the tools that create each."""
         tools = {"text": ["studio.write", "studio.edit"], "html": ["studio.write", "studio.edit"],
                  "image": ["studio.image", "studio.edit_image", "studio.preview"],
-                 "audio": ["studio.audio", "studio.edit_audio"], "video": ["studio.video"],
+                 "audio": ["studio.audio", "studio.edit_audio"], "video": ["studio.video", "studio.edit_video"],
                  "app": ["studio.app", "studio.revise", "studio.run"], "page": ["studio.page", "studio.edit"],
-                 "document": ["studio.write"], "course": ["studio.course"],
+                 "document": ["studio.write", "studio.edit"], "course": ["studio.course"],
                  "package": ["studio.package", "studio.revise", "studio.test"]}
         return {f: dict(d, tools=tools[f]) for f, d in F.formats_doc().items()}
 
@@ -500,7 +538,8 @@ def tools() -> dict[str, list[str]]:
     studio's endpoints, for documentation and the SP-4.2 gate."""
     return {"create": ["studio.write", "studio.page", "studio.image", "studio.audio", "studio.video", "studio.app",
                        "studio.package", "studio.course", "artifact.put"],
-            "edit": ["studio.edit", "studio.edit_image", "studio.edit_audio", "studio.revise"],
+            "edit": ["studio.edit", "studio.edit_image", "studio.edit_audio", "studio.edit_video", "studio.revise",
+                     "studio.course (parent=...)"],
             "render": ["studio.preview", "studio.video", "studio.run", "studio.test"],
             "publish": ["content.publish"], "update": ["content.update"], "remove": ["content.remove"],
             "inspect": ["content.inspect", "studio.probe", "studio.drafts", "content.get"]}
