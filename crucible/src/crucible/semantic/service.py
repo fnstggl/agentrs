@@ -46,7 +46,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Sequence
 
 DEFAULT_MODEL = "Qwen/Qwen3-0.6B"
-REQUEST_KEYS = ("messages", "max_new_tokens", "temperature", "seed", "prefix_messages")
+REQUEST_KEYS = ("messages", "max_new_tokens", "temperature", "seed", "prefix_messages", "thinking", "assistant_prefix")
 
 _LOCK = threading.RLock()
 _LOADED: dict[tuple, "_Weights"] = {}
@@ -209,6 +209,7 @@ class SemanticService:
         self.max_choice_rows = int(max_choice_rows)
         self.key = (model_id, self.revision, self.device, self.dtype, self.quantization)
         self._w: _Weights | None = None
+        self._null_scores: dict[tuple, float] = {}
         self.stats = {"generate_calls": 0, "choose_calls": 0, "requests": 0, "batches": 0, "rows": 0,
                       "prompt_tokens": 0, "gen_tokens": 0, "prefill_s": 0.0, "decode_s": 0.0, "choose_s": 0.0,
                       "prefix_hits": 0, "prefix_misses": 0, "prefix_tokens_reused": 0, "truncated": 0,
@@ -277,14 +278,46 @@ class SemanticService:
         ``{choice: index, logprobs: [per option], prompt_tokens, option_tokens: [...]}``."""
         reqs = [self._norm(r, choices=True) for r in requests]
         if ctx_or_none is None:
-            return self._choose(reqs)
+            return self._choose_any(reqs)
         self.stats["recorded_calls"] += 1
         return recorded(ctx_or_none, "semantic.choose", self.model_id, self.model_hash(),
-                        self.descriptors(reqs), lambda: self._choose(reqs))
+                        self.descriptors(reqs), lambda: self._choose_any(reqs))
 
     def run(self, kind: str, requests: list[dict]) -> list[dict]:
         """Unrecorded execution of an already normalised batch (used by the recording kernel module)."""
-        return self._generate(requests) if kind == "generate" else self._choose(requests)
+        return self._generate(requests) if kind == "generate" else self._choose_any(requests)
+
+    def _choose_any(self, reqs: list[dict]) -> list[dict]:
+        """`_choose`, plus ``normalize="pmi"``: the option's total log probability after the prompt minus its log
+        probability after a content-free prompt (the system message and the prompt's last line only), which removes
+        the model's prior preference for some option strings (Holtzman et al. 2021, domain-conditional PMI). The
+        content-free scores are cached per (prompt, option)."""
+        out = self._choose([dict(r, normalize="sum") if r.get("normalize") == "pmi" else r for r in reqs])
+        pmi = [i for i, r in enumerate(reqs) if r.get("normalize") == "pmi"]
+        if not pmi:
+            return out
+        cache = self._null_scores
+        todo, keys = [], []
+        for i in pmi:
+            r = reqs[i]
+            sysm = [m for m in r["messages"][:1] if m["role"] == "system"]
+            last = r["messages"][-1]["content"].strip().rsplit("\n", 1)[-1]
+            null = sysm + [{"role": "user", "content": last}]
+            k = hashlib.sha256(_canon(null)).hexdigest()
+            keys.append(k)
+            missing = [c for c in r["choices"] if (k, c) not in cache]
+            if missing:
+                todo.append({"messages": null, "choices": sorted(set(missing)), "normalize": "sum", "_key": k})
+        if todo:
+            res = self._choose([{kk: v for kk, v in t.items() if kk != "_key"} for t in todo])
+            for t, o in zip(todo, res):
+                for c, s in zip(t["choices"], o["logprobs"]):
+                    cache[(t["_key"], c)] = s
+        for i, k in zip(pmi, keys):
+            sc = [s - cache[(k, c)] for s, c in zip(out[i]["logprobs"], reqs[i]["choices"])]
+            out[i] = dict(out[i], logprobs=[round(s, 5) for s in sc],
+                          choice=max(range(len(sc)), key=lambda j: (sc[j], -j)))
+        return out
 
     def descriptors(self, requests: list[dict]) -> list[dict]:
         """Compact, JSON-native description of a batch (what is hashed and logged, never the prompt text)."""
@@ -317,19 +350,23 @@ class SemanticService:
             out["seed"] = None if r.get("seed") is None else int(r["seed"])
         if r.get("prefix_messages"):
             out["prefix_messages"] = int(r["prefix_messages"])
+        if r.get("thinking") is not None:
+            out["thinking"] = bool(r["thinking"])
+        if r.get("assistant_prefix"):
+            out["assistant_prefix"] = str(r["assistant_prefix"])
         return out
 
-    def _template(self, messages: list[dict], gen_prompt: bool) -> str:
+    def _template(self, messages: list[dict], gen_prompt: bool, thinking: bool | None = None) -> str:
         tok = self.weights.tok
         kw = {"tokenize": False, "add_generation_prompt": gen_prompt}
         if "qwen3" in self.model_id.lower():
-            kw["enable_thinking"] = self.enable_thinking
+            kw["enable_thinking"] = self.enable_thinking if thinking is None else bool(thinking)
         return tok.apply_chat_template(messages, **kw)
 
     def _encode(self, r: dict, reserve: int) -> tuple[list[int], int, bool]:
         """Token ids of the prompt, the length of its declared shared prefix (0 if none) and the truncation flag."""
         tok = self.weights.tok
-        text = self._template(r["messages"], True)
+        text = self._template(r["messages"], True, r.get("thinking")) + r.get("assistant_prefix", "")
         ids = tok(text, add_special_tokens=False)["input_ids"]
         pfx = 0
         k = r.get("prefix_messages") or 0

@@ -19,6 +19,49 @@ import time
 import numpy as np
 
 LETTERS = "ABCDEFGHIJKLMNOP"
+REASON_TOKENS = 96
+THINK_TOKENS = 384
+REASON_ASK = ("Before answering, think it through in at most three short sentences (compare the numbers or facts that "
+              "matter). Do not give the final answer yet.")
+FINAL_ASK = "Now give the final answer: the text of the correct option only."
+
+
+def match_option(text: str, options: list[str]) -> int:
+    """Index of the option a free-text answer names."""
+    import difflib
+    t = text.strip().lower()
+    hits = [i for i, o in enumerate(options) if o.lower() in t]
+    if hits:
+        return max(hits, key=lambda i: (len(options[i]), -t.find(options[i].lower())))
+    return max(range(len(options)), key=lambda i: difflib.SequenceMatcher(None, t, options[i].lower()).ratio())
+
+
+def pointwise_requests(item: dict) -> list[dict]:
+    """One yes/no request per option: the item's context without the option list, then the option alone."""
+    user = item["messages"][-1]["content"]
+    if item.get("option_lines"):                       # tool choice: the context precedes the tool list
+        head = user.split("\n\nTools you can call now:\n")[0]
+        props = [f"Proposed tool: {l}\nIs calling this tool now the right next step toward your goal?"
+                 for l in item["option_lines"]]
+    else:
+        head = user.split("\nOptions:\n")[0]
+        props = [f"Proposed answer: {o}\nIs the proposed answer correct?" for o in item["options"]]
+    return [{"messages": item["messages"][:-1] + [{"role": "user", "content": f"{head}\n\n{p} Answer Yes or No."}],
+             "choices": ["Yes", "No"], "normalize": "sum", "prefix_messages": item.get("prefix_messages")}
+            for p in props]
+
+
+def reason_messages(messages: list[dict]) -> list[dict]:
+    """The prompt with its closing 'Answer with ...' instruction replaced by a request for a short explanation."""
+    text = messages[-1]["content"]
+    i = text.rfind("Answer with")
+    user = (text[:i].rstrip() if i >= 0 else text) + "\n" + REASON_ASK
+    return messages[:-1] + [{"role": "user", "content": user}]
+
+
+def after_reasoning(messages: list[dict], note: str) -> list[dict]:
+    return reason_messages(messages) + [{"role": "assistant", "content": note.strip()},
+                                        {"role": "user", "content": FINAL_ASK}]
 
 
 def _relabel(item: dict) -> dict:
@@ -45,7 +88,7 @@ class LMCandidate:
     def __init__(self, model_id: str, device: str = "auto", max_batch: int = 16, max_context: int = 3072):
         from ..service import SemanticService
         self.model_id = model_id
-        self.svc = SemanticService(model_id, device=device, max_batch=max_batch, max_new_tokens=320,
+        self.svc = SemanticService(model_id, device=device, max_batch=max_batch, max_new_tokens=512,
                                    max_context=max_context)
         self.name = model_id
 
@@ -57,6 +100,14 @@ class LMCandidate:
     def mc(self, items: list[dict], method: str = "mean") -> tuple[list[int], float]:
         if not items:
             return [], 0.0
+        if method == "reason":
+            return self._reason_then_choose(items)
+        if method == "gen":
+            return self._generate_then_match(items)
+        if method == "pointwise":
+            return self._pointwise(items)
+        if method == "think":
+            return self._think_then_choose(items)
         if method == "label":
             reqs = [_relabel(it) for it in items]
         else:
@@ -65,6 +116,52 @@ class LMCandidate:
         t0 = time.time()
         out = self.svc.choose(None, reqs)
         return [int(o["choice"]) for o in out], time.time() - t0
+
+    def _reason_then_choose(self, items: list[dict]) -> tuple[list[int], float]:
+        """``reason``: the model first writes a short explanation (bounded), then the options are scored after it."""
+        t0 = time.time()
+        reqs = [{"messages": reason_messages(it["messages"]), "max_new_tokens": REASON_TOKENS, "temperature": 0.0,
+                 "prefix_messages": it.get("prefix_messages")} for it in items]
+        notes = [o["text"] for o in self.svc.generate(None, reqs)]
+        reqs = [{"messages": after_reasoning(it["messages"], n), "choices": it["options"], "normalize": "mean",
+                 "prefix_messages": it.get("prefix_messages")} for it, n in zip(items, notes)]
+        out = self.svc.choose(None, reqs)
+        return [int(o["choice"]) for o in out], time.time() - t0
+
+    def _think_then_choose(self, items: list[dict]) -> tuple[list[int], float]:
+        """``think`` (Qwen3 only): the participants' own selection (`participants.select_options`): the model reasons
+        in its thinking mode (at most THINK_TOKENS) and names an option; if it names none, the options are scored
+        after the closed reasoning."""
+        from ..participants import select_options
+        t0 = time.time()
+        reqs = [{"messages": it["messages"], "choices": it["options"], "normalize": "mean", "think_tokens": THINK_TOKENS,
+                 "prefix_messages": it.get("prefix_messages")} for it in items]
+        run = lambda kind, rs, pr, pu: self.svc.generate(None, rs) if kind == "generate" else self.svc.choose(None, rs)
+        picks, _ = select_options(run, reqs, [""] * len(reqs))
+        return picks, time.time() - t0
+
+    def _pointwise(self, items: list[dict]) -> tuple[list[int], float]:
+        """``pointwise``: every option is judged on its own (log P(yes) - log P(no) to "is this right?")."""
+        t0 = time.time()
+        reqs, owner = [], []
+        for k, it in enumerate(items):
+            for r in pointwise_requests(it):
+                reqs.append(r)
+                owner.append(k)
+        out = self.svc.choose(None, reqs)
+        scores: list[list[float]] = [[] for _ in items]
+        for k, o in zip(owner, out):
+            scores[k].append(o["logprobs"][0] - o["logprobs"][1])
+        return [max(range(len(s)), key=lambda j: (s[j], -j)) for s in scores], time.time() - t0
+
+    def _generate_then_match(self, items: list[dict]) -> tuple[list[int], float]:
+        """``gen``: the model writes its answer (at most 24 tokens); the option it names is taken (the longest
+        option contained in the answer, else the most similar option)."""
+        t0 = time.time()
+        reqs = [{"messages": it["messages"], "max_new_tokens": 24, "temperature": 0.0,
+                 "prefix_messages": it.get("prefix_messages")} for it in items]
+        outs = self.svc.generate(None, reqs)
+        return [match_option(o["text"], it["options"]) for o, it in zip(outs, items)], time.time() - t0
 
     def gen(self, items: list[dict]) -> tuple[list[str], float, int]:
         if not items:

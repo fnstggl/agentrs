@@ -23,7 +23,7 @@ import re
 
 import numpy as np
 
-from ..participants import BM25, SYSTEM_PROMPT, SemanticParticipant, tool_text
+from ..participants import BM25, SYSTEM_PROMPT, SemanticParticipant, tool_line, tool_text
 
 SPLITS = ("train", "dev", "test")
 NAMES = ["ana", "ben", "cara", "dev", "eli", "fay", "gus", "hana", "ivo", "jun", "kai", "lea", "milo", "nia", "omar",
@@ -480,7 +480,8 @@ def build_tool_choice(bench: Bench, split: str, n: int, rng) -> list[dict]:
                     "held_out_template": held, "format": "mc", "messages": req["messages"], "prefix_messages": 1,
                     "query": p.header(), "options": names, "answer": names.index(target),
                     "chance": 1.0 / len(names), "lexical_choice": int(np.argmax(lex)),
-                    "option_texts": [tool_text(c) for c in cands]})
+                    "option_texts": [tool_text(c) for c in cands],
+                    "option_lines": [tool_line(c, p.tool_chars) for c in cands]})
     return out
 
 

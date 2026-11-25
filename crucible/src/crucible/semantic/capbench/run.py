@@ -16,7 +16,8 @@ DEFAULT_LMS = ("HuggingFaceTB/SmolLM2-135M-Instruct", "HuggingFaceTB/SmolLM2-360
 # capabilities whose use in the world needs generation; the others are decisions among options
 GENERATIVE_PRIMARY = ("communication", "programming")
 EFFECTIVE = {"accuracy": 0.6, "p_vs_chance": 0.01, "gen_wilson_lo": 0.4}
-METHODS = ("mean", "sum", "label")
+METHODS = ("mean", "sum", "label", "pmi", "gen", "pointwise", "reason")
+THINKING_MODELS = ("qwen3",)          # model families with a native thinking mode (method "think")
 
 
 def data_dir() -> str:
@@ -27,7 +28,8 @@ def data_dir() -> str:
 
 def load_sets(seed: int = 0, caps=CAPABILITIES) -> dict[str, list[dict]]:
     """Build (or load the cached copy of) the evaluation sets. The cache key covers the generator's source."""
-    src = open(tasks.__file__, "rb").read()
+    from .. import participants
+    src = open(tasks.__file__, "rb").read() + open(participants.__file__, "rb").read()   # items render through both
     key = hashlib.sha256(src + json.dumps([seed, list(caps)]).encode()).hexdigest()[:16]
     path = os.path.join(data_dir(), f"sets_{key}.json")
     if os.path.exists(path):
@@ -97,12 +99,13 @@ def evaluate_lm(cand, sets: dict, caps=CAPABILITIES, log=print) -> dict:
         dev_mc, test_mc = _split(items, "dev", "mc"), _split(items, "test", "mc")
         if test_mc:
             dev_acc = {}
-            for m in METHODS:
+            methods = METHODS + (("think",) if any(f in cand.model_id.lower() for f in THINKING_MODELS) else ())
+            for m in methods:
                 p, s = cand.mc(dev_mc, m)
                 dev_acc[m] = round(float(np.mean([int(a == it["answer"]) for a, it in zip(p, dev_mc)])), 4) if dev_mc else 0.0
                 total_items += len(dev_mc)
                 total_s += s
-            method = max(METHODS, key=lambda m: (dev_acc[m], -METHODS.index(m)))
+            method = max(methods, key=lambda m: (dev_acc[m], -methods.index(m)))
             preds, s = cand.mc(test_mc, method)
             total_items += len(test_mc)
             total_s += s
