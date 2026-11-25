@@ -13,8 +13,14 @@ Likelihood families and parameterisations (all numerically stable, float32):
              where |mu|^ is the detached magnitude (relative-precision parameterisation).
 * STUDENT_T  loc/scale as Gaussian, df = min_df + softplus(r2 + 2) (min_df > 2 keeps the variance finite).
 * BERNOULLI  logit r0.
-* CATEGORICAL ``max_classes`` logits, classes >= n_classes masked (n_classes per query).
-* COUNT      negative binomial with mean m = exp(r0) and total_count (dispersion) r = exp(r1 + 1); var = m + m^2/r.
+* CATEGORICAL ``max_classes`` logits, classes >= n_classes masked (n_classes per query). A categorical query with
+             n_classes > max_classes (or < 1) cannot be represented and raises ValueError; so does an observed class
+             index outside [0, n_classes) (or a non-integer one) -- nothing is silently merged or clipped.
+* COUNT      negative binomial with mean m = exp(lm), lm = softbound(r0; -12, count_log_max) and total_count
+             (dispersion) r = exp(softbound(r1 + 1; -6, 12)); var = m + m^2/r. softbound(x; lo, hi) =
+             c + h tanh((x - c) / h) (c, h = centre, half-width) has slope 1 at the centre and a nonzero gradient
+             everywhere (no dead hard clamp). The log-probability is evaluated in float64 (lgamma of large counts).
+             Observed counts must be non-negative integers <= exp(count_log_max) (ValueError otherwise).
 * SURVIVAL   discrete hazard over M horizon bins with lower edges ``edges`` (days, edges[0] = 0); bin j covers
              [e_j, e_{j+1}), the last bin [e_{M-1}, inf) has hazard 1 (no event within the horizon).
              Uncensored event time y in bin j: log P_j = log h_j + sum_{i<j} log(1-h_i).
@@ -40,6 +46,12 @@ _LOG_2PI = math.log(2 * math.pi)
 _NEG = -1e4      # finite "minus infinity" for masked logits (keeps gradients finite)
 
 
+def softbound(x: torch.Tensor, lo: float, hi: float) -> torch.Tensor:
+    """Smooth bound into (lo, hi): c + h * tanh((x - c) / h), slope 1 at the centre c, gradient nonzero everywhere."""
+    c, h = 0.5 * (lo + hi), 0.5 * (hi - lo)
+    return c + h * torch.tanh((x - c) / h)
+
+
 def default_survival_edges(n_bins: int = 16, first: float = 1.0 / 24.0, last: float = 180.0) -> torch.Tensor:
     """Lower bin edges in days: 0, then geometric from ``first`` to ``last`` (n_bins edges in total)."""
     return torch.cat([torch.zeros(1), torch.logspace(math.log10(first), math.log10(last), n_bins - 1)])
@@ -57,7 +69,8 @@ class MixedOutcomeDist:
     _SLICES = ("g", 2), ("t", 3), ("b", 1), ("c", None), ("n", 2), ("s", None)
 
     def __init__(self, raw: torch.Tensor, lik: torch.Tensor, n_classes: torch.Tensor, edges: torch.Tensor,
-                 max_classes: int, min_df: float = 2.1, min_std: float = 1e-3, nb_support: int = 256):
+                 max_classes: int, min_df: float = 2.1, min_std: float = 1e-3, nb_support: int = 256,
+                 count_log_max: float = 20.0, validate: bool = True):
         raw = raw.float()
         self.raw = raw
         self.batch_shape = raw.shape[:-1]
@@ -67,7 +80,13 @@ class MixedOutcomeDist:
         self.M = self.edges.numel()
         self.Cm = max_classes
         self.min_df, self.min_std, self.nb_support = min_df, min_std, nb_support
+        self.count_log_max, self.validate = float(count_log_max), validate
         self.present = sorted(int(v) for v in torch.unique(self.lik).tolist())
+        if validate and int(Likelihood.CATEGORICAL) in self.present:
+            nc = self.n_classes[self.lik == int(Likelihood.CATEGORICAL)]
+            if bool((nc > max_classes).any()) or bool((nc < 1).any()):
+                raise ValueError(f"categorical queries need 1 <= n_classes <= max_classes={max_classes}; got "
+                                 f"n_classes in [{int(nc.min())}, {int(nc.max())}] (raise the head's max_classes)")
         sizes = {"g": 2, "t": 3, "b": 1, "c": max_classes, "n": 2, "s": self.M}
         self._off, i = {}, 0
         for k in ("g", "t", "b", "c", "n", "s"):
@@ -124,11 +143,11 @@ class MixedOutcomeDist:
 
     @cached_property
     def n_logm(self):
-        return self._raw("n")[..., 0].clamp(-12.0, 15.0)
+        return softbound(self._raw("n")[..., 0], -12.0, self.count_log_max)
 
     @cached_property
     def n_logr(self):
-        return (self._raw("n")[..., 1] + 1.0).clamp(-6.0, 12.0)
+        return softbound(self._raw("n")[..., 1] + 1.0, -6.0, 12.0)
 
     @cached_property
     def _surv(self):
@@ -203,7 +222,8 @@ class MixedOutcomeDist:
     # ------------------------------------------------------------------ OutcomeDist protocol
     def log_prob(self, y, censored=None, mask=None) -> torch.Tensor:
         """y broadcastable to the batch shape (value / class index / count / event time). ``censored`` (SURVIVAL)
-        broadcastable bool. ``mask`` (optional) zeroes unobserved entries."""
+        broadcastable bool. ``mask`` (optional) marks the observed entries: the others get 0 and are not validated
+        (without a mask every entry is treated as observed)."""
         y = self._bc(y, torch.float32)
 
         def gauss():
@@ -220,15 +240,35 @@ class MixedOutcomeDist:
             yb = y.clamp(0.0, 1.0)
             return yb * self.b_logit - F.softplus(self.b_logit)
 
+        obs = None if mask is None else self._bc(mask, torch.bool)
+
+        def checked(lk) -> torch.Tensor:
+            sel = self.lik == int(lk)
+            return sel if obs is None else sel & obs
+
         def cat():
+            if self.validate:
+                chk = checked(Likelihood.CATEGORICAL)
+                bad = chk & ((y < 0) | (y >= self.n_classes) | ((y - y.round()).abs() > 1e-3))
+                if bool(bad.any()):
+                    raise ValueError(f"observed categorical class {float(y[bad][0])} outside [0, "
+                                     f"{int(self.n_classes[bad][0])}) or not an integer")
             yc = torch.minimum(y.round().clamp(min=0).long(), self.n_eff - 1)
             return self.c_logp.gather(-1, yc.unsqueeze(-1)).squeeze(-1)
 
         def count():
-            k = y.clamp(min=0.0).round()
-            r, lm, lr = self.nb_total_count, self.n_logm, self.n_logr
+            if self.validate:
+                chk = checked(Likelihood.COUNT)
+                bad = chk & ((y < 0) | (y > math.exp(self.count_log_max)) | ((y - y.round()).abs() > 1e-3))
+                if bool(bad.any()):
+                    raise ValueError(f"observed count {float(y[bad][0])} is not an integer in [0, "
+                                     f"exp({self.count_log_max:g})] (outside the representable range)")
+            k = y.clamp(min=0.0).round().double()
+            lm, lr = self.n_logm.double(), self.n_logr.double()
+            r = lr.exp()
             log_rm = torch.logaddexp(lr, lm)
-            return torch.lgamma(k + r) - torch.lgamma(r) - torch.lgamma(k + 1) + r * (lr - log_rm) + k * (lm - log_rm)
+            lp = torch.lgamma(k + r) - torch.lgamma(r) - torch.lgamma(k + 1) + r * (lr - log_rm) + k * (lm - log_rm)
+            return lp.float()
 
         def surv():
             j = self.survival_bin(y).unsqueeze(-1)
@@ -240,8 +280,8 @@ class MixedOutcomeDist:
 
         lp = self._sel({Likelihood.GAUSSIAN: gauss, Likelihood.STUDENT_T: student, Likelihood.BERNOULLI: bern,
                         Likelihood.CATEGORICAL: cat, Likelihood.COUNT: count, Likelihood.SURVIVAL: surv})
-        if mask is not None:
-            lp = torch.where(self._bc(mask, torch.bool), lp, torch.zeros_like(lp))
+        if obs is not None:
+            lp = torch.where(obs, lp, torch.zeros_like(lp))
         return lp
 
     def mean(self) -> torch.Tensor:
@@ -330,7 +370,8 @@ class MixedOutcomeDist:
             m, r = self.nb_mean, self.nb_total_count
             with seeded_from(generator, dev):
                 lam = torch.distributions.Gamma(r, r / m.clamp(min=1e-8)).sample()
-            return torch.poisson(lam.clamp(max=1e7), generator=generator)
+            # the gamma mixing draw of a very over-dispersed NB can overflow; only non-finite draws are guarded
+            return torch.poisson(torch.nan_to_num(lam, nan=0.0, posinf=1e15).clamp(max=1e15), generator=generator)
 
         def surv():
             ps = self.surv_bin_probs.reshape(-1, self.M).clamp(min=0)
@@ -361,12 +402,13 @@ class OutcomeHead(nn.Module):
 
     def __init__(self, cfg: CamConfig, cond_dim: Optional[int] = None, n_layers: int = 1, max_classes: int = 32,
                  survival_edges: Optional[torch.Tensor] = None, min_df: float = 2.1, min_std: float = 1e-3,
-                 nb_support: int = 256):
+                 nb_support: int = 256, count_log_max: float = 20.0, validate: bool = True):
         super().__init__()
         D = cfg.d_model
         self.cfg = cfg
         self.max_classes = max_classes
         self.min_df, self.min_std, self.nb_support = min_df, min_std, nb_support
+        self.count_log_max, self.validate = count_log_max, validate
         edges = default_survival_edges() if survival_edges is None else torch.as_tensor(survival_edges).float()
         if edges[0] != 0 or bool((edges[1:] <= edges[:-1]).any()):
             raise ValueError("survival edges must start at 0 and increase strictly")
@@ -422,7 +464,7 @@ class OutcomeHead(nn.Module):
             lik, ncls = lik.unsqueeze(1), ncls.unsqueeze(1)
         raw = self.param(feat)
         return MixedOutcomeDist(raw, lik, ncls, self.edges, self.max_classes, self.min_df, self.min_std,
-                                self.nb_support)
+                                self.nb_support, self.count_log_max, self.validate)
 
     def nll(self, Z, outcomes: OutcomeBatch, cond=None, mask=None) -> torch.Tensor:
         d = self.dist(self.features(Z, outcomes, mask), outcomes, cond)

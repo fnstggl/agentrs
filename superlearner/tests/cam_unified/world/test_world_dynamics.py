@@ -1,6 +1,7 @@
 """WorldModel structure: prior/posterior/transition contract, action and time conditioning (A07), no future
 leakage into the filter or forecasts, EMA target isolation, episode resets, KL balancing and anti-collapse."""
 import copy
+import math
 
 import pytest
 import torch
@@ -156,9 +157,17 @@ def test_loss_terms_finite_backprop_and_horizon_errors():
     for name in ("prior_net", "post_net", "outcome_head", "rew_head", "dur_head", "obs_pred", "noise_proj",
                  "time_enc", "core"):
         assert any(g is not None and g.abs().sum() > 0 for n, g in grads.items() if n.startswith(name)), name
-    # horizons longer than the sequence are skipped
-    out2 = wm.loss(rand_sequence(B, 3, cfg, seed=7))
+    assert out["horizons_trained"] == (1, 2, 4) and out["horizons_skipped"] == ()
+    assert torch.isfinite(out["open_loop_joint_nll"])
+    # horizons longer than the sequence are skipped, reported and warned about (once per horizon set and length)
+    with pytest.warns(RuntimeWarning, match="exceed the sequence length"):
+        out2 = wm.loss(rand_sequence(B, 3, cfg, seed=7))
     assert set(out2["horizon_errors"]) == {1, 2}
+    assert out2["horizons_trained"] == (1, 2) and out2["horizons_skipped"] == (4,)
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        wm.loss(rand_sequence(B, 3, cfg, seed=8))
 
 
 def test_episode_boundary_resets_the_filter_state_and_masks_transitions():
@@ -225,7 +234,11 @@ def test_imagination_consistent_open_loop_uses_only_sampled_outcomes():
     cfg, wm = _wm(10)
     T, B = 5, 3
     batch = rand_sequence(B, T, cfg, seed=11)
+    from superlearner.cam_unified.interfaces import Likelihood
     for st in batch.steps:
+        # a sentinel real outcome (777 is not a valid class index, so categorical queries become gaussian here)
+        st.outcomes.lik = torch.where(st.outcomes.lik == int(Likelihood.CATEGORICAL),
+                                      torch.full_like(st.outcomes.lik, int(Likelihood.GAUSSIAN)), st.outcomes.lik)
         st.outcomes.y = torch.full_like(st.outcomes.y, 777.0)
     fasts = [zero_fast_state(B, cfg) for _ in range(T)]
     seen, calls = [], []
@@ -286,3 +299,120 @@ def test_outcome_predictive_is_action_conditioned_and_particle_aware():
     assert (lp1[:, 0] - lp1[:, 1]).abs().max() > 1e-5                           # and on the particle
     torch.testing.assert_close(lp1, wm.outcome_predictive(Z, a1, None, 1.0, ob, cond=parts).log_prob(ob.y,
                                                                                                   ob.censored))
+
+
+
+def test_loss_is_reproducible_from_the_generator():
+    """Open-loop start subset, observation-token subsample and every latent / outcome sample come from the passed
+    generator: the global RNG state does not matter."""
+    cfg, wm = _wm(14, open_loop_starts=2, obs_max_groups=3, obs_max_tokens=2)
+    wm.eval()                                     # no running-statistics update between the calls
+    batch = rand_sequence(4, 6, cfg, seed=15)
+    g = lambda s: torch.Generator().manual_seed(s)
+    torch.manual_seed(1)
+    a = wm.loss(batch, generator=g(3))
+    torch.rand(1000)
+    torch.manual_seed(2)
+    b = wm.loss(batch, generator=g(3))
+    for k in ("world", "open_loop", "obs", "latent", "outcome"):
+        assert torch.equal(a[k], b[k]), k
+    c = wm.loss(batch, generator=g(4))
+    assert not torch.equal(a["open_loop"], c["open_loop"])
+
+
+def test_state_norm_is_never_computed_from_the_same_batch():
+    cfg, wm = _wm(15)
+    batch = rand_sequence(3, 5, cfg, seed=16)
+    ref = copy.deepcopy(wm).eval()                 # same weights, never updates its statistics
+    g = lambda: torch.Generator().manual_seed(0)
+    wm.train()
+    assert int(wm.state_norm.count) == 0
+    out = wm.loss(batch, generator=g())
+    torch.testing.assert_close(out["world"], ref.loss(batch, generator=g())["world"])   # heads saw no batch stats
+    assert int(wm.state_norm.count) == 1 and int(ref.state_norm.count) == 0
+    Zp = out["Z_post"].reshape(-1, cfg.n_state, cfg.d_model)
+    torch.testing.assert_close(wm.state_norm.mean, Zp.mean(0))       # updated afterwards with this batch
+    # the next call reads the previous batch's statistics, not its own
+    batch2 = rand_sequence(3, 5, cfg, seed=17)
+    ref2 = copy.deepcopy(wm).eval()
+    out2 = wm.loss(batch2, generator=g())
+    torch.testing.assert_close(out2["world"], ref2.loss(batch2, generator=g())["world"])
+
+
+def test_belief_tokens_from_fast_states_get_gradients():
+    """B's belief-token encoder is trained by the world loss whether tokens are passed directly or built from
+    FastStates; both paths give the same loss."""
+    from superlearner.cam_unified.testing import zero_fast_state
+    cfg, wm = _wm(16)
+    T, B = 4, 3
+    batch = rand_sequence(B, T, cfg, seed=18)
+    fasts = [zero_fast_state(B, cfg) for _ in range(T)]
+    enc = torch.nn.Linear(cfg.d_particle, cfg.d_model)
+    toks = lambda f: TokenSet.from_dense(enc(f.particles), TokenKind.BELIEF)
+    wm.eval()
+    g = lambda: torch.Generator().manual_seed(0)
+    out = wm.loss(batch, fast_states=fasts, belief_tokens_fn=toks, generator=g())
+    out["world"].backward()
+    assert enc.weight.grad is not None and float(enc.weight.grad.abs().sum()) > 0
+    gw = enc.weight.grad.clone()
+    enc.zero_grad()
+    out2 = wm.loss(batch, beliefs=[toks(f) for f in fasts], generator=g())
+    out2["world"].backward()
+    torch.testing.assert_close(out["world"], out2["world"])
+    torch.testing.assert_close(enc.weight.grad, gw)
+
+
+def test_missing_goals_are_padded_not_dropped():
+    cfg, wm = _wm(17)
+    batch = rand_sequence(3, 4, cfg, seed=19)
+    assert all(s.goal is not None for s in batch.steps)
+    batch.steps[1].goal = None
+    seen = []
+    orig = wm.reward_logits
+
+    def spy(Zh, goal=None):
+        seen.append(goal is not None and goal.N > 0 and bool(goal.mask.any()))
+        return orig(Zh, goal)
+
+    wm.reward_logits = spy
+    out = wm.loss(batch)
+    assert torch.isfinite(out["world"]) and seen and all(seen)       # the other steps' goals reach the reward head
+    batch.steps = [type(st)(**{**st.__dict__, "goal": None}) for st in batch.steps]
+    seen.clear()
+    wm.loss(batch)
+    assert seen and not any(seen)
+
+
+def test_open_loop_credit_is_the_joint_mixture_gradient():
+    """The responsibility-weighted terms have exactly the gradient of the joint multi-sample likelihood
+    -log mean_s p(all targets | future_s); "trajectory" credit shares one weight per sampled future across the
+    rows (horizons) of a trajectory, "per_term" does not."""
+    cfg, wm = _wm(18)
+    R, s, Q = 3, 4, 2
+    g = torch.Generator().manual_seed(0)
+    leaf = lambda *shape: (torch.randn(*shape, generator=g)).requires_grad_(True)
+    out_lp, r_ll, c_ll, dist = leaf(R, s, Q), leaf(R, s), leaf(R, s), leaf(R, s).abs().detach().requires_grad_(True)
+    ones = torch.ones(R, dtype=torch.bool)
+    rt = {"R": R, "s": s, "alive": ones, "om": torch.ones(R, Q, dtype=torch.bool), "nxt_ok": ones,
+          "out_lp": out_lp, "r_ll": r_ll, "c_ll": c_ll, "dist": dist, "obs_rows": torch.zeros(0, dtype=torch.long),
+          "cm": torch.zeros(R, Q, dtype=torch.bool), "sq": torch.zeros(R, Q), "r_abs": torch.zeros(R)}
+    wm.open_loop_credit = "row"
+    red = wm._reduce(rt, wm._responsibilities(rt))
+    tau, wl = wm.latent_temperature, wm.weights["latent"]
+    # surrogate with every term normalised per row; latent pseudo-likelihood scaled by tau/W_latent
+    sur = (red["outcome"] * Q + red["reward"] + red["cont"]) * R + red["latent"] * R * wl / tau
+    ell = out_lp.sum(-1) + r_ll + c_ll - wl * dist / tau
+    mix = -(torch.logsumexp(ell, 1) - math.log(s)).sum()
+    gs = torch.autograd.grad(sur, [out_lp, r_ll, c_ll, dist])
+    gm = torch.autograd.grad(mix, [out_lp, r_ll, c_ll, dist])
+    for a, b in zip(gs, gm):
+        torch.testing.assert_close(a, b, rtol=1e-5, atol=1e-6)
+    # trajectory credit: rows 0 and 2 are two horizons of the same sampled futures -> identical weights
+    wm.open_loop_credit = "trajectory"
+    resp = wm._responsibilities(rt, torch.tensor([0, 1, 0]), 2)
+    torch.testing.assert_close(resp["rew"][0], resp["rew"][2])
+    torch.testing.assert_close(resp["rew"][0], torch.softmax((ell[0] + ell[2]).detach(), 0))
+    torch.testing.assert_close(resp["out"][..., 0], resp["lat"])
+    wm.open_loop_credit = "per_term"
+    resp = wm._responsibilities(rt)
+    assert (resp["rew"] - resp["lat"]).abs().max() > 1e-3          # separate mixtures per term

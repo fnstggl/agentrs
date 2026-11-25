@@ -13,7 +13,7 @@ from .baselines import (KeyMeanBaseline, LinearRegressionBaseline, NoChangeBasel
                         WorldModelForecaster, evaluate_multistep)
 from .causal import (PROV_FEATURES, CausalLedger, CausalProvenance, InterventionContrastive, provenance_features)
 from .dynamics import WorldModel
-from .imagination import (Candidates, ImaginationHooks, Imagination, PolicyContext, WorldImaginedStep,
+from .imagination import (Candidates, ImaginationHooks, Imagination, PolicyContext, StepContext, WorldImaginedStep,
                           WorldImaginedTrajectory, candidate_scores, trace_summaries)
 from .imagine_train import (ImaginedTargets, combine_real_and_imagined, imagination_actor_critic_loss,
                             imagined_targets, select_reliable_horizon)
@@ -23,7 +23,8 @@ from .planner import BeamPlanner, PlanResult, PolicyRolloutPlanner, SamplingPlan
 __all__ = [
     "OutcomeHead", "MixedOutcomeDist", "default_survival_edges", "WorldModel", "NoChangeBaseline",
     "TrendPersistenceBaseline", "KeyMeanBaseline", "LinearRegressionBaseline", "WorldModelForecaster",
-    "evaluate_multistep", "Imagination", "ImaginationHooks", "Candidates", "PolicyContext", "WorldImaginedStep",
+    "evaluate_multistep", "Imagination", "ImaginationHooks", "Candidates", "PolicyContext", "StepContext",
+    "WorldImaginedStep",
     "WorldImaginedTrajectory", "candidate_scores", "trace_summaries", "PolicyRolloutPlanner", "BeamPlanner",
     "SamplingPlanner", "PlanResult", "compare_planners", "CausalLedger", "CausalProvenance",
     "InterventionContrastive", "PROV_FEATURES", "provenance_features", "imagined_targets", "ImaginedTargets",

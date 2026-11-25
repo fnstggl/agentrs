@@ -2,7 +2,11 @@
 
 All planners share ``Imagination.step`` (belief-aware: every imagined row updates its own FastState clone with the
 imagined outcomes) and count world-model transition evaluations (``WorldModel.n_transitions``). A budget is the
-number of transitions allowed per real environment; each planner sizes itself to stay within it.
+number of transitions allowed per real environment; each planner sizes itself to stay within it. A budget below a
+planner's minimum cost (``min_budget``: policy rollouts n*h, beam s*(n + (h-1)*W*n), CEM iterations*s*h) is refused
+with ``ValueError`` instead of being silently exceeded, and every plan checks after the fact that it used at most
+budget x B transitions (``RuntimeError`` otherwise). ``compare_planners`` refuses a budget any compared planner
+cannot meet, so compared planners always run within the same budget.
 
 * ``PolicyRolloutPlanner`` -- closed loop: every candidate first action is followed by the policy, which chooses
   each later action from the row's *imagined, revised* belief; candidate value = mean imagined return over
@@ -16,6 +20,12 @@ number of transitions allowed per real environment; each planner sizes itself to
 Each returns a ``PlanResult`` whose chosen action is a copy of the CAM candidate with ``ActionSource.CAM_PLANNER``
 and whose ``imagined`` entries are ready for ``DecisionTrace.imagined``. The choice is always the candidate with the
 best imagined return under that planner's own estimate.
+
+Behaviour probability of planner actions: the executed action is a deterministic argmax over imagined returns of
+sampled candidates, so its behaviour probability mu is not the decoder's probability. A planner action therefore has
+``logp = None`` (unknown mu: off-policy learners must not form importance ratios from it); the decoder's own
+log-probabilities are kept for diagnostics under ``logp_parts["decoder"]`` / ``logp_parts["decoder_<part>"]`` and
+``proposal["behavior"] == "planner_argmax"``.
 """
 from __future__ import annotations
 
@@ -75,7 +85,23 @@ class _Planner:
         v = st.value if st.value is not None else torch.zeros_like(st.ret)
         return st.ret + st.disc * v - self.im.uncertainty_coef * st.penalty
 
+    def min_budget(self, n: int, horizon: Optional[int] = None) -> int:
+        """Smallest per-environment transition budget this planner can run within for n candidates."""
+        raise NotImplementedError
+
+    def _check_budget(self, n: int) -> None:
+        need = self.min_budget(n, self.horizon)
+        if self.budget < need:
+            raise ValueError(f"{self.method} planner needs a budget of at least {need} transitions per environment "
+                             f"for {n} candidates at horizon {self.horizon}; got {self.budget}")
+
+    def _check_used(self, n_evals: int, B: int) -> None:
+        if n_evals > self.budget * B:
+            raise RuntimeError(f"{self.method} planner used {n_evals} transitions, above its budget "
+                               f"{self.budget} x {B} environments")
+
     def _finish(self, cand: Candidates, scores: torch.Tensor, imagined: list, n_evals: int, info: dict) -> PlanResult:
+        self._check_used(n_evals, cand.B)
         choice = scores.argmax(1)
         acts = []
         for b in range(cand.B):
@@ -88,8 +114,13 @@ class _Planner:
             probs[finite] = torch.softmax(sc[finite] / self.score_temperature, 0)
             a.proposal = {"n": cand.n, "probs": [float(p) for p in probs], "chosen": i,
                           "scores": [float(x) if math.isfinite(float(x)) else None for x in sc],
-                          "method": self.method, "deterministic": True}
-            a.logp_parts = dict(a.logp_parts, planner=0.0)
+                          "method": self.method, "deterministic": True, "behavior": "planner_argmax",
+                          "budget": self.budget}
+            # behaviour probability of an argmax over sampled candidates is unknown: no logp (see module doc)
+            parts = {f"decoder_{k}": v for k, v in (a.logp_parts or {}).items()}
+            parts["decoder"] = a.logp
+            a.logp_parts = parts
+            a.logp = None
             acts.append(a)
         return PlanResult(choice, acts, scores, imagined, n_evals, self.method, info)
 
@@ -98,10 +129,14 @@ class PolicyRolloutPlanner(_Planner):
     """Closed-loop policy-generated rollouts from every candidate first action."""
     method = "policy_rollout"
 
+    def min_budget(self, n: int, horizon: Optional[int] = None) -> int:
+        return n * (horizon or self.horizon)
+
     def plan(self, Z, fast: Optional[FastState], goal: Optional[TokenSet], cand: Candidates,
              hooks: ImaginationHooks, generator: Optional[torch.Generator] = None) -> PlanResult:
         h, n = self.horizon, cand.n
-        s = max(1, self.budget // (n * h))
+        self._check_budget(n)
+        s = self.budget // (n * h)
         traj = self.im.rollout(Z, fast, goal, cand, hooks, horizon=h, n_samples=s, generator=generator)
         scores = candidate_scores(traj, cand.B, n)
         imagined = [[dict(e, method=self.method) for e in trace_summaries(traj, b, n)] for b in range(cand.B)]
@@ -119,11 +154,19 @@ class BeamPlanner(_Planner):
         self.beam_width = beam_width
         self.n_samples = n_samples
 
+    def _per_sample(self, n: int, h: int) -> int:
+        W = min(self.beam_width, n)
+        return n + (h - 1) * W * n
+
+    def min_budget(self, n: int, horizon: Optional[int] = None) -> int:
+        return (self.n_samples or 1) * self._per_sample(n, horizon or self.horizon)
+
     def plan(self, Z, fast, goal, cand: Candidates, hooks: ImaginationHooks, generator=None) -> PlanResult:
         im, h, n, B = self.im, self.horizon, cand.n, cand.B
+        self._check_budget(n)
         W = min(self.beam_width, n)
-        per_sample = n + (h - 1) * W * n
-        s = self.n_samples or max(1, self.budget // per_sample)
+        per_sample = self._per_sample(n, h)
+        s = self.n_samples or self.budget // per_sample
         dev = Z.device
         n0 = im.wm.n_transitions
         with torch.no_grad():
@@ -175,10 +218,14 @@ class SamplingPlanner(_Planner):
         self.iterations, self.n_samples = iterations, n_samples
         self.elite_frac, self.smoothing = elite_frac, smoothing
 
+    def min_budget(self, n: int, horizon: Optional[int] = None) -> int:
+        return self.iterations * self.n_samples * (horizon or self.horizon)
+
     def plan(self, Z, fast, goal, cand: Candidates, hooks: ImaginationHooks, generator=None) -> PlanResult:
         im, h, n, B = self.im, self.horizon, cand.n, cand.B
+        self._check_budget(n)
         s = self.n_samples
-        N = max(1, self.budget // (self.iterations * s * h))          # plans per iteration per environment
+        N = self.budget // (self.iterations * s * h)                  # plans per iteration per environment
         dev = Z.device
         n0 = im.wm.n_transitions
         P = torch.full((B, h, n), 1.0 / n, device=dev)
@@ -264,9 +311,17 @@ PLANNERS = {"policy_rollout": PolicyRolloutPlanner, "beam": BeamPlanner, "cem": 
 
 def compare_planners(imagination: Imagination, budget: int, Z, fast, goal, cand: Candidates,
                      hooks: ImaginationHooks, horizon: Optional[int] = None, seed: int = 0, kinds=None) -> dict:
-    """Run every planner at the same transition budget on the same real state; {kind: PlanResult}."""
+    """Run every planner at the same transition budget on the same real state; {kind: PlanResult}.
+
+    Refuses (ValueError) a budget that any of the compared planners cannot meet, so no planner gets more compute."""
+    planners = {kind: PLANNERS[kind](imagination, budget, horizon) for kind in (kinds or PLANNERS)}
+    need = {kind: p.min_budget(cand.n) for kind, p in planners.items()}
+    short = {k: v for k, v in need.items() if v > budget}
+    if short:
+        raise ValueError(f"budget {budget} per environment is below the minimum cost of {short}; compared planners "
+                         f"must all run within the same budget")
     out = {}
-    for kind in (kinds or PLANNERS):
+    for kind, p in planners.items():
         g = torch.Generator(device=Z.device).manual_seed(seed)
-        out[kind] = PLANNERS[kind](imagination, budget, horizon).plan(Z, fast, goal, cand, hooks, generator=g)
+        out[kind] = p.plan(Z, fast, goal, cand, hooks, generator=g)
     return out

@@ -2,10 +2,14 @@
 
 Default run: the world model learns (a) a delayed vs an immediate effect, (b) a non-additive interaction of two
 simultaneous interventions, (c) open-loop multistep predictions (irregular elapsed times, nonlinear dynamics) that
-beat no-change / trend-persistence / key-mean / per-key linear-regression baselines at every horizon.
-Slow (CAM_RUN_SLOW=1): on a learned ProbeWorld model, the closed-loop planner picks the immediately costly
-experiment that enables the later payoff, imagination changes the real action, the three planners are compared at
-matched compute, and a policy trained on imagined targets learns to experiment.
+beat no-change / trend-persistence / key-mean / per-key linear-regression baselines at every horizon, (d) filtered
+predictions that follow an unannounced mechanism change, and later predictions that follow a changed intermediate
+event (spec 6.6(4), 6.6(6)).
+Slow (CAM_RUN_SLOW=1): on ProbeWorld models from three training seeds, the closed-loop planner picks the
+immediately costly experiment that enables the later payoff by a margin, imagination changes the real action, the
+three planners are compared at matched compute, and a policy trained on imagined targets learns to experiment --
+with ablations showing that the real-experience term alone cannot teach it and that imagination without belief
+revision does not.
 """
 import math
 import time
@@ -25,7 +29,7 @@ from superlearner.cam_unified.world.imagine_train import (combine_real_and_imagi
 from superlearner.cam_unified.world.planner import PolicyRolloutPlanner, compare_planners
 
 from world_synth import (DelayWorld, HypothesisBelief, InteractionWorld, InvestWorld, ProbeWorld, StockWorld,
-                         batch_to, device, probe_candidates, probe_hooks, real_start, train)
+                         SwitchWorld, batch_to, device, probe_candidates, probe_hooks, real_start, train)
 
 DEV = device()
 
@@ -46,7 +50,7 @@ def test_learns_delayed_versus_immediate_effects():
     batches = [batch_to(w.batch(64, seed=i), DEV) for i in range(16)]
     wm = _wm(cfg, train_horizons=(1, 2, 3, 4), open_loop_samples=2, open_loop_starts=4)
     t0 = time.time()
-    hist = train(wm, batches, 260, lr=2e-3)
+    hist = train(wm, batches, 450, lr=4e-3)
     wm.eval()
     plans = [[0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]
     tb = batch_to(w.batch(3, seed=999, plans=plans), DEV)
@@ -94,7 +98,7 @@ def test_multistep_open_loop_beats_baselines():
     H = (1, 2, 4, 8)
     wm = _wm(cfg, train_horizons=H, open_loop_samples=2, open_loop_starts=3)
     t0 = time.time()
-    hist = train(wm, [batch_to(b, DEV) for b in raw], 260, lr=2e-3)
+    hist = train(wm, [batch_to(b, DEV) for b in raw], 450, lr=2e-3)
     wm.eval()
     test = [w.batch(64, seed=1000 + i) for i in range(2)]
 
@@ -124,56 +128,126 @@ def test_multistep_open_loop_beats_baselines():
     assert set(out["horizon_errors"]) == set(H)
 
 
+def test_predictions_follow_a_mechanism_change_and_a_changed_intermediate_event():
+    """Spec 6.6(4): the effect of A flips sign at an unannounced time; once a changed outcome has been observed the
+    filtered forecasts follow the new mechanism (and not before: histories up to the change are identical).
+    Spec 6.6(6): from the same state, the intermediate event code of a switched vs an unswitched transition
+    (posterior latents of the two real episodes) changes the later open-loop predictions accordingly."""
+    cfg = tiny_config()
+    w = SwitchWorld(cfg.d_model)
+    batches = [batch_to(w.batch(64, seed=i), DEV) for i in range(16)]
+    wm = _wm(cfg, train_horizons=(1, 2, 3, 4), open_loop_samples=2, open_loop_starts=4)
+    t0 = time.time()
+    train(wm, batches, 450, lr=4e-3)
+    wm.eval()
+    preds, eps = {}, {}
+    for name, force in (("switch", {"s": 1.0, "sw": 4}), ("none", {"s": 1.0, "sw": None}),
+                        ("neg_switch", {"s": -1.0, "sw": 4})):
+        w.force = force
+        eps[name] = tb = batch_to(w.batch(1, seed=5, plans=[[1] * w.T]), DEV)
+        w.force = None
+        preds[name] = torch.tensor([float(wm.forecast(tb, t, (1,), n_samples=16, generator=_gen())[1]["mean"][0, 0])
+                                    for t in range(2, 9)])                    # prediction of Y_t from O_<=t
+    print(f"switch world: {time.time() - t0:.0f}s, filtered predictions of Y_2..Y_8:",
+          {k: [round(float(x), 2) for x in v] for k, v in preds.items()})
+    sw, no, neg = preds["switch"], preds["none"], preds["neg_switch"]
+    torch.testing.assert_close(sw[:3], no[:3])          # identical histories up to the change: no future leakage
+    assert bool((sw[3:] < -0.7).all()) and bool((neg[3:] > 0.7).all())      # Y_5.. after observing the change
+    assert bool((no[3:] > 0.2).all()) and bool((no[3:] - sw[3:] > 1.0).all())
+    # 6.6(6): intervene on the intermediate event of the transition 4 -> 5
+    later = {}
+    with torch.no_grad():
+        Z4 = wm.filter(SequenceBatch(eps["none"].steps[:5]))[-1]                 # the shared state before A_4
+    for name in ("switch", "none"):
+        tb = eps[name]
+        with torch.no_grad():
+            Zf = wm.filter(SequenceBatch(tb.steps[:6]))
+            torch.testing.assert_close(Zf[4], Z4)
+            # the event code: posterior latent of transition 4 -> 5 of this episode (sees O_5, i.e. Y_4)
+            z = wm.sample_latent(wm.posterior_logits(Z4, tb.steps[4].act, None, 1.0, Zf[5]), sample=False)
+            Z5 = wm.transition(Z4, tb.steps[4].act, None, torch.ones(1, device=DEV), z)
+            ev = float(wm.outcome_dist(Z5, tb.steps[4].outcomes).mean()[0, 0])
+            Z6, _ = wm.prior(Z5, tb.steps[5].act, None, 1.0, sample=False)
+            later[name] = (ev, float(wm.outcome_dist(Z6, tb.steps[5].outcomes).mean()[0, 0]))
+    print("intermediate event -> later prediction:", later)
+    assert later["switch"][0] < -0.5 and later["none"][0] > 0.5                # the two intermediate events
+    assert later["switch"][1] < -0.4 and later["none"][1] > 0.4 and later["none"][1] - later["switch"][1] > 1.0
+
+
 # ------------------------------------------------------------------------------------------------ slow: planning
 
-@pytest.fixture(scope="module")
-def probe_model():
+PROBE_SEEDS = (0, 1, 2)
+
+
+def _train_probe_model(seed: int):
     cfg = tiny_config()
     w = ProbeWorld(cfg.d_model)
     bel = HypothesisBelief(cfg, w)
-    batches = [batch_to(w.batch(128, seed=i), DEV) for i in range(24)]       # 3072 distinct episodes
-    wm = _wm(cfg, train_horizons=(1, 2, 3), open_loop_samples=4, open_loop_starts=None)
+    batches = [batch_to(w.batch(128, seed=i + 1000 * seed), DEV) for i in range(24)]   # 3072 distinct episodes
+    torch.manual_seed(seed)
+    wm = WorldModel(cfg, DoubleCore(cfg), train_horizons=(1, 2, 3), open_loop_samples=4,
+                    open_loop_starts=None).to(DEV)
     t0 = time.time()
-    train(wm, batches, 600, lr=2e-3, belief=bel, lr_end_frac=0.1)   # imagination-consistent open loop
-    print(f"probe world trained in {time.time() - t0:.0f}s")
+    train(wm, batches, 1000, lr=2e-3, belief=bel, lr_end_frac=0.1, seed=seed)   # imagination-consistent open loop
+    print(f"probe world (training seed {seed}) trained in {time.time() - t0:.0f}s")
     return cfg, w, bel, wm.eval()
 
 
+@pytest.fixture(scope="module")
+def probe_model():
+    return _train_probe_model(PROBE_SEEDS[0])
+
+
+@pytest.fixture(scope="module")
+def probe_models(probe_model):
+    return [probe_model] + [_train_probe_model(s) for s in PROBE_SEEDS[1:]]
+
+
 @pytest.mark.slow
-def test_planner_chooses_costly_experiment_that_enables_later_payoff(probe_model):
+def test_planner_chooses_costly_experiment_that_enables_later_payoff(probe_models):
     """Spec 7.4: probe costs 1 now; only after it can the agent exploit (+10 if h=1) or fall back to safe (+0.5).
     The myopic choice is safe; the policy alone (uncertain belief) would wait; multistep belief-aware imagination
-    picks the experiment, i.e. the imagined consequences change the real action."""
-    cfg, w, bel, wm = probe_model
-    Z, fast = real_start(wm, w, bel, 2, DEV)
-    hooks, act_tokens = probe_hooks(w, bel, DEV)
-    cand = probe_candidates(w, 2, DEV)
-    im = Imagination(wm, horizon=2, outcome_sampling="marginal")
-    res = PolicyRolloutPlanner(im, 4096, horizon=2).plan(Z, fast, None, cand, hooks, generator=_gen())
-    myopic = PolicyRolloutPlanner(im, 4096, horizon=1).plan(Z, fast, None, cand, hooks, generator=_gen())
-    print("imagined value per candidate (wait, probe, safe, exploit):", res.scores.tolist(),
-          "myopic:", myopic.scores.tolist())
-    assert res.choice.tolist() == [1, 1], res.scores
-    assert all(a.tool == "probe" and a.source.value == "cam_planner" for a in res.actions)
-    # one-step lookahead never picks the experiment: it only sees its immediate cost
-    assert 1 not in myopic.choice.tolist() and bool((myopic.scores[:, 1] < -0.5).all())
-    own, _ = hooks.policy_fn(PolicyContext(R=Z, Z=Z, goal=None, belief=bel.tokens(fast), fast=fast, step=0,
-                                           prev_actions=[], branch_of=torch.arange(2), first_candidate=None))
-    # ^ the policy alone, acting on the real (uninformed) belief
-    assert {a.tool for a in own} == {"wait"}
-    # end-to-end A08: alternatives rolled over several decisions with revised imagined beliefs
-    traj = res.info["trajectory"]
-    probe = traj.first_candidate == 1
-    safe = traj.first_candidate == 2
-    y = traj.steps[0].outcomes.y[:, 0]
-    nxt = [a.tool for a in traj.steps[1].action]
-    assert {nxt[i] for i in torch.nonzero(probe & (y > 0.5)).flatten().tolist()} == {"exploit"}
-    assert {nxt[i] for i in torch.nonzero(probe & (y < 0.5)).flatten().tolist()} == {"safe"}
-    assert float(traj.steps[0].belief_ess[probe].mean()) < cfg.n_particles - 1      # beliefs revised
-    assert float(traj.steps[0].reward[probe].mean()) < -0.5 < float(traj.steps[0].reward[safe].mean())
-    ex_pos = traj.steps[1].reward[probe & (y > 0.5)].mean()
-    assert float(ex_pos) > 3.0                                     # exploit after a positive imagined probe pays
-    assert traj.provenance == Provenance.IMAGINED
+    picks the experiment, i.e. the imagined consequences change the real action. Checked for models from three
+    training seeds, with a minimum probe-minus-safe margin (true values: probe -1 + e^-kappa * 5.25 ~ 4.0,
+    safe 0.5)."""
+    margins = []
+    for seed, (cfg, w, bel, wm) in zip(PROBE_SEEDS, probe_models):
+        Z, fast = real_start(wm, w, bel, 2, DEV)
+        hooks, act_tokens = probe_hooks(w, bel, DEV)
+        cand = probe_candidates(w, 2, DEV)
+        im = Imagination(wm, horizon=2, outcome_sampling="marginal")
+        res = PolicyRolloutPlanner(im, 4096, horizon=2).plan(Z, fast, None, cand, hooks, generator=_gen())
+        myopic = PolicyRolloutPlanner(im, 4096, horizon=1).plan(Z, fast, None, cand, hooks, generator=_gen())
+        traj = res.info["trajectory"]
+        probe = traj.first_candidate == 1
+        safe = traj.first_candidate == 2
+        y = traj.steps[0].outcomes.y[:, 0]
+        ex_pos = float(traj.steps[1].reward[probe & (y > 0.5)].mean())
+        margin = float((res.scores[:, 1] - res.scores[:, 2]).min())
+        margins.append(margin)
+        print(f"seed {seed}: imagined value per candidate (wait, probe, safe, exploit):",
+              [[round(float(x), 3) for x in r] for r in res.scores], "myopic:",
+              [[round(float(x), 3) for x in r] for r in myopic.scores],
+              f"probe-safe margin {margin:.2f}, E[r | exploit after imagined positive probe] {ex_pos:.2f}")
+        assert res.choice.tolist() == [1, 1], (seed, res.scores)
+        assert margin > 1.0, (seed, res.scores)
+        assert all(a.tool == "probe" and a.source.value == "cam_planner" for a in res.actions)
+        # one-step lookahead never picks the experiment: it only sees its immediate cost
+        assert 1 not in myopic.choice.tolist() and bool((myopic.scores[:, 1] < -0.5).all())
+        own, _ = hooks.policy_fn(PolicyContext(R=Z, Z=Z, goal=None, belief=bel.tokens(fast), fast=fast, step=0,
+                                               prev_actions=[], branch_of=torch.arange(2), first_candidate=None))
+        # ^ the policy alone, acting on the real (uninformed) belief
+        assert {a.tool for a in own} == {"wait"}
+        # end-to-end A08: alternatives rolled over several decisions with revised imagined beliefs
+        nxt = [a.tool for a in traj.steps[1].action]
+        assert {nxt[i] for i in torch.nonzero(probe & (y > 0.5)).flatten().tolist()} == {"exploit"}
+        assert {nxt[i] for i in torch.nonzero(probe & (y < 0.5)).flatten().tolist()} == {"safe"}
+        assert float(traj.steps[0].belief_ess[probe].mean()) < cfg.n_particles - 1      # beliefs revised
+        assert float(traj.steps[0].reward[probe].mean()) < -0.5 < float(traj.steps[0].reward[safe].mean())
+        assert ex_pos > 5.0                                    # exploit after a positive imagined probe pays
+        assert traj.provenance == Provenance.IMAGINED
+    print("probe-minus-safe margins over training seeds:", [round(m, 2) for m in margins])
+    assert sum(margins) / len(margins) > 1.5
 
 
 @pytest.fixture(scope="module")
@@ -235,53 +309,91 @@ def test_planner_comparison_at_matched_compute(probe_model, invest_model):
     assert bool((cl > cem + 0.25).all()), report      # open loop cannot value the information of the probe
 
 
-@pytest.mark.slow
-def test_policy_trained_on_imagined_targets_learns_to_experiment(probe_model):
-    """C04: a first-decision policy trained with imagined lambda-return targets (uncertainty-weighted, flagged
-    imagined) plus a small real-experience term learns to probe; imagined-only updates are refused."""
-    cfg, w, bel, wm = probe_model
+def _imagination_policy_training(cfg, w, bel, wm, arm: str, seed: int, iters: int = 40, N: int = 48):
+    """Train a first-decision policy pi(a0) = softmax(logits) for ProbeWorld from the real start state.
+
+    arm "imagined": imagination actor-critic loss on imagined lambda-return targets only;
+    arm "combined": the same imagined loss plus the real-experience term through ``combine_real_and_imagined``;
+    arm "real_only": the real-experience term alone (no imagination);
+    arm "no_belief_update": imagined targets from rollouts whose imagined probe results never revise the belief.
+    The real-experience term is a value correction from actual ProbeWorld returns (4 real episodes per update,
+    exact returns of the belief-driven follow-up policy): it corrects the critic V(s0) that is the imagined
+    advantages' baseline but has no policy-gradient path, so it cannot by itself teach the policy to experiment."""
     Z, fast = real_start(wm, w, bel, 1, DEV)
-    hooks, act_tokens = probe_hooks(w, bel, DEV)
+    hooks, act_tokens = probe_hooks(w, bel, DEV, update=(arm != "no_belief_update"))
     im = Imagination(wm, horizon=2, outcome_sampling="marginal")
     logits = torch.zeros(4, device=DEV, requires_grad=True)
     v0 = torch.zeros((), device=DEV, requires_grad=True)
     opt = torch.optim.Adam([logits, v0], lr=0.1)
-    g = torch.Generator(device=DEV).manual_seed(0)
-    rng = torch.Generator().manual_seed(1)
-    N = 48
+    g = torch.Generator(device=DEV).manual_seed(seed)
+    rng = torch.Generator().manual_seed(100 + seed)
 
     def real_return(a, h):               # the actual ProbeWorld with the same belief-driven follow-up policy
         if a == 1:
             return -1.0 + math.exp(-cfg.kappa) * (10.0 if h == 1 else 0.5)
         return {0: 0.0, 2: 0.5, 3: 10.0 if h == 1 else -10.0}[a]
 
-    for it in range(40):
+    imag = None
+    for it in range(iters):
         pi = torch.softmax(logits, 0)
-        a0 = torch.multinomial(pi.detach(), N, replacement=True, generator=g)
-        cand = Candidates([[Action(w.actions[i]) for i in a0.tolist()]], act_tokens(a0.tolist()))
-        traj = im.rollout(Z, fast, None, cand, hooks, horizon=2, n_samples=1, generator=g)
-        tg = imagined_targets(traj, lam=0.95, kappa=cfg.kappa, value0=v0.detach().expand(N),
-                              error_threshold=5.0)
-        H = len(traj.steps)
-        logp = torch.zeros(H, N, device=DEV)
-        logp[0] = torch.log_softmax(logits, 0)[a0]
-        vals = torch.zeros(H, N, device=DEV)
-        vals[0] = v0.expand(N)
-        mask = torch.zeros(H, N, device=DEV)
-        mask[0] = 1.0
-        imag = imagination_actor_critic_loss(tg, logp, vals, step_mask=mask, entropy_coef=0.0)
-        # a little real experience every update
-        ar = torch.multinomial(pi.detach(), 4, replacement=True, generator=g).cpu()
-        hr = torch.randint(0, 2, (4,), generator=rng)
-        Rr = torch.tensor([real_return(int(a), int(h)) for a, h in zip(ar, hr)], device=DEV)
-        lp_r = torch.log_softmax(logits, 0)[ar.to(DEV)]
-        real = {"loss": -((Rr - v0.detach()) * lp_r).mean() + 0.5 * ((v0 - Rr) ** 2).mean()}
-        tot = combine_real_and_imagined(real, imag, imagined_weight=1.0)
+        imag = None
+        if arm != "real_only":
+            a0 = torch.multinomial(pi.detach(), N, replacement=True, generator=g)
+            cand = Candidates([[Action(w.actions[i]) for i in a0.tolist()]], act_tokens(a0.tolist()))
+            traj = im.rollout(Z, fast, None, cand, hooks, horizon=2, n_samples=1, generator=g)
+            tg = imagined_targets(traj, lam=0.95, kappa=cfg.kappa, value0=v0.detach().expand(N),
+                                  error_threshold=5.0)
+            H = len(traj.steps)
+            logp = torch.zeros(H, N, device=DEV)
+            logp[0] = torch.log_softmax(logits, 0)[a0]
+            vals = torch.zeros(H, N, device=DEV)
+            vals[0] = v0.expand(N)
+            mask = torch.zeros(H, N, device=DEV)
+            mask[0] = 1.0
+            imag = imagination_actor_critic_loss(tg, logp, vals, step_mask=mask, entropy_coef=0.0)
+        real = None
+        if arm in ("combined", "real_only"):
+            ar = torch.multinomial(pi.detach().cpu(), 4, replacement=True, generator=rng)
+            hr = torch.randint(0, 2, (4,), generator=rng)
+            Rr = torch.tensor([real_return(int(a), int(h)) for a, h in zip(ar, hr)], device=DEV)
+            real = {"loss": 0.5 * ((v0 - Rr) ** 2).mean(), "provenance": Provenance.REAL.value}
+        if arm == "combined":
+            loss = combine_real_and_imagined(real, imag, imagined_weight=1.0)["loss"]
+        elif arm == "real_only":
+            loss = combine_real_and_imagined(real, None)["loss"]
+        else:
+            loss = imag["loss"]
         opt.zero_grad()
-        tot["loss"].backward()
+        loss.backward()
         opt.step()
-    pi = torch.softmax(logits, 0).tolist()
-    print("policy after imagination training (wait, probe, safe, exploit):", [round(p, 3) for p in pi])
-    assert pi[1] == max(pi) and pi[1] > 0.5
+    return torch.softmax(logits, 0).tolist(), imag
+
+
+@pytest.mark.slow
+def test_policy_trained_on_imagined_targets_learns_to_experiment(probe_model):
+    """C04: a first-decision policy trained with imagined lambda-return targets (uncertainty-weighted, flagged
+    imagined) learns to probe -- with imagination alone and combined with a real-experience correction -- while
+    the real-experience term alone leaves the policy where it started and imagination without belief revision
+    learns the myopic safe action instead. Imagined-only updates through ``combine_real_and_imagined`` are refused."""
+    cfg, w, bel, wm = probe_model
+    res = {}
+    for arm in ("imagined", "combined", "real_only", "no_belief_update"):
+        for seed in (0, 1):
+            pi, imag = _imagination_policy_training(cfg, w, bel, wm, arm, seed)
+            res[(arm, seed)] = pi
+            if imag is not None:
+                assert imag["provenance"] == Provenance.IMAGINED.value
+    print("policy after training (wait, probe, safe, exploit):",
+          {f"{a}/{s}": [round(p, 3) for p in pi] for (a, s), pi in res.items()})
+    for seed in (0, 1):
+        for arm in ("imagined", "combined"):
+            pi = res[(arm, seed)]
+            assert pi[1] == max(pi) and pi[1] > 0.5, (arm, seed, pi)
+        # the real term alone cannot move the policy: it has no policy-gradient path
+        assert max(abs(p - 0.25) for p in res[("real_only", seed)]) < 1e-6, res[("real_only", seed)]
+        # without imagined belief revision the experiment looks like a pure cost: the policy learns safe instead
+        pi = res[("no_belief_update", seed)]
+        assert pi[2] == max(pi) and pi[1] < 0.15, (seed, pi)
+    _, imag = _imagination_policy_training(cfg, w, bel, wm, "imagined", 0, iters=1)
     with pytest.raises(ValueError):
         combine_real_and_imagined(None, imag)

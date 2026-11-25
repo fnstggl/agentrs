@@ -103,7 +103,7 @@ def test_actor_critic_loss_is_weighted_and_differentiable():
 
 
 def test_real_and_imagined_are_kept_separate():
-    real = {"loss": torch.tensor(2.0), "actor": torch.tensor(1.0)}
+    real = {"loss": torch.tensor(2.0), "actor": torch.tensor(1.0), "provenance": "real"}
     imag = {"loss": torch.tensor(4.0), "critic": torch.tensor(3.0), "provenance": "imagined"}
     out = combine_real_and_imagined(real, imag, imagined_weight=0.25)
     assert float(out["loss"]) == pytest.approx(3.0)
@@ -114,6 +114,8 @@ def test_real_and_imagined_are_kept_separate():
         combine_real_and_imagined(real, {"loss": torch.tensor(1.0)})      # unlabelled imagined losses
     with pytest.raises(ValueError):
         combine_real_and_imagined(dict(real, provenance="imagined"), imag)
+    with pytest.raises(ValueError):                            # an unlabelled "real" dict could be imagined
+        combine_real_and_imagined({"loss": torch.tensor(2.0)}, imag)
     assert float(combine_real_and_imagined(real, None)["loss"]) == 2.0
 
 

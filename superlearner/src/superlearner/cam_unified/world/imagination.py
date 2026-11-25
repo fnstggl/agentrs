@@ -12,8 +12,9 @@ Each row owns an independent clone of the FastState. Per imagined step:
    marginal head);
 4. the cloned belief is updated with the imagined outcome (``belief_update_fn`` -- workstream B's
    ``BeliefModuleP.update``), so later decisions see the revised imagined belief;
-5. predicted reward (world-model head or ``reward_fn``), continuation probability and semi-Markov discount
-   exp(-kappa dt);
+5. predicted reward (world-model head on Z^ and the goal, or ``reward_fn(StepContext)`` for known /
+   verifiable reward functions),
+   continuation probability and semi-Markov discount exp(-kappa dt);
 6. the reasoner re-runs on the imagined state (``reason_fn``), the value head scores it (``value_fn``), and the policy
    chooses the next action from the *imagined* belief (``policy_fn``);
 7. an epistemic / model-error estimate: weighted particle disagreement of the predicted outcome means plus the
@@ -69,6 +70,22 @@ class PolicyContext:
 
 
 @dataclass
+class StepContext:
+    """One imagined transition of every row, as seen by a custom ``reward_fn`` (all per imagined row)."""
+    Z_prev: Any                  # [Bb,S,D] imagined state before the action
+    Z_next: Any                  # [Bb,S,D] predicted state after it
+    actions: list                # [Bb] Action applied at this step
+    act_tokens: TokenSet         # [Bb,Na,D]
+    outcomes: Optional[OutcomeBatch]   # imagined (sampled) outcomes of the action, or None without queries
+    dist: Any                    # marginal predictive outcome distribution [Bb,Q] (None without queries)
+    goal: Optional[TokenSet]
+    fast_prev: Optional[FastState]     # the row's imagined belief before the step
+    fast: Optional[FastState]          # ... and after updating it with the imagined outcomes
+    dt: Any                      # [Bb] imagined elapsed days
+    step: int                    # index of the action within the rollout (0 = the contemplated first action)
+
+
+@dataclass
 class ImaginationHooks:
     """Callbacks into the other components. Only ``policy_fn`` is required for multi-step rollouts.
 
@@ -79,7 +96,7 @@ class ImaginationHooks:
     belief_tokens_fn(fast) -> TokenSet [Bb, K+1, D]
     reason_fn(Z, ctx TokenSet) -> R | (R, info)
     value_fn(R, goal, belief_tokens) -> [Bb]
-    reward_fn(Z_hat, imagined OutcomeBatch, outcome dist, goal) -> [Bb]  (default: world-model reward head)
+    reward_fn(ctx: StepContext) -> [Bb]  (default: the world-model reward head on Z^ and the goal)
     duration_fn(actions) -> [Bb] days or None (default: Action.expected_duration when every action declares it)
     """
     policy_fn: Optional[Callable] = None
@@ -253,8 +270,12 @@ class Imagination:
             if hooks.belief_update_fn is not None and fast is not None:
                 fast = _first(hooks.belief_update_fn(fast, st.Z, st.act_tokens, imagined))
         goal = st.goal
-        reward = hooks.reward_fn(Z_next, imagined, d0, goal) if hooks.reward_fn is not None \
-            else wm.reward(Z_next, goal)
+        if hooks.reward_fn is not None:
+            reward = hooks.reward_fn(StepContext(Z_prev=st.Z, Z_next=Z_next, actions=list(st.actions),
+                                                 act_tokens=st.act_tokens, outcomes=imagined, dist=d0, goal=goal,
+                                                 fast_prev=st.fast, fast=fast, dt=dt, step=k))
+        else:
+            reward = wm.reward(Z_next, goal)
         reward = reward.float().reshape(Bb)
         cont = wm.continue_prob(Z_next) if self.use_continue else torch.ones(Bb, device=dev)
         gamma = torch.exp(-self.kappa * dt.float())

@@ -14,15 +14,20 @@ Notation (per environment row b; S state tokens of width D):
   error standardised by the target's across-sample spread (a 1 - R^2-like measure), so predicting the shared mean
   state scores ~1 and only predicting the sample-specific content scores well.
 * heads on ``Z^_{t+1}``: typed outcomes Y_t of action A_t (``OutcomeHead``), next-observation tokens O_{t+1}
-  (InfoNCE), verified reward r_t (two-hot symlog), continuation 1 - done_t; duration dt_t from (Z_t, A_t)
+  (InfoNCE), verified reward r_t (two-hot symlog, also reads the goal), continuation 1 - done_t; duration dt_t
+  from (Z_t, A_t)
   (log-normal on seconds) so imagination can predict how long an action takes.
 * anti-collapse: VICReg-style variance hinge and covariance penalty on the (layer-normalised) filter states.
 * every head reads latent states through ``StateNorm`` (running per-position standardisation), so the
   sample-specific part of Z is visible at unit scale even when a shared component dominates the residual stream.
 * open-loop multistep: from filtered Z_t roll h steps with the recorded actions and durations and sampled prior
   latents, never seeing O_{>t}; each horizon in ``cfg.train_horizons`` is scored against Z_target_{t+h}, Y_{t+h-1},
-  r_{t+h-1} and O_{t+h} with a multi-sample mixture likelihood (``open_loop_samples`` futures per start), which does
-  not penalise a correctly stochastic model. Per-horizon errors are returned.
+  r_{t+h-1} and O_{t+h} under ``open_loop_samples`` sampled futures per start. The objective is the mixture
+  likelihood of one coherent future, log mean_s p(all scored targets of the trajectory | future_s), optimised
+  through its exact gradient form: every term is weighted by the joint posterior responsibility of each sampled
+  future (``open_loop_credit="trajectory"``; "row" / "per_term" are looser variants for ablations). A correctly
+  stochastic model is not penalised, and no term can be explained by a different future than the others.
+  Per-horizon errors and the joint mixture NLL are returned.
 
 Batch alignment (``SequenceBatch``): step t holds O_t, the executed action A_t, its observed consequences Y_t, the
 elapsed time dt_t until step t+1, reward r_t and done_t (the episode ended after A_t). A row whose obs and action
@@ -32,6 +37,7 @@ from __future__ import annotations
 
 import copy
 import math
+import warnings
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
@@ -150,8 +156,12 @@ class WorldModel(nn.Module):
                  open_loop_samples: int = 4, open_loop_starts: Optional[int] = 8, latent_temperature: float = 0.25,
                  obs_temperature: float = 0.1, obs_max_groups: int = 64, obs_max_tokens: int = 32,
                  var_target: float = 0.5, detach_obs_targets: bool = True, use_autocast: bool = True,
-                 train_horizons: Optional[Sequence[int]] = None):
+                 train_horizons: Optional[Sequence[int]] = None, open_loop_credit: str = "trajectory"):
         super().__init__()
+        if open_loop_credit not in ("trajectory", "row", "per_term"):
+            raise ValueError("open_loop_credit must be 'trajectory', 'row' or 'per_term'")
+        self.open_loop_credit = open_loop_credit
+        self._warned_horizons: set = set()
         D, G, C = cfg.d_model, cfg.stoch_groups, cfg.stoch_classes
         self.cfg = cfg
         self.core = core
@@ -181,7 +191,7 @@ class WorldModel(nn.Module):
         self.dur_src = nn.Embedding(2, D)
         self.dur_head = MLP(D, 2 * D, 2)
         self.rew_pool = AttnPool(D, cfg.n_heads)
-        self.rew_src = nn.Embedding(2, D)
+        self.rew_src = nn.Embedding(2, D)          # sources: Z^, GOAL tokens
         self.twohot = TwoHot(reward_bins)
         self.rew_head = MLP(D, 2 * D, reward_bins, zero_out=True)
         self.cont_pool = AttnPool(D, cfg.n_heads)
@@ -331,15 +341,20 @@ class WorldModel(nn.Module):
         return Zh, {"logits": logp, "z": z, "dt": dt}
 
     # ------------------------------------------------------------------ prediction heads on Z^
-    def _pool_goal(self, pool, src, Zh, goal: Optional[TokenSet]):
-        x, m = self.state_norm(Zh).float() + src.weight[0], torch.ones(Zh.shape[:2], dtype=torch.bool, device=Zh.device)
-        if goal is not None and goal.N > 0:
-            x = torch.cat([x, goal.x.float() + src.weight[1]], 1)
-            m = torch.cat([m, goal.mask.bool()], 1)
-        return pool(x, m)[:, 0]
+    def _pool_ctx(self, pool, src, Zh, *ctx: Optional[TokenSet]):
+        """Attention-pool [StateNorm(Zh); ctx_1; ctx_2; ...] (each source tagged by a learned embedding) -> [B,D]."""
+        xs = [self.state_norm(Zh).float() + src.weight[0]]
+        ms = [torch.ones(Zh.shape[:2], dtype=torch.bool, device=Zh.device)]
+        for i, c in enumerate(ctx, 1):
+            if c is not None and c.N > 0:
+                xs.append(c.x.float() + src.weight[i])
+                ms.append(c.mask.bool())
+        return pool(torch.cat(xs, 1), torch.cat(ms, 1))[:, 0]
 
     def reward_logits(self, Zh, goal: Optional[TokenSet] = None) -> torch.Tensor:
-        return self.rew_head(self._pool_goal(self.rew_pool, self.rew_src, Zh, goal))
+        """Two-hot reward logits [B, bins] from the predicted state and the goal (belief information reaches the
+        reward through Z^, which the transition computed with the BELIEF tokens in context)."""
+        return self.rew_head(self._pool_ctx(self.rew_pool, self.rew_src, Zh, goal))
 
     def reward(self, Zh, goal: Optional[TokenSet] = None) -> torch.Tensor:
         """Predicted verified return increment of the transition into Zh [B]."""
@@ -387,15 +402,15 @@ class WorldModel(nn.Module):
         """Multi-positive InfoNCE log-probabilities of the actual next-observation tokens.
 
         Zh [G*n_samples, S, D] (rows grouped by target: row = g*n_samples + s); nxt TokenSet [G, N, D] (one copy
-        per group); returns (logp [G, M] mixture over samples, valid [G, M]) for up to ``obs_max_tokens`` sampled
-        real tokens per group. Candidates are the sampled tokens of all groups; positives are tokens of the same
-        group with the same kind and relative time (they are indistinguishable from content-free metadata)."""
+        per group); returns (logp [G, n_samples, M] under each sampled future, valid [G, M]) for up to
+        ``obs_max_tokens`` sampled real tokens per group. Candidates are the sampled tokens of all groups; positives
+        are tokens of the same group with the same kind and relative time (they are indistinguishable from
+        content-free metadata)."""
         Gn, N, _ = nxt.x.shape
         dev = nxt.x.device
         M = min(self.obs_max_tokens, N)
-        # sample up to M real tokens per group (random priority among real tokens)
-        pri = torch.rand(Gn, N, generator=gen, device=dev) if gen is not None and gen.device == dev else \
-            torch.rand(Gn, N, device=dev)
+        # sample up to M real tokens per group (random priority among real tokens; reproducible from ``gen``)
+        pri = _rand((Gn, N), gen, dev)
         pri = torch.where(nxt.mask, pri, torch.full_like(pri, -1.0))
         sel = pri.topk(M, dim=1).indices                                          # [G,M]
         valid = nxt.mask.gather(1, sel)
@@ -418,8 +433,7 @@ class WorldModel(nn.Module):
         pos = (q_grp.unsqueeze(1) == c_grp.unsqueeze(0)) & (q_kind.unsqueeze(1) == kind.reshape(1, -1)) \
             & ((q_time.unsqueeze(1) - time.reshape(1, -1)).abs() < 1e-6) & cand_valid.unsqueeze(0)
         lp = torch.logsumexp(logits.masked_fill(~pos, -1e4), 1) - torch.logsumexp(logits, 1)
-        lp = lp.view(Gn, n_samples, M)
-        return logmeanexp(lp, 1), valid
+        return lp.view(Gn, n_samples, M), valid
 
     def _vicreg(self, Z: torch.Tensor):
         """Z [N,S,D] valid filter states -> (variance hinge, covariance penalty)."""
@@ -449,14 +463,21 @@ class WorldModel(nn.Module):
         every open-loop row starts from its real B_t and updates a private copy with outcomes *sampled from the
         model's own predictions* (the real outcomes after the start are never used), exactly as ``Imagination`` does;
         otherwise the belief tokens stay at B_t for the whole rollout.
+        Belief tokens of the real steps (given as ``beliefs`` or computed from ``fast_states`` with
+        ``belief_tokens_fn``) keep their gradients, so the world loss also trains the belief-token encoder; only the
+        imagined open-loop belief updates run without gradients.
+        Open-loop horizons longer than the sequence cannot be scored: they are skipped with a warning (once per
+        horizon set and length) and listed under "horizons_skipped"; "horizons_trained" lists the scored ones.
+        Steps without a goal get an empty GOAL token set (the goal of the other steps is kept).
+        ``generator`` makes the whole loss reproducible (latent and outcome samples, open-loop start subset,
+        observation-token subsampling); the global RNG is used only without it.
         Returns a dict with the total ("world" == "loss"), each term, the balanced KL and its raw value,
-        per-horizon open-loop errors ("horizon_errors": {h: {...}}) and the detached filter states "Z_post"
-        [T,B,S,D] for downstream users."""
+        per-horizon open-loop errors ("horizon_errors": {h: {...}}), the joint open-loop mixture NLL per trajectory
+        ("open_loop_joint_nll") and the detached filter states "Z_post" [T,B,S,D] for downstream users."""
         if fast_states is not None and beliefs is None:
             if belief_tokens_fn is None:
                 raise ValueError("fast_states need belief_tokens_fn")
-            with torch.no_grad():
-                beliefs = [belief_tokens_fn(f) for f in fast_states]
+            beliefs = [belief_tokens_fn(f) for f in fast_states]
         bel_dyn = None
         if fast_states is not None and belief_update_fn is not None and belief_tokens_fn is not None:
             bel_dyn = (fast_states, belief_update_fn, belief_tokens_fn)
@@ -464,7 +485,13 @@ class WorldModel(nn.Module):
         T, B = len(steps), steps[0].obs.B
         dev = steps[0].obs.x.device
         W = self.weights
-        horizons = tuple(sorted(h for h in (horizons or self.train_horizons) if h <= T))
+        requested = tuple(sorted(set(horizons or self.train_horizons)))
+        horizons = tuple(h for h in requested if h <= T)
+        skipped = tuple(h for h in requested if h > T)
+        if skipped and (skipped, T) not in self._warned_horizons:
+            self._warned_horizons.add((skipped, T))
+            warnings.warn(f"WorldModel.loss: open-loop horizons {skipped} exceed the sequence length T={T} and are "
+                          f"not trained (sequences need T >= {max(skipped)})", RuntimeWarning, stacklevel=2)
         cfg = self.cfg
 
         obs = stack_tokens([s.obs for s in steps])                                  # [T,B,N,D]
@@ -483,7 +510,11 @@ class WorldModel(nn.Module):
         valid = obs.mask.any(-1) | act.mask.any(-1)                                  # [T,B]
         o_m = o_m & valid.unsqueeze(-1)
         bel = stack_tokens(beliefs) if beliefs is not None else None
-        goal = stack_tokens([s.goal for s in steps]) if all(s.goal is not None for s in steps) else None
+        goals = [s.goal for s in steps]
+        goal = None
+        if any(g is not None for g in goals):
+            Dm = obs.x.shape[-1]
+            goal = stack_tokens([g if g is not None else _empty_tokens(B, Dm, dev) for g in goals])
 
         def ob_rows(t_idx, b_idx):
             q = gather_tokens(oq, t_idx, b_idx)
@@ -496,8 +527,6 @@ class WorldModel(nn.Module):
         Z_post = self.filter(batch, beliefs, memory)                                 # [T,B,S,D]
         with torch.no_grad():
             Z_tgt = self.filter(batch, beliefs, memory, core=self.target_core)
-            if self.training:
-                self.state_norm.update(Z_post[valid].detach())
         S, D = Z_post.shape[2], Z_post.shape[3]
         ctx = _SeqCtx(T=T, ob_rows=ob_rows, obs=obs, Z_tgt=Z_tgt, rew=rew, done=done, valid=valid, gen=generator,
                       tgt_scale=self._target_scale(Z_tgt, valid))
@@ -536,13 +565,13 @@ class WorldModel(nn.Module):
             lat_lp = torch.where(ok1.view(-1, 1, 1), post_lp, prior_lp)
             z_post = self.sample_latent(lat_lp, True, generator)
             Zh1 = self.transition(Zs[:n1], rows(act, t1, b1), rows(bel, t1, b1), dt_r[:n1], z_post)
-            terms = self._reduce(self._row_terms(Zh1, 1, t1, b1, ctx, valid_r[:n1], rows(goal, t1, b1),
-                                                 self.obs_max_groups))
+            rt1 = self._row_terms(Zh1, 1, t1, b1, ctx, valid_r[:n1], rows(goal, t1, b1), self.obs_max_groups)
+            terms = self._reduce(rt1, self._responsibilities(rt1))
         else:
             out["kl"] = out["kl_value"] = Z_post.sum() * 0
 
         # ---- open-loop multistep with prior samples and recorded actions only
-        ol, herr = self._open_loop_loss(Z_post, B, act, bel, goal, dt, horizons, ctx, bel_dyn)
+        ol, herr, joint_nll = self._open_loop_loss(Z_post, B, act, bel, goal, dt, horizons, ctx, bel_dyn)
 
         # ---- anti-collapse regulariser on valid filter states
         var, cov = self._vicreg(Z_post[valid])
@@ -557,13 +586,21 @@ class WorldModel(nn.Module):
                  + W["duration"] * out["duration"] + W["var"] * var + W["cov"] * cov + W["open_loop"] * ol)
         out["world"] = out["loss"] = total
         out["horizon_errors"] = herr
+        out["horizons_trained"], out["horizons_skipped"] = horizons, skipped
+        out["open_loop_joint_nll"] = joint_nll
         out["Z_post"] = Z_post.detach()
+        # running state statistics are updated only after every head has read them: a batch is never normalised
+        # with its own statistics (the first batch sees the identity, later ones the previous batches' statistics)
+        if self.training:
+            self.state_norm.update(Z_post[valid].detach())
         return out
 
     def _row_terms(self, Zh, n_samples, t_idx, b_idx, ctx: "_SeqCtx", alive, goal_rows: Optional[TokenSet],
                    max_groups: int) -> dict:
-        """Per-row terms of predicted states Zh [R*n_samples,S,D] for transitions t_idx[r] -> t_idx[r]+1 (each target
-        row r repeated n_samples times consecutively; likelihoods are mixtures over the samples). ``alive`` [R]: the
+        """Per-row, per-sample terms of predicted states Zh [R*n_samples,S,D] for transitions t_idx[r] -> t_idx[r]+1
+        (each target row r repeated n_samples times consecutively; sample j of row r is one sampled future).
+        Every likelihood is kept per sample ("out_lp" [R,s,Q], "r_ll"/"c_ll"/"dist" [R,s], "obs_lp" [n,s,M]) so the
+        caller can credit all targets of a sampled future jointly (``_responsibilities``). ``alive`` [R]: the
         transition lies inside a valid episode segment. Reduce with ``_reduce``."""
         R = t_idx.shape[0]
         s = n_samples
@@ -571,63 +608,120 @@ class WorldModel(nn.Module):
         T, obs, Z_tgt, rew, done, valid, gen = ctx.T, ctx.obs, ctx.Z_tgt, ctx.rew, ctx.done, ctx.valid, ctx.gen
         rep = lambda x: x.repeat_interleave(s, 0)
         ob = ctx.ob_rows(t_idx, b_idx)
-        obr = OutcomeBatch(rows_rep(ob.q, s), rep(ob.lik), rep(ob.n_classes), rep(ob.y), rep(ob.censored),
-                           rep(ob.y_mask), rep(ob.channel))
+        om = ob.y_mask & alive.unsqueeze(-1)
+        obr = OutcomeBatch(rows_rep(ob.q, s), rep(ob.lik), rep(ob.n_classes), rep(ob.y), rep(ob.censored), rep(om),
+                           rep(ob.channel))
         d = self.outcome_dist(Zh, obr)
-        rt = {"R": R, "alive": alive}
-        rt["out_lp"] = logmeanexp(d.log_prob(obr.y, obr.censored).view(R, s, -1), 1)      # [R,Q]
-        rt["om"] = ob.y_mask & alive.unsqueeze(-1)
+        rt = {"R": R, "s": s, "alive": alive, "om": om}
+        rt["out_lp"] = d.log_prob(obr.y, obr.censored, obr.y_mask).view(R, s, -1)       # 0 where unobserved
         with torch.no_grad():
             mean = d.mean().view(R, s, -1).mean(1)
-            rt["cm"] = rt["om"] & torch.isin(ob.lik, torch.tensor(CONTINUOUS, device=dev))
+            rt["cm"] = om & torch.isin(ob.lik, torch.tensor(CONTINUOUS, device=dev))
             rt["sq"] = (mean - ob.y) ** 2
         g_r = None if goal_rows is None else rows_rep(goal_rows, s)
         r_logits = self.reward_logits(Zh, g_r)
         r_t = rew[t_idx, b_idx]
-        rt["r_ll"] = logmeanexp(self.twohot.log_lik(r_logits, rep(r_t)).view(R, s), 1)
+        rt["r_ll"] = self.twohot.log_lik(r_logits, rep(r_t)).view(R, s)
         with torch.no_grad():
             rt["r_abs"] = (self.twohot.mean(r_logits).view(R, s).mean(1) - r_t).abs()
         c_logit = self.continue_logit(Zh).view(R, s)
         c_tgt = (~done[t_idx, b_idx]).float()
-        rt["c_ll"] = logmeanexp(-F.binary_cross_entropy_with_logits(c_logit, c_tgt.unsqueeze(1).expand(-1, s),
-                                                                    reduction="none"), 1)
+        rt["c_ll"] = -F.binary_cross_entropy_with_logits(c_logit, c_tgt.unsqueeze(1).expand(-1, s), reduction="none")
         # latent and observation targets at t+1 (only inside the episode and the sequence)
         tn = (t_idx + 1).clamp(max=T - 1)
         nxt_ok = alive & ((t_idx + 1) <= (T - 1)) & ~done[t_idx, b_idx] & valid[tn, b_idx]
         rt["nxt_ok"] = nxt_ok
-        dist = self._latent_dist(Zh, rep(Z_tgt[tn, b_idx]), ctx.tgt_scale).view(R, s)
-        tau = self.latent_temperature
-        rt["lat"] = -tau * logmeanexp(-dist / tau, 1)
-        rt["lat_err"] = dist.detach().mean(1)                                       # standardised MSE (~1 - R^2)
+        rt["dist"] = self._latent_dist(Zh, rep(Z_tgt[tn, b_idx]), ctx.tgt_scale).view(R, s)   # ~1 - R^2 per sample
         idx = torch.nonzero(nxt_ok).flatten()
         if idx.numel() > max_groups:
-            idx = idx[torch.randperm(idx.numel(), device=dev)[:max_groups]]
+            idx = idx[_randperm(idx.numel(), gen, dev)[:max_groups]]
         rt["obs_rows"] = idx
         if idx.numel() > 0:
             Zsel = Zh.view(R, s, *Zh.shape[1:])[idx].reshape(idx.numel() * s, *Zh.shape[1:])
             rt["obs_lp"], rt["obs_v"] = self._obs_logp(Zsel, gather_tokens(obs, tn[idx], b_idx[idx]), s, gen)
         return rt
 
+    def _joint_loglik(self, rt: dict) -> torch.Tensor:
+        """Log-likelihood of all targets of each row under each sampled future [R, s] (detached): the observed
+        outcomes, reward, continuation, the latent pseudo-likelihood -W_latent * d / latent_temperature and the
+        observation InfoNCE log-probability (mean over the row's scored tokens, weight W_obs)."""
+        with torch.no_grad():
+            a = rt["alive"].float().unsqueeze(1)
+            ll = (rt["out_lp"] * rt["om"].unsqueeze(1)).sum(-1) + a * (rt["r_ll"] + rt["c_ll"])
+            ll = ll - rt["nxt_ok"].float().unsqueeze(1) * (self.weights["latent"] / self.latent_temperature) \
+                * rt["dist"]
+            idx = rt["obs_rows"]
+            if idx.numel() > 0:
+                v = rt["obs_v"].float().unsqueeze(1)
+                obs_m = (rt["obs_lp"] * v).sum(-1) / v.sum(-1).clamp(min=1.0)                    # [n, s]
+                ll = ll.index_add(0, idx, self.weights["obs"] * obs_m)
+        return ll
+
+    def _responsibilities(self, rt: dict, traj: Optional[torch.Tensor] = None, n_traj: int = 0) -> dict:
+        """Posterior weights over the s sampled futures (detached; each sums to 1 over the sample axis), per term.
+
+        Training a stochastic model with several sampled futures maximises the mixture likelihood
+        log mean_s p(all targets | future_s). Its gradient is sum_s pi_s grad log p(targets | future_s) with the
+        posterior responsibilities pi_s = softmax_s(joint log-likelihood); ``_reduce`` forms exactly these
+        responsibility-weighted log-likelihoods (with per-term normalisation), so every target is credited to the
+        same sampled futures.
+        ``open_loop_credit``: "trajectory" -- the joint log-likelihood of every scored target of a sampled future
+        over all horizons (``traj`` [R] maps rows to their trajectory = (start, environment); rows of one
+        trajectory share their weights); "row" -- joint over the terms of each row (one horizon); "per_term" --
+        a separate mixture per term, outcome query and observation token (a looser objective: different terms may
+        be explained by different futures; kept for ablations). With one sample every weight is 1."""
+        s = rt["s"]
+        R = rt["R"]
+        dev = rt["alive"].device
+        idx = rt["obs_rows"]
+        if s == 1:
+            one = torch.ones(R, 1, device=dev)
+            rt["joint_ll"] = self._joint_loglik(rt)
+            return {"out": one.unsqueeze(-1), "rew": one, "cont": one, "lat": one,
+                    "obs": torch.ones(idx.numel(), 1, 1, device=dev)}
+        with torch.no_grad():
+            jl = self._joint_loglik(rt)
+            rt["joint_ll"] = jl
+            mode = self.open_loop_credit
+            if mode == "per_term":
+                return {"out": torch.softmax(rt["out_lp"].detach(), 1), "rew": torch.softmax(rt["r_ll"].detach(), 1),
+                        "cont": torch.softmax(rt["c_ll"].detach(), 1),
+                        "lat": torch.softmax(-rt["dist"].detach() / self.latent_temperature, 1),
+                        "obs": torch.softmax(rt["obs_lp"].detach(), 1) if idx.numel() > 0 else None}
+            ll = jl
+            if mode == "trajectory" and traj is not None:
+                ll = torch.zeros(n_traj, s, device=dev).index_add_(0, traj, jl)[traj]
+            pi = torch.softmax(ll, 1)
+        return {"out": pi.unsqueeze(-1), "rew": pi, "cont": pi, "lat": pi,
+                "obs": pi[idx].unsqueeze(-1) if idx.numel() > 0 else None}
+
     @staticmethod
-    def _reduce(rt: dict, sel: Optional[torch.Tensor] = None) -> dict:
-        """Scalar losses / diagnostics over the rows ``sel`` [R] (all rows when None)."""
+    def _reduce(rt: dict, resp: dict, sel: Optional[torch.Tensor] = None) -> dict:
+        """Scalar losses (responsibility-weighted negative log-likelihoods, each normalised over its own observed
+        entries) and diagnostics over the rows ``sel`` [R] (all rows when None)."""
         if sel is None:
             sel = torch.ones(rt["R"], dtype=torch.bool, device=rt["alive"].device)
         a = rt["alive"] & sel
         om = rt["om"] & sel.unsqueeze(-1)
         nx = rt["nxt_ok"] & sel
-        out = {"outcome": -masked_mean(rt["out_lp"], om), "reward": -masked_mean(rt["r_ll"], a),
-               "cont": -masked_mean(rt["c_ll"], a), "latent": masked_mean(rt["lat"], nx)}
-        cm = rt["cm"] & sel.unsqueeze(-1)
-        out["outcome_mse"] = masked_mean(rt["sq"], cm)
-        out["outcome_n"] = cm.sum()
-        out["reward_mae"] = masked_mean(rt["r_abs"], a)
-        out["latent_err"] = masked_mean(rt["lat_err"], nx)
-        out["n_rows"] = a.sum()
-        if rt["obs_rows"].numel() > 0:
-            ov = rt["obs_v"] & sel[rt["obs_rows"]].unsqueeze(-1)
-            out["obs"] = -masked_mean(rt["obs_lp"], ov)
-            out["obs_logp"] = masked_mean(rt["obs_lp"].detach(), ov)
+        out = {"outcome": -masked_mean((resp["out"] * rt["out_lp"]).sum(1), om),
+               "reward": -masked_mean((resp["rew"] * rt["r_ll"]).sum(1), a),
+               "cont": -masked_mean((resp["cont"] * rt["c_ll"]).sum(1), a),
+               "latent": masked_mean((resp["lat"] * rt["dist"]).sum(1), nx)}
+        with torch.no_grad():
+            out["outcome_nll"] = -masked_mean(logmeanexp(rt["out_lp"], 1), om)      # marginal mixture NLL per query
+            cm = rt["cm"] & sel.unsqueeze(-1)
+            out["outcome_mse"] = masked_mean(rt["sq"], cm)
+            out["outcome_n"] = cm.sum()
+            out["reward_mae"] = masked_mean(rt["r_abs"], a)
+            out["latent_err"] = masked_mean(rt["dist"].mean(1), nx)                  # standardised MSE (~1 - R^2)
+            out["n_rows"] = a.sum()
+            out["joint_nll"] = -masked_mean(logmeanexp(rt["joint_ll"], 1), a)        # per row (one horizon)
+        idx = rt["obs_rows"]
+        if idx.numel() > 0:
+            ov = rt["obs_v"] & sel[idx].unsqueeze(-1)
+            out["obs"] = -masked_mean((resp["obs"] * rt["obs_lp"]).sum(1), ov)
+            out["obs_logp"] = masked_mean(logmeanexp(rt["obs_lp"].detach(), 1), ov)
         else:
             out["obs"] = out["latent"] * 0
             out["obs_logp"] = out["obs"].detach()
@@ -635,18 +729,19 @@ class WorldModel(nn.Module):
 
     def _open_loop_loss(self, Z_post, B, act, bel, goal, dt, horizons, ctx: "_SeqCtx", bel_dyn=None):
         """Roll every start open-loop with prior samples and the recorded actions; the heads of all scored horizons
-        are evaluated in one batched call. With ``bel_dyn`` = (fast_states, update_fn, tokens_fn) each row's belief
-        is updated from its own sampled outcomes. Returns (mean over horizons of the horizon loss, {h: errors})."""
+        are evaluated in one batched call and credited to sampled futures jointly (``open_loop_credit``). With
+        ``bel_dyn`` = (fast_states, update_fn, tokens_fn) each row's belief is updated from its own sampled
+        outcomes. Returns (mean over horizons of the horizon loss, {h: errors}, joint mixture NLL per trajectory)."""
         dev = Z_post.device
         T, valid, done, gen = ctx.T, ctx.valid, ctx.done, ctx.gen
         rows = _rows
         S_ol = self.open_loop_samples
         z0 = Z_post.sum() * 0
         if not horizons:
-            return z0, {}
+            return z0, {}, z0.detach()
         starts = torch.arange(T, device=dev)
         if self.open_loop_starts is not None and T > self.open_loop_starts:
-            perm = torch.randperm(T, device=dev)[:self.open_loop_starts]
+            perm = _randperm(T, gen, dev)[:self.open_loop_starts]
             starts = perm.sort().values
         n_s = starts.numel()
         Hmax = max(horizons)
@@ -700,25 +795,33 @@ class WorldModel(nn.Module):
                 coll.append((k, Z, t_idx, b_r, alive.clone(), st_r))
             alive = alive & ~done[t_idx, b_r]
         if not coll:
-            return z0, {}
+            return z0, {}, z0.detach()
         Zall = torch.cat([c[1] for c in coll])
         t_all = torch.cat([c[2] for c in coll])
         b_all = torch.cat([c[3] for c in coll])
         al_all = torch.cat([c[4] for c in coll])
         h_all = torch.cat([torch.full_like(c[2], c[0]) for c in coll])
+        # trajectory of each row: rows of every horizon block are a prefix of the (start, b) list
+        traj = torch.cat([torch.arange(c[2].numel(), device=dev) for c in coll])
+        n_traj = coll[0][2].numel()
         # goal of the start step (known at the start; no future information)
         g_all = rows(goal, torch.cat([c[5] for c in coll]), b_all)
         rt = self._row_terms(Zall, S_ol, t_all, b_all, ctx, al_all, g_all, self.obs_max_groups * len(coll))
+        resp = self._responsibilities(rt, traj, n_traj)
         losses, herr = [], {}
         W = self.weights
         for k, *_ in coll:
-            r = self._reduce(rt, h_all == k)
+            r = self._reduce(rt, resp, h_all == k)
             losses.append(r["outcome"] + r["reward"] + r["cont"] + W["latent"] * r["latent"] + W["obs"] * r["obs"])
-            herr[k] = {"outcome_nll": float(r["outcome"].detach()), "outcome_mse": float(r["outcome_mse"]),
+            herr[k] = {"outcome_nll": float(r["outcome_nll"]), "outcome_mse": float(r["outcome_mse"]),
                        "outcome_n": int(r["outcome_n"]), "reward_mae": float(r["reward_mae"]),
                        "cont": float(r["cont"].detach()), "latent_err": float(r["latent_err"]),
-                       "obs_logp": float(r["obs_logp"]), "n_rows": int(r["n_rows"])}
-        return torch.stack(losses).mean(), herr
+                       "obs_logp": float(r["obs_logp"]), "joint_nll": float(r["joint_nll"]),
+                       "n_rows": int(r["n_rows"])}
+        with torch.no_grad():
+            tot = torch.zeros(n_traj, S_ol, device=dev).index_add_(0, traj, rt["joint_ll"])
+            joint_nll = -masked_mean(logmeanexp(tot, 1), al_all[:n_traj])
+        return torch.stack(losses).mean(), herr, joint_nll
 
     # ------------------------------------------------------------------ open-loop inference (forecasting)
     @torch.no_grad()
@@ -755,6 +858,28 @@ class WorldModel(nn.Module):
                           "reward": self.reward(Z, None if st.goal is None else rows_rep(st.goal, n_samples)
                                                 ).view(B, n_samples).mean(1)}
         return res
+
+
+def _rand(shape, gen: Optional[torch.Generator], device) -> torch.Tensor:
+    """U[0,1) noise drawn from ``gen`` (on the generator's own device) and moved to ``device``; global RNG without
+    a generator."""
+    if gen is None:
+        return torch.rand(shape, device=device)
+    return torch.rand(shape, generator=gen, device=gen.device).to(device)
+
+
+def _randperm(n: int, gen: Optional[torch.Generator], device) -> torch.Tensor:
+    """Random permutation of range(n) from ``gen`` (global RNG without a generator)."""
+    if gen is None:
+        return torch.randperm(n, device=device)
+    return torch.randperm(n, generator=gen, device=gen.device).to(device)
+
+
+def _empty_tokens(B: int, D: int, device) -> TokenSet:
+    """A TokenSet with zero tokens per row (stands in for a missing goal)."""
+    return TokenSet(torch.zeros(B, 0, D, device=device), torch.zeros(B, 0, dtype=torch.bool, device=device),
+                    torch.zeros(B, 0, dtype=torch.long, device=device), torch.zeros(B, 0, device=device),
+                    torch.full((B, 0), -1, dtype=torch.long, device=device))
 
 
 def rows_rep(ts: TokenSet, n: int) -> TokenSet:

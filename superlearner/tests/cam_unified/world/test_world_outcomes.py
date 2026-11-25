@@ -89,8 +89,8 @@ def test_survival_censoring_is_the_survival_mass():
     s0 = 2 + 3 + 1 + 8 + 2
     raw[..., s0 + 0] += 3.0
     d2 = MixedOutcomeDist(raw, d.lik, d.n_classes, edges, 8)
-    late = torch.full_like(y, 20.0)
-    assert bool((d2.log_prob(late, censored=cens)[m] < d.log_prob(late, censored=cens)[m]).all())
+    late = torch.full_like(y, 20.0)            # a late censoring time (only the survival entries are observed)
+    assert bool((d2.log_prob(late, censored=cens, mask=m)[m] < d.log_prob(late, censored=cens, mask=m)[m]).all())
 
 
 def test_mean_variance_entropy_match_references():
@@ -256,3 +256,77 @@ def test_head_learns_every_likelihood_from_state():
     for q in range(6):
         c = torch.corrcoef(torch.stack([mean[:, q], ut]))[0, 1]
         assert float(c * sign[q]) > 0.8, (q, float(c))
+
+
+def test_categorical_and_count_inputs_are_validated_not_clipped():
+    """Nothing is silently merged or clipped: unrepresentable categorical queries and out-of-range observed classes
+    or counts raise; unobserved (masked) entries are not validated."""
+    edges = default_survival_edges(8, 0.5, 30.0)
+    Cm = 8
+    P = 2 + 3 + 1 + Cm + 2 + edges.numel()
+    raw = torch.randn(2, 3, P, generator=torch.Generator().manual_seed(0))
+    lik = torch.tensor([[L.CATEGORICAL, L.COUNT, L.GAUSSIAN]]).repeat(2, 1)
+    with pytest.raises(ValueError):                                   # 50 classes > max_classes 8
+        MixedOutcomeDist(raw, lik, torch.tensor([[50, 0, 0]]).repeat(2, 1), edges, Cm)
+    with pytest.raises(ValueError):                                   # a categorical query needs >= 1 class
+        MixedOutcomeDist(raw, lik, torch.tensor([[0, 0, 0]]).repeat(2, 1), edges, Cm)
+    d = MixedOutcomeDist(raw, lik, torch.tensor([[4, 0, 0]]).repeat(2, 1), edges, Cm)
+    ok = torch.tensor([[3.0, 7.0, 0.3], [0.0, 0.0, -2.0]])
+    assert torch.isfinite(d.log_prob(ok)).all()
+    for bad in ([[7.0, 7.0, 0.3], [0.0, 0.0, 0.0]],          # class 7 of a 4-class query
+                [[-1.0, 7.0, 0.3], [0.0, 0.0, 0.0]],         # negative class
+                [[1.5, 7.0, 0.3], [0.0, 0.0, 0.0]],          # non-integer class
+                [[1.0, -3.0, 0.3], [0.0, 0.0, 0.0]],         # negative count
+                [[1.0, 2.5, 0.3], [0.0, 0.0, 0.0]],          # non-integer count
+                [[1.0, 1e10, 0.3], [0.0, 0.0, 0.0]]):        # count beyond exp(count_log_max)
+        with pytest.raises(ValueError):
+            d.log_prob(torch.tensor(bad))
+        # the same values on an unobserved entry are ignored (no validation, log-prob 0)
+        m = torch.ones(2, 3, dtype=torch.bool)
+        m[0, :2] = False
+        lp = d.log_prob(torch.tensor(bad), mask=m)
+        assert bool((lp[0, :2] == 0).all()) and torch.isfinite(lp).all()
+    # the old silent merge is gone: distinct classes have distinct probabilities
+    lp = d.log_prob(torch.tensor([[0.0, 1.0, 0.0], [3.0, 1.0, 0.0]]))
+    torch.testing.assert_close(lp[:, 0], d.c_logp[:, 0, :4].gather(-1, torch.tensor([[0], [3]])).squeeze(-1))
+    # a head with enough classes represents a 50-class outcome exactly
+    cfg = tiny_config()
+    head = OutcomeHead(cfg, max_classes=64)
+    ob = OutcomeBatch(rand_tokens(1, 1, cfg.d_model, TokenKind.QUERY, ragged=False), torch.tensor([[L.CATEGORICAL]]),
+                      torch.tensor([[50]]), torch.tensor([[45.0]]), torch.zeros(1, 1, dtype=torch.bool),
+                      torch.ones(1, 1, dtype=torch.bool), torch.full((1, 1), -1))
+    with torch.no_grad():
+        dd = head.dist(head.features(torch.randn(1, cfg.n_state, cfg.d_model), ob), ob)
+        assert float(dd.cat_probs[0, 0, 50:].sum()) == 0.0 and float(dd.cat_probs[0, 0, :50].sum()) > 0.999
+        torch.testing.assert_close(dd.log_prob(ob.y)[0, 0], dd.c_logp[0, 0, 45])
+        assert float(dd.log_prob(ob.y)) != float(dd.log_prob(torch.tensor([[31.0]])))   # class 45 is not class 31
+
+
+def test_count_mean_is_soft_bounded_with_live_gradients_and_exact_for_large_counts():
+    from superlearner.cam_unified.world.outcomes import softbound
+    edges = default_survival_edges(8, 0.5, 30.0)
+    Cm = 8
+    P = 2 + 3 + 1 + Cm + 2 + edges.numel()
+    n0 = 2 + 3 + 1 + Cm
+    raws = torch.tensor([-30.0, 0.0, 5.0, 15.0, 20.0, 40.0])
+    raw = torch.zeros(len(raws), 1, P)
+    raw[:, 0, n0] = raws
+    raw.requires_grad_(True)
+    lik = torch.full((len(raws), 1), int(L.COUNT))
+    d = MixedOutcomeDist(raw, lik, torch.zeros_like(lik), edges, Cm)
+    lm = d.n_logm[:, 0]
+    assert bool((lm[1:] > lm[:-1]).all()) and float(lm.max()) < 20.0 and float(lm.min()) > -12.0
+    lm.sum().backward()
+    g = raw.grad[:, 0, n0]
+    assert bool((g > 0).all()), g                          # no dead gradient anywhere (hard clamp gave 0 at raw 20)
+    assert float(g[3]) > 0.3 and float(g[4]) > 0.2          # the old clamp at 15 had zero gradient here
+    torch.testing.assert_close(softbound(torch.tensor(4.0), -12.0, 20.0), torch.tensor(4.0))   # identity at centre
+    # large counts: the float64 evaluation agrees with a float64 torch.distributions reference
+    raw2 = torch.zeros(1, 1, P)
+    raw2[0, 0, n0] = 16.0
+    raw2[0, 0, n0 + 1] = 3.0
+    d2 = MixedOutcomeDist(raw2, lik[:1], torch.zeros_like(lik[:1]), edges, Cm)
+    k = torch.tensor([[float(round(float(d2.nb_mean)))]])
+    r, mu = d2.nb_total_count.double(), d2.nb_mean.double()
+    ref = torch.distributions.NegativeBinomial(total_count=r, logits=torch.log(mu) - torch.log(r)).log_prob(k.double())
+    torch.testing.assert_close(d2.log_prob(k).double(), ref, rtol=1e-6, atol=1e-6)

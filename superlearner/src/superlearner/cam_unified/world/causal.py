@@ -1,23 +1,30 @@
 """Causal evidence provenance (spec 6.5) and intervention-sensitive representations (spec 13.4, W03).
 
 * ``CausalLedger`` (harness / actor side, plain records): records per event the intervention assignment and its
-  known randomisation probability (CAM's own sampled actions have an exactly known assignment probability
-  exp(behaviour log-prob); a planner's deterministic argmax has probability 1), the simultaneous interventions
+  known randomisation probability (CAM's own sampled actions have an exactly known assignment probability: the
+  probability of choosing the intervention, exp(logp_parts["tool"]) -- the whole-action probability only when the
+  decoder reports no parts, since long arguments / code make it ~0; a planner's deterministic argmax has
+  probability 1), the simultaneous interventions
   (other actions of the same environment whose active window overlaps), delays since the causing action for delayed
   / attributed outcomes, missingness and evidence reliability, and a confounding flag. Everything is derived from
   information the agent actually has (its own actions and observations) -- never from evaluator-only state.
+  Memory is bounded over a lifetime: per environment only interventions within ``retention_days`` of the latest
+  event (and at most ``max_events_per_env``) are kept for attribution; ``forget_env`` drops an environment.
 * ``provenance_features(record)`` -> the fixed feature vector ``PROV_FEATURES`` for one EventRecord.
 * ``CausalProvenance`` (nn.Module) appends those features to EVENT tokens: x <- x + MLP(features) on tokens of kind
   EVENT (found through ``TokenSet.refs``), leaving every other token unchanged.
 * ``InterventionContrastive`` (nn.Module, W03): states whose observed responses to the *same* intervention are
   similar are pulled together (soft InfoNCE targets from response similarity), and similar-looking states with
   different responses to the same intervention are pushed apart (hard-negative margin). Only observed
-  intervention consequences are used; no hidden causal labels.
+  intervention consequences are used; no hidden causal labels. Responses are standardised per channel (over the
+  observed entries of the batch) before distances are formed, so heavy-tailed channels (cents, counts) do not
+  dominate, and non-candidates are excluded exactly (-inf masking on the rows that have candidates).
 """
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Optional
+from collections import deque
+from typing import Deque, Dict, List, Optional, Sequence
 
 import torch
 import torch.nn as nn
@@ -31,8 +38,15 @@ PROV_FEATURES = ("rand_p", "rand_known", "log_n_simultaneous", "log_delay_days",
                  "counterfactual", "reliability", "reliability_known", "attributed")
 
 
-def _assignment_probability(ev: EventRecord) -> Optional[float]:
-    """Known probability with which the executed intervention was assigned, if any."""
+INTERVENTION_PARTS = ("tool",)
+
+
+def _assignment_probability(ev: EventRecord, parts: Sequence[str] = INTERVENTION_PARTS) -> Optional[float]:
+    """Known probability with which the executed intervention was assigned, if any.
+
+    The intervention is the choice of ``parts`` (default the tool): exp(sum of those ``Action.logp_parts``). Only
+    when the action reports none of them is the whole-action behaviour probability used (exact, but ~0 for
+    actions with long decoded arguments or code)."""
     if ev.randomization_p is not None:
         return float(ev.randomization_p)
     a = ev.action
@@ -40,8 +54,14 @@ def _assignment_probability(ev: EventRecord) -> Optional[float]:
         return None
     if a.proposal and a.proposal.get("deterministic"):
         return 1.0
+    if a.source not in (ActionSource.CAM_DECODER, ActionSource.FROZEN_PROPOSAL):
+        return None
+    lp_parts = a.logp_parts or {}
+    known = [float(lp_parts[k]) for k in parts if lp_parts.get(k) is not None]
+    if known:
+        return float(math.exp(min(0.0, sum(known))))
     lp = ev.behavior_logp if ev.behavior_logp is not None else a.logp
-    if lp is not None and a.source in (ActionSource.CAM_DECODER, ActionSource.FROZEN_PROPOSAL):
+    if lp is not None:
         return float(math.exp(min(0.0, lp)))
     return None
 
@@ -52,11 +72,45 @@ class CausalLedger:
     ``effect_window_days``: an intervention counts as active (a possible simultaneous cause) from its start until
     its execution finishes plus this window."""
 
-    def __init__(self, effect_window_days: float = 0.0):
+    def __init__(self, effect_window_days: float = 0.0, retention_days: float = 90.0,
+                 max_events_per_env: int = 20000, intervention_parts: Sequence[str] = INTERVENTION_PARTS):
         self.window = float(effect_window_days)
+        self.retention = float(retention_days)
+        self.max_events = int(max_events_per_env)
+        self.parts = tuple(intervention_parts)
         self.active: Dict[str, List[tuple]] = {}          # env -> [(action_id, event_id, start, end)]
-        self.event_t: Dict[str, float] = {}               # event id -> t_sim
-        self.action_event: Dict[str, str] = {}            # action id -> event id
+        self.event_t: Dict[str, float] = {}               # event id -> t_sim (retained events only)
+        self.action_event: Dict[str, str] = {}            # action id -> event id (retained events only)
+        self._history: Dict[str, Deque[tuple]] = {}       # env -> deque[(t_sim, event_id, action_id | None)]
+        self._latest: Dict[str, float] = {}               # env -> latest t_sim seen
+
+    def _remember(self, env: str, ev: EventRecord) -> None:
+        """Index the event for later attribution and drop this environment's events that fell out of retention."""
+        h = self._history.setdefault(env, deque())
+        aid = ev.action.action_id if ev.action is not None else None
+        h.append((ev.t_sim, ev.event_id, aid))
+        self.event_t[ev.event_id] = ev.t_sim
+        if aid is not None:
+            self.action_event[aid] = ev.event_id
+        self._latest[env] = max(self._latest.get(env, ev.t_sim), ev.t_sim)
+        horizon = self._latest[env] - self.retention
+        while h and (len(h) > self.max_events or h[0][0] < horizon):     # oldest first (insertion order)
+            _, eid, a = h.popleft()
+            self.event_t.pop(eid, None)
+            if a is not None and self.action_event.get(a) == eid:
+                self.action_event.pop(a, None)
+
+    def forget_env(self, env_id: str) -> None:
+        """Drop everything recorded for an environment (e.g. at the end of its lifetime)."""
+        for _, eid, a in self._history.pop(env_id, ()):
+            self.event_t.pop(eid, None)
+            if a is not None:
+                self.action_event.pop(a, None)
+        self.active.pop(env_id, None)
+        self._latest.pop(env_id, None)
+
+    def __len__(self) -> int:
+        return len(self.event_t)
 
     def _interval(self, ev: EventRecord) -> tuple:
         start = ev.t_sim
@@ -71,7 +125,7 @@ class CausalLedger:
         env = ev.env_id
         acts = self.active.setdefault(env, [])
         t = ev.t_sim
-        self.event_t[ev.event_id] = t
+        self._remember(env, ev)
         info: dict = {}
         if ev.action is not None:
             start, end = self._interval(ev)
@@ -79,10 +133,9 @@ class CausalLedger:
             if not ev.simultaneous:
                 ev.simultaneous = others
             acts.append((ev.action.action_id, ev.event_id, start, end))
-            self.action_event[ev.action.action_id] = ev.event_id
             # prune long-finished interventions
             self.active[env] = [x for x in acts if x[3] >= start - 1e-9]
-            p = _assignment_probability(ev)
+            p = _assignment_probability(ev, self.parts)
             if ev.randomization_p is None and p is not None:
                 ev.randomization_p = p
             if ev.result is not None:
@@ -190,9 +243,11 @@ class InterventionContrastive(nn.Module):
 
     def __init__(self, d_model: int, d_embed: int = 64, n_heads: int = 4, temperature: float = 0.1,
                  response_temperature: Optional[float] = None, margin: float = 0.3, hard_weight: float = 1.0,
-                 similar_obs: float = 0.5, response_temperature_frac: float = 0.1):
+                 similar_obs: float = 0.5, response_temperature_frac: float = 0.1,
+                 standardize_responses: bool = True):
         super().__init__()
         self.tau_frac = response_temperature_frac
+        self.standardize = standardize_responses
         self.pool = AttnPool(d_model, n_heads)
         self.proj = MLP(d_model, 2 * d_model, d_embed)
         self.tau, self.tau_r = temperature, response_temperature
@@ -201,6 +256,18 @@ class InterventionContrastive(nn.Module):
     def embed(self, Z: torch.Tensor) -> torch.Tensor:
         h = self.pool(Z.float())[:, 0] if Z.dim() == 3 else Z.float()
         return F.normalize(self.proj(h), dim=-1)
+
+    @staticmethod
+    def standardize_responses(resp: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Per-channel z-scores over the observed entries of the batch (std floored at 1e-6 x (1 + |mean|))."""
+        resp = resp.float()
+        m = torch.ones_like(resp, dtype=torch.bool) if mask is None else mask.bool()
+        mf = m.float()
+        n = mf.sum(0).clamp(min=1.0)
+        mu = (resp * mf).sum(0) / n
+        var = (((resp - mu) * mf) ** 2).sum(0) / n
+        sd = torch.sqrt(var).clamp(min=1e-6) + 1e-6 * mu.abs()
+        return torch.where(m, (resp - mu) / sd, torch.zeros_like(resp))
 
     @staticmethod
     def response_distance(resp: torch.Tensor, mask: Optional[torch.Tensor] = None) -> tuple:
@@ -224,7 +291,8 @@ class InterventionContrastive(nn.Module):
         else:
             iv = torch.as_tensor(intervention, device=dev)
         same = (iv.unsqueeze(0) == iv.unsqueeze(1)) & ~torch.eye(N, dtype=torch.bool, device=dev)
-        d, both = self.response_distance(response, response_mask)
+        resp = self.standardize_responses(response, response_mask) if self.standardize else response
+        d, both = self.response_distance(resp, response_mask)
         cand = same & both
         tau_r = self.tau_r
         if tau_r is None:                        # scale-free default: a fraction of the mean response distance
@@ -232,12 +300,16 @@ class InterventionContrastive(nn.Module):
             tau_r = self.tau_frac * float(vals.mean()) if vals.numel() else 1.0
             tau_r = max(tau_r, 1e-6)
         sim = e @ e.T
-        logits = (sim / self.tau).masked_fill(~cand, -1e4)
-        target = torch.softmax((-d / tau_r).masked_fill(~cand, -1e4), 1)
         anchors = cand.sum(1) >= 2
-        logp = torch.log_softmax(logits, 1)
-        soft = -(target * logp).sum(1)
-        soft = soft[anchors].mean() if bool(anchors.any()) else e.sum() * 0
+        if bool(anchors.any()):
+            # only rows with candidates; non-candidates get exactly zero target and prediction mass
+            ca = cand[anchors]
+            ninf = torch.tensor(float("-inf"), device=dev)
+            logp = torch.log_softmax(torch.where(ca, sim[anchors] / self.tau, ninf), 1)
+            target = torch.softmax(torch.where(ca, -d[anchors] / tau_r, ninf), 1)
+            soft = -torch.where(ca, target * logp, torch.zeros_like(logp)).sum(1).mean()
+        else:
+            soft = e.sum() * 0
         hard_pairs = cand & (d > tau_r)
         if obs_similarity is not None:           # "similar-looking": above the batch quantile of observation similarity
             osim = obs_similarity.to(dev).float()

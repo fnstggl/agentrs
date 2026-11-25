@@ -215,6 +215,35 @@ class StockWorld(World):
         return {"s": s}, {"y": y}, 0.0, False, {"y": y}
 
 
+class SwitchWorld(World):
+    """Mechanism change (spec 6.6(4)): the effect of ``A`` on y is s in {+1, -1} (random per episode); with
+    probability 0.5 the mechanism flips, unannounced, at a random decision in [3, 6] (from then on A gives -s).
+    ``noop`` gives y = 0. Only observed outcomes of A reveal the current mechanism. ``force`` = {"s":..,"sw":..}
+    fixes the sign and switch time (None: no switch) of every episode, for diagnostics."""
+    actions = ["noop", "A"]
+    keys = [("y", Likelihood.GAUSSIAN)]
+    T = 10
+
+    def __init__(self, D: int, seed: int = 0):
+        super().__init__(D, seed)
+        self.force = None
+
+    def reset(self, rng):
+        s = rng.choice([-1.0, 1.0])
+        sw = rng.randint(3, 6) if rng.random() < 0.5 else None
+        if self.force is not None:
+            s, sw = self.force["s"], self.force["sw"]
+        return {"s": s, "t": 0, "sw": sw}
+
+    def behaviour(self, st, rng, t):
+        return 1 if rng.random() < 0.7 else 0
+
+    def step(self, st, a, dt, rng):
+        s = -st["s"] if st["sw"] is not None and st["t"] == st["sw"] else st["s"]
+        y = (s if a == 1 else 0.0) + 0.05 * rng.gauss(0, 1)
+        return {"s": s, "t": st["t"] + 1, "sw": st["sw"]}, {"y": y}, 0.0, False, {"y": y}
+
+
 class ProbeWorld(World):
     """Hidden h in {0,1} per episode. ``probe`` costs 1 and reveals h; ``exploit`` pays +10 if h = 1 else -10;
     ``safe`` pays +0.5; both end the episode; ``wait`` does nothing. Without information the best immediate action

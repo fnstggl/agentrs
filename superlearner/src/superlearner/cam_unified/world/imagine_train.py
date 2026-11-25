@@ -111,6 +111,8 @@ def imagination_actor_critic_loss(targets: ImaginedTargets, logp: torch.Tensor, 
 def combine_real_and_imagined(real: Optional[dict], imagined: Optional[dict], imagined_weight: float = 0.5) -> dict:
     """Total = real["loss"] + imagined_weight * imagined["loss"], both kept under separate keys.
 
+    Both dicts must be labelled: real["provenance"] == "real" (set by the real-experience loss builders) and
+    imagined["provenance"] == "imagined" (set by ``imagination_actor_critic_loss``); anything else is refused.
     Imagined-only updates are refused: imagined consequences are never treated as facts without continual
     correction from actual environment experience."""
     if imagined is not None and imagined.get("provenance") != Provenance.IMAGINED.value:
@@ -119,8 +121,9 @@ def combine_real_and_imagined(real: Optional[dict], imagined: Optional[dict], im
         if imagined is not None:
             raise ValueError("refusing an imagined-only update: real experience is required in every update")
         raise ValueError("nothing to combine")
-    if real.get("provenance", Provenance.REAL.value) != Provenance.REAL.value:
-        raise ValueError("real losses must come from real experience")
+    if real.get("provenance") != Provenance.REAL.value:
+        raise ValueError("real losses must carry provenance 'real' explicitly (an unlabelled loss dict could be "
+                         "imagined experience)")
     out = {"loss": real["loss"], "real/loss": real["loss"].detach()}
     for k, v in real.items():
         if k not in ("loss", "provenance") and torch.is_tensor(v):

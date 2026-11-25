@@ -145,3 +145,86 @@ def test_contrastive_targets_follow_response_similarity():
     out = obj.loss(Z, iv, resp, mask)
     out["loss"].backward()
     assert out["n_anchors"] == 4 and Z.grad[4].abs().sum() == 0      # the unobserved / lone state gives no signal
+
+
+
+def test_assignment_probability_is_the_intervention_choice_not_the_whole_action():
+    """A decoded action with long arguments/code has a whole-action probability ~0; the assignment probability of
+    the intervention is the probability of choosing the tool (logp_parts['tool'])."""
+    led = CausalLedger()
+    a = Action("run_code", {"code": "x" * 500}, code="x" * 500, source=ActionSource.CAM_DECODER,
+               logp=math.log(0.3) - 400.0, logp_parts={"tool": math.log(0.3), "args": -400.0})
+    ev = led.record(_ev("e1", 0.0, a, ExecutionResult(True), logp=a.logp))
+    assert abs(ev.randomization_p - 0.3) < 1e-9 and abs(_feat(ev)["rand_p"] - 0.3) < 1e-9
+    # without parts the exact whole-action probability is the fallback
+    b = Action("noop", source=ActionSource.CAM_DECODER, logp=math.log(0.5))
+    assert abs(led.record(_ev("e2", 1.0, b, ExecutionResult(True), logp=b.logp)).randomization_p - 0.5) < 1e-9
+    # configurable intervention level (tool and option jointly)
+    led2 = CausalLedger(intervention_parts=("tool", "option"))
+    c = Action("x", source=ActionSource.CAM_DECODER, logp=-50.0,
+               logp_parts={"tool": math.log(0.5), "option": math.log(0.5), "args": -48.0})
+    assert abs(led2.record(_ev("e3", 0.0, c, ExecutionResult(True))).randomization_p - 0.25) < 1e-9
+    # planner actions carry no behaviour logp but are deterministic choices
+    d = Action("x", source=ActionSource.CAM_PLANNER, logp=None, logp_parts={"decoder": -1.0},
+               proposal={"n": 3, "chosen": 0, "deterministic": True, "behavior": "planner_argmax"})
+    assert led.record(_ev("e4", 2.0, d, ExecutionResult(True))).randomization_p == 1.0
+
+
+def test_ledger_memory_is_bounded_over_a_lifetime():
+    led = CausalLedger(retention_days=30.0, max_events_per_env=50)
+    first = Action("a0", source=ActionSource.CAM_DECODER, logp=math.log(0.5))
+    led.record(_ev("e0", 0.0, first, ExecutionResult(True)))
+    for i in range(1, 400):                                   # one intervention per day for 400 days
+        led.record(_ev(f"e{i}", float(i), Action(f"a{i}", source=ActionSource.CAM_DECODER, logp=math.log(0.5)),
+                       ExecutionResult(True, started_t=float(i), finished_t=float(i))))
+    assert len(led) <= 31 and len(led.action_event) <= 31 and len(led.active["env0"]) <= 2
+    # a very late outcome of a forgotten intervention is not attributed (delay unknown), a recent one is
+    late = _ev("late", 400.0, None, None, [Observation(ObsKind.NUMERIC, value=1.0, t=400.0, caused_by=first.action_id),
+                                            Observation(ObsKind.NUMERIC, value=2.0, t=400.0, caused_by="e395")])
+    led.record(late)
+    assert late.attributed_to == "e395" and late.extra["causal"]["delays_days"] == [5.0]
+    # the per-environment cap binds when events are dense in time
+    dense = CausalLedger(retention_days=1e9, max_events_per_env=50)
+    for i in range(300):
+        dense.record(_ev(f"d{i}", i * 1e-3, Action("a", source=ActionSource.CAM_DECODER, logp=-1.0)))
+    assert len(dense) == 50
+    dense.forget_env("env0")
+    assert len(dense) == 0 and not dense.action_event and "env0" not in dense.active
+
+
+def test_contrastive_is_scale_free_per_channel_and_masks_non_candidates_exactly():
+    torch.manual_seed(0)
+    obj = InterventionContrastive(8, d_embed=4, n_heads=2, hard_weight=0.0)
+    N = 12
+    Z = torch.randn(N, 8)
+    iv = torch.tensor([0] * 6 + [1] * 5 + [2])                   # state 11 is the only one with intervention 2
+    resp = torch.randn(N, 2)
+    scaled = resp * torch.tensor([1.0, 1e6])                      # e.g. one channel in cents
+    l1 = obj.loss(Z, iv, resp)["loss"]
+    l2 = obj.loss(Z, iv, scaled)["loss"]
+    torch.testing.assert_close(l1, l2, rtol=1e-4, atol=1e-5)
+    raw = InterventionContrastive(8, d_embed=4, n_heads=2, hard_weight=0.0, standardize_responses=False)
+    raw.load_state_dict(obj.state_dict())
+    assert abs(float(raw.loss(Z, iv, resp)["loss"]) - float(raw.loss(Z, iv, scaled)["loss"])) > 1e-3
+    # heavy-tailed responses with a tiny fixed response temperature: d / tau_r >> 1e4, still exact and finite
+    sharp = InterventionContrastive(8, d_embed=4, n_heads=2, hard_weight=0.0, response_temperature=1e-6,
+                                    standardize_responses=False)
+    Zg = Z.clone().requires_grad_(True)
+    heavy = torch.randn(N, 1) * 1e5
+    out = sharp.loss(Zg, iv, heavy)
+    assert torch.isfinite(out["loss"])
+    out["loss"].backward()
+    assert torch.isfinite(Zg.grad).all() and float(Zg.grad[11].abs().sum()) == 0.0   # lone state gets no signal
+    # the target puts all mass on the most similar candidate: the loss equals its InfoNCE term exactly
+    with torch.no_grad():
+        e = sharp.embed(Z)
+        sim = e @ e.T / sharp.tau
+        same = (iv.unsqueeze(0) == iv.unsqueeze(1)) & ~torch.eye(N, dtype=torch.bool)
+        d, _ = sharp.response_distance(heavy)
+        ref = []
+        for i in range(N):
+            if same[i].sum() < 2:
+                continue
+            j = torch.where(same[i], d[i], torch.full_like(d[i], float("inf"))).argmin()
+            ref.append(-(sim[i, j] - torch.logsumexp(sim[i][same[i]], 0)))
+        torch.testing.assert_close(out["soft"], torch.stack(ref).mean(), rtol=1e-4, atol=1e-4)
