@@ -53,12 +53,13 @@ class RunReport:
 
 def _merge(seen_seq: int, *lists) -> tuple:
     """Concatenate observation lists, dropping environment events already delivered (seq <= last seen seq)."""
-    out, top = [], seen_seq
+    out, top, here = [], seen_seq, set()
     for lst in lists:
         for o in lst or []:
             if o.seq is not None:
-                if o.seq <= seen_seq or any(p.seq == o.seq for p in out if p.seq is not None):
+                if o.seq <= seen_seq or o.seq in here:
                     continue
+                here.add(o.seq)
                 top = max(top, o.seq)
             out.append(o)
     return out, top

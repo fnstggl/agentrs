@@ -21,10 +21,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .config import CamConfig
-from .interfaces import (Action, EventRecord, ExecutionResult, FastState, GoalSpec, IndependentGoalResult, Likelihood,
+from .interfaces import (Action, EventRecord, ExecutionResult, FastState, GoalSpec, IndependentGoalResult,
                          Observation, ObservationBatch, ObsKind, OutcomeBatch, Provenance, TokenKind, TokenSet,
                          ToolSchema)
-from .outcome_spec import stable_hash, symlog
+from .outcome_spec import stable_hash
 
 OBS_KINDS = list(ObsKind)
 

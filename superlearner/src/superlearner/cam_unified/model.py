@@ -25,7 +25,6 @@ from __future__ import annotations
 import copy
 import importlib
 import inspect
-import math
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from typing import Any, Optional, Protocol, Sequence
@@ -34,9 +33,9 @@ import torch
 import torch.nn as nn
 
 from .config import CamConfig
-from .interfaces import (Action, ActionSource, EntityRegistry, FastState, GoalSpec, ImaginedStep, ImaginedTrajectory,
-                         Likelihood, OutcomeBatch, TokenKind, TokenSet)
-from .outcome_spec import (CONTINUOUS, CORE_INDEX, OutcomeQueryEncoder, OutcomeSpec, OutcomeTracker, bind_channels,
+from .interfaces import (Action, ActionSource, EntityRegistry, FastState, ImaginedStep, ImaginedTrajectory,
+                         OutcomeBatch, TokenKind, TokenSet)
+from .outcome_spec import (CONTINUOUS, CORE_INDEX, OutcomeQueryEncoder, OutcomeTracker, bind_channels,
                            build_outcome_batch, make_text_encoder, select_outcomes, with_targets)
 
 
@@ -262,7 +261,6 @@ BUILD_ORDER = ("semantic", "tokenizer", "core", "entity_encoder", "reasoner", "o
                "planner")
 ALIASES = {"semantic_encoder": "semantic", "encoder": "semantic", "sem": "semantic", "backbone": "core",
            "outcomes": "outcome_head", "dynamics": "world_model", "obs_tokenizer": "tokenizer"}
-OPTIONAL_COMPONENTS = {"semantic", "entity_encoder", "planner", "option_policy", "exploration_head"}
 # optional components loaded from their default path when it resolves (silently absent otherwise, see build_report);
 # the planner is never auto-loaded: its `plan(model, PlanRequest)` interface must be confirmed when C merges
 AUTO_OPTIONAL = ("semantic", "entity_encoder", "option_policy", "exploration_head")
@@ -549,6 +547,7 @@ class CamUnifiedModel(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.version = 0
+        self.build_report: dict = {}
         need = required_components(cfg)
         given = dict(tokenizer=tokenizer, core=core, outcome_head=outcome_head, world_model=world_model,
                      action_generator=action_generator, value_head=value_head, reasoner=reasoner, beliefs=beliefs,
@@ -768,9 +767,9 @@ class CamUnifiedModel(nn.Module):
                                self.cfg.bayes_obs_var_init) for b in range(state.B)]
         return specs, build_outcome_batch(specs, self.query_encoder, state.registries, chans, self.device)
 
-    def predict_outcomes(self, Z_hat: torch.Tensor, fast: Optional[FastState], ob: OutcomeBatch) -> tuple:
-        """Predictive mean/var [B,Q] of the outcome queries from the action-conditioned latent Z_hat: a mixture over
-        belief particles (weights w) when fast adaptation is on, plus the Kalman/NIG residual on continuous channels."""
+    def base_moments(self, Z_hat: torch.Tensor, fast: Optional[FastState], ob: OutcomeBatch) -> tuple:
+        """Outcome-head predictive mean/var [B,Q] from the action-conditioned latent Z_hat: the mixture over belief
+        particles (weights w) with fast adaptation, the unconditioned head otherwise. Also returns the features."""
         B, Q = ob.lik.shape
         feat = self.outcome_head.features(Z_hat, ob)
         check_shape(feat, (B, Q, self.cfg.d_model), "outcome_head.features")
@@ -781,17 +780,25 @@ class CamUnifiedModel(nn.Module):
             w = torch.softmax(fast.logw.float(), -1).unsqueeze(-1)
             mean = (w * mk).sum(1)
             var = (w * (vk + mk * mk)).sum(1) - mean * mean
-            phi = self.bayes.features(feat, ob)
-            bm, bv = self.bayes.predict(fast, phi, ob)
-            check_shape(bm, (B, Q), "bayes.predict mean")
-            cont = self._continuous(ob)
-            mean = mean + torch.where(cont, bm.float(), torch.zeros_like(mean))
-            var = var + torch.where(cont, bv.float(), torch.zeros_like(var))
         else:
             d = self.outcome_head.dist(feat, ob)
             mean, var = dist_mean(d).float(), dist_var(d).float()
             check_shape(mean, (B, Q), "outcome_head.dist mean")
         return mean, var.clamp_min(0.0), feat
+
+    def predict_outcomes(self, Z_hat: torch.Tensor, fast: Optional[FastState], ob: OutcomeBatch) -> tuple:
+        """Predictive mean/var [B,Q]: base_moments plus, on continuous outcomes with a channel, the Kalman/NIG
+        last layer's residual prediction (mean phi^T mu_c, variance phi^T P_c phi + noise)."""
+        mean, var, feat = self.base_moments(Z_hat, fast, ob)
+        if self.cfg.use_fast_adaptation and fast is not None:
+            B, Q = ob.lik.shape
+            phi = self.bayes.features(feat, ob)
+            bm, bv = self.bayes.predict(fast, phi, ob)
+            check_shape(bm, (B, Q), "bayes.predict mean")
+            cont = self._continuous(ob)
+            mean = mean + torch.where(cont, bm.float(), torch.zeros_like(mean))
+            var = var + torch.where(cont, bv.float().clamp_min(0.0), torch.zeros_like(var))
+        return mean, var, feat
 
     @staticmethod
     def _continuous(ob: OutcomeBatch) -> torch.Tensor:
@@ -939,13 +946,13 @@ class CamUnifiedModel(nn.Module):
                     # LP_{t-1} = log p(o_t | B_t) - log p(o_t | B_{t-1}): o_t is disjoint from the support o_{t-1}
                     out["lp"] = (ll_now - self.mixture_loglik(state.fast_prev, decision.Z_hat, ob)).float()
                 before = state.fast.clone()
+                # Kalman target: residual of y against the same base prediction the residual is added to
+                base_mean, _, feat = self.base_moments(decision.Z_hat, before, ob)
                 self._count("beliefs.update")
                 fast1, binfo = self.beliefs.update(state.fast, decision.Z, decision.act_tokens, ob, self.outcome_head)
                 check_shape(fast1.logw, (B, cfg.n_particles), "beliefs.update logw")
-                feat = self.outcome_head.features(decision.Z_hat, ob)
-                head_mean = dist_mean(self.outcome_head.dist(feat, ob)).float()
                 cont = self._continuous(ob) & ob.y_mask
-                resid = with_targets(ob, torch.where(cont, ob.y - head_mean, torch.zeros_like(ob.y)), cont)
+                resid = with_targets(ob, torch.where(cont, ob.y - base_mean, torch.zeros_like(ob.y)), cont)
                 self._count("bayes.update")
                 phi = self.bayes.features(feat, resid)
                 fast2 = self.bayes.update(fast1, phi, resid)

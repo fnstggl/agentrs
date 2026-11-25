@@ -23,25 +23,32 @@ Attribute contract for checkpoint operations (interfaces.CheckpointOpsP, workstr
 """
 from __future__ import annotations
 
-import copy
 import math
 import random
 import time
-from dataclasses import dataclass, field
-from typing import Callable, Optional, Protocol, Sequence
+from dataclasses import dataclass
+from typing import Optional, Protocol, Sequence
 
 import torch
 
 from .config import CamConfig
-from .interfaces import (Action, DecisionTrace, EntityRegistry, EventRecord, EvidenceKind, ExecutionResult, GoalSpec,
+from .interfaces import (DecisionTrace, EntityRegistry, EventRecord, EvidenceKind, ExecutionResult, GoalSpec,
                          ObservationBatch, Provenance, SequenceBatch, StepBatch, TokenSet, new_id)
-from .model import CamState, CamUnifiedModel, Decision, StepInputs, check_tokens, fast_cat
+from .model import CamState, CamUnifiedModel, StepInputs, check_tokens, fast_scatter
 from .outcome_spec import OutcomeSpec, build_outcome_batch
 
 SUPPORT_SIZES = (0, 1, 2, 4, 8, 16, 32, 64)
 
 
-# ============================================================================ injected-service protocols (not yet in interfaces.py)
+# ============================================================================ protocols (not yet in interfaces.py)
+
+class AgentP(Protocol):
+    """What runtimes, actors (F) and the OpenWorld harness (G) drive."""
+    def act(self, obs_batch: ObservationBatch, tools_batch: Sequence[Sequence]) -> list: ...   # [B] Action | None
+    def observe(self, results: Sequence, rewards: Sequence[float], next_obs: ObservationBatch) -> list: ...
+    def update(self) -> dict: ...
+    def reset(self, env_ids: Optional[Sequence[str]] = None) -> None: ...
+    def set_goals(self, goals: Sequence[GoalSpec]) -> None: ...
 
 class ReplayP(Protocol):                      # workstream E: cam_unified/memory/replay.py
     def sample(self, n_seqs: int, seq_len: int) -> list: ...   # -> list[list[EventRecord]], consecutive steps of one episode
@@ -161,8 +168,7 @@ def gae_semi_markov(entries: list, kappa: float, lam: float, lp_coef: float) -> 
         if not episodes or episodes[-1][0] != st.episode_ids[j]:
             episodes.append((st.episode_ids[j], []))
         episodes[-1][1].append((st, j))
-    for ei, (_, seq) in enumerate(episodes):
-        final_episode = ei == len(episodes) - 1
+    for _, seq in episodes:
         gae_next, v_next = 0.0, 0.0
         for idx in range(len(seq) - 1, -1, -1):
             st, j = seq[idx]
@@ -178,8 +184,6 @@ def gae_semi_markov(entries: list, kappa: float, lam: float, lp_coef: float) -> 
             gae = delta + gamma * lam * nonterm * gae_next
             out[(id(st), j)] = (gae, gae + v)
             gae_next, v_next = gae, v
-        if not final_episode and seq and not bool(seq[-1][0].done[seq[-1][1]]):
-            pass                                 # truncated episode: its last entry got no advantage (dropped)
     return out
 
 
@@ -358,18 +362,16 @@ class CamUnifiedAgent:
             self._pending = None
             return
         rows = [self.env_ids.index(e) for e in env_ids]
-        fresh = self.model.init_state(len(rows), device=self.device, seed=self.py_rng.randrange(2**31))
-        self.state.scatter(rows, fresh)
-        if self.state.fast_prev is not None and fresh.fast is not None:
-            from .model import fast_scatter
-            fast_scatter(self.state.fast_prev, rows, fresh.fast)
+        new = self.model.init_state(len(rows), device=self.device, seed=self.py_rng.randrange(2**31))
+        self.state.scatter(rows, new)
+        if self.state.fast_prev is not None and new.fast is not None:
+            fast_scatter(self.state.fast_prev, rows, new.fast)
         for r in rows:
             self.episode_ids[r] = new_id("ep_")
             self.steps[r] = 0
             self._lp_valid[r] = False
             self._last_fresh.pop(r, None)
-        if self._pending is not None:
-            self._pending = None
+        self._pending = None
 
     # ---------------------------------------------------------------- acting
     def act(self, obs_batch: ObservationBatch, tools_batch: Sequence[Sequence]) -> list:
@@ -551,12 +553,14 @@ class CamUnifiedAgent:
         if self.trainer is None:
             raise RuntimeError("CamUnifiedAgent.update() needs an injected trainer (workstream D's Trainer)")
         t0 = time.perf_counter()
-        seq, tables, replay_ids = None, None, []
+        seq, tables, replay_ids, replay_decisions = None, None, [], []
         if self.replay is not None and self.archive is not None and self.archive.count() > 0:
             seqs = [s for s in self.replay.sample(self.n_seqs, self.seq_len) if s]
             if seqs:
                 seq, tables = self.tokenise_sequences(seqs)
                 replay_ids = sorted({e for st in seq.steps for e in (st.event_ids or []) if e})
+                replay_decisions = sorted({r.extra.get("decision_id") for s in seqs for r in s
+                                           if r.extra.get("decision_id")})
         self.model.train()
         batch = UpdateBatch(seq, list(self.fresh), tables, model=self.model)
         losses, metrics, consumed = {}, {}, []
@@ -577,8 +581,9 @@ class CamUnifiedAgent:
         self.model.eval()
         self.version = self.version + 1
         update_id = f"u_{self.actor_id}_{self.version}"
-        if self.recorder is not None and hasattr(self.recorder, "link_updates") and consumed:
-            self.recorder.link_updates(consumed, update_id)
+        linked = sorted(set(consumed) | set(replay_decisions))
+        if self.recorder is not None and hasattr(self.recorder, "link_updates") and linked:
+            self.recorder.link_updates(linked, update_id)
         # keep each environment's latest undone decision: it bootstraps the next update's advantages
         keep: dict = {}
         for st in self.fresh:
@@ -596,6 +601,6 @@ class CamUnifiedAgent:
         self.timing["update_s"] += time.perf_counter() - t0
         entry = {"update_id": update_id, "version": self.version, "losses": {k: float(v.detach())
                                                                              for k, v in losses.items()},
-                 "consumed_decisions": consumed, "replay_events": replay_ids}
+                 "consumed_decisions": consumed, "replay_events": replay_ids, "replay_decisions": replay_decisions}
         self.update_log.append(entry)
         return {"updated": True, **entry, **metrics, **{f"trainer/{k}": v for k, v in (tm or {}).items()}}
