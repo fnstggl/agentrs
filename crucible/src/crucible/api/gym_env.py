@@ -20,6 +20,18 @@ driver owns the clock). Rewards and termination come from an optional *objective
         def status(self, world, actor) -> dict: ...             # {"success": bool, "failed": bool, "progress": float}
 
 Without one the reward is 0.0 and episodes end only by truncation (`max_steps`).
+
+Reward modes (Crucible 5.0, `crucible.experience.modes`), chosen with ``reward_mode``:
+
+* ``legacy_shaped_reward`` (default): the 4.0 contract above, byte for byte; ``info["objective"]`` is the
+  objective's full status (including its progress).
+* ``verified_terminal_outcome``: reward 1.0 once, on the step at which the objective's independent status first
+  reports success, else 0.0; ``info["objective"]`` carries only the terminal labels ``success`` and ``failed``.
+* ``observation_only``: the reward is always 0.0 - Gymnasium needs a scalar; it is **not a learning signal** -,
+  ``info`` has no ``objective`` key and episodes end only by truncation, so neither the reward, the info nor the
+  termination flag says anything about goal progress or satisfaction. The objective is still stepped (its verifier
+  keeps running); `verify()` returns its status to the evaluator. ``info["objective_text"]`` gives the objective's
+  public description when it has one (``objective.goal.description``).
 """
 from __future__ import annotations
 
@@ -30,6 +42,7 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
+from ..experience.modes import LEGACY, OBSERVATION_ONLY, VERIFIED, check_mode, info_objective
 from . import render as R
 from .local import API_VERSION, ActorIdentity, Observation, WorldServer
 
@@ -54,7 +67,11 @@ class CrucibleEnv(gym.Env):
                  time_mode: str = "fixed", min_dt: int = 1, max_steps: int | None = 100, max_events: int = 30,
                  max_text_length: int = 65536, max_action_length: int = 8192,
                  renderer: Callable[[Observation], str] | None = None, include_tools: str = "changed",
-                 driver: Callable[[WorldServer, str], None] | None = None, render_mode: str | None = None):
+                 driver: Callable[[WorldServer, str], None] | None = None, render_mode: str | None = None,
+                 reward_mode: str = LEGACY):
+        self.reward_mode = check_mode(reward_mode)
+        self._paid = False
+        self._status: dict = {}
         if reset_mode not in ("continue", "fork"):
             raise ValueError("reset_mode must be 'continue' or 'fork'")
         if time_mode not in ("fixed", "cost", "none"):
@@ -143,12 +160,16 @@ class CrucibleEnv(gym.Env):
         else:
             self._wid = self.server.resolve(self.world_id)
         status = {}
+        self._paid = False
         if self.objective is not None:
             w = self.server.world(self._wid)
             self.objective.begin(w, self.principal)
             status = dict(self.objective.status(w, self.principal) or {})
+        self._status = status
         obs, o = self._observe()
-        return obs, self._info(o, objective=status, reset_mode=mode)
+        if self.reward_mode == LEGACY:
+            return obs, self._info(o, objective=status, reset_mode=mode)
+        return obs, self._info(o, reset_mode=mode, **self._mode_extra(status))
 
     def step(self, action: Any):
         if self._wid is None:
@@ -166,10 +187,37 @@ class CrucibleEnv(gym.Env):
             w = self.server.world(self._wid)
             reward = float(self.objective.step_reward(w, self.principal))
             status = dict(self.objective.status(w, self.principal) or {})
-        terminated = bool(status.get("success") or status.get("failed"))
+        self._status = status
+        if self.reward_mode == LEGACY:
+            terminated = bool(status.get("success") or status.get("failed"))
+            truncated = bool(self.max_steps is not None and self.steps >= self.max_steps and not terminated)
+            obs, o = self._observe()
+            return obs, reward, terminated, truncated, self._info(o, action_result=res, objective=status)
+        if self.reward_mode == VERIFIED:
+            reward = 0.0
+            if status.get("success") and not self._paid:
+                self._paid, reward = True, 1.0
+            terminated = bool(status.get("success") or status.get("failed"))
+        else:                                   # observation-only: nothing about the objective reaches the learner
+            reward, terminated = 0.0, False
         truncated = bool(self.max_steps is not None and self.steps >= self.max_steps and not terminated)
         obs, o = self._observe()
-        return obs, reward, terminated, truncated, self._info(o, action_result=res, objective=status)
+        return obs, reward, terminated, truncated, self._info(o, action_result=res, **self._mode_extra(status))
+
+    def _mode_extra(self, status: dict) -> dict:
+        extra = {}
+        obj = info_objective(self.reward_mode, status)
+        if obj is not None and self.reward_mode != OBSERVATION_ONLY:
+            extra["objective"] = obj
+        text = getattr(getattr(self.objective, "goal", None), "description", None)
+        if isinstance(text, str):
+            extra["objective_text"] = text
+        return extra
+
+    def verify(self) -> dict:
+        """Evaluator side: the objective's latest independent status (never part of what the learner gets in
+        observation-only mode)."""
+        return dict(self._status or {})
 
     def render(self):
         if self.render_mode == "ansi":

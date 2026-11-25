@@ -9,11 +9,16 @@ the batched simulator and an agent using tools face the same problem with the sa
 
 `ToolLog` records every tool call the learner's actions were translated into, so a run is an ordinary agent
 trajectory in the world's event log (replayable, auditable, diagnosable with `research.diagnostics`).
+
+`reward_mode` (Crucible 5.0) has the meaning of `MechVecEnv`'s: the default ``legacy_shaped_reward`` is the 4.0
+behaviour; ``observation_only`` returns zero reward and leaves the reward slot of the observation at 0;
+``verified_terminal_outcome`` returns 1.0 on the last tick if the public objective was reached, else 0.
 """
 from __future__ import annotations
 
 import numpy as np
 
+from ..experience.modes import LEGACY, VERIFIED, check_mode
 from .envs import money_scale, symlog
 from .learner import EnvSpec
 from .tasks import Task
@@ -23,7 +28,8 @@ class KernelMechEnv:
     n = 1
 
     def __init__(self, task: Task, spec: EnvSpec | None = None, handle: str = "agent", tools: bool = False,
-                 store=None, strict: bool = True):
+                 store=None, strict: bool = True, reward_mode: str = LEGACY):
+        self.reward_mode = check_mode(reward_mode)
         import crucible
         crucible.load_all_modules()
         from ..core.kernel import World
@@ -70,7 +76,8 @@ class KernelMechEnv:
         o[0, sp.lever_mask][:len(self.levers)] = 1.0
         sc = o[0, sp.scalars]
         if report is not None:
-            sc[0] = report["net_cents"] / self.scale
+            if self.reward_mode == LEGACY:
+                sc[0] = report["net_cents"] / self.scale
             sc[1] = report["revenue_cents"] / self.scale
             sc[2] = report["cost_cents"] / self.scale
         sc[3] = self._balance() / max(1.0, float(self.task.endowment))
@@ -98,7 +105,13 @@ class KernelMechEnv:
         self.net += rep["net_cents"]
         self.done[:] = self.t >= self.horizon
         obs = self._obs(rep, rd["next_settings"])
-        return obs, np.array([rep["net_cents"] / self.scale], dtype=np.float32), self.done.copy(), \
+        if self.reward_mode == LEGACY:
+            reward = np.array([rep["net_cents"] / self.scale], dtype=np.float32)
+        elif self.reward_mode == VERIFIED and self.done[0]:
+            reward = np.array([1.0 if self.task.success(float(self.net)) else 0.0], dtype=np.float32)
+        else:
+            reward = np.zeros(1, dtype=np.float32)
+        return obs, reward, self.done.copy(), \
             {"net_cents": np.array([float(rep["net_cents"])]), "status": rep["status"]}
 
     def summary(self) -> dict:

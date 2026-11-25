@@ -115,11 +115,20 @@ class WorldEnv:
     by `WorldPool`; each episode forks it, which is how cheap episodic resets are done). Reward is
     ``objective.step_reward(world, actor)`` when an objective factory is given (`goals.contracts.RewardContract`
     protocol: `begin`, `step_reward`); otherwise the change of the participant's own account balances, in cents.
+
+    `reward_mode` (Crucible 5.0, `crucible.experience.modes`): ``legacy_shaped_reward`` (default) is the behaviour
+    above; ``observation_only`` returns 0.0 on every step (the objective, if any, is still stepped so its verifier
+    keeps running; `verify()` returns its status); ``verified_terminal_outcome`` returns 1.0 once, at the first step
+    where the objective's status reports success, else 0.0 (0.0 always without an objective).
     """
 
     def __init__(self, ref: dict, *, handle: str = "learner", endowment: int = 3_000_000, think_s: int = 600,
                  horizon_days: float | None = None, objective: str | None = None, objective_kwargs: dict | None = None,
-                 max_events: int = 30, imports: tuple = (), strict: bool = False):
+                 max_events: int = 30, imports: tuple = (), strict: bool = False,
+                 reward_mode: str = "legacy_shaped_reward"):
+        from ..experience.modes import check_mode
+        self.reward_mode = check_mode(reward_mode)
+        self._paid = False
         ensure_registered(imports)
         import pickle
         import zlib
@@ -197,8 +206,19 @@ class WorldEnv:
         else:
             cash = self._balance()
             reward, self._cash = float(cash - self._cash), cash
+        if self.reward_mode != "legacy_shaped_reward":
+            reward = 0.0
+            if self.reward_mode == "verified_terminal_outcome" and self.objective is not None and not self._paid \
+                    and (self.objective.status(w, self.actor) or {}).get("success"):
+                self._paid, reward = True, 1.0
         done = self.t_end is not None and w.now >= self.t_end
         return self._observe(), reward, done, {"sim_dt": w.now - t0, "result": res, "t": w.now}
+
+    def verify(self) -> dict:
+        """Evaluator side: the objective's status (empty without an objective)."""
+        if self.objective is None or not hasattr(self.objective, "status"):
+            return {}
+        return dict(self.objective.status(self.world, self.actor) or {})
 
     def digest(self) -> str:
         return self.world.digest()

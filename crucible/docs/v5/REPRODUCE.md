@@ -60,3 +60,14 @@ PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --label "E2 fit software" 
 PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --label "E2 tests" -- \
     env PYTHONPATH=src python -m pytest -q tests/test_v5_calibration_commercial.py tests/test_v5_calibration_software.py
 ```
+
+## Learner interface (workstream L)
+
+PYTHONPATH=src python -m crucible.experience tiers                       # which tiers this checkout has
+PYTHONPATH=src python -m crucible.experience run --tier 1 --name mech:scm_additive --seed 0 --steps 120 \
+    --reward-mode observation_only --store /tmp/exp --checkpoint /tmp/ref.pt --out /tmp/run.json   # reproducible
+CRUCIBLE_V5_AUTHOR=ws-L PYTHONPATH=src python -m pytest -q tests/v5/test_gate_R.py tests/v5/test_gate_SP_11_*.py
+PYTHONPATH=src python -m crucible.scale.slots --cpu 4 --label "ws-L: gate S" -- \
+    env CRUCIBLE_V5_AUTHOR=ws-L python -m pytest -q tests/v5/test_gate_S.py   # S.7 starts four worker processes
+```
+See docs/v5/LEARNER_GUIDE.md and docs/v5/components/L.md.
