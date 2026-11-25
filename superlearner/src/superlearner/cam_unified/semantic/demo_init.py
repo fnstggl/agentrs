@@ -733,3 +733,180 @@ def act_on_tasks(model, tasks: Sequence[Any], n_decisions: int, *, seed: int = 0
                   returns=rep.returns, compute=rep.compute.to_dict() if hasattr(rep.compute, "to_dict") else None,
                   tools=dict(sorted(checks["tools"].items(), key=lambda kv: -kv[1])[:25]))
     return checks
+
+
+# ============================================================================ the declared run (resumable CLI)
+TRAIN_TASKS = (("ow_tiny", 100_000, 16), ("ow_market", 100_000, 4))     # (family, first seed, n): dev offsets
+HELD_TASKS = (("ow_tiny", 100_500, 4),)                                  # held-out transcripts (same split, unseen)
+ACT_TASKS = (("ow_tiny", 100_600, 2),)                                   # acting evaluation worlds (unseen)
+
+
+def make_tasks(spec) -> list:
+    from crucible.research import llm_eval as L
+    out = []
+    for fam, s0, n in spec:
+        for i in range(n):
+            out.append(L.open_economy_goal(world_family=fam, seed=s0 + i,
+                                           overrides={"n_consumers": 800} if fam == "ow_tiny" else {}, days=8))
+    return out
+
+
+def run_config(scale: str = "dev", **over):
+    """The demo-init run's config: the declared condition; imagination off while replaying and acting (the decoder
+    policy is what BC trains; planner decisions would score many decoder samples per decision)."""
+    from ..config import make_config
+    return make_config(scale, use_imagination=False, declared_conditions=(CONDITION,), **over)
+
+
+def _build(cfg, seed: int, test_model: bool = False):
+    from ..agent import CamUnifiedAgent
+    from ..model import build_model
+    torch.manual_seed(seed)
+    kw = {"semantic": {"test": True}} if test_model else None
+    model = build_model(cfg, component_kwargs=kw).to("cuda" if torch.cuda.is_available() else "cpu")
+    return model, CamUnifiedAgent(model, seed=seed)
+
+
+def _json(path: str, obj) -> None:
+    tmp = path + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump(obj, fh, indent=1, default=str)
+    os.replace(tmp, path)
+
+
+def _wait_subset(steps: list, n: int, seed: int) -> list:
+    acts = [s for s in steps if not s.is_wait]
+    waits = [s for s in steps if s.is_wait]
+    return acts + random.Random(seed).sample(waits, min(n, len(waits)))
+
+
+def cmd_record(out: str) -> dict:
+    os.makedirs(out, exist_ok=True)
+    res = {}
+    for name, spec in (("train", TRAIN_TASKS), ("held", HELD_TASKS)):
+        d = os.path.join(out, name)
+        os.makedirs(d, exist_ok=True)
+        eps = record_demo_dataset(make_tasks(spec), d)
+        res[name] = {"episodes": [e.key for e in eps], "decisions": sum(len(e.decisions) for e in eps),
+                     "non_wait": sum(1 for e in eps for x in e.decisions if x.action.tool != "wait"),
+                     "successes": [e.success for e in eps]}
+    _json(os.path.join(out, "record.json"), res)
+    return res
+
+
+def _dataset_stats(steps: list) -> dict:
+    return {"decisions": len(steps), "waits": sum(s.is_wait for s in steps),
+            "unrepresentable": sum(s.unrepresentable is not None for s in steps),
+            "unrepresentable_tools": sorted({s.action.tool for s in steps if s.unrepresentable}),
+            "with_evidence_labels": sum(1 for s in steps if s.evidence)}
+
+
+def cmd_train(out: str, minutes: float, scale: str = "dev", seed: int = 0, test_model: bool = False,
+              epochs: int = 4) -> dict:
+    """Resumable BC: evaluates the initial model once, then runs epochs (rollout refresh + BC pass) until `epochs`
+    are done or `minutes` elapse; weights (E's save_weights) + optimiser state are saved after every epoch / chunk."""
+    from ..memory.checkpoint import CheckpointOps
+    deadline = time.time() + 60.0 * minutes
+    cfg = run_config(scale)
+    model, agent = _build(cfg, seed, test_model)
+    ops = CheckpointOps(agent)
+    train = load_episodes(os.path.join(out, "train", "episodes.jsonl"))
+    held = load_episodes(os.path.join(out, "held", "episodes.jsonl"))
+    ck = os.path.join(out, "ckpt")
+    os.makedirs(ck, exist_ok=True)
+    prog_path = os.path.join(out, "progress.json")
+    prog = json.load(open(prog_path)) if os.path.exists(prog_path) else {"epochs": [], "chunks": 0}
+    bc = BehaviourCloning(model, BCConfig(seed=seed))
+    if prog["epochs"] or prog.get("partial"):
+        ops.load_weights_only(os.path.join(ck, "weights.safetensors"))
+        bc.opt.load_state_dict(torch.load(os.path.join(ck, "optim.pt"), map_location=model.device))
+        bc.updates = int(prog.get("updates", 0))
+    else:
+        init_dir = os.path.join(out, "init")
+        os.makedirs(init_dir, exist_ok=True)
+        ops.save_weights(os.path.join(init_dir, "weights.safetensors"))          # the no-demo arm
+        t0 = time.time()
+        hs = teacher_forced_rollout(model, held, batch=10, seed=seed)
+        prog["held_dataset"] = _dataset_stats(hs)
+        prog["before"] = {"held_logp": demo_logp_table(model, hs),
+                          "held_match": evaluate_demo_match(model, _wait_subset(hs, 60, seed))}
+        prog["before"]["eval_s"] = time.time() - t0
+        _json(prog_path, prog)
+    prog["chunks"] = int(prog.get("chunks", 0)) + 1
+    while len(prog["epochs"]) < epochs and time.time() < deadline:
+        t0 = time.time()
+        steps = teacher_forced_rollout(model, train, batch=10, seed=seed + len(prog["epochs"]))
+        prog["train_dataset"] = _dataset_stats(steps)
+        t1 = time.time()
+        r = bc.epoch(steps, deadline=deadline)
+        r.update(rollout_s=t1 - t0, bc_s=time.time() - t1, updates=bc.updates,
+                 last=bc.log[-1] if bc.log else None)
+        ops.save_weights(os.path.join(ck, "weights.safetensors"))
+        torch.save(bc.opt.state_dict(), os.path.join(ck, "optim.pt"))
+        if r["batches"] < r["of"]:
+            prog["partial"] = r                       # deadline inside the epoch: the epoch is redone next chunk
+            prog["updates"] = bc.updates
+            break
+        prog.pop("partial", None)
+        prog["epochs"].append(r)
+        prog["updates"] = bc.updates
+        _json(prog_path, prog)
+    prog["peak_gpu_mb"] = round(torch.cuda.max_memory_allocated() / 2 ** 20) if torch.cuda.is_available() else None
+    _json(prog_path, prog)
+    return prog
+
+
+def cmd_evaluate(out: str, minutes: float, scale: str = "dev", seed: int = 0, test_model: bool = False,
+                 n_act: int = 30, arms: Sequence[str] = ("bc", "init")) -> dict:
+    """After BC: held-out demo log-probability / greedy match, then both arms (BC'd weights and the initial no-demo
+    weights) acting through the integrated agent on unseen OpenWorld seeds."""
+    from ..memory.checkpoint import CheckpointOps
+    cfg = run_config(scale)
+    model, agent = _build(cfg, seed, test_model)
+    ops = CheckpointOps(agent)
+    path = os.path.join(out, "evaluation.json")
+    ev = json.load(open(path)) if os.path.exists(path) else {}
+    held = load_episodes(os.path.join(out, "held", "episodes.jsonl"))
+    if "after" not in ev:
+        ops.load_weights_only(os.path.join(out, "ckpt", "weights.safetensors"))
+        hs = teacher_forced_rollout(model, held, seed=seed)
+        ev["after"] = {"held_logp": demo_logp_table(model, hs),
+                       "held_match": evaluate_demo_match(model, _wait_subset(hs, 60, seed))}
+        _json(path, ev)
+    tasks = make_tasks(ACT_TASKS)
+    for arm in arms:
+        key = f"acting_{arm}"
+        if key in ev:
+            continue
+        ops.load_weights_only(os.path.join(out, "ckpt" if arm == "bc" else "init", "weights.safetensors"))
+        t0 = time.time()
+        ev[key] = act_on_tasks(model, tasks, n_act, seed=seed)
+        ev[key]["wall_s"] = time.time() - t0
+        _json(path, ev)
+    return ev
+
+
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    import argparse
+    ap = argparse.ArgumentParser(description="CAM Unified declared demo-init condition (behaviour cloning on "
+                                             "non-privileged ExampleInductor transcripts)")
+    ap.add_argument("cmd", choices=("record", "train", "evaluate"))
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--minutes", type=float, default=22.0)
+    ap.add_argument("--scale", default="dev")
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--epochs", type=int, default=4)
+    ap.add_argument("--n-act", type=int, default=30)
+    ap.add_argument("--test-model", action="store_true", help="Qwen3-0.6B (cfg.sem_test_model) instead of 1.7B")
+    a = ap.parse_args(argv)
+    if a.cmd == "record":
+        r = cmd_record(a.out)
+    elif a.cmd == "train":
+        r = cmd_train(a.out, a.minutes, a.scale, a.seed, a.test_model, a.epochs)
+    else:
+        r = cmd_evaluate(a.out, a.minutes, a.scale, a.seed, a.test_model, a.n_act)
+    print(json.dumps(r, indent=1, default=str)[:4000])
+
+
+if __name__ == "__main__":
+    main()
