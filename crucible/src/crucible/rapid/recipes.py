@@ -247,6 +247,34 @@ def price_levers_at(cfg: dict, target: dict[str, float], scale: dict[str, float]
     return costs
 
 
+def price_below_peak(cfg: dict, levers: list[str], rng: np.random.Generator, share=(0.55, 0.8),
+                     grid: int = 11, lo: float = 0.0, hi: float = 10.0) -> dict[str, float]:
+    """For mechanisms whose revenue surface has an interior maximum somewhere a seed decides (non-monotonic
+    layers): find the revenue-maximising settings on a grid, take each lever at a drawn share of its value there,
+    and price the levers so that this point is the net optimum."""
+    import itertools
+    from .engines.primitive_graph import PrimitiveGraph
+    axes = np.linspace(lo, hi, grid)
+    pts = np.array(list(itertools.product(axes, repeat=len(levers))))
+    eng = PrimitiveGraph(cfg)
+    B = len(pts)
+    st = eng.empty_state(B)
+    names = [lv["name"] for lv in eng.lev]
+    for j, lvid in enumerate(levers):
+        k = names.index(cfg["nodes"][int(lvid[1:])]["lever"]["name"])
+        st["lev"][:, k] = pts[:, j]
+        st["levset"][:, k] = 1.0
+    z, uu = np.zeros((B, eng.n_normal)), np.ones((B, eng.n_uniform))
+    revs = []
+    for t in range(30):                         # every grid point stepped at once (the engine's batch dimension)
+        cur, _ = eng.tick(st, z, uu, -100_000 + t)
+        revs.append(eng.money_flows(st, cur)[0])
+    rev = np.mean(revs[-10:], axis=0)
+    arg = pts[int(np.argmax(rev))]
+    target = {lv: max(float(x) * u(rng, *share), 0.3) for lv, x in zip(levers, arg)}
+    return price_levers_at(cfg, target, floor=0.0)
+
+
 def price_key_and_costly(cfg: dict, key: str, key_at: float, costly: str, excess: float, floor: float = 0.0,
                          others: dict[str, float] | None = None, **kw) -> dict[str, float]:
     """The usual economics of a two-lever family: the key lever's unit cost equals its marginal revenue at the

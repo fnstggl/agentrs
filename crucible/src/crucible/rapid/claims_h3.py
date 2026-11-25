@@ -470,7 +470,127 @@ def rule_change_time(env) -> dict:
     """Question: when did the platform change what it rewards? Public: alternate between the two levers."""
     cl = env._config["claim"]
     A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
-    est, d = _change_point(PublicView(env), {A: 9.0, B: 1.0}, {A: 1.0, B: 9.0}, _rev, run=3)
+    est, d = _change_point(PublicView(env), {A: 9.0, B: 1.0}, {A: 1.0, B: 9.0}, _rev, run=4)
     truth = _at(env, cl["regime_a"])
     return {"question": "at which tick does the rule change", "estimate": est, "truth": truth,
             "ok": abs(est - truth) <= 7.0 and d[:2].mean() > 0 > d[-2:].mean()}
+
+
+# ====================================================================== evaluation families
+def latched_reversal(env) -> dict:
+    """With the latch held open, the gated lever raises output before the hidden tick and lowers it afterwards; and
+    the latch remembers: after a high push, a setting inside its band keeps it open, after a low one closed."""
+    cfg = env._config
+    cl = cfg["claim"]
+    A, B = _lname(env, cl["latch_lever"]), _lname(env, cl["lever"])
+    p = cfg["nodes"][env._engine.idx[cl["latch"]]]["params"]
+    band = 0.5 * (p["lo"] + p["hi"])
+    up = lambda k: {"kind": "levers", "values": {A: 10.0 if k < 8 else band, B: 7.0}}  # noqa: E731
+    down = lambda k: {"kind": "levers", "values": {A: 0.0 if k < 8 else band, B: 7.0}}  # noqa: E731
+    la, lb = _series(env, up, 16, cl["latch"]), _series(env, down, 16, cl["latch"])
+    at = _at(env, cl["regime"])
+    before, after = _split_effect(env, {A: 10.0, B: 8.0}, {A: 10.0, B: 1.0}, cl["outcome"], at, settle=4)
+    return {"ok": bool(la[-1] == p["on"] and lb[-1] == p["off"] and before > 0.5 and after < -0.5),
+            "latch_after_high": float(la[-1]), "latch_after_low": float(lb[-1]), "gated_effect_before": before,
+            "gated_effect_after": after, "switch_tick": at}
+
+
+def latched_reversal_time(env) -> dict:
+    """Question: when does the open pathway start to lose money? Public: hold the latch lever high (pathway open),
+    alternate the gated lever high and low, locate the change."""
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["latch_lever"]), _lname(env, cl["lever"])
+    est, d = _change_point(PublicView(env), {A: 10.0, B: 9.0}, {A: 10.0, B: 1.0}, _rev, run=4)
+    truth = _at(env, cl["regime"])
+    return {"question": "at which tick does the gated pathway reverse", "estimate": est, "truth": truth,
+            "ok": abs(est - truth) <= 7.0 and d[1:3].mean() > 0 > d[-2:].mean()}
+
+
+def balancing_constraint(env) -> dict:
+    """The balancing loop (immediate effect of materials on the hidden-loop output above the lasting one) and the
+    constraint (materials' effect on output falls by more than half after the capacity cut)."""
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["constrained"])
+    step = _series(env, lambda k: {"kind": "levers", "values": {A: 2.0 if k < 15 else 8.0, B: 3.0}}, 45, cl["core"])
+    base = _series(env, _hold({A: 2.0, B: 3.0}), 45, cl["core"])
+    dd = step - base
+    short, late = float(dd[15]), float(dd[32:45].mean())
+    at = _at(env, cl["regime"])
+    before, after = _split_effect(env, {A: 8.0, B: 3.0}, {A: 4.0, B: 3.0}, cl["outcome"], at)
+    return {"ok": short > 0 and 0 < late < 0.8 * short and before > 0.3 and after < 0.5 * before,
+            "immediate_effect": short, "lasting_effect": late, "materials_effect_before": before,
+            "materials_effect_after": after}
+
+
+def competing_rule(env) -> dict:
+    """Both levers track sales in the records; under intervention only the first moves sales before the hidden
+    tick and only the second after it."""
+    eng, st, cfg = inside(env)
+    cl = cfg["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
+    hs = np.asarray(eng.history_of(st, _gauge_of(env, cl["outcome"])))
+    ca = float(np.corrcoef(np.asarray(eng.history_of(st, A)), hs)[0, 1])
+    cb = float(np.corrcoef(np.asarray(eng.history_of(st, B)), hs)[0, 1])
+    at = _at(env, cl["regime_a"])
+    ab, aa = _split_effect(env, {A: 8.0, B: 0.0}, {A: 2.0, B: 0.0}, cl["outcome"], at, settle=2)
+    bb, ba = _split_effect(env, {A: 0.0, B: 8.0}, {A: 0.0, B: 2.0}, cl["outcome"], at, settle=2)
+    return {"ok": ca > 0.3 and cb > 0.3 and ab > 0.5 and abs(bb) <= 0.02 * ab and ba > 0.5 and aa < 0.4 * ab,
+            "records_corr_first": ca, "records_corr_second": cb, "first_before": ab, "first_after": aa,
+            "second_before": bb, "second_after": ba}
+
+
+def selection_flattens(env) -> dict:
+    """The selected gauge responds to the lever less than the real output does, and reads above it (forks with
+    common noise)."""
+    cl = env._config["claim"]
+    eng = env._engine
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
+    g = _gauge_of(env, cl["outcome"])
+    k = eng.gauge_names.index(g)
+
+    def run(x):
+        e = fork(env)
+        true, read = [], []
+        for _ in range(25):
+            e.step({"kind": "levers", "values": {A: x, B: 2.0}})
+            true.append(float(e._state["h"][0, -1, eng.idx[cl["outcome"]]]))
+            read.append(float(e._state["read"][0, k]))
+        return np.asarray(true[5:]), np.asarray(read[5:])
+    t_hi, r_hi = run(8.0)
+    t_lo, r_lo = run(2.0)
+    dt = float(t_hi.mean() - t_lo.mean())
+    dr = float(np.nanmean(r_hi) - np.nanmean(r_lo))
+    above = float(np.nanmean(np.concatenate([r_hi, r_lo])) - np.mean(np.concatenate([t_hi, t_lo])))
+    missing = float(np.mean(np.isnan(np.concatenate([r_hi, r_lo]))))
+    return {"ok": abs(dt) > 0.5 and abs(dr) < 0.7 * abs(dt) and above > 0 and missing > 0,
+            "true_response": dt, "reported_response": dr, "reading_bias": above, "missing_share": missing}
+
+
+def lock_in(env) -> dict:
+    """Increasing returns with two attractors: after the same final settings (no push), a world pushed early ends
+    locked high and a world never pushed ends low."""
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
+    push = lambda k: {"kind": "levers", "values": {A: 10.0 if k < 15 else 0.0, B: 0.0}}  # noqa: E731
+    none = _hold({A: 0.0, B: 0.0})
+    sp, sn = _series(env, push, 45, cl["share"]), _series(env, none, 45, cl["share"])
+    late = _series(env, lambda k: {"kind": "levers", "values": {A: 10.0 if 30 <= k < 33 else 0.0, B: 0.0}}, 45,
+                   cl["share"])
+    return {"ok": sp[-1] > 0.7 and sn[-1] < 0.3 and late[-1] < 0.3, "share_after_early_push": float(sp[-1]),
+            "share_never_pushed": float(sn[-1]), "share_after_short_late_push": float(late[-1])}
+
+
+def push_locks_in(env) -> dict:
+    """Question: does a temporary push lock the market in? Public: push at full strength for 12 ticks, then stop,
+    and compare late revenue with revenue before the push. Truth: the same schedule on a fork, the hidden share at
+    the end."""
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
+    sched = lambda k: {"kind": "levers", "values": {A: 10.0 if 3 <= k < 15 else 0.0, B: 0.0}}  # noqa: E731
+    share = _series(env, sched, env.horizon, cl["share"])
+    view = PublicView(env)
+    revs = [_rev(view.step(sched(k))["observation"]) for k in range(view.horizon)]
+    est = bool(np.mean(revs[-10:]) > 2.0 * max(np.mean(revs[:3]), 1.0))
+    truth = bool(share[-1] > 0.5)
+    return {"question": "does a temporary push lock the market in", "estimate": est, "truth": truth,
+            "ok": est == truth}

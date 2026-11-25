@@ -17,7 +17,8 @@ from fingerprints.
 from __future__ import annotations
 
 from .families import FAMILIES, family
-from .recipes import Composed, price_key_and_costly, price_levers_at, settled_port, settled_revenue, u
+from .recipes import (Composed, price_below_peak, price_key_and_costly, price_levers_at, settled_port, settled_revenue,
+                      u)
 
 C = "crucible.rapid.claims_h3:"
 R = "crucible.rapid.refs_h3:"
@@ -415,3 +416,199 @@ def ch_rule_change(rng, d):
     cfg["nodes"][int(a[1:])]["lever"]["cost"] = ca
     cfg["nodes"][int(b[1:])]["lever"]["cost"] = max(cb, 0.0)
     return cfg
+
+
+# ====================================================================== evaluation partition v5-eval-1
+# compositional: primitives every one of which appears in training families, in a combination none of them has
+@_pg("cxc_latched_reversal", category="8.10", item="8.10.1", split="val",
+     doc="The latched pathway of a hidden switch (it opens once a first lever is pushed high and stays open until it "
+         "is pulled low) and a sign reversal at a hidden tick: after the tick, running the open pathway loses "
+         "money, so the latch has to be closed again.",
+     distinct_because="compositional evaluation family: the hysteresis-gated collider of cx_latched_pathway with "
+                      "the timed regime reversal of ch_sign_reversal spliced onto the gated product; no training "
+                      "family combines hysteresis with a regime switch",
+     axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
+     claims=(C + "latched_reversal",), identify=C + "latched_reversal_time", reference=R + "latch_then_watch")
+def cxc_latched_reversal(rng, d):
+    H = int(d["horizon"])
+    c = Composed(rng, _base(d, topology="collider", motifs=["hysteresis", "saturation"], temporal="lagged"))
+    a, b = c.levers
+    hy, sb, prod = c.motifs
+    rg = c.splice(prod, "regime_change", {"before": 1.0, "after": -u(rng, 0.15, 0.3),
+                                          "at": float(int(rng.integers(int(0.55 * H), int(0.7 * H) + 1))),
+                                          "trig": 1e18}, trigger=[])
+    c.set_bias(c.sold, "x", u(rng, 10.0, 16.0))
+    c.set_params(c.sold, half=u(rng, 30.0, 45.0))
+    c.process_noise(u(rng, 0.8, 1.2))
+    c.set_lever(a, default=u(rng, 0.5, 1.5))
+    cfg = c.finish(brief="A unit with two levers. Gauges: output and a combined process reading.",
+                   objective={"type": "maximize_net", "text": SHOP},
+                   claim={"lever": b, "latch_lever": a, "latch": hy, "outcome": c.sold, "regime": rg})
+    p = cfg["nodes"][int(hy[1:])]["params"]
+    tb = u(rng, 5.5, 7.5)
+    gain = settled_revenue(cfg, {a: 10.0, b: tb}) - settled_revenue(cfg, {a: 0.0, b: tb})
+    costs = price_levers_at(cfg, {a: 10.0, b: tb})
+    cfg["nodes"][int(b[1:])]["lever"]["cost"] = costs[b]
+    cfg["nodes"][int(a[1:])]["lever"]["cost"] = u(rng, 0.5, 0.65) * gain / p["hi"]
+    return cfg
+
+
+@_pg("cxc_balancing_constraint", category="8.1", item="8.1.5", split="val",
+     doc="Materials work through a balancing loop over an unobserved intermediate (the immediate response "
+         "overstates the lasting one) and need machine hours as a complement; at a hidden tick the machines lose "
+         "capacity, so the lasting value of materials falls further.",
+     distinct_because="compositional evaluation family: the balancing feedback loop of cx_balancing_loop feeding "
+                      "the complementarity of ch_constraint_tightens with its timed capacity cut; no training "
+                      "family has feedback and complementarity together",
+     axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
+     claims=(C + "balancing_constraint",), identify=C + "constraint_time")
+def cxc_balancing_constraint(rng, d):
+    H = int(d["horizon"])
+    c = Composed(rng, _base(d, topology="feedback", motifs=["linear_nonlinear"]))
+    a, b = c.levers
+    fb = next(n for n in c.motifs if c.prim_of(n) == "feedback")
+    core = c.core
+    c.set_params(fb, g=u(rng, 0.05, 0.15))
+    slope = c.node(core)["params"]["a"]
+    # a linear stage keeps the loop gain the same at every operating point (stable, strongly balancing)
+    c.node(fb)["ports"]["x"] = [[a, 0, 1.0], [core, 1, -u(rng, 0.5, 0.7) / slope]]
+    c.drop_input(core, b)
+    pb = c.prim("saturation", {"cap": u(rng, 15.0, 30.0), "half": u(rng, 3.0, 8.0)}, x=[(b, 0, 1.0)])
+    rg = c.prim("regime_change", {"before": 1.0, "after": u(rng, 0.3, 0.45), "at": _switch_tick(rng, H),
+                                  "trig": 1e18}, x=[(pb, 0, 1.0)], trigger=[])
+    comp = c.prim("complementarity", {"scale": u(rng, 2.0, 3.0), "rho": -3.0, "w": 0.5}, a=[(core, 0, 1.0)],
+                  b=[(rg, 0, 1.0)])
+    c.set_input(c.sold, "x", [(comp, 0, 1.0)])
+    c.set_params(c.sold, half=u(rng, 30.0, 45.0))
+    c.process_noise(u(rng, 0.8, 1.2))
+    c.set_lever(a, default=u(rng, 1.0, 2.0))
+    c.set_lever(b, default=u(rng, 1.0, 2.0))
+    cfg = c.finish(brief="A workshop. Levers: materials bought and machine hours booked. Gauges: output and work "
+                         "in progress.",
+                   objective={"type": "maximize_net", "text": SHOP},
+                   claim={"lever": a, "constrained": b, "outcome": c.sold, "regime": rg, "core": core, "hidden": fb})
+    price_levers_at(cfg, {a: u(rng, 7.0, 9.0), b: u(rng, 2.0, 3.5)})
+    return cfg
+
+
+@_pg("cxc_competing_rule", category="8.10", item="8.10.6", split="val",
+     doc="Two levers moved together in the previous operator's records with a hidden demand cycle; at first only "
+         "one of them causes sales. At a hidden tick the platform's rule changes and the other lever becomes the "
+         "one that pays, while the first stops.",
+     distinct_because="compositional evaluation family: the collinear confounded history and inert-lever chain of "
+                      "cx_competing_causes with the opposite timed switches of ch_rule_change on the two lever "
+                      "paths; no training family has historical confounding together with a regime switch",
+     axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
+     claims=(C + "competing_rule",), identify=C + "rule_change_time")
+def cxc_competing_rule(rng, d):
+    H = int(d["horizon"])
+    c = Composed(rng, _base(d, topology="chain", motifs=["saturation", "linear_nonlinear"]))
+    a, b = c.levers
+    m0, m1 = c.motifs
+    c.drop_input(m0, b)
+    U = c.prim("hidden_confounding", {"mean": 0.0, "sd": u(rng, 0.4, 0.5), "ar": 0.9}, role="confounder")
+    c.natural(a, [(U, 0, 2.5)], bias=5.0, sd=0.4)
+    c.natural(b, [(U, 0, 2.5)], bias=5.0, sd=0.4)
+    c.add_input(m1, "x", U, 0, u(rng, 2.0, 3.0))
+    at = _switch_tick(rng, H)
+    lo = u(rng, 0.05, 0.12)
+    ra = c.splice(m0, "regime_change", {"before": 1.0, "after": lo, "at": at, "trig": 1e18}, trigger=[])
+    pb = c.prim("saturation", dict(c.node(m0)["params"]), x=[(b, 0, 1.0)])
+    rb = c.prim("regime_change", {"before": 0.0, "after": 1.0, "at": at, "trig": 1e18}, x=[(pb, 0, 1.0)], trigger=[])
+    c.add_input(m1, "x", rb, 0, 1.0)
+    cfg = c.finish(warmup=40, brief="A shop with two spending levers on a platform. Gauges: units sold and an "
+                                    "engagement count. You have the previous operator's records.",
+                   objective={"type": "maximize_net", "text": SHOP},
+                   claim={"lever": a, "second": b, "outcome": c.sold, "regime_a": ra, "regime_b": rb,
+                          "confounder": U})
+    ta, tb = u(rng, 6.0, 8.0), u(rng, 6.0, 8.0)
+    ca = price_levers_at(cfg, {a: ta, b: 0.0})[a]
+    cb = (settled_revenue(cfg, {a: 0.0, b: tb + 0.25}, t0=AFTER) -
+          settled_revenue(cfg, {a: 0.0, b: tb - 0.25}, t0=AFTER)) / 0.5
+    cfg["nodes"][int(a[1:])]["lever"]["cost"] = ca
+    cfg["nodes"][int(b[1:])]["lever"]["cost"] = max(cb, 0.0)
+    return cfg
+
+
+# structural: a structure (observation channel, motif, topology) that no training family has
+@_pg("cxs_selected_layers", category="8.1", item="8.1.1", split="val",
+     doc="Two layers of mechanisms, each fed by both levers, combine as substitutes; the sensors report only the "
+         "units that clear a quality cut (survivorship) and sometimes nothing at all, so the readings are biased "
+         "upward and flatter than the real response. Only income reflects the truth.",
+     distinct_because="structural evaluation family: compose layered topology (in-degree 2 in both layers) joined "
+                      "by substitution, observed through selection-effect and missing-observation channels; no "
+                      "training family has a layered graph, substitution, selection or missing readings",
+     axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
+     claims=(C + "selection_flattens",), identify=C + "lever_raises_sales")
+def cxs_selected_layers(rng, d):
+    c = Composed(rng, _base(d, topology="layered", motifs=["saturation", "non_monotonic", "substitution"],
+                            channels=["selected", "missing"]))
+    a, b = c.levers
+    l1, l2, sub = c.motifs
+    c.set_params(sub, cap=u(rng, 40.0, 60.0), k=u(rng, 30.0, 45.0))
+    c.set_params(c.sold, half=u(rng, 30.0, 45.0))
+    c.process_noise(u(rng, 0.8, 1.2))
+    c.set_lever(a, default=u(rng, 0.5, 1.5))
+    c.set_lever(b, default=u(rng, 6.0, 8.0))
+    cfg = c.finish(brief="A plant with two levers. Gauges: output of passed units and a quality count.",
+                   objective={"type": "maximize_net", "text": SHOP},
+                   claim={"lever": a, "second": b, "outcome": c.sold, "core": sub})
+    price_below_peak(cfg, [a, b], rng)
+    # the output gauge reports only units past a quality cut near its typical level (about half pass) and sometimes
+    # nothing; the quality count of the substitution stage is read with plain noise
+    from .recipes import settled_value
+    for g in cfg["gauges"]:
+        if g["src"] == [c.sold]:
+            lvl = settled_value(cfg, c.sold, {a: 5.0, b: 2.0})
+            for item in g["chain"]:
+                if item["prim"].startswith("selection_effect"):
+                    item["params"].update(c=float(lvl * u(rng, 0.95, 1.05)), sd=float(max(0.15 * lvl, 0.5)))
+        elif g["src"] == [sub]:
+            g["chain"] = [{"prim": "measurement_noise@1.0", "params": {"sd": float(d["observation_noise"])}}]
+    return cfg
+
+
+@_pg("cxs_lockin", category="8.1", item="8.1.6", split="val",
+     doc="A market tips toward one of two standards by increasing returns: pushes move the share, and once it "
+         "passes a hidden tipping region it keeps moving on its own. An early push locks the market in; the same "
+         "push later, or a push that stops too soon, is wasted. One gauge reports only a mixture of the share and "
+         "the push.",
+     distinct_because="structural evaluation family: a path-dependence primitive with two attractors spliced after "
+                      "a compose chain, observed through an aggregated (non-injective) channel; no training family "
+                      "has path dependence or an aggregated reading",
+     axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
+     claims=(C + "lock_in",), identify=C + "push_locks_in")
+def cxs_lockin(rng, d):
+    c = Composed(rng, _base(d, topology="chain", motifs=["saturation"]))
+    a, b = c.levers
+    m0 = c.motifs[0]
+    p0 = c.node(m0)["params"]
+    w = 5.5 / p0["cap"]                                # a full push tips the balance by about +3
+    pd = c.splice(m0, "path_dependence", {"eta": u(rng, 0.15, 0.25), "k": u(rng, 7.5, 9.0),
+                                           "init": u(rng, 0.12, 0.25)})
+    c.set_input(pd, "x", [(m0, 0, w)])
+    c.set_bias(pd, "x", -u(rng, 0.3, 0.6))
+    c.scale_inputs(m0, b, u(rng, 0.25, 0.4))          # subsidies push the share less per unit than promotion
+    c.set_input(c.sold, "x", [(pd, 0, u(rng, 40.0, 60.0))])
+    c.set_params(c.sold, half=u(rng, 30.0, 45.0))
+    c.process_noise(u(rng, 0.8, 1.2))
+    c.drop_gauge(m0)
+    c.gauge([pd, m0], [("partial_observability", {"mode": "sum", "weights": [u(rng, 8.0, 12.0), 1.0]}),
+                       ("measurement_noise", {"sd": float(d["observation_noise"])})])
+    c.set_lever(a, default=u(rng, 0.0, 1.0))
+    c.set_lever(b, default=u(rng, 4.0, 6.0))
+    cfg = c.finish(brief="You promote a product standard. Levers: promotion and partner subsidies. Gauges: units "
+                         "sold and a combined market index.",
+                   objective={"type": "maximize_net", "text": SHOP},
+                   claim={"lever": a, "second": b, "outcome": c.sold, "share": pd})
+    hi = settled_revenue(cfg, {a: 10.0, b: 0.0})
+    lo = settled_revenue(cfg, {a: 0.0, b: 0.0})
+    cfg["nodes"][int(a[1:])]["lever"]["cost"] = u(rng, 0.6, 0.85) * max(hi - lo, 1.0) / 10.0
+    cfg["nodes"][int(b[1:])]["lever"]["cost"] = u(rng, 0.6, 0.85) * max(hi - lo, 1.0) / 10.0
+    return cfg
+
+
+for _n in ("cxc_latched_reversal", "cxc_balancing_constraint", "cxc_competing_rule"):
+    _novel(_n, "compositional")
+for _n in ("cxs_selected_layers", "cxs_lockin"):
+    _novel(_n, "structural")

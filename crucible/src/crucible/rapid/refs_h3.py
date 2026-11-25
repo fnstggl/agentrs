@@ -58,3 +58,70 @@ def lever_schedule_oracle(env, segments=(4, 8), pop: int = 64, iters: int = 10, 
     if h0["value"] >= v_top:
         return dict(h0, candidates={c[2]: c[0] for c in cands})
     return {"value": v_top, "how": top[2], "search_value": top[0], "candidates": {c[2]: c[0] for c in cands}}
+
+
+# ====================================================================== scripted public references
+def _rev(obs) -> float:
+    return float(obs["resources"].get("revenue_cents_last_tick", 0.0))
+
+
+def _role_names(env, *roles):
+    """Public lever names of the roles the brief describes (the brief names the levers in this order)."""
+    cfg = env._config
+    return [cfg["nodes"][int(cfg["claim"][r][1:])]["lever"]["name"] for r in roles]
+
+
+def latch_then_watch(view, env):
+    """Open the pathway by an ascending sweep of the latch lever (the setting where revenue jumps), hold the latch
+    lever one step lower (still open, cheaper), run the gated lever, and every few ticks pause the gated lever
+    for a tick: once revenue is higher during the pause than before it, the pathway has turned harmful - close
+    it and stop."""
+    A, B = _role_names(env, "latch_lever", "lever")
+    prev = None
+    opened = None
+    for x in range(3, 10):
+        r = None
+        for _ in range(3):
+            if view.done:
+                return
+            r = _rev(view.step({"kind": "levers", "values": {A: float(x), B: 7.0}})["observation"])
+        if prev is not None and r > 1.5 * max(prev, 1.0):
+            opened = float(x)
+            break
+        prev = r
+    if opened is None:
+        while not view.done:
+            view.step({"kind": "levers", "values": {A: 0.0, B: 0.0}})
+        return
+    hold = {A: opened - 1.0, B: 7.0}
+    k = 0
+    while not view.done:
+        k += 1
+        before = _rev(view.step({"kind": "levers", "values": hold})["observation"])
+        if k % 5 == 0 and not view.done:
+            during = _rev(view.step({"kind": "levers", "values": dict(hold, **{B: 0.0})})["observation"])
+            if during > before:
+                while not view.done:
+                    view.step({"kind": "levers", "values": {A: 0.0, B: 0.0}})
+                return
+
+
+def push_and_test(view, env):
+    """Push at full strength; every six ticks pause for two ticks: if revenue keeps rising during the pause the
+    market carries itself - stop pushing for good; otherwise push again. Subsidies are never used."""
+    A, B = _role_names(env, "lever", "second")
+    while not view.done:
+        for _ in range(6):
+            if view.done:
+                return
+            view.step({"kind": "levers", "values": {A: 10.0, B: 0.0}})
+        if view.done:
+            return
+        r1 = _rev(view.step({"kind": "levers", "values": {A: 0.0, B: 0.0}})["observation"])
+        if view.done:
+            return
+        r2 = _rev(view.step({"kind": "levers", "values": {A: 0.0, B: 0.0}})["observation"])
+        if r2 >= 0.97 * r1:
+            while not view.done:
+                view.step({"kind": "levers", "values": {A: 0.0, B: 0.0}})
+            return
