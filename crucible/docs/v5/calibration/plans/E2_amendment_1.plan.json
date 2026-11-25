@@ -1,0 +1,20 @@
+{
+ "schema": "crucible.v5.calibration.plan/1",
+ "plan_id": "E2_amendment_1",
+ "workstream": "E2",
+ "amends": ["docs/v5/calibration/plans/E2_commercial_response.plan.json", "docs/v5/calibration/plans/E2_software_adoption.plan.json"],
+ "written_before_fit": true,
+ "written_after": "run 1 of both fitting scripts (records kept unchanged in docs/v5/calibration/superseded/E2_run1/)",
+ "diagnosis": {
+  "finding": "Two prespecified gradient-boosted candidates diverged numerically, and scikit-learn's HistGradientBoosting keeps every tree fitted until early stopping triggers, including the trees after the best validation iteration.",
+  "commercial_t_gbdt_conversion_treated": "Treated-arm conversion model (22,054 positives in 7.13M training rows): training log loss 0.0210 -> 0.0202 after iteration 1, then 0.0745 after iteration 2 (a Newton leaf step with tiny Hessians overshot); validation log loss best at iteration 1 (0.02056); early stopping triggered at iteration 21 and the 21-tree ensemble (validation log loss about 0.028) was kept. Run-1 validation conversion log loss: t_gbdt 0.01618 vs t_logistic 0.01250. Diagnosed on the training and validation splits only (scratch script, no test rows).",
+  "software_gbdt_poisson": "Repository-growth Poisson GBDT: mean validation prediction 1.4e10 stars against an observed 0.34 (validation mean Poisson deviance 2.8e10); early stopping triggered at iteration 20 and the diverged ensemble was kept. The prespecified rule correctly kept poisson_glm.",
+  "disclosure": "Run 1 also computed test metrics (printed to its log and stored in the superseded records): commercial test primary constant_effect 0.209148, t_logistic 0.123940, t_gbdt 0.119089; deep engagement kept gbdt; repo growth kept poisson_glm. This amendment is therefore not blind to those numbers; its changes are motivated by the numerical failure visible on training and validation data and are applied identically to every gradient-boosted candidate."
+ },
+ "changes": [
+  {"id": "A1.1", "what": "Early stopping keeps the best validation iteration: after fitting, every gradient-boosted candidate (commercial t_gbdt, deep-engagement gbdt, growth gbdt_poisson and the new candidates) is truncated to the number of trees at its best validation score (crucible.calibration.gbdt_e2.truncate_to_best). This is the conventional meaning of 'early stopping on validation loss' in the original plans."},
+  {"id": "A1.2", "what": "One added candidate per affected model, same complexity class (2): commercial t_gbdt_reg = T-learner with histogram GBDT (learning rate 0.05, max 31 leaves, min 1000 samples per leaf, L2 10, at most 500 iterations, patience 30, truncated); growth gbdt_poisson_reg = Poisson histogram GBDT (learning rate 0.05, 31 leaves, min 200 samples per leaf, L2 10, at most 500 iterations, patience 30, truncated)."},
+  {"id": "A1.3", "what": "Checkpoints ship the kept candidate and every non-tree candidate; non-kept tree candidates are evaluated and reported but not stored (5 MB limit). The commercial audit subsample is 100,000 seeded test rows (was 200,000) so that the unit tests recompute it in reasonable time."}
+ ],
+ "unchanged": ["datasets, splits and seeds", "metrics and the primary metric of each model", "baselines", "selection on validation and confirmation on test by paired bootstrap (worse_model_kept must be 0)", "response-type construction and its acceptance rule", "descriptive reference curve"]
+}
