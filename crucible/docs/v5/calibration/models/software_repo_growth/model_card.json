@@ -1,0 +1,403 @@
+{
+ "schema": "crucible.v5.calibration.model_card/1",
+ "name": "software_repo_growth",
+ "version": 1,
+ "id": "software_repo_growth@1",
+ "workstream": "E2",
+ "domain": "software_collaboration_and_adoption",
+ "loader": "crucible.calibration.software:RepoGrowthModel",
+ "features": [
+  "stars_today",
+  "forks_today",
+  "issue_events_today",
+  "pr_events_today",
+  "pushes_today",
+  "releases_today",
+  "events_today",
+  "stars_yesterday",
+  "created_today",
+  "created_yesterday",
+  "repo_org"
+ ],
+ "feature_docs": {
+  "stars_today": "stars received today (non-bot accounts) [log1p]",
+  "forks_today": "forks today (non-bot accounts) [log1p]",
+  "issue_events_today": "issue events today [log1p]",
+  "pr_events_today": "pull-request events today [log1p]",
+  "pushes_today": "pushes today [log1p]",
+  "releases_today": "releases today [log1p]",
+  "events_today": "all public events today [log1p]",
+  "stars_yesterday": "stars received the previous day [log1p]",
+  "created_today": "1 if the repository was created today [raw]",
+  "created_yesterday": "1 if the repository was created the previous day [raw]",
+  "repo_org": "1 if owned by an organisation [raw]"
+ },
+ "target": "stars received by the repository on the next day (non-bot accounts)",
+ "outputs": [
+  "expected_stars_next_day"
+ ],
+ "identification": {
+  "kind": "observational",
+  "statement": "Associations in public GitHub activity; nothing was randomized."
+ },
+ "population": "public GitHub accounts and public repositories whose events reached GitHub's public events API and GH Archive between 2024-10-07 and 2024-10-10 UTC (Monday to Thursday); bot accounts excluded from units",
+ "dataset": {
+  "name": "gharchive_2024-10-07_96h",
+  "synthetic": false,
+  "url": "https://data.gharchive.org/",
+  "dataset": "gharchive_2024-10-07_96h",
+  "dataset_manifest": "docs/v5/calibration/datasets/gharchive_2024-10-07_96h.json"
+ },
+ "checkpoint": {
+  "file": "software_repo_growth.npz",
+  "sha256": "8abdc0196a2617cc997df2cbd844646cbcd010d97e28eb5b8876a54194c918d3",
+  "bytes": 446010,
+  "format": "npz (allow_pickle=False)"
+ },
+ "report": "docs/v5/calibration/reports/software_repo_growth@1.json",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E2_software_adoption.plan.json",
+  "sha256": "22d302cf334d80809dc8e38ee677d0715a0c5db6e8a7529f633301c7502e4716",
+  "commit": "7d4fb1e20a6350a30f4294f4dd85729ac3e21e38",
+  "committed_at": "2026-11-25T06:26:32+00:00"
+ },
+ "plan_amendments": [
+  {
+   "path": "docs/v5/calibration/plans/E2_amendment_1.plan.json",
+   "sha256": "5b76ff8894f06006130c4d6edde32865e6b8889033de819ee2efb18133bf33f2",
+   "commit": "d0b2a4a3e2badae441a0634a4e54ca38da54c5ff",
+   "committed_at": "2026-11-25T07:02:52+00:00"
+  }
+ ],
+ "fit": {
+  "started_at": "2026-11-25T07:02:59+00:00",
+  "code": "src/crucible/calibration/fit_software.py",
+  "commit": "d0b2a4a3e2badae441a0634a4e54ca38da54c5ff",
+  "dirty_paths": [],
+  "clean": true,
+  "command": "python -m crucible.calibration.fit_software",
+  "threads": 1,
+  "environment": {
+   "python": "3.12.15",
+   "numpy": "2.5.4",
+   "scikit_learn": "1.9.1",
+   "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39"
+  },
+  "split": {
+   "train": "D1 -> D2, repository hash bucket < 80",
+   "validation": "D1 -> D2, bucket >= 80",
+   "test": "D2 -> D3 (time-based)"
+  },
+  "counts": {
+   "train": 264438,
+   "validation": 66267,
+   "test": 321303
+  },
+  "sub_models": {
+   "proportional": {
+    "a": 0.5282897792281028,
+    "b": 0.016984096226095674,
+    "converged": true,
+    "wall_s": 0.0,
+    "portable_max_rel_diff": 0.0
+   },
+   "poisson_glm": {
+    "n_iter": 66,
+    "wall_s": 0.9,
+    "portable_max_rel_diff": 0.0
+   },
+   "gbdt_poisson": {
+    "n_iter": 0,
+    "early_stopping": {
+     "iterations_fitted": 20,
+     "best_iteration": 0,
+     "iterations_kept": 0,
+     "validation_loss_at_best": 0.7039724481302904,
+     "validation_loss_at_stop": 14098863878.665833
+    },
+    "wall_s": 0.7,
+    "portable_max_rel_diff": 0.0
+   },
+   "gbdt_poisson_reg": {
+    "n_iter": 321,
+    "early_stopping": {
+     "iterations_fitted": 351,
+     "best_iteration": 321,
+     "iterations_kept": 321,
+     "validation_loss_at_best": -0.23982495067123716,
+     "validation_loss_at_stop": -0.2395894432638517
+    },
+    "wall_s": 46.3,
+    "portable_max_rel_diff": 0.0
+   }
+  }
+ },
+ "metrics": {
+  "mean_poisson_deviance": 0.5361286591839725,
+  "mae": 0.287068081597771,
+  "rmse_log1p": 0.24687468510301866,
+  "spearman": 0.4410177599928364,
+  "top_1pct_recall": 0.6840958605664488,
+  "mean_predicted": 0.35813276771269564,
+  "mean_observed": 0.3507436905351024,
+  "n": 321303
+ },
+ "baseline_metrics": {
+  "mean_poisson_deviance": 0.7318232497844525,
+  "mae": 0.36279133921811646,
+  "rmse_log1p": 0.30323394458058506,
+  "spearman": 0.4631519619694313,
+  "top_1pct_recall": 0.673202614379085,
+  "mean_predicted": 0.3478732464075741,
+  "mean_observed": 0.3507436905351024,
+  "n": 321303
+ },
+ "candidates": {
+  "proportional": {
+   "complexity": 0,
+   "validation": {
+    "mean_poisson_deviance": 0.6540061956638725,
+    "mae": 0.35153896428281883,
+    "rmse_log1p": 0.3005407866397793,
+    "spearman": 0.4551685254634267,
+    "top_1pct_recall": 0.6636500754147813,
+    "mean_predicted": 0.34628926939788923,
+    "mean_observed": 0.3373926690509605,
+    "n": 66267
+   },
+   "test": {
+    "mean_poisson_deviance": 0.7318232497844525,
+    "mae": 0.36279133921811646,
+    "rmse_log1p": 0.30323394458058506,
+    "spearman": 0.4631519619694313,
+    "top_1pct_recall": 0.673202614379085,
+    "mean_predicted": 0.3478732464075741,
+    "mean_observed": 0.3507436905351024,
+    "n": 321303
+   },
+   "test_new_repos": {
+    "mean_poisson_deviance": 0.525436059078647,
+    "mae": 0.2326921866204713,
+    "rmse_log1p": 0.2641514189127989,
+    "spearman": 0.33856247576239545,
+    "top_1pct_recall": 0.4698672114402451,
+    "mean_predicted": 0.21847030679948962,
+    "mean_observed": 0.13242068207120314,
+    "n": 293723
+   }
+  },
+  "poisson_glm": {
+   "complexity": 1,
+   "validation": {
+    "mean_poisson_deviance": 0.6255495387483782,
+    "mae": 0.36997860793338083,
+    "rmse_log1p": 0.26377679908740936,
+    "spearman": 0.41883667816834935,
+    "top_1pct_recall": 0.6606334841628959,
+    "mean_predicted": 0.39670685453867244,
+    "mean_observed": 0.3373926690509605,
+    "n": 66267
+   },
+   "test": {
+    "mean_poisson_deviance": 0.658579049175343,
+    "mae": 0.3411290249432598,
+    "rmse_log1p": 0.26581536977910897,
+    "spearman": 0.4277655478020307,
+    "top_1pct_recall": 0.6738250855897915,
+    "mean_predicted": 0.3647179753715125,
+    "mean_observed": 0.3507436905351024,
+    "n": 321303
+   },
+   "test_new_repos": {
+    "mean_poisson_deviance": 0.4769190253103234,
+    "mae": 0.20578777464519762,
+    "rmse_log1p": 0.21971125280801165,
+    "spearman": 0.3007075915871965,
+    "top_1pct_recall": 0.4783792986040177,
+    "mean_predicted": 0.18830608429352114,
+    "mean_observed": 0.13242068207120314,
+    "n": 293723
+   }
+  },
+  "gbdt_poisson": {
+   "complexity": 2,
+   "validation": {
+    "mean_poisson_deviance": 2.3687585326473375,
+    "mae": 0.6151391908812757,
+    "rmse_log1p": 0.4274498010220957,
+    "spearman": null,
+    "top_1pct_recall": 0.05128205128205128,
+    "mean_predicted": 0.3373985584522648,
+    "mean_observed": 0.3373926690509605,
+    "n": 66267
+   },
+   "test": {
+    "mean_poisson_deviance": 2.3975515780366874,
+    "mae": 0.6252646820707659,
+    "rmse_log1p": 0.4324317394209235,
+    "spearman": null,
+    "top_1pct_recall": 0.0575785869903517,
+    "mean_predicted": 0.3373985584522648,
+    "mean_observed": 0.3507436905351024,
+    "n": 321303
+   },
+   "test_new_repos": {
+    "mean_poisson_deviance": 1.2266891950258612,
+    "mae": 0.4352273965438289,
+    "rmse_log1p": 0.3435073732364932,
+    "spearman": null,
+    "top_1pct_recall": 0.10589036431733061,
+    "mean_predicted": 0.33739855845226474,
+    "mean_observed": 0.13242068207120314,
+    "n": 293723
+   }
+  },
+  "gbdt_poisson_reg": {
+   "complexity": 2,
+   "validation": {
+    "mean_poisson_deviance": 0.4811637350442824,
+    "mae": 0.2721390867755372,
+    "rmse_log1p": 0.23967102539281593,
+    "spearman": 0.4322004742148262,
+    "top_1pct_recall": 0.6862745098039216,
+    "mean_predicted": 0.3217857386161678,
+    "mean_observed": 0.3373926690509605,
+    "n": 66267
+   },
+   "test": {
+    "mean_poisson_deviance": 0.5361286591839725,
+    "mae": 0.287068081597771,
+    "rmse_log1p": 0.24687468510301866,
+    "spearman": 0.4410177599928364,
+    "top_1pct_recall": 0.6840958605664488,
+    "mean_predicted": 0.35813276771269564,
+    "mean_observed": 0.3507436905351024,
+    "n": 321303
+   },
+   "test_new_repos": {
+    "mean_poisson_deviance": 0.37624820848267276,
+    "mae": 0.1510618392607409,
+    "rmse_log1p": 0.1916885288470125,
+    "spearman": 0.3091879567248549,
+    "top_1pct_recall": 0.5267279536942459,
+    "mean_predicted": 0.13287116136042093,
+    "mean_observed": 0.13242068207120314,
+    "n": 293723
+   }
+  }
+ },
+ "selection": {
+  "rule": "lowest validation mean Poisson deviance; confirmed on test by paired bootstrap",
+  "kept": "gbdt_poisson_reg",
+  "baseline": "proportional",
+  "comparisons": [
+   {
+    "kept": "gbdt_poisson_reg",
+    "other": "proportional",
+    "metric": "mean_poisson_deviance (test)",
+    "kept_minus_other": {
+     "mean": -0.19569459060047997,
+     "se": 0.009455809815208747,
+     "ci95": [
+      -0.2129656685346683,
+      -0.1777245015309278
+     ],
+     "n_boot": 200
+    },
+    "kept_significantly_worse": false,
+    "validation_kept_minus_other": -0.17284246061959013
+   },
+   {
+    "kept": "gbdt_poisson_reg",
+    "other": "poisson_glm",
+    "metric": "mean_poisson_deviance (test)",
+    "kept_minus_other": {
+     "mean": -0.1224503899913705,
+     "se": 0.016052490032820315,
+     "ci95": [
+      -0.1538638780406298,
+      -0.09381701683766387
+     ],
+     "n_boot": 200
+    },
+    "kept_significantly_worse": false,
+    "validation_kept_minus_other": -0.14438580370409576
+   },
+   {
+    "kept": "gbdt_poisson_reg",
+    "other": "gbdt_poisson",
+    "metric": "mean_poisson_deviance (test)",
+    "kept_minus_other": {
+     "mean": -1.861422918852715,
+     "se": 0.06870033131362462,
+     "ci95": [
+      -1.9889270844596543,
+      -1.7366311461671189
+     ],
+     "n_boot": 200
+    },
+    "kept_significantly_worse": false,
+    "validation_kept_minus_other": -1.8875947976030552
+   }
+  ],
+  "worse_model_kept": 0
+ },
+ "dispersion": {
+  "nb_alpha": 0.847708008035119,
+  "fitted_on": "train rows, kept model means, maximum likelihood"
+ },
+ "calibration_metrics": [
+  "mean_poisson_deviance",
+  "calibration_by_decile",
+  "spearman",
+  "top_1pct_recall",
+  "distributional checks"
+ ],
+ "limits": "Population: public GitHub, 2024-10-07..10 UTC (four weekdays of one autumn week). Developers on GitHub are skewed towards professional, English-speaking and North-American/European/Asian time zones; private repositories and private activity are invisible. GH Archive records the public events API, which drops events under load and omits some activity; counts are lower bounds. Stars are cheap signals inflated by automation and star farming; a star is not evidence of useful adoption (MASTER_SPEC 6.5). These models describe engagement dynamics, not usefulness. Observational associations only: nothing was randomized, so the models do not say what promotion, ranking or buying stars would cause. Short horizon: features look back 24 h and outcomes forward 24 h; long-run adoption, retention, maintenance and dependency incorporation are not observed. Bots are identified only by the '[bot]' login suffix; other automation accounts remain in the data. Units are repositories with at least one star or fork on the day (or created that day): the model says nothing about the large majority of repositories with no such activity. Next-day stars for the test day (2024-10-10) come from a Thursday; weekday and holiday patterns are not modelled. The negative-binomial dispersion was fitted on training rows; the simulated distribution's tail (q99.9) should be compared with the report before using the model for viral outliers.",
+ "extrapolation_limits": [
+  "Population: public GitHub, 2024-10-07..10 UTC (four weekdays of one autumn week). Developers on GitHub are skewed towards professional, English-speaking and North-American/European/Asian time zones; private repositories and private activity are invisible.",
+  "GH Archive records the public events API, which drops events under load and omits some activity; counts are lower bounds.",
+  "Stars are cheap signals inflated by automation and star farming; a star is not evidence of useful adoption (MASTER_SPEC 6.5). These models describe engagement dynamics, not usefulness.",
+  "Observational associations only: nothing was randomized, so the models do not say what promotion, ranking or buying stars would cause.",
+  "Short horizon: features look back 24 h and outcomes forward 24 h; long-run adoption, retention, maintenance and dependency incorporation are not observed.",
+  "Bots are identified only by the '[bot]' login suffix; other automation accounts remain in the data.",
+  "Units are repositories with at least one star or fork on the day (or created that day): the model says nothing about the large majority of repositories with no such activity.",
+  "Next-day stars for the test day (2024-10-10) come from a Thursday; weekday and holiday patterns are not modelled.",
+  "The negative-binomial dispersion was fitted on training rows; the simulated distribution's tail (q99.9) should be compared with the report before using the model for viral outliers."
+ ],
+ "simulator_mapping": {
+  "unit": "a repository (or package) in the software ecosystem on one simulated day",
+  "stars_today": "star/watch actions by developers on the repository today",
+  "forks_today": "code.fork calls today",
+  "issue_events_today": "issue tracker events on its project today",
+  "pr_events_today": "pull-request / review events today",
+  "pushes_today": "code.commit calls today",
+  "releases_today": "releases today",
+  "events_today": "all repository events today",
+  "stars_yesterday": "stars the previous simulated day",
+  "created_today": "code.create_repo today",
+  "created_yesterday": "code.create_repo the previous day",
+  "repo_org": "owned by an organisation principal",
+  "output": "expected stars tomorrow; sample(rng, X) draws counts with the fitted NB2 dispersion",
+  "use": "a reference for the rate at which simulated developers discover repositories (to validate or calibrate the simulator's discovery and recommendation mechanisms), not a creator-assigned popularity",
+  "transform": "matrix_from_counts(raw) applies log1p to count features"
+ },
+ "fidelity_mechanisms": [
+  "repository_adoption_growth",
+  "new_repository_adoption_curve"
+ ],
+ "provenance": {
+  "dataset": "gharchive_2024-10-07_96h",
+  "source": "https://data.gharchive.org/",
+  "license": {
+   "summary": "Public GitHub events as archived by GH Archive. Use is governed by GitHub's Terms of Service and the Acceptable Use Policies' information-usage restrictions (research and archival use allowed; personal information must not be used for spamming, sold, or used to identify people). GH Archive's own code is MIT licensed.",
+   "text_locations": [
+    "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+    "https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies",
+    "https://github.com/igrigorik/gharchive.org/blob/master/LICENSE"
+   ]
+  },
+  "fit_commit": "d0b2a4a3e2badae441a0634a4e54ca38da54c5ff",
+  "plan_commit": "7d4fb1e20a6350a30f4294f4dd85729ac3e21e38"
+ }
+}

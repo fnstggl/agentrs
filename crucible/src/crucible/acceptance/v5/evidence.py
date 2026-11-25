@@ -34,8 +34,9 @@ def sha256_file(path: str) -> str:
     return h.hexdigest()
 
 
-def git(*args: str, cwd: str | None = None) -> str:
-    return subprocess.check_output(["git", *args], cwd=cwd or crucible_root(), stderr=subprocess.DEVNULL).decode().strip()
+def git(*args: str, cwd: str | None = None, strip: bool = True) -> str:
+    out = subprocess.check_output(["git", *args], cwd=cwd or crucible_root(), stderr=subprocess.DEVNULL).decode()
+    return out.strip() if strip else out
 
 
 def tree_state(cwd: str | None = None) -> dict:
@@ -44,7 +45,9 @@ def tree_state(cwd: str | None = None) -> dict:
     top = git("rev-parse", "--show-toplevel", cwd=cwd)
     prefix = os.path.relpath(cwd or crucible_root(), top)
     dirty = []
-    for line in git("status", "--porcelain", "--untracked-files=all", cwd=cwd).splitlines():
+    for line in git("status", "--porcelain", "--untracked-files=all", cwd=cwd, strip=False).splitlines():
+        if not line.strip():
+            continue
         path = line[3:].strip().strip('"')
         rel = os.path.relpath(os.path.join(top, path), os.path.join(top, prefix))
         if not any(rel.startswith(p) for p in EVIDENCE_PATHS):

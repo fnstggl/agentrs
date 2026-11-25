@@ -1,0 +1,585 @@
+{
+ "schema": "crucible.v5.calibration.model_card/1",
+ "name": "commercial_response",
+ "version": 1,
+ "id": "commercial_response@1",
+ "workstream": "E2",
+ "domain": "commercial_intervention_response",
+ "loader": "crucible.calibration.commercial:CommercialResponseModel",
+ "features": [
+  "f0",
+  "f1",
+  "f2",
+  "f3",
+  "f4",
+  "f5",
+  "f6",
+  "f7",
+  "f8",
+  "f9",
+  "f10",
+  "f11"
+ ],
+ "feature_docs": {
+  "f0": "Criteo anonymised feature (random projection, float)",
+  "f1": "Criteo anonymised feature (random projection, float)",
+  "f2": "Criteo anonymised feature (random projection, float)",
+  "f3": "Criteo anonymised feature (random projection, float)",
+  "f4": "Criteo anonymised feature (random projection, float)",
+  "f5": "Criteo anonymised feature (random projection, float)",
+  "f6": "Criteo anonymised feature (random projection, float)",
+  "f7": "Criteo anonymised feature (random projection, float)",
+  "f8": "Criteo anonymised feature (random projection, float)",
+  "f9": "Criteo anonymised feature (random projection, float)",
+  "f10": "Criteo anonymised feature (random projection, float)",
+  "f11": "Criteo anonymised feature (random projection, float)"
+ },
+ "target": "visit and conversion under control and treatment (per-arm probabilities)",
+ "outputs": [
+  "p_visit_control",
+  "p_visit_treated",
+  "p_conversion_control",
+  "p_conversion_treated"
+ ],
+ "identification": {
+  "kind": "randomized_experiment",
+  "statement": "Treatment was randomly assigned (ratio 0.85), so the per-arm probabilities and their difference given pre-treatment features are experimentally identified intention-to-treat effects. Exposure is not randomized; the complier (exposure) effect in the report is a Wald estimate under the exclusion restriction."
+ },
+ "dataset": {
+  "name": "criteo_uplift_v2.1",
+  "synthetic": false,
+  "url": "https://huggingface.co/datasets/criteo/criteo-uplift/resolve/2424920019e49d52d72c13ac1143ec5d53af276b/criteo-research-uplift-v2.1.csv.gz",
+  "sha256": "2716e1bf0fd157a93b5bf86924d9088419dfbac2022c6cd90030220634f616dc",
+  "manifest": "docs/v5/calibration/datasets/criteo_uplift_v2.1.json",
+  "license": "CC-BY-NC-SA-4.0"
+ },
+ "checkpoint": {
+  "file": "commercial_response.npz",
+  "sha256": "20602ff880373e9826b80dcb574b7c8b5caac9bb0e61a612454bde7c16b88926",
+  "bytes": 520867,
+  "format": "npz (allow_pickle=False)"
+ },
+ "report": "docs/v5/calibration/reports/commercial_response@1.json",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E2_commercial_response.plan.json",
+  "sha256": "4641828c98f15f7e0a6480f01af9677054e0290e5e017a60f99016b281c43d65",
+  "commit": "7d4fb1e20a6350a30f4294f4dd85729ac3e21e38",
+  "committed_at": "2026-11-25T06:26:32+00:00"
+ },
+ "fit": {
+  "started_at": "2026-11-25T06:42:15+00:00",
+  "code": "src/crucible/calibration/fit_commercial.py",
+  "commit": "3712535595750ff15ed55f2b49026c89a2ad631b",
+  "dirty_paths": [],
+  "clean": true,
+  "command": "python -m crucible.calibration.fit_commercial",
+  "threads": 4,
+  "environment": {
+   "python": "3.12.15",
+   "numpy": "2.5.4",
+   "scikit_learn": "1.9.1",
+   "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39"
+  },
+  "split": {
+   "method": "seeded PCG64 permutation",
+   "seed": 20261125,
+   "digest": "e9b979f40579a03e8b60324ed4549326a3ffcc755f38a5c8446f27437c616649",
+   "counts": {
+    "train": 8387755,
+    "validation": 2795918,
+    "test": 2795919
+   },
+   "treated_share": {
+    "train": 0.8500492682487746,
+    "validation": 0.8500739292067936,
+    "test": 0.8497789099040423
+   }
+  },
+  "sub_models": {
+   "constant_effect/visit_control": {
+    "rate": 0.03820950109322202,
+    "n_train": 1257750,
+    "positives": 48058,
+    "wall_s": 0.1,
+    "portable_max_abs_diff": 0.0
+   },
+   "constant_effect/visit_treated": {
+    "rate": 0.04857836705584358,
+    "n_train": 7130005,
+    "positives": 346364,
+    "wall_s": 0.5,
+    "portable_max_abs_diff": 0.0
+   },
+   "constant_effect/conversion_control": {
+    "rate": 0.0019972172530312066,
+    "n_train": 1257750,
+    "positives": 2512,
+    "wall_s": 0.1,
+    "portable_max_abs_diff": 0.0
+   },
+   "constant_effect/conversion_treated": {
+    "rate": 0.003093125460641332,
+    "n_train": 7130005,
+    "positives": 22054,
+    "wall_s": 0.5,
+    "portable_max_abs_diff": 0.0
+   },
+   "t_logistic/visit_control": {
+    "n_iter": 34,
+    "n_train": 1257750,
+    "positives": 48058,
+    "wall_s": 4.0,
+    "portable_max_abs_diff": 1.1102230246251565e-16
+   },
+   "t_logistic/visit_treated": {
+    "n_iter": 37,
+    "n_train": 7130005,
+    "positives": 346364,
+    "wall_s": 12.0,
+    "portable_max_abs_diff": 1.1102230246251565e-16
+   },
+   "t_logistic/conversion_control": {
+    "n_iter": 66,
+    "n_train": 1257750,
+    "positives": 2512,
+    "wall_s": 3.4,
+    "portable_max_abs_diff": 1.1102230246251565e-16
+   },
+   "t_logistic/conversion_treated": {
+    "n_iter": 57,
+    "n_train": 7130005,
+    "positives": 22054,
+    "wall_s": 16.3,
+    "portable_max_abs_diff": 1.1102230246251565e-16
+   },
+   "t_gbdt/visit_control": {
+    "n_iter": 96,
+    "n_train": 1257750,
+    "positives": 48058,
+    "wall_s": 14.5,
+    "portable_max_abs_diff": 4.440892098500626e-16
+   },
+   "t_gbdt/visit_treated": {
+    "n_iter": 300,
+    "n_train": 7130005,
+    "positives": 346364,
+    "wall_s": 110.5,
+    "portable_max_abs_diff": 7.771561172376096e-16
+   },
+   "t_gbdt/conversion_control": {
+    "n_iter": 250,
+    "n_train": 1257750,
+    "positives": 2512,
+    "wall_s": 36.7,
+    "portable_max_abs_diff": 7.438494264988549e-15
+   },
+   "t_gbdt/conversion_treated": {
+    "n_iter": 21,
+    "n_train": 7130005,
+    "positives": 22054,
+    "wall_s": 8.9,
+    "portable_max_abs_diff": 7.049916206369744e-15
+   }
+  }
+ },
+ "metrics": {
+  "primary_pooled_logloss_visit_plus_conversion": 0.11908896296451905,
+  "visit_pooled_log_loss": 0.10249474329777698,
+  "visit_pooled_brier": 0.029678313366669578,
+  "visit_pooled_ece": 0.00039756382947204484,
+  "visit_pooled_auc": 0.9473410914299604,
+  "conversion_pooled_log_loss": 0.016594219666742082,
+  "conversion_pooled_brier": 0.0027137632074477605,
+  "conversion_pooled_ece": 0.00042782444101382067,
+  "conversion_pooled_auc": 0.9210775232760174,
+  "visit_control_log_loss": 0.08908616639337258,
+  "visit_control_brier": 0.025456069795935038,
+  "visit_control_ece": 0.000312457129330707,
+  "visit_control_auc": 0.9486118269061741,
+  "visit_treated_log_loss": 0.10486506693812545,
+  "visit_treated_brier": 0.03042470754573672,
+  "visit_treated_ece": 0.0004135346084259121,
+  "visit_treated_auc": 0.9470028679465535,
+  "conversion_control_log_loss": 0.00936727108107145,
+  "conversion_control_brier": 0.0017975684059713174,
+  "conversion_control_ece": 0.0002807003731771729,
+  "conversion_control_auc": 0.9385439197170463,
+  "conversion_treated_log_loss": 0.017871775607415492,
+  "conversion_treated_brier": 0.002875725078016639,
+  "conversion_treated_ece": 0.00043412182809356425,
+  "conversion_treated_auc": 0.9197300892271082,
+  "visit_qini_coefficient": 0.08510134184697701,
+  "conversion_qini_coefficient": 0.1061379634686886,
+  "visit_auuc_normalised": 0.1978181858555567,
+  "conversion_auuc_normalised": 0.28005994550976143
+ },
+ "baseline_metrics": {
+  "primary_pooled_logloss_visit_plus_conversion": 0.2091477797282776,
+  "visit_pooled_log_loss": 0.18913796202888578,
+  "visit_pooled_brier": 0.04469086544995775,
+  "visit_pooled_ece": 0.023232500066024148,
+  "visit_pooled_auc": 0.5147137641255228,
+  "conversion_pooled_log_loss": 0.020009817699391873,
+  "conversion_pooled_brier": 0.002926539608456342,
+  "conversion_pooled_ece": 0.0014153798883893077,
+  "conversion_pooled_auc": 0.5270603311583094,
+  "visit_control_log_loss": 0.1620101203038095,
+  "visit_control_brier": 0.036691878724965044,
+  "visit_control_ece": 0.01980416001345199,
+  "visit_control_auc": 0.5,
+  "visit_treated_log_loss": 0.19393353168635313,
+  "visit_treated_brier": 0.04610489972579919,
+  "visit_treated_ece": 0.028021889037940464,
+  "visit_treated_auc": 0.5,
+  "conversion_control_log_loss": 0.013687287780532284,
+  "conversion_control_brier": 0.0018774011535809237,
+  "conversion_control_ece": 0.0013855089762644084,
+  "conversion_control_auc": 0.5,
+  "conversion_treated_log_loss": 0.021127493515425776,
+  "conversion_treated_brier": 0.003112002816022614,
+  "conversion_treated_ece": 0.001529908469327933,
+  "conversion_treated_auc": 0.5,
+  "visit_qini_coefficient": 0.0,
+  "conversion_qini_coefficient": 0.0,
+  "visit_auuc_normalised": 0.0,
+  "conversion_auuc_normalised": 0.0
+ },
+ "candidates": {
+  "constant_effect": {
+   "complexity": 0,
+   "validation": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.20896094236144971,
+    "visit_pooled_log_loss": 0.18938087325308886,
+    "visit_pooled_brier": 0.04476382420258936,
+    "visit_pooled_ece": 0.023230935687271168,
+    "visit_pooled_auc": 0.5146580296074091,
+    "conversion_pooled_log_loss": 0.01958006910836083,
+    "conversion_pooled_brier": 0.0028532965177392048,
+    "conversion_pooled_ece": 0.0013728515302554654,
+    "conversion_pooled_auc": 0.5274851334001939,
+    "visit_control_log_loss": 0.1622753866635983,
+    "visit_control_brier": 0.0367678293787713,
+    "visit_control_ece": 0.01974985628654398,
+    "visit_control_auc": 0.5,
+    "visit_treated_log_loss": 0.19416142111095838,
+    "visit_treated_brier": 0.04617406400036373,
+    "visit_treated_ece": 0.02812940332970002,
+    "visit_treated_auc": 0.5,
+    "conversion_control_log_loss": 0.013280391058145982,
+    "conversion_control_brier": 0.0018121820805052273,
+    "conversion_control_ece": 0.001352189713121521,
+    "conversion_control_auc": 0.5,
+    "conversion_treated_log_loss": 0.02069113244636041,
+    "conversion_treated_brier": 0.0030369160730009666,
+    "conversion_treated_ece": 0.0015180908262513405,
+    "conversion_treated_auc": 0.5,
+    "visit_qini_coefficient": 0.0,
+    "conversion_qini_coefficient": 0.0,
+    "visit_auuc_normalised": 0.0,
+    "conversion_auuc_normalised": 0.0
+   },
+   "test": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.2091477797282776,
+    "visit_pooled_log_loss": 0.18913796202888578,
+    "visit_pooled_brier": 0.04469086544995775,
+    "visit_pooled_ece": 0.023232500066024148,
+    "visit_pooled_auc": 0.5147137641255228,
+    "conversion_pooled_log_loss": 0.020009817699391873,
+    "conversion_pooled_brier": 0.002926539608456342,
+    "conversion_pooled_ece": 0.0014153798883893077,
+    "conversion_pooled_auc": 0.5270603311583094,
+    "visit_control_log_loss": 0.1620101203038095,
+    "visit_control_brier": 0.036691878724965044,
+    "visit_control_ece": 0.01980416001345199,
+    "visit_control_auc": 0.5,
+    "visit_treated_log_loss": 0.19393353168635313,
+    "visit_treated_brier": 0.04610489972579919,
+    "visit_treated_ece": 0.028021889037940464,
+    "visit_treated_auc": 0.5,
+    "conversion_control_log_loss": 0.013687287780532284,
+    "conversion_control_brier": 0.0018774011535809237,
+    "conversion_control_ece": 0.0013855089762644084,
+    "conversion_control_auc": 0.5,
+    "conversion_treated_log_loss": 0.021127493515425776,
+    "conversion_treated_brier": 0.003112002816022614,
+    "conversion_treated_ece": 0.001529908469327933,
+    "conversion_treated_auc": 0.5,
+    "visit_qini_coefficient": 0.0,
+    "conversion_qini_coefficient": 0.0,
+    "visit_auuc_normalised": 0.0,
+    "conversion_auuc_normalised": 0.0
+   }
+  },
+  "t_logistic": {
+   "complexity": 1,
+   "validation": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.12445850078998794,
+    "visit_pooled_log_loss": 0.11196333764304418,
+    "visit_pooled_brier": 0.03141416255491604,
+    "visit_pooled_ece": 0.007845404140935744,
+    "visit_pooled_auc": 0.9296929176386095,
+    "conversion_pooled_log_loss": 0.012495163146943756,
+    "conversion_pooled_brier": 0.0025835743634841195,
+    "conversion_pooled_ece": 0.0003846919769817414,
+    "conversion_pooled_auc": 0.9495005820513034,
+    "visit_control_log_loss": 0.09810760863643563,
+    "visit_control_brier": 0.027005507905371727,
+    "visit_control_ece": 0.006246352744702309,
+    "visit_control_auc": 0.9263697432716088,
+    "visit_treated_log_loss": 0.11440704863871563,
+    "visit_treated_brier": 0.032191709361588654,
+    "visit_treated_ece": 0.00815039663639081,
+    "visit_treated_auc": 0.9300116511367261,
+    "conversion_control_log_loss": 0.008551215328911385,
+    "conversion_control_brier": 0.0016626940420141443,
+    "conversion_control_ece": 0.00024392069316977075,
+    "conversion_control_auc": 0.9495917044414816,
+    "conversion_treated_log_loss": 0.01319075041230405,
+    "conversion_treated_brier": 0.0027459884353962017,
+    "conversion_treated_ece": 0.0004299547053536907,
+    "conversion_treated_auc": 0.9489719777158477,
+    "visit_qini_coefficient": 0.08775748940542384,
+    "conversion_qini_coefficient": 0.20537943437176254,
+    "visit_auuc_normalised": 0.20384764952120105,
+    "conversion_auuc_normalised": 0.5462471000369341
+   },
+   "test": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.12393978747465413,
+    "visit_pooled_log_loss": 0.11126505420560541,
+    "visit_pooled_brier": 0.03130721248835745,
+    "visit_pooled_ece": 0.007876085193350205,
+    "visit_pooled_auc": 0.9319072242994948,
+    "conversion_pooled_log_loss": 0.012674733269048749,
+    "conversion_pooled_brier": 0.0026189790569968213,
+    "conversion_pooled_ece": 0.0004365407594735316,
+    "conversion_pooled_auc": 0.9477201885651564,
+    "visit_control_log_loss": 0.09663362670569849,
+    "visit_control_brier": 0.026826420861843805,
+    "visit_control_ece": 0.006391565106976353,
+    "visit_control_auc": 0.93247078780776,
+    "visit_treated_log_loss": 0.11385154930813059,
+    "visit_treated_brier": 0.03209931193302799,
+    "visit_treated_ece": 0.008189080544598777,
+    "visit_treated_auc": 0.9316391824419603,
+    "conversion_control_log_loss": 0.008658546933277207,
+    "conversion_control_brier": 0.0017190008692670108,
+    "conversion_control_ece": 0.0002574788418097042,
+    "conversion_control_auc": 0.9505023934973976,
+    "conversion_treated_log_loss": 0.013384701335279314,
+    "conversion_treated_brier": 0.0027780742085093753,
+    "conversion_treated_ece": 0.00047916069232642006,
+    "conversion_treated_auc": 0.9467980252649091,
+    "visit_qini_coefficient": 0.08904613925429576,
+    "conversion_qini_coefficient": 0.2000583268253612,
+    "visit_auuc_normalised": 0.20679169809903233,
+    "conversion_auuc_normalised": 0.5282480760460168
+   }
+  },
+  "t_gbdt": {
+   "complexity": 2,
+   "validation": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.11930822719550654,
+    "visit_pooled_log_loss": 0.10312405546873259,
+    "visit_pooled_brier": 0.029772159561637365,
+    "visit_pooled_ece": 0.00030860577973426304,
+    "visit_pooled_auc": 0.9463355330605017,
+    "conversion_pooled_log_loss": 0.01618417172677394,
+    "conversion_pooled_brier": 0.0026556345630889848,
+    "conversion_pooled_ece": 0.0005058657638370114,
+    "conversion_pooled_auc": 0.92242478736159,
+    "visit_control_log_loss": 0.09062392019610242,
+    "visit_control_brier": 0.025617088068675156,
+    "visit_control_ece": 0.0004704757887158311,
+    "visit_control_auc": 0.9450365940343792,
+    "visit_treated_log_loss": 0.10532868273868985,
+    "visit_treated_brier": 0.030504982344928655,
+    "visit_treated_ece": 0.00034163424208109015,
+    "visit_treated_auc": 0.9463862920714817,
+    "conversion_control_log_loss": 0.009395777852781922,
+    "conversion_control_brier": 0.0017690069813638004,
+    "conversion_control_ece": 0.0003277213119479897,
+    "conversion_control_auc": 0.9380322561923552,
+    "conversion_treated_log_loss": 0.01738142903058747,
+    "conversion_treated_brier": 0.002812007538447699,
+    "conversion_treated_ece": 0.0005040129507526998,
+    "conversion_treated_auc": 0.9220170446891383,
+    "visit_qini_coefficient": 0.0801213970776339,
+    "conversion_qini_coefficient": 0.11498544474450087,
+    "visit_auuc_normalised": 0.18608038779436784,
+    "conversion_auuc_normalised": 0.3059480139687805
+   },
+   "test": {
+    "primary_pooled_logloss_visit_plus_conversion": 0.11908896296451905,
+    "visit_pooled_log_loss": 0.10249474329777698,
+    "visit_pooled_brier": 0.029678313366669578,
+    "visit_pooled_ece": 0.00039756382947204484,
+    "visit_pooled_auc": 0.9473410914299604,
+    "conversion_pooled_log_loss": 0.016594219666742082,
+    "conversion_pooled_brier": 0.0027137632074477605,
+    "conversion_pooled_ece": 0.00042782444101382067,
+    "conversion_pooled_auc": 0.9210775232760174,
+    "visit_control_log_loss": 0.08908616639337258,
+    "visit_control_brier": 0.025456069795935038,
+    "visit_control_ece": 0.000312457129330707,
+    "visit_control_auc": 0.9486118269061741,
+    "visit_treated_log_loss": 0.10486506693812545,
+    "visit_treated_brier": 0.03042470754573672,
+    "visit_treated_ece": 0.0004135346084259121,
+    "visit_treated_auc": 0.9470028679465535,
+    "conversion_control_log_loss": 0.00936727108107145,
+    "conversion_control_brier": 0.0017975684059713174,
+    "conversion_control_ece": 0.0002807003731771729,
+    "conversion_control_auc": 0.9385439197170463,
+    "conversion_treated_log_loss": 0.017871775607415492,
+    "conversion_treated_brier": 0.002875725078016639,
+    "conversion_treated_ece": 0.00043412182809356425,
+    "conversion_treated_auc": 0.9197300892271082,
+    "visit_qini_coefficient": 0.08510134184697701,
+    "conversion_qini_coefficient": 0.1061379634686886,
+    "visit_auuc_normalised": 0.1978181858555567,
+    "conversion_auuc_normalised": 0.28005994550976143
+   }
+  }
+ },
+ "selection": {
+  "rule": "lowest validation pooled log loss (visit + conversion); confirmed on test by paired bootstrap",
+  "kept": "t_gbdt",
+  "baseline": "constant_effect",
+  "comparisons": [
+   {
+    "kept": "t_gbdt",
+    "other": "constant_effect",
+    "metric": "pooled log loss visit + conversion (test)",
+    "kept_minus_other": {
+     "mean": -0.09005881676375856,
+     "se": 0.0003777193790794297,
+     "ci95": [
+      -0.0907934552455706,
+      -0.0893647262800759
+     ],
+     "n_boot": 200
+    },
+    "kept_significantly_worse": false,
+    "validation_kept_minus_other": -0.08965271516594317
+   },
+   {
+    "kept": "t_gbdt",
+    "other": "t_logistic",
+    "metric": "pooled log loss visit + conversion (test)",
+    "kept_minus_other": {
+     "mean": -0.004850824510135101,
+     "se": 0.0002340089473976293,
+     "ci95": [
+      -0.005285626971473173,
+      -0.004405397818100128
+     ],
+     "n_boot": 200
+    },
+    "kept_significantly_worse": false,
+    "validation_kept_minus_other": -0.0051502735944813915
+   }
+  ],
+  "worse_model_kept": 0
+ },
+ "calibration_metrics": [
+  "log_loss",
+  "brier",
+  "ece_15_equal_mass_bins",
+  "auc",
+  "qini_coefficient",
+  "auuc_normalised"
+ ],
+ "intervention_response": {
+  "visit": {
+   "itt_difference_in_means": {
+    "treated_rate": 0.048452531721489805,
+    "control_rate": 0.03814707408941777,
+    "ate": 0.010305457632072038,
+    "se": 0.00032674987632909977,
+    "ci95": [
+     0.009665027874467002,
+     0.010945887389677073
+    ],
+    "relative_lift": 0.2701506702169547
+   },
+   "model_implied_ate": 0.007401905695007557,
+   "exposure_complier_effect_wald": {
+    "estimate": 0.2852251847419641,
+    "se": 0.009093851946796424,
+    "ci95": [
+     0.2674012349262431,
+     0.3030491345576851
+    ],
+    "exposure_rate_treated": 0.036130952606429616,
+    "assumption": "exclusion restriction: eligibility affects outcomes only through exposure"
+   }
+  },
+  "conversion": {
+   "itt_difference_in_means": {
+    "treated_rate": 0.0031217473030367695,
+    "control_rate": 0.001880925510587944,
+    "ate": 0.0012408217924488256,
+    "se": 7.602446844182978e-05,
+    "ci95": [
+     0.0010918138343028391,
+     0.001389829750594812
+    ],
+    "relative_lift": 0.6596868326066601
+   },
+   "model_implied_ate": 0.0012536393543851221,
+   "exposure_complier_effect_wald": {
+    "estimate": 0.03434234923072627,
+    "se": 0.0021072812540180396,
+    "ci95": [
+     0.030212077972850915,
+     0.03847262048860163
+    ],
+    "exposure_rate_treated": 0.036130952606429616,
+    "assumption": "exclusion restriction: eligibility affects outcomes only through exposure"
+   }
+  }
+ },
+ "limits": "Absolute rates and effect sizes are not representative: Criteo sub-sampled the data non-uniformly so that the true incrementality level cannot be deduced. Use relative structure (ranking, heterogeneity, the correlation of baseline propensity and effect) and re-base with transport() to the world's own rates. The data pool several incrementality tests of undisclosed advertisers, countries and dates; the population is users reachable by Criteo's display advertising, not a general population. Features f0..f11 are anonymised random projections with no simulator counterpart; the simulator may use only the response-type table, not the feature-level model. The effect is the intention-to-treat effect of eligibility for one advertiser's display campaign over one test period (exposure rate among treated users only 3.6%). It does not identify the response to arbitrary ads, prices, content or repeated campaigns, and it says nothing about long-run, carry-over or saturation effects. No timestamps: no time-based holdout, no dynamics, no seasonality; the holdout is user-level (rows are users) only. Near-duplicate feature vectors occur across rows, so held-out users can resemble training users closely. transport() assumes each type's treatment effect is a constant odds ratio when the baseline rate changes; this is an assumption, not an estimate. Visit and conversion are binary per user over the test period; frequency, basket size and revenue are not observed.",
+ "extrapolation_limits": [
+  "Absolute rates and effect sizes are not representative: Criteo sub-sampled the data non-uniformly so that the true incrementality level cannot be deduced. Use relative structure (ranking, heterogeneity, the correlation of baseline propensity and effect) and re-base with transport() to the world's own rates.",
+  "The data pool several incrementality tests of undisclosed advertisers, countries and dates; the population is users reachable by Criteo's display advertising, not a general population.",
+  "Features f0..f11 are anonymised random projections with no simulator counterpart; the simulator may use only the response-type table, not the feature-level model.",
+  "The effect is the intention-to-treat effect of eligibility for one advertiser's display campaign over one test period (exposure rate among treated users only 3.6%). It does not identify the response to arbitrary ads, prices, content or repeated campaigns, and it says nothing about long-run, carry-over or saturation effects.",
+  "No timestamps: no time-based holdout, no dynamics, no seasonality; the holdout is user-level (rows are users) only. Near-duplicate feature vectors occur across rows, so held-out users can resemble training users closely.",
+  "transport() assumes each type's treatment effect is a constant odds ratio when the baseline rate changes; this is an assumption, not an estimate.",
+  "Visit and conversion are binary per user over the test period; frequency, basket size and revenue are not observed."
+ ],
+ "simulator_mapping": {
+  "use": "response types, not features: CommercialResponseModel.sample_types(rng, n) once per simulated individual (store the type index in a population column); when the individual is targeted by an advertising intervention during a campaign period it responds with respond(rng, types, treated=True), otherwise treated=False.",
+  "visit": "a visit to the advertiser's product or storefront during the campaign period (one Bernoulli draw per individual per campaign period)",
+  "conversion": "a purchase from that advertiser during the period; only after a visit",
+  "treated": "the individual is eligible to be targeted by the advertiser's campaign (intention to treat); exposure (an ad actually shown) is a subset",
+  "transport": "transport(control_visit_rate, control_conversion_rate) re-bases the table to the world's own baseline rates keeping each type's odds ratio",
+  "features": "f0..f11 have no simulator counterpart; predict(X) exists only to evaluate and audit the model on Criteo rows"
+ },
+ "fidelity_mechanisms": [
+  "advertising_intervention_response",
+  "advertising_response_heterogeneity"
+ ],
+ "provenance": {
+  "dataset": "criteo_uplift_v2.1",
+  "dataset_sha256": "2716e1bf0fd157a93b5bf86924d9088419dfbac2022c6cd90030220634f616dc",
+  "source": "https://huggingface.co/datasets/criteo/criteo-uplift/resolve/2424920019e49d52d72c13ac1143ec5d53af276b/criteo-research-uplift-v2.1.csv.gz",
+  "license": {
+   "spdx": "CC-BY-NC-SA-4.0",
+   "summary": "Creative Commons Attribution-NonCommercial-ShareAlike 4.0 (dataset card on the Criteo-owned Hugging Face repository). Attribution: Diemert, Betlei, Renaudin and Amini, 'A Large Scale Benchmark for Uplift Modeling', AdKDD 2018. Fitted parameters derived from it are shared under the same license, non-commercially.",
+   "text_locations": [
+    "https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode",
+    "https://huggingface.co/datasets/criteo/criteo-uplift/blob/2424920019e49d52d72c13ac1143ec5d53af276b/README.md"
+   ]
+  },
+  "fit_commit": "3712535595750ff15ed55f2b49026c89a2ad631b",
+  "plan_commit": "7d4fb1e20a6350a30f4294f4dd85729ac3e21e38",
+  "citation": "Diemert, Betlei, Renaudin, Amini. A Large Scale Benchmark for Uplift Modeling. AdKDD 2018."
+ },
+ "response_types": {
+  "K": 64,
+  "construction": "validation split, 8 x 8 equal-mass bins of predicted control visit probability and predicted visit effect",
+  "usable": null
+ }
+}

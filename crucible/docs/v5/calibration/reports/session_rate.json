@@ -1,0 +1,227 @@
+{
+ "schema": "crucible.v5.calibration_report/1",
+ "model": "session_rate",
+ "version": 1,
+ "domain": "browsing_frequency",
+ "datasets": [
+  "kuairand_pure"
+ ],
+ "identification": "observational",
+ "estimand": "individual rate of extra sessions (sessions - 1) per active day, heterogeneous across individuals",
+ "population": "27,285 anonymised Kuaishou users chosen by the KuaiRand authors (China, 2022); interactions only with the 7,583 videos of the random-exposure pool",
+ "platform": "Kuaishou app (sessions from both logs, 30-minute gap)",
+ "period": "2022-04-22 to 2022-05-08",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E1_evaluation_plan.json",
+  "sha256": "5ae089ed1f363e9c447a4902e0d040393fdb140811e818a46d03b8a4748c97d2",
+  "commit": "d6f476707b262180b872c0f12f6f1ca0211de1dc",
+  "committed_at": "2026-11-25T06:32:03+00:00"
+ },
+ "splits": {
+  "train": {
+   "definition": "train users, active days 04-22..05-04",
+   "users": 19003
+  },
+  "val": {
+   "definition": "train users: history 04-22..04-30 predicts 05-01..05-04",
+   "users": 18081
+  },
+  "test": {
+   "definition": "test users (held out): history 04-22..05-04 predicts 05-05..05-08 (later time)",
+   "users": 3779
+  }
+ },
+ "heldout_splits": [
+  "test"
+ ],
+ "candidates": {
+  "B0_global_mean": {
+   "complexity": "baseline: one rate for everybody",
+   "n_params": 1,
+   "val": {
+    "n": 18081,
+    "poisson_deviance": 4.122086833964422,
+    "mae": 1.0434732156288296
+   },
+   "test": {
+    "n": 3779,
+    "poisson_deviance": 3.72459365016647,
+    "mae": 1.0518897460401695,
+    "heldout_loglik_per_user": -3.2864633894701294,
+    "ks_user_rate_distribution": 0.14439005027785132
+   }
+  },
+  "B1_own_mean": {
+   "complexity": "baseline: individual's raw mean",
+   "n_params": 0,
+   "val": {
+    "n": 18081,
+    "poisson_deviance": 20.81391265156228,
+    "mae": 1.0040525307368628
+   },
+   "test": {
+    "n": 3779,
+    "poisson_deviance": 12.674819882383977,
+    "mae": 1.0000351607625722,
+    "heldout_loglik_per_user": -3.2864633894701294,
+    "ks_user_rate_distribution": 0.14439005027785132
+   }
+  },
+  "M1_gamma_poisson": {
+   "complexity": "gamma-Poisson heterogeneity (2 parameters)",
+   "n_params": 2,
+   "val": {
+    "n": 18081,
+    "poisson_deviance": 3.8287213069160506,
+    "mae": 0.9519738843041964
+   },
+   "test": {
+    "n": 3779,
+    "poisson_deviance": 3.3014586700554815,
+    "mae": 0.9497043652015861,
+    "heldout_loglik_per_user": -2.580712296905414,
+    "ks_user_rate_distribution": 0.0799153215136279
+   }
+  }
+ },
+ "selection": {
+  "rule": "argmin validation primary metric (ties to the simpler); keep only if no simple baseline is better on test",
+  "primary_metric": "poisson_deviance",
+  "lower_is_better": true,
+  "validation": {
+   "B0_global_mean": 4.122086833964422,
+   "B1_own_mean": 20.81391265156228,
+   "M1_gamma_poisson": 3.8287213069160506
+  },
+  "test": {
+   "B0_global_mean": 3.72459365016647,
+   "B1_own_mean": 12.674819882383977,
+   "M1_gamma_poisson": 3.3014586700554815
+  },
+  "baselines": [
+   "B0_global_mean",
+   "B1_own_mean"
+  ],
+  "candidates": [
+   "B0_global_mean",
+   "B1_own_mean",
+   "M1_gamma_poisson"
+  ],
+  "selected_on_validation": "M1_gamma_poisson",
+  "best_baseline_on_test": "B0_global_mean",
+  "kept": "M1_gamma_poisson",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better on the primary metric"
+ },
+ "baseline_comparison": {
+  "metric": "poisson_deviance",
+  "kept": "M1_gamma_poisson",
+  "baseline": "B0_global_mean",
+  "kept_test": 3.3014586700554815,
+  "baseline_test": 3.72459365016647,
+  "difference": -0.4231349801109885,
+  "ci95": [
+   -0.6230453685051863,
+   -0.23983693823856234
+  ],
+  "kept_ci95": [
+   3.14861173329158,
+   3.4988669257380587
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 3779
+  }
+ },
+ "calibration": {
+  "count_calibration_error": 0.4312157215625285,
+  "reliability_by_predicted_decile": [
+   {
+    "decile": 0,
+    "users": 383,
+    "pred_rate": 0.4114541688623508,
+    "obs_rate": 1.1773584905660377
+   },
+   {
+    "decile": 1,
+    "users": 381,
+    "pred_rate": 0.5823055760069148,
+    "obs_rate": 1.1766917293233083
+   },
+   {
+    "decile": 2,
+    "users": 400,
+    "pred_rate": 0.7142638040475449,
+    "obs_rate": 1.2791519434628975
+   },
+   {
+    "decile": 3,
+    "users": 352,
+    "pred_rate": 0.8416775202464007,
+    "obs_rate": 1.344933469805527
+   },
+   {
+    "decile": 4,
+    "users": 397,
+    "pred_rate": 0.983980677539659,
+    "obs_rate": 1.3604148660328435
+   },
+   {
+    "decile": 5,
+    "users": 365,
+    "pred_rate": 1.132794677337167,
+    "obs_rate": 1.396067415730337
+   },
+   {
+    "decile": 6,
+    "users": 373,
+    "pred_rate": 1.3110743853208995,
+    "obs_rate": 1.664850136239782
+   },
+   {
+    "decile": 7,
+    "users": 375,
+    "pred_rate": 1.573525573532063,
+    "obs_rate": 1.8708551483420592
+   },
+   {
+    "decile": 8,
+    "users": 375,
+    "pred_rate": 1.9689711236456193,
+    "obs_rate": 2.189905902480753
+   },
+   {
+    "decile": 9,
+    "users": 378,
+    "pred_rate": 3.249386431880523,
+    "obs_rate": 3.6060371517027865
+   }
+  ]
+ },
+ "heldout_extra": {
+  "fitted population distribution": {
+   "gamma_shape": 2.1861455758103303,
+   "gamma_rate": 1.7103102908408632,
+   "mean_rate": 1.278215764424551,
+   "cv_rate": 0.6763328171238387,
+   "train_loglik": -59667.84693135955
+  },
+  "held-out users without their own history": {
+   "nb_loglik_per_user": -2.580712296905414,
+   "homogeneous_poisson_loglik_per_user": -3.2864633894701294,
+   "ks_rate_distribution_nb": 0.0799153215136279,
+   "ks_rate_distribution_poisson": 0.14439005027785132
+  }
+ },
+ "identification_note": "Observational description of between-individual heterogeneity; no causal claim.",
+ "extrapolation_limits": "Evidence: KuaiRand-Pure (27,285 anonymised Kuaishou users chosen by the KuaiRand authors (China, 2022); interactions only with the 7,583 videos of the random-exposure pool); sessions reconstructed from logged exposures with a 30-minute gap rule (2022-04-22..05-08). The simulator may draw each individual's propensity to start extra sessions on an active day from the fitted Gamma distribution (heterogeneity across individuals) and update it from observed behaviour with the posterior mean. It may NOT infer the absolute number of app sessions: only sessions that contain a logged pool-video exposure are seen, so true session counts are higher; nor session behaviour on other platforms, periods or populations. The gamma-Poisson form assumes a stable individual rate over two weeks.",
+ "feature_map": {
+  "count": "extra sessions (sessions - 1) the individual started on its active days so far",
+  "exposure": "number of active days so far; predict() returns the posterior mean rate; draw_rates(n, rng) gives new individuals' rates"
+ },
+ "fit": {
+  "commit": "d86f683cc56d382bcb67012bd301e1c9be67e2df",
+  "seconds": 0.9977371692657471,
+  "command": "python -m crucible.calibration.fit_e1 --models content,watch,return,session,news"
+ }
+}

@@ -1,0 +1,162 @@
+{
+ "domain": "browsing_frequency",
+ "features": [
+  "count",
+  "exposure"
+ ],
+ "target": "extra sessions per active day",
+ "feature_map": {
+  "count": "extra sessions (sessions - 1) the individual started on its active days so far",
+  "exposure": "number of active days so far; predict() returns the posterior mean rate; draw_rates(n, rng) gives new individuals' rates"
+ },
+ "metrics": {
+  "n": 3779,
+  "poisson_deviance": 3.3014586700554815,
+  "mae": 0.9497043652015861,
+  "heldout_loglik_per_user": -2.580712296905414,
+  "ks_user_rate_distribution": 0.0799153215136279
+ },
+ "baseline_metrics": {
+  "n": 3779,
+  "poisson_deviance": 3.72459365016647,
+  "mae": 1.0518897460401695,
+  "heldout_loglik_per_user": -3.2864633894701294,
+  "ks_user_rate_distribution": 0.14439005027785132,
+  "baseline": "B0_global_mean"
+ },
+ "candidates": {
+  "B0_global_mean": {
+   "complexity": "baseline: one rate for everybody",
+   "n_params": 1,
+   "val": {
+    "n": 18081,
+    "poisson_deviance": 4.122086833964422,
+    "mae": 1.0434732156288296
+   },
+   "test": {
+    "n": 3779,
+    "poisson_deviance": 3.72459365016647,
+    "mae": 1.0518897460401695,
+    "heldout_loglik_per_user": -3.2864633894701294,
+    "ks_user_rate_distribution": 0.14439005027785132
+   }
+  },
+  "B1_own_mean": {
+   "complexity": "baseline: individual's raw mean",
+   "n_params": 0,
+   "val": {
+    "n": 18081,
+    "poisson_deviance": 20.81391265156228,
+    "mae": 1.0040525307368628
+   },
+   "test": {
+    "n": 3779,
+    "poisson_deviance": 12.674819882383977,
+    "mae": 1.0000351607625722,
+    "heldout_loglik_per_user": -3.2864633894701294,
+    "ks_user_rate_distribution": 0.14439005027785132
+   }
+  },
+  "M1_gamma_poisson": {
+   "complexity": "gamma-Poisson heterogeneity (2 parameters)",
+   "n_params": 2,
+   "val": {
+    "n": 18081,
+    "poisson_deviance": 3.8287213069160506,
+    "mae": 0.9519738843041964
+   },
+   "test": {
+    "n": 3779,
+    "poisson_deviance": 3.3014586700554815,
+    "mae": 0.9497043652015861,
+    "heldout_loglik_per_user": -2.580712296905414,
+    "ks_user_rate_distribution": 0.0799153215136279
+   }
+  }
+ },
+ "selection": {
+  "rule": "argmin validation primary metric (ties to the simpler); keep only if no simple baseline is better on test",
+  "primary_metric": "poisson_deviance",
+  "lower_is_better": true,
+  "validation": {
+   "B0_global_mean": 4.122086833964422,
+   "B1_own_mean": 20.81391265156228,
+   "M1_gamma_poisson": 3.8287213069160506
+  },
+  "test": {
+   "B0_global_mean": 3.72459365016647,
+   "B1_own_mean": 12.674819882383977,
+   "M1_gamma_poisson": 3.3014586700554815
+  },
+  "baselines": [
+   "B0_global_mean",
+   "B1_own_mean"
+  ],
+  "candidates": [
+   "B0_global_mean",
+   "B1_own_mean",
+   "M1_gamma_poisson"
+  ],
+  "selected_on_validation": "M1_gamma_poisson",
+  "best_baseline_on_test": "B0_global_mean",
+  "kept": "M1_gamma_poisson",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better on the primary metric"
+ },
+ "uncertainty": {
+  "metric": "poisson_deviance",
+  "kept": "M1_gamma_poisson",
+  "baseline": "B0_global_mean",
+  "kept_test": 3.3014586700554815,
+  "baseline_test": 3.72459365016647,
+  "difference": -0.4231349801109885,
+  "ci95": [
+   -0.6230453685051863,
+   -0.23983693823856234
+  ],
+  "kept_ci95": [
+   3.14861173329158,
+   3.4988669257380587
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 3779
+  }
+ },
+ "provenance": {
+  "datasets": [
+   "kuairand_pure"
+  ],
+  "identification": "observational",
+  "population": "27,285 anonymised Kuaishou users chosen by the KuaiRand authors (China, 2022); interactions only with the 7,583 videos of the random-exposure pool",
+  "platform": "Kuaishou app (sessions from both logs, 30-minute gap)",
+  "period": "2022-04-22 to 2022-05-08",
+  "evaluation_plan": {
+   "path": "docs/v5/calibration/plans/E1_evaluation_plan.json",
+   "sha256": "5ae089ed1f363e9c447a4902e0d040393fdb140811e818a46d03b8a4748c97d2",
+   "commit": "d6f476707b262180b872c0f12f6f1ca0211de1dc",
+   "committed_at": "2026-11-25T06:32:03+00:00"
+  },
+  "fit": {
+   "commit": "d86f683cc56d382bcb67012bd301e1c9be67e2df",
+   "seconds": 0.9977371692657471,
+   "command": "python -m crucible.calibration.fit_e1 --models content,watch,return,session,news"
+  },
+  "domain": "browsing_frequency",
+  "kept_candidate": "M1_gamma_poisson"
+ },
+ "limits": "Evidence: KuaiRand-Pure (27,285 anonymised Kuaishou users chosen by the KuaiRand authors (China, 2022); interactions only with the 7,583 videos of the random-exposure pool); sessions reconstructed from logged exposures with a 30-minute gap rule (2022-04-22..05-08). The simulator may draw each individual's propensity to start extra sessions on an active day from the fitted Gamma distribution (heterogeneity across individuals) and update it from observed behaviour with the posterior mean. It may NOT infer the absolute number of app sessions: only sessions that contain a logged pool-video exposure are seen, so true session counts are higher; nor session behaviour on other platforms, periods or populations. The gamma-Poisson form assumes a stable individual rate over two weeks.",
+ "report": "docs/v5/calibration/reports/session_rate.json",
+ "fitted_at": "2026-11-25T07:13:56Z",
+ "mechanisms": [
+  "population.session_frequency"
+ ],
+ "schema": "crucible.v5.model_card/1",
+ "name": "session_rate",
+ "version": 1,
+ "kind": "gamma_poisson",
+ "checkpoint": "params.npz",
+ "files": {
+  "params.npz": "65da1d299403dd80d301b38fbddd2690728c1919bd514fc22a8f61c1e5880f39"
+ }
+}

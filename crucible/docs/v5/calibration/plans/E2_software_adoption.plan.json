@@ -1,0 +1,57 @@
+{
+ "schema": "crucible.v5.calibration.plan/1",
+ "plan_id": "E2_software_adoption",
+ "workstream": "E2",
+ "written_before_fit": true,
+ "models": ["software_deep_engagement@1", "software_repo_growth@1"],
+ "domain": "software_collaboration_and_adoption",
+ "dataset": {
+  "name": "gharchive_2024-10-07_96h",
+  "source": "GH Archive (https://www.gharchive.org/) hourly dumps of the public GitHub events timeline, https://data.gharchive.org/2024-10-{07..10}-{0..23}.json.gz",
+  "window_utc": ["2024-10-07T00:00:00Z", "2024-10-11T00:00:00Z"],
+  "days": {"D0": "2024-10-07 (feature warm-up only)", "D1": "2024-10-08", "D2": "2024-10-09", "D3": "2024-10-10"},
+  "processing": "streamed one hour at a time; only a compact event table is kept (time, type, action, numeric actor id, numeric repository id, flags: org-owned, bot actor, actor is repository owner, repository-creation, push size); raw files are deleted after extraction; no logins, names or text are stored"
+ },
+ "identification": {
+  "kind": "observational",
+  "statement": "Both models are observational associations in public GitHub activity. Nothing was randomized; the models predict what tends to follow, not what an intervention (for example buying stars or promoting a repository) would cause."
+ },
+ "population": "public GitHub accounts and public repositories whose events reached the public events API and GH Archive between 2024-10-07 and 2024-10-10 UTC; bot accounts (login ending in [bot]) excluded from units",
+ "model_deep_engagement": {
+  "id": "software_deep_engagement@1",
+  "unit": "the first star (WatchEvent 'started') by a non-bot actor on a repository the actor does not own, within the window",
+  "label": "1 if the same actor produces a ForkEvent, IssuesEvent, IssueCommentEvent, PullRequestEvent, PullRequestReviewEvent or PullRequestReviewCommentEvent on the same repository after the star (later in archive order) and within 24 hours of it",
+  "features": "computed from the 24 complete hours before the star's hour: repository counts of stars, forks, issue events, pull-request events, pushes, releases, all events; repository created within the window (and hours since creation); repository owned by an organisation; actor counts of all events, stars, forks, issue events, pull-request events, pushes; actor's prior events on this repository; hour of day (sin, cos). Counts enter as log1p; no history means a count of 0.",
+  "splits": {"train": "stars in D1", "validation": "stars in D2 00:00-12:00", "test": "stars in D2 12:00-24:00 (labels observed until the end of D3)", "user_level_holdout": "test stars by actors with no star in train or validation, reported separately", "strict_time_check": "the kept model class refitted on D1 00:00-12:00 stars only (all label windows end before the test period starts) and evaluated on the same test split"},
+  "candidates": [
+   {"id": "constant_rate", "role": "baseline", "complexity": 0, "description": "training-set base rate"},
+   {"id": "logistic", "role": "candidate", "complexity": 1, "description": "L2 logistic regression (C = 1.0) on standardised features"},
+   {"id": "gbdt", "role": "candidate", "complexity": 2, "description": "histogram gradient-boosted trees (learning rate 0.1, 31 leaves, min 100 samples per leaf, L2 1.0, at most 300 iterations, early stopping on validation log loss with patience 20)"}
+  ],
+  "metrics": ["log_loss (primary)", "brier", "ece_15_equal_mass_bins", "auc", "average_precision", "mean_predicted_vs_observed", "reliability table by predicted decile"],
+  "primary_metric": "test log loss"
+ },
+ "model_repo_growth": {
+  "id": "software_repo_growth@1",
+  "unit": "(repository, day d) for repositories with at least one star or fork by a non-bot actor on day d, or created on day d",
+  "target": "number of stars by non-bot actors on day d+1",
+  "features": "day-d counts of stars, forks, issue events, pull-request events, pushes, releases and all events; stars on day d-1; created on day d; organisation-owned. Counts enter as log1p.",
+  "splits": {"train": "d = D1 (target D2), repositories whose seeded hash falls in 80%", "validation": "d = D1, the other 20% of repositories (repository-level holdout)", "test": "d = D2 (target D3): time-based holdout", "repository_level_holdout": "test rows whose repository is absent from train, reported separately"},
+  "candidates": [
+   {"id": "proportional", "role": "baseline", "complexity": 0, "description": "rule baseline: next-day stars = a * today's stars + b, a and b fitted by Poisson likelihood on train"},
+   {"id": "poisson_glm", "role": "candidate", "complexity": 1, "description": "Poisson regression with log link on the log1p features (L2 alpha 1e-4)"},
+   {"id": "gbdt_poisson", "role": "candidate", "complexity": 2, "description": "histogram gradient-boosted trees with Poisson loss (learning rate 0.1, 31 leaves, min 100 samples per leaf, at most 300 iterations, early stopping on validation Poisson deviance with patience 20)"}
+  ],
+  "metrics": ["mean_poisson_deviance (primary)", "mae", "rmse_log1p", "spearman", "top_1pct_recall", "calibration by predicted decile", "distributional checks from negative-binomial sampling with a dispersion fitted on train: share zero, share >= 10, quantiles 0.5/0.9/0.99/0.999, KS statistic on log1p counts"],
+  "primary_metric": "test mean Poisson deviance"
+ },
+ "descriptive_reference": {
+  "id": "new_repository_adoption_curve",
+  "statement": "Not fitted: for repositories created on D1, the share with at least one non-owner star and the mean cumulative stars by hour since creation (0-48 h). Reported as an empirical reference curve for later simulator validation."
+ },
+ "comparison_rule": {
+  "selection": "for each model, keep the candidate (baseline included) with the lowest validation primary metric",
+  "confirmation": "on the test split compute every candidate's primary metric and the paired-bootstrap 95% interval (200 resamples) of (kept - other); worse_model_kept counts candidates for which the interval lies entirely above zero. It must be 0; otherwise the card says so and the better model replaces it."
+ },
+ "extrapolation_limits_to_document": ["four days of one autumn week in 2024: no seasonality, no long-run adoption", "public events only; GH Archive can miss events when the API drops them", "stars are inflated by automation and star farming; stars are not evidence of useful adoption", "24-hour conversion window: later deep engagement is invisible", "observational: no causal effect of promotion or ranking", "GitHub's population (skewed to particular regions, languages and professional developers) is not the simulator's population"]
+}
