@@ -130,6 +130,11 @@ class JsonStringTables:
         self.valid, self.closes = valid.to(device), closes.to(device)
         self.end = end.to(torch.int8).to(device)
         self.nch = nch.to(torch.int32).to(device)
+        # host copies for the per-token automaton transitions (no device synchronisation in the decode loop)
+        self.valid_h = valid.numpy()
+        self.closes_h = closes.numpy()
+        self.end_h = end.to(torch.int8).numpy()
+        self.nch_h = nch.to(torch.int32).numpy()
         single = {}
         for i, t in enumerate(texts):
             if t is not None and len(t) == 1 and t not in single:
@@ -154,7 +159,7 @@ class JsonStringTables:
     def advance(self, state: int, count: int, token: int):
         """(new_state, new_count, closed) after appending `token` (which must be allowed)."""
         s = state
-        return int(self.end[s, token]), count + int(self.nch[s, token]), bool(self.closes[s, token])
+        return int(self.end_h[s, token]), count + int(self.nch_h[s, token]), bool(self.closes_h[s, token])
 
     @staticmethod
     def feasible(min_len: int, max_len: int, budget: int) -> bool:

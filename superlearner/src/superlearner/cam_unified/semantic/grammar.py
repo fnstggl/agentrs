@@ -728,12 +728,14 @@ class HoleFiller:
             raise GrammarError(f"holes need {sum(reserve)} tokens > action budget {self.opts.max_action_tokens}")
         cap = []
         for h in holes:
+            # a token adds >= 1 decoded character except a lone backslash (which the next token completes), so a
+            # string of at most max_len characters never needs more than 2*max_len + 1 tokens (incl. the quote)
             if h.kind == "pattern":
                 cap.append(min(self.opts.max_string_tokens, h.max_len + 1))
             elif h.kind == "key":
-                cap.append(self.opts.max_key_tokens)
+                cap.append(min(self.opts.max_key_tokens, 2 * h.max_len + 1))
             else:
-                cap.append(self.opts.max_string_tokens)
+                cap.append(min(self.opts.max_string_tokens, 2 * h.max_len + 1))
         return Program(forced, holes, reserve, cap)
 
     # ---------------------------------------------------------------- masks
@@ -845,8 +847,8 @@ class HoleFiller:
                     cap = min(p.cap[s["hi"]], self.opts.max_action_tokens - s["spent"] - later)
                     specs.append((h, s["s"], s["c"], cap - s["used"]))
                     rows.append(r)
-            feed = torch.full((R,), enc.pad_id, dtype=torch.long, device=dev)
-            live = torch.zeros(R, dtype=torch.long, device=dev)
+            feed = [enc.pad_id] * R
+            live = [0] * R
             if rows:
                 m = self.masks(specs)
                 if not bool(m.any(1).all()):
@@ -861,8 +863,9 @@ class HoleFiller:
                 rr = torch.tensor(rows, device=dev)
                 logp.index_add_(0, rr, chosen)
                 ent.index_add_(0, rr, e)
+                tok_l = tok.tolist()
                 for j, r in enumerate(rows):
-                    t = int(tok[j])
+                    t = tok_l[j]
                     feed[r] = t
                     live[r] = 1
                     p, s = programs[r], st[r]
@@ -891,9 +894,10 @@ class HoleFiller:
                     s["mode"] = "hole"
             if all(s["done"] for s in st):
                 break
-            att = torch.cat([att, live.unsqueeze(1)], 1)
+            att = torch.cat([att, torch.tensor(live, dtype=att.dtype, device=dev).unsqueeze(1)], 1)
             cur = cur + 1
-            logits, cache = enc.step(enc.embed_ids(feed.unsqueeze(1)), att, cur.unsqueeze(1), cache)
+            feed_t = torch.tensor(feed, dtype=torch.long, device=dev)
+            logits, cache = enc.step(enc.embed_ids(feed_t.unsqueeze(1)), att, cur.unsqueeze(1), cache)
             steps += 1
         return logp, ent, n_s, steps
 
@@ -982,10 +986,10 @@ class HoleFiller:
             ids = self.enc.tok(lit, add_special_tokens=False)["input_ids"]
             s, ok = 0, True
             for t in ids:
-                if t >= T.V or not bool(T.valid[s, t]):
+                if t >= T.V or not bool(T.valid_h[s, t]):
                     ok = False
                     break
-                s = int(T.end[s, t])
+                s = int(T.end_h[s, t])
             if not ok:                                    # fall back to one token per character
                 ids = []
                 for ch in lit:
