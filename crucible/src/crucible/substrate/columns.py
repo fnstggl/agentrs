@@ -146,9 +146,10 @@ def batch(ctx: Ctx, table: str, kind: str, idx: np.ndarray, values: dict[str, np
                 v = np.full(len(idx), v)
             else:
                 raise InvalidAction(f"values of {c} have shape {v.shape}, need {(len(idx), *shape)}")
+        with np.errstate(over="ignore", invalid="ignore"):     # out-of-range values are refused just below
+            v = v.astype(np.dtype(dt), copy=False)
         if v.dtype.kind == "f" and not np.all(np.isfinite(v)):
-            raise InvalidAction(f"values of {c} are not finite")
-        v = v.astype(np.dtype(dt), copy=False)
+            raise InvalidAction(f"values of {c} are not finite in {np.dtype(dt)} (NaN, infinite or out of range)")
         if mode != "set" and np.dtype(dt).kind == "b":
             raise InvalidAction(f"mode {mode} needs a numeric column, {c} is boolean")
         arrays[f"v.{c}"] = v[order] if order is not None else v
@@ -194,6 +195,14 @@ def _apply_rows(st, key: str, ix: np.ndarray, v: np.ndarray, mode: str) -> None:
         a = st.array_rows_mut(key, rows_u)
     else:
         a = st.array_mut(key)
+    with np.errstate(over="ignore", invalid="ignore"):      # an overflowing sum is refused just below
+        _write_rows(a, ix, rows_u, v, mode, dup, last if dup else None, first if dup else None)
+    if mode == "add" and a.dtype.kind == "f" and not np.all(np.isfinite(a[rows_u])):
+        # the command is refused (and rolled back): an overflowing float column is never committed
+        raise InvalidAction(f"column {key} overflows {a.dtype}")
+
+
+def _write_rows(a, ix, rows_u, v, mode, dup, last, first) -> None:
     if mode == "set":
         a[rows_u] = v[last] if dup else v
     elif mode == "add":

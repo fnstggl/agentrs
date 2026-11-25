@@ -135,6 +135,16 @@ def test_bad_batches_are_refused():
         except Exception as e:  # noqa: BLE001
             errs.append(type(e).__name__)
     assert len(errs) == 5 and set(errs) <= {"InvalidAction", "NotFound"}
+    # float16 columns: out-of-range values and overflowing sums are refused, never committed as inf
+    w.system_call("admin.join", {"handle": "op", "endowment": 0})
+    before = C.col(w, "pop", "taste").copy()
+    for vals, mode in ((np.full((2, 4), 1e6), "set"), (np.full((2, 4), 60000.0), "add")):
+        def body(ctx, vals=vals, mode=mode):
+            C.batch(ctx, "pop", "t.f16", np.array([1, 2]), {"taste": vals}, mode=mode)
+            C.batch(ctx, "pop", "t.f16", np.array([1, 2]), {"taste": vals}, mode=mode)
+        with pytest.raises(InvalidAction):
+            w._run_system("f16", body)
+    assert np.array_equal(C.col(w, "pop", "taste"), before)
 
 
 def test_same_spec_and_seed_give_identical_hashes_and_replay_regen_fork_exact():
