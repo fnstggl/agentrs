@@ -33,3 +33,30 @@ PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --gpu-mb 4000 --label "wha
 ```
 
 Further commands are added here by each workstream as its components land.
+
+## Substrate (workstream A)
+
+```bash
+PYTHONPATH=src python -m pytest -q tests/test_v5_substrate_*.py                  # unit and integration tests
+PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_2_3.py tests/v5/test_gate_SP_2_1.py
+PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 0 --label "substrate bench" -- \
+    env PYTHONPATH=src python -m crucible.substrate.bench --rows 1000000 --table-rows 10000000
+# the 4.0 byte-identity digests in tests/v5_kernel_scenarios.py were recorded on the untouched 4.0 tree:
+#   git archive c07098b crucible/src | tar -x -C /tmp/k40
+#   PYTHONPATH=/tmp/k40/crucible/src python tests/v5_kernel_scenarios.py
+```
+
+## Calibration E2: commercial response and software adoption
+
+```bash
+# data (about 1.5 GB under $CRUCIBLE_DATA; GH Archive is streamed: 9.8 GB downloaded and deleted hour by hour)
+PYTHONPATH=src python -c "from crucible.calibration import registry_e2 as r; r.acquire('criteo_uplift_v2.1')"
+PYTHONPATH=src python -m crucible.scale.slots --cpu 4 --label "E2 acquire gharchive" -- \
+    env CRUCIBLE_ACQUIRE_WORKERS=4 PYTHONPATH=src python -c "from crucible.calibration import registry_e2 as r; r.acquire('gharchive_2024-10-07_96h')"
+# fits (the plans in docs/v5/calibration/plans/ were committed before the fits)
+PYTHONPATH=src python -m crucible.scale.slots --cpu 4 --label "E2 fit commercial" -- env PYTHONPATH=src python -m crucible.calibration.fit_commercial
+PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --label "E2 fit software" -- env PYTHONPATH=src python -m crucible.calibration.fit_software --threads 1
+# tests (load the checkpoints through the registry and recompute held-out metrics from the data)
+PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --label "E2 tests" -- \
+    env PYTHONPATH=src python -m pytest -q tests/test_v5_calibration_commercial.py tests/test_v5_calibration_software.py
+```

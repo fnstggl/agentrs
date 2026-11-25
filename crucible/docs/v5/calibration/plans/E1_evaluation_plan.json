@@ -1,0 +1,154 @@
+{
+ "schema": "crucible.v5.evaluation_plan/1",
+ "workstream": "E1",
+ "title": "Content consumption and browsing calibration: prespecified evaluation plan",
+ "written_before_fit": true,
+ "datasets": ["kuairand_pure", "mind_small"],
+ "global_rules": {
+  "fit_on": "train split only; every candidate and baseline sees exactly the same train rows",
+  "selection": "the candidate (baselines included) with the best primary metric on the validation split is selected; ties within 1e-4 go to the simpler candidate",
+  "confirmation": "on the test split the selected candidate's primary metric is compared with the best simple baseline's; if a baseline is strictly better on test the baseline is kept and the report says why the learned model failed",
+  "worse_model_kept": "never: the kept model's primary test metric must be no worse than every simple baseline's",
+  "test_once": "test metrics are computed after selection and no candidate is refitted after test metrics are seen",
+  "uncertainty": "user-cluster bootstrap, 200 resamples, seed 0: 95% interval of the kept model's primary test metric and of its difference from the best baseline",
+  "user_split": "bucket = int(sha256('e1:' + str(user_id)).hexdigest()[:8], 16) % 100; train 0-69, validation 70-84, test 85-99 (KuaiRand); MIND train-file users: fit 0-79, validation 80-99",
+  "ece": "expected calibration error with 15 equal-width probability bins, weighted by bin size",
+  "auc": "ROC AUC (Mann-Whitney) on the pooled split; for MIND also the mean AUC over impressions with at least one click and one non-click",
+  "missing_data": "KuaiRand rows with duration_ms <= 0 take video_duration from video_features_basic; rows still without a positive duration are dropped and counted; MIND empty histories give zero text affinity and category shares equal to the prior; news without abstract use the title only",
+  "leakage": "all history features use only events strictly before the row's day (KuaiRand) or hour (MIND); the KuaiRand video_features_statistic file is not used because its aggregates are not time-stamped and include the test period",
+  "hyperparameters": {
+   "logistic": "L2-regularised logistic regression on standardised features, C = 1.0, lbfgs, max_iter 1000",
+   "gbdt": "HistGradientBoostingClassifier(learning_rate=0.05, max_iter=400, max_leaf_nodes=31, min_samples_leaf=200, l2_regularization=1.0, early_stopping=True, validation_fraction=0.1, n_iter_no_change=20, random_state=0)",
+   "quantile_linear": "monotone quantile network without hidden layer, Adam lr 3e-3, batch 4096, at most 25 epochs, early stopping on validation pinball loss (patience 3), seed 0",
+   "quantile_mlp": "monotone quantile network with two tanh hidden layers of 32 units, same optimiser and stopping rule",
+   "gamma_poisson": "maximum marginal likelihood of the negative-binomial (gamma-Poisson) model with scipy L-BFGS-B"
+  }
+ },
+ "models": {
+  "content_consumption": {
+   "domain": "content_selection",
+   "dataset": "kuairand_pure",
+   "estimand": "P(an individual consumes (keeps watching, is_click = 1) a video shown in the single-column featured feed (tab 1) | exposure, features), under exposure NOT selected on unobserved preferences",
+   "identification": "randomized_exposure",
+   "rows": "tab 1 rows of the random-exposure log (is_rand = 1)",
+   "splits": {
+    "train": "random-exposure rows of train users dated 2022-04-22..2022-05-02",
+    "validation": "random-exposure rows of validation users dated 2022-04-29..2022-05-02",
+    "test": "random-exposure rows of test users dated 2022-05-03..2022-05-08 (held-out users and later time)"
+   },
+   "features": ["user_log_plays_7d", "user_click_rate", "item_log_pop_7d", "item_click_rate", "item_log_age_days",
+                "item_log_duration_s", "user_tag_share", "user_tag_lift", "creator_familiarity", "item_seen_before",
+                "item_played_before", "hour_sin", "hour_cos"],
+   "candidates": {
+    "B0_constant": "train base rate (simple baseline)",
+    "B1_popularity": "logistic on item_click_rate and item_log_pop_7d only (simple baseline: the 4.0-style popularity rule)",
+    "O_logistic": "logistic fitted on the observational standard-log train split (transported to random exposure)",
+    "O_gbdt": "GBDT fitted on the observational standard-log train split (transported)",
+    "O_gbdt_recalibrated": "O_gbdt plus one intercept offset fitted on the random-exposure train split",
+    "R_logistic": "logistic fitted on the random-exposure train split",
+    "R_gbdt": "GBDT fitted on the random-exposure train split"
+   },
+   "primary_metric": "log_loss",
+   "secondary_metrics": ["brier", "ece", "auc", "mean_pred", "mean_obs"],
+   "extra_reports": ["observational model on all random-exposure rows of test users 04-22..05-08",
+                     "coefficient comparison of logistic models fitted on observational vs random-exposure rows",
+                     "repeat-consumption rate and the effect of item_played_before"]
+  },
+  "content_consumption_feed": {
+   "domain": "content_selection",
+   "dataset": "kuairand_pure",
+   "estimand": "P(consume | the production recommender exposed the video in the featured feed, features): an observational engagement predictor, which includes the recommender's selection on preferences the features do not capture",
+   "identification": "observational",
+   "rows": "tab 1 rows of the standard logs",
+   "splits": {
+    "train": "standard-log rows of train users dated 2022-04-12..2022-05-02",
+    "validation": "standard-log rows of validation users dated 2022-04-29..2022-05-02",
+    "test": "standard-log rows of test users dated 2022-05-03..2022-05-08",
+    "test_time_only": "standard-log rows of train users dated 2022-05-03..2022-05-08 (reported, not used for selection)",
+    "transport_random": "random-exposure rows of test users dated 2022-04-22..2022-05-08 (how the observational fit fares under random exposure)"
+   },
+   "features": "same as content_consumption",
+   "candidates": {"B0_constant": "train base rate", "B1_popularity": "logistic on item_click_rate and item_log_pop_7d",
+                  "O_logistic": "logistic, all features", "O_gbdt": "GBDT, all features"},
+   "primary_metric": "log_loss",
+   "secondary_metrics": ["brier", "ece", "auc", "mean_pred", "mean_obs"]
+  },
+  "watch_duration": {
+   "domain": "watch_duration",
+   "dataset": "kuairand_pure",
+   "estimand": "conditional distribution of y = log1p(play_time_s) for a feed exposure, given whether the video was consumed (is_click), its duration and affinity features",
+   "identification": "observational",
+   "rows": "tab 1 rows of the standard and random-exposure logs pooled",
+   "splits": {
+    "train": "rows of train users dated 2022-04-12..2022-05-02 (standard) and 2022-04-22..2022-05-02 (random)",
+    "validation": "rows of validation users dated 2022-04-29..2022-05-02",
+    "test": "rows of test users dated 2022-05-03..2022-05-08; reported pooled, per log (standard / random) and per branch (consumed / skipped)"
+   },
+   "features": ["consumed", "item_log_duration_s", "user_tag_share", "user_tag_lift", "creator_familiarity",
+                "user_log_plays_7d", "user_click_rate", "item_click_rate", "item_log_pop_7d", "item_log_age_days",
+                "item_played_before"],
+   "quantile_levels": [0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8,
+                       0.85, 0.9, 0.95, 0.98],
+   "candidates": {"B0_unconditional": "empirical quantiles of y on train (simple baseline)",
+                  "B1_duration_bins": "empirical quantiles of y per decile of duration crossed with consumed (simple baseline)",
+                  "M1_quantile_linear": "linear monotone quantile model", "M2_quantile_mlp": "two-layer monotone quantile network"},
+   "primary_metric": "pinball",
+   "secondary_metrics": ["pit_ks", "coverage_80", "coverage_90", "wasserstein_watch_s", "completion_rate_abs_err",
+                         "view_rate_abs_err"],
+   "distribution_checks": "per duration decile and per branch: observed vs sampled watch-time quantiles, completion rate (watch >= duration) and view rate (watch >= min(30 s, 50% of duration))"
+  },
+  "return_daily": {
+   "domain": "browsing_frequency",
+   "dataset": "kuairand_pure",
+   "estimand": "P(an individual is active (has at least one logged feed exposure) on day d | activity history before d)",
+   "identification": "observational",
+   "rows": "user-days 2022-04-29..2022-05-08 of all 27,285 users; activity from the standard and random-exposure logs",
+   "splits": {
+    "train": "train users, days 2022-04-29..2022-05-04",
+    "validation": "validation users, days 2022-05-01..2022-05-04",
+    "test": "test users, days 2022-05-05..2022-05-08",
+    "test_time_only": "train users, days 2022-05-05..2022-05-08 (reported)"
+   },
+   "features": ["active_days_7d", "days_since_last_active", "log_rows_7d", "log_sessions_7d", "active_yesterday",
+                "weekend"],
+   "candidates": {"B0_constant": "train base rate", "B1_own_rate": "(active_days_7d + 1) / 9, the individual's own smoothed recent rate (rule baseline, no fitting)",
+                  "M1_logistic": "logistic", "M2_gbdt": "GBDT"},
+   "primary_metric": "log_loss",
+   "secondary_metrics": ["brier", "ece", "auc"],
+   "distribution_checks": "forward simulation of the 4 test days per test user from the model (simulated activity fed back into the features), 20 draws: distribution of the number of active days (total variation distance to observed) and the retention curve of users active on 2022-05-04"
+  },
+  "session_rate": {
+   "domain": "browsing_frequency",
+   "dataset": "kuairand_pure",
+   "estimand": "heterogeneity across individuals of the number of extra sessions per active day (sessions - 1; a session ends after a 30-minute gap)",
+   "identification": "observational",
+   "splits": {
+    "train": "train users, active days 2022-04-22..2022-05-04 (fit of the population distribution)",
+    "test": "test users: counts on 2022-04-22..2022-05-04 predict the rate on 2022-05-05..2022-05-08"
+   },
+   "candidates": {"B0_global_mean": "one rate for everybody (homogeneous Poisson)", "B1_own_mean": "the individual's own raw mean in the history window",
+                  "M1_gamma_poisson": "gamma-Poisson: posterior mean rate per individual"},
+   "primary_metric": "poisson_deviance",
+   "secondary_metrics": ["mae", "heldout_loglik_per_user", "ks_user_rate_distribution"],
+   "validation_note": "B0/B1/M1 have at most two population parameters; selection uses the train-user forward split (history 04-22..04-30 -> rate 05-01..05-04) as validation"
+  },
+  "news_click": {
+   "domain": "content_selection",
+   "dataset": "mind_small",
+   "estimand": "P(click | news shown in an impression, the user's click history, the news text, category, popularity and age)",
+   "identification": "observational",
+   "splits": {
+    "train": "train-file impressions of fit users dated 2019-11-10..2019-11-13, 50,000 impressions sampled with seed 0 (2019-11-09 is warm-up for popularity and first-seen times)",
+    "validation": "train-file impressions of validation users dated 2019-11-14",
+    "test": "all dev-file impressions (2019-11-15: later day; 88% of them from users absent from the train file); reported overall and for users absent from the train file"
+   },
+   "features": ["text_cos", "text_cos_z", "cat_share", "subcat_share", "log_hist_len", "pop_ctr_24h",
+                "pop_log_clicks_per_1k", "age_log_hours", "slate_size_log"],
+   "text_representation": "TF-IDF (sublinear tf, English stop words, min_df 3, at most 50,000 terms) of title + abstract fitted on train-file news, reduced to 128 dimensions by truncated SVD (seed 0) and L2-normalised; the user profile is the normalised mean of the history vectors",
+   "candidates": {"B0_constant": "train click rate", "B1_popularity": "logistic on pop_ctr_24h, pop_log_clicks_per_1k, slate_size_log",
+                  "M1_logistic": "logistic, all features", "M2_gbdt": "GBDT, all features"},
+   "primary_metric": "log_loss",
+   "secondary_metrics": ["brier", "ece", "auc", "impression_auc", "mrr", "ndcg5", "ndcg10"]
+  }
+ }
+}

@@ -1,0 +1,421 @@
+{
+ "domain": "watch_duration",
+ "features": [
+  "consumed",
+  "item_log_duration_s",
+  "user_tag_share",
+  "user_tag_lift",
+  "creator_familiarity",
+  "user_log_plays_7d",
+  "user_click_rate",
+  "item_click_rate",
+  "item_log_pop_7d",
+  "item_log_age_days",
+  "item_played_before"
+ ],
+ "target": "y = log1p(play_time_s)",
+ "feature_map": {
+  "consumed": "1 if the choice model's draw was 'consume', 0 for a skip",
+  "item_log_duration_s": "log1p(duration_s) of the content item",
+  "user_tag_share": "(individual's past views in the item's topic + 5 s) / (past views + 5), s = population share of the topic; topic = the item's primary tag or the nearest topic centroid of its embedding",
+  "user_tag_lift": "log(user_tag_share / s): relative interest in the item's topic (0 = average)",
+  "creator_familiarity": "log1p(the individual's past views of this creator's items)",
+  "user_log_plays_7d": "log1p(items the individual consumed (views) in the previous 7 simulated days). Scale: the dataset counts only plays of the 7,583 pool videos, so map by quantile (card feature_quantiles) rather than by raw value",
+  "user_click_rate": "(consumed + 20 m) / (feed exposures + 20) over the individual's whole history before today, m = the card's prior_rate; scale-free",
+  "item_click_rate": "(views + 20 m) / (impressions + 20) of the item on the platform before today (audience counters views / impressions); scale-free",
+  "item_log_pop_7d": "log1p(1000 * views of the item in the previous 7 days / individuals active in those 7 days); per-capita, so independent of population size",
+  "item_log_age_days": "log1p((now - published_at) / 86400); the data cover ages 0-30 days only",
+  "item_played_before": "1 if the individual consumed this item before today, else 0 (repeat consumption)",
+  "target": "watch_s = expm1(sample); a view in the simulator needs watch_s >= min(30, 0.5 duration)"
+ },
+ "metrics": {
+  "n": 99981,
+  "pinball": 0.1293642501577663,
+  "pit_ks": 0.010862063792120503,
+  "coverage_80": 0.796181274442144,
+  "coverage_90": 0.8955501545293606,
+  "wasserstein_watch_s": 0.48321142175275733,
+  "completion_rate_abs_err": 0.011149904373770822,
+  "view_rate_abs_err": 0.004429275875936804
+ },
+ "baseline_metrics": {
+  "n": 99981,
+  "pinball": 0.13779487566146165,
+  "pit_ks": 0.0549241121628794,
+  "coverage_80": 0.809303767715866,
+  "coverage_90": 0.9080525299806963,
+  "wasserstein_watch_s": 1.997872035992787,
+  "completion_rate_abs_err": 0.005533182683365282,
+  "view_rate_abs_err": 0.026739706276146746,
+  "baseline": "B1_duration_bins"
+ },
+ "candidates": {
+  "B0_unconditional": {
+   "complexity": "baseline: unconditional quantiles",
+   "n_params": 21,
+   "val": {
+    "n": 46955,
+    "pinball": 0.2697468131608146,
+    "pit_ks": 0.11467314427860387,
+    "coverage_80": 0.8284527739324885,
+    "coverage_90": 0.9203066766052603,
+    "wasserstein_watch_s": 6.550646770681779,
+    "completion_rate_abs_err": 0.04157703673672118,
+    "view_rate_abs_err": 0.05993223775370138
+   },
+   "test": {
+    "n": 99981,
+    "pinball": 0.2591725899124111,
+    "pit_ks": 0.14046035069790386,
+    "coverage_80": 0.8350486592452566,
+    "coverage_90": 0.9222352246926916,
+    "wasserstein_watch_s": 7.749831624326469,
+    "completion_rate_abs_err": 0.048505990755095534,
+    "view_rate_abs_err": 0.08337982019418674
+   }
+  },
+  "B1_duration_bins": {
+   "complexity": "baseline: quantiles per duration decile x consumed",
+   "n_params": 420,
+   "val": {
+    "n": 46955,
+    "pinball": 0.14047446563518082,
+    "pit_ks": 0.04982956801178029,
+    "coverage_80": 0.8086039825364711,
+    "coverage_90": 0.9091896496645725,
+    "wasserstein_watch_s": 2.090046156100767,
+    "completion_rate_abs_err": 0.0037913294568558626,
+    "view_rate_abs_err": 0.023446428873672397
+   },
+   "test": {
+    "n": 99981,
+    "pinball": 0.13779487566146165,
+    "pit_ks": 0.0549241121628794,
+    "coverage_80": 0.809303767715866,
+    "coverage_90": 0.9080525299806963,
+    "wasserstein_watch_s": 1.997872035992787,
+    "completion_rate_abs_err": 0.005533182683365282,
+    "view_rate_abs_err": 0.026739706276146746
+   }
+  },
+  "M1_quantile_linear": {
+   "complexity": "linear monotone quantiles",
+   "n_params": 252,
+   "val": {
+    "n": 46955,
+    "pinball": 0.13621037592524093,
+    "pit_ks": 0.02447567846304688,
+    "coverage_80": 0.8009157704184858,
+    "coverage_90": 0.9169204557555106,
+    "wasserstein_watch_s": 1.5443568013289721,
+    "completion_rate_abs_err": 0.011981801460463662,
+    "view_rate_abs_err": 0.017103309335126226
+   },
+   "test": {
+    "n": 99981,
+    "pinball": 0.13246105527211094,
+    "pit_ks": 0.03138611047987239,
+    "coverage_80": 0.7967013732609196,
+    "coverage_90": 0.9165141376861604,
+    "wasserstein_watch_s": 1.2278763555758476,
+    "completion_rate_abs_err": 0.007795560393233784,
+    "view_rate_abs_err": 0.013386134926271259
+   }
+  },
+  "M2_quantile_mlp": {
+   "complexity": "2 x 32 tanh monotone quantile network",
+   "n_params": 2133,
+   "val": {
+    "n": 46955,
+    "pinball": 0.13232691655266268,
+    "pit_ks": 0.009221595144287083,
+    "coverage_80": 0.7983814290277925,
+    "coverage_90": 0.8997763816419977,
+    "wasserstein_watch_s": 0.16459116989911288,
+    "completion_rate_abs_err": 0.012331550691693782,
+    "view_rate_abs_err": 0.005847760396603707
+   },
+   "test": {
+    "n": 99981,
+    "pinball": 0.1293642501577663,
+    "pit_ks": 0.010862063792120503,
+    "coverage_80": 0.796181274442144,
+    "coverage_90": 0.8955501545293606,
+    "wasserstein_watch_s": 0.48321142175275733,
+    "completion_rate_abs_err": 0.011149904373770822,
+    "view_rate_abs_err": 0.004429275875936804
+   }
+  }
+ },
+ "selection": {
+  "rule": "argmin validation primary metric (ties to the simpler); keep only if no simple baseline is better on test",
+  "primary_metric": "pinball",
+  "lower_is_better": true,
+  "validation": {
+   "B0_unconditional": 0.2697468131608146,
+   "B1_duration_bins": 0.14047446563518082,
+   "M1_quantile_linear": 0.13621037592524093,
+   "M2_quantile_mlp": 0.13232691655266268
+  },
+  "test": {
+   "B0_unconditional": 0.2591725899124111,
+   "B1_duration_bins": 0.13779487566146165,
+   "M1_quantile_linear": 0.13246105527211094,
+   "M2_quantile_mlp": 0.1293642501577663
+  },
+  "baselines": [
+   "B0_unconditional",
+   "B1_duration_bins"
+  ],
+  "candidates": [
+   "B0_unconditional",
+   "B1_duration_bins",
+   "M1_quantile_linear",
+   "M2_quantile_mlp"
+  ],
+  "selected_on_validation": "M2_quantile_mlp",
+  "best_baseline_on_test": "B1_duration_bins",
+  "kept": "M2_quantile_mlp",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better on the primary metric"
+ },
+ "uncertainty": {
+  "metric": "pinball",
+  "kept": "M2_quantile_mlp",
+  "baseline": "B1_duration_bins",
+  "kept_test": 0.1293642501577663,
+  "baseline_test": 0.13779487566146165,
+  "difference": -0.00843062550369536,
+  "ci95": [
+   -0.00902625859793829,
+   -0.007701481137980559
+  ],
+  "kept_ci95": [
+   0.12748772990631957,
+   0.13114362471249938
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 3875
+  }
+ },
+ "provenance": {
+  "datasets": [
+   "kuairand_pure"
+  ],
+  "identification": "observational",
+  "population": "27,285 anonymised Kuaishou users chosen by the KuaiRand authors (China, 2022); interactions only with the 7,583 videos of the random-exposure pool",
+  "platform": "Kuaishou short-video app, single-column featured feed (tab 1)",
+  "period": "2022-04-08 to 2022-05-08",
+  "evaluation_plan": {
+   "path": "docs/v5/calibration/plans/E1_evaluation_plan.json",
+   "sha256": "5ae089ed1f363e9c447a4902e0d040393fdb140811e818a46d03b8a4748c97d2",
+   "commit": "d6f476707b262180b872c0f12f6f1ca0211de1dc",
+   "committed_at": "2026-11-25T06:32:03+00:00"
+  },
+  "fit": {
+   "commit": "d86f683cc56d382bcb67012bd301e1c9be67e2df",
+   "seconds": 44.30376434326172,
+   "command": "python -m crucible.calibration.fit_e1 --models content,watch,return,session,news"
+  },
+  "domain": "watch_duration",
+  "kept_candidate": "M2_quantile_mlp"
+ },
+ "limits": "Evidence: KuaiRand-Pure (27,285 anonymised Kuaishou users chosen by the KuaiRand authors (China, 2022); interactions only with the 7,583 videos of the random-exposure pool); Kuaishou short-video app, single-column featured feed (tab 1); 2022-04-08 to 2022-05-08. The model gives the distribution of log1p(watch seconds) of one feed exposure given whether it was consumed, the item's duration and the affinity/popularity inputs. The simulator may draw watch time for autoplay short-video exposures with durations of 6 s to 20 min. It may NOT infer: watch time for long-form video, live streams, articles or audio; durations outside the data range; effects of interventions on watch time (all associations are observational); other populations or periods. Quantiles outside the 2%-98% levels are extrapolated linearly over one quantile gap, so extreme replays (play ratios above about 4) are not reproduced; the skip branch (consumed = 0) is dominated by the platform's autoplay, so it describes how long an autoplaying video runs before the individual swipes away.",
+ "report": "docs/v5/calibration/reports/watch_duration.json",
+ "fitted_at": "2026-11-25T07:13:45Z",
+ "quantile_levels": [
+  0.02,
+  0.05,
+  0.1,
+  0.15,
+  0.2,
+  0.25,
+  0.3,
+  0.35,
+  0.4,
+  0.45,
+  0.5,
+  0.55,
+  0.6,
+  0.65,
+  0.7,
+  0.75,
+  0.8,
+  0.85,
+  0.9,
+  0.95,
+  0.98
+ ],
+ "prior_rate": 0.5230071363175544,
+ "feature_quantiles": {
+  "levels": [
+   0.0,
+   0.01,
+   0.05,
+   0.1,
+   0.25,
+   0.5,
+   0.75,
+   0.9,
+   0.95,
+   0.99,
+   1.0
+  ],
+  "consumed": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  "item_log_duration_s": [
+   1.791759,
+   2.101692,
+   2.446685,
+   2.699077,
+   3.379838,
+   4.343364,
+   4.991792,
+   5.475065,
+   5.69877,
+   6.144274,
+   7.072184
+  ],
+  "user_tag_share": [
+   1e-06,
+   0.000252,
+   0.000812,
+   0.001711,
+   0.009308,
+   0.055453,
+   0.181723,
+   0.325022,
+   0.413162,
+   0.566452,
+   0.900463
+  ],
+  "user_tag_lift": [
+   -3.688879,
+   -2.681022,
+   -2.174752,
+   -1.824549,
+   -1.098612,
+   -0.232299,
+   0.364588,
+   0.96552,
+   1.382151,
+   2.205794,
+   5.928107
+  ],
+  "creator_familiarity": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.94591
+  ],
+  "user_log_plays_7d": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.693147,
+   1.609438,
+   2.639057,
+   3.401197,
+   3.7612,
+   4.290459,
+   5.09375
+  ],
+  "user_click_rate": [
+   0.059097,
+   0.203423,
+   0.308349,
+   0.362223,
+   0.454789,
+   0.538425,
+   0.620325,
+   0.693706,
+   0.734513,
+   0.792129,
+   0.881032
+  ],
+  "item_click_rate": [
+   0.06296,
+   0.252652,
+   0.329954,
+   0.377697,
+   0.451069,
+   0.520916,
+   0.586845,
+   0.659169,
+   0.695436,
+   0.754159,
+   0.827805
+  ],
+  "item_log_pop_7d": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.043965,
+   0.50527,
+   1.604639,
+   2.653526,
+   3.288264,
+   4.366688,
+   5.253863
+  ],
+  "item_log_age_days": [
+   0.693147,
+   0.693147,
+   1.098612,
+   1.386294,
+   1.791759,
+   2.70805,
+   2.995732,
+   3.091042,
+   3.135494,
+   3.178054,
+   3.178054
+  ],
+  "item_played_before": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ]
+ },
+ "mechanisms": [
+  "population.watch_duration"
+ ],
+ "sampling": "FittedModel.sample(X, rng) draws y; watch_s = expm1(max(y, 0))",
+ "schema": "crucible.v5.model_card/1",
+ "name": "watch_duration",
+ "version": 1,
+ "kind": "quantile_net",
+ "checkpoint": "params.npz",
+ "files": {
+  "params.npz": "56b7daeacbd9d0f760d52ddcc545a09acd2b9b855342399d200523aa45c53951"
+ }
+}

@@ -5,6 +5,10 @@ A gate test measures something and calls `record(requirement, metrics, ...)`. Th
 metrics, and the artifacts it relied on with their hashes. It does not state whether it passed: the checker decides
 that from the manifest's criteria and the metrics. `python -m crucible.acceptance.v5 run` attaches the JUnit result
 of the run that produced the record.
+
+Only an official run (`python -m crucible.acceptance.v5 run`, which sets CRUCIBLE_V5_RUN_ID) or an explicit `root`
+files the record under docs/v5/evidence/. An ordinary test run writes it to a temporary directory instead, so
+evidence never appears from incidental local runs.
 """
 from __future__ import annotations
 
@@ -30,8 +34,9 @@ def sha256_file(path: str) -> str:
     return h.hexdigest()
 
 
-def git(*args: str, cwd: str | None = None) -> str:
-    return subprocess.check_output(["git", *args], cwd=cwd or crucible_root(), stderr=subprocess.DEVNULL).decode().strip()
+def git(*args: str, cwd: str | None = None, strip: bool = True) -> str:
+    out = subprocess.check_output(["git", *args], cwd=cwd or crucible_root(), stderr=subprocess.DEVNULL).decode()
+    return out.strip() if strip else out
 
 
 def tree_state(cwd: str | None = None) -> dict:
@@ -40,7 +45,9 @@ def tree_state(cwd: str | None = None) -> dict:
     top = git("rev-parse", "--show-toplevel", cwd=cwd)
     prefix = os.path.relpath(cwd or crucible_root(), top)
     dirty = []
-    for line in git("status", "--porcelain", "--untracked-files=all", cwd=cwd).splitlines():
+    for line in git("status", "--porcelain", "--untracked-files=all", cwd=cwd, strip=False).splitlines():
+        if not line.strip():
+            continue
         path = line[3:].strip().strip('"')
         rel = os.path.relpath(os.path.join(top, path), os.path.join(top, prefix))
         if not any(rel.startswith(p) for p in EVIDENCE_PATHS):
@@ -73,6 +80,7 @@ def environment() -> dict:
 def record(requirement: str, metrics: dict, *, command: str | None = None, artifacts: list[str] = (),
            notes: str = "", root: str | None = None) -> str:
     """Write the evidence record for `requirement`; returns its path. Metrics must be JSON numbers/bools/strings."""
+    official = root is not None or bool(os.environ.get("CRUCIBLE_V5_RUN_ID"))
     root = root or crucible_root()
     for k, v in metrics.items():
         if not isinstance(v, (int, float, bool, str)) or (isinstance(v, float) and v != v):
@@ -87,7 +95,12 @@ def record(requirement: str, metrics: dict, *, command: str | None = None, artif
            "run_id": os.environ.get("CRUCIBLE_V5_RUN_ID"), "recorded_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
            "tree": tree_state(root), "environment": environment(), "metrics": metrics, "artifacts": arts,
            "notes": notes, "junit": None}
-    path = evidence_path(requirement, root)
+    if official:
+        path = evidence_path(requirement, root)
+    else:                                        # an ordinary test run: measured, but not filed as evidence
+        d = os.path.join(os.environ.get("TMPDIR", "/tmp"), "crucible-v5-unofficial-evidence", gate_of(requirement))
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, f"{requirement}.json")
     tmp = f"{path}.{os.getpid()}.tmp"
     with open(tmp, "w") as fh:
         json.dump(rec, fh, indent=1)

@@ -166,6 +166,13 @@ def test_the_real_manifest_covers_every_spec_gate_item():
     assert "CAM" not in s1["requirement"] and s1["source"]["clarification"]
 
 
-def test_the_real_checker_exits_nonzero_while_anything_is_unverified():
-    from crucible.acceptance.v5.__main__ import main
-    assert main(["--verify-all"]) == 1
+def test_the_real_checker_reports_unverified_while_anything_is_unverified():
+    res = checker.verify_all()
+    assert not res["ok"] and res["project_status"] == "IN_PROGRESS"
+
+
+def test_the_first_dirty_path_keeps_its_first_character(world):
+    root, _ = world
+    open(f"{root}/src/widgets.py", "w").write("N = 1\n")
+    st = evidence.tree_state(root)
+    assert not st["clean"] and "src/widgets.py" in st["dirty_paths"]
