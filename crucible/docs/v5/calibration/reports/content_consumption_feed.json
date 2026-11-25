@@ -1,0 +1,403 @@
+{
+ "schema": "crucible.v5.calibration_report/1",
+ "model": "content_consumption_feed",
+ "version": 1,
+ "domain": "content_selection",
+ "datasets": [
+  "kuairand_pure"
+ ],
+ "identification": "observational",
+ "estimand": "P(consume | the production recommender exposed the video in the featured feed, features)",
+ "population": "27,285 anonymised Kuaishou users chosen by the KuaiRand authors (China, 2022); interactions only with the 7,583 videos of the random-exposure pool",
+ "platform": "Kuaishou short-video app, single-column featured feed (tab 1)",
+ "period": "2022-04-08 to 2022-05-08",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E1_evaluation_plan.json",
+  "sha256": "5ae089ed1f363e9c447a4902e0d040393fdb140811e818a46d03b8a4748c97d2",
+  "commit": "d6f476707b262180b872c0f12f6f1ca0211de1dc",
+  "committed_at": "2026-11-25T06:32:03+00:00"
+ },
+ "splits": {
+  "obs_train": {
+   "definition": "standard tab-1 rows, train users, 2022-04-12..05-02",
+   "rows": 399950,
+   "users": 18117
+  },
+  "obs_val": {
+   "definition": "standard tab-1 rows, validation users, 2022-04-29..05-02",
+   "rows": 8689,
+   "users": 2490
+  },
+  "obs_test": {
+   "definition": "standard tab-1 rows, test users (held out), 2022-05-03..05-08 (later time)",
+   "rows": 10229,
+   "users": 2688
+  },
+  "obs_test_time_only": {
+   "definition": "standard tab-1 rows, train users, 2022-05-03..05-08",
+   "rows": 50099,
+   "users": 12950
+  },
+  "rnd_transport": {
+   "definition": "random-exposure tab-1 rows, test users, 2022-04-22..05-08",
+   "rows": 168454,
+   "users": 3977
+  }
+ },
+ "heldout_splits": [
+  "obs_test",
+  "obs_test_time_only",
+  "rnd_transport"
+ ],
+ "candidates": {
+  "B0_constant": {
+   "complexity": "baseline: constant",
+   "n_params": 1,
+   "val": {
+    "n": 8689,
+    "log_loss": 0.6917382895927319,
+    "brier": 0.24929587252227337,
+    "ece": 0.002390747399070081,
+    "auc": 0.5,
+    "mean_pred": 0.5290336292036506,
+    "mean_obs": 0.5266428818045805
+   },
+   "test": {
+    "n": 10229,
+    "log_loss": 0.6965010872211428,
+    "brier": 0.2516745923869474,
+    "ece": 0.04335565481710246,
+    "auc": 0.5,
+    "mean_pred": 0.5290336292036505,
+    "mean_obs": 0.48567797438654803
+   }
+  },
+  "B1_popularity": {
+   "complexity": "baseline: popularity logistic (2 features)",
+   "n_params": 3,
+   "val": {
+    "n": 8689,
+    "log_loss": 0.6573481953063821,
+    "brier": 0.23263284758591535,
+    "ece": 0.015485423613756549,
+    "auc": 0.6460164523963758,
+    "mean_pred": 0.5242064653828329,
+    "mean_obs": 0.5266428818045805
+   },
+   "test": {
+    "n": 10229,
+    "log_loss": 0.6650401803835215,
+    "brier": 0.2364142423004687,
+    "ece": 0.03006504714302752,
+    "auc": 0.6336877437382177,
+    "mean_pred": 0.5157430215295755,
+    "mean_obs": 0.48567797438654803
+   }
+  },
+  "O_logistic": {
+   "complexity": "L2 logistic, 13 features",
+   "n_params": 14,
+   "val": {
+    "n": 8689,
+    "log_loss": 0.6300964870670474,
+    "brier": 0.21961615248620217,
+    "ece": 0.017804494391678572,
+    "auc": 0.6999363692470914,
+    "mean_pred": 0.5231720652406289,
+    "mean_obs": 0.5266428818045805
+   },
+   "test": {
+    "n": 10229,
+    "log_loss": 0.6253524636103656,
+    "brier": 0.21777206937071972,
+    "ece": 0.017789062457036254,
+    "auc": 0.707470521851157,
+    "mean_pred": 0.5012372950645843,
+    "mean_obs": 0.48567797438654803
+   }
+  },
+  "O_gbdt": {
+   "complexity": "GBDT, 334 trees x 31 leaves",
+   "n_params": 30394,
+   "val": {
+    "n": 8689,
+    "log_loss": 0.6277420081037601,
+    "brier": 0.21862484878241592,
+    "ece": 0.024157643400049594,
+    "auc": 0.7035565106544319,
+    "mean_pred": 0.5074686050270749,
+    "mean_obs": 0.5266428818045805
+   },
+   "test": {
+    "n": 10229,
+    "log_loss": 0.6238223777319946,
+    "brier": 0.2171444024877432,
+    "ece": 0.005652322105717078,
+    "auc": 0.7081871401413066,
+    "mean_pred": 0.48326111336315825,
+    "mean_obs": 0.48567797438654803
+   }
+  }
+ },
+ "selection": {
+  "rule": "argmin validation primary metric (ties to the simpler); keep only if no simple baseline is better on test",
+  "primary_metric": "log_loss",
+  "lower_is_better": true,
+  "validation": {
+   "B0_constant": 0.6917382895927319,
+   "B1_popularity": 0.6573481953063821,
+   "O_logistic": 0.6300964870670474,
+   "O_gbdt": 0.6277420081037601
+  },
+  "test": {
+   "B0_constant": 0.6965010872211428,
+   "B1_popularity": 0.6650401803835215,
+   "O_logistic": 0.6253524636103656,
+   "O_gbdt": 0.6238223777319946
+  },
+  "baselines": [
+   "B0_constant",
+   "B1_popularity"
+  ],
+  "candidates": [
+   "B0_constant",
+   "B1_popularity",
+   "O_logistic",
+   "O_gbdt"
+  ],
+  "selected_on_validation": "O_gbdt",
+  "best_baseline_on_test": "B1_popularity",
+  "kept": "O_gbdt",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better on the primary metric"
+ },
+ "baseline_comparison": {
+  "metric": "log_loss",
+  "kept": "O_gbdt",
+  "baseline": "B1_popularity",
+  "kept_test": 0.6238223777319946,
+  "baseline_test": 0.6650401803835215,
+  "difference": -0.04121780265152697,
+  "ci95": [
+   -0.04762413967766637,
+   -0.03382884655630637
+  ],
+  "kept_ci95": [
+   0.6166979030755457,
+   0.6324943999368949
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 2688
+  }
+ },
+ "calibration": {
+  "ece": 0.005652322105717078,
+  "brier": 0.2171444024877432,
+  "mean_pred": 0.48326111336315825,
+  "mean_obs": 0.48567797438654803,
+  "reliability": [
+   {
+    "lo": 0.0,
+    "hi": 0.06666666666666667,
+    "n": 18,
+    "mean_pred": 0.06074765374369265,
+    "mean_obs": 0.05555555555555555
+   },
+   {
+    "lo": 0.06666666666666667,
+    "hi": 0.13333333333333333,
+    "n": 158,
+    "mean_pred": 0.1064017913174426,
+    "mean_obs": 0.11392405063291139
+   },
+   {
+    "lo": 0.13333333333333333,
+    "hi": 0.2,
+    "n": 493,
+    "mean_pred": 0.17110672683118075,
+    "mean_obs": 0.17647058823529413
+   },
+   {
+    "lo": 0.2,
+    "hi": 0.26666666666666666,
+    "n": 712,
+    "mean_pred": 0.23610851148426223,
+    "mean_obs": 0.24157303370786518
+   },
+   {
+    "lo": 0.26666666666666666,
+    "hi": 0.3333333333333333,
+    "n": 1004,
+    "mean_pred": 0.30121276900680444,
+    "mean_obs": 0.299800796812749
+   },
+   {
+    "lo": 0.3333333333333333,
+    "hi": 0.4,
+    "n": 1174,
+    "mean_pred": 0.3672682525763526,
+    "mean_obs": 0.3577512776831346
+   },
+   {
+    "lo": 0.4,
+    "hi": 0.4666666666666667,
+    "n": 1175,
+    "mean_pred": 0.4328519397031978,
+    "mean_obs": 0.44170212765957445
+   },
+   {
+    "lo": 0.4666666666666667,
+    "hi": 0.5333333333333333,
+    "n": 1225,
+    "mean_pred": 0.5008756089982557,
+    "mean_obs": 0.5004081632653061
+   },
+   {
+    "lo": 0.5333333333333333,
+    "hi": 0.6,
+    "n": 1281,
+    "mean_pred": 0.5663208721866259,
+    "mean_obs": 0.570647931303669
+   },
+   {
+    "lo": 0.6,
+    "hi": 0.6666666666666666,
+    "n": 1103,
+    "mean_pred": 0.6330453684281074,
+    "mean_obs": 0.6455122393472348
+   },
+   {
+    "lo": 0.6666666666666666,
+    "hi": 0.7333333333333333,
+    "n": 1010,
+    "mean_pred": 0.6971749460939928,
+    "mean_obs": 0.700990099009901
+   },
+   {
+    "lo": 0.7333333333333333,
+    "hi": 0.8,
+    "n": 569,
+    "mean_pred": 0.7628823429672753,
+    "mean_obs": 0.7627416520210897
+   },
+   {
+    "lo": 0.8,
+    "hi": 0.8666666666666667,
+    "n": 273,
+    "mean_pred": 0.8253943621397234,
+    "mean_obs": 0.8205128205128205
+   },
+   {
+    "lo": 0.8666666666666667,
+    "hi": 0.9333333333333333,
+    "n": 34,
+    "mean_pred": 0.8787771851564659,
+    "mean_obs": 0.8235294117647058
+   }
+  ]
+ },
+ "heldout_extra": {
+  "test_time_only (train users, later days)": {
+   "B0_constant": {
+    "n": 50099,
+    "log_loss": 0.6963316308376345,
+    "brier": 0.25158995950999236,
+    "ece": 0.041898157437746886,
+    "auc": 0.5,
+    "mean_pred": 0.5290336292036504,
+    "mean_obs": 0.4871354717659035
+   },
+   "B1_popularity": {
+    "n": 50099,
+    "log_loss": 0.6655572816019341,
+    "brier": 0.2366006337318547,
+    "ece": 0.026753636646560674,
+    "auc": 0.6333745517409465,
+    "mean_pred": 0.5138891084124642,
+    "mean_obs": 0.4871354717659035
+   },
+   "O_logistic": {
+    "n": 50099,
+    "log_loss": 0.6285124533767407,
+    "brier": 0.21920523419788232,
+    "ece": 0.01872840636706014,
+    "auc": 0.7028711878554542,
+    "mean_pred": 0.5011114837126861,
+    "mean_obs": 0.4871354717659035
+   },
+   "O_gbdt": {
+    "n": 50099,
+    "log_loss": 0.6260428416510108,
+    "brier": 0.21816689583339668,
+    "ece": 0.006258974051521488,
+    "auc": 0.7049304800081434,
+    "mean_pred": 0.4839564359940941,
+    "mean_obs": 0.4871354717659035
+   }
+  },
+  "transport to random exposure (test users, 04-22..05-08)": {
+   "B0_constant": {
+    "n": 168454,
+    "log_loss": 0.7319467723091017,
+    "brier": 0.26937749765689917,
+    "ece": 0.34822462496510453,
+    "auc": 0.5,
+    "mean_pred": 0.5290336292036504,
+    "mean_obs": 0.18080900423854585
+   },
+   "B1_popularity": {
+    "n": 168454,
+    "log_loss": 0.6959422353854723,
+    "brier": 0.2511275250303478,
+    "ece": 0.30932364565546255,
+    "auc": 0.5281244110334034,
+    "mean_pred": 0.4901326498940084,
+    "mean_obs": 0.18080900423854585
+   },
+   "O_logistic": {
+    "n": 168454,
+    "log_loss": 0.6904949463261613,
+    "brier": 0.24837773573283983,
+    "ece": 0.31973348012057323,
+    "auc": 0.6638592566054254,
+    "mean_pred": 0.5005424843591191,
+    "mean_obs": 0.18080900423854585
+   },
+   "O_gbdt": {
+    "n": 168454,
+    "log_loss": 0.6458086687334483,
+    "brier": 0.22808868346844696,
+    "ece": 0.2872575833104155,
+    "auc": 0.6675828651085272,
+    "mean_pred": 0.4680665875489614,
+    "mean_obs": 0.18080900423854585
+   }
+  }
+ },
+ "missing_data": {
+  "tab1_rows_dropped_without_duration": 58256
+ },
+ "identification_note": "Observational: the exposures were chosen by Kuaishou's production recommender, which selects on preferences the features do not capture. The model therefore predicts engagement under that recommender and overstates the consume rate of exposures that are not so selected (see 'transport to random exposure'). Use it as a learned-engagement predictor (e.g. a recommender's scoring target), not as the individual's choice rule; the choice rule is content_consumption, identified under random exposure.",
+ "extrapolation_limits": "Evidence: KuaiRand-Pure, 27,285 anonymised Kuaishou users chosen by the KuaiRand authors (China, 2022); interactions only with the 7,583 videos of the random-exposure pool; platform Kuaishou short-video app, single-column featured feed (tab 1); period 2022-04-08 to 2022-05-08. The simulator may use this model for the probability that an individual keeps watching an item its feed shows, as a function of the individual's activity, consume rate, topic affinity and creator familiarity and of the item's popularity, consume rate, age and duration. It may NOT infer: (1) behaviour on platforms other than an autoplay short-video feed (search, long-form video, articles: use news_click for article choice); (2) item ages beyond 30 days (all pool videos were uploaded 2022-04-09..11, so age is confounded with calendar time) or durations outside 6 s - 20 min; (3) responses of other populations or periods (one Chinese app, one month in 2022, a selected user sample, a holiday period 2022-04-30..05-04 inside the data); (4) the effect of social context, prices or advertising, which are not features; (5) quantities on another scale: activity counts cover only pool videos, so map scale-dependent inputs by quantile (feature_quantiles). Topic affinity is measured from one primary tag; with embedding-based affinity the mapping is by quantile, not by value. Repeat consumption is rare in the data (item_played_before is set on 0.007% of rows), so its coefficient is weakly identified.",
+ "feature_map": {
+  "user_log_plays_7d": "log1p(items the individual consumed (views) in the previous 7 simulated days). Scale: the dataset counts only plays of the 7,583 pool videos, so map by quantile (card feature_quantiles) rather than by raw value",
+  "user_click_rate": "(consumed + 20 m) / (feed exposures + 20) over the individual's whole history before today, m = the card's prior_rate; scale-free",
+  "item_log_pop_7d": "log1p(1000 * views of the item in the previous 7 days / individuals active in those 7 days); per-capita, so independent of population size",
+  "item_click_rate": "(views + 20 m) / (impressions + 20) of the item on the platform before today (audience counters views / impressions); scale-free",
+  "item_log_age_days": "log1p((now - published_at) / 86400); the data cover ages 0-30 days only",
+  "item_log_duration_s": "log1p(duration_s) of the content item",
+  "user_tag_share": "(individual's past views in the item's topic + 5 s) / (past views + 5), s = population share of the topic; topic = the item's primary tag or the nearest topic centroid of its embedding",
+  "user_tag_lift": "log(user_tag_share / s): relative interest in the item's topic (0 = average)",
+  "creator_familiarity": "log1p(the individual's past views of this creator's items)",
+  "item_seen_before": "log1p(times the individual was exposed to this item before today)",
+  "item_played_before": "1 if the individual consumed this item before today, else 0 (repeat consumption)",
+  "hour_sin": "sin(2 pi hour / 24) of the local simulated time",
+  "hour_cos": "cos(2 pi hour / 24) of the local simulated time"
+ },
+ "fit": {
+  "commit": "d86f683cc56d382bcb67012bd301e1c9be67e2df",
+  "seconds": 24.678791761398315,
+  "command": "python -m crucible.calibration.fit_e1 --models content,watch,return,session,news"
+ }
+}
