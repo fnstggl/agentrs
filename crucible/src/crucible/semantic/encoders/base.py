@@ -66,6 +66,30 @@ def register(enc: Encoder) -> Encoder:
     return enc
 
 
+def recorded_json(ctx, kind: str, model_id: str, model_hash: str, inputs, fn) -> dict:
+    """Run `fn() -> JSON dict` once and record it with the model identity and an inputs digest; during regeneration
+    the recorded dict comes back without running `fn`. Uses `crucible.substrate.inference.recorded` (INTERFACE_CONTRACTS
+    1.7) when the substrate is installed, else the kernel's `ctx.external` with the same record shape under kind
+    `infer.<kind>` (what `substrate.inference.records` lists)."""
+    try:
+        from ...substrate import inference as _inf
+        recorded = getattr(_inf, "recorded", None)
+    except ImportError:
+        recorded = None
+    if recorded is not None:
+        return recorded(ctx, kind, model_id, model_hash, inputs, fn)
+    digest = hashlib.sha256(canonical_json(inputs)).hexdigest()
+
+    def run() -> dict:
+        return {"model_id": model_id, "model_hash": model_hash, "inputs_digest": digest, "output_kind": "json",
+                "output": fn()}
+    rec = ctx.external(f"infer.{kind}", run)
+    if rec.get("model_id") != model_id or rec.get("model_hash") != model_hash or rec.get("inputs_digest") != digest:
+        from ...core.errors import ProtocolError
+        raise ProtocolError(f"recorded {kind} diverged from the current model or inputs")
+    return rec["output"]
+
+
 def block(x: np.ndarray, weight: float) -> np.ndarray:
     """An L2-normalised block scaled by `weight`: concatenating blocks whose squared weights sum to 1 gives a unit
     vector whose cosine similarity is the weighted mean of the blocks' cosines."""

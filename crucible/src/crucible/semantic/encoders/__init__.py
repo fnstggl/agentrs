@@ -43,7 +43,7 @@ import numpy as np
 
 from ..cache import EmbeddingCache, default_cache, vector_sha256
 from . import models
-from .base import REGISTRY, Encoder, canonical_json
+from .base import REGISTRY, Encoder, recorded_json
 from . import text as _text, image as _image, audio as _audio, video as _video, code as _code  # noqa: F401  (register)
 
 MODALITIES = ("text", "image", "audio", "video", "code")
@@ -170,33 +170,21 @@ def _record(ctx, modality: str, keys: list[str], compute) -> np.ndarray:
     ctx.external); regeneration returns the recorded matrix without running the models."""
     enc = encoder(modality)
     inputs = {"keys": list(keys)}
-    try:
-        from ...substrate import inference as _inf
-        recorded = getattr(_inf, "recorded", None)
-    except ImportError:
-        recorded = None
     with _LOCK:
         _COUNTS["recorded"] += 1
-    if recorded is not None:
-        if "artifacts" in ctx.world.modules:          # array output -> content-addressed array blob, REF in the record
+    if "artifacts" in ctx.world.modules:
+        try:
+            from ...substrate import inference as _inf
+            recorded = getattr(_inf, "recorded", None)
+        except ImportError:
+            recorded = None
+        if recorded is not None:       # array output -> content-addressed array blob, its REF in the record
             mat = recorded(ctx, f"embed.{modality}", enc.id, enc.model_hash(), inputs,
                            lambda: np.ascontiguousarray(compute(), dtype=np.float32))
             return np.array(mat, dtype=np.float32)
-        out = recorded(ctx, f"embed.{modality}", enc.id, enc.model_hash(), inputs,
-                       lambda: (lambda m: {"shape": list(m.shape), "f32le_b64": _b64(m)})(compute()))
-        return _unb64(out["f32le_b64"], out["shape"])
-    digest = hashlib.sha256(canonical_json(inputs)).hexdigest()
-    mh = enc.model_hash()
-
-    def run() -> dict:
-        m = compute()
-        return {"model_id": enc.id, "model_hash": mh, "inputs_digest": digest, "output_kind": "json",
-                "output": {"shape": list(m.shape), "f32le_b64": _b64(m)}}
-    rec = ctx.external(f"infer.embed.{modality}", run)
-    if rec.get("model_id") != enc.id or rec.get("model_hash") != mh or rec.get("inputs_digest") != digest:
-        from ...core.errors import ProtocolError
-        raise ProtocolError(f"recorded embedding {modality} diverged from the current encoder or inputs")
-    return _unb64(rec["output"]["f32le_b64"], rec["output"]["shape"])
+    out = recorded_json(ctx, f"embed.{modality}", enc.id, enc.model_hash(), inputs,
+                        lambda: (lambda m: {"shape": list(m.shape), "f32le_b64": _b64(m)})(compute()))
+    return _unb64(out["f32le_b64"], out["shape"])
 
 
 def _world_vector(world, key: str) -> np.ndarray | None:

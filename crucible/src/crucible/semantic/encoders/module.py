@@ -20,7 +20,7 @@ import hashlib
 import numpy as np
 
 from ...core import schema as S
-from ...core.errors import Forbidden, InvalidAction, NotFound
+from ...core.errors import InvalidAction, NotFound
 from ...core.kernel import Module, applier, endpoint, register_module
 from . import MODALITIES, TABLE, EncodingError, cache_key, encode, encoder, similarity
 
@@ -66,10 +66,8 @@ class Embeddings(Module):
             raise NotFound("this world has no artifact store")
         from ...substrate import artifacts as art
         for r in (a, b):
-            if not art.exists(ctx.world, r):
+            if not art.readable(ctx.world, ctx.actor, r):     # unreadable looks like missing (no existence oracle)
                 raise NotFound(f"no artifact {r}")
-            if not art.readable(ctx.world, ctx.actor, r):
-                raise Forbidden(f"you cannot read {r}")
         try:
             va = encode(ctx.world, a, modality, ctx=ctx)
             vb = encode(ctx.world, b, modality, ctx=ctx)

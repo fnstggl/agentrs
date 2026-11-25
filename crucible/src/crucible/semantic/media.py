@@ -40,6 +40,9 @@ FFPROBE = shutil.which("ffprobe") or "/usr/bin/ffprobe"
 INPUT_FORMATS = ("mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,ogg,mp3,wav,flac,aac,avi,mpegts,gif,image2,png_pipe,"
                  "jpeg_pipe,webp_pipe,bmp_pipe,gif_pipe,flv,asf,s16le,f32le,u8,lavfi")
 TOOL_VERSION = "crucible-media/1"
+# outputs without random container ids (Ogg serials, Matroska UIDs) or encoder version tags: the same inputs give the
+# same bytes, so a recorded tool run can be reproduced and verified by its SHA-256
+BITEXACT = ("-fflags", "+bitexact", "-flags:v", "+bitexact", "-flags:a", "+bitexact", "-map_metadata", "-1")
 
 
 class MediaError(ValueError):
@@ -253,7 +256,7 @@ def synth_speech(text: str, *, voice: str = "slt", sr: int = 16000, rate: float 
     with _Work({"speech.txt": text.encode("utf-8")}) as w:
         af = [] if abs(rate - 1.0) < 1e-6 else ["-af", f"atempo={min(2.0, max(0.5, rate)):.3f}"]
         w.run(_ff("-f", "lavfi", "-i", f"flite=textfile=speech.txt:voice={voice}", *af, "-ac", "1", "-ar", str(sr),
-                  "-c:a", "pcm_s16le", "out.wav"))
+                  "-c:a", "pcm_s16le", *BITEXACT, "out.wav"))
         return w.read("out.wav")
 
 
@@ -864,7 +867,7 @@ def transcode(data: bytes, fmt: str, *, crf: int | None = None, audio_bitrate: s
         if sample_rate:
             args += ["-ar", str(int(sample_rate))]
     with _Work({"in.bin": data}) as w:
-        w.run(_ff(*args, "-f", muxer, "-y", "out.bin"))
+        w.run(_ff(*args, *BITEXACT, "-f", muxer, "-y", "out.bin"))
         return w.read("out.bin")
 
 
@@ -920,7 +923,7 @@ def assemble_video(images: Sequence[bytes], audio: bytes | None = None, *, secon
         if audio is not None:
             args += ["-map", f"{n}:a:0", "-af", f"apad,atrim=0:{total:.3f}", *acodec, "-b:a", "128k"]
         args += [*vcodec, "-crf", str(int(crf)), "-r", str(int(fps)), "-t", f"{total:.3f}"]
-        w.run(_ff(*args, "-f", muxer, "-y", "out.bin"))
+        w.run(_ff(*args, *BITEXACT, "-f", muxer, "-y", "out.bin"))
         return w.read("out.bin")
 
 
@@ -933,3 +936,251 @@ def media_info() -> dict:
             return None
     import PIL
     return {"tool_version": TOOL_VERSION, "ffmpeg": ver([FFMPEG, "-version"]), "pillow": PIL.__version__}
+
+
+# ============================================================================================== kernel module `media`
+# Creator tools: actors render, process, synthesise, assemble and transcode media inside a world. Each tool run is
+# recorded (substrate.inference.recorded / ctx.external: the record holds the output's REF, MIME type and size) and
+# its output is stored as an artifact owned by the caller (crucible.substrate.artifacts.put, with the inputs as
+# parents), so replay and regeneration reproduce the world exactly. Inputs are read only if the caller may read them.
+from ..core import schema as _S  # noqa: E402
+from ..core.errors import InvalidAction as _InvalidAction, NotFound as _NotFound, ProtocolError as _ProtocolError  # noqa: E402
+from ..core.kernel import Module as _Module, endpoint as _endpoint, register_module as _register_module  # noqa: E402
+
+REF_PATTERN = "^sha256:[0-9a-f]{64}$"
+_REF = _S.s_str("artifact reference sha256:<hex>", pattern=REF_PATTERN, maxLength=71)
+_OUT: dict[str, bytes] = {}           # bytes produced in this process, by REF, until stored
+_TOOL_HASH: list[str] = []
+
+
+def tool_hash() -> str:
+    """SHA-256 of the media tool versions (FFmpeg, Pillow, this module): the 'model hash' of recorded tool runs."""
+    if not _TOOL_HASH:
+        import hashlib
+        _TOOL_HASH.append(hashlib.sha256(json.dumps(media_info(), sort_keys=True).encode()).hexdigest())
+    return _TOOL_HASH[0]
+
+
+def _art():
+    try:
+        from ..substrate import artifacts as art
+    except ImportError as e:
+        raise _NotFound("this world has no artifact store (crucible.substrate.artifacts)") from e
+    return art
+
+
+def _ref_of(data: bytes) -> str:
+    import hashlib
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+@_register_module
+class MediaTools(_Module):
+    """Media tools for creators (host `media`). Needs the substrate's `artifacts` module."""
+    name = "media"
+    host = "media"
+    version = "1"
+    depends = ("artifacts",)
+
+    # ------------------------------------------------------------------------------------------ plumbing
+    def _read(self, ctx, ref: str) -> bytes:
+        art = _art()
+        if not art.readable(ctx.world, ctx.actor, ref):
+            raise _NotFound(f"no artifact {ref}")          # unreadable looks like missing (no existence oracle)
+        return art.get(ctx.world, ref)
+
+    def _produce(self, ctx, tool: str, params: dict, inputs: list[str], make, kind: str, extra=None) -> dict:
+        """Run `make() -> (bytes, mime)` once (recorded), store the output for the caller, return its description."""
+        from .encoders.base import recorded_json
+
+        def run() -> dict:
+            try:
+                data, mime = make()
+            except (MediaError, KeyError, IndexError, TypeError, ValueError) as e:   # bad input, not a module bug
+                return {"error": f"{type(e).__name__}: {str(e)[:300]}"}
+            ref = _ref_of(data)
+            _OUT[ref] = data
+            return {"ref": ref, "mime": mime, "size": len(data)}
+        rec = recorded_json(ctx, f"media.{tool}", "crucible.media." + tool, tool_hash(),
+                            {"tool": tool, "params": params, "inputs": list(inputs)}, run)
+        if "error" in rec:
+            raise _InvalidAction(rec["error"])
+        data = _OUT.pop(rec["ref"], None)
+        if data is None:       # regeneration: the recorded run came back without running the tool; reproduce it
+            data, _ = make()
+            if _ref_of(data) != rec["ref"]:
+                raise _ProtocolError(f"media.{tool} produced different bytes than recorded (tool versions changed?)")
+        ref = _art().put(ctx, data, rec["mime"], owner=ctx.actor, parents=sorted(set(inputs)),
+                         meta={"tool": f"media.{tool}"}, kind=kind)
+        out = {"ref": ref, "mime": rec["mime"], "size": rec["size"]}
+        if extra:
+            out.update(extra(data))
+        return out
+
+    @staticmethod
+    def _image_extra(data: bytes) -> dict:
+        im = open_image(data)
+        return {"width": im.width, "height": im.height}
+
+    @staticmethod
+    def _av_extra(data: bytes) -> dict:
+        info = probe(data)
+        return {"duration_s": round(float(info["duration_s"] or 0.0), 3), "width": info["width"],
+                "height": info["height"], "has_audio": info["has_audio"]}
+
+    # ------------------------------------------------------------------------------------------ images
+    @_endpoint("render_text", _S.obj({
+        "text": _S.s_str("the text", maxLength=20000),
+        "width": _S.s_int("pixels", minimum=64, maximum=2048),
+        "height": _S.s_int("pixels (default: fit the text)", minimum=32, maximum=4096),
+        "font_size": _S.s_int("points", minimum=8, maximum=200), "color": _S.s_str("text colour", maxLength=32),
+        "background": _S.s_str("background colour", maxLength=32),
+        "align": _S.s_enum(["left", "center", "right"], "alignment"),
+        "family": _S.s_enum(["sans", "serif", "mono"], "font family"), "bold": _S.s_bool("bold")}, ["text"]),
+        doc="Render text to a PNG image you own (word-wrapped). Returns its artifact reference.", cost_s=3)
+    def ep_render_text(self, ctx, text, width=800, height=None, font_size=32, color="#111111", background="#ffffff",
+                       align="left", family="sans", bold=False):
+        p = dict(text=text, width=width, height=height, font_size=font_size, color=color, background=background,
+                 align=align, family=family, bold=bold)
+        return self._produce(ctx, "render_text", p, [], lambda: (render_text_image(**p), "image/png"), "image",
+                             self._image_extra)
+
+    @_endpoint("render_html", _S.obj({
+        "html": _S.s_str("an HTML document", maxLength=100000), "ref": _REF,
+        "width": _S.s_int("pixels", minimum=200, maximum=2048),
+        "max_height": _S.s_int("pixels", minimum=64, maximum=8000)}),
+        doc="Render an HTML document (given inline, or an HTML artifact you can read) to a PNG image you own. "
+            "Headings, paragraphs, lists, quotes, code, links, emphasis and colours; no scripts or external files.",
+        cost_s=3)
+    def ep_render_html(self, ctx, html=None, ref=None, width=800, max_height=4000):
+        if (html is None) == (ref is None):
+            raise _InvalidAction("give exactly one of html or ref")
+        src = html if html is not None else self._read(ctx, ref).decode("utf-8", "replace")
+        p = {"width": width, "max_height": max_height, "html_sha256": _ref_of(src.encode())}
+        return self._produce(ctx, "render_html", p, [ref] if ref else [],
+                             lambda: (render_html_image(src, width=width, max_height=max_height), "image/png"),
+                             "image", self._image_extra)
+
+    @_endpoint("draw", _S.obj({"shapes": _S.s_arr(_S.s_any_obj("{kind: circle|rect|triangle|polygon|line|text, "
+                                                                "xy: [x0, y0, x1, y1, ...] in 0..1, fill, outline, "
+                                                                "width, text, size}"), maxItems=500),
+                                "background": _S.s_str("colour", maxLength=32),
+                                "width": _S.s_int("pixels", minimum=16, maximum=2048),
+                                "height": _S.s_int("pixels", minimum=16, maximum=2048)}, ["shapes"]),
+               doc="Draw a vector scene of shapes and text into a PNG image you own.", cost_s=3)
+    def ep_draw(self, ctx, shapes, background="#ffffff", width=512, height=512):
+        spec = {"background": background, "shapes": shapes}
+        return self._produce(ctx, "draw", {"spec": spec, "width": width, "height": height}, [],
+                             lambda: (draw_scene(spec, width=width, height=height), "image/png"), "image",
+                             self._image_extra)
+
+    @_endpoint("edit_image", _S.obj({"ref": _REF, "ops": _S.s_arr(_S.s_any_obj(
+        "{op: resize|scale|crop|rotate|flip|mirror|grayscale|brightness|contrast|blur|noise|text|encode, ...}"),
+        maxItems=32)}, ["ref", "ops"]),
+        doc="Apply image operations (resize, crop, rotate, colour, blur, text overlay, re-encode as PNG/JPEG/WebP "
+            "with codec_quality) to an image you can read; the result is a new image you own.", cost_s=3)
+    def ep_edit_image(self, ctx, ref, ops):
+        data = self._read(ctx, ref)
+        fmt = next((str(o.get("fmt", "PNG")).upper() for o in reversed(ops) if o.get("op") == "encode"), "PNG")
+        mime = {"JPEG": "image/jpeg", "JPG": "image/jpeg", "WEBP": "image/webp"}.get(fmt, "image/png")
+        return self._produce(ctx, "edit_image", {"ops": ops}, [ref], lambda: (process_image(data, ops), mime), "image",
+                             self._image_extra)
+
+    # ------------------------------------------------------------------------------------------ audio
+    @_endpoint("speak", _S.obj({"text": _S.s_str("what to say", maxLength=5000),
+                                "voice": _S.s_enum(["awb", "kal", "kal16", "rms", "slt"], "flite voice"),
+                                "rate": _S.s_num("speed (0.5-2)", minimum=0.5, maximum=2.0)}, ["text"]),
+               doc="Synthesise speech (flite) as a WAV audio artifact you own.", cost_s=5)
+    def ep_speak(self, ctx, text, voice="slt", rate=1.0):
+        p = {"text": text, "voice": voice, "rate": rate}
+        return self._produce(ctx, "speak", p, [], lambda: (synth_speech(text, voice=voice, rate=rate), "audio/wav"),
+                             "audio", self._av_extra)
+
+    @_endpoint("synth", _S.obj({
+        "kind": _S.s_enum(["tone", "melody", "noise"], "what to generate"),
+        "seconds": _S.s_num("length for tone/noise", minimum=0.1, maximum=120.0),
+        "freq": _S.s_num("tone frequency Hz", minimum=20.0, maximum=8000.0),
+        "notes": _S.s_arr(_S.s_str("note like C4, F#3, or a rest '-'; chords as 'C4+E4+G4'", maxLength=40),
+                          maxItems=512),
+        "bpm": _S.s_num("tempo", minimum=20.0, maximum=300.0), "drums": _S.s_bool("add a drum beat"),
+        "color": _S.s_enum(["white", "pink", "brown"], "noise colour")}, ["kind"]),
+        doc="Generate a tone, a melody (notes or chords, optional drums) or coloured noise as WAV audio you own.",
+        cost_s=3)
+    def ep_synth(self, ctx, kind, seconds=3.0, freq=440.0, notes=None, bpm=120.0, drums=False, color="pink"):
+        p = {"kind": kind, "seconds": seconds, "freq": freq, "notes": list(notes or []), "bpm": bpm, "drums": drums,
+             "color": color}
+
+        def make():
+            if kind == "tone":
+                x = synth_tone(freq, seconds)
+            elif kind == "noise":
+                x = synth_noise(seconds, color=color, seed=0)
+            else:
+                if not notes:
+                    raise MediaError("a melody needs notes")
+                steps = [None if n in ("-", "") else (n.split("+") if "+" in n else n) for n in notes]
+                x = synth_melody(steps, bpm=bpm, drums=drums)
+            return wav_bytes(x, 16000), "audio/wav"
+        return self._produce(ctx, "synth", p, [], make, "audio", self._av_extra)
+
+    # ------------------------------------------------------------------------------------------ video and conversion
+    @_endpoint("make_video", _S.obj({
+        "images": _S.s_arr(_REF, "image artifacts, in order", maxItems=120), "audio": _REF,
+        "seconds_per_image": _S.s_num("seconds each image is shown", minimum=0.2, maximum=60.0),
+        "width": _S.s_int("pixels", minimum=64, maximum=1920), "height": _S.s_int("pixels", minimum=64, maximum=1080),
+        "fade_s": _S.s_num("fade to black at each cut", minimum=0.0, maximum=2.0),
+        "format": _S.s_enum(["mp4", "webm"], "container")}, ["images"]),
+        doc="Assemble image artifacts (and optionally an audio artifact) into a video you own (FFmpeg).", cost_s=30)
+    def ep_make_video(self, ctx, images, audio=None, seconds_per_image=2.0, width=640, height=360, fade_s=0.0,
+                      format="mp4"):
+        if not images:
+            raise _InvalidAction("give at least one image")
+        imgs = [self._read(ctx, r) for r in images]
+        au = self._read(ctx, audio) if audio else None
+        p = {"seconds_per_image": seconds_per_image, "width": width, "height": height, "fade_s": fade_s,
+             "format": format}
+        mime = "video/mp4" if format == "mp4" else "video/webm"
+        return self._produce(ctx, "make_video", p, list(images) + ([audio] if audio else []),
+                             lambda: (assemble_video(imgs, au, seconds_per_image=seconds_per_image,
+                                                     size=(width, height), fade_s=fade_s, fmt=format), mime),
+                             "video", self._av_extra)
+
+    @_endpoint("transcode", _S.obj({
+        "ref": _REF, "format": _S.s_enum(sorted(set(AUDIO_FORMATS) | set(VIDEO_FORMATS)), "output format"),
+        "crf": _S.s_int("video quality factor (lower is better)", minimum=10, maximum=51),
+        "width": _S.s_int("pixels", minimum=16, maximum=1920), "height": _S.s_int("pixels", minimum=16, maximum=1080),
+        "start_s": _S.s_num("trim: start", minimum=0.0, maximum=1800.0),
+        "duration_s": _S.s_num("trim: length", minimum=0.1, maximum=1800.0),
+        "audio_bitrate": _S.s_enum(["32k", "48k", "64k", "96k", "128k", "192k"], "audio bitrate"),
+        "sample_rate": _S.s_int("audio sample rate (8000-48000 Hz)", minimum=8000, maximum=48000)}, ["ref", "format"]),
+        doc="Convert, resize or trim an audio or video artifact you can read; the result is a new artifact you own.",
+        cost_s=20)
+    def ep_transcode(self, ctx, ref, format, crf=None, width=None, height=None, start_s=None, duration_s=None,
+                     audio_bitrate=None, sample_rate=None):
+        data = self._read(ctx, ref)
+        p = {"format": format, "crf": crf, "width": width, "height": height, "start_s": start_s,
+             "duration_s": duration_s, "audio_bitrate": audio_bitrate, "sample_rate": sample_rate}
+        mime = {"wav": "audio/wav", "flac": "audio/flac", "mp3": "audio/mpeg", "ogg": "audio/ogg", "opus": "audio/ogg",
+                "m4a": "audio/mp4", "mp4": "video/mp4", "webm": "video/webm", "mkv": "video/x-matroska"}[format]
+        kind = "audio" if format in AUDIO_FORMATS else "video"
+        return self._produce(ctx, "transcode", p, [ref],
+                             lambda: (transcode(data, format, crf=crf, width=width, height=height, start_s=start_s,
+                                                duration_s=duration_s, audio_bitrate=audio_bitrate,
+                                                sample_rate=sample_rate), mime), kind, self._av_extra)
+
+    @_endpoint("probe", _S.obj({"ref": _REF}, ["ref"]),
+               doc="Container and stream facts (duration, size, codecs, frame rate, audio) of a media artifact you can "
+                   "read.", cost_s=1, read_only=True)
+    def ep_probe(self, ctx, ref):
+        data = self._read(ctx, ref)
+        from .encoders.base import recorded_json
+
+        def run():
+            try:
+                return probe(data)
+            except MediaError as e:
+                return {"error": str(e)[:300]}
+        out = recorded_json(ctx, "media.probe", "crucible.media.probe", tool_hash(), {"ref": ref}, run)
+        if "error" in out:
+            raise _InvalidAction(out["error"])
+        return out
