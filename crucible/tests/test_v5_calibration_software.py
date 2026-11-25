@@ -143,6 +143,7 @@ def test_raw_count_mapping_round_trips(deep, growth, tables):
             m.matrix_from_counts({k: v for k, v in list(raw.items())[1:]})
 
 
+@pytest.mark.slow
 @pytest.mark.timeout(600)
 def test_tables_rebuild_deterministically_from_extracted_events(tables):
     from crucible.calibration import fit_software as F, gharchive as G
