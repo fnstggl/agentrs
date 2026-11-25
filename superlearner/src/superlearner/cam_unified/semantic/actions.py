@@ -69,7 +69,7 @@ def _validate(schema: dict, value) -> list:
 class ActionGenerator(nn.Module):
     def __init__(self, cfg: CamConfig, encoder, tokenizer, *, opts: Optional[GrammarOptions] = None,
                  include_builtins: bool = True, evidence_chars: int = 1500, max_prompt_tokens: int = 3072,
-                 autocast: bool = True, bridge_layers: int = 2):
+                 autocast: bool = True, bridge_layers: int = 2, exact_rows: bool = False):
         super().__init__()
         object.__setattr__(self, "enc", encoder)
         object.__setattr__(self, "tok", tokenizer)
@@ -81,6 +81,7 @@ class ActionGenerator(nn.Module):
         self.include_builtins = include_builtins
         self.evidence_chars = evidence_chars
         self.autocast = autocast
+        self.exact_rows = exact_rows
         self.src_emb = nn.Embedding(3, D)
         self.ctx_norm = RMSNorm(D)
         self.tool_query = nn.Parameter(torch.randn(1, D) * 0.02)
@@ -199,7 +200,7 @@ class ActionGenerator(nn.Module):
 
     # ------------------------------------------------------------------ the shared forward
     def _forward(self, R, goal, belief, tools, obs, tool_lists, obs_lists, *, teacher=None, temperature=1.0,
-                 greedy=False, generator=None, tool_mask=None, sample=True):
+                 greedy=False, generator=None, tool_mask=None, sample=True, exact_rows=False):
         B, dev, D = R.shape[0], R.device, self.D
         if teacher is None:
             temps = torch.full((B,), float(temperature), device=dev)
@@ -224,6 +225,13 @@ class ActionGenerator(nn.Module):
             allowed = tools2.mask & gen_mask
             if tool_mask is not None:
                 allowed = allowed & tool_mask.to(dev)[:, :T]
+            if teacher is not None:                     # re-apply a restriction recorded at sampling time
+                for b in active:
+                    rec_allowed = teacher[b].get("allowed")
+                    if rec_allowed is not None:
+                        rm = torch.zeros(T, dtype=torch.bool, device=dev)
+                        rm[torch.tensor(rec_allowed, dtype=torch.long, device=dev)] = True
+                        allowed[b] = allowed[b] & rm
             # ---- tool pointer
             qt = self.tool_reader(self.tool_query.unsqueeze(0).expand(B, -1, -1), ctx_x, ctx_m).squeeze(1)
             keys = self.tool_k(tools2.x)
@@ -341,7 +349,7 @@ class ActionGenerator(nn.Module):
                             for h, tk in zip(p.holes, rec):
                                 h.tokens = list(tk)
                     tt = temps[rt].unsqueeze(1)
-                    lp, en, nt = self.filler.score(progs, prefix, ctxs, tt) if len(progs) else (None, None, None)
+                    lp, en, nt = self.filler.score(progs, prefix, ctxs, tt, exact_rows=exact_rows)
                     for j, b in enumerate(hole_rows):
                         n_tok[b] = int(nt[j])
                 for j, b in enumerate(hole_rows):
@@ -356,7 +364,11 @@ class ActionGenerator(nn.Module):
         self.stats["decisions"] += sum(n_dec)
         self.stats["qwen_steps"] += qwen_steps
         self.stats["sampled_tokens"] += sum(n_tok)
+        restricted = None
+        if tool_mask is not None:
+            restricted = [torch.nonzero(allowed[b]).flatten().tolist() for b in range(B)]
         return {"logp": res, "entropy": ent, "tool_idx": tool_idx, "tools": chosen, "evidence": evidence,
+                "allowed": restricted,
                 "choices": choices, "templates": templates, "programs": programs, "prompt_sha": prompt_sha,
                 "n_dec": n_dec, "n_tok": n_tok, "active": active, "approx": flags.get("approx", 0)}
 
@@ -438,7 +450,8 @@ class ActionGenerator(nn.Module):
     @torch.no_grad()
     def sample(self, R, goal: TokenSet, belief: TokenSet, tools: TokenSet, obs: TokenSet, tool_lists: list,
                obs_lists: list, temperature: float = 1.0, greedy: bool = False, *, generator=None, tool_mask=None,
-               rescore: bool = False, source: ActionSource = ActionSource.CAM_DECODER) -> list:
+               rescore: bool = False, exact_rows: bool = False,
+               source: ActionSource = ActionSource.CAM_DECODER) -> list:
         """[B] Action with logp / logp_parts / decode record. rescore=True replaces the sampling-time logp by the
         learner-path recomputation (`log_prob`), so PPO ratios start at exactly 1 even under bf16 drift."""
         out = self._forward(R, goal, belief, tools, obs, tool_lists, obs_lists, temperature=temperature,
@@ -457,7 +470,8 @@ class ActionGenerator(nn.Module):
             rec = {"v": DECODE_VERSION, "tool": out["tool_idx"][b], "name": tool.name, "key": tool.key,
                    "evidence": list(out["evidence"][b]), "choices": list(out["choices"][b]),
                    "holes": [list(h.tokens) for h in (out["programs"][b].holes if b in out["programs"] else [])],
-                   "prompt": out["prompt_sha"].get(b), "temperature": float(temperature), "greedy": bool(greedy)}
+                   "prompt": out["prompt_sha"].get(b), "temperature": float(temperature), "greedy": bool(greedy),
+                   "allowed": None if out["allowed"] is None else out["allowed"][b]}
             ev_entities = sorted({obs_lists[b][i].entity for i in out["evidence"][b] if obs_lists[b][i].entity})
             code = args.get("code") if isinstance(args.get("code"), str) else None
             dur = tool.duration_hint
@@ -473,7 +487,8 @@ class ActionGenerator(nn.Module):
                                               "dropped_keys": mstats.get("dropped_keys", 0), "decode": rec}))
         self.stats["actions"] += len(actions)
         if rescore:
-            lpr, _ = self.log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions)
+            lpr, _ = self.log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions,
+                                         exact_rows=exact_rows)
             for b, a in enumerate(actions):
                 for k_src, k_dst in (("tool", "tool"), ("evidence", "evidence"), ("heads", "args_heads"),
                                      ("tokens", "args_tokens")):
@@ -499,16 +514,19 @@ class ActionGenerator(nn.Module):
                             "prompt": None, "temperature": 1.0, "args": a.args})
         return out
 
-    def log_prob_parts(self, R, goal, belief, tools, obs, tool_lists, obs_lists, actions, evidence=None):
-        """({tool, evidence, heads, tokens}: [B] each, {same}: entropies [B]); differentiable."""
+    def log_prob_parts(self, R, goal, belief, tools, obs, tool_lists, obs_lists, actions, evidence=None,
+                       exact_rows: Optional[bool] = None):
+        """({tool, evidence, heads, tokens}: [B] each, {same}: entropies [B]); differentiable. exact_rows (default
+        self.exact_rows) scores the Qwen part row by row (batch-invariant under bf16)."""
         out = self._forward(R, goal, belief, tools, obs, tool_lists, obs_lists, teacher=self._teacher(actions, evidence),
-                            sample=False)
+                            sample=False, exact_rows=self.exact_rows if exact_rows is None else exact_rows)
         return out["logp"], out["entropy"]
 
     def log_prob(self, R, goal: TokenSet, belief: TokenSet, tools: TokenSet, obs: TokenSet, tool_lists: list,
-                 obs_lists: list, actions: list) -> tuple:
+                 obs_lists: list, actions: list, *, exact_rows: Optional[bool] = None) -> tuple:
         """ActionGeneratorP.log_prob -> (logp [B], entropy [B]) of the given actions (None rows give 0)."""
-        lp, en = self.log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions)
+        lp, en = self.log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions,
+                                     exact_rows=exact_rows)
         return sum(lp.values()), sum(en.values())
 
     def evidence_log_prob(self, R, goal, belief, tools, obs, tool_lists, obs_lists, tool_names: list,

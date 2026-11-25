@@ -898,9 +898,20 @@ class HoleFiller:
         return logp, ent, n_s, steps
 
     # ---------------------------------------------------------------- exact rescoring
-    def score(self, programs: list, prefix: torch.Tensor, ctx: list, temperature, chunk: int = 256):
+    def score(self, programs: list, prefix: torch.Tensor, ctx: list, temperature, chunk: int = 256,
+              exact_rows: bool = False):
         """Differentiable log-probability of the recorded hole tokens (LoRA + prefix get gradients). `temperature` is
-        a float or a per-row tensor [R] / [R, 1]. Returns (logp [R], entropy [R], n_tokens [R])."""
+        a float or a per-row tensor [R] / [R, 1]. Returns (logp [R], entropy [R], n_tokens [R]).
+
+        exact_rows=True evaluates every row alone without padding: in bf16 a padded batched forward depends on the
+        batch's padding length (~0.01-0.06 nats), so row-wise scoring is batch-invariant (PPO ratios exactly 1 at the
+        behaviour parameters whatever the minibatch composition)."""
+        if exact_rows and len(programs) > 1:
+            outs = []
+            for r in range(len(programs)):
+                tau = temperature.reshape(-1)[r: r + 1] if isinstance(temperature, torch.Tensor) else temperature
+                outs.append(self.score(programs[r: r + 1], prefix[r: r + 1], ctx[r: r + 1], tau, chunk))
+            return tuple(torch.cat([o[k] for o in outs]) for k in range(3))
         enc = self.enc
         R = len(programs)
         dev = enc.device
