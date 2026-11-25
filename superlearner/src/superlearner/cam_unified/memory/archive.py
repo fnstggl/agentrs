@@ -225,6 +225,14 @@ class EventArchive:
                 self._lock_fh.close()
                 self._lock_fh = None
                 raise ArchiveLocked(f"another process writes to {self.root}")
+        try:
+            self._open(cold_dir)
+        except BaseException:
+            self._release()                       # never keep the writer lock of an archive that failed to open
+            raise
+
+    def _open(self, cold_dir: Optional[str]) -> None:
+        readonly = self.readonly
         self._manifest = self._load_manifest()
         if self._chunk_rows_arg is None and self._manifest.get("chunk_rows"):
             self.chunk_rows = int(self._manifest["chunk_rows"])      # reopened without explicit sizing
@@ -410,7 +418,8 @@ class EventArchive:
         """The event ``gseq`` with up to ``before`` preceding and ``after`` following events of its own
         (env, actor, episode) stream in (step, gseq) order -> ([(step, event_id, gseq)], index of the event).
         Two indexed range lookups: the cost is independent of the episode's length."""
-        base = ("SELECT step, event_id, gseq FROM events INDEXED BY ev_stream WHERE episode_id=? AND env_id=? AND "
+        hint = "INDEXED BY ev_stream " if self._has_stream_index() else ""
+        base = (f"SELECT step, event_id, gseq FROM events {hint}WHERE episode_id=? AND env_id=? AND "
                 "actor_id=? AND ")
         key = [episode_id, env_id, actor_id]
         b = self._db.execute(base + "step <= ? AND (step < ? OR gseq < ?) ORDER BY step DESC, gseq DESC LIMIT ?",
@@ -421,6 +430,12 @@ class EventArchive:
         f = self._db.execute(base + "step >= ? AND (step > ? OR gseq > ?) ORDER BY step, gseq LIMIT ?",
                              key + [step, step, gseq, int(after)]).fetchall()
         return [tuple(r) for r in reversed(b)] + [tuple(me)] + [tuple(r) for r in f], len(b)
+
+    def _has_stream_index(self) -> bool:
+        if getattr(self, "_stream_idx", None) is None:
+            self._stream_idx = self._db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='index' AND name='ev_stream'").fetchone() is not None
+        return self._stream_idx
 
     def resolve(self, obs) -> str:
         """Full original content of an archived observation (follows ``artifact_ref`` when it was offloaded)."""
@@ -462,8 +477,12 @@ class EventArchive:
     def tag_changes(self, since: int = 0, limit: int = 100_000, with_keys: bool = False) -> list:
         """[(seq, gseq)] of tag updates after change number ``since`` (change-data capture for the replay sampler);
         ``with_keys``: [(seq, gseq, [changed tag keys] or None if unknown)]."""
-        rows = self._db.execute("SELECT seq, gseq, keys FROM tag_log WHERE seq > ? ORDER BY seq LIMIT ?",
-                                (int(since), int(limit))).fetchall()
+        try:
+            rows = self._db.execute("SELECT seq, gseq, keys FROM tag_log WHERE seq > ? ORDER BY seq LIMIT ?",
+                                    (int(since), int(limit))).fetchall()
+        except sqlite3.OperationalError:          # read-only view of an index written before changed keys were logged
+            rows = [(q, g, None) for q, g in self._db.execute(
+                "SELECT seq, gseq FROM tag_log WHERE seq > ? ORDER BY seq LIMIT ?", (int(since), int(limit)))]
         if with_keys:
             return [(q, g, None if k is None else k.split(",")) for q, g, k in rows]
         return [(q, g) for q, g, _ in rows]
@@ -576,6 +595,19 @@ class EventArchive:
         self._recover_files()
         self._pf_cache.clear()
         self._replay_wal()
+
+    def _release(self) -> None:
+        for fh in (self._wal_fh, self._tag_fh):
+            if fh is not None:
+                fh.close()
+        self._wal_fh = self._tag_fh = None
+        if getattr(self, "_db", None) is not None:
+            self._db.close()
+            self._db = None
+        if self._lock_fh is not None:
+            fcntl.flock(self._lock_fh.fileno(), fcntl.LOCK_UN)
+            self._lock_fh.close()
+            self._lock_fh = None
 
     def close(self) -> None:
         if getattr(self, "_db", None) is None:

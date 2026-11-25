@@ -144,7 +144,7 @@ def test_consolidation_throughput_dev_scale(tmp_path):
     dt = time.time() - t
     m = {"events": out["events"], "segments1": out["segments1"], "segments2": out["segments2"],
          "seconds": round(dt, 1), "events_per_s": int(out["events"] / dt), "encode_s": round(con.stats["encode_s"], 1),
-         "index_bytes": idx.storage_bytes(), "retriever_params": sum(p.numel() for p in ret.parameters())}
+         "index_bytes": idx.storage_bytes(), "retriever_params": ret.param_split()}
     print("\nCONSOLIDATE_100K " + json.dumps(m))
     assert out["events"] == 100_000 and out["segments1"] >= 100_000 // cfg.mem_segment
     a.close()

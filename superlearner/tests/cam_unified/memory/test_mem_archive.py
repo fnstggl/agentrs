@@ -439,6 +439,7 @@ def test_default_policy_budget_bounds_everything_under_the_root(tmp_path):
 def test_move_policy_requires_an_external_cold_volume_with_its_own_budget(tmp_path):
     with pytest.raises(ValueError, match="outside the archive root"):
         EventArchive(str(tmp_path / "a"), cold_policy=("compress", "move"))
+    EventArchive(str(tmp_path / "a")).close()               # the failed open released the writer lock
     with pytest.raises(ValueError, match="outside the archive root"):
         EventArchive(str(tmp_path / "b"), cold_policy=("move",), cold_dir=str(tmp_path / "b" / "cold2"),
                      cold_max_bytes=10**6)

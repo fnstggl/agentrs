@@ -19,9 +19,10 @@ Components (all trainable unless noted):
 
 Width and size: the transformers of the segment / long / query encoders run at ``width`` (default ``d_model`` up to 256,
 else ``d_model // 2`` rounded to the heads) with projections from/to ``d_model``; the default ``HashedEventEncoder``
-embeds at ``min(d_model, 128)``. At dev scale (d_model 384) the online encoders hold ~7.6M parameters and the frozen
-target copies ~6.7M (``param_split()``); the target copies are part of the weights because the stored keys are only
-reproducible from them (re-encoding after a restore needs them).
+embeds at ``min(d_model, 128)``. At dev scale (d_model 384) the online event/segment/long encoders hold 6.9M
+parameters, the query net 1.1M and the frozen target copies 6.9M (14.9M in all; ``param_split()``). The target copies
+are part of the weights because the stored keys are only reproducible from them (re-encoding after a restore needs
+them).
 
 Training signals (selection is not differentiable, spec 10.3):
 

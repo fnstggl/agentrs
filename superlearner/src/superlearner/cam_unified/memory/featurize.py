@@ -1,9 +1,11 @@
 """HashedEventEncoder: a learned, semantics-free encoder of archived ``EventRecord`` s into one event token each.
 
 It lets the memory hierarchy encode raw archived events without any other workstream's modules: feature hashing of
-discrete content (tool names, argument keys/short values, observation kinds, units, entity types, sources, words of
-text content, error codes) into an ``EmbeddingBag`` plus scale-free numeric features (rewards, costs, durations,
-outcome flags, observed numeric values as sign*log1p Fourier features), followed by a learned projection.
+discrete structure (tool names, argument keys/short values, observation kinds, units, entity types, sources, error
+codes) and, separately, of the words of text content into one shared ``EmbeddingBag``, plus scale-free numeric
+features (rewards, costs, durations, outcome flags, observed numeric values as sign*log1p Fourier features). The three
+fields are RMS-normalised separately and summed (so a rare content word is not drowned by numeric variation), then
+projected.
 
 Entity *ids* are deliberately not hashed (they are random per world and carry no meaning across worlds): observation
 ``entity`` / ``target`` fields are never read, and action argument values equal to an entity id of the event (its
@@ -92,6 +94,7 @@ class HashedEventEncoder(nn.Module):
         self.num = nn.Linear(n_num, e)
         self.norm = RMSNorm(e)
         self.out = nn.Linear(e, d_model)
+        self.norm_s, self.norm_w, self.norm_n = RMSNorm(e), RMSNorm(e), RMSNorm(e)    # per-field normalisation
         nn.init.normal_(self.emb.weight, std=0.5)
 
     # ------------------------------------------------------------------ discrete features
@@ -167,26 +170,57 @@ class HashedEventEncoder(nn.Module):
             vals, argn
 
     def featurize(self, records: Sequence, device=None) -> tuple:
-        idx, offs, scal, vfeat, afeat, rfeat = [], [], [], [], [], []
-        n = 2 * self.n_fourier + 1
-        for r in records:
-            offs.append(len(idx))
-            idx.extend(_h(t, self.n_buckets) for t in self.tokens(r))
-            s, vals, argn = self.numeric(r)
+        """-> (struct idx, struct offsets, word idx, word offsets, has-words [n], numeric features [n, F])."""
+        n_f = self.n_fourier
+        idx_s, offs_s, idx_w, offs_w, has_w, scal = [], [], [], [], [], []
+        vals, vseg, argn, aseg = [], [], [], []
+        for i, r in enumerate(records):
+            offs_s.append(len(idx_s))
+            offs_w.append(len(idx_w))
+            nw = 0
+            for t in self.tokens(r):
+                if t[:3] in _WORD_FIELDS:
+                    idx_w.append(_h(t, self.n_buckets))
+                    nw += 1
+                else:
+                    idx_s.append(_h(t, self.n_buckets))
+            if len(idx_s) == offs_s[-1]:
+                idx_s.append(_h("<empty>", self.n_buckets))
+            has_w.append(1.0 if nw else 0.0)
+            s, v, a = self.numeric(r)
             scal.append(s)
-            vfeat.append(signed_log_fourier(torch.tensor(vals), self.n_fourier).mean(0) if vals else torch.zeros(n))
-            afeat.append(signed_log_fourier(torch.tensor(argn), self.n_fourier).mean(0) if argn else torch.zeros(n))
-            rfeat.append(signed_log_fourier(torch.tensor([s[0]]), self.n_fourier)[0])
-        num = torch.cat([torch.tensor(scal, dtype=torch.float32), torch.stack(vfeat).float(), torch.stack(afeat).float(),
-                         torch.stack(rfeat).float()], -1)
-        return (torch.tensor(idx, dtype=torch.long, device=device), torch.tensor(offs, dtype=torch.long, device=device),
-                num.to(device))
+            vals.extend(v)
+            vseg.extend([i] * len(v))
+            argn.extend(a)
+            aseg.extend([i] * len(a))
+        n = len(records)
+        sc = torch.tensor(scal, dtype=torch.float32)
+        num = torch.cat([sc, _seg_mean(vals, vseg, n, n_f), _seg_mean(argn, aseg, n, n_f),
+                         signed_log_fourier(sc[:, 0], n_f)], -1)
+        t = lambda x: torch.tensor(x, dtype=torch.long, device=device)      # noqa: E731
+        return (t(idx_s), t(offs_s), t(idx_w), t(offs_w), torch.tensor(has_w, device=device), num.to(device))
 
     def forward(self, records: Sequence) -> torch.Tensor:
-        """records: list[EventRecord | dict] -> [n, d_model] float32."""
+        """records: list[EventRecord | dict] -> [n, d_model] float32. Each feature field (structure, content words,
+        numbers) is normalised on its own before they are combined, so no field drowns the others."""
         dev = self.emb.weight.device
         if len(records) == 0:
             return torch.zeros(0, self.d, device=dev)
-        idx, offs, num = self.featurize(records, dev)
-        h = self.emb(idx, offs) + self.num(num)
+        idx_s, offs_s, idx_w, offs_w, has_w, num = self.featurize(records, dev)
+        h = self.norm_s(self.emb(idx_s, offs_s)) + has_w.unsqueeze(1) * self.norm_w(self.emb(idx_w, offs_w)) + \
+            self.norm_n(self.num(num))
         return self.out(self.norm(h))
+
+
+_WORD_FIELDS = ("ow:", "rw:", "aw:")         # content words (observation / result text, long argument text)
+
+
+def _seg_mean(values: list, seg: list, n: int, n_f: int) -> torch.Tensor:
+    """Mean signed-log Fourier features of each record's values ([n, 2*n_f+1]; zeros where a record has none)."""
+    out = torch.zeros(n, 2 * n_f + 1)
+    if values:
+        f = signed_log_fourier(torch.tensor(values, dtype=torch.float32), n_f)
+        idx = torch.tensor(seg, dtype=torch.long)
+        out.index_add_(0, idx, f)
+        out /= torch.bincount(idx, minlength=n).clamp(min=1).unsqueeze(1).float()
+    return out
