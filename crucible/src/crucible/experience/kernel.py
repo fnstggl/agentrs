@@ -26,12 +26,11 @@ In every mode the verifier runs after each `advance` and `execute`; its status i
 from __future__ import annotations
 
 import copy
-import re
 from bisect import bisect_right
 from typing import Any, Callable, Iterable
 
 from .env import BaseExperienceEnv, error_result
-from .features import annotate_tools, artifact_refs, entities, flatten, is_id, texts
+from .features import annotate_tools, artifact_refs, entities, flatten, texts
 from .modes import LEGACY, OBSERVATION_ONLY, VERIFIED, RewardGate, check_mode
 from .observation import Observation, json_copy
 
@@ -62,7 +61,7 @@ class KernelExperienceEnv(BaseExperienceEnv):
                  max_events: int = 500, max_text: int = 200, max_artifacts: int = 200, join_kind: str = "agent",
                  evaluator: Callable[[Any, str], dict] | None = None, world_id: str | None = None,
                  semantic: bool | str = "auto", max_semantic: int = 8):
-        from ..core.kernel import World, WorldSpec
+        from ..core.kernel import World
         import crucible
         crucible.load_all_modules()
         self.tier = int(tier)

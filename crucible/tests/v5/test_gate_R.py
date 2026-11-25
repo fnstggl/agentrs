@@ -6,7 +6,6 @@ KernelSelfPlayEnv, Gymnasium CrucibleEnv, PettingZoo CrucibleParallelEnv, scale.
 experience adapters (Tier 1 and kernel worlds, with the numeric view of Tier 1).
 """
 import json
-import os
 
 import pytest
 

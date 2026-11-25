@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
 from .modes import OBSERVATION_ONLY
 from .store import FORMAT
