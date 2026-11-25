@@ -206,27 +206,48 @@ class Packages(Module):
         """Files of `repo` with its locked dependencies mounted; `swap` = {dep_repo: commit} replaces locks."""
         code = ctx.world.modules["code"]
         files = code.files(ctx.state, repo, ref)
-        m = self._manifest(files)
-        deps = list(m.get("deps", []))[:10]
         swap = dict(swap or {})
         out = dict(files)
-        mounted = set()
-        for dep in deps:
+        mounted: set[str] = set()
+        # breadth-first over the locked dependencies of dependencies (a flat deps/ namespace, like site-packages);
+        # the first lock seen for a repository wins, and a swapped version replaces the lock wherever it appears
+        queue = [(dep, 1) for dep in list(self._manifest(files).get("deps", []))[:10]]
+        queue += [(f"{r}@{c}", 1) for r, c in sorted(swap.items())]
+        while queue:
+            dep, depth = queue.pop(0)
             dep_repo, _, dep_ref = dep.partition("@")
+            if dep_repo in mounted or dep_repo == repo or depth > 4:
+                continue
             if dep_repo in swap:
-                dep_ref = swap.pop(dep_repo)
+                dep_ref = swap[dep_repo]
             r = ctx.state.get("repos", dep_repo)
             if r is None:
                 raise NotFound(f"dependency {dep_repo} not found")
             if not ((r["visibility"] == "public" and r["license"] == "open") or
                     code._licensed(ctx, actor, r["owner"], dep_repo)):
                 raise Forbidden(f"no licence to use {dep_repo}")
-            for p, c in code.files(ctx.state, dep_repo, dep_ref or None).items():
+            dfiles = code.files(ctx.state, dep_repo, dep_ref or None)
+            for p, c in dfiles.items():
                 out[f"deps/{import_dir(dep_repo)}/{p}"] = c
             mounted.add(dep_repo)
-        for dep_repo, dep_ref in sorted(swap.items()):          # a version swapped in that was not locked yet
-            for p, c in code.files(ctx.state, dep_repo, dep_ref).items():
-                out[f"deps/{import_dir(dep_repo)}/{p}"] = c
+            queue += [(d, depth + 1) for d in list(self._manifest(dfiles).get("deps", []))[:10]]
+        return out
+
+    def closure(self, st, repo: str) -> dict[str, str]:
+        """Packages whose code a repository runs with: its locked packages and, transitively, theirs.
+        Returns {import dir: (package name, locked version)}."""
+        out: dict[str, tuple] = {}
+        todo = [repo]
+        seen = set()
+        while todo:
+            r = todo.pop(0)
+            if r in seen:
+                continue
+            seen.add(r)
+            for name, d in sorted(self._locked(st, r).items()):
+                p = st.tables["pkg_packages"][name]
+                out.setdefault(import_dir(p["repo"]), (name, d["version"]))
+                todo.append(p["repo"])
         return out
 
     def _locked(self, st, repo: str) -> dict[str, dict]:
@@ -235,8 +256,8 @@ class Packages(Module):
 
     def _calls_by_package(self, st, repo: str, calls: dict) -> dict[str, int]:
         out = {}
-        for name, d in self._locked(st, repo).items():
-            n = int(calls.get(import_dir(self.package(st, name)["repo"]), 0))
+        for d, (name, _) in sorted(self.closure(st, repo).items()):
+            n = int(calls.get(d, 0))
             if n:
                 out[name] = n
         return out
@@ -445,10 +466,22 @@ class Packages(Module):
         files = code.files(st, repo, None)
         m = self._manifest(files)
         p = self.package(st, package)
-        deps = [d for d in m.get("deps", []) if d.partition("@")[0] != p["repo"]]
-        deps.append(f"{p['repo']}@{rel['commit']}")
+        # a flat lock: the package and, transitively, what its release itself locks (so that code hosting and
+        # cloud deployments mount every dependency the code imports)
+        lock: dict[str, str] = {}
+        todo = [(p["repo"], rel["commit"])]
+        while todo and len(lock) <= 10:
+            r, c = todo.pop(0)
+            if r in lock or r == repo:
+                continue
+            lock[r] = c
+            for d in self._manifest(code.files(st, r, c)).get("deps", [])[:10]:
+                dr, _, dc = d.partition("@")
+                todo.append((dr, dc or None))
+        deps = [d for d in m.get("deps", []) if d.partition("@")[0] not in lock]
+        deps += [f"{r}@{c}" if c else r for r, c in lock.items()]
         if len(deps) > 10:
-            raise InvalidAction("at most 10 dependencies")
+            raise InvalidAction("at most 10 dependencies (including transitive ones)")
         pk = dict(m.get("packages") or {})
         pk[package] = {"constraint": constraint, "version": rel["version"]}
         m["deps"], m["packages"] = deps, dict(sorted(pk.items()))
@@ -517,12 +550,12 @@ class Packages(Module):
         st = ctx.state
         r = st.tables["repos"][repo]
         by_pkg = self._calls_by_package(st, repo, calls or {})
-        locked = {k: v["version"] for k, v in self._locked(st, repo).items()}
+        locked = {name: ver for name, ver in self.closure(st, repo).values()}
         indep = {k: self._independent(ctx.world, r["owner"], self.package(st, k)["owner"]) for k in by_pkg}
         eid = st.new_id("pexec")
         ctx.emit("pkg.executed", {"id": eid, "repo": repo, "commit": commit, "owner": r["owner"], "by": ctx.actor,
                                   "kind": kind, "ok": bool(ok), "calls": by_pkg, "locked": locked,
-                                  "independent": indep, **(extra or {})}, vis=(r["owner"], ctx.actor))
+                                  "independent": indep, **(extra or {})}, vis=tuple(sorted({r["owner"], ctx.actor})))
         return eid, by_pkg
 
     @endpoint("exec", S.obj({"repo": S.s_str(maxLength=81),
@@ -575,10 +608,10 @@ class Packages(Module):
         st = ctx.state
         res = ctx.call("cloud.deploy", {"repo": repo, "host": host, "instance": instance})
         r = st.tables["repos"][repo]
-        locked = {k: v["version"] for k, v in self._locked(st, repo).items()}
+        locked = {name: ver for name, ver in self.closure(st, repo).values()}
         ctx.emit("pkg.deployed", {"id": res["deployment"], "repo": repo, "host": host, "commit": r["head"],
                                   "status": res["status"], "packages": locked, "owner": r["owner"]},
-                 vis=(r["owner"], ctx.actor))
+                 vis=tuple(sorted({r["owner"], ctx.actor})))
         return {**res, "packages": locked}
 
     # ================================================================== collaboration

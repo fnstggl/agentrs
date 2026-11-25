@@ -172,3 +172,133 @@ class BatchCreator(ServiceCreator):
         # the composite's service principal pays the base service from its operator's account
         self.ex(world, "id.grant", grantee=f"svc:{self.host}", cap="bank.spend", limit=10_000_000)
         return True
+
+
+# ====================================================================== a scripted software-ecosystem history
+VEC_LIB = ("def sub(a, b):\n    return [x - y for x, y in zip(a, b)]\n\n\n"
+           "def norm(v):\n    return sum(x * x for x in v) ** 0.5\n")
+VEC_TESTS = "from lib import norm, sub\n\n\ndef test_norm():\n    assert norm(sub([3, 4], [0, 0])) == 5\n"
+GEO_LIB_V1 = ("from deps.vecmath.lib import norm, sub\n\n\n"
+              "def dist(a, b):\n    return norm(sub(a, b))\n\n\n"
+              "def path_length(points):\n    return sum(dist(points[i], points[i + 1]) for i in range(len(points) - 1))\n\n\n"
+              "def parse_point(s):\n    \"\"\"'x,y' -> (x, y)\"\"\"\n    return tuple(eval('(' + s + ')'))\n")
+GEO_LIB_FIXED = GEO_LIB_V1.replace("    return tuple(eval('(' + s + ')'))\n",
+                                   "    parts = s.split(',')\n    if len(parts) != 2:\n        raise ValueError('x,y')\n"
+                                   "    return (float(parts[0]), float(parts[1]))\n")
+GEO_LIB_RENAMED = GEO_LIB_FIXED.replace("def parse_point(s):", "def parse(s):")
+GEO_TESTS = ("from lib import dist, parse_point, path_length\n\n\n"
+             "def test_dist():\n    assert dist((0, 0), (3, 4)) == 5\n\n\n"
+             "def test_path():\n    assert path_length([(0, 0), (3, 4), (3, 0)]) == 9\n\n\n"
+             "def test_parse():\n    assert parse_point('1,2') == (1, 2)\n")
+GEO_README = ("# geokit\n\nPlanar geometry for routing code: `dist(a, b)`, `path_length(points)`, "
+              "`parse_point('x,y')`.\nImport as `from deps.geokit.lib import dist`.\n")
+APP_SERVICE = ("from deps.geokit.lib import parse_point, path_length\n\n\n"
+               "def length(args, caller):\n    return {'length': path_length([parse_point(s) for s in args['points']])}\n")
+APP_TESTS = ("from service import length\n\n\n"
+             "def test_length():\n    assert abs(length({'points': ['0,0', '3,4', '3,0']}, None)['length'] - 9) < 1e-9\n")
+AUDIT_TESTS = ("from deps.geokit.lib import parse_point\n\n\n"
+               "def test_parse_point_does_not_execute_input():\n"
+               "    try:\n        r = parse_point(\"__import__('os').getpid(), 1\")\n    except Exception:\n        return\n"
+               "    raise AssertionError('parse_point evaluated code: %r' % (r,))\n")
+
+
+def software_history(world: World, step=None, prefix: str = "") -> dict:
+    """A scripted history through the pkg tools only (scripted reference developers ana, ben, cat, dan, eve):
+    two packages with a transitive dependency, an independent dependent that executes and deploys them, a
+    verified security advisory, an independent review of a fix from a fork, a patch release that fixes the
+    advisory, a breaking minor release caught by compatibility checks, a fork registered as a substitute package,
+    a star (not adoption) and issue maintenance. `step(world, seconds)` advances time between acts (default:
+    advance the clock). Returns the results of the main acts."""
+    def adv(s):
+        if step is not None:
+            step(world, s)
+        else:
+            world.advance_time(world.now + s)
+    devs = {}
+    for h in ("ana", "ben", "cat", "dan", "eve"):
+        handle = prefix + h
+        if not world.state.has("principals", f"p:{handle}"):
+            join(world, handle, 2_000_000)
+        devs[h] = _Agent(handle)
+        devs[h].joined = True
+    ana, ben, cat, dan, eve = (devs[h] for h in ("ana", "ben", "cat", "dan", "eve"))
+    hn = {h: devs[h].handle for h in devs}
+
+    def must(agent, tool, **args):
+        r = agent.ex(world, tool, **args)
+        if not r.ok:
+            raise RuntimeError(f"{agent.actor} {tool}: {r.error}")
+        return r.result
+    out: dict = {}
+    must(eve, "code.create_repo", name="vecmath", visibility="public", license="open", description="vector maths")
+    must(eve, "code.commit", repo=f"{hn['eve']}/vecmath", files={"lib.py": VEC_LIB, "tests/test_lib.py": VEC_TESTS,
+                                                                 "README.md": "# vecmath\n\n`sub(a, b)`, `norm(v)`.\n"})
+    must(eve, "pkg.register", name="vecmath", repo=f"{hn['eve']}/vecmath", description="Small vector maths: sub, norm")
+    must(eve, "pkg.release", package="vecmath", version="1.0.0")
+    must(ana, "code.create_repo", name="geokit", visibility="public", license="open", description="planar geometry")
+    must(ana, "pkg.search", query="vector norm")
+    must(ana, "code.commit", repo=f"{hn['ana']}/geokit", files={"lib.py": GEO_LIB_V1, "tests/test_lib.py": GEO_TESTS,
+                                                                "README.md": GEO_README})
+    must(ana, "pkg.depend", repo=f"{hn['ana']}/geokit", package="vecmath", constraint="^1.0.0")
+    must(ana, "pkg.register", name="geokit", repo=f"{hn['ana']}/geokit",
+         description="Planar geometry for routing: distances, path lengths, point parsing")
+    out["geokit_1_0_0"] = must(ana, "pkg.release", package="geokit", version="1.0.0", notes="first release")
+    adv(3600)
+    # an independent developer finds it, incorporates it and runs it
+    found = must(ben, "pkg.search", query="distance path length points geometry")
+    out["ben_found"] = [r["package"] for r in found]
+    app = f"{hn['ben']}/routecalc"
+    must(ben, "code.create_repo", name="routecalc", visibility="private", description="route length service")
+    manifest = {"entry": "service.py", "endpoints": {"length": {"handler": "length", "doc": "length of a polyline",
+                                                                 "price_cents": 1,
+                                                                 "params": {"type": "object", "additionalProperties": True}}}}
+    must(ben, "code.commit", repo=app, files={"service.py": APP_SERVICE, "tests/test_service.py": APP_TESTS,
+                                              "crucible.json": json.dumps(manifest)})
+    out["ben_depend"] = must(ben, "pkg.depend", repo=app, package="geokit", constraint="^1.0.0")
+    out["ben_ci"] = must(ben, "pkg.ci", repo=app)
+    out["ben_exec"] = must(ben, "pkg.exec", repo=app, target="service:length", input={"points": ["0,0", "6,8"]})
+    provs = world.query(ben.actor, "cloud.providers")
+    acct = world.modules["bank"].primary_account(world.state, ben.actor)
+    inst = must(ben, "cloud.rent", provider=sorted(provs, key=lambda p: -p["cores_free"])[0]["provider"], cores=1,
+                account=acct)
+    host = f"{prefix}routecalc"
+    out["ben_deploy"] = must(ben, "pkg.deploy", repo=app, host=host, instance=inst["instance"])
+    out["cat_call"] = must(cat, f"{host}.length", points=["0,0", "0,5"])
+    must(dan, "pkg.star", package="geokit")
+    adv(6 * 3600)
+    # a security researcher demonstrates a defect with an executable reproduction
+    audit = f"{hn['cat']}/geokit-audit"
+    must(cat, "code.create_repo", name="geokit-audit", visibility="public", license="open", description="audit")
+    must(cat, "code.commit", repo=audit, files={"tests/test_inject.py": AUDIT_TESTS})
+    must(cat, "pkg.report", package="geokit", title="parse_point evaluates its input", labels=["bug"])
+    out["advisory"] = must(cat, "pkg.advisory", package="geokit", version="1.0.0", kind="security", severity="high",
+                           description="parse_point passes its argument to eval: code execution in dependents",
+                           repro_repo=audit)
+    adv(12 * 3600)
+    # a contributor fixes it in a fork and proposes it; an independent developer reviews it; the maintainer merges
+    must(dan, "pkg.fork", package="geokit", name="geokit-fix")
+    fork = f"{hn['dan']}/geokit-fix"
+    must(dan, "code.commit", repo=fork, files={"lib.py": GEO_LIB_FIXED}, message="parse without eval")
+    pr = must(dan, "pkg.pr_open", repo=f"{hn['ana']}/geokit", source_repo=fork, title="Parse points without eval",
+              body="Fixes the advisory.")
+    out["pr"] = pr
+    must(ben, "pkg.pr_diff", pr=pr["pr"])
+    must(ben, "pkg.pr_review", pr=pr["pr"], verdict="approve", comment="no eval any more; tests pass")
+    out["merge"] = must(ana, "pkg.pr_merge", pr=pr["pr"])
+    out["geokit_1_0_1"] = must(ana, "pkg.release", package="geokit", version="1.0.1", notes="security fix")
+    project = world.state.get("pkg_packages", "geokit")["project"]
+    for i in world.query(ana.actor, "issues.list", {"project": project}):
+        must(ana, "issues.close", issue=i["issue"], comment="fixed in 1.0.1")
+    adv(6 * 3600)
+    out["ben_upgrade"] = must(ben, "pkg.upgrade", repo=app, package="geokit")
+    must(ben, "pkg.ci", repo=app)
+    # a breaking change released as a minor version: caught by the API comparison and by the dependent's tests
+    must(ana, "code.commit", repo=f"{hn['ana']}/geokit", files={"lib.py": GEO_LIB_RENAMED}, message="rename parse_point")
+    out["geokit_1_1_0"] = must(ana, "pkg.release", package="geokit", version="1.1.0")
+    out["ben_upgrade_breaking"] = must(ben, "pkg.upgrade", repo=app, package="geokit")
+    # the fork becomes its own package (a substitute with the same API)
+    must(dan, "pkg.register", name="geokitx", repo=fork, description="geokit with safe parsing")
+    must(dan, "pkg.release", package="geokitx", version="1.0.0")
+    adv(12 * 3600)
+    out["developers"] = {h: devs[h].actor for h in devs}
+    return out
