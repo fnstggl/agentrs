@@ -179,6 +179,258 @@
      }
     }
    }
+  },
+  "merged": {
+   "meta": {
+    "started": "2026-11-25T08:25:02",
+    "load_avg_start": [
+     13.52587890625,
+     11.84326171875,
+     8.4638671875
+    ],
+    "gpu_start": {
+     "gpu": "NVIDIA RTX A6000",
+     "memory_used_mb": 924,
+     "memory_total_mb": 49140,
+     "utilization_pct": 0,
+     "compute_processes": 1,
+     "other_processes_mb": 914
+    },
+    "commit": "245eeaa",
+    "load_avg_end": [
+     11.7392578125,
+     11.9267578125,
+     9.53759765625
+    ],
+    "gpu_end": {
+     "gpu": "NVIDIA RTX A6000",
+     "memory_used_mb": 30924,
+     "memory_total_mb": 49140,
+     "utilization_pct": 100,
+     "compute_processes": 4,
+     "other_processes_mb": 20986
+    },
+    "peak_gpu_mb": 8426
+   },
+   "runs": [
+    {
+     "B": 8,
+     "n_actions": 145,
+     "schema_valid": 145,
+     "schema_valid_frac": 1.0,
+     "tokens_mean": 23.77,
+     "tokens_max": 207,
+     "tokens_p90": 60,
+     "qwen_steps_total": 1972,
+     "prompt_tokens_mean_per_batch": 1087.3,
+     "wall_s_total": 109.51,
+     "wall_s_per_action": 0.7552
+    },
+    {
+     "B": 1,
+     "n_actions": 145,
+     "schema_valid": 145,
+     "schema_valid_frac": 1.0,
+     "tokens_mean": 22.22,
+     "tokens_max": 198,
+     "tokens_p90": 50,
+     "qwen_steps_total": 4145,
+     "prompt_tokens_mean_per_batch": 140.3,
+     "wall_s_total": 197.57,
+     "wall_s_per_action": 1.3625
+    }
+   ],
+   "tools": "all 145 ow_tiny tools",
+   "expected_length_prior": {
+    "short": 28.2,
+    "text": 104.2,
+    "code": 440.7
+   },
+   "step_ms": {
+    "B1": {
+     "lora_path": {
+      "median_ms": 50.47,
+      "min_ms": 48.79
+     },
+     "acting_path": {
+      "median_ms": 35.13,
+      "min_ms": 33.84
+     }
+    },
+    "B8": {
+     "lora_path": {
+      "median_ms": 48.2,
+      "min_ms": 47.03
+     },
+     "acting_path": {
+      "median_ms": 35.74,
+      "min_ms": 33.72
+     }
+    }
+   }
+  },
+  "trained": {
+   "meta": {
+    "started": "2026-11-25T08:25:02",
+    "load_avg_start": [
+     13.52587890625,
+     11.84326171875,
+     8.4638671875
+    ],
+    "gpu_start": {
+     "gpu": "NVIDIA RTX A6000",
+     "memory_used_mb": 924,
+     "memory_total_mb": 49140,
+     "utilization_pct": 0,
+     "compute_processes": 1,
+     "other_processes_mb": 914
+    },
+    "commit": "245eeaa",
+    "load_avg_end": [
+     12.77197265625,
+     12.1962890625,
+     10.15576171875
+    ],
+    "gpu_end": {
+     "gpu": "NVIDIA RTX A6000",
+     "memory_used_mb": 11755,
+     "memory_total_mb": 49140,
+     "utilization_pct": 39,
+     "compute_processes": 2,
+     "other_processes_mb": 802
+    },
+    "peak_gpu_mb": 9111
+   },
+   "runs": [
+    {
+     "B": 8,
+     "n_actions": 49,
+     "schema_valid": 49,
+     "schema_valid_frac": 1.0,
+     "tokens_mean": 23.22,
+     "tokens_max": 158,
+     "tokens_p90": 52,
+     "qwen_steps_total": 641,
+     "prompt_tokens_mean_per_batch": 1034.4,
+     "wall_s_total": 49.58,
+     "wall_s_per_action": 1.0119,
+     "merged_acting": false
+    },
+    {
+     "B": 1,
+     "n_actions": 49,
+     "schema_valid": 49,
+     "schema_valid_frac": 1.0,
+     "tokens_mean": 18.33,
+     "tokens_max": 74,
+     "tokens_p90": 43,
+     "qwen_steps_total": 1081,
+     "prompt_tokens_mean_per_batch": 148.1,
+     "wall_s_total": 70.1,
+     "wall_s_per_action": 1.4307,
+     "merged_acting": false
+    },
+    {
+     "B": 8,
+     "n_actions": 49,
+     "schema_valid": 49,
+     "schema_valid_frac": 1.0,
+     "tokens_mean": 28.0,
+     "tokens_max": 305,
+     "tokens_p90": 44,
+     "qwen_steps_total": 832,
+     "prompt_tokens_mean_per_batch": 1213.0,
+     "wall_s_total": 47.87,
+     "wall_s_per_action": 0.9769,
+     "merged_acting": true
+    },
+    {
+     "B": 1,
+     "n_actions": 49,
+     "schema_valid": 49,
+     "schema_valid_frac": 1.0,
+     "tokens_mean": 20.55,
+     "tokens_max": 156,
+     "tokens_p90": 44,
+     "qwen_steps_total": 1217,
+     "prompt_tokens_mean_per_batch": 166.0,
+     "wall_s_total": 52.17,
+     "wall_s_per_action": 1.0646,
+     "merged_acting": true
+    }
+   ],
+   "tools": "every 3rd ow_tiny tool (49), LoRA B ~ N(0, 0.02^2)",
+   "step_ms": {
+    "B1": {
+     "lora_path": {
+      "median_ms": 49.96,
+      "min_ms": 46.82
+     },
+     "acting_path": {
+      "median_ms": 32.47,
+      "min_ms": 32.29
+     }
+    },
+    "B8": {
+     "lora_path": {
+      "median_ms": 48.32,
+      "min_ms": 47.25
+     },
+     "acting_path": {
+      "median_ms": 33.67,
+      "min_ms": 33.43
+     }
+    }
+   }
+  },
+  "baseline_all": {
+   "meta": {
+    "started": "2026-11-25T08:25:02",
+    "load_avg_start": [
+     13.52587890625,
+     11.84326171875,
+     8.4638671875
+    ],
+    "gpu_start": {
+     "gpu": "NVIDIA RTX A6000",
+     "memory_used_mb": 924,
+     "memory_total_mb": 49140,
+     "utilization_pct": 0,
+     "compute_processes": 1,
+     "other_processes_mb": 914
+    },
+    "commit": "245eeaa",
+    "load_avg_end": [
+     14.21240234375,
+     12.79345703125,
+     10.83349609375
+    ],
+    "gpu_end": {
+     "gpu": "NVIDIA RTX A6000",
+     "memory_used_mb": 17900,
+     "memory_total_mb": 49140,
+     "utilization_pct": 80,
+     "compute_processes": 3,
+     "other_processes_mb": 6700
+    },
+    "peak_gpu_mb": 9111
+   },
+   "runs": [
+    {
+     "B": 8,
+     "n_actions": 145,
+     "schema_valid": 145,
+     "schema_valid_frac": 1.0,
+     "tokens_mean": 38.99,
+     "tokens_max": 1606,
+     "tokens_p90": 58,
+     "qwen_steps_total": 3809,
+     "prompt_tokens_mean_per_batch": 1075.4,
+     "wall_s_total": 230.87,
+     "wall_s_per_action": 1.5922
+    }
+   ],
+   "tools": "all 145 ow_tiny tools (B=8 only)"
   }
  }
 }
