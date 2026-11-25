@@ -41,6 +41,18 @@ def test_render_html_lite_lays_out_structure_and_ignores_scripts():
     assert (px > 200).all(axis=2).sum() > 200                  # white text was drawn
 
 
+@pytest.mark.browser
+def test_render_html_chromium_runs_no_scripts_and_fetches_nothing():
+    html = ("<html><body style='background:#123456;margin:0'><h1 style='color:#ffffff'>Hello</h1>"
+            "<img src='http://example.com/x.png'><script>document.body.style.background='#ff0000'</script>"
+            "</body></html>")
+    im = M.open_image(M.render_html_image(html, width=400, engine="chromium"))
+    assert im.width == 400
+    assert im.getpixel((5, im.height - 5)) == (0x12, 0x34, 0x56)     # the script did not run
+    px = np.asarray(im)
+    assert (px > 230).all(axis=2).sum() > 100                        # the white heading was rendered
+
+
 def test_draw_scene_and_process_image_ops():
     scene = M.draw_scene({"background": "#ffffff", "shapes": [{"kind": "circle", "xy": [0.25, 0.25, 0.75, 0.75],
                                                                 "fill": "#ff0000"}]}, width=200, height=100)

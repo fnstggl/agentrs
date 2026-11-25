@@ -15,6 +15,9 @@ browser = ["playwright>=1.48"]
 postgres = ["psycopg[binary]>=3.2"]
 rl = ["gymnasium>=1.0", "pettingzoo>=1.24", "torch>=2.4"]
 dev = ["pytest>=8", "pytest-timeout>=2", "hypothesis>=6"]
+# content encoders and media tools (crucible.semantic.encoders, crucible.semantic.media); all already present in the
+# shared environment, nothing was installed. Also needs the ffmpeg/ffprobe binaries (with libflite) on PATH.
+v5-semantic-encoders = ["torch>=2.4", "transformers>=4.50", "pillow>=10", "huggingface_hub>=0.24", "safetensors>=0.4"]
 
 [project.scripts]
 crucible = "crucible.cli:main"

@@ -153,7 +153,9 @@ def encode_bytes(data: bytes, modality: str, *, cache: EmbeddingCache | None = N
 def encode_bytes_many(datas: Sequence[bytes], modality: str, *, cache: EmbeddingCache | None = None) -> np.ndarray:
     refs = [ref_of(d) for d in datas]
     keys = [cache_key(r, modality) for r in refs]
-    return _vectors(None, refs, keys, modality, list(datas), cache or default_cache())
+    out = _vectors(None, refs, keys, modality, list(datas), cache or default_cache())
+    out.setflags(write=False)
+    return out
 
 
 # ============================================================================================== recording
@@ -193,8 +195,13 @@ def _world_vector(world, key: str) -> np.ndarray | None:
     rec = world.state.get(TABLE, key)
     if rec is None:
         return None
+    dec = world.runtime.setdefault("embed.decoded", {})        # runtime cache of decoded records (never persisted)
+    hit = dec.get(key)
+    if hit is not None and hit[0] == rec["sha256"]:
+        return hit[1]
     v = _unb64(rec["vec"], (rec["dim"],))
     v.setflags(write=False)
+    dec[key] = (rec["sha256"], v)
     return v
 
 

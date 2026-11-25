@@ -87,7 +87,11 @@ class VideoEncoder(Encoder):
         if not info["has_video"]:
             raise media.MediaError("not a video (no video stream)")
         duration = min(float(info["duration_s"] or 0.0), MAX_S)
+        if duration <= 0.0 or info["format"] in ("image2", "png_pipe", "jpeg_pipe", "webp_pipe", "bmp_pipe"):
+            raise media.MediaError("not a video (a still image or no duration)")
         frames = media.extract_frames(data, N_FRAMES, max_side=448, info=info)
+        if len(frames) != N_FRAMES:
+            raise media.MediaError(f"decoded {len(frames)} of {N_FRAMES} frames")
         fv = IMAGE.embed_images(frames)                                          # [8, 512], unit rows
         per = len(fv) // N_SEGMENTS
         segs = [M.l2n(fv[k * per:(k + 1) * per].mean(axis=0)) for k in range(N_SEGMENTS)]

@@ -180,8 +180,12 @@ def load(role: str) -> Loaded:
             top = model.vision_model
             used = [model.vision_model, model.visual_projection]     # the text tower is loaded but never run
         elif role == "audio":
+            import warnings
+
             from transformers import ASTFeatureExtractor, ASTForAudioClassification
-            proc = ASTFeatureExtractor.from_pretrained(path, **kw)
+            with warnings.catch_warnings():      # the numpy fbank's top mel filter is empty at 16 kHz (harmless)
+                warnings.simplefilter("ignore")
+                proc = ASTFeatureExtractor.from_pretrained(path, **kw)
             model = ASTForAudioClassification.from_pretrained(path, dtype=torch.float32, **kw)
             top = model.audio_spectrogram_transformer
         elif role == "speech":
