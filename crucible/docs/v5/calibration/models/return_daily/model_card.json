@@ -1,0 +1,310 @@
+{
+ "domain": "browsing_frequency",
+ "features": [
+  "active_days_7d",
+  "days_since_last_active",
+  "log_rows_7d",
+  "log_sessions_7d",
+  "active_yesterday",
+  "weekend"
+ ],
+ "target": "active: at least one logged exposure on the day",
+ "feature_map": {
+  "active_days_7d": "number of the previous 7 days on which the individual was active on the platform",
+  "days_since_last_active": "days since the individual's last active day, capped at 14",
+  "log_rows_7d": "log1p(feed exposures in the previous 7 days); map by quantile (dataset logs only a sample of exposures)",
+  "log_sessions_7d": "log1p(sessions in the previous 7 days; a session ends after 30 idle minutes); map by quantile",
+  "active_yesterday": "1 if the individual was active the previous day",
+  "weekend": "1 on Saturdays and Sundays"
+ },
+ "metrics": {
+  "n": 16104,
+  "log_loss": 0.5617286764812411,
+  "brier": 0.18994149594300608,
+  "ece": 0.026131978875098046,
+  "auc": 0.7034840113412041,
+  "mean_pred": 0.7182866079965324,
+  "mean_obs": 0.6933681073025335
+ },
+ "baseline_metrics": {
+  "n": 16104,
+  "log_loss": 0.6102774954575011,
+  "brier": 0.21115066880094205,
+  "ece": 0.07279074902025726,
+  "auc": 0.6480287138522334,
+  "mean_pred": 0.6340591709444169,
+  "mean_obs": 0.6933681073025335,
+  "baseline": "B1_own_rate"
+ },
+ "candidates": {
+  "B0_constant": {
+   "complexity": "baseline: constant",
+   "n_params": 1,
+   "val": {
+    "n": 16584,
+    "log_loss": 0.6124794805476875,
+    "brier": 0.2106944953035186,
+    "ece": 0.027779765347629604,
+    "auc": 0.5,
+    "mean_pred": 0.6724131917194229,
+    "mean_obs": 0.7001929570670525
+   },
+   "test": {
+    "n": 16104,
+    "log_loss": 0.6173873660789814,
+    "brier": 0.21304788356533116,
+    "ece": 0.020954915583110467,
+    "auc": 0.5,
+    "mean_pred": 0.672413191719423,
+    "mean_obs": 0.6933681073025335
+   }
+  },
+  "B1_own_rate": {
+   "complexity": "baseline rule: (active_days_7d + 1) / 9",
+   "n_params": 0,
+   "val": {
+    "n": 16584,
+    "log_loss": 0.6433295413309452,
+    "brier": 0.22560790409319115,
+    "ece": 0.14825534651873287,
+    "auc": 0.6639829878182445,
+    "mean_pred": 0.5519376105483196,
+    "mean_obs": 0.7001929570670525
+   },
+   "test": {
+    "n": 16104,
+    "log_loss": 0.6102774954575011,
+    "brier": 0.21115066880094205,
+    "ece": 0.07279074902025726,
+    "auc": 0.6480287138522334,
+    "mean_pred": 0.6340591709444169,
+    "mean_obs": 0.6933681073025335
+   }
+  },
+  "M1_logistic": {
+   "complexity": "L2 logistic, 6 features",
+   "n_params": 7,
+   "val": {
+    "n": 16584,
+    "log_loss": 0.5535608754985475,
+    "brier": 0.18688675108631095,
+    "ece": 0.03402264797709823,
+    "auc": 0.7132266822348451,
+    "mean_pred": 0.6887099143717091,
+    "mean_obs": 0.7001929570670525
+   },
+   "test": {
+    "n": 16104,
+    "log_loss": 0.5718919741511339,
+    "brier": 0.19455939441586337,
+    "ece": 0.04277874948241537,
+    "auc": 0.6938274619612408,
+    "mean_pred": 0.7261659761762123,
+    "mean_obs": 0.6933681073025335
+   }
+  },
+  "M2_gbdt": {
+   "complexity": "GBDT, 119 trees",
+   "n_params": 10829,
+   "val": {
+    "n": 16584,
+    "log_loss": 0.5429293654018529,
+    "brier": 0.18290124601089422,
+    "ece": 0.011292505740484928,
+    "auc": 0.7227862353672471,
+    "mean_pred": 0.6897304767741702,
+    "mean_obs": 0.7001929570670525
+   },
+   "test": {
+    "n": 16104,
+    "log_loss": 0.5617286764812411,
+    "brier": 0.18994149594300608,
+    "ece": 0.026131978875098046,
+    "auc": 0.7034840113412041,
+    "mean_pred": 0.7182866079965324,
+    "mean_obs": 0.6933681073025335
+   }
+  }
+ },
+ "selection": {
+  "rule": "argmin validation primary metric (ties to the simpler); keep only if no simple baseline is better on test",
+  "primary_metric": "log_loss",
+  "lower_is_better": true,
+  "validation": {
+   "B0_constant": 0.6124794805476875,
+   "B1_own_rate": 0.6433295413309452,
+   "M1_logistic": 0.5535608754985475,
+   "M2_gbdt": 0.5429293654018529
+  },
+  "test": {
+   "B0_constant": 0.6173873660789814,
+   "B1_own_rate": 0.6102774954575011,
+   "M1_logistic": 0.5718919741511339,
+   "M2_gbdt": 0.5617286764812411
+  },
+  "baselines": [
+   "B0_constant",
+   "B1_own_rate"
+  ],
+  "candidates": [
+   "B0_constant",
+   "B1_own_rate",
+   "M1_logistic",
+   "M2_gbdt"
+  ],
+  "selected_on_validation": "M2_gbdt",
+  "best_baseline_on_test": "B1_own_rate",
+  "kept": "M2_gbdt",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better on the primary metric"
+ },
+ "uncertainty": {
+  "metric": "log_loss",
+  "kept": "M2_gbdt",
+  "baseline": "B1_own_rate",
+  "kept_test": 0.5617286764812411,
+  "baseline_test": 0.6102774954575011,
+  "difference": -0.048548818976259955,
+  "ci95": [
+   -0.054866359339599824,
+   -0.042842272358141115
+  ],
+  "kept_ci95": [
+   0.5514457433389219,
+   0.5712962641268282
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 4026
+  }
+ },
+ "provenance": {
+  "datasets": [
+   "kuairand_pure"
+  ],
+  "identification": "observational",
+  "population": "27,285 anonymised Kuaishou users chosen by the KuaiRand authors (China, 2022); interactions only with the 7,583 videos of the random-exposure pool",
+  "platform": "Kuaishou app (feed activity from both logs)",
+  "period": "2022-04-22 to 2022-05-08",
+  "evaluation_plan": {
+   "path": "docs/v5/calibration/plans/E1_evaluation_plan.json",
+   "sha256": "5ae089ed1f363e9c447a4902e0d040393fdb140811e818a46d03b8a4748c97d2",
+   "commit": "d6f476707b262180b872c0f12f6f1ca0211de1dc",
+   "committed_at": "2026-11-25T06:32:03+00:00"
+  },
+  "fit": {
+   "commit": "d86f683cc56d382bcb67012bd301e1c9be67e2df",
+   "seconds": 9.964102268218994,
+   "command": "python -m crucible.calibration.fit_e1 --models content,watch,return,session,news"
+  },
+  "domain": "browsing_frequency",
+  "kept_candidate": "M2_gbdt"
+ },
+ "limits": "Evidence: KuaiRand-Pure (27,285 anonymised Kuaishou users chosen by the KuaiRand authors (China, 2022); interactions only with the 7,583 videos of the random-exposure pool); activity = at least one logged exposure that day in the standard or random-exposure log (Kuaishou app, 2022-04-22..05-08). The simulator may use the model for the daily probability that an individual comes back to a feed platform given its recent activity pattern, and the fitted relation between recent activity and return (habit persistence). It may NOT infer: absolute activity levels of other platforms (an active day here requires a logged pool-video exposure, and the random-insertion rate rose during the period, so detected activity rises over time); long-horizon churn beyond 17 days; effects of notifications, content quality or social ties (not inputs); populations other than this selected sample of Kuaishou users. The training days include the 2022-04-30..05-04 Labour Day holiday in China, the test days do not.",
+ "report": "docs/v5/calibration/reports/return_daily.json",
+ "fitted_at": "2026-11-25T07:13:55Z",
+ "feature_quantiles": {
+  "levels": [
+   0.0,
+   0.01,
+   0.05,
+   0.1,
+   0.25,
+   0.5,
+   0.75,
+   0.9,
+   0.95,
+   0.99,
+   1.0
+  ],
+  "active_days_7d": [
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   2.0,
+   4.0,
+   6.0,
+   7.0,
+   7.0,
+   7.0,
+   7.0
+  ],
+  "days_since_last_active": [
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   2.0,
+   5.0,
+   8.0,
+   14.0,
+   14.0
+  ],
+  "log_rows_7d": [
+   0.0,
+   0.0,
+   0.0,
+   0.693147,
+   1.609438,
+   2.397895,
+   2.995732,
+   3.637586,
+   4.094345,
+   4.882802,
+   6.582025
+  ],
+  "log_sessions_7d": [
+   0.0,
+   0.0,
+   0.0,
+   0.693147,
+   1.386294,
+   2.079442,
+   2.564949,
+   2.995732,
+   3.258097,
+   3.688879,
+   4.369448
+  ],
+  "active_yesterday": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  "weekend": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ]
+ },
+ "mechanisms": [
+  "population.daily_return"
+ ],
+ "schema": "crucible.v5.model_card/1",
+ "name": "return_daily",
+ "version": 1,
+ "kind": "gbdt_binary",
+ "checkpoint": "params.npz",
+ "files": {
+  "params.npz": "1db2287048fd76cdea61cb07300331782d26dd4b26091241dd100a11e0210ed2"
+ }
+}

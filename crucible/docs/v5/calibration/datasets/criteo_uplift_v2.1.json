@@ -1,0 +1,93 @@
+{
+ "schema": "crucible.v5.calibration.dataset/1",
+ "name": "criteo_uplift_v2.1",
+ "workstream": "E2",
+ "synthetic": false,
+ "url": "https://huggingface.co/datasets/criteo/criteo-uplift/resolve/2424920019e49d52d72c13ac1143ec5d53af276b/criteo-research-uplift-v2.1.csv.gz",
+ "homepage": "https://ailab.criteo.com/criteo-uplift-prediction-dataset/",
+ "mirror": {
+  "kind": "huggingface",
+  "repo": "criteo/criteo-uplift",
+  "revision": "2424920019e49d52d72c13ac1143ec5d53af276b",
+  "note": "go.criteo.net/criteo-research-uplift-v2.1.csv.gz returned HTTP 404 on 2026-11-25; the Criteo-owned Hugging Face repository holds the same file (LFS SHA-256 below)"
+ },
+ "license": {
+  "spdx": "CC-BY-NC-SA-4.0",
+  "summary": "Creative Commons Attribution-NonCommercial-ShareAlike 4.0 (dataset card on the Criteo-owned Hugging Face repository). Attribution: Diemert, Betlei, Renaudin and Amini, 'A Large Scale Benchmark for Uplift Modeling', AdKDD 2018. Fitted parameters derived from it are shared under the same license, non-commercially.",
+  "text_locations": [
+   "https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode",
+   "https://huggingface.co/datasets/criteo/criteo-uplift/blob/2424920019e49d52d72c13ac1143ec5d53af276b/README.md"
+  ]
+ },
+ "files": [
+  {
+   "file": "criteo-research-uplift-v2.1.csv.gz",
+   "url": "https://huggingface.co/datasets/criteo/criteo-uplift/resolve/2424920019e49d52d72c13ac1143ec5d53af276b/criteo-research-uplift-v2.1.csv.gz",
+   "sha256": "2716e1bf0fd157a93b5bf86924d9088419dfbac2022c6cd90030220634f616dc",
+   "bytes": 311422618
+  }
+ ],
+ "derived_files": [
+  {
+   "file": "features.npy",
+   "sha256": "70d39adfeb009845ab48181ac2e1f93fa37188c303a0eaed77c9d3f9583463ae"
+  },
+  {
+   "file": "treatment.npy",
+   "sha256": "a30300cf846f981d27f47fa1a0a8ff4540819c804861ff8949b8604f654d6a10"
+  },
+  {
+   "file": "conversion.npy",
+   "sha256": "9cbb97b5be8bd122f5cd9f3ffc5099c60b1281a338c08f76ccd1a3c4dbaa8042"
+  },
+  {
+   "file": "visit.npy",
+   "sha256": "03a4853035a90f57f7c2d267b7f1ffe73d01ed260902c072015fa661088eb45f"
+  },
+  {
+   "file": "exposure.npy",
+   "sha256": "cbea7752958bdc01b35046c7c5efaaa343d460a8b8fd30084e744c435c87e51b"
+  }
+ ],
+ "size": {
+  "rows": 13979592,
+  "compressed_bytes": 311422618,
+  "converted": "features float32 [N,12] + 4 uint8 label columns"
+ },
+ "schema_columns": {
+  "f0": "float (anonymised random projection)",
+  "f1": "float (anonymised random projection)",
+  "f2": "float (anonymised random projection)",
+  "f3": "float (anonymised random projection)",
+  "f4": "float (anonymised random projection)",
+  "f5": "float (anonymised random projection)",
+  "f6": "float (anonymised random projection)",
+  "f7": "float (anonymised random projection)",
+  "f8": "float (anonymised random projection)",
+  "f9": "float (anonymised random projection)",
+  "f10": "float (anonymised random projection)",
+  "f11": "float (anonymised random projection)",
+  "treatment": "0/1 randomised assignment (1 = may be targeted)",
+  "conversion": "0/1",
+  "visit": "0/1",
+  "exposure": "0/1, user was effectively shown an ad (treated arm only)"
+ },
+ "validation": {
+  "rows": 13979592,
+  "nan_features": 0,
+  "non_binary_label_values": 0,
+  "exposed_in_control": 0,
+  "conversion_without_visit": 0,
+  "treatment_ratio": 0.8500001287591226,
+  "visit_rate": 0.046992000911042324,
+  "conversion_rate": 0.002916680257907384,
+  "exposure_rate_treated": 0.036036727482199896
+ },
+ "provenance": {
+  "source": "Criteo AI Lab incrementality tests, pooled; released with Diemert et al. (AdKDD 2018)",
+  "design": "randomised controlled trials: a random part of the population is prevented from being targeted",
+  "privacy": "sub-sampled non-uniformly so that the original incrementality level cannot be deduced; features anonymised and randomly projected",
+  "period_and_population": "not disclosed by the publisher (users of Criteo's advertisers' campaigns)",
+  "acquired_by": "crucible.calibration.criteo.acquire"
+ }
+}

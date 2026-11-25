@@ -1,0 +1,54 @@
+{
+ "schema": "crucible.v5.calibration.plan/1",
+ "plan_id": "E2_commercial_response",
+ "workstream": "E2",
+ "written_before_fit": true,
+ "models": ["commercial_response@1"],
+ "domain": "commercial_intervention_response",
+ "question": "How do individuals' probabilities of visiting an advertiser and converting (buying) respond to being targeted by display advertising, and how heterogeneous is that response?",
+ "dataset": {
+  "name": "criteo_uplift_v2.1",
+  "source": "Criteo AI Lab, 'A Large Scale Benchmark for Uplift Modeling' (Diemert et al., AdKDD 2018), file criteo-research-uplift-v2.1.csv.gz",
+  "unit": "one row = one user in one of several pooled incrementality tests",
+  "rows_expected": 13979592,
+  "columns": ["f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "treatment", "conversion", "visit", "exposure"]
+ },
+ "identification": {
+  "kind": "randomized_experiment",
+  "statement": "Treatment (being eligible for targeting) was assigned at random (treatment ratio 0.85), so per-arm outcome probabilities and their difference conditional on pre-treatment features are experimentally identified intention-to-treat effects. Exposure (the ad actually shown) is not randomized: it occurs only in the treated arm (one-sided non-compliance). The exposure effect is reported only as a Wald / instrumental-variable complier estimate (ITT divided by the exposure rate among treated users) under the exclusion restriction, and it is not used for model fitting or selection."
+ },
+ "splits": {
+  "method": "seeded random permutation of row indices, numpy PCG64 seed 20261125",
+  "fractions": {"train": 0.6, "validation": 0.2, "test": 0.2},
+  "user_level_holdout": "rows are users, so the row split is a user-level holdout",
+  "time_holdout": "not possible: the release contains no timestamps; this is recorded as a limitation",
+  "use": {"train": "fit parameters", "validation": "early stopping, model selection, construction of the response-type table", "test": "final held-out report; touched once after selection"}
+ },
+ "targets": ["visit", "conversion"],
+ "candidates": [
+  {"id": "constant_effect", "role": "baseline", "complexity": 0, "description": "per arm and outcome, the training-set mean rate; the treatment effect is the same for everyone (the average treatment effect)"},
+  {"id": "t_logistic", "role": "candidate", "complexity": 1, "description": "T-learner: one L2-regularised logistic regression (C = 1.0, lbfgs) per arm and outcome on standardised f0..f11"},
+  {"id": "t_gbdt", "role": "candidate", "complexity": 2, "description": "T-learner: one histogram gradient-boosted tree classifier per arm and outcome (learning rate 0.1, max 31 leaves, min 200 samples per leaf, L2 1.0, at most 300 iterations, early stopping on validation log loss with patience 20)"}
+ ],
+ "metrics": {
+  "per_arm_per_outcome": ["log_loss", "brier", "ece_15_equal_mass_bins", "auc", "mean_predicted", "mean_observed"],
+  "pooled_per_outcome": ["log_loss", "brier", "ece_15_equal_mass_bins"],
+  "uplift_ranking_per_outcome": ["qini_coefficient", "auuc_normalised", "uplift_by_predicted_decile (observed treated rate minus control rate vs mean predicted effect)"],
+  "intervention_response": ["ate_difference_in_means_with_95ci", "model_implied_ate", "exposure_complier_effect_wald"],
+  "population_heterogeneity": ["std_predicted_effect", "share_predicted_effect_negative", "quantiles_predicted_effect"],
+  "uncertainty": "200 paired bootstrap resamples of test rows for primary-metric differences and Qini; analytic binomial intervals for ATE"
+ },
+ "primary_metric": "sum over outcomes (visit, conversion) of the pooled log loss, each row scored by its own arm's model",
+ "comparison_rule": {
+  "selection": "keep the candidate (baseline included) with the lowest validation primary metric",
+  "confirmation": "on the test split compute the primary metric of every candidate and the paired-bootstrap 95% interval of (kept - other); worse_model_kept counts the candidates for which that interval lies entirely above zero (the kept model significantly worse). It must be 0; otherwise the card says so and the better model replaces it.",
+  "secondary_reported_not_used_for_selection": ["test Qini coefficient for visit and conversion", "per-arm ECE"]
+ },
+ "response_types": {
+  "purpose": "Criteo features are anonymised random projections that the simulator cannot reproduce; the simulator instead draws each individual's response type from the held-out-validated joint distribution of baseline propensity and treatment effect.",
+  "construction": "kept model's predictions on the validation split; 8 equal-mass bins of predicted control-arm visit probability, then within each 8 equal-mass bins of predicted visit effect (p1 - p0): 64 types with weight, mean predicted p0/p1 for visit and conversion and the observed validation arm rates",
+  "validation_on_test": ["weighted correlation (by type weight) between type-level predicted and observed visit uplift, with bootstrap 95% interval", "weighted mean absolute error of type-level visit uplift", "per-arm rates and uplift-by-decile curve of a randomized experiment simulated from the type table vs the observed test split"],
+  "acceptance_rule": "the table is marked usable for the simulator only if the lower bound of the 95% bootstrap interval of the weighted type-level uplift correlation on test is above zero"
+ },
+ "extrapolation_limits_to_document": ["non-uniform sub-sampling hides the true incrementality level (absolute rates and effects are not representative)", "pooled tests of unknown advertisers, period and countries", "anonymised features cannot be mapped to simulator attributes", "intention-to-treat effect of eligibility for one advertiser's campaign over one test period, not of arbitrary ads or content", "no timestamps: no time holdout, no dynamics, no long-run effects"]
+}
