@@ -5,7 +5,11 @@ Config (module config; evaluator-side - no tool, observation or visible event re
     {"platforms": {"<platform>": {"k": 10, "pool": 300, "pool_days": 7, "inbox_slots": 2,
                                   "recommenders": [{"name": "interest", "weight": 1.0, "params": {...}}, ...],
                                   "schedule": [{"day": 3, "recommenders": [...]}, ...]}},
-     "inbox": 4, "share_delay_s": 900, "train_interval_s": 21600, "behaviour": {...}}
+     "inbox": 4, "share_delay_s": 900, "train_interval_s": 21600, "behaviour": {...},
+     "calibrated": {"<platform>": {"open": "news_click@1"}}}
+
+`calibrated` replaces the built-in decision to open an item on that platform with a fitted model of workstream E
+(`crucible.calibration.load`, checkpoint hashes verified at install); see `consumption.CalibratedOpen`.
 
 * The population's browse activity (`crowd`, or B's `pop` when merged) hands this module the activated cohort; each
   individual picks a platform by its learned habit (softmax of `feed_habit`) and runs a session there
@@ -37,14 +41,15 @@ from ...core.kernel import SYSTEM, Ctx, Module, applier, endpoint, process, regi
 from ...substrate import artifacts, attention, bus, columns, ids, inference
 from .. import audience as AUD
 from .. import idset, textrep
-from ..consumption import BUILTIN, DEFAULT_PLATFORM, Engine
+from ..consumption import BUILTIN, CALIBRATED_OPEN, DEFAULT_PLATFORM, Engine
+from ..vocab import TOPIC_NAMES
 from . import REGISTRY, Mixture, training
 
 DAY = 86400
 DEFAULT_MIX = [{"name": "interest", "weight": 1.0}, {"name": "social", "weight": 1.0},
                {"name": "fresh", "weight": 0.5}, {"name": "explore", "weight": 0.3}]
 DEFAULTS = {"platforms": {"posts": {"recommenders": DEFAULT_MIX}, "articles": {"recommenders": DEFAULT_MIX}},
-            "inbox": 4, "share_delay_s": 900, "train_interval_s": 21600, "behaviour": {}}
+            "inbox": 4, "share_delay_s": 900, "train_interval_s": 21600, "behaviour": {}, "calibrated": {}}
 _PCFG_KEYS = {"k", "pool", "pool_days", "inbox_slots", "recommenders", "schedule"}
 
 
@@ -112,6 +117,10 @@ class Feed(Module):
         unknown = set(self.cfg["behaviour"]) - set(BUILTIN)
         if unknown:
             raise ProtocolError(f"feed: unknown behaviour parameters {sorted(unknown)}")
+        for p, c in self.cfg["calibrated"].items():
+            if p not in self.cfg["platforms"] or set(c) - {"open"} or c.get("open") not in CALIBRATED_OPEN:
+                raise ProtocolError(f"feed: calibrated must map a platform to {{'open': one of "
+                                    f"{sorted(CALIBRATED_OPEN)}}}, not {p!r}: {c!r}")
 
     # ------------------------------------------------------------------ configuration
     def platform_cfg(self, platform: str) -> dict:
@@ -161,6 +170,8 @@ class Feed(Module):
                                           "feed_inbox_gen": ("uint8", (self.R,), 0),
                                           "feed_social": ("int32", (self.R,), -1),
                                           "feed_habit": ("float32", (len(self.platforms),), 0.0)})
+        if self.cfg["calibrated"]:                       # per-individual consumption history by topic
+            columns.declare(world, "pop", n, {"feed_topic_views": ("uint16", (len(TOPIC_NAMES),), 0)})
         world.state.declare_table("feed_private")
         world.state.declare_table("feed_models")
         self.engine = Engine(self)

@@ -130,6 +130,102 @@ def group_into_rows(recipients: np.ndarray, values: list[np.ndarray], R: int):
     return u, cnt, outs
 
 
+def item_topics(world, items: np.ndarray) -> np.ndarray:
+    """Each item's topic: the topic vocabulary nearest to its representation (computed from the artifact)."""
+    from . import textrep
+    E = F.item_emb(world, items).astype(np.float64)
+    return np.argmax(E @ textrep.topic_centroids(E.shape[1]).T, axis=1)
+
+
+class CalibratedOpen:
+    """The decision to open an item shown in a slate, from workstream E's `news_click@1` (gradient-boosted trees
+    fitted on MIND-small, Microsoft News, US, November 2019; held-out AUC 0.78 vs 0.73 for the popularity baseline;
+    card: docs/v5/calibration/models/news_click/model_card.json). Its card allows exactly this use (opening an
+    article shown in a slate of article recommendations) and nothing about dwell time, which stays built-in.
+
+    Feature mapping (the card's `feature_map`; approximations are named):
+      text_cos       cosine between the item and the individual's interests (which drift toward what it consumed),
+                     quantile-mapped onto the card's text_cos quantiles through its rank among this session batch's
+                     slots (different encoder: the card says to map by quantile)
+      text_cos_z     that cosine standardised within the individual's slate (scale-free, as the card says)
+      cat_share      (individual's past views in the item's topic + s) / (past views + 1), s = the platform's share
+                     of views in that topic; topic = nearest topic vocabulary of the item's representation
+      subcat_share   cat_share quantile-mapped onto the card's subcat_share quantiles (approximation: this world has
+                     no finer taxonomy, and a subcategory share is much smaller than a category share)
+      log_hist_len   log1p(individual's past views)
+      pop_ctr_24h    (views + 10 m) / (impressions + 10) of the item on the platform, m = card prior_rate, quantile-
+                     mapped onto the card's quantiles (MIND logs whole slates as impressions, this world only the
+                     slots an individual reached, so the raw rates are not on the same scale; all-time counters,
+                     pool items being at most a few days old)
+      pop_log_clicks_per_1k  log1p(1000 * views in the last 24 h / individuals with an impression in the last 24 h);
+                     views in the last 24 h approximated by views x min(1, 24 h / age)
+      age_log_hours  log1p(hours since the item was published)
+      slate_size_log log1p(slots in the slate)
+    """
+
+    def __init__(self, name: str):
+        from .. import calibration
+        self.model = calibration.load(name)
+        self.name = name
+        feats = list(self.model.features)
+        if feats != ["text_cos", "text_cos_z", "cat_share", "subcat_share", "log_hist_len", "pop_ctr_24h",
+                     "pop_log_clicks_per_1k", "age_log_hours", "slate_size_log"]:
+            raise ValueError(f"{name}: unexpected features {feats}")
+        q = self.model.card["feature_quantiles"]
+        self.levels = np.asarray(q["levels"], dtype=np.float64)
+        self.quantiles = {f: np.asarray(q[f], dtype=np.float64) for f in feats}
+        self.prior = float(self.model.card["prior_rate"])
+
+    def qmap(self, values: np.ndarray, feature: str) -> np.ndarray:
+        """Map values onto the card's distribution of `feature` by their rank in this batch (ties share a rank)."""
+        v = np.asarray(values, dtype=np.float64)
+        if v.size == 0:
+            return v
+        u, inv = np.unique(v, return_inverse=True)
+        cnt = np.bincount(inv)
+        mid = (np.cumsum(cnt) - 0.5 * cnt) / v.size                  # mid-rank of each distinct value
+        return np.interp(mid[inv], self.levels, self.quantiles[feature])
+
+    def p_open(self, world, platform: str, idx: np.ndarray, feed: np.ndarray, aff: np.ndarray,
+               has_item: np.ndarray) -> np.ndarray:
+        V, k = feed.shape
+        out = np.zeros((V, k))
+        if not np.any(has_item):
+            return out
+        rows, cols_ = np.nonzero(has_item)
+        items = feed[rows, cols_]
+        a = aff[rows, cols_]
+        text_cos = self.qmap(a, "text_cos")
+        am = np.where(has_item, aff, np.nan)
+        mu = np.nanmean(am, axis=1, keepdims=True)
+        sd = np.nanstd(am, axis=1, keepdims=True)
+        z = ((am - mu) / np.where(sd > 1e-9, sd, 1.0))[rows, cols_]
+        topic_of = item_topics(world, AUD.items_on(world, platform, live_only=False))
+        on = AUD.items_on(world, platform, live_only=False)
+        views_on = columns.col(world, AUD.ITEMS, "views")[on].astype(np.float64)
+        T = int(columns.col(world, "pop", "feed_topic_views").shape[1])
+        share = (np.bincount(topic_of, weights=views_on, minlength=T) + 1.0) / (views_on.sum() + T)
+        t_item = item_topics(world, items)
+        tv = columns.col(world, "pop", "feed_topic_views")[idx[rows]].astype(np.float64)
+        hist = tv.sum(axis=1)
+        cat = (tv[np.arange(rows.size), t_item] + share[t_item]) / (hist + 1.0)
+        views = columns.col(world, AUD.ITEMS, "views")[items].astype(np.float64)
+        imp = columns.col(world, AUD.ITEMS, "imp")[items].astype(np.float64)
+        age = np.maximum(F.age_s(world, items), 0.0)
+        last_imp = columns.col(world, "pop", "aud_i_t")
+        active = max(1, int(np.count_nonzero(last_imp >= world.now - 86400)))
+        v24 = views * np.minimum(1.0, 86400.0 / np.maximum(age, 1.0))
+        ctr = (views + 10 * self.prior) / (imp + 10)
+        X = np.stack([text_cos, z, cat, self.qmap(cat, "subcat_share"), np.log1p(hist), self.qmap(ctr, "pop_ctr_24h"),
+                      np.log1p(1000.0 * v24 / active), np.log1p(age / 3600.0), np.full(rows.size, math.log1p(k))],
+                     axis=1)
+        out[rows, cols_] = self.model.predict(X)
+        return out
+
+
+CALIBRATED_OPEN = {"news_click@1": CalibratedOpen}
+
+
 class Engine:
     """Bound to the `feed` module: platform configs, mixtures, ring sizes and the behaviour parameters."""
 
@@ -137,6 +233,8 @@ class Engine:
         self.feed = feed_module
         self.b = dict(BUILTIN)
         self.b.update(feed_module.cfg.get("behaviour") or {})
+        self.calibrated = {p: CALIBRATED_OPEN[c["open"]](c["open"])
+                           for p, c in sorted((feed_module.cfg.get("calibrated") or {}).items())}
 
     # ------------------------------------------------------------------ distribution
     def build_feed(self, ctx, platform: str, idx: np.ndarray, rng):
@@ -234,6 +332,8 @@ class Engine:
         J = np.arange(k)
         win = csum[:, np.minimum(J + W_, k)] - csum[:, J]
         p_open = eu / (math.exp(b["outside"]) + win)
+        if platform in self.calibrated:
+            p_open = np.where(self_item, 0.0, self.calibrated[platform].p_open(w, platform, idx, feed, aff, has_item))
         p_bounce = _sigmoid(b["bounce_bias"] + b["bounce_affinity"] * aff)
         lam = b["hazard_per_s"] * np.exp(b["hazard_affinity"] * aff + b["hazard_familiar"] * fam +
                                          b["hazard_sat"] * (sat[:, None] - 0.5) + b["hazard_seen"] * seen)
@@ -322,6 +422,11 @@ class Engine:
         ring = columns.col(w, "pop", "feed_inbox")[idx].copy()
         ring[used_inbox] = -1
         st_vals["feed_inbox"] = ring
+        if self.calibrated and np.any(view):
+            tv = columns.col(w, "pop", "feed_topic_views")[idx].astype(np.int64)
+            vv, pv = np.nonzero(view)
+            np.add.at(tv, (vv, item_topics(w, feed[vv, pv])), 1)
+            st_vals["feed_topic_views"] = np.minimum(tv, 65535).astype(np.uint16)
         drift = float(b["taste_drift"])
         if drift > 0 and np.any(view):
             u = columns.col(w, "pop", "interests")[idx].astype(np.float64)
