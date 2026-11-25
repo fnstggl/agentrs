@@ -51,7 +51,8 @@ def startup_world(seed: int, n_customers: int = 800, need: str | None = None, da
                "wtp_month_cents": [int(rng.integers(900, 1500)), int(rng.integers(6000, 9000))],
                "min_quality": [0.6, 0.97], "search_p": 0.2, "act_every_days": 3, "checks": 1, "size": 0.35,
                "annual_share": float(rng.uniform(0.15, 0.4)), "income_month_cents": [40_000, 200_000],
-               "savings_cents": [10_000, 80_000]}
+               "savings_cents": [10_000, 80_000], "need_end_month_p": float(rng.uniform(0.02, 0.05)),
+               "dormant_days": [30, 120]}
     mods = [{"name": m, "config": {}} for m in BASE_MODULES]
     for m in mods:
         if m["name"] == "ventures":

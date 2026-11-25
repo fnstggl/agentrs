@@ -20,7 +20,9 @@ buyer:
   (no charge) or at period end when the measured quality is below its requirement, when the price exceeds its
   willingness to pay, or when it cannot pay; it opens a support ticket (`prod.support`) when calls fail; it rates
   products it has paid for from what it measured; satisfied annual-minded buyers move to an annual plan
-  (`subs.change_plan`) after two paid months.
+  (`subs.change_plan`) after two paid months;
+* now and then its need goes away (probability `need_end_month_p` per month): it lets the paid period run out and
+  does not look for a product for `dormant_days` - voluntary churn that the seller cannot prevent.
 
 Goods buyers and sellers on exchanges (`xchg`). Sellers hold stock of a good (minted at genesis, conserved),
 sell it as an industrial product and list it on the exchange where they expect the most net revenue: recent
@@ -36,17 +38,16 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..core import schema as S
 from ..core.errors import CrucibleError, contain
-from ..core.kernel import Ctx, Module, applier, endpoint, process, register_module
+from ..core.kernel import Ctx, Module, applier, process, register_module
 
 DAY = 86400
 MONTH = 30 * DAY
 DEFAULTS = {"n": 0, "prefix": "cust", "needs": {"sort.records": 1.0}, "income_month_cents": [30_000, 150_000],
             "savings_cents": [5_000, 60_000], "wtp_month_cents": [800, 8_000], "min_quality": [0.75, 0.97],
             "search_p": 0.2, "act_every_days": 2, "checks": 2, "size": 0.4, "annual_share": 0.3, "rate_p": 0.5,
-            "prior_quality": 0.8, "support_p": 0.5, "first_day": 1,
-            "goods": None, "sellers": None}
+            "prior_quality": 0.8, "support_p": 0.5, "first_day": 1, "need_end_month_p": 0.0,
+            "dormant_days": [30, 120], "goods": None, "sellers": None}
 GOODS_DEFAULTS = {"n": 0, "sku": "widget", "units_per_month": [1, 4], "wtp_unit_cents": [600, 2_000],
                   "income_month_cents": [20_000, 60_000], "buy_p": 0.5, "min_rating": 2.5, "max_dispute_share": 0.5}
 SELLER_DEFAULTS = {"n": 0, "sku": "widget", "stock": [40, 120], "unit_cost_cents": [300, 900],
@@ -125,7 +126,7 @@ class Patrons(Module):
             total = sum(c for _, c in endow)
             bank.post(ctx, [("acct_genesis", -total)] + [(a, c) for a, c in endow], "endowment", "customer savings")
         for r in rows:
-            r.update(current=None, rejected=[], rated=[], q=None, checks=0, listing=None, bought=0)
+            r.update(current=None, rejected=[], rated=[], q=None, checks=0, listing=None, bought=0, dormant_until=None)
         if rows:
             ctx.emit("patrons.genesis", {"rows": rows}, vis="internal")
             ctx.schedule(int(self.cfg("first_day")) * DAY + 7 * 3600, "patrons.day", {}, prio=70, period=DAY,
@@ -181,11 +182,19 @@ class Patrons(Module):
         for x in st.find_ids("sub_subs", "customer", pid):
             if st.tables["sub_subs"][x]["status"] in ("trialing", "active", "past_due"):
                 sid = x
+        dormant = r.get("dormant_until") is not None and ctx.now < int(r["dormant_until"])
         if sid is None:
-            if rng.random() < float(self.cfg("search_p")):
+            if not dormant and rng.random() < float(self.cfg("search_p")):
                 self._search(ctx, pid, r, rng)
             return
         s = st.tables["sub_subs"][sid]
+        p_end = 1.0 - (1.0 - float(self.cfg("need_end_month_p"))) ** (max(1, int(self.cfg("act_every_days"))) / 30)
+        if not dormant and s["status"] == "active" and not s["cancel_at_period_end"] and rng.random() < p_end:
+            # the customer's need goes away for a while (life changes): it lets the paid period run out
+            self._call(ctx, pid, "subs.cancel", {"subscription": sid, "at_period_end": True})
+            lo, hi = self.cfg("dormant_days")
+            self._set(ctx, pid, dormant_until=ctx.now + int(rng.integers(int(lo), int(hi) + 1)) * DAY)
+            return
         bank = ctx.world.modules["bank"]
         if s["status"] == "past_due":
             if bank.available(st, r["account"]) < int(s["price"]):
@@ -334,16 +343,6 @@ class Patrons(Module):
                                                       "price_cents": want_price})
         if err is None:
             self._set(ctx, pid, listing=res["listing"])
-
-    # ------------------------------------------------------------------ endpoint
-    @endpoint("census", S.obj(), read_only=True)
-    def ep_census(self, ctx):
-        """How many independent customers, goods buyers and sellers live in this world (public statistics)."""
-        st = ctx.state
-        out = {"subscriber": 0, "goods_buyer": 0, "seller": 0}
-        for r in st.tables["patrons"].values():
-            out[r["role"]] = out.get(r["role"], 0) + 1
-        return out
 
     # ------------------------------------------------------------------ appliers
     @applier("patrons.genesis")
