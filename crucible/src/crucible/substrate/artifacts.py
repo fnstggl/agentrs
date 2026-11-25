@@ -248,8 +248,8 @@ def _mod(world) -> "Artifacts":
 
 def put(ctx: Ctx, data: bytes, mime: str, *, owner: str, parents: Sequence[str] = (), meta: dict | None = None,
         kind: str = "file") -> str:
-    """Store `data` for `owner`; emits `artifact.stored` the first time these bytes are stored in this world (or
-    `artifact.held` when another principal stores identical bytes) and returns the REF. Idempotent."""
+    """Store `data` for `owner`; emits `artifact.stored` the first time `owner` stores these bytes (the artifact, or
+    a holding of bytes another principal already stores) and returns the REF. Idempotent."""
     return _mod(ctx.world).store_bytes(ctx, data, mime, owner=owner, parents=parents, meta=meta, kind=kind)
 
 
@@ -379,14 +379,9 @@ bus.event_type("artifact.stored", S.obj({
     "owner": _EV_PRINCIPAL, "parents": {"type": "array", "items": _EV_REF, "maxItems": 64},
     "meta": {"type": "object", "additionalProperties": True}, "kind": {"type": "string", "pattern": KIND_RE}},
     ["ref", "mime", "size", "owner", "parents", "meta", "kind"]), owner="artifacts",
-    doc="bytes stored for the first time in this world (metadata only; bytes live in the blob store)")
-bus.event_type("artifact.held", S.obj({
-    "ref": _EV_REF, "holder": _EV_PRINCIPAL, "mime": {"type": "string", "pattern": MIME_RE},
-    "size": {"type": "integer", "minimum": 0}, "kind": {"type": "string", "pattern": KIND_RE},
-    "parents": {"type": "array", "items": _EV_REF, "maxItems": 64},
-    "meta": {"type": "object", "additionalProperties": True}},
-    ["ref", "holder", "mime", "size", "kind", "parents", "meta"]), owner="artifacts",
-    doc="another principal stored bytes identical to an existing artifact")
+    doc="a principal stored these bytes (metadata only; bytes live in the blob store). The first store creates the "
+        "artifact; a later one by another principal makes it a holder of identical bytes - the event is the same, "
+        "so a caller cannot learn whether somebody else already had them")
 bus.event_type("artifact.published", S.obj({"ref": _EV_REF, "audience": _EV_PRINCIPAL}, ["ref", "audience"]),
                owner="artifacts", doc="an artifact became readable by an audience ('public' or a principal)")
 bus.event_type("artifact.granted", S.obj({"ref": _EV_REF, "grantee": _EV_PRINCIPAL, "by": _EV_PRINCIPAL},
@@ -467,19 +462,12 @@ class Artifacts(Module):
         ref = REF_PREFIX + h
         st = ctx.state
         rec = st.get("artifacts", ref)
-        if rec is not None:
-            # identical bytes are already stored in this world
-            if rec["owner"] == owner or (owner != SYSTEM and st.has("artifact_holders", f"{ref}|{owner}")):
-                _write_bytes(ctx.world, h, data)
-                return ref
-            if owner == SYSTEM:
-                _write_bytes(ctx.world, h, data)
-                return ref
-            self._charge(ctx, owner, size)
-            _write_bytes(ctx.world, h, data)
-            ctx.emit("artifact.held", {"ref": ref, "holder": owner, "mime": mime, "size": size, "kind": kind,
-                                       "parents": parents, "meta": meta}, vis=(owner,))
+        if rec is not None and (rec["owner"] == owner or owner == SYSTEM or
+                                st.has("artifact_holders", f"{ref}|{owner}")):
+            _write_bytes(ctx.world, h, data)       # this principal already stores these bytes: nothing to record
             return ref
+        # new bytes, or bytes another principal already stores: the same event either way (the applier records the
+        # artifact or a holder), the same quota and fee, so the caller learns nothing about other principals
         self._charge(ctx, owner, size)
         _write_bytes(ctx.world, h, data)
         ctx.emit("artifact.stored", {"ref": ref, "mime": mime, "size": size, "owner": owner, "parents": parents,
@@ -523,18 +511,15 @@ class Artifacts(Module):
     def ap_stored(self, ev):
         p = ev.payload
         st = self.world.state
-        st.insert("artifacts", p["ref"], {"mime": p["mime"], "size": p["size"], "owner": p["owner"],
-                                          "parents": p["parents"], "meta": p["meta"], "kind": p["kind"],
-                                          "published": False, "audiences": [], "t": ev.t})
+        if st.has("artifacts", p["ref"]):
+            st.insert("artifact_holders", f"{p['ref']}|{p['owner']}",
+                      {"ref": p["ref"], "holder": p["owner"], "mime": p["mime"], "kind": p["kind"],
+                       "parents": p["parents"], "meta": p["meta"], "t": ev.t})
+        else:
+            st.insert("artifacts", p["ref"], {"mime": p["mime"], "size": p["size"], "owner": p["owner"],
+                                              "parents": p["parents"], "meta": p["meta"], "kind": p["kind"],
+                                              "published": False, "audiences": [], "t": ev.t})
         self._use(p["owner"], p["size"])
-
-    @applier("artifact.held")
-    def ap_held(self, ev):
-        p = ev.payload
-        self.world.state.insert("artifact_holders", f"{p['ref']}|{p['holder']}",
-                                {"ref": p["ref"], "holder": p["holder"], "mime": p["mime"], "kind": p["kind"],
-                                 "parents": p["parents"], "meta": p["meta"], "t": ev.t})
-        self._use(p["holder"], p["size"])
 
     def _use(self, owner, size):
         if owner == SYSTEM:
@@ -596,7 +581,7 @@ class Artifacts(Module):
             raise InvalidAction("data_b64 is not valid base64") from None
         if kind == "batch":
             raise InvalidAction("kind 'batch' is reserved for system array blobs")
-        existed = ctx.state.has("artifacts", ref_of(data))
+        existed = readable(ctx.world, owner, ref_of(data))      # relative to the caller: no existence oracle
         ref = self.store_bytes(ctx, data, mime, owner=owner, parents=parents or (), meta=meta, kind=kind)
         return {"ref": ref, "size": len(data), "new": not existed}
 

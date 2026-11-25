@@ -102,13 +102,20 @@ def test_permissions_owner_grant_publish_and_no_existence_oracle():
 def test_holder_of_identical_bytes_sees_its_own_record_not_the_owner():
     w = world()
     ref = put(w, "p:alice", b"same bytes", meta={"title": "alice's"}).result["ref"]
+    n = w.seq
     r = put(w, "p:bob", b"same bytes", mime="application/octet-stream", meta={"title": "bob's"})
-    assert r.ok and r.result["ref"] == ref and r.result["new"] is False
+    assert r.ok and r.result["ref"] == ref and r.result["new"] is True     # new for bob: nothing leaks
+    seen_dup = [(e.type, sorted(e.payload)) for e in w.log[n - w.log_base:] if w.visible(e, {"p:bob"})]
+    n = w.seq
+    fresh = put(w, "p:bob", b"bytes nobody had")
+    seen_new = [(e.type, sorted(e.payload)) for e in w.log[n - w.log_base:] if w.visible(e, {"p:bob"})]
+    assert seen_dup == seen_new and fresh.result["new"] is True     # identical observations: no existence oracle
+    assert put(w, "p:bob", b"same bytes").result["new"] is False
     v = w.execute("p:bob", {"tool": "artifact.info", "args": {"ref": ref}}).result
     assert v["owner"] == "p:bob" and v["meta"] == {"title": "bob's"} and v["mime"] == "application/octet-stream"
     assert A.info(w, ref)["owner"] == "p:alice"
     # both pay quota for what they stored
-    assert A.usage(w, "p:alice")["bytes"] == 10 and A.usage(w, "p:bob")["bytes"] == 10
+    assert A.usage(w, "p:alice")["bytes"] == 10 and A.usage(w, "p:bob")["bytes"] == 10 + len(b"bytes nobody had")
     assert w.check_invariants() == []
 
 
