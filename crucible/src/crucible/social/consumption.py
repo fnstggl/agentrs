@@ -50,13 +50,13 @@ BUILTIN = {
     "hazard_seen": 0.8,
     # decisions after a qualifying view
     "like_bias": -2.8, "like_affinity": 4.0, "like_complete": 0.8,
-    "share_bias": -5.2, "share_affinity": 5.0, "share_complete": 1.0, "share_sat": 1.0,
+    "share_bias": -6.6, "share_affinity": 5.0, "share_complete": 1.0, "share_sat": 1.0,
     "follow_bias": -4.6, "follow_affinity": 4.0, "follow_familiar": 1.2, "follow_complete": 0.8,
     # continuing the session
     "continue_bias": 2.2, "continue_sat": 2.0, "continue_view": 0.3, "continue_minutes": -0.12,
     # state updates
     "sat_lr": 0.12, "sat_ref_affinity": 0.2, "sat_skip": -0.004, "habit_lr": 0.5, "habit_decay": 0.02,
-    "taste_drift": 0.02, "scroll_s": 2.0, "gap_mean_s": 6 * 3600.0, "gap_sat": 1.0, "need_weight": 0.3,
+    "taste_drift": 0.02, "scroll_s": 2.0, "notice_prob": 0.3, "gap_mean_s": 6 * 3600.0, "gap_sat": 1.0, "need_weight": 0.3,
 }
 DEFAULT_PLATFORM = {"k": 10, "pool": 300, "pool_days": 7, "inbox_slots": 2}
 
@@ -364,7 +364,8 @@ class Engine:
                 "shares": int(shared.sum()), "deliveries": n_deliv}
 
     def deliver(self, ctx, recipients: np.ndarray, items: np.ndarray, gens: np.ndarray) -> None:
-        """Put shared items into the recipients' inboxes (newest first) and wake them after `share_delay_s`."""
+        """Put shared items into the recipients' inboxes (newest first); each recipient notices the notification
+        with probability `notice_prob` and then comes back after `share_delay_s` (unless it was coming back sooner)."""
         w = ctx.world
         u_, cnt, (newi, newg) = group_into_rows(recipients, [items.astype(np.int32), gens.astype(np.uint8)],
                                                self.feed.R)
@@ -373,6 +374,10 @@ class Engine:
         columns.batch(ctx, "pop", "share.deliver", u_, {"feed_inbox": ring_push(old_i, newi, cnt),
                                                          "feed_inbox_gen": ring_push(old_g, newg, cnt)}, mode="set",
                       extra={"deliveries": int(recipients.size)})
-        from .scale import wake
-        if "crowd" in w.modules:
-            wake(ctx, u_, ctx.now + int(self.feed.cfg["share_delay_s"]), activity="share")
+        noticed = u_[ctx.rng("feed.notice").random(u_.size) < float(self.b["notice_prob"])]
+        if noticed.size:
+            if "crowd" in w.modules:
+                from .scale import wake
+            else:
+                from ..population import wake
+            wake(ctx, noticed, ctx.now + int(self.feed.cfg["share_delay_s"]), activity="share")

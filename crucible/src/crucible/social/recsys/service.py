@@ -27,14 +27,13 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import json
 
 import numpy as np
 
 from ...core import schema as S
 from ...core.canonical import canonical_bytes
-from ...core.errors import InvalidAction, NotFound, ProtocolError
-from ...core.kernel import Ctx, Module, applier, endpoint, process, register_module
+from ...core.errors import Forbidden, InvalidAction, NotFound, ProtocolError
+from ...core.kernel import SYSTEM, Ctx, Module, applier, endpoint, process, register_module
 from ...substrate import artifacts, attention, bus, columns, ids, inference
 from .. import audience as AUD
 from .. import idset, textrep
@@ -291,6 +290,20 @@ class Feed(Module):
         if s > 0:
             attention.spend(ctx, np.array([i]), np.array([s / 60.0]), activity=activity)
         return s
+
+    @endpoint("set_mixture", S.obj({"platform": S.s_str("platform name", maxLength=32),
+                                    "recommenders": S.s_arr(S.s_any_obj("{name, weight, params}"), maxItems=16)},
+                                   ["platform", "recommenders"]), cost_s=0)
+    def ep_set_mixture(self, ctx, platform, recommenders):
+        """Operator only (the simulator, through a system call): change how a platform distributes content from
+        now on. Refused for every in-world actor."""
+        if ctx.actor != SYSTEM:
+            raise Forbidden("only the simulator operator can change a platform's distribution")
+        try:
+            set_mixture(ctx, self._platform(platform), recommenders)
+        except ProtocolError as e:
+            raise InvalidAction(str(e)) from None
+        return {"platform": platform, "ok": True}
 
     @endpoint("platforms", S.obj(), read_only=True, cost_s=0)
     def ep_platforms(self, ctx):
