@@ -38,9 +38,17 @@ class StateStore:
         self._journal: list | None = None
         self._arr_saved: set[str] | None = None
         self.ctr_dirty: dict[str, int] = {}
+        # 5.0: which module declared which table (set by the kernel around Module.install; runtime only - not part of
+        # snapshots or digests). Used by crucible.substrate.primitives to find duplicate shared facts.
+        self.declaring: str | None = None
+        self.declared_by: dict[str, list[str]] = {}
 
     # ------------------------------------------------------------------ schema
     def declare_table(self, name: str, index: Iterable[str] = ()) -> None:
+        if self.declaring is not None:
+            owners = self.declared_by.setdefault(name, [])
+            if self.declaring not in owners:
+                owners.append(self.declaring)
         self.tables.setdefault(name, {})
         fields = self.index_fields.setdefault(name, [])
         for f in index:
@@ -168,6 +176,17 @@ class StateStore:
             self._jr(("arr", name, None, self.arrays[name].copy() if name in self.arrays else _MISSING))
         return self.arrays[name]
 
+    def array_rows_mut(self, name: str, rows: np.ndarray) -> np.ndarray:
+        """5.0: the mutable array for a write that touches only `rows` (indices along axis 0). Journals just those
+        rows (indices and previous values) instead of a copy of the whole array, so a cohort update of a 10M-row
+        column costs O(len(rows)). Rows may repeat (the old values are taken before any write, so restoring them in
+        one assignment is exact). Falls back to nothing extra when the whole array is already journaled."""
+        if self._journal is not None and name not in self._arr_saved:
+            a = self.arrays[name]
+            r = np.array(rows, dtype=np.int64, copy=True)
+            self._jr(("rows", name, r, a[r].copy()))
+        return self.arrays[name]
+
     def set_array(self, name: str, value: np.ndarray) -> None:
         if self._journal is not None and name not in self._arr_saved:
             self._arr_saved.add(name)
@@ -235,6 +254,9 @@ class StateStore:
                 self.arrays[name] = old
             if self._arr_saved is not None:
                 self._arr_saved.discard(name)
+        elif kind == "rows":
+            _, name, rows, old = e
+            self.arrays[name][rows] = old
 
     # ------------------------------------------------------------------ snapshot / digest
     def dumps(self) -> bytes:

@@ -214,6 +214,10 @@ class Identity(Module):
             if state.has("persons", x) or state.has("orgs", x):
                 return x
             raise NotFound(f"no principal {x}")
+        if state.has("persons", x):
+            # 5.0 population individuals "p<i>" (crucible.substrate.ids): their id is their handle. 4.0 person ids
+            # always contain ':' and bare handles never do, so 4.0 resolution is unchanged.
+            return x
         for table, prefix in (("persons", "p:"), ("orgs", "o:")):
             if state.find_ids(table, "handle", x):
                 return prefix + x
