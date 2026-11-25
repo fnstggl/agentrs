@@ -1,24 +1,40 @@
 """Invariant representations across surface presentation (workstream B; requirement W02, spec 13.3).
 
-Two parts:
+Three parts:
 
 1. `SurfaceRandomizer` builds training pairs: from the records of one experience (observations, tools, actions, goal)
-   it produces a dynamically equivalent view with a different surface — renamed entity identities (consistent bijection,
-   Crucible-style prefixes such as "p:" / "o:" / "svc:" kept), renamed tools, rescaled units with matching unit
-   strings (e.g. 12_345 "cents" -> 123.45 "dollars", 2000 "ms" -> 2 "s", 0.25 "fraction" -> 25 "percent"; unknown
-   units -> "milli-<unit>" x1000), permuted observation and tool order, and reworded text (case-preserving synonym
-   substitution that never touches identifiers or numbers). `SurfaceMap.apply_action` / `invert_action` translate
-   actions between the views, so a policy acting in the surface view executes the same intervention.
-   Action arguments keep their original units (tool semantics are defined by the environment).
+   it produces a dynamically equivalent view with a different surface (spec 13.3's list):
+   * entity identities: consistent bijection to fresh ids (Crucible-style prefixes such as "p:" / "o:" kept), applied
+     wherever the id occurs as a whole token — text, JSON keys/values, paths, URLs, action arguments — so anything
+     an agent copies from the surface view maps back exactly (`SurfaceMap.invert_action`);
+   * tool names: consistent bijection (tool schemas, observation sources, actions);
+   * units: NUMERIC observations rescaled with matching unit strings (e.g. 12_345 "cents" -> 123.45 "dollars",
+     2000 "ms" -> 2 "s", 0.25 "fraction" -> 25 "percent"; unknown units -> "milli-<unit>" x1000), and
+     "<number> <unit>" phrases in natural-language text; action arguments keep the environment's units;
+   * observation (and tool) ordering: permuted;
+   * wording: case-preserving, meaning-preserving synonym substitution in natural-language spans only. Text is split
+     into whitespace-delimited chunks; identifier-like chunks are never touched — anything with _ / \\ @ # = ? & < > { }
+     [ ] | $ ^ ~ ` *, dotted or colon names (main.py, p:nova, https://...), letter-digit mixes (v2, prod1),
+     camelCase, CLI flags, quoted single tokens ('price', "build_ok":) and renamed ids. Kinds: TEXT / MESSAGE /
+     EVENT / CONSTRAINT / GOAL text / tool descriptions are prose; TOOL_RESULT is reworded only inside JSON string
+     values that are prose (keys and identifier values never); EXEC_RESULT / ERROR / HTML / A11Y / CODE / FILE are
+     machine output and get identity renames only (no rewording, no unit rewriting);
+   * interface presentation: JSON tool results are re-rendered in another presentation with identical content —
+     compact / pretty / key-sorted JSON, "path: value" lines, or a markdown table for lists of records.
 
 2. `InvarianceLoss`: projected, normalised pooled latent states of the two views; NT-Xent with 2B-2 candidates per
    anchor where the positive is the other view of the same experience and negatives are views of experiences from
    **different worlds** only — other experiences of the same world (same mechanism, possibly similar dynamics) are
    excluded rather than pushed apart, and distinct mechanisms are never pulled together.
+
+3. `PredictionEquivarianceLoss`: predictions of the same outcome queries in the two views must transform by the
+   view's unit map — Gaussian predictive N(m, v) in view 1 must equal N(f m, f^2 v) in view 2 (equivariance;
+   f = 1 gives invariance) — and categorical / Bernoulli predictions must be identical (invariance).
 """
 from __future__ import annotations
 
 import copy
+import json
 import math
 import random
 import re
@@ -47,25 +63,37 @@ UNIT_CONVERSIONS = {
 }
 UNCHANGED_UNITS = {"count", "units", "items", "", None}
 
+#: meaning-preserving substitutions for natural-language spans. Words whose synonyms change meaning in some context
+#: are deliberately absent (e.g. by, did, can, long, your, set, return, cost, account, program, review, network).
 SYNONYMS = {
     "customers": ["clients", "buyers"], "customer": ["client", "buyer"], "complain": ["grumble", "object"],
-    "takes": ["requires", "needs"], "too": ["overly", "excessively"], "long": ["lengthy", "slow"],
-    "deliver": ["ship", "supply"], "units": ["pieces", "items"], "search": ["query", "look up"],
-    "simulated": ["virtual", "emulated"], "internet": ["web", "network"], "pages": ["documents", "sites"],
-    "matching": ["fitting", "satisfying"], "set": ["assign", "configure"], "price": ["cost", "charge"],
-    "monthly": ["per-month", "each month's"], "products": ["offerings", "goods"], "product": ["offering", "item"],
-    "execute": ["run", "launch"], "program": ["script", "routine"], "return": ["give back", "report"],
-    "send": ["transmit", "dispatch"], "message": ["note", "communication"], "participant": ["party", "actor"],
-    "hire": ["recruit", "employ"], "workers": ["staff", "employees"], "role": ["position", "function"],
-    "error": ["failure", "fault"], "did": ["could"], "respond": ["answer", "reply"], "revenue": ["income", "sales"],
-    "increase": ["raise", "grow"], "decrease": ["lower", "reduce"], "service": ["system", "app"],
-    "upstream": ["backend", "dependency"], "segment": ["group", "cohort"], "onboarding": ["setup", "sign-up"],
-    "balance": ["funds", "holdings"], "account": ["ledger", "wallet"], "build": ["compile", "assemble"],
-    "deploy": ["release", "ship"], "request": ["query", "call"], "rating": ["score", "review"],
-    "can": ["could"], "you": ["you"], "by": ["before"], "your": ["the"], "of": ["of"], "one": ["a single"],
-    "another": ["a different"], "workers.": ["staff."],
+    "takes": ["requires", "needs"], "too": ["overly", "excessively"], "deliver": ["ship", "supply"],
+    "units": ["pieces", "items"], "search": ["look up"], "simulated": ["virtual", "emulated"], "internet": ["web"],
+    "pages": ["documents", "web pages"], "matching": ["fitting", "satisfying"], "price": ["charge", "list price"],
+    "monthly": ["per-month"], "products": ["offerings", "goods"], "product": ["offering", "item"],
+    "execute": ["run"], "send": ["transmit", "dispatch"], "message": ["note"], "participant": ["party"],
+    "hire": ["recruit", "employ"], "workers": ["staff", "employees"], "error": ["failure", "fault"],
+    "respond": ["answer", "reply"], "revenue": ["sales", "turnover"], "increase": ["raise", "grow"],
+    "decrease": ["lower", "reduce"], "upstream": ["backend"], "segment": ["group", "cohort"],
+    "onboarding": ["setup", "sign-up"], "balance": ["funds"], "deploy": ["release"], "request": ["call"],
+    "rating": ["score", "grade"], "one": ["a single"], "another": ["a different"], "quickly": ["fast", "rapidly"],
+    "buy": ["purchase"], "begin": ["start"], "help": ["assist"], "show": ["display"], "big": ["large"],
+    "small": ["little"],
 }
-_WORD = re.compile(r"[A-Za-z][A-Za-z\-']*")
+
+#: observation kinds whose content is natural language
+PROSE_KINDS = {ObsKind.TEXT, ObsKind.MESSAGE, ObsKind.EVENT, ObsKind.CONSTRAINT, ObsKind.GOAL, ObsKind.TOOL_SCHEMA}
+#: machine output: identity renames only
+MACHINE_KINDS = {ObsKind.EXEC_RESULT, ObsKind.ERROR, ObsKind.HTML, ObsKind.A11Y, ObsKind.CODE, ObsKind.FILE,
+                 ObsKind.IMAGE}
+PRESENTATIONS = ("json_compact", "json_pretty", "json_sorted", "kv_lines", "table")
+
+_WORD = re.compile(r"[A-Za-z]+(?:[-'][A-Za-z]+)*")
+_CHUNK = re.compile(r"\S+")
+_LEAD = "(\"'«“‘"
+_TRAIL = ".,;:!?)\"'»”’"
+_ID_CHARS = re.compile(r"[_/\\@#=?&<>{}\[\]|$^~`*]")
+_ID_SHAPES = re.compile(r"[A-Za-z][.:][A-Za-z0-9]|[0-9][.:][A-Za-z]|[A-Za-z][0-9]|[0-9][A-Za-z]|[a-z][A-Z]|^-+[A-Za-z]")
 
 
 def _case_like(src: str, word: str) -> str:
@@ -76,6 +104,122 @@ def _case_like(src: str, word: str) -> str:
     return word
 
 
+def is_identifier_chunk(chunk: str, protected: frozenset = frozenset()) -> bool:
+    """Whether a whitespace-delimited chunk is (or contains) an identifier, path, URL, literal or quoted token that a
+    surface transformation must never reword (see module docstring)."""
+    core = chunk.strip(_LEAD + _TRAIL)
+    if not core:
+        return False
+    if core in protected or _ID_CHARS.search(core) or _ID_SHAPES.search(core):
+        return True
+    quoted = chunk.rstrip(".,;:)]}").lstrip("([{")
+    if len(quoted) >= 2 and quoted[0] in "\"'`" and quoted[-1] == quoted[0] and " " not in quoted:
+        return True                                     # a quoted single token: a literal / key, not prose
+    return False
+
+
+def map_prose(text: str, fn, protected: frozenset = frozenset()) -> str:
+    """Apply fn to the maximal natural-language spans of `text` (runs of non-identifier chunks with their
+    whitespace); identifier chunks and the whitespace layout are kept verbatim."""
+    if not text:
+        return text
+    out, last, span_start = [], 0, None
+    for m in _CHUNK.finditer(text):
+        ident = is_identifier_chunk(m.group(0), protected)
+        if ident:
+            if span_start is not None:
+                out.append(fn(text[span_start:m.start()]))
+                span_start = None
+            else:
+                out.append(text[last:m.start()])
+            out.append(m.group(0))
+            last = m.end()
+        elif span_start is None:
+            out.append(text[last:m.start()])
+            span_start = m.start()
+    if span_start is not None:
+        out.append(fn(text[span_start:]))
+    else:
+        out.append(text[last:])
+    return "".join(out)
+
+
+def _parse_json(content: str):
+    st = content.strip()
+    if not st or st[0] not in "{[":
+        return None
+    try:
+        return json.loads(st)
+    except (ValueError, TypeError):
+        return None
+
+
+def _is_prose_value(v: str, protected: frozenset) -> bool:
+    chunks = v.split()
+    return len(chunks) >= 2 and sum(not is_identifier_chunk(c, protected) for c in chunks) >= 2
+
+
+def _scalar_str(v) -> str:
+    if isinstance(v, str):
+        return v
+    return json.dumps(v)
+
+
+def _flatten(obj, prefix: str = "") -> list:
+    if isinstance(obj, dict):
+        out = []
+        for k, v in obj.items():
+            out += _flatten(v, f"{prefix}.{k}" if prefix else str(k))
+        return out or [(prefix, "{}")]
+    if isinstance(obj, list):
+        out = []
+        for i, v in enumerate(obj):
+            out += _flatten(v, f"{prefix}[{i}]")
+        return out or [(prefix, "[]")]
+    return [(prefix, _scalar_str(obj))]
+
+
+def _records(obj):
+    """(key path, list of flat records with identical keys) when obj is (or holds under one key) a table."""
+    def ok(lst):
+        return (isinstance(lst, list) and lst and all(isinstance(r, dict) for r in lst)
+                and all(list(r) == list(lst[0]) for r in lst)
+                and all(not isinstance(v, (dict, list)) for r in lst for v in r.values()))
+    if ok(obj):
+        return None, obj
+    if isinstance(obj, dict):
+        tabs = [k for k, v in obj.items() if ok(v)]
+        if len(tabs) == 1:
+            return tabs[0], obj[tabs[0]]
+    return None
+
+
+def render_json(obj, style: str) -> str:
+    """Render a parsed JSON value in an interface presentation (content identical, layout differs)."""
+    if style == "json_compact":
+        return json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
+    if style == "json_pretty":
+        return json.dumps(obj, indent=2, ensure_ascii=False)
+    if style == "json_sorted":
+        return json.dumps(obj, sort_keys=True, ensure_ascii=False)
+    if style == "table":
+        rec = _records(obj)
+        if rec is not None:
+            key, rows = rec
+            cols = list(rows[0])
+            lines = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
+            lines += ["| " + " | ".join(_scalar_str(r[c]) for c in cols) + " |" for r in rows]
+            rest = []
+            if key is not None:
+                rest = [f"{p}: {v}" for p, v in _flatten({k: v for k, v in obj.items() if k != key})]
+                lines = [f"{key}:"] + lines
+            return "\n".join(rest + lines)
+        style = "kv_lines"
+    if style == "kv_lines":
+        return "\n".join(f"{p}: {v}" for p, v in _flatten(obj))
+    raise ValueError(style)
+
+
 @dataclass
 class SurfaceMap:
     """A consistent surface transformation of one experience (and its inverse for actions)."""
@@ -84,8 +228,12 @@ class SurfaceMap:
     unit: dict = field(default_factory=dict)         # original unit -> (surface unit, factor)
     words: dict = field(default_factory=dict)        # lowercase word -> replacement
     order_seed: Optional[int] = None                 # None = keep order
+    presentation: Optional[str] = None               # rendering of JSON tool results (None = unchanged)
 
     # ---- text
+    def _protected(self) -> frozenset:
+        return frozenset(self.entity.values()) | frozenset(self.tool.values())
+
     def _replace_ids(self, text: str) -> str:
         return _replace_with(text, self._fwd())
 
@@ -93,43 +241,70 @@ class SurfaceMap:
         units = [u for u in self.unit if u]
         if not units or not text:
             return text
-        pat = re.compile(r"(-?\d+(?:\.\d+)?)\s*(" + "|".join(re.escape(u) for u in sorted(units, key=len, reverse=True))
-                         + r")(?![\w])")
+        pat = re.compile(r"(?<![\w.:/=-])(-?\d+(?:\.\d+)?)\s*(" + "|".join(re.escape(u) for u in sorted(units, key=len, reverse=True))
+                         + r")(?![\w/])")
 
         def sub(m):
             nu, f = self.unit[m.group(2)]
             return f"{_fmt(float(m.group(1)) * f)} {nu}"
         return pat.sub(sub, text)
 
-    def _reword(self, text: str) -> str:
-        if not self.words or not text:
+    def _reword_span(self, text: str) -> str:
+        if not self.words:
             return text
-        protected = set(self.entity.values()) | set(self.tool.values())
 
         def sub(m):
             w = m.group(0)
-            if w in protected:
-                return w
             r = self.words.get(w.lower())
             return _case_like(w, r) if r else w
         return _WORD.sub(sub, text)
 
+    def _reword(self, text: str) -> str:
+        if not self.words or not text:
+            return text
+        return map_prose(text, self._reword_span, self._protected())
+
     def text(self, s: str) -> str:
-        return self._reword(self._units_in_text(self._replace_ids(s)))
+        """Natural-language text: identity renames everywhere, then unit phrases and rewording in prose spans."""
+        s = self._replace_ids(s)
+        return map_prose(s, lambda span: self._reword_span(self._units_in_text(span)), self._protected())
+
+    def _json_value(self, v):
+        if isinstance(v, dict):
+            return {self._replace_ids(str(k)): self._json_value(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [self._json_value(x) for x in v]
+        if isinstance(v, str):
+            r = self._replace_ids(v)
+            return self._reword(r) if _is_prose_value(r, self._protected()) else r
+        return v
+
+    def structured(self, content: str) -> str:
+        """Tool-result content: JSON is parsed — keys and identifier values only get identity renames, prose string
+        values are reworded — and re-rendered in the map's presentation; non-JSON gets identity renames only."""
+        obj = _parse_json(content)
+        if obj is None:
+            return self._replace_ids(content)
+        obj = self._json_value(obj)
+        if self.presentation is None:
+            return json.dumps(obj, ensure_ascii=False)
+        return render_json(obj, self.presentation)
 
     # ---- records
     def apply_observation(self, o: Observation) -> Observation:
         o = copy.deepcopy(o)
-        if o.kind in (ObsKind.CODE, ObsKind.FILE):
-            o.content = self._replace_ids(o.content)          # code: identifiers only, never reworded
-        else:
+        if o.kind in PROSE_KINDS:
             o.content = self.text(o.content)
+        elif o.kind == ObsKind.TOOL_RESULT:
+            o.content = self.structured(o.content)
+        else:                                                  # machine output, numeric, relation, transaction
+            o.content = self._replace_ids(o.content)
         o.entity = self.entity.get(o.entity, o.entity)
         o.target = self.entity.get(o.target, o.target)
         if o.source in self.tool:
             o.source = self.tool[o.source]
         if o.relation:
-            o.relation = self._reword(o.relation)
+            o.relation = self._reword(self._replace_ids(o.relation))
         if o.kind == ObsKind.NUMERIC and o.value is not None and o.unit in self.unit:
             nu, f = self.unit[o.unit]
             o.value, o.unit = o.value * f, nu
@@ -171,6 +346,8 @@ class SurfaceMap:
         a.tool = self.tool.get(a.tool, a.tool)
         a.args = self._map_args(a.args, names)
         a.entities = [self.entity.get(e, e) for e in a.entities]
+        if a.code:
+            a.code = _replace_with(a.code, names)
         return a
 
     def invert_action(self, a: Action) -> Action:
@@ -181,12 +358,18 @@ class SurfaceMap:
         a.tool = inv_t.get(a.tool, a.tool)
         a.args = self._map_args(a.args, names)
         a.entities = [inv_e.get(e, e) for e in a.entities]
+        if a.code:
+            a.code = _replace_with(a.code, names)
         return a
 
     def apply_goal(self, g: GoalSpec) -> GoalSpec:
         g = copy.deepcopy(g)
         g.text = self.text(g.text)
         return g
+
+    def unit_factor(self, unit: Optional[str]) -> tuple:
+        """(surface unit, factor) for an outcome / observation unit (identity for units the map leaves alone)."""
+        return self.unit.get(unit, (unit, 1.0))
 
 
 def _replace_with(text: str, names: dict) -> str:
@@ -216,11 +399,13 @@ class SurfaceRandomizer:
     """Draws SurfaceMaps. Each switch enables one surface factor (spec 13.3)."""
 
     def __init__(self, seed: int = 0, rename_entities: bool = True, rename_tools: bool = True,
-                 rescale_units: bool = True, permute: bool = True, reword: bool = True, reword_prob: float = 0.7):
+                 rescale_units: bool = True, permute: bool = True, reword: bool = True, reword_prob: float = 0.7,
+                 presentation: bool = True):
         self.rng = random.Random(seed)
         self.rename_entities, self.rename_tools = rename_entities, rename_tools
         self.rescale_units, self.permute, self.reword = rescale_units, permute, reword
         self.reword_prob = reword_prob
+        self.presentation = presentation
 
     def _new_id(self, old: str, taken: set) -> str:
         prefix = ""
@@ -263,6 +448,8 @@ class SurfaceRandomizer:
             for w, alts in SYNONYMS.items():
                 if self.rng.random() < self.reword_prob:
                     sm.words[w] = self.rng.choice(alts)
+        if self.presentation:
+            sm.presentation = self.rng.choice(PRESENTATIONS)
         return sm
 
     def _convert_unit(self, unit: str) -> tuple:
@@ -326,6 +513,75 @@ class InvarianceLoss(nn.Module):
 
     def count_parameters(self) -> int:
         return count_parameters(self)
+
+
+class PredictionEquivarianceLoss(nn.Module):
+    """Equivariance / invariance of outcome predictions across two surface views of one experience.
+
+    gaussian(mean1, var1, mean2, var2, factor, mask) -> scalar: the view-2 predictive N(m2, v2) must equal the view-1
+    predictive transformed by the view's unit map, N(f m1, f^2 v1) (f = 1 for unit-free outcomes: invariance).
+    Loss = mean over masked queries of the symmetric KL between the two Gaussians (scale-free: KL is unchanged when
+    both are rescaled, so cents and dollars outcomes weigh the same). All [B,Q]; factor [B,Q] or scalar.
+
+    categorical(logits1, logits2, mask) -> scalar: symmetric KL between the two categorical predictions [B,Q,C]
+    (Bernoulli: pass logits of shape [B,Q,2] or use `bernoulli`).
+
+    `target` ("none" | "view1" | "view2") stops the gradient through one view so it acts as the teacher (e.g. the
+    view whose outcomes are labelled); "none" trains both views symmetrically. `robust` uses log(1 + KL) per query
+    (still zero iff the views agree; gradients bounded when they are far apart, e.g. early in training, so the
+    term cannot swamp the prediction loss).
+    """
+
+    def __init__(self, min_var: float = 1e-8, target: str = "none", robust: bool = True):
+        super().__init__()
+        assert target in ("none", "view1", "view2"), target
+        self.min_var = min_var
+        self.target = target
+        self.robust = robust
+
+    def _reduce(self, sym: Tensor, mask: Optional[Tensor]) -> Tensor:
+        if self.robust:
+            sym = torch.log1p(sym)
+        if mask is None:
+            return sym.mean()
+        m = mask.to(sym.dtype)
+        return (sym * m).sum() / m.sum().clamp_min(1.0)
+
+    def _sg(self, a: Tensor, b: Tensor) -> tuple:
+        if self.target == "view1":
+            return a.detach(), b
+        if self.target == "view2":
+            return a, b.detach()
+        return a, b
+
+    @staticmethod
+    def _kl_gauss(m_a, v_a, m_b, v_b):
+        return 0.5 * (torch.log(v_b / v_a) + (v_a + (m_a - m_b) ** 2) / v_b - 1.0)
+
+    def gaussian(self, mean1: Tensor, var1: Tensor, mean2: Tensor, var2: Tensor, factor,
+                 mask: Optional[Tensor] = None) -> Tensor:
+        f = torch.as_tensor(factor, dtype=mean1.dtype, device=mean1.device)
+        mean1, mean2 = self._sg(mean1, mean2)
+        var1, var2 = self._sg(var1, var2)
+        m1, v1 = f * mean1, (f * f) * var1.clamp_min(self.min_var)
+        v2 = var2.clamp_min(self.min_var)
+        sym = self._kl_gauss(m1, v1, mean2, v2) + self._kl_gauss(mean2, v2, m1, v1)
+        return self._reduce(sym, mask)
+
+    def categorical(self, logits1: Tensor, logits2: Tensor, mask: Optional[Tensor] = None) -> Tensor:
+        logits1, logits2 = self._sg(logits1, logits2)
+        lp1, lp2 = F.log_softmax(logits1.float(), -1), F.log_softmax(logits2.float(), -1)
+        sym = ((lp1.exp() * (lp1 - lp2)).sum(-1) + (lp2.exp() * (lp2 - lp1)).sum(-1))
+        return self._reduce(sym, mask)
+
+    def bernoulli(self, logit1: Tensor, logit2: Tensor, mask: Optional[Tensor] = None) -> Tensor:
+        z = torch.zeros_like(logit1)
+        return self.categorical(torch.stack([z, logit1], -1), torch.stack([z, logit2], -1), mask)
+
+
+def unit_factors(sm: SurfaceMap, units: Sequence[Sequence[Optional[str]]], device=None) -> Tensor:
+    """Per-query rescaling factors [B,Q] for outcome queries with the given units (view 1 -> view 2 of `sm`)."""
+    return torch.tensor([[sm.unit_factor(u)[1] for u in row] for row in units], dtype=torch.float32, device=device)
 
 
 def invariance_loss_from_views(core, loss_fn: InvarianceLoss, ctx1: TokenSet, ctx2: TokenSet, world: Tensor,
