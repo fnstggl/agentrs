@@ -33,3 +33,15 @@ PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --gpu-mb 4000 --label "wha
 ```
 
 Further commands are added here by each workstream as its components land.
+
+## Learner interface (workstream L)
+
+```bash
+PYTHONPATH=src python -m crucible.experience tiers                       # which tiers this checkout has
+PYTHONPATH=src python -m crucible.experience run --tier 1 --name mech:scm_additive --seed 0 --steps 120 \
+    --reward-mode observation_only --store /tmp/exp --checkpoint /tmp/ref.pt --out /tmp/run.json   # reproducible
+CRUCIBLE_V5_AUTHOR=ws-L PYTHONPATH=src python -m pytest -q tests/v5/test_gate_R.py tests/v5/test_gate_SP_11_*.py
+PYTHONPATH=src python -m crucible.scale.slots --cpu 4 --label "ws-L: gate S" -- \
+    env CRUCIBLE_V5_AUTHOR=ws-L python -m pytest -q tests/v5/test_gate_S.py   # S.7 starts four worker processes
+```
+See docs/v5/LEARNER_GUIDE.md and docs/v5/components/L.md.

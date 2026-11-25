@@ -73,7 +73,8 @@ class KernelExperienceEnv(BaseExperienceEnv):
             spec = self._spec(world, seed)
             spec = copy.deepcopy(spec)
             have = {m["name"] for m in spec.modules}
-            for m in list(extra_modules) + (["exp"] if experiments else []):
+            # self-generated experiments need identities (every world with participants has them)
+            for m in list(extra_modules) + (["exp"] if experiments and "identity" in have else []):
                 if m not in have:
                     spec.modules.append({"name": m, "config": {}})
                     have.add(m)
