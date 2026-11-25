@@ -2,7 +2,8 @@
 
 A recommender ranks a platform's candidate items for a cohort of viewers:
 
-    class Recommender(Protocol):
+    @runtime_checkable
+class Recommender(Protocol):
         name: str; version: str
         def rank(self, world, platform, viewers, candidates, k, rng) -> np.ndarray   # [len(viewers), k] item ids
 
@@ -28,13 +29,14 @@ parameters are evaluator-side (`world.runtime["recsys_private"]`) and may change
 """
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 import numpy as np
 
 from .. import audience as AUD
 
 
+@runtime_checkable
 class Recommender(Protocol):
     name: str
     version: str
