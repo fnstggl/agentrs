@@ -169,9 +169,57 @@ learning dashboard (Part 18). Compute accounting for every run.
   disjoint structural holdouts and surface randomisation (names, units, ordering, wording).
 * `protocols/` — OW-1 … OW-7 task protocols with independent evaluation and feasibility calibration.
 
-## 11. Codebase map (Stage 0)
+## 11. Codebase map (Stage 0) and the decisions it forces
 
-(filled after the mapping workflow)
+Full reader maps (paths, signatures, measured timings, gotchas): `superlearner/docs/cam_unified_stage0_maps.json`.
+
+**OpenWorld door.** Only `crucible.api.WorldServer` actor operations: `observe(wid, actor, include_tools="never")`,
+`available_tools(wid, actor)` (MCP specs `{name, description, inputSchema, annotations{readOnlyHint, costSeconds}}`,
+145–200 tools per world, dynamic: deployed services appear after discovery), `execute_action(wid, actor,
+{"tool","args"})` → `{ok, t, tool, cost_s, result | error{code, message, details}}` (never raises; ~0.1 ms, sandboxed
+`code.run`/`cloud.deploy` ~90 ms). The operator side (adapter harness, not the learner) owns `advance_time(wid, dt=…)`
+(the clock never moves otherwise), `snapshot_world`/`fork_world(ephemeral=True)` (5–18 ms) and the goal objects.
+`crucible.load_all_modules()` is required before `ow_*` families exist. Time is integer seconds; the contract uses
+float days (adapter converts). Rate limit 240 actions per simulated hour. Never call `World.state/spec/query/
+system_call`, never expose `world_info` (family + seed regenerate every hidden rule).
+**Rewards.** Not in the world: `goals.contracts.RewardContract(goal)` (potential shaping on verified metrics + success
+bonus; daily checks → sparse) and `GoalVerifier`; anti-self-dealing in `goals.metrics.revenue_analysis` (related
+parties excluded, max-flow netting). These live in `OpenWorldEvaluator`; the learner sees only the scalar verified
+return increment and the public goal text.
+**Goals available.** `research.llm_eval.open_economy_goal(world_family="ow_tiny", days=8, revenue_cents=10_000, …)` (the
+non-privileged `usefulness.agents.ExampleInductor` succeeds on day 4; frozen Qwen3-4B and 1.7B: 0 successes in every
+recorded OpenWorld run), `goals.contracts.generate_goal(family ∈ {revenue, recruit, service, solvency, outperform},
+world_family, seed, level)`. OW-1 ($10k/30 days sustained 7 checks within 90 days) is reached by the privileged
+scripted `Builder` in 25–35 simulated days on bazaar/ow_market/open_tight_compute seed 1. Missing: operating-profit
+metric, OW-4 recovery metric, industrial goal family + control (OW-5), anti-trivial self-goal filter (OW-6),
+joint-utility goal (OW-7).
+**Code sandbox.** Landlock (ABI 1, filesystem) + seccomp (no sockets/exec/fork) + rlimits + uid nobody; agent code may
+import only numpy. The learner process itself is not sandboxed.
+**Speed.** ow_tiny ≈ 5 ms per simulated hour, ow_market ≈ 15–17 ms; 90-day OW-1 episode ≈ 1.5–3.5 min of simulation.
+MechVecEnv ≈ 5–15k env-steps/s per process. CPU quota ≈ 23 cores (not 48); ~51 MB per world process.
+**Qwen3-1.7B on the A6000.** hidden 2048, 28 layers; prefill 8×512 in 0.22 s; eager decode ≈ 31 ms/step (launch-bound),
+static cache + compile ≈ 12 ms/step. Soft prefixes via `inputs_embeds`, PEFT LoRA, and both together verified to pass
+gradients. No grammar library installed → our own schema-walking constrained decoder with a custom LogitsProcessor.
+**Reuse.** V-trace (`superlearner/unified/learning/returns.py`, tested) — copy-adapt; tensors-only weight export with
+fresh-process evaluation (SL4) as the template for `load_weights_only`; plasticity instruments (SL4 `continual/`);
+NIG posterior math (`cam7/posterior.py`). Avoid: the unified RSSM (loses cues within 4 steps), CAM 7.0's
+`_Episode` (T_MAX = 256 at `cam7/agent.py:33`), FIFO replays, PPO ratios on stale replay.
+**CAM 7.0 negative transfer is confounded**: `Cam7Learner.load` restores AdamW moments and the full source replay; the
+pretrained arm's meta-training still drew 52–58% source episodes after 120k target steps (Exp 3 rerun, X03).
+**Splits.** Family splits are metadata only; CAM Unified's harness must refuse val/test families in training streams
+(guard in `envs/`). Spent VAL offsets: 0–7, 60k, 70k, 80k.
+
+### Consequences for the design
+
+1. Action decoding is schema-walking: the harness emits JSON structure; the model chooses the tool (pointer), the
+   evidence (pointer), numbers/enums/bools (typed heads) and generates only free strings/code with Qwen under masks.
+   Every executed action is schema-valid by construction; execution failures are real outcomes.
+2. Stage-1 grounding may use behaviour cloning on transcripts of the **non-privileged** ExampleInductor as a declared
+   condition ("demo-init"), always reported beside a no-demo arm. Builder transcripts (privileged reference solvers) are
+   never training data.
+3. The OpenWorld runtime owns the clock: each decision is followed by `advance_time` of the action's `cost_s` plus a
+   learned/declared think time (SMDP), so Δt enters the semi-Markov discount and the dynamics model.
+4. Parallel OpenWorld experience requires processes (world kernels are single-threaded) → workstream F's actors.
 
 ## 12. Verification (H)
 

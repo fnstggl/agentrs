@@ -21,7 +21,7 @@ import uuid
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Iterator, Optional, Protocol, Sequence, runtime_checkable
 
-CONTRACT_VERSION = 1
+CONTRACT_VERSION = 1   # 1.1 (2026-11-25): TokenSet.entity2
 OBS_SCHEMA_VERSION = 1
 
 
@@ -337,13 +337,19 @@ class TokenSet:
     """A padded batch of variable-length token sequences.
     x [B,N,D] float; mask [B,N] bool (True = real); kind [B,N] long (TokenKind); time [B,N] float (token time minus
     now, simulated days); entity [B,N] long (episode-local entity slot or -1); refs: optional [B][N] source ids
-    (event ids / artifact refs / observation indices) used for evidence pointers and traces."""
+    (event ids / artifact refs / observation indices) used for evidence pointers and traces; entity2: optional [B,N]
+    long second entity slot (RELATION / MESSAGE / TRANSACTION targets), -1 = none."""
     x: Any
     mask: Any
     kind: Any
     time: Any
     entity: Any
     refs: Optional[list] = None
+    entity2: Any = None
+
+    def _e2(self):
+        import torch
+        return self.entity2 if self.entity2 is not None else torch.full_like(self.entity, -1)
 
     @property
     def B(self) -> int:
@@ -355,7 +361,7 @@ class TokenSet:
 
     def to(self, device) -> "TokenSet":
         return TokenSet(self.x.to(device), self.mask.to(device), self.kind.to(device), self.time.to(device),
-                        self.entity.to(device), self.refs)
+                        self.entity.to(device), self.refs, None if self.entity2 is None else self.entity2.to(device))
 
     @staticmethod
     def empty(B: int, D: int, device=None, dtype=None) -> "TokenSet":
@@ -382,14 +388,16 @@ class TokenSet:
         if any(s.refs is not None for s in sets):
             B = sets[0].B
             refs = [sum(((s.refs[b] if s.refs is not None else [None] * s.N) for s in sets), []) for b in range(B)]
+        e2 = None if all(s.entity2 is None for s in sets) else torch.cat([s._e2() for s in sets], 1)
         return TokenSet(torch.cat([s.x for s in sets], 1), torch.cat([s.mask for s in sets], 1),
                         torch.cat([s.kind for s in sets], 1), torch.cat([s.time for s in sets], 1),
-                        torch.cat([s.entity for s in sets], 1), refs)
+                        torch.cat([s.entity for s in sets], 1), refs, e2)
 
     def select(self, idx) -> "TokenSet":
         """Batch rows `idx` (LongTensor or list)."""
         refs = None if self.refs is None else [self.refs[int(i)] for i in idx]
-        return TokenSet(self.x[idx], self.mask[idx], self.kind[idx], self.time[idx], self.entity[idx], refs)
+        return TokenSet(self.x[idx], self.mask[idx], self.kind[idx], self.time[idx], self.entity[idx], refs,
+                        None if self.entity2 is None else self.entity2[idx])
 
 
 class Likelihood(enum.IntEnum):
