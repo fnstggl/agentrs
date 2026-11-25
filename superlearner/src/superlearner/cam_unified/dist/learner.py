@@ -185,6 +185,7 @@ class CentralLearner:
         self.ingest_segments = ingest_segments
         self.meter = meter or ComputeMeter("learner", role="learner")
         self.updates_path = os.path.join(self.paths["learner"], "updates.jsonl")
+        self.skipped_path = os.path.join(self.paths["learner"], "skipped.jsonl")
         self.ready: list = []
         self.counts = Counter()
         self.version = 0
@@ -201,19 +202,39 @@ class CentralLearner:
 
     # ---------------------------------------------------------------- recovery
     def _recover_open(self) -> None:
+        """Re-assemble trajectories that were ingested but never consumed: everything in the archive except decisions
+        named in ``updates.jsonl`` (trained) or ``skipped.jsonl`` (discarded for lag / filtered by actor), and except
+        records attributed to, or closing, those consumed decisions' episodes."""
         if self.sink is None or not os.path.exists(self.updates_path):
             return
-        trained = set()
-        with open(self.updates_path) as fh:
-            for line in fh:
-                if line.strip():
-                    trained.update(json.loads(line).get("event_ids", []))
-        n = 0
+        consumed: set = set()
+        for path, key in ((self.updates_path, "event_ids"), (self.skipped_path, "event_ids")):
+            if os.path.exists(path):
+                with open(path) as fh:
+                    for line in fh:
+                        if line.strip():
+                            consumed.update(json.loads(line).get(key, []))
+        consumed_eps: set = set()
+        fresh_all = []
         for chunk in self.sink.scan():
-            fresh = [r for r in chunk if r.event_id not in trained]
-            n += len(fresh)
-            self.assembler.add(fresh)
-        self.counts["recovered_records"] = n
+            for r in chunk:
+                if r.event_id in consumed:
+                    consumed_eps.add((r.actor_id, r.episode_id))
+                    continue
+                fresh_all.append(r)
+        fresh = [r for r in fresh_all if not (r.attributed_to in consumed or
+                                              (r.action is None and (r.actor_id, r.episode_id) in consumed_eps))]
+        self.assembler.trained.update(consumed)
+        self.assembler.add(fresh)
+        self.counts["recovered_records"] = len(fresh)
+
+    def _log_skipped(self, trajs: list, reason: str) -> None:
+        ids = [e.event_id for t in trajs for e in t.events]
+        if not ids:
+            return
+        with open(self.skipped_path, "a") as fh:
+            fh.write(json.dumps({"t": time.time(), "version": self.version, "reason": reason,
+                                 "actors": sorted({t.actor_id for t in trajs}), "event_ids": ids}) + "\n")
 
     # ---------------------------------------------------------------- publication
     def publish(self, meta: Optional[dict] = None) -> dict:
@@ -259,13 +280,17 @@ class CentralLearner:
             self.ingest()
         else:
             self.counts["ingest_paused"] += 1
+        filtered = []
         for tr in self.assembler.pop_ready():
             if self.train_actors is not None and tr.actor_id not in self.train_actors:
                 self.counts["not_trained_actor_filter"] += tr.n
+                filtered.append(tr)
                 continue
             if not tr.events:
                 continue
             self.ready.append(tr)
+        if filtered:
+            self._log_skipped(filtered, "actor_filter")
         n_ready = sum(t.n for t in self.ready)
         if n_ready < self.min_decisions:
             return None
@@ -284,6 +309,8 @@ class CentralLearner:
             tr.route = "discarded"
             self.counts["discarded_trajectories"] += 1
             self.counts["discarded_decisions"] += tr.n
+        if rep.discarded:
+            self._log_skipped(rep.discarded, "lag")
         trainable = rep.on_policy + rep.off_policy
         lagsum = rep.summary()
         lagsum["decision_lags"] = lag_summary([t.lag for t in trainable for _ in range(t.n)])

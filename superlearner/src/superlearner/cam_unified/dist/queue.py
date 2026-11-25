@@ -56,7 +56,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
-from ..interfaces import DecisionTrace, EventRecord, EvidenceKind, Observation
+from ..interfaces import (Action, ActionSource, DecisionTrace, EventRecord, EvidenceKind, ExecutionResult,
+                          Observation, ObsKind, Provenance)
 from ..observe.accounting import atomic_write_json
 
 SEG_FORMAT = "cam-unified-seg/1"
@@ -234,13 +235,47 @@ def _wire_of(line: bytes, kind: str) -> Optional[str]:
     return None
 
 
+_OBSKIND = {e.value: e for e in ObsKind}
+_EVIDENCE = {e.value: e for e in EvidenceKind}
+_SOURCE = {e.value: e for e in ActionSource}
+_PROV = {e.value: e for e in Provenance}
+
+
+def _obs_from(d: dict) -> Observation:
+    d["kind"] = _OBSKIND[d["kind"]]
+    ev = d.get("evidence")
+    d["evidence"] = _EVIDENCE[ev] if ev is not None else EvidenceKind.OBSERVATIONAL
+    return Observation(**d)
+
+
+def decode_event(d: dict) -> EventRecord:
+    """Fast equivalent of ``EventRecord.from_dict`` for freshly parsed JSON (mutates ``d``; tested to produce
+    identical records). Enum lookups go through value dicts instead of Enum calls."""
+    d["observations"] = [_obs_from(o) for o in d.get("observations", [])]
+    a = d.get("action")
+    if a:
+        a["source"] = _SOURCE[a.get("source", "cam_decoder")]
+        d["action"] = Action(**a)
+    else:
+        d["action"] = None
+    r = d.get("result")
+    if r:
+        r["observations"] = [_obs_from(o) for o in r.get("observations", [])]
+        d["result"] = ExecutionResult(**r)
+    else:
+        d["result"] = None
+    d["provenance"] = _PROV[d.get("provenance", "real")]
+    d["evidence"] = _EVIDENCE[d.get("evidence", "controlled")]
+    return EventRecord(**d)
+
+
 def record_from_dict(kind: str, d, wire: Optional[str] = None):
     """Rebuild the record. ``wire`` (its exact JSON as it arrived) is kept on the object as ``_wire`` so sinks and
     trace recorders can store it without re-serialising; code that mutates a record must delete ``_wire``."""
     if isinstance(d, WireTrace):
         return d
     if kind == "event":
-        r = EventRecord.from_dict(d)
+        r = decode_event(d)
     elif kind == "trace":
         r = DecisionTrace(**d)
     else:
@@ -522,7 +557,7 @@ class SpoolConsumer:
             allowed = set(actors)
             names = [n for n in names if _SEG_RE.match(n).group(2) in allowed]
         names = names[:max_segments]
-        batch, claimed = [], []
+        batch, claimed, claim_rows = [], [], []
         for name in names:
             st = self._status(name)
             if st == "done":                      # crash after commit, before the move
@@ -540,13 +575,16 @@ class SpoolConsumer:
                 continue
             m = _SEG_RE.match(name)
             if st is None:
-                self.db.execute("INSERT INTO segments(name, actor_id, seq, status, n_items, t_claim) "
-                                "VALUES (?,?,?,?,?,?)", (name, m.group(2), int(m.group(3)), "claimed", len(recs),
-                                                         time.time()))
+                claim_rows.append((name, m.group(2), int(m.group(3)), "claimed", len(recs), time.time()))
             batch.append((name, header, recs, st == "claimed"))
             claimed.append(name)
         if not batch:
             return res
+        if claim_rows:                                  # one durable transaction claims the whole batch
+            self.db.execute("BEGIN IMMEDIATE")
+            self.db.executemany("INSERT INTO segments(name, actor_id, seq, status, n_items, t_claim) "
+                                "VALUES (?,?,?,?,?,?)", claim_rows)
+            self.db.execute("COMMIT")
 
         # ---- dedup against the seen-set and within the batch
         keys = []

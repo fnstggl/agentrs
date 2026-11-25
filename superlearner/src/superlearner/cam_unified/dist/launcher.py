@@ -70,7 +70,8 @@ def _entry(target_path: str, log_path: str, *args) -> None:
 
 
 class Launcher:
-    def __init__(self, run_dir: str, learner: LearnerSpec, actors: list, semserve: Optional[SemServeSpec] = None,
+    def __init__(self, run_dir: str, learner: Optional[LearnerSpec], actors: list,
+                 semserve: Optional[SemServeSpec] = None,
                  max_restarts: int = 3, sample_every_s: float = 0.5, env: Optional[dict] = None):
         import torch.multiprocessing as tmp           # torch reductions: CPU tensors cross queues via shared memory
         self.ctx = tmp.get_context("spawn")
@@ -134,7 +135,7 @@ class Launcher:
         self.t_start = time.time()
         atomic_write_json(os.path.join(self.run_dir, "run.json"), {
             "t_start": self.t_start, "host": platform.node(), "python": sys.version.split()[0],
-            "cpu_count": os.cpu_count(), "learner": self.learner_spec.to_dict(),
+            "cpu_count": os.cpu_count(), "learner": self.learner_spec.to_dict() if self.learner_spec else None,
             "actors": [a.to_dict() for a in self.actor_specs.values()],
             "semserve": self.sem_spec.to_dict() if self.sem_spec else None, "max_restarts": self.max_restarts})
         if self.sem_spec is not None:
@@ -142,7 +143,8 @@ class Launcher:
             self.sem_resp = {aid: self.ctx.Queue() for aid in self.actor_specs}
             self._start_semserve()
             self._wait_status("semserve", "ready", semserve_timeout_s)
-        self._start_learner()
+        if self.learner_spec is not None:
+            self._start_learner()
         for aid in self.actor_specs:
             self._start_actor(aid)
 
@@ -253,7 +255,8 @@ class Launcher:
         self.actor_stop.set()
         self._join([n for n in self.procs if n in self.actor_specs], timeout_s)
         self.learner_stop.set()
-        self._join(["learner"], timeout_s)
+        if "learner" in self.procs:
+            self._join(["learner"], timeout_s)
         if "semserve" in self.procs:
             self.sem_stop.set()
             self._join(["semserve"], timeout_s)
@@ -289,12 +292,18 @@ class Launcher:
         ln = st.get("learner", {})
         acts = {k: v for k, v in st.items() if k in self.actor_specs}
         thr = steady_rate(self.series, "decisions")
+        ing = steady_rate(self.series, "ingested")
+        trn = steady_rate(self.series, "trained_decisions")
         summary = {"run_dir": self.run_dir, "wall_s": time.time() - (self.t_start or time.time()),
                    "n_actors": len(self.actor_specs), "restarts": dict(self.restarts),
                    "decisions": sum(a.get("decisions", 0) for a in acts.values()),
                    "records": sum(a.get("records", 0) for a in acts.values()),
                    "episodes": sum(a.get("episodes", 0) for a in acts.values()),
-                   "decisions_per_s_steady": thr, "learner_version": ln.get("version"),
+                   "decisions_per_s_steady": thr, "ingested_records_per_s_steady": ing,
+                   "trained_decisions_per_s_steady": trn,
+                   "actor_blocked_s": {k: (v.get("writer") or {}).get("blocked_s") for k, v in acts.items()},
+                   "actor_wait_weights_s": {k: v.get("wait_weights_s") for k, v in acts.items()},
+                   "learner_version": ln.get("version"),
                    "learner_counts": ln.get("counts", {}), "lag": ln.get("router", {}),
                    "queue": ln.get("queue", {}), "actor_recent_scores": {k: v.get("recent_score") for k, v in acts.items()},
                    "actor_versions_used": {k: v.get("versions_used") for k, v in acts.items()},
@@ -321,20 +330,35 @@ def steady_rate(series: list, key: str, warm_frac: float = 0.3) -> Optional[floa
 
 
 def benchmark_actors(out_dir: str, n_actors=(1, 4, 8), seconds: float = 20.0, envs_per_actor: int = 4,
-                     min_decisions: int = 256, max_batch_decisions: int = 1024, seed: int = 0) -> list:
-    """Toy-environment throughput benchmark: learner + N actors for ``seconds`` each; returns one summary per N."""
+                     min_decisions: int = 256, max_batch_decisions: int = 1024, seed: int = 0,
+                     max_spool_bytes: int = 64 << 20, with_learner: bool = True) -> list:
+    """Toy-environment throughput benchmark: N actors (+ the learner) for ``seconds`` each; one summary per N.
+
+    ``with_learner=True``: end-to-end. The spool is bounded (``max_spool_bytes``, policy "block"), so the measured
+    decisions/s is the sustained system rate: when the learner's ingestion saturates, actors block
+    (``actor_blocked_s``) instead of the spool growing without bound.
+    ``with_learner=False``: experience-generation capacity of the actors alone (initial weights are published
+    once; segments accumulate durably in the spool, which must be large enough for the run)."""
     results = []
+    qk = {"max_spool_bytes": max_spool_bytes, "policy": "block"}
     for n in n_actors:
-        run = os.path.join(out_dir, f"actors{n}")
-        L = LearnerSpec(run_dir=run, model_kwargs={"seed": seed, "lr": 1e-2}, min_decisions=min_decisions,
-                        max_batch_decisions=max_batch_decisions, max_lag=16, torch_threads=2)
+        run = os.path.join(out_dir, f"{'e2e' if with_learner else 'actors_only'}_actors{n}")
+        L = None
+        if with_learner:
+            L = LearnerSpec(run_dir=run, model_kwargs={"seed": seed, "lr": 1e-2}, min_decisions=min_decisions,
+                            max_batch_decisions=max_batch_decisions, max_lag=16, torch_threads=2, queue_kwargs=qk)
+        else:
+            from .publish import CheckpointPublisher
+            from .toyworld import make_tiny_learner
+            CheckpointPublisher(run_paths(run)["ckpt"]).publish(make_tiny_learner(seed=seed).state_dict(), 0)
         A = [ActorSpec(actor_id=f"actor{i}", run_dir=run, env_kwargs={"B": envs_per_actor, "mechanism_seed": seed},
-                       seed=1000 + i, batch_records=512) for i in range(n)]
+                       seed=1000 + i, batch_records=512, queue_kwargs=qk) for i in range(n)]
         launch = Launcher(run, L, A)
         s = launch.run(duration_s=seconds)
         s["envs_per_actor"] = envs_per_actor
+        s["with_learner"] = with_learner
         results.append(s)
-        atomic_write_json(os.path.join(out_dir, "bench.json"), results)
+        atomic_write_json(os.path.join(out_dir, f"bench_{'e2e' if with_learner else 'actors_only'}.json"), results)
     return results
 
 
@@ -347,12 +371,18 @@ def _main(argv=None) -> None:
     b.add_argument("--seconds", type=float, default=20.0)
     b.add_argument("--envs-per-actor", type=int, default=4)
     b.add_argument("--out", required=True)
+    b.add_argument("--actors-only", action="store_true", help="no learner: actor experience-generation capacity")
     a = ap.parse_args(argv)
-    res = benchmark_actors(a.out, tuple(int(x) for x in a.actors.split(",")), a.seconds, a.envs_per_actor)
+    res = benchmark_actors(a.out, tuple(int(x) for x in a.actors.split(",")), a.seconds, a.envs_per_actor,
+                           with_learner=not a.actors_only, max_spool_bytes=(8 << 30) if a.actors_only else 64 << 20)
     for r in res:
         c = r["compute"]
+        blk = r["actor_blocked_s"]
         print(f"actors={r['n_actors']:2d} decisions/s(steady)={r['decisions_per_s_steady'] or 0:9.1f} "
-              f"decisions={r['decisions']:8d} learner_v={r['learner_version']} cpu_s={c['cpu_s']:.1f} "
+              f"ingested/s={r['ingested_records_per_s_steady'] or 0:9.1f} "
+              f"trained/s={r['trained_decisions_per_s_steady'] or 0:8.1f} decisions={r['decisions']:8d} "
+              f"learner_v={r['learner_version']} cpu_s={c['cpu_s']:.1f} "
+              f"blocked_s(mean)={sum(v or 0 for v in blk.values()) / max(1, len(blk)):.1f} "
               f"peak_rss_max={c['peak_rss_mb_max']:.0f}MB lag={r['lag'].get('lag_hist')}")
 
 

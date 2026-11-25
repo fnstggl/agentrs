@@ -14,7 +14,7 @@ Ops:
 * ``generate`` {"prompts", "max_new_tokens", "greedy", "temperature", "seed", "prefix_embeds"?} → {"tokens": [[id]],
   "text": [str], "logprobs": [[float]], "version"} — the reply's behaviour log-probabilities are those of the
   served decoder version (``decoder_version``), so actors can log exact ``logp`` for off-policy correction;
-* ``info`` → model name, hidden size, versions, stats.
+* ``info`` → model name, hidden size, versions, stats; ``adapter_state`` → the served adapter tensors.
 
 **Batching.** The server blocks for the first request, then keeps collecting for up to ``max_wait_ms`` or until
 ``max_batch_texts`` texts are queued; requests of the same op and parameters (from any client) are concatenated into
@@ -244,6 +244,10 @@ class SemanticServer:
             elif op == "info":
                 replies.append((cid, rid, self.info()))
                 continue
+            elif op == "adapter_state":                 # current adapter tensors (shapes/keys for a learner)
+                replies.append((cid, rid, {"state": self.adapter_state() if self.lora else {},
+                                           "version": self.decoder_version}))
+                continue
             else:
                 replies.append((cid, rid, {"error": f"unknown op {op!r}"}))
                 continue
@@ -411,6 +415,9 @@ class SemanticClient:
 
     def call(self, op: str, payload: dict) -> dict:
         return self.result(self.submit(op, payload))
+
+    def adapter_state(self) -> dict:
+        return self.call("adapter_state", {})["state"]
 
     def info(self) -> dict:
         self._info = self.call("info", {})

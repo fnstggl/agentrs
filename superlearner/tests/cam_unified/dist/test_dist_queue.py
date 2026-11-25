@@ -331,3 +331,16 @@ def test_killed_writer_processes_restart_without_loss_or_duplicates(tmp_path):
     assert not [f for f in os.listdir(q.incoming) if f.endswith(".tmp")]
     versions = {e.model_version for b in sink.scan(actor_id="wa") for e in b}
     assert versions == set(range(12))            # model-version tags survive transport
+
+
+def test_fast_event_decoder_equals_contract_from_dict():
+    from superlearner.cam_unified.dist.queue import decode_event
+    from superlearner.cam_unified.interfaces import EvidenceKind, ExecutionResult, Provenance
+    evs = _events(20, seed=5)
+    evs[0].result = ExecutionResult(False, [Observation(ObsKind.ERROR, "boom", evidence=EvidenceKind.INFERRED)],
+                                    error="x")
+    evs[1].action = None
+    evs[2].provenance = Provenance.COUNTERFACTUAL
+    for e in evs:
+        d = json.loads(json.dumps(encode_record(e)))
+        assert decode_event(json.loads(json.dumps(d))) == EventRecord.from_dict(d) == e

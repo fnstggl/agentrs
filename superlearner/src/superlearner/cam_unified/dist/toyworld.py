@@ -351,36 +351,31 @@ class TinyLearnerModel:
         return {"n_feat": self.net.n_feat, "n_tools": self.net.n_tools, "hidden": self.net.hidden}
 
     def _tensors(self, trajs: list):
-        K, Fd = self.net.n_tools, self.net.n_feat
+        """Trajectories -> padded [B, T(, F)] tensors (built from Python lists, one tensor construction each)."""
+        Fd = self.net.n_feat
         B, T = len(trajs), max(len(t.events) for t in trajs)
-        x = torch.zeros(B, T, Fd)
-        r_in = torch.zeros(B, T, 1)
-        a = torch.zeros(B, T, dtype=torch.long)
-        mu = torch.zeros(B, T)
-        rew = torch.zeros(B, T)
-        pay_y = torch.zeros(B, T)
-        pay_m = torch.zeros(B, T, dtype=torch.bool)
-        dt = torch.zeros(B, T)
-        mask = torch.zeros(B, T, dtype=torch.bool)
-        lag = torch.zeros(B, T, dtype=torch.long)
-        for i, tr in enumerate(trajs):
-            for t, e in enumerate(tr.events):
-                xs, rs = featurize(e.observations, Fd)
-                x[i, t] = torch.tensor(xs)
-                r_in[i, t, 0] = rs
-                a[i, t] = int(e.action.tool.split("_")[-1])
-                mu[i, t] = float(e.behavior_logp)
-                outs = tr.outcomes.get(e.event_id, [])
-                vals = [o.value for rec in outs for o in rec.observations
+        xs, rins, acts, mus, rews, pys, pms, dts, masks, lags = ([] for _ in range(10))
+        zf = [0.0] * Fd
+        for tr in trajs:
+            row = [[], [], [], [], [], [], [], [], []]
+            for e in tr.events:
+                f, rs = featurize(e.observations, Fd)
+                vals = [o.value for rec in tr.outcomes.get(e.event_id, []) for o in rec.observations
                         if o.value is not None and (o.meta or {}).get("key") == "payoff"]
-                rew[i, t] = float(sum(vals))
-                if vals:
-                    pay_y[i, t] = float(sum(vals) > 0.5)
-                    pay_m[i, t] = True
-                dt[i, t] = float(e.extra.get("dt", 0.0))
-                mask[i, t] = True
-                lag[i, t] = tr.lag
-        return x, r_in, a, mu, rew, pay_y, pay_m, dt, mask, lag
+                tot = float(sum(vals))
+                for lst, v in zip(row, (f, rs, int(e.action.tool.split("_")[-1]), float(e.behavior_logp), tot,
+                                        float(tot > 0.5), bool(vals), float(e.extra.get("dt", 0.0)), True)):
+                    lst.append(v)
+            pad = T - len(tr.events)
+            for dst, lst, z in zip((xs, rins, acts, mus, rews, pys, pms, dts, masks), row,
+                                   (zf, 0.0, 0, 0.0, 0.0, 0.0, False, 0.0, False)):
+                dst.append(lst + [z] * pad)
+            lags.append([tr.lag] * T)
+        return (torch.tensor(xs, dtype=torch.float32), torch.tensor(rins, dtype=torch.float32)[..., None],
+                torch.tensor(acts, dtype=torch.long), torch.tensor(mus, dtype=torch.float32),
+                torch.tensor(rews, dtype=torch.float32), torch.tensor(pys, dtype=torch.float32),
+                torch.tensor(pms, dtype=torch.bool), torch.tensor(dts, dtype=torch.float32),
+                torch.tensor(masks, dtype=torch.bool), torch.tensor(lags, dtype=torch.long))
 
     def update(self, batch) -> dict:
         trajs = batch.trajectories
