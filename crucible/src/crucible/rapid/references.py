@@ -524,6 +524,12 @@ def play(env) -> dict:
     """The family's reference on `env`; the generic one learns over practice episodes on copies of the world
     (`practice_constant`), as a learner would across episodes, then plays the scored episode."""
     fn = SPECIFIC.get(env.family)
+    from .families import FAMILIES
+    fam = FAMILIES.get(env.family)
+    if fn is None and fam is not None and fam.reference:   # a family's own reference ("module:function")
+        import importlib
+        mod, name = fam.reference.split(":")
+        fn = getattr(importlib.import_module(mod), name)
     if fn is not None:
         fn(PublicView(env), env)
         return env.outcome()

@@ -143,6 +143,15 @@ class Composed:
                 tm[0] = new
         return new
 
+    def set_bias(self, nid: str, port: str, value: float) -> None:
+        self.node(nid).setdefault("bias", {})[port] = float(value)
+
+    def process_noise(self, sd: float, ar: float = 0.6, into: str | None = None, weight: float = 1.0) -> str:
+        """A hidden exogenous fluctuation (AR(1)) added to the outcome's input: what the world does on its own."""
+        e = self.prim("hidden_confounding", {"mean": 0.0, "sd": float(sd), "ar": float(ar)}, role="exogenous")
+        self.add_input(into or self.sold, "x", e, 0, weight)
+        return e
+
     def drop_gauge(self, nid: str) -> None:
         self.gb.gauges[:] = [g for g in self.gb.gauges if g["src"] != [nid]]
 

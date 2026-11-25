@@ -56,13 +56,14 @@ def _lever_props(view):
     return view.action_space().kinds["levers"]["properties"]["values"]["properties"]
 
 
-def _sign_question(env, lever: str, measure, block: int | None = None, question: str = "") -> dict:
+def _sign_question(env, lever: str, measure, block: int | None = None, question: str = "", hi_f: float = 0.9,
+                   lo_f: float = 0.1) -> dict:
     """Does a higher setting of `lever` (75% vs 25% of its range) raise `measure` per tick, in blocks?"""
     view = PublicView(env)
     p = _lever_props(view)[lever]
     lo, hi = p["minimum"], p["maximum"]
-    act = {"A": {"kind": "levers", "values": {lever: lo + 0.75 * (hi - lo)}},
-           "B": {"kind": "levers", "values": {lever: lo + 0.25 * (hi - lo)}}}
+    act = {"A": {"kind": "levers", "values": {lever: lo + hi_f * (hi - lo)}},
+           "B": {"kind": "levers", "values": {lever: lo + lo_f * (hi - lo)}}}
     block = block or max(4, env.horizon // 8)
     truth = contrast_truth(fork(env), act, measure, block)
     est = contrast_estimate(view, act, measure, block)
@@ -145,7 +146,39 @@ def reactive_reversal(env) -> dict:
 def lever_raises_sales(env) -> dict:
     """Question: does holding the family's key lever higher raise revenue (units sold)?"""
     name = _lname(env, env._config["claim"]["lever"])
-    return _sign_question(env, name, _rev, question=f"does raising {name} raise sales")
+    return _sign_question(env, name, _rev, block=8, hi_f=1.0, lo_f=0.0, question=f"does raising {name} raise sales")
+
+
+def lever_raises_sales_any(env) -> dict:
+    """Question: does holding the key lever higher raise sales? Public: blocks of the lever at its top and bottom;
+    every reading and revenue is compared between the two arms and the sign of the clearest response is the
+    answer (an intermediate gauge free of the demand shocks can show the effect more clearly than sales)."""
+    from .oracles import fork
+    view = PublicView(env)
+    name = _lname(env, env._config["claim"]["lever"])
+    p = _lever_props(view)[name]
+    act = {"A": {"kind": "levers", "values": {name: p["maximum"]}},
+           "B": {"kind": "levers", "values": {name: p["minimum"]}}}
+    block = 8
+    truth = contrast_truth(fork(env), act, _rev, block)
+    rows = {"A": [], "B": []}
+    for k in range(view.horizon - view.t):
+        arm = "A" if (k // block) % 2 == 0 else "B"
+        o = view.step(act[arm])["observation"]
+        if k % block >= block // 2:
+            rows[arm].append(dict(o["numbers"], revenue=_rev(o)))
+    zs = {}
+    for key in rows["A"][0]:
+        xa = np.asarray([r.get(key, np.nan) for r in rows["A"]], dtype=float)
+        xb = np.asarray([r.get(key, np.nan) for r in rows["B"]], dtype=float)
+        xa, xb = xa[np.isfinite(xa)], xb[np.isfinite(xb)]
+        if len(xa) > 1 and len(xb) > 1:
+            se = np.sqrt(xa.var(ddof=1) / len(xa) + xb.var(ddof=1) / len(xb)) + 1e-9
+            zs[key] = float((xa.mean() - xb.mean()) / se)
+    best = max(zs, key=lambda k: abs(zs[k]))
+    est = float(np.sign(zs[best]))
+    return {"question": f"does raising {name} raise sales", "truth": float(np.sign(truth)), "estimate": est,
+            "clearest_reading": best, "z": zs[best], "ok": bool(est == np.sign(truth) and abs(zs[best]) >= 2.0)}
 
 
 def dose_peak(env) -> dict:
@@ -167,8 +200,8 @@ def dose_is_non_monotonic(env) -> dict:
     props = _lever_props(view)
     A = _lname(env, env._config["claim"]["lever"])
     B = [n for n in props if n != A][0]
-    grid = [0.5, 1.5, 2.5, 3.5, 4.5, 6.0, 8.0, 10.0]
-    hold = max(4, min(6, (view.horizon - view.t) // len(grid)))
+    grid = [0.5, 1.5, 2.5, 3.5, 5.0, 8.0]
+    hold = max(4, min(8, (view.horizon - view.t) // len(grid)))
     vals = []
     for x in grid:
         r = []
@@ -240,3 +273,204 @@ def latch_threshold(env) -> dict:
     hi = float(env._config["nodes"][env._engine.idx[cl["latch"]]]["params"]["hi"])
     return {"question": "from which setting does the pathway open", "estimate": est, "truth": hi,
             "ok": est is not None and -0.25 <= est - hi <= 1.25, "sweep": vals}
+
+
+# ====================================================================== 8.10 changing environments
+def _at(env, nid: str) -> float:
+    return float(env._config["nodes"][env._engine.idx[nid]]["params"]["at"])
+
+
+def _split_effect(env, act_hi: dict, act_lo: dict, node: str, at: float, settle: int = 3, ticks: int | None = None):
+    """Per-tick effect hi - lo on `node` (forks, common noise), averaged before the switch and after it."""
+    T = ticks or env.horizon
+    d = _series(env, _hold(act_hi), T, node) - _series(env, _hold(act_lo), T, node)
+    t = np.arange(T)
+    before = d[(t >= settle) & (t < at)]
+    after = d[t >= at + settle]
+    return float(before.mean()), float(after.mean())
+
+
+def _change_point(view, act_a: dict, act_b: dict, measure, run: int = 2) -> tuple[float, np.ndarray]:
+    """Public: alternate actions A and B in runs of `run` ticks to the horizon, record measure(A) - measure(B) on the
+    last tick of each pair of runs, and place the single change point that best splits the series (least squares).
+    Returns (estimated tick of the change, the series)."""
+    diffs, times = [], []
+    while not view.done:
+        vals = {}
+        for lab, act in (("A", act_a), ("B", act_b)):
+            for k in range(run):
+                if view.done:
+                    break
+                o = view.step({"kind": "levers", "values": act})["observation"]
+                if k == run - 1:
+                    vals[lab] = measure(o)
+        if len(vals) == 2:
+            diffs.append(vals["A"] - vals["B"])
+            times.append(view.t - 2 * run)
+    d = np.asarray(diffs)
+    best, k_best = np.inf, 1
+    for k in range(2, len(d) - 1):
+        sse = ((d[:k] - d[:k].mean()) ** 2).sum() + ((d[k:] - d[k:].mean()) ** 2).sum()
+        if sse < best:
+            best, k_best = sse, k
+    return float(times[k_best]), d
+
+
+def sign_reversal(env) -> dict:
+    """Holding the lever high raises sales before the hidden tick and lowers them after it (forks)."""
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
+    at = _at(env, cl["regime"])
+    before, after = _split_effect(env, {A: 8.0, B: 2.0}, {A: 2.0, B: 2.0}, cl["outcome"], at)
+    return {"ok": before > 0.5 and after < -0.5, "effect_before": before, "effect_after": after, "switch_tick": at}
+
+
+def reversal_time(env) -> dict:
+    """Question: when does the lever's effect on sales reverse? Public: alternate the lever high and low, locate the
+    change in the high-low revenue difference."""
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
+    est, d = _change_point(PublicView(env), {A: 9.0, B: 2.0}, {A: 1.0, B: 2.0}, _rev)
+    truth = _at(env, cl["regime"])
+    return {"question": "at which tick does the lever's effect reverse", "estimate": est, "truth": truth,
+            "ok": abs(est - truth) <= 6.0 and d[:3].mean() > 0 > d[-3:].mean()}
+
+
+def constraint_tightens(env) -> dict:
+    """The marginal product of materials falls by more than half once the machines lose capacity (forks)."""
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["constrained"])
+    at = _at(env, cl["regime"])
+    before, after = _split_effect(env, {A: 8.0, B: 3.0}, {A: 5.0, B: 3.0}, cl["outcome"], at)
+    return {"ok": before > 0.3 and after < 0.5 * before, "materials_effect_before": before,
+            "materials_effect_after": after, "switch_tick": at}
+
+
+def constraint_time(env) -> dict:
+    """Question: when did extra materials stop paying? Public: alternate materials high and medium."""
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["constrained"])
+    est, d = _change_point(PublicView(env), {A: 9.0, B: 6.0}, {A: 2.0, B: 6.0}, _rev)
+    truth = _at(env, cl["regime"])
+    return {"question": "at which tick does the constraint tighten", "estimate": est, "truth": truth,
+            "ok": abs(est - truth) <= 6.0 and d[:3].mean() > d[-3:].mean()}
+
+
+def drifting_optimum(env) -> dict:
+    """The setting of the design lever that maximises sales moves by at least three units between the start and the
+    end of the episode, in the claimed direction (forks over a grid of settings)."""
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
+    H = env.horizon
+    grid = np.arange(0.0, 10.01, 0.5)
+    early, late = [], []
+    for x in grid:
+        s = _series(env, _hold({A: float(x), B: 3.0}), H, cl["outcome"])
+        early.append(s[1:6].mean())
+        late.append(s[H - 5:].mean())
+    be, bl = float(grid[int(np.argmax(early))]), float(grid[int(np.argmax(late))])
+    want = 1.0 if cl["direction"] == "up" else -1.0
+    return {"ok": (bl - be) * want >= 3.0, "best_early": be, "best_late": bl, "direction": cl["direction"]}
+
+
+def drift_direction(env) -> dict:
+    """Question: does the best design setting rise or fall during the episode? Public: cycle three settings early
+    and late, compare which earns most."""
+    view = PublicView(env)
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
+    grid = [1.5, 5.0, 8.5]
+    H = view.horizon
+
+    def window(n):
+        tot = {x: [] for x in grid}
+        for _ in range(n):
+            for x in grid:
+                for k in range(2):
+                    if view.done:
+                        return tot
+                    o = view.step({"kind": "levers", "values": {A: x, B: 3.0}})["observation"]
+                    if k == 1:
+                        tot[x].append(_rev(o))
+        return tot
+    e = window(3)
+    while view.t < H - 18 and not view.done:
+        view.step({"kind": "levers", "values": {A: 5.0, B: 3.0}})
+    lt = window(3)
+    be = max(grid, key=lambda x: np.mean(e[x]) if e[x] else -np.inf)
+    bl = max(grid, key=lambda x: np.mean(lt[x]) if lt[x] else -np.inf)
+    est = "up" if bl > be else ("down" if bl < be else "none")
+    return {"question": "does the best setting rise or fall", "estimate": est, "truth": cl["direction"],
+            "ok": est == cl["direction"]}
+
+
+def demand_shift(env) -> dict:
+    """The marginal value of capacity jumps at the hidden tick, in the claimed direction (forks)."""
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
+    at = _at(env, cl["regime"])
+    x = float(cl["capacity_before"])
+    before, after = _split_effect(env, {A: x + 3.0, B: 2.0}, {A: x, B: 2.0}, cl["outcome"], at, settle=4)
+    ok = after > 1.3 * before if cl["direction"] == "up" else after < 0.7 * before
+    return {"ok": bool(ok and before > 0), "capacity_effect_before": before, "capacity_effect_after": after,
+            "direction": cl["direction"], "switch_tick": at}
+
+
+def shift_direction(env) -> dict:
+    """Question: did demand rise or fall? Public: alternate capacity high and low; when demand rises extra capacity
+    is worth more than before, when it falls less (compare the high-low revenue difference late and early)."""
+    view = PublicView(env)
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
+    _, d = _change_point(view, {A: 8.0, B: 2.0}, {A: 3.0, B: 2.0}, _rev)
+    n = max(2, len(d) // 3)
+    early, late = float(d[:n].mean()), float(d[-n:].mean())
+    est = "up" if late > 1.2 * early else ("down" if late < 0.8 * early else "none")
+    return {"question": "did demand rise or fall", "estimate": est, "truth": cl["direction"],
+            "ok": est == cl["direction"], "capacity_value_early": early, "capacity_value_late": late}
+
+
+def tech_transition(env) -> dict:
+    """The new process's yield per unit rises with its own use (learning), and the old process loses most of its
+    effect at the hidden tick (forks)."""
+    eng, st, cfg = inside(env)
+    cl = cfg["claim"]
+    A, Bn = _lname(env, cl["lever"]), _lname(env, cl["new"])
+    prod = cfg["nodes"][eng.idx[cl["outcome"]]]["ports"]["x"][1][0]
+    y = _series(env, _hold({A: 0.0, Bn: 8.0}), 30, prod)
+    learn = float(y[25] / max(y[2], 1e-9))
+    at = _at(env, cl["regime"])
+    before, after = _split_effect(env, {A: 8.0, Bn: 0.0}, {A: 2.0, Bn: 0.0}, cl["outcome"], at)
+    return {"ok": learn > 2.0 and before > 0.5 and after < 0.5 * before, "yield_growth": learn,
+            "old_effect_before": before, "old_effect_after": after}
+
+
+def obsolescence_time(env) -> dict:
+    """Question: when did the established process lose its value? Public: alternate it high and low."""
+    cl = env._config["claim"]
+    A, Bn = _lname(env, cl["lever"]), _lname(env, cl["new"])
+    est, d = _change_point(PublicView(env), {A: 9.0, Bn: 0.0}, {A: 1.0, Bn: 0.0}, _rev)
+    truth = _at(env, cl["regime"])
+    return {"question": "at which tick does the old process become obsolete", "estimate": est, "truth": truth,
+            "ok": abs(est - truth) <= 6.0 and d[:3].mean() > d[-3:].mean()}
+
+
+def rule_change(env) -> dict:
+    """Before the hidden tick the first lever pays and the second barely does; afterwards the reverse (forks)."""
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
+    at = _at(env, cl["regime_a"])
+    ab, aa = _split_effect(env, {A: 8.0, B: 0.0}, {A: 2.0, B: 0.0}, cl["outcome"], at, settle=4)
+    bb, ba = _split_effect(env, {A: 0.0, B: 8.0}, {A: 0.0, B: 2.0}, cl["outcome"], at, settle=4)
+    return {"ok": ab > 3 * max(aa, 0.0) and ba > 3 * max(bb, 0.0) and ab > 0.5 and ba > 0.5,
+            "first_before": ab, "first_after": aa, "second_before": bb, "second_after": ba, "switch_tick": at}
+
+
+def rule_change_time(env) -> dict:
+    """Question: when did the platform change what it rewards? Public: alternate between the two levers."""
+    cl = env._config["claim"]
+    A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
+    est, d = _change_point(PublicView(env), {A: 9.0, B: 1.0}, {A: 1.0, B: 9.0}, _rev, run=3)
+    truth = _at(env, cl["regime_a"])
+    return {"question": "at which tick does the rule change", "estimate": est, "truth": truth,
+            "ok": abs(est - truth) <= 7.0 and d[:2].mean() > 0 > d[-2:].mean()}
