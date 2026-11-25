@@ -25,10 +25,10 @@ What it does
 * **Versioning.** `info()` gives the model id, the Hugging Face revision (commit of the local snapshot), the parameter
   count and `weights_hash`: SHA-256 over the sorted parameter tensors (name, dtype, shape, bytes), as defined for
   `crucible.substrate.inference.weights_hash`.
-* **Recording.** With a kernel `Ctx` the outputs are recorded as an external outcome of the transaction
-  (`crucible.substrate.inference.recorded` when the substrate provides it, else ``ctx.external`` with the same record
-  shape ``{model_id, model_hash, inputs_digest, output}``), so replay and regeneration of the world return the
-  recorded text and never run the model. Without a ctx (benchmarks, offline evaluation) nothing is recorded.
+* **Recording.** With a kernel `Ctx` the outputs are recorded through `crucible.substrate.inference.recorded`
+  (record ``{model_id, model_hash, inputs_digest, output}`` in the transaction's external outcomes), so replay and
+  regeneration of the world return the recorded text and never run the model. Without a ctx (benchmarks, offline
+  evaluation) nothing is recorded.
 
 Models are loaded from the local Hugging Face cache only (``local_files_only=True``); the service never downloads and
 makes no network calls.
@@ -64,56 +64,47 @@ def request_digest(req: dict) -> str:
 
 
 def weights_hash(module_or_state_dict: Any) -> str:
-    """SHA-256 over the sorted parameter tensors (name, dtype, shape, raw bytes): the definition of contract 1.7."""
-    try:
-        from ..substrate.inference import weights_hash as _wh   # the substrate's implementation once it is merged
-        return _wh(module_or_state_dict)
-    except ImportError:
-        pass
-    import torch
+    """Contract 1.7 `crucible.substrate.inference.weights_hash` (SHA-256 over the sorted parameter tensors: name,
+    dtype, shape, raw bytes). Quantized layers are first expanded into plain tensors (integer weights, scales, zero
+    points, bias), so a quantized model has a well-defined hash of its own."""
+    from ..substrate.inference import weights_hash as _wh
     sd = module_or_state_dict.state_dict() if hasattr(module_or_state_dict, "state_dict") else module_or_state_dict
-    h = hashlib.sha256()
+    if not any(_is_quantized(v) for v in sd.values()):
+        return _wh(sd)
+    import torch
+    flat: dict = {}
 
     def add(name, t):
-        if isinstance(t, (tuple, list)):          # packed parameters of quantized layers
+        if isinstance(t, (tuple, list)):          # packed parameters of dynamically quantized linear layers
             for k, x in enumerate(t):
                 add(f"{name}.{k}", x)
-            return
-        if not isinstance(t, torch.Tensor):
-            return
-        t = t.detach()
-        if t.is_quantized:
-            if t.qscheme() in (torch.per_tensor_affine, torch.per_tensor_symmetric):
-                h.update(repr((t.q_scale(), t.q_zero_point())).encode())
-            else:
-                add(name + ".scales", t.q_per_channel_scales())
-            t = t.int_repr()
-        t = t.contiguous().cpu()
-        h.update(name.encode())
-        h.update(str(t.dtype).encode())
-        h.update(repr(tuple(t.shape)).encode())
-        h.update(t.reshape(-1).view(torch.uint8).numpy().tobytes() if t.numel() else b"")
+        elif isinstance(t, torch.Tensor):
+            t = t.detach()
+            if t.is_quantized:
+                if t.qscheme() in (torch.per_tensor_affine, torch.per_tensor_symmetric):
+                    flat[name + ".q_scale"] = torch.tensor([t.q_scale()], dtype=torch.float64)
+                    flat[name + ".q_zero_point"] = torch.tensor([t.q_zero_point()], dtype=torch.int64)
+                else:
+                    flat[name + ".q_scales"] = t.q_per_channel_scales()
+                    flat[name + ".q_zero_points"] = t.q_per_channel_zero_points()
+                t = t.int_repr()
+            flat[name] = t
     for name in sorted(sd):
         add(name, sd[name])
-    return h.hexdigest()
+    return _wh(flat)
+
+
+def _is_quantized(v) -> bool:
+    if isinstance(v, (tuple, list)):
+        return any(_is_quantized(x) for x in v)
+    return bool(getattr(v, "is_quantized", False))
 
 
 def recorded(ctx, kind: str, model_id: str, model_hash: str, inputs: Any, fn: Callable[[], Any]) -> Any:
-    """Contract 1.7 `crucible.substrate.inference.recorded` (used when the substrate is present). The fallback keeps
-    the same record ``{model_id, model_hash, inputs_digest, output}`` in ``ctx.external``: during replay and
-    regeneration the recorded output is returned and `fn` is not run."""
-    try:
-        from ..substrate.inference import recorded as _rec
-        return _rec(ctx, kind, model_id, model_hash, inputs, fn)
-    except ImportError:
-        pass
-    dig = hashlib.sha256(_canon(inputs)).hexdigest()
-    rec = ctx.external(kind, lambda: {"model_id": model_id, "model_hash": model_hash, "inputs_digest": dig,
-                                      "output": fn()})
-    if rec.get("inputs_digest") != dig or rec.get("model_hash") != model_hash:
-        from ..core.errors import ProtocolError
-        raise ProtocolError(f"recorded {kind} outcome does not match its inputs or model (replay diverged)")
-    return rec["output"]
+    """Contract 1.7 `crucible.substrate.inference.recorded`: the outcome is recorded with the model id, the weights
+    hash and the inputs digest; replay and regeneration return it without running `fn`."""
+    from ..substrate.inference import recorded as _rec
+    return _rec(ctx, kind, model_id, model_hash, inputs, fn)
 
 
 def local_revision(model_id: str) -> str:
@@ -743,8 +734,8 @@ def _cache_dir() -> str:
 def _cached_hash(key: tuple, compute: Callable[[], str]) -> str:
     """Weights hashes are cached on disk per (model, revision, device class, dtype, quantization): the files of a
     revision never change, and hashing 1-4 GB of parameters on every start would dominate short runs."""
-    name = hashlib.sha256(_canon([key[0], key[1], "cuda" if key[2].startswith("cuda") else key[2], key[3],
-                                  key[4]])).hexdigest()[:24]
+    name = hashlib.sha256(_canon(["substrate-weights-hash/1", key[0], key[1],
+                                  "cuda" if key[2].startswith("cuda") else key[2], key[3], key[4]])).hexdigest()[:24]
     path = os.path.join(_cache_dir(), f"weights_hash_{name}.json")
     try:
         with open(path) as fh:

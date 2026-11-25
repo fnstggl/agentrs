@@ -25,7 +25,11 @@ def test_SP_3_2b_semantic_model_benchmark():
     from crucible.semantic.capbench import CAPABILITIES
     from crucible.acceptance.v5.manifest import docs_dir
     from crucible.semantic.capbench.run import DEFAULT_LMS, primary, run
-    out = os.path.join(docs_dir(), "evidence", "gate_SP", "SP-3.2b_report.json")
+    if os.environ.get("CRUCIBLE_V5_RUN_ID"):     # an official run files the report next to its evidence record
+        out = os.path.join(docs_dir(), "evidence", "gate_SP", "SP-3.2b_report.json")
+    else:                                        # an ordinary run keeps it out of docs/v5/evidence (see evidence.py)
+        out = os.path.join(os.environ.get("TMPDIR", "/tmp"), "crucible-v5-unofficial-evidence", "SP",
+                           "SP-3.2b_report.json")
     rep = run(DEFAULT_LMS, CAPABILITIES, seed=0, device="auto", encoders=True, out=out)
     sizes = sorted({r["model"]["params"] for r in rep["results"]})
     measured = [c for c in CAPABILITIES
@@ -35,6 +39,8 @@ def test_SP_3_2b_semantic_model_benchmark():
          "params": ",".join(str(r["model"]["params"]) for r in rep["results"]), "report_wall_s": rep["wall_s"]}
     for cap, rec in rep["recommendation"].items():
         m[f"recommended:{cap}"] = rec.get("recommended") or "none"
+    for cap, rec in rep["recommendation_held_out"].items():
+        m[f"recommended_held_out:{cap}"] = rec.get("recommended") or "none"
     for r in rep["results"]:
         nm = r["model"]["name"].split("/")[-1]
         for cap in CAPABILITIES:

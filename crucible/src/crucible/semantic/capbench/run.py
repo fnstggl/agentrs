@@ -194,6 +194,28 @@ def recommend(results: list[dict], caps=CAPABILITIES) -> dict:
     return out
 
 
+def recommend_held_out(results: list[dict], caps=CAPABILITIES) -> dict:
+    """Like `recommend`, but on the test items of templates never seen in training or development (where the
+    capability has them): the smallest model reaching the accuracy threshold on unfamiliar situations. Capabilities
+    without a held-out subset fall back to the primary measurement."""
+    out = {}
+    order = sorted(results, key=lambda r: r["model"]["params"])
+    for cap in caps:
+        rows = []
+        for r in order:
+            m = (r["capabilities"].get(cap, {}).get("mc") or {})
+            if cap not in GENERATIVE_PRIMARY and m.get("held_out_templates"):
+                rows.append((r["model"]["name"], m["held_out_templates"]["accuracy"], m["held_out_templates"]["n"]))
+        if not rows:
+            out[cap] = {"basis": "primary measurement (no held-out subset)", **recommend(results, [cap])[cap]}
+            continue
+        eff = [x for x in rows if x[1] >= EFFECTIVE["accuracy"]]
+        best = max(rows, key=lambda x: x[1])
+        out[cap] = {"basis": "held-out templates", "recommended": eff[0][0] if eff else None,
+                    "value": eff[0][1] if eff else None, "n": rows[0][2], "best": best[0], "best_value": best[1]}
+    return out
+
+
 def run(models=DEFAULT_LMS, caps=CAPABILITIES, seed: int = 0, device: str = "auto", encoders: bool = True,
         out: str | None = None, log=print) -> dict:
     from .models import EncoderCandidate, LMCandidate, NgramCandidate
@@ -219,7 +241,8 @@ def run(models=DEFAULT_LMS, caps=CAPABILITIES, seed: int = 0, device: str = "aut
         c.close()
     rep = {"schema": "crucible.v5.sp32b/1", "seed": seed, "capabilities": list(caps), "set_sizes": sizes,
            "effective_threshold": EFFECTIVE, "generative_primary": list(GENERATIVE_PRIMARY), "results": results,
-           "recommendation": recommend(results, caps), "wall_s": round(time.time() - t0, 1)}
+           "recommendation": recommend(results, caps), "recommendation_held_out": recommend_held_out(results, caps),
+           "wall_s": round(time.time() - t0, 1)}
     if out:
         os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
         with open(out, "w") as fh:

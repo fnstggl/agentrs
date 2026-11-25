@@ -8,8 +8,8 @@ regenerated without the model and the provenance of every decision is in the has
 
 stages the full requests in ``world.runtime`` (never in the event log), then runs the operator-only tool
 ``admin.semantic_infer`` through ``world.system_call``. Its handler runs the batch through
-`crucible.semantic.service.recorded` (``ctx.external``): the recorded outcome holds ``{model_id, model_hash,
-inputs_digest, output}``. The command event carries only compact request descriptors (SHA-256 of each request,
+`crucible.substrate.inference.recorded`: the recorded outcome holds ``{model_id, model_hash, inputs_digest,
+output}``. The command event carries only compact request descriptors (SHA-256 of each request,
 generation bounds, seed, the participant it serves). During regeneration the staged requests are absent and the
 recorded outputs are returned: the model is never run again.
 
