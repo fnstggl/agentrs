@@ -28,7 +28,7 @@ def _system_config(**kw):
     from superlearner.cam_unified.stage1.system import SystemConfig
     tiny_config(**TINY)                                   # the same overrides are a valid tiny config
     base = dict(scale="dev", overrides=dict(TINY), sem_model="Qwen/Qwen3-0.6B", imag_candidates=2, imag_samples=1,
-                imag_horizon=2, seq_len=4, n_seqs=2, adapt_seq_len=6, fresh_max_steps=16)
+                imag_horizon=2, seq_len=4, n_seqs=2, adapt_seq_len=6, fresh_max_steps=16, memory_sync_every=1)
     base.update(kw)
     return SystemConfig(**base)
 
@@ -101,6 +101,11 @@ def test_real_stack_vertical_path_on_a_real_ow_tiny_world(stage1_run):
     # second update linked the consumed memory to its weight change (parametric-consolidation provenance)
     assert all(x["retrieved"] == 0 for x in rows[:3]) and any(x["retrieved"] > 0 for x in rows[3:])
     assert ups[0]["consolidated"]["segments1"] >= 1 and ups[1]["memory_linked"] >= 1
+    # L_memory trains the online memory encoders on replayed archived sequences; the index migrates to them
+    assert all("memory" in u["losses"] and u["memory"]["segments"] >= 1 for u in ups)
+    syncs = [u["memory"]["sync"] for u in ups if u["memory"].get("sync")]
+    assert syncs and any(s_["synced"] and s_["promoted"] and s_["served"] == s_["version_after"] for s_ in syncs)
+    assert ups[1]["param_delta"]["retriever"]["tensors_changed"] > 0
     from superlearner.cam_unified.observe.trace import load_traces
     seg_refs = [r for t in load_traces(os.path.join(rd, "traces")) for r in t.context_refs if r.startswith("seg:")]
     assert seg_refs

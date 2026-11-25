@@ -62,12 +62,22 @@ class BranchView:
                 yield recs
 
     def stream_window(self, env_id, actor_id, episode_id, step, gseq, before, after):
-        rows, i = self._a.stream_window(env_id, actor_id, episode_id, step, gseq, before, after)
+        """The archive's window with abandoned events removed; the window is widened until it again holds `before`
+        / `after` kept events on each side (or the stream ends there)."""
         if not (self.exclude or self.exclude_gseq):
-            return rows, i
-        anchor = rows[i]
-        kept = [r for r in rows if r is anchor or (r[1] not in self.exclude and int(r[2]) not in self.exclude_gseq)]
-        return kept, kept.index(anchor)
+            return self._a.stream_window(env_id, actor_id, episode_id, step, gseq, before, after)
+        keep = lambda r: r[1] not in self.exclude and int(r[2]) not in self.exclude_gseq   # noqa: E731
+        extra = 0
+        while True:
+            rows, i = self._a.stream_window(env_id, actor_id, episode_id, step, gseq, before + extra, after + extra)
+            pre = [r for r in rows[:i] if keep(r)]
+            post = [r for r in rows[i + 1:] if keep(r)]
+            full_pre = len(pre) >= before or i < before + extra
+            full_post = len(post) >= after or len(rows) - i - 1 < after + extra
+            if (full_pre and full_post) or extra > len(self.exclude) + len(self.exclude_gseq):
+                pre, post = pre[max(0, len(pre) - before):], post[:after]
+                return pre + [rows[i]] + post, len(pre)
+            extra = 2 * extra + max(before, after, 1)
 
     def __len__(self) -> int:
         return len(self._a)

@@ -342,6 +342,7 @@ class HarnessAgent:
                "adapt_T": out.get("adapt_seq_T"), "adapt_k": out.get("adapt/adapt_k"),
                "policy": {k.split("/", 1)[1]: v for k, v in out.items() if k.startswith("policy/")},
                "world": {k.split("/", 1)[1]: v for k, v in out.items() if k.startswith("world/")},
+               "memory": {k.split("/", 1)[1]: v for k, v in out.items() if k.startswith("memory/")},
                "skipped": {k: v for k, v in out.items() if k.startswith("skipped/")}}
         _append(os.path.join(self.run_dir, "learner", "updates.jsonl"), row)
         self.meter.add(updates=1)
@@ -431,7 +432,7 @@ class HarnessAgent:
                           "last_actions": st.last_actions, "last_now": st.last_now.cpu(),
                           "fast_prev": None if st.fast_prev is None else st.fast_prev},
             "fresh": a.fresh, "last_fresh": a._last_fresh, "post": a._post, "last_eid": a._last_eid,
-            "loss_mag": dict(a.loss_mag), "lp_valid": list(a._lp_valid), "t0": list(a._t0), "funds": a._funds, "funds0": list(a._funds0),
+            "loss_mag": dict(a.loss_mag), "memory_sync_log": list(a.memory_sync_log), "lp_valid": list(a._lp_valid), "t0": list(a._t0), "funds": a._funds, "funds0": list(a._funds0),
             "ep_decisions": list(a._ep_decisions), "adapt_k_hist": dict(a.adapt_k_hist), "dropped": dict(a.dropped),
             "update_log": a.update_log, "timing": dict(a.timing), "provenance_stats": dict(a.provenance_stats),
             "exclude_events": sorted(self.sys.view.exclude), "exclude_gseq": sorted(self.sys.view.exclude_gseq),
@@ -550,6 +551,7 @@ class HarnessAgent:
         a.dropped, a.update_log, a.timing = dict(extra["dropped"]), list(extra["update_log"]), dict(extra["timing"])
         a.provenance_stats = dict(extra["provenance_stats"])
         a.loss_mag = dict(extra.get("loss_mag") or {})
+        a.memory_sync_log = list(extra.get("memory_sync_log") or [])
         tok = sysm.model.tokenizer
         if extra.get("tool_registry") is not None and hasattr(tok, "_tool_by_key"):
             from collections import OrderedDict

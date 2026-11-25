@@ -143,6 +143,7 @@ class UpdateBatch:
     model: Optional[CamUnifiedModel] = None
     adapt_seq: Optional[SequenceBatch] = None
     adapt_aux: Optional[ReplayAux] = None
+    records: Optional[list] = None      # the replayed EventRecord sequences behind `seq` (for record-level objectives)
     _filt: object = None
     _adapt_filt: object = None
 
@@ -190,11 +191,41 @@ def objective_adapt(agent: "CamUnifiedAgent", batch: UpdateBatch) -> dict:
 
 
 def objective_memory(agent: "CamUnifiedAgent", batch: UpdateBatch) -> dict:
-    """L_memory from the retriever's own objective (RetrieverP.loss(seq, Zs)), when it defines one."""
+    """L_memory. The retriever's own sequence objective (RetrieverP.loss(seq, Zs)) when it defines one; otherwise,
+    for workstream E's Retriever, its compression objective on the replayed archived sequences: each replayed slice
+    is encoded as a memory segment by the *online* event and segment encoders and every event token must be
+    identified among all event tokens of the batch from its segment's latent memory tokens (contrastive
+    reconstruction, `Retriever.compression_loss`), so the memory tokens keep the information of their events. The
+    keys the index serves come from the frozen target snapshot; `CamUnifiedAgent.memory_sync_every` moves the
+    target to the trained encoders and migrates the index (E's sync_target + Consolidator.reencode_step)."""
     r = agent.model.retriever
-    if batch.seq is None or not agent.config.use_memory or r is None or not hasattr(r, "loss"):
+    if batch.seq is None or not agent.config.use_memory or r is None:
         return {}
-    return {"losses": {"memory": r.loss(batch.seq, batch.filtered().Zs)}}
+    if hasattr(r, "loss"):
+        return {"losses": {"memory": r.loss(batch.seq, batch.filtered().Zs)}}
+    if not (hasattr(r, "compression_loss") and hasattr(r, "encode_records")) or not batch.records:
+        return {}
+    groups = [list(g) for g in batch.records if len(g) >= 2]
+    if not groups:
+        return {}
+    L = max(len(g) for g in groups)
+    dev = agent.device
+    ev = r.encode_records([x for g in groups for x in g], target=False).to(dev)
+    n, D = len(groups), ev.shape[-1]
+    x = torch.zeros(n, L, D, device=dev)
+    mask = torch.zeros(n, L, dtype=torch.bool, device=dev)
+    dt = torch.zeros(n, L, device=dev)
+    p = 0
+    for i, g in enumerate(groups):
+        t_end = max(float(e.t_sim) for e in g)
+        x[i, :len(g)] = ev[p:p + len(g)]
+        mask[i, :len(g)] = True
+        dt[i, :len(g)] = torch.tensor([float(e.t_sim) - t_end for e in g], device=dev)
+        p += len(g)
+    loss = r.compression_loss(x, mask, dt)
+    return {"losses": {"memory": loss}, "metrics": {"memory/compression": float(loss.detach()),
+                                                    "memory/segments": n, "memory/events": int(mask.sum()),
+                                                    "memory/chance": math.log(max(1, int(mask.sum())))}}
 
 
 def gae_semi_markov(entries: list, kappa: float, lam: float, lp_coef: float) -> dict:
@@ -356,7 +387,8 @@ class CamUnifiedAgent:
                  adapt_n_seqs: int = 2, greedy: bool = False, objectives: Optional[dict] = None,
                  fresh_max_steps: int = 256, decision_budget: Optional[int] = None,
                  funds_fn: Optional[Callable] = None, awr_beta: float = 1.0, awr_max_weight: float = 20.0,
-                 loss_cap: Optional[float] = None, loss_cap_beta: float = 0.9):
+                 loss_cap: Optional[float] = None, loss_cap_beta: float = 0.9,
+                 memory_sync_every: Optional[int] = None):
         self.model = model
         self.config: CamConfig = model.cfg
         self.archive = archive
@@ -385,6 +417,10 @@ class CamUnifiedAgent:
         self.loss_cap = loss_cap
         self.loss_cap_beta = float(loss_cap_beta)
         self.loss_mag: dict = {}
+        # every k updates: snapshot the trained online memory encoders as the retriever's new key version and
+        # migrate the memory index to it (E: Retriever.sync_target + Consolidator.reencode_step); None = never
+        self.memory_sync_every = memory_sync_every
+        self.memory_sync_log: list = []
         self.py_rng = random.Random(seed)
         self.torch_rng = torch.Generator().manual_seed(seed)
         self.seed = seed
@@ -1021,6 +1057,27 @@ class CamUnifiedAgent:
                 out.append(recs)
         return out
 
+    def _memory_sync(self) -> Optional[dict]:
+        """Every `memory_sync_every` updates: new retriever key version from the trained online encoders, then the
+        index is re-encoded from raw archived events to it and promoted once it covers every segment."""
+        k = self.memory_sync_every
+        r = self.model.retriever
+        con = self.consolidator
+        if not k or r is None or con is None or self.version % int(k) != 0 or not hasattr(r, "sync_target") \
+                or not hasattr(con, "reencode_step"):
+            return None
+        before = r.key_version
+        after = r.sync_target()
+        info = {"version_before": before, "version_after": after, "synced": after != before,
+                "reason": (getattr(r, "sync_info", {}) or {}).get("reason")}
+        if after != before:
+            rr = con.reencode_step(max_items=None)
+            info.update({k2: rr.get(k2) for k2 in ("reencoded", "coverage", "promoted", "dropped", "kept_pinned")})
+        info["served"] = getattr(getattr(r, "index", None), "current_version", None)
+        info["update"] = self.version
+        self.memory_sync_log.append(info)
+        return info
+
     def _lora_trained(self) -> bool:
         """True when the semantic model's trainable (LoRA) tensors are among the optimised parameters."""
         sem = self.model.semantic
@@ -1080,7 +1137,7 @@ class CamUnifiedAgent:
                         replay_decisions.append(r.extra["decision_id"])
             replay_ids, replay_decisions = sorted(set(replay_ids)), sorted(set(replay_decisions))
         self.model.train()
-        batch = UpdateBatch(seq, aux, list(self.fresh), self.model, aseq, aaux)
+        batch = UpdateBatch(seq, aux, list(self.fresh), self.model, aseq, aaux, records=list(seqs) or None)
         losses, metrics, consumed, consumed_events = {}, {}, [], []
         for name, fn in self.objectives.items():
             out = fn(self, batch)
@@ -1130,6 +1187,9 @@ class CamUnifiedAgent:
         if self.archive is not None and hasattr(self.archive, "mark_used") and events:
             # training provenance: EventRecord.training_provenance["used_in_updates"] of every consumed event
             self.provenance_stats["marked_events"] += int(self.archive.mark_used([e for e, _ in events], update_id))
+        sync = self._memory_sync()
+        if sync is not None:
+            metrics["memory/sync"] = sync
         mem_used = sorted({str(i) for st in batch.fresh for ids in (st.inputs.memory_ids if st.inputs else [])
                            for i in ids})
         if mem_used and self.consolidator is not None and hasattr(self.consolidator, "link_weights"):

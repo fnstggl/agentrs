@@ -72,6 +72,8 @@ class SystemConfig:
     # deterministic GPU kernels (torch.use_deterministic_algorithms + cuBLAS workspace config): measured without
     # it, recomputing the same decoder log-probability twice differed by up to 0.23 nats (cuBLAS algorithm choice)
     deterministic: bool = True
+    # memory encoders: migrate the index to the trained encoders every k updates (CamUnifiedAgent.memory_sync_every)
+    memory_sync_every: Optional[int] = 4
 
     def cam_config(self) -> CamConfig:
         return make_config(self.scale, **dict(self.overrides))
@@ -178,7 +180,8 @@ def build_system(run_dir: str, sc: SystemConfig, semantic=None, exclude_events: 
     agent = CamUnifiedAgent(model, archive=archive, recorder=recorder, replay=replay, trainer=trainer, index=index,
                             consolidator=consolidator, actor_id=sc.actor_id, seed=sc.seed, seq_len=sc.seq_len,
                             n_seqs=sc.n_seqs, adapt_seq_len=sc.adapt_seq_len, adapt_n_seqs=sc.adapt_n_seqs,
-                            greedy=sc.greedy, fresh_max_steps=sc.fresh_max_steps, loss_cap=sc.loss_cap)
+                            greedy=sc.greedy, fresh_max_steps=sc.fresh_max_steps, loss_cap=sc.loss_cap,
+                            memory_sync_every=sc.memory_sync_every)
     agent.exclude_events = view.exclude
     ops = CheckpointOps(agent)
     return System(cfg, sc, run_dir, sem, model, trainer, archive, artifacts, view, index, replay, consolidator,
