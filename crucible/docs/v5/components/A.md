@@ -157,6 +157,11 @@ storing bytes that another principal already stores produces exactly the same vi
 relative to the caller), quota charge and fee as storing new bytes, and the holder's `artifact.info` shows its own
 record, not the first owner's.
 
+Regression: the full 4.0 suite plus the v5 tests (1,238 tests in three single-thread groups through the slot
+scheduler, GPU hidden): 1,235 passed, 2 skipped (GPU Qwen tests, as in the 4.0 baseline), 1 failed only because
+SIGINT is ignored in background-launched processes (`test_scale.py::test_keyboard_interrupt_leaves_no_process_behind`
+passes in the foreground).
+
 ## Limitations
 
 * Bytes uploaded through the `artifact.put` tool are also in the recorded `cmd` event (arguments must be recorded
