@@ -97,8 +97,15 @@ def sci_config(inst: dict, rng) -> dict:
     two apparatus and their operators, rival and replication labs."""
     vars_ = [{"name": "setting", "lo": 0.0, "hi": 1.0}] + [dict(v) for v in inst["conditions"]]
     rngs = {v["name"]: [v["lo"], v["hi"]] for v in vars_}
-    mid = {v["name"]: round((v["lo"] + v["hi"]) / 2, 3) for v in vars_}
-    low = {v["name"]: round(v["lo"] + 0.25 * (v["hi"] - v["lo"]), 3) for v in vars_}
+    # certified reference samples at the lowest and highest responses of a coarse grid, so that a calibration
+    # against them is well conditioned over the whole range of readings
+    law = compile_expr(inst["law"], [v["name"] for v in vars_])
+    grids = [np.linspace(v["lo"], v["hi"], 5) for v in vars_]
+    pts = [dict(zip([v["name"] for v in vars_], (float(x) for x in row)))
+           for row in np.stack([m.ravel() for m in np.meshgrid(*grids, indexing="ij")], 1)]
+    resp = np.asarray(law.at(pts), np.float64)
+    low = {k: round(v, 3) for k, v in pts[int(np.argmin(resp))].items()}
+    mid = {k: round(v, 3) for k, v in pts[int(np.argmax(resp))].items()}
     return {"phenomena": [{"id": PHEN, "title": "Operating cost of everyday practice",
                            "doc": "Weekly operating cost index of a household practice as a function of the setting "
                                   "people choose (0-1) and of their circumstances.",
@@ -111,7 +118,7 @@ def sci_config(inst: dict, rng) -> dict:
                            "price_cents": 450, "sd": 0.015, "capacity_per_day": 50}],
             "operators": [{"handle": "labco", "name": "Field Test Labs", "cash": 100_000},
                           {"handle": "labco2", "name": "Precision Metrology", "cash": 100_000}],
-            "rivals": {"n": 1}, "replicators": {"n": 2, "budget_month": 60_000, "points": 9}}
+            "rivals": {"n": 1}, "replicators": {"n": 2, "budget_month": 60_000, "points": 9, "calib_reps": 6}}
 
 
 @register_module
@@ -528,7 +535,7 @@ class Commercialization(Module):
                               extra={"pilot": plid})
         if (ctx.now // DAY) % 30 == 0:
             for pid, r in sorted(st.scan("rc_products")):
-                if r["status"] != "live":
+                if r["status"] not in ("live", "suspended"):
                     continue
                 n = sum(1 for s in st.find("rc_subs", "product", pid) if s["status"] in ("paying", "trial"))
                 cents = int(self.c["hosting_cents_month"]) + n * int(self.c["hosting_cents_user_month"])
@@ -537,6 +544,8 @@ class Commercialization(Module):
                 if bank.available(st, src) >= cents:
                     bank.move(ctx, src, bank.primary_account(st, "o:hosting"), cents, "hosting", f"hosting {pid}")
                     ctx.emit("rc.hosting", {"id": pid, "cents": cents, "users": n}, vis=(r["owner"],))
+                    if r["status"] == "suspended":
+                        ctx.emit("rc.product_update", {"id": pid, "changes": {"status": "live"}}, vis="public")
                 else:
                     ctx.emit("rc.product_update", {"id": pid, "changes": {"status": "suspended"}}, vis="public")
         for pid, p in sorted(st.scan("rc_pitches")):
@@ -549,9 +558,11 @@ class Commercialization(Module):
     def evidence(self, st, venture: str) -> dict:
         """The public record an investor reads about a venture."""
         papers = [k for k, p in st.scan("sci_papers") if p["author"] == venture and p["phenomenon"] == PHEN]
-        reps = [r for _, r in st.scan("sci_reps") if r["paper"] in papers]
-        consistent = sum(1 for r in reps if r["independent"] and r["verdict"] == "consistent")
-        refuted = sum(1 for r in reps if r["independent"] and r["verdict"] == "refuted")
+        # what anyone can see on the public record: reports by other labs, made on other apparatus than the paper's
+        reps = [r for _, r in st.scan("sci_reps") if r["paper"] in papers and r["reporter"] != venture
+                and r["other_apparatus"]]
+        consistent = sum(1 for r in reps if r["verdict"] == "consistent")
+        refuted = sum(1 for r in reps if r["verdict"] == "refuted")
         protos = sum(1 for _, p in st.scan("rc_protos") if p["owner"] == venture and p["ready_t"] <= self.world.now)
         paying = 0
         mine = set()
@@ -706,7 +717,11 @@ def evaluate(world, principal: str, objective: dict) -> dict:
     costs = sum(x["cents"] for x in led if x["kind"] in ("hosting", "advertising"))
     bank = world.modules["bank"]
     cash = int(bank.available(st, bank.primary_account(st, principal))) if bank.primary_account(st, principal) else 0
-    validated = ev["consistent_replications"] >= 1 and ev["consistent_replications"] > ev["refuted_replications"]
+    papers = [k for k, p in st.scan("sci_papers") if p["author"] == principal and p["phenomenon"] == PHEN]
+    reps = [r for _, r in st.scan("sci_reps") if r["paper"] in papers and r["independent"]]
+    ind_ok = sum(1 for r in reps if r["verdict"] == "consistent")
+    ind_bad = sum(1 for r in reps if r["verdict"] == "refuted")
+    validated = ind_ok >= 1 and ind_ok > ind_bad
     need = int(objective.get("min_adopters", 30))
     checks = {"validated_discovery": validated, "adopters": len(retained) >= need,
               "sustainable": revenue > costs and revenue > 0, "solvent": cash > 0,
@@ -714,8 +729,8 @@ def evaluate(world, principal: str, objective: dict) -> dict:
     score = float(np.mean([float(validated), min(1.0, len(retained) / max(1, need)),
                            1.0 if revenue > costs else 0.0, 1.0 if cash > 0 else 0.0]))
     return {"success": all(checks.values()), "score": round(score, 4),
-            "details": {"papers": ev["papers"], "consistent_replications": ev["consistent_replications"],
-                        "refuted_replications": ev["refuted_replications"], "trials": len(subs),
+            "details": {"papers": ev["papers"], "consistent_replications": ind_ok,
+                        "refuted_replications": ind_bad, "trials": len(subs),
                         "adopters_renewed": len(adopters), "adopters_retained": len(retained),
                         "revenue_30d_cents": int(revenue), "costs_30d_cents": int(costs), "cash_cents": cash,
                         "funded_cents": int(sum(e["amount"] for _, e in st.scan("rc_equity")
@@ -829,42 +844,41 @@ def objective(world, principal: str, difficulty: int = 1) -> dict:
 
 
 def fit_optimum(rows: list[tuple[dict, float]], cond_names: list[str]) -> tuple[str, str, dict]:
-    """Least-squares fit of response = m + k (setting - g(c))^2 with g quadratic in the conditions, by profiling
-    the optimum on a grid: returns (law expression for the paper, advice expression, fit info). Uses only the
-    founder's own readings."""
+    """Least-squares fit of response = h(c) + k (setting - g(c))^2 with h and g quadratic in the conditions
+    (alternating: linear least squares for h and k given g, Gauss-Newton steps for g): returns (law expression for
+    the paper, advice expression g clipped to the setting range, fit info). Uses only the founder's own readings."""
     X = np.array([[r["setting"]] + [r[c] for c in cond_names] for r, _ in rows], np.float64)
     y = np.array([v for _, v in rows], np.float64)
-    C = X[:, 1:]
+    s, C = X[:, 0], X[:, 1:]
     feats = [np.ones(len(X))]
     for j in range(C.shape[1]):
         feats += [C[:, j], C[:, j] ** 2]
     F = np.stack(feats, 1)
-    best = None
-    s = X[:, 0]
-    # alternating fit: given g, (m, k) by least squares; given (m, k), g by Gauss-Newton on its coefficients
     beta = np.zeros(F.shape[1])
     beta[0] = 0.5
-    for _ in range(60):
+    best = None
+    for _ in range(80):
         g = F @ beta
-        A_ = np.stack([np.ones(len(X)), (s - g) ** 2], 1)
-        (m, k), *_ = np.linalg.lstsq(A_, y, rcond=None)
-        if k <= 0:
-            k = 1e-3
-        r = y - (m + k * (s - g) ** 2)
+        A_ = np.concatenate([F, ((s - g) ** 2)[:, None]], 1)
+        coef, *_ = np.linalg.lstsq(A_, y, rcond=None)
+        h, k = coef[:-1], max(float(coef[-1]), 1e-3)
+        r = y - (F @ h + k * (s - g) ** 2)
+        sse = float(np.sum(r ** 2))
+        if best is None or sse < best[0]:
+            best = (sse, h.copy(), k, beta.copy())
         J = (-2.0 * k * (s - g))[:, None] * F
         step, *_ = np.linalg.lstsq(J, -r, rcond=None)
         beta = beta - 0.7 * step
-        sse = float(np.sum(r ** 2))
-        if best is None or sse < best[0]:
-            best = (sse, m, k, beta.copy())
-    sse, m, k, beta = best
-    terms = [f"{beta[0]:.5f}"]
-    for j, cn in enumerate(cond_names):
-        terms.append(f"{beta[1 + 2 * j]:.5f} * {cn}")
-        terms.append(f"{beta[2 + 2 * j]:.6f} * {cn} ** 2")
-    g_txt = " + ".join(terms)
-    law = f"{m:.5f} + {k:.5f} * (setting - ({g_txt})) ** 2"
-    return law, f"clip({g_txt}, 0, 1)", {"sse": sse, "n": len(rows), "m": m, "k": k}
+
+    def poly(c):
+        t = [f"{c[0]:.6f}"]
+        for j, cn in enumerate(cond_names):
+            t.append(f"{c[1 + 2 * j]:.6f} * {cn}")
+            t.append(f"{c[2 + 2 * j]:.7f} * {cn} ** 2")
+        return " + ".join(t)
+    sse, h, k, beta = best
+    law = f"{poly(h)} + {k:.6f} * (setting - ({poly(beta)})) ** 2"
+    return law, f"clip({poly(beta)}, 0, 1)", {"sse": sse, "n": len(rows), "k": k}
 
 
 class Reference(ToolPolicy):
@@ -890,6 +904,7 @@ class Reference(ToolPolicy):
         self.price = 900
         self.pitched: set[str] = set()
         self.ads = 0
+        self.certified: dict[str, float] = {}
         self.handlers.append(self.on_result)
 
     def on_result(self, tag, res):
@@ -934,11 +949,16 @@ class Reference(ToolPolicy):
                 var = next(p for p in phs if (p.get("phenomenon") or p.get("id")) == PHEN)["vars"]
                 grids = []
                 for v in var:
-                    k = 6 if v["name"] == "setting" else (5 if len(var) == 2 else 4)
+                    k = 7 if v["name"] == "setting" else (6 if len(var) == 2 else 4)
                     grids.append([round(v["lo"] + (v["hi"] - v["lo"]) * t / (k - 1), 4) for t in range(k)])
                 mesh = np.meshgrid(*grids, indexing="ij")
                 pts = np.stack([m.ravel() for m in mesh], 1)
-                design = [{"at": {v["name"]: float(x) for v, x in zip(var, row)}, "n": 1} for row in pts]
+                reps = 2 if len(var) == 2 else 1
+                design = [{"at": {v["name"]: float(x) for v, x in zip(var, row)}, "n": reps} for row in pts]
+                # the certified standards on the same apparatus, to correct its calibration
+                stds = next(p for p in phs if (p.get("phenomenon") or p.get("id")) == PHEN)["standards"]
+                self.certified = {x["id"]: float(x["certified"]) for x in stds}
+                design += [{"standard": x["id"], "n": 3} for x in stds]
                 self.app = app["apparatus"]
                 self.stage = "measuring"
                 return [A("sci.run", tag="run", apparatus=self.app, design=design[:240])]
@@ -946,14 +966,19 @@ class Reference(ToolPolicy):
             d = self.q("sci.data", run=self.run) if self.run else {"error": 1}
             if "error" in d or not d.get("readings"):
                 return []
-            names = [k for k in d["readings"][0]["at"]] if d["readings"] else []
+            pts = [r for r in d["readings"] if not r.get("standard") and r.get("value") is not None]
+            std = [r for r in d["readings"] if r.get("standard") in self.certified and r.get("value") is not None]
+            xs = np.array([self.certified[r["standard"]] for r in std])
+            ys = np.array([float(r["value"]) for r in std])
+            gain, off = (np.polyfit(xs, ys, 1) if len(set(np.round(xs, 6))) >= 2 else (1.0, 0.0))
+            names = [k for k in pts[0]["at"]] if pts else []
             cond = [n for n in names if n != "setting"]
-            rows = [(r["at"], float(r["value"])) for r in d["readings"] if "at" in r and r.get("value") is not None]
+            rows = [(r["at"], (float(r["value"]) - off) / gain) for r in pts]
             law, advice, info = fit_optimum(rows, cond)
             self.advice = advice
             self.stage = "build"
             out.append(A("sci.publish", tag="paper", phenomenon=PHEN, title="The optimal practice setting",
-                         model=law, data=[self.run],
+                         model=law, data=[self.run], calibration_runs=[self.run],
                          abstract="Cost index measured over settings and circumstances; the optimum setting is a "
                                   "smooth function of the circumstances."))
         if self.stage == "build":
@@ -983,7 +1008,7 @@ class Reference(ToolPolicy):
         if self.stage == "market" and self.product:
             st = self.q("rc.status")
             cash = st.get("cash_cents", 0)
-            if self.ads < 4 and cash > 60_000:
+            if self.ads < 4 and cash > 25_000:
                 self.ads += 1
                 out.append(A("rc.advertise", product=self.product, cents=min(40_000, cash // 3)))
             p = self._pitch("validated")
@@ -1001,7 +1026,8 @@ class Reference(ToolPolicy):
     def _replicated(self) -> bool:
         reps = self.q("sci.replications")
         reps = reps if isinstance(reps, list) else []
-        mine = [r for r in reps if r.get("paper") == self.paper and r.get("independent")]
+        mine = [r for r in reps if r.get("paper") == self.paper and r.get("reporter") != self.me
+                and r.get("other_apparatus")]
         return sum(r["verdict"] == "consistent" for r in mine) > sum(r["verdict"] == "refuted" for r in mine)
 
 
