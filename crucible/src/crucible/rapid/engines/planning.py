@@ -75,7 +75,7 @@ def _i(x) -> int:
 @register
 class Planning(RapidEngine):
     kind = "planning"
-    SECRET_KEYS = ("lam", "lam_sched", "lead", "shelf", "lam_bar", "amp", "phase", "fresh_frac", "bargain", "lags", "mu0", "mu1", "mu2", "t_change2",
+    SECRET_KEYS = ("open_at", "lam", "lam_sched", "lead", "shelf", "lam_bar", "amp", "phase", "fresh_frac", "bargain", "lags", "mu0", "mu1", "mu2", "t_change2",
                    "t_change", "path", "t_jump", "build_lag", "recipe", "dem", "work", "prod", "beta", "dud",
                    "mu_amp", "mu_phase", "mu_mean", "true_time", "speed", "yields", "hazard")
 
@@ -184,7 +184,10 @@ class Planning(RapidEngine):
                     "res0": float(sum(c["init_res"])), "R": R}
         if sc == "portfolio":
             N = len(c["proj_names"])
-            return {"work": [0.0] * N, "status": [0] * N, "alloc": [0.0] * N, "pend_cost": 0.0, "paid": [0.0] * N}
+            op = c.get("open_at") or [0] * N
+            # status: -1 not yet open (it opens at a hidden period), 0 active, 1 completed, 2 abandoned
+            return {"work": [0.0] * N, "status": [0 if int(op[j]) <= 0 else -1 for j in range(N)], "alloc": [0.0] * N,
+                    "pend_cost": 0.0, "paid": [0.0] * N}
         if sc == "assembly":
             return {"buf": [0.0, 0.0], "make": [[0.0, 0.0], [0.0, 0.0]], "pend_cost": [0.0, 0.0], "in": 0.0,
                     "out": 0.0}
@@ -208,7 +211,8 @@ class Planning(RapidEngine):
             j = c["proj_names"].index(name)
             state["pend_cost"] += float(c["audit_cost"])
             return {"project": name, "work_done": round(float(state["work"][j]), 6),
-                    "status": ["active", "completed", "abandoned"][state["status"][j]], "cost": float(c["audit_cost"])}
+                    "status": {-1: "not open", 0: "active", 1: "completed", 2: "abandoned"}[int(state["status"][j])],
+                    "cost": float(c["audit_cost"])}
         if sc == "commit":
             if k == "query" and action["target"] == "pilot":
                 slot = str((action.get("args") or {}).get("slot", ""))
@@ -619,6 +623,11 @@ class Planning(RapidEngine):
         z = rng.standard_normal(N)
         rev = 0.0
         events = []
+        op = c.get("open_at") or [0] * N
+        for j in range(N):
+            if st["status"][j] == -1 and int(op[j]) <= t:
+                st["status"][j] = 0
+                events.append({"type": "project_opened", "project": c["proj_names"][j], "vis": "public"})
         for j in range(N):
             x = st["alloc"][j]
             if st["status"][j] != 0 or x <= 0:
@@ -643,12 +652,16 @@ class Planning(RapidEngine):
             W = float(c["work"][j])
             if st["status"][j] == 1:
                 frac = 1.0
+            elif st["status"][j] == -1:
+                frac = 0.0
             else:
                 frac = float(min(0.99, max(0.0, st["work"][j] / W + float(c["report_sd"]) * z[j])))
             nums[f"{n}.reported_done"] = round(frac, 4)
             nums[f"{n}.status"] = float(st["status"][j])
-            nums[f"{n}.periods_to_deadline"] = float(int(c["deadline"][j]) - t)
-        return {"obs": {a: {"numbers": nums}}, "revenue": {a: rev}, "cost": {a: cost}, "info": {},
+            if st["status"][j] != -1:                     # a project's terms are announced when it opens
+                nums[f"{n}.periods_to_deadline"] = float(int(c["deadline"][j]) - t)
+        miss = [f"{n}.periods_to_deadline" for j, n in enumerate(c["proj_names"]) if st["status"][j] == -1]
+        return {"obs": {a: {"numbers": nums, "missing": miss}}, "revenue": {a: rev}, "cost": {a: cost}, "info": {},
                 "events": events}
 
     def _adv_assembly(self, st, rng, t):

@@ -191,11 +191,13 @@ def plan_complements(rng, d):
 
 @family("plan_portfolio", engine="planning", category="8.4", item="8.4.6", split="train",
         doc="Staff allocated over projects with hidden work content and productivity, diminishing returns to "
-            "staffing, and duds revealed at a midpoint milestone; completed projects pay, less after their deadline.",
+            "staffing, and duds revealed at a midpoint milestone; completed projects pay, less after their deadline. "
+            "Projects keep arriving during the episode, so the portfolio has to be re-planned.",
         distinct_because="a portfolio of competing projects: concave progress in staff, threshold completion "
-                         "payments with deadlines, noisy progress reports, costly exact audits, abandoned duds",
-        axes={"action_complexity": 5, "resources": 10, "horizon": 50, "observation_noise": 0.03,
-              "experiment_cost": 30.0}, objective="maximize_net", **hooks("portfolio"))
+                         "payments with deadlines, noisy progress reports, costly exact audits, abandoned duds, "
+                         "projects that open at hidden times",
+        axes={"action_complexity": 7, "resources": 10, "horizon": 60, "observation_noise": 0.03,
+              "experiment_cost": 30.0}, objective="maximize_net", version="2", **hooks("portfolio"))
 def plan_portfolio(rng, d):
     N = int(d["action_complexity"])
     H = int(d["horizon"])
@@ -203,9 +205,13 @@ def plan_portfolio(rng, d):
     dud = [False] * N
     for j in rng.choice(N, size=max(1, N // 4), replace=False):
         dud[int(j)] = True
+    n0 = max(2, N // 3)                       # open at the start; the rest open at hidden periods
+    open_at = [0] * n0 + [int(rng.integers(int(0.1 * H), int(0.6 * H) + 1)) for _ in range(N - n0)]
+    open_at = [open_at[int(i)] for i in rng.permutation(N)]
+    deadline = [o + int(rng.integers(int(0.2 * H), int(0.45 * H) + 1)) for o in open_at]
     return {"engine": "planning", "scenario": "portfolio", "horizon": H, "proj_names": names,
-            "value": [float(round(u(rng, 2000, 6000), -1)) for _ in range(N)],
-            "deadline": [int(rng.integers(H // 5, 3 * H // 4)) for _ in range(N)], "work": [u(rng, 30.0, 90.0) for _ in range(N)],
+            "value": [float(round(u(rng, 2000, 6000), -1)) for _ in range(N)], "open_at": open_at,
+            "deadline": deadline, "work": [u(rng, 30.0, 90.0) for _ in range(N)],
             "prod": [u(rng, 0.6, 1.4) for _ in range(N)], "beta": u(rng, 0.55, 0.75), "dud": dud,
             "staff": float(d["resources"]), "wage": 8.0, "late_window": 15.0, "report_sd": float(d["observation_noise"]),
             "audit_cost": float(d["experiment_cost"]), "endowment": 50_000,
@@ -213,7 +219,8 @@ def plan_portfolio(rng, d):
             "brief": f"{N} projects compete for {d['resources']} staff (allocate; standing plan). Staff assigned cost "
                      "8 each per period. A project pays its value when its work is done, less for every period after "
                      "its deadline (nothing after 15 late periods). Progress reports are noisy; an audit (query) "
-                     "gives the exact work done. Some projects turn out to be unworkable halfway and are abandoned."}
+                     "gives the exact work done. Some projects turn out to be unworkable halfway and are abandoned. "
+                     "New projects open during the episode (status -1 until then)."}
 
 
 @family("team_assembly", engine="planning", category="8.9", item="8.9.1", split="train",

@@ -720,62 +720,67 @@ def oracle_portfolio(env) -> dict:
     return best_of(env, pols)
 
 
-def reference_portfolio(view, env, focus: int = 3, audit_every: int = 0):
-    """Public: staff every project evenly for three periods, audit them all (exact work done) and read the progress
-    reports to estimate each project's work content and its team's productivity; then put all staff on the project
-    with the best estimated pay per period (if it still pays after wages), re-estimating work content from the
-    reports as it goes; abandoned projects are dropped."""
+def reference_portfolio(view, env, focus: int = 3, audit_every: int = 6, probe: float = 1.0):
+    """Public: every project that is open and unknown gets a probe staffing (`probe` staff) for three periods and
+    is then audited (exact work done) to estimate its team's productivity and, from the progress report, its work
+    content; the rest of the staff goes to the known projects with the best estimated pay per period (if they still
+    pay after wages), split in proportion to how much each earns per period of work over the top `focus` (progress
+    is concave in staff); work done is re-estimated from the reports and corrected by audits every `audit_every`
+    periods; abandoned projects are dropped, and projects that open later are probed when they open."""
     sp = view.action_space()
     names = _targets(sp)
     S = float(sp.limits["allocate_total"])
-    c = env._config                     # public: values, deadlines, wage and the lateness window are stated
+    c = env._config                     # public: values, wage and the lateness window are stated
     value = dict(zip(c["proj_names"], c["value"]))
     beta = 0.65                         # assumed returns to staffing (not known)
-    N = len(names)
-    view.step({"kind": "allocate", "amounts": {n: S / N for n in names}})
-    view.step(None)
-    view.step(None)
-    r = view.step({"kind": "sequence", "steps": [{"kind": "query", "target": "audit", "args": {"project": n}}
-                                                 for n in names]})
-    x = nums(r["observation"])
-    work = {d["project"]: d["work_done"] for d in r["result"]["results"]} if r["result"]["ok"] else {n: 1.0 for n in names}
-    rate = {n: max(1e-3, work[n] / 4.0) / (S / N) ** beta for n in names}
-    W = {n: work[n] / max(x[f"{n}.reported_done"], 0.03) for n in names}
-    done = dict(work)
-    obs = r["observation"]
+    rate, W, done, since = {}, {}, {}, {}
+    obs = view.step(None)["observation"]
     while not view.done:
         x = nums(obs)
+        open_ = [n for n in names if x.get(f"{n}.status") == 0]
+        new = [n for n in open_ if n not in rate]
+        alloc, audits = {}, []
+        for n in new:
+            since[n] = since.get(n, 0) + 1
+            alloc[n] = probe
+            if since[n] > 3:
+                audits.append(n)
         score = {}
-        for n in names:
-            if x[f"{n}.status"] != 0:
+        for n in open_:
+            if n not in rate:
                 continue
             f = x[f"{n}.reported_done"]
             if f > 0.1:
                 W[n] = 0.7 * W[n] + 0.3 * done[n] / f
-            T = max(0.0, W[n] - done[n]) / (rate[n] * S ** beta)
-            late = max(0.0, T - x[f"{n}.periods_to_deadline"])
+            T = max(0.0, W[n] - done[n]) / (rate[n] * max(S - probe * len(new), 1.0) ** beta)
+            late = max(0.0, T - x.get(f"{n}.periods_to_deadline", 0.0))
             pay = value[n] * max(0.0, 1.0 - late / 15.0) - T * S * float(c["wage"])
             if pay > 0:
                 score[n] = pay / max(T, 1.0)
-        if not score:
-            obs = view.step({"kind": "allocate", "amounts": {}})["observation"]
-            continue
-        # progress is concave in staff, so split the staff over the best projects in proportion to how much each
-        # earns per period of work (top `focus`), not all on one
-        top = sorted(score, key=score.get, reverse=True)[:focus]
-        w = {n: score[n] ** (1.0 / (1.0 - beta)) for n in top}
-        tot = sum(w.values())
-        alloc = {n: S * w[n] / tot for n in top}
-        for n, a in alloc.items():
-            done[n] += rate[n] * a ** beta
-        if audit_every and view.t % audit_every == 0:
-            # audit the projects being worked on: exact work done, and the rate it implies
+        free = S - sum(alloc.values())
+        if score and free > 0:
+            top = sorted(score, key=score.get, reverse=True)[:focus]
+            w = {n: score[n] ** (1.0 / (1.0 - beta)) for n in top}
+            tot = sum(w.values())
+            for n in top:
+                alloc[n] = alloc.get(n, 0.0) + free * w[n] / tot
+        for n, a_ in alloc.items():
+            if n in rate:
+                done[n] += rate[n] * a_ ** beta
+        if view.t % max(1, audit_every) == 0:
+            audits += [n for n in sorted(score, key=score.get, reverse=True)[:focus] if n in rate]
+        if audits:
             steps = [{"kind": "allocate", "amounts": alloc}] + \
-                [{"kind": "query", "target": "audit", "args": {"project": n}} for n in top]
+                [{"kind": "query", "target": "audit", "args": {"project": n}} for n in audits]
             r = view.step({"kind": "sequence", "steps": steps})
             if r["result"]["ok"]:
                 for d_ in r["result"]["results"][1:]:
                     n = d_["project"]
+                    if n not in rate:            # a probed project: productivity from its probe staffing
+                        wd = float(d_["work_done"])
+                        rate[n] = max(1e-3, wd / max(1, since[n] - 1)) / probe ** beta
+                        f = nums(r["observation"]).get(f"{n}.reported_done", 0.0)
+                        W[n] = wd / max(f, 0.03)
                     done[n] = float(d_["work_done"])
             obs = r["observation"]
             continue
@@ -783,12 +788,15 @@ def reference_portfolio(view, env, focus: int = 3, audit_every: int = 0):
 
 
 def identify_portfolio(env) -> dict:
-    """Question: which project's team does the most work per period at equal staffing? Equal staffing for four
-    periods, then an exact audit of each project."""
+    """Question: which project's team does the most work per period at equal staffing? Once every project has
+    opened, equal staffing for four periods, then an exact audit of each project."""
     view = PublicView(env)
     sp = view.action_space()
     names = _targets(sp)
     total = float(sp.limits["allocate_total"])
+    r = view.step(None)                                 # wait until every project has opened
+    while not view.done and any(nums(r["observation"]).get(f"{n}.status", 0) == -1 for n in names):
+        r = view.step(None)
     view.step({"kind": "allocate", "amounts": {n: total / len(names) for n in names}})
     for _ in range(3):
         view.step(None)
@@ -806,7 +814,8 @@ def claim_portfolio(env) -> dict:
     """Diminishing returns: doubling a project's staff less than doubles its work per period; a dud project is
     abandoned at its midpoint and never pays."""
     eng, st, c = inside(env)
-    j = 0
+    op = c.get("open_at") or [0] * len(c["proj_names"])
+    j = int(np.argmin(op))                                # a project open from the start
     n = c["proj_names"][j]
     w = {}
     for x in (2.0, 4.0):
@@ -815,6 +824,8 @@ def claim_portfolio(env) -> dict:
         w[x] = e._state["work"][j]
     d = int(np.argmax(c["dud"]))
     e = fork(env)
+    while not e.done and e._state["status"][d] == -1:      # a dud that opens later: wait for it
+        e.step(None)
     e.step({"kind": "allocate", "amounts": {c["proj_names"][d]: float(c["staff"])}})
     while not e.done and e._state["status"][d] == 0:
         e.step(None)
