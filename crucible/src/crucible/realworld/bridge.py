@@ -43,6 +43,16 @@ CRED_PARAMS = {"token", "access_token", "api_key", "apikey", "key", "password", 
 SECRET_HEADERS = {"authorization", "cookie", "proxy-authorization", "x-api-key", "x-auth-token"}
 METADATA = {"169.254.169.254", "fd00:ec2::254", "100.100.100.200"}
 MAX_REDIRECTS = 5
+# headers that say who is asking: the bridge sets the User-Agent itself (automation disclosure), and refuses callers
+# that try to look like a browser, a person or another origin (impersonation, Part 16 / SP-16b)
+IDENTITY_HEADERS = {"user-agent", "from", "x-forwarded-for", "forwarded", "x-real-ip", "via", "x-originating-ip",
+                    "client-ip", "true-client-ip", "x-client-ip", "referer", "origin"}
+
+
+def disclosure(experiment: str) -> str:
+    """The User-Agent of every real-world request: automated, research, which experiment."""
+    safe = "".join(c for c in str(experiment) if c.isalnum() or c in "-_.")[:64]
+    return f"crucible-realworld-bridge/1 (automated research request; experiment={safe}; not a person)"
 BODY_LOG_CAP = 262_144
 
 _FORBIDDEN_HERE: list[str] = []
@@ -249,6 +259,13 @@ class RealWorldBridge:
         headers = {str(k): str(v) for k, v in (headers or {}).items()}
         if any(k.lower() == "host" for k in headers):
             self._refuse("a caller-supplied Host header is refused", url=str(url)[:300], method=method)
+        spoof = sorted(k for k in headers if k.lower() in IDENTITY_HEADERS)
+        if spoof:
+            # impersonation (Part 16): the bridge always identifies itself as automated research; a caller may not
+            # pose as a browser or a person, or claim another origin
+            self._refuse(f"identity headers are set by the bridge, not the caller: {spoof}", url=str(url)[:300],
+                         method=method)
+        headers["User-Agent"] = disclosure(self.auth.experiment)
         if method not in self.auth.methods:
             self._refuse(f"method {method} is not authorised", url=str(url)[:300], method=method)
         hops = 0

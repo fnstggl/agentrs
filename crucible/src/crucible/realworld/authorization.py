@@ -83,6 +83,42 @@ class Authorization:
                 "holdouts": dict(self.holdouts), "sha256": self.sha256}
 
 
+# Abuse prevention (Part 16, SP-16b): host suffixes of public social networks, messaging, mail and SMS gateways,
+# advertising, review, ranking, code-hosting engagement (stars, issues), Q&A and wiki platforms. A real-world experiment
+# runs against services the operator owns; an authorisation document naming one of these is refused whatever its
+# acknowledgement says, so no authorised experiment can post, message, vote, review, star, follow or scrape there.
+THIRD_PARTY_PLATFORMS = {
+    "social": ("twitter.com", "x.com", "t.co", "facebook.com", "fb.com", "instagram.com", "threads.net", "tiktok.com",
+               "reddit.com", "redd.it", "linkedin.com", "pinterest.com", "tumblr.com", "snapchat.com", "bsky.app",
+               "bsky.social", "mastodon.social", "mastodon.online", "vk.com", "weibo.com", "quora.com", "medium.com",
+               "substack.com", "news.ycombinator.com", "producthunt.com", "youtube.com", "youtu.be", "twitch.tv",
+               "vimeo.com", "dailymotion.com"),
+    "messaging": ("telegram.org", "t.me", "telegram.me", "discord.com", "discordapp.com", "discord.gg", "whatsapp.com",
+                  "wa.me", "slack.com", "signal.org", "messenger.com", "wechat.com", "line.me", "viber.com",
+                  "twilio.com", "sendgrid.com", "sendgrid.net", "mailgun.net", "mailgun.com", "mailchimp.com",
+                  "mandrillapp.com", "postmarkapp.com", "smtp.gmail.com", "gmail.com", "outlook.com", "office365.com"),
+    "reviews_and_ranking": ("yelp.com", "tripadvisor.com", "trustpilot.com", "g2.com", "capterra.com",
+                            "glassdoor.com", "amazon.com", "ebay.com", "etsy.com", "play.google.com",
+                            "apps.apple.com", "maps.google.com", "booking.com", "imdb.com"),
+    "advertising_and_search": ("google.com", "googleapis.com", "googleadservices.com", "doubleclick.net", "bing.com",
+                               "ads.microsoft.com", "facebook.net", "ads.twitter.com", "ads.linkedin.com",
+                               "duckduckgo.com", "baidu.com", "yandex.ru"),
+    "code_and_knowledge": ("github.com", "api.github.com", "gitlab.com", "bitbucket.org", "stackoverflow.com",
+                           "stackexchange.com", "wikipedia.org", "wikimedia.org", "pypi.org", "npmjs.com",
+                           "huggingface.co"),
+}
+
+
+def third_party_platform(host: str) -> str | None:
+    """'<category>:<suffix>' if `host` is (a subdomain of) a listed third-party platform, else None."""
+    h = str(host).lower().rstrip(".")
+    for cat, suffixes in THIRD_PARTY_PLATFORMS.items():
+        for s in suffixes:
+            if h == s or h.endswith("." + s):
+                return f"{cat}:{s}"
+    return None
+
+
 def default_port(scheme: str) -> int:
     return 443 if scheme == "https" else 80
 
@@ -137,6 +173,14 @@ def parse_authorization(doc: dict, *, now: float, sha256: str = "", path: str = 
     if not isinstance(doc["base_urls"], list) or not doc["base_urls"] or len(doc["base_urls"]) > 20:
         raise AuthorizationError("base_urls must list 1-20 base URLs")
     bases = tuple(parse_base_url(u) for u in doc["base_urls"])
+    for b in bases:
+        p = third_party_platform(b.host)
+        if p:
+            raise AuthorizationError(
+                f"base URL {b}: {b.host} belongs to the third-party platform {p}. The bridge never posts to, messages "
+                "through, engages on or collects from platforms the operator does not own (MASTER_SPEC Part 16: no "
+                "real-world spam, fabricated engagement, covert influence, surveillance or impersonation); authorise "
+                "your own staging service instead")
     if not isinstance(doc["methods"], list) or not doc["methods"]:
         raise AuthorizationError("methods must be a non-empty list")
     methods = frozenset(str(m).upper() for m in doc["methods"])

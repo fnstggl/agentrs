@@ -6,13 +6,18 @@ learners can be evaluated out of process.
 Measured on the real system:
 
 * integrity mechanisms, each counted only when it works against an attempt in a real world: blocking stops a
-  sender's messages; the messaging rate limit stops the fourth message; fabricated engagement (a sybil ring, paid
+  sender's messages; the messaging rate limit stops the fourth message; an invitation makes no one a member until
+  they join; an unsubscribed reader gets no further issue; a reported post removed by a moderator leaves the feed
+  and the public log records it; a banned member cannot post; fabricated engagement (a sybil ring, paid
   engagement, follows by one's own organisations) is excluded from organic engagement; related-party revenue
   (transfers, commitment escrow, project rewards, goods purchases) is netted from evaluator revenue; ratings bought
   with the seller's money do not enter the public rating;
 * real-world abuse paths: the real-world adapter off by default and refusing without authorisation, latched shut in
-  every world-hosting entry point, unreachable from world code (static import closure), and the worlds' content and
-  fetch tools reaching no network (process guard; jailed browser and media tools against a loopback canary);
+  every world-hosting entry point, unreachable from world code (static import closure), the worlds' content and
+  fetch tools reaching no network (process guard; jailed browser and media tools against a loopback canary), and -
+  for an operator WITH a valid authorisation - documents naming third-party social, messaging, review, advertising
+  or code platforms refused (no spam, fabricated engagement or influence there), caller identity headers refused
+  and every request carrying the bridge's automation disclosure (no impersonation);
 * media: every FFmpeg/ffprobe/SoX/Chromium launch at the participant call sites (studio and media tools) observed
   through audit events, and Pillow decodes inside the world process; an unjailed launch or an in-process decode of
   participant bytes is an unrestricted media-tool run;
@@ -108,6 +113,57 @@ def _messaging() -> dict:
                                                                   "community.modlog", "msg.block"))}
 
 
+def _consent_and_moderation() -> dict:
+    """Consent and moderation in a social world, each against an attempt: an invitation does not make anyone a member
+    until they join; an unsubscribed reader receives no further issue; a reported post removed by a moderator leaves
+    the community's feed and the public moderation log records it; a banned member can no longer post."""
+    import base64
+    import crucible
+    crucible.load_all_modules()
+    from crucible.core.kernel import World, WorldSpec
+    from crucible.social.modules import social_internet_modules
+    w = World.create(WorldSpec("sp16b-consent", 18, social_internet_modules(), {"cost_model": "deterministic"}))
+    try:
+        P = {h: w.system_call("admin.join", {"handle": h, "endowment": 100_000})["principal"]
+             for h in ("alice", "eve", "bob")}
+        X = lambda p, tool, **a: w.execute(P[p], {"tool": tool, "args": a})  # noqa: E731
+
+        def put(p, text):
+            r = X(p, "artifact.put", data_b64=base64.b64encode(text.encode()).decode(), mime="text/plain", kind="text")
+            assert r.ok, r.error
+            return r.result["ref"]
+        assert X("alice", "community.found", id="gardeners", name="Gardeners",
+                 subject="growing vegetables in small gardens").ok
+        assert X("alice", "community.invite", community="gardeners", member=P["eve"]).ok
+        members = lambda: {m["member"] for m in X("alice", "community.members", community="gardeners").result["members"]}  # noqa: E731
+        invited_not_member = P["eve"] not in members()
+        joined = X("eve", "community.join", community="gardeners").ok and P["eve"] in members()
+        assert X("bob", "community.join", community="gardeners").ok
+        post = X("eve", "community.post", community="gardeners", ref=put("eve", "BUY CHEAP PILLS NOW"), title="pills")
+        item = post.result["id"]
+        feed = lambda: [i.get("id") for i in X("bob", "community.feed", community="gardeners").result["items"]]  # noqa: E731
+        listed_before = item in feed()
+        rep = X("bob", "community.report", community="gardeners", target=item, reason="spam").result["report"]
+        removed = X("alice", "community.moderate", community="gardeners", action="remove", target=item, reason="spam",
+                    report=rep).ok and item not in feed()
+        logged = any(e["action"] == "remove" and e["target"] == item and e["report"] == rep
+                     for e in X("bob", "community.modlog", community="gardeners").result)
+        banned = X("alice", "community.moderate", community="gardeners", action="ban", target=P["eve"], reason="spam").ok
+        after_ban = X("eve", "community.post", community="gardeners", ref=put("eve", "more pills"), title="again")
+        nl = X("alice", "letters.create", name="Garden notes").result["newsletter"]
+        assert X("bob", "letters.subscribe", newsletter=nl).ok
+        first = X("alice", "letters.send", newsletter=nl, ref=put("alice", "issue one: tomatoes"), title="Issue 1")
+        assert X("bob", "letters.unsubscribe", newsletter=nl).ok
+        second = X("alice", "letters.send", newsletter=nl, ref=put("alice", "issue two: beans"), title="Issue 2")
+    finally:
+        w.close()
+    return {"invitation_requires_consent": invited_not_member and joined,
+            "unsubscribe_stops_delivery": first.ok and first.result["mailed"] == 1 and second.ok and
+            second.result["mailed"] == 0,
+            "moderation_removes_reported_content": listed_before and removed and logged,
+            "ban_stops_posting": banned and not after_ban.ok and (after_ban.error or {}).get("code") == "forbidden"}
+
+
 def _hosted(ref: dict, action: dict | None = None) -> dict:
     from crucible.experience.remote import host
     part, ev = host(ref)
@@ -146,14 +202,19 @@ def red_team():
 def test_SP16b_integrity_abuse_media_tenants_and_out_of_process_evaluation(red_team):
     held = lambda n: red_team[n]["result"] == "held"  # noqa: E731
     msg = _messaging()
-    mechanisms = {"blocking": msg["block"], "message_rate_limit": msg["rate_limit"],
+    consent = _consent_and_moderation()
+    mechanisms = {"blocking": msg["block"], "message_rate_limit": msg["rate_limit"], **consent,
                   **{k: all(held(n) for n in v) for k, v in INTEGRITY.items()}}
     d = _realworld_defaults()
     latches = {m: _latched(m) for m in ENTRY_POINTS}
+    from crucible.redteam.v5.realworld_abuse import check as realworld_abuse
+    rw = realworld_abuse(SRC)
     abuse = {"adapter_enabled_by_default": bool(d["enabled"]), "get_without_authorisation": d["get"] != "refused",
              "post_without_authorisation": d["request"] != "refused",
              **{f"latch_open:{m}": not v for m, v in latches.items()},
-             **{n: not held(n) for n in ABUSE}}
+             **{n: not held(n) for n in ABUSE},
+             **{f"realworld:{p}": True for p in rw["abuse_paths"]},
+             "realworld_authorised_control_failed": not rw["control_ok"]}
     ev_media = (red_team[MEDIA[0]].get("evidence") or {}), (red_team[MEDIA[1]].get("evidence") or {})
     unjailed = int(ev_media[0].get("unrestricted_media_tool_runs") or 0) if red_team[MEDIA[0]]["result"] != "held" else 0
     decodes = int(ev_media[1].get("in_process_image_decodes") or 0) if red_team[MEDIA[1]]["result"] != "held" else 0
@@ -180,6 +241,10 @@ def test_SP16b_integrity_abuse_media_tenants_and_out_of_process_evaluation(red_t
         "media_launches_jailed": int(ev_media[0].get("jailed") or 0),
         "unjailed_media_tool_launches": unjailed, "in_process_image_decodes": decodes,
         "tenant_checks": len(tenant_fail), "moderation_tools": ",".join(msg["moderation_tools"]),
+        "third_party_platforms_refused": sum(v == "refused" for v in rw["platforms"].values()),
+        "third_party_platforms_tried": len(rw["platforms"]),
+        "identity_headers_refused": sum(v == "refused" for v in rw["spoofed"].values()),
+        "automation_disclosure": str(rw.get("control_user_agent")),
     }
     record("SP-16b", metrics, command=CMD, notes="mechanisms: " + json.dumps(mechanisms) + "; abuse paths: "
            + json.dumps({k: v for k, v in abuse.items() if v}) + "; media: " + json.dumps(ev_media[0].get("unjailed"))
