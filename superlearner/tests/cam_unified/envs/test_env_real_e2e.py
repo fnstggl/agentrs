@@ -150,21 +150,39 @@ class Recorder:
                    I.actor_dump(nb.observations)),
                "t_done_identical": list(tr.next_obs.t) == list(nb.t) and list(tr.next_obs.done) == list(nb.done),
                "rewards_a": list(tr.rewards), "rewards_b": list(rew_b)}
+        import random
+
+        import numpy as np
+        import torch
         agent = self.inner.agent
         rows, dec = agent._pending[0], agent._pending[1]
         model = agent.model
         sub = agent.state.select(rows)
+        # the particle update samples (rejuvenation noise, systematic resampling) from the global RNGs: every
+        # counterfactual starts from the same RNG state, and the real update afterwards from the untouched one
+        rng = (torch.get_rng_state(), torch.cuda.get_rng_state_all(), np.random.get_state(), random.getstate())
+
+        def set_rng():
+            torch.set_rng_state(rng[0])
+            torch.cuda.set_rng_state_all(rng[1])
+            np.random.set_state(rng[2])
+            random.setstate(rng[3])
 
         def update(res, nxt, rew):
             st = copy.deepcopy(sub)
+            set_rng()
             observe_outcomes(model, st, dec, [res[b] for b in rows], [list(nxt[b]) for b in rows],
                              [float(rew[b]) for b in rows])
             return snapshot(st)
-        cf_a1 = update(res_a, tr.next_obs.observations, tr.rewards)
-        cf_b = update(res_b, nb.observations, rew_b)
-        cf_a2 = update(res_a, tr.next_obs.observations, tr.rewards)
+        try:
+            cf_a1 = update(res_a, tr.next_obs.observations, tr.rewards)
+            cf_b = update(res_b, nb.observations, rew_b)
+            cf_a2 = update(res_a, tr.next_obs.observations, tr.rewards)
+        finally:
+            set_rng()
         row["fast_state_identical"] = same_state(cf_a2, cf_b) and same_state(cf_a1, cf_b)
         row["fast_state_repeatable"] = same_state(cf_a1, cf_a2)
+        row["fast_state_keys"] = len(cf_b)
         return row
 
 
