@@ -54,7 +54,8 @@
    "train": 52,
    "eval": 21,
    "named_items_admitted": 54
-  }
+  },
+  "gate_tests_run_without_admission_cache": "SP-7.0, SP-7.1, SP-7.2, SP-7.5, SP-8.12b, SP-0.9, M.5, M.n1, M.8 passed on the worktree at ef7719b..0f4c27e (single-CPU, unofficial evidence); the admission-based gates wait for the registry-wide run"
  },
  "requirements": {
   "M.1": {
@@ -126,8 +127,8 @@
     "tests/v5/test_gate_M.py",
     "tests/test_v5_rapid_families.py"
    ],
-   "status_claim": "MET",
-   "notes": "Every family has a measured, purely categorical nine-component fingerprint; engines now declare observation channels (aggregated routing separates net_hidden_bottleneck_swap from net_topology_shift)."
+   "status_claim": "MET (gate test run, worktree)",
+   "notes": "test_M5 passed: 92 families, 0 missing fingerprints, 0 numeric components (fingerprint rapid-fp/3)."
   },
   "M.6": {
    "implementation_files": [
@@ -165,8 +166,8 @@
     "tests/test_v5_rapid_families.py",
     "tests/test_v5_rapid_h1h2.py"
    ],
-   "status_claim": "MET (probe)",
-   "notes": "88 of 88 families' controlled-intervention claims pass on seeds 0-2 and 10-12 (0 failures; 14 claims repaired in wave 3, the known-failure xfail list is empty)."
+   "status_claim": "MET (gate test run, worktree)",
+   "notes": "test_M8 passed: 92 families with intervention tests, 690 tests run on seeds 0-2 and 10-12, 0 failures; look-alike rules distinguished."
   },
   "M.n1": {
    "implementation_files": [
@@ -175,8 +176,8 @@
    "tests": [
     "tests/v5/test_gate_M.py"
    ],
-   "status_claim": "see gate run",
-   "notes": "Renamed, parameter and difficulty-axis variants of every family; fingerprint version rapid-fp/2."
+   "status_claim": "MET (gate test run, worktree)",
+   "notes": "test_Mn1 passed: 454 renamed/parameter/axis variants, 0 counted, 0 at nonzero distance, 0 not buildable; min distance between real families 0.02 (net_hidden_bottleneck_swap~net_topology_shift)."
   },
   "SP-0.9": {
    "implementation_files": [
@@ -186,8 +187,8 @@
    "tests": [
     "tests/v5/test_gate_SP_0_9.py"
    ],
-   "status_claim": "MET (probe)",
-   "notes": "18 4.0 val/test families fingerprinted from their engines; 60 v5 training families checked; 0 match by distance or mechanism recreation (recreation now also against 4.0 validation families, H-D2)."
+   "status_claim": "MET (gate test run, worktree)",
+   "notes": "test_gate_SP_0_9 passed: 18 4.0 held-out families fingerprinted, 64 v5 training families checked, 0 matching (min distance 0.39)."
   },
   "SP-7.0": {
    "implementation_files": [
@@ -197,8 +198,8 @@
    "tests": [
     "tests/v5/test_gate_SP_7_0.py"
    ],
-   "status_claim": "MET (probe)",
-   "notes": "5 goal kinds generated from the public face and validated feasible on >= 3 engines each; 0 families whose default objective is not scored by its type's generic rule; 88/88 objective-free; generator statically independent of worlds. Limitation: builders still declare a default objective."
+   "status_claim": "MET (gate test run, worktree)",
+   "notes": "test_gate_SP_7_0 passed: 5 independently generated objective kinds, 0 families with world-specific objective code, 92 families checked, 295 generated worlds built, 92 objective-free worlds."
   },
   "SP-7.1": {
    "implementation_files": [
@@ -208,8 +209,8 @@
     "tests/v5/test_gate_SP_7_1.py",
     "tests/test_v5_rapid_primitives.py"
    ],
-   "status_claim": "see gate run",
-   "notes": "28 primitives (wave 1)."
+   "status_claim": "MET (gate test run, worktree)",
+   "notes": "test_gate_SP_7_1 passed: 28 primitives registered, 27 per-instance parameter checks, 0 failures."
   },
   "SP-7.2": {
    "implementation_files": [
@@ -219,8 +220,8 @@
    "tests": [
     "tests/v5/test_gate_SP_7_2.py"
    ],
-   "status_claim": "MET (probe)",
-   "notes": "compose varies 11 dimensions, each verified by doing the same thing in both worlds on seeds 0-2 (with a same-recipe negative control); 6 of 6 look-alike market pairs separated by the price-response protocol."
+   "status_claim": "MET (gate test run, worktree)",
+   "notes": "test_gate_SP_7_2 passed: 11 composition dimensions, 6 look-alike pairs, 6 confirmed different by intervention (the look-alike markets keep one interface in their prediction version 2)."
   },
   "SP-7.3": {
    "implementation_files": [
@@ -251,8 +252,8 @@
    "tests": [
     "tests/v5/test_gate_SP_7_5.py"
    ],
-   "status_claim": "see gate run",
-   "notes": "Pair protocols added for the three pairs the response signature could not separate (dose response vs hypotheses, inventory vs perishable, routing vs topology shift)."
+   "status_claim": "MET (gate test run, worktree)",
+   "notes": "test_gate_SP_7_5 passed: 92 distinctness records, 0 claimed differences unverified (interface 42, behaviour signature 28, observation structure 14, family protocols 8)."
   },
   "SP-8.0": {
    "implementation_files": [
@@ -304,8 +305,8 @@
    "tests": [
     "tests/v5/test_gate_SP_8_12b.py"
    ],
-   "status_claim": "MET (probe)",
-   "notes": "45 of 45 batchable families equal to single worlds; a learner through RapidVecEnv runs 74,500 world-steps per CPU-s (target 20,000, H-D3) and 17x the single-world path (target 10x)."
+   "status_claim": "MET (gate test run, worktree)",
+   "notes": "test_gate_SP_8_12b passed: 45 batched families, throughput target met (min 73,108 learner world-steps per CPU second, speedup over single worlds 17x, targets 20,000 and 10x) under shared load."
   }
  },
  "limitations": [
