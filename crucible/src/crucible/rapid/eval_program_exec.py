@@ -567,9 +567,49 @@ def cont_test(view, c: dict, ticks: int = 3) -> tuple[list[int], dict]:
     return list(best), score
 
 
+def cont_infer(view, c: dict, ticks: int = 12) -> tuple[list[int], dict]:
+    """Watch the node under the built-in rule capped at two jobs (pairs of jobs share the node for several ticks,
+    so speeds are measured cleanly over whole ticks) and explain
+    each running job's progress per inner step by the jobs it shared the node with: under each candidate split
+    of the types into two classes, a job's speed is v / (1 + kappa (n_same - 1)); v and kappa are fitted by least
+    squares (a grid over kappa), and the split that explains the observed speeds best is kept. Returns (split,
+    squared error per split)."""
+    K = int(c["inner"])
+    obs = []                                          # (job type, types running with it, observed speed)
+    prev = view.observe()["entities"]
+    for k in range(ticks):
+        if view.done:
+            break
+        # first a job alone (its speed is the unhindered speed), then pairs
+        cap = {"kind": "levers", "values": {c["cap_name"]: 1.0 if k < 2 else 2.0}}
+        cur = view.step(cap)["observation"]["entities"]
+        p = {e["id"]: e for e in prev if e.get("kind") == "running"}
+        both = [e for e in cur if e.get("kind") == "running" and e["id"] in p]
+        if len(both) == len([e for e in cur if e.get("kind") == "running"]) == len(p):
+            # the same jobs ran through the whole tick: their speeds are clean
+            types = [e["type"] for e in both]
+            for e in both:
+                obs.append((e["type"], types, (p[e["id"]]["left"] - e["left"]) / K))
+        prev = cur
+    alone = [v for _, ts, v in obs if len(ts) == 1]
+    v0 = float(np.median(alone)) if alone else 1.0           # the brief: a lone job does one work unit per step
+    err = {}
+    for cls in partitions(c["types"]):
+        of = dict(zip(c["types"], cls))
+        best = np.inf
+        y = np.asarray([v for *_, v in obs])
+        for kap in np.linspace(0.0, 4.0, 41):
+            x = np.asarray([1.0 / (1.0 + kap * (sum(1 for t in ts if of[t] == of[ty]) - 1)) for ty, ts, _ in obs])
+            if len(y):
+                best = min(best, float(np.mean((v0 * x - y) ** 2)))
+        err[tuple(cls)] = best
+    pick = min(err, key=err.get) if err and np.isfinite(min(err.values())) else tuple(partitions(c["types"])[0])
+    return list(pick), err
+
+
 def reference_contention(view, env) -> None:
     c = env._config
-    cls, _ = cont_test(view, c)
+    cls, _ = cont_infer(view, c)
     if not view.done:
         view.step({"kind": "program", "source": cont_source(c["types"], cls, 1), "ticks": view.horizon - view.t})
     finish(view)
@@ -577,7 +617,7 @@ def reference_contention(view, env) -> None:
 
 def identify_contention(env) -> dict:
     c = env._config
-    cls, score = cont_test(PublicView(env), c)
+    cls, score = cont_infer(PublicView(env), c)
     truth = c["hidden"]["cls"]
     same = cls == truth or cls == [1 - x for x in truth]
     return {"question": "which job types interfere with each other (the hidden classes)", "estimate": cls,

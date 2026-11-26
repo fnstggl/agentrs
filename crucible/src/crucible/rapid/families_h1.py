@@ -161,7 +161,8 @@ def pe_contention_sched(rng, d):
             "objective": {"type": "maximize_net", "text": "Maximise net income: completed jobs pay; waiting and "
                                                           "dropped jobs and compute cost money."},
             "brief": f"A node with {int(d['resources'])} slots runs jobs of types {names[:J]} (equally common, about "
-                     "0.45 arrivals per inner step, sizes 2-6 work units, four inner steps per tick). Jobs waiting "
+                     "0.45 arrivals per inner step, sizes 2-6 work units, four inner steps per tick; a job running "
+                     "alone does one work unit per inner step). Jobs waiting "
                      "more than 8 ticks are dropped. The lever caps how many jobs the built-in oldest-first rule "
                      "runs at once; a deployed scheduler program chooses which jobs to start."}
 
