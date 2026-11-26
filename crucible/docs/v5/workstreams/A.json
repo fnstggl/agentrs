@@ -1,18 +1,20 @@
 {
  "workstream": "A",
- "branch": "c5c/w3-kernel",
- "base": "87a6c54 (feat/crucible-5-complete after the wave-1 and wave-2a merges)",
+ "branch": "c5c/w3b-kcal",
+ "base": "55433e7 (integration head: waves 1, 2a, 3a + integration fix) + feat/crucible-5-complete docs; c5c/w3b-domfw merged (allowed, for Mode B)",
  "requirements": {
   "SP-2.1": {
    "implementation_files": [
-    "src/crucible/substrate/modes.py"
+    "src/crucible/substrate/modes.py",
+    "src/crucible/domains/modes.py",
+    "src/crucible/civ/modes.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_2_1.py",
     "tests/test_v5_substrate_modes.py"
    ],
-   "status_claim": "partial: registry and checks implemented and verified; execution_modes measured = 1 (A only) on the integrated tree",
-   "notes": "Measured (scratch mirror with the pending `space` fix emulated, unofficial): execution_modes = 1. Mode A: crucible.rapid (9/9 engines responsive, 63 families, deterministic) and the 4.0 mechanisms. Mode B: the crucible.domains provider lists no environments (D-17: Tier 2 domains become civ configurations, workstreams I/J). Mode C: the crucible.civ provider is registered (civ/modes.py) but civ.generate fails on the integrated tree ('civilisation modules miss dependencies [space]'), so its check fails honestly. The Mode C composition check now also requires >= 5 distinct sources engaging other domains (C_MIN_INITIATORS): a scripted hub that calls into 13 domains while a population acts in 6 satisfied every other criterion and is now refused (adversarial control test). The all-module control world (99 modules) engages 8 of 17 domains and is refused. Not verified on a real civilisation: none can be built until the integration fix lands; the SP-2.1 gate then measures it for real (no code change needed)."
+   "status_claim": "partial: registry and checks implemented; on this branch execution_modes cannot reach 3 (no Tier 2 domain is registered here, so Mode B lists no world); the measurement on a scratch merge with the domain and civilisation branches is queued (slot scheduler)",
+   "notes": "Mode A: crucible.rapid and the 4.0 mechanisms. Mode B: crucible.domains provider (rebuilt by domfw, merged here) lists every configuration of every registered Tier 2 domain; none is registered on this branch (dom1/dom2/dom3 build them). Mode C: crucible.civ provider with the strengthened composition check (>= 12 of 17 domains engaged after genesis, population in >= 6, >= 8 shared kinds written by transactions another module initiated, >= 12 initiator/owner pairs, >= 5 initiating sources, the mandatory duplicate-fact check). Gate run on this branch and on the scratch merge: queued."
   },
   "SP-2.3": {
    "implementation_files": [
@@ -34,7 +36,8 @@
     "src/crucible/sandbox/boot.py",
     "src/crucible/population/core.py",
     "src/crucible/sandbox/metering.py",
-    "src/crucible/services/code.py"
+    "src/crucible/services/code.py",
+    "src/crucible/substrate/integrity.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_2_3.py",
@@ -48,108 +51,94 @@
     "tests/test_v5_substrate_bus.py",
     "tests/test_v5_substrate_kernel.py",
     "tests/v5_resume_child.py",
-    "tests/test_v5_substrate_memo.py"
+    "tests/test_v5_substrate_memo.py",
+    "tests/test_v5_substrate_columns.py",
+    "tests/test_v5_substrate_integrity.py"
    ],
-   "status_claim": "partial: cross_module_rollback_failures = 0 and inference_replay_without_rerun = true measured on real modules and across processes; shared_primitive_kinds = 14 of the 19 Part 2.3 primitives (criterion >= 19)",
-   "notes": "shared_primitive_kinds now counts exactly the 19 primitives MASTER_SPEC Part 2.3 lists (primitives.SPEC_PRIMITIVES, checked against the spec text by the gate) instead of all 25 OWNERS kinds (6 are refinements the spec does not list, which could have reached 19 while listed primitives still had copies). 19/19 have an owner; 14 have no copy anywhere in the mandatory scan of 102 shipped modules (312 items); content_artifact, relationship, community, institution and contract have known duplicates (allow-list, expiry 2027-03-31). Reaching 19 needs the migrations listed under integration_notes (C: relationship, community, content_artifact; F: institution, contract). Measured in the scratch mirror (unofficial): cross_module_rollback_failures = 0 (fault injection into 60 real multi-module transactions of a 99-module world - 55 scheduled jobs, 5 agent commands, up to 9 modules each, 47 touching v5 modules; 240 composed scenarios, 215 failing in 7 ways as intended); 22 known duplicate tables on the allow-list, 312 scanned items; inference_replay_without_rerun = true (139 recorded pop_adaptive/pop_strategic inferences, replay and regeneration in new processes with 0 inference runs, exact; cross-process resume exact). On the integrated tree itself the gate cannot pass yet: every population world fails (duplicate `space` module) - see integration_notes."
+   "status_claim": "partial: shared_primitive_kinds = 14 of 19 on this branch (content_artifact, relationship, community, institution, contract have known copies); 17 of 19 on a scratch merge with c5c/w3b-soc and c5c/w3b-econ1 (content_artifact, institution and contract migrated there; facts.audit on the merge: 327 items, 107 modules, 0 problems); relationship and community need the C+A / B+C migrations (integration_notes)",
+   "notes": "Kernel side of the migrations: econ1 already set OWNERS.institution = inst.inst_charters with gov tables as verified legacy entries and made commit.commitments a part of contracts; soc reclassified aud.aud_item_info. cross_module_rollback_failures and inference_replay_without_rerun: gate re-run queued (slot scheduler); last measured 0 / true in wave 3."
+  },
+  "SP-2.3b": {
+   "implementation_files": [
+    "src/crucible/substrate/integrity.py",
+    "src/crucible/substrate/columns.py",
+    "src/crucible/core/state.py",
+    "src/crucible/core/kernel.py",
+    "src/crucible/substrate/bus.py",
+    "src/crucible/sandbox/runner.py",
+    "src/crucible/sandbox/metering.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_2_3b.py",
+    "tests/test_v5_substrate_integrity.py",
+    "tests/test_v5_substrate_memo.py",
+    "tests/test_v5_substrate_streams.py",
+    "tests/test_v5_substrate_columns.py"
+   ],
+   "status_claim": "implemented: integrity.trace_writes + integrity.hashes + gate with positive control; unit tests pass (9); gate measurement on this branch and on the scratch merge queued (slot scheduler)",
+   "notes": "cross_module_state_writes counts distinct (writer, target) pairs of writes by an applier of one module into another module's table/array/column/metadata, plus handler writes outside appliers, plus column batches the ownership rule refuses; approved interfaces are cols.batch/grow by an admitted writer (owner, package, grant, or a registered interface called from its implementing module - wave 3b), counter allocation and the kernel's side-event count. Determinism: each world kind (civ, population, social, commerce, domain when registered, rapid) built from the same spec and seed in two fresh processes."
   }
  },
- "wave3_findings_and_repairs": [
-  "D-20 broke cross-process determinism: parent-measured sandbox CPU made the same spec and seed give different event hashes in two new processes (157 of 1,795 events of a half-day population world; cpu_ms and cloud compute units, which feed cloud billing), so K1's cross-process resume could not continue with the uninterrupted run's hashes. Repair: sandbox.metering.DiskMemo - the deterministic memo's anchors are shared by every process of the machine (SQLite, first writer wins; the 3x + 1 ms tolerance rule and per-lineage keys unchanged); SandboxConfig.memo_path; worlds use metering.default_memo_path() ($CRUCIBLE_METER_MEMO, 'off' = per process; params.meter_memo='process' opts out). tests/test_v5_substrate_memo.py.",
-  "K2 tests failed after the merge: a world with an extra (observer) module or typed_events has another spec hash, hence another measurement lineage, and billed its sandboxed requests by fresh measurements. params.meter_lineage lets an experiment's arms share a lineage; the K2 tests give every arm the same lineage, and a new test shows that without it only ext/cloud.usage events differ (the measurement confound).",
-  "Fact scan: 3 unclassified wave-2 tables (pop_social.cols:pop, space.space_items, space_read.space_read_items) classified. Blind spot found and closed: columns of an owner's own column table were never scanned - pop.contacts (a fourth tie graph), pop.communities (memberships of their own) and the audience engine's creator follower sets (a third follow graph) were silent duplicates; every column is now scanned on its own name, and the three are on the allow-list with migrations; pop.wallet_cents reviewed (pre-ledger claim, deposited through bank.move); 'edge' signature fixed (matched 'knowledge').",
-  "Facts role 'legacy' (the migration target for 4.0 tables, which cannot be retired while 4.0 worlds must stay byte-identical): enforced on data in every world (facts.legacy_split) and certified by a named test (verified_by); a legacy table is not a known duplicate.",
-  "Mode C composition: initiators criterion (hub-and-spoke worlds refused).",
-  "Retention: periodic compaction was O(history) per call (19.3 s per weekly compact at day 365: collect re-read every cols.batch event of the log and every retained snapshot was unpickled for its roots and time); now incremental (batch refs cached in world.runtime with the last seq read) and snapshot metadata read once per process (snapshots are content-addressed by chain position).",
-  "Test isolation: tests/test_v5_substrate_modes.py loads the modules itself (one test failed when run alone)."
+ "wave3b_findings_and_repairs": [
+  "K2 and K1 regressions after the merge (orchestrator regression on 55433e7): diagnosed on a real population world - the first differing main-line event was cloud.usage cpu_ms 0.125 vs 5.735 for the same request; the job's program load measured 5.8 ms in one run and 3.5 ms in the other (LOAD_FREE_NS = 3 ms), so load_bill was 2.8 vs 0.5 ms and the job memo's tolerance check billed the noisy total ('exceeded'). D-80: the deterministic cost model anchors the program load like a job and keeps it out of the job's own anchor. After the fix the same 6-hour comparison bills all 22 jobs 'remembered' in both runs and the two K2 observer tests pass (2 passed, 120 s).",
+  "K1 after the first D-80 step: a world resumed in a NEW process starts every sandboxed site cold where the uninterrupted run had warm workers; the anchored load above LOAD_FREE_NS was billed again (13 differing events in a 1-day adaptive population world), and a load noise rule with a small anchor flagged 'exceeded' (2 differing events, resume itself not reproducible). D-80 completed: a platform cold start's load joins the job's first measurement (Memo.bill check_ns), restarts after a death or eviction bill it on top, the load tolerance is floored at LOAD_FREE_NS. Then: resume == uninterrupted run (hash and digest), twice; at the test's own configuration (300 individuals, 8 sites, adaptive + strategic, snapshot day 1, crash 1.5, resume to 2.5) the resumed process ends at seq 9,717 with the hash dcc5fa2e and digest c1e60eb2 of an uninterrupted stored run in another new process; 58 of 192 inferences re-run; replay of the stored log exact with 0 inferences.",
+  "Approved state interfaces were strings: a module's code could call columns.batch(..., _iface='attention') and refill attention_left_min (accepted, invariants empty). Interfaces are now capabilities of the Python module that registered them.",
+  "The facts test failed on the predecessor's commit (allow-list entries for sibling-branch tables absent on this tree); absent entries are reported and stale ones are problems (D-79).",
+  "Predecessor (same branch, before the usage limit): D-78 system array blobs are not world state; incremental retention (new events only, per-key size lookups, scan position in the store); substrate.integrity and gate SP-2.3b; facts classification of the sibling branches' tables; Module.on_fork."
  ],
  "measurements": {
-  "store_growth_30d_development_profile": {
-   "world": "population_world('development', seed 11), SQLiteStore, 30 simulated days, 281,747 events in both runs",
-   "before": {
-    "code": "a881d18/7c29c75 (feat/crucible-5-complete)",
-    "blob_bytes": 161890689,
-    "blobs": 36820,
-    "event_payload_bytes": 101430484,
-    "snapshots": 5,
-    "snapshot_bytes": 14639368,
-    "sqlite_file_bytes": 351784960
-   },
-   "after": {
-    "policy": "snapshot weekly + retention.compact(prune=True)",
-    "blob_bytes": 65799318,
-    "blobs": 36818,
-    "blobs_packed": 36683,
-    "chunk_bytes": 22689144,
-    "pointer_bytes": 4255228,
-    "unpacked_root_and_checkpoint_bytes": 38854946,
-    "superseded_checkpoints_dropped": 2,
-    "superseded_kept_for_retained_snapshots": 8,
-    "event_payload_bytes": 58851825,
-    "snapshots": 4,
-    "snapshot_bytes": 12389602,
-    "sqlite_file_bytes_vacuumed": 182517760,
-    "replay_from_genesis_store_only": "exact (53.5 s)",
-    "resume": "exact (6.7 s)"
-   },
-   "per_week_after": "blob bytes +16 MB/week (before +40 MB/week); packed chunks +5.3 MB/week (cohort blobs compress about 5x); event payloads +13.4 MB/week",
-   "scripts": "scratchpad w1-kernel/measure_store.py (before, run on `git archive HEAD` of the base) and measure_after.py (after)"
+  "k2_billing_diagnosis_6h_population_world": {
+   "before_fix": "22 jobs per run; base run: 21 remembered + 1 exceeded (load 5.778 ms, billed 2.954 ms); observer run: 22 remembered (load 3.474 ms, billed 0.097 ms)",
+   "after_fix": "22 remembered in both runs, identical bills"
   },
-  "store_growth_365d": {
-   "world": "population_world('development', seed 11, n=400, sites=6, adaptive daily checkpoints, no strategic), SQLiteStore, 365 simulated days, weekly snapshot + retention.compact(prune=True); run in the scratch mirror (pending space fix emulated)",
-   "events": 1109544,
-   "live_blob_bytes_per_week_MB": {
-    "q1": 3.92,
-    "q2": 3.79,
-    "q3": 3.76,
-    "q4": 3.73
-   },
-   "event_payload_bytes_per_week_MB": {
-    "q1": 5.2,
-    "q2": 4.84,
-    "q3": 4.81,
-    "q4": 4.82
-   },
-   "snapshot_bytes_per_week_MB": {
-    "q1": 1.42,
-    "q2": 1.93,
-    "q3": 2.62,
-    "q4": 3.31
-   },
-   "end": {
-    "blobs": 222353,
-    "blobs_packed": 222337,
-    "chunks": 52,
-    "chunk_bytes": 159656512,
-    "pointer_bytes": 25791092,
-    "unpacked_root_bytes": 12578272,
-    "event_payload_bytes": 256337114,
-    "snapshots": 15,
-    "snapshot_bytes": 119949906,
-    "artifact_metadata_rows": 222702,
-    "sqlite_file_bytes_unvacuumed": 859482696
-   },
-   "exactness_at_end": {
-    "replay_from_genesis_store_only": "exact (297 s)",
-    "recount_of_271993_visits_through_packed_chunks": "exact",
-    "resume": "exact (16 s)"
-   },
-   "history_queries_on_the_compacted_store": {
-    "state_at_vs_genesis_replay": "equal digests at days 45, 150, 300 (7 / 37 / 95 s vs 31 / 109 / 211 s from genesis)",
-    "state_at_runtime_true_day45": "NotFound: the checkpoint current at day 45 was superseded and collected (no retained snapshot roots it)"
-   },
-   "wall_s_per_simulated_day": {
-    "q1": 2.45,
-    "q4": 4.49
-   },
-   "compaction_s_at_day_365_before_incremental_fix": 19.3,
-   "compaction_s_after_incremental_fix": {
-    "first_in_a_process_cold": 12.38,
-    "weekly_warm_day_372": 8.83,
-    "weekly_warm_day_379": 9.44,
-    "profile_of_a_warm_compaction_after_one_day": "3.4 s, of which 1.8 s are the two full blob-size scans (pack and collect, 222k blob keys): the remaining O(blobs) term"
+  "facts_audit_on_scratch_merge": {
+   "merge": "c5c/w3b-kcal + pop + soc + econ1 + civ + dom1 + econ2 + sem + perf",
+   "items": 327,
+   "modules": 107,
+   "problems": 0,
+   "unreviewed": 0,
+   "spec_primitives_without_copy": 17,
+   "with_copies": {
+    "relationship": [
+     "aud.cols:aud_creators.followers",
+     "pop.cols:pop.contacts",
+     "social.cols:follow"
+    ],
+    "community": [
+     "community.communities",
+     "pop.cols:pop.communities"
+    ]
    }
+  },
+  "k1_cross_process_resume": {
+   "small": "population_world('development', 3, n=150, sites=6, strategic=False): ref 1 day, snapshot 0.5, crash 0.75, resume to 1.0 in new processes; before the completed D-80: 13 then 2 differing events; after: resume hash/digest == ref (1496f8dc / 20a490e2) in two resumes; replay exact, 0 inferences",
+   "test_configuration": "population_world('development', 3, n=300, sites=8) (adaptive + strategic): uninterrupted stored run to day 2.5 in a new process and part (snapshot day 1, crash 1.5) + resume (new process, to 2.5): both seq 9717, hash dcc5fa2e6a1c7c2b7e4259167f20c873, digest c1e60eb2d53e5d541170f0aa9223d7fd; resume ran 58 inferences (ref 192), replay of the part log exact with 0; the test's store-less reference stage exceeds 295 s on one CPU without GPU (queued in the slot scheduler)"
   }
+ },
+ "defects": {
+  "DEF-A-4": "fixed (mandatory scan; remaining copies tracked by the allow-list and SP-2.3)",
+  "DEF-A-5": "fixed (cross-process resume re-verified after D-80 at the test's configuration, stage by stage)",
+  "DEF-A-6": "fixed (tests/test_v5_substrate_streams.py 6 passed after D-80)",
+  "DEF-A-1, DEF-A-2": "marked fixed on c5c/w3b-civ (J); DEF-A-3 left to J"
+ },
+ "limitations": [
+  "SP-2.1: on this branch no Tier 2 domain is registered (Mode B lists no world) - execution_modes cannot reach 3 here; the Mode C check on a real civilisation and Mode B on dom1's domains are measured only on the scratch merge (queued).",
+  "SP-2.3: shared_primitive_kinds 14 here, 17 after the soc/econ1 merges; relationship and community need migrations of 4.0 forum code and population columns by C and B (integration_notes).",
+  "D-80 limits: eviction points of a pool with more active deployments than sandbox_max_workers (24) depend on the host process's history, so such a world can bill evictions differently after a resume; across machines, an empty memo measures afresh (D-20's honest limit).",
+  "Store-less population worlds with adaptive and strategic participants ran slower than stored ones on one CPU (the store-less 2.5-day K1 reference exceeded 295 s while a stored 2.5-day run finished): not investigated.",
+  "Without the GPU, population/civilisation runs are dominated by the shared space's text path on first sight of a text (a civ world: 12 simulated hours > 5 minutes on one CPU); later runs of the same seed hit the embedding cache.",
+  "Retention test file: all 8 tests passed on one CPU but the process exceeded the 290 s budget at exit (teardown), so pytest's summary line was not printed."
+ ],
+ "integration_notes": [
+  "O (security, c5c/w3b-sec edits the same files): D-80 is a minimal edit in sandbox/runner.py and sandbox/metering.py. Keep on merge: Worker.cold and WorkerPool._seen ('process' for the pool's first worker of a key, 'restart' afterwards); the load anchor `M.MEMO.bill(computation_key(scope, files_digest, {'kind': 'load', 'target': target}, [], {}), load_ns, disk=memo_path, floor_ns=M.LOAD_FREE_NS)` (add scope=self.cfg.meter_scope after sec's per-lineage eviction lands) with the fold of a platform cold start's load; `_finish(..., load=, fold=)` billing `MEMO.bill(key, cpu + fold, disk, check_ns=cpu)` plus `load`; Memo.bill's check_ns and floor_ns (compare `check` against `max(anchor, floor_ns)`). Both regression tests live in tests/test_v5_substrate_memo.py.",
+  "facts.py / primitives.py: c5c/w3b-soc (aud.aud_item_info reclassified, its allow-list entry removed) and c5c/w3b-econ1 (gov.* legacy entries verified by test_gov_writes_through_inst_charters, commit.commitments a part of contracts, OWNERS.institution = inst.inst_charters, the inst.inst_charters and commit.commitments allow-list entries removed) edit them too: keep all three sides. Checked on a scratch merge (kcal + pop + soc + econ1 + civ + dom1 + econ2 + sem + perf): facts.audit 327 items over 107 modules, 0 problems, 0 unreviewed; 17 of the 19 Part 2.3 primitives without a copy. When dom2/dom3 merge, their entries (techmkt.tech_needs, orgeco.org_props, rcomm.rc_products, rcomm.rc_subs) stop being 'allow_listed_absent'; an allow-list entry whose module is shipped but no longer creates the item is now a problem (remove it).",
+  "C (+A, +B) for shared_primitive_kinds 19 - relationship: forum.follow/unfollow write social follow edges where `social` is installed (forum.forum_follows becomes a legacy entry with a verified_by test; population/web.py's forum feeds then read the social graph), pop.contacts becomes edges of the social graph (trust as an edge attribute) or a derived cache, and aud.cols:aud_creators.followers is removed or reclassified (c5c/w3b-soc 5c6903c says aud keeps no follower sets where the social network exists: if the column holds no follow facts there, make it a legacy/cache entry with a test); then A sets OWNERS.relationship = social.cols:follow. Community: forum boards become the discussion spaces of communities and pop.communities becomes community.cols:cmember memberships; then OWNERS.community = community.communities. No branch touches services/forum.py in wave 3b.",
+  "J (civ) + C: civ.generator.social_config builds the feed config by hand ({p: {recommenders}}) instead of social.worlds.feed_config(plats), so a civilisation has neither the shorts platform's fitted content_open@1 decision nor its random-exposure experiment (needed by SP-5.5b); the scratch merge applies `\"feed\": SW.feed_config(plats)` (probe patch, not committed).",
+  "Column interfaces (wave 3b): `columns.batch(..., _iface=X)` is accepted only from the Python module that called `columns.register_interface(X, ...)` (attention: crucible.substrate.attention; pop_wake: crucible.population.core). A new interface must be registered in, and written from, its implementing module.",
+  "Gates SP-2.1, SP-2.3, SP-2.3b, the 365-day store-growth run and the civ kernel probe were submitted to the slot scheduler at 19:45-19:58 UTC (positions 28-38 of 47 at 20:56) and had not started when this report was written; their scripts are in the kcal scratch directory (job_gates.sh, job_365.sh, job_mirror.sh, job_civprobe.sh)."
+ ],
+ "test_runs": {
+  "note": "wave 3b, c5c/w3b-kcal, one CPU (CUDA hidden), outside the slot scheduler only for runs under 5 minutes"
  },
  "kernel_pieces_for_other_requirements": {
   "P.3 snapshot/resume (J)": "World.load/replay attach the store before on_load: a fresh process resumes a world with neural participants; tests/test_v5_substrate_resume.py and tests/v5_resume_child.py (modes ref/part/resume/replay/regen) are reusable templates.",
@@ -160,42 +149,207 @@
   "W.5 cross-world contamination (O)": "the artifacts process pool is reference-counted per store-less world (released on World.close or garbage collection; artifacts.pool_stats, release_pool); forks hold their own lease; a world cannot read another world's pool bytes (tests/test_v5_substrate_retention.py).",
   "P.4 independent replication (J)": "the same spec and seed give the same event hashes in a new process on this machine once the machine-level memo holds the anchors (first run measures); on another machine with an empty memo sandboxed work is measured afresh - ship the memo file or compare by regeneration with recorded externals"
  },
- "limitations": [
-  "SP-2.3 shared_primitive_kinds = 14 < 19 until the C and F migrations land (relationship, community, content_artifact, institution, contract); the allow-list expires 2027-03-31 and the check then fails again.",
-  "SP-2.1 execution_modes = 1: Mode B has no environments (domains provider empty) and Mode C cannot be built on the integrated tree (space dependency).",
-  "Every A test that runs a population world fails on the integrated tree until the duplicate `space` module is resolved (integration fix in progress): test_v5_substrate_resume, _streams, _retention, _history, the data-level fact report, the pop-only Mode C control, the cross-process memo test, and gate SP-2.3. All were run and passed in a scratch mirror of this branch that re-registers population.semantics.Space as `space` (probe shim, never committed).",
-  "Cross-process determinism of sandboxed work holds on one machine given the machine-level memo (first measurement wins); a fresh machine measures afresh, and a computation measured above 3x its anchor + 1 ms is billed fresh (honest, nondeterministic). Memo anchors are dropped beyond 2M rows (oldest first).",
-  "social/studio.py's own sandbox pool and rapid/engines/program_exec.py use the deterministic cost model with meter_scope None and no memo file: anchors shared by all worlds of a process, not across processes (owners C and H).",
-  "Snapshot bytes grow superlinearly (each snapshot holds the state, which keeps one artifacts metadata row per system blob: 222,702 rows after 365 days; 15 retained snapshots = 120 MB at day 365, growing 1.4 -> 3.3 MB/week). Blob and event growth rates are constant.",
-  "Historical runtime reconstruction (history.state_at(..., runtime=True)) is available only at times whose neural checkpoints are still stored: collect drops superseded checkpoints that no retained snapshot roots. State queries (runtime=False) stay exact at any time.",
-  "Wall time per simulated day grew 2.45 -> 4.49 s over 365 days; the weekly compaction was the main O(history) term (19.3 s at day 365); after the incremental fix a warm weekly compaction at day 372-379 takes 8.8-9.4 s (packing that week's blobs included), the remaining O(blobs) part being two blob-size scans (1.8 s); a full 365-day run was not repeated after the fix.",
-  "Fault injection still reaches few agent commands (random schema-valid commands rarely span modules); deliberate composed failures come from a labelled test driver module.",
-  "Cross-process exactness is verified on this machine (CPU torch), not across machines.",
-  "The event log is not bounded (linear, as any exact record); SQLite stores payloads > 2 KiB compressed, Postgres (JSON columns) does not.",
-  "Main-line isolation covers same-transaction subscribers. Couplings implemented as scheduled processes, or sharing kernel counters (unkeyed sched job ids), still shift later main-line positions; appliers that store an event's absolute seq in state (4.0 search_docs.seq) differ in that field when side events exist.",
-  "Bytes uploaded through the artifact.put tool are also in the recorded cmd event (arguments are recorded for regeneration); module code should store large media with artifacts.put, whose events hold only the REF.",
-  "A world moved to another store must run artifacts.export(world, dest_store) before it is loaded in another process."
- ],
- "integration_notes": [
-  "BLOCKER for every population/civ world (integration fix): two kernel modules are named `space` (population/semantics.py Space with table space_keys, semantic/space/store.py SpaceRecords with table space_items); the population's space.recorded payload {keys, ref} reaches SpaceRecords.ap_recorded (KeyError: 'items'), so every pop.tick fails (94 proc.failed in 36 h of a population world) and civ.generate refuses ('miss dependencies [space]'). facts.REVIEWED classifies space.space_items; if the surviving module keeps space_keys instead, classify it (no shared-kind signature: private by default).",
-  "O (sandbox, D-20): sandbox/metering.py gains DiskMemo / default_memo_path / Memo.bill(disk=); runner.SandboxConfig.memo_path; services/code.py sandbox_pool passes memo_path in the deterministic cost model and honours params.meter_lineage / params.meter_memo; tenant (uid) stays per spec hash. O's unit tests use SandboxConfig() without memo_path and are unaffected. Keep these properties in any metering change: a new process must bill an identical computation of the same lineage exactly as the first measurement, or cross-process resume and replication break again.",
-  "C (social/studio.py) and H (rapid/engines/program_exec.py): pass meter_scope (world lineage) and memo_path=metering.default_memo_path() to SandboxConfig, or use code.sandbox_pool - today their anchors are shared across all worlds of a process and not across processes.",
-  "J (civ.counterfactual): arms created by forks share the measurement lineage; an arm that changes the spec must set params.meter_lineage to the factual world's lineage (services.code: params.meter_lineage or spec.hash()[:16]). Mode C composition now also needs >= 5 initiating sources.",
-  "B+C migrations found by the column scan (allow-list entries): pop.contacts -> edges of the one social graph (contact tie with trust attribute) read by word of mouth (civgoods, work) and recommenders; pop.communities -> community.cols:cmember memberships (forum boards become community discussion spaces); aud creator follower sets (idset fo:<creator>, aud.cols:aud_creators.followers) -> follows written through social.cols:follow, aud keeps derived counts.",
-  "C + F + (4.0) migrations to reach shared_primitive_kinds 19: relationship (forum.follow writes social edges where social is installed -> forum.forum_follows becomes a `legacy` entry with verified_by; then A sets OWNERS.relationship = social.cols:follow and drops the social.cols:follow allow-list entry), community (forum_boards -> legacy; OWNERS.community = community.communities), content_artifact (aud reads item metadata from content.content: drop aud.aud_item_info), institution (gov.constitutions -> legacy where inst is installed; OWNERS.institution = inst.inst_charters), contract (commit.commitments as an escrow extension of contracts.contracts). The legacy role is implemented and tested (facts.legacy_split); a legacy entry must name the test showing the write-through.",
-  "B (population/adaptive.py): on_load could rebuild weights from the newest AVAILABLE checkpoint plus the logged example batches after it (they are packed, never dropped), so history.state_at(..., runtime=True) works at any time after retention collected superseded checkpoints.",
-  "P (QA): gate SP-2.3 now records shared_primitive_kinds over the 19 Part 2.3 primitives (14 today) plus spec_primitives_* and additional_kinds_single_owner; SP-2.3b (workstream A, added under D-22) has no gate test file yet (not in this assignment).",
-  "core/kernel.py: Event.via (hashed only when set), World.main_seq (meta['side_events']), side-context RNG streams, ext_key in main-line coordinates, side ctr events, Module.blob_roots/superseded_blobs hooks, snapshot payload gains blob_roots and t when a module overrides blob_roots, from_blob(load=False), replay(load=), regenerate(store=), params.typed_events -> bus.enforce_world. kernel.event_body(d) is the hashed body of a stored event dict: use it wherever a chain is recomputed.",
-  "storage: `via` column added in place to SQLite and Postgres event tables; read_events(..., types=); delete_blob, blob_sizes, delete_snapshot; SQLiteStore(compress_payloads=2048) and seq_at_time.",
-  "population/core.py (B): module `pop` implements blob_roots/superseded_blobs (latest checkpoint per policy group + example batches after it; replaced checkpoints). Keep them through the population unification; any new checkpointing module should implement the same hooks.",
-  "Mandatory duplicate-fact check: any NEW table, column table or column whose name carries a shared-kind signature (facts.SIGNATURES) makes primitives.problems / check_no_duplicates fail until it is classified in substrate/facts.py REVIEWED (reviewed by A). Every workstream adding tables: send A the classification (owner/part/extension/private/duplicate).",
-  "Typed events: worlds with params.typed_events validate every registered type of their modules (incl. the 4.0 owner schemas); validators are passive subscribers and do not change the trajectory. bus.coverage(world) reports typed vs emitted types: other workstreams should register their event types (coverage was 11 of 77 in the audit).",
-  "Long runs (J, M): call retention.compact(world, prune=True) after periodic snapshots; history.state_at for historical queries; World.load for resume. In store-less multi-world processes call World.close() (or drop references) so pool bytes are released.",
-  "Do not edit tests/v5_kernel_scenarios.py goldens: kernel changes must keep 4.0 worlds byte-identical."
- ],
- "test_runs": {
-  "integrated_tree_worktree": "307 passed, 7 failed (tests/test_kernel.py, test_kernel_props.py, test_invariants.py, test_storage.py, test_sandbox.py, test_v5_security_sandbox.py, test_hardening.py, every tests/test_v5_substrate_*.py, tests/v5/test_gate_SP_2_1.py and test_gate_SP_2_3.py). The 7 failures all run a population world, which the duplicate `space` module breaks: facts data-level report, memo cross-process world, resume, retention x3, history. The two gates pass on this tree, but SP-2.3's population part then measures an inert population (every pop.tick fails) - only the mirror numbers below are meaningful.",
-  "integrated_tree_sandbox_users": "110 passed (tests/test_behavior.py with the 4.0 legacy digests, test_entry.py, test_tooling.py, test_discovery.py, test_diagnostics.py, test_v5_commerce_modules.py)",
-  "scratch_mirror_with_space_fix_emulated": "40 passed, 0 failed: gates SP-2.3 and SP-2.1 and test_v5_substrate_streams, _resume, _retention, _history, _facts, _modes, _memo (mirror = this branch + population.semantics.Space re-registered as `space`; never committed)"
+ "history": {
+  "wave3": {
+   "workstream": "A",
+   "branch": "c5c/w3-kernel",
+   "base": "87a6c54 (feat/crucible-5-complete after the wave-1 and wave-2a merges)",
+   "requirements": {
+    "SP-2.1": {
+     "implementation_files": [
+      "src/crucible/substrate/modes.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_2_1.py",
+      "tests/test_v5_substrate_modes.py"
+     ],
+     "status_claim": "partial: registry and checks implemented and verified; execution_modes measured = 1 (A only) on the integrated tree",
+     "notes": "Measured (scratch mirror with the pending `space` fix emulated, unofficial): execution_modes = 1. Mode A: crucible.rapid (9/9 engines responsive, 63 families, deterministic) and the 4.0 mechanisms. Mode B: the crucible.domains provider lists no environments (D-17: Tier 2 domains become civ configurations, workstreams I/J). Mode C: the crucible.civ provider is registered (civ/modes.py) but civ.generate fails on the integrated tree ('civilisation modules miss dependencies [space]'), so its check fails honestly. The Mode C composition check now also requires >= 5 distinct sources engaging other domains (C_MIN_INITIATORS): a scripted hub that calls into 13 domains while a population acts in 6 satisfied every other criterion and is now refused (adversarial control test). The all-module control world (99 modules) engages 8 of 17 domains and is refused. Not verified on a real civilisation: none can be built until the integration fix lands; the SP-2.1 gate then measures it for real (no code change needed)."
+    },
+    "SP-2.3": {
+     "implementation_files": [
+      "src/crucible/core/kernel.py",
+      "src/crucible/core/state.py",
+      "src/crucible/storage/base.py",
+      "src/crucible/storage/sqlite.py",
+      "src/crucible/storage/memory.py",
+      "src/crucible/storage/postgres.py",
+      "src/crucible/substrate/facts.py",
+      "src/crucible/substrate/primitives.py",
+      "src/crucible/substrate/bus.py",
+      "src/crucible/substrate/artifacts.py",
+      "src/crucible/substrate/columns.py",
+      "src/crucible/substrate/retention.py",
+      "src/crucible/substrate/history.py",
+      "src/crucible/substrate/modules.py",
+      "src/crucible/sandbox/runner.py",
+      "src/crucible/sandbox/boot.py",
+      "src/crucible/population/core.py",
+      "src/crucible/sandbox/metering.py",
+      "src/crucible/services/code.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_2_3.py",
+      "tests/test_v5_substrate_streams.py",
+      "tests/test_v5_substrate_resume.py",
+      "tests/test_v5_substrate_facts.py",
+      "tests/test_v5_substrate_history.py",
+      "tests/test_v5_substrate_retention.py",
+      "tests/test_v5_substrate_primitives.py",
+      "tests/test_v5_substrate_typed.py",
+      "tests/test_v5_substrate_bus.py",
+      "tests/test_v5_substrate_kernel.py",
+      "tests/v5_resume_child.py",
+      "tests/test_v5_substrate_memo.py"
+     ],
+     "status_claim": "partial: cross_module_rollback_failures = 0 and inference_replay_without_rerun = true measured on real modules and across processes; shared_primitive_kinds = 14 of the 19 Part 2.3 primitives (criterion >= 19)",
+     "notes": "shared_primitive_kinds now counts exactly the 19 primitives MASTER_SPEC Part 2.3 lists (primitives.SPEC_PRIMITIVES, checked against the spec text by the gate) instead of all 25 OWNERS kinds (6 are refinements the spec does not list, which could have reached 19 while listed primitives still had copies). 19/19 have an owner; 14 have no copy anywhere in the mandatory scan of 102 shipped modules (312 items); content_artifact, relationship, community, institution and contract have known duplicates (allow-list, expiry 2027-03-31). Reaching 19 needs the migrations listed under integration_notes (C: relationship, community, content_artifact; F: institution, contract). Measured in the scratch mirror (unofficial): cross_module_rollback_failures = 0 (fault injection into 60 real multi-module transactions of a 99-module world - 55 scheduled jobs, 5 agent commands, up to 9 modules each, 47 touching v5 modules; 240 composed scenarios, 215 failing in 7 ways as intended); 22 known duplicate tables on the allow-list, 312 scanned items; inference_replay_without_rerun = true (139 recorded pop_adaptive/pop_strategic inferences, replay and regeneration in new processes with 0 inference runs, exact; cross-process resume exact). On the integrated tree itself the gate cannot pass yet: every population world fails (duplicate `space` module) - see integration_notes."
+    }
+   },
+   "wave3_findings_and_repairs": [
+    "D-20 broke cross-process determinism: parent-measured sandbox CPU made the same spec and seed give different event hashes in two new processes (157 of 1,795 events of a half-day population world; cpu_ms and cloud compute units, which feed cloud billing), so K1's cross-process resume could not continue with the uninterrupted run's hashes. Repair: sandbox.metering.DiskMemo - the deterministic memo's anchors are shared by every process of the machine (SQLite, first writer wins; the 3x + 1 ms tolerance rule and per-lineage keys unchanged); SandboxConfig.memo_path; worlds use metering.default_memo_path() ($CRUCIBLE_METER_MEMO, 'off' = per process; params.meter_memo='process' opts out). tests/test_v5_substrate_memo.py.",
+    "K2 tests failed after the merge: a world with an extra (observer) module or typed_events has another spec hash, hence another measurement lineage, and billed its sandboxed requests by fresh measurements. params.meter_lineage lets an experiment's arms share a lineage; the K2 tests give every arm the same lineage, and a new test shows that without it only ext/cloud.usage events differ (the measurement confound).",
+    "Fact scan: 3 unclassified wave-2 tables (pop_social.cols:pop, space.space_items, space_read.space_read_items) classified. Blind spot found and closed: columns of an owner's own column table were never scanned - pop.contacts (a fourth tie graph), pop.communities (memberships of their own) and the audience engine's creator follower sets (a third follow graph) were silent duplicates; every column is now scanned on its own name, and the three are on the allow-list with migrations; pop.wallet_cents reviewed (pre-ledger claim, deposited through bank.move); 'edge' signature fixed (matched 'knowledge').",
+    "Facts role 'legacy' (the migration target for 4.0 tables, which cannot be retired while 4.0 worlds must stay byte-identical): enforced on data in every world (facts.legacy_split) and certified by a named test (verified_by); a legacy table is not a known duplicate.",
+    "Mode C composition: initiators criterion (hub-and-spoke worlds refused).",
+    "Retention: periodic compaction was O(history) per call (19.3 s per weekly compact at day 365: collect re-read every cols.batch event of the log and every retained snapshot was unpickled for its roots and time); now incremental (batch refs cached in world.runtime with the last seq read) and snapshot metadata read once per process (snapshots are content-addressed by chain position).",
+    "Test isolation: tests/test_v5_substrate_modes.py loads the modules itself (one test failed when run alone)."
+   ],
+   "measurements": {
+    "store_growth_30d_development_profile": {
+     "world": "population_world('development', seed 11), SQLiteStore, 30 simulated days, 281,747 events in both runs",
+     "before": {
+      "code": "a881d18/7c29c75 (feat/crucible-5-complete)",
+      "blob_bytes": 161890689,
+      "blobs": 36820,
+      "event_payload_bytes": 101430484,
+      "snapshots": 5,
+      "snapshot_bytes": 14639368,
+      "sqlite_file_bytes": 351784960
+     },
+     "after": {
+      "policy": "snapshot weekly + retention.compact(prune=True)",
+      "blob_bytes": 65799318,
+      "blobs": 36818,
+      "blobs_packed": 36683,
+      "chunk_bytes": 22689144,
+      "pointer_bytes": 4255228,
+      "unpacked_root_and_checkpoint_bytes": 38854946,
+      "superseded_checkpoints_dropped": 2,
+      "superseded_kept_for_retained_snapshots": 8,
+      "event_payload_bytes": 58851825,
+      "snapshots": 4,
+      "snapshot_bytes": 12389602,
+      "sqlite_file_bytes_vacuumed": 182517760,
+      "replay_from_genesis_store_only": "exact (53.5 s)",
+      "resume": "exact (6.7 s)"
+     },
+     "per_week_after": "blob bytes +16 MB/week (before +40 MB/week); packed chunks +5.3 MB/week (cohort blobs compress about 5x); event payloads +13.4 MB/week",
+     "scripts": "scratchpad w1-kernel/measure_store.py (before, run on `git archive HEAD` of the base) and measure_after.py (after)"
+    },
+    "store_growth_365d": {
+     "world": "population_world('development', seed 11, n=400, sites=6, adaptive daily checkpoints, no strategic), SQLiteStore, 365 simulated days, weekly snapshot + retention.compact(prune=True); run in the scratch mirror (pending space fix emulated)",
+     "events": 1109544,
+     "live_blob_bytes_per_week_MB": {
+      "q1": 3.92,
+      "q2": 3.79,
+      "q3": 3.76,
+      "q4": 3.73
+     },
+     "event_payload_bytes_per_week_MB": {
+      "q1": 5.2,
+      "q2": 4.84,
+      "q3": 4.81,
+      "q4": 4.82
+     },
+     "snapshot_bytes_per_week_MB": {
+      "q1": 1.42,
+      "q2": 1.93,
+      "q3": 2.62,
+      "q4": 3.31
+     },
+     "end": {
+      "blobs": 222353,
+      "blobs_packed": 222337,
+      "chunks": 52,
+      "chunk_bytes": 159656512,
+      "pointer_bytes": 25791092,
+      "unpacked_root_bytes": 12578272,
+      "event_payload_bytes": 256337114,
+      "snapshots": 15,
+      "snapshot_bytes": 119949906,
+      "artifact_metadata_rows": 222702,
+      "sqlite_file_bytes_unvacuumed": 859482696
+     },
+     "exactness_at_end": {
+      "replay_from_genesis_store_only": "exact (297 s)",
+      "recount_of_271993_visits_through_packed_chunks": "exact",
+      "resume": "exact (16 s)"
+     },
+     "history_queries_on_the_compacted_store": {
+      "state_at_vs_genesis_replay": "equal digests at days 45, 150, 300 (7 / 37 / 95 s vs 31 / 109 / 211 s from genesis)",
+      "state_at_runtime_true_day45": "NotFound: the checkpoint current at day 45 was superseded and collected (no retained snapshot roots it)"
+     },
+     "wall_s_per_simulated_day": {
+      "q1": 2.45,
+      "q4": 4.49
+     },
+     "compaction_s_at_day_365_before_incremental_fix": 19.3,
+     "compaction_s_after_incremental_fix": {
+      "first_in_a_process_cold": 12.38,
+      "weekly_warm_day_372": 8.83,
+      "weekly_warm_day_379": 9.44,
+      "profile_of_a_warm_compaction_after_one_day": "3.4 s, of which 1.8 s are the two full blob-size scans (pack and collect, 222k blob keys): the remaining O(blobs) term"
+     }
+    }
+   },
+   "kernel_pieces_for_other_requirements": {
+    "P.3 snapshot/resume (J)": "World.load/replay attach the store before on_load: a fresh process resumes a world with neural participants; tests/test_v5_substrate_resume.py and tests/v5_resume_child.py (modes ref/part/resume/replay/regen) are reusable templates.",
+    "P.4 recorded replay (J)": "replay from genesis with the store's blobs only (also after retention.pack/collect); World.regenerate(spec, events, store=) reads recorded inference outputs from the store in a fresh process.",
+    "P.* / Part 10.4 historical queries (J), learner provenance (L)": "crucible.substrate.history: state_at(t|seq), seq_at_time, events_of(entity) (incl. a population row's cohort decisions), record_history, column_history, mainline/mainline_digest.",
+    "P.1 long runs (J, M)": "crucible.substrate.retention: compact(world, prune=True) after periodic snapshots (collect + pack + prune_snapshots), stats(world).",
+    "O.5/O.6/SP-10.3 counterfactual removal (J)": "couplings implemented as bus subscribers run on isolated RNG streams and never shift main-line positions; compare worlds with history.mainline_digest(events, after_genesis=True).; arms whose specs differ (a module added or removed) must set the same params.meter_lineage, or their sandboxed work is billed by different measurements (forks share the lineage already)",
+    "W.5 cross-world contamination (O)": "the artifacts process pool is reference-counted per store-less world (released on World.close or garbage collection; artifacts.pool_stats, release_pool); forks hold their own lease; a world cannot read another world's pool bytes (tests/test_v5_substrate_retention.py).",
+    "P.4 independent replication (J)": "the same spec and seed give the same event hashes in a new process on this machine once the machine-level memo holds the anchors (first run measures); on another machine with an empty memo sandboxed work is measured afresh - ship the memo file or compare by regeneration with recorded externals"
+   },
+   "limitations": [
+    "SP-2.3 shared_primitive_kinds = 14 < 19 until the C and F migrations land (relationship, community, content_artifact, institution, contract); the allow-list expires 2027-03-31 and the check then fails again.",
+    "SP-2.1 execution_modes = 1: Mode B has no environments (domains provider empty) and Mode C cannot be built on the integrated tree (space dependency).",
+    "Every A test that runs a population world fails on the integrated tree until the duplicate `space` module is resolved (integration fix in progress): test_v5_substrate_resume, _streams, _retention, _history, the data-level fact report, the pop-only Mode C control, the cross-process memo test, and gate SP-2.3. All were run and passed in a scratch mirror of this branch that re-registers population.semantics.Space as `space` (probe shim, never committed).",
+    "Cross-process determinism of sandboxed work holds on one machine given the machine-level memo (first measurement wins); a fresh machine measures afresh, and a computation measured above 3x its anchor + 1 ms is billed fresh (honest, nondeterministic). Memo anchors are dropped beyond 2M rows (oldest first).",
+    "social/studio.py's own sandbox pool and rapid/engines/program_exec.py use the deterministic cost model with meter_scope None and no memo file: anchors shared by all worlds of a process, not across processes (owners C and H).",
+    "Snapshot bytes grow superlinearly (each snapshot holds the state, which keeps one artifacts metadata row per system blob: 222,702 rows after 365 days; 15 retained snapshots = 120 MB at day 365, growing 1.4 -> 3.3 MB/week). Blob and event growth rates are constant.",
+    "Historical runtime reconstruction (history.state_at(..., runtime=True)) is available only at times whose neural checkpoints are still stored: collect drops superseded checkpoints that no retained snapshot roots. State queries (runtime=False) stay exact at any time.",
+    "Wall time per simulated day grew 2.45 -> 4.49 s over 365 days; the weekly compaction was the main O(history) term (19.3 s at day 365); after the incremental fix a warm weekly compaction at day 372-379 takes 8.8-9.4 s (packing that week's blobs included), the remaining O(blobs) part being two blob-size scans (1.8 s); a full 365-day run was not repeated after the fix.",
+    "Fault injection still reaches few agent commands (random schema-valid commands rarely span modules); deliberate composed failures come from a labelled test driver module.",
+    "Cross-process exactness is verified on this machine (CPU torch), not across machines.",
+    "The event log is not bounded (linear, as any exact record); SQLite stores payloads > 2 KiB compressed, Postgres (JSON columns) does not.",
+    "Main-line isolation covers same-transaction subscribers. Couplings implemented as scheduled processes, or sharing kernel counters (unkeyed sched job ids), still shift later main-line positions; appliers that store an event's absolute seq in state (4.0 search_docs.seq) differ in that field when side events exist.",
+    "Bytes uploaded through the artifact.put tool are also in the recorded cmd event (arguments are recorded for regeneration); module code should store large media with artifacts.put, whose events hold only the REF.",
+    "A world moved to another store must run artifacts.export(world, dest_store) before it is loaded in another process."
+   ],
+   "integration_notes": [
+    "BLOCKER for every population/civ world (integration fix): two kernel modules are named `space` (population/semantics.py Space with table space_keys, semantic/space/store.py SpaceRecords with table space_items); the population's space.recorded payload {keys, ref} reaches SpaceRecords.ap_recorded (KeyError: 'items'), so every pop.tick fails (94 proc.failed in 36 h of a population world) and civ.generate refuses ('miss dependencies [space]'). facts.REVIEWED classifies space.space_items; if the surviving module keeps space_keys instead, classify it (no shared-kind signature: private by default).",
+    "O (sandbox, D-20): sandbox/metering.py gains DiskMemo / default_memo_path / Memo.bill(disk=); runner.SandboxConfig.memo_path; services/code.py sandbox_pool passes memo_path in the deterministic cost model and honours params.meter_lineage / params.meter_memo; tenant (uid) stays per spec hash. O's unit tests use SandboxConfig() without memo_path and are unaffected. Keep these properties in any metering change: a new process must bill an identical computation of the same lineage exactly as the first measurement, or cross-process resume and replication break again.",
+    "C (social/studio.py) and H (rapid/engines/program_exec.py): pass meter_scope (world lineage) and memo_path=metering.default_memo_path() to SandboxConfig, or use code.sandbox_pool - today their anchors are shared across all worlds of a process and not across processes.",
+    "J (civ.counterfactual): arms created by forks share the measurement lineage; an arm that changes the spec must set params.meter_lineage to the factual world's lineage (services.code: params.meter_lineage or spec.hash()[:16]). Mode C composition now also needs >= 5 initiating sources.",
+    "B+C migrations found by the column scan (allow-list entries): pop.contacts -> edges of the one social graph (contact tie with trust attribute) read by word of mouth (civgoods, work) and recommenders; pop.communities -> community.cols:cmember memberships (forum boards become community discussion spaces); aud creator follower sets (idset fo:<creator>, aud.cols:aud_creators.followers) -> follows written through social.cols:follow, aud keeps derived counts.",
+    "C + F + (4.0) migrations to reach shared_primitive_kinds 19: relationship (forum.follow writes social edges where social is installed -> forum.forum_follows becomes a `legacy` entry with verified_by; then A sets OWNERS.relationship = social.cols:follow and drops the social.cols:follow allow-list entry), community (forum_boards -> legacy; OWNERS.community = community.communities), content_artifact (aud reads item metadata from content.content: drop aud.aud_item_info), institution (gov.constitutions -> legacy where inst is installed; OWNERS.institution = inst.inst_charters), contract (commit.commitments as an escrow extension of contracts.contracts). The legacy role is implemented and tested (facts.legacy_split); a legacy entry must name the test showing the write-through.",
+    "B (population/adaptive.py): on_load could rebuild weights from the newest AVAILABLE checkpoint plus the logged example batches after it (they are packed, never dropped), so history.state_at(..., runtime=True) works at any time after retention collected superseded checkpoints.",
+    "P (QA): gate SP-2.3 now records shared_primitive_kinds over the 19 Part 2.3 primitives (14 today) plus spec_primitives_* and additional_kinds_single_owner; SP-2.3b (workstream A, added under D-22) has no gate test file yet (not in this assignment).",
+    "core/kernel.py: Event.via (hashed only when set), World.main_seq (meta['side_events']), side-context RNG streams, ext_key in main-line coordinates, side ctr events, Module.blob_roots/superseded_blobs hooks, snapshot payload gains blob_roots and t when a module overrides blob_roots, from_blob(load=False), replay(load=), regenerate(store=), params.typed_events -> bus.enforce_world. kernel.event_body(d) is the hashed body of a stored event dict: use it wherever a chain is recomputed.",
+    "storage: `via` column added in place to SQLite and Postgres event tables; read_events(..., types=); delete_blob, blob_sizes, delete_snapshot; SQLiteStore(compress_payloads=2048) and seq_at_time.",
+    "population/core.py (B): module `pop` implements blob_roots/superseded_blobs (latest checkpoint per policy group + example batches after it; replaced checkpoints). Keep them through the population unification; any new checkpointing module should implement the same hooks.",
+    "Mandatory duplicate-fact check: any NEW table, column table or column whose name carries a shared-kind signature (facts.SIGNATURES) makes primitives.problems / check_no_duplicates fail until it is classified in substrate/facts.py REVIEWED (reviewed by A). Every workstream adding tables: send A the classification (owner/part/extension/private/duplicate).",
+    "Typed events: worlds with params.typed_events validate every registered type of their modules (incl. the 4.0 owner schemas); validators are passive subscribers and do not change the trajectory. bus.coverage(world) reports typed vs emitted types: other workstreams should register their event types (coverage was 11 of 77 in the audit).",
+    "Long runs (J, M): call retention.compact(world, prune=True) after periodic snapshots; history.state_at for historical queries; World.load for resume. In store-less multi-world processes call World.close() (or drop references) so pool bytes are released.",
+    "Do not edit tests/v5_kernel_scenarios.py goldens: kernel changes must keep 4.0 worlds byte-identical."
+   ],
+   "test_runs": {
+    "integrated_tree_worktree": "307 passed, 7 failed (tests/test_kernel.py, test_kernel_props.py, test_invariants.py, test_storage.py, test_sandbox.py, test_v5_security_sandbox.py, test_hardening.py, every tests/test_v5_substrate_*.py, tests/v5/test_gate_SP_2_1.py and test_gate_SP_2_3.py). The 7 failures all run a population world, which the duplicate `space` module breaks: facts data-level report, memo cross-process world, resume, retention x3, history. The two gates pass on this tree, but SP-2.3's population part then measures an inert population (every pop.tick fails) - only the mirror numbers below are meaningful.",
+    "integrated_tree_sandbox_users": "110 passed (tests/test_behavior.py with the 4.0 legacy digests, test_entry.py, test_tooling.py, test_discovery.py, test_diagnostics.py, test_v5_commerce_modules.py)",
+    "scratch_mirror_with_space_fix_emulated": "40 passed, 0 failed: gates SP-2.3 and SP-2.1 and test_v5_substrate_streams, _resume, _retention, _history, _facts, _modes, _memo (mirror = this branch + population.semantics.Space re-registered as `space`; never committed)"
+   }
+  }
  }
 }

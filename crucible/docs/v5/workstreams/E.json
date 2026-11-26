@@ -1,6 +1,6 @@
 {
  "workstream": "E",
- "branch": "c5c/w3-calib",
+ "branch": "c5c/w3b-kcal",
  "requirements": {
   "F.1": {
    "implementation_files": [
@@ -98,8 +98,8 @@
     "tests/v5/test_gate_F.py::test_F_7_dataset_provenance_and_checksums",
     "tests/test_v5_calibration_software.py"
    ],
-   "status_claim": "implemented with one open user decision: five datasets with SHA-256 and provenance (new: UCI Online Retail II, CC BY 4.0, official UCI archive); GH Archive derived files hold no raw GitHub id (keyed pseudonyms, salt outside the repo; tables rebuilt, reproducers unchanged); licence notice for derived checkpoints",
-   "notes": "MIND-small came from an unofficial mirror; the official gated distribution needs the user to accept the Microsoft Research licence (401 without an account). Not accepted on the user's behalf: BLOCKERS.md B-1, user decision. GH Archive raw checksums remain trust-on-first-use except hour 0 (checked by the audit)."
+   "status_claim": "implemented: five datasets with SHA-256 and provenance; MIND-small used for experimental, non-commercial research by decision of the project owner (DECISION_LOG D-28; blocker B-1 resolved), derived artifacts marked non-commercial research only; GH Archive derived files hold no raw GitHub id",
+   "notes": "MIND-small came from an unofficial mirror; the owner is obtaining the official licence (D-28): verify the mirror against the official files (or re-fit) when they arrive. GH Archive raw checksums remain trust-on-first-use except hour 0. Gate F not re-run in wave 3b (no change to the code it measures; last run: 10 passed, wave 3)."
   },
   "F.8": {
    "implementation_files": [
@@ -132,7 +132,7 @@
     "tests/v5/test_gate_SP_5_4.py"
    ],
    "status_claim": "implemented and passing locally on the integrated tree after repairing the wave-2 union merge of the register (12 CORE-POP and 7 CIV rows converted to id records, 17 superseded duplicate rows removed, records added for pop_social, space, space_read, civgen, civgoods, civlinks, firms, fleet, learn, rivals, work, FR-WORK-1, participant-own-decision, work.sponsored_click, learn.slate_open, the E5 model and runtime decision, advertising.attention_composition): 151 important mechanisms, 0 without a complete record, 160 rows, 0 row problems",
-   "notes": "Important mechanisms now also include kernel modules outside the behaviour packages that record population decisions (economy.work) and every literal fidelity id given to record_decisions (so a decision batch cannot name a missing record). 'space' has two registrations at this commit (population.semantics and semantic.space.store); the integration fix may change the module row."
+   "notes": "Re-run in wave 3b: 5 passed (register parser, incomplete records, false in-world claims, decision coverage)."
   },
   "SP-5.5": {
    "implementation_files": [
@@ -147,7 +147,7 @@
     "tests/v5/test_gate_SP_5_5.py"
    ],
    "status_claim": "implemented and passing locally: E3 and E4 plans committed before any review or fit (commit order checked from git); the E4 selection rule (compute budget, long-horizon drift, test confirmation) is recomputed from the cards; every E3 review's kept contender is recomputed from its numbers",
-   "notes": "Under the prespecified E3 rule three reviews keep a non-checkpoint contender (session_rate -> C2 rule; news_click -> popularity baseline; commercial_response -> constant-effect baseline) and the runtime serves them. The E2 amendment written after run-1 test metrics is now flagged (amendments_after_test_exposure) for the reviewer, as the audit asked. E5: plan committed (246bea5) before any fit and revised once (790e3ff) before any fit on real data, after a synthetic trial showed the plug-in estimator's bias (disclosed in the plan's 'revision' field; the exploratory 10% of validation rows inspected before the plan are excluded). The fit ran at 790e3ff; selection by the E4 rule (no long-horizon criterion: the data have no time dimension)."
+   "notes": "Re-run in wave 3b: 3 passed."
   },
   "SP-5.0": {
    "implementation_files": [
@@ -158,8 +158,8 @@
     "tests/v5/test_gate_SP_5_0.py",
     "tests/test_v5_calibration_ad_exposure.py"
    ],
-   "status_claim": "measurement implemented; requirement NOT met: the gate test fails today (civ.generate raises 'civilisation modules miss dependencies [space]'; and no population decision is made by a fitted model, the population's own session/activation/web decisions carry no provenance)",
-   "notes": "inworld.provenance_metrics(world): fitted models named by recorded decision provenance (fitted id or runtime decision id), register in-world claims that fail verification, population decision batches (pop.session, pop.activation, popweb.*) without extra.decision. The wiring is the population workstream's (D-15; RUNTIME.md tables)."
+   "status_claim": "measurement implemented and unit-tested; NOT met on this branch (the population's runtime decision models are wired on c5c/w3b-pop, not here); measurement on the scratch merge with pop + soc + econ1 + civ queued (slot scheduler)",
+   "notes": "c5c/w3b-pop wires daily_return@1 / extra_sessions@1 (population/activation.py) with decision provenance; c5c/w3b-soc content_open@1 on the shorts platform; c5c/w3b-econ1 ad_response@2 display campaigns with randomised eligibility (economy/work.py)."
   },
   "SP-5.1": {
    "implementation_files": [
@@ -171,7 +171,7 @@
     "tests/v5/test_gate_SP_5_1.py"
    ],
    "status_claim": "implemented and passing locally: 5/5 datasets with licence records, 0 raw-identifier values among 45,051,152 GH Archive actor/repository values on disk (keyed pseudonyms in event tables, dense codes in feature tables), 17/17 qualifying models with bootstrap intervals, 16 with a documented user or time holdout (10 with both), 0 effects without an identification label",
-   "notes": "Holdout kinds are read from the reports' split definitions (keyword rules in audit_sp5.holdout_kinds); news_click_semantic's test split is defined as 'as news_click@1' and is not counted. MIND licence acceptance remains a user decision (BLOCKERS B-1)."
+   "notes": "Re-run in wave 3b: 3 passed. Holdout kinds are read from the reports' split definitions (keyword rules in audit_sp5.holdout_kinds). MIND: D-28 (owner's authorisation for experimental research)."
   },
   "SP-5.3": {
    "implementation_files": [
@@ -184,7 +184,7 @@
     "tests/v5/test_gate_SP_5_3.py"
    ],
    "status_claim": "implemented and passing locally: 14 models compared with the simulator's rule-based behaviour on their own held-out rows (E3 reviews, E4/E5 rule_comparison), 16 selections with a measured long-horizon criterion and compute cost, all 6 Part 5.3 behaviours fitted (attention allocation, repeat consumption, purchase, retention, community participation, social diffusion)",
-   "notes": "The software models and star_cascade have no comparable simulator rule (stated in their reports). The E5 model is selected with compute but no long-horizon criterion (no time dimension in Criteo); it is not counted for stability."
+   "notes": "Re-run in wave 3b: 1 passed. The software models and star_cascade have no comparable simulator rule; the E5 model is selected without a long-horizon criterion (no time dimension in Criteo)."
   },
   "SP-5.5b": {
    "implementation_files": [
@@ -194,40 +194,266 @@
     "tests/v5/test_gate_SP_5_5b.py",
     "tests/test_v5_calibration_ad_exposure.py"
    ],
-   "status_claim": "harness implemented and unit-tested; requirement NOT met: the gate test fails until civ.generate builds and the population records fitted decisions (in_world_validation_reports 0, experiments 0) and until population/models.py stops loading checkpoints directly (out_of_card_scope_uses 1)",
-   "notes": "Model-only driver measured now (KuaiRand 4,026 held-out users, 7 days + 60 beyond): activity TV 0.051 (sessions per active day 0.213: the served C2 constant rate), retention-by-history 0.086, heterogeneity KS 0.051 / sd ratio 0.96, daily-share drift 0.033 and +0.061 over 60 days beyond the data; 1 of 4 within the prespecified tolerances. Honest reading: the fitted return model plus the review-kept constant session rate do not reproduce session heterogeneity and drift upward under their own feedback beyond a week."
+   "status_claim": "harness implemented and unit-tested (28 tests); in-world experiments now match only when informative; NOT met on this branch (no runtime decision models wired here, no random insertion or ad holdout in civilisations); measurement on the scratch merge queued",
+   "notes": "Wave 3b: ad holdout per attended display verified (A_ref = 1 consistent with the estimand: the attention-adjusted estimator recovers Criteo's shift at attention 1, 0.5 and 0.19), plus a power requirement (the world's 95% interval must exclude a null effect); random exposure must detect the own-topic preference (|LOR| > 1.96 se). Heterogeneity is individuals' own session intensity (not a function of the active-days histogram). The E5 card's identification is randomized_encouragement_iv (plan label and correction disclosed)."
   }
  },
+ "wave3b": [
+  "Verified the repair pass's claims against the verifier's open items: ad-holdout comparison per attended display (unit tests at attention 1, 0.5, 0.19 pass), heterogeneity by session intensity, E5 identification label randomized_encouragement_iv with disclosure, registry index pins all 17 models (index_problems clean); conversion-ratio assumption stated in ad_response@2's limits (runtime_ext, predecessor commit ac46584).",
+  "New: informative matches - an in-world randomised experiment matches only when the world's own estimate detects an effect (ad holdout: 95% interval excludes 0; random exposure: |LOR| > 1.96 se); random_exposure_estimate factored out and unit-tested (a 300-insertion experiment that a z test alone accepts in >= 20 of 40 draws is refused).",
+  "Defects: DEF-E-3, DEF-E-4, DEF-E-6 fixed (fixes and regression tests named, tests re-run); DEF-E-5 not a defect (a positive finding). DEF-E-1/E-2 (no population decision uses a fitted model in the world) stay open until c5c/w3b-pop merges and SP-5.0 measures it on the integration branch."
+ ],
  "limitations": [
-  "No world consumes any fitted model by default; the population wiring (D-15) is not done. SP-5.0 and SP-5.5b fail (never skip) until it is, and until civ.generate builds again.",
-  "The in-world randomised experiments need world mechanisms that do not exist yet: a platform that inserts random items into feeds and labels them, and an ad mechanism that displays campaigns to the population with randomised eligibility. inworld.py analyses their recorded decisions (contract in RUNTIME.md).",
-  "ad_response@2: the display shift is that of Criteo's targeted displays on users its bidder reached (exposure 0.1-15% of eligible users, rising with the baseline score); the attention composition, A_ref = 1, frequency saturation and the absence of wear-out/annoyance are assumptions (record advertising.attention_composition); the shift transports across the publisher's sub-sampling only if that sampling depended on the outcome or the arm; the conversion ratio 2.76 reflects retargeting-style high-intent users.",
-  "The E5 strata's complier baselines are moment estimates; the joint likelihood recovers a known shift on synthetic trials within 0.2 at the real data's size, but the per-stratum shifts of the low strata are very uncertain (intervals up to 7 log-odds wide).",
-  "Model-only validation: 1 of 4 reports within tolerance (sessions per active day, retention by history and drift outside); the fitted return model drifts upward beyond the data's week.",
-  "MIND licence acceptance is a user decision (BLOCKERS B-1); news_click@1 and news_click_semantic@1 remain non-commercial research artifacts.",
-  "economy.work's sponsored-search clicks and domains.common's lesson-search opens are hand-set rules now (no fitted search-click model exists); tests/test_v5_econ_work.py has 3 pre-existing errors at the base commit (module work may not write column pop.wake_act), unrelated to this change.",
-  "Holdout kinds for SP-5.1 are read from report split definitions by keyword rules.",
-  "All earlier limitations of the E4 models (observational associations, creator_return AUC 0.51, strict E3 drift criterion) stand."
+  "SP-5.0 and SP-5.5b cannot pass on this branch alone; they need c5c/w3b-pop, c5c/w3b-soc, c5c/w3b-econ1 and the civ feed_config fix (integration_notes).",
+  "tests/test_v5_calibration_software.py and Gate F were not re-run in wave 3b (unchanged code; the software tests exceed 280 s on one CPU without the slot scheduler).",
+  "All earlier E limitations stand (history.wave3.limitations)."
  ],
  "integration_notes": [
-  "population (B): wire the runtime decision models (RUNTIME.md 'What the population workstream needs to wire'), record each decision with provenance and the columns the in-world harness reads (RUNTIME.md 'In-world validation'), add provenance to pop.session / pop.activation / popweb.* batches, and remove population/models.py's direct calibration.load plug-in (counted by inworld.out_of_scope_uses).",
-  "advertising: a world mechanism that displays campaigns to the population should use ad_response@2 with the individual's own organic visit probability and attention per display (content_open@1 for video feeds); incremental visits convert with the world's purchase probability x incremental_conversion_ratio; search placements are out of scope.",
-  "economy (ECON, minimal edit by E): economy/work.py no longer loads commercial_response@1 (out of card scope, silent fallback); sponsored-search clicks use the hand-set ads_click_rate (fidelity record work.sponsored_click). The ad_type column is kept (zeros) so table schemas are unchanged.",
-  "domains (minimal edit by E): domains/common.py SlateClicks no longer loads news_click@1 nor rank-maps within a slate; it is a hand-set absolute logit (fidelity record learn.slate_open) with the same interface.",
-  "registry: ad_exposure_response is pinned in docs/v5/calibration/registry_index.json; Gate F's F.3 now includes reproduce_ad_exposure (adds about 4 minutes).",
-  "acceptance manifest: SP-5.0, SP-5.1, SP-5.3 and SP-5.5b list no implementation_files; the checker's testscan requires a producing test to import a listed implementation module - the integration branch should list src/crucible/calibration/inworld.py (SP-5.0, SP-5.5b) and src/crucible/calibration/audit_sp5.py (SP-5.1, SP-5.3) (manifest not edited here).",
-  "space: the fidelity register has a module:space row; after the integration fix of the duplicate 'space' module, check that the row's module column still names the registered module.",
-  "Data written outside the repository this cycle: none beyond scratch (the E5 fit reads the existing Criteo arrays)."
- ],
- "previous_branches": [
-  "c5c/w1-calib"
+  "acceptance manifest: SP-5.0, SP-5.5b -> src/crucible/calibration/inworld.py (+ runtime.py); SP-5.1, SP-5.3 -> src/crucible/calibration/audit_sp5.py (manifest not edited here).",
+  "SP-5.5b needs, in civilisations: the population's activation decisions (c5c/w3b-pop), the shorts platform's random insertion with content_open@1 (c5c/w3b-soc; reaches a civilisation only once civ.generator uses social.worlds.feed_config), and display campaigns with randomised eligibility through ad_response@2 (c5c/w3b-econ1). Each experiment must record enough rows to be informative (match rule above).",
+  "MIND: D-28 (owner's authorisation); BLOCKERS.md has no open blocker; keep derived artifacts marked non-commercial research only."
  ],
  "tests_run": {
-  "tests/v5/test_gate_F.py (all, incl. F.3 reproduction with the E5 model, 1 CPU via slots)": "10 passed (713 s)",
-  "tests/v5/test_gate_SP_5_1.py, SP_5_3.py, SP_5_4.py, SP_5_5.py": "11 passed",
-  "tests/v5/test_gate_SP_5_0.py, SP_5_5b.py": "2 failed as expected (civ.generate: missing dependency 'space'; no fitted decisions in world)",
-  "calibration unit tests (core, commercial, software, runtime, social_calibrated, test_calibration, ad_exposure)": "93 passed",
-  "tests/test_kernel.py tests/test_invariants.py": "51 passed",
-  "tests/test_v5_econ_work.py": "3 passed, 3 errors - identical at the base commit 87a6c54 (module work may not write column pop.wake_act)"
+  "tests/test_v5_calibration_inworld.py": "28 passed (68 s)",
+  "tests/test_v5_calibration_ad_exposure.py": "9 passed",
+  "tests/test_v5_calibration_runtime.py, _governance.py, _core.py, _commercial.py, tests/test_calibration.py": "35 + 4 + 22 + 13 + 1 passed",
+  "tests/v5/test_gate_SP_5_4.py, SP_5_5.py, SP_5_1.py, SP_5_3.py": "5 + 3 + 3 + 1 passed",
+  "tests/test_v5_social_calibrated.py": "3 passed",
+  "tests/test_v5_calibration_software.py": "8 passed before the 280 s budget ran out (not completed)"
+ },
+ "history": {
+  "wave3": {
+   "workstream": "E",
+   "branch": "c5c/w3-calib",
+   "requirements": {
+    "F.1": {
+     "implementation_files": [
+      "src/crucible/calibration/fit_e1.py",
+      "src/crucible/calibration/fit_commercial.py",
+      "src/crucible/calibration/fit_software.py",
+      "src/crucible/calibration/fit_e4.py",
+      "src/crucible/calibration/audit.py",
+      "src/crucible/calibration/registry.py",
+      "src/crucible/calibration/fit_e5.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_F.py::test_F_1_three_domains_fitted_on_empirical_data"
+     ],
+     "status_claim": "implemented and measured locally (unofficial): 12 canonical domains with a qualifying fitted model on real data (17 registered models; new in wave 3: ad_exposure_response@1, domain advertising_response)",
+     "notes": "The metric counts offline fitted models; no default world consumes one yet (SP-5.0 measures that and fails until the population wires the runtime models)."
+    },
+    "F.2": {
+     "implementation_files": [
+      "src/crucible/calibration/fit_e1.py",
+      "src/crucible/calibration/fit_commercial.py",
+      "src/crucible/calibration/commercial.py",
+      "src/crucible/calibration/review_e3.py",
+      "src/crucible/calibration/fit_e5.py",
+      "src/crucible/calibration/predictors_e5.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_F.py::test_F_2_content_consumption_and_randomized_commercial_response"
+     ],
+     "status_claim": "implemented and measured locally: content_consumption@1 (KuaiRand random exposure) and the randomised commercial-response models commercial_response@1 (ITT, offline) and ad_exposure_response@1 (E5 redesign: display effect identified with eligibility as the instrument) qualify and beat their baselines on held-out data",
+     "notes": "E5 (audit E skeptic S5 REDESIGN): ad_response@2 serves one log-odds shift 1.39 (CI 1.22-1.61) of the displayed individual's own organic visit probability, scaled by attention from a registered attention model per display; incremental visits convert 2.76x (CI 2.03-3.47); no negative effects (none supported by any stratum); transport assumptions documented in RUNTIME.md. ad_response@1 (type table) is superseded and offline only."
+    },
+    "F.3": {
+     "implementation_files": [
+      "src/crucible/calibration/reproduce.py",
+      "src/crucible/calibration/runtime.py",
+      "src/crucible/calibration/fit_e5.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_F.py::test_F_3_heldout_reports_reproduce_from_checkpoints",
+      "tests/v5/test_gate_F.py::test_F_runtime_serves_every_kept_model_on_heldout_rows"
+     ],
+     "status_claim": "implemented; F.3 is no longer slow-only: every qualifying model's held-out test metric is recomputed from the verified datasets through crucible.calibration.runtime (so the runtime is shown to load every kept checkpoint and evaluate held-out rows)",
+     "notes": "F.3 recomputes every qualifying model's held-out metric through the runtime, including the E5 model (profile likelihood of the test split through ad_response@2's served predictor). About 20-25 min on one CPU through the slot scheduler."
+    },
+    "F.4": {
+     "implementation_files": [
+      "src/crucible/calibration/review_e3.py",
+      "src/crucible/calibration/fit_e4.py",
+      "docs/v5/calibration/plans/E3_review_plan.json",
+      "docs/v5/calibration/reviews"
+     ],
+     "tests": [
+      "tests/v5/test_gate_F.py::test_F_4_baseline_comparisons",
+      "tests/v5/test_gate_SP_5_5.py::test_SP_5_5_prespecified_metrics_and_better_model_kept"
+     ],
+     "status_claim": "implemented: every model is compared with simple baselines and, new in this cycle, with the simulator's existing rule-based behaviour on the same held-out rows (E3 reviews for the nine E1/E2 models; rule_comparison in every E4 report)",
+     "notes": "Rule-based behaviour scores much worse than the fitted models everywhere it exists (e.g. C2 open rule log loss 0.84 vs 0.44 on KuaiRand random exposure, 0.32 vs 0.15 on MIND; C2 watch rule pinball 0.51 vs 0.13; population rhythm 0.71 vs 0.56 for daily return). The software models have no comparable simulator rule (recorded). Skeptic repair: a comparison counts only when the report agrees with the card (kept candidate, kept and baseline test metrics) and its values are finite; the gate asserts that no kept learned model loses to its baseline (the old test computed but never asserted it)."
+    },
+    "F.5": {
+     "implementation_files": [
+      "src/crucible/calibration/metrics.py",
+      "src/crucible/calibration/fit_e4.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_F.py::test_F_5_calibration_metrics"
+     ],
+     "status_claim": "implemented: ECE, Brier, PIT KS, coverage, count calibration error and reliability tables for every qualifying model",
+     "notes": "NaN or infinite calibration values no longer count as calibration reports (skeptic s2). Equal-width ECE remains the reported measure; at low base rates (MIND 4%) it concentrates rows in one bin (skeptic note) - not changed."
+    },
+    "F.6": {
+     "implementation_files": [
+      "src/crucible/calibration/registry.py",
+      "src/crucible/calibration/predictors_e4.py",
+      "src/crucible/calibration/predictors_e5.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_F.py::test_F_6_checkpoints_saved_and_hash_verified",
+      "tests/test_v5_calibration_runtime.py"
+     ],
+     "status_claim": "implemented: 16 checkpoints (npz, no pickle, each < 5 MB) load with verified SHA-256; the card and checkpoint hashes of every registered model are also pinned in docs/v5/calibration/registry_index.json outside the model directories, so tampering with behavioural card fields (feature order, quantiles, prior rate, selection, response tables) is detected (skeptic s1); the gate tamper test covers both",
+     "notes": "New predictor kinds (glm, gbdt_regression, persistence, subset) live in crucible.calibration.predictors_e4, named by the cards' module field. Any deliberate card edit now requires registry.write_index() and a commit of the index."
+    },
+    "F.7": {
+     "implementation_files": [
+      "src/crucible/calibration/datasets.py",
+      "src/crucible/calibration/gharchive.py",
+      "src/crucible/calibration/retail.py",
+      "docs/v5/calibration/datasets/online_retail_ii.json",
+      "docs/v5/calibration/datasets/gharchive_2024-10-07_96h.json",
+      "docs/v5/calibration/models/LICENSE_NOTICE.md",
+      "docs/v5/BLOCKERS.md"
+     ],
+     "tests": [
+      "tests/v5/test_gate_F.py::test_F_7_dataset_provenance_and_checksums",
+      "tests/test_v5_calibration_software.py"
+     ],
+     "status_claim": "implemented with one open user decision: five datasets with SHA-256 and provenance (new: UCI Online Retail II, CC BY 4.0, official UCI archive); GH Archive derived files hold no raw GitHub id (keyed pseudonyms, salt outside the repo; tables rebuilt, reproducers unchanged); licence notice for derived checkpoints",
+     "notes": "MIND-small came from an unofficial mirror; the official gated distribution needs the user to accept the Microsoft Research licence (401 without an account). Not accepted on the user's behalf: BLOCKERS.md B-1, user decision. GH Archive raw checksums remain trust-on-first-use except hour 0 (checked by the audit)."
+    },
+    "F.8": {
+     "implementation_files": [
+      "src/crucible/calibration/fit_e4.py",
+      "src/crucible/calibration/runtime.py",
+      "docs/v5/calibration/RUNTIME.md"
+     ],
+     "tests": [
+      "tests/v5/test_gate_F.py::test_F_8_extrapolation_limits_documented"
+     ],
+     "status_claim": "implemented: every card and report has an extrapolation-limits section; every runtime decision model carries its limits; decision models over content items carry a machine-readable scope that consumers enforce (check_scope; CalibratedOpen refuses a posts platform for the news model, skeptic s8); RUNTIME.md has a consolidated extrapolation-limits section",
+     "notes": "ad_response@2 carries a machine-readable scope (display_campaign, feed_campaign; search_result refused). The manifest criterion is a 200-character minimum (weak, audit E)."
+    },
+    "F.n1": {
+     "implementation_files": [
+      "src/crucible/calibration/audit.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_F.py::test_F_n1_no_synthetic_only_domain"
+     ],
+     "status_claim": "implemented: 0 synthetic-only domains",
+     "notes": ""
+    },
+    "SP-5.4": {
+     "implementation_files": [
+      "src/crucible/calibration/fidelity.py",
+      "docs/v5/FIDELITY_REGISTER.md"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_5_4.py"
+     ],
+     "status_claim": "implemented and passing locally on the integrated tree after repairing the wave-2 union merge of the register (12 CORE-POP and 7 CIV rows converted to id records, 17 superseded duplicate rows removed, records added for pop_social, space, space_read, civgen, civgoods, civlinks, firms, fleet, learn, rivals, work, FR-WORK-1, participant-own-decision, work.sponsored_click, learn.slate_open, the E5 model and runtime decision, advertising.attention_composition): 151 important mechanisms, 0 without a complete record, 160 rows, 0 row problems",
+     "notes": "Important mechanisms now also include kernel modules outside the behaviour packages that record population decisions (economy.work) and every literal fidelity id given to record_decisions (so a decision batch cannot name a missing record). 'space' has two registrations at this commit (population.semantics and semantic.space.store); the integration fix may change the module row."
+    },
+    "SP-5.5": {
+     "implementation_files": [
+      "src/crucible/calibration/audit.py",
+      "docs/v5/calibration/plans/E3_review_plan.json",
+      "docs/v5/calibration/plans/E4_new_domains_plan.json",
+      "src/crucible/calibration/review_e3.py",
+      "docs/v5/calibration/plans/E5_ad_exposure_plan.json",
+      "src/crucible/calibration/fit_e5.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_5_5.py"
+     ],
+     "status_claim": "implemented and passing locally: E3 and E4 plans committed before any review or fit (commit order checked from git); the E4 selection rule (compute budget, long-horizon drift, test confirmation) is recomputed from the cards; every E3 review's kept contender is recomputed from its numbers",
+     "notes": "Under the prespecified E3 rule three reviews keep a non-checkpoint contender (session_rate -> C2 rule; news_click -> popularity baseline; commercial_response -> constant-effect baseline) and the runtime serves them. The E2 amendment written after run-1 test metrics is now flagged (amendments_after_test_exposure) for the reviewer, as the audit asked. E5: plan committed (246bea5) before any fit and revised once (790e3ff) before any fit on real data, after a synthetic trial showed the plug-in estimator's bias (disclosed in the plan's 'revision' field; the exploratory 10% of validation rows inspected before the plan are excluded). The fit ran at 790e3ff; selection by the E4 rule (no long-horizon criterion: the data have no time dimension)."
+    },
+    "SP-5.0": {
+     "implementation_files": [
+      "src/crucible/calibration/inworld.py",
+      "src/crucible/calibration/runtime.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_5_0.py",
+      "tests/test_v5_calibration_ad_exposure.py"
+     ],
+     "status_claim": "measurement implemented; requirement NOT met: the gate test fails today (civ.generate raises 'civilisation modules miss dependencies [space]'; and no population decision is made by a fitted model, the population's own session/activation/web decisions carry no provenance)",
+     "notes": "inworld.provenance_metrics(world): fitted models named by recorded decision provenance (fitted id or runtime decision id), register in-world claims that fail verification, population decision batches (pop.session, pop.activation, popweb.*) without extra.decision. The wiring is the population workstream's (D-15; RUNTIME.md tables)."
+    },
+    "SP-5.1": {
+     "implementation_files": [
+      "src/crucible/calibration/audit_sp5.py",
+      "src/crucible/calibration/gharchive.py",
+      "src/crucible/calibration/datasets.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_5_1.py"
+     ],
+     "status_claim": "implemented and passing locally: 5/5 datasets with licence records, 0 raw-identifier values among 45,051,152 GH Archive actor/repository values on disk (keyed pseudonyms in event tables, dense codes in feature tables), 17/17 qualifying models with bootstrap intervals, 16 with a documented user or time holdout (10 with both), 0 effects without an identification label",
+     "notes": "Holdout kinds are read from the reports' split definitions (keyword rules in audit_sp5.holdout_kinds); news_click_semantic's test split is defined as 'as news_click@1' and is not counted. MIND licence acceptance remains a user decision (BLOCKERS B-1)."
+    },
+    "SP-5.3": {
+     "implementation_files": [
+      "src/crucible/calibration/audit_sp5.py",
+      "src/crucible/calibration/review_e3.py",
+      "src/crucible/calibration/fit_e4.py",
+      "src/crucible/calibration/fit_e5.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_5_3.py"
+     ],
+     "status_claim": "implemented and passing locally: 14 models compared with the simulator's rule-based behaviour on their own held-out rows (E3 reviews, E4/E5 rule_comparison), 16 selections with a measured long-horizon criterion and compute cost, all 6 Part 5.3 behaviours fitted (attention allocation, repeat consumption, purchase, retention, community participation, social diffusion)",
+     "notes": "The software models and star_cascade have no comparable simulator rule (stated in their reports). The E5 model is selected with compute but no long-horizon criterion (no time dimension in Criteo); it is not counted for stability."
+    },
+    "SP-5.5b": {
+     "implementation_files": [
+      "src/crucible/calibration/inworld.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_5_5b.py",
+      "tests/test_v5_calibration_ad_exposure.py"
+     ],
+     "status_claim": "harness implemented and unit-tested; requirement NOT met: the gate test fails until civ.generate builds and the population records fitted decisions (in_world_validation_reports 0, experiments 0) and until population/models.py stops loading checkpoints directly (out_of_card_scope_uses 1)",
+     "notes": "Model-only driver measured now (KuaiRand 4,026 held-out users, 7 days + 60 beyond): activity TV 0.051 (sessions per active day 0.213: the served C2 constant rate), retention-by-history 0.086, heterogeneity KS 0.051 / sd ratio 0.96, daily-share drift 0.033 and +0.061 over 60 days beyond the data; 1 of 4 within the prespecified tolerances. Honest reading: the fitted return model plus the review-kept constant session rate do not reproduce session heterogeneity and drift upward under their own feedback beyond a week."
+    }
+   },
+   "limitations": [
+    "No world consumes any fitted model by default; the population wiring (D-15) is not done. SP-5.0 and SP-5.5b fail (never skip) until it is, and until civ.generate builds again.",
+    "The in-world randomised experiments need world mechanisms that do not exist yet: a platform that inserts random items into feeds and labels them, and an ad mechanism that displays campaigns to the population with randomised eligibility. inworld.py analyses their recorded decisions (contract in RUNTIME.md).",
+    "ad_response@2: the display shift is that of Criteo's targeted displays on users its bidder reached (exposure 0.1-15% of eligible users, rising with the baseline score); the attention composition, A_ref = 1, frequency saturation and the absence of wear-out/annoyance are assumptions (record advertising.attention_composition); the shift transports across the publisher's sub-sampling only if that sampling depended on the outcome or the arm; the conversion ratio 2.76 reflects retargeting-style high-intent users.",
+    "The E5 strata's complier baselines are moment estimates; the joint likelihood recovers a known shift on synthetic trials within 0.2 at the real data's size, but the per-stratum shifts of the low strata are very uncertain (intervals up to 7 log-odds wide).",
+    "Model-only validation: 1 of 4 reports within tolerance (sessions per active day, retention by history and drift outside); the fitted return model drifts upward beyond the data's week.",
+    "MIND licence acceptance is a user decision (BLOCKERS B-1); news_click@1 and news_click_semantic@1 remain non-commercial research artifacts.",
+    "economy.work's sponsored-search clicks and domains.common's lesson-search opens are hand-set rules now (no fitted search-click model exists); tests/test_v5_econ_work.py has 3 pre-existing errors at the base commit (module work may not write column pop.wake_act), unrelated to this change.",
+    "Holdout kinds for SP-5.1 are read from report split definitions by keyword rules.",
+    "All earlier limitations of the E4 models (observational associations, creator_return AUC 0.51, strict E3 drift criterion) stand."
+   ],
+   "integration_notes": [
+    "population (B): wire the runtime decision models (RUNTIME.md 'What the population workstream needs to wire'), record each decision with provenance and the columns the in-world harness reads (RUNTIME.md 'In-world validation'), add provenance to pop.session / pop.activation / popweb.* batches, and remove population/models.py's direct calibration.load plug-in (counted by inworld.out_of_scope_uses).",
+    "advertising: a world mechanism that displays campaigns to the population should use ad_response@2 with the individual's own organic visit probability and attention per display (content_open@1 for video feeds); incremental visits convert with the world's purchase probability x incremental_conversion_ratio; search placements are out of scope.",
+    "economy (ECON, minimal edit by E): economy/work.py no longer loads commercial_response@1 (out of card scope, silent fallback); sponsored-search clicks use the hand-set ads_click_rate (fidelity record work.sponsored_click). The ad_type column is kept (zeros) so table schemas are unchanged.",
+    "domains (minimal edit by E): domains/common.py SlateClicks no longer loads news_click@1 nor rank-maps within a slate; it is a hand-set absolute logit (fidelity record learn.slate_open) with the same interface.",
+    "registry: ad_exposure_response is pinned in docs/v5/calibration/registry_index.json; Gate F's F.3 now includes reproduce_ad_exposure (adds about 4 minutes).",
+    "acceptance manifest: SP-5.0, SP-5.1, SP-5.3 and SP-5.5b list no implementation_files; the checker's testscan requires a producing test to import a listed implementation module - the integration branch should list src/crucible/calibration/inworld.py (SP-5.0, SP-5.5b) and src/crucible/calibration/audit_sp5.py (SP-5.1, SP-5.3) (manifest not edited here).",
+    "space: the fidelity register has a module:space row; after the integration fix of the duplicate 'space' module, check that the row's module column still names the registered module.",
+    "Data written outside the repository this cycle: none beyond scratch (the E5 fit reads the existing Criteo arrays)."
+   ],
+   "previous_branches": [
+    "c5c/w1-calib"
+   ],
+   "tests_run": {
+    "tests/v5/test_gate_F.py (all, incl. F.3 reproduction with the E5 model, 1 CPU via slots)": "10 passed (713 s)",
+    "tests/v5/test_gate_SP_5_1.py, SP_5_3.py, SP_5_4.py, SP_5_5.py": "11 passed",
+    "tests/v5/test_gate_SP_5_0.py, SP_5_5b.py": "2 failed as expected (civ.generate: missing dependency 'space'; no fitted decisions in world)",
+    "calibration unit tests (core, commercial, software, runtime, social_calibrated, test_calibration, ad_exposure)": "93 passed",
+    "tests/test_kernel.py tests/test_invariants.py": "51 passed",
+    "tests/test_v5_econ_work.py": "3 passed, 3 errors - identical at the base commit 87a6c54 (module work may not write column pop.wake_act)"
+   }
+  }
  }
 }
