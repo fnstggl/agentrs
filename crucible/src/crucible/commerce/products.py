@@ -55,7 +55,7 @@ import re
 
 from ..core import schema as S
 from ..core.errors import Conflict, Forbidden, InsufficientFunds, InvalidAction, NotFound
-from ..core.kernel import SYSTEM, Ctx, Module, applier, endpoint, register_module
+from ..core.kernel import SYSTEM, Ctx, Module, applier, endpoint, process, register_module
 from ..services.identity import ident
 
 DAY = 86400
@@ -158,7 +158,16 @@ class Products(Module):
         ctx.emit("prod.entitlement", {"id": eid, "product": pid, "holder": holder, "owner": p["owner"],
                                       "source": source, "ref": ref, "expires": expires, "seats": int(seats), **extra},
                  vis=(holder, p["owner"]))
+        if expires is not None and extra.get("share"):
+            # a document share has no expiry of its own: the entitlement's term ends it (wave 3b; passes, licences)
+            ctx.schedule(int(expires), "products.expire", {"entitlement": eid}, prio=44, key=f"expire|{eid}")
         return eid
+
+    @process("expire")
+    def pr_expire(self, ctx, entitlement):
+        e = ctx.state.get("prod_entitlements", entitlement)
+        if e is not None and e["status"] == "active" and e["expires"] is not None and e["expires"] <= ctx.now:
+            self.revoke(ctx, entitlement, "expired")
 
     def revoke(self, ctx: Ctx, eid: str, status: str = "revoked", return_goods: bool = False) -> None:
         st = ctx.state

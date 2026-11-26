@@ -286,8 +286,13 @@ class Ventures(Module):
             oid, owner, acct = company(f["handle"], f["name"], f.get("cash", 3_000_000), need, trusted=True)
             rid = code.create_repo(ctx, oid, f"{need.replace('.', '-')}-saas", "private", f"{f['name']} service")
             # direct calls are priced so that the subscription is the way to use it
-            code.commit_files(ctx, rid, service_repo_files(need, int(f.get("tier", 0)), int(f.get("call_price", 500))),
-                              "initial", owner, trusted=True)
+            files = service_repo_files(need, int(f.get("tier", 0)), int(f.get("call_price", 500)))
+            if f.get("program") == "input_ignoring":
+                # world generation for usefulness experiments (SP-6.1b): a firm whose service ignores its input
+                # (refsolvers.GARBAGE), sold exactly like the others - nothing marks it to its customers
+                from .refsolvers import GARBAGE
+                files = dict(files, **{"service.py": GARBAGE[need]})
+            code.commit_files(ctx, rid, files, "initial", owner, trusted=True)
             prov = f.get("provider") or provs[0]
             inst = ctx.call("cloud.rent", {"provider": prov, "cores": int(f.get("cores", 1)), "account": acct,
                                            "owner": oid}, as_principal=owner)

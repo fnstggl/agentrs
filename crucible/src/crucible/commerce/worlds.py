@@ -54,9 +54,18 @@ def draw(seed: int, *, n: int = 3000, formats: list[str] | None = None, n_format
 
 def startup_spec(seed: int, *, n: int = 3000, formats: list[str] | None = None, n_formats: int = 2,
                  browse: bool = False, work: dict | None = None, rivals: dict | None = None,
-                 params: dict | None = None) -> WorldSpec:
+                 params: dict | None = None, incumbents: list[dict] | None = None,
+                 extra: tuple = ()) -> WorldSpec:
+    """`incumbents` replaces the drawn incumbents (experiments that set the competitors, e.g. graded quality);
+    `extra` adds modules after the commerce stack (`xchg` exchanges, `inst` institutions, `labor` the labour
+    market: the population takes part in each through `economy.work`)."""
     d = draw(seed, n=n, formats=formats, n_formats=n_formats)
+    if incumbents is not None:
+        d["incumbents"] = [dict(x) for x in incumbents]
     mods = [{"name": m, "config": {}} for m in BASE]
+    for m in extra:
+        if m not in BASE:
+            mods.append({"name": m, "config": {}})
     for m in mods:
         if m["name"] == "ventures":
             m["config"] = {"providers": d["providers"], "incumbents": d["incumbents"]}
