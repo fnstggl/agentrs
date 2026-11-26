@@ -94,9 +94,18 @@ lookups), one encoder run per artifact, 156 items served across worlds from the 
 almost only first lookups (each item looked up about twice); a 30-day world serves 55-59k lookups from its record
 for 1.5-1.8k encodings (0.97). The workload now runs 96-hour worlds; rerun in section 6.
 
-## 5. CPU attribution and optimisation requests
+## 5. CPU attribution, storage and optimisation requests
 
-See OPTIMISATION_REQUESTS.md.
+Standard civ world (seed 0), per simulated day without a profiler: day 1 30.7 CPU-s, days 2-3 28.7 and 27.4 CPU-s
+with their texts already in the machine cache, day 4 57.2 CPU-s encoding 356 new texts (77.7 ms each): about 63
+simulated days per CPU-hour on fresh content (T2 >= 15), half of it in the shared space's text path. Per-function
+shares, the store breakdown by event type and the requests to the owners: OPTIMISATION_REQUESTS.md.
+
+Store per individual-day after compaction (T6 <= 550 B): development 7,843 B (5 days), standard 2,846 B (3 days).
+
+Fork reproducibility probe (development, snapshot at 8 h, three 6-hour forks: plain, plain, with the dense observer):
+all three hash chains equal (6,383 events each), so on this world the observer does not perturb the trajectory and
+forks are exact.
 
 ## 6. Pending reruns
 
