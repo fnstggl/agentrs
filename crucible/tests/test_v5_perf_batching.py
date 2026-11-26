@@ -278,3 +278,15 @@ def test_submit_flush_round_groups_requests():
     assert w.execute("p:eve", {"tool": "ibr.go", "args": {}}).ok
     st = IB.report(IB.stats(w))
     assert st["calls"] == 1 and st["requests"] == 2 and st["rows"] == 7 and st["by_class"]["2"]["merged_calls"] == 1
+
+
+def test_service_benchmark_groups_call_sites_on_the_real_models():
+    """backends.bench_service (Gate V item 4 / SP-13.1 report): several call sites of the class-2 and class-3 models
+    grouped into one recorded call give the same outputs as separate calls."""
+    from crucible.scale import backends
+    r = backends.bench_service(sites=3, rows=2, reps=1, semantic=False)
+    assert set(r["cases"]) == {"class2_adaptive", "class3_strategic_gru", "class3_strategic_mlp"}
+    for v in r["cases"].values():
+        assert v["calls_separate"] == 3 and v["calls_merged"] == 1 and v["max_abs_diff"] < 1e-4
+        assert v["separate_wall_s"] > 0 and v["merged_wall_s"] > 0
+    assert r["service_stats"]["merged_calls"] > 0 and set(r["service_stats"]["by_class"]) == {"2", "3"}
