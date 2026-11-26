@@ -537,7 +537,6 @@ def test_C_n1_no_direct_counter_mutation(pop_run):
     probes["self-kudos"] = A("community.kudos", community="harbour", member="alice")
     B.ok("launch.upvote", id=L["id"])
     probes["repeat upvote"] = B("launch.upvote", id=L["id"])
-    blocked = {k: (r is not None and not r.ok) for k, r in probes.items()}
     # module-level injection (not a tool): 50 forged views with a valid-looking provenance are recorded by module
     # code in the population world's fork; the provenance check counts them as forced, never as organic
     f = w.fork("cn1-inject")
@@ -552,6 +551,7 @@ def test_C_n1_no_direct_counter_mutation(pop_run):
     f._run_system("forge", inject)
     pr = check_provenance(f, hist + list(f.log))
     probes["module code forging consumption rows is detected"] = type(claimed)(ok=not (pr["forced_rows"] >= 50))
+    blocked = {k: (r is not None and not r.ok) for k, r in probes.items()}
     after = recount_counters(w2)
     assert w2.state.tables["content"][item]["comments"] == snap[0]["comments"]
     assert w2.state.tables["launches"][L["id"]]["upvotes"] == 1
