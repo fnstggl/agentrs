@@ -114,7 +114,7 @@ class LatentBridge(nn.Module):
                 ids = encoder.tok(text, add_special_tokens=False)["input_ids"]
                 ids = (ids * (n_prefix // max(len(ids), 1) + 1))[:n_prefix]
                 return encoder.embed_ids(torch.tensor(ids, device=encoder.device)).float().cpu()
-            w = encoder.input_embeddings().weight[: len(encoder.tok)].float()
-            mean = w.mean(0)
+            w = encoder.input_embeddings().weight[: len(encoder.tok)]
+            mean = sum(w[i: i + 16384].float().sum(0) for i in range(0, w.shape[0], 16384)) / w.shape[0]
             row = mean / mean.pow(2).mean().sqrt().clamp_min(1e-12) * float(encoder.embedding_rms)
             return row.unsqueeze(0).expand(n_prefix, -1).clone().cpu()
