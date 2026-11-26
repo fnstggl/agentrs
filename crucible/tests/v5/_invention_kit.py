@@ -2,7 +2,7 @@
 
 `A()` runs the four arms of `crucible.innovation.civexp` (factual, garbage, ban_novel, ban_published) in the
 integrated civilisation with the population's autonomous developers (`innovation.inventworld.civ_spec`: profile
-balanced, seed 3, development population, 24 simulated days) and caches them for the session, so the gate files
+balanced, seed 3, development population, 30 simulated days) and caches them for the session, so the gate files
 measure the same worlds. Nobody is scripted.
 
 Diagnostics only: with `G_INVENTION_DUMP=<dir>` the arms' histories, outcomes and chains and the factual world (state
@@ -17,7 +17,7 @@ import crucible
 crucible.load_all_modules()
 from crucible.innovation import gates as G  # noqa: E402
 
-KIND, SEED, DAYS, PROFILE = "civ", 3, 24, "balanced"
+KIND, SEED, DAYS, PROFILE = "civ", 3, 30, "balanced"
 _DUMPED: list[bool] = []
 
 
