@@ -1618,6 +1618,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "id": "DEF-P-4",
  "owner": "P",
  "requirements": [],
+ "revalidations": [
+  {
+   "at": "2026-11-26T22:19:49+00:00",
+   "by": "P",
+   "commit": "1cec5e4a637dcdfce86e896032396bfdbbea41c0",
+   "evidence": "python -m crucible.acceptance.v5 report; SP-1.3b metrics (tests/v5/test_gate_SP_1_3.py)",
+   "reason": "partly addressed: 222 of 354 manifest entries now list implementation files (merge-workstreams a8436f0) and gate tests exist for most gates, but 132 entries still have none, no requirement has official evidence or a committed review, and no requirement is VERIFIED",
+   "verdict": "still_open"
+  }
+ ],
  "severity": "critical",
  "source": {
   "audit": "P_acceptance",
@@ -1629,13 +1639,18 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
 }
 ```
 
-### DEF-P-5 (critical, open): reward_mode defaults to legacy_shaped_reward at every public entry point (make, Gym, PettingZoo, MechVecEnv, K
+### DEF-P-5 (critical, fixed): reward_mode defaults to legacy_shaped_reward at every public entry point (make, Gym, PettingZoo, MechVecEnv, K
 
 ```json
 {
  "area": "P_acceptance",
+ "fixed_by": "1c3d69d merge of c5c/w1-obs: D-19, check_mode(None) is observation_only and every learner-facing constructor defaults to it",
  "id": "DEF-P-5",
  "owner": "P",
+ "regression_tests": [
+  "tests/test_v5_experience_oo.py::test_observation_only_is_the_default_and_legacy_needs_naming",
+  "tests/v5/test_gate_OO.py::test_OO9_every_public_entry_point_defaults_to_observation_only"
+ ],
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1643,7 +1658,7 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
   "file": "docs/v5/audit/P_acceptance.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "reward_mode defaults to legacy_shaped_reward at every public entry point (make, Gym, PettingZoo, MechVecEnv, KernelMechEnv), contradicting the observation-only amendment; OO/RP entries only added at dd745b9."
 }
 ```
@@ -1659,6 +1674,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "requirements": [
   "A.1",
   "X.4"
+ ],
+ "revalidations": [
+  {
+   "at": "2026-11-26T22:19:49+00:00",
+   "by": "P",
+   "commit": "1cec5e4a637dcdfce86e896032396bfdbbea41c0",
+   "evidence": "PROGRESS.json M6 failed_tests",
+   "reason": "the five failures it names pass now (media_error meaning, cxs_selected_layers batch path, Tier 1 contract tests), but the integrated regression is still not green: 6 of 2,107 failed at 55433e7 (orchestrator M6: substrate streams/resume/retention, scale worker recycling, test_ow_worlds order dependence, CAM GPU test)",
+   "verdict": "still_open"
+  }
  ],
  "severity": "critical",
  "source": {
@@ -1883,6 +1908,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "owner": "orchestrator decision (L for D-19, O for D-20, P)",
  "requirements": [
   "A.5"
+ ],
+ "revalidations": [
+  {
+   "at": "2026-11-26T22:19:50+00:00",
+   "by": "P",
+   "commit": "1cec5e4a637dcdfce86e896032396bfdbbea41c0",
+   "evidence": "tests/v5/test_gate_A.py::test_A_5_prior_results_reproducible (pending)",
+   "reason": "D-82 removes the D-20 part for 4.0 reproductions (a 4.0 historical-baseline process bills 4.0's executed-line count again); the D-19 state-digest change and the stale demo_lifetime record still need the Gate A.5 measurement on this branch",
+   "verdict": "still_open"
+  }
  ],
  "severity": "high",
  "source": {
@@ -2184,6 +2219,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
   "A.1",
   "OO.8",
   "SP-13.7"
+ ],
+ "revalidations": [
+  {
+   "at": "2026-11-26T22:19:50+00:00",
+   "by": "P",
+   "commit": "1cec5e4a637dcdfce86e896032396bfdbbea41c0",
+   "evidence": "tests/v5/test_gate_A.py::test_A_1_regression_suite_passes_by_baseline_node_id (pending); tests/test_v5_acceptance_baseline.py",
+   "reason": "resolved by design (D-82: A.1 runs the c07098b bytes of every 4.0 test file in a fresh clone as the explicitly selected 4.0 historical baseline - reward contract and executed-line cost model; relocated CAM adapters under their 4.0 names; realworld file isolated); stays open until Gate A.1 measures 1,076 of 1,076 node ids passing",
+   "verdict": "still_open"
+  }
  ],
  "severity": "high",
  "source": {

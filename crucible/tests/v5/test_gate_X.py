@@ -119,9 +119,14 @@ def test_X_5_complete_documentation():
 
 def test_X_6_no_open_critical_or_high_defects():
     res = qa.defects(ROOT)
-    m = res["metrics"]
+    rv = qa.defect_revalidation(ROOT)          # the register's re-validation duty (D-83), reported with X.6
+    m = {**res["metrics"], **rv["metrics"]}
     record("X.6", m, command=CMD, notes=f"open critical/high: {res['open_critical_high'][:40]}; unregistered audit "
-                                        f"findings: {res['unregistered'][:20]}; malformed: {res['malformed'][:10]}")
+                                        f"findings: {res['unregistered'][:20]}; malformed: {res['malformed'][:10]}; "
+                                        f"re-validation due by owner since {rv['since']}: "
+                                        f"{ {k: len(v) for k, v in rv['due_by_owner'].items()} }; owners report fixed: "
+                                        f"{rv['to_close'][:10]}; fixed without regression tests: "
+                                        f"{rv['fixed_without_regression_test'][:10]}")
     bad = unmet("X.6", m)
     assert not bad, (bad, res["open_critical_high"][:10], res["unregistered"][:5])
 

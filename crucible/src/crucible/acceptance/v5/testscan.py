@@ -275,7 +275,13 @@ def swallow_findings(node, *, helper: bool = False) -> list[str]:
                 continue
             # catching BaseException (or everything) and carrying on: the one handler that absorbs the ablation
             # exception, KeyboardInterrupt and SystemExit; using what was caught does not make it a measurement
-            if (only and not helper) or (broad and not _uses(n)) or (only and broad) or "BaseException" in names:
+            # a helper's result-or-error return (`return None, f"{type(e).__name__}: {e}"`) hands what it caught to
+            # its caller, like a test body that stores the error: only a broad handler that drops it is a swallow
+            hands_on = helper and _uses(n) and all(isinstance(b, ast.Return) and b.value is not None and
+                                                   any(isinstance(x, ast.Name) and x.id == n.name
+                                                       for x in ast.walk(b.value)) for b in n.body)
+            if (only and not helper) or (broad and not _uses(n)) or (only and broad and not hands_on) or \
+                    "BaseException" in names:
                 out.append("swallow")
     return out
 

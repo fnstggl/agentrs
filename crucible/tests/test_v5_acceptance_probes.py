@@ -910,6 +910,18 @@ def test_z():
     f, c = site(honest)
     assert c["const_keys"] == [] and f["findings"] == [], (f, c)
     assert site(GOOD_TEST)[1] == {"span": [8, 8], "keys": ["widgets", "leaks"], "const_keys": []}
+    # a helper may hand an error to its caller (result-or-error); a helper that drops it is a swallow
+    hands = GOOD_TEST.replace("import widgets\n", '''import widgets
+
+
+def _attempt(fn):
+    try:
+        return fn(), None
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
+''').replace("    leaks = widgets.leaks()\n", "    leaks, err = _attempt(widgets.leaks)\n    assert err is None, err\n")
+    drops = hands.replace('return None, f"{type(e).__name__}: {e}"', "return 0, None")
+    assert "swallow" not in site(hands)[0]["findings"] and "swallow" in site(drops)[0]["findings"]
     assert not testscan.dynamic_code_findings(__import__("ast").parse("m = load().eval()\nx = re.compile('a')\n"))
     assert checker.is_compiled("src/w/__pycache__/x.cpython-312.pyc") and checker.is_compiled("src/w/_c.so")
     assert not checker.is_compiled("src/w/x.py")
