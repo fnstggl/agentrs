@@ -186,6 +186,55 @@ class OpenWorldEvaluator:
                                      achieved=bool(st.get("success")), score=float(st.get("progress", 0.0)),
                                      metrics=metrics, t=w.now / DAY, evaluator=self.name, details=details)
 
+    def public_result(self, env_index: int) -> IndependentGoalResult:
+        """`evaluate_goal` without the evaluator-only parts - for records a learner process keeps: no details (world
+        family / seed, bindings, streak, progress, contract id), no progress score; only whether the goal was
+        verifiably achieved and the verified leaf metric values."""
+        r = self.evaluate_goal(env_index)
+        metrics = {k: v for k, v in r.metrics.items() if k not in FORBIDDEN_KEYS}
+        return IndependentGoalResult(goal_id=r.goal_id, achieved=r.achieved, score=float(r.achieved),
+                                     metrics=metrics, t=r.t, evaluator=r.evaluator, details={})
+
+    def verify_predicates(self, env_index: int, predicates: list) -> list:
+        """Verify goal predicates (Crucible metric predicate grammar, e.g. CAM-generated goals of
+        `autonomy.goals` compiled to ``{"metric", "args", "op", "value"}`` / ``{"all": [...]}``; placeholders
+        ``$self`` / ``$org`` / ``$host`` bound to the actor, any owned organisation counts) on the world's current
+        state. Returns, per predicate, only ``{"satisfied": bool, "values": {metric: verified value}}`` (or
+        ``{"satisfied": False, "error": str}`` for an invalid predicate) - verdicts, never bindings or evaluator
+        state. Operator side; results go to the label channel."""
+        from crucible.goals.contracts import _bind, bindings
+        from crucible.goals.metrics import METRICS, evaluate_predicate, predicate_leaves
+        b = int(env_index)
+        w, p = self._op.world(b), self._op.principal(b)
+        env = bindings(w, p)
+        out = []
+        for pred in predicates:
+            try:
+                unknown = sorted({lf["metric"] for lf in predicate_leaves(pred) if lf["metric"] not in METRICS})
+            except Exception as e:  # noqa: BLE001 - malformed predicate
+                unknown = [f"malformed: {type(e).__name__}"]
+            if unknown:
+                out.append({"satisfied": False, "error": f"unknown metrics {unknown}"[:200]})
+                continue
+            ok, err = False, None
+            for org in env["$orgs"] or ["o:none"]:
+                try:
+                    if evaluate_predicate(w, _bind(pred, dict(env, **{"$org": org}))):
+                        ok = True
+                        break
+                except Exception as e:  # noqa: BLE001 - missing entities: false through this organisation
+                    err = f"{type(e).__name__}: {e}"[:200]
+            try:
+                values = leaf_values(w, p, pred)
+            except Exception as e:  # noqa: BLE001 - an invalid predicate is reported, not raised
+                out.append({"satisfied": False, "error": f"{type(e).__name__}: {e}"[:200]})
+                continue
+            rec = {"satisfied": bool(ok), "values": {k: float(v) for k, v in values.items() if k not in FORBIDDEN_KEYS}}
+            if not ok and err and not values:
+                rec["error"] = err
+            out.append(rec)
+        return out
+
     def state_dict(self) -> bytes:
         return pickle.dumps({"objectives": self.objectives, "total": self.total, "success_t": self.success_t,
                              "gate": self.gate, "labelled": self.labelled, "labels": self._labels,

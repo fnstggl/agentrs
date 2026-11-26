@@ -176,40 +176,56 @@ class ScoreEvaluator:
     """GoalEvaluator: score = the row's cumulative return in the current episode (from the hidden mechanism); the
     harness turns score differences into verified returns. `details` (the hidden mechanism) never reaches the agent.
 
-    W2: `reward_mode` (Crucible 5.0 modes; default legacy = unchanged) gates `take_rewards()` (the return increments
-    since the previous call; 0.0 in observation_only); `take_labels()` (`interfaces.LabelSource`) releases each
-    finished row episode once: value = the verified episode return; with ``env.utility_bounds() -> (null, best)``
-    utility = (value - null) / (best - null) and status success iff utility >= `success_threshold`, else status
-    "uncertain"."""
+    W2: `reward_mode` (the Crucible 5.0 mode names; default legacy = unchanged) gates `take_rewards()`: legacy = the
+    return increments since the previous call; ``verified_terminal_outcome`` = 1.0 once when a finished episode's
+    utility reaches `success_threshold`; ``observation_only`` = 0.0. `take_labels()` (`interfaces.LabelSource`)
+    releases each finished row episode once: value = the verified episode return; with ``env.utility_bounds() ->
+    (null, best)`` utility = (value - null) / (best - null) and status success iff utility >= `success_threshold`,
+    else status "uncertain". (No Crucible import: the diagnostics stay record-only.)"""
 
     def __init__(self, env: DiagnosticEnv, reward_mode: str = "legacy_shaped_reward",
                  success_threshold: float = 0.5):
-        from crucible.experience.modes import RewardGate, check_mode
+        from ..envs.experience import LEGACY, OBSERVATION_ONLY, VERIFIED
+        if reward_mode not in (LEGACY, OBSERVATION_ONLY, VERIFIED):
+            raise ValueError(f"reward_mode must be one of {(LEGACY, VERIFIED, OBSERVATION_ONLY)}, got {reward_mode!r}")
         self.env = env
-        self.reward_mode = check_mode(reward_mode)
-        self.gate = RewardGate(self.reward_mode)
+        self.reward_mode = reward_mode
         self.success_threshold = float(success_threshold)
         self._taken_returns = [0.0] * env.B
         self._taken_episode = env.episode
+        self._paid: set = set()
         self._labelled: set = set()
 
+    def _utility(self, v: float):
+        bounds = self.env.utility_bounds() if hasattr(self.env, "utility_bounds") else None
+        if bounds is None or not bounds[1] > bounds[0]:
+            return None
+        return (v - bounds[0]) / (bounds[1] - bounds[0])
+
     def take_rewards(self) -> list:
+        from ..envs.experience import LEGACY, VERIFIED
         e = self.env
         if self._taken_episode != e.episode:              # a reset started new episodes: returns restart at 0
             self._taken_returns, self._taken_episode = [0.0] * e.B, e.episode
         out = []
+        done = e.done()
         for b in range(e.B):
-            key = f"{e.env_ids[b]}#{e.episode}"
             inc = float(e.returns[b]) - self._taken_returns[b]
             self._taken_returns[b] = float(e.returns[b])
-            self.gate.add_legacy(key, inc)
-            out.append(float(self.gate.take(key)))
+            r = 0.0
+            if self.reward_mode == LEGACY:
+                r = inc
+            elif self.reward_mode == VERIFIED and done[b] and (b, e.episode) not in self._paid:
+                u = self._utility(float(e.returns[b]))
+                if u is not None and u >= self.success_threshold:
+                    self._paid.add((b, e.episode))
+                    r = 1.0
+            out.append(float(r))
         return out
 
     def take_labels(self) -> list:
         from ..envs.labels import LabelRecord
         e = self.env
-        bounds = e.utility_bounds() if hasattr(e, "utility_bounds") else None
         out = []
         for b, done in enumerate(e.done()):
             key = (b, e.episode)
@@ -217,10 +233,8 @@ class ScoreEvaluator:
                 continue
             self._labelled.add(key)
             v = float(e.returns[b])
-            util, status = None, "uncertain"
-            if bounds is not None and bounds[1] > bounds[0]:
-                util = (v - bounds[0]) / (bounds[1] - bounds[0])
-                status = "success" if util >= self.success_threshold else "failure"
+            util = self._utility(v)
+            status = "uncertain" if util is None else ("success" if util >= self.success_threshold else "failure")
             out.append(LabelRecord(env_id=e.env_ids[b], episode=int(e.episode), status=status, utility=util,
                                    value=v, t_resolved_days=float(e.t[b]), evaluator=f"capabilities.{type(e).__name__}",
                                    goal_id=e._goal(e.hidden[b], b).goal_id, kind="terminal", t_start_days=0.0,

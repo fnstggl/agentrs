@@ -5,6 +5,7 @@ legacy record still accumulates (audit actions: observation_only take_rewards ==
 reaches success on day ~4; take_labels contains exactly one terminal_success whose time equals the verifier's)."""
 from __future__ import annotations
 
+import json
 import os
 import sys
 
@@ -128,6 +129,26 @@ def test_openworld_failure_label_only_at_the_horizon_and_through_the_process_bou
         assert lab.status == "failure" and lab.utility == 0.0 and lab.t_resolved_days == pytest.approx(1.0)
         assert t - lab.t_start_days >= 1.0 - 1e-9
         assert lab.meta["resources"]["waits"] >= 23
+    finally:
+        es.close()
+
+
+def test_predicate_verification_and_public_result_carry_verdicts_only():
+    es = make_env("openworld", tasks=["open_economy#100005"], isolated=True)
+    ad, rop, rev = es
+    try:
+        ad.reset()
+        preds = [{"metric": "cash", "args": {"principal": "$self"}, "op": ">=", "value": 1_000_000},
+                 {"metric": "cash", "args": {"principal": "$self"}, "op": ">=", "value": 10 ** 12},
+                 {"metric": "no_such_metric", "args": {}, "op": ">=", "value": 1}]
+        ok, high, bad = rev.verify_predicates(0, preds)
+        assert ok["satisfied"] is True and ok["values"]["cash"] == pytest.approx(3_000_000)
+        assert high["satisfied"] is False and "error" in bad and not bad["satisfied"]
+        pub = rev.public_result(0)
+        full = rev.evaluate_goal(0)
+        assert pub.details == {} and pub.achieved is False and pub.score == 0.0 and full.details
+        assert "independent_revenue" in pub.metrics
+        assert "ow_tiny" not in json.dumps(pub.to_dict()) and "ow_tiny" in json.dumps(full.to_dict())
     finally:
         es.close()
 

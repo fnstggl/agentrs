@@ -816,6 +816,7 @@ def _operator_main(conn, args: tuple, kw: dict, eval_kw: Optional[dict]) -> None
         handlers.update({"take_rewards": ev.take_rewards, "evaluate_goal": ev.evaluate_goal,
                          "success_t": lambda: list(ev.success_t), "eval_state": ev.state_dict,
                          "eval_load": ev.load_state, "take_labels": ev.take_labels,
+                         "public_result": ev.public_result, "verify_predicates": ev.verify_predicates,
                          "eval_info": lambda: {"reward_mode": ev.reward_mode, "stream": ev.stream}})
     while True:
         try:
@@ -895,6 +896,12 @@ class RemoteEvaluator:
 
     def take_labels(self) -> list:
         return self._r.call("take_labels")
+
+    def public_result(self, env_index: int):
+        return self._r.call("public_result", int(env_index))
+
+    def verify_predicates(self, env_index: int, predicates: list) -> list:
+        return self._r.call("verify_predicates", int(env_index), list(predicates))
 
     @property
     def reward_mode(self) -> str:
