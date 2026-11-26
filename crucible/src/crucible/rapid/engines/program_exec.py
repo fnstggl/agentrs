@@ -744,9 +744,12 @@ class Router(Scenario):
     def query(self, st, target, args, rng, t):
         return {"lines": [[dict(j) for j in q] for q in st["lines"]]}
 
-    def service_time(self, m: int, s: float, qlen: int, z: float) -> float:
+    def service_time(self, m: int, s: float, qlen: int, z: float, t: int = 0) -> float:
         h = self.h
-        base = h["alpha"][m] + h["beta"][m] * s ** h["gamma"][m]
+        if h.get("shift_at") is not None and t >= h["shift_at"]:      # the lines' service laws after the change
+            base = h["alpha2"][m] + h["beta2"][m] * s ** h["gamma2"][m]
+        else:
+            base = h["alpha"][m] + h["beta"][m] * s ** h["gamma"][m]
         if m == h["congested"] and qlen > h["qstar"]:
             base *= 1.0 + h["cong"] * (qlen - h["qstar"])
         return max(0.5, base * (1.0 + self.c["service_noise"] * z))
@@ -781,7 +784,7 @@ class Router(Scenario):
             for m in range(M):
                 q = st["lines"][m]
                 if q and q[0]["left"] is None:
-                    q[0]["left"] = round(self.service_time(m, q[0]["size"], len(q), float(zs[k, m])), 6)
+                    q[0]["left"] = round(self.service_time(m, q[0]["size"], len(q), float(zs[k, m]), t), 6)
                     q[0]["service"] = q[0]["left"]
                 if q:
                     q[0]["left"] = round(q[0]["left"] - 1.0, 6)

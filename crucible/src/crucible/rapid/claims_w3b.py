@@ -147,3 +147,96 @@ def oracle_shifting_line(env) -> dict:
     r = best_of(env, pols)
     s = des_oracle(env)
     return r if r["value"] >= s["value"] else s
+
+
+# ====================================================================== pe_router (retooled lines)
+def router_laws_swap(env) -> dict:
+    """After the hidden retooling, the line fastest for the smallest jobs and the line fastest for the largest
+    jobs have changed places (service-time laws at a queue of one, no noise)."""
+    sc = env._engine.sc
+    h = env._config["hidden"]
+    M = len(env._config["line_names"])
+    t1 = int(h["shift_at"])
+    before = [int(np.argmin([sc.service_time(m, s, 1, 0.0, 0) for m in range(M)])) for s in (0.5, 4.0)]
+    after = [int(np.argmin([sc.service_time(m, s, 1, 0.0, t1) for m in range(M)])) for s in (0.5, 4.0)]
+    return {"ok": bool(before[0] != before[1] and after == [before[1], before[0]]), "fastest_before": before,
+            "fastest_after": after, "shift_at": t1}
+
+
+ROUTER_SHIFT_SRC = """
+def svc(A, B, C, m, s, q):
+    t = A[m] + B[m] * s ** C[m]
+    if m == CONG and q > QSTAR:
+        t *= 1.0 + CF * (q - QSTAR)
+    return t
+
+
+def act(obs, caller):
+    A, B, C = (A1, B1, C1) if obs["tick"] < SHIFT else (A2, B2, C2)
+    s = obs["size"]
+    best, arg = None, 0
+    for m in range(len(A)):
+        q = len(obs["sizes"][m])
+        tot = sum(svc(A, B, C, m, x, q) for x in obs["sizes"][m]) + svc(A, B, C, m, s, q + 1)
+        if best is None or tot < best:
+            best, arg = tot, m
+    return {"line": arg}
+"""
+
+
+def oracle_router_shift(env) -> dict:
+    """Evaluator: a router that knows every line's service law before and after the retooling and when it
+    happens (it routes each job to the line where it would finish first), and the static law-aware router."""
+    from .eval_program_exec import consts, deploy, oracle_router
+    from .oracles import best_of
+    h = env._config["hidden"]
+    src = consts(A1=h["alpha"], B1=h["beta"], C1=h["gamma"], A2=h["alpha2"], B2=h["beta2"], C2=h["gamma2"],
+                 SHIFT=int(h["shift_at"]), CONG=int(h["congested"]), QSTAR=int(h["qstar"]),
+                 CF=float(h["cong"])) + ROUTER_SHIFT_SRC
+    r = best_of(env, {"knows the laws and the retooling": deploy(src)})
+    s = oracle_router(env)
+    return r if r["value"] >= s["value"] else s
+
+
+def router_refit(view, env, first: int = 5, every: int = 5, window: int = 10) -> None:
+    """Scripted public reference: watch completions under the built-in split for a few ticks, fit each line's
+    service time as a straight line in job size (least squares on the reported service steps), deploy a router
+    that sends each job where it would finish first under the fitted laws, and refit and redeploy every few ticks
+    from the completions of the last `window` ticks, so a change of the lines' laws is followed."""
+    from .eval_program_exec import RT_SRC, consts
+    c = env._config                                   # public: line names are in the brief and the schemas
+    names = c["line_names"]
+    seen: list = []                                   # (tick, line, size, service steps)
+
+    def collect(r):
+        for e in r["observation"]["entities"]:
+            if e.get("kind") == "completed":
+                seen.append((view.t, e["line"], e["size"], e["service_steps"]))
+
+    def fit():
+        al, be = [], []
+        for n in names:
+            d = np.asarray([(s, v) for t, ln, s, v in seen if ln == n and t > view.t - window],
+                           dtype=float).reshape(-1, 2)
+            if len(d) >= 3 and np.ptp(d[:, 0]) > 0.5:
+                (a, b), *_ = np.linalg.lstsq(np.c_[np.ones(len(d)), d[:, 0]], d[:, 1], rcond=None)
+            elif len(d):
+                a, b = float(d[:, 1].mean()), 0.0
+            else:
+                a, b = 2.0, 1.0
+            al.append(max(0.1, float(a)))
+            be.append(max(0.0, float(b)))
+        return al, be
+    for _ in range(first):
+        if view.done:
+            return
+        collect(view.step(None))
+    while not view.done:
+        al, be = fit()
+        src = consts(A=al, B=be, C=[1.0] * len(al), CONG=-1, QSTAR=99, CF=0.0) + RT_SRC
+        r = view.step({"kind": "program", "source": src, "ticks": min(every, view.horizon - view.t)})
+        collect(r)
+        for _ in range(every - 1):
+            if view.done:
+                return
+            collect(view.step(None))
