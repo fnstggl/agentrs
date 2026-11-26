@@ -94,14 +94,15 @@ def hc_conditional(rng, d):
 
 
 @family("hc_feedback_hidden", engine="primitive_graph", category="8.1", item="8.1.5", split="val",
-        doc="Sales build a hidden reputation stock that raises later sales: the long-run effect of a lever is about "
-            "twice its immediate effect, through an intermediate variable nobody observes. Predict where weekly "
-            "sales settle at marketing levels partly outside what can be set; short tests understate the answer.",
+        doc="Sales build a hidden reputation stock that raises later sales: the long-run effect of a lever is two "
+            "to three times its immediate effect, through an intermediate variable nobody observes. Predict where "
+            "weekly sales settle at marketing levels partly outside what can be set; short tests understate the "
+            "answer.",
         distinct_because="a positive feedback loop through an unobserved decaying stock with lag (cycle in the "
                          "causal graph); the observed short-run response understates the long-run one; scored by "
                          "predictions of the settled response at held-out conditions",
         axes={"horizon": 80, "observation_noise": 0.3}, objective="predict_heldout",
-        claims=(C + "feedback_amplifies",), identify=I + "lever_sign",
+        claims=(C + "feedback_amplifies",), identify="crucible.rapid.claims_w3b:identify_feedback_multiplier",
         reference="crucible.rapid.refs_adapt:arx_settled_predict", version="2")
 def hc_feedback_hidden(rng, d):
     gb = GraphBuilder(rng)
@@ -109,7 +110,7 @@ def hc_feedback_hidden(rng, d):
     sat = gb.prim("saturation", {"cap": u(rng, 25, 35), "half": u(rng, 3.5, 4.5)}, x=[(M, 0, 1.0)])
     rep = gb.prim("decay", {"rate": 0.1, "init": 0.0}, role="reputation", x=[])
     sales = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
-                    bias={"x": u(rng, 15, 25)}, x=[(sat, 0, 1.0), (rep, 1, u(rng, 4.5, 5.5))])
+                    bias={"x": u(rng, 15, 25)}, x=[(sat, 0, 1.0), (rep, 1, u(rng, 5.8, 6.4))])
     gb.nodes[int(rep[1:])]["ports"]["x"] = [[sales, 2, 0.01]]
     gy = gb.gauge(sales, [("measurement_noise", {"sd": float(d["observation_noise"]) * 3})])
     gb.gauge(sat, [("measurement_noise", {"sd": float(d["observation_noise"]) * 3})])

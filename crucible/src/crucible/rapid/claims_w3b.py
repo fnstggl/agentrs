@@ -43,6 +43,57 @@ def identify_gate_threshold(env) -> dict:
             "truth": truth, "ok": abs(est - truth) <= 0.6}
 
 
+def identify_feedback_multiplier(env) -> dict:
+    """Question: by what factor does the settled effect of the lever exceed its immediate effect (the multiplier of
+    the hidden feedback loop)? Public: hold the lever low for a third of the horizon, then step it to the top. The
+    readings are fitted by y(t) = a + b r^t + [t >= step] (c + d r^(t - step)) - a first-order approach from the
+    start and a first-order response to the step with a common rate r (grid search, the rest by least squares);
+    the immediate effect is c + d, the settled effect c. Truth: the noise-free settled responses of the hidden
+    mechanism at the two settings and its reading one tick after the step from the settled low state. Correct
+    within 25%."""
+    from .engines.primitive_graph import true_response
+    c = env._config["claim"]
+    M = _lever(env, c["lever"])
+    view = PublicView(env)
+    lo, hi = 1.0, 10.0
+    pre = max(8, view.horizon // 3)
+    ys = []
+    for t in range(view.horizon):
+        r = view.step({"kind": "levers", "values": {M: lo if t < pre else hi}})
+        nums = r["observation"]["numbers"]
+        ys.append(list(nums.values())[0] if nums else np.nan)
+        if view.done:
+            break
+    y = np.asarray(ys, dtype=float)
+    t = np.arange(len(y), dtype=float)
+    after = (t >= pre).astype(float)
+    ok = np.isfinite(y)
+    best = None
+    for rho in np.linspace(0.80, 0.995, 80):
+        A = np.c_[np.ones(len(y)), rho ** t, after, after * rho ** np.maximum(t - pre, 0.0)]
+        coef, *_ = np.linalg.lstsq(A[ok], y[ok], rcond=None)
+        err = float(np.sum((A[ok] @ coef - y[ok]) ** 2))
+        if best is None or err < best[0]:
+            best = (err, rho, coef)
+    cc, dd = float(best[2][2]), float(best[2][3])
+    est = cc / (cc + dd) if abs(cc + dd) > 1e-9 else float("inf")
+    eng = env._engine
+    gy = env._config["objective"]["gauge"]
+    lo_settled, hi_settled = true_response(eng, [{M: lo}, {M: hi}], gy, ticks=400)
+    # the noise-free reading one tick after stepping the lever from the settled low state to the top
+    st = eng.empty_state(1)
+    eng.set_levers(st, {M: lo}, clip=False)
+    z, uu = np.zeros((1, eng.n_normal)), np.ones((1, eng.n_uniform))
+    src = eng.idx[eng.gauges[eng.gauge_names.index(gy)]["src"][0]]
+    for kk in range(400):
+        eng.tick(st, z, uu, 20_000 + kk)
+    eng.set_levers(st, {M: hi}, clip=False)
+    cur, _ = eng.tick(st, z, uu, 30_000)
+    truth = float((hi_settled - lo_settled) / max(1e-9, float(cur[0, src]) - lo_settled))
+    return {"question": "the multiplier of the hidden feedback loop (settled effect over immediate effect)",
+            "estimate": est, "truth": truth, "ok": bool(np.isfinite(est) and abs(est - truth) <= 0.25 * truth)}
+
+
 # ====================================================================== des_bottleneck (shifting bottleneck)
 def bottleneck_moves(env) -> dict:
     """After the hidden shift, an extra server at the new slow station completes more jobs than one at the station
