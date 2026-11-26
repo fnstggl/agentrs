@@ -20,7 +20,9 @@ candidate's API (`pkg.info`) for a function that fits, depends on it, writes the
 (`pkg.ci`: independent testing); a package that fails its tests gets an issue (`pkg.report`, with the failing
 input) and is not used. Without a fitting package it writes the capability itself (time it pays) and, where the
 forum exists, asks for a package; skilled writers among the hand-coders publish their own implementation as a
-package (competing packages). Developers run their application daily (`pkg.exec`: adoption by execution), upgrade
+package (competing packages). Applications grow: every 5-12 days a developer's application needs one more of the
+configuration's capabilities (demand shifts while the ecosystem runs), and a developer first asks the maintainers of
+a package it already depends on to add a capability it lacks (a feature-request issue). Developers run their application daily (`pkg.exec`: adoption by execution), upgrade
 dependencies when a new release appears if they like to stay current (`pkg.upgrade` refuses an incompatible one; the
 developer reports it), and drop a dependency that keeps failing. Every choice is a recorded population decision
 (model `devpop@1`).
@@ -207,7 +209,8 @@ def x_owner_ok(summary: dict, p: str) -> bool:
 
 # ====================================================================== population developers (kernel module)
 DEV_DEFAULTS = {"share": 0.03, "min": 6, "needs": ["slugify", "median", "levenshtein"], "per_dev": [1, 3],
-                "authors": True, "forum": True, "board": "dev", "every_hours": [18, 36], "start_hours": [4, 96]}
+                "authors": True, "forum": True, "board": "dev", "every_hours": [18, 36], "start_hours": [4, 96],
+                "grow_days": [5, 12]}
 
 
 @register_module
@@ -256,6 +259,8 @@ class PopDevelopers(Module):
                          "author": bool(self.cfg("authors")) and float(sk[i, 1]) > 0.55,
                          "next": int(ctx.now + int(rng.integers(self.cfg("start_hours")[0],
                                                                 self.cfg("start_hours")[1] + 1)) * 3600)})
+            rows[-1]["grow"] = int(rows[-1]["next"] + int(rng.integers(self.cfg("grow_days")[0],
+                                                                      self.cfg("grow_days")[1] + 1)) * DAY)
         ctx.emit("devpop.developers", {"rows": rows}, vis="internal")
         for r in rows:
             population.wake(ctx, np.array([r["i"]]), r["next"], "develop")
@@ -321,6 +326,19 @@ class PopDevelopers(Module):
             self._set(ctx, i, stage="build", repo=repo, via=via)
             r.update(stage="build", repo=repo, via=via)
         repo = r["repo"]
+        # 0. applications grow: from time to time a developer's application needs one more of the capabilities
+        #    in use around it (demand shifts while the ecosystem runs)
+        pool = [x for x in self.cfg("needs") if x not in r["needs"]]
+        if pool and now >= int(r.get("grow") or 10 ** 18):
+            g = ctx.rng("devpop-grow", i, now)
+            nd_new = sorted(pool)[int(g.integers(0, len(pool)))]
+            cases = dict(r["cases"], **{nd_new: draw_cases(nd_new, g, 3)})
+            via_new = dict(r["via"], **{nd_new: {"kind": "missing"}})
+            lo, hi = self.cfg("grow_days")
+            grow = int(now + int(g.integers(int(lo), int(hi) + 1)) * DAY)
+            needs = sorted(list(r["needs"]) + [nd_new])
+            self._set(ctx, i, needs=needs, cases=cases, via=via_new, grow=grow)
+            r.update(needs=needs, cases=cases, via=via_new, grow=grow)
         via = {k: dict(v) for k, v in r["via"].items()}
         # 1. a capability without a provider: look for a package, else write it oneself
         # (a hand-coder looks again once its last look at the index is three days old)
@@ -454,6 +472,21 @@ class PopDevelopers(Module):
         best = None
         tried = set((r["tried"] or {}).get(nd, []))
         fitting = [x for x in res if NEEDS[nd]["hint"] in (x.get("api") or {})]
+        # a package one already depends on that lacks it: ask its maintainers first (users ask their library)
+        asked = list(r["asked"] or [])
+        for dep in sorted({v["package"] for v in via.values() if v.get("kind") == "pkg"}):
+            if f"req:{nd}:{dep}" in asked:
+                continue
+            info = self._call(ctx, p, "pkg.info", {"package": dep}) or {}
+            api = ((info.get("versions") or [{}])[-1] or {}).get("api") or {}
+            if info and NEEDS[nd]["hint"] not in api and x_owner_ok(info, p):
+                self._call(ctx, p, "pkg.report", {"package": dep, "title": f"Please add {NEEDS[nd]['hint']}()",
+                                                  "body": f"My application uses {dep}; it now also needs "
+                                                          f"{NEEDS[nd]['doc']}.", "labels": ["enhancement"]})
+                asked.append(f"req:{nd}:{dep}")
+                self._set(ctx, ids.index(p), asked=asked)
+                r = dict(r, asked=asked)
+                break
         if res and not fitting and f"req:{nd}" not in (r["asked"] or []) and x_owner_ok(res[0], p):
             # the package people use for neighbouring things lacks it: ask its maintainers (a feature request)
             self._call(ctx, p, "pkg.report", {"package": res[0]["package"], "title": f"Please add {NEEDS[nd]['hint']}()",
