@@ -45,24 +45,41 @@ class OutcomeEncoder(nn.Module):
 
 
 class HindsightModel(nn.Module):
+    """h_kappa(a | b_t, u, g, policy context, elapsed time). Output softmax(gate * f + (1 - gate) * centred log pi):
+    the behaviour policy's log-probabilities enter as a prior through a learned gate computed from detached
+    features (COCOA Prop. 5 / App. E.8.1, R-HCA App. F.1: needed to track a moving policy), and the elapsed time
+    between decision and outcome (log days and decisions) is an input (time-indexed hindsight)."""
+
     def __init__(self, d_model: int, d_u: int = 64, d_hidden: int = 512):
         super().__init__()
-        self.q = nn.Sequential(nn.Linear(2 * d_model + d_u, d_hidden), nn.SiLU(), nn.Linear(d_hidden, d_model))
+        self.q = nn.Sequential(nn.Linear(2 * d_model + d_u + 2, d_hidden), nn.SiLU(), nn.Linear(d_hidden, d_model))
         self.k = nn.Linear(d_model, d_model, bias=False)
         self.null_goal = nn.Parameter(torch.zeros(d_model))
         self.temp = nn.Parameter(torch.tensor(math.log(math.sqrt(d_model))))
+        self.gate = nn.Sequential(nn.Linear(2 * d_model + d_u + 2, 64), nn.SiLU(), nn.Linear(64, 1))
 
-    def logits(self, b_t: Tensor, u: Tensor, e_g: Optional[Tensor], cand: Tensor, cand_mask: Tensor) -> Tensor:
-        """b_t [B, D] (detached state feature at t), u [B, d_u], e_g [B, D] | None, cand [B, A, D], mask [B, A]."""
+    def logits(self, b_t: Tensor, u: Tensor, e_g: Optional[Tensor], cand: Tensor, cand_mask: Tensor,
+               logp_policy: Optional[Tensor] = None, elapsed: Optional[Tensor] = None) -> Tensor:
+        """b_t [B, D] (detached state feature at t), u [B, d_u], e_g [B, D] | None, cand [B, A, D], mask [B, A],
+        logp_policy [B, A] behaviour log-probabilities at t (None: uniform prior), elapsed [B, 2] (log1p days,
+        log1p decisions between t and the outcome; None: zeros)."""
         B = b_t.shape[0]
         g = e_g if e_g is not None else self.null_goal.expand(B, -1)
-        q = self.q(torch.cat([b_t.float(), g.float(), u.float()], -1))
+        el = elapsed.float() if elapsed is not None else b_t.new_zeros(B, 2).float()
+        x = torch.cat([b_t.float(), g.float(), u.float(), el], -1)
+        q = self.q(x)
         k = self.k(cand.float())
-        lg = torch.einsum("bd,bad->ba", q, k) / self.temp.exp()
-        return lg.masked_fill(~cand_mask.bool(), float("-inf"))
+        f = torch.einsum("bd,bad->ba", q, k) / self.temp.exp()
+        if logp_policy is not None:
+            lp = logp_policy.float().masked_fill(~cand_mask.bool(), 0.0)
+            n = cand_mask.float().sum(-1, keepdim=True).clamp_min(1)
+            lp = lp - (lp * cand_mask.float()).sum(-1, keepdim=True) / n
+            gt = torch.sigmoid(self.gate(x.detach()))
+            f = gt * f + (1 - gt) * lp
+        return f.masked_fill(~cand_mask.bool(), float("-inf"))
 
-    def loss(self, b_t, u, e_g, cand, cand_mask, taken: Tensor) -> Tensor:
-        lg = self.logits(b_t, u, e_g, cand, cand_mask)
+    def loss(self, b_t, u, e_g, cand, cand_mask, taken: Tensor, logp_policy=None, elapsed=None) -> Tensor:
+        lg = self.logits(b_t, u, e_g, cand, cand_mask, logp_policy, elapsed)
         return F.cross_entropy(lg, taken.long())
 
 
@@ -101,10 +118,16 @@ class Redistribution:
 
 
 class ReturnDecomposer(nn.Module):
-    """F_xi(H_{<=t}, g) -> predicted eventual (discounted) verified return, for every prefix."""
+    """F_xi(H_{<=t}, g) -> predicted eventual (discounted) verified return, for every prefix.
 
-    def __init__(self, d_in: int, d_model: int = 384, n_layers: int = 3, n_heads: int = 6, max_len: int = 4096):
+    Trained by squared error on the linearly scaled return G / `scale` (a conditional-mean regression, as RUDDER's
+    r * 10 / g_max scaling), so F estimates E[G | H_t] and differences of predictions are contribution estimates; a
+    nonlinear target transform (symlog) would break that even with infinite data (research note §10.5)."""
+
+    def __init__(self, d_in: int, d_model: int = 384, n_layers: int = 3, n_heads: int = 6, max_len: int = 4096,
+                 scale: float = 1.0):
         super().__init__()
+        self.scale = float(scale)
         self.inp = nn.Linear(d_in, d_model)
         self.goal = nn.Linear(d_in, d_model)
         self.time = nn.Linear(2, d_model)
@@ -116,7 +139,7 @@ class ReturnDecomposer(nn.Module):
         nn.init.zeros_(self.head.bias)
 
     def forward(self, x: Tensor, mask: Tensor, e_g: Optional[Tensor] = None, t_days: Optional[Tensor] = None) -> Tensor:
-        """x [B, T, d_in], mask [B, T] -> symlog predictions [B, T+1] (index 0 = before any decision)."""
+        """x [B, T, d_in], mask [B, T] -> predictions of G / scale [B, T+1] (index 0 = before any decision)."""
         B, T, _ = x.shape
         h = self.inp(x.float())
         if t_days is not None:
@@ -135,11 +158,11 @@ class ReturnDecomposer(nn.Module):
              resolved: Optional[Tensor] = None) -> Tensor:
         """Every prefix regresses the eventual verified return G [B]; unresolved trajectories are excluded."""
         pred = self(x, mask, e_g, t_days)
-        tgt = symlog(G.float())[:, None].expand_as(pred)
+        tgt = (G.float() / self.scale)[:, None].expand_as(pred)
         valid = torch.cat([torch.ones_like(mask[:, :1]), mask], 1).float()
         if resolved is not None:
             valid = valid * resolved.float()[:, None]
-        l = F.smooth_l1_loss(pred, tgt, reduction="none")
+        l = (pred - tgt) ** 2
         return (l * valid).sum() / valid.sum().clamp_min(1.0)
 
     @torch.no_grad()
@@ -147,7 +170,7 @@ class ReturnDecomposer(nn.Module):
                      t_days: Optional[Tensor] = None, gamma_tau: Optional[Tensor] = None) -> Redistribution:
         """c_t = (F(H_{<=t}) - F(H_{<t})) / gamma^{tau_t}, residual G - F(H_{<=T}) on the last valid step, offset
         F(empty) on the first; then sum_t gamma^{tau_t} c_t = G (gamma_tau [B, T] = gamma^{tau_t}; None -> 1)."""
-        pred = symexp(self(x, mask, e_g, t_days))             # [B, T+1]
+        pred = self(x, mask, e_g, t_days) * self.scale        # [B, T+1] in utility units
         m = mask.float()
         # carry the last valid prediction across padding so differences on padded steps are 0
         filled = pred.clone()

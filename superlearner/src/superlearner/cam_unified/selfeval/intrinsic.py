@@ -75,10 +75,14 @@ N_SIGNALS = len(ExperienceSignals.names())
 
 
 class IntrinsicReward(nn.Module):
-    def __init__(self, d_model: int, d_hidden: int = 512, scale: float = 1.0, n_signals: int = N_SIGNALS):
+    def __init__(self, d_model: int, d_hidden: int = 512, scale: float = 1.0, n_signals: int = N_SIGNALS,
+                 d_lifetime: int = 0, use_action: bool = True):
         super().__init__()
         self.null_goal = nn.Parameter(torch.zeros(d_model))
-        self.proj = nn.Linear(4 * d_model, d_hidden)
+        self.use_action = use_action               # ablation (Exp G): reward state changes only, no action embedding
+        self.d_lifetime = d_lifetime               # lifetime state (not reset at episode boundaries; Zheng: needed)
+        self.proj = nn.Linear(4 * d_model + d_lifetime, d_hidden)
+        self.frozen_stats = False                  # frozen inside a meta window so psi's gradient is well defined
         self.sig = nn.Sequential(nn.Linear(2 * n_signals, d_hidden), nn.SiLU(), nn.Linear(d_hidden, d_hidden))
         self.mlp = _MLP(d_hidden, d_hidden, 1, zero_out=True)
         self.scale = scale
@@ -98,11 +102,17 @@ class IntrinsicReward(nn.Module):
         return list(self.parameters())
 
     def forward(self, b_t: Tensor, e_a: Tensor, b_next: Tensor, e_g: Optional[Tensor], signals: Tensor,
-                signal_mask: Optional[Tensor] = None, normalise: bool = False) -> Tensor:
-        """b_t, e_a, b_next: [B, D] pooled; e_g: [B, D] or None (goal-free: learned null goal); signals [B, n]."""
+                signal_mask: Optional[Tensor] = None, normalise: bool = False,
+                lifetime: Optional[Tensor] = None) -> Tensor:
+        """b_t, e_a, b_next: [B, D] pooled; e_g: [B, D] or None (goal-free: learned null goal); signals [B, n];
+        lifetime [B, d_lifetime] lifetime-state features (required when d_lifetime > 0)."""
         B = b_t.shape[0]
         g = e_g if e_g is not None else self.null_goal.expand(B, -1)
-        x = self.proj(torch.cat([b_t, e_a, b_next - b_t, g], -1).float())
+        ea = e_a if self.use_action else torch.zeros_like(e_a)
+        parts = [b_t, ea, b_next - b_t, g]
+        if self.d_lifetime:
+            parts.append(lifetime if lifetime is not None else b_t.new_zeros(B, self.d_lifetime))
+        x = self.proj(torch.cat(parts, -1).float())
         m = signal_mask.float() if signal_mask is not None else torch.ones_like(signals)
         s = torch.sign(signals) * torch.log1p(signals.abs())
         x = x + self.sig(torch.cat([s * m, m], -1).float())
@@ -114,6 +124,8 @@ class IntrinsicReward(nn.Module):
 
     @torch.no_grad()
     def update_stats(self, r: Tensor) -> None:
+        if self.frozen_stats:
+            return
         self.run_mean.mul_(1 - self.momentum).add_(self.momentum * r.mean())
         self.run_var.mul_(1 - self.momentum).add_(self.momentum * r.var(unbiased=False))
 

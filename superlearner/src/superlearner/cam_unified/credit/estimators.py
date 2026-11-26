@@ -83,11 +83,12 @@ def cocoa_grad(theta: torch.Tensor, batch: Batch, w: torch.Tensor) -> torch.Tens
     return _per_traj_grads_fast(theta, batch.r, coef_pi, batch)
 
 
-def hca_return_grad(theta: torch.Tensor, batch: Batch, h_ret: Callable[[int, torch.Tensor, torch.Tensor], torch.Tensor]
-                    ) -> torch.Tensor:
-    """Return-conditioned HCA (Harutyunyan et al. 2019): sum_t sum_a grad pi(a|S_t) (h(a|S_t, Z_t)/pi(a|S_t)) Z_t with
-    Z_t the realised return-to-go. Equivalent all-actions form: coefficient on pi(a|S_t) is h/pi * Z.
-    h_ret(t, s [N], z [N]) -> [N, A] hindsight probabilities."""
+def counterfactual_return_grad(theta: torch.Tensor, batch: Batch,
+                               h_ret: Callable[[int, torch.Tensor, torch.Tensor], torch.Tensor]) -> torch.Tensor:
+    """COCOA's unbiased 'Counterfactual Return' estimator (Meulemans et al. 2023, App. F.3, Eq. 99):
+    sum_t sum_a grad pi(a|S_t) (h(a|S_t, Z_t)/pi(a|S_t)) Z_t, Z_t the realised return-to-go (all-actions form).
+    h_ret(t, s [N], z [N]) -> [N, A] hindsight probabilities. (Not Harutyunyan et al.'s HCA-return: see
+    `hca_return_grad`.)"""
     N, T = batch.s.shape
     pi = policy(theta).detach()
     Z = batch.returns_to_go()
@@ -96,6 +97,35 @@ def hca_return_grad(theta: torch.Tensor, batch: Batch, h_ret: Callable[[int, tor
         h = h_ret(t, batch.s[:, t], Z[:, t])
         coef[:, t] = h / pi[batch.s[:, t]] * Z[:, t:t + 1]
     return _per_traj_grads_fast(theta, torch.zeros_like(batch.r), coef, batch)
+
+
+def hca_return_grad(theta: torch.Tensor, batch: Batch,
+                    h_taken: Callable[[int, torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor]) -> torch.Tensor:
+    """Harutyunyan et al. 2019 return-conditioned HCA: sum_t grad log pi(A_t|S_t) (1 - pi(A_t|S_t)/h(A_t|S_t,Z_t)) Z_t.
+    Biased in general (COCOA App. L: rewards (1,-2), pi=(2/3,1/3) gives advantages (1/3,-4/3) instead of (1,-2)).
+    h_taken(t, s [N], a [N], z [N]) -> [N] hindsight probability of the taken action."""
+    N, T = batch.s.shape
+    pi = policy(theta).detach()
+    Z = batch.returns_to_go()
+    coef = torch.zeros(N, T, dtype=pi.dtype)
+    for t in range(T):
+        h = h_taken(t, batch.s[:, t], batch.a[:, t], Z[:, t]).clamp_min(1e-12)
+        coef[:, t] = (1 - pi[batch.s[:, t], batch.a[:, t]] / h) * Z[:, t]
+    return _per_traj_grads_fast(theta, coef, None, batch)
+
+
+def rhca_grad(theta: torch.Tensor, batch: Batch, rho: torch.Tensor) -> torch.Tensor:
+    """R-HCA (Ramesh, He, Schmidhuber, White 2026, Eq. 4; Prop. 5 feature form, time-abstracted hindsight):
+    sum_t sum_a grad pi(a|S_t) sum_{k>=0} rho_t(S_t, a, U_{t+k}) R_{t+k},  rho = h_{k>=0}(a|s,u)/pi(a|s).
+    No score-function term: the immediate reward is credited through hindsight, which removes its noise from the
+    estimator's variance (Prop. 2-3). rho: [T, S, A, U] (exact `exact.rhca_ratios` or learned)."""
+    N, T = batch.s.shape
+    tt = torch.arange(T)
+    rt = rho[tt[None, :], batch.s]                                      # [N, T, A, U]
+    Rk = torch.gather(rt, 3, batch.u[:, None, None, :].expand(N, T, rt.shape[2], T))   # [N, T, A, K]
+    incl = (torch.arange(T)[None, :] >= torch.arange(T)[:, None]).to(batch.r.dtype)    # k >= t
+    coef_pi = torch.einsum("ntak,tk,nk->nta", Rk, incl, batch.r)
+    return _per_traj_grads_fast(theta, torch.zeros_like(batch.r), coef_pi, batch)
 
 
 def rudder_grad(theta: torch.Tensor, batch: Batch, redistributed: torch.Tensor,

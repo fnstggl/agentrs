@@ -92,6 +92,10 @@ class MetaRewardLearner:
         self.lv_opt = torch.optim.Adam(lifetime_value.parameters(), lr=lv_lr) if lifetime_value is not None else None
         self.normalize_inner_adv = normalize_inner_adv
         self.history: list = []
+        self._scores: list = []          # log-probabilities of on-policy inner batches k >= 1 under phi_k(psi)
+        self._n_steps = 0
+        self.u_mean: Optional[float] = None   # running mean of query utilities: the inner-score baseline c
+        self.u_momentum = 0.1
 
     # ------------------------------------------------------------------------------------------ policy helpers
     def _params(self) -> dict:
@@ -116,19 +120,24 @@ class MetaRewardLearner:
         """K differentiable policy-gradient steps on intrinsic returns (cycling through `batches`). For on-policy
         inner data (fresh experience after every inner step, as in Zheng et al.) call `inner_step` K times,
         collecting each batch with `detached(fast)`."""
-        fast = self._params()
+        fast = self.start()
         stats = []
         for k in range(self.K):
-            fast, st = self.inner_step(fast, batches[k % len(batches)], create_graph)
+            fast, st = self.inner_step(fast, batches[k % len(batches)], create_graph, on_policy=False)
             stats.append(st)
         self.last_inner = stats
         return fast
 
     def start(self) -> dict:
+        self._scores, self._n_steps = [], 0
         return self._params()
 
-    def inner_step(self, fast: dict, b: InnerBatch, create_graph: bool = True) -> tuple:
-        """One differentiable inner policy-gradient step from `fast` on batch `b`; returns (fast', stats)."""
+    def inner_step(self, fast: dict, b: InnerBatch, create_graph: bool = True, on_policy: bool = True) -> tuple:
+        """One differentiable inner policy-gradient step from `fast` on batch `b`; returns (fast', stats).
+
+        on_policy: `b` was collected by acting with `detached(fast)`. For every such batch after the first, the
+        batch's log-probability under phi_k(psi) is kept: its score enters the outer loss (the inner data
+        distribution depends on psi; omitting it biases the meta-gradient for K >= 2, research note §10.3)."""
         if True:
             r = self.reward(**b.reward_inputs)                           # [N, T], depends on psi
             G = discounted_returns(r, b.mask, b.gamma)
@@ -140,6 +149,9 @@ class MetaRewardLearner:
                 adv = adv / sd
             lp, ent = self._logp_ent({**dict(self.policy.named_parameters()), **fast}, b.policy_inputs, b.actions,
                                      b.action_mask)
+            if on_policy and self._n_steps >= 1:
+                self._scores.append((lp * m).sum())
+            self._n_steps += 1
             L = -((lp * adv).sum() + self.entropy_coef * (ent * m).sum()) / m.sum().clamp_min(1.0)
             grads = torch.autograd.grad(L, list(fast.values()), create_graph=create_graph, allow_unused=True)
             fast = {n: (p - self.inner_lr * g) if g is not None else p for (n, p), g in zip(fast.items(), grads)}
@@ -158,7 +170,13 @@ class MetaRewardLearner:
             adv = (U - base).detach()[:, None].expand_as(lp)
         else:
             adv = (U - (q.baseline.float() if q.baseline is not None else U.mean(0, keepdim=True))).detach()
-        return -(lp * adv * m).sum() / m.sum().clamp_min(1.0)
+        L = -(lp * adv * m).sum() / m.sum().clamp_min(1.0)
+        if self._scores:
+            u = float(U.float().mean())
+            c = self.u_mean if self.u_mean is not None else u
+            # score of the psi-dependent inner data, in the same per-step-mean units as the query surrogate
+            L = L - torch.stack(self._scores).sum() * (u - c) / m.sum().clamp_min(1.0)
+        return L
 
     def meta_gradient(self, fast: dict, q: QueryBatch, retain_graph: bool = False) -> list:
         L = self.outer_loss(fast, q)
@@ -177,7 +195,10 @@ class MetaRewardLearner:
         self.opt.step()
         if hasattr(self.reward, "bump_version"):
             self.reward.bump_version()
-        out = {"meta_grad_norm": norm, "clip_scale": scale, "query_utility": float(q.utility.float().mean())}
+        u = float(q.utility.float().mean())
+        self.u_mean = u if self.u_mean is None else (1 - self.u_momentum) * self.u_mean + self.u_momentum * u
+        self._scores = []
+        out = {"meta_grad_norm": norm, "clip_scale": scale, "query_utility": u}
         if self.lv is not None and lv_inputs is not None and lv_targets is not None:
             pred = self.lv(**lv_inputs)
             L = self.lv.loss(pred, lv_targets)

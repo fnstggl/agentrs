@@ -24,10 +24,13 @@ def test_exact_meta_gradient_matches_finite_difference_and_detaching_removes_it(
 
 def test_sampled_truncated_meta_gradient_agrees_with_exact():
     mdp, th0, psi = _setup()
-    ge, _ = M.exact_meta_gradient(mdp, psi, th0, 2, 1.0)
+    ge, J = M.exact_meta_gradient(mdp, psi, th0, 2, 1.0)
     g = torch.Generator().manual_seed(1)
-    gs = torch.stack([M.sampled_meta_gradient(mdp, psi, th0, 2, 1.0, 256, 512, g) for _ in range(20)]).mean(0)
+    # the inner-data score term needs a good constant baseline (any constant is unbiased; ~E[J_query] keeps variance low)
+    gs = torch.stack([M.sampled_meta_gradient(mdp, psi, th0, 2, 1.0, 256, 512, g, score_baseline=J)
+                      for _ in range(20)]).mean(0)
     assert float(torch.nn.functional.cosine_similarity(gs.flatten(), ge.flatten(), 0)) > 0.95
+    assert float((gs - ge).norm() / ge.norm()) < 0.3
 
 
 def test_meta_learned_reward_values_costly_exploration_and_beats_extrinsic_reward():

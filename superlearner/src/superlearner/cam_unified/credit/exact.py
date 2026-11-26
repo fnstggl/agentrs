@@ -129,6 +129,21 @@ def contribution_coefficients(mdp: TabularMDP, theta: torch.Tensor, eps: float =
     return w
 
 
+def rhca_ratios(mdp: TabularMDP, theta: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
+    """Exact R-HCA ratios rho[t, s, a, u] = h_{k>=0}(a | S_t=s, U=u) / pi(a|s) with occurrence counts that INCLUDE
+    the same step (k = 0) (Ramesh et al. 2026, Eq. 4 with the time-abstracted, undiscounted hindsight of Prop. 5).
+    R-HCA uses the ratio itself (not ratio - 1) on every k >= 0, so the immediate reward is credited through
+    hindsight too. 1 where u cannot occur from s."""
+    D, _ = future_outcome_counts(mdp, theta)
+    pi = policy(theta).detach()
+    onehot = torch.nn.functional.one_hot(mdp.outcome, mdp.U).to(DT)
+    now = torch.einsum("tsap,tsapu->tsau", mdp.P, onehot)
+    inc = now + D
+    den = torch.einsum("sa,tsau->tsu", pi, inc)
+    ok = den > eps
+    return torch.where(ok[:, :, None, :], inc / den.clamp_min(eps)[:, :, None, :], torch.ones_like(inc))
+
+
 def hindsight_action_probs(mdp: TabularMDP, theta: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
     """Exact hindsight distribution h[t, s, u, a] = p_pi(A_t = a | S_t = s, U_future = u) (outcome occurrence
     weighted over k >= 1), i.e. the target a learned hindsight model must approximate."""
@@ -136,6 +151,51 @@ def hindsight_action_probs(mdp: TabularMDP, theta: torch.Tensor, eps: float = 1e
     pi = policy(theta).detach()
     h = pi[None, :, :, None] * D / Dbar.clamp_min(eps)[:, :, None, :]    # [T, S, A, U]
     return h.permute(0, 1, 3, 2)
+
+
+# ============================================================================================ enumeration
+
+def enumerate_batch(mdp: TabularMDP, theta: torch.Tensor, max_traj: int = 200_000) -> tuple:
+    """Every trajectory with its probability (exact expectations). Reward noise must be encoded in the outcomes
+    (reward_noise == 0), e.g. `noisy_key_to_door`. Returns (Batch, probs [N])."""
+    assert mdp.reward_noise == 0.0, "enumeration needs reward noise encoded in discrete outcomes"
+    pi = policy(theta).detach()
+    paths = [([], [], [], [], int(s0), float(p0)) for s0, p0 in enumerate(mdp.init.tolist()) if p0 > 0]
+    for t in range(mdp.T):
+        new = []
+        for S_, A_, U_, R_, s, p in paths:
+            for a in range(mdp.A):
+                pa = float(pi[s, a])
+                if pa == 0:
+                    continue
+                for s2 in torch.nonzero(mdp.P[t, s, a] > 0).flatten().tolist():
+                    ps = float(mdp.P[t, s, a, s2])
+                    u = int(mdp.outcome[t, s, a, s2])
+                    new.append((S_ + [s], A_ + [a], U_ + [u], R_ + [float(mdp.reward_mean[u])], s2, p * pa * ps))
+        paths = new
+        if len(paths) > max_traj:
+            raise ValueError(f"{len(paths)} trajectories exceed max_traj")
+    tl = lambda i, dt=torch.long: torch.tensor([pth[i] for pth in paths], dtype=dt)
+    b = Batch(tl(0), tl(1), tl(2), tl(3, DT), torch.log(pi[tl(0), tl(1)]))
+    return b, torch.tensor([pth[5] for pth in paths], dtype=DT)
+
+
+def exact_stats(per_traj: torch.Tensor, probs: torch.Tensor, exact: torch.Tensor, block=None) -> dict:
+    """Exact relative bias ||E g - g||^2/||g||^2, relative variance E||g - E g||^2/||g||^2 and SNR (dB) of an
+    estimator given its per-trajectory values and the trajectory probabilities (block: index into theta's rows)."""
+    G = per_traj if block is None else per_traj[:, block]
+    ex = exact if block is None else exact[block]
+    P = probs[:, None]
+    flat = G.reshape(G.shape[0], -1)
+    m = (P * flat).sum(0)
+    e = ex.reshape(-1)
+    gn = float((e ** 2).sum())
+    var = float((probs * ((flat - m) ** 2).sum(1)).sum())
+    mse = float((probs * ((flat - e) ** 2).sum(1)).sum())
+    bias = float(((m - e) ** 2).sum())
+    import math as _m
+    return {"rel_bias": bias / gn, "rel_var": var / gn, "snr_db": 10 * _m.log10(gn / max(mse, 1e-300)),
+            "grad_norm2": gn}
 
 
 # ============================================================================================ sampling
@@ -220,6 +280,56 @@ def key_to_door(n_distract: int = 8, n_actions: int = 2, apple_prob: float = 0.5
     init[idx(0, 0, 0)] = 1.0
     rm = torch.tensor([0.0, -key_cost, apple_reward, door_reward], dtype=DT)
     m = TabularMDP(P, out, rm, init, reward_noise=reward_noise, name=f"key_to_door_d{n_distract}")
+    m.validate()
+    return m
+
+
+def noisy_key_to_door(sigma0: float = 0.6, c: float = 0.3, sigma: float = 0.8, treasure: float = 1.0,
+                      n_distract: int = 2) -> TabularMDP:
+    """NoisyKeyDoor (research note E1): t=0 a=0 takes the key, R_0 = +-sigma0 (pure two-point noise);
+    t=1..n_distract: R_t = c*[a=0] +- sigma (an immediate-only effect); last step: R = treasure iff key.
+    Noise is part of the outcome (the next state carries the noise sign), so every trajectory is enumerable."""
+    T = n_distract + 2
+    # state (t, key, noise-bit of the transition that led here): index 4t + 2key + bit
+    S = 4 * (T + 1)
+    A = 2
+    idx = lambda t, key, bit: 4 * t + 2 * key + bit
+    vals = []
+
+    def outc(v):
+        v = round(float(v), 12)
+        if v not in vals:
+            vals.append(v)
+        return vals.index(v)
+    P = torch.zeros(T, S, A, S, dtype=DT)
+    out = torch.zeros(T, S, A, S, dtype=torch.long)
+    for t in range(T):
+        for key in (0, 1):
+            for bit in (0, 1):
+                s = idx(t, key, bit)
+                for a in range(A):
+                    if t == 0:
+                        k2 = 1 if a == 0 else 0
+                        for nb, r in ((0, -sigma0), (1, sigma0)):
+                            P[t, s, a, idx(1, k2, nb)] = 0.5
+                            out[t, s, a, idx(1, k2, nb)] = outc(r)
+                    elif t < T - 1:
+                        for nb, r in ((0, c * (a == 0) - sigma), (1, c * (a == 0) + sigma)):
+                            P[t, s, a, idx(t + 1, key, nb)] = 0.5
+                            out[t, s, a, idx(t + 1, key, nb)] = outc(r)
+                    else:
+                        P[t, s, a, idx(t + 1, key, 0)] = 1.0
+                        out[t, s, a, idx(t + 1, key, 0)] = outc(treasure if key else 0.0)
+    rs = P.sum(-1)
+    for t in range(T):
+        for s in range(S):
+            for a in range(A):
+                if rs[t, s, a] == 0:
+                    P[t, s, a, s] = 1.0
+                    out[t, s, a, s] = outc(0.0)
+    init = torch.zeros(S, dtype=DT)
+    init[idx(0, 0, 0)] = 1.0
+    m = TabularMDP(P, out, torch.tensor(vals, dtype=DT), init, 0.0, name=f"noisy_key_to_door_s{sigma0}")
     m.validate()
     return m
 

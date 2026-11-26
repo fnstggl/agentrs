@@ -96,29 +96,47 @@ def _logp(theta: torch.Tensor, b: Batch) -> torch.Tensor:
     return torch.log_softmax(theta, -1)[b.s, b.a]          # [N, T]
 
 
+def _loo(G: torch.Tensor) -> torch.Tensor:
+    """Leave-one-out mean baseline along dim 0 (a self-inclusive mean scales the gradient by (1 - 1/N))."""
+    N = G.shape[0]
+    return (G.sum(0, keepdim=True) - G) / max(N - 1, 1)
+
+
 def sampled_meta_gradient(mdp: TabularMDP, psi: torch.Tensor, theta0: torch.Tensor, K: int, alpha: float,
                           n_inner: int, n_query: int, generator: torch.Generator,
-                          features: Optional[torch.Tensor] = None, baseline: bool = True) -> torch.Tensor:
-    """Truncated sampled meta-gradient: inner REINFORCE on intrinsic rewards of sampled trajectories (the trajectory
-    distribution's own dependence on theta is the score function), outer score-function surrogate of verified
-    extrinsic returns of fresh query trajectories from theta_K."""
+                          features: Optional[torch.Tensor] = None, baseline: bool = True, inner_score: bool = True,
+                          score_baseline: float = 0.0) -> torch.Tensor:
+    """Sampled meta-gradient: inner REINFORCE on intrinsic rewards of on-policy sampled batches, outer score-function
+    surrogate of verified extrinsic returns of fresh query trajectories from theta_K, differentiated into psi.
+
+    inner_score: include the score of the inner data distribution, sum_{k>=1} grad_psi log pi_{theta_k(psi)}(b_k) *
+    (J_query_hat - c): batches k >= 1 are drawn from policies that depend on psi, and omitting this term biases the
+    estimator for K >= 2 (research note §10.3: relative error 0.015, max |z| 10 at K = 4; 0.007 / 1.5 with it).
+    Baselines are leave-one-out means; `score_baseline` c is any constant (e.g. a running mean of J_query)."""
     ps = psi.detach().clone().requires_grad_(True)
     r_int = intrinsic_table(mdp, ps, features)
     th = theta0.detach().clone().requires_grad_(True)
-    for _ in range(K):
+    score = th.new_zeros(())
+    for k in range(K):
         b = sample(mdp, th.detach(), n_inner, generator)
+        lp = _logp(th, b)
+        if k >= 1 and inner_score:
+            score = score + lp.sum()
         ri = r_int[torch.arange(mdp.T)[None, :], b.s, b.a]          # [N, T] intrinsic rewards (depend on psi)
         G = torch.flip(torch.cumsum(torch.flip(ri, [1]), 1), [1])
         if baseline:
-            G = G - G.mean(0, keepdim=True).detach()
-        surr = (_logp(th, b) * G).sum(1).mean()
+            G = G - _loo(G).detach()
+        surr = (lp * G).sum(1).mean()
         (g,) = torch.autograd.grad(surr, th, create_graph=True)
         th = th + alpha * g
     q = sample(mdp, th.detach(), n_query, generator)
     Gx = torch.flip(torch.cumsum(torch.flip(q.r, [1]), 1), [1])     # verified extrinsic returns (no psi dependence)
+    Jhat = float(q.r.sum(1).mean())
     if baseline:
-        Gx = Gx - Gx.mean(0, keepdim=True)
+        Gx = Gx - _loo(Gx)
     outer = (_logp(th, q) * Gx).sum(1).mean()
+    if inner_score and K >= 2:
+        outer = outer + score * (Jhat - score_baseline)
     (gpsi,) = torch.autograd.grad(outer, ps)
     return gpsi
 
