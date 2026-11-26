@@ -409,6 +409,7 @@ class Result:
     values: np.ndarray
     extrapolated: np.ndarray
     columns: tuple = ()
+    served: str = "K"
 
     @property
     def n(self) -> int:
@@ -416,7 +417,23 @@ class Result:
 
     def provenance(self) -> dict:
         return {"decision": self.decision, "model": self.model, "version": int(self.version),
-                "fidelity": self.fidelity, "rows": self.n, "extrapolated": int(np.count_nonzero(self.extrapolated))}
+                "fidelity": self.fidelity, "served": self.served, "rows": self.n,
+                "extrapolated": int(np.count_nonzero(self.extrapolated))}
+
+
+REVIEWS_DIR = None
+
+
+def review_of(model_id: str) -> dict | None:
+    """The E3 review of a fitted model (docs/v5/calibration/reviews/<name>.json), or None."""
+    import json
+    import os
+    from .registry import CAL_DOCS
+    p = os.path.join(REVIEWS_DIR or os.path.join(CAL_DOCS, "reviews"), f"{model_id.split('@')[0]}.json")
+    if not os.path.isfile(p):
+        return None
+    with open(p, encoding="utf-8") as fh:
+        return json.load(fh)
 
 
 class DecisionModel:
@@ -427,6 +444,12 @@ class DecisionModel:
         self.model_id = fitted.id
         self.version = fitted.version
         self.fidelity_id = spec.fidelity_id
+        # the contender the E3 review keeps (plan E3: the runtime serves it when it is not the checkpoint)
+        self.review = review_of(fitted.id)
+        self.served = (self.review or {}).get("kept_after_review") or "K"
+        self._override = None
+        if self.served != "K":
+            self._override = self._review_contender()
         q = fitted.card.get("feature_quantiles")
         self._support = None
         if q:
@@ -434,7 +457,29 @@ class DecisionModel:
                              np.array([q[f][-1] for f in fitted.features], float))
 
     def __repr__(self) -> str:
-        return f"DecisionModel({self.id} -> {self.model_id}, {self.spec.output})"
+        return f"DecisionModel({self.id} -> {self.model_id} [{self.served}], {self.spec.output})"
+
+    def _review_contender(self):
+        """The rule the review kept, as a row-wise function of the model's feature matrix. Only contenders whose
+        definition is a closed form are servable; anything else raises (no silent fallback)."""
+        rv, served = self.review, self.served
+        if self.spec.status != "ready":
+            return None                 # evaluate() refuses simulator inputs anyway; nothing to serve
+        if self.spec.model == "session_rate@1" and served == "S":
+            ex = rv["extra"]
+            rate = float(ex["S2_c2_extra_per_active_day"] if ex.get("S_is") == "S2"
+                         else ex["S1_population_rhythm"]["extra_per_active_day"])
+            self.spec.params["served_rate"] = rate
+            return lambda X: np.full(X.shape[0], rate)
+        if self.spec.model == "commercial_response@1" and served == "B":
+            base = self.fitted.card["selection"]["baseline"]
+            c = self.fitted.candidate_predict(base, np.zeros((1, len(self.fitted.features))))[0]
+            self.spec.params["served_arm_rates"] = {"p_visit_control": float(c[0]), "p_visit_treated": float(c[1]),
+                                                    "p_conversion_control": float(c[2]),
+                                                    "p_conversion_treated": float(c[3])}
+            return lambda X: np.tile(c, (X.shape[0], 1))
+        raise ContractError(f"{self.id}: the E3 review keeps contender {served} of {self.model_id}, which the "
+                            "runtime cannot serve yet")
 
     def contract(self) -> dict:
         return self.spec.as_dict()
@@ -483,19 +528,26 @@ class DecisionModel:
     def _predict(self, X: np.ndarray) -> tuple[np.ndarray, tuple]:
         out = self.spec.output
         if out == "arm_probabilities":
-            tab = self.fitted.response_types()
             t = X[:, 0].astype(np.int64)
             tr = X[:, 1] > 0
-            pv = np.where(tr, tab["p1_visit"][t], tab["p0_visit"][t])
-            pc = np.where(tr, tab["p1_conversion"][t], tab["p0_conversion"][t])
+            if self._override is not None:             # the review's constant-effect contender: no heterogeneity
+                c = self._override(X[:1])[0]
+                pv = np.where(tr, c[1], c[0])
+                pc = np.where(tr, c[3], c[2])
+            else:
+                tab = self.fitted.response_types()
+                pv = np.where(tr, tab["p1_visit"][t], tab["p0_visit"][t])
+                pc = np.where(tr, tab["p1_conversion"][t], tab["p0_conversion"][t])
             return np.column_stack([pv, pc]), ("p_visit", "p_conversion")
-        y = np.asarray(self.fitted.predict(X), dtype=np.float64)
+        y = np.asarray(self._override(X) if self._override is not None else self.fitted.predict(X), dtype=np.float64)
         if out == "probability":
             return np.clip(y.reshape(-1), 0.0, 1.0), ("p",)
         if out == "quantiles":
             return np.maximum(np.expm1(y), 0.0), tuple(f"q{lv:g}" for lv in self.levels)
         if out == "rate":
             return np.maximum(y.reshape(-1), 0.0), ("rate",)
+        if out == "log_units":
+            return y.reshape(-1), ("log1p_units",)
         raise ContractError(f"{self.id}: unknown output kind {out}")
 
     @property
@@ -504,7 +556,8 @@ class DecisionModel:
 
     def _result(self, values, X, cols) -> Result:
         _USAGE[self.id] = _USAGE.get(self.id, 0) + int(values.shape[0])
-        return Result(self.id, self.model_id, self.version, self.fidelity_id, values, self._extrapolated(X), cols)
+        return Result(self.id, self.model_id, self.version, self.fidelity_id, values, self._extrapolated(X), cols,
+                      self.served)
 
     def evaluate(self, inputs: dict, strict: bool = False) -> Result:
         """Calibrated outputs for a batch of individuals from simulator inputs (see the module docstring)."""
@@ -515,11 +568,20 @@ class DecisionModel:
         vals, cols = self._predict(X) if X.shape[0] else (np.zeros((0,)), ())
         return self._result(vals, X, cols)
 
-    def evaluate_features(self, X: np.ndarray) -> Result:
-        """Outputs for rows already in the fitted model's feature space (held-out evaluation, audits)."""
+    def evaluate_features(self, X: np.ndarray, checkpoint: bool = False) -> Result:
+        """Outputs for rows already in the fitted model's feature space (held-out evaluation, audits). With
+        `checkpoint=True` the saved checkpoint is evaluated even when the E3 review serves another contender."""
         X = np.asarray(X, dtype=np.float64)
+        if checkpoint and self._override is not None:
+            saved, self._override = self._override, None
+            try:
+                res = self.evaluate_features(X)
+            finally:
+                self._override = saved
+            res.served = "K"
+            return res
         if self.spec.output == "arm_probabilities":
-            P = self.fitted.predict(X)
+            P = self._override(X) if self._override is not None else self.fitted.predict(X)
             return self._result(P, np.zeros((X.shape[0], 0)), ("p_visit_control", "p_visit_treated",
                                                                 "p_conversion_control", "p_conversion_treated"))
         if self.spec.output == "quantiles":
@@ -539,19 +601,32 @@ class DecisionModel:
             from .predictors import interpolate_quantiles
             Q = np.log1p(res.values)
             return np.maximum(np.expm1(interpolate_quantiles(Q, self.levels, rng.random(n))), 0.0)
+        if out == "log_units":
+            sd = float(self.fitted.card.get("residual_sd", 0.0))
+            return np.maximum(np.expm1(res.values + rng.normal(0.0, sd, n)), 0.0)
         if out == "rate":
+            if self._override is not None:
+                return rng.poisson(res.values)
             if self.spec.model.startswith("session_rate"):
                 d, _ = self._validate(inputs)
                 p = self.fitted.predictor
                 lam = rng.gamma(p.shape + d["extra_sessions_observed"], 1.0 / (p.rate + d["active_days_observed"]))
                 return rng.poisson(lam)
-            if hasattr(self.fitted, "dispersion"):
-                r = 1.0 / self.fitted.dispersion
+            alpha = self.fitted.card.get("nb_alpha")
+            if alpha is None and hasattr(self.fitted, "dispersion"):
+                alpha = self.fitted.dispersion
+            if alpha:
+                r = 1.0 / float(alpha)
                 mu = np.maximum(res.values, 1e-12)
                 return rng.poisson(rng.gamma(shape=r, scale=mu / r))
             return rng.poisson(res.values)
         if out == "arm_probabilities":
             d, _ = self._validate(inputs)
+            if self._override is not None:
+                pv, pc = res.values[:, 0], res.values[:, 1]
+                visit = rng.random(n) < pv
+                conv = visit & (rng.random(n) < np.minimum(1.0, pc / np.maximum(pv, 1e-12)))
+                return np.column_stack([visit, conv])
             r = self.fitted.respond(rng, d["response_type"].astype(np.int64), d["treated"] > 0)
             return np.column_stack([r["visit"], r["conversion"]])
         raise ContractError(f"{self.id}: cannot sample output kind {out}")

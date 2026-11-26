@@ -1,0 +1,120 @@
+{
+ "schema": "crucible.v5.calibration_review/1",
+ "model": "news_click@1",
+ "kept_by_card": "M2_gbdt",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E3_review_plan.json",
+  "sha256": "7c41a1a3f92c2d665ce8923adb41ebddd8d61e4bd4a920e51679764c95441352",
+  "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+  "committed_at": "2026-11-26T10:15:33+00:00"
+ },
+ "review_commit": "7a9dba33a64b745121c3fae5fa93c15b5c69b752",
+ "reviewed_at": "2026-11-26T10:33:07.210432+00:00",
+ "primary_metric": "log_loss",
+ "rule_mapping": "S = C2 open rule on the MIND dev rows: aff = the card's text_cos (cosine of the user's history and the item, the same scale as the simulator's cosine affinity), fam = 0, seen = 0, sat = 0.5, dur = 120 s (articles; no durations in MIND), window = the next 3 items of the same impression in the logged order. SF = logistic of y on (text_cos)",
+ "budget_us_per_row": 100.0,
+ "contenders": {
+  "K": {
+   "primary": 0.1464838614028877,
+   "metrics": {
+    "n": 2740998,
+    "log_loss": 0.1464838614028877,
+    "brier": 0.03608500229040924,
+    "ece": 0.0031205592730634856,
+    "auc": 0.7836337440933777,
+    "mean_pred": 0.03769445840009815,
+    "mean_obs": 0.040635928957263014
+   },
+   "difference_vs_K_ci95": [
+    0.0,
+    0.0
+   ],
+   "long_horizon": 0.0018143302221116113,
+   "eligible_role": true,
+   "compute_us": 34.1564836492762
+  },
+  "B": {
+   "primary": 0.15386780936411137,
+   "metrics": {
+    "n": 2740998,
+    "log_loss": 0.15386780936411137,
+    "brier": 0.037028631743417334,
+    "ece": 0.0017733321651249609,
+    "auc": 0.7320613295546015,
+    "mean_pred": 0.038880582150515,
+    "mean_obs": 0.040635928957263014
+   },
+   "difference_vs_K_ci95": [
+    0.007168606931538152,
+    0.007560452968250319
+   ],
+   "long_horizon": 0.001531128481410765,
+   "eligible_role": true,
+   "compute_us": 0.02534083090722561
+  },
+  "S": {
+   "primary": 0.31556269275547194,
+   "metrics": {
+    "n": 2740998,
+    "log_loss": 0.31556269275547194,
+    "brier": 0.0846903194219997,
+    "ece": 0.18241664628135235,
+    "auc": 0.6053171794062361,
+    "mean_pred": 0.22305257523861535,
+    "mean_obs": 0.040635928957263014
+   },
+   "difference_vs_K_ci95": [
+    0.16844415412239125,
+    0.1696905096756069
+   ],
+   "long_horizon": 0.18294326657282026,
+   "eligible_role": true,
+   "compute_us": 0.002252170816063881
+  },
+  "SF": {
+   "primary": 0.16812638837316474,
+   "metrics": {
+    "n": 2740998,
+    "log_loss": 0.16812638837316474,
+    "brier": 0.038799251006540275,
+    "ece": 0.0006065152836689097,
+    "auc": 0.5785875466432849,
+    "mean_pred": 0.04027895913859943,
+    "mean_obs": 0.040635928957263014
+   },
+   "difference_vs_K_ci95": [
+    0.02136388459581213,
+    0.021899730004239643
+   ],
+   "long_horizon": 0.0018576890666325231,
+   "eligible_role": false,
+   "compute_us": 0.02534083090722561
+  }
+ },
+ "eligible": [
+  "K",
+  "B",
+  "S"
+ ],
+ "ordered_by_primary": [
+  "K",
+  "B",
+  "S"
+ ],
+ "long_horizon_reference": "B",
+ "drift_rejected": {
+  "K": {
+   "versus": "B",
+   "difference_ci95": [
+    0.000146370432352395,
+    0.0006942401385915521
+   ]
+  }
+ },
+ "kept_after_review": "B",
+ "kept_is_fitted_checkpoint": false,
+ "extra": {
+  "long_horizon_kind": "static: mean over 4-hour blocks of the test day of |mean predicted - mean observed|"
+ },
+ "seconds": 197.96854329109192
+}

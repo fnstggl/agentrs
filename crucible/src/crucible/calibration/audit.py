@@ -371,16 +371,68 @@ def plan_check(card: dict, models_dir: str | None = None) -> dict:
                                                      [c["content"] for c in checks[1:] if c["content"] is not None])
         else:
             out["problems"].append(f"plan does not specify model {view['name']}")
+    out["after_test_exposure"] = [c["path"] for c in checks[1:]
+                                  if isinstance(c.get("content"), dict) and c["content"].get("written_after")]
     out["ok"] = not out["problems"]
     return out
 
 
+def _e4_rule_problems(card: dict) -> list[str]:
+    """The E4 rule (plan E4 global_rules.selection) recomputed from the numbers the card records: ranking on the
+    validation primary metric (ties within 1e-4 to the simpler, in the plan's candidate order), eligibility by compute,
+    drift rejections only with a bootstrap interval entirely above 0, test confirmation against the baselines."""
+    raw = card.get("selection") or {}
+    probs = []
+    val, test, order = raw.get("validation") or {}, raw.get("test") or {}, list(raw.get("candidates") or [])
+    lower = bool(raw.get("lower_is_better", True))
+    sign = 1 if lower else -1
+    remaining, ranked = list(order), []
+    while remaining:
+        best = min(sign * val[k] for k in remaining)
+        pick = next(k for k in remaining if sign * val[k] <= best + 1e-4)
+        ranked.append(pick)
+        remaining.remove(pick)
+    if ranked != list(raw.get("ranked_on_validation") or []):
+        probs.append("recorded validation ranking differs from the recomputed one")
+    budget = float(raw.get("compute_budget_us", 100.0))
+    comp = raw.get("compute_us_per_row") or {}
+    eligible = [k for k in ranked if float(comp.get(k, float("inf"))) <= budget]
+    if eligible != list(raw.get("eligible") or []):
+        probs.append("recorded eligible set differs from the compute budget")
+    rej = raw.get("drift_rejected") or {}
+    for k, r in rej.items():
+        if not (r.get("difference_ci95") and r["difference_ci95"][0] > 0):
+            probs.append(f"{k} rejected for drift without an interval entirely above 0")
+    selected = next((k for k in eligible if k not in rej), None)
+    if selected != raw.get("selected_on_validation"):
+        probs.append(f"selected {raw.get('selected_on_validation')} but the rule gives {selected}")
+    bases = list(raw.get("baselines") or [])
+    if selected is not None and bases:
+        best_base = min(bases, key=lambda b: sign * test[b])
+        want = best_base if sign * test[best_base] < sign * test[selected] else selected
+        if raw.get("kept") != want:
+            probs.append(f"kept {raw.get('kept')} but the rule gives {want}")
+    return probs
+
+
 def selection_check(card: dict) -> dict:
     """Was a worse model kept? The kept model must follow the rule (validation argmin, ties to the simpler, unless a
-    baseline beat it on test) and must be no worse than any simple baseline on the primary test metric; when the card
-    records paired-bootstrap comparisons, every other candidate is compared and none is significantly better."""
+    baseline beat it on test; for E4 cards the E4 rule with compute and long-horizon criteria) and must be no worse
+    than any simple baseline on the primary test metric; when the card records paired-bootstrap comparisons, every
+    other candidate is compared and none is significantly better."""
     sel = R.card_view(card)["selection"]
     out = {"ok": False, "problems": []}
+    if (card.get("selection") or {}).get("rule_version") == "E4":
+        out["problems"] += _e4_rule_problems(card)
+        test, bases, kept = sel["test"], sel["baselines"], sel["kept"]
+        sign = 1 if sel["lower_is_better"] else -1
+        if kept in test and any(sign * test[b] < sign * test[kept] - 1e-12 for b in bases if b in test):
+            out["problems"].append(f"kept {kept} is worse on test than a simple baseline")
+        reported = card.get("metrics", {}).get(sel["primary_metric"])
+        if reported is not None and kept in test and abs(reported - test[kept]) > 1e-9:
+            out["problems"].append("card metrics are not the kept candidate's test metrics")
+        out["ok"] = not out["problems"]
+        return out
     val, test, bases = sel["validation"], sel["test"], sel["baselines"]
     kept = sel["kept"]
     if not (val and test and bases and kept in test and kept in val):
@@ -408,14 +460,79 @@ def selection_check(card: dict) -> dict:
     return out
 
 
+REVIEW_PLAN = "docs/v5/calibration/plans/E3_review_plan.json"
+REVIEWS_DIR = os.path.join(R.CAL_DOCS, "reviews")
+
+
+def review_check(model_id: str) -> dict:
+    """The E3 review of a kept model: present, its plan committed (unchanged) before the review was first committed
+    and contained in the review's commit, and its kept contender equal to the plan's rule recomputed from the
+    recorded numbers (`review_e3.decide` logic without the bootstrap, which is checked through the recorded
+    intervals)."""
+    name = model_id.split("@")[0]
+    p = os.path.join(REVIEWS_DIR, f"{name}.json")
+    out = {"model": model_id, "ok": False, "problems": [], "kept_after_review": None}
+    if not os.path.isfile(p):
+        out["problems"].append("no E3 review")
+        return out
+    with open(p, encoding="utf-8") as fh:
+        rv = json.load(fh)
+    out["kept_after_review"] = rv.get("kept_after_review")
+    rel = os.path.relpath(p, R.CRUCIBLE_ROOT)
+    added = _git("log", "--diff-filter=A", "--format=%H", "--", rel).stdout.split()
+    first = added[-1] if added else None
+    pl = dict(rv.get("plan") or {}, role="review plan")
+    chk = _plan_file_check(pl, first, rv.get("review_commit"), None)
+    out["problems"] += [f"plan: {x}" for x in chk["problems"]]
+    if first is None:
+        out["problems"].append("the review is not committed")
+    if pl.get("path") != REVIEW_PLAN:
+        out["problems"].append(f"review plan {pl.get('path')} is not {REVIEW_PLAN}")
+    cont = rv.get("contenders") or {}
+    budget = float(rv.get("budget_us_per_row", 100.0))
+    eligible = [k for k, c in cont.items() if c.get("eligible_role", True) and float(c.get("compute_us", 1e9)) <= budget]
+    order = sorted(eligible, key=lambda k: cont[k]["primary"])
+    rej = rv.get("drift_rejected") or {}
+    for k, r in rej.items():
+        if not (r.get("difference_ci95") and r["difference_ci95"][0] > 0):
+            out["problems"].append(f"{k} rejected for drift without an interval entirely above 0")
+    want = next((k for k in order if k not in rej), None)
+    if want != rv.get("kept_after_review"):
+        out["problems"].append(f"kept_after_review {rv.get('kept_after_review')} but the rule gives {want}")
+    if set(eligible) != set(rv.get("eligible") or []):
+        out["problems"].append("recorded eligible contenders differ from the compute budget")
+    if rv.get("model") != model_id:
+        out["problems"].append(f"review is of {rv.get('model')}, not {model_id}")
+    out["ok"] = not out["problems"]
+    return out
+
+
+def reviewed_models() -> list[str]:
+    try:
+        with open(os.path.join(R.CRUCIBLE_ROOT, REVIEW_PLAN), encoding="utf-8") as fh:
+            return list(json.load(fh)["applies_to"])
+    except (OSError, ValueError, KeyError):
+        return []
+
+
 def sp55_metrics(records: list[dict] | None = None) -> dict:
     recs = all_records() if records is None else records
     cards = [(r["card"], r.get("models_dir")) for r in recs if r.get("card")]
     plans = {c["name"]: plan_check(c, md) for c, md in cards}
     sels = {c["name"]: selection_check(c) for c, _ in cards}
+    registered = {f"{c['name']}@{c['version']}" for c, _ in cards}
+    reviews = {m: review_check(m) for m in reviewed_models() if m in registered} if not any(
+        r.get("models_dir") for r in recs) else {}
     return {"models_checked": len(cards),
             "metrics_prespecified_before_fit": bool(cards) and all(p["ok"] for p in plans.values()),
             "models_without_prespecified_plan": sum(1 for p in plans.values() if not p["ok"]),
-            "worse_model_kept": sum(1 for s in sels.values() if not s["ok"]),
+            "worse_model_kept": sum(1 for s in sels.values() if not s["ok"]) +
+                                sum(1 for r in reviews.values() if not r["ok"]),
             "learned_model_kept": sum(1 for c, _ in cards if not R.card_view(c)["selection"]["kept_is_baseline"]),
-            "_plans": plans, "_selection": sels}
+            "reviews_checked": len(reviews), "reviews_ok": sum(1 for r in reviews.values() if r["ok"]),
+            # protocol deviation (audit E S2.5): an amendment that added candidates after an earlier run had computed
+            # test metrics; prespecified before the refit, but the test split had been seen. Flagged for the reviewer.
+            "amendments_after_test_exposure": sorted(n for n, p in plans.items() if p.get("after_test_exposure")),
+            "reviews_keeping_a_non_fitted_contender": sum(1 for r in reviews.values()
+                                                          if r["kept_after_review"] not in (None, "K")),
+            "_plans": plans, "_selection": sels, "_reviews": reviews}

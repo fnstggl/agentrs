@@ -1,0 +1,53 @@
+{
+ "schema": "crucible.v5.calibration_review/1",
+ "model": "software_deep_engagement@1",
+ "kept_by_card": "gbdt",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E3_review_plan.json",
+  "sha256": "7c41a1a3f92c2d665ce8923adb41ebddd8d61e4bd4a920e51679764c95441352",
+  "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+  "committed_at": "2026-11-26T10:15:33+00:00"
+ },
+ "review_commit": "7a9dba33a64b745121c3fae5fa93c15b5c69b752",
+ "reviewed_at": "2026-11-26T10:32:02.220371+00:00",
+ "primary_metric": "log_loss",
+ "rule_mapping": "no simulator rule exists (no simulated developer population); recorded as 'no rule-based behaviour to compare' and only B and K are contenders",
+ "budget_us_per_row": 100.0,
+ "contenders": {
+  "K": {
+   "primary": 0.1268606690571936,
+   "difference_vs_K_ci95": [
+    0.0,
+    0.0
+   ],
+   "long_horizon": 0.005130730636805756,
+   "compute_us": 9.093538390099216
+  },
+  "B": {
+   "primary": 0.14392510387007668,
+   "difference_vs_K_ci95": [
+    0.012215624982692106,
+    0.02132242156545216
+   ],
+   "long_horizon": 0.006020282302551157,
+   "compute_us": 0.0004887643567935129
+  }
+ },
+ "eligible": [
+  "K",
+  "B"
+ ],
+ "ordered_by_primary": [
+  "K",
+  "B"
+ ],
+ "long_horizon_reference": "K",
+ "drift_rejected": {},
+ "kept_after_review": "K",
+ "kept_is_fitted_checkpoint": true,
+ "extra": {
+  "long_horizon_kind": "static: mean over 4-hour blocks of the test half-day of |mean predicted - observed|",
+  "rule": "no simulator rule exists for this behaviour (no simulated developer population); B and K only"
+ },
+ "seconds": 5.192898988723755
+}
