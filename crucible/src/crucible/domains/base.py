@@ -325,13 +325,20 @@ def register(d: Domain, *, replace: bool = True) -> Domain:
     if d.name in REGISTRY and not replace and REGISTRY[d.name] is not d:
         raise ValueError(f"domain {d.name} is already registered")
     REGISTRY[d.name] = d
-    _CACHE.clear()
+    _forget(d.name)
     return d
 
 
 def unregister(name: str) -> None:
     REGISTRY.pop(name, None)
-    _CACHE.clear()
+    _forget(name)
+
+
+def _forget(name: str) -> None:
+    """Drop the cached runs and gate report of one domain (its definition changed)."""
+    for k in [k for k in _CACHE if k[0] == name]:
+        del _CACHE[k]
+    _REPORTS.pop(name, None)
 
 
 def part9_domains() -> dict[str, Domain]:
@@ -680,15 +687,16 @@ def make_env(domain: str, config: str, seed: int = 0, *, reward_mode: str | None
 
 
 def run(domain: str, config: str, seed: int = 0, *, policy: str = "reference", days: float | None = None,
-        difficulty: int | None = None, keep_env: bool = False) -> dict:
+        difficulty: int | None = None, keep_env: bool = False, overrides: dict | None = None) -> dict:
     """One evaluated run through the learner interface: the first seat is driven by the domain's reference
     (`policy="reference"`), its null baseline (``"null"``), a degenerate probe (its name) or a generic probe
     (``"random_tools"``); other seats idle. Returns the evaluator's outcome (evaluator side), the actions, the
-    measured mechanics and autonomous activity after genesis, and the run's labels."""
+    measured mechanics and autonomous activity after genesis, and the run's labels. `overrides` (as for `spec`)
+    build an intervention arm, e.g. ``{"module_config": {"sci": {"replicators": {"n": 0}}}}``."""
     d = REGISTRY[domain]
     days = float(d.horizon_days if days is None else days)
     difficulty = int(d.reference_difficulty if difficulty is None else difficulty)
-    env = make_env(domain, config, seed, difficulty=difficulty)
+    env = make_env(domain, config, seed, difficulty=difficulty, overrides=overrides)
     w = env.world
     since = int(w.seq)
     seats = env.agents()
@@ -714,12 +722,27 @@ def run(domain: str, config: str, seed: int = 0, *, policy: str = "reference", d
            "proc_failed": count_events(w, ("proc.failed",), since),
            "mechanics": mechanics_exercised(w, d, since), "actors": actors_active(w, d, since),
            "population": population_decisions(w, since), "reward_mode": env.reward_mode,
+           "overrides": copy.deepcopy(overrides) if overrides else None,
            "labels": {"scripted": policy == "reference", "policy_kind": getattr(pol, "kind", "unknown")}}
     if keep_env:
         out["env"] = env
     else:
         env.close()
     return out
+
+
+# ============================================================================================ evaluator helpers
+def seat_orgs(world: World, principal: str) -> list[str]:
+    """Organisations a seat acts for (evaluator side): the `o:` principals among `world.principals_of(principal)`."""
+    return sorted(p for p in world.principals_of(principal) if p != principal and p.startswith("o:"))
+
+
+def independent_revenue(world: World, principal: str, window_s: int) -> float:
+    """Revenue from unrelated payers of a seat's organisations over a window (evaluator side;
+    `goals.metrics.independent_revenue`: transfers among related parties count for nothing)."""
+    from ..goals.metrics import evaluate_metric
+    return float(sum(evaluate_metric(world, "independent_revenue", {"principal": o, "window_s": int(window_s)})
+                     for o in seat_orgs(world, principal)))
 
 
 # ============================================================================================ measurements
@@ -1047,12 +1070,13 @@ def reference_canaries(d: Domain, policy) -> list[str]:
     """Distinctive identifiers of a domain's reference: its policy classes, their module, the factory."""
     out = set()
     for c in _classes_of(policy):
-        if len(c.__name__) >= 6:
+        if len(c.__name__) >= 8 and sum(ch.isupper() for ch in c.__name__) >= 2:   # not a plain word ("Reference")
             out.add(c.__name__)
         out.add(f"{c.__module__}.{c.__qualname__}")
     q = getattr(d.reference, "__qualname__", "")
-    if q and "<lambda>" not in q and len(q) >= 6:
-        out.add(q)
+    if q and "<" not in q:
+        if len(q) >= 8 and (sum(ch.isupper() for ch in q) >= 2 or "_" in q.strip("_")):
+            out.add(q)
         out.add(f"{d.reference.__module__}.{q}")
     return sorted(out)
 
@@ -1100,8 +1124,8 @@ def sandbox_can_import_crucible() -> bool:
 
 
 # ---------------------------------------------------------------------------------------------- dice (SP-9.16)
-DICE_WORDS = re.compile(r"fail|success|succeed|error|break|crash|reject|accept|win|lose|luck|chance|outage|bug",
-                        re.I)
+DICE_WORDS = re.compile(r"fail|success|succeed|error|break|crash|reject|accept|win|lose|luck|chance|outage|bug|"
+                        r"\bok\b|\bpass(es|ed)?\b", re.I)
 PRAGMA = re.compile(r"#\s*fidelity:\s*([A-Za-z0-9_.:\-]+)")
 
 
@@ -1241,12 +1265,43 @@ def structure_report(d: Domain, seeds: Iterable[int] = (0, 1, 2)) -> dict:
             if digs[a] == digs[b]:
                 same_pairs.append(f"{a}={b}")
     return {"fingerprints": fps, "digests": digs, "stable_across_seeds": stable, "instances": inst,
-            "seeds": seeds, "train_structures": len({digs[c] for c in train if digs.get(c)}),
+            "seeds": seeds, "train_names": [c.name for c in d.split("train")], "train_structures": len({digs[c] for c in train if digs.get(c)}),
             "train_configs": len(d.split("train")), "unfamiliarity": unf, "same_structure_pairs": same_pairs,
             "errors": errors,
             "compositional_eval": sum(1 for c in d.split("eval_compositional")
                                       if unf.get(c.name, {}).get("compositional")),
             "structural_eval": sum(1 for c in d.split("eval_structural") if unf.get(c.name, {}).get("structural"))}
+
+
+def evaluator_report(d: Domain, config: str, seed: int, days: float | None = None) -> dict:
+    """The evaluator is an independent, evaluator-side function of recorded world state: run the reference (the
+    run is cached for `check`), rebuild the world from its event log alone (`World.replay`) and evaluate both; the
+    verdicts must be equal. The evaluator must not be a participant tool, and in the default mode evaluator data are
+    hidden from participants."""
+    from ..core import evaluator_only as EO
+    key = (d.name, config, int(seed), "reference", days)
+    r = run(d.name, config, seed, policy="reference", days=days, keep_env=True)
+    env = r.pop("env")
+    _CACHE.setdefault(key, r)
+    w = env.world
+    me = r["seats"][0]
+    live = d.evaluate(w, me, r["objective"])
+    events = [e.to_dict() for e in w.events_range(0, w.seq)]
+    rw = World.replay(w.spec, events, world_id="evaluator-replay", store=getattr(w, "store", None))
+    again = d.evaluate(rw, me, r["objective"])
+    canon = lambda x: json.dumps(x, sort_keys=True, default=str)  # noqa: E731
+    names = sorted(t["name"] for t in env.tools(me))
+    as_tool = [n for n in names if re.search(r"evaluat|verif|grade|score", n.split(".", 1)[-1])]
+    out = {"config": config, "seed": int(seed), "replay_equal": canon(live) == canon(again),
+           "replay_digest_equal": rw.digest() == w.digest(), "evaluator_hidden": bool(EO.hidden(w)),
+           "verdict_keys": sorted(live) if isinstance(live, dict) else [], "participant_tools_named_like_evaluator":
+           as_tool, "has_success_and_score": isinstance(live, dict) and isinstance(live.get("success"), bool)
+           and isinstance(live.get("score"), (int, float))}
+    rw.close()
+    env.close()
+    out["ok"] = bool(out["replay_equal"] and out["replay_digest_equal"] and out["evaluator_hidden"]
+                     and out["has_success_and_score"])
+    return out
 
 
 def tier3_report(d: Domain, profile: str = "balanced", seed: int = 0, hours: int = 6) -> dict:
@@ -1299,6 +1354,10 @@ def check(d: Domain | str, *, structure_seeds: Iterable[int] = (0, 1, 2), seeds:
     for p in probe_names:
         runs[p] = []
     errors = {}
+    try:
+        rep["evaluator"] = evaluator_report(d, cfgs[0], seeds[0], days)
+    except Exception as e:  # noqa: BLE001 - reported: the evaluator could not be checked
+        rep["evaluator"] = {"ok": False, "error": f"{type(e).__name__}: {e}"[:300]}
     for c in cfgs:
         for s in seeds:
             for pol in ("reference", "null"):
@@ -1337,8 +1396,8 @@ def check(d: Domain | str, *, structure_seeds: Iterable[int] = (0, 1, 2), seeds:
                         "exercised": sum(1 for m in d.required_mechanics if counts.get(m, 0) > 0),
                         "missing": sorted(m for m in d.required_mechanics if counts.get(m, 0) == 0),
                         "counts": dict(counts), "self_reported": d.mechanic_probes() is None,
-                        "spec_list_matches": d.spec_part in PART9 and tuple(d.required_mechanics) ==
-                        tuple(PART9[d.spec_part]["mechanics"])}
+                        "spec_list_matches": tuple(d.required_mechanics) == tuple(PART9[d.spec_part]["mechanics"])
+                        if d.spec_part in PART9 else True}
     # autonomy: what happens while the seats do nothing
     act: Counter = Counter()
     popd, popk = 0, Counter()
@@ -1387,6 +1446,132 @@ def check(d: Domain | str, *, structure_seeds: Iterable[int] = (0, 1, 2), seeds:
     rep["tier3"] = tier3_report(d, tier3_profile) if tier3 else None
     rep["wall_s"] = round(time.perf_counter() - t0, 2)
     return rep
+
+
+# ============================================================================================ per-section (SP-9.<n>)
+def section_metrics(domain: str | Domain, *, configs: Iterable[str] | None = None, seeds: Iterable[int] | None = None,
+                    days: float | None = None) -> tuple[dict, list[dict]]:
+    """The five metrics every SP-9.<n> requirement shares, measured on integrated reference runs through
+    `crucible.experience.make(2, ...)`: required_mechanics_listed / _exercised / _missing (recorded events summed
+    over the runs), observation_only_default (default mode, evaluator hidden, reward 0.0) and
+    reachable_through_experience (the seats are the learner's agents and have tools). Returns (metrics, runs);
+    per-mechanic event counts are included as ``events_<mechanic>``."""
+    d = REGISTRY[domain] if isinstance(domain, str) else domain
+    cfgs = list(configs or d.reference_configs or [c.name for c in d.split("train")[:1]])
+    seeds = [int(s) for s in (seeds if seeds is not None else d.reference_seeds)]
+    runs = [cached_run(d.name, c, s, "reference", days) for c in cfgs for s in seeds]
+    counts = {m: sum(int(r["mechanics"]["counts"].get(m, 0)) for r in runs) for m in d.required_mechanics}
+    from ..core import evaluator_only as EO
+    from ..experience.modes import OBSERVATION_ONLY
+    env = make_env(d.name, cfgs[0], seeds[0], difficulty=d.reference_difficulty)
+    agents = env.agents()
+    reach = bool(agents) and (not d.seats or agents == d.seat_principals()) and bool(env.tools(agents[0]))
+    env.advance(HOUR)
+    oo = env.reward_mode == OBSERVATION_ONLY and bool(EO.hidden(env.world)) and env.reward(agents[0]) == 0.0
+    env.close()
+    m = {"required_mechanics_listed": len(d.required_mechanics),
+         "required_mechanics_exercised": sum(1 for n in counts.values() if n > 0),
+         "required_mechanics_missing": sum(1 for n in counts.values() if n == 0),
+         "observation_only_default": bool(oo), "reachable_through_experience": bool(reach),
+         "spec_list_matches": d.spec_part in PART9 and tuple(d.required_mechanics) ==
+         tuple(PART9[d.spec_part]["mechanics"]), "reference_runs": len(runs),
+         "reference_successes": sum(1 for r in runs if r["success"]),
+         "process_failures": sum(r["proc_failed"] for r in runs)}
+    for name, n in counts.items():
+        m["events_" + re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")] = int(n)
+    return m, runs
+
+
+# ============================================================================================ gate aggregation
+_REPORTS: dict[str, dict] = {}
+
+
+def gate_reports(domains: dict[str, Domain] | None = None, **kw) -> dict[str, dict]:
+    """`check` of every registered Part 9 domain (cached in-process), keyed by domain name."""
+    doms = part9_domains() if domains is None else domains
+    out = {}
+    for n, d in sorted(doms.items()):
+        if n not in _REPORTS:
+            _REPORTS[n] = check(d, **kw)
+        out[n] = _REPORTS[n]
+    return out
+
+
+def verdicts(rep: dict) -> dict:
+    """Per-domain verdicts of one `check` report (what each gate criterion counts)."""
+    st = rep["structure"]
+    stable_train = {st["digests"][c] for c, s in st["stable_across_seeds"].items()
+                    if s and st["digests"].get(c) and c in st.get("train_names", st["digests"])}
+    ev = rep.get("evaluator") or {}
+    t3 = rep.get("tier3") or {}
+    v = {
+        "static_ok": not rep["static"],
+        "builds": not st["errors"],
+        "runs_clean": not rep["run_errors"] and rep["process_failures"] == 0 and rep["invariant_violations"] == 0,
+        "train_structures": len(stable_train),
+        "min_instances": min(st["instances"].values()) if st["instances"] else 0,
+        "compositional_eval": st["compositional_eval"] > 0,
+        "structural_eval": st["structural_eval"] > 0,
+        "same_structure_pairs": len(st["same_structure_pairs"]) + sum(1 for s in st["stable_across_seeds"].values()
+                                                                      if not s),
+        "mechanics_ok": rep["mechanics"]["exercised"] == rep["mechanics"]["listed"] and
+        rep["mechanics"]["spec_list_matches"] and not rep["mechanics"]["self_reported"],
+        "mechanics_missing": len(rep["mechanics"]["missing"]) if rep["mechanics"]["spec_list_matches"] else
+        rep["mechanics"]["listed"],
+        "evaluator_ok": bool(ev.get("ok")) and rep["feasible"] and rep["null_fails"],
+        "reference_ok": rep["feasible"] and rep["reference_tool_only"],
+        "exposed": rep["reference_paths_exposed"],
+        "autonomous": rep["autonomous"],
+        "open_ended": rep["open_ended"]["open_ended"],
+        "observation_only": rep["observation_only"]["ok"],
+        "tier3": bool(t3.get("composes")),
+        "null_fails": rep["null_fails"],
+        "probes_ok": rep["probes_fail"],
+        "dice": rep["dice"]["mechanisms"],
+    }
+    v["implemented"] = all((v["static_ok"], v["builds"], v["runs_clean"], v["train_structures"] >= 3,
+                            v["min_instances"] >= 3, v["compositional_eval"], v["structural_eval"],
+                            v["mechanics_ok"], v["evaluator_ok"], v["reference_ok"], v["exposed"] == 0,
+                            v["observation_only"]))
+    return v
+
+
+def gate_metrics(reports: dict[str, dict]) -> dict:
+    """The Gate N / SP-9.0 / SP-9.16 metrics over the fifteen Part 9 sections: a section counts when one of its
+    domains satisfies the criterion; a section without a domain counts as failing (0 configurations, every
+    mechanic missing)."""
+    by_part: dict[str, list[dict]] = {p: [] for p in PART9}
+    for n, rep in reports.items():
+        if rep["spec_part"] in by_part:
+            by_part[rep["spec_part"]].append(verdicts(rep))
+    part = lambda key: sum(1 for vs in by_part.values() if any(v[key] for v in vs))  # noqa: E731
+    best = lambda key, f, miss: [f(v[key] for v in vs) if vs else miss for vs in by_part.values()]  # noqa: E731
+    m = {
+        "domains_registered": len(reports), "sections_with_domain": sum(1 for vs in by_part.values() if vs),
+        "sections_missing": ",".join(p for p, vs in by_part.items() if not vs) or "none",
+        "domains_implemented": part("implemented"),
+        "min_train_configs_per_domain": min(best("train_structures", max, 0)),
+        "domains_with_executable_mechanisms": part("mechanics_ok"),
+        "missing_required_mechanics": sum(best("mechanics_missing", min, None)[i] if by_part[p] else
+                                          len(PART9[p]["mechanics"]) for i, p in enumerate(by_part)),
+        "domains_with_independent_evaluator": part("evaluator_ok"),
+        "domains_with_successful_reference": part("reference_ok"),
+        "min_seeds_per_config": min(best("min_instances", max, 0)),
+        "domains_with_compositional_eval": part("compositional_eval"),
+        "domains_with_structural_eval": part("structural_eval"),
+        "reference_paths_exposed": sum(v["exposed"] for vs in by_part.values() for v in vs),
+        "domains_scanned_for_exposure": sum(1 for vs in by_part.values() if vs),
+        "domains_with_autonomous_participants": part("autonomous"),
+        "domains_with_open_ended_actions": part("open_ended"),
+        "configurations_differing_only_in_objective_text": sum(v["same_structure_pairs"] for vs in by_part.values()
+                                                               for v in vs),
+        "domains_composable_into_tier3": part("tier3"),
+        "domains_where_null_baseline_fails": part("null_fails"),
+        "arbitrary_failure_probability_mechanisms": sum(v["dice"] for vs in by_part.values() for v in vs),
+        "domains_with_degenerate_strategy_probe": part("probes_ok"),
+        "domains_observation_only_default": part("observation_only"),
+    }
+    return m
 
 
 def summary() -> dict:
