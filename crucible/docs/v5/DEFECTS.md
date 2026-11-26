@@ -760,13 +760,19 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-H-3 (critical, open): no_dominant_strategy tests only min/mid/max: one grid-searched constant lever setting gets >75% of oracle gain
+### DEF-H-3 (critical, fixed): no_dominant_strategy tests only min/mid/max: one grid-searched constant lever setting gets >75% of oracle gain
 
 ```json
 {
  "area": "H_rapid",
+ "fixed_by": "c5c/w1-rapid + c5c/w3-rapid + c5c/w3b-rapid: no_dominant_strategy is a fixed-budget black-box search over the whole action space (grid, random and coordinate search over constant settings of every world-changing kind, threshold rules on readings, win-stay/lose-shift, explore-then-commit) on copies of the scored world with common random numbers (the best constant in hindsight), against the family's adaptive public reference (decision H-D1: at most 0.8 of the reference's gain); static-tuning families are rejected, not admitted",
  "id": "DEF-H-3",
  "owner": "H",
+ "regression_tests": [
+  "tests/test_v5_rapid_admission_v2.py::test_a_world_solved_by_a_constant_is_rejected_and_an_adaptive_one_is_not",
+  "tests/test_v5_rapid_admission_v2.py::test_the_search_covers_the_full_action_space_with_a_fixed_budget",
+  "tests/test_v5_rapid_admission_v2.py::test_prediction_worlds_are_compared_with_naive_predictors"
+ ],
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -774,7 +780,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/H_rapid.json",
   "finding": 2
  },
- "status": "open",
+ "status": "fixed",
  "summary": "no_dominant_strategy tests only min/mid/max: one grid-searched constant lever setting gets >75% of oracle gain in 17/31 admitted lever families (>=0.98 in 9, above the 'oracle' in 3). Hidden-causal/changing worlds reduce to static tuning."
 }
 ```
@@ -800,13 +806,18 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-H-5 (critical, open): Participant 'spec' query reveals family name, seed, category and split='val' (memorisation key, eval-partition
+### DEF-H-5 (critical, fixed): Participant 'spec' query reveals family name, seed, category and split='val' (memorisation key, eval-partition
 
 ```json
 {
  "area": "H_rapid",
+ "fixed_by": "c5c/w1-rapid: the participant-visible spec names no family, seed, engine, category, split or difficulty (`Env.spec`), the no_leakage admission check rejects any received text naming them (`admission.identity_leaks`), and rapid worlds default to reward_mode observation_only with objective-free operation (`families.make(objective=None)`)",
  "id": "DEF-H-5",
  "owner": "H",
+ "regression_tests": [
+  "tests/test_v5_rapid_families.py::test_the_spec_object_holds_no_hidden_configuration",
+  "tests/test_v5_rapid_families.py::test_observation_only_is_the_default_and_objective_free_operation_works"
+ ],
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -814,18 +825,25 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/H_rapid.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Participant 'spec' query reveals family name, seed, category and split='val' (memorisation key, eval-partition leak). Tier 1 learner adapter defaults to legacy_shaped_reward; no objective-free rapid mode."
 }
 ```
 
-### DEF-H-6 (critical, open): Known failures: 3 stale tests (engine count, sandbox import) + real bug primitives.py:539 SelectionEffect (B,)
+### DEF-H-6 (critical, fixed): Known failures: 3 stale tests (engine count, sandbox import) + real bug primitives.py:539 SelectionEffect (B,)
 
 ```json
 {
  "area": "H_rapid",
+ "fixed_by": "c5c/w1-rapid: SelectionEffect broadcasts per-instance parameters (every primitive checked with (B,) parameters), the engine and registry tests cover the nine v5 engines and the sandbox import boundary, and the SP-7.3 gate counts all eight Part 7.3 kinds from their transition code",
  "id": "DEF-H-6",
  "owner": "H",
+ "regression_tests": [
+  "tests/test_v5_rapid_primitives.py::test_every_primitive_accepts_per_instance_parameters",
+  "tests/test_v5_rapid_engines.py::test_nine_engines_registered_and_all_eight_spec_kinds_covered",
+  "tests/test_v5_rapid_engines.py::test_engine_modules_share_only_the_contract",
+  "tests/test_v5_rapid_engines.py::test_batch_path_equals_single_worlds_bit_for_bit"
+ ],
  "requirements": [
   "SP-7.3"
  ],
@@ -835,7 +853,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/H_rapid.json",
   "finding": 5
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Known failures: 3 stale tests (engine count, sandbox import) + real bug primitives.py:539 SelectionEffect (B,) sd x (B,n) z; sd[:,None] fixes it (0 mismatches). SP-7.3 gate stale: records 4/8 though all 8 kinds have admitted families."
 }
 ```
