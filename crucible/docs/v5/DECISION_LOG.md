@@ -376,6 +376,10 @@ construction, after the seed-0 development battery showed it: `transfer_sham` ke
 search states, so it retains world-specific settings (a clipped random walk from the published defaults drifts
 inward) - no claim about memorisation was established for it, it is the known negative for transferable efficiency
 (it still must not show transfer, persistent state or pretrained competence).
+Labels are decided at a Bonferroni level across the seven explanations (`instrument.LABEL_LEVEL` = 1 - 0.05/7),
+fixed before the confirmation run: at the plain 95% level a noisy null explanation was labelled in about 2.5% of
+simulated batteries (so a battery with several noisy null pairs would mislabel some control about one run in six);
+at the adjusted level 0.2%. The seed-0 development effects keep interval lows of 0.12-0.46 at that level.
 The weights-only child now runs under the sandbox jail (own uid, Landlock: read-only standard library, numpy and the
 crucible source, read-write only its private directory, no sockets) and adds two checks computed in the child:
 `authorised_configuration` (only the configuration keys `learners.CONFIG` declares, JSON scalars) and

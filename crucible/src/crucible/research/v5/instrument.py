@@ -345,9 +345,16 @@ def hold_baseline(d: Design) -> np.ndarray:
     return _scores(reg, LR.make("hold", 0), W1, np.random.default_rng(0))
 
 
+# Labels are decided at a Bonferroni level across the seven explanations, so the family-wise rate of a false label
+# per control is at most 5%: at the plain 95% level a noisy null explanation got a label in about 2.5% of simulated
+# batteries (5 seeds x 24-50 worlds, seed sd 0.1-0.2, world sd 0.5-0.6), i.e. a run with ~8 noisy null pairs would
+# mislabel some control about one time in six (decided before the wave-3b confirmation run)
+LABEL_LEVEL = 1.0 - 0.05 / len(EXPLANATIONS)
+
+
 def _one(X: np.ndarray) -> dict:
-    """Crossed one-sample test of a [seed, world] matrix of differences against 0."""
-    return HS.crossed_diff(np.zeros_like(X), X)
+    """Crossed one-sample test of a [seed, world] matrix of differences against 0 (interval at `LABEL_LEVEL`)."""
+    return HS.crossed_diff(np.zeros_like(X), X, level=LABEL_LEVEL)
 
 
 def _label(res: Mapping, effect: float) -> bool:
@@ -367,7 +374,7 @@ def classify(runs: Sequence[Mapping], hold: np.ndarray, d: Design) -> dict:
     est = rg["estimate"] - ng["estimate"]
     se = float(np.hypot(rg["se"], ng["se"]))
     df = min(rg["df"], ng["df"])
-    q = HS._t_quantile(0.975, df)
+    q = HS._t_quantile(1 - (1 - LABEL_LEVEL) / 2, df)
     stats["memorisation"] = {"estimate": est, "se": se, "lo": est - q * se, "hi": est + q * se, "df": df,
                              "seeds": rg["seeds"], "rep_gain": rg, "new_gain": ng}
     stats["persistent_state"] = _one(A("in_process", 0) - A("weights_only", 0))
@@ -377,7 +384,7 @@ def classify(runs: Sequence[Mapping], hold: np.ndarray, d: Design) -> dict:
                                                                                    A("untrained", 1)))
     Tu = np.array([[c["auc"] for c in r["transfer_untrained"]] for r in runs])
     Tt = np.array([[c["auc"] for c in r["transfer_trained"]] for r in runs])
-    tr = HS.crossed_diff(Tu, Tt, paired_seeds=True)
+    tr = HS.crossed_diff(Tu, Tt, paired_seeds=True, level=LABEL_LEVEL)
     unt = [dict(c, task=f"{c['entry']}:{c['seed']}", learner_seed=r["seed"]) for r in runs
            for c in r["transfer_untrained"]]
     exp = [dict(c, task=f"{c['entry']}:{c['seed']}", learner_seed=r["seed"]) for r in runs
