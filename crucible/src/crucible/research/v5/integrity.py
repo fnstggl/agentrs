@@ -34,7 +34,7 @@ from typing import Iterable, Mapping
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
-NEG = r"(?:not|no|never|nor|cannot|can't|isn't|aren't|doesn't|don't|won't|without|neither|unless)"
+NEG = r"(?:not|no|nothing|never|nor|cannot|can't|isn't|aren't|doesn't|don't|won't|without|neither|unless|none)"
 KINDS = {
     "realism_cascades": {
         "subject": r"(viral|virality|cascade|cascades|ten[- ]million|10[ ,]?000[ ,]?000|10\s?m\b|million[- ]view|large[- ]scale reach)",
@@ -44,7 +44,7 @@ KINDS = {
     "real_world": {
         "subject": r"(real[- ]world|open internet|actual internet|real internet|outside the simulat)",
         "assert": r"(generali[sz]|transfer|works? (?:on|in)|perform(?:s|ance)? (?:on|in)|succeed|competen)",
-        "disclaim": r"(no claim|not claim|unless .{0,40}(?:authori[sz]ed|executed|performed)|has not been|"
+        "disclaim": r"(no claim|not claim|\bclaims? of\b|unless .{0,40}(?:authori[sz]ed|executed|performed)|has not been|"
                     r"have not been|not (?:been )?(?:shown|demonstrated|performed|executed)|without authori)"},
     "integration_success": {
         "subject": r"(\bcam\b|reference learner|integration|integrated|interacts?|interaction|gate s\b)",

@@ -238,6 +238,9 @@ class Curriculum:
         w = {}
         for c in WEAKNESSES:
             m = p[c]
+            if m["n"] == 0:
+                w[c] = 0.5                               # unmeasured: worth measuring
+                continue
             if c == "forgetting":
                 w[c] = max(0.0, m.get("forgetting_drop") or 0.0)
                 continue

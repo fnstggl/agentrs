@@ -196,12 +196,17 @@ def run_level(split: Split, seeds: Sequence[int] = (0, 1, 2), arch: str = "weigh
     if not split.ok:
         out.update(executed=False, why=split.why or f"split checks failed: {split.checks}")
         return out
-    if split.level == 5:
-        r = _reference_run(split, seeds, reg)
-        executed = r["scored_worlds"] == len(split.test) and not r["training_audit"]["violations"]
-    else:
-        r = _lever_run(split, arch, seeds, reg)
-        executed = not r["training_audit"]["violations"] and len(seeds) >= HS.MIN_SEEDS
+    try:
+        if split.level == 5:
+            r = _reference_run(split, seeds, reg)
+            executed = r["scored_worlds"] == len(split.test) and not r["training_audit"]["violations"]
+        else:
+            r = _lever_run(split, arch, seeds, reg)
+            executed = not r["training_audit"]["violations"] and len(seeds) >= HS.MIN_SEEDS
+    except Exception as e:  # noqa: BLE001 - a level that cannot run is reported with its classified cause
+        from .integrity import classify_failure
+        out.update(executed=False, why=f"{type(e).__name__}: {str(e)[:300]}", failure=classify_failure(e))
+        return out
     out.update(result=r, executed=bool(executed))
     return out
 
