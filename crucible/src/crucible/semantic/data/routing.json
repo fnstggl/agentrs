@@ -1327,13 +1327,18 @@
    }
   },
   "communication": {
-   "model": "HuggingFaceTB/SmolLM2-135M-Instruct",
-   "reason": "smallest model effective on held-out templates",
+   "model": "HuggingFaceTB/SmolLM2-360M-Instruct",
+   "reason": "smallest model effective in situ (class-4 bench, dev)",
    "measured": {
     "HuggingFaceTB/SmolLM2-135M-Instruct": 0.75,
     "HuggingFaceTB/SmolLM2-360M-Instruct": 0.7167,
     "Qwen/Qwen3-0.6B": 0.9833,
     "Qwen/Qwen3-1.7B": 1.0
+   },
+   "in_situ": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.417,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 1.0,
+    "Qwen/Qwen3-0.6B": 1.0
    }
   },
   "incentive_adaptation": {
@@ -1382,23 +1387,37 @@
   "tool_choice": {
    "Qwen/Qwen3-0.6B": 0.5833,
    "Qwen/Qwen3-1.7B": 0.6806
+  },
+  "communication": {
+   "HuggingFaceTB/SmolLM2-135M-Instruct": 0.417,
+   "HuggingFaceTB/SmolLM2-360M-Instruct": 1.0,
+   "Qwen/Qwen3-0.6B": 1.0
   }
  },
  "in_situ_source": {
-  "what": "class-4 tool selection in a civilisation (crucible.semantic.generalists.bench, DEV templates only, 6 items per template, seed 0); only the tool_choice route varies, every other route as derived from the SP-3.2b report",
-  "n_items": 72,
-  "ci95": {
-   "Qwen/Qwen3-0.6B": [
-    0.4681,
-    0.6901
-   ],
-   "Qwen/Qwen3-1.7B": [
-    0.5661,
-    0.7767
-   ]
+  "tool_choice": {
+   "what": "class-4 tool selection in a civilisation (crucible.semantic.generalists.bench, DEV templates only, 6 items per template, seed 0); only the tool_choice route varies, every other route as derived from the SP-3.2b report",
+   "n_items": 72,
+   "ci95": {
+    "Qwen/Qwen3-0.6B": [
+     0.4681,
+     0.6901
+    ],
+    "Qwen/Qwen3-1.7B": [
+     0.5661,
+     0.7767
+    ]
+   },
+   "sha256": "23d7c8fd7f5da45463f788c52166705656936cabb195fc026d04d1fd1a4bee74",
+   "date": "2026-11-26",
+   "decision": "D-37"
   },
-  "sha256": "23d7c8fd7f5da45463f788c52166705656936cabb195fc026d04d1fd1a4bee74",
-  "date": "2026-11-26",
-  "decision": "D-37"
+  "communication": {
+   "what": "written content of a publication (the compose slot of blog.publish, as mind.slot_request builds it) for the 12 DEV situations of generalists.bench (one per template, seed 0), CPU float32, 60 tokens; value = share of texts whose 5-grams are not mostly (> 30 %) copied from the prompt (SmolLM2-135M copied the prompt in 8 of 9 written values of the second standard Gate H run)",
+   "n_items": 12,
+   "sha256": "522aee872829e8268e4a5948b98159a810ec7922f7b60a148019efa1e4169c26",
+   "date": "2026-11-26",
+   "decision": "D-37"
+  }
  }
 }

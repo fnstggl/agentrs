@@ -644,6 +644,18 @@ def parse_json_object(text: str) -> dict | None:
     return None
 
 
+def copied_from_prompt(text: str, req: dict, n: int = 5, share: float = 0.3) -> bool:
+    """Whether a written value is mostly the prompt copied back (more than `share` of its word 5-grams occur in
+    the prompt): small models sometimes answer "You are calling blog.comment: ..." instead of writing the value."""
+    def grams(t: str) -> set:
+        w = re.findall(r"[a-z0-9']+", t.lower())
+        return {tuple(w[i:i + n]) for i in range(max(0, len(w) - n + 1))}
+    g = grams(text if isinstance(text, str) else json.dumps(text, default=str))
+    if not g:
+        return False
+    return len(g & grams(" ".join(m.get("content", "") for m in req.get("messages", [])))) / len(g) > share
+
+
 def written_value(slot: Slot, text: str):
     """The written text as the slot's JSON type (None when nothing usable was written)."""
     t = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S).strip()
@@ -839,8 +851,11 @@ def fill_arguments(ctx, brain, acting: list, now: int, cfg: Config) -> list[dict
                         vals[j][slot.name] = v
             else:
                 out = brain.generate(ctx, cap, reqs)
-                for (j, slot, _), o in zip(items, out):
+                for (j, slot, req), o in zip(items, out):
                     v = written_value(slot, o)
+                    if v is not None and copied_from_prompt(o, req):
+                        acting[j][0].count("copied_values")
+                        v = None
                     if v is not None:
                         vals[j][slot.name] = v
         if written:                     # "another value": write it (one more batched request)
@@ -852,8 +867,11 @@ def fill_arguments(ctx, brain, acting: list, now: int, cfg: Config) -> list[dict
                          tokens=10 if slot.kind == "number" else 24)
                 reqs.append((j, s2, slot_request(a, now, tool, s2, vals[j], qv)))
             out = brain.generate(ctx, "communication", [x[2] for x in reqs])
-            for (j, s2, _), o in zip(reqs, out):
+            for (j, s2, req), o in zip(reqs, out):
                 v = written_value(s2, o)
+                if v is not None and copied_from_prompt(o, req):
+                    acting[j][0].count("copied_values")
+                    v = None
                 if v is not None:
                     vals[j][s2.name] = [v] if ("array" in str(s2.schema.get("type")) and s2.kind != "compose") else v
     return vals

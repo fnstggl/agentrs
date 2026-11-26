@@ -310,3 +310,7 @@ above the ~0.5-1B target of H.n1; H.n1's `semantic_model_params` now reports the
 routed class-4 decisions to (no longer the nominal default), so H.n1 fails by measurement: the target and "the
 smallest model that meets each capability requirement" conflict with the locally available checkpoints (SmolLM2-135M
 and -360M reach 0.0 and 0.06 on the same benchmark; no ~1B checkpoint other than TinyLlama-1.1B is available).
+Writing (capability communication) by the same rule in situ: in the second standard run SmolLM2-135M copied the
+prompt into 8 of 9 written argument values ("You are calling blog.comment: ..."); on the 12 DEV situations the share
+of publication texts not mostly copied from the prompt (5-gram overlap <= 30 %) is SmolLM2-135M 0.42,
+SmolLM2-360M 1.00, Qwen3-0.6B 1.00, so writing is routed to SmolLM2-360M (SP-3.2b generation pass rate 0.72).
