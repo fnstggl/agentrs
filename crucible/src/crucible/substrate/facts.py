@@ -218,7 +218,10 @@ REVIEWED: dict[str, dict] = {
     "contracts.contract_parties": _r("contract", _P, "parties of a contract", "contracts.contracts"),
     "bank.mandates": _r("account", _P, "standing payment authorisations held by the bank", "bank.accounts"),
     "code.commits": _r("software_repository", _P, "commits of repositories", "code.repos"),
-    "commit.commitments": _r("contract", _D, "escrowed commitments (agreements paid on delivery)"),
+    # D-21 migration (F, wave 3b): every commitment is a contracts.contracts record with an escrow clause; the
+    # commitment rows keep only its escrow details (milestones, deliverables, disputes)
+    "commit.commitments": _r("contract", _P, "escrow details of contracts paid on delivery (escrow clause)",
+                             "contracts.contracts"),
     "commit.commit_offers": _r("contract", _P, "negotiation of commitments", "commit.commitments"),
     "deal.deals": _r("contract", _P, "negotiation threads whose acceptance creates contracts", "contracts.contracts"),
     "rig.rig_claims": _r(None, _V, "4.0 mechanism-rig result claims (evaluator-side records)"),
@@ -288,10 +291,6 @@ KNOWN_DUPLICATES: dict[str, dict] = {
                               "migration": "a forum board becomes the discussion space of a community (board -> "
                                            "community id); forum_boards keeps no membership of its own; then "
                                            "OWNERS.community = community.communities"},
-    "commit.commitments": {"target_owner": "contracts.contracts", "decision": "D-21", "workstream": "F",
-                           "expires": _WAVE2,
-                           "migration": "a commitment is a contract with an escrow clause (or references one): "
-                                        "parties, status and breach live in contracts"},
     "creators.creator_members": {"target_owner": "subs.sub_subs", "decision": "D-21", "workstream": "C+F",
                                  "expires": _WAVE2,
                                  "migration": "creator tiers become subscription plans of the creator's product; "

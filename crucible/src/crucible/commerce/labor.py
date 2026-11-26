@@ -180,10 +180,8 @@ class Labor(Module):
         """How risky an employer looks from its public record: breached payment contracts, breached commitments,
         and youth of the company."""
         st = world.state
+        # (commitments are contracts with an escrow clause since wave 3b: their breaches are contract breaches)
         breaches = sum(1 for k in st.find("contracts", "status", "breached") if k.get("breached_by") == org)
-        commit = world.modules.get("commit")
-        if commit is not None:
-            breaches += commit.record(world, org)["breaches"]
         comp = st.get("companies", org) if "companies" in st.tables else None
         young = comp is not None and world.now - comp["t"] < 30 * DAY
         return 1.0 + 0.25 * breaches + (0.1 if young else 0.0)

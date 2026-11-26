@@ -186,3 +186,32 @@ def test_task_deliverable_pays_when_the_payee_did_the_inst_task():
     assert OW.balance(w, dev) == d0 + 90_000
     rep = OW.verify_reproducible(w)
     assert rep["replay_digest_equal"] and rep["regeneration_hash_equal"]
+
+
+def test_every_commitment_is_one_contract_with_an_escrow_clause():
+    """SP-2.3 contract migration: a commitment creates its `contracts` record (parties, an escrow clause naming it,
+    signed by both, active), the record ends with the commitment (completed / breached by the payee that missed
+    its due date), agents cannot write escrow clauses themselves, and no contract fact is kept twice."""
+    from crucible.substrate import facts, primitives
+    w, client, dev, judge, c_acct = _world(31)
+    assert primitives.owner("contract")["table"] == "contracts" and facts.REVIEWED["commit.commitments"]["role"] == "part"
+    cid = _agree(w, client, dev, _terms((100_000,)))
+    k = w.state.tables["commitments"][cid]["contract"]
+    c = w.state.tables["contracts"][k]
+    assert c["status"] == "active" and sorted(c["parties"]) == sorted([client, dev])
+    assert c["clauses"] == [{"type": "escrow", "instrument": "commit", "ref": cid}] and set(c["signed"]) == set(c["parties"])
+    assert _ex(w, dev, "commit.deliver", commitment=cid, milestone=0, note="done").ok
+    assert _ex(w, client, "commit.accept", commitment=cid, milestone=0).ok
+    assert w.state.tables["commitments"][cid]["status"] == "completed"
+    assert w.state.tables["contracts"][k]["status"] == "completed"
+    # a payee that misses its due date breaches: the contract record says so, with who breached
+    cid2 = _agree(w, client, dev, _terms((50_000,), due=2 * DAY))
+    k2 = w.state.tables["commitments"][cid2]["contract"]
+    w.advance_time(w.now + 3 * DAY)
+    assert w.state.tables["contracts"][k2]["status"] == "breached"
+    assert w.state.tables["contracts"][k2]["breached_by"] == dev
+    # nobody but the instrument writes escrow clauses
+    r = _ex(w, client, "contracts.propose", parties=[client, dev], title="fake",
+            clauses=[{"type": "escrow", "instrument": "commit", "ref": cid}])
+    assert not r.ok and "instrument" in r.error["message"]
+    assert w.check_invariants() == []

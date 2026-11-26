@@ -22,6 +22,12 @@ agreement is made, so the payee knows it exists, and it leaves escrow only by th
   amount), or (3) the dispute window closes and the agreed default split applies.
 * **Public record** (`commit.record`): counts of commitments completed, breaches, disputes raised and how they
   ended - never amounts, accounts or balances.
+* **One contract record** (wave 3b, SP-2.3 contract migration; `primitives.OWNERS["contract"]` is
+  `contracts.contracts`): where the 4.0 `contracts` module is installed, every commitment IS a contract: when it is
+  made, this module creates the `contracts` record of the agreement (parties, title, an `escrow` clause naming the
+  commitment), signed by both sides (they agreed by accepting the terms), and ends it when the commitment closes
+  (`completed`, or `breached` by the payee that missed a due date) or is cancelled (`terminated`). The commitment
+  rows keep only the escrow details (milestones, deliverables, disputes) of that contract.
 """
 from __future__ import annotations
 
@@ -216,10 +222,36 @@ class Commitments(Module):
                                     "dispute_s": c["dispute_s"], "default_split": c["default_split"],
                                     "held": total}, vis=self._vis(c))
         ctx.emit("commit.offer_status", {"id": oid, "status": "accepted", "commitment": cid}, vis=(o["from"], o["to"]))
+        self._open_contract(ctx, cid, c)
         for i, m in enumerate(ms):
             proc = "commit.check" if m["deliverable"]["kind"] == "predicate" else "commit.due"
             ctx.schedule(m["due"], proc, {"commitment": cid, "milestone": i}, prio=36, key=f"cmt|{cid}|{i}")
         return cid
+
+    def _open_contract(self, ctx: Ctx, cid: str, c: dict) -> str | None:
+        """The `contracts` record of a new commitment (module docstring); None without the contracts module."""
+        contracts = ctx.world.modules.get("contracts")
+        if contracts is None:
+            return None
+        parties = sorted({c["payer"], c["payee"]})
+
+        def make(sub):
+            sub.escrow_instrument = "commit"
+            return contracts.propose(sub, c["payer"], parties,
+                                     [{"type": "escrow", "instrument": "commit", "ref": cid}],
+                                     str(c["title"])[:120], f"escrowed commitment {cid}", 3600, tags=("commitment",))
+        k = ctx.run_as(c["payer"], make)
+        for p in parties:
+            ctx.run_as(p, lambda sub, p=p: contracts.sign(sub, k, p, None))
+        ctx.emit("commit.contract", {"id": cid, "contract": k}, vis=tuple(parties))
+        return k
+
+    def _end_contract(self, ctx: Ctx, cid: str, status: str, reason: str, by: str | None = None) -> None:
+        c = ctx.state.tables["commitments"][cid]
+        k = c.get("contract")
+        contracts = ctx.world.modules.get("contracts")
+        if k and contracts is not None and ctx.state.has("contracts", k):
+            contracts.end(ctx, k, status, reason, by=by)
 
     @staticmethod
     def _vis(c) -> tuple:
@@ -296,6 +328,7 @@ class Commitments(Module):
         if all(m["status"] in TERMINAL for m in c["milestones"]):
             status = "breached" if c["breaches"] else "completed"
             ctx.emit("commit.status", {"id": cid, "status": status}, vis=self._vis(c))
+            self._end_contract(ctx, cid, status, f"commitment {status}", by=c["payee"] if c["breaches"] else None)
         elif any(m["status"] == "disputed" for m in c["milestones"]):
             if c["status"] != "disputed":
                 ctx.emit("commit.status", {"id": cid, "status": "disputed"}, vis=self._vis(c))
@@ -700,6 +733,10 @@ class Commitments(Module):
             "milestones": p["milestones"], "account": p["account"], "review_s": p["review_s"],
             "dispute_s": p["dispute_s"], "default_split": p["default_split"], "held": p["held"],
             "status": "active", "breaches": [], "cancel_requests": [], "t": ev.t})
+
+    @applier("commit.contract")
+    def ap_contract(self, ev):
+        self.world.state.patch("commitments", ev.payload["id"], contract=ev.payload["contract"])
 
     @applier("commit.milestone")
     def ap_milestone(self, ev):

@@ -4,6 +4,8 @@ Clause types (composable; none encodes a strategy):
 * payment      {from, to, amount, every_s | null, count | null, start_in_s}  - scheduled debits from the account the
                 payer designates when signing; a failed payment is a breach and creates a claim.
 * membership   {person, org, role, title}  - the person joins the organisation while the contract is active.
+* escrow       {instrument, ref}  (5.0) - an obligation settled by an escrow instrument module (`commit`): only that
+               module creates it, and it ends the contract (completed / breached) when its escrow settles.
 * grant        {owner, grantee, cap, scope, limit}  - a delegation that exists while the contract is active.
 * shares       {org, from, to, shares}  - equity transfer at activation (company cap table).
 * deliverable  {by, predicate, due_in_s, penalty: {from, to, amount} | null}  - a predicate over authoritative
@@ -36,6 +38,7 @@ from ..core.kernel import SYSTEM, Ctx, Module, applier, endpoint, process, regis
 from .identity import ident
 
 CLAUSE = {"type": "object", "additionalProperties": True}
+ESCROW_INSTRUMENTS = ("commit",)     # 5.0 modules whose escrowed agreements are contracts with an escrow clause
 MAX_CLAUSES = 12
 MAX_AMOUNT = 10**12                 # the ledger's own maximum (services/bank.py)
 MAX_START_S = 366 * 86400           # first payment / notice at most a year out
@@ -172,6 +175,15 @@ class Contracts(Module):
                         raise Forbidden(f"clause {i}: " + "; ".join(errs[:3]))
                 elif t == "notice":
                     cl = {"type": t, "seconds": _int(c["seconds"], 0, MAX_START_S, f"clause {i}: seconds")}
+                elif t == "escrow":
+                    # 5.0 (workstream F, SP-2.3 contract migration): an obligation whose money and settlement are
+                    # held by an escrow instrument module (`commit`): parties, status and breach live here, the
+                    # instrument settles it and ends the contract (`end`). Only the instrument module proposes it.
+                    inst_mod = str(c.get("instrument", ""))
+                    if inst_mod not in ESCROW_INSTRUMENTS or inst_mod not in ctx.world.modules or \
+                            not getattr(ctx, "escrow_instrument", None) == inst_mod:
+                        raise InvalidAction(f"clause {i}: escrow clauses are created by their instrument module")
+                    cl = {"type": t, "instrument": inst_mod, "ref": str(c["ref"])[:40]}
                 else:
                     raise InvalidAction(f"unknown clause type {t!r}")
             except (KeyError, TypeError, ValueError, AttributeError) as e:
@@ -423,8 +435,8 @@ class Contracts(Module):
                     return
             if cl["type"] == "deliverable" and str(i) not in c["delivered"]:
                 return
-            if cl["type"] in ("membership", "grant"):
-                return  # ongoing relationships end by termination
+            if cl["type"] in ("membership", "grant", "escrow"):
+                return  # ongoing relationships end by termination; escrowed obligations end by their instrument
         self.end(ctx, cid, "completed", "all obligations met")
 
     @process("end")
