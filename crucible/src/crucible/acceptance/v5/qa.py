@@ -207,6 +207,151 @@ def defects(root: str | None = None, audits: str | None = None) -> dict:
             "open_critical_high": open_ch, "malformed": malformed, "unregistered": unregistered[:30]}
 
 
+# ------------------------------------------------------------------------------------------------- X.6 re-validation
+REVALIDATION_VERDICTS = ("still_open", "fixed", "not_reproducible")
+SINCE = re.compile(r"<!--\s*revalidate-since:\s*([0-9a-f]{7,40})\s*-->")
+
+
+def defects_header_and_since(root: str | None = None) -> tuple[str, str | None]:
+    text = open(os.path.join(M.docs_dir(root), "DEFECTS.md"), encoding="utf-8").read()
+    i = text.find("\n### ")
+    header = text if i < 0 else text[:i + 1]
+    m = SINCE.search(header)
+    return header, (m.group(1) if m else None)
+
+
+def _owners(d: dict) -> list[str]:
+    """The workstream letters (or 'orchestrator') named in a defect's owner field."""
+    o = str(d.get("owner") or "")
+    out = sorted(set(re.findall(r"(?<![\w-])([A-P])(?![\w-])", o)))
+    if "orchestrator" in o.lower():
+        out.append("orchestrator")
+    if "all workstreams" in o.lower():
+        out.append("all")
+    return out or [o]
+
+
+def _regression_nodes(spec) -> list[str]:
+    """`regression_tests` as node ids: a list, or a comma-separated string whose '::name' items reuse the previous
+    item's file."""
+    items = spec if isinstance(spec, list) else [x.strip() for x in str(spec or "").split(",") if x.strip()]
+    out, last = [], None
+    for it in items:
+        if it.startswith("::") and last:
+            it = last + it
+        if "::" in it:
+            last = it.split("::", 1)[0]
+        out.append(it)
+    return out
+
+
+def _test_exists(root: str, node: str) -> bool:
+    f, _, name = node.partition("::")
+    path = os.path.join(root, f)
+    if not name or not f.endswith(".py") or not os.path.exists(path):
+        return False
+    name = name.split("::")[-1].split("[", 1)[0]
+    try:
+        tree = ast.parse(open(path, encoding="utf-8").read())
+    except SyntaxError:
+        return False
+    return any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name for n in ast.walk(tree))
+
+
+def _in_history(root: str, commit: str, since: str | None = None) -> bool:
+    if not commit or subprocess.run(["git", "cat-file", "-e", f"{commit}^{{commit}}"], cwd=root,
+                                    capture_output=True).returncode != 0:
+        return False
+    if subprocess.run(["git", "merge-base", "--is-ancestor", commit, "HEAD"], cwd=root).returncode != 0:
+        return False
+    return since is None or subprocess.run(["git", "merge-base", "--is-ancestor", since, commit], cwd=root).returncode == 0
+
+
+def defect_revalidation(root: str | None = None) -> dict:
+    """The re-validation duty of the register (wave 3b, D-83): every OPEN defect carries, in `revalidations`, a
+    re-validation by one of its owners made at a commit at or after the register's `revalidate-since` commit (the
+    start of the current wave, an HTML comment in DEFECTS.md's header): its verdict (`still_open`, `fixed`,
+    `not_reproducible`) and reason. A defect an owner reports fixed or not reproducible while it is still open is
+    listed for closing. Every FIXED defect names what fixed it (`fixed_by`) and regression tests (`regression_tests`)
+    that exist in the tree; a defect is never closed without both. Returns metrics plus, per owner, what is due."""
+    root = root or M.crucible_root()
+    ds = parse_defects(root)
+    _, since = defects_header_and_since(root)
+    due: dict[str, list[str]] = {}
+    not_reval, to_close, bad_reval, fixed_no_test = [], [], [], []
+    for d in ds:
+        if d.get("status") == "open":
+            revs = [r for r in d.get("revalidations") or [] if isinstance(r, dict)]
+            owners = _owners(d)
+            ok = [r for r in revs if r.get("verdict") in REVALIDATION_VERDICTS and (r.get("reason") or "").strip()
+                  and _in_history(root, r.get("commit") or "", since) and
+                  (r.get("by") in owners or "all" in owners or any(o in str(r.get("by")) for o in owners))]
+            bad_reval += [f"{d['id']}: {r}" for r in revs if r not in ok][:3]
+            if not ok:
+                not_reval.append(d["id"])
+                for o in owners:
+                    due.setdefault(o, []).append(d["id"])
+            elif ok[-1]["verdict"] != "still_open":
+                to_close.append(f"{d['id']} ({ok[-1]['verdict']} per {ok[-1]['by']})")
+        elif d.get("status") == "fixed":
+            nodes = _regression_nodes(d.get("regression_tests"))
+            if not d.get("fixed_by") or not nodes or not all(_test_exists(root, n) for n in nodes):
+                fixed_no_test.append(d["id"])
+    return {"metrics": {"defects_checked": len(ds), "open_defects_not_revalidated": len(not_reval),
+                        "open_defects_reported_fixed_by_owner": len(to_close),
+                        "fixed_defects_without_regression_test": len(fixed_no_test),
+                        "revalidation_base_set": bool(since)},
+            "since": since, "due_by_owner": {k: v for k, v in sorted(due.items())}, "not_revalidated": not_reval,
+            "to_close": to_close, "fixed_without_regression_test": fixed_no_test, "invalid_revalidations": bad_reval}
+
+
+def _rewrite_defects(root: str, ds: list[dict]) -> None:
+    header, _ = defects_header_and_since(root)
+    with open(os.path.join(M.docs_dir(root), "DEFECTS.md"), "w", encoding="utf-8") as fh:
+        fh.write(render_defects(ds, header).rstrip() + "\n")
+
+
+def revalidate_defect(root: str | None, defect: str, *, by: str, verdict: str, reason: str,
+                      evidence: str = "") -> dict:
+    """Record an owner's re-validation of an open defect at HEAD (DEFECTS.md is rewritten, entry order kept)."""
+    root = root or M.crucible_root()
+    if verdict not in REVALIDATION_VERDICTS:
+        raise ValueError(f"verdict must be one of {REVALIDATION_VERDICTS}")
+    if not reason.strip():
+        raise ValueError("a re-validation states its reason")
+    ds = parse_defects(root)
+    d = next((x for x in ds if x.get("id") == defect), None)
+    if d is None:
+        raise KeyError(defect)
+    head = _git(root, "rev-parse", "HEAD").strip()
+    import datetime as _dt
+    d.setdefault("revalidations", []).append({"by": by, "commit": head, "verdict": verdict, "reason": reason,
+                                              "evidence": evidence,
+                                              "at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds")})
+    _rewrite_defects(root, ds)
+    return d
+
+
+def close_defect(root: str | None, defect: str, *, fixed_by: str, regression_tests: list[str], note: str = "") -> dict:
+    """Close a defect: only with what fixed it (a commit in HEAD's history) and regression tests that exist."""
+    root = root or M.crucible_root()
+    ds = parse_defects(root)
+    d = next((x for x in ds if x.get("id") == defect), None)
+    if d is None:
+        raise KeyError(defect)
+    sha = fixed_by.split()[0]
+    if not _in_history(root, sha):
+        raise ValueError(f"fixed_by must start with a commit in HEAD's history, got {fixed_by!r}")
+    missing = [n for n in regression_tests if not _test_exists(root, n)]
+    if not regression_tests or missing:
+        raise ValueError(f"a defect is closed only with existing regression tests (missing: {missing or 'none given'})")
+    d.update(status="fixed", fixed_by=fixed_by, regression_tests=list(regression_tests))
+    if note:
+        d["notes"] = (d.get("notes", "") + " " + note).strip()
+    _rewrite_defects(root, ds)
+    return d
+
+
 def render_defects(entries: list[dict], header: str) -> str:
     out = [header.rstrip(), ""]
     for d in entries:

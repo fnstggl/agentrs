@@ -10,6 +10,8 @@
     python -m crucible.acceptance.v5 final-report [--out docs/v5/FINAL_REPORT.md]
     python -m crucible.acceptance.v5 progress validate | progress milestone --title ... --completed ... --next ...
     python -m crucible.acceptance.v5 progress interrupted --workstream B --why ... --recovery-branch ... --reassigned-to ...
+    python -m crucible.acceptance.v5 defects check [--owner X] | defects revalidate --id DEF-X-n --by X --verdict ... --reason ...
+    python -m crucible.acceptance.v5 defects close --id DEF-X-n --fixed-by "<commit> <what>" --regression-test tests/...::test
 
 Exit codes of --verify-all: 0 CRUCIBLE_5_COMPLETE, 1 IN_PROGRESS, 3 INCOMPLETE_BLOCKED.
 Run from the `crucible/` directory with PYTHONPATH=src. `run` and `review` work in fresh clones of committed trees;
@@ -92,6 +94,16 @@ def main(argv: list[str] | None = None) -> int:
     rv.add_argument("--agent", "--reviewer", dest="agent")
     rv.add_argument("--verdict", choices=("approved", "rejected"), required=True)
     rv.add_argument("--notes", default="")
+    df = sub.add_parser("defects", help="the defect register's re-validation duty (D-83)")
+    df.add_argument("action", choices=("check", "revalidate", "close"))
+    df.add_argument("--owner")
+    df.add_argument("--id", dest="defect")
+    df.add_argument("--by")
+    df.add_argument("--verdict")
+    df.add_argument("--reason", default="")
+    df.add_argument("--evidence", default="")
+    df.add_argument("--fixed-by")
+    df.add_argument("--regression-test", dest="regression_tests", action="append", default=[])
     fr = sub.add_parser("final-report")
     fr.add_argument("--out", default=None)
     pg = sub.add_parser("progress")
@@ -146,6 +158,27 @@ def main(argv: list[str] | None = None) -> int:
         print(f"review of {a.requirement}: {rec['verdict']} (reproduction {rp['run_id']}: pytest exit {rp['pytest_rc']}, "
               f"mismatches {rp['mismatches'][:3]}, criteria failures {rp['criteria_failures'][:3]})")
         return 0 if rec["verdict"] == a.verdict else 1
+    if a.cmd == "defects":
+        from . import qa
+        if a.action == "revalidate":
+            d = qa.revalidate_defect(None, a.defect, by=a.by or "", verdict=a.verdict or "", reason=a.reason,
+                                     evidence=a.evidence)
+            print(f"{d['id']}: re-validated by {a.by} ({a.verdict})")
+            return 0
+        if a.action == "close":
+            d = qa.close_defect(None, a.defect, fixed_by=a.fixed_by or "", regression_tests=a.regression_tests)
+            print(f"{d['id']}: fixed by {d['fixed_by']}")
+            return 0
+        r = qa.defect_revalidation()
+        for o, ids in r["due_by_owner"].items():
+            if a.owner is None or a.owner == o:
+                print(f"  re-validation due by {o}: {len(ids)} ({', '.join(ids)})")
+        for x in r["to_close"]:
+            print(f"  owner reports it no longer holds - close with fix and regression test: {x}")
+        for x in r["fixed_without_regression_test"]:
+            print(f"  fixed without existing regression tests: {x}")
+        print(json.dumps(r["metrics"]))
+        return 1 if (r["not_revalidated"] or r["to_close"] or r["fixed_without_regression_test"]) else 0
     if a.cmd == "final-report":
         from .report import write_report
         path = write_report(out=a.out)

@@ -10,6 +10,19 @@ critical finding of every audit in docs/v5/audit/ to be registered here. Severit
 Register opened by workstream P on 2026-11-26 from the recovery audit (docs/v5/audit/*.json `critical_findings`, the
 B_population verdict) and P's own findings.
 
+Re-validation duty (wave 3b, DECISION_LOG D-83; `qa.defect_revalidation`, reported by Gate X.6): many defects of the
+recovery audit were addressed by later waves but are still `open`. Every open defect must carry, in `revalidations`,
+a re-validation by one of its owners made at or after the commit below (the start of the current wave): its verdict
+(`still_open`, `fixed`, `not_reproducible`), the reason and, where possible, the evidence (a test or command). A defect
+is closed (`status: fixed`) only with what fixed it (`fixed_by`, starting with a commit in the integration history)
+and regression tests that exist in the tree (`regression_tests`); an owner's `fixed` verdict alone never closes it.
+Commands (from `crucible/`): `PYTHONPATH=src python -m crucible.acceptance.v5 defects check [--owner X]`,
+`... defects revalidate --id DEF-X-n --by X --verdict still_open --reason "..." [--evidence ...]`,
+`... defects close --id DEF-X-n --fixed-by "<commit> <what>" --regression-test tests/...::test_name`.
+When a new wave starts, the orchestrator moves the commit below to the wave's base.
+
+<!-- revalidate-since: 55433e7 -->
+
 ### DEF-A-1 (critical, open): Tier 3 does not exist: crucible/civ is a 5-line docstring (no generator, profiles, couplings, chains, Mode C p
 
 ```json
