@@ -265,3 +265,38 @@ population-only world are reported as a second row and do not satisfy a target.
 Numbering note (integration merge): workstreams P and M both wrote D-26 in parallel; this entry was renumbered
 D-27 on merge. targets.json still says "adopted_by": "DECISION_LOG D-26" because editing it would change the
 SHA-256 that this entry adopts; that field refers to this entry.
+
+## D-69 Research instrument: confinement of the weights-only child, adversarial controls, and a positive-control design with the power to see known effects (2026-11-26, workstream N, wave 3b)
+The wave-3a development run of the controls (5 learner seeds, protocol seeds) labelled 2 of 5 kinds correctly and 1 of
+7 explanations. Diagnosis on establishment seeds only (no protocol seed was re-used to choose a design):
+* the transfer control was never trained in the battery (its strategy bandit was credited at a task's 4th episode; the
+  battery plays each training world 3 times) - fixed: a task's credit is set from its 2nd episode on and counts once;
+* the weights control forgot across families (single-example SGD on an interleaved stream; two families' 16-bucket
+  brief vectors had cosine 0.96) - fixed: 64-bucket briefs and minibatches from a replay buffer that is memory
+  (cleared for weights-only evaluation), not parameters;
+* establishment on one family at a time overstated what one network learns from a mixed stream - fixed:
+  `instrument.establish_mixed` re-establishes the chosen families in the battery's own regime, families with nearly
+  identical public faces (brief cosine >= 0.9) are not trained together, and transfer gains are established on three
+  seeds instead of two (winner's curse);
+* real effects of 0.13-0.49 had crossed intervals reaching below zero with 4 unfamiliar worlds per family, 12 repeat
+  probes and 2 transfer tasks per family - the design now uses 10, 24 and 4 (episodes cost ~0.06 CPU-s).
+The prespecified effects (`instrument.EFFECTS`) and the control specifications (`instrument.CONTROLS`) are unchanged.
+The weights-only child now runs under the sandbox jail (own uid, Landlock: read-only standard library, numpy and the
+crucible source, read-write only its private directory, no sockets) and adds two checks computed in the child:
+`authorised_configuration` (only the configuration keys `learners.CONFIG` declares, JSON scalars) and
+`filesystem_confined` (a canary written outside cannot be opened). `research.v5.adversarial` provides the SP-15.8
+controls (process stash, file stash outside the checkpoint, configuration smuggling, memory in the parameter file,
+pickle, architecture edit, generator calibration shortcut with a prespecified threshold of 0.5 of the oracle's
+improvement); the security workstream's gate calls `adversarial.run_controls`.
+
+## D-70 Level 5 is measured as a paired transfer experiment on another tier, interface and simulator (2026-11-26, workstream N, wave 3b)
+With `crucible.civ.generate` working, Level 5 test items are the held-out Tier 3 profiles (`EVAL_CIV_PROFILES`), any Tier 2
+evaluation configurations, and three 4.0 mechanism tasks (the rig.* interface, other engines); training items are four
+Tier 1 rapid families. The architecture-neutral `crucible.experience.ReferenceLearner` is trained on Tier 1 and frozen;
+an untrained copy with the same seed plays the same test worlds, and the result is the crossed (learner seed x world)
+interval of the change of each world's verified outcome, standardised per world (worlds differ in scale by orders of
+magnitude). In a kernel world without an assigned objective the verified outcome is the evaluator's own measure of
+the participant (`KernelExperienceEnv._measures`: its cash plus the independent 30-day revenue of the organisations it
+administers), read evaluator side, never shown to the learner. A level counts as executable only when every test
+world is scored in both arms with at least three learner seeds and the training log passes the partition audit; the
+size or sign of the transfer gain is reported, not required.

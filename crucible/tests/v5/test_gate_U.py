@@ -47,10 +47,16 @@ def test_U1_executable_levels_1_to_5():
     why = {lv: r.get("why") or r.get("failure") for lv, r in runs.items() if not r["executed"]}
     gains = {lv: round(r["result"]["transfer_gain"]["estimate"], 4) for lv, r in runs.items()
              if r["executed"] and "transfer_gain" in r.get("result", {})}
+    l5 = runs[5].get("result") or {}
+    l5_gain = (l5.get("transfer_gain_standardised") or {}).get("estimate")
     record("U.1", {"executable_levels": len(executed), "levels_attempted": 5,
-                   "level1_executed": 1 in executed, "level5_executed": 5 in executed},
-           notes=f"Executed levels {executed}; crossed transfer gains (weights learner, 3 seeds) {gains}; "
-                 f"not executed: {why}")
+                   "level1_executed": 1 in executed, "level5_executed": 5 in executed,
+                   "level5_scored_worlds": int(l5.get("scored_worlds", 0)),
+                   "level5_test_tiers": len(l5.get("test_tiers") or [])},
+           notes=f"Executed levels {executed}; crossed transfer gains (weights learner, 3 seeds) {gains}; Level 5 "
+                 f"(reference learner trained on Tier 1, paired untrained copy): test tiers {l5.get('test_tiers')}, "
+                 f"engines {l5.get('test_engines')}, standardised transfer gain {l5_gain}, world-changing actions "
+                 f"{l5.get('world_changing_actions')}; not executed: {why}")
     for lv, r in runs.items():
         assert r["split"]["ok"], (lv, r["split"]["checks"])
     assert len(executed) >= 5, why
