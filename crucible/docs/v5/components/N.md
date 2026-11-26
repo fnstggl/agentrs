@@ -26,6 +26,7 @@ requirement: `docs/v5/workstreams/N.json`.
 | `integrity` | clause-level claim scanners with planted controls; banned-proxy checks; failure classification |
 | `compose`, `genadmit` | structural composition of Tier 1 worlds (calibration without the anti-default shortcut) and their full rapid admission |
 | `genref` | scripted public reference of generated worlds whose optimum wanders (perturbation tracker on observed net income; knows only that the optimum moves) |
+| `hosted` | the driver for untrusted learners: `HostedLearner(entry, kw)` constructs and runs the learner only in a jailed child; the harness relays only the participant operations of one ticket; `run_hosted_episode` returns the evaluator's verified result (DEF-O-10) |
 
 ## Measured in development runs (not official evidence)
 
@@ -74,6 +75,11 @@ requirement: `docs/v5/workstreams/N.json`.
   noisiest measured effects; an effect of 0.3 at seed sd >= 0.1 is labelled in only about three quarters of
   batteries with five seeds (documented limit).
 * Tier 2: c5c/w3b-domfw, dom1, dom2 and dom3 merged; 15 domains (75 configurations) register.
+* Integrity (security workstream's SP-15.8 findings, owner N): parameter shapes must match the declared
+  architecture (DEF-O-12); `Evaluator.open_episode(..., budget=k)` enforces the interaction budget evaluator-side
+  (DEF-O-11); untrusted learners are hosted (`hosted`, DEF-O-10). `run_remote_episode` (in-process) is for the
+  instrument's own scripted controls. Adversarial controls `widened_layers` and `evaluator_reach` were added.
+* SP-15.5 reports floor/ceiling shares and whether arms are identical (DEF-N-7: the neutral learner is at the floor).
 
 ## Known limits
 
