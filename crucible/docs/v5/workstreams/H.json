@@ -3,7 +3,7 @@
  "branch": "c5c/w3b-rapid",
  "base": "55433e7 (integration head: waves 1, 2a, 3a + integration fix)",
  "measured_at": "admission probes (crucible.rapid.admission.admit) on seeds 0-2 and 10-12, single-CPU, wave 3b; not official evidence (D-24)",
- "status": "in progress (milestone commit)",
+ "status": "in progress (continuation milestone commit)",
  "progress": {
   "baseline_integrated_tree": {
    "robust_train": 22,
@@ -23,7 +23,17 @@
    "cx_competing_causes",
    "cx_balancing_loop",
    "cx_latched_pathway"
-  ]
+  ],
+  "families_fixed_wave3b_continuation": [
+   "hc_feedback_hidden",
+   "hc_confounded",
+   "strat_entry",
+   "team_commons",
+   "team_discovery",
+   "team_formation",
+   "team_schedule"
+  ],
+  "continuation_note": "Continuation agent (after the usage-limit stop): each family above was re-measured with the full admission on seeds 0-2 and 10-12 after its change (single-CPU probes, not evidence). The registry-wide run is queued through the slot scheduler."
  },
  "requirements": {
   "M.1": {
