@@ -12,6 +12,11 @@ SCALES = {
     "dev":   (8, 384, 6, 32),
     "main":  (16, 768, 12, 64),
     "large": (24, 1024, 16, 128),
+    # DOM amendment (2026-11-26): the main Superlearner core, ~1B trainable parameters (32 x 1536 x 24, 128 state
+    # tokens, SwiGLU d_ff = 4096, gated semantic cross-attention every 2 blocks); "research" is the former main scale
+    "superlearner": (32, 1536, 24, 128),
+    "research": (16, 768, 12, 64),
+    "advanced": (32, 2048, 32, 128),
 }
 
 
@@ -42,6 +47,14 @@ class CamConfig:
     sem_lora_rank: int = 16
     sem_lora_alpha: int = 32
     sem_lora_targets: tuple = ("q_proj", "k_proj", "v_proj", "o_proj")
+    # ---- DOM Mechanism C: CAM-controlled gated semantic cross-attention inside the core (core/semantic_xattn.py)
+    sem_xattn_every: int = 0          # 0 = off; k = gated cross-attention to semantic token states after every k-th block
+    sem_xattn_dim: int = 0            # hidden size of the semantic model (Qwen3-4B: 2560, 1.7B: 2048, 0.6B: 1024)
+    sem_xattn_max_tokens: int = 512   # semantic tokens per step visible to the core's cross-attention
+    sem_gate_bias: float = -3.0       # initial gate bias (sigmoid(-3) = 0.047: CAM starts mostly self-driven)
+    # ---- DOM Mechanism A: multilayer gated latent conditioning of the semantic decoder (semantic/decoder_xattn.py)
+    dec_xattn_every: int = 0          # 0 = off; k = gated cross-attention from decoder layer to CAM latent every k layers
+    dec_latent_tokens: int = 32       # CAM latent/intent tokens exposed to the decoder per decision
     n_prefix: int = 16                # latent-to-language bridge prefix embeddings P_t = W(Z,G,B)
     max_evidence: int = 4             # observations CAM's evidence pointer may show the action decoder verbatim
     max_arg_tokens: int = 1536          # code.commit arguments measured at ~1,068 Qwen3 tokens
@@ -135,7 +148,7 @@ class CamConfig:
 
 def make_config(scale: str = "dev", **over) -> CamConfig:
     layers, width, heads, state = SCALES[scale]
-    d_particle = {"dev": 128, "main": 256, "large": 256}[scale]
+    d_particle = {"dev": 128, "main": 256, "large": 256, "superlearner": 256, "research": 256, "advanced": 256}[scale]
     base = CamConfig(scale=scale, n_layers=layers, d_model=width, n_heads=heads, n_state=state, d_particle=d_particle,
                      mem_key_dim=min(256, width))
     return replace(base, **over)
