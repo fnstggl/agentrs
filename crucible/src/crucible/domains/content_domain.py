@@ -37,7 +37,7 @@ from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, civ_recipe
 
 DAY = 86400
 HORIZON_DAYS = 10.0
-TARGET = {1: 300, 2: 3_000, 3: 100_000, 4: 10_000_000}          # distinct verified viewers
+TARGET = {1: 500, 2: 5_000, 3: 100_000, 4: 10_000_000}          # distinct verified viewers
 POPULATION_FOR = {1: "development", 2: "standard", 3: "large", 4: "internet"}
 
 STRUCTURES = {

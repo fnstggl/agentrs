@@ -342,7 +342,7 @@ as consistent (difficulty sets the accuracy threshold and the replications neede
   the last 7 days with the dependency still active. Developers' repositories belong to an account organisation each
   founds through the identity module, because `code.create_repo` derives the repository name from an owner handle
   that population principals lack (it raises IndexError for `p<i>`; integration note).
-* Content (9.3): difficulty levels 1-4 target 300 / 3,000 / 100,000 / 10,000,000 distinct verified viewers and build
+* Content (9.3): difficulty levels 1-4 target 500 / 5,000 / 100,000 / 10,000,000 distinct verified viewers and build
   their worlds with the development / standard / large / internet population profiles (`overrides={"population":
   ...}`); originality excludes an artifact first published by someone else and a text whose five-word shingles are
   90% in an earlier item by another creator (the population writes from one real news corpus, so the threshold is
