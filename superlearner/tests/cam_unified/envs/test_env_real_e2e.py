@@ -79,6 +79,17 @@ def snapshot(state) -> dict:
     return out
 
 
+def bit_equal(x, y) -> bool:
+    """Bitwise tensor equality where NaN equals NaN (FastState keeps NaN placeholders, e.g. empty surprise slots)."""
+    import torch
+    if x.shape != y.shape or x.dtype != y.dtype:
+        return False
+    if x.is_floating_point():
+        nx, ny = torch.isnan(x), torch.isnan(y)
+        return bool(torch.equal(nx, ny) and torch.equal(x[~nx], y[~ny]))
+    return bool(torch.equal(x, y))
+
+
 def same_state(a: dict, b: dict) -> bool:
     import torch
     if set(a) != set(b):
@@ -86,11 +97,27 @@ def same_state(a: dict, b: dict) -> bool:
     for k in a:
         x, y = a[k], b[k]
         if torch.is_tensor(x):
-            if x.shape != y.shape or x.dtype != y.dtype or not torch.equal(x, y):
+            if not torch.is_tensor(y) or not bit_equal(x, y):
                 return False
         elif x != y:
             return False
     return True
+
+
+def state_diff(a: dict, b: dict) -> dict:
+    """{key: max |a - b|} for the keys whose values differ (non-tensor keys: "differs")."""
+    import torch
+    out = {}
+    for k in sorted(set(a) | set(b)):
+        x, y = a.get(k), b.get(k)
+        if torch.is_tensor(x) and torch.is_tensor(y) and x.shape == y.shape:
+            if not bit_equal(x, y):
+                d = (x.double() - y.double()).abs()
+                d = d[torch.isfinite(d)]
+                out[k] = float(d.max()) if d.numel() else float("nan")
+        elif x != y if not (torch.is_tensor(x) or torch.is_tensor(y)) else True:
+            out[k] = "differs"
+    return out
 
 
 def _norm(text: str) -> str:
@@ -175,14 +202,19 @@ class Recorder:
                              [float(rew[b]) for b in rows])
             return snapshot(st)
         try:
-            cf_a1 = update(res_a, tr.next_obs.observations, tr.rewards)
-            cf_b = update(res_b, nb.observations, rew_b)
+            cf_w = update(res_a, tr.next_obs.observations, tr.rewards)     # warm-up (fills encoder caches)
             cf_a2 = update(res_a, tr.next_obs.observations, tr.rewards)
+            cf_b = update(res_b, nb.observations, rew_b)
+            cf_a3 = update(res_a, tr.next_obs.observations, tr.rewards)
         finally:
             set_rng()
-        row["fast_state_identical"] = same_state(cf_a2, cf_b) and same_state(cf_a1, cf_b)
-        row["fast_state_repeatable"] = same_state(cf_a1, cf_a2)
+        row["fast_state_identical"] = same_state(cf_a2, cf_b) and same_state(cf_b, cf_a3)
+        row["fast_state_repeatable"] = same_state(cf_a2, cf_a3)
+        row["warm_equals_cold"] = same_state(cf_w, cf_a2)
         row["fast_state_keys"] = len(cf_b)
+        row["maxdiff_a2_b"] = state_diff(cf_a2, cf_b)
+        row["maxdiff_a2_a3"] = state_diff(cf_a2, cf_a3)
+        row["maxdiff_cold_warm"] = state_diff(cf_w, cf_a2)
         return row
 
 
