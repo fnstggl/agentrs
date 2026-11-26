@@ -191,7 +191,7 @@ def _describe(c: np.ndarray) -> str:
 LANGUAGE_MODELS = ("HuggingFaceTB/SmolLM2-135M-Instruct", "HuggingFaceTB/SmolLM2-360M-Instruct", "Qwen/Qwen3-0.6B")
 
 
-def compact_vs_language(run: dict, seed: int = 0, *, n: int = 200, models=LANGUAGE_MODELS, device: str = "auto"
+def compact_vs_language(run: dict, seed: int = 0, *, n: int = 200, models=LANGUAGE_MODELS, device: str = "cpu"
                         ) -> list[dict]:
     """The same held-out class-2 resource decisions (the chosen candidate's features, the realised utility) valued
     by the compact policies of the run (the learned one and its identical-init frozen twin) and by small pretrained
@@ -237,4 +237,8 @@ def compact_vs_language(run: dict, seed: int = 0, *, n: int = 200, models=LANGUA
         except Exception as e:  # noqa: BLE001  (reported as a row with the error: the model could not run here)
             rows.append({"model": f"{tag}_zero_shot", "kind": "language", "params": 0, "spearman": 0.0,
                          "ms_per_decision": 0.0, "n": 0, "error": f"{type(e).__name__}: {str(e)[:200]}"})
+        finally:
+            import gc
+            svc = None
+            gc.collect()
     return rows
