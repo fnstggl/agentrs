@@ -113,7 +113,7 @@ class Sampler:
             if mixture.require_all_tiers:
                 raise TierUnavailable(f"mixture {mixture.name!r} needs tiers {missing}, which have no training "
                                       f"world family in {self.registry.version} (training families per tier: "
-                                      f"{self.registry.tiers()})")
+                                      f"{self.registry.tiers()}; unavailable: {self.registry.unavailable})")
             for t in missing:
                 self.targets.pop(t)
             z = sum(self.targets.values())

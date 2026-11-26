@@ -87,10 +87,12 @@ class TargetableMeta(LR.MetaLearner):
 
     def begin(self, ctx, rng):
         LR.LeverLearner.begin(self, ctx, rng)
+        # one warm-up round per arm, then epsilon-greedy (with two rounds over 11 arms most of a 40-episode budget
+        # went to warm-up, and neither arm of T.8 found its category's best strategy; 2026-11-26 run)
         if self.bandit.n.sum() == 0:
             self.arm = self.prior
         else:
-            self.arm = self.bandit.best() if self.frozen else self.bandit.pick(rng)
+            self.arm = self.bandit.best() if self.frozen else self.bandit.pick(rng, warm=1)
         (st, se, me, co), mk = self.ARMS[self.arm]
         self._search = LR.EpisodeSearch(ctx["u0"], ctx["horizon"], st, se, me, co)
         self._mask = lever_mask(mk, ctx)
@@ -201,7 +203,7 @@ def rank_pvalue(ranks: Sequence[int], k: int) -> float:
 
 
 def targeted_training_experiment(planted: Sequence[str] = tuple(PLANTED),
-                                 seeds: Sequence[int] = (0, 1, 2), budget: int = 40, n_probe: int = 6,
+                                 seeds: Sequence[int] = (0, 1, 2), budget: int = 96, n_probe: int = 10,
                                  reference: Mapping | None = None) -> dict:
     """For each planted weakness: a `TargetableMeta` learner starting with that strategy is trained for `budget`
     episodes either on curriculum-generated worlds (the curriculum measures it first and targets what it finds) or on

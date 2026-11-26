@@ -126,10 +126,19 @@ def _mech_entries() -> list[dict]:
     return out
 
 
+UNAVAILABLE: dict[int, str] = {}       # tier -> why its package could not be loaded in this process (reported)
+
+
 def _domain_entries() -> list[dict]:
     from ...experience.registry import domains
     out = []
-    for dn, dom in domains().items():
+    try:
+        doms = domains()
+    except Exception as e:  # noqa: BLE001 - a domain package that fails to register: Tier 2 is reported unavailable
+        UNAVAILABLE[2] = f"crucible.domains failed to load: {type(e).__name__}: {str(e)[:300]}"
+        return []
+    UNAVAILABLE.pop(2, None)
+    for dn, dom in doms.items():
         for c in dom.configs:
             out.append({"id": f"t2:{dn}:{c.name}", "tier": 2, "source": "crucible.domains", "name": f"{dn}:{c.name}",
                         "make": {"tier": 2, "name": f"{dn}:{c.name}"}, "engine": "kernel", "category": dom.spec_part,
@@ -217,6 +226,7 @@ class Registry:
         self.tables = freeze(t)
         self._by_id = MappingProxyType({e["id"]: e for k in KINDS for e in self.tables[k]})
         self._fp_guard: dict[str, dict] = {}
+        self._unavailable = dict(UNAVAILABLE)
 
     # ---------------------------------------------------------------- reading
     @property
@@ -245,6 +255,11 @@ class Registry:
     def tiers(self) -> dict[int, int]:
         """Training world families per tier (a tier with none cannot be trained on)."""
         return {t: len(self.worlds(tier=t, family_partition="train")) for t in (1, 2, 3)}
+
+    @property
+    def unavailable(self) -> dict[int, str]:
+        """Tiers whose package failed to load when the registry was built, with the reason."""
+        return dict(self._unavailable)
 
     def to_json(self) -> dict:
         return {"schema": SCHEMA, "version": self.version, "digest": self.digest, "parent": self.parent,
