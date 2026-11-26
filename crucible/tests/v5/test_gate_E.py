@@ -22,6 +22,7 @@ CPU-only also works (--gpu-mb 0), more slowly.
 from __future__ import annotations
 
 import copy
+import json
 import os
 import time
 
@@ -217,10 +218,16 @@ def test_E3_controlled_artifact_changes_affect_participant_behaviour():
     p_min = min(r["artifact_change_behavior_pvalue"] for r in results)
     p_bonf = min(1.0, p_min * len(results))
     best = min(results, key=lambda r: r["artifact_change_behavior_pvalue"])
+    detected = [r for r in results if r["artifact_change_behavior_pvalue"] * len(results) <= 0.01]
     record("E.3", {"artifact_change_behavior_pvalue": p_bonf, "raw_min_pvalue": p_min, "probes_available": len(probes),
-                   "pairs_measured": len(results), "best_probe": best["probe"], "best_pair": best["pair"],
+                   "pairs_measured": len(results), "pairs_detected_bonferroni": len(detected),
+                   "probes_with_a_detected_pair": len({r["probe"] for r in detected}),
+                   "best_probe": best["probe"], "best_pair": best["pair"],
                    "best_effect": best["effect"], "best_individuals": best["n_individuals"],
-                   "best_embedding_distance": round(best["embedding_distance"], 5)},
+                   "best_embedding_distance": round(best["embedding_distance"], 5),
+                   "per_pair": json.dumps([{"probe": r["probe"], "pair": r["pair"][:40], "effect": round(r["effect"], 5),
+                                            "p": r["artifact_change_behavior_pvalue"],
+                                            "changed": r["individuals_changed"]} for r in results])[:3000]},
            command=CMD, notes="Paired sign-flip permutation test per (probe, artifact pair); the reported p-value is "
            "Bonferroni-adjusted over all pairs measured.")
     assert p_bonf <= 0.01, results
