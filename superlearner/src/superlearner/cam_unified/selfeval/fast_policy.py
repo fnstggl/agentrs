@@ -24,6 +24,7 @@ from typing import Optional, Sequence
 import torch
 from torch import Tensor
 from torch.func import functional_call
+from torch.nn.attention import SDPBackend, sdpa_kernel
 
 from ..interfaces import TokenSet
 from .metagrad import InnerBatch, QueryBatch, _Call
@@ -52,7 +53,8 @@ def belief_change(fast_prev, fast_new) -> dict:
     kl = (lw_n.exp() * (lw_n - lw_p)).sum(-1).clamp_min(0.0)
     kig = torch.zeros_like(kl)
     try:
-        Pp, Pn = fast_prev.bayes_P.double(), fast_new.bayes_P.double().to(Pp.device)
+        Pp = fast_prev.bayes_P.double()
+        Pn = fast_new.bayes_P.double().to(Pp.device)
         if Pp.numel() and Pp.shape == Pn.shape:
             ld_p = torch.linalg.slogdet(Pp)[1]
             ld_n = torch.linalg.slogdet(Pn)[1]
@@ -94,9 +96,12 @@ def cam_logp_fn(call: _Call, fast_prefixed: dict, inputs: dict, actions) -> tupl
     """(logp [N,T], entropy [N,T]) of the recorded actions under phi (fast_prefixed: "m.<name>" -> tensor)."""
     f = inputs["flat"]
     ag = call.m.action_generator
-    lp, ent = functional_call(call, fast_prefixed, args=(ag.log_prob, f["R"], f["goal_in"], f["belief"], f["tools"],
-                                                         f["obs"], f["tool_lists"], f["obs_lists"], list(actions)),
-                              strict=False)
+    # the fused / memory-efficient SDPA kernels have no double backward: the meta step runs attention on the math
+    # backend (same function, second-order differentiable)
+    with sdpa_kernel([SDPBackend.MATH]):
+        lp, ent = functional_call(call, fast_prefixed, args=(ag.log_prob, f["R"], f["goal_in"], f["belief"],
+                                                             f["tools"], f["obs"], f["tool_lists"], f["obs_lists"],
+                                                             list(actions)), strict=False)
     return _grid(lp.float(), inputs), _grid(ent.float(), inputs)
 
 
@@ -170,8 +175,9 @@ def window(model, steps: Sequence) -> Window:
                 if bc.get("info_gain") is not None:
                     ig[a] = float(torch.as_tensor(bc["info_gain"]).reshape(-1)[0])
     dev = feats[0]["R"].device
+    index = index.to(dev)
     return Window(env_ids, index, index >= 0, actions, _flat(feats), torch.tensor(dts, device=dev),
-                  torch.tensor(dones, device=dev), ig.to(dev), nxt, eids)
+                  torch.tensor(dones, device=dev), ig.to(dev), nxt.to(dev), eids)
 
 
 def _reward_inputs(w: Window) -> dict:

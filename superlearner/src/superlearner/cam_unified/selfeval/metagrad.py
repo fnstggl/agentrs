@@ -171,9 +171,11 @@ class MetaRewardLearner:
         return fast
 
     def start(self) -> dict:
+        """phi_0: detached copies of the slow fast-set values (leaves of the inner graph). Copies, so that acting
+        with phi_k (values loaded into the model's parameters in place) never invalidates the inner graph."""
         self._scores, self._n_steps = [], 0
         self.last_inner = []
-        return self._params()
+        return {n: p.detach().clone().requires_grad_(True) for n, p in self._params().items()}
 
     def inner_step(self, fast: dict, b: InnerBatch, create_graph: bool = True, on_policy: bool = True) -> tuple:
         """One differentiable inner policy-gradient step from `fast` on batch `b`; returns (fast', stats).
