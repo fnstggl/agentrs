@@ -131,7 +131,7 @@ def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
            "pop": {"profile": "development", "n": n_pop, "tick_s": 900,
                    "classes": {"adaptive": 0, "strategic": 0, "semantic": 0}}}
     r = civ_recipe(int(seed), modules=modules, population_modules=("pop",), module_config=cfg,
-                   params={"formats": d["published"]})
+                   params={"formats": d["published"], "log_retain": 3_000_000})
     r["module_list"] = [m for m in r["module_list"] if m not in ("civgen", "civlinks")]
     return r
 

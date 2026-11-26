@@ -92,7 +92,6 @@ class CommunityLife(Module):
         names = semantics.topic_names()
         coords = population.interest_coords(w, np.array(founders, np.int64))
         topics = semantics.nearest_topic(coords)
-        cm = w.modules["community"]
         made, used = [], set()
         for j, i in enumerate(founders):
             if len(made) >= k:
@@ -103,8 +102,11 @@ class CommunityLife(Module):
             used.add(topic)
             p = ids.ensure_principal(ctx, i)
             slug = "".join(ch if ch.isalnum() else "-" for ch in topic.lower())[:30].strip("-") + "-club"
-            cm.found(ctx, p, slug, f"{topic.replace('_', ' ').title()} club", f"people who care about {topic}",
-                     f"A community about {topic}.", (topic,), rules=dict(seed.get("rules") or {}))
+            tag = "".join(ch for ch in topic.lower() if ch.isalnum() or ch == "-")[:30] or "topic"
+            ctx.call("community.found", {"id": slug, "name": f"{topic.replace('_', ' ').title()} club"[:80],
+                                         "subject": f"people who care about {topic}",
+                                         "description": f"A community about {topic}.", "tags": [tag],
+                                         "rules": dict(seed.get("rules") or {})}, as_principal=p)
             made.append((slug, p))
 
     # ------------------------------------------------------------------ helpers
@@ -342,7 +344,8 @@ def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
            "commlife": life,
            "pop": {"profile": "development", "n": n_pop, "tick_s": 900,
                    "classes": {"adaptive": 0, "strategic": 0, "semantic": 0}}}
-    return civ_recipe(int(seed), modules=modules, population_modules=("pop",), module_config=cfg)
+    return civ_recipe(int(seed), modules=modules, population_modules=("pop",), module_config=cfg,
+                      params={"log_retain": 3_000_000})
 
 
 # ====================================================================== objective, evaluator
