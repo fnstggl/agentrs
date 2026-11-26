@@ -215,6 +215,11 @@ def revenue_scenario(env, values: dict[str, str], *, unit: int, window_units: in
     `values` (evaluator runtime, an internal event, other participants' private mail, a spec evaluator parameter)."""
     w, a = env.world, env.agents()[0]
     me = [x for x in _ok(env, a, "bank.accounts") if x["owner"] == a][0]["account"]
+    have = int(w.state.tables["accounts"][me]["balance"])
+    if have < 600_000:
+        # a domain seat may start with little money (Seat.endowment); the scenario's loan needs 500,000: the operator
+        # endows the seat (a recorded admin action, the same in every perturbed world)
+        w.system_call("admin.endow", {"principal": a, "amount": 600_000 - have})
     org = _ok(env, a, "id.create_org", handle=handle, name="Learn Co", kind="company")["org"]
     if "biz.register" in {t["name"] for t in env.tools(a)}:
         _ok(env, a, "biz.register", org=org, account=me)
