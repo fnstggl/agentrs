@@ -34,7 +34,8 @@ developer decides from public observables and its own experience:
   one of them (`pkg.exec`), a price per call, and a reply to each request naming its host. With its open-source
   propensity it also publishes the program as a package (`pkg.register`, `pkg.release` with tests and README).
 * **Maintenance** (own observables): every session it reads its service's metrics (`cloud.metrics`: overloads,
-  errors), its own statement (`bank.statement`: which accounts paid it this week and last week - retention - and
+  errors), its own statement (`bank.statement`: which accounts paid it this week and last week - retention -, how
+  many paid once and never again, and
   what compute cost it), and its support tickets (`support.list`, answered and resolved). Overloads -> more cores;
   poor retention, errors or complaints -> a new version (a better approach with a probability given by its craft;
   redeployed on the same host, its package released as a new minor version); a newer release of a package it
@@ -43,13 +44,15 @@ developer decides from public observables and its own experience:
 
 Experiments (evaluator-side interventions; arms of one spec and seed differ only here): `program` "garbage" makes
 every developer ship an input-ignoring program with the same interface (it answers a fixed example), `ban` lists
-task titles nobody builds (removal of an invention), `reuse_share`/`oss_share` 0 remove the package channel.
+tasks nobody builds (task titles or `fnmatch` patterns of the task's known format name, e.g. "gen.*": removal of an
+invention), `reuse_share`/`oss_share` 0 remove the package channel.
 
 Decisions are recorded through the population API (`record_decisions`, model `devs.opportunity`, fidelity record
 FR-DEV-1, an uncalibrated documented assumption).
 """
 from __future__ import annotations
 
+import fnmatch
 import json
 import math
 import re
@@ -73,7 +76,7 @@ DEFAULTS = {"share": 0.03, "min_devs": 8, "max_devs": 400, "period_h": [30.0, 60
             "program": "good", "ban": [], "oss_share": 0.5, "reuse_share": 0.6, "boards": None,
             "value_cents_min": [4.0, 16.0], "price_share": 0.08, "reach": 3.0, "max_cores": 16,
             "improve_after_days": 4, "retention_floor": 0.5, "loss_days": 21, "read_posts": 6,
-            "list_limit": 30, "hurdle": [0.3, 1.5]}
+            "list_limit": 30, "hurdle": [0.3, 1.5], "min_trials": 8, "min_conversion": 0.1}
 
 
 def _tokens(text: str) -> list[str]:
@@ -406,6 +409,12 @@ class Developers(Module):
                         "trials": int(r.get("trials") or 0)})
         return out
 
+    @staticmethod
+    def converts(c: dict) -> bool:
+        """A competitor (or one's own service) that people keep after trying it: the registry's public counts of
+        trials and active adopters. Too few trials say nothing yet."""
+        return c["trials"] < int(DEFAULTS["min_trials"]) or c["adopters"] >= float(DEFAULTS["min_conversion"]) * c["trials"]
+
     def _affinity(self, ctx, i: int, task: str) -> float:
         from ..economy import popbridge as pb
         from ..semantic import space
@@ -423,7 +432,7 @@ class Developers(Module):
         if bal < int(self.cfg("min_capital")):
             return False
         mine = {r["task"] for _, r in self.projects(st, i)}
-        ban = set(self.cfg("ban") or ())
+        ban = list(self.cfg("ban") or ())
         provs = self._try(ctx, p, "cloud.providers") or []
         provs = [x for x in provs if x["cores_free"] >= 1 and not x["in_outage"]]
         if not provs:
@@ -437,15 +446,16 @@ class Developers(Module):
             if not info["examples"]:
                 continue
             need = self.understand(task, info["text"], self._documented(ctx, p, task))
-            if need is None:
+            if need is None or any(fnmatch.fnmatchcase(need, b) for b in ban):
                 continue
             comp = self._competitors(ctx, p, task, info["examples"])
             minutes = float(np.median(info["minutes"])) if info["minutes"] else 20.0
             price = int(np.clip(round(float(self.cfg("price_share")) * minutes * float(self._col("vguess")[i])), 2, 80))
-            if comp:
-                low = min(c["price"] for c in comp)
+            if any(self.converts(c) for c in comp):
+                low = min(c["price"] for c in comp if self.converts(c))
                 price = int(max(2, min(price, round(0.9 * low))))
-            users = len(g["authors"]) * float(self.cfg("reach")) / (1.0 + len(comp))
+            # competitors that nobody keeps after trying them do not serve the market
+            users = len(g["authors"]) * float(self.cfg("reach")) / (1.0 + sum(1 for c in comp if self.converts(c)))
             margin = users * 30 * 1.5 * price - rent_m
             aff = self._affinity(ctx, i, task)
             hurdle = float(self._col("hurdle")[i]) * (1.2 - 0.6 * max(0.0, aff)) * rent_m
@@ -568,7 +578,7 @@ class Developers(Module):
                       mode="set")
         return pid
 
-    def _announce(self, ctx, p, task, host, price, now) -> None:
+    def _announce(self, ctx, p, task, host, price, now, new_version: bool = False) -> None:
         """Reply to the open requests for this task naming the service (search indexes the replies)."""
         since = now - int(self.cfg("window_days")) * DAY
         boards = self.cfg("boards") or [b["board"] for b in (self._try(ctx, p, "forum.boards") or [])]
@@ -577,8 +587,10 @@ class Developers(Module):
             for post in self._try(ctx, p, "forum.list", board=b, sort="new", limit=int(self.cfg("list_limit"))) or []:
                 if (post.get("title") or "") == ASK + task and post["t"] >= since and n < 12:
                     self._try(ctx, p, "forum.reply", post=post["post"],
-                              body=f"I built a service for this: {host}.crucible ({price} cents a call). "
-                                   "Try it on one of your own inputs.")
+                              body=(f"New version of {host}.crucible: it now handles more inputs correctly "
+                                    f"({price} cents a call)." if new_version else
+                                    f"I built a service for this: {host}.crucible ({price} cents a call). ")
+                              + " Try it on one of your own inputs.")
                     n += 1
 
     def _publish_package(self, ctx, i, p, pid, task, src, examples) -> None:
@@ -605,9 +617,13 @@ class Developers(Module):
 
     # ------------------------------------------------------------------ maintenance (own observables)
     def _sales(self, ctx, p, acct, host, now) -> dict:
+        """What the developer's own statement shows about a service: who paid this week and the week before
+        (retention), how many customers paid once and never again (calls at least two days ago), revenue net of
+        the cloud's refunds of failed calls and compute rent over `loss_days`."""
         lines = self._try(ctx, p, "bank.statement", account=acct, limit=500) or []
         ref = f"svc:{host}"
         week, prev, revenue, rent = set(), set(), 0, 0
+        calls: dict[str, list] = {}
         for ln in lines:
             if ln["ref"] == ref and ln["kind"] == "sale" and ln["amount"] > 0:
                 age = now - ln["t"]
@@ -615,14 +631,19 @@ class Developers(Module):
                     week.update(ln["counterparties"])
                 elif age < 14 * DAY:
                     prev.update(ln["counterparties"])
+                for c in ln["counterparties"]:
+                    calls.setdefault(c, []).append(int(ln["t"]))
                 if age < int(self.cfg("loss_days")) * DAY:
                     revenue += int(ln["amount"])
             elif ln["ref"] == ref and ln["kind"] == "refund" and ln["amount"] < 0:
                 revenue += int(ln["amount"])
             elif ln["kind"] == "compute" and ln["amount"] < 0 and now - ln["t"] < int(self.cfg("loss_days")) * DAY:
                 rent += -int(ln["amount"])
+        settled = [ts for ts in calls.values() if now - min(ts) >= 2 * DAY]
+        once = sum(1 for ts in settled if len(ts) == 1)
         return {"week": week, "prev": prev, "revenue": revenue, "rent": rent,
-                "retention": (len(prev & week) / len(prev)) if prev else None}
+                "retention": (len(prev & week) / len(prev)) if prev else None,
+                "one_shot": (once / len(settled)) if settled else None, "settled": len(settled)}
 
     def _maintain(self, ctx, i, p, pid, proj, now, rng) -> int:
         st = ctx.state
@@ -637,9 +658,14 @@ class Developers(Module):
         ok = sum(int(h["ok"]) for h in last)
         acct = self._account(st, p)
         sales = self._sales(ctx, p, acct, host, now) if acct else {"week": set(), "prev": set(), "revenue": 0,
-                                                                     "rent": 0, "retention": None}
+                                                                     "rent": 0, "retention": None, "one_shot": None,
+                                                                     "settled": 0}
         tickets = [t for t in (self._try(ctx, p, "support.list", owner=p, status="unresolved", limit=50) or [])
                    if t.get("host") in (host, None)]
+        reg = self._try(ctx, p, "caps.declaration", declaration=proj["decl"]) or {}
+        # trials and adopters since the last version (the registry's public counts, minus those at the change)
+        conv = {"trials": int(reg.get("trials") or 0) - int(proj.get("trials_at") or 0),
+                "adopters": int(reg.get("adopters") or 0)}
         for t in tickets:
             self._try(ctx, p, "support.reply", ticket=t["ticket"], body="Thanks for the report - looking into it.")
             self._try(ctx, p, "support.resolve", ticket=t["ticket"], note="handled")
@@ -654,6 +680,8 @@ class Developers(Module):
         age = now - int(proj["t"])
         bad = (sales["retention"] is not None and len(sales["prev"]) >= 3 and
                sales["retention"] < float(self.cfg("retention_floor"))) or \
+              (sales["one_shot"] is not None and sales["settled"] >= 5 and sales["one_shot"] >= 0.6) or \
+              not self.converts(conv) or \
               (ok + err >= 10 and err / (ok + err) > 0.2) or len(tickets) >= 3
         since_change = now - int(proj.get("improved_t") or proj["t"])
         if bad and since_change >= int(self.cfg("improve_after_days")) * DAY:
@@ -689,7 +717,10 @@ class Developers(Module):
         dep = self._try(ctx, p, "cloud.deploy", repo=proj["repo"], host=proj["host"], instance=proj["instance"])
         if not dep or dep.get("status") != "live":
             return False
-        ctx.emit("devs.project_update", {"id": pid, "approach": int(k)}, vis="internal")
+        reg = self._try(ctx, p, "caps.declaration", declaration=proj["decl"]) or {}
+        ctx.emit("devs.project_update", {"id": pid, "approach": int(k), "trials_at": int(reg.get("trials") or 0)},
+                 vis="internal")
+        self._announce(ctx, p, proj["task"], proj["host"], int(proj["price"]), now, new_version=True)
         if proj.get("package"):
             ver = proj.get("pkg_version") or "1.0.0"
             a, b, _c = (int(x) for x in ver.split("."))
@@ -714,7 +745,8 @@ class Developers(Module):
     @applier("devs.project")
     def ap_project(self, ev):
         p = dict(ev.payload)
-        p.update(t=ev.t, status="live", attempts=0, improved_t=None, package=None, pkg_repo=None, pkg_version=None)
+        p.update(t=ev.t, status="live", attempts=0, improved_t=None, package=None, pkg_repo=None, pkg_version=None,
+                 trials_at=0)
         self.world.state.insert("dev_projects", p.pop("id"), p)
 
     @applier("devs.project_update")

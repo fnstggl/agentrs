@@ -220,7 +220,7 @@ def _chain(name, stages) -> dict:
             "subsystems": sorted({s["subsystem"] for s in ok}),
             "agent_artifact": any(s.get("creator_kind") for s in ok),
             "social": any("social" in s["subsystem"] for s in ok),
-            "technical": any(s["subsystem"] in ("innovation", "rivals") for s in ok)}
+            "technical": any(s["subsystem"] in ("innovation", "rivals", "software") for s in ok)}
 
 
 def outcome(res: dict) -> dict:

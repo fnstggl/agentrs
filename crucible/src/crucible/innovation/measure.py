@@ -38,6 +38,17 @@ def is_agent(world: World, principal: str) -> bool:
     return False
 
 
+def is_creator(world: World, principal: str) -> bool:
+    """An in-world actor whose creations Gate J/L count: an admitted agent or human (scripted reference agents
+    included, reported by `creator_kind`), an organisation one of them founded, or an individual of the one
+    population acting on its own (the population's autonomous developers, `innovation.devs`). The system and
+    world-generated organisations (incumbents founded at genesis) are not creators."""
+    from ..substrate import ids as _ids
+    if is_agent(world, principal):
+        return True
+    return isinstance(principal, str) and _ids.index(principal) is not None
+
+
 def creator_kind(world: World, principal: str) -> str:
     """"scripted" (controller label scripted:...), "agent" (admitted agent or human), "npc" or "population"."""
     st = world.state
@@ -77,8 +88,9 @@ def independent(world: World, creator: str, other: str) -> bool:
 
 # ====================================================================== products (Gate J)
 def agent_products(world: World) -> list[dict]:
-    """Products created by in-world agents: typed services (capability declarations), software packages (with a
-    release) and web applications. `executable` means it actually executed successfully for someone: a service
+    """Products created by in-world actors (`is_creator`: agents, labelled scripted agents, the population's
+    autonomous developers; `creator_kind` says which): typed services (capability declarations), software packages
+    (with a release) and web applications. `executable` means it actually executed successfully for someone: a service
     answered at least one request with status 200 after its declaration; a package's code ran inside a
     dependent's successful execution or its release imported and its tests ran in the sandbox."""
     st = world.state
@@ -89,7 +101,7 @@ def agent_products(world: World) -> list[dict]:
             first.setdefault((d["host"], d["name"]), did)
         for (host, name), did in sorted(first.items()):
             d = st.tables["cap_decls"][did]
-            if not is_agent(world, d["provider"]):
+            if not is_creator(world, d["provider"]):
                 continue
             ok_after = sum(r["ok"] for k, r in st.scan("svc_days") if r["host"] == host and int(k.split("|")[1]) >=
                            d["t"] // DAY)
@@ -103,7 +115,7 @@ def agent_products(world: World) -> list[dict]:
     if "pkg_packages" in st.tables:
         pkg = world.modules["pkg"]
         for name, p in st.scan("pkg_packages"):
-            if not is_agent(world, p["owner"]):
+            if not is_creator(world, p["owner"]):
                 continue
             rels = pkg.releases(st, name)
             executed = any(a["executions"] > 0 for a in st.find("pkg_adoptions", "package", name))
