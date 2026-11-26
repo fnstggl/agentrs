@@ -266,6 +266,17 @@ Numbering note (integration merge): workstreams P and M both wrote D-26 in paral
 D-27 on merge. targets.json still says "adopted_by": "DECISION_LOG D-26" because editing it would change the
 SHA-256 that this entry adopts; that field refers to this entry.
 
+## D-28 MIND-small used for experimental research by decision of the project owner (2026-11-26, orchestrator)
+The project owner resolved blocker B-1 (option 2) with the instruction: "disregard the MIND license. use MIND dataset
+now for purely experimental use and I will currently get the license for it." Decision: the pinned mirror copy of
+MIND-small (huyva/MIND-small, revision d771a250) is used for purely experimental, non-commercial research, including
+news_click@1/@2, the population interest prior and the semantic space's MIND validation; the owner is obtaining the
+official licence. Consequences: B-1 moves to the resolved section of BLOCKERS.md; the dataset entry records the owner's
+authorisation and that the official licence is pending (`datasets()["mind_small"]["license"]["acceptance_status"]`);
+derived artifacts stay marked non-commercial research only and no MIND data is redistributed (LICENSE_NOTICE.md). No
+agent accepted the licence on the owner's behalf or used a credential. Follow-up when the official files are available:
+verify the mirror against them (or re-fit) and record the acceptance (who, when, licence version).
+
 ## D-48 The Tier 2 domain contract `domains-framework/2` (2026-11-26, workstream I, wave 3b)
 Resolves the contract split of audit I_domains section 2 (DEF-I-3) on the D-17 side: `crucible.domains.base.Domain`
 is the only domain contract and `crucible.experience` consumes it unchanged. A configuration's world is
