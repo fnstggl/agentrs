@@ -30,6 +30,20 @@ CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_H.py"
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(14400)]
 
 
+def _artifact(name: str, obj) -> str:
+    """A JSON artifact beside the evidence (official runs) or in the unofficial evidence directory."""
+    if os.environ.get("CRUCIBLE_V5_RUN_ID"):
+        from crucible.acceptance.v5.manifest import docs_dir
+        d = os.path.join(docs_dir(), "evidence", "gate_H")
+    else:
+        d = os.path.join(os.environ.get("TMPDIR", "/tmp"), "crucible-v5-unofficial-evidence", "H")
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, name)
+    with open(path, "w") as fh:
+        json.dump(obj, fh, indent=1, default=str)
+    return path
+
+
 @pytest.fixture(scope="module")
 def society():
     import torch
@@ -48,6 +62,7 @@ def society():
     out = {"world": w, "summary": verify.summary(w), "actions": verify.actions(w), "gen_s": gen_s, "run_s": run_s,
            "services": dict(routing._SERVICES), "rows": G.members(w), "brain": w.runtime.get("semp.brain"),
            "maxrss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0}
+    out["rows_artifact"] = _artifact("H_society_rows.json", {"rows": out["rows"], "summary": out["summary"]})
     yield out
     w.close()
 
@@ -77,9 +92,10 @@ def test_H_1_eight_independent_participants_in_a_standard_world(society):
          "population_profile": w.spec.params.get("civ_population"), "world_family": w.spec.family,
          "simulated_days": DAYS, "calls": s["calls"], "ok_calls": s["ok_calls"], "tools_used": s["tools_used"],
          "tools_available": len(w.available_tools(society["rows"][0]["principal"]))}
-    record("H.1", m, command=CMD, notes="Class-4 rows of the one population of a standard civilisation, bound to "
-                                        "the semantic participant runtime; acting = at least one successful call "
-                                        "its own model chose.")
+    record("H.1", m, command=CMD, artifacts=[society["rows_artifact"]],
+           notes="Class-4 rows of the one population of a standard civilisation, bound to the semantic participant "
+                 "runtime; acting = at least one successful call its own model chose. Every participant's state "
+                 "(goals, memory, history, decision steps) is in the artifact.")
     assert m["population_profile"] == "standard" and m["class4_rows"] >= 8
     assert m["semantic_participants"] >= 8
 
@@ -118,11 +134,12 @@ def test_H_4_tool_selection_on_held_out_situations(society):
     items = bench.build(0, 6, ("test",))
     res = bench.evaluate(items, society["brain"])
     t = res["splits"]["test"]
+    art = _artifact("H4_items.json", res["items"])
     m = {"tool_selection_accuracy": t["accuracy"], "tool_selection_vs_random_pvalue": t["p_vs_random"],
          "items": t["n"], "ci95": json.dumps(t["ci95"]), "random_choice_accuracy": t["chance_mean"],
          "retrieval_only_accuracy": t["retrieval_only_accuracy"], "service_recall": t["host_recall"],
          "held_out_templates": len(t["by_template"]), "by_template": json.dumps(t["by_template"])}
-    record("H.4", m, command=CMD, notes="Held-out templates (generalists.bench, split test): situations of a real "
+    record("H.4", m, command=CMD, artifacts=[art], notes="Held-out templates (generalists.bench, split test): situations of a real "
                                         "class-4 participant in a civilisation, decided by the participants' own "
                                         "decision code over ALL tools available to them (several hundred).")
     assert m["tool_selection_accuracy"] >= 0.6 and m["tool_selection_vs_random_pvalue"] <= 0.01

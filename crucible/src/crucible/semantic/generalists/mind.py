@@ -400,9 +400,20 @@ def tool_line(t: dict, n: int = 150) -> str:
 
 
 def started(a: Agent) -> bool:
-    """Whether the participant has already acted on its active goal (waiting is offered only then)."""
+    """Whether the participant has already acted on its active goal."""
     g = a.goal()
     return bool(g and int(g.get("steps", 0)) > 0)
+
+
+def awaiting(a: Agent) -> bool:
+    """Whether it has something to wait for: a message, post or offer it sent to others for its active goal
+    succeeded (waiting is offered only then; in the first standard-civilisation run the participants, offered "wait"
+    after any action, waited out most goals: 17 calls in 72 activations)."""
+    g = a.goal()
+    if not g:
+        return False
+    return any(h.get("goal") == g["id"] and h.get("ok") and h.get("kind") == "talk" and not h.get("read_only")
+               for h in a.history)
 
 
 def achieved_something(a: Agent) -> bool:
@@ -419,7 +430,7 @@ def intent_request(a: Agent, now: int, qv) -> dict:
     alt = ""
     if achieved_something(a):
         alt += "If your last actions above already achieved your goal, answer \"stop\" instead. "
-    if started(a):
+    if awaiting(a):
         alt += "If you are waiting for someone's answer, answer \"wait\" instead."
     # no example phrase: small models copy it (Qwen3-0.6B answered "reply to a message" for unrelated goals)
     user = (f"{a.header(now, qv)}\n\n{alt.strip() + chr(10) if alt else ''}What single action do you take next for "
@@ -438,8 +449,8 @@ def clean_intent(text: str) -> str:
 
 def endings(a: Agent) -> list[str]:
     """The non-actions offered beside the services: finish once something it did for the goal succeeded, wait once
-    it has acted on it."""
-    return (["finish"] if achieved_something(a) else []) + (["wait"] if started(a) else [])
+    it has sent something to others for it (`awaiting`)."""
+    return (["finish"] if achieved_something(a) else []) + (["wait"] if awaiting(a) else [])
 
 
 def service_request(a: Agent, now: int, hosts: list[str], summaries: dict, qv) -> dict:
@@ -736,7 +747,7 @@ def decide(ctx, brain, live: list[Agent], now: int, cfg: Config, step: int = 0) 
     rest = []
     for a in live:                          # the participant itself said its goal is done / it must wait
         word = a.intent.lower().strip(" .!")
-        if (word == "stop" and not achieved_something(a)) or (word == "wait" and not started(a)):
+        if (word == "stop" and not achieved_something(a)) or (word == "wait" and not awaiting(a)):
             a.intent = ""                   # not offered (see intent_request): the goal itself is the query
             a.count("premature_stop")
             rest.append(a)
