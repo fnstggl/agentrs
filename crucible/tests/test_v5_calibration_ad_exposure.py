@@ -78,3 +78,53 @@ def test_predictor_is_rowwise_floored_and_round_trips():
     assert np.allclose(st.shift(np.array([-7.0, -2.0])), [2.0, 0.0])
     with pytest.raises(ValueError):
         P5.AdExposure("bogus")
+
+
+# ---------------------------------------------------------------- runtime ad_response@2 (the fitted checkpoint)
+def test_ad_response_2_serves_the_fitted_shift_rowwise_with_attention():
+    from crucible.calibration import runtime as RT
+    from crucible.calibration.runtime import ContractError
+    dm = RT.get("ad_response@2")
+    assert dm.model_id == "ad_exposure_response@1" and dm.served == "K"
+    D = float(dm.fitted.predictor.a)
+    assert 1.0 < D < 2.0                                   # the kept log-odds shift of the card
+    p0 = np.array([0.02, 0.05, 0.1, 0.2, 0.35])
+    full = dm.evaluate({"organic_visit_probability": p0, "attended_probability": np.ones(5)})
+    expect = 1 / (1 + np.exp(-(np.log(p0 / (1 - p0)) + D)))
+    np.testing.assert_allclose(full.values[:, 0], expect, rtol=1e-12)
+    assert not full.extrapolated.any()                     # inside the data's organic-propensity support
+    # individual state: the absolute increment grows with the individual's own organic propensity here
+    assert np.all(np.diff(full.values[:, 2]) > 0)
+    # attention scales the increment; no attention, no effect; never below the organic probability
+    half = dm.evaluate({"organic_visit_probability": p0, "attended_probability": np.full(5, 0.5)})
+    np.testing.assert_allclose(half.values[:, 2], 0.5 * full.values[:, 2], rtol=1e-12)
+    none = dm.evaluate({"organic_visit_probability": p0, "attended_probability": np.zeros(5)})
+    np.testing.assert_allclose(none.values[:, 0], p0)
+    # row independence: a row alone gives the same value
+    one = dm.evaluate({"organic_visit_probability": p0[2:3], "attended_probability": np.ones(1)})
+    assert one.values[0, 0] == full.values[2, 0]
+    # coupled draws: incremental visits are visits that would not have happened organically
+    rng = np.random.default_rng(0)
+    n = 200_000
+    dr = dm.sample({"organic_visit_probability": np.full(n, 0.1), "attended_probability": np.ones(n)}, rng)
+    visit, inc = dr[:, 0], dr[:, 1]
+    assert abs(visit.mean() - full.values[2, 0]) < 0.005 and abs(inc.mean() - full.values[2, 2]) < 0.005
+    assert np.all(visit[inc])
+    # provenance and scope
+    prov = full.provenance()
+    assert prov["decision"] == "ad_response@2" and prov["model"] == "ad_exposure_response@1"
+    dm.check_scope(use="feed_campaign")
+    with pytest.raises(ContractError):
+        dm.check_scope(use="search_result")
+    with pytest.raises(ContractError):
+        dm.evaluate({"organic_visit_probability": p0})
+    assert dm.spec.params["incremental_conversion_ratio"] > 1.0
+
+
+def test_at_least_one_attended_display_is_per_individual():
+    from crucible.calibration import runtime as RT
+    a = RT.at_least_one(np.array([0.2, 0.2, 0.5]), np.array([0, 0, 2]), 3)
+    np.testing.assert_allclose(a, [1 - 0.8 ** 2, 0.0, 0.5])
+    # repetition saturates: more displays raise the probability with diminishing increments
+    steps = [RT.at_least_one(np.full(k, 0.3), np.zeros(k, int), 1)[0] for k in range(1, 6)]
+    assert np.all(np.diff(steps) > 0) and np.all(np.diff(np.diff(steps)) < 0)
