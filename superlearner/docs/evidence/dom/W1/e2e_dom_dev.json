@@ -1,0 +1,192 @@
+{
+ "workstream": "W1",
+ "commit": "e838f2eb659cc994d02274bd8be84cf917d931ca",
+ "check": "W1 real end-to-end at dom_dev (8x384 core, Qwen3-0.6B): 4 rapid lever worlds + 1 ow_tiny in one batch through runtime.run_lifetime, observation-only, 16 rounds, 2 updates through the LearnerHook (AgentLearner over CamUnifiedAgent.update)",
+ "command": "flock runs/cam_unified/gpu_heavy.lock timeout 840 python -m superlearner.cam_unified.stage1.dom_e2e --preset dom_dev --rapid 4 --ow 1 --rounds 16 --update-every 8 --require-cam-eval off --run runs/cam_unified/W1/e2e_dom_dev --out runs/cam_unified/W1/e2e_dom_dev.json (code at 9c6e4cb, see measured.versions.code)",
+ "criteria": {
+  "rewards_none_every_round": "PASS",
+  "two_updates_core_hash_change": "PASS",
+  "every_action_stamped": "NOT MET: 0/80 stamped; W5 cam_eval stamp not merged, run with require_cam_eval=False (declared legacy decision path)",
+  "canary_scan": "NOT CLEAN: observations/actions/results in the archive are clean; env_id / goal_id assigned by envs.experience.ExperienceAdapter contain rapid:<family>#<seed> (68/85 records each) and DecisionTrace.context_refs carry the goal id (16 per family) -> W2 change request",
+  "labels": "0 appended: no rapid episode resolved within 16 rounds (horizons 60+ ticks)",
+  "protocol_note": "an earlier identical run (not recorded) was started without the GPU lock and peaked at 8.9 GB"
+ },
+ "measured": {
+  "preset": "dom_dev",
+  "run_dir": "/workspace/agentrs/runs/cam_unified/W1/e2e_dom_dev",
+  "build_s": 10.522035869769752,
+  "build_GB": 1.3613862991333008,
+  "overrides": {
+   "grad_checkpoint": true
+  },
+  "fresh_max_steps": 9,
+  "parameters": {
+   "cam_trainable": 51799312,
+   "cam_total": 66302482,
+   "core": 14503170,
+   "semantic": "Qwen/Qwen3-0.6B",
+   "trainer_groups": {
+    "core": 14503170,
+    "heads": 33336205,
+    "semantic": 3959937
+   }
+  },
+  "lifetime_s": 113.51926714600995,
+  "B": 5,
+  "rounds": 16,
+  "decisions": 80,
+  "reward_mode": "observation_only",
+  "rewards_none_every_round": true,
+  "record_rewards_zero": true,
+  "operator_returns": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "labels_taken": 0,
+  "labels_appended": 0,
+  "versions": {
+   "policy": 1,
+   "reward_model": 0,
+   "evaluator": null,
+   "env": "ExperienceAdapter+OpenWorldAdapter",
+   "code": "9c6e4cb98c8aa8c6cd09a963731f5e9ff5a06016"
+  },
+  "authorisation": {
+   "required": false,
+   "checked": 0,
+   "source": "explicit"
+  },
+  "actions_stamped": 0,
+  "actions": 80,
+  "decide_s": [
+   10.590019495692104,
+   2.6667139381170273,
+   3.136156665161252,
+   3.279981096740812,
+   11.008028039243072,
+   1.7326480457559228,
+   3.0311211538501084,
+   1.808116212952882,
+   3.0577227477915585,
+   10.55787146370858,
+   1.1454963600263,
+   3.096624020021409,
+   0.9600602919235826,
+   1.7796665499918163,
+   1.358965342398733,
+   3.3321204320527613
+  ],
+  "decide_s_warm_median": 3.0311211538501084,
+  "decide_peak_GB": 2.4685726165771484,
+  "updates": [
+   {
+    "s": 23.604621954727918,
+    "peak_GB": 8.790915966033936,
+    "updated": true,
+    "error": null,
+    "decisions": 35,
+    "reason": null,
+    "losses": {
+     "world": 41.319454193115234,
+     "adapt": 1.0467774868011475,
+     "actor": -0.08203449845314026,
+     "value": 5.541263103485107
+    },
+    "version": 1
+   },
+   {
+    "s": 20.78195745497942,
+    "peak_GB": 8.37502384185791,
+    "updated": true,
+    "error": null,
+    "decisions": 36,
+    "reason": null,
+    "losses": {
+     "world": 42.99490737915039,
+     "adapt": 1.0187596082687378,
+     "actor": -0.1115938201546669,
+     "value": 5.51865816116333
+    },
+    "version": 2
+   }
+  ],
+  "n_updates": 2,
+  "core_hash_before": "08d797e4af6baf9ff60770e328ff353af0cff726316c55ffb135d5e40d620e73",
+  "core_hash_after": "01ef9b084108ae3303d6badb06d6b3d8f3b8a5f90e36808525251321a9d7ad5e",
+  "core_hash_changed": true,
+  "phase_wall_s": {
+   "act": 62.54601350845769,
+   "execute": 0.04320691991597414,
+   "advance": 0.02932786988094449,
+   "events": 0.0,
+   "observe": 6.353094405028969,
+   "learner": 5.057360976934433e-05,
+   "labels": 0.0008944598957896233,
+   "update": 44.40028894506395,
+   "meta": 0.0,
+   "tools": 0.05806618416681886,
+   "checkpoint": 0.0,
+   "reset": 0.0511356801725924
+  },
+  "by_tool": {
+   "wait": 24,
+   "rapid.levers": 21,
+   "noop": 19,
+   "cloud.deploy": 2,
+   "ads.resume": 1,
+   "code.set_visibility": 1,
+   "cloud.resize": 1,
+   "ads.create_campaign": 1,
+   "cloud.register_provider": 1,
+   "cloud.release": 1,
+   "mail.read": 1,
+   "market.update": 1,
+   "contracts.sign": 1,
+   "forum.feed": 1,
+   "cal.create": 1,
+   "world.help": 1,
+   "search.get": 1,
+   "world.describe": 1
+  },
+  "dropped": {
+   "ctx_tokens": {},
+   "channels_evicted": 0,
+   "channels_unbound": 0,
+   "fresh_steps": 4,
+   "fresh_decisions": 4,
+   "outcomes": {
+    "numeric_targets": 0,
+    "event_type_targets": 0,
+    "numeric_queries_live": 0,
+    "event_type_queries_live": 0
+   }
+  },
+  "agent_version": 2,
+  "canary_scan": {
+   "canaries": 9,
+   "records_scanned": 85,
+   "trace_lines_scanned": 90,
+   "content_hits": {
+    "traces:ch_constraint_tightens": 16,
+    "traces:rapid:ch_constraint_tightens#2000": 16,
+    "traces:ch_demand_shift": 16,
+    "traces:rapid:ch_demand_shift#2001": 16,
+    "traces:ch_drifting_ideal": 16,
+    "traces:rapid:ch_drifting_ideal#2002": 16,
+    "traces:ch_rule_change": 16,
+    "traces:rapid:ch_rule_change#2003": 16
+   },
+   "content_clean": false,
+   "id_field_hits": {
+    "env_id": 68,
+    "goal_id": 68
+   },
+   "clean": false
+  },
+  "peak_GB": 8.790915966033936
+ },
+ "conditions": "under contention: run under gpu_heavy.lock, but other workstreams' unlocked GPU jobs were running (no free-memory gate); times are upper bounds"
+}
