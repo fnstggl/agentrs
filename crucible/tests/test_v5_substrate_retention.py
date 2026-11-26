@@ -177,3 +177,50 @@ def test_a_world_cannot_reach_another_worlds_pool_bytes():
         A.get_array_blob(w2, r1)                                 # w2's state does not record that REF
     w1.close()
     w2.close()
+
+
+# ---------------------------------------------------------------------------------------------- cost per compaction
+@pytest.mark.timeout(900)
+def test_periodic_compaction_reads_only_what_was_written_since_the_last_one(tmp_path, monkeypatch):
+    """At day 365 of a stored population world one weekly compaction took 19.3 s: collect re-read every cols.batch
+    event of the log and every retained snapshot was unpickled for its roots and time. The batch REFs are now read
+    incrementally and snapshot metadata once per process - with the same result."""
+    import torch
+    torch.set_num_threads(1)
+    st = SQLiteStore(str(tmp_path / "inc.sqlite"))
+    sp = population_world("development", 4, n=200, sites=4, strategic=False,
+                          adaptive={"learn_every_s": 2 * H, "checkpoint_every": 1, "min_examples": 8})
+    w = World.create(sp, world_id="inc", store=st)
+    reads, unpickled = [], []
+    orig_read, orig_get = st.read_events, st.get_snapshot
+
+    def counting_read(wid, from_seq=0, to_seq=None, types=None):
+        out = orig_read(wid, from_seq, to_seq, types=types)
+        if types == ["cols.batch"]:
+            reads.append((from_seq, len(out)))
+        return out
+
+    def counting_get(sid):
+        unpickled.append(sid)
+        return orig_get(sid)
+    monkeypatch.setattr(st, "read_events", counting_read)
+    monkeypatch.setattr(st, "get_snapshot", counting_get)
+    outs = []
+    for day in range(1, 4):
+        w.advance_time(day * 8 * H)
+        w.snapshot()
+        outs.append(retention.compact(w, prune=True, min_bytes=0))
+    # each collect read the cols.batch events after the previous one, never the whole log again
+    assert len(reads) == 3 and [r[0] for r in reads] == sorted(r[0] for r in reads) and reads[0][0] == 0
+    assert reads[1][0] > 0 and reads[2][0] > reads[1][0]
+    every = orig_read("inc", 0, None, types=["cols.batch"])
+    assert len(every) == sum(n for _, n in reads)           # each event read exactly once over the three calls
+    assert w.runtime["retention.batch_refs"][2] == {e["payload"]["ref"] for e in every}
+    # every snapshot was unpickled at most once for its metadata, however many compactions looked at it
+    assert len(unpickled) == len(set(unpickled)) <= 3
+    # the results are those of a cold computation: a fresh process (empty caches) agrees on what is needed
+    retention._SNAP_META.clear()
+    w.runtime.pop("retention.batch_refs")
+    assert retention.collect(w, dry_run=True)["dropped"] == 0          # everything droppable was dropped already
+    w.flush()
+    assert World.load(SQLiteStore(str(tmp_path / "inc.sqlite")), "inc").digest() == w.digest()

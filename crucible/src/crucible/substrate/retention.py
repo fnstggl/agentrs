@@ -80,19 +80,49 @@ def superseded(world) -> set[str]:
 
 
 def _batch_refs(world, store) -> set[str]:
-    """REFs that `cols.batch` events apply (their appliers read them on every replay): never dropped."""
+    """REFs that `cols.batch` events apply (their appliers read them on every replay): never dropped. Read
+    incrementally: the world's runtime keeps the set and the last seq it covers, so a periodic compaction reads only
+    the events written since the previous one (a full read of a 365-day log every week made compaction O(log))."""
+    cache = world.runtime.get("retention.batch_refs")
+    if cache is None or cache[0] is not store or cache[1] > world.seq:
+        cache = world.runtime["retention.batch_refs"] = [store, 0, set()]
     try:
-        evs = store.read_events(world.world_id, 0, None, types=["cols.batch"])
+        evs = store.read_events(world.world_id, cache[1], None, types=["cols.batch"])
     except TypeError:
-        evs = [e for e in store.read_events(world.world_id) if e["type"] == "cols.batch"]
-    return {e["payload"]["ref"] for e in evs}
+        evs = [e for e in store.read_events(world.world_id, cache[1]) if e["type"] == "cols.batch"]
+    for e in evs:
+        cache[2].add(e["payload"]["ref"])
+        cache[1] = max(cache[1], int(e["seq"]))
+    cache[1] = max(cache[1], int(world.seq))      # flushed by the caller: nothing older is unread
+    return cache[2]
+
+
+_SNAP_META: dict[tuple, dict] = {}     # (store path, snapshot id, hash) -> {"roots", "t"}: snapshots are immutable
+
+
+def _snap_meta(store, sid: str) -> dict:
+    """The roots and simulated time a snapshot recorded (read once per process: unpickling every retained snapshot
+    at every compaction cost O(state x snapshots))."""
+    key = (getattr(store, "path", id(store)), sid)
+    m = _SNAP_META.get(key)
+    if m is None:
+        d = pickle.loads(zlib.decompress(store.get_snapshot(sid)[1]))
+        r = d.get("blob_roots")
+        if "t" in d:
+            t = int(d["t"])
+        else:
+            from ..core.state import StateStore
+            t = int(StateStore.loads(d["state"]).meta.get("clock", 0))
+        m = {"roots": None if r is None else frozenset(r), "t": t}
+        if len(_SNAP_META) > 4096:
+            _SNAP_META.clear()
+        _SNAP_META[key] = m
+    return m
 
 
 def snapshot_roots(store, sid: str) -> set[str] | None:
     """The blob roots a snapshot recorded when it was taken (None for snapshots older than this mechanism)."""
-    blob = store.get_snapshot(sid)[1]
-    d = pickle.loads(zlib.decompress(blob))
-    r = d.get("blob_roots")
+    r = _snap_meta(store, sid)["roots"]
     return None if r is None else set(r)
 
 
@@ -230,11 +260,7 @@ def prune_snapshots(world, *, keep_last: int = 3, keep_every_s: int | None = 30 
 
 
 def _snapshot_time(store, sid: str) -> int:
-    d = pickle.loads(zlib.decompress(store.get_snapshot(sid)[1]))
-    if "t" in d:
-        return int(d["t"])
-    from ..core.state import StateStore
-    return int(StateStore.loads(d["state"]).meta.get("clock", 0))
+    return _snap_meta(store, sid)["t"]
 
 
 # ---------------------------------------------------------------------------------------------------- all together

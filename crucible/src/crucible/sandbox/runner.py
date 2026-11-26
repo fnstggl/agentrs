@@ -68,6 +68,7 @@ class SandboxConfig:
     allow_root: bool = False
     count_lines: bool = False   # deterministic cost model: bill the first parent-side measurement of a computation
     meter_scope: str | None = None  # the world lineage the deterministic memo is keyed by
+    memo_path: str | None = None    # machine-level memo file shared across processes (metering.DiskMemo); None: per process
     tenant: str | None = None   # own uid per tenant (e.g. per world); None = the shared `user`
     disk_quota_mb: int = 64     # bytes a worker's working directory may hold (checked by the parent)
     max_entries: int = 2000     # files and directories a worker's working directory may hold
@@ -368,7 +369,7 @@ class Worker:
             outcome = {"ok": ok, "result": result if ok else None,
                        "error": [(error or {}).get("type"), (error or {}).get("message")] if error else None}
             billed, memo = M.MEMO.bill(M.computation_key(self.cfg.meter_scope, self.files_digest, job, transcript,
-                                                         outcome), cpu)
+                                                         outcome), cpu, disk=self.cfg.memo_path)
         meter = {**meter, "cpu_ns": cpu, "billed_ns": int(billed), "wall_ms": round(wall_s * 1000.0, 3),
                  **({"memo": memo} if memo else {})}
         out = {"ok": bool(ok), "result": result if ok else None, "error": error, "stdout": stdout,

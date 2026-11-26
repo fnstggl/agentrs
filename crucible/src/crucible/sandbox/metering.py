@@ -25,8 +25,13 @@ program's files, the job, every brokered world call with its reply, and the outc
 from the remembered one by measurement noise; when it exceeds ``MEMO_TOL`` times the remembered value plus
 ``MEMO_SLACK_NS`` the fresh (higher) measurement is billed instead and the job is flagged - so remembering never
 lets a program do much more work than it is billed for. Programs that behave identically are billed identically
-across forks, replays from snapshots taken in the same process and repeated runs; a new process measures afresh
-(cross-process runs agree only up to measurement noise - the honest limit of measuring real work).
+across forks, replays from snapshots taken in the same process and repeated runs. With a machine-level memo file
+(`DiskMemo`, ``SandboxConfig.memo_path``; worlds use `default_memo_path()` unless ``params.meter_memo`` is
+"process") the anchors are shared by every process of the machine (first writer wins), so a rerun, a resumed run or
+a replication of the same world in a NEW process bills exactly the same and the same spec and seed give the same
+event hashes; without it, or on another machine with an empty memo, a new process measures afresh (agreement only up
+to measurement noise - the honest limit of measuring real work). Worlds that must bill alike although their specs
+differ (an experiment's arms that add or remove a module) share a lineage with ``params.meter_lineage``.
 
 Units. ``work_units`` are CPU nanoseconds divided by ``NS_PER_WORK_UNIT`` (calibrated on the reference need solvers:
 about one of their executed CPython lines, including the C work it triggers, on the build host - so magnitudes of
@@ -162,19 +167,103 @@ def digest(x: Any) -> str:
                            digest_size=16).hexdigest()
 
 
+MEMO_DISK_MAX = 2_000_000       # anchors kept in a machine-level memo file (the oldest are dropped beyond)
+
+
+def default_memo_path() -> str | None:
+    """The machine-level memo file worlds share (``$CRUCIBLE_METER_MEMO``; ``off`` keeps memos per process), by default
+    ``$CRUCIBLE_CACHE/meter/memo-v1.sqlite`` (``~/.cache/crucible`` when unset, like the shared-space cache)."""
+    v = os.environ.get("CRUCIBLE_METER_MEMO")
+    if v is not None:
+        return None if v.strip().lower() in ("", "0", "off", "none", "process") else v
+    base = os.environ.get("CRUCIBLE_CACHE") or os.path.join(os.path.expanduser("~"), ".cache", "crucible")
+    return os.path.join(base, "meter", "memo-v1.sqlite")
+
+
+class DiskMemo:
+    """The first measurement of each computation, shared by every process of this machine (workstream A, D-21 / K3
+    after D-20): an SQLite table ``memo(key, ns)`` where the first writer wins (``INSERT OR IGNORE``), so concurrent
+    processes agree on one anchor. Without it a NEW process measured every computation afresh and the same spec and
+    seed gave different event hashes run to run (cross-process resume, replication); with it a rerun, a resumed run
+    or an independent replication on this machine bills the anchor exactly as the in-process memo does. Keys already
+    contain the world lineage (`computation_key`), so worlds never share anchors unless they share a lineage. The
+    file is written by the host process only (sandboxed workers cannot reach it)."""
+
+    def __init__(self, path: str):
+        self.path = path
+        self._con = None
+        self._pid = None
+        self._n = 0
+
+    def _conn(self):
+        import sqlite3
+        if self._con is None or self._pid != os.getpid():      # a connection never crosses a fork
+            d = os.path.dirname(self.path)
+            if d:
+                os.makedirs(d, exist_ok=True)
+            con = sqlite3.connect(self.path, timeout=30.0, isolation_level=None, check_same_thread=False)
+            con.execute("PRAGMA journal_mode=WAL")
+            con.execute("PRAGMA synchronous=NORMAL")
+            con.execute("CREATE TABLE IF NOT EXISTS memo (key TEXT PRIMARY KEY, ns INTEGER NOT NULL)")
+            self._con, self._pid = con, os.getpid()
+        return self._con
+
+    def first(self, key: str, fresh_ns: int) -> tuple[int, bool]:
+        """(the computation's anchor, whether `fresh_ns` just became it)."""
+        con = self._conn()
+        if con.execute("INSERT OR IGNORE INTO memo(key, ns) VALUES (?, ?)", (key, int(fresh_ns))).rowcount == 1:
+            self._n += 1
+            if self._n % 10_000 == 0:
+                hi = con.execute("SELECT max(rowid) FROM memo").fetchone()[0] or 0
+                con.execute("DELETE FROM memo WHERE rowid <= ?", (hi - MEMO_DISK_MAX,))
+            return int(fresh_ns), True
+        row = con.execute("SELECT ns FROM memo WHERE key = ?", (key,)).fetchone()
+        return (int(row[0]), False) if row is not None else (int(fresh_ns), True)
+
+
+_DISKS: dict[str, DiskMemo | None] = {}
+
+
+def _disk(path: str | None) -> DiskMemo | None:
+    """The memo file at `path` (None when no path, or after it failed once in this process)."""
+    if not path:
+        return None
+    if path not in _DISKS:
+        _DISKS[path] = DiskMemo(path)
+    return _DISKS[path]
+
+
 class Memo:
-    """First measurement of each computation per world lineage (bounded, least-recently-used eviction)."""
+    """First measurement of each computation per world lineage (bounded, least-recently-used eviction), optionally
+    backed by a machine-level `DiskMemo` (``disk=`` path) so that other processes bill the same anchors."""
 
     def __init__(self, max_entries: int = MEMO_MAX):
         self.max = max_entries
         self._d: OrderedDict[str, int] = OrderedDict()
         self._lock = threading.Lock()
         self.hits = self.misses = self.exceeded = 0
+        self.disk_errors = 0
 
-    def bill(self, key: str, fresh_ns: int) -> tuple[int, str]:
+    def bill(self, key: str, fresh_ns: int, disk: str | None = None) -> tuple[int, str]:
         fresh_ns = max(0, int(fresh_ns))
         with self._lock:
             rec = self._d.get(key)
+            dm = _disk(disk) if rec is None else None
+            if dm is not None:
+                try:
+                    anchor, mine = dm.first(key, fresh_ns)
+                except Exception:  # noqa: BLE001 - an unusable memo file degrades to the in-process memo
+                    self.disk_errors += 1
+                    _DISKS[disk] = None
+                    anchor, mine = None, True
+                if anchor is not None:
+                    self._d[key] = anchor
+                    if len(self._d) > self.max:
+                        self._d.popitem(last=False)
+                    if mine:
+                        self.misses += 1
+                        return fresh_ns, "first"
+                    rec = anchor          # another process measured it first: the same tolerance rule applies
             if rec is None:
                 self._d[key] = fresh_ns
                 if len(self._d) > self.max:

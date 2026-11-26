@@ -20,6 +20,13 @@ target owner after migration, the owning workstream, the migration and an expiry
 expired entry fails too. Nothing is ignored silently: known duplicates present in a world are reported with how
 many facts each copy actually holds (the data-level view: e.g. 292 forum follows vs 0 social-graph edges).
 
+* **legacy** - (the migration target for 4.0 tables, which cannot be retired: 4.0 worlds must stay byte-identical)
+  a 4.0 table that holds a kind's facts only in worlds WITHOUT the kind's owner; where the owner is installed, the
+  4.0 module writes through the owner instead. The rule is enforced on data in every world (`world_problems`): a
+  legacy table that holds facts while the kind's owner is in the world is a problem (split facts). A legacy entry
+  names the test that shows its module delegating (`verified_by`); `audit` fails for an entry without one. A legacy
+  table does not make its kind a known duplicate (no world can hold two versions of the facts).
+
 * `world_problems(world)` / `world_report(world)` - over the modules of one world (used by
   `primitives.problems` / `check_no_duplicates`).
 * `scan_registry()` / `audit()` - over EVERY registered kernel module, each installed on its own (with its
@@ -43,7 +50,7 @@ SIGNATURES: dict[str, str] = {
     "product": r"product|catalog|(^|_)items?($|_)",
     "listing": r"listing|offer",
     "subscription": r"subscri|(^|_)subs?($|_)|member|nlsub|tier",
-    "relationship": r"follow|friend|(^|_)ties?($|_)|block|graph|edge|contact",
+    "relationship": r"follow|friend|(^|_)ties?($|_)|block|graph|(^|_)edges?($|_)|contact",
     "community": r"communit|board|club|group|cmember",
     "institution": r"constitution|charter|institution|(^|_)inst_|(^|_)gov|office|ballot|vote",
     "contract": r"contract|commitment|(^|_)deals?($|_)|agreement|mandate|claim",
@@ -51,13 +58,15 @@ SIGNATURES: dict[str, str] = {
     "need": r"(^|_)needs?($|_)",
 }
 
-_P, _X, _V, _D = "part", "extension", "private", "duplicate"
+_P, _X, _V, _D, _L = "part", "extension", "private", "duplicate", "legacy"
 
 
-def _r(kind, role, why, of=None):
+def _r(kind, role, why, of=None, verified_by=None):
     d = {"kind": kind, "role": role, "why": why}
     if of:
         d["of"] = of
+    if verified_by:
+        d["verified_by"] = verified_by
     return d
 
 
@@ -99,6 +108,35 @@ REVIEWED: dict[str, dict] = {
     "pop_strategic.pop_strat_groups": _r(None, _V, "neural policy-sharing groups of strategic participants"),
     "pop_strategic.pop_strat_members": _r(None, _V, "membership of strategic participants in policy groups"),
     "popweb.cols:res": _r(None, _V, "web resources the population fetched (page cache, visit statistics)"),
+    "pop_social.cols:pop": _r("population", _X, "content-creation counters of each individual (items written, "
+                                                "views last seen, last item), keyed by population row"),
+    # columns of the population table scanned one by one (wave 3, A): facts of other kinds kept per individual
+    "pop.cols:pop.contacts": _r("relationship", _D, "who each individual knows (contact rows, read by word of mouth "
+                                                    "in civgoods/work): a fourth tie graph next to forum follows, the "
+                                                    "social graph and the audience's follower sets"),
+    "pop.cols:pop.contact_trust": _r("relationship", _P, "trust per contact", "pop.cols:pop.contacts"),
+    "pop.cols:pop.communities": _r("community", _D, "boards each individual takes part in (forum board indices), "
+                                                    "a membership record of its own next to community.cols:cmember"),
+    "pop.cols:pop.policy_group": _r(None, _V, "index of the neural policy-sharing group (parameter sharing)"),
+    "pop.cols:pop.wallet_cents": _r("money", _X, "income accrued from the exogenous economy and not yet deposited "
+                                                 "(a claim on acct_external, not ledger money): an individual pays "
+                                                 "only after money_deposit moves it into its own bank account "
+                                                 "(bank.move), so no payment bypasses the ledger"),
+    "pop_social.cols:pop.soc_items": _r("content_artifact", _X, "how many pieces the individual published "
+                                                                "(counter over its catalogue items)"),
+    "pop_social.cols:pop.soc_last_item": _r("content_artifact", _X, "catalogue index of the individual's latest "
+                                                                    "piece"),
+    "aud.cols:pop.aud_c_item": _r("content_artifact", _X, "per-individual pointer into the catalogue (audience "
+                                                          "accounting state)"),
+    "aud.cols:pop.aud_i_item": _r("content_artifact", _X, "per-individual pointer into the catalogue (audience "
+                                                          "accounting state)"),
+    "aud.cols:aud_creators.followers": _r("relationship", _D, "follower sets of creators kept by the audience "
+                                                              "engine (bitsets fo:<creator>) and their counts: a "
+                                                              "follow graph of its own"),
+    **{f"aud.cols:{t}.{c}": _r("relationship", _P, "counts of follows decided in audience accounting",
+                               "aud.cols:aud_creators.followers")
+       for t, c in (("aud_creators", "follows"), ("aud_items", "follows"), ("aud_items", "pub_follows"),
+                    ("aud_items", "stg_follows"))},
     # ---------------------------------------------------------------- content
     "content.content": _r("content_artifact", _X, "content items of the catalogue (creator, platform, artifact "
                                                   "REFs)"),
@@ -106,6 +144,11 @@ REVIEWED: dict[str, dict] = {
                                                      "viewers, completions), keyed by catalogue index"),
     "aud.aud_item_info": _r("content_artifact", _D, "creator, platform, kind, duration and title of content items "
                                                     "copied from the catalogue at indexing"),
+    "space.space_items": _r("content_artifact", _X, "recorded shared-space representations of artifacts (vector, "
+                                                    "chunks, intrinsic features) keyed by artifact REF + encoder: "
+                                                    "derived from the bytes, never a second copy of the artifact"),
+    "space_read.space_read_items": _r(None, _V, "the fixed reading list of the space_read measurement module "
+                                                "(catalogue index -> artifact REF; no shared facts)"),
     # ---------------------------------------------------------------- organization
     "business.companies": _r("organization", _X, "company registration and equity of an organisation"),
     "business.shares": _r("asset", _X, "equity shares of companies (4.0 asset class owner)"),
@@ -215,6 +258,23 @@ KNOWN_DUPLICATES: dict[str, dict] = {
                               "migration": "employment of individuals comes from accepted labour-market offers "
                                            "(employment contracts); the employer column becomes a cache derived "
                                            "from them, and random job loss/finding is removed"},
+    # found by scanning every column on its own (wave 3, A): per-individual ties and memberships, audience follows
+    "pop.cols:pop.contacts": {"target_owner": "social.cols:follow", "decision": "D-15/D-21", "workstream": "B+C",
+                              "expires": _WAVE2,
+                              "migration": "an individual's contacts are edges of the one social graph (a contact "
+                                           "tie with trust as an edge attribute) that word of mouth, recommenders "
+                                           "and follows all read; the column becomes a cache derived from the "
+                                           "edges or is removed"},
+    "pop.cols:pop.communities": {"target_owner": "community.communities", "decision": "D-15/D-21",
+                                 "workstream": "B+C", "expires": _WAVE2,
+                                 "migration": "memberships of individuals are the community module's membership "
+                                              "columns (community.cols:cmember); a forum board is a community's "
+                                              "discussion space; popweb reads memberships from there"},
+    "aud.cols:aud_creators.followers": {"target_owner": "social.cols:follow", "decision": "D-21", "workstream": "C",
+                                        "expires": _WAVE2,
+                                        "migration": "a follow decided in the consumption engine is a follow edge "
+                                                     "of the social graph (written through it); audience "
+                                                     "accounting keeps only counts derived from those edges"},
     # relationships, communities, institutions, contracts, subscriptions, listings: D-21 ownership decisions
     "social.cols:follow": {"target_owner": "social.cols:follow", "decision": "D-21", "workstream": "C+A",
                            "expires": _WAVE2,
@@ -312,6 +372,34 @@ def _judge(items: list[dict], today=None) -> list[str]:
             elif _expired(k, today):
                 probs.append(f"duplicate {c['kind']}: {c['key']} - its allow-list entry expired on {k['expires']} "
                              f"({k['workstream']}: {k['migration'][:80]})")
+        elif c.get("role") == _L:
+            from .primitives import OWNERS
+            o = OWNERS.get(c.get("kind") or "")
+            if o is None or f"{o['module']}.{o['table']}" == c["key"] or c["key"].split(".", 1)[0] == o["module"]:
+                probs.append(f"legacy {c.get('kind')}: {c['key']} must be a 4.0 table of another module than the "
+                             f"kind's owner")
+            elif not c.get("verified_by"):
+                probs.append(f"legacy {c['kind']}: {c['key']} names no test showing that its module writes through "
+                             f"{o['module']}.{o['table']} where that owner is installed (verified_by)")
+    return probs
+
+
+def legacy_split(world) -> list[str]:
+    """The data-level exclusivity rule of legacy tables in one world: a legacy table of kind k must hold no facts
+    while k's owner module is installed (its module writes through the owner there)."""
+    from .primitives import OWNERS
+    probs = []
+    for key in world_items(world):
+        r = REVIEWED.get(key)
+        if not r or r["role"] != _L:
+            continue
+        o = OWNERS.get(r["kind"])
+        if o is None or o["module"] not in world.modules:
+            continue
+        n = _rows(world, key) or 0
+        if n:
+            probs.append(f"split {r['kind']} facts: legacy table {key} holds {n} while the owner "
+                         f"{o['module']}.{o['table']} is in this world")
     return probs
 
 
@@ -332,7 +420,9 @@ def world_items(world) -> list[str]:
                 continue
             keys.append(f"{m}.cols:{table}")
             for c, who in sorted(by.items()):
-                if who == m and f"{m}.cols:{table}.{c}" in REVIEWED:
+                # every column is scanned on its own name too (the owner's and extensions' columns included: a
+                # population column of contacts is a relationship fact whoever declares it)
+                if who == m and (f"{m}.cols:{table}.{c}" in REVIEWED or _signature(c)):
                     keys.append(f"{m}.cols:{table}.{c}")
     for k in REVIEWED:
         if ".arrays:" in k:
@@ -372,7 +462,7 @@ def _rows(world, key: str) -> int | None:
 
 
 def world_problems(world, today=None) -> list[str]:
-    return _judge([classify(k) for k in world_items(world)], today)
+    return _judge([classify(k) for k in world_items(world)], today) + legacy_split(world)
 
 
 def world_report(world, today=None) -> dict:
@@ -394,7 +484,9 @@ def world_report(world, today=None) -> dict:
                           "owner_rows": owners.get(c["kind"], {}).get("rows"), **e})
     return {"items": len(items), "owners": owners, "known_duplicates": known,
             "unreviewed": [c["key"] for c in items if c["status"] == "unreviewed"],
-            "problems": _judge(items, today)}
+            "legacy": [{"table": c["key"], "kind": c["kind"], "rows": _rows(world, c["key"])} for c in items
+                       if c.get("role") == _L],
+            "problems": _judge(items, today) + legacy_split(world)}
 
 
 # ---------------------------------------------------------------------------------------------------- registry
@@ -473,7 +565,7 @@ def scan_registry(names=None) -> dict:
 
 def audit(names=None, today=None) -> dict:
     """The registry-wide check: every item of every module classified. {modules, items, by_status, owners,
-    duplicates, known_duplicates, unreviewed, uninstallable, problems}."""
+    duplicates, known_duplicates, unreviewed, legacy, uninstallable, problems}."""
     scan = scan_registry(names)
     bad = scan.pop("!uninstallable")
     items = [classify(k) for m in sorted(scan) for k in scan[m]]
@@ -491,4 +583,5 @@ def audit(names=None, today=None) -> dict:
             "duplicates": sorted(c["key"] for c in dups),
             "known_duplicates": sorted(c["key"] for c in dups if c["key"] in KNOWN_DUPLICATES),
             "unreviewed": sorted(c["key"] for c in items if c["status"] == "unreviewed"),
+            "legacy": sorted(c["key"] for c in items if c.get("role") == _L),
             "uninstallable": bad, "problems": probs}

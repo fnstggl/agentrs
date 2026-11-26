@@ -34,9 +34,11 @@ Mode-specific checks (5.0, D-21):
   17 Part 2.1 domains are *engaged* - another module or a population individual caused events in them after
   genesis (seeding its own tables at genesis does not count); the one population reaches at least
   `C_MIN_POP_DOMAINS` domains (D-15); at least `C_MIN_CROSS_KINDS` shared kinds - including the population and
-  money - are written by transactions another module initiated (cross-module events touching shared owners); and at
-  least `C_MIN_PAIRS` distinct (initiator, owner module) pairs occur. Loading every module into one world without
-  interaction (audit J2) fails it.
+  money - are written by transactions another module initiated (cross-module events touching shared owners); at
+  least `C_MIN_PAIRS` distinct (initiator, owner module) pairs occur; and at least `C_MIN_INITIATORS` distinct
+  sources (the population counted once) engage domains outside their own - a hub-and-spoke world in which one
+  scripted driver calls into every domain is not an integrated civilization. Loading every module into one world
+  without interaction (audit J2) fails it.
 """
 from __future__ import annotations
 
@@ -253,6 +255,7 @@ C_MIN_DOMAINS = 12
 C_MIN_POP_DOMAINS = 6
 C_MIN_CROSS_KINDS = 8
 C_MIN_PAIRS = 12
+C_MIN_INITIATORS = 5   # distinct sources (the population counts once) that engage a domain other than their own
 _TX_START = ("cmd", "cmd.rejected", "proc", "time", "note")
 
 
@@ -290,6 +293,7 @@ def composition(world, events=None) -> dict:
         for m in mods:
             dom_of.setdefault(m, []).append(d)
     engaged: dict[str, set] = {}
+    reach: dict[str, set] = {}         # source -> domains it engaged outside its own module's domains
     pop_reach: set[str] = set()
     cross: dict[str, int] = {}
     pairs: set[tuple[str, str]] = set()
@@ -328,6 +332,8 @@ def composition(world, events=None) -> dict:
                 engaged.setdefault(d, set()).add(src_label)
                 if src_label == "population":
                     pop_reach.add(d)
+                if src_label and d not in dom_of.get(src_label, []):
+                    reach.setdefault(src_label, set()).add(d)
         if owner and (srcs - {owner} or by_person):
             for k in kinds:
                 cross[k] = cross.get(k, 0) + 1
@@ -335,15 +341,17 @@ def composition(world, events=None) -> dict:
     fact_problems = facts.world_problems(world)
     ok = {"domains": len(engaged) >= C_MIN_DOMAINS, "population_reach": len(pop_reach) >= C_MIN_POP_DOMAINS,
           "cross_kinds": len(cross) >= C_MIN_CROSS_KINDS and {"population", "money"} <= set(cross),
-          "pairs": len(pairs) >= C_MIN_PAIRS, "facts": not fact_problems}
+          "pairs": len(pairs) >= C_MIN_PAIRS, "initiators": len(reach) >= C_MIN_INITIATORS,
+          "facts": not fact_problems}
     return {"domains_engaged": sorted(engaged), "domains_total": len(DOMAINS),
             "domains_not_engaged": sorted(set(DOMAINS) - set(engaged)),
             "population_domains": sorted(pop_reach),
             "cross_module_kinds": dict(sorted(cross.items())), "cross_module_pairs": len(pairs),
             "pairs_sample": sorted(f"{a}->{b}" for a, b in pairs)[:40], "fact_problems": fact_problems[:5],
+            "initiators": {k: len(v) for k, v in sorted(reach.items())},
             "criteria": ok,
             "thresholds": {"domains": C_MIN_DOMAINS, "population_domains": C_MIN_POP_DOMAINS,
-                           "cross_kinds": C_MIN_CROSS_KINDS, "pairs": C_MIN_PAIRS},
+                           "cross_kinds": C_MIN_CROSS_KINDS, "pairs": C_MIN_PAIRS, "initiators": C_MIN_INITIATORS},
             "integrated": all(ok.values())}
 
 

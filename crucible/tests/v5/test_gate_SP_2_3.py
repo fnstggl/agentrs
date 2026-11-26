@@ -1,15 +1,18 @@
 """Gate SP-2.3 (MASTER_SPEC Part 2.3): shared world substrate - common typed primitives, no duplicate shared facts,
 cross-module transactional integrity, recorded neural inference replayable without rerunning it.
 
-Metrics (docs/v5/ACCEPTANCE_MANIFEST.json): shared_primitive_kinds >= 17, cross_module_rollback_failures == 0,
+Metrics (docs/v5/ACCEPTANCE_MANIFEST.json): shared_primitive_kinds >= 19 (D-23), cross_module_rollback_failures == 0,
 inference_replay_without_rerun == true. Measured on the real system (D-21; audit A6/A9 found the 5.0 version measured
 test-only modules and a vacuous, opt-in duplicate check):
 
-1. shared_primitive_kinds - the shared kinds (primitives.OWNERS) whose owner is a shipped kernel module that really
-   creates the owner table, according to the MANDATORY scan of every table, column table and array of every shipped
+1. shared_primitive_kinds - of the 19 primitives MASTER_SPEC Part 2.3 lists (primitives.SPEC_PRIMITIVES, checked
+   against the spec text), those whose kind (primitives.OWNERS) has an owner that is a shipped kernel module really
+   creating the owner table, according to the MANDATORY scan of every table, column table and array of every shipped
    module (crucible.substrate.facts.audit), and that have no copy elsewhere - a kind with a known duplicate on the
-   reviewed allow-list does NOT count (it is reported in kinds_with_known_duplicates with its migration). The test
-   records the number honestly; the acceptance checker compares it with the criterion.
+   reviewed allow-list does NOT count (it is reported in spec_primitives_with_known_duplicates; facts.py holds its
+   migration). The refining kinds OWNERS adds are reported apart (additional_kinds_single_owner) and never counted
+   in place of a listed one. The test records the number honestly; the acceptance checker compares it with the
+   criterion.
 2. cross_module_rollback_failures - (a) fault injection into REAL multi-module transactions of a world with every
    shipped module: each scheduled job (and agent command) whose events touch two or more modules is re-run on a fork
    with a fault raised after a random one of its events; the fork must commit only the kernel's failure record and
@@ -85,7 +88,20 @@ def measure_primitives() -> dict:
             if kind not in dup_kinds:
                 single.append(kind)
     fam_dups = {f: P.problems(World(generate({"family": f}, 0), f"sp23-{f}")) for f in sorted(FAMILIES)}
-    return {"shared_primitive_kinds": len(single), "shared_primitive_kinds_owned": len(owned),
+    # D-23: the criterion counts the 19 primitives MASTER_SPEC Part 2.3 lists (in the spec's words, checked against
+    # the spec text); the refining kinds OWNERS adds (account, listing, ...) are reported apart, never in their place
+    listed = P.spec_primitives_from_text(open(os.path.join(TESTS, os.pardir, "docs", "v5", "MASTER_SPEC.md"),
+                                              encoding="utf-8").read())
+    assert listed == list(P.SPEC_PRIMITIVES), (listed, list(P.SPEC_PRIMITIVES))
+    spec_kinds = [P.SPEC_PRIMITIVES[x] for x in listed]
+    spec_single = [k for k in spec_kinds if k in single]
+    return {"shared_primitive_kinds": len(spec_single), "spec_primitives_listed": len(listed),
+            "spec_primitives_owned": sum(1 for k in spec_kinds if k in owned),
+            "spec_primitives_single_owner": ",".join(spec_single),
+            "spec_primitives_with_known_duplicates": ",".join(k for k in spec_kinds if k in owned and k not in single),
+            "spec_primitives_without_owner": ",".join(k for k in spec_kinds if k not in owned),
+            "additional_kinds_single_owner": ",".join(k for k in single if k not in spec_kinds),
+            "all_kinds_single_owner": len(single), "shared_primitive_kinds_owned": len(owned),
             "primitive_kinds_declared": len(P.kinds()), "kinds_with_known_duplicates": ",".join(dup_kinds),
             "known_duplicate_tables": len(audit["known_duplicates"]),
             "unexplained_duplicate_facts": len(audit["problems"]),
@@ -174,7 +190,7 @@ def measure_fault_injection(n_targets: int = 60, seed: int = 5) -> dict:
           "max_modules": 0, "subscriber_targets": 0, "v5_module_targets": 0}
     v5 = {n for n in w.modules if MODULES[n].__module__.split(".")[1] in crucible.V5_PACKAGES}
     fails, touched = [], set()
-    end = w.now + 18 * 3600
+    end = w.now + 48 * 3600           # until n_targets multi-module transactions were found (or two days)
     while st["targets"] < n_targets and w.now < end:
         # alternate: one agent command (random, schema-valid) and one scheduled job
         blob, s0 = w.snapshot_blob(), w.seq
@@ -615,9 +631,10 @@ def test_SP_2_3_shared_world_substrate(tmp_path):
                     v for k, v in infer.items()})
     metrics["inference_replay_without_rerun"] = bool(xproc["ok"] and infer["inference_replay_without_rerun"])
     evidence.record("SP-2.3", metrics, command=CMD, notes=(
-        "shared_primitive_kinds counts kinds with one real owner and NO copy anywhere in the mandatory scan of every "
-        "shipped module (facts.audit); kinds with known duplicates (allow-list with migrations and expiry, "
-        "substrate/facts.py) are listed and do not count. Rollback: fault injection into real multi-module jobs and "
+        "shared_primitive_kinds counts the MASTER_SPEC Part 2.3 primitives (19, checked against the spec text) whose "
+        "kind has one real owner and NO copy anywhere in the mandatory scan of every shipped module (facts.audit); "
+        "kinds with known duplicates (allow-list with migrations and expiry, substrate/facts.py) are listed and do "
+        "not count, nor do the refining kinds outside the spec's list. Rollback: fault injection into real multi-module jobs and "
         "commands of a world with every shipped module (a fault after a random event; the fork must commit only the "
         "failure record and leave every module table and column unchanged), plus driver-composed failures of six "
         "real modules. Inference: pop_adaptive/pop_strategic replayed and regenerated in NEW processes from the "

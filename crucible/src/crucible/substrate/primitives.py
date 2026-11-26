@@ -207,6 +207,27 @@ def kinds() -> list[str]:
     return list(OWNERS)
 
 
+#: MASTER_SPEC Part 2.3 "Define common primitives for:" - the 19 primitives in the spec's words, each with the
+#: shared kind of `OWNERS` that implements it. `OWNERS` has more kinds (account, listing, subscription, employment,
+#: population, need): they refine the spec's list and are reported apart, never counted in its place.
+SPEC_PRIMITIVES: dict[str, str] = {
+    "Participant identities": "identity", "Organizations": "organization", "Assets": "asset", "Money": "money",
+    "Resource inventories": "resource_inventory", "Content artifacts": "content_artifact", "Products": "product",
+    "Services": "service", "Software repositories": "software_repository", "Relationships": "relationship",
+    "Communities": "community", "Institutions": "institution", "Contracts": "contract",
+    "Knowledge artifacts": "knowledge_artifact", "Tool definitions": "tool_definition", "Time": "time",
+    "Provenance": "provenance", "Permissions": "permission", "Observation visibility": "visibility",
+}
+
+
+def spec_primitives_from_text(text: str) -> list[str]:
+    """The bullet list under "Define common primitives for:" in MASTER_SPEC Part 2.3 (to check `SPEC_PRIMITIVES`
+    against the spec itself)."""
+    part = text.split("## 2.3 Shared world substrate", 1)[1].split("\n## ", 1)[0]
+    block = part.split("Define common primitives for:", 1)[1].strip().split("\n\n", 1)[0]
+    return [ln[2:].strip().rstrip(".") for ln in block.splitlines() if ln.startswith("- ")]
+
+
 def owner(kind: str) -> dict:
     """{"module", "table", ...} of the one owner of `kind`."""
     o = OWNERS.get(kind)

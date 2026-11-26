@@ -3,7 +3,10 @@ import os
 
 import pytest
 
+import crucible
 from crucible.substrate import modes
+
+crucible.load_all_modules()      # every test can run on its own (a provider's world needs the registered modules)
 
 
 @pytest.fixture
@@ -138,3 +141,44 @@ def test_a_self_attested_or_trivial_provider_cannot_raise_the_mode_count(scratch
     assert by["test-one-module"]["deterministic"] and not by["test-one-module"]["ok"]
     assert by["test-one-module"]["composition"]["domains_engaged"] == []
     assert not by["test-env-as-civ"]["ok"] and "kernel worlds" in by["test-env-as-civ"]["error"]
+
+
+def test_a_scripted_hub_that_calls_into_every_domain_is_not_an_integrated_civilization():
+    """Adversarial control for the Mode C check: one scripted driver whose process calls into 13 domains, plus a
+    population active in 6, satisfies the domain, population-reach and pair counts - and is still hub-and-spoke.
+    The initiator criterion refuses it; the same domain events caused by several modules of the world pass it."""
+    import crucible
+    from crucible.core.kernel import Event, World, WorldSpec
+    from crucible.substrate import facts
+    crucible.load_all_modules()
+    names = facts._with_deps(["identity", "bank", "admin", "forum", "search", "code", "docs", "contracts", "market",
+                              "gov", "caps", "cloud", "net", "industry", "freight", "learn"])
+    w = World(WorldSpec("modec-hub", 1, [{"name": m, "config": {}} for m in names]), "modec-hub")
+    first = {}
+    for t, fn in sorted(w.appliers.items()):
+        m = getattr(getattr(fn, "__self__", None), "name", None)
+        if m and m not in first and any(m in ms for ms in modes.DOMAINS.values()):
+            first[m] = t
+    doms = {d for m in first for d, ms in modes.DOMAINS.items() if m in ms}
+    assert len(doms) >= modes.C_MIN_DOMAINS
+
+    def log(initiators):
+        evs = [Event(0, 0, "note", "sys", None, {"what": "genesis"}, "internal")]
+
+        def add(type_, actor="sys", payload=None):
+            evs.append(Event(len(evs), len(evs), type_, actor, None, payload or {}, "internal"))
+        for k, m in enumerate(sorted(first)):
+            add("proc", payload={"proc": f"{initiators(k)}.tick"})
+            add(first[m])
+        for m in sorted(first)[:8]:                      # population individuals act in their own sessions
+            add("cmd", actor="p3", payload={"tool": "forum.post"})
+            add(first[m], actor="p3")
+        return evs
+    hub = modes.composition(w, log(lambda k: "driver"))
+    mods = sorted(first)
+    diverse = modes.composition(w, log(lambda k: mods[(k + 1 + k % 3) % len(mods)]))
+    assert hub["domains_engaged"] == diverse["domains_engaged"] and len(hub["domains_engaged"]) >= 12
+    assert hub["criteria"]["domains"] and hub["criteria"]["population_reach"] and hub["criteria"]["pairs"]
+    assert not hub["criteria"]["initiators"] and not hub["integrated"]
+    assert set(hub["initiators"]) == {"driver", "population"}
+    assert diverse["criteria"]["initiators"] and len(diverse["initiators"]) >= modes.C_MIN_INITIATORS

@@ -9,6 +9,8 @@ columnar population, the 4.0 internet):
 * K1 - cross-process snapshot / resume / replay with the adaptive population (its weights are rebuilt in
   `on_load` from checkpoint blobs that live only in the store): tests/test_v5_substrate_resume.py.
 """
+import os
+
 import numpy as np
 import pytest
 
@@ -44,8 +46,17 @@ class StreamObserver(Module):
         self.world.state.put("stream_seen", ev.payload["id"], {"kind": ev.payload["kind"], "r": ev.payload["r"]})
 
 
+LINEAGE = "k2-streams"
+
+
 def _world(extra=None, params=None, days=1.0):
-    sp = population_world("development", 5, n=240, sites=6, adaptive=False, strategic=False, params=params)
+    """The population world, optionally with one more module or other params. Every variant shares one measurement
+    lineage (`params.meter_lineage`): the world's sandboxed web sites are billed by parent-measured CPU (D-20), and
+    worlds whose specs differ measure afresh unless they share a lineage - measurement noise that is not the
+    kernel's subject here (an experiment's arms must share the lineage: see
+    test_measurement_noise_is_the_confound_a_shared_lineage_removes)."""
+    sp = population_world("development", 5, n=240, sites=6, adaptive=False, strategic=False,
+                          params={"meter_lineage": LINEAGE, **(params or {})})
     if extra is not None:
         sp.modules.append(extra)
     w = World.create(sp, world_id="streams")
@@ -105,6 +116,24 @@ def test_an_emitting_observer_leaves_every_main_line_event_unchanged(base):
     assert World.replay(w.spec, [e.to_dict() for e in w.log]).digest() == w.digest()
     reg = World.regenerate(w.spec, [e.to_dict() for e in w.log])
     assert reg.last_hash == w.last_hash and reg.digest() == w.digest()
+
+
+@pytest.mark.timeout(900)
+def test_measurement_noise_is_the_confound_a_shared_lineage_removes(base, monkeypatch):
+    """Why every arm shares a lineage: with its own lineage (and no anchors from any earlier run of it - a memo file
+    of its own) the observer world bills its sandboxed requests by fresh measurements, and the event hashes differ
+    in the recorded CPU of those requests (not in what happened); with the shared lineage they are identical."""
+    import tempfile
+    from crucible.sandbox import metering
+    monkeypatch.setenv("CRUCIBLE_METER_MEMO", os.path.join(tempfile.mkdtemp(prefix="k2memo-"), "memo.sqlite"))
+    monkeypatch.setattr(metering, "MEMO", metering.Memo())          # no in-process anchors either
+    own = _world({"name": "stream_observer", "config": {"call": True}}, params={"meter_lineage": "k2-own"})
+    assert own.seq == base.seq
+    diff = [(a.type, b.type) for a, b in zip(base.log[1:], own.log[1:]) if a.body() != b.body()]
+    assert diff and {t for t, _ in diff} <= {"ext", "cloud.usage", "proc.failed", "cmd.rejected"}, diff[:5]
+    assert history.mainline_digest(own.log, after_genesis=True) != history.mainline_digest(base.log,
+                                                                                            after_genesis=True)
+    assert [e.type for e in own.log] == [e.type for e in base.log]
 
 
 @pytest.mark.timeout(600)

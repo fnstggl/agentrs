@@ -125,9 +125,97 @@ def test_the_data_level_report_counts_the_facts_each_copy_holds():
     rep = P.check_no_duplicates(w)
     fr = rep["facts"]
     assert fr["problems"] == []
-    rel = [d for d in fr["known_duplicates"] if d["kind"] == "relationship"]
-    assert rel and rel[0]["table"] == "social.cols:follow"
+    rel = [d for d in fr["known_duplicates"] if d["table"] == "social.cols:follow"]
+    assert rel and rel[0]["kind"] == "relationship"
     assert rel[0]["owner"] == "forum.forum_follows" and rel[0]["owner_rows"] == len(w.state.tables["forum_follows"])
     assert rel[0]["owner_rows"] > 0 and rel[0]["rows"] == 0       # two unsynchronised graphs, measured
     from crucible.substrate import columns
     assert fr["owners"]["population"]["rows"] == columns.rows(w, "pop") > 0
+
+
+@register_module
+class FactsLegacyOld(Module):
+    """A '4.0' module keeping relationship facts of its own (like forum.forum_follows) and, where the kind's owner is
+    installed, writing through it instead (the migration a legacy entry certifies)."""
+    name = "factstest_oldties"
+
+    def install(self, world):
+        world.state.declare_table("factstest_old_ties")
+
+    def add(self, ctx, a, b):
+        if "factstest_follows" in ctx.world.modules:       # the owner is here: write through it
+            ctx.state.put("factstest_followers", f"{a}|{b}", {"target": b})
+        else:
+            ctx.state.put("factstest_old_ties", f"{a}|{b}", {"b": b})
+
+
+def _bare(*names):
+    """Without the forum: in these worlds the test module is the relationship owner (monkeypatched)."""
+    return World(WorldSpec("facts", 1, [{"name": m, "config": {}} for m in ["identity", "bank", *names]]), "facts")
+
+
+def _tie(w, a, b, split=False):
+    def go(ctx):
+        if split:
+            ctx.state.put("factstest_old_ties", f"{a}|{b}", {"b": b})
+        else:
+            w.modules["factstest_oldties"].add(ctx, a, b)
+    w._run_system("test", go)
+
+
+def test_a_legacy_table_never_holds_facts_where_the_owner_is_installed(monkeypatch):
+    """The migration target for 4.0 tables (4.0 worlds stay byte-identical, so they cannot be retired): a legacy
+    table holds a kind's facts only in worlds without its owner; with the owner installed, holding facts is a split
+    measured on data in that world. A legacy entry needs a test showing the delegation (`verified_by`), and does not
+    make its kind a known duplicate."""
+    monkeypatch.setitem(P.OWNERS, "relationship", dict(P.OWNERS["relationship"], module="factstest_follows",
+                                                       table="factstest_followers"))
+    entry = facts._r("relationship", "legacy", "test 4.0 ties", verified_by=__name__)
+    monkeypatch.setitem(facts.REVIEWED, "factstest_oldties.factstest_old_ties", entry)
+    alone = _bare("factstest_oldties")                  # a '4.0 world': the legacy table is the only copy
+    _tie(alone, "p:a", "p:b")
+    assert len(alone.state.tables["factstest_old_ties"]) == 1 and facts.world_problems(alone) == []
+    both = _bare("factstest_follows", "factstest_oldties")
+    _tie(both, "p:a", "p:b")                             # delegated: the owner holds the tie, the legacy table none
+    assert facts.world_problems(both) == [] and len(both.state.tables["factstest_followers"]) == 1
+    assert facts.world_report(both)["legacy"] == [{"table": "factstest_oldties.factstest_old_ties",
+                                                   "kind": "relationship", "rows": 0}]
+    _tie(both, "p:c", "p:d", split=True)                 # a module that keeps writing its own copy: split facts
+    probs = facts.world_problems(both)
+    assert len(probs) == 1 and "split relationship facts" in probs[0] and "holds 1" in probs[0]
+    with pytest.raises(InvariantViolation):
+        P.check_no_duplicates(both)
+    a = facts.audit(["factstest_follows", "factstest_oldties"])
+    assert a["legacy"] == ["factstest_oldties.factstest_old_ties"] and a["known_duplicates"] == []
+    # without a verifying test, or naming the owner's own module, the entry is refused
+    monkeypatch.setitem(facts.REVIEWED, "factstest_oldties.factstest_old_ties",
+                        facts._r("relationship", "legacy", "unverified"))
+    assert any("names no test" in p for p in facts.audit(["factstest_oldties"])["problems"])
+
+
+@register_module
+class FactsColumns(Module):
+    """Columns on the population-like column table of a test module: one carries a tie (contacts), one does not."""
+    name = "factstest_cols"
+    depends = ("cols",)
+
+    def install(self, world):
+        from crucible.substrate import columns
+        columns.declare(world, "factstest_people", 8, {"contacts": ("int32", (4,), -1), "mood": ("float32", (), 0.0)})
+
+
+def test_every_column_is_scanned_on_its_own_name():
+    """A per-individual tie list declared as a column (as `pop.contacts` was) is a relationship fact whoever
+    declares it: the column-level scan finds it without any declaration; a neutral column stays private."""
+    w = World(WorldSpec("facts", 1, [{"name": m, "config": {}} for m in ["identity", "bank", "artifacts", "cols",
+                                                                          "factstest_cols"]]), "facts")
+    items = facts.world_items(w)
+    assert "factstest_cols.cols:factstest_people.contacts" in items
+    assert "factstest_cols.cols:factstest_people.mood" not in items
+    probs = facts.world_problems(w)
+    assert any("factstest_cols.cols:factstest_people.contacts" in p and "relationship" in p for p in probs)
+    a = facts.audit(["factstest_cols"])
+    assert "factstest_cols.cols:factstest_people.contacts" in a["unreviewed"]
+    # the population's own columns of other kinds are reviewed, and the duplicates are on the allow-list
+    for k in ("pop.cols:pop.contacts", "pop.cols:pop.communities", "aud.cols:aud_creators.followers"):
+        assert facts.REVIEWED[k]["role"] == "duplicate" and k in facts.KNOWN_DUPLICATES
