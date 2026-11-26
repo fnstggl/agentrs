@@ -11,8 +11,8 @@ every tool it can currently use (its schema's required slots can be filled from 
 network sees
 
 * a state vector built from the identity's own observation and its private `Knowledge` (balances and their change,
-  counts of visible event types since its last decision, how many things of each kind it knows and owns, its last
-  result, the clock);
+  counts of visible event types since its last decision, how many things of each kind it knows and owns, which
+  tools it has used successfully so far (hashed), its last result, the clock);
 * per tool (scored within its host, after the host is chosen: log pi(tool) = log pi(host) + log pi(tool | host)):
   a hashed bag of the tool's name tokens (so a tool deployed by another agent is scored by what its name
   says), whether it is read-only, its time cost, its required slots, and the identity's own record with it (never
@@ -57,13 +57,14 @@ CAND_NUM = 5
 N_EVENT_BUCKETS = 32
 KINDS = ("person", "organisation", "account", "artifact", "service", "repo", "deal", "prd", "plan", "lst", "inv",
          "pkg", "proj", "task", "ord", "sub", "ent", "dep", "inst", "entity")
-STATE_DIM = 12 + N_EVENT_BUCKETS + 2 * len(KINDS) + 8
+N_DONE_BUCKETS = 48         # what it has accomplished: its own accepted uses of each tool (hashed by tool name)
+STATE_DIM = 12 + N_EVENT_BUCKETS + 2 * len(KINDS) + 8 + N_DONE_BUCKETS
 WAIT = {"name": "wait", "description": "do nothing this turn", "inputSchema": {"type": "object", "properties": {}},
         "annotations": {"readOnlyHint": True, "costSeconds": 0}}
 ALGOS = ("reinforce", "a2c", "ppo")
 ACT_BIAS = 1.5           # initial log-odds preference for a state-changing tool over a read-only one (learnable)
 ARCHS = ("mlp", "gru")
-HP_DEFAULT = {"lr": 3e-3, "gamma": 0.9, "lam": 0.9, "clip": 0.2, "epochs": 4, "ent": 0.01, "vf": 0.5,
+HP_DEFAULT = {"lr": 1e-3, "bc_lr": 3e-3, "gamma": 0.9, "lam": 0.9, "clip": 0.2, "epochs": 4, "ent": 0.01, "vf": 0.5,
               "update_every": 4, "max_grad": 1.0, "scale_decay": 0.98, "scale_floor": 1e-3}
 
 
@@ -130,6 +131,10 @@ def state_vector(obs: dict, kn: Knowledge, prev_total: float | None, last: dict 
     v[k + 1] = math.log1p(sum(1 for e in evs if e.get("cause"))) / 4.0
     v[k + 2] = math.log1p(len(kn.words)) / 6.0
     v[k + 3] = math.log1p(len(kn.packages)) / 2.0
+    k += 8
+    for tool, st in kn.tool_stats.items():          # its own record: which tools it has used successfully
+        if st.get("ok"):
+            v[k + zlib.crc32(tool.encode()) % N_DONE_BUCKETS] += math.log1p(st["ok"]) / 2.0
     return v
 
 
@@ -508,7 +513,7 @@ class PolicyGroup:
         torch = _torch()
         if not demos:
             return {"updates": 0, "changed": False}
-        opt = torch.optim.Adam(self.net.parameters(), lr=lr or self.hp["lr"])
+        opt = torch.optim.Adam(self.net.parameters(), lr=lr or self.hp.get("bc_lr", self.hp["lr"]))
         order_rng = np.random.default_rng([self.seed, 0xBC])
         losses, steps = [], 0
         h0 = self.hash

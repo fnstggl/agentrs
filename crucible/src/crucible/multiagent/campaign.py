@@ -5,8 +5,10 @@
    commerce and software modules - never the civilisations the policies are evaluated in). Their decisions are
    recorded in the policy's own candidate format.
 2. **Pre-training** (`pretrain`): every policy group is initialised independently (its own seed) and trained by
-   behaviour cloning on its own, disjoint share of the demonstrations; the training-data provenance (worlds,
-   identities, decision times) is registered as the group's first versions.
+   behaviour cloning (its own minibatch order) on the demonstration corpus - shared by default, like a common
+   pre-training corpus, or dealt out disjointly; the training-data provenance (worlds, identities, decision times)
+   is registered as the group's first versions. Everything after that - the self-play experience - is each
+   group's own.
 3. **Held-out family** (`heldout_family`): a recurrent (GRU) PPO policy pre-trained on demonstrations from other
    worlds and then trained by self-play among its own identities in yet another world - an architecture and
    algorithm no training group has, never admitted to the training civilisation: an unfamiliar opponent.
@@ -64,13 +66,19 @@ def demonstrations(seeds, *, hours: float = 48, n: int = 6, think_s: int = 1800)
     return out
 
 
-def pretrain(registry: PolicyRegistry, specs: dict[str, dict], demos: dict, *, epochs: int = 8) -> dict:
-    """Create and behaviour-clone every group of `specs` ({gid: {algo, arch, seed}}) on a disjoint share of the
-    demonstrations (identities dealt round-robin). Returns {gid: PolicyGroup}."""
+def pretrain(registry: PolicyRegistry, specs: dict[str, dict], demos: dict, *, epochs: int = 8,
+             disjoint: bool = False) -> dict:
+    """Create and behaviour-clone every group of `specs` ({gid: {algo, arch, seed}}): each group from its own seed
+    and its own minibatch order, on the whole demonstration corpus (a shared pre-training corpus, recorded as such) or,
+    with `disjoint`, on a disjoint share of it (identities dealt round-robin). Returns {gid: PolicyGroup}."""
     idents = sorted(demos["by_identity"])
     share = {gid: [] for gid in specs}
     for k, ident in enumerate(idents):
-        share[list(specs)[k % len(specs)]] += demos["by_identity"][ident]
+        if disjoint:
+            share[list(specs)[k % len(specs)]] += demos["by_identity"][ident]
+        else:
+            for gid in specs:
+                share[gid] += demos["by_identity"][ident]
     groups = {}
     for gid, sp in specs.items():
         g = PolicyGroup(gid, sp.get("algo", "reinforce"), sp.get("arch", "mlp"), seed=int(sp.get("seed", 0)),
