@@ -51,3 +51,23 @@ def test_population_private_state_probe_finds_a_planted_value_and_nothing_else()
     Q = PT.TierProbe("population private (planted)", 2)
     PT.probe_population_private(Q, env, a, reach, "planted")
     assert Q.kinds["exact_value"]["leaks"] >= 1, (key, v)
+
+
+def test_fixture_domains_never_count_as_tier2_but_build_by_name():
+    """A test fixture registered in the same process (tests/v5/_domain_fixture.py, `fixture=True`) is buildable through
+    make(2, ...) but is never one of the Tier 2 domains the gates count; Tier 2 worlds carry the learner-side modules."""
+    import os
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "v5"))
+    import _domain_fixture
+    from crucible.domains import base
+    from crucible.experience.registry import domains
+    _domain_fixture.register()
+    try:
+        assert "fixture_retail" in domains(include_fixtures=True) and "fixture_retail" not in domains()
+        env = make(2, "fixture_retail:ring_standard", 0)
+        assert env.tier == 2 and {"exp", "goals"} <= set(env.world.modules)
+        names = {t["name"] for t in env.tools(env.agents()[0])}
+        assert "exp.register" in names and "goals.check_now" not in names
+    finally:
+        base.unregister("fixture_retail")
