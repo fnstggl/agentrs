@@ -76,7 +76,7 @@ DEFAULTS = {"share": 0.03, "min_devs": 8, "max_devs": 400, "period_h": [30.0, 60
             "program": "good", "ban": [], "oss_share": 0.5, "reuse_share": 0.6, "boards": None,
             "value_cents_min": [4.0, 16.0], "price_share": 0.08, "reach": 3.0, "max_cores": 16,
             "improve_after_days": 4, "retention_floor": 0.5, "loss_days": 21, "read_posts": 6,
-            "list_limit": 30, "hurdle": [0.3, 1.5], "min_trials": 8, "min_conversion": 0.1}
+            "list_limit": 30, "hurdle": [0.3, 1.5], "min_trials": 8, "min_conversion": 0.1, "retry_days": 10}
 
 
 def _tokens(text: str) -> list[str]:
@@ -124,7 +124,9 @@ def infer_schema(examples: list) -> dict:
         if ts <= {"integer", "number"} and "number" in ts:
             ts = {"number"}
         props[k] = {"type": sorted(ts)[0] if len(ts) == 1 else sorted(ts)}
-    return {"type": "object", "required": sorted(keys), "properties": props}
+        if "object" in ts:
+            props[k]["additionalProperties"] = True          # nothing is known about nested fields
+    return {"type": "object", "required": sorted(keys), "properties": props, "additionalProperties": True}
 
 
 def _tier_list(need: str) -> list[tuple[str, str]]:
@@ -180,10 +182,41 @@ def solve(args, caller):
 '''
 
 
+WORKFLOW = '''import crucible_sdk as sdk
+
+STAGE1, STAGE2, KEY = {a!r}, {b!r}, {key!r}
+
+
+def _body(r):
+    if not isinstance(r, dict) or r.get("status") != 200:
+        raise RuntimeError("component failed: %s" % (r.get("error") if isinstance(r, dict) else r,))
+    return r.get("body")
+
+
+def solve(args, caller):
+    # stage 1 by one provider's service, its records into stage 2 by another's (both paid per call)
+    first = _body(sdk.call(STAGE1, **args["stage1"]))
+    req = dict(args["stage2"])
+    req[KEY] = first["records"]
+    return _body(sdk.call(STAGE2, **req))
+'''
+
+
+def _parts(need: str):
+    """(first, second, table key) of a composed task category, else None."""
+    if not need.startswith("gen."):
+        return None
+    from ..usefulness import category as C
+    cat = C.category_of(need)
+    if cat is None or not getattr(cat, "parts", None) or len(cat.parts) != 2:
+        return None
+    return cat.parts[0], cat.parts[1], (cat.rule or {}).get("table_key")
+
+
 def garbage_source(src: str, example: dict) -> str:
     """An input-ignoring program with the same interface (experiments only): the approach, renamed, applied to a
     fixed example whatever the input."""
-    return src.replace("def solve(", "def _impl(", 1) + GARBAGE.format(example=json.dumps(example, sort_keys=True))
+    return re.sub(r"(?m)^def solve\(", "def _impl(", src) + GARBAGE.format(example=json.dumps(example, sort_keys=True))
 
 
 class DevError(Exception):
@@ -431,7 +464,9 @@ class Developers(Module):
         bal = int(st.tables["accounts"][acct]["balance"]) if acct else 0
         if bal < int(self.cfg("min_capital")):
             return False
-        mine = {r["task"] for _, r in self.projects(st, i)}
+        # tasks it already serves, and tasks it failed to build for in the last `retry_days`
+        mine = {r["task"] for _, r in self.projects(st, i)
+                if r["status"] != "abandoned" or now - int(r["t"]) < int(self.cfg("retry_days")) * DAY}
         ban = list(self.cfg("ban") or ())
         provs = self._try(ctx, p, "cloud.providers") or []
         provs = [x for x in provs if x["cores_free"] >= 1 and not x["in_outage"]]
@@ -459,37 +494,166 @@ class Developers(Module):
             margin = users * 30 * 1.5 * price - rent_m
             aff = self._affinity(ctx, i, task)
             hurdle = float(self._col("hurdle")[i]) * (1.2 - 0.6 * max(0.0, aff)) * rent_m
+            plan = self._compose_plan(ctx, p, need, info) if _parts(need) else None
+            if plan is not None:
+                # composing existing services: no program to write, components' prices are a cost per call
+                price = int(max(price, plan["cost"] + 2))
+                margin = users * 30 * 1.5 * (price - plan["cost"]) - rent_m
+                hurdle *= 0.5
             score = margin - hurdle
             if score > 0 and (best is None or score > best[0]):
-                best = (score, task, need, info, price, comp, aff)
+                best = (score, task, need, info, price, comp, aff, plan)
         if best is None:
             return False
-        _, task, need, info, price, comp, aff = best
+        _, task, need, info, price, comp, aff, plan = best
         try:
-            self._build(ctx, i, p, acct, task, need, info, price, len(comp), aff, rng, now)
-        except DevError:
+            if plan is not None:
+                self._build_workflow(ctx, i, p, acct, task, need, info, price, len(comp), aff, plan, now)
+            else:
+                self._build(ctx, i, p, acct, task, need, info, price, len(comp), aff, rng, now)
+        except DevError as e:
+            # remembered: it does not try the same task again for a while
+            ctx.emit("devs.project", {"id": st.new_id("dproj"), "dev": int(i), "principal": p, "task": task,
+                                      "need": need, "approach": -2, "host": None, "repo": None, "instance": None,
+                                      "decl": None, "price": int(price), "cores": 0, "uses_package": None,
+                                      "competitors": len(comp), "affinity": round(float(aff), 4), "examples": [],
+                                      "status": "abandoned", "why": str(e)[:200]}, vis="internal")
             return False
         return True
 
+    # ------------------------------------------------------------------ workflows (composing others' services)
+    def _compose_plan(self, ctx, p, need: str, info: dict) -> dict | None:
+        """For a two-stage task ("a, then b on its result"), live services of other providers for each stage that
+        people keep after trying them (public registry counts) and whose declared inputs accept the stage's
+        part of the posted examples."""
+        from ..core import schema as S
+        a, b, key = _parts(need)
+        ex = [e for e in info["examples"] if isinstance(e.get("stage1"), dict) and isinstance(e.get("stage2"), dict)]
+        if not ex:
+            return None
+        picks = []
+        for part, sample in ((a, ex[0]["stage1"]), (b, None)):
+            best = None
+            for r in self._try(ctx, p, "caps.search", query=part.title[:200], limit=10) or []:
+                if r.get("kind") != "declaration" or not r.get("live") or r.get("provider") == p:
+                    continue
+                if r.get("workflows"):
+                    continue                              # not another workflow
+                c = {"trials": int(r.get("trials") or 0), "adopters": int(r.get("adopters") or 0)}
+                if c["adopters"] < 1 or not self.converts(c):
+                    continue
+                if sample is not None and S.validate(r["inputs"], sample, "input"):
+                    continue
+                if sample is None and not set(r["inputs"].get("required") or []) <= set(ex[0]["stage2"]) | {key}:
+                    continue
+                cand = (-c["adopters"], int(r.get("price_cents") or 0), r["declaration"], r)
+                if best is None or cand < best:
+                    best = cand
+            if best is None:
+                return None
+            picks.append(best[3])
+        return {"components": picks, "key": key, "cost": sum(int(r.get("price_cents") or 0) for r in picks)}
+
+    def _build_workflow(self, ctx, i, p, acct, task, need, info, price, n_comp, aff, plan, now) -> str:
+        st = ctx.state
+        from ..commerce.reference import service_files
+        a, b = plan["components"]
+        src = WORKFLOW.format(a=f"{a['host']}.{a['endpoint']}", b=f"{b['host']}.{b['endpoint']}", key=plan["key"])
+        s = slug(task)
+        repo = self._do(ctx, p, "code.create_repo", name=self._repo_name(ctx, p, f"d{i}{s}"))["repo"]
+        self._do(ctx, p, "code.commit", repo=repo, files=service_files(src, task[:120], price=price), message="v1")
+        provs = sorted((x for x in (self._try(ctx, p, "cloud.providers") or []) if x["cores_free"] >= 1
+                        and not x["in_outage"]), key=lambda x: (x["price_core_hour_cents"], x["provider"]))
+        if not provs:
+            raise DevError("no compute")
+        inst = self._do(ctx, p, "cloud.rent", provider=provs[0]["provider"], cores=1, account=acct)["instance"]
+        host = self._unique(ctx, f"d{i}-{s}", "hosts")
+        try:
+            dep = self._do(ctx, p, "cloud.deploy", repo=repo, host=host, instance=inst)
+            if dep.get("status") != "live":
+                raise DevError(f"deployment {dep.get('status')}")
+            # the workflow's service pays the components from the developer's account, up to a monthly limit
+            self._do(ctx, p, "id.grant", grantee=f"svc:{host}", cap="bank.spend", limit=max(2000, 400 * plan["cost"]))
+            examples = info["examples"][:4]
+            out = self._try(ctx, p, "pkg.exec", repo=repo, target="service:solve", input=examples[0])
+            if not out or not out.get("ok") or not isinstance(out.get("result"), dict):
+                raise DevError("the workflow does not run on the posted example")
+            name = (".".join(slug(task, 2).split("-")) if "-" in slug(task, 2) else slug(task, 1) + ".task")[:50]
+            decl = self._do(ctx, p, "caps.declare", service_host=host, capability={
+                "name": name + ".flow", "inputs": infer_schema(examples), "outputs": infer_schema([out["result"]]),
+                "endpoint": "solve", "tags": _tokens(task)[:6],
+                "doc": f"{task}. A workflow: {a['name']} ({a['host']}) on stage 1, then {b['name']} ({b['host']}) on "
+                       f"its records. {price} cents a call."})["declaration"]
+            self._do(ctx, p, "caps.compose", service_host=host, name=name + ".flow",
+                     components=[a["declaration"], b["declaration"]],
+                     doc=f"{task}: stage 1 by {a['host']}, its records into stage 2 by {b['host']}.")
+        except DevError:
+            self._try(ctx, p, "cloud.release", instance=inst)
+            raise
+        pid = st.new_id("dproj")
+        ctx.emit("devs.project", {"id": pid, "dev": int(i), "principal": p, "task": task, "need": need,
+                                  "approach": -1, "host": host, "repo": repo, "instance": inst, "decl": decl,
+                                  "price": int(price), "cores": 1, "uses_package": None,
+                                  "competitors": int(n_comp), "affinity": round(float(aff), 4),
+                                  "examples": [], "composes": [a["declaration"], b["declaration"]]}, vis="internal")
+        self._announce(ctx, p, task, host, price, now)
+        return pid
+
     # ------------------------------------------------------------------ building
-    def approach(self, i: int, need: str, rng, current: int | None = None) -> int:
-        """Which known approach the developer writes (developer-labour model FR-DEV-1): a first version is drawn
-        from its craft; a new version is better than `current` with probability craft (else the same)."""
-        n = len(_tier_list(need))
-        top = n - 1 if _relation(need) == "specified" else max(0, n - 2)
+    def _draw(self, i: int, n: int, top: int, rng, current: int | None) -> int:
         c = float(self._col("craft")[i])
         if current is None:
-            k = int(np.floor(c * (top + 1) + rng.normal(0.0, 0.6)))
-            return int(np.clip(k, 0, top))
+            return int(np.clip(int(np.floor(c * (top + 1) + rng.normal(0.0, 0.6))), 0, top))
         if current >= n - 1 or rng.random() >= c:
             return int(current)
         return int(min(n - 1, current + 1))
 
+    def approach(self, i: int, need: str, rng, current: int | None = None) -> int:
+        """Which known approach the developer writes (developer-labour model FR-DEV-1): a first version is drawn
+        from its craft; a new version is better than `current` with probability craft (else the same). A task
+        whose rule is only exemplified or learnt from outcomes caps a first version below the best approach. A
+        two-stage task is written as its two stages (`usefulness.category.stage_source`), each drawn this way;
+        the approach is then `k_first * n_second + k_second` and an improvement improves the weaker stage."""
+        parts = _parts(need)
+        if parts is None:
+            n = len(_tier_list(need))
+            top = n - 1 if _relation(need) == "specified" else max(0, n - 2)
+            return self._draw(i, n, top, rng, current)
+        a, b, _key = parts
+        na, nb = len(a.tiers), len(b.tiers)
+        ta = na - 1 if a.relation == "specified" else max(0, na - 2)
+        tb = nb - 1 if b.relation == "specified" else max(0, nb - 2)
+        if current is None:
+            return self._draw(i, na, ta, rng, None) * nb + self._draw(i, nb, tb, rng, None)
+        ka, kb = divmod(int(current), nb)
+        if ka < na - 1 and (ka / max(1, na - 1)) <= (kb / max(1, nb - 1)):
+            ka = self._draw(i, na, ta, rng, ka)
+        else:
+            kb = self._draw(i, nb, tb, rng, kb)
+        return ka * nb + kb
+
     def _source(self, need: str, k: int, example: dict) -> str:
-        src = _tier_list(need)[k][1]
+        parts = _parts(need)
+        if parts is None:
+            src = _tier_list(need)[k][1]
+        else:
+            from ..usefulness.category import stage_source
+            a, b, key = parts
+            ka, kb = divmod(int(k), len(b.tiers))
+            src = stage_source(a.tiers[ka][1], b.tiers[kb][1], key)
         if self.cfg("program") == "garbage":
             return garbage_source(src, example)
         return src
+
+    def _repo_name(self, ctx, p: str, base: str) -> str:
+        """A repository name of `p` not used yet."""
+        st = ctx.state
+        base = base.replace("-", "")[:34]
+        name, k = base, 1
+        while st.has("repos", f"{p}/{name}"):
+            k += 1
+            name = f"{base}{k}"
+        return name
 
     def _unique(self, ctx, base: str, table: str) -> str:
         st = ctx.state
@@ -514,7 +678,7 @@ class Developers(Module):
                     continue
                 uses = pk
                 break
-        repo_name = self._unique(ctx, f"d{i}-{s}", "hosts").replace("-", "")[:38]
+        repo_name = self._repo_name(ctx, p, f"d{i}{s}")
         repo = self._do(ctx, p, "code.create_repo", name=repo_name)["repo"]
         smoke = SMOKE.format(examples=json.dumps(examples, sort_keys=True))
         src = self._source(need, k, examples[0])
@@ -597,7 +761,7 @@ class Developers(Module):
         st = ctx.state
         base = f"{slug(task)}-kit"
         name = self._unique(ctx, base, "pkg_packages")
-        rname = self._unique(ctx, f"{slug(task)}lib{i}", "repos").replace("-", "")[:38]
+        rname = self._repo_name(ctx, p, f"{slug(task)}lib{i}")
         r = self._try(ctx, p, "code.create_repo", name=rname, visibility="public", license="open")
         if not r:
             return
@@ -745,8 +909,8 @@ class Developers(Module):
     @applier("devs.project")
     def ap_project(self, ev):
         p = dict(ev.payload)
-        p.update(t=ev.t, status="live", attempts=0, improved_t=None, package=None, pkg_repo=None, pkg_version=None,
-                 trials_at=0)
+        p.update(t=ev.t, status=p.get("status", "live"), attempts=0, improved_t=None, package=None, pkg_repo=None,
+                 pkg_version=None, trials_at=0)
         self.world.state.insert("dev_projects", p.pop("id"), p)
 
     @applier("devs.project_update")

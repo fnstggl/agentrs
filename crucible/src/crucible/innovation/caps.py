@@ -48,13 +48,14 @@ CAP_NAME = r"[a-z][a-z0-9_]*(\.[a-z0-9_]+){0,3}"
 HOST_RE = r"[a-z][a-z0-9-]{2,30}"
 REPO_REF = r"[a-z0-9][a-z0-9_-]{0,39}/[a-z][a-z0-9_-]{0,39}(@c[0-9a-f]{20})?"
 V5_ENDPOINTS = ("declare", "declaration", "declarations", "try", "verify", "adopt_service", "drop_service",
-                "adoptions")
+                "adoptions", "compose", "workflows")
 V5_TABLES = {
     "cap_decls": ("host", "provider", "name", "status"),
     "cap_trials": ("decl", "by"),
     "cap_adoptions": ("decl", "adopter", "status"),
     "cap_seen": ("decl", "by"),
     "cap_verifs": ("decl", "by"),
+    "cap_workflows": ("host", "composer", "status"),
 }
 CAPABILITY_SCHEMA = S.obj({
     "name": S.s_str("capability name, e.g. route.shortest or invoice.extract", pattern=CAP_NAME, maxLength=60),
@@ -124,6 +125,7 @@ class CapabilityRegistry(Capabilities):
             if prev:
                 prev(ctx, caller, host, ep, status, price)
             self._count_use(ctx, caller, host, ep, status)
+            self._observe_workflow(ctx, caller, host, status)
         world.hooks["on_service_call"] = on_call
 
     def _need_registry(self):
@@ -163,6 +165,9 @@ class CapabilityRegistry(Capabilities):
                 "tests_ref": d["tests_ref"],
                 "trials": d["trials"], "trial_ok_rate": round(d["trials_ok"] / d["trials"], 4) if d["trials"] else None,
                 "adopters": d["adopters"],
+                "workflows": [{"workflow": w, "status": st.tables["cap_workflows"][w]["status"],
+                               "components": [c["host"] for c in st.tables["cap_workflows"][w]["components"]]}
+                              for w in st.find_ids("cap_workflows", "host", d["host"])],
                 "public_verifications": [{"verification": v["id"], "by": v["by"],
                                           "provider_supplied": v["provider_supplied"], "cases": v["cases"],
                                           "mean_score": v["mean_score"], "failures": v["failures"],
@@ -475,6 +480,77 @@ class CapabilityRegistry(Capabilities):
             ctx.emit("caps.dropped", {"id": a, "reason": reason[:300]}, vis=(ctx.actor, d["provider"]))
         return {"ok": True}
 
+    # ------------------------------------------------------------------ workflows (registry objects)
+    @endpoint("compose", S.obj({
+        "service_host": S.s_str("your live service that runs the workflow (it calls the components)", pattern=HOST_RE,
+                                maxLength=31),
+        "name": S.s_str("workflow name", pattern=CAP_NAME, maxLength=60),
+        "components": S.s_arr(S.s_str("active declaration id of a component service", maxLength=40), minItems=2,
+                              maxItems=6),
+        "doc": S.s_str("what the workflow does, in which order it uses the components", maxLength=4000)},
+        ["service_host", "name", "components", "doc"]), cost_s=60, version="5")
+    def ep_compose(self, ctx, service_host, name, components, doc):
+        """Register a workflow: your live service `service_host` (with its own capability declaration) combines
+        the listed component services, each a live declaration of ANOTHER provider. The workflow is public and
+        searchable; it is `declared` until the registry has observed your service calling every component
+        successfully (service-to-service calls through the cloud), then `verified`."""
+        self._need_registry()
+        st = ctx.state
+        cloud = ctx.world.modules["cloud"]
+        dep = cloud.live_deployment(st, service_host)
+        if dep is None:
+            raise NotFound(f"{service_host} is not a live service")
+        owner = dep["owner"]
+        ident(ctx.world).authorize(ctx, owner, "cloud.deploy", scope=service_host)
+        own = [did for did in st.find_ids("cap_decls", "host", service_host)
+               if st.tables["cap_decls"][did]["status"] == "active"]
+        if not own:
+            raise InvalidAction("declare the workflow service's own capability first (caps.declare)")
+        comps = []
+        for did in components:
+            d = st.get("cap_decls", did)
+            if d is None or d["status"] != "active":
+                raise NotFound(f"no active declaration {did}")
+            if d["host"] == service_host or d["provider"] == owner:
+                raise InvalidAction("components are services of other providers")
+            comps.append({"declaration": did, "host": d["host"], "name": d["name"], "provider": d["provider"]})
+        if len({c["host"] for c in comps}) < 2:
+            raise InvalidAction("a workflow combines at least two different services")
+        wid = st.new_id("wflow")
+        ctx.emit("caps.workflow", {"id": wid, "host": service_host, "composer": owner, "by": ctx.actor, "name": name,
+                                   "declaration": own[0], "components": comps, "doc": doc[:4000]}, vis="public")
+        from ..services.search import index
+        index(ctx, f"capwf:{wid}", "capability", name,
+              f"{doc}\nWorkflow: {name}\nComponents: " + ", ".join(f"{c['name']} ({c['host']})" for c in comps)
+              + f"\nHost: {service_host}", owner, ref=own[0], hosts=[service_host] + [c["host"] for c in comps])
+        return {"workflow": wid, "status": "declared", "declaration": own[0]}
+
+    @endpoint("workflows", S.obj({"host": S.s_str(maxLength=31), "limit": S.s_int(minimum=1, maximum=50)}),
+              read_only=True, version="5")
+    def ep_workflows(self, ctx, host=None, limit=20):
+        """Registered workflows (all, or of one service): components, status, the service that runs them."""
+        self._need_registry()
+        st = ctx.state
+        ids_ = st.find_ids("cap_workflows", "host", host) if host else sorted(st.tables["cap_workflows"])
+        return [{"workflow": w, **{k: st.tables["cap_workflows"][w][k] for k in ("host", "composer", "name", "status",
+                                                                                 "declaration", "components", "t")}}
+                for w in ids_[:limit]]
+
+    def _observe_workflow(self, ctx, caller, host, status):
+        """A workflow is verified once its service has been seen calling every component successfully."""
+        if status != 200 or not isinstance(caller, str) or not caller.startswith("svc:"):
+            return
+        st = ctx.state
+        src = caller.split(":", 1)[1]
+        for wid in st.find_ids("cap_workflows", "host", src):
+            w = st.tables["cap_workflows"][wid]
+            if w["status"] != "declared" or host not in {c["host"] for c in w["components"]}:
+                continue
+            seen = sorted(set(w["observed"]) | {host})
+            ctx.emit("caps.workflow_seen", {"id": wid, "observed": seen,
+                                            "verified": seen == sorted({c["host"] for c in w["components"]})},
+                     vis="public")
+
     @endpoint("adoptions", S.obj(), read_only=True, version="5")
     def ep_adoptions(self, ctx):
         """Capabilities you (or organisations you administer) have adopted, with your own use counts."""
@@ -553,6 +629,20 @@ class CapabilityRegistry(Capabilities):
         d = st.tables["cap_decls"][a["decl"]]
         st.patch("cap_decls", a["decl"], adopters=d["adopters"] - 1)
 
+    @applier("caps.workflow")
+    def ap_workflow(self, ev):
+        p = dict(ev.payload)
+        p.update(status="declared", observed=[], t=ev.t, verified_t=None)
+        self.world.state.insert("cap_workflows", p.pop("id"), p)
+
+    @applier("caps.workflow_seen")
+    def ap_workflow_seen(self, ev):
+        p = ev.payload
+        ch = {"observed": list(p["observed"])}
+        if p["verified"]:
+            ch.update(status="verified", verified_t=ev.t)
+        self.world.state.patch("cap_workflows", p["id"], **ch)
+
     @applier("caps.use")
     def ap_use(self, ev):
         st = self.world.state
@@ -580,4 +670,10 @@ class CapabilityRegistry(Capabilities):
             if not any(t["decl"] == a["decl"] and t["ok"] and t["t"] <= a["t"] for t in
                        st.find("cap_trials", "by", a["adopter"])):
                 errs.append(f"{aid}: adoption without a successful own execution")
+        for wid, w in st.scan("cap_workflows"):
+            if w["status"] == "verified":
+                for c in w["components"]:
+                    dd = st.get("cap_deps", f"{w['host']}|{c['host']}")
+                    if dd is None or dd["n"] - dd["fails"] < 1:
+                        errs.append(f"{wid}: verified without an observed successful call to {c['host']}")
         return errs

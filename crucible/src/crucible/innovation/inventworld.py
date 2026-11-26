@@ -23,7 +23,8 @@ import copy
 
 from ..core.kernel import MODULES, WorldSpec
 
-NOVEL = ("allocate",)
+NOVEL = ("allocate", "transform")
+COMPOSE = (("transform", "allocate"),)        # composed tasks: "a, then b on its result" (usefulness.compose)
 PIPELINE = {"need": "route.shortest", "then": "pack.knapsack", "share": 1.0, "tasks_day": [1.0, 2.5],
             "diy_min": [20.0, 45.0], "then_diy_min": [3.0, 7.0], "size": [0.2, 0.5], "standard": [0.9, 0.99],
             "budget_min": [60.0, 200.0]}
@@ -33,6 +34,16 @@ def novel_family(family: str, seed: int, k: int, share: float = 1.0) -> dict:
     return {"category": {"family": family, "seed": int(seed) * 100 + k}, "share": float(share),
             "tasks_day": [1.0, 2.5], "diy_min": [15.0, 45.0], "size": [0.2, 0.5], "standard": [0.9, 0.99],
             "budget_min": [60.0, 200.0]}
+
+
+def composed_family(pair: tuple, novel: tuple, seed: int, share: float = 0.8) -> dict:
+    """A work activity whose task is a composition of two of the world's generated categories (the same hidden
+    rules as the single-stage activities: the same family and seed)."""
+    def ref(fam):
+        k = list(novel).index(fam)
+        return {"family": fam, "seed": int(seed) * 100 + k}
+    return {"compose": [ref(pair[0]), ref(pair[1])], "share": float(share), "tasks_day": [1.0, 2.0],
+            "diy_min": [30.0, 60.0], "size": [0.2, 0.4], "standard": [0.9, 0.99], "budget_min": [60.0, 200.0]}
 
 
 def _with_devs(mods: list[dict], devs: dict | None) -> list[dict]:
@@ -66,14 +77,16 @@ def _with_devs(mods: list[dict], devs: dict | None) -> list[dict]:
 
 
 def civ_spec(profile: str, seed: int, *, population: str = "development", novel: tuple = NOVEL,
-             pipeline: bool = True, devs: dict | None = None, overrides: dict | None = None,
-             params: dict | None = None) -> WorldSpec:
+             compose: tuple = COMPOSE, pipeline: bool = True, devs: dict | None = None,
+             overrides: dict | None = None, params: dict | None = None) -> WorldSpec:
     from ..civ import generator as G
     ov = copy.deepcopy(overrides or {})
     rec = G.recipe(profile, seed, population=population, overrides=copy.deepcopy(ov))
     fams = [dict(f) for f in rec["modules"]["work"]["families"]]
     for k, fam in enumerate(novel):
         fams.append(novel_family(fam, seed, k))
+    for pair in compose:
+        fams.append(composed_family(pair, novel, seed))
     if pipeline:
         fams.append(dict(PIPELINE))
     mc = dict(ov.get("module_config") or {})
@@ -92,7 +105,8 @@ def generate(profile: str, seed: int, *, store=None, strict: bool = False, **kw)
 
 
 def creation_spec(seed: int, *, n: int = 600, published: tuple = ("schedule.jobs",), novel: tuple = NOVEL,
-                  pipeline: bool = True, devs: dict | None = None, params: dict | None = None) -> WorldSpec:
+                  compose: tuple = COMPOSE, pipeline: bool = True, devs: dict | None = None,
+                  params: dict | None = None) -> WorldSpec:
     """The ECON creation world (`innovation.popworld.creation_spec`: startup economy with incumbents, published
     formats and generated categories on the population) with the population's developers (unit tests). Compute
     is priced like the civilisation's providers (`civ.genesis`: a few cents per core-hour; ECON's startup worlds
@@ -101,8 +115,9 @@ def creation_spec(seed: int, *, n: int = 600, published: tuple = ("schedule.jobs
     sp = cs(seed, n=n, published=published, novel=novel, novel_share=0.8, params=params)
     mods = [dict(m) for m in sp.modules]
     for m in mods:
-        if pipeline and m["name"] == "work":
-            m["config"] = dict(m["config"], families=list(m["config"]["families"]) + [dict(PIPELINE)])
+        if m["name"] == "work":
+            fams = list(m["config"]["families"]) + [composed_family(pair, novel, seed) for pair in compose]
+            m["config"] = dict(m["config"], families=fams + ([dict(PIPELINE)] if pipeline else []))
         if m["name"] == "ventures":
             provs = [dict(x, price=int(2 + k * 2)) for k, x in enumerate(m["config"].get("providers") or [])]
             m["config"] = dict(m["config"], providers=provs)

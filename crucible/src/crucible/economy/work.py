@@ -108,6 +108,15 @@ class Work(Module):
                 from ..usefulness import families as _fams  # noqa: F401  (registers the families)
                 cat = C.instantiate(g["category"]["family"], int(g["category"]["seed"]), g["category"].get("params"))
                 g["need"] = C.register_category(cat).name
+            if g.get("compose"):
+                # 5.0 wave 3b (workstream G, additive): a composed task "a, then b on its result"
+                # (usefulness.category.compose; registered under its deterministic name like any generated category)
+                from ..usefulness import category as C
+                from ..usefulness import families as _fams  # noqa: F401
+                a, b = g["compose"]
+                cat = C.compose(C.instantiate(a["family"], int(a["seed"]), a.get("params")),
+                                C.instantiate(b["family"], int(b["seed"]), b.get("params")))
+                g["need"] = C.register_category(cat).name
             if g.get("then_category"):
                 from ..usefulness import category as C
                 from ..usefulness import families as _fams  # noqa: F401
