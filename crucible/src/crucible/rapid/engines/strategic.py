@@ -109,7 +109,7 @@ class Strategic(RapidEngine):
     SECRET_KEYS = ("rival_cost", "rival_kind", "hi", "cut", "follow", "gap", "trigger", "eta", "temp", "sens",
                    "inc_kind", "inc_cost", "patience", "takeover", "cp_v", "cp_r0", "cp_kind", "cp_e", "cp_zeta", "opp_value",
                    "opp_budget", "decisive", "memory", "att_util", "penalty", "kappa", "B", "forget", "w",
-                   "value_sd", "Kp", "rp", "allee", "crowd", "shock_sd", "typeA", "typeB", "qualA", "qualB", "labelA",
+                   "value_sd", "Kp", "rp", "allee", "crowd", "shock_sd", "spells", "spell_mortality", "typeA", "typeB", "qualA", "qualB", "labelA",
                    "labelB", "skills", "reservation", "reliability")
 
     def __init__(self, config: dict):
@@ -653,6 +653,9 @@ class Strategic(RapidEngine):
             # logistic regrowth with a strong Allee effect: below the tipping point Al the stock shrinks
             g = r * S * (1.0 - S / K) * ((S - Al) / (S + Al)) * math.exp(float(c["shock_sd"]) * float(z[p])
                                                                         - 0.5 * float(c["shock_sd"]) ** 2)
+            # a bad spell (hidden start and length): no regrowth, and natural mortality takes a share of the stock
+            if any(int(a_) <= int(t) < int(a_) + int(n_) for a_, n_ in (c.get("spells") or [[]] * P)[p]):
+                g = -float(c["spell_mortality"]) * S
             st["S"][p] = max(0.0, S + g)
             if st["S"][p] < 0.05 * K:
                 st["collapsed"][p] = 1

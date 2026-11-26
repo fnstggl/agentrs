@@ -2244,10 +2244,11 @@ def oracle_commons(env) -> dict:
                          for f in (0.45, 0.55, 0.65, 0.75, 0.85) for L in (3, 6, 9)})
 
 
-def reference_commons(view, env):
+def reference_commons(view, env, frac: float = 0.7, liquidate: int = 5, learn_cap: bool = False):
     """Public, per participant: each takes its own ground (by its position in the team, so nobody crowds); it
     surveys before fishing, takes the first survey as roughly the ground's capacity, and fishes the survey down to
-    60% of that each period (effort from the stated 2% per unit), liquidating in the last three periods."""
+    `frac` of that each period (an escapement rule, effort from the stated 2% per unit: when a bad spell drains the
+    ground it stops fishing it), liquidating in the last `liquidate` periods."""
     ags = view.agents()
     grounds = [o for o in view.action_space(ags[0]).limits["decisions"]["ground"] if o != "rest"]
     P = len(grounds)
@@ -2263,8 +2264,10 @@ def reference_commons(view, env):
             if i >= P:
                 continue
             S = nums(obs[a]).get("my_ground_survey", 0.0)
-            last = view.horizon - view.t <= 3
-            E = emax if last else _effort_for(S, 0.6 * cap[a], q, emax)
+            if learn_cap:
+                cap[a] = max(cap[a], S)
+            last = view.horizon - view.t <= liquidate
+            E = emax if last else _effort_for(S, frac * cap[a], q, emax)
             acts[a] = {"kind": "levers", "values": {"effort": E}}
         obs = view.step(acts)["observations"]
 
@@ -2315,9 +2318,36 @@ def claim_commons(env) -> dict:
     for _ in range(15):
         lo.step(None)
         hi.step(None)
-    return {"ok": per_a < per_b and lo._state["S"][0] < 0.8 * A_ and hi._state["S"][0] > 2.0 * A_,
+    # both rest through the same bad spells, if any: the one left above the tipping point stays above it
+    return {"ok": per_a < per_b and lo._state["S"][0] < 0.8 * A_ and hi._state["S"][0] > 1.2 * A_,
             "catch_per_effort_crowded": per_a, "catch_per_effort_alone": per_b,
             "below_tipping_after_rest": lo._state["S"][0] / A_, "above_tipping_after_rest": hi._state["S"][0] / A_}
+
+
+def claim_commons_spells(env) -> dict:
+    """Bad spells: on every ground, an unfished stock at 60% of capacity shrinks over each of its hidden bad
+    spells and grows over a quiet stretch of the same length (forks from the start, nobody fishing)."""
+    eng, st, c = inside(env)
+    H = int(c["horizon"])
+    out, ok = {}, True
+    for p, sp in enumerate(c.get("spells") or []):
+        for a_, n_ in sp:
+            quiet = next((t for t in range(0, H - n_) if all(not (b_ - n_ <= t < b_ + m_) for b_, m_ in sp)), None)
+            res = {}
+            for lab, t0 in (("spell", int(a_)), ("quiet", quiet)):
+                if t0 is None:
+                    continue
+                e = fork(env)
+                while e.t < t0:
+                    e.step(None)
+                e._state["S"][p] = 0.6 * float(c["Kp"][p])
+                for _ in range(int(n_)):
+                    e.step(None)
+                res[lab] = e._state["S"][p] / (0.6 * float(c["Kp"][p]))
+            good = res.get("spell", 1.0) < 0.95 and res.get("quiet", 0.0) > 1.0
+            ok = ok and good
+            out[f"{c['patch_names'][p]}@{a_}"] = dict(res, ok=good)
+    return {"ok": bool(out) and ok, "spells": out}
 
 
 # ====================================================================== 8.9.5 collaborative discovery

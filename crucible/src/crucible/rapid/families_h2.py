@@ -497,20 +497,35 @@ def team_profile(rng, d):
 
 @family("team_commons", engine="strategic", category="8.9", item="8.9.3", split="train",
         doc="Three participants harvest renewable patches with hidden capacities, regrowth and tipping points "
-            "(depensation); boats on the same patch crowd each other; surveys are noisy.",
+            "(depensation); boats on the same patch crowd each other; surveys are noisy. Each ground has bad "
+            "spells at hidden times (no regrowth, natural losses): fishing through one at the usual effort pushes "
+            "the stock past its tipping point.",
         distinct_because="shared renewable stocks with logistic regrowth and an Allee threshold, crowding between "
-                         "harvesters, ground choice (discrete) plus effort (lever) per participant",
+                         "harvesters, ground choice (discrete) plus effort (lever) per participant; hidden bad "
+                         "spells make harvest decisions depend on the surveyed stock",
         axes={"graph_size": 3, "horizon": 50, "observation_noise": 0.1}, objective="maximize_net",
-        participants=("teammate:harvester",), **hooks("commons"))
+        participants=("teammate:harvester",), version="2",
+        **dict(hooks("commons"), claims=(E + "claim_commons", E + "claim_commons_spells")))
 def team_commons(rng, d):
     P = int(d["graph_size"])
+    H = int(d["horizon"])
     names = neutral_names(rng, P)
     K = [u(rng, 800.0, 1500.0) for _ in range(P)]
-    return {"engine": "strategic", "scenario": "commons", "horizon": int(d["horizon"]), "agents": ["a0", "a1", "a2"],
+    spells = []
+    for _ in range(P):
+        n = int(rng.integers(2, 4))
+        starts = sorted(int(x) for x in rng.choice(np.arange(3, H - 8), size=n, replace=False))
+        sp = []
+        for a in starts:
+            if not sp or a > sp[-1][0] + sp[-1][1] + 3:
+                sp.append([a, int(rng.integers(3, 7))])
+        spells.append(sp)
+    return {"engine": "strategic", "scenario": "commons", "horizon": H, "agents": ["a0", "a1", "a2"],
             "patch_names": names, "Kp": K, "rp": [u(rng, 0.25, 0.5) for _ in range(P)],
-            "allee": [k * u(rng, 0.15, 0.4) for k in K], "s0_frac": [u(rng, 0.7, 0.95) for _ in range(P)],
+            "allee": [k * u(rng, 0.15, 0.3) for k in K], "s0_frac": [u(rng, 0.7, 0.95) for _ in range(P)],
             "crowd": u(rng, 0.6, 1.2), "catchability": 0.02, "e_max": 10.0, "unit_price": 5.0, "effort_cost": 6.0,
-            "shock_sd": 0.15, "survey_sd": float(d["observation_noise"]), "endowment": 50_000,
+            "shock_sd": 0.15, "spells": spells, "spell_mortality": 0.08,
+            "survey_sd": float(d["observation_noise"]), "endowment": 50_000,
             "objective": {"type": "maximize_net", "text": "Maximise the team's landings value minus effort costs."},
             "brief": f"Three of you fish {P} grounds ({', '.join(names)}). Each period choose a ground (or rest) and "
                      "an effort (0-10, 6 per unit). Each unit of effort catches about 2% of the ground's stock; "
