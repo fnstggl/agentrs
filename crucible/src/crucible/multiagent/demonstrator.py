@@ -71,8 +71,12 @@ class Demonstrator:
 
     def result(self, action: dict | None, result: dict | None, kn: Knowledge) -> None:
         if action and result is not None and not result.get("ok"):
-            k = self._key(action["tool"], action.get("args") or {})
-            self.fails[k] = self.fails.get(k, 0) + 1
+            keys = {self._key(action["tool"], action.get("args") or {})}
+            if self.goal is not None and self.goal[0] == action["tool"]:
+                # the workflow step it was attempting (its arguments may not all have been available as candidates)
+                keys.add(self._key(*self.goal))
+            for k in keys:
+                self.fails[k] = self.fails.get(k, 0) + 1
         if not action or not result or not result.get("ok"):
             if action and action.get("tool") in ("deal.respond", "id.respond_invite"):
                 key = action["args"].get("deal") or action["args"].get("invite")
@@ -187,8 +191,9 @@ class Demonstrator:
                     and v not in self.proposed and v not in kn.orgs]
         if partners and len(self.proposed) < 6 and self.rng.random() < 0.3:
             out.append(("deal.propose", {"to": partners[0], "as_org": G.OMIT}))
-        if not self.instances and kn.values("provider") and self.rng.random() < 0.5:
-            out.append(("cloud.rent", {"provider": kn.values("provider")[0], "owner": G.OMIT}))
+        provs = [v for v in kn.values("provider") if self.fails.get(("cloud.rent", v), 0) < 2]
+        if not self.instances and provs and self.rng.random() < 0.5:
+            out.append(("cloud.rent", {"provider": provs[0], "owner": G.OMIT}))
         if self.instances and any(r.get("committed") and not r.get("deployed") for r in self.repos.values()):
             repo = next(r for r, x in self.repos.items() if x.get("committed") and not x.get("deployed"))
             out.append(("cloud.deploy", {"repo": repo, "instance": self.instances[0], "ref": G.OMIT}))
@@ -216,6 +221,19 @@ class Demonstrator:
     def choose_value(self, tool: str, slot: str, cands: list, args: dict) -> int:
         prefs = self.goal[1] if self.goal and self.goal[0] == tool else {}
         want = prefs.get(slot)
+        if isinstance(want, dict):
+            # an object: the composition agreeing with the most of what the step needs (same discriminator)
+            best, score = None, 0
+            for i, c in enumerate(cands):
+                v = c.value
+                if not isinstance(v, dict) or any(v.get(k) != x for k, x in want.items() if k in ("type", "kind")):
+                    continue
+                n = 1 + sum(1 for k, x in want.items() if v.get(k) == x) + sum(1 for k in v if k not in want and
+                                                                                str(v[k]) in self.kn.mine)
+                if n > score:
+                    best, score = i, n
+            if best is not None:
+                return best
         if want is not None:
             for i, c in enumerate(cands):
                 v = c.value
@@ -245,6 +263,8 @@ class Demonstrator:
             if fr:
                 return fr[0]
         req = [i for i, c in enumerate(cands) if c.value is not G.OMIT]
+        if prefs and cands and cands[-1].value is G.OMIT:
+            return len(cands) - 1         # a workflow step leaves the optional arguments it does not need unset
         if req and (cands[-1].value is not G.OMIT or self.rng.random() < 0.5):
             return int(self.rng.choice(req))
         return len(cands) - 1 if cands and cands[-1].value is G.OMIT else 0

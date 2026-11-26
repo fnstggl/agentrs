@@ -352,7 +352,8 @@ def slot_cands(tool: str, fname: str, s: dict, required: bool, kn: Knowledge, rn
 
 
 def _string_cands(tool: str, fname: str, s: dict, kn: Knowledge, rng, filled: dict) -> list[Cand]:
-    known = kn.values(fname)
+    own = kn.own_values(fname)
+    known = own + [v for v in kn.values(fname) if v not in own]     # its own things first, then by recency
     if fname == "module" and filled.get("repo"):
         # the package directory its own code grammar writes into the chosen repository
         m = module_name(str(filled["repo"]))

@@ -9,7 +9,10 @@ memory, kept separately by every participant (never shared, never filled by the 
   the fields of the results and events that mention the same things, so this is how an argument slot learns its
   candidate values; nothing in it is specific to one tool or module;
 * `ids` - every id-like value seen (with its kind, first/last time seen, how often, and whether it is the
-  participant's own: returned by its own state-changing action or related to it in its entities);
+  participant's own: returned by its own state-changing action or related to it in its entities); the memory is
+  bounded and forgets the least recently seen ids first, but never its own things;
+* `own_by_field[name]` - its own things under each field name they appeared with (what it owns is offered first
+  when it fills a slot of that name: a builder remembers its own repositories however many others it reads about);
 * `words` - topic words of the texts it read (for the titles and descriptions it writes);
 * `accounts`, `orgs` - its own bank accounts and organisations (from its numbers and entities);
 * `tool_stats` - its own record of each tool: tries, successes, last error (learner-side experience, e.g. for a
@@ -51,6 +54,7 @@ class Knowledge:
         self.accounts: list[str] = []
         self.orgs: list[str] = []
         self.mine: set[str] = set()
+        self.own_by_field: dict[str, OrderedDict] = {}
         self.tool_stats: dict[str, dict] = {}
         self.packages: OrderedDict[str, dict] = OrderedDict()   # import path -> {package, api}: packages it found
         self.addressed: set[str] = set()     # ids of things other principals addressed to it (events naming it)
@@ -82,12 +86,30 @@ class Knowledge:
         rec["n"] += 1
         if field:
             rec["fields"].add(field)
-        if mine:
-            rec["mine"] = True
-            self.mine.add(value)
+        if mine and not rec["mine"]:
+            self.mark_mine(value)
+        elif rec["mine"] and field:
+            self._own(field, value)
         while len(self.ids) > MAX_IDS:
-            old, r = self.ids.popitem(last=False)
-            self.mine.discard(old)
+            old = next((v for v, r in self.ids.items() if not r["mine"]), None)
+            if old is None:
+                break
+            del self.ids[old]
+
+    def _own(self, field: str, value: str) -> None:
+        d = self.own_by_field.setdefault(field, OrderedDict())
+        d.pop(value, None)
+        d[value] = self.ids[value]["last"]
+        while len(d) > MAX_FIELD_VALUES:
+            d.popitem(last=False)
+
+    def mark_mine(self, value: str) -> None:
+        """`value` (an id it has seen) is one of its own things."""
+        rec = self.ids[value]
+        rec["mine"] = True
+        self.mine.add(value)
+        for f in sorted(rec["fields"]):
+            self._own(f, value)
 
     def harvest(self, x: Any, t: int, mine: bool = False, key: str = "", depth: int = 0) -> None:
         """Every short value in a JSON-like value, under the field name it appeared with."""
@@ -197,8 +219,7 @@ class Knowledge:
                 for v in set(self.ids) - before:
                     if v.startswith(("p:", "o:", "svc:")):
                         continue                # principals are its own only by membership (entities)
-                    self.ids[v]["mine"] = True
-                    self.mine.add(v)
+                    self.mark_mine(v)
         else:
             err = result.get("error") or {}
             st["last_error"] = err.get("code") if isinstance(err, dict) else str(err)[:40]
@@ -206,6 +227,10 @@ class Knowledge:
     # ------------------------------------------------------------------ queries
     def values(self, field: str) -> list[str]:
         return list(reversed(self.by_field.get(field, {}).keys()))
+
+    def own_values(self, field: str, limit: int = 4) -> list[str]:
+        """Its own things that appeared under `field`, most recently seen first."""
+        return list(reversed(self.own_by_field.get(field, {}).keys()))[:int(limit)]
 
     def ids_of(self, kinds: tuple[str, ...], mine: bool | None = None, limit: int = 12) -> list[str]:
         out = []

@@ -84,8 +84,10 @@ class LearnerAgent:
             self.nonzero_env_rewards += 1          # never used; counted for the shared-reward-channel audit
         act = self.last_action
         ro = _read_only(self.prev_obs, act.get("tool") if act else None)
-        self.kn.ingest_observation(next_obs)
+        # its own action's result first: what that result names for the first time is what the action brought
+        # into being (its own things), even when the next observation's events mention it too
         self.kn.ingest_result(act, result, ro)
+        self.kn.ingest_observation(next_obs)
         meta = (self.last_rec or {}).get("meta") or {}
         if act and result is not None and result.get("ok") and meta.get("fn"):
             self.kn.note_value("target", meta["fn"], self.kn.t, mine=False)
