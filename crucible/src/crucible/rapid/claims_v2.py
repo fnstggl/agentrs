@@ -553,3 +553,225 @@ def identify_total(env) -> dict:
     M, _ = _solve_conservation(obs) if len(obs) >= 2 else (None, None)
     return {"ok": M is not None and abs(M - c["total"]) < 0.1 * c["total"], "question": "what is the hidden total",
             "estimate": M, "truth": c["total"]}
+
+
+# ====================================================================== selection bias
+def _truncated_mean(mu, sd, cut):
+    from math import erf, exp, pi, sqrt
+    a = (cut - mu) / sd
+    pdf = exp(-0.5 * a * a) / sqrt(2 * pi)
+    sf = 0.5 * (1 - erf(a / sqrt(2)))
+    return mu + sd * pdf / max(sf, 1e-12)
+
+
+def selection_flattens(env) -> dict:
+    """On the same noise, moving the first setting from low to high moves the reported mean by clearly less than
+    it moves the true mean (truncation flattens the response), and at a low setting the reported mean sits above
+    the true mean (selection bias)."""
+    c = env._config["claim"]
+    x1, x2 = [_lever(env, n) for n in c["levers"]]
+    out = {}
+    for lab, v in (("low", 0.0), ("high", 6.0)):
+        act = {"kind": "levers", "values": {x1: v, x2: 3.0}}
+        rd = _gauge_series(env, lambda t, act=act: act, 6)[1:].mean()
+        tr = _node_series(env, lambda t, act=act: act, 6, c["outcome"])[1:].mean()
+        out[lab] = (float(rd), float(tr))
+    d_read = out["high"][0] - out["low"][0]
+    d_true = out["high"][1] - out["low"][1]
+    return {"ok": bool(d_true > 0 and d_read < 0.85 * d_true and out["low"][0] > out["low"][1] + 0.3),
+            "reported_change": d_read, "true_change": d_true, "low_reported": out["low"][0],
+            "low_true": out["low"][1]}
+
+
+def _fit_selection(X, y, sd):
+    """Fit mu = a + b1 x1 + b2 x2 and the cut to reported means under truncation (public spread sd), by a grid
+    over the cut and least squares refinement of the linear part."""
+    best = None
+    for cut in np.linspace(-6.0, 10.0, 81):
+        mu = np.asarray(y, dtype=float).copy()
+        for _ in range(30):                      # fixed point: mu such that truncated_mean(mu) = y
+            tm = np.asarray([_truncated_mean(m, sd, cut) for m in mu])
+            mu = mu + (np.asarray(y) - tm)
+        F = np.c_[np.ones(len(X)), X]
+        coef, *_ = np.linalg.lstsq(F, mu, rcond=None)
+        pred = np.asarray([_truncated_mean(m, sd, cut) for m in F @ coef])
+        err = float(np.mean((pred - y) ** 2))
+        if best is None or err < best[0]:
+            best = (err, cut, coef)
+    return best[1], best[2]
+
+
+def _sd_from_brief(view) -> float:
+    import re
+    txt = " ".join(view.spec["brief"].values())
+    m = re.search(r"spread of about ([0-9]+(?:\.[0-9]+)?)", txt)
+    return float(m.group(1)) if m else 2.5
+
+
+def correct_selection_and_predict(view, env) -> None:
+    """Scripted public reference: measure the reported mean over a grid of settings, fit a linear law behind a
+    truncation at an unknown cut (the spread is stated in the brief), predict the true mean at held-out settings."""
+    c = env._config["claim"]
+    x1, x2 = [_lever(env, n) for n in c["levers"]]
+    X, y = _grid_measure(view, x1, x2, reps=1, n=5)
+    held = env._config["objective"]["heldout"]
+    if len(y) >= 6 and not view.done:
+        cut, coef = _fit_selection(X, y, _sd_from_brief(view))
+        preds = [{"set": cnd, "value": float(coef[0] + coef[1] * cnd[x1] + coef[2] * cnd[x2])} for cnd in held]
+        view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
+    while not view.done:
+        view.step(None)
+
+
+def identify_selection_slope(env) -> dict:
+    view = PublicView(env)
+    c = env._config["claim"]
+    x1, x2 = [_lever(env, n) for n in c["levers"]]
+    X, y = _grid_measure(view, x1, x2, reps=1, n=5)
+    _, coef = _fit_selection(X, y, _sd_from_brief(view))
+    tr = c["coef"][1]
+    return {"ok": abs(coef[1] - tr) < 0.25 * abs(tr), "question": "true slope in the first setting",
+            "estimate": float(coef[1]), "truth": tr}
+
+
+# ====================================================================== slow response
+def response_is_delayed_and_lagged(env) -> dict:
+    """Controlled step on the same noise: after raising the first setting nothing changes for exactly the dead
+    time, then the outcome approaches its new level geometrically (first-order lag): after the dead time plus
+    three time constants it has covered most but not all of the way."""
+    c = env._config["claim"]
+    x1, x2 = [_lever(env, n) for n in c["levers"]]
+    n = 120
+    a = _node_series(env, lambda t: {"kind": "levers", "values": {x1: 6.0 if t >= 5 else 0.0, x2: 0.0}}, n,
+                     c["outcome"])
+    b = _node_series(env, lambda t: {"kind": "levers", "values": {x1: 0.0, x2: 0.0}}, n, c["outcome"])
+    d = a - b
+    first = int(np.argmax(np.abs(d) > 1e-9)) if (np.abs(d) > 1e-9).any() else None
+    final = float(d[-1])
+    k = 5 + c["lag"] + int(round(3 / c["rate"]))
+    frac = float(d[min(k, n - 1)] / final) if final else 0.0
+    return {"ok": bool(first == 5 + c["lag"] and 0.75 < frac < 0.995), "first_change_at": first,
+            "expected_first_change": 5 + c["lag"], "share_after_three_time_constants": frac}
+
+
+def settle_and_predict(view, env) -> None:
+    """Scripted public reference: hold each of a few settings until the reading stops moving, fit a saturating law
+    in the first setting plus a linear one in the second to the settled levels, predict the held-out ones."""
+    c = env._config["claim"]
+    x1, x2 = [_lever(env, n) for n in c["levers"]]
+    pts = [(0.0, 0.0), (3.0, 0.0), (6.0, 0.0), (6.0, 6.0)]
+    hold = max(6, (view.horizon - 2) // len(pts))
+    X, y = [], []
+    for a, b in pts:
+        vals = []
+        for k in range(hold):
+            if view.done:
+                break
+            n = view.step({"kind": "levers", "values": {x1: a, x2: b}})["observation"]["numbers"]
+            vals.append(list(n.values())[0])
+        if len(vals) >= 4:
+            # extrapolate the geometric approach: fit v_t = L - (L - v0) r^t on the last values
+            v = np.asarray(vals[-4:])
+            dv = np.diff(v)
+            r = float(np.clip(dv[1:].sum() / dv[:-1].sum(), 0.0, 0.95)) if abs(dv[:-1].sum()) > 1e-9 else 0.0
+            L = float(v[-1] + dv[-1] * r / (1 - r)) if r > 0 else float(v[-1])
+            X.append([a, b])
+            y.append(L)
+    held = env._config["objective"]["heldout"]
+    if len(y) >= 4 and not view.done:
+        pred, _ = _fit_hyp("saturating", np.asarray(X), np.asarray(y))
+        Xh = np.asarray([[cnd[x1], cnd[x2]] for cnd in held])
+        view.step({"kind": "message", "to": "journal",
+                   "content": {"predictions": [{"set": cnd, "value": float(v)} for cnd, v in zip(held, pred(Xh))]}})
+    while not view.done:
+        view.step(None)
+
+
+def identify_dead_time(env) -> dict:
+    view = PublicView(env)
+    c = env._config["claim"]
+    x1, x2 = [_lever(env, n) for n in c["levers"]]
+    base = []
+    for _ in range(4):
+        base.append(list(view.step({"kind": "levers", "values": {x1: 0.0, x2: 0.0}})["observation"]["numbers"]
+                         .values())[0])
+    sd = float(np.std(base)) + 1e-6
+    t0 = view.t
+    est = None
+    for k in range(15):
+        if view.done:
+            break
+        v = list(view.step({"kind": "levers", "values": {x1: 6.0, x2: 0.0}})["observation"]["numbers"].values())[0]
+        if est is None and v - np.mean(base) > 4 * sd:
+            est = view.t - 1 - t0
+    return {"ok": est is not None and abs(est - c["lag"]) <= 1, "question": "dead time", "estimate": est,
+            "truth": c["lag"]}
+
+
+# ====================================================================== causal prediction under confounding
+def records_overstate_the_effect(env) -> dict:
+    """The previous operator's records (passive regime) show a slope of sales on spending several times larger
+    than the interventional effect measured on copies of the world with spending set (same noise)."""
+    c = env._config["claim"]
+    eng = env._engine
+    x, z = [_lever(env, n) for n in c["levers"]]
+    gname = env._config["objective"]["gauge"]
+    hx, hy = eng.history_of(env._state, x), eng.history_of(env._state, gname)
+    passive = float(np.polyfit(hx, hy, 1)[0])
+    lo = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: 1.0, z: 0.0}}, 30)
+    hi = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: 5.0, z: 0.0}}, 30)
+    causal = float((hi - lo).mean() / 4.0)
+    return {"ok": bool(passive > 2.0 * max(causal, 1e-9) and causal > 0), "passive_slope": passive,
+            "interventional_slope": causal}
+
+
+def intervene_and_predict(view, env) -> None:
+    """Scripted public reference: ignore the records; set spending across its range (several ticks each, the
+    hidden demand cycle averages out), fit a saturating effect plus a linear second lever, predict the held-out
+    interventions."""
+    c = env._config["claim"]
+    x, z = [_lever(env, n) for n in c["levers"]]
+    pts = [(0.0, 0.0), (1.0, 0.0), (2.5, 0.0), (6.0, 0.0), (6.0, 6.0)]
+    hold = max(3, (view.horizon - 2) // len(pts))
+    X, y = [], []
+    for a, b in pts:
+        vals = []
+        for _ in range(hold):
+            if view.done:
+                break
+            vals.append(list(view.step({"kind": "levers", "values": {x: a, z: b}})["observation"]["numbers"]
+                             .values())[0])
+        if vals:
+            X.append([a, b])
+            y.append(float(np.mean(vals)))
+    held = env._config["objective"]["heldout"]
+    if len(y) >= 4 and not view.done:
+        pred, _ = _fit_hyp("saturating", np.asarray(X), np.asarray(y))
+        Xh = np.asarray([[cnd[x], cnd[z]] for cnd in held])
+        view.step({"kind": "message", "to": "journal",
+                   "content": {"predictions": [{"set": cnd, "value": float(v)} for cnd, v in zip(held, pred(Xh))]}})
+    while not view.done:
+        view.step(None)
+
+
+def identify_effect_size(env) -> dict:
+    """Question: is spending's interventional effect over its range smaller than the records suggest?"""
+    view = PublicView(env)
+    c = env._config["claim"]
+    x, z = [_lever(env, n) for n in c["levers"]]
+    vals = {}
+    for a in (1.0, 5.0):
+        vs = []
+        for _ in range(8):
+            if view.done:
+                break
+            vs.append(list(view.step({"kind": "levers", "values": {x: a, z: 0.0}})["observation"]["numbers"]
+                           .values())[0])
+        vals[a] = float(np.mean(vs)) if vs else 0.0
+    causal = (vals[5.0] - vals[1.0]) / 4.0
+    eng = env._engine
+    hx, hy = eng.history_of(env._state, x), eng.history_of(env._state, env._config["objective"]["gauge"])
+    passive = float(np.polyfit(hx, hy, 1)[0])
+    truth = records_overstate_the_effect(fork_start(env))["ok"]
+    return {"ok": bool((passive > 2 * causal) == truth), "question": "do the records overstate the effect",
+            "estimate": bool(passive > 2 * causal), "truth": truth}

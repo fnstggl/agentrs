@@ -25,6 +25,7 @@ import numpy as np
 
 from . import dominance as D
 from .families import FAMILIES, make
+from .oracles import fork
 from .fingerprints import family_fingerprint, nearest
 
 SEEDS = (0, 1, 2)
@@ -45,7 +46,7 @@ def signature(family: str, seed: int) -> set[str]:
     decreasing, peaked, valley, flat) are recorded; for readings, the set of response classes over all readings."""
     env = make(family, seed)
     joint = D.Joint(env)
-    out: set[str] = _query_responses(env)
+    out: set[str] = _query_responses(env) | _surface(env)
     if joint.empty():
         return out | {"no_world_actions"}
     H = env.horizon
@@ -155,6 +156,49 @@ def _query_responses(env) -> set[str]:
         res = r["result"].get("results") if r["result"]["ok"] else {"refused": True}
         out.add(f"query:{k}:{_structure(res)}")
     return out
+
+
+def _surface(env) -> set[str]:
+    """The shape of the first reading's response surface over two levers, held for a while on copies of the same
+    world: each lever's curvature class (linear, concave, convex, flat) and whether the levers interact, as one
+    name-free feature (the multiset of curvature classes plus the interaction flag)."""
+    sp = env.action_space()
+    if "levers" not in sp.kinds:
+        return set()
+    props = sp.kinds["levers"]["properties"]["values"]["properties"]
+    names = sorted(props)[:2]
+    if len(names) < 2:
+        return set()
+    hold = max(3, min(10, env.horizon // 4))
+
+    def at(fa, fb):
+        vals = {n: float(props[n]["minimum"] + f * (props[n]["maximum"] - props[n]["minimum"]))
+                for n, f in zip(names, (fa, fb))}
+        e = fork(env)
+        xs = []
+        for t in range(hold):
+            r = e.step({"kind": "levers", "values": vals})
+            if t >= hold - 3 and r["observation"]["numbers"]:
+                xs.append(list(r["observation"]["numbers"].values())[0])
+        return float(np.mean(xs)) if xs else float("nan")
+    grid = {(a, b): at(a, b) for a in (0.0, 0.5, 1.0) for b in (0.0, 0.5, 1.0)}
+    if not all(np.isfinite(v) for v in grid.values()):
+        return set()
+    span = max(grid.values()) - min(grid.values()) + 1e-9
+
+    def curv(vals):
+        lo, mid, hi = vals
+        if abs(hi - lo) < 0.05 * span and abs(mid - lo) < 0.05 * span:
+            return "flat"
+        d2 = hi - 2 * mid + lo
+        if abs(d2) < 0.1 * abs(hi - lo) + 0.02 * span:
+            return "linear"
+        return "concave" if d2 < 0 else "convex"
+    ca = curv([grid[(a, 0.5)] for a in (0.0, 0.5, 1.0)])
+    cb = curv([grid[(0.5, b)] for b in (0.0, 0.5, 1.0)])
+    cross = (grid[(1.0, 1.0)] - grid[(1.0, 0.0)]) - (grid[(0.0, 1.0)] - grid[(0.0, 0.0)])
+    inter = "interacting" if abs(cross) > 0.1 * span else "separable"
+    return {f"surface:{','.join(sorted([ca, cb]))}:{inter}"}
 
 
 def _shape(levels, b_net) -> str:

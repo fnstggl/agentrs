@@ -298,3 +298,106 @@ def sci_hidden_conservation(rng, d):
                            f"(gauge {gbb}) at the first rate, from the second to a third, ungauged tank at the "
                            "second rate, and back from the third at a fixed rate nobody has measured."),
                     claim={"levers": [r1, r2], "tanks": [A, B, Cn], "total": M, "rho": rho, "gauges": [ga, gbb]})
+
+
+# ====================================================================== 8.2.5 / 8.1 selection-biased measurement
+@family("sci_selection_bias", engine="primitive_graph", category="8.2", item="8.2.5", split="val",
+        doc="An outcome responds linearly to two settings, but it is measured through a survey in which only units "
+            "above a hidden cut report; the reading is the mean of the reporters, biased upward and flattened "
+            "against changes in the settings. Predict the true mean outcome at settings outside the range.",
+        distinct_because="a selection-effect observation channel (truncation at a hidden cut) on a linear law: "
+                         "the measured response is a biased, flattened image of the true one; the task is to "
+                         "invert the channel, not to find a curved law",
+        axes={"horizon": 40, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=(CV + "selection_flattens",), identify=CV + "identify_selection_slope",
+        reference=CV + "correct_selection_and_predict")
+def sci_selection_bias(rng, d):
+    gb = GraphBuilder(rng)
+    x1 = gb.lever(0.0, 6.0, 0.0, cost=0.0)
+    x2 = gb.lever(0.0, 6.0, 0.0, cost=0.0)
+    b1, b2 = u(rng, 0.8, 1.6), u(rng, -0.8, 0.8)
+    a = u(rng, -2.0, 2.0)
+    y = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": a}, role="outcome",
+                x=[(x1, 0, b1), (x2, 0, b2)])
+    sd = u(rng, 2.0, 3.0)
+    cut = u(rng, 1.0, 3.0)
+    gy = gb.gauge(y, [("selection_effect", {"n": 64, "sd": sd, "c": cut}),
+                      ("measurement_noise", {"sd": float(d["observation_noise"]) * 0.3})])
+    held = [{gb.name_of(x1): p, gb.name_of(x2): q} for p, q in
+            ((9.0, 1.0), (-3.0, 2.0), (12.0, 4.0), (-5.0, 5.0), (8.0, -2.0), (10.0, 8.0))]
+    text = ("Predict the true mean outcome of all units (not only those who report) at these settings, outside "
+            f"what you can set: {held}. " + _predict_text(held).split(". ", 1)[1])
+    return gb.build(horizon=int(d["horizon"]), affordances=["levers", "message"],
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gy, "text": text},
+                    journal=True,
+                    brief=("A survey of 64 units under two settings. Only units whose outcome clears an "
+                           f"undisclosed bar report; the reading {gy} is the mean of those who report. Units' "
+                           f"outcomes scatter around the population mean with a spread of about {sd:.1f}."),
+                    claim={"levers": [x1, x2], "outcome": y, "cut": cut, "sd": sd, "coef": [a, b1, b2]})
+
+
+# ====================================================================== 8.2.4 delayed transformation
+@family("sci_slow_response", engine="primitive_graph", category="8.2", item="8.2.4", split="val",
+        doc="A transformation responds to two settings only after a hidden dead time and then settles slowly "
+            "(first-order lag with a hidden time constant): readings taken soon after a change are far from where "
+            "the system settles. Predict the settled reading at settings outside the range.",
+        distinct_because="a pipeline delay into a decaying (first-order lag) stock in front of a saturating law: "
+                         "the measured response is a transient; the task is to separate dynamics from the steady "
+                         "law, unlike instantaneous laws",
+        axes={"horizon": 120, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=(CV + "response_is_delayed_and_lagged",), identify=CV + "identify_dead_time",
+        reference=CV + "settle_and_predict")
+def sci_slow_response(rng, d):
+    gb = GraphBuilder(rng)
+    x1 = gb.lever(0.0, 6.0, 0.0, cost=0.0)
+    x2 = gb.lever(0.0, 6.0, 0.0, cost=0.0)
+    h = u(rng, 1.5, 3.0)
+    law1 = gb.prim("saturation", {"cap": u(rng, 10.0, 16.0), "half": h}, x=[(x1, 0, 1.0)])
+    law = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, x=[(law1, 0, 1.0), (x2, 0, u(rng, 0.5, 1.2))])
+    lag = int(rng.integers(2, 5))
+    dl = gb.prim("delay", {"lag": lag, "init": 0.0}, x=[(law, 0, 1.0)])
+    rate = u(rng, 0.12, 0.25)
+    st = gb.prim("decay", {"rate": rate, "init": 0.0}, role="outcome", x=[(dl, 0, rate)])
+    gy = gb.gauge(st, [("measurement_noise", {"sd": float(d["observation_noise"])})])
+    held = [{gb.name_of(x1): p, gb.name_of(x2): q} for p, q in
+            ((9.0, 1.0), (12.0, 3.0), (15.0, 2.0), (10.0, 5.0), (14.0, 0.5), (11.0, 4.0))]
+    text = ("Predict where the reading would settle if these settings (outside what you can set) were held: "
+            f"{held}. " + _predict_text(held).split(". ", 1)[1])
+    return gb.build(horizon=int(d["horizon"]), affordances=["levers", "message"],
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gy, "text": text,
+                               "settle_ticks": 300},
+                    journal=True, brief="A process with two settings and one sensor; it does not answer at once.",
+                    claim={"levers": [x1, x2], "outcome": st, "lag": lag, "rate": rate, "half": h})
+
+
+# ====================================================================== 8.1.1 confounded history, causal prediction
+@family("hc_causal_prediction", engine="primitive_graph", category="8.1", item="8.1.1", split="val",
+        doc="The previous operator's records show the spending lever and sales rising and falling together, "
+            "because a hidden demand cycle drove both; intervening shows that spending's own effect saturates and "
+            "is far smaller. Predict sales at spending levels outside the settable range, as an intervention, not "
+            "as the records suggest.",
+        distinct_because="hidden confounder with a natural-regime lever and a saturating interventional effect, "
+                         "with the objective of predicting the effect of unseen interventions (correlation versus "
+                         "causation scored on held-out conditions)",
+        axes={"horizon": 80, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=(CV + "records_overstate_the_effect",), identify=CV + "identify_effect_size",
+        reference=CV + "intervene_and_predict")
+def hc_causal_prediction(rng, d):
+    gb = GraphBuilder(rng)
+    U = gb.prim("hidden_confounding", {"mean": 0.0, "sd": u(rng, 0.25, 0.3), "ar": 0.8}, role="confounder")
+    X = gb.lever(0.0, 6.0, 3.0, cost=0.0, natural={"x": [(U, 0, 3.0)], "bias": 3.0, "sd": 0.2})
+    Z = gb.lever(0.0, 6.0, 0.0, cost=0.0)
+    eff = gb.prim("saturation", {"cap": u(rng, 8.0, 12.0), "half": u(rng, 1.5, 3.0)}, x=[(X, 0, 1.0)])
+    sales = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": u(rng, 20.0, 30.0)}, role="outcome",
+                    x=[(U, 0, u(rng, 4.0, 6.0)), (eff, 0, 1.0), (Z, 0, u(rng, 1.0, 2.0))])
+    gy = gb.gauge(sales, [("measurement_noise", {"sd": float(d["observation_noise"]) * 3})])
+    held = [{gb.name_of(X): p, gb.name_of(Z): q} for p, q in
+            ((9.0, 1.0), (12.0, 3.0), (15.0, 2.0), (8.0, 5.0), (10.0, 0.0), (14.0, 4.0))]
+    text = ("Predict mean units sold if spending and the second lever were set to these values (outside what you "
+            f"can set): {held}. " + _predict_text(held).split(". ", 1)[1])
+    return gb.build(horizon=int(d["horizon"]), affordances=["levers", "message"], warmup=40,
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gy, "text": text},
+                    journal=True,
+                    brief="A shop: a spending lever and a second lever; gauge: units sold. You have the previous "
+                          "operator's records.",
+                    claim={"levers": [X, Z], "outcome": sales, "confounder": U, "effect": eff})
