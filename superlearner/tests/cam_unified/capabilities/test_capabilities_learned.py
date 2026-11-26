@@ -52,13 +52,18 @@ def test_a06_particle_weights_concentrate_on_the_active_mechanism(beliefs_res):
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(reason="measured (results/reasoning_adaptive_s0.json): PPO through the full agent did not learn the "
-                          "chain task in 200 updates (accuracy 0.27, chance 0.25) and forcing J in {1..16} changed 0% "
-                          "of the trained agent's greedy decisions", strict=False)
+@pytest.mark.xfail(reason="measured (results/reasoning_adaptive_s0.json, reasoning_hop1_s0.json): PPO through the full "
+                          "agent does not learn the 2-hop chain (accuracy 0.27, chance 0.25, 200 updates); on the 1-hop "
+                          "3-colour chain it reaches 0.52 (chance 0.33), which the goal tokens alone allow (0.5: the "
+                          "action generator reads the goal directly), and permuting R across rows changes the trained "
+                          "tool distribution by KL 1e-10; forcing J in {1..16} changes 0% of trained decisions. The "
+                          "policy gradient at init reaches the core/reasoner ~100x weaker than the tool embeddings "
+                          "(results/diagnostics_s0.json)", strict=False)
 def test_a03_more_reasoning_iterations_are_needed_and_used(semantic_ok):
     r = run_reasoning(ReasoningSettings(seed=0), device=DEV)
     assert r["trained"]["per_hop"]["2"]["acc"] > 0.6
     assert r["forced_iters"]["1"]["per_hop"]["2"]["acc"] < r["trained"]["per_hop"]["2"]["acc"] - 0.2
+    assert r["sensitivity_trained"]["kl_R_permuted"] > 0.05
 
 
 @pytest.mark.slow
@@ -93,6 +98,20 @@ def test_c05_planner_chooses_the_costly_test_and_ablations_do_not(semantic_ok, t
     assert e["planner"]["frac"]["run_test"] > 0.5
     assert e["planner"]["frac"]["run_test"] > e["policy"]["frac"]["run_test"] + 0.3
     assert e["planner_frozen_beliefs"]["frac"]["run_test"] < e["planner"]["frac"]["run_test"] - 0.3
+
+
+@pytest.mark.slow
+def test_integration_adapters_make_the_assembled_agent_train_and_remember(semantic_ok):
+    """With the stack's adapters (capabilities/stack.py) the assembled agent's replay objectives get data, its EMA
+    target moves, consolidated memory is served and first-decision outcome queries include the keys delivered at
+    reset; the as-given values (0 replay draws, EMA unchanged, no memory, key not queried) are in
+    results/diagnostics_s0.json and in the interface change requests."""
+    from superlearner.cam_unified.capabilities.diagnostics import (ema_target, memory_serving,
+                                                                   prospective_first_decision, replay_sync)
+    assert replay_sync(DEV)["with_sync_adapter"]["replay_draws"] > 0
+    assert ema_target(DEV)["with_target_sync_adapter"]["target_max_abs_change"] > 0
+    assert memory_serving(DEV)["with_serving_adapter"]["retrieval_hit_rate"] == 1.0
+    assert prospective_first_decision(DEV)["with_ingest_adapter"]["test_signal_queried"]
 
 
 @pytest.mark.slow

@@ -78,7 +78,7 @@ def summarise_dir(path: str) -> dict:
     out = {}
     for fn in sorted(glob.glob(os.path.join(path, "*.json"))):
         name = os.path.splitext(os.path.basename(fn))[0]
-        if name == "summary":
+        if name in ("summary", "notes"):
             continue
         try:
             res = json.load(open(fn))
