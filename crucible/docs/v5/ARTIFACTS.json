@@ -278,7 +278,7 @@
    "durability": "public_source",
    "location": "https://huggingface.co/datasets/huyva/MIND-small (pinned revision d771a25)",
    "note": "the local copy is on container storage (/workspace is not a persistent volume); re-acquirable from the public source with the checksums recorded in its manifest",
-   "bytes": 209579473
+   "bytes": 261249079
   },
   {
    "name": "dataset criteo_uplift_v2.1",
@@ -1051,9 +1051,9 @@
    "path": "docs/v5/ACCEPTANCE_LEDGER.jsonl",
    "durability": "github",
    "location": "committed",
-   "note": "",
-   "bytes": 748109,
-   "sha256": "22dc1aff8f950ace4c31c193ab67e5fc3e92e690024872dc95024cca5c41f730"
+   "note": "a living document: its durable copy is the pushed integration branch, not a fixed hash",
+   "bytes": 749554,
+   "living": true
   },
   {
    "name": "engineering record ACCEPTANCE_MANIFEST.json",
@@ -1061,9 +1061,9 @@
    "path": "docs/v5/ACCEPTANCE_MANIFEST.json",
    "durability": "github",
    "location": "committed",
-   "note": "",
-   "bytes": 559168,
-   "sha256": "911be89d41575cebce51e4af7ecfaf194b77311c2aa31351e1f2d257956ddd45"
+   "note": "a living document: its durable copy is the pushed integration branch, not a fixed hash",
+   "bytes": 559162,
+   "living": true
   },
   {
    "name": "engineering record PROGRESS.json",
@@ -1071,9 +1071,9 @@
    "path": "docs/v5/PROGRESS.json",
    "durability": "github",
    "location": "committed",
-   "note": "",
+   "note": "a living document: its durable copy is the pushed integration branch, not a fixed hash",
    "bytes": 25082,
-   "sha256": "481bd6e521bfb9c2bb6048be9d22f5dbfb0a3a9701605509d15a0d8cd35c7c25"
+   "living": true
   },
   {
    "name": "engineering record DEFECTS.md",
@@ -1081,9 +1081,9 @@
    "path": "docs/v5/DEFECTS.md",
    "durability": "github",
    "location": "committed",
-   "note": "",
+   "note": "a living document: its durable copy is the pushed integration branch, not a fixed hash",
    "bytes": 59330,
-   "sha256": "4c207269c17548adc712b43dff6325404ac998609028aa9669d528cfb6359339"
+   "living": true
   },
   {
    "name": "engineering record sealed_store.json",
@@ -1091,9 +1091,9 @@
    "path": "docs/v5/baselines/sealed_store.json",
    "durability": "github",
    "location": "committed",
-   "note": "",
+   "note": "a living document: its durable copy is the pushed integration branch, not a fixed hash",
    "bytes": 904,
-   "sha256": "9c780d94be1c937b4e23bbe44dc4511ee785f6dcb3964583c179356386685e52"
+   "living": true
   },
   {
    "name": "sealed evaluation store (salt, registry, access log, ow-final tasks)",

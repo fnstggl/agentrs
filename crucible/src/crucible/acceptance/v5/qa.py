@@ -486,6 +486,7 @@ def remote_state(root: str | None = None, milestones: list[dict] | None = None) 
     old_remote = ls_remote(root, f"refs/heads/{OLD_BRANCH}")
     # worktrees whose branch is merged into the integration branch but still have uncommitted changes
     dirty_merged, dirty_any = [], []
+    first_parent = set(_git(root, "rev-list", "--first-parent", INTEGRATION_BRANCH).split())
     cur = {}
     for line in _git(root, "worktree", "list", "--porcelain").splitlines() + [""]:
         if not line.strip():
@@ -494,8 +495,10 @@ def remote_state(root: str | None = None, milestones: list[dict] | None = None) 
                 if st:
                     br = cur["branch"].replace("refs/heads/", "")
                     dirty_any.append(br)
-                    merged = subprocess.run(["git", "merge-base", "--is-ancestor", cur["branch"], INTEGRATION_BRANCH],
-                                            cwd=root).returncode == 0
+                    tip = _git(root, "rev-parse", cur["branch"]).strip()
+                    # merged = its own commits were merged (a branch still at an integration commit has merged nothing)
+                    merged = tip not in first_parent and subprocess.run(
+                        ["git", "merge-base", "--is-ancestor", tip, INTEGRATION_BRANCH], cwd=root).returncode == 0
                     if merged and br != INTEGRATION_BRANCH:
                         dirty_merged.append(br)
             cur = {}
@@ -585,7 +588,9 @@ def artifacts(root: str | None = None) -> dict:
             noloc.append(a.get("name"))
             continue
         p = a["path"] if os.path.isabs(a["path"]) else os.path.join(root, a["path"])
-        if os.path.isfile(p) and a.get("sha256"):
+        if a.get("living") and not os.path.exists(p):
+            problems.append(f"{a['name']}: missing at {a['path']}")
+        elif os.path.isfile(p) and a.get("sha256") and not a.get("living"):
             h = hashlib.sha256(open(p, "rb").read()).hexdigest() if os.path.getsize(p) < 2_000_000_000 else None
             if h and h != a["sha256"]:
                 mism.append(a["name"])
