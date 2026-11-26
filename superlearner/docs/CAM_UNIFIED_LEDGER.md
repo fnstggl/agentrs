@@ -164,3 +164,19 @@ engineering-complete — the earlier IMPLEMENTED claims had never had test resul
 - Continuation `wf_f5adc73d-1e6` (script `docs/evidence/wave3/wave3b.js`): finishers for W2/W4/W5/W6/W7/W9 inside
   their existing worktrees -> ordered merge + G1/G2 -> exclusive-GPU G3/G4 at 1B -> 5 verifiers -> fix. Resume with
   `Workflow({scriptPath: <script>, resumeFromRunId: "wf_f5adc73d-1e6"})`.
+
+#### 2026-11-26 19:27 UTC — continuation attempt 1 cut by the 5-hour limit; resumed (same run id)
+
+- `wf_f5adc73d-1e6` attempt 1 (17:01-19:20): finishers W2 (f3a5a94), W4 (dd5cdc6), W5 (5d4d233), W7 (89bbc63), W9
+  (311e140) reported; W6 (last commit 35238f7, worktree clean) and every later step (merge, gate1b, 5 verifiers, fix)
+  were refused by the 5-hour limit. Nothing was merged; the main checkout is unchanged.
+- Key finisher outcomes (to be re-verified on the merged stack): W2 14/14 real ow_tiny checks, engine exceptions now
+  observable ERROR results, per-episode integrity oracle, BUT run_lifetime delivers each direct result twice (W1 fix
+  required); W4 value channel cos(+1,-1)=0.30 (pass), string closure 80.6% own-close on CAM-generated arguments
+  (FAIL vs 90%; demonstrated templates 90/90); W5 Condition G 16/16 donor-following after swapping (R,I), I=0 makes the
+  tool distribution goal-independent; W7 share guard keeps applied actor share >= 0.103 after warmup (measured share
+  without guard as low as 0.007), 19/20 real updates (GPU lock time-out); W9 weights-only checkpoint e2e 200 updates
+  reloads in a fresh process with 0 source decisions consumed.
+- Resumed at 19:27 UTC (5-hour window reset) with the same run id; the post-Finish prompts were edited to be
+  resume-safe (merge progress file `docs/evidence/wave3/merge_progress.md`, G3G4 evidence committed incrementally) and
+  the verifier-label misalignment in the fix prompt was corrected. Script copy: `docs/evidence/wave3/wave3b.js`.

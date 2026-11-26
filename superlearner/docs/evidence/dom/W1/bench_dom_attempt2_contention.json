@@ -1,0 +1,239 @@
+{
+ "workstream": "W1",
+ "commit": "ef242dee4fa4b70c0f987e62348007eecefa4d0f",
+ "check": "W1 1B budget attempt 2 (dom: 32x1536x24 core + Qwen3-4B) on 16 real rapid lever worlds; acting and B*K decide measured; the optimiser-step variants and the agent update OOMed because other workstreams' unlocked GPU jobs held ~22 GB while W1 held gpu_heavy.lock",
+ "command": "flock runs/cam_unified/gpu_heavy.lock timeout 840 python -m superlearner.cam_unified.core.bench --full --preset dom --B 16 --K 4 --rounds 8 --microbatch 4 --planned-adapters --agent-update-rows 32 --variants base share_ema+adafactor --out runs/cam_unified/W1/bench_dom_2.json (code e838f2e)",
+ "criteria": {
+  "step_peak_le_40GB": "NOT MEASURED: OOM from GPU contention (own process 24-26 GB, other processes ~22 GB of 47.4 GB)",
+  "decide_B16_le_1.5s": "PASS under contention: warm median 1.18 s (rounds 3-8: 1.86, 1.18, 1.25, 1.11, 1.10, 0.97 s)",
+  "decide_B16xK4_le_1.5s": "FAIL: one batched decide of 64 rows 13.5-19.5 s (under contention; W5 K-candidate decoding not merged, so this is the cost model, not the W5 path)",
+  "env_exceptions": "2 Crucible rapid KeyError (re68) on rapid.levers actions missing a lever, row 14; GuardedEnv turned them into error results"
+ },
+ "measured": {
+  "mode": "full",
+  "preset": "dom",
+  "B": 16,
+  "K": 4,
+  "rounds": 8,
+  "microbatch": 4,
+  "overrides": {
+   "grad_checkpoint": true
+  },
+  "share_ema_target": false,
+  "planned_adapters": true,
+  "adafactor_satellites": false,
+  "ow_envs": 0,
+  "run_dir": "/tmp/bench_full_dom_j4xur83t",
+  "torch": "2.15.0+cu132",
+  "gpu": "NVIDIA RTX A6000",
+  "build_s": 27.02857316005975,
+  "build_mem": {
+   "allocated_GB": 16.86427354812622,
+   "reserved_GB": 16.880859375,
+   "peak_GB": 16.86427354812622
+  },
+  "parameters": {
+   "components": {
+    "tokenizer": {
+     "total": 25305601,
+     "trainable": 25305601
+    },
+    "core": {
+     "total": 911266818,
+     "trainable": 911266818
+    },
+    "entity_encoder": {
+     "total": 89760920,
+     "trainable": 89760920
+    },
+    "reasoner": {
+     "total": 53761,
+     "trainable": 53761
+    },
+    "outcome_head": {
+     "total": 34004024,
+     "trainable": 34004024
+    },
+    "beliefs": {
+     "total": 49653632,
+     "trainable": 49653632
+    },
+    "bayes": {
+     "total": 101952,
+     "trainable": 101952
+    },
+    "world_model": {
+     "total": 1027743812,
+     "trainable": 116476994
+    },
+    "action_generator": {
+     "total": 201896576,
+     "trainable": 201896576
+    },
+    "value_head": {
+     "total": 14586111,
+     "trainable": 14586111
+    },
+    "option_policy": {
+     "total": 21307409,
+     "trainable": 21307409
+    },
+    "exploration_head": {
+     "total": 2548284,
+     "trainable": 2548284
+    },
+    "query_encoder": {
+     "total": 21504,
+     "trainable": 21504
+    }
+   },
+   "cam_total": 2378250404,
+   "cam_trainable": 1466983586,
+   "semantic_pretrained": {
+    "total": 4022468096,
+    "trainable": 0,
+    "frozen": 4022468096
+   }
+  },
+  "trainer_groups": {
+   "core": 911266818,
+   "heads": 495076511,
+   "semantic": 60640257
+  },
+  "planned_adapters_report": {
+   "mech_c": {
+    "layers": [
+     3,
+     7,
+     11,
+     15,
+     19,
+     23,
+     27,
+     31
+    ],
+    "params": 85776384
+   },
+   "mech_a": {
+    "layers": [
+     5,
+     11,
+     17,
+     23,
+     29,
+     35
+    ],
+    "params": 50368518
+   },
+   "params": 136144902
+  },
+  "ema_target_params": 911266818,
+  "semantic_model": "Qwen/Qwen3-4B",
+  "acting": {
+   "decide_s": [
+    6.0814663409255445,
+    5.230683566071093,
+    1.8593320520594716,
+    1.1842708638869226,
+    1.253561362158507,
+    1.1110551846213639,
+    1.1012722831219435,
+    0.9657413219101727
+   ],
+   "decide_s_warm_median": 1.1842708638869226,
+   "peak_GB": 19.527053833007812,
+   "decisions": 128,
+   "rounds": 8,
+   "reward_mode": "observation_only",
+   "labels_appended": 0,
+   "authorisation": {
+    "required": false,
+    "checked": 0,
+    "source": "explicit"
+   },
+   "tools_per_env": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "versions": {
+    "policy": 0,
+    "reward_model": 0,
+    "evaluator": null,
+    "env": null,
+    "code": "e838f2eb659cc994d02274bd8be84cf917d931ca"
+   },
+   "phase_wall_s": {
+    "act": 18.787875866517425,
+    "execute": 0.040266396943479776,
+    "advance": 0.007869361899793148,
+    "events": 0.0,
+    "observe": 5.7768498389050364,
+    "learner": 1.0207761079072952e-05,
+    "labels": 0.0006907316856086254,
+    "update": 0.0,
+    "meta": 0.0,
+    "tools": 0.0019194693304598331,
+    "checkpoint": 0.0,
+    "reset": 0.03025826020166278
+   },
+   "env_exceptions": [
+    {
+     "row": 14,
+     "tool": "rapid.levers",
+     "error": "env_exception: KeyError: 're68'"
+    },
+    {
+     "row": 14,
+     "tool": "rapid.levers",
+     "error": "env_exception: KeyError: 're68'"
+    }
+   ]
+  },
+  "decide_BK": {
+   "rows": 64,
+   "decide_s": [
+    13.51191743183881,
+    12.81521040899679,
+    19.4604335478507,
+    16.54509196570143
+   ],
+   "decide_s_warm_median": 16.54509196570143,
+   "peak_GB": 20.476529121398926,
+   "note": "one batched decide of B*K rows; K-candidate decoding (W5) not merged"
+  },
+  "steps": {
+   "base": {
+    "error": "OutOfMemoryError",
+    "detail": "CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 9.69 MiB is free. Process 341831 has 10.97 GiB memory in use. Process 342330 has 3.07 GiB memory in use. Including non-PyTorch memory, this process has 26.18 GiB memory in use. Process 343041 has 2.80 GiB memory in use. Process 343314 has 2.76 GiB memory in use. Process 343393 has 1.58 GiB memory in u",
+    "peak_GB": 25.759501457214355,
+    "static_after_GB": 17.263813972473145
+   },
+   "share_ema+adafactor": {
+    "error": "OutOfMemoryError",
+    "detail": "CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 14.38 MiB is free. Process 341831 has 10.97 GiB memory in use. Process 342330 has 3.07 GiB memory in use. Including non-PyTorch memory, this process has 24.68 GiB memory in use. Process 343041 has 2.85 GiB memory in use. Process 343314 has 2.80 GiB memory in use. Process 343393 has 1.58 GiB memory in ",
+    "peak_GB": 24.077202320098877,
+    "static_after_GB": 13.86833143234253
+   }
+  },
+  "step": {
+   "error": "OutOfMemoryError",
+   "detail": "CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 14.38 MiB is free. Process 341831 has 10.97 GiB memory in use. Process 342330 has 3.07 GiB memory in use. Including non-PyTorch memory, this process has 24.68 GiB memory in use. Process 343041 has 2.85 GiB memory in use. Process 343314 has 2.80 GiB memory in use. Process 343393 has 1.58 GiB memory in ",
+   "peak_GB": 24.077202320098877,
+   "static_after_GB": 13.86833143234253
+  },
+  "after_step_mem": {
+   "allocated_GB": 13.86833143234253,
+   "reserved_GB": 14.01171875,
+   "peak_GB": 24.077202320098877
+  },
+  "agent_update": {
+   "rows": 32,
+   "error": "OutOfMemoryError",
+   "detail": "CUDA out of memory. Tried to allocate 24.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 3.00 MiB is free. Process 341831 has 10.97 GiB memory in use. Process 342330 has 3.13 GiB memory in use. Including non-PyTorch memory, this process has 21.20 GiB memory in use. Process 343041 has 2.87 G",
+   "peak_GB": 20.74736213684082
+  },
+  "overall_peak_GB": 25.759501457214355
+ }
+}

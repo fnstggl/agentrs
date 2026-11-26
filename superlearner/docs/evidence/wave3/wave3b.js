@@ -110,6 +110,14 @@ semantic_context) to core/reasoner in encode_step/decide/policy_evaluate and thr
 in encode_step and agent.tokenise_sequences; core.state_gate/sem_proj/xattn/cond_proj in the learner's core groups and the
 DOM-08 table; RewardModel built when reward_mode is observation_only and its version stamped; label_episode stamp;
 dist/actor uses runtime.merge_by_seq; remaining stray act/execute loops moved onto run_lifetime where cheap.
+RESUME SAFETY (a previous run of this step may have been cut off by a usage limit): first run git status, check for
+MERGE_HEAD / conflict markers, and git log --oneline 19a7a4c..HEAD for existing "[merge]" commits; continue from where
+it stopped instead of redoing merges. After each merge commit, append one line (branch, merge commit, tests run, result)
+to superlearner/docs/evidence/wave3/merge_progress.md and commit it, so a later attempt can resume. If a workstream
+report is missing from the list above (its finisher failed), still merge that branch at its current HEAD (it holds
+committed, coherent work; worktree path .claude/worktrees/wf_477a68f9-804-<n>, branch worktree-wf_477a68f9-804-<n>),
+run its tests, and say so. W2 found that run_lifetime delivers every direct result twice (adapter-delivered copy plus
+the copy merged from ExecutionResult.observations); fix that during the merge (it is W1's code) with a test.
 Merge the workstream branches into feat/cam-7.0-unified-complete in this order: W3, W4, W6, W2, W5, W7, W8, W9
 (git merge --no-ff <branch>; message "cam unified complete [merge]: <ws> ..." ending with
 "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"). Resolve conflicts preserving BOTH sides' intent; apply the
@@ -136,7 +144,10 @@ worlds + 2 ow_tiny worlds, observation-only, >= 64 decisions and 2 updates: core
 stamped, DOM-08 gradient table after one step (blocks 0/16/31, sem projections, Mech C gates, reasoner, beliefs, world
 model, intent, decoder xattn, policy, V_int, predictors), KL(pi || pi with I permuted) >> 1e-9, integrity canary scan
 clean. Fix what blocks the gates (small described commits ending "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>";
-never push). Write evidence to superlearner/docs/evidence/dom/G3G4/*.json. Report every number, pass/fail per criterion.
+never push). Write evidence to superlearner/docs/evidence/dom/G3G4/*.json and commit it as you go. RESUME SAFETY: a previous attempt
+may have been cut off; first check that directory and git log for G3/G4 commits and continue from there. Kill any
+leftover GPU job of a previous attempt only if it is clearly one of this gate's (command line under G3G4 or bench.py
+--full). Report every number, pass/fail per criterion.
 MERGE REPORT:
 ${merged}`, { label: 'gate1b', phase: 'Gate1B' })
 
@@ -166,7 +177,7 @@ const fixed = await agent(`You are the fix integrator for CAM Unified wave 3 in 
 feat/cam-7.0-unified-complete). Independent verifiers reported the findings below. Fix every finding that is a real
 defect (verify each yourself first; skip with a reason if it is not real), highest severity first, with small
 described commits ending with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>". Do not weaken tests. Never
-push. Re-run the affected tests and record JUnit XML to superlearner/docs/evidence/test_results/wave3_fixed.xml
+push. RESUME SAFETY: a previous attempt may have been cut off; check git log for recent fix commits first. Re-run the affected tests and record JUnit XML to superlearner/docs/evidence/test_results/wave3_fixed.xml
 (-o junit_family=xunit1). Report each finding as fixed / not-real / not-fixed (why), test counts, and the per-requirement
 status table the verifiers proposed, adjusted for your fixes.
 MERGE REPORT:
@@ -174,6 +185,6 @@ ${merged}
 1B GATE REPORT:
 ${gate1b}
 VERIFIER FINDINGS:
-${verdicts.filter(Boolean).map((v, i) => `--- ${AREAS[i].k} ---\n${v}`).join('\n')}`, { label: 'fix', phase: 'Fix' })
+${verdicts.map((v, i) => v ? `--- ${AREAS[i].k} ---\n${v}` : `--- ${AREAS[i].k} --- (verifier failed; no findings)`).join('\n')}`, { label: 'fix', phase: 'Fix' })
 
 return { built, merged, gate1b, verdicts, fixed }
