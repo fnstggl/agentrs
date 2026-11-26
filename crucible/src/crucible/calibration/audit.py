@@ -532,7 +532,8 @@ def sp55_metrics(records: list[dict] | None = None) -> dict:
             "reviews_checked": len(reviews), "reviews_ok": sum(1 for r in reviews.values() if r["ok"]),
             # protocol deviation (audit E S2.5): an amendment that added candidates after an earlier run had computed
             # test metrics; prespecified before the refit, but the test split had been seen. Flagged for the reviewer.
-            "amendments_after_test_exposure": sorted(n for n, p in plans.items() if p.get("after_test_exposure")),
+            "amendments_after_test_exposure": ",".join(sorted(n for n, p in plans.items()
+                                                              if p.get("after_test_exposure"))),
             "reviews_keeping_a_non_fitted_contender": sum(1 for r in reviews.values()
                                                           if r["kept_after_review"] not in (None, "K")),
             "_plans": plans, "_selection": sels, "_reviews": reviews}

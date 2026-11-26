@@ -1,0 +1,92 @@
+{
+ "workstream": "E",
+ "branch": "c5c/w1-calib",
+ "requirements": {
+  "F.1": {
+   "implementation_files": ["src/crucible/calibration/fit_e1.py", "src/crucible/calibration/fit_commercial.py", "src/crucible/calibration/fit_software.py", "src/crucible/calibration/fit_e4.py", "src/crucible/calibration/audit.py", "src/crucible/calibration/registry.py"],
+   "tests": ["tests/v5/test_gate_F.py::test_F_1_three_domains_fitted_on_empirical_data"],
+   "status_claim": "implemented and measured locally (unofficial evidence): 11 canonical domains with a qualifying fitted model (5 from E1/E2 plus attention_allocation, repeat_consumption, product_retention, purchase_behavior, community_participation, social_diffusion from E4)",
+   "notes": "The metric counts offline fitted models. The test also records fitted_models_used_by_default_worlds (0) and fitted_models_with_verified_opt_in_use (1): no default world consumes a fitted model yet; that is wave 2 (D-15). repeat_consumption (creator_return@1) is weak (held-out AUC 0.51)."
+  },
+  "F.2": {
+   "implementation_files": ["src/crucible/calibration/fit_e1.py", "src/crucible/calibration/fit_commercial.py", "src/crucible/calibration/commercial.py", "src/crucible/calibration/review_e3.py"],
+   "tests": ["tests/v5/test_gate_F.py::test_F_2_content_consumption_and_randomized_commercial_response"],
+   "status_claim": "implemented and measured locally: content_consumption@1 (KuaiRand random exposure) and commercial_response@1 (Criteo randomised trials) qualify and beat their baselines on held-out data",
+   "notes": "The E3 review (prespecified compute budget 100 us/row) keeps commercial_response's constant-effect baseline because the T-learner costs 121 us/row through the registry predictor; the runtime therefore serves the randomised ITT effect without heterogeneity. The 64-type table a world would use is cheap, but the plan timed the registry predictor; flagged for the reviewer."
+  },
+  "F.3": {
+   "implementation_files": ["src/crucible/calibration/reproduce.py", "src/crucible/calibration/runtime.py"],
+   "tests": ["tests/v5/test_gate_F.py::test_F_3_heldout_reports_reproduce_from_checkpoints", "tests/v5/test_gate_F.py::test_F_runtime_serves_every_kept_model_on_heldout_rows"],
+   "status_claim": "implemented; F.3 is no longer slow-only: every qualifying model's held-out test metric is recomputed from the verified datasets through crucible.calibration.runtime (so the runtime is shown to load every kept checkpoint and evaluate held-out rows)",
+   "notes": "The module takes about 15-25 min on one CPU; run it through the slot scheduler. commercial_response is recomputed on the report's seeded 100,000-user audit subsample (as before). news_click_semantic recomputes MiniLM embeddings when the derived cache under $CRUCIBLE_DATA/mind_small/derived is absent."
+  },
+  "F.4": {
+   "implementation_files": ["src/crucible/calibration/review_e3.py", "src/crucible/calibration/fit_e4.py", "docs/v5/calibration/plans/E3_review_plan.json", "docs/v5/calibration/reviews"],
+   "tests": ["tests/v5/test_gate_F.py::test_F_4_baseline_comparisons", "tests/v5/test_gate_SP_5_5.py::test_SP_5_5_prespecified_metrics_and_better_model_kept"],
+   "status_claim": "implemented: every model is compared with simple baselines and, new in this cycle, with the simulator's existing rule-based behaviour on the same held-out rows (E3 reviews for the nine E1/E2 models; rule_comparison in every E4 report)",
+   "notes": "Rule-based behaviour scores much worse than the fitted models everywhere it exists (e.g. C2 open rule log loss 0.84 vs 0.44 on KuaiRand random exposure, 0.32 vs 0.15 on MIND; C2 watch rule pinball 0.51 vs 0.13; population rhythm 0.71 vs 0.56 for daily return). The software models have no comparable simulator rule (recorded)."
+  },
+  "F.5": {
+   "implementation_files": ["src/crucible/calibration/metrics.py", "src/crucible/calibration/fit_e4.py"],
+   "tests": ["tests/v5/test_gate_F.py::test_F_5_calibration_metrics"],
+   "status_claim": "implemented: ECE, Brier, PIT KS, coverage, count calibration error and reliability tables for every qualifying model",
+   "notes": ""
+  },
+  "F.6": {
+   "implementation_files": ["src/crucible/calibration/registry.py", "src/crucible/calibration/predictors_e4.py"],
+   "tests": ["tests/v5/test_gate_F.py::test_F_6_checkpoints_saved_and_hash_verified", "tests/test_v5_calibration_runtime.py"],
+   "status_claim": "implemented: 16 checkpoints (npz, no pickle, each < 5 MB) load with verified SHA-256; tampering detected",
+   "notes": "New predictor kinds (glm, gbdt_regression, persistence, subset) live in crucible.calibration.predictors_e4, named by the cards' module field."
+  },
+  "F.7": {
+   "implementation_files": ["src/crucible/calibration/datasets.py", "src/crucible/calibration/gharchive.py", "src/crucible/calibration/retail.py", "docs/v5/calibration/datasets/online_retail_ii.json", "docs/v5/calibration/datasets/gharchive_2024-10-07_96h.json", "docs/v5/calibration/models/LICENSE_NOTICE.md", "docs/v5/BLOCKERS.md"],
+   "tests": ["tests/v5/test_gate_F.py::test_F_7_dataset_provenance_and_checksums", "tests/test_v5_calibration_software.py"],
+   "status_claim": "implemented with one open user decision: five datasets with SHA-256 and provenance (new: UCI Online Retail II, CC BY 4.0, official UCI archive); GH Archive derived files hold no raw GitHub id (keyed pseudonyms, salt outside the repo; tables rebuilt, reproducers unchanged); licence notice for derived checkpoints",
+   "notes": "MIND-small came from an unofficial mirror; the official gated distribution needs the user to accept the Microsoft Research licence (401 without an account). Not accepted on the user's behalf: BLOCKERS.md B-1, user decision. GH Archive raw checksums remain trust-on-first-use except hour 0 (checked by the audit)."
+  },
+  "F.8": {
+   "implementation_files": ["src/crucible/calibration/fit_e4.py", "src/crucible/calibration/runtime.py", "docs/v5/calibration/RUNTIME.md"],
+   "tests": ["tests/v5/test_gate_F.py::test_F_8_extrapolation_limits_documented"],
+   "status_claim": "implemented: every card and report has an extrapolation-limits section; every runtime decision model carries its limits; RUNTIME.md has a consolidated extrapolation-limits section for the population workstream",
+   "notes": "The manifest criterion is a 200-character minimum (weak, audit E)."
+  },
+  "F.n1": {
+   "implementation_files": ["src/crucible/calibration/audit.py"],
+   "tests": ["tests/v5/test_gate_F.py::test_F_n1_no_synthetic_only_domain"],
+   "status_claim": "implemented: 0 synthetic-only domains",
+   "notes": ""
+  },
+  "SP-5.4": {
+   "implementation_files": ["src/crucible/calibration/fidelity.py", "docs/v5/FIDELITY_REGISTER.md"],
+   "tests": ["tests/v5/test_gate_SP_5_4.py"],
+   "status_claim": "implemented and passing locally: the parser reads every register table (the blank-line bug that dropped 17 rows is fixed and tested), a record covers exactly the mechanism whose id it carries (module rows no longer vouch for decisions; population decisions, consumption-engine parameter groups and runtime decision models are important mechanisms of their own), every false 'fitted in-world' row was corrected, and every claimed in-world use is verified (5 opt-in claims verified, 0 default claims)",
+   "notes": "Zero missing records is reached by honest records: most population, social and commerce mechanisms are 'plausible, unvalidated'. An in-world mechanism cannot be labelled empirically fitted while its in-world use is 'none'. The static verification of an opt-in claim checks that the module's package references the model or its runtime decision; a 'default' claim additionally needs an in-world probe (none exist yet)."
+  },
+  "SP-5.5": {
+   "implementation_files": ["src/crucible/calibration/audit.py", "docs/v5/calibration/plans/E3_review_plan.json", "docs/v5/calibration/plans/E4_new_domains_plan.json", "src/crucible/calibration/review_e3.py"],
+   "tests": ["tests/v5/test_gate_SP_5_5.py"],
+   "status_claim": "implemented and passing locally: E3 and E4 plans committed before any review or fit (commit order checked from git); the E4 selection rule (compute budget, long-horizon drift, test confirmation) is recomputed from the cards; every E3 review's kept contender is recomputed from its numbers",
+   "notes": "Under the prespecified E3 rule three reviews keep a non-checkpoint contender (session_rate -> C2 rule; news_click -> popularity baseline; commercial_response -> constant-effect baseline) and the runtime serves them. The E2 amendment written after run-1 test metrics is now flagged (amendments_after_test_exposure) for the reviewer, as the audit asked."
+  }
+ },
+ "limitations": [
+  "No default world uses any fitted model; the runtime API is ready for the unified population (wave 2, D-15). The only in-world use is an opt-in feed configuration whose contract (MiniLM affinity space) current worlds cannot honestly satisfy.",
+  "MIND licence acceptance is a user decision (BLOCKERS B-1); news_click@1 and news_click_semantic@1 remain non-commercial research artifacts.",
+  "All E4 models are observational; the price coefficient of product_demand is an association, star_cascade's self-excitation mixes contagion with referrals and trending feedback.",
+  "creator_return@1 (repeat consumption) barely discriminates (AUC 0.51): repeat consumption of a creator is rare in KuaiRand-Pure.",
+  "The E3 drift criterion (any significant difference) is strict: it rejects news_click@1's checkpoint for a 0.0003 calibration drift difference and session_rate's gamma-Poisson for its known upward drift; a future plan should add a practical-significance margin. Not changed after seeing results.",
+  "The E3 compute criterion timed the registry predictor, not the in-world path (commercial_response's type table).",
+  "Plan deviations recorded in the reviews/reports: watch_duration rule quantiles computed exactly by bisection instead of 2,000-draw Monte Carlo; session_rate's forward simulation uses the card's test window (05-05..05-08) rather than 05-01..05-08; customer_return's long-horizon check reports monthly stability but not the 30/60-day cohort retention curves; product_demand's forward simulation keeps the observed 4-week buyer counts.",
+  "star_cascade's prespecified GBDT Poisson candidate diverged numerically (deviance 8.5e4) and lost; it was not refitted after test exposure.",
+  "GH Archive event tables keep exact timestamps, so linkage to the public archive remains possible for someone who downloads it; the tables stay local and only aggregate parameters are committed."
+ ],
+ "integration_notes": [
+  "social (minimal edit for E): crucible/social/consumption.py CalibratedOpen now evaluates the runtime decision article_open_semantic@1 row by row; the batch-rank qmap and the news_click@1 in-world path are retired; a calibrated platform must declare affinity_space='minilm-l6-cosine' or the world refuses to install (ContractError). crucible/social/recsys/service.py accepts the affinity_space key. tests/test_v5_social_calibrated.py rewritten accordingly (mechanics test declares the space for a C2 world, labelled).",
+  "population (wave 2, B): wire decisions through crucible.calibration.runtime (RUNTIME.md table 'What the population workstream needs to wire'); do not keep population.models.build's silent fallback; record res.provenance() in each decision batch event; update the fidelity register rows population.*, pop.decision.*, feed.behaviour.* with opt-in/default claims and add an INWORLD_PROBES entry for each default claim.",
+  "semantic (wave 2, D-16): article_open_semantic@1 needs cosines in the MiniLM-L6 space (crucible.semantic.encoders.text); the shared interest space must preserve them or expose them.",
+  "commerce (wave 2, F/G): customer_return@1 and product_weekly_demand@1 are the fitted retention and demand/price-response contracts; ad_response@1 serves a constant randomised ITT effect (review-kept).",
+  "gharchive extractor version 2 changed the extracted-table columns (added repo_bucket; actor/repo are pseudonyms) and fit_software TABLES_VERSION 2; any consumer of the raw ids must use the pseudonyms.",
+  "Data written outside the repository: $CRUCIBLE_DATA/online_retail_ii (50 MB), $CRUCIBLE_DATA/mind_small/derived/minilm_title_abstract.npz (52 MB), $CRUCIBLE_DATA/gharchive_2024-10-07_96h/pseudonym_key (32 bytes, mode 0600, secret) and tables_v2.npz (tables_v1 deleted).",
+  "Gate F (test_gate_F.py) now runs the F.3 reproduction by default; schedule it with 1 CPU through crucible.scale.slots (about 15-25 minutes)."
+ ]
+}
