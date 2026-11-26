@@ -306,3 +306,10 @@ class LabAgent:
     @staticmethod
     def _hash(w: Any) -> str:
         return hashlib.sha256(np.asarray(w, dtype=float).round(12).tobytes()).hexdigest()[:16]
+
+
+def build_agent(cfg: Any, run_dir: str, clock: Any) -> LabAgent:
+    """Agent factory for ``--agent-factory rt_lab_agent:build_agent`` (settings in the ``lab_agent`` config section)."""
+    sec = cfg.section("lab_agent")
+    return LabAgent(clock, seed=int(cfg.seed), only_ops=sec.get("only_ops"), wait_seconds=sec.get("wait_seconds"),
+                    durable=True)

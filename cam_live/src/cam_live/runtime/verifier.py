@@ -186,13 +186,13 @@ class HashChainLog:
             body = {"seq": self.seq + 1, "ts": float(ts), "kind": kind, "payload": payload}
             entry = {**body, "prev": self.head, "hash": self.entry_hash(self.head, body)}
             new = not os.path.exists(self.path)
-            fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+            fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
             with os.fdopen(fd, "a") as f:
                 f.write(json.dumps(entry, sort_keys=True, default=str) + "\n")
                 f.flush()
                 os.fsync(f.fileno())
             if new:
-                os.chmod(self.path, 0o644)
+                os.chmod(self.path, 0o600)           # readable by the verifier uid (and root) only
             self.seq, self.head = entry["seq"], entry["hash"]
             if self.head_path:
                 atomic_write_json(self.head_path, {"seq": self.seq, "hash": self.head}, 0o600)

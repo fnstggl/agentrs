@@ -41,7 +41,7 @@ from ..contracts import (ActionResult, ActionSpec, AgentAPI, AuthorizationDecisi
 from .control import PID_FILE, ControlChannel, file_sha256
 from .logs import Redactor, RunLog, atomic_write_json, atomic_write_text, iter_jsonl, load_salt, read_json
 from .obstacles import ObstacleTracker, is_obstacle
-from .scheduler import PendingItem, PendingOutcomes, make_sleeper, plan_wake
+from .scheduler import PendingItem, PendingOutcomes, SimSleeper, WallSleeper, make_sleeper, plan_wake
 from .tasks import LIMIT_FIELDS, TaskValidationError, check_runnable, load_task
 
 STATE_VERSION = 1
@@ -74,6 +74,7 @@ class RuntimeConfig:
     max_consecutive_errors: int = 5      # service or learner errors in a row before the run pauses itself
     journal_every: int = 25              # cycles between journal regenerations (also at pause / finish)
     fsync: bool = True                   # False keeps atomic renames but skips fsync (fast tests; never for live runs)
+    sleeper: str = "auto"                # "auto": simulated sleeping for advanceable clocks, real otherwise; "wall" | "sim"
     redaction: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -110,7 +111,9 @@ class LiveRuntime:
         self.cfg = self._with_measurement(task)
         os.makedirs(self.run_dir, exist_ok=True)
         self._wake = wake or threading.Event()
-        self.sleeper = make_sleeper(clock, self._wake, self.cfg.control_poll_s)
+        self.sleeper = (WallSleeper(clock, self._wake, self.cfg.control_poll_s) if self.cfg.sleeper == "wall" else
+                        SimSleeper(clock) if self.cfg.sleeper == "sim" else
+                        make_sleeper(clock, self._wake, self.cfg.control_poll_s))
         self.control = ControlChannel(self.run_dir, clock)
         if task.mode == "live" and not self.cfg.fsync:
             raise ValueError("runtime.fsync=false is not allowed for a live task")
@@ -307,7 +310,8 @@ class LiveRuntime:
             return
         caps = self._caps()
         how = ""
-        if caps.get("idempotent_actions") or caps.get("dedup_by_action_id"):
+        if (caps.get("idempotent_actions") or caps.get("dedup_by_action_id")
+                or (caps.get("features") or {}).get("at_most_once_by_action_id")):
             try:
                 auth = self.policy.authorize(action, self.task, self._auth_context(decision))
                 if auth.verdict == AuthVerdict.ALLOW and self.policy.check_grant(action, auth):
@@ -636,9 +640,9 @@ class LiveRuntime:
                 else:
                     self._execute(decision, auth, [], approval_id=aid, new_decision=False)
             else:
-                why = "; ".join(a.get("reasons", []) or []) or a.get("note", "")
+                # the operator's note stays in the audit trail; no free text from the operator reaches the learner
                 result = self._synthetic(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
-                                         f"the operator rejected approval {aid}" + (f": {why}" if why else ""))
+                                         f"the operator rejected approval {aid}")
                 self._complete(decision, result, "rejected", [], aid, new_decision=False)
             acted = True
         return acted

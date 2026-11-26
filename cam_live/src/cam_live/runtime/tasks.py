@@ -34,8 +34,8 @@ REQUIRED_DATA_PERMISSIONS = ("store_message_content", "train_on_message_content"
 #: mapping keys that would carry a solution; matched as whole keys and as key tokens
 REJECTED_KEYS = tuple(TaskSpec.FORBIDDEN_KEYS) + (
     "tactic", "tactics", "approach", "method", "methods", "recipe", "instructions", "guidance", "hints", "tips",
-    "roadmap", "campaign", "marketing", "promotion", "funnel", "audience", "persona", "topic", "theme", "calendar",
-    "howto", "procedure", "workflow", "sequence", "framework", "suggestions", "ideas", "recommended", "examples")
+    "roadmap", "marketing", "topic", "theme", "calendar", "howto", "procedure", "workflow", "sequence",
+    "framework", "suggestions", "ideas", "recommended", "examples")
 #: schema keys that contain a rejected token but are part of the contract itself
 _SCHEMA_SAFE_KEYS = ("max_external_actions",)
 #: text patterns that read as a way of achieving the objective (label -> regex)
@@ -46,9 +46,7 @@ REJECTED_TEXT: Dict[str, str] = {
     "timing directive": r"(?i)\b(?:every|each)\s+(?:day|week|hour|morning|evening|night|weekday|weekend|"
                         r"monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\b(?:daily|weekly|hourly|nightly)\b"
                         r"|\b\d+\s*(?:x|times)\s*(?:a|per)\s*(?:day|week|hour)\b|\bat\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\b",
-    "tactic vocabulary": r"(?i)\b(?:niche|tactic|marketing|advertis\w*|promot(?:e|es|ing|ion|ions)|giveaway\w*|influencer\w*|"
-                         r"viral\w*|seo|funnel\w*|call[- ]to[- ]action|target audience|persona\w*|outreach|cross[- ]?post\w*|"
-                         r"growth hack\w*|engagement bait|scarcity|fomo|social proof|reciprocity|gamif\w*|onboarding flow)\b",
+    "strategy vocabulary": r"(?i)\b(?:niche|tactic\w*|strateg\w*|marketing|playbook)\b",
     "suggested solution": r"(?i)\b(?:for example|e\.g\.|such as|consider|try|recommend\w*|suggest\w*|best practice\w*|"
                           r"proven|playbook)\b[^.]{0,60}\b(?:post\w*|invit\w*|shar\w*|launch\w*|build\w*|publish\w*|messag\w*)\b",
 }

@@ -157,7 +157,7 @@ def test_assign_subsequent_objective(tmp_path):
     assert lab.rt.run(max_iterations=2000) == COMPLETED
     op = OperatorControl(lab.run_dir)
     # a task file carrying a way of achieving the objective is refused before it reaches the runtime ...
-    bad = _lab_yaml(tmp_path / "bad.yaml", "lab-second", 6, {"strategy": "use channel 2 only"})
+    bad = _lab_yaml(tmp_path / "bad.yaml", "lab-second", 6, {"strategy": "anything"})
     with pytest.raises(TaskValidationError):
         op.assign_objective(bad)
     # ... and by the runtime itself if it is put on the control channel directly
