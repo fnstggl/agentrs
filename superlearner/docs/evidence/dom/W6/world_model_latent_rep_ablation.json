@@ -1,0 +1,144 @@
+{
+ "commit": "03b5dda (code); runs at the working tree of that commit before it was committed (same dynamics.py)",
+ "what": "no-EMA DOM world model with the beta_rep representation gradient of the self-predictive terms (WorldModel(latent_rep_weight=beta): Zv = Z_routed + beta (Z - sg Z)), real UnifiedCore 3 x 64, block transition 2/3, free bits 0.02/group, consistency 1.0, mode latent, Adam lr 4e-3 linear decay to 0.1x, 700 steps; synthetic worlds of tests/cam_unified/world/world_synth.py",
+ "commands": [
+  "python scratchpad/w6/dbg_delay.py '{\"wm_transition_blocks\":2,\"wm_ema_target\":false,\"kl_free_bits_group\":0.02,\"wm_consistency\":1.0,\"state_emb_std\":0.5}' 700 '{\"latent_rep_weight\": B}' SEED",
+  "CAM_RUN_SLOW=1 pytest -s tests/cam_unified/world/test_world_learning_dom.py -k '<test> and rep' (temporary 'rep' variant = latent_rep_weight 0.1; removed from the test file after this measurement)"
+ ],
+ "device": "cuda (A6000, shared; runs concurrent, so GPU nondeterminism applies)",
+ "dbg_delay_runs": [
+  {
+   "beta": 0.1,
+   "seed": 0,
+   "pred_plan_x_horizon": [
+    [
+     1.0096,
+     -0.0042,
+     -0.0059
+    ],
+    [
+     -0.0028,
+     0.0045,
+     1.0077
+    ],
+    [
+     -0.0036,
+     -0.0052,
+     -0.0056
+    ]
+   ],
+   "max_abs_err": 0.0096,
+   "cons_mse_var": 0.44,
+   "latent": 0.1104,
+   "outcome": -1.5467
+  },
+  {
+   "beta": 0.1,
+   "seed": 1,
+   "pred_plan_x_horizon": [
+    [
+     0.9848,
+     0.0005,
+     0.0
+    ],
+    [
+     0.0048,
+     -0.0021,
+     0.9734
+    ],
+    [
+     0.0022,
+     -0.0003,
+     -0.0006
+    ]
+   ],
+   "max_abs_err": 0.0266,
+   "cons_mse_var": 0.5319,
+   "latent": 0.1058,
+   "outcome": -1.4306
+  },
+  {
+   "beta": 0.3,
+   "seed": 1,
+   "pred_plan_x_horizon": [
+    [
+     0.4528,
+     0.4525,
+     0.4525
+    ],
+    [
+     0.4528,
+     0.4525,
+     0.4525
+    ],
+    [
+     0.4527,
+     0.4525,
+     0.4525
+    ]
+   ],
+   "max_abs_err": 0.5475,
+   "cons_mse_var": 0.0421,
+   "note": "collapse to climatology (context-insensitive filter)"
+  }
+ ],
+ "test_variant_beta_0.1": {
+  "delay_max_abs_err_sampled_mode": {
+   "0": [
+    0.8024,
+    0.8093
+   ],
+   "1": [
+    0.0135,
+    0.0136
+   ],
+   "2": [
+    0.7754,
+    0.7753
+   ]
+  },
+  "delay_pass_seeds": "1/3 (criterion < 0.3)",
+  "interaction_contrast": {
+   "0": 2.02,
+   "1": 2.0,
+   "2": 1.99
+  },
+  "interaction_pass_seeds": "3/3",
+  "switch": "0/3 (predictions constant ~0.01 / 0.0002: no outcome learning)",
+  "consistency_mse_var_teacher_forced_mode1": {
+   "0": [
+    0.632,
+    0.5648
+   ],
+   "1": [
+    0.2748,
+    0.2394
+   ],
+   "2": [
+    0.5466,
+    0.4905
+   ]
+  },
+  "consistency_pass_seeds": "0/3 (criterion < 0.1)"
+ },
+ "reference_routed_beta_0_previous_session": {
+  "delay_pass_seeds": "2/3 (seed 1 max err 0.80)",
+  "switch_pass_seeds": "0/3",
+  "consistency_mse_var": {
+   "0": [
+    0.587,
+    0.537
+   ],
+   "1": [
+    0.77,
+    0.671
+   ],
+   "2": [
+    0.503,
+    0.402
+   ]
+  }
+ },
+ "conclusion": "beta 0.1 is not reliably better than the routed default (delay seed 0 differs between the scratch run and the test run: the delayed-effect basin is fragile); beta 0.3 collapses. latent_rep_weight stays 0 by default. No no-EMA variant meets the consistency criterion (< 0.1) on DelayWorld; the EMA target does (0.04-0.09).",
+ "legacy_check": "with the RMS-scaled latent residual restricted to the DOM path, the legacy test_world_learning switch test reproduces the previous session's predictions exactly (switch [0.79, 0.58, 0.5, -0.97, -0.94, -0.93, -0.95]); with the scaling on every path it failed (Y_5 -0.47)."
+}

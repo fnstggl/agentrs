@@ -229,7 +229,8 @@ def filter_window(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = No
 def ema_targets(model, filt) -> Optional[torch.Tensor]:
     """Latent targets [T,B,S,D] of the EMA target encoder on the agent filter's own contexts (`filt.ctxs`, the same
     observation / action / time / belief / option / memory / goal tokens, detached) when the world model keeps an EMA
-    target (cfg.wm_ema_target); None otherwise. One no-grad core pass per step."""
+    target (cfg.wm_ema_target); None otherwise. One no-grad core pass per step, with the same semantic context as the
+    agent filter (`filt.sem`, `filt.sem_rows`) when the target core accepts it."""
     tc = getattr(model.world_model, "target_core", None)
     ctxs = getattr(filt, "ctxs", None)
     if tc is None or not ctxs:
@@ -240,11 +241,13 @@ def ema_targets(model, filt) -> Optional[torch.Tensor]:
     Z0 = tc.init_state(B, device=dev).float()
     Z = Z0
     out = []
+    sem_all, sem_rows = getattr(filt, "sem", None), getattr(filt, "sem_rows", None)
     with model._autocast():
-        for ctx, reset in zip(ctxs, filt.resets):
+        for t, (ctx, reset) in enumerate(zip(ctxs, filt.resets)):
             if bool(reset.any()):
                 Z = torch.where(reset.view(B, 1, 1), Z0, Z)
-            Z, _ = tc(Z, detach_tokens(ctx))
+            sem_t = sem_all[t] if isinstance(sem_all, (list, tuple)) else sem_all
+            Z, _ = tc(Z, detach_tokens(ctx), **_sem_kw(tc.forward, sem_t, sem_rows))
             Z = Z.float()
             out.append(Z)
     return torch.stack(out)

@@ -175,3 +175,37 @@ def test_points_probe_env_shows_the_payout_and_keeps_the_probe_dynamics():
     r2 = env.execute([Action("launch")] * 4)
     for s, r in zip(sig, r2):
         assert pts(r.observations) == [-1.0 + (10.0 if s > 0 else -10.0)]   # informative test: signal == state
+
+
+def test_filter_sequence_passes_the_semantic_context_to_core_reasoner_and_world_loss():
+    from test_consistency import dom_tiny
+    from superlearner.cam_unified.world import train_seq
+    m = dom_tiny()
+    seen = {"core": 0, "reasoner": 0, "loss": None}
+    core_fwd, rsn_fwd, loss_fn = m.core.forward, m.reasoner.forward, m.world_model.loss
+
+    def core_forward(Z_prev, ctx, code_rows=None, sem=None, *, sem_rows=None, blocks=None):
+        seen["core"] += sem is not None
+        return core_fwd(Z_prev, ctx, code_rows)
+
+    def reasoner_forward(Z, ctx=None, n_iters=None, code_rows=None, sem=None, *, sem_rows=None):
+        seen["reasoner"] += sem is not None
+        return rsn_fwd(Z, ctx, n_iters)
+
+    import functools
+
+    @functools.wraps(loss_fn)                      # keeps WorldModel.loss's signature (single-filter detection)
+    def loss(*a, **k):
+        seen["loss"] = k.get("sem")
+        return loss_fn(*a, **k)
+    m.core.forward, m.reasoner.forward, m.world_model.loss = core_forward, reasoner_forward, loss
+    seq = rand_sequence(2, 5, m.cfg)
+    sem = object()
+    filt = train_seq.filter_sequence(m, seq, None, sem=sem)
+    assert seen["core"] == 5 and seen["reasoner"] == 5 and filt.sem is sem
+    train_seq.world_loss(m, seq, filt)
+    assert seen["loss"] is sem
+    # without sem nothing is passed (the seam call shape)
+    seen.update(core=0, reasoner=0)
+    train_seq.filter_sequence(m, seq, None)
+    assert seen["core"] == 0 and seen["reasoner"] == 0
