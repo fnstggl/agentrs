@@ -96,10 +96,16 @@ def _jsonable(v) -> bool:
         return False
 
 
+# module-level names that are run-time state, not parameters: `lm.STATS` counts forward passes, so hashing it made
+# the parameter hash (and with it every world key and cache key) change after each LM call - a world could not find
+# its own recorded vectors again and regeneration diverged (found by the integration of the population, wave 3)
+RUNTIME_STATE = frozenset({"STATS", "COUNTS"})
+
+
 def _constants(modname: str) -> dict:
     mod = importlib.import_module(modname)
     return {k: v for k, v in sorted(vars(mod).items())
-            if k.isupper() and not k.startswith("_") and not callable(v) and _jsonable(v)}
+            if k.isupper() and not k.startswith("_") and k not in RUNTIME_STATE and not callable(v) and _jsonable(v)}
 
 
 def _encoder_params() -> dict:
