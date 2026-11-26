@@ -18,8 +18,8 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "implemented; failing honestly until other workstreams make education, employment, institutions, marketplaces and technology invention carry activity",
-   "notes": "subsystems_in_one_world counts subsystems present AND active AND connected by provenance after a warm-up day; per subsystem also whether the population's own decisions carry activity (integration.population_carried)."
+   "status_claim": "fails on measured values: 12 of 17 subsystems present+active+connected (balanced seed 7, 5 days after a warm-up day; measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
+   "notes": "missing: education, employment, institutions, marketplaces, technology_invention (present, 0 events or 0 cross edges). Population-carried activity in 9 subsystems (communities, computing_infrastructure, digital_economy, finance, industry, organizations, search_information, social_media, software_development); present without population activity: education, employment, energy, institutions, marketplaces, scientific_research, supply_chains, technology_invention (energy/science/supply chains are carried by firms, labs and datacenters)."
   },
   "O.2": {
    "implementation_files": [
@@ -36,8 +36,8 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "implemented (data-level duplicate scan, identity checks); not re-run in this wave",
-   "notes": ""
+   "status_claim": "fails on measured values: duplicate_shared_facts 4, identity_consistency_violations 3 (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
+   "notes": "kinds in two tables: community (forum boards 5 / communities 1), product_offer (digital products 4 / physical retail listings 2), employment (pop.employer 724 / industry.own_operators 24: industry's operators are not population members), energy_price (industry grids / fleet tariff). Identity: 3 forum posts authored by population principals that were never materialised (economy/work.py posts as ids.pid(i) without ids.ensure_principal)."
   },
   "O.3": {
    "implementation_files": [
@@ -54,7 +54,7 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "implemented (bank invariants + ledger recomputed from postings); not re-run in this wave",
+   "status_claim": "criteria met in an unofficial run: ledger_invariant_violations 0 (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
    "notes": ""
   },
   "O.4": {
@@ -73,7 +73,7 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "implemented (provenance edges across subsystems); not re-run in this wave",
+   "status_claim": "criteria met in an unofficial run: cross_system_event_types 38 >= 10 (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
    "notes": ""
   },
   "O.5": {
@@ -131,7 +131,7 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "implemented (fingerprints of built worlds); not re-run in this wave",
+   "status_claim": "criteria met in an unofficial run: 11 structurally distinct profiles, 0 identical pairs, min structural distance 0.167 (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
    "notes": ""
   },
   "O.n1": {
@@ -150,7 +150,7 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "implemented; fails while inert modules exist (education, employment, institutions, marketplaces, invention)",
+   "status_claim": "fails on measured values: 35 modules without shared state (inert: learn, labor, jobs, firms, inst, xchg, market, caps, pkg, ...) (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
    "notes": ""
   },
   "P.1": {
@@ -300,8 +300,8 @@
    "tests": [
     "tests/v5/test_gate_SP_10_0.py"
    ],
-   "status_claim": "implemented (forks, 5 verified historical-query kinds, 3 fresh-process replications, entity census of 8 kinds)",
-   "notes": ""
+   "status_claim": "fails on measured values: fork_divergence_supported false (an unchanged in-process fork did not reproduce its parent), independent_replications 0 of 3 (fresh-process rebuilds: 2 distinct hashes, none equal to the original); historical_query_kinds 5 and entity_kinds_persisting_and_evolving 7 met (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
+   "notes": "institutions persisted but did not change in 8 days (11 constitutions/charters/couplings); the nondeterminism is under diagnosis (see limitations and DEF-J-1)."
   },
   "SP-10.1": {
    "implementation_files": [
@@ -318,7 +318,7 @@
    "tests": [
     "tests/v5/test_gate_SP_10_1.py"
    ],
-   "status_claim": "11 profiles, structural fingerprints; not re-run in this wave",
+   "status_claim": "criteria met in an unofficial run: 11 profiles covering the Part 10.1 list, 0 pairs differing only in parameters (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
    "notes": ""
   },
   "SP-10.2": {
@@ -335,8 +335,8 @@
    "tests": [
     "tests/v5/test_gate_SP_10_2.py"
    ],
-   "status_claim": "10 executable couplings (4 new: freight_energy, lab_energy, energy_cost_pricing, datacenter_siting), all reusable; first battery run 8/10 removable (curtailment and siting never acted), condition added",
-   "notes": ""
+   "status_claim": "criteria met in an unofficial run: reusable_couplings 10, couplings_removable_fraction 1.0, scripted_consequence_paths 0 (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
+   "notes": "balanced: 8 couplings, infrastructure_constrained (datacenter grids cut to 10% before the fork in every arm): grid_curtailment (16 curtailments in control; removed: 2,225 kWh of backup generation instead) and datacenter_siting (control moved its datacenter r0 -> r3; removed: stayed). education_skills pending, not counted."
   },
   "SP-10.3": {
    "implementation_files": [
@@ -433,8 +433,8 @@
    "tests": [
     "tests/v5/test_gate_SP_19_3.py"
    ],
-   "status_claim": "implemented: 7 slices with ReferenceLearner",
-   "notes": ""
+   "status_claim": "criteria met in an unofficial run: vertical_slices_executed 7 (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
+   "notes": "1: 2,003 views, first-impression channels interest/engagement/social/share/search/fresh/chronological; 2: scripted inventor's service used by 3 individuals (9 uses); 3: 5 word-of-mouth events, 4 later purchases of the same listing by the learner; 4: strategic groups A and B changed weights (4 hashes each); 5: ReferenceLearner 240 steps, 60 accepted actions, 3 world changes; 6: reward 0.0 throughout, 8 parameter-changing updates from its own observed signal; 7: crucible.rapid claims hold on net_routing and team_commons (2 seeds each)."
   }
  },
  "limitations": [
@@ -454,7 +454,19 @@
   "QA: civilisation gate tests read crucible.civ.gates' disk cache ($CRUCIBLE_CIV_CACHE) keyed by the digest of the whole crucible package; official runs on the integration branch recompute everything (hours of GPU slot time: Gate P alone is 1,330 simulated days)."
  ],
  "test_results_unofficial": {},
- "measurements_unofficial": {},
+ "measurements_unofficial": {
+  "gate_p_first_suite (e77fef3, stopped by the slot governor at 18 GB RAM)": {
+   "runs": "180d s121 to day 60, 180d s122 to day 70, 365d s131 to day 60, 365d s132 to day 70 (balanced, development population)",
+   "unexplained_invariant_violations": 0,
+   "proc_failed": 0,
+   "accounting_mismatches": 0,
+   "cross_process_resume_checks": "4 of 4 equal (day 2 -> 3)",
+   "replay_segments": "first 3-4 segments per run failed with a harness bug (verification child loaded the snapshot without the store: NotFound on blob reads); after the fix every later segment (3-4 per run) verified exactly",
+   "wall_s_per_day": "15-29 (4 runs in parallel on a shared GPU)",
+   "store_mb": "about 500 MB at day 60-70 with retention (blobs about 3.9 MB/day)",
+   "note": "restarted from genesis on the fixed code with 28 GB RAM; progress of the first suite kept in the scratch directory p_first/"
+  }
+ },
  "history": {
   "wave 2 (c5c/w2-civ)": "generator, 11 profiles, couplings engine (science_process, compute_energy, grid_curtailment, goods_supply, goods_wom, org_coordination; education_skills pending), goods activity, civgen genesis, provenance chains, counterfactual experiments with placebo arms, long-run harness, accounting, integration metrics, Mode C provider, tier3 entry; J.json left empty by the usage-limit stop",
   "integration fix (c5c/w3-intfix)": "civ composes CORE-POP's social internet and ECON's work/ventures/rivals/ads; all 11 profiles generate (see INT.json)"
