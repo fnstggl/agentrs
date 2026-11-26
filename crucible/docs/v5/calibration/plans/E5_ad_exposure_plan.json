@@ -5,11 +5,13 @@
   "title": "Advertising response redesign (audit E skeptic S5, REDESIGN): the effect of being displayed an advertiser's campaign on the individual's own visit log-odds, identified by Criteo's randomised eligibility (instrumental variable, one-sided non-compliance); prespecified evaluation plan",
   "written_before_fit": true,
   "disclosure": "Before this plan was written, one exploratory pass (scratch script, not repository code) computed per-decile exposure rates, ITT, Wald LATE and complier log-odds ratios on the 'explore' rows defined below (10% of the validation split, 279,592 rows). Those rows are excluded from fitting, selection and confirmation. No other validation row and no test row was inspected for this plan.",
-  "datasets": ["criteo_uplift_v2.1"],
+  "datasets": [
+    "criteo_uplift_v2.1"
+  ],
   "global_rules": {
     "selection": "E4: among candidates with compute <= 100 us/row, order by the validation primary metric (ties within 1e-4 to the simpler); keep the first unless its validation long-horizon measure is worse than the smallest one with a paired cluster-bootstrap 95% interval of the difference entirely above 0; keep a simple baseline instead if it is strictly better on test. Here 'validation' is the select split below and no candidate has a long-horizon measure (see long_horizon).",
     "compute_budget_us_per_row": 100,
-    "bootstrap": "200 resamples of rows (each row is one user, so users are the clusters), seed 0",
+    "bootstrap": "Poisson bootstrap of the stratum cells (control, displayed, eligible-not-displayed visit counts; users are iid, so cells resampled as Poisson counts approximate resampling users), 200 resamples, seed 0",
     "test_once": "the test split is evaluated once, after selection; nothing is refitted afterwards"
   },
   "models": {
@@ -27,29 +29,39 @@
         "test": "the whole test split of criteo.splits() (2,795,919 users): confirmation, once"
       },
       "strata": "10 equal-mass bins of p0_hat on the fit split (edges stored); then, from the lowest bin upwards, a bin is merged into its upper neighbour while it has fewer than 300 treated exposed fit rows or its complier baseline moment estimate on the fit split is not strictly inside (0, 1); the top bin is merged downwards under the same condition",
-      "nuisance": "per split and stratum s: c_s = control-arm visit rate, e_s = exposure rate among treated, nu_s = visit rate of treated non-exposed users (never-takers), complier baseline mu0_s = (c_s - (1 - e_s) nu_s) / e_s clipped to [1e-4, 0.999]. A row's feature organic_logit = logit(mu0_s) of its stratum, computed on the row's own split from control and non-exposed rows only (never from the exposed rows being predicted)",
-      "features": ["organic_logit"],
+      "nuisance": "per split and stratum s, three binomial cells: control (n_c, y_c), eligible displayed (n_te, y_te), eligible never displayed (n_tn, y_tn); e_s = n_te / (n_te + n_tn). Model: never-takers visit with nu_s, compliers' organic (no-ad) visit probability is mu0_s, control visits ~ Bin(n_c, (1 - e_s) nu_s + e_s mu0_s), never-takers ~ Bin(n_tn, nu_s), displayed ~ Bin(n_te, q(mu0_s; theta)). theta (the candidate's effect structure, shared across strata) is fitted on the fit split by maximum likelihood with (nu_s, mu0_s) profiled out. On a held-out split theta is fixed and (nu_s, mu0_s) are re-profiled on that split. For the secondary row-level metrics a displayed row's feature organic_logit = logit of the moment estimate (c_s - (1 - e_s) nu_s) / e_s of its stratum on its own split, clipped to [1e-4, 0.999] (control and never-displayed rows only)",
+      "features": [
+        "organic_logit"
+      ],
       "feature_definitions": "organic_logit: log-odds of the displayed individual's organic (no-ad) probability of visiting the advertiser in the period. In the data it is the stratum's complier baseline (nuisance above); in the simulator it is the individual's own organic visit probability from the world's discovery mechanism",
       "candidates": {
         "B0_no_effect": "baseline: q = mu0 (display has no effect on visit)",
-        "B1_constant_difference": "baseline and simulator rule: q = clip(mu0 + delta, 1e-6, 1 - 1e-6), delta = pooled Wald LATE of the fit split (ITT / exposure rate over all fit rows); the constant absolute effect the runtime served for ad_response@1 (E3 review: constant-effect contender), re-expressed per displayed individual",
-        "M1_constant_log_odds": "q = sigmoid(organic_logit + D), one shift D, maximum likelihood on the fit split's exposed rows",
-        "M2_linear_log_odds": "q = sigmoid(organic_logit + a + b (organic_logit - c)), c = mean organic_logit of the fit exposed rows, (a, b) maximum likelihood on the fit split",
-        "M3_stratum_log_odds": "q = sigmoid(organic_logit + D_k), D_k maximum likelihood per fit stratum, served as a step function of organic_logit (the fit stratum whose organic_logit is nearest)"
+        "B1_constant_difference": "baseline and simulator rule: q = clip(mu0 + delta, 1e-6, 1 - 1e-6), one delta >= 0 (joint maximum likelihood): the constant absolute effect the runtime served for ad_response@1 (E3 review: constant-effect contender), re-expressed per displayed individual",
+        "M1_constant_log_odds": "q = sigmoid(logit mu0 + D), one shift D >= 0 (joint maximum likelihood)",
+        "M2_linear_log_odds": "q = sigmoid(logit mu0 + max(a + b (logit mu0 - c), 0)), c = displayed-weighted mean of the moment organic_logit on the fit split (fixed before fitting), (a, b) joint maximum likelihood"
       },
-      "negative_effects": "every candidate's log-odds shift (and B1's difference) is floored at 0 when evaluated and served: no negative persuasion. The report states, per fit stratum, the test-split 95% bootstrap interval of the unconstrained stratum shift; if any interval lies entirely below 0 the floor is recorded as a known deviation from the data",
-      "primary_metric": "log_loss",
-      "secondary_metrics": ["brier", "ece", "auc"],
+      "negative_effects": "every candidate's shift (and B1's difference) is constrained to >= 0 in fitting and serving: no negative persuasion. The report states, per stratum, the test-split 95% bootstrap interval of the unconstrained (saturated) stratum shift; if any interval lies entirely below 0 the constraint is recorded as a known deviation from the data",
+      "primary_metric": "excess_log_loss",
+      "secondary_metrics": [
+        "log_loss",
+        "brier",
+        "ece",
+        "auc"
+      ],
       "reported": [
         "per-stratum table on fit, validation and test: rows, exposure rate, control rate, never-taker rate, complier baseline, ITT, Wald LATE, unconstrained complier log-odds shift",
         "per-stratum ITT implied by each candidate (e_s (q_s - mu0_s)) against the observed ITT, weighted mean squared error on test",
         "incremental-visit conversion ratio rho = (ITT_conversion / ITT_visit) / (control conversion rate / control visit rate), pooled, with a 95% bootstrap interval on the fit split and on test; the runtime serves the fit estimate when its interval excludes 1, else 1",
-        "the conversion analogue of the per-stratum table (complier conversion baseline and shift), descriptive only"
+        "the conversion analogue of the per-stratum table (complier conversion baseline and shift), descriptive only",
+        "95% bootstrap intervals (Poisson cell bootstrap of the fit split, 200 resamples) of the kept candidate's parameters"
       ],
       "long_horizon": "not applicable: the data have no timestamps; each row is one user over one test period, so repeated campaigns, carry-over, wear-in and wear-out are not identified (recorded as limits). Every candidate's long-horizon measure is null and the E4 drift rule does not reject any candidate",
       "rule_mapping": "Simulator rules for display-ad response compared on test on the per-stratum ITT (weighted mean squared error between predicted and observed ITT_s): S1 = runtime ad_response@1 as served (one absolute ITT for every eligible individual); S2 = ad_response@1's prespecified response-type table (model estimate), ITT_s = mean over the stratum's test rows of their assigned type's p1_visit - p0_visit. economy.work's sponsored-search click rule (one hand-set probability) answers a different question (a click on a search result) and has no randomised counterpart in these data: not comparable, stated",
       "serving": "runtime decision model ad_response@2: P(visit | campaign displays in the period) = p0 + (A / A_ref) (sigmoid(logit p0 + D(logit p0)) - p0), capped at 1, where p0 is the individual's organic visit probability (world state), A the probability that at least one of the individual's displays in the period is attended, from a registered attention decision model evaluated on each display's own features (relevance, repetition, familiarity) and A_ref = 1 by declaration (a Criteo display is treated as an attended exposure, which understates the effect of an attended display: conservative). The attention composition and A_ref are assumptions, not estimates from these data, and have their own fidelity record. Conversion after a visit is the world's own price-dependent purchase decision; visits the display caused (coupled draw: u in [p0, p)) convert with that decision's probability times rho",
-      "compute": "evaluation of every candidate is a closed form per row; timed on 100,000 validation rows like the E4 models"
+      "compute": "evaluation of every candidate is a closed form per row; timed on 100,000 validation rows like the E4 models",
+      "primary_metric_definition": "(saturated log-likelihood - profile log-likelihood of the candidate with theta fixed) of the split's three cells summed over strata, divided by the split's displayed rows; 0 = the three cell rates of every stratum are reproduced exactly; lower is better",
+      "secondary_metric_definition": "binary metrics of visit on the split's displayed rows with q evaluated at the rows' moment organic_logit"
     }
-  }
+  },
+  "revision": "Revised on 2026-11-26 before any fit on real data (no fit, validation or test row other than the disclosed explore rows had been read): a synthetic randomised trial with a known display shift (tests/test_v5_calibration_ad_exposure.py) showed that plugging the moment estimate of each stratum's complier baseline into the displayed rows' likelihood as if it were known biases the shift towards 0 (errors in variables; 0.89 for a true 1.2 while an oracle baseline gives 1.18). The estimator is therefore the joint three-arm likelihood with the nuisances profiled out, and the primary metric is the held-out profile likelihood. The per-stratum step candidate M3 is dropped (saturated under this likelihood). The first version is in git history (commit 246bea5)."
 }
