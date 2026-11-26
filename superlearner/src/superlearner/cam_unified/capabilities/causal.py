@@ -688,6 +688,8 @@ def train_world_adapt(stack, groups: list, st: CausalSettings) -> list:
             a, am = model.adapt_loss(seq, filt, None)
         trainer.step({"world": w["world"], "adapt": a})
         model.version = model.version + 1
+        if i < 3 or (i + 1) % 100 == 0:
+            _mem(f"train_adapt_step_{i + 1}")
         hist.append({"world": float(w["world"].detach()), "adapt": float(a.detach()),
                      "adapt_kalman": am.get("adapt_kalman"), "adapt_ks": am.get("adapt_ks")})
     if base is not None:
@@ -718,6 +720,12 @@ def run_lp_probe(st: CausalSettings, root: Optional[str] = None, device=None) ->
     env = make_env("switch", st.B)
     stack.info["tools"] = env.available_tools()[0]
     eps = record(stack, env, st.record_episodes, st.seed * 10_007)
+    # the agent's fresh on-policy buffer (decision inputs incl. FastStates, ~0.9 GB here) is not used by the
+    # world / adapt objectives (as in run_causal)
+    stack.agent.fresh = []
+    stack.agent._last_fresh = {}
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     groups = groups_of(eps, st.batch_seqs, rng)
     dev0 = 200_000 + 1000 * st.seed
     before = measure_lp(stack, dev0)
