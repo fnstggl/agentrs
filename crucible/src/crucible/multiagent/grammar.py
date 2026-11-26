@@ -387,6 +387,8 @@ def _string_cands(tool: str, fname: str, s: dict, kn: Knowledge, rng, filled: di
     fresh = fname in NAME_FIELDS and bool(s.get("pattern")) and (creates or fname == "handle")
     if fresh:
         return _fresh_names(kn, fname, s)
+    if fname in TEXT_FIELDS:
+        return _texts(kn, fname, s, rng)        # writes its own words; never parrots texts it received verbatim
     if known:
         cands = _known(kn, fname, s, known)
         if cands:

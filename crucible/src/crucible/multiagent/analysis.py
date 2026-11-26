@@ -330,9 +330,14 @@ def _ids_in(x: Any, top: bool = False, depth: int = 0) -> list[str]:
 
 # ====================================================================== capabilities (SP-12.0)
 def capabilities(inter: dict, *, ventures: list[dict], groups_learning: dict[str, dict],
-                 strategy_response: dict | None) -> dict[str, dict]:
-    """Which Part 12 capabilities the learning participants exercised, each with its evidence."""
+                 strategy_response: dict | None, parties: set[str] | None = None) -> dict[str, dict]:
+    """Which Part 12 capabilities the learning participants exercised, each with its evidence. With `parties`
+    (the learning parties), only interactions and ventures in which one of them takes part count."""
     co, cm = inter["cooperative"], inter["competitive"]
+    if parties is not None:
+        co = [r for r in co if set(r["parties"]) & set(parties)]
+        cm = [r for r in cm if set(r["parties"]) & set(parties)]
+        ventures = [v for v in ventures if v["party"] in parties]
 
     def kinds(rs, k, both=False):
         return [r for r in rs if r["kind"] == k and (not both or r.get("both_learners"))]

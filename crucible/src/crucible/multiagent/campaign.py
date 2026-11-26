@@ -126,7 +126,9 @@ def standard_members(semantic: int = 2) -> list[Member]:
 
 def civ_run(env, registry: PolicyRegistry, groups: dict[str, PolicyGroup], members: list[Member], *, hours: float,
             think_s: int = 1800, seed: int = 0, semantic_service=None, historical_at: float | None = 0.5,
-            controls: bool = True, chunk_hours: float = 6, store_root: str | None = None) -> dict:
+            controls: bool = True, chunk_hours: float = 6, store_root: str | None = None, before_run=None,
+            wrap=None, extra_at: float | None = None, extra_members: list[Member] = (),
+            extra_groups: dict | None = None) -> dict:
     """Run the civilisation self-play (see the module docstring). Returns the match and what was measured on the
     side: initial versions, controls, probe situations, the historical checkpoint."""
     initial = {gid: g.clone(f"{gid}_initial") for gid, g in groups.items()}
@@ -141,25 +143,40 @@ def civ_run(env, registry: PolicyRegistry, groups: dict[str, PolicyGroup], membe
             g.controls.append(c)
             ctl[gid] = c
     m = Match(env, groups, members, registry=registry, seed=seed, think_s=think_s,
-              semantic_service=semantic_service, store_root=store_root)
+              semantic_service=semantic_service, store_root=store_root, wrap=wrap)
     for a in m.agents.values():
         if hasattr(a, "p"):
             a.p.choice_method = "mean"           # one scoring pass per decision (cost); see SemanticParticipant
+    if before_run is not None:
+        before_run(m)
     t0 = time.perf_counter()
     hist = None
-    if historical_at:
-        m.run(hours * historical_at, chunk_hours=chunk_hours)
-        main = next(iter(groups))
-        hist = registry.freeze(groups[main], f"{main}_hist", seed=seed + 77)
-        m.groups[hist.gid] = hist
-        m.admit(Member(f"{main}hist", "historical", f"ctrl:{main}", hist.gid))
-        m.run(hours * (1 - historical_at), chunk_hours=chunk_hours)
-    else:
-        m.run(hours, chunk_hours=chunk_hours)
+    marks = sorted({x for x in (historical_at, extra_at) if x})
+    done = 0.0
+    for x in marks + [1.0]:
+        if x > done:
+            m.run(hours * (x - done), chunk_hours=chunk_hours)
+            done = x
+        if x == historical_at:
+            main = next(iter(groups))
+            hist = registry.freeze(groups[main], f"{main}_hist", seed=seed + 77)
+            m.groups[hist.gid] = hist
+            m.admit(Member(f"{main}hist", "historical", f"ctrl:{main}", hist.gid))
+        if x == extra_at:
+            for gid, g in (extra_groups or {}).items():
+                m.groups[gid] = g
+                if registry.vid(g) not in registry.versions:
+                    registry.register_group(g, world_id=env.world.world_id, seed=seed, checkpoint=False)
+            for mem in extra_members:
+                m.admit(mem)
     wall = time.perf_counter() - t0
     for g in groups.values():
         registry.checkpoint(g)
     return {"match": m, "initial": initial, "controls": ctl, "historical": hist, "wall_s": wall}
+
+
+def _inner(a):
+    return a.__dict__.get("agent", a) if hasattr(a, "__dict__") else a
 
 
 def learning_evidence(run: dict) -> dict:
@@ -171,10 +188,10 @@ def learning_evidence(run: dict) -> dict:
         if gid not in run["initial"]:
             continue
         init, ctl = run["initial"][gid], run["controls"].get(gid)
-        recs = [h for a in m.agents.values() if isinstance(a, LearnerAgent) and a.group is g
-                for h in getattr(a, "_decisions", [])]
-        hist = sorted((h for a in m.agents.values() if isinstance(a, LearnerAgent) and a.group is g
-                       for h in a.history), key=lambda x: x["t"])
+        ags = [_inner(a) for a in m.agents.values()]
+        recs = [h for a in ags if isinstance(a, LearnerAgent) and a.group is g for h in getattr(a, "_decisions", [])]
+        hist = sorted((h for a in ags if isinstance(a, LearnerAgent) and a.group is g for h in a.history),
+                      key=lambda x: x["t"])
         k = max(1, len(hist) // 3)
 
         def rates(xs):
@@ -213,7 +230,7 @@ def strategy_switch(match: Match, *, responder: str, switched: str, replacement:
     """See the module docstring. `responder` and `switched` are group ids of `match`; `replacement` is the policy
     the switched group's identities play in the switch branch. Returns the responder's decision divergence."""
     from ..experience.kernel import KernelExperienceEnv
-    learners = {p: a for p, a in match.agents.items() if isinstance(a, LearnerAgent)}
+    learners = {p: _inner(a) for p, a in match.agents.items() if isinstance(_inner(a), LearnerAgent)}
     branches = {}
     for name in ("control", "replicate", "switch"):
         w = match.world.fork(f"{match.world.world_id}-{name}")
@@ -234,7 +251,7 @@ def strategy_switch(match: Match, *, responder: str, switched: str, replacement:
         steps = int(round(hours * HOUR / match.think_s))
         run_learners(env, agents, steps, think_s=match.think_s, update_every=10**9, learn=False, check_schema=False)
         branches[name] = {p: [(h["tool"], h["ok"]) for h in agents[p].history]
-                          for p in agents if match.agents[p].group.gid == responder}
+                          for p in agents if learners[p].group.gid == responder}
         env.close()
 
     def diverged(a, b):

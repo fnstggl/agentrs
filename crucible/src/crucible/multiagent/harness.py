@@ -86,7 +86,7 @@ class Match:
 
     def __init__(self, env, groups: dict[str, PolicyGroup], members: list[Member], *,
                  registry: PolicyRegistry | None = None, match_id: str | None = None, think_s: int = HOUR,
-                 semantic_service=None, store_root: str | None = None, seed: int = 0):
+                 semantic_service=None, store_root: str | None = None, seed: int = 0, wrap=None):
         self.env, self.world = env, env.world
         self.groups = dict(groups)
         self.registry = registry if registry is not None else PolicyRegistry()
@@ -98,6 +98,7 @@ class Match:
         self.members: dict[str, Member] = {}
         self.endowments: dict[str, int] = {}
         self.service = semantic_service
+        self.wrap = wrap                     # operator-side instrument around each participant (audits), or None
         self._sem_group = None
         self.store = None
         if store_root:
@@ -131,7 +132,7 @@ class Match:
             g = self.groups[m.group]
             agent = LearnerAgent(p, g, Objective(m.drive), role=m.role)
             vid = self.registry.vid(g)
-        self.agents[p] = agent
+        self.agents[p] = agent if self.wrap is None else self.wrap(agent, p, m)
         self.members[p] = m
         self.endowments[p] = int(m.endowment)
         self.roster_versions[p] = vid

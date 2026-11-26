@@ -72,6 +72,7 @@ def independence(groups: dict, agents: dict) -> dict:
         states.setdefault(key, gid)
     kn_ids: dict[int, str] = {}
     for p, a in agents.items():
+        a = a.__dict__.get("agent", a)          # an audit instrument around a participant is not the participant
         for attr in ("kn", "history", "signals"):
             o = getattr(a, attr, None)
             if o is None:
@@ -125,7 +126,7 @@ class CanaryTap:
         self.scanned += 1
         for (c, owner), n in hits.items():
             self.log.append({"recipient": getattr(self.agent, "principal", None), "recipient_party": self.party,
-                             "canary_owner": owner, "where": where, "n": n})
+                             "canary": c, "canary_owner": owner, "where": where, "n": n})
 
     def act(self, obs, tools, explore=True):
         self._scan(obs, "observation")
@@ -164,6 +165,25 @@ def plant_canaries(world, identities: dict[str, str], tag: str = "cnry") -> dict
             if m.ok:
                 out[c3] = party
     return out
+
+
+def classify_canary_hits(world, canaries: dict[str, str], log: list[dict], since_seq: int,
+                         party_of: dict[str, str]) -> dict:
+    """Split the taps' canary hits into *accesses* (another party received a canary its owner never disclosed) and
+    *owner disclosures* (the owner's own party put it into a command after planting - e.g. it published the text
+    itself). Only accesses are leaks of private observations."""
+    disclosed = set()
+    for e in world.events_range(since_seq, world.seq):
+        if e.type != "cmd" or e.actor not in party_of:
+            continue
+        s = json.dumps(e.payload.get("args"), default=str)
+        for c, owner in canaries.items():
+            if c in s and party_of[e.actor] == owner:
+                disclosed.add(c)
+    acc = [x for x in log if x["canary"] not in disclosed]
+    return {"accesses": int(sum(x["n"] for x in acc)), "disclosed_canaries": len(disclosed),
+            "owner_disclosure_hits": int(sum(x["n"] for x in log if x["canary"] in disclosed)),
+            "access_paths": sorted({(x["canary_owner"], x["recipient_party"], x["where"]) for x in acc})}
 
 
 # ====================================================================== shared reward channels

@@ -64,7 +64,7 @@ ALGOS = ("reinforce", "a2c", "ppo")
 ACT_BIAS = 1.5           # initial log-odds preference for a state-changing tool over a read-only one (learnable)
 ARCHS = ("mlp", "gru")
 HP_DEFAULT = {"lr": 3e-3, "gamma": 0.9, "lam": 0.9, "clip": 0.2, "epochs": 4, "ent": 0.01, "vf": 0.5,
-              "update_every": 6, "max_grad": 1.0, "scale_decay": 0.98, "scale_floor": 1e-3}
+              "update_every": 4, "max_grad": 1.0, "scale_decay": 0.98, "scale_floor": 1e-3}
 
 
 def h32(s: str) -> int:
