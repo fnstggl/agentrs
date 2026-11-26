@@ -1185,29 +1185,40 @@ def identify_rollout(env) -> dict:
 
 def adoption_is_delayed(env) -> dict:
     """Exposed users of a ready group (its adopter share set above its readiness level, as the controlled
-    condition) pay nothing in the tick they are exposed (same noise, with and without the exposures); their
-    subscriptions arrive ticks later."""
+    condition) pay nothing in the tick they are exposed (same noise, with and without the exposures: revenue is no
+    higher than without them) and are all pending; those who adopt do so ticks later, at different delays (four noise replicates of the world). Revenue
+    is not compared beyond the exposure tick: unexposed users can adopt by word of mouth in the other copy."""
+    from .env import Env
     c, h = env._config, env._config["hidden"]
-    a, b = fork(env), fork(env)
     k = 0
     g = c["group_names"][k]
     idx = [i for i, u in enumerate(c["users"]) if u["group"] == g]
     want = int(np.ceil(h["tau"][k] * len(idx))) + 1
-    for e in (a, b):
-        for j, i in enumerate(idx):
-            e._state["status"][i] = 2 if j < want else 0
-    ids = [i for i in idx[want:] if a._state["status"][i] == 0][:int(c["capacity"])]
-    ra = a.step(expose_ids(ids))
-    rb = b.step(None)
-    same_now = ra["observation"]["resources"]["revenue_cents_last_tick"] == \
-        rb["observation"]["resources"]["revenue_cents_last_tick"]
-    pending = sum(1 for i in ids if a._state["status"][i] == 1)
-    later = []
-    for _ in range(12):
-        later.append(a.step(None)["observation"]["resources"]["revenue_cents_last_tick"] -
-                     b.step(None)["observation"]["resources"]["revenue_cents_last_tick"])
-    return {"ok": bool(ids and same_now and pending == len(ids) and max(later) > 0), "exposed": len(ids),
-            "revenue_gain_later": later}
+    same_all, pending_all, delays, exposed = True, True, [], 0
+    for r in range(4):
+        base = env if r == 0 else Env(env.family, env.seed, env._config, env.difficulty,
+                                      world_seed=env.world_seed + 104729 * r)
+        a, b = fork(base), fork(base)
+        for e in (a, b):
+            for j, i in enumerate(idx):
+                e._state["status"][i] = 2 if j < want else 0
+        ids = [i for i in idx[want:] if a._state["status"][i] == 0][:int(c["capacity"])]
+        exposed += len(ids)
+        ra = a.step(expose_ids(ids))
+        rb = b.step(None)
+        # no exposed user pays in the exposure tick (in the other copy some of them may adopt by word of mouth)
+        same_all &= ra["observation"]["resources"]["revenue_cents_last_tick"] <= \
+            rb["observation"]["resources"]["revenue_cents_last_tick"]
+        pending_all &= all(a._state["status"][i] == 1 for i in ids)
+        seen = set()
+        for d in range(1, 13):
+            a.step(None)
+            for i in ids:
+                if i not in seen and a._state["status"][i] == 2:
+                    seen.add(i)
+                    delays.append(d)
+    return {"ok": bool(exposed and same_all and pending_all and len(delays) >= 2 and len(set(delays)) >= 2),
+            "exposed": exposed, "adopted_later": len(delays), "adoption_delays": sorted(delays)}
 
 
 def unready_groups_reject(env) -> dict:

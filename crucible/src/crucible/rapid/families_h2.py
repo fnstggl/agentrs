@@ -39,7 +39,10 @@ def hooks(name: str) -> dict:
 def plan_distribution(rng, d):
     M = int(d["graph_size"])
     names = neutral_names(rng, M + 1)
-    lam = [u(rng, 1.5, 7.0) for _ in range(M)]
+    # sites differ in demand (an even ladder from a low to a high rate, in a random order): where stock goes matters
+    lo_, hi_ = u(rng, 1.5, 2.5), u(rng, 5.5, 7.5)
+    ladder = [lo_ * (hi_ / lo_) ** (k / max(1, M - 1)) for k in range(M)]
+    lam = [float(ladder[i]) for i in rng.permutation(M)]
     lead = int(rng.integers(2, 6))
     return {"engine": "planning", "scenario": "distribution", "horizon": int(d["horizon"]), "site_names": names[:M],
             "order_name": names[M], "lam": lam, "lead": lead, "price": 50.0, "unit_cost": 20.0, "ship_cost": 2.0,
@@ -441,7 +444,9 @@ def strat_learning_rival(rng, d):
 def team_profile(rng, d):
     K = max(2, int(d["action_complexity"]))
     names = neutral_names(rng, K)
-    w = np.asarray([u(rng, 0.2, 0.7) for _ in range(3)])
+    # one attribute weighs most, but every attribute weighs enough that no participant's view alone ranks the
+    # options well (interdependence, 8.9): the two lesser weights are at least 0.4 before the boost
+    w = np.asarray([u(rng, 0.4, 0.8) for _ in range(3)])
     w[int(rng.integers(3))] += 0.8
     w = w / np.linalg.norm(w)
     return {"engine": "strategic", "scenario": "profile", "horizon": int(d["horizon"]), "agents": ["a0", "a1", "a2"],

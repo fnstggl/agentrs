@@ -356,4 +356,4 @@ def lookalike_market(rng: np.random.Generator, rule: str, difficulty: dict) -> d
                                                                "what counts."},
                     brief="You run a shop. Levers: your price and your promotion spend. Gauges: units sold, store "
                           "visits, a rival's price index. Decision: an optional certification.",
-                    rule=rule, claim={"price": price, "promo": promo, "units": units, "compat": compat})
+                    rule=rule, claim={"price": price, "promo": promo, "units": units, "compat": compat, "mid": mid})

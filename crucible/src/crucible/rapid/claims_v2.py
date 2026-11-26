@@ -48,19 +48,27 @@ def _hidden_series(env, nid: str, ticks: int) -> np.ndarray:
 # ====================================================================== ch_wandering_taste
 def taste_moves_the_optimum(env) -> dict:
     """(1) The hidden taste wanders: the best design (the peak of the fit, at x = taste) moves by more than three
-    units over the episode. (2) Controlled intervention on the same noise: holding the design that was best in the
-    first fifth sells less in the last fifth than holding the design that is best in the last fifth."""
+    units over the episode. (2) Controlled intervention on the same noise: in the fifth of the episode where the
+    best design is furthest from where it was in the first fifth, holding the first fifth's best design sells less
+    than holding that fifth's best design (a random walk can come back, so the last fifth is not always the
+    furthest)."""
     c = env._config["claim"]
     H = env.horizon
     T = _hidden_series(env, c["taste"], H)
     k = max(4, H // 5)
-    early, late = float(np.clip(T[:k].mean(), 0, 10)), float(np.clip(T[-k:].mean(), 0, 10))
+    wins = [(j * k, min(H, (j + 1) * k)) for j in range(H // k)]
+    means = [float(np.clip(T[a:b].mean(), 0, 10)) for a, b in wins]
+    early = means[0]
+    j = int(np.argmax([abs(m - early) for m in means]))
+    a, b = wins[j]
+    far = means[j]
     x = _lever(env, c["lever"])
-    s_early = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: early}}, H)[-k:].mean()
-    s_late = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: late}}, H)[-k:].mean()
-    return {"ok": bool(T.max() - T.min() > 3.0 and abs(late - early) > 0.5 and s_late > s_early),
-            "taste_range": float(T.max() - T.min()), "best_early": early, "best_late": late,
-            "late_sales_holding_early_best": float(s_early), "late_sales_holding_late_best": float(s_late)}
+    s_early = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: early}}, H)[a:b].mean()
+    s_far = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: far}}, H)[a:b].mean()
+    return {"ok": bool(T.max() - T.min() > 3.0 and abs(far - early) > 0.5 and s_far > s_early),
+            "taste_range": float(T.max() - T.min()), "best_early": early, "best_in_furthest_fifth": far,
+            "furthest_fifth": j, "sales_there_holding_early_best": float(s_early),
+            "sales_there_holding_its_best": float(s_far)}
 
 
 def identify_taste_drift(env) -> dict:
@@ -422,9 +430,12 @@ def _grid_measure(view, x1, x2, reps=2, n=5):
                 if view.done:
                     return np.asarray(X), np.asarray(y)
                 r = view.step({"kind": "levers", "values": {x1: float(a), x2: float(b)}})
-                vals.append(list(r["observation"]["numbers"].values())[0])
-            X.append([a, b])
-            y.append(float(np.mean(vals)))
+                nums = list(r["observation"]["numbers"].values())
+                if nums:                                    # a reading can be missing (nothing reported)
+                    vals.append(nums[0])
+            if vals:
+                X.append([a, b])
+                y.append(float(np.mean(vals)))
             if view.t >= view.horizon - 2:
                 return np.asarray(X), np.asarray(y)
     return np.asarray(X), np.asarray(y)

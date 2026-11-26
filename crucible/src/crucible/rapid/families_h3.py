@@ -332,6 +332,8 @@ def ch_demand_shift(rng, d):
     up = bool(rng.random() < 0.5)
     rg = c.splice(tot, "regime_change", {"before": 1.0, "after": u(rng, 1.6, 2.0) if up else u(rng, 0.4, 0.55),
                                          "at": _switch_tick(rng, H), "trig": 1e18}, trigger=[])
+    if up:                     # the capacity range can serve the shifted demand (capacity can follow it up)
+        c.set_params(cap_node, cap=2.0 * c.node(cap_node)["params"]["cap"])
     c.set_params(c.sold, half=u(rng, 30.0, 45.0))
     c.process_noise(u(rng, 0.8, 1.2), into=tot)
     c.set_lever(a, default=u(rng, 4.0, 6.0))
