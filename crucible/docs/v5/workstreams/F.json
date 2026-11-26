@@ -251,7 +251,7 @@
     "tests/test_v5_econ_civic.py::test_activity_continues_and_incumbent_days_never_fail"
    ],
    "status_claim": "implemented; unit tests pass (startup world with exchanges, institutions and labour market); civilisation verification run: see test_results",
-   "notes": "Activities registered by economy.work where the subsystem module is present: exchange passes in `shop`, `jobs` (economy.jobs), `assoc` (economy.assoc); incumbents' labelled rules for staffing, passes and display campaigns (commerce.rivals). Wave 3b continuation: pass buyers also rate the seller on the venue (xchg.rate, same judgement as the product rating); a 12-week startup-world run (seed 21, n=700) keeps every activity going in each of the last four weeks (shifts, ballots, dues, pass orders) after DEF-F-7 was fixed (an incumbent's refused re-dismissal of staff on notice had rolled back its whole day, support included, from day 55: 26 rivals.failed)."
+   "notes": "Activities registered by economy.work where the subsystem module is present: exchange passes in `shop`, `jobs` (economy.jobs), `assoc` (economy.assoc); incumbents' labelled rules for staffing, passes and display campaigns (commerce.rivals). Wave 3b continuation: pass buyers also rate the seller on the venue (xchg.rate, same judgement as the product rating); a 12-week startup-world run (seed 21, n=700) keeps every activity going in each of the last four weeks (shifts, ballots, dues, pass orders) after DEF-F-7 was fixed (an incumbent's refused re-dismissal of staff on notice had rolled back its whole day, support included, from day 55: 26 rivals.failed). Further continuation changes: one employment view for the economy (economy.popbridge.employment: own employer or a labour-market contract) so association members insure labour-market jobs (a dismissed employee claims: labor -> inst chain); registered seekers employed elsewhere stop looking; incumbents leave a venue on their own refunded sales there. Startup-world 8-12-week probes (seeds 21, 5, 8; 1-3 formats; n 700-1000): 0 failed processes or rules, shifts, ballots and dues every week, pass orders in most weeks."
   },
   "SP-2.3 migrations (institution, contract)": {
    "implementation_files": [
@@ -285,13 +285,15 @@
  },
  "limitations": [
   "SP-6.2 recurring_revenue_systems_of_record is 2: social/creators.py (CORE-POP) bills memberships with its own bank.move of kind 'subscription'; the gate fails until creators routes through subs (integration note).",
-  "Employment of population individuals in the labour market lives in contracts; the population's exogenous `employer` column and `employed` feature do not see it (CORE-POP migration, facts.py KNOWN_DUPLICATES pop.employer).",
+  "Employment of population individuals in the labour market lives in contracts; the population's exogenous `employer` column and `employed` feature do not see it (CORE-POP migration, facts.py KNOWN_DUPLICATES pop.employer). The economy reads both through economy.popbridge.employment; other packages still see only the exogenous column.",
   "Employer demand for labour comes only from incumbents' support queues (rivals staffing rule); industry, science and education employers do not recruit from the population yet.",
   "Mutual-aid associations insure job loss only; their thresholds (FR-WORK-3) are uncalibrated.",
   "Display campaigns: attention is the reference value 1 per displayed period (work.display_attention); the in-world holdout therefore checks the mechanism, not attention; the incremental conversion ratio is not applied.",
   "Passes are 30-day term licences of services; goods and content listings by population sellers are not modelled.",
   "gov proposals in worlds with inst are inst decisions: 4.0 society minds (actors.negotiation) read the gov proposals table and therefore no longer vote on them there (no in-world caller of gov.propose exists in civilisations).",
-  "Earlier limitations of F+G (wave 2) that remain: source-of-funds tracing replays the ledger; platform review filters look one hop back; work.value and rivals rules uncalibrated; labour task quality formula (labor.task_quality) unchanged; subjective usefulness (6.3) not implemented."
+  "Earlier limitations of F+G (wave 2) that remain: source-of-funds tracing replays the ledger; platform review filters look one hop back; work.value and rivals rules uncalibrated; labour task quality formula (labor.task_quality) unchanged; subjective usefulness (6.3) not implemented.",
+  "The population buys, disputes and rates on exchanges but does not sell there: nothing an individual produces is a listable product (services need a deployed program, documents and goods have no population production path in commerce); the population sells its labour through the labour market instead.",
+  "Labour demand follows incumbents' support backlog: in saturated startup worlds employment can fall to the founders alone for a week or more before new tickets bring hiring back."
  ],
  "integration_notes": [
   "CORE-POP (social/creators.py, SP-6.2): route creator memberships through subs: create_tier -> prod.create (kind media, owner the creator, delivery content of a members-only document or a new 'membership' delivery) + subs.create_plan(price, month); join -> subs.subscribe as the fan from its own account (status/period from sub_subs); cancel -> subs.cancel; the 'subscribers' content.access provider -> products.entitlement of the creator's product; then KNOWN_DUPLICATES creators.creator_members can go and tests/v5/test_gate_SP_6_2.py measures 1 system of record.",
@@ -317,7 +319,7 @@
   "tests/test_v5_commerce_contracts.py + test_v5_commerce_institutions.py + test_v5_commerce_labor.py": "38 passed",
   "tests/test_v5_commerce_modules.py + tests/v5/test_gate_SP_6_6.py + tests/v5/test_gate_SP_6_6b.py": "24 passed",
   "tests/v5/test_gate_K.py -m 'not slow' (K.1-K.7, K.n2)": "8 passed",
-  "tests/test_v5_econ_civic.py": "7 passed (6 + the 12-week regression, run separately)",
+  "tests/test_v5_econ_civic.py": "7 passed (run in parts on the head: 5 + replay + the 12-week regression)",
   "tests/test_v5_econ_work.py": "6 passed",
   "tests/test_kernel.py + tests/test_invariants.py": "51 passed",
   "tests/test_v5_substrate_facts.py": "9 passed",
