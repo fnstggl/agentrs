@@ -253,7 +253,10 @@ def _build_stage1(preset, run_dir, *, device, seed, overrides, semantic=None, ag
     SY.set_deterministic(True)
     SY.seed_everything(seed)
     dev = device if (device != "cuda" or torch.cuda.is_available()) else "cpu"
-    sem = semantic if semantic is not None else SY.make_semantic(cfg, cfg.sem_model, dev)
+    # a loaded semantic model is shared between stacks only when no decoder conditioning is configured: decoder
+    # latent cross-attention installs hooks inside the semantic model, which must belong to exactly one CAM model
+    share = semantic is not None and not int(getattr(cfg, "dec_xattn_every", 0) or 0)
+    sem = semantic if share else SY.make_semantic(cfg, cfg.sem_model, dev)
     index = SY.make_index(cfg, os.path.join(run_dir, "memory_index"), dev) if cfg.use_memory else None
     model = build_model(cfg, components={"semantic": sem},
                         component_kwargs={"retriever": {"index": index}} if index is not None else None)
@@ -602,7 +605,7 @@ def run_condition(spec: RunSpec, semantic=None) -> dict:
     c = spec.condition.upper()
     if c not in CONDITIONS:
         raise ValueError(f"unknown condition {c!r}; known: {sorted(CONDITIONS)}")
-    deviations = []
+    deviations = ["smoke: engineering check with a tiny budget, not an evaluation"] if spec.smoke else []
     if spec.set == "confirm":
         ok, why = prereg_committed()
         if not ok:
@@ -916,7 +919,14 @@ def main(argv=None) -> int:
         if a.decisions is None:
             a.decisions = 6 * a.n_envs if a.smoke else 64 * a.n_envs
         sem = None
-        for c in a.condition.split(","):
+        conds = [c.strip().upper() for c in a.condition.split(",") if c.strip()]
+        if a.smoke and a.ckpt in (None, "auto") and any(c in NEEDS_TRAINED for c in conds):
+            a.condition = conds[0]
+            src = source_run(_spec_from(a), os.path.join(os.path.abspath(a.run_dir), "source"))
+            a.ckpt, a.init_ckpt, sem = src["trained"], src["init"], src["semantic"]
+            append_jsonl(os.path.join(os.path.abspath(a.run_dir), "eval", "source.jsonl"),
+                         {k: src[k] for k in ("init", "trained", "loop", "stats", "integrity")})
+        for c in conds:
             a.condition = c
             row = run_condition(_spec_from(a), semantic=sem)
             print(json.dumps({k: row.get(k) for k in ("experiment", "condition", "seed", "loop", "decisions",
