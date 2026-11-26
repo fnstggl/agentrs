@@ -125,3 +125,72 @@ def findings_in(obj, needles) -> list:
         if any(f and f in blob for f in forms):
             out.append(n)
     return out
+
+
+# ---------------------------------------------------------------------------------------------- read-only sweep
+_ID = __import__("re").compile(r"\b(?:[a-z]{1,10}:[A-Za-z0-9_.-]{1,40}|[a-z]{2,12}_[0-9]{4,8}|sha256:[0-9a-f]{64}|p[0-9]{1,7})\b")
+
+
+def sweep_read_only(a: Attacker, actor: str, seeds=(), rounds: int = 2, max_calls: int = 6000) -> list:
+    """Call every read-only tool the actor sees with argument sets built from its schema and from identifiers the
+    actor has seen (its observation, earlier results, `seeds`). Returns [(where, text)] of everything received,
+    including the actor's observation stream and the tool list."""
+    import json as _j
+    tools = a.tools(actor)
+    ro = [x for x in tools if x.get("annotations", {}).get("readOnlyHint")]
+    pool: set[str] = {actor, *map(str, seeds)}
+    received: list = []
+    obs = a.observe(actor)
+    txt = _j.dumps({k: v for k, v in obs.items() if k != "events"}, default=str, sort_keys=True)
+    received.append(("observation", txt))
+    for e in obs["events"]:
+        received.append((f"event {e['type']}", _j.dumps(e["payload"], default=str, sort_keys=True)))
+    for _, t in received:
+        pool.update(_ID.findall(t))
+    received.append(("tool list", _j.dumps(tools, default=str, sort_keys=True)))
+    n = 0
+    for _ in range(rounds):
+        cands = sorted(pool)[:160]
+        for x in ro:
+            sc = x.get("inputSchema") or {}
+            props, req = sc.get("properties", {}), set(sc.get("required", []))
+            base = {}
+            strs = []
+            for k, v in props.items():
+                if "enum" in v:
+                    if k in req:
+                        base[k] = v["enum"][0]
+                elif v.get("type") == "string":
+                    strs.append(k)
+                elif v.get("type") == "integer" and k in req:
+                    base[k] = max(1, int(v.get("minimum", 1)))
+                elif v.get("type") == "boolean" and k in req:
+                    base[k] = True
+                elif k in req:
+                    base[k] = [] if v.get("type") == "array" else {}
+            sets = [dict(base)] if not (set(strs) & req) else []
+            for k in strs:
+                others = {q: "x" for q in strs if q in req and q != k}
+                sets.extend({**base, **others, k: c} for c in cands)
+            for args in sets:
+                if n >= max_calls:
+                    break
+                r = a.act(actor, x["name"], **args)
+                n += 1
+                t = _j.dumps(r.result if r.ok else r.error, default=str, sort_keys=True)
+                received.append((f"{x['name']} {_j.dumps(args, sort_keys=True)[:100]}", t))
+                if r.ok:
+                    pool.update(_ID.findall(t))
+    received.append(("calls", str(n)))
+    return received
+
+
+def scan_hits(received: list, canaries: dict) -> dict:
+    from ..leakage import find_canaries
+    hits: dict = {}
+    for where, text in received:
+        for needle, label in find_canaries(text, canaries):
+            h = hits.setdefault(label, {"value": needle[:40], "via": []})
+            if len(h["via"]) < 3:
+                h["via"].append(where)
+    return hits

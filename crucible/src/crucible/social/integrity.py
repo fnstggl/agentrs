@@ -9,10 +9,10 @@ target, the organisations it owns or administers and the services they operate) 
                  an organisation one founded or administers, shared spending grants, a service's operator);
 * ``funded``   - received money from the target's group (directly, or through one intermediary that the group paid)
                  before engaging: engagement bought with the target's own money;
-* ``sybil``    - an admitted agent whose engagement is concentrated on the target's group (at least
-                 ``CONCENTRATION`` of its engagements, ``MIN_EDGES`` or more) and that has no footprint of its own (no
-                 content, no organisation, no paid purchase from anyone outside the group): an account that exists
-                 to engage with one target;
+* ``sybil``    - an admitted agent without a footprint of its own (no content, no organisation, no paid purchase
+                 from anyone outside the group) whose engagement is concentrated on the target's group (at least
+                 ``CONCENTRATION`` of it, not counting its engagement with other such accounts of the same target):
+                 an account that exists to engage with one target;
 * ``ring``     - an admitted agent in a reciprocal-follow ring with another engager of the target that is itself
                  not organic;
 * ``population`` / ``organic`` - population individuals (their decisions are recorded batches of the decision
@@ -37,15 +37,23 @@ EXCLUDED = ("related", "funded", "sybil", "ring")
 
 
 def group_of(world, target: str) -> set[str]:
+    """The target, the people who own, administer or founded it (for an organisation), every organisation those
+    people (or the target) own, administer or founded, and the services all of them operate."""
     st = world.state
-    out = {target}
+    people = {target}
+    if target.startswith("o:"):
+        o = st.get("orgs", target) if "orgs" in st.tables else None
+        if o is not None and o.get("founder"):
+            people.add(o["founder"])
+        if "members" in st.tables:
+            people |= {m["person"] for m in st.find("members", "org", target) if m["role"] in ("owner", "admin")}
+    out = set(people)
     if "members" in st.tables:
-        for m in st.find("members", "person", target):
-            if m["role"] in ("owner", "admin"):
-                out.add(m["org"])
+        for p in sorted(people):
+            out |= {m["org"] for m in st.find("members", "person", p) if m["role"] in ("owner", "admin")}
     if "orgs" in st.tables:
         for oid, o in st.scan("orgs"):
-            if o.get("founder") == target:
+            if o.get("founder") in people:
                 out.add(oid)
     for pid, rec in st.scan("principals"):
         if rec["kind"] == "service" and rec["info"].get("operator") in out:
@@ -126,7 +134,10 @@ def classify(world, target: str) -> dict[str, str]:
     eng = engagements(world, group)
     engagers = sorted({e for e, _, _ in eng})
     funded = _paid_by(world, group)
-    kinds = {p: (st.get("principals", p) or {}).get("kind") for p in engagers}
+    def _kind(p):
+        rec = st.get("persons", p) if "persons" in st.tables else None
+        return (rec or {}).get("kind") or (st.get("principals", p) or {}).get("kind")
+    kinds = {p: _kind(p) for p in engagers}
     # concentration over the whole world: how much of an agent's engagement goes to this group
     edges_all: dict[str, int] = defaultdict(int)
     from . import graph, nodes
@@ -152,8 +163,21 @@ def classify(world, target: str) -> dict[str, str]:
             label[p] = "related"
         elif p in funded:
             label[p] = "funded"
-        elif kinds.get(p) == "agent" and on_group[p] >= MIN_EDGES and \
-                on_group[p] >= CONCENTRATION * max(1, edges_all.get(p, on_group[p])) and not _footprint(world, p, group):
+    # sybil-like: agents without a footprint of their own whose engagement - not counting engagement among other
+    # such agents of the same target (a ring inflating each other's activity) - goes mostly to the target's group
+    bare = {p for p in engagers if p not in label and kinds.get(p) == "agent" and not _footprint(world, p, group)}
+    among: dict[str, int] = defaultdict(int)
+    if fv is not None and bare:
+        node = {p: nodes.node_of(world, p) for p in bare}
+        rev = {n_: p for p, n_ in node.items() if n_ is not None}
+        for s_, d_ in zip(fv["src"][fv["active"]].tolist(), fv["dst"][fv["active"]].tolist()):
+            if s_ in rev and d_ in rev:
+                among[rev[s_]] += 1
+    for p in engagers:
+        if p in label:
+            continue
+        outside = max(0, edges_all.get(p, on_group[p]) - on_group[p] - among[p])
+        if p in bare and on_group[p] >= 1 and on_group[p] >= CONCENTRATION * (on_group[p] + outside) - 1e-9:
             label[p] = "sybil"
         else:
             label[p] = "organic"

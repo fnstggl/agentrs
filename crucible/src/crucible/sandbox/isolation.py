@@ -159,7 +159,20 @@ def browser_executable(kind: str = "browser", tcp_ports: tuple[int, ...] = ()) -
     return launcher, {"chromium_sandbox": False}
 
 
+_CHROMIUM: list[str] = []
+
+
 def _playwright_chromium() -> str:
+    """Path of Playwright's Chromium, without starting Playwright when the browser directory can be found (a caller
+    may already be inside a running sync Playwright, which cannot be nested)."""
+    if _CHROMIUM:
+        return _CHROMIUM[0]
+    base = os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or os.path.expanduser("~/.cache/ms-playwright")
+    found = sorted(glob.glob(os.path.join(base, "chromium-*", "chrome-linux", "chrome")))
+    if found:
+        _CHROMIUM.append(found[-1])
+        return found[-1]
     from playwright.sync_api import sync_playwright
     with sync_playwright() as pw:
-        return pw.chromium.executable_path
+        _CHROMIUM.append(pw.chromium.executable_path)
+    return _CHROMIUM[0]
