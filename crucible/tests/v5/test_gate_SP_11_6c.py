@@ -13,10 +13,12 @@ Learner kinds (each must act through the interface and achieve the capability it
   slot scheduler grants one, else on the CPU.
 
 Improvement over a frozen copy (prespecified before running): a `ReferenceLearner` is trained in one world of the tier
-(observation-only, its own signal); then the trained weights and the frozen initial weights act greedily, without
+(observation-only, its own signal); then the trained weights and the frozen initial weights act with their own stochastic policies, without
 learning, on held-out seeds; the outcome is the evaluator's (Tier 1: the task's episode score against its private
 reference; kernel tiers: the evaluator's cash measure of the learner). Improvement = the trained copy beats the frozen
-copy on the mean AND on at least 3 of 4 held-out seeds. A tier that cannot be built fails."""
+copy on the mean AND on at least 3 of 4 held-out seeds (both copies follow their stochastic policy with the same
+sampling seed). The do-nothing outcome is reported beside it, so that "learned to stop doing harm" is not mistaken
+for learning the mechanism. A tier that cannot be built fails."""
 import importlib.util
 import os
 
@@ -60,7 +62,7 @@ def _scripted() -> dict:
 def _neural() -> dict:
     env = make(1, "rapid:net_routing", 2)
     L = ReferenceLearner(seed=1, reward_mode=env.reward_mode)
-    s = run_learner(env, L, 120, update_every=40)
+    s = run_learner(env, L, 160, update_every=40)
     return {"validated": s["actions"] >= 100 and s["params_changed_updates"] >= 1, "actions": s["actions"],
             "param_changes": s["params_changed_updates"]}
 
@@ -98,7 +100,17 @@ def _language_model() -> dict:
             "parse_failures": pol.stats["parse_failures"], "model": "Qwen/Qwen3-0.6B"}
 
 
+class _Wait:
+    """The do-nothing reference (every decision a wait): separates 'learned to stop doing harm' from improvement
+    beyond inaction (reported, not part of the prespecified criterion)."""
+
+    def act(self, obs, tools=None):
+        return None
+
+
 def _improvement(make_env, train_steps: int, eval_steps: int, think_s, outcome) -> dict:
+    """Both copies act with their own stochastic policy (the policy the learner actually follows), the same sampling
+    seed, no learning; only the weights differ."""
     L = ReferenceLearner(seed=7, reward_mode="observation_only")
     init = L.params_blob()
     run_learner(make_env(5), L, train_steps, update_every=32, think_s=think_s)
@@ -110,14 +122,18 @@ def _improvement(make_env, train_steps: int, eval_steps: int, think_s, outcome) 
             X = ReferenceLearner(seed=7, reward_mode="observation_only")
             X.load_params(blob)
             env = make_env(s)
-            run_learner(env, X, eval_steps, learn=False, explore=False, think_s=think_s)
+            run_learner(env, X, eval_steps, learn=False, explore=True, think_s=think_s)
             vals.append(float(outcome(env)))
-        per.append({"seed": s, "trained": vals[0], "frozen": vals[1]})
+        env = make_env(s)
+        run_learner(env, _Wait(), eval_steps, learn=False, think_s=think_s)
+        per.append({"seed": s, "trained": vals[0], "frozen": vals[1], "wait_only": float(outcome(env))})
     wins = sum(1 for p in per if p["trained"] > p["frozen"])
     mean_t = float(np.mean([p["trained"] for p in per]))
     mean_f = float(np.mean([p["frozen"] for p in per]))
+    mean_w = float(np.mean([p["wait_only"] for p in per]))
     return {"improved": bool(mean_t > mean_f and wins >= 3), "wins": wins, "trained_mean": mean_t,
-            "frozen_mean": mean_f, "per_seed": per}
+            "frozen_mean": mean_f, "wait_only_mean": mean_w, "beats_wait_only": bool(mean_t > mean_w),
+            "per_seed": per}
 
 
 def _tier1():
@@ -142,7 +158,8 @@ def _tier2():
 
 
 def _tier3():
-    return _improvement(lambda s: make(3, CIV, s, agents=["learner"]), 300, 72, HOUR, _kernel_outcome)
+    # a civilisation day costs minutes of CPU: 120 training hours, 24 evaluation hours per copy and seed
+    return _improvement(lambda s: make(3, CIV, s, agents=["learner"]), 120, 24, HOUR, _kernel_outcome)
 
 
 def test_SP_11_6c_learner_kinds_and_improvement_over_frozen_copies():
@@ -163,7 +180,8 @@ def test_SP_11_6c_learner_kinds_and_improvement_over_frozen_copies():
             imp[t] = r
     metrics = {"learner_kinds_validated": sum(1 for v in kinds.values() if v["validated"]),
                "tiers_with_learning_improvement": sum(1 for v in imp.values() if v["improved"]),
-               "tiers_measured_for_improvement": len(imp)}
+               "tiers_measured_for_improvement": len(imp),
+               "tiers_beating_wait_only": sum(1 for v in imp.values() if v["beats_wait_only"])}
     record("SP-11.6c", metrics, command=CMD, labels={"scripted": True, "learned": True},
            notes=f"learner kinds: {kinds}; could not run: {kind_err}; improvement over a frozen copy (trained vs "
                  f"initial weights, greedy, no learning, held-out seeds {EVAL_SEEDS}; prespecified: mean better and "

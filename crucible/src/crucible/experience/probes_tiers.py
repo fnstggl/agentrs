@@ -501,3 +501,21 @@ def run_tiers(tiers=(1, 2, 3)) -> dict:
         except Exception as e:  # noqa: BLE001 - reported, and the tier counts as not covered
             errs[t] = f"{type(e).__name__}: {e}"
     return {"tiers": out, "errors": errs}
+
+
+def positive_control_civ(seed: int = 7) -> dict:
+    """The same probes in an explicitly selected ``legacy_shaped_reward`` civilisation (the 4.0 evaluator-access
+    contract: evaluator tools available to participants) must find leaks - the Tier 3 probes are sensitive."""
+    from ..goals.metrics import evaluate_metric
+    from .modes import LEGACY
+    P = TierProbe(f"tier3 civ:{CIV_PROBE_PROFILE} positive control (legacy)", 3)
+    env = _civ_env(seed, reward_mode=LEGACY)
+    a = env.agents()[0]
+    ids = revenue_scenario(env, {t: "N" * 31 for t in ("RUNTIME", "INTERNAL", "PRIVATEMAIL", "SPEC")}, unit=HOUR,
+                           window_units=720)
+    truth = float(evaluate_metric(env.world, "independent_revenue", {"principal": ids["org"], "window_s": 720 * HOUR}))
+    tool_sweep(P, env.tools(a), lambda t, ar: env.execute(a, {"tool": t, "args": ar}), "legacy civ")
+    _predicate_oracles(P, env, a, ids, truth)
+    r = P.result()
+    r["kinds_with_leaks"] = sorted(k for k, v in r["kinds"].items() if v["leaks"] > 0)
+    return r

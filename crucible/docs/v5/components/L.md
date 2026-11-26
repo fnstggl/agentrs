@@ -20,6 +20,10 @@ Owner: workstream L. Contract: INTERFACE_CONTRACTS section 11. How a learner con
 | `src/crucible/experience/parallel.py` | `VecExperience` (in-process) and `FarmRun` + `make_world` / `make_policy` hooks for the unchanged `crucible.scale.RolloutFarm` |
 | `src/crucible/experience/scripted.py` | scripted reference agents acting only through the interface (company, service deployment, discovery), `Recording` |
 | `src/crucible/experience/leakage.py` | the explicit reward-leakage battery (11 tests, 9 canaries) and the 4.0 legacy-equivalence check |
+| `src/crucible/experience/probes.py` | information-flow probes (12 kinds) over ten surfaces incl. a Tier 3 civilisation, positive control on the 4.0 contract |
+| `src/crucible/experience/probes_tiers.py` | per-tier probes on five leak channels (observation, info, tool responses, event metadata, free text), the nested-call probe (flows, deferred jobs, triggers), the identity probe (OO.16) |
+| `src/crucible/experience/selfexp.py` | self-generated experiments in the Tier 1 adapters (`exp.register/result/mine` over the agent's own observation numbers) |
+| `src/crucible/experience/labels.py` | `LabelChannel`: verified outcome labels through a separate, explicitly authorised evaluator-side channel (OO.12) |
 | `src/crucible/experience/__main__.py` | `python -m crucible.experience run ...` (reproducible runs) and `tiers` |
 | `examples/experience_external_adapter.py` | an external, CAM-Unified-shaped adapter using only the public interface |
 
@@ -96,3 +100,28 @@ v5 artifacts - and 1 of 3 tiers). They pass through the same `make(2|3, ...)` pa
 * The CAM 2.0 adapter (`integrations/agentrs_cam2.py`) has the reward modes too, but it still imports `agentrs` at
   module load (a 4.0 dependency of that file and of `tests/test_agents_llm.py`; the experience interface itself
   imports nothing from any learner).
+
+## Wave 3 (continuation, branch c5c/w3-obs)
+
+Adversarial verification on the integrated tree (87a6c54) found and fixed:
+
+* **nested-call leak** (kernel, `Ctx.call`): a call made *as* a participant from a module process (a deferred
+  workflow job `wf.run_later`, a trigger, a simulated participant acting through tools) returned evaluator-only
+  fields, because the filter keyed on the chain's origin only. A deferred `rig.read` job returned the mechanism's
+  `score` (positive control: 2 leaks on the pre-fix kernel, 0 after). Every call whose principal is not the system
+  now gets the participant view.
+* **relatedness verdicts in the science world** (`sci.replicate/paper/papers/replications`, `sci.replication`
+  events): `related_to_author`, `independent`, `independent_consistent` registered evaluator-only.
+* **evaluator metrics missing from the registry**: `scheduled_churn_share` (and the commerce list) were readable
+  through self-goals in observation-only worlds; `evaluator_only.evaluator_metrics()` is now the union of the
+  registry, `goals.metrics.EVALUATOR_ONLY_METRICS` and `commerce.observables.EVALUATOR_ONLY`.
+
+Added: Tier 3 through `make(3, profile)` with learner-side `goals`/`exp` modules (`registry.civ_world`); Tier 1
+self-experiments; the label channel; per-tier, nested-call and identity probes; gate tests for OO.9-OO.12, OO.14,
+OO.16, SP-11.1b, SP-11.4b, SP-11.6c, SP-11.6d, SP-2.2; every OO gate counts a tier only where its worlds were really
+built and measured (the wave-1 tests counted Tier 3 whenever `crucible.civ.generate` was importable).
+
+Tier 2 has no registered domain (`crucible.domains.base.REGISTRY` empty), so every per-tier gate fails on Tier 2
+by design. Tier 3 was verified locally with a stand-in for the pending `space` integration fix (scratch-only plugin
+adding the semantic `space` module to the civilisation spec, never committed); the committed tests call
+`crucible.civ.generate`/`spec` and fail until the fix is merged.
