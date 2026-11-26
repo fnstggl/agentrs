@@ -1,7 +1,462 @@
 {
  "workstream": "J",
- "branch": "c5c/w2-civ",
- "requirements": {},
- "limitations": [],
- "integration_notes": []
+ "branch": "c5c/w3b-civ",
+ "requirements": {
+  "O.1": {
+   "implementation_files": [
+    "src/crucible/civ/chains.py",
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/integration.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_O.py"
+   ],
+   "status_claim": "implemented; failing honestly until other workstreams make education, employment, institutions, marketplaces and technology invention carry activity",
+   "notes": "subsystems_in_one_world counts subsystems present AND active AND connected by provenance after a warm-up day; per subsystem also whether the population's own decisions carry activity (integration.population_carried)."
+  },
+  "O.2": {
+   "implementation_files": [
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/integration.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_O.py"
+   ],
+   "status_claim": "implemented (data-level duplicate scan, identity checks); not re-run in this wave",
+   "notes": ""
+  },
+  "O.3": {
+   "implementation_files": [
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/integration.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_O.py"
+   ],
+   "status_claim": "implemented (bank invariants + ledger recomputed from postings); not re-run in this wave",
+   "notes": ""
+  },
+  "O.4": {
+   "implementation_files": [
+    "src/crucible/civ/chains.py",
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/integration.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_O.py"
+   ],
+   "status_claim": "implemented (provenance edges across subsystems); not re-run in this wave",
+   "notes": ""
+  },
+  "O.5": {
+   "implementation_files": [
+    "src/crucible/civ/counterfactual.py",
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/experiments.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_O.py"
+   ],
+   "status_claim": "implemented: 7 Part 10.2 categories (1,2,3,4,5,7,8) as counterfactual experiments with placebo arms; every arm now runs in its own process",
+   "notes": "category 6 (education -> workforce) pending: no population study or labour market yet"
+  },
+  "O.6": {
+   "implementation_files": [
+    "src/crucible/civ/chains.py",
+    "src/crucible/civ/counterfactual.py",
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/experiments.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/reference.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_O.py"
+   ],
+   "status_claim": "implemented (scripted roots, autonomous stages, counterfactual removal); not re-run in this wave",
+   "notes": ""
+  },
+  "O.7": {
+   "implementation_files": [
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/integration.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_O.py"
+   ],
+   "status_claim": "implemented (fingerprints of built worlds); not re-run in this wave",
+   "notes": ""
+  },
+  "O.n1": {
+   "implementation_files": [
+    "src/crucible/civ/chains.py",
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/integration.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_O.py"
+   ],
+   "status_claim": "implemented; fails while inert modules exist (education, employment, institutions, marketplaces, invention)",
+   "notes": ""
+  },
+  "P.1": {
+   "implementation_files": [
+    "src/crucible/civ/accounting.py",
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/longrun.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_P.py",
+    "tests/test_v5_civ_longrun.py"
+   ],
+   "status_claim": "harness implemented with checkpoints and resume after interruption; suite queued/run (see measurements_unofficial)",
+   "notes": ""
+  },
+  "P.2": {
+   "implementation_files": [
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/longrun.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_P.py"
+   ],
+   "status_claim": "see P.1",
+   "notes": ""
+  },
+  "P.3": {
+   "implementation_files": [
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/longrun.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_P.py",
+    "tests/test_v5_civ_longrun.py"
+   ],
+   "status_claim": "see P.1; interruption resume exact in tests/test_v5_civ_longrun.py after moving verification out of the live process",
+   "notes": ""
+  },
+  "P.4": {
+   "implementation_files": [
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/longrun.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_P.py"
+   ],
+   "status_claim": "segment replays verified in a child process",
+   "notes": ""
+  },
+  "P.5": {
+   "implementation_files": [
+    "src/crucible/civ/accounting.py",
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/longrun.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_P.py"
+   ],
+   "status_claim": "Accountant (event vs state equalities) checkpointed and resumed",
+   "notes": ""
+  },
+  "P.6": {
+   "implementation_files": [
+    "src/crucible/civ/accounting.py",
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/longrun.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_P.py"
+   ],
+   "status_claim": "see P.1",
+   "notes": ""
+  },
+  "P.n1": {
+   "implementation_files": [
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/longrun.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_P.py"
+   ],
+   "status_claim": "two distinct seeds per horizon",
+   "notes": ""
+  },
+  "SP-10.0": {
+   "implementation_files": [
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/history.py",
+    "src/crucible/civ/modes.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_10_0.py"
+   ],
+   "status_claim": "implemented (forks, 5 verified historical-query kinds, 3 fresh-process replications, entity census of 8 kinds)",
+   "notes": ""
+  },
+  "SP-10.1": {
+   "implementation_files": [
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/integration.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_10_1.py"
+   ],
+   "status_claim": "11 profiles, structural fingerprints; not re-run in this wave",
+   "notes": ""
+  },
+  "SP-10.2": {
+   "implementation_files": [
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_10_2.py"
+   ],
+   "status_claim": "10 executable couplings (4 new: freight_energy, lab_energy, energy_cost_pricing, datacenter_siting), all reusable; first battery run 8/10 removable (curtailment and siting never acted), condition added",
+   "notes": ""
+  },
+  "SP-10.3": {
+   "implementation_files": [
+    "src/crucible/civ/chains.py",
+    "src/crucible/civ/counterfactual.py",
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/experiments.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/reference.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_10_3.py"
+   ],
+   "status_claim": "implemented; not re-run in this wave",
+   "notes": ""
+  },
+  "SP-10.3b": {
+   "implementation_files": [
+    "src/crucible/civ/chains.py",
+    "src/crucible/civ/counterfactual.py",
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/experiments.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/reference.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_10_3b.py"
+   ],
+   "status_claim": "implemented (scripted stages after the root from provenance, replication across seeds, labels)",
+   "notes": ""
+  },
+  "SP-2.1b": {
+   "implementation_files": [
+    "src/crucible/civ/counterfactual.py",
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/experiments.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_2_1b.py"
+   ],
+   "status_claim": "implemented: invention experiment (scripted reference inventor's service) with 4 effect kinds",
+   "notes": ""
+  },
+  "SP-17.1": {
+   "implementation_files": [
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/redemo.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_17_1.py"
+   ],
+   "status_claim": "harness implemented; J, L, B, C, K measured on civilisations, D, E, G, H, Q not measured (fail)",
+   "notes": ""
+  },
+  "SP-19.3": {
+   "implementation_files": [
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/events.py",
+    "src/crucible/civ/experiments.py",
+    "src/crucible/civ/gates.py",
+    "src/crucible/civ/generator.py",
+    "src/crucible/civ/genesis.py",
+    "src/crucible/civ/goods.py",
+    "src/crucible/civ/profiles.py",
+    "src/crucible/civ/slices.py",
+    "src/crucible/civ/subsystems.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_19_3.py"
+   ],
+   "status_claim": "implemented: 7 slices with ReferenceLearner",
+   "notes": ""
+  }
+ },
+ "limitations": [
+  "Civilisation worlds run the Qwen3-0.6B text path of the shared semantic space: every run belongs in a GPU slot (about 12-35 s per simulated day at the development population on the shared GPU; on CPU several minutes per day). With 4 GPU jobs for ~18 agents, slot waits of 30-60 min per job bounded how much of the battery could be re-run in this wave.",
+  "Inert subsystems of civilisations (no population activity, no autonomous use): education (learn n=0), employment (labor/jobs/firms), institutions (inst), marketplaces (xchg/market), technology invention (caps/pkg) except when an agent declares a capability; owned by other workstreams (econ/dom) in this wave. O.1 and O.n1 fail until they carry activity.",
+  "education_skills (Part 10.2 category 6) is a recorded but pending coupling: the population neither studies nor works in a labour market yet; it is listed in SP-10.2 evidence and not counted.",
+  "energy_cost_pricing passes energy cost changes through to prices for NEW rentals only (cloud keeps contracted prices), and at the scarce regime the energy bill per core-hour exceeds the compute price (providers lose money) - a modelling gap of the compute market, not fixed here.",
+  "SP-17.1: D, E, G, H and Q have no civilisation measurement (Gate Q has no implementation; G/H need the standard population's 256 adaptive / 8 semantic participants); B.6, C.1, C.5, C.6, C.n1, K.1-K.3, K.6, K.7, K.n1, K.n2 are measured only in their purpose-built worlds. The harness reports each as not_measured and fails the gate.",
+  "Chains and the invention experiment use LABELLED SCRIPTED reference agents as roots (feasibility, Part 10.3); every later stage is autonomous.",
+  "An in-process World.replay / World.from_blob next to a live world changed the live world's trajectory (both the interrupted 3-day run and its uninterrupted reference diverged from the plain run, while a plain cross-process resume was exact). Verification now runs in child processes; the root cause (process-global state shared between worlds) is not identified - see integration_notes."
+ ],
+ "integration_notes": [
+  "KERNEL/A: two worlds built in one process are not independent: in-process World.replay(...) / World.from_blob(...) of a civilisation's snapshot changed the trajectory of the live civilisation in the same process (scratch diagnostic diag_observer.py: variants snap / fromblob / replay / otherworld). crucible.civ now verifies in child processes and runs every counterfactual arm in its own process, but in-process forks (World.fork) used by experimenters may be affected; please find the process-global state (artifact pool, sandbox worker pool, semantic caches, model state) that leaks between worlds.",
+  "ECON/DOM: civilisations compose work (needs from work bottlenecks), caps, needs, pkg, labor, jobs, firms, learn, inst, xchg, market; make their population activities live and the civ integration metrics (crucible.civ.integration.subsystems: population_events per subsystem) will count them without civ changes. learn is configured with n=0 and labor with workers=0 because their own populations would be second populations (D-15): they need population activities instead.",
+  "ECON: crucible.innovation.reference.ServiceCreator needs crucible.innovation.worlds.FORMAT_SCHEMAS for the format it serves; match.stable and route.tsp (FORMAT_POOL of commerce.worlds.draw) have no schema, so agents cannot declare capabilities for them.",
+  "CORE-POP: the development population yields about 2,000-2,500 autonomous sessions per simulated day in a civilisation (6,733 in 3 days) - B.2's 100,000 sessions need the standard profile.",
+  "QA: civilisation gate tests read crucible.civ.gates' disk cache ($CRUCIBLE_CIV_CACHE) keyed by the digest of the whole crucible package; official runs on the integration branch recompute everything (hours of GPU slot time: Gate P alone is 1,330 simulated days)."
+ ],
+ "test_results_unofficial": {},
+ "measurements_unofficial": {},
+ "history": {
+  "wave 2 (c5c/w2-civ)": "generator, 11 profiles, couplings engine (science_process, compute_energy, grid_curtailment, goods_supply, goods_wom, org_coordination; education_skills pending), goods activity, civgen genesis, provenance chains, counterfactual experiments with placebo arms, long-run harness, accounting, integration metrics, Mode C provider, tier3 entry; J.json left empty by the usage-limit stop",
+  "integration fix (c5c/w3-intfix)": "civ composes CORE-POP's social internet and ECON's work/ventures/rivals/ads; all 11 profiles generate (see INT.json)"
+ }
 }
