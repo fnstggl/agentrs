@@ -834,13 +834,22 @@ def g_metrics(runs: list[dict]) -> dict:
 # --------------------------------------------------------------------------------------------- all gates
 def run_all(workers: int = 1, creation: dict | None = None, autonomous: dict | None = None) -> dict:
     t = time.time()
-    A = creation_arms(creation, workers=workers)
-    jm, lm = j_metrics(A), l_metrics(A)
+    errors: dict[str, str] = {}
+
+    def attempt(name, fn, default):
+        # a battery that crashes is recorded with its error and its gate's requirements stay not_measured (they fail)
+        try:
+            return fn()
+        except Exception as e:  # noqa: BLE001 - reported, never hidden
+            errors[name] = f"{type(e).__name__}: {e}"[:3000]
+            return default
+    A = attempt("creation", lambda: creation_arms(creation, workers=workers), None)
+    jm, lm = (j_metrics(A), l_metrics(A)) if A else ({"_rows": {}}, {"_effects": {}})
     # every civilisation in its own process (the parent holds results only: a lane's RAM grant covers two worlds)
-    au = _in_child("autonomous", autonomous)
-    dm = _in_child("D", None)
-    gr = g_runs(workers=workers)
-    gm = g_metrics(gr)
+    au = attempt("autonomous", lambda: _in_child("autonomous", autonomous), {})
+    dm = attempt("D", lambda: _in_child("D", None), {})
+    gr = attempt("G", lambda: g_runs(workers=workers), [])
+    gm = attempt("G metrics", lambda: g_metrics(gr), {}) if gr else {}
     measured = {"D": {k: v for k, v in dm.items() if k.startswith("D.")},
                 "G": gm,
                 "J": {k: v for k, v in jm.items() if not k.startswith("_")},
@@ -848,11 +857,17 @@ def run_all(workers: int = 1, creation: dict | None = None, autonomous: dict | N
                 "B": {k: v for k, v in au.items() if k.startswith("B.")},
                 "C": {k: v for k, v in au.items() if k.startswith("C.")},
                 "K": {k: v for k, v in au.items() if k.startswith("K.")}}
+    for g, nm in (("J", "creation"), ("L", "creation"), ("B", "autonomous"), ("C", "autonomous"), ("K", "autonomous"),
+                  ("D", "D"), ("G", "G")):
+        if nm in errors:
+            measured[g] = {rid: f"the {nm} battery failed: {errors[nm][:300]}" for rid in manifest_criteria(g)}
     gates = {g: evaluate(g, measured.get(g, {})) for g in GATES}
     held = sorted(g for g, r in gates.items() if r["held"])
     return {"gates": gates, "held": held, "world_gates_redemonstrated_in_civilization": len(held),
             "partial_world_only_gates": len(GATES) - len(held),
-            "creation_runs": {a: {k: A[a][k] for k in ("events", "proc_failed", "invariants", "wall_s")} for a in A},
+            "errors": errors,
+            "creation_runs": {a: {k: A[a][k] for k in ("events", "proc_failed", "invariants", "wall_s")} for a in A}
+            if A else {},
             "j_rows": jm["_rows"], "l_effects": lm["_effects"], "autonomous_run": au.get("_run"),
             "d_run": dm.get("_run"),
             "g_runs": [{k: r.get(k) for k in ("seed", "events", "proc_failed", "invariants", "wall_s",
