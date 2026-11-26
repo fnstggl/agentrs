@@ -925,3 +925,173 @@ def probe_the_other_end(view, env) -> None:
             continue
         r = view.step({"kind": "levers", "values": {name: ends[cur]}})
         last = D._net(r["observation"])
+
+
+# ====================================================================== ch_complement_to_substitute
+def interaction_flips(env) -> dict:
+    """Controlled interventions on the same noise, with the first input high: before the hidden transition,
+    raising the second input raises output (complements); after it, raising the second input lowers output (it
+    crowds out the new process), so its effect turns negative."""
+    c = env._config["claim"]
+    b, a = _lever(env, c["lever"]), _lever(env, c["first"])
+    H = env.horizon
+    at = int(c["at"])
+    hi = _gauge_series(env, lambda t: {"kind": "levers", "values": {a: 10.0, b: 10.0}}, H)
+    lo = _gauge_series(env, lambda t: {"kind": "levers", "values": {a: 10.0, b: 0.0}}, H)
+    d = hi - lo
+    d_pre, d_post = float(d[2:at].mean()), float(d[at + 1:].mean())
+    cost_b = float(env._config["nodes"][env._engine.idx[c["lever"]]]["lever"]["cost"]) * 10.0 / 100.0
+    return {"ok": bool(d_pre > 2.0 * cost_b and d_post < 0.0), "second_input_effect_before": d_pre,
+            "second_input_effect_after": d_post, "second_input_cost_in_units": cost_b, "transition": at}
+
+
+def identify_interaction_flip(env) -> dict:
+    """Question: when does the second input stop paying? Public procedure: with the first input high, alternate
+    the second input between its ends two ticks at a time; the first two rounds in which high sells less than
+    low plus its cost mark the transition."""
+    view = PublicView(env)
+    c = env._config["claim"]
+    b, a = _lever(env, c["lever"]), _lever(env, c["first"])
+    cost_b = float(env._config["nodes"][env._engine.idx[c["lever"]]]["lever"]["cost"]) * 10.0 / 100.0
+    est, diffs = None, []
+    while not view.done:
+        vals = {}
+        for g in (10.0, 0.0):
+            v = None
+            for _ in range(2):
+                if view.done:
+                    break
+                v = list(view.step({"kind": "levers", "values": {a: 10.0, b: g}})["observation"]["numbers"]
+                         .values())[0]
+            vals[g] = v
+        if vals.get(10.0) is None or vals.get(0.0) is None:
+            break
+        diffs.append((view.t, vals[10.0] - vals[0.0]))
+        if est is None and len(diffs) >= 2 and diffs[-1][1] < cost_b and diffs[-2][1] < cost_b:
+            est = diffs[-2][0] - 4
+    return {"ok": est is not None and abs(est - int(c["at"])) <= 10, "question": "when does the second input "
+            "stop paying", "estimate": est, "truth": int(c["at"])}
+
+
+def second_input_tracker(view, env) -> None:
+    """Scripted public reference: keep the first input high; every ten ticks compare the second input high and low
+    for two ticks each and hold the better one (net of its cost) for the rest of the block."""
+    c = env._config["claim"]
+    b, a = _lever(env, c["lever"]), _lever(env, c["first"])
+    while not view.done:
+        seen = {}
+        for g in (10.0, 0.0):
+            v = None
+            for _ in range(2):
+                if view.done:
+                    return
+                v = D._net(view.step({"kind": "levers", "values": {a: 10.0, b: g}})["observation"])
+            seen[g] = v
+        keep = 10.0 if seen[10.0] >= seen[0.0] else 0.0
+        for _ in range(6):
+            if view.done:
+                return
+            view.step({"kind": "levers", "values": {a: 10.0, b: keep}})
+
+
+# ====================================================================== ch_lagged_reversal
+def lagged_reversal(env) -> dict:
+    """Controlled interventions on the same noise: holding the lever high sells more than holding it low until
+    the hidden switch (plus the delay) and less after it; and a change of the lever shows in sales only after the
+    hidden delay."""
+    c = env._config["claim"]
+    x = _lever(env, c["lever"])
+    H = env.horizon
+    at = int(c["at"])
+    hi = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: 10.0}}, H)
+    lo = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: 0.0}}, H)
+    d = hi - lo
+    lag = int(c["lag"])
+    step = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: 10.0 if t >= 5 else 5.0}}, 15)
+    base = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: 5.0}}, 15)
+    first = int(np.argmax(np.abs(step - base) > 1e-9))
+    return {"ok": bool(d[lag + 1:at - 1].mean() > 0 and d[at + 1:].mean() < 0 and first == 5 + lag),
+            "effect_before": float(d[lag + 1:at - 1].mean()), "effect_after": float(d[at + 1:].mean()),
+            "first_response_tick": first, "expected_first_response": 5 + lag}
+
+
+def lagged_sign_tracker(view, env) -> None:
+    """Scripted public reference for a delayed lever whose sign can reverse: in every block of fourteen ticks,
+    hold the lever high for four ticks and low for four (the last tick of each, after the delay, counts), then
+    hold the better end for six."""
+    c = env._config["claim"]
+    x, q = _lever(env, c["lever"]), _lever(env, c["second"])
+    while not view.done:
+        seen = {}
+        for g in (10.0, 0.0):
+            v = None
+            for _ in range(4):
+                if view.done:
+                    return
+                v = list(view.step({"kind": "levers", "values": {x: g, q: 2.0}})["observation"]["numbers"]
+                         .values())[0]
+            seen[g] = v
+        end = 10.0 if seen[10.0] >= seen[0.0] else 0.0
+        for _ in range(6):
+            if view.done:
+                return
+            view.step({"kind": "levers", "values": {x: end, q: 2.0}})
+
+
+# ====================================================================== sci_dose_response
+def dose_turns_harmful(env) -> dict:
+    """Noise free, evaluator side: the response falls beyond the hidden peak (more dose hurts past it), and a
+    monotone fit to the settable range predicts the held-out doses with the wrong sign of change."""
+    c = env._config["claim"]
+    x1, x2 = [_lever(env, n) for n in c["levers"]]
+    ys = _law_values(env, [{x1: v, x2: 0.0} for v in (2.0, c["peak"], 9.0, 12.0)])
+    grid = [(float(a), 0.0) for a in np.linspace(0, 6, 7)]
+    y = _law_values(env, [{x1: a, x2: b} for a, b in grid])
+    lin = np.polyfit([g[0] for g in grid], y, 1)
+    return {"ok": bool(ys[1] > ys[2] > ys[3] and lin[0] > 0), "response_at_2_peak_9_12": [float(v) for v in ys],
+            "in_range_linear_slope": float(lin[0])}
+
+
+def identify_peak(env) -> dict:
+    view = PublicView(env)
+    c = env._config["claim"]
+    x1, x2 = [_lever(env, n) for n in c["levers"]]
+    best, bv = None, -np.inf
+    for v in np.linspace(0, 6, 13):
+        vals = []
+        for _ in range(2):
+            if view.done:
+                break
+            vals.append(list(view.step({"kind": "levers", "values": {x1: float(v), x2: 0.0}})["observation"]
+                             ["numbers"].values())[0])
+        if vals and np.mean(vals) > bv:
+            best, bv = float(v), float(np.mean(vals))
+    return {"ok": best is not None and abs(best - c["peak"]) <= 1.0, "question": "where is the peak dose",
+            "estimate": best, "truth": c["peak"]}
+
+
+def identify_lagged_reversal(env) -> dict:
+    """Question: when does the (delayed) effect reverse? Public procedure: alternate the lever between its ends
+    four ticks at a time (long enough for the delayed response) and find the first two rounds in which high
+    sells less than low at the end of the hold."""
+    view = PublicView(env)
+    c = env._config["claim"]
+    x = _lever(env, c["lever"])
+    est, diffs = None, []
+    while not view.done:
+        vals = {}
+        for g in (10.0, 0.0):
+            v = None
+            for _ in range(4):
+                if view.done:
+                    break
+                v = list(view.step({"kind": "levers", "values": {x: g}})["observation"]["numbers"].values())[0]
+            vals[g] = v
+        if vals.get(10.0) is None or vals.get(0.0) is None:
+            break
+        diffs.append((view.t, vals[10.0] - vals[0.0]))
+        if est is None and len(diffs) >= 2 and diffs[-1][1] < 0 and diffs[-2][1] < 0:
+            est = diffs[-2][0] - 8
+    truth = int(c["at"])
+    return {"ok": est is not None and abs(est - truth) <= 12, "question": "when does the delayed effect reverse",
+            "estimate": est, "truth": truth}

@@ -134,7 +134,8 @@ class ScalarGraph:
                 a, b = max(x["a"], 1e-9), max(x["b"], 1e-9)
                 y = p["scale"] * (p["w"] * a ** p["rho"] + (1 - p["w"]) * b ** p["rho"]) ** (1.0 / p["rho"])
             elif k == "substitution":
-                y = p.get("scale", 1.0) * (x["a"] + p.get("ratio", 1.0) * x["b"])
+                e = max(x["a"], 0.0) + p["w"] * max(x["b"], 0.0)
+                y = p["cap"] * (1.0 - math.exp(-e / p["k"]))
             elif k == "hidden_confounding":
                 y = p["mean"] + p["ar"] * (self.mem[nid] - p["mean"]) + p["sd"] * z[zi]
                 zi += 1

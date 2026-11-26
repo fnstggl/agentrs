@@ -398,3 +398,108 @@ def dl_wear_reversal(rng, d):
                     brief="A machine with a drive setting and a second, costly lever. Gauge: output sold.",
                     claim={"lever": X, "second": Q, "outcome": sales, "regime": sw, "wear": wear, "level": level,
                            "pivot": pivot})
+
+
+# ====================================================================== 8.10.5 technological transition (interaction flip)
+@family("ch_complement_to_substitute", engine="primitive_graph", category="8.10", item="8.10.5", split="val",
+        doc="Two inputs were complements: output needs both, so raising the second input pays only next to the "
+            "first. At a hidden tick a new technology makes the second input a substitute for the first - with the "
+            "first already high, the second now crowds out the new process and lowers output. The best use of the "
+            "second input reverses although no reading announces the transition.",
+        distinct_because="a timed regime switch between a complementarity (CES) path and a substitution path for "
+                         "the same two inputs: what changes is how two inputs combine (an interaction), not a "
+                         "single lever's sign",
+        axes={"horizon": 100, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
+        claims=(CV + "interaction_flips",), identify=CV + "identify_interaction_flip",
+        oracle=R + "lever_schedule_oracle", reference=CV + "second_input_tracker", lever_view=True)
+def ch_complement_to_substitute(rng, d):
+    gb = GraphBuilder(rng)
+    H = int(d["horizon"])
+    A = gb.lever(0.0, 10.0, 10.0, cost=u(rng, 5.0, 10.0))
+    Bv = gb.lever(0.0, 10.0, 5.0, cost=u(rng, 60.0, 90.0))
+    at = float(int(rng.integers(int(0.3 * H), int(0.7 * H))))
+    comp = gb.prim("complementarity", {"scale": u(rng, 5.0, 6.0), "rho": -2.0, "w": 0.5}, a=[(A, 0, 1.0)],
+                   b=[(Bv, 0, 1.0)])
+    # after the transition the old second input interferes with the new process (negative substitution weight):
+    # it now crowds out output instead of completing it
+    subs = gb.prim("substitution", {"cap": u(rng, 55.0, 65.0), "k": u(rng, 4.0, 6.0), "w": -u(rng, 0.5, 0.7)},
+                   a=[(A, 0, 1.0)], b=[(Bv, 0, 1.0)])
+    old = gb.prim("regime_change", {"before": 1.0, "after": 0.0, "at": at, "trig": 1e18}, role="old_regime",
+                  x=[(comp, 0, 1.0)], trigger=[])
+    new = gb.prim("regime_change", {"before": 0.0, "after": 1.0, "at": at, "trig": 1e18}, role="new_regime",
+                  x=[(subs, 0, 1.0)], trigger=[])
+    season = gb.prim("hidden_confounding", {"mean": 0.0, "sd": u(rng, 0.8, 1.2), "ar": 0.7}, role="exogenous")
+    sales = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
+                    bias={"x": u(rng, 10.0, 15.0)}, x=[(old, 0, 1.0), (new, 0, 1.0), (season, 0, 2.0)])
+    noise = float(d["observation_noise"])
+    gb.gauge(sales, [("measurement_noise", {"sd": noise * 3})])
+    _distractors(gb, rng, d["n_variables"], noise)
+    return gb.build(horizon=H, money={"revenue_node": sales, "price": 100.0, "cap": 200.0}, affordances=["levers"],
+                    endowment=500_000, objective={"type": "maximize_net", "text": SHOP},
+                    brief="A workshop with two inputs to buy each tick. Gauge: output sold.",
+                    claim={"lever": Bv, "first": A, "outcome": sales, "at": at})
+
+
+# ====================================================================== 8.10.1 delayed sign reversal
+@family("ch_lagged_reversal", engine="primitive_graph", category="8.10", item="8.10.1", split="val",
+        doc="A lever's effect on sales arrives only after a hidden delay of a few ticks, and at a hidden tick its "
+            "sign reverses (level-neutral at the middle setting). A participant has to probe long enough for the "
+            "delayed response to show before it can tell whether the old strategy has turned harmful.",
+        distinct_because="a pipeline delay in front of a timed sign reversal of a linear effect: credit assignment "
+                         "across a lag combined with belief revision (unlike the immediate reversal of "
+                         "ch_silent_reversal)",
+        axes={"horizon": 120, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
+        claims=(CV + "lagged_reversal",), identify=CV + "identify_lagged_reversal", oracle=R + "lever_schedule_oracle",
+        reference=CV + "lagged_sign_tracker", lever_view=True)
+def ch_lagged_reversal(rng, d):
+    gb = GraphBuilder(rng)
+    H = int(d["horizon"])
+    X = gb.lever(0.0, 10.0, 5.0, cost=u(rng, 5.0, 15.0))
+    Q = gb.lever(0.0, 10.0, 0.0, cost=u(rng, 40.0, 70.0))
+    pivot = 5.0
+    slope = u(rng, 3.0, 4.5)
+    lag = int(rng.integers(2, 4))
+    at = float(int(rng.integers(int(0.3 * H), int(0.7 * H))))
+    dev = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": -pivot}, x=[(X, 0, 1.0)])
+    dl = gb.prim("delay", {"lag": lag, "init": 0.0}, x=[(dev, 0, 1.0)])
+    sw = gb.prim("regime_change", {"before": slope, "after": -slope, "at": at, "trig": 1e18}, role="regime",
+                 x=[(dl, 0, 1.0)], trigger=[])
+    side = gb.prim("saturation", {"cap": u(rng, 4.0, 8.0), "half": u(rng, 2.0, 4.0)}, x=[(Q, 0, 1.0)])
+    season = gb.prim("hidden_confounding", {"mean": 0.0, "sd": u(rng, 0.8, 1.2), "ar": 0.7}, role="exogenous")
+    sales = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
+                    bias={"x": u(rng, 35.0, 45.0)}, x=[(sw, 0, 1.0), (side, 0, 1.0), (season, 0, 2.0)])
+    noise = float(d["observation_noise"])
+    gb.gauge(sales, [("measurement_noise", {"sd": noise * 3})])
+    _distractors(gb, rng, d["n_variables"], noise)
+    return gb.build(horizon=H, money={"revenue_node": sales, "price": 100.0, "cap": 200.0}, affordances=["levers"],
+                    endowment=500_000, objective={"type": "maximize_net", "text": SHOP},
+                    brief="A shop with two spending levers; spending takes a few ticks to show. Gauge: units sold.",
+                    claim={"lever": X, "second": Q, "outcome": sales, "regime": sw, "at": at + lag, "pivot": pivot,
+                           "lag": lag, "slope": slope})
+
+
+# ====================================================================== 8.1.3 dose response beyond the range (prediction)
+@family("sci_dose_response", engine="primitive_graph", category="8.1", item="8.1.3", split="train",
+        doc="A dose rises in benefit and then turns harmful past a hidden peak that lies near the top of the "
+            "settable range, so the decline beyond it is barely visible inside the range; a second factor adds. "
+            "Predict the response at doses beyond the range (an intervention nobody has run).",
+        distinct_because="a non-monotonic (rise-and-fall) dose response with an additive linear factor, judged by "
+                         "prediction beyond the peak: extrapolating the rising part, as a monotone fit does, gets "
+                         "the sign of the effect of more dose wrong",
+        axes={"horizon": 40, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=(CV + "dose_turns_harmful",), identify=CV + "identify_peak", reference=RV + "discover_and_predict")
+def sci_dose_response(rng, d):
+    gb = GraphBuilder(rng)
+    x1 = gb.lever(0.0, 6.0, 0.0, cost=0.0)
+    x2 = gb.lever(0.0, 6.0, 0.0, cost=0.0)
+    peak = u(rng, 3.5, 5.0)
+    f = gb.prim("non_monotonic", {"peak": peak, "height": u(rng, 10.0, 16.0)}, x=[(x1, 0, 1.0)])
+    y = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": u(rng, 2.0, 5.0)}, role="outcome",
+                x=[(f, 0, 1.0), (x2, 0, u(rng, 0.4, 1.0))])
+    gy = gb.gauge(y, [("measurement_noise", {"sd": float(d["observation_noise"])})])
+    held = [{gb.name_of(x1): p, gb.name_of(x2): q} for p, q in
+            ((8.0, 1.0), (10.0, 3.0), (12.0, 5.0), (9.0, 0.0), (11.0, 2.0), (14.0, 4.0))]
+    return gb.build(horizon=int(d["horizon"]), affordances=["levers", "message"],
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gy, "text": _predict_text(held)},
+                    journal=True, brief="A treatment trial: a dose and a second factor; one response sensor.",
+                    claim={"levers": [x1, x2], "outcome": y, "peak": peak})
