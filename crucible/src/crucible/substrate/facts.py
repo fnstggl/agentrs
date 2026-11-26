@@ -20,6 +20,13 @@ target owner after migration, the owning workstream, the migration and an expiry
 expired entry fails too. Nothing is ignored silently: known duplicates present in a world are reported with how
 many facts each copy actually holds (the data-level view: e.g. 292 forum follows vs 0 social-graph edges).
 
+* **legacy** - (the migration target for 4.0 tables, which cannot be retired: 4.0 worlds must stay byte-identical)
+  a 4.0 table that holds a kind's facts only in worlds WITHOUT the kind's owner; where the owner is installed, the
+  4.0 module writes through the owner instead. The rule is enforced on data in every world (`world_problems`): a
+  legacy table that holds facts while the kind's owner is in the world is a problem (split facts). A legacy entry
+  names the test that shows its module delegating (`verified_by`); `audit` fails for an entry without one. A legacy
+  table does not make its kind a known duplicate (no world can hold two versions of the facts).
+
 * `world_problems(world)` / `world_report(world)` - over the modules of one world (used by
   `primitives.problems` / `check_no_duplicates`).
 * `scan_registry()` / `audit()` - over EVERY registered kernel module, each installed on its own (with its
@@ -51,13 +58,15 @@ SIGNATURES: dict[str, str] = {
     "need": r"(^|_)needs?($|_)",
 }
 
-_P, _X, _V, _D = "part", "extension", "private", "duplicate"
+_P, _X, _V, _D, _L = "part", "extension", "private", "duplicate", "legacy"
 
 
-def _r(kind, role, why, of=None):
+def _r(kind, role, why, of=None, verified_by=None):
     d = {"kind": kind, "role": role, "why": why}
     if of:
         d["of"] = of
+    if verified_by:
+        d["verified_by"] = verified_by
     return d
 
 
@@ -319,6 +328,34 @@ def _judge(items: list[dict], today=None) -> list[str]:
             elif _expired(k, today):
                 probs.append(f"duplicate {c['kind']}: {c['key']} - its allow-list entry expired on {k['expires']} "
                              f"({k['workstream']}: {k['migration'][:80]})")
+        elif c.get("role") == _L:
+            from .primitives import OWNERS
+            o = OWNERS.get(c.get("kind") or "")
+            if o is None or f"{o['module']}.{o['table']}" == c["key"] or c["key"].split(".", 1)[0] == o["module"]:
+                probs.append(f"legacy {c.get('kind')}: {c['key']} must be a 4.0 table of another module than the "
+                             f"kind's owner")
+            elif not c.get("verified_by"):
+                probs.append(f"legacy {c['kind']}: {c['key']} names no test showing that its module writes through "
+                             f"{o['module']}.{o['table']} where that owner is installed (verified_by)")
+    return probs
+
+
+def legacy_split(world) -> list[str]:
+    """The data-level exclusivity rule of legacy tables in one world: a legacy table of kind k must hold no facts
+    while k's owner module is installed (its module writes through the owner there)."""
+    from .primitives import OWNERS
+    probs = []
+    for key in world_items(world):
+        r = REVIEWED.get(key)
+        if not r or r["role"] != _L:
+            continue
+        o = OWNERS.get(r["kind"])
+        if o is None or o["module"] not in world.modules:
+            continue
+        n = _rows(world, key) or 0
+        if n:
+            probs.append(f"split {r['kind']} facts: legacy table {key} holds {n} while the owner "
+                         f"{o['module']}.{o['table']} is in this world")
     return probs
 
 
@@ -379,7 +416,7 @@ def _rows(world, key: str) -> int | None:
 
 
 def world_problems(world, today=None) -> list[str]:
-    return _judge([classify(k) for k in world_items(world)], today)
+    return _judge([classify(k) for k in world_items(world)], today) + legacy_split(world)
 
 
 def world_report(world, today=None) -> dict:
@@ -401,7 +438,9 @@ def world_report(world, today=None) -> dict:
                           "owner_rows": owners.get(c["kind"], {}).get("rows"), **e})
     return {"items": len(items), "owners": owners, "known_duplicates": known,
             "unreviewed": [c["key"] for c in items if c["status"] == "unreviewed"],
-            "problems": _judge(items, today)}
+            "legacy": [{"table": c["key"], "kind": c["kind"], "rows": _rows(world, c["key"])} for c in items
+                       if c.get("role") == _L],
+            "problems": _judge(items, today) + legacy_split(world)}
 
 
 # ---------------------------------------------------------------------------------------------------- registry
@@ -480,7 +519,7 @@ def scan_registry(names=None) -> dict:
 
 def audit(names=None, today=None) -> dict:
     """The registry-wide check: every item of every module classified. {modules, items, by_status, owners,
-    duplicates, known_duplicates, unreviewed, uninstallable, problems}."""
+    duplicates, known_duplicates, unreviewed, legacy, uninstallable, problems}."""
     scan = scan_registry(names)
     bad = scan.pop("!uninstallable")
     items = [classify(k) for m in sorted(scan) for k in scan[m]]
@@ -498,4 +537,5 @@ def audit(names=None, today=None) -> dict:
             "duplicates": sorted(c["key"] for c in dups),
             "known_duplicates": sorted(c["key"] for c in dups if c["key"] in KNOWN_DUPLICATES),
             "unreviewed": sorted(c["key"] for c in items if c["status"] == "unreviewed"),
+            "legacy": sorted(c["key"] for c in items if c.get("role") == _L),
             "uninstallable": bad, "problems": probs}
