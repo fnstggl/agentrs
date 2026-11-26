@@ -21,8 +21,10 @@ real measurement arrives (and it reports its calibration on held-out measurement
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional
+import copy
+import math
+from dataclasses import dataclass, field
+from typing import Callable, Optional, Sequence
 
 import torch
 import torch.nn as nn
@@ -102,3 +104,133 @@ def measured_learning_gain(j_after: Tensor, j_control: Tensor) -> Tensor:
     """learning_gain(D) = J_query(U(theta, D)) - J_query(theta_control): both evaluated on the same independent query
     tasks with matched compute; per-task differences [n] (the mean is the estimate, its SE the uncertainty)."""
     return j_after.float() - j_control.float()
+
+
+# ================================================================================================ measured gain
+
+@dataclass
+class GainMeasurement:
+    """One measured learning gain (KV-02): the gain of the experience a goal produced, on independent query tasks,
+    against a matched-compute control learner."""
+    gain: float                  # mean over query tasks of J_after - J_control
+    se: float                    # standard error over query tasks
+    per_task: list
+    n_query: int
+    j_after: float
+    j_control: float
+
+
+def measure_learning_gain(learner, data, query_tasks: Sequence, *, update_fn: Callable, evaluate_fn: Callable,
+                          control_data=None) -> GainMeasurement:
+    """learning_gain(D_g) = J_query(U(theta, D_g)) - J_query(U(theta, D_control)).
+
+    `learner` is cloned (deepcopy) twice and never modified; update_fn(clone, data) applies the learner's own
+    update rule; control_data (default: no data) receives the same update_fn, so compute is matched when it holds
+    as many examples as `data` (e.g. experience from a random goal); evaluate_fn(clone, task) -> J on one independent
+    query task (tasks NOT disclosed during the goal-free period)."""
+    a = copy.deepcopy(learner)
+    update_fn(a, data)
+    c = copy.deepcopy(learner)
+    if control_data is not None:
+        update_fn(c, control_data)
+    ja = torch.tensor([float(evaluate_fn(a, t)) for t in query_tasks], dtype=torch.float64)
+    jc = torch.tensor([float(evaluate_fn(c, t)) for t in query_tasks], dtype=torch.float64)
+    d = measured_learning_gain(ja, jc).double()
+    n = d.numel()
+    se = float(d.std(unbiased=True) / math.sqrt(n)) if n > 1 else float("nan")
+    return GainMeasurement(float(d.mean()), se, d.tolist(), n, float(ja.mean()), float(jc.mean()))
+
+
+class CurriculumTrainer:
+    """C_chi training on measured learning gain (meta-reward spec 9.3-9.4; AU-03, KV-02).
+
+    Per round: `choose` a candidate goal (behaviour log-probability recorded); pursue it (caller); then either a
+    measured gain arrives (`record`: the LearningGainPredictor takes NLL steps on it; every `holdout_every`-th
+    measurement is kept back as a held-out calibration example instead) or the predictor's mean stands in for it
+    (`signal`). `policy_step` is REINFORCE on that gain with a running-mean baseline and an entropy bonus. Goal
+    completion and difficulty earn nothing by themselves: the only signal is (measured or predicted) learning gain."""
+
+    def __init__(self, policy: CurriculumPolicy, predictor: Optional[LearningGainPredictor] = None, *,
+                 lr: float = 3e-3, pred_lr: float = 3e-3, entropy_coef: float = 1e-2, baseline_momentum: float = 0.1,
+                 pred_steps: int = 4, holdout_every: int = 0):
+        self.policy, self.predictor = policy, predictor
+        self.opt = torch.optim.Adam(policy.parameters(), lr=lr)
+        self.pred_opt = torch.optim.Adam(predictor.parameters(), lr=pred_lr) if predictor is not None else None
+        self.entropy_coef = entropy_coef
+        self.mom = baseline_momentum
+        self.baseline: Optional[float] = None
+        self.pred_steps = pred_steps
+        self.holdout_every = int(holdout_every)
+        self.train_set: list = []
+        self.held_out: list = []
+        self.n_measured = 0
+        self.log: list = []
+
+    def choose(self, b, life, goal_feats, mask, goal_emb=None, generator=None) -> CurriculumChoice:
+        with torch.no_grad():
+            return self.policy.choose(b, life, goal_feats, mask, goal_emb, generator=generator)
+
+    def record(self, b: Tensor, goal_feat: Tensor, outcome: Tensor, measured: Tensor) -> dict:
+        """Add measured gains (rows: [B, D], [B, Fg], [B, n_outcome], [B]); train the predictor on the train set."""
+        out = {}
+        for i in range(measured.shape[0]):
+            self.n_measured += 1
+            ex = (b[i].detach(), goal_feat[i].detach(), outcome[i].detach(), measured[i].detach().float())
+            if self.holdout_every and self.n_measured % self.holdout_every == 0:
+                self.held_out.append(ex)
+            else:
+                self.train_set.append(ex)
+        if self.predictor is not None and self.train_set:
+            bb, gg, oo, yy = (torch.stack(z) for z in zip(*self.train_set))
+            for _ in range(self.pred_steps):
+                L = self.predictor.loss(bb, gg, oo, yy)
+                self.pred_opt.zero_grad(set_to_none=True)
+                L.backward()
+                self.pred_opt.step()
+            out["pred_nll"] = float(L.detach())
+        return out
+
+    def signal(self, b: Tensor, goal_feat: Tensor, outcome: Tensor, measured: Optional[Tensor] = None) -> Tensor:
+        """The gain the policy is trained on: measured when available, else the predictor's mean (detached)."""
+        if measured is not None:
+            return measured.detach().float()
+        if self.predictor is None:
+            raise ValueError("no measurement and no predictor")
+        with torch.no_grad():
+            mu, _ = self.predictor(b, goal_feat, outcome)
+        return mu.detach().float()
+
+    def policy_step(self, b, life, goal_feats, mask, chosen: Tensor, gain: Tensor, goal_emb=None) -> dict:
+        g = gain.detach().float()
+        base = self.baseline if self.baseline is not None else float(g.mean())
+        L = self.policy.loss(b, life, goal_feats, mask, chosen, g, baseline=torch.full_like(g, base),
+                             entropy_coef=self.entropy_coef, goal_emb=goal_emb)
+        self.opt.zero_grad(set_to_none=True)
+        L.backward()
+        self.opt.step()
+        m = float(g.mean())
+        self.baseline = m if self.baseline is None else (1 - self.mom) * self.baseline + self.mom * m
+        st = {"loss": float(L.detach()), "gain_mean": m, "baseline": self.baseline}
+        self.log.append(st)
+        return st
+
+    def calibration(self) -> dict:
+        """Predictor calibration on held-out measurements: Gaussian NLL, mean |z|, +-1 sd coverage, correlation."""
+        if self.predictor is None or not self.held_out:
+            return {"n": 0}
+        bb, gg, oo, yy = (torch.stack(z) for z in zip(*self.held_out))
+        with torch.no_grad():
+            mu, sd = self.predictor(bb, gg, oo)
+        z = (yy - mu) / sd
+        nll = float((0.5 * z ** 2 + torch.log(sd) + 0.5 * math.log(2 * math.pi)).mean())
+        corr = float(torch.corrcoef(torch.stack([mu, yy]))[0, 1]) if yy.numel() > 2 and float(yy.std()) > 0 else \
+            float("nan")
+        out = {"n": int(yy.numel()), "nll": nll, "mean_abs_z": float(z.abs().mean()),
+               "coverage_1sd": float((z.abs() <= 1).float().mean()), "corr": corr,
+               "rmse": float(((mu - yy) ** 2).mean().sqrt())}
+        if self.train_set:                    # reference: a constant Gaussian fitted to the training measurements
+            yt = torch.stack([e[3] for e in self.train_set])
+            m0, s0 = float(yt.mean()), max(float(yt.std()), 1e-6) if yt.numel() > 1 else 1.0
+            out["nll_constant"] = float((0.5 * ((yy - m0) / s0) ** 2 + math.log(s0) + 0.5 * math.log(2 * math.pi)).mean())
+            out["rmse_constant"] = float(((yy - m0) ** 2).mean().sqrt())
+        return out
