@@ -7,6 +7,8 @@ simulator (many seeds at once) and the same worlds hosted in event-sourced kerne
 ledger money, and between the batch and single worlds."""
 from __future__ import annotations
 
+import os
+
 import time
 
 import numpy as np
@@ -125,7 +127,7 @@ def _options(env):
 
 
 def test_SP_8_12_difficulty_axes_and_simulator_kernel_agreement():
-    adm = RP.admission_report(seeds=(0, 1, 2))
+    adm = RP.admission_report(seeds=(0, 1, 2), jobs=int(os.environ.get("CRUCIBLE_RAPID_JOBS", "1")))
     admitted = {n for n, r in adm["reports"].items() if r["admitted"]}
     axes_ok, where = {}, {}
     for axis in DIFFICULTY_AXES:

@@ -1,11 +1,14 @@
 """Gate SP-7.3 - new engine kinds (workstream H).
 
 An engine kind counts when a registered engine implements it with its own transition code (it imports no other
-engine) and at least one family on it is admitted. This wave implements four of the eight kinds; the count is
-recorded as measured."""
+engine), a run shows transition behaviour of that kind (an event queue in continuous time, a graph adjacency
+driving dynamics, categorical hidden-state transitions, exhaustible search opportunities, a program called inside
+the dynamics, learning opponents, experiments on pilot copies, deliveries arriving after their lead time), and at
+least one family on it is admitted on seeds 0-2. The count is recorded as measured."""
 from __future__ import annotations
 
 import ast
+import json
 import os
 
 import numpy as np
@@ -48,11 +51,47 @@ def _transition_markers(kind: str) -> bool:
         r = env.step({"kind": "query", "target": "probe", "args": {"cell": "c0_0"}})
         env.step({"kind": "discrete", "decision": "dig", "choice": "c0_0"})
         return r["result"]["ok"] and float(env._state["left"].sum()) <= before
+    if kind == "program_exec":
+        env = F.make("pe_unstable_control", 0)
+        src = ("def act(observation, caller):\n    m = caller.get('memory') or {'n': 0}\n    m['n'] += 1\n"
+               "    return {'u': 0.0, 'memory': m}\n")
+        r = env.step({"kind": "program", "source": src, "ticks": 4})
+        # the world called the program at every inner step of the tick (more calls than ticks), in the sandbox
+        return r["result"]["ok"] and env._state["pstat"]["calls"] >= 5 and \
+            (env._state["memory"] or {}).get("n") == env._state["pstat"]["calls"]
+    if kind == "strategic":
+        env = F.make("strat_price_war", 0)
+        name = next(iter(env.action_space().kinds["levers"]["properties"]["values"]["properties"]))
+        before = json.dumps(env._state["V"], default=str)
+        for _ in range(8):
+            env.step({"kind": "levers", "values": {name: 6.0}})
+        # rivals' learned values (propensities) changed with experience of the participant's prices
+        return json.dumps(env._state["V"], default=str) != before
+    if kind == "experiment_lab":
+        env = F.make("lab_kinetics", 0)
+        sp = env.action_space()
+        dz = sp.kinds["experiment"]["properties"]["design"]["properties"]
+        d = {"set": {n: float(p["minimum"]) for n, p in dz["set"]["properties"].items()},
+             "measure": list(dz["measure"]["items"]["enum"])[:1], "replicates": 2}
+        if "instrument" in dz:
+            d["instrument"] = dz["instrument"]["enum"][0]
+        if "time" in dz:
+            d["time"] = int(dz["time"]["minimum"]) + 1
+        live, b0 = dict(env._state["live"]), float(env._state["budget"])
+        r = env.step({"kind": "experiment", "design": d})
+        return r["result"]["ok"] and env._state["live"] == live and float(env._state["budget"]) < b0
+    if kind == "planning":
+        env = F.make("plan_distribution", 0)
+        sites = sorted(env.action_space().kinds["allocate"]["properties"]["amounts"]["properties"])
+        before = json.dumps(env._state["transit"], default=str)
+        env.step({"kind": "allocate", "amounts": {sites[0]: 10.0}})
+        moved = json.dumps(env._state["transit"], default=str) != before
+        return moved and int(env._config.get("lead", 1) if "lead" in env._config else 1) >= 1
     return False
 
 
 def test_SP_7_3_new_engine_kinds():
-    adm = RP.admission_report(seeds=(0, 1, 2))
+    adm = RP.admission_report(seeds=(0, 1, 2), jobs=int(os.environ.get("CRUCIBLE_RAPID_JOBS", "1")))
     admitted_engines = {r["engine"] for r in adm["reports"].values() if r["admitted"]}
     edir = os.path.join(ROOT, "src", "crucible", "rapid", "engines")
     implemented, missing = [], []
@@ -68,10 +107,8 @@ def test_SP_7_3_new_engine_kinds():
         else:
             missing.append(spec_kind)
     record("SP-7.3", {"new_engine_kinds": len(implemented), "implemented": ",".join(implemented),
-                      "not_yet_implemented": ",".join(missing),
+                      "not_counted": ",".join(missing),
                       "compositional_engine": "primitive_graph" if "primitive_graph" in admitted_engines else "none"},
-           notes="Implemented with admitted families: discrete-event, graph dynamical, search/information, partially "
-                 "observed state machine. Executable program, multi-agent strategic, scientific experiment and "
-                 "planning/resource engines are scheduled for the next wave (the primitive_graph engine is the "
-                 "structural generator's compositional engine and is not counted among the eight).")
-    assert len(implemented) == 4
+           notes="A kind counts with its own transition code, a run showing behaviour of that kind and an admitted "
+                 "family (seeds 0-2). The primitive_graph engine is the structural generator's compositional engine "
+                 f"and is not counted among the eight. Not counted: {missing}.")

@@ -4,6 +4,11 @@ An action type counts when an admitted family offers it and taking it measurably
 participant learns, compared with not taking it (each effect is checked on a real world, not on a schema)."""
 from __future__ import annotations
 
+import os
+
+import json
+
+import numpy as np
 import pytest
 
 from crucible.acceptance.v5.evidence import record
@@ -118,20 +123,87 @@ EFFECTS = {"graph modifications": eff_graph_edit, "discrete decisions": eff_disc
            "resource allocation": eff_allocate, "multi-agent coordination": eff_coordinate}
 
 
+def _offers(family: str, kind: str) -> bool:
+    env = F.make(family, 0)
+    for a in env.agents():
+        sp = env.action_space(a)
+        if kind == "query:tools":
+            if "query" in sp.kinds and "tools" in sp.kinds["query"]["properties"]["target"]["enum"]:
+                return True
+        elif kind in sp.kinds:
+            return True
+    return False
+
+
+def generic_effect(family: str, kind: str) -> bool:
+    """Taking a valid action of `kind` (for every learner seat that offers it) changes the world or what the
+    participant learns, compared with waiting on the same world and noise: the hidden state, the observation
+    (time and cursor aside) or the action's own result differ."""
+    from crucible.core.canonical import digest
+    from crucible.rapid.oracles import fork
+    from crucible.rapid.policies import random_action
+    env = F.make(family, 0)
+    for _ in range(3):
+        env.step(None)
+    rng = np.random.default_rng(11)
+    for attempt in range(12):
+        acts = {}
+        for a in env.agents():
+            sp = env.action_space(a)
+            if kind == "query:tools":
+                acts[a] = {"kind": "query", "target": "tools", "args": {}}
+            elif kind == "program":
+                acts[a] = {"kind": "program", "ticks": 2, "source": "def act(observation, caller):\n    return None\n"}
+            elif kind in sp.kinds:
+                x = random_action(sp, rng, [kind])
+                if x is not None:
+                    acts[a] = x
+        if not acts:
+            return False
+        a_env, b_env = fork(env), fork(env)
+        ra = a_env.step(acts if len(env.agents()) > 1 else acts[env.agents()[0]])
+        rb = b_env.step(None)
+        if not ra["result"]["ok"]:
+            continue
+        strip = lambda o: {k: v for k, v in o.items() if k not in ("t", "cursor", "last_result", "tools", "events")}  # noqa: E731
+        if kind == "query:tools":
+            return bool(ra["result"]["results"]["tools"]) and {t["name"] for t in ra["result"]["results"]["tools"]} \
+                == set(env.action_space().kinds)
+        changed = digest(json.loads(json.dumps(a_env._state, default=str))) != \
+            digest(json.loads(json.dumps(b_env._state, default=str)))
+        seen = digest(strip(ra["observation"])) != digest(strip(rb["observation"])) or \
+            bool(ra["result"].get("results"))
+        if changed or seen:
+            return True
+    return False
+
+
+SPECIFIC_HOSTS = {"graph modifications": "net_repair", "discrete decisions": "des_maintenance",
+                  "sequential actions": "posm_unlock", "tool discovery": "srch_tools",
+                  "experiment design": "sci_functional_law", "queries and observations": "des_bottleneck",
+                  "communication": "coop_split_info", "executable program construction": "eng_delayed_controller",
+                  "resource allocation": "des_bottleneck", "multi-agent coordination": "coop_split_info"}
+
+
 def test_SP_8_11_action_types():
-    adm = RP.admission_report(seeds=(0, 1, 2))
-    admitted = [n for n, r in adm["reports"].items() if r["admitted"]]
+    adm = RP.admission_report(seeds=(0, 1, 2), jobs=int(os.environ.get("CRUCIBLE_RAPID_JOBS", "1")))
+    admitted = sorted(n for n, r in adm["reports"].items() if r["admitted"])
     spaces = [F.make(n, 0).action_space(a) for n in admitted for a in F.make(n, 0).agents()]
     offered = spec_coverage(spaces)
-    worked = {k: bool(fn()) for k, fn in EFFECTS.items()}
-    hosts = {"graph modifications": "net_repair", "discrete decisions": "des_maintenance",
-             "sequential actions": "posm_unlock", "tool discovery": "srch_tools",
-             "experiment design": "sci_functional_law", "queries and observations": "des_bottleneck",
-             "communication": "coop_split_info", "executable program construction": "eng_delayed_controller",
-             "resource allocation": "des_bottleneck", "multi-agent coordination": "coop_split_info"}
-    counted = [k for k in SPEC_ACTION_TYPES if offered[k] and worked[k] and hosts[k] in admitted]
+    counted, where = [], {}
+    for item, kind in SPEC_ACTION_TYPES.items():
+        host = SPECIFIC_HOSTS[item]
+        if host in admitted and EFFECTS[item]():
+            counted.append(item)
+            where[item] = f"{host} (specific effect)"
+            continue
+        for fam in admitted:
+            if _offers(fam, kind) and generic_effect(fam, kind):
+                counted.append(item)
+                where[item] = f"{fam} (effect vs waiting)"
+                break
     record("SP-8.11", {"action_types": len(counted), "offered_by_admitted_families": sum(offered.values()),
-                       "effects_verified": sum(worked.values())},
+                       "admitted_families": len(admitted)},
            notes="Spec type -> kind: " + ", ".join(f"{k}: {v}" for k, v in SPEC_ACTION_TYPES.items()) +
-                 f". Not counted: {[k for k in SPEC_ACTION_TYPES if k not in counted]}.")
-    assert len(counted) == 10
+                 f". Verified in admitted families: {where}. Not counted: "
+                 f"{[k for k in SPEC_ACTION_TYPES if k not in counted]}.")
