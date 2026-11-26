@@ -125,3 +125,77 @@ Module `on_load` runs after the store is attached (cross-process resume); typed-
 derived RNG streams so observers never perturb a trajectory (required for counterfactual removal); batch blobs get
 retention/compaction; the duplicate-fact check becomes mandatory over all tables (not opt-in), and D-11 is resolved
 (`product` owned by `products`).
+
+## D-22 Mandatory requirements the recovery audit found without a manifest entry (2026-11-26, workstream P)
+The fifteen audits (`docs/v5/audit/*.json`, `missing_requirements`) list mandatory statements of MASTER_SPEC.md and the
+clarifications that had no individually identifiable manifest entry. Workstream P added 101 entries to
+`requirements.py` (manifest 253 -> 354), each with measurable criteria, its owning workstream and its source
+(`source.spec`, `source.audit`). They include the fifteen per-domain mechanics entries SP-9.1 to SP-9.15 and SP-9.0 /
+SP-9.16 (autonomous participants, open-ended actions, structural configurations, feasibility without guaranteed
+success); SP-4.0 (one population on every platform); SP-5.0 (fitted models driving in-world decisions with decision
+provenance); SP-17.1 (every world gate re-demonstrated inside an integrated civilization); OO.9 (every public entry
+point defaults to observation_only) and OO.10-OO.16; RP.5 (old branch immutable) and RP.6 (no force-push, no secrets);
+SP-19.7 (no removal, no weakening); SP-20b and SP-21b (final report separation, release verification scope); and the
+Part 2-16 statements listed by the audits (SP-0.9, SP-0.10, SP-1.2, SP-1.3b, SP-1.5b, SP-2.1b, SP-2.2, SP-2.3b, SP-3.2c,
+SP-3.2d, SP-3.3b, SP-3.3c, SP-4.1b, SP-4.2b, SP-4.3, SP-4.4, SP-4.5b, SP-4.6b, SP-4.7b, SP-4.8b, SP-5.1, SP-5.3,
+SP-5.5b, SP-6.1b, SP-6.2, SP-6.3b, SP-6.4b, SP-6.5b, SP-6.6b, SP-7.0, SP-7.2, SP-7.5, SP-8.0, SP-8.0b, SP-8.12b,
+SP-10.0, SP-10.2, SP-10.3b, SP-11.1b, SP-11.4b, SP-11.6b, SP-11.6c, SP-11.6d, SP-12.0, SP-12.1b, SP-12.2, SP-12.3b,
+SP-13.1, SP-13.3, SP-13.4, SP-13.5, SP-13.6, SP-13.7b, SP-13.8b, SP-14.0, SP-14.1b, SP-14.2b, SP-14.3, SP-15.0,
+SP-15.1, SP-15.2, SP-15.3b, SP-15.4, SP-15.7, SP-15.8, SP-16b, SP-16c, SP-19.3). Additions need no decision under the
+change-control rules (D-24); this entry is their audit trail. Not added: process statements that cannot be measured
+from the repository, and audit items already covered by an existing entry's criteria.
+
+## D-23 Vacuous or undercounting criteria made stricter (2026-11-26, workstream P)
+Every change keeps the old criteria (or replaces one by a criterion that implies it) and adds the denominator or exact
+population the old wording lacked; the ledger verifies that each is provably at least as strict.
+* A.1: exact baseline node ids (all 1,076 of `docs/v5/evidence/gate_A/regression_baseline.json` must pass by id), 4.0
+  test files byte-identical to c07098b, and `tests_skipped == 0` instead of `<= 2` (the two skips were GPU tests; the
+  gate runs with the GPU visible through the slot scheduler).
+* A.2: all 109 4.0 definitions (74 world, 25 mechanism, 10 useful-work families) compared by generated content on two
+  seeds against c07098b, instead of 25 counted.
+* A.3: all 74 4.0 world families on two seeds instead of 16.
+* A.4: store metadata against a committed baseline, access-log entries after v5 started, static references in v5
+  code, runtime opens under an audit hook.
+* A.5: all 16 4.0 acceptance records A-P plus the deterministic demos (18) instead of 5, nothing silently skipped, and
+  the 4.0 world trajectories in 4.0's deterministic mode equal those of c07098b.
+* X.1, X.2, X.3, X.4, X.5, X.6, X.7, X.8, X.9 and X.n1: each zero gets its denominator (requirements counted, tests collected, clean-checkout runs, tests run,
+  documents checked, defect register present and audit findings registered, tests scanned and every manifest id
+  recorded by some test, workstreams checked, claims checked) so that "0 failures" cannot hold vacuously.
+* SP-1.3: no required document missing, the MASTER_SPEC SHA-256 equals the verbatim anchor, no stale integration
+  branch references. SP-1.5: machine-readable ledger valid, every field in every milestone, latest milestone lists every
+  unverified requirement.
+* SP-2.3: 19 primitive kinds (the number Part 2.3 lists) instead of 17. SP-3.1: 18 identity attributes (Part 3.1)
+  instead of 15.
+* SP-18: exactly the 18 Part 18 capabilities, statuses only from the Part 18 vocabulary, no VERIFIED row over an
+  unverified requirement. SP-20: every deliverable verified and the nine-way separation. SP-21: the defined fabrication
+  suite (14 probes) all rejected, three project statuses, manifest anchored to its derivation.
+* RP.1: scan size floor. RP.2: no audited area missing, reports committed. RP.3: no unpushed milestone commit, no
+  merged worktree with uncommitted changes, no uncommitted milestone work. RP.4: an explicit artifact list of at least
+  20 entries with locations and hashes.
+
+## D-24 Acceptance trust model (2026-11-26, workstream P; repairs the checker the audit fooled)
+The recovery audit fooled the checker with 14 probes (hand-written evidence, pruned or empty manifest, rewritten
+criteria history, self-asserted clean tree, partial JUnit, placeholder tests, constant metrics). The checker now:
+* anchors the manifest: it must equal `manifest.derive()` (spec text anchored by SHA-256, `requirements.py`) and the
+  append-only, hash-chained ledger `docs/v5/ACCEPTANCE_LEDGER.jsonl`, whose every committed version must extend its
+  parents' (merges included) and whose pushed copy must be a prefix. Requirements are never removed; criteria changes
+  cite a decision naming the requirement and must be provably at least as strict; test/implementation list removals,
+  wording and tolerance changes need such a decision. Only the integration branch appends to the ledger (rebuild it
+  with `build-manifest` / `merge-workstreams` after each merge; parallel appends on two branches cannot merge).
+* accepts evidence only from official runs: `run` clones a committed tree into a fresh directory, runs the
+  requirement's test files there (collect-only first), and installs evidence, a run record (commit, clean clone before
+  and after, collected node ids) and the JUnit (suite name = run id). The record carries the git blob id of every
+  imported module, the environment (GPU visibility) and dataset checksums; evidence is stale when any imported module
+  changed after its commit. Every collected node and every test function of the requirement's files must pass.
+* rejects placeholder measurements: the producing test must assert on measured values, record non-constant metrics
+  and import at least one listed implementation module; skips, early returns, swallowed exceptions, mocks and
+  unreverted patches are rejected (`testscan`).
+* defines independent review as reproduction: the reviewer (different agent name and session) re-executes the tests
+  in another fresh clone of the evidence commit; the checker itself compares the reproduced metrics with the evidence
+  within the requirement's declared tolerance. Reviews are bound to requirement text, criteria version, evidence hash
+  and commit, and count only when committed. `--verify-all --reproduce` re-executes every VERIFIED requirement at
+  release time, so a forged review cannot survive the release check.
+* requires dependencies to be VERIFIED (X depends on everything except X, SP-18 and SP-20: the fixed point), and
+  reports CRUCIBLE_5_COMPLETE, INCOMPLETE_BLOCKED (every unverified requirement BLOCKED by an open `BLK-<n>` entry of
+  BLOCKERS.md) or IN_PROGRESS. Residual trust, stated honestly: identities are declared names plus hashed session ids,
+  not signatures; a forger with write access can fabricate files, which the release-time reproduction then exposes.

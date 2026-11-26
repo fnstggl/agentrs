@@ -1,0 +1,501 @@
+"""Gate A machinery: measurements of Crucible 4.0 baseline preservation on the real tree.
+
+* A.1 `regression`: run the 4.0 test files of the recorded baseline (docs/v5/evidence/gate_A/regression_baseline.json
+  and its JUnit files, 1,076 node ids at 777f28c) and require every baseline node id to pass by exact id; the 4.0 test
+  files must be byte-identical to c07098b.
+* A.2 `definitions`: every 4.0 world family (74), mechanism family (25) and useful-work category family (10) is still
+  registered with the same split (and engine/transfer/kind/relation), and generates byte-identical content on two seeds
+  (hashes computed by `_v4probe.py` against an extracted c07098b tree and against this tree).
+* A.3 `execution`: every 4.0 world family builds and advances on two seeds.
+* A.4 `sealed`: the sealed store (~/.crucible or CRUCIBLE_SEALED_DIR) is unchanged against the committed baseline
+  (docs/v5/baselines/sealed_store.json; registry and access log by SHA-256, salt and task files by size and mtime only:
+  their contents are never read), its access log has no entry after v5 started, no v5 module names it, and a v5
+  workload run under an audit hook opens nothing inside it.
+* A.5 `prior_results`: the 4.0 acceptance records A-P and the deterministic demo records are regenerated in a fresh
+  clone and compared with the committed records; and the 4.0 world trajectories (state digest and event count after
+  the run) equal those of the c07098b tree.
+"""
+from __future__ import annotations
+
+import datetime as _dt
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+
+from . import manifest as M
+
+V4_COMMIT = "c07098b8726e2025487f2ef6e09f9863851ac416"
+V5_START = _dt.datetime(2026, 11, 25, tzinfo=_dt.timezone.utc).timestamp()
+BASELINE_RUN = "docs/v5/evidence/gate_A/regression_baseline.json"
+SEALED_BASELINE = "docs/v5/baselines/sealed_store.json"
+PROBE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_v4probe.py")
+TIMING_KEY = re.compile(r"(_s|_ms|_sec|_seconds)$|wall|elapsed|throughput|per_s(ec)?\b|per_second|recorded_at|^generated$")
+SEALED_NAMES = ("sealed_salt", "sealed_access.jsonl", "sealed_sets.json", "sealed_tasks", "CRUCIBLE_SEALED_DIR",
+                "research.sealed", "research import sealed", "open_set(")
+
+
+def _git(root: str, *args: str) -> str:
+    return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True).stdout
+
+
+def scratch_dir() -> str:
+    d = os.environ.get("CRUCIBLE_V5_SCRATCH") or os.path.join(tempfile.gettempdir(), "crucible-v5-gateA")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def v4_tree(root: str | None = None, dest: str | None = None) -> str:
+    """The `crucible/` directory of c07098b, extracted with git archive (cached)."""
+    root = root or M.crucible_root()
+    dest = dest or os.path.join(scratch_dir(), f"v4-{V4_COMMIT[:9]}")
+    out = os.path.join(dest, "crucible")
+    if os.path.exists(os.path.join(out, "src", "crucible", "__init__.py")):
+        return out
+    os.makedirs(dest, exist_ok=True)
+    top = _git(root, "rev-parse", "--show-toplevel").strip()
+    arch = subprocess.run(["git", "archive", V4_COMMIT, "crucible/src", "crucible/tests"], cwd=top, capture_output=True,
+                          check=True).stdout
+    subprocess.run(["tar", "-x", "-C", dest], input=arch, check=True)
+    return out
+
+
+def probe(src_root: str, *args: str, timeout: int = 3600) -> dict:
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    env.update(PYTHONPATH=os.path.join(src_root, "src"), OMP_NUM_THREADS="1", MKL_NUM_THREADS="1",
+               PYTHONDONTWRITEBYTECODE="1")
+    p = subprocess.run([sys.executable, "-P", PROBE, *args], cwd=src_root, env=env, capture_output=True, text=True,
+                       timeout=timeout)
+    if "@@JSON@@" not in p.stdout:
+        raise RuntimeError(f"probe {args} failed in {src_root}: {p.stderr[-2000:]}")
+    return json.loads(p.stdout.rsplit("@@JSON@@", 1)[1])
+
+
+# ------------------------------------------------------------------------------------------------- A.1
+def baseline_nodes(root: str | None = None) -> list[tuple[str, str]]:
+    """(classname, name) of every test case of the recorded 4.0 baseline run."""
+    root = root or M.crucible_root()
+    b = json.load(open(os.path.join(root, BASELINE_RUN)))
+    out = []
+    for j in b["junit"]:
+        for tc in ET.parse(os.path.join(root, j)).getroot().iter("testcase"):
+            out.append((tc.get("classname") or "", tc.get("name") or ""))
+    return out
+
+
+def baseline_files(nodes) -> list[str]:
+    return sorted({cl.split(".")[0] + "/" + cl.split(".")[1] + ".py" for cl, _ in nodes})
+
+
+def v4_test_files_changed(root: str | None = None) -> list[str]:
+    """4.0 test files (present at c07098b) that were modified or deleted since."""
+    root = root or M.crucible_root()
+    out = _git(root, "diff", "--name-only", "--relative", "--diff-filter=MDR", V4_COMMIT, "HEAD", "--", "tests").split()
+    return sorted(out)
+
+
+def _groups(root: str, files: list[str], n: int) -> list[list[str]]:
+    sized = sorted(files, key=lambda f: -os.path.getsize(os.path.join(root, f)))
+    groups = [[] for _ in range(max(1, n))]
+    load = [0] * len(groups)
+    for f in sized:
+        i = load.index(min(load))
+        groups[i].append(f)
+        load[i] += os.path.getsize(os.path.join(root, f))
+    return [g for g in groups if g]
+
+
+def run_pytest_groups(root: str, files: list[str], out_dir: str, workers: int = 1, timeout: int = 4 * 3600,
+                      extra_env: dict | None = None) -> dict:
+    """Run test files in `workers` concurrent pytest processes (one thread each); returns cases and exit codes."""
+    os.makedirs(out_dir, exist_ok=True)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PYTEST_") and k not in (
+        "PYTHONPATH", "CRUCIBLE_V5_RUN_ID", "CRUCIBLE_V5_EVIDENCE_OUT")}
+    env.update(PYTHONPATH=os.path.join(root, "src"), OMP_NUM_THREADS="1", MKL_NUM_THREADS="1",
+               PYTHONDONTWRITEBYTECODE="1", **(extra_env or {}))
+    procs = []
+    for i, g in enumerate(_groups(root, files, workers)):
+        junit = os.path.join(out_dir, f"group{i}.xml")
+        log = open(os.path.join(out_dir, f"group{i}.log"), "w")
+        procs.append((junit, log, subprocess.Popen(
+            [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-o", "addopts=", f"--junitxml={junit}",
+             *g], cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT)))
+    rcs, cases = [], []
+    for junit, log, p in procs:
+        try:
+            rcs.append(p.wait(timeout=timeout))
+        except subprocess.TimeoutExpired:
+            p.kill()
+            rcs.append("timeout")
+        log.close()
+        if os.path.exists(junit):
+            for tc in ET.parse(junit).getroot().iter("testcase"):
+                outcome = "passed"
+                for kind in ("failure", "error", "skipped"):
+                    if tc.find(kind) is not None:
+                        outcome = kind
+                cases.append({"classname": tc.get("classname") or "", "name": tc.get("name") or "",
+                              "outcome": outcome})
+    return {"rcs": rcs, "cases": cases, "out_dir": out_dir}
+
+
+def regression(root: str | None = None, workers: int | None = None, out_dir: str | None = None) -> dict:
+    root = root or M.crucible_root()
+    workers = workers or int(os.environ.get("CRUCIBLE_GATE_A_WORKERS", "1"))
+    nodes = baseline_nodes(root)
+    files = baseline_files(nodes)
+    missing_files = [f for f in files if not os.path.exists(os.path.join(root, f))]
+    res = run_pytest_groups(root, [f for f in files if f not in missing_files],
+                            out_dir or tempfile.mkdtemp(prefix="gateA1-", dir=scratch_dir()), workers)
+    by = {(c["classname"], c["name"]): c["outcome"] for c in res["cases"]}
+    not_run = [n for n in nodes if n not in by]
+    not_passed = [n for n in nodes if n in by and by[n] != "passed"]
+    outcomes = [c["outcome"] for c in res["cases"]]
+    changed = v4_test_files_changed(root)
+    return {"metrics": {
+        "tests_total": len(res["cases"]), "tests_failed": outcomes.count("failure"),
+        "tests_errors": outcomes.count("error"), "tests_skipped": outcomes.count("skipped"),
+        "baseline_node_ids_checked": len(nodes), "baseline_node_ids_missing": len(not_run),
+        "baseline_node_ids_not_passed": len(not_passed), "v4_test_files_modified": len(changed),
+        "pytest_groups": len(res["rcs"]), "gpu_visible": _gpu_visible()},
+        "not_run": not_run[:50], "not_passed": not_passed[:50], "changed_test_files": changed, "rcs": res["rcs"]}
+
+
+def _gpu_visible() -> bool:
+    if os.environ.get("CUDA_VISIBLE_DEVICES") in ("", "-1"):
+        return False
+    try:
+        return bool(subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True, timeout=10).stdout.strip())
+    except Exception:
+        return False
+
+
+# ------------------------------------------------------------------------------------------------- A.2 / A.3
+def definitions(root: str | None = None, seeds=(0, 1)) -> dict:
+    root = root or M.crucible_root()
+    s = [str(x) for x in seeds]
+    old = probe(v4_tree(root), "definitions", "--seeds", *s)
+    new = probe(root, "definitions", "--seeds", *s)
+    changed, missing, checked = [], [], 0
+    per_kind = {}
+    for kind in ("world", "mech", "useful"):
+        per_kind[kind] = len(old[kind])
+        for name, d in old[kind].items():
+            checked += 1
+            if name not in new[kind]:
+                missing.append(f"{kind}:{name}")
+            elif new[kind][name] != d:
+                changed.append(f"{kind}:{name}")
+    errors = [f"{k}:{n}" for k in old for n, d in old[k].items() if any(str(v).startswith("error") for v in
+                                                                         d["digests"].values())]
+    return {"metrics": {"v4_definitions_checked": checked, "v4_definitions_changed": len(changed) + len(missing),
+                        "v4_definitions_missing": len(missing), "v4_world_families_checked": per_kind["world"],
+                        "v4_mechanism_families_checked": per_kind["mech"],
+                        "v4_useful_work_families_checked": per_kind["useful"],
+                        "v4_seeds_per_definition": len(seeds), "v4_definition_generation_errors": len(errors)},
+            "changed": changed, "missing": missing, "errors": errors,
+            "v5_added_world_families": sorted(set(new["world"]) - set(old["world"]))}
+
+
+def execution(root: str | None = None, seeds=(0, 1), days: float = 2.0) -> dict:
+    """A.3: every 4.0 world family builds and advances (default program-cost model)."""
+    root = root or M.crucible_root()
+    s = [str(x) for x in seeds]
+    v4_names = sorted(probe(v4_tree(root), "definitions", "--seeds", "0")["world"])
+    new = probe(root, "execute", "--seeds", *s, "--days", str(days))
+    failed = [f"{n}/{sd}" for n in v4_names for sd, r in new.get(n, {}).items() if not r["ok"]]
+    absent = [n for n in v4_names if n not in new]
+    ran = [n for n in v4_names if n in new and all(r["ok"] for r in new[n].values())]
+    return {"metrics": {"v4_families_run": len(ran), "v4_families_failed": len(set(f.split("/")[0] for f in failed))
+                        + len(absent), "v4_families_total": len(v4_names), "v4_seeds_per_family": len(seeds)},
+            "failed": failed, "absent": absent}
+
+
+def trajectories(root: str | None = None, seeds=(0, 1), days: float = 2.0) -> dict:
+    """A.5: in 4.0's deterministic mode, every 4.0 world family's trajectory (event count and final state digest
+    after `days`) equals the one the c07098b tree produces. The c07098b tree is run twice to confirm it is itself
+    deterministic; a family that is not is reported and counted as unreproducible."""
+    root = root or M.crucible_root()
+    s = [str(x) for x in seeds]
+    args = ("execute", "--seeds", *s, "--days", str(days), "--deterministic")
+    old1, old2 = probe(v4_tree(root), *args), probe(v4_tree(root), *args)
+    new = probe(root, *args)
+    key = lambda r: (r.get("ok"), r.get("events"), r.get("state_digest"))
+    nondet, mism, compared = [], [], 0
+    for n in sorted(old1):
+        for sd, r in old1[n].items():
+            if key(r) != key(old2[n][sd]):
+                nondet.append(f"{n}/{sd}")
+                continue
+            compared += 1
+            q = (new.get(n) or {}).get(sd) or {}
+            if key(q) != key(r):
+                mism.append(f"{n}/{sd}")
+    return {"metrics": {"v4_trajectories_compared": compared, "v4_trajectory_mismatches": len(mism),
+                        "v4_nondeterministic_trajectories": len(nondet)},
+            "mismatches": mism, "nondeterministic": nondet}
+
+
+# ------------------------------------------------------------------------------------------------- A.4
+def sealed_dir() -> str:
+    return os.environ.get("CRUCIBLE_SEALED_DIR") or os.path.join(os.path.expanduser("~"), ".crucible")
+
+
+def _sha(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        h.update(fh.read())
+    return h.hexdigest()
+
+
+def sealed_snapshot(d: str | None = None) -> dict:
+    """Metadata of the sealed store. Registry and access log are hashed (they hold no task seeds); the salt and the
+    task files are described by size and mtime only - their contents are never read."""
+    d = d or sealed_dir()
+    out = {}
+    if not os.path.isdir(d):
+        return out
+    for dp, dn, fn in os.walk(d):
+        dn.sort()
+        for f in sorted(fn):
+            p = os.path.join(dp, f)
+            rel = os.path.relpath(p, d)
+            st = os.stat(p)
+            rec = {"bytes": st.st_size, "mtime_ns": st.st_mtime_ns}
+            if rel in ("sealed_sets.json", "sealed_access.jsonl"):
+                rec["sha256"] = _sha(p)
+            out[rel] = rec
+    return out
+
+
+def capture_sealed_baseline(root: str | None = None) -> dict:
+    root = root or M.crucible_root()
+    snap = sealed_snapshot()
+    rec = {"what": "metadata of the Crucible 4.0 sealed store, captured by workstream P; registry and access log by "
+                   "SHA-256, salt and task files by size and mtime (never read)",
+           "dir": "~/.crucible (or CRUCIBLE_SEALED_DIR)", "captured_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+           "all_mtimes_before_v5_start": all(r["mtime_ns"] / 1e9 < V5_START for r in snap.values()), "files": snap}
+    p = os.path.join(root, SEALED_BASELINE)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "w") as fh:
+        json.dump(rec, fh, indent=1, sort_keys=True)
+    return rec
+
+
+def v5_source_files(root: str) -> list[str]:
+    """Python files added to src/crucible since Crucible 4.0 (v5 code), excluding this Gate A machinery."""
+    added = _git(root, "diff", "--name-only", "--relative", "--diff-filter=A", V4_COMMIT, "HEAD", "--", "src").split()
+    here = {"src/crucible/acceptance/v5/baseline.py", "src/crucible/acceptance/v5/_v4probe.py",
+            "src/crucible/acceptance/v5/requirements.py"}
+    return sorted(f for f in added if f.endswith(".py") and f not in here and os.path.exists(os.path.join(root, f)))
+
+
+AUDIT_SCRIPT = r'''
+import os, sys, json
+SEALED = os.path.realpath(sys.argv[1])
+hits = []
+def hook(ev, args):
+    if ev == "open" and args and isinstance(args[0], (str, bytes, os.PathLike)):
+        p = os.path.realpath(os.fsdecode(args[0]))
+        if p == SEALED or p.startswith(SEALED + os.sep):
+            hits.append(p)
+    elif ev in ("os.listdir", "os.scandir") and args and args[0] is not None:
+        p = os.path.realpath(os.fsdecode(args[0]))
+        if p == SEALED or p.startswith(SEALED + os.sep):
+            hits.append(p)
+sys.addaudithook(hook)
+import importlib, pkgutil
+import crucible
+crucible.load_all_modules()
+loaded = 0
+for pkg in crucible.V5_PACKAGES:
+    try:
+        importlib.import_module("crucible." + pkg)
+        loaded += 1
+    except Exception as exc:
+        print("import failed", pkg, exc, file=sys.stderr)
+steps = 0
+try:
+    from crucible import experience
+    tier, name = sys.argv[2].split(":", 1)
+    env = experience.make(int(tier), name, 0, reward_mode="observation_only")
+    for _ in range(int(sys.argv[3])):
+        for agent in env.agents():
+            env.observe(agent)
+            env.tools(agent)
+        env.advance(3600)
+        steps += 1
+except Exception as exc:
+    print("workload failed", type(exc).__name__, exc, file=sys.stderr)
+print("@@JSON@@" + json.dumps({"hits": sorted(set(hits)), "packages_loaded": loaded, "steps": steps}))
+'''
+
+
+def sealed(root: str | None = None, workload: str = "1:mech:scm_additive", steps: int = 48) -> dict:
+    root = root or M.crucible_root()
+    d = sealed_dir()
+    base = json.load(open(os.path.join(root, SEALED_BASELINE)))
+    snap = sealed_snapshot(d)
+    changed = sorted(k for k in set(base["files"]) | set(snap) if base["files"].get(k) != snap.get(k))
+    after = []
+    log = os.path.join(d, "sealed_access.jsonl")
+    if os.path.exists(log):
+        for line in open(log):
+            try:
+                t = float(json.loads(line).get("t", 0))
+            except ValueError:
+                continue
+            if t >= V5_START:
+                after.append(t)
+    reg = {}
+    try:
+        reg = json.load(open(os.path.join(d, "sealed_sets.json")))
+    except (OSError, ValueError):
+        pass
+    over = [k for k, v in reg.items() if v.get("contaminated") or v.get("accesses", 0) > v.get("budget", 0)]
+    static = []
+    for f in v5_source_files(root):
+        txt = open(os.path.join(root, f), encoding="utf-8", errors="replace").read()
+        for k, line in enumerate(txt.splitlines(), 1):
+            code = line.split("#", 1)[0]
+            if any(n in code for n in SEALED_NAMES) or re.search(r"from\s+\S*research\S*\s+import\s+.*\bsealed\b", code):
+                static.append(f"{f}:{k}")
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    env.update(PYTHONPATH=os.path.join(root, "src"), OMP_NUM_THREADS="1", PYTHONDONTWRITEBYTECODE="1")
+    p = subprocess.run([sys.executable, "-c", AUDIT_SCRIPT, d, workload, str(steps)], cwd=root, env=env,
+                       capture_output=True, text=True, timeout=1800)
+    dyn = json.loads(p.stdout.rsplit("@@JSON@@", 1)[1]) if "@@JSON@@" in p.stdout else {"hits": ["<probe failed>"],
+                                                                                         "packages_loaded": 0, "steps": 0}
+    return {"metrics": {"sealed_sets_changed": len(changed), "sealed_files_checked": len(snap),
+                        "sealed_access_entries_after_v5_start": len(after),
+                        "sealed_sets_contaminated_or_over_budget": len(over),
+                        "v5_files_scanned": len(v5_source_files(root)), "v5_static_references_to_sealed_store": len(static),
+                        "v5_runtime_sealed_opens": len(dyn["hits"]), "v5_workload_steps": dyn["steps"],
+                        "v5_packages_loaded_under_audit": dyn["packages_loaded"],
+                        "sealed_leak_findings": len(static) + len(dyn["hits"]) + len(after) + len(over)},
+            "changed": changed, "static": static[:20], "runtime_hits": dyn["hits"][:20],
+            "probe_stderr": p.stderr[-1500:]}
+
+
+# ------------------------------------------------------------------------------------------------- A.5
+ACCEPTANCE_RECORDS = "docs/experiments/acceptance"
+DEMOS = {   # deterministic 4.0 demo records with their reproduction command (from each script's docstring)
+    "docs/experiments/demo_social_org.json": ["examples/demo_social_org.py"],
+    "docs/experiments/demo_lifetime.json": ["examples/demo_lifetime.py", "--days", "30"],
+}
+NOT_REPRODUCIBLE = {   # prior records without an executable reproduction, with the reason (reported, never hidden)
+    "docs/experiments/demo_lifetime_v1_overscaling.json": "superseded record of the pre-fix v1 scaling (kept for history)",
+    "docs/experiments/demo_llm_lifetime.json": "needs the local Qwen model on a GPU; reproduced only with a GPU slot",
+    "docs/experiments/demo_information.json": "40-day demo (500 s); reproduced only by the slow schedule",
+}
+
+
+def prior_candidates(root: str | None = None) -> list[dict]:
+    root = root or M.crucible_root()
+    out = []
+    d = os.path.join(root, ACCEPTANCE_RECORDS)
+    for f in sorted(os.listdir(d)):
+        if not f.endswith(".json") or f == "summary.json":
+            continue
+        rec = json.load(open(os.path.join(d, f)))
+        m = re.search(r"pytest -q '([^']+)'", rec.get("reproduce", ""))
+        out.append({"record": f"{ACCEPTANCE_RECORDS}/{f}", "kind": "acceptance",
+                    "node": m.group(1) if m else None, "expected": rec})
+    for rel, cmd in DEMOS.items():
+        out.append({"record": rel, "kind": "demo", "cmd": cmd, "expected": json.load(open(os.path.join(root, rel)))})
+    return out
+
+
+def _is_timing(key: str) -> bool:
+    """Wall-clock quantities (they differ between executions by nature); everything else must reproduce."""
+    return bool(TIMING_KEY.search(key.lower()))
+
+
+def compare_records(expected, got, path="") -> list[str]:
+    """Differences between two result records, ignoring timing fields; floats within 1e-6 relative."""
+    out = []
+    if isinstance(expected, dict) and isinstance(got, dict):
+        for k, v in expected.items():
+            if _is_timing(str(k)) or k in ("recorded_at", "failure", "logs"):
+                continue
+            if k not in got:
+                out.append(f"{path}{k}: missing")
+            else:
+                out += compare_records(v, got[k], f"{path}{k}.")
+    elif isinstance(expected, list) and isinstance(got, list):
+        if len(expected) != len(got):
+            out.append(f"{path}: length {len(expected)} vs {len(got)}")
+        else:
+            for i, (a, b) in enumerate(zip(expected, got)):
+                out += compare_records(a, b, f"{path}{i}.")
+    elif isinstance(expected, float) or isinstance(got, float):
+        try:
+            if abs(float(expected) - float(got)) > max(1e-9, 1e-6 * max(abs(float(expected)), abs(float(got)))):
+                out.append(f"{path}: {expected!r} vs {got!r}")
+        except (TypeError, ValueError):
+            out.append(f"{path}: {expected!r} vs {got!r}")
+    elif expected != got:
+        out.append(f"{path}: {expected!r} vs {got!r}")
+    return out
+
+
+def _plain_clone(root: str, dest: str) -> str:
+    top = _git(root, "rev-parse", "--show-toplevel").strip()
+    prefix = os.path.relpath(os.path.realpath(root), os.path.realpath(top))
+    head = _git(root, "rev-parse", "HEAD").strip()
+    subprocess.run(["git", "clone", "--quiet", "--shared", "--no-checkout", top, dest], check=True)
+    subprocess.run(["git", "checkout", "--quiet", "--detach", head], cwd=dest, check=True)
+    return os.path.join(dest, prefix)
+
+
+def prior_results(root: str | None = None, only: list[str] | None = None, timeout: int = 3600) -> dict:
+    """Regenerate prior 4.0 records in a fresh clone (the checkout itself is never written) and compare."""
+    root = root or M.crucible_root()
+    work = tempfile.mkdtemp(prefix="gateA5-", dir=scratch_dir())
+    clone = _plain_clone(root, os.path.join(work, "clone"))
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PYTEST_") and k not in (
+        "PYTHONPATH", "CRUCIBLE_V5_RUN_ID", "CRUCIBLE_V5_EVIDENCE_OUT")}
+    env.update(PYTHONPATH=os.path.join(clone, "src"), OMP_NUM_THREADS="1", MKL_NUM_THREADS="1",
+               PYTHONDONTWRITEBYTECODE="1", CRUCIBLE_RECORD_ACCEPTANCE="1")
+    results = []
+    cands = [c for c in prior_candidates(root) if only is None or c["record"] in only]
+    for c in cands:
+        r = {"record": c["record"], "kind": c["kind"]}
+        if c["kind"] == "acceptance":
+            if not c["node"]:
+                r.update(attempted=False, why="no reproduction command")
+                results.append(r)
+                continue
+            p = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-o", "addopts=",
+                                c["node"]], cwd=clone, env=env, capture_output=True, text=True, timeout=timeout)
+            path = os.path.join(clone, c["record"])
+            got = json.load(open(path)) if os.path.exists(path) else {}
+            diffs = compare_records({"measured": c["expected"].get("measured", {}),
+                                     "outcome": c["expected"].get("outcome")},
+                                    {"measured": got.get("measured", {}), "outcome": got.get("outcome")})
+            r.update(attempted=True, rc=p.returncode, mismatches=diffs[:20], n_mismatches=len(diffs))
+        else:
+            out = os.path.join(work, os.path.basename(c["record"]))
+            cmd = [sys.executable, *c["cmd"], "--out", out]
+            if "demo_lifetime" in c["record"]:
+                cmd += ["--store", os.path.join(work, "demo_lifetime.db")]
+            p = subprocess.run(cmd, cwd=clone, env=env, capture_output=True, text=True, timeout=timeout)
+            got = json.load(open(out)) if os.path.exists(out) else {}
+            exp = c["expected"]
+            keys = [k for k, v in exp.items() if not isinstance(v, (dict, list)) and not _is_timing(k)]
+            diffs = compare_records({k: exp[k] for k in keys}, {k: got.get(k) for k in keys})
+            r.update(attempted=True, rc=p.returncode, mismatches=diffs[:20], n_mismatches=len(diffs))
+        results.append(r)
+    shutil.rmtree(work, ignore_errors=True)
+    att = [r for r in results if r.get("attempted")]
+    bad = [r for r in att if r["rc"] != 0 or r["n_mismatches"]]
+    return {"metrics": {"reproduction_candidates": len(cands) + (0 if only else len(NOT_REPRODUCIBLE)),
+                        "reproduced_results": len(att) - len(bad), "reproduction_mismatches": len(bad),
+                        "reproduction_candidates_not_attempted": len(cands) - len(att),
+                        "documented_unreproducible_records": 0 if only else len(NOT_REPRODUCIBLE)},
+            "results": results, "not_reproducible": NOT_REPRODUCIBLE}

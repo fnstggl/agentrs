@@ -908,6 +908,8 @@ ERROR_MEANINGS = {
     "timeout": "An execution exceeded its time limit.",
     "sandbox_error": "Running code in the sandbox failed before or outside the program itself.",
     "budget_exhausted": "A budget assigned to the caller is used up.",
+    "media_error": "A media input (image, audio or video) could not be decoded, exceeded a size or duration limit, "
+                   "or the media tool failed while processing it.",
     "error": "An internal error of the simulator; it is not caused by the content of the action.",
 }
 

@@ -232,7 +232,7 @@ def _git(cwd: str, *args: str) -> subprocess.CompletedProcess:
 
 
 def _show(cwd: str, rev: str, rel: str) -> str | None:
-    p = _git(cwd, "show", f"{rev}:{rel}")
+    p = _git(cwd, "show", f"{rev}:./{rel}")                     # relative to cwd (the crucible root)
     return p.stdout.decode("utf-8") if p.returncode == 0 else None
 
 
@@ -248,7 +248,7 @@ def git_problems(root: str) -> list[str]:
     top = _git(root, "rev-parse", "--show-toplevel").stdout.decode().strip()
     if not top:
         return ["not a git checkout: the ledger cannot be anchored"]
-    rel = os.path.relpath(path(root), top)
+    rel = LEDGER_REL
     head = _show(root, "HEAD", rel)
     try:
         work = open(path(root), encoding="utf-8").read()
