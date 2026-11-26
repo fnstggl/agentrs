@@ -319,7 +319,11 @@
  "integration_notes": [
   "program_exec compute cost consumes the parent-measured CPU of workstream O's sandbox metering; for reproducible Tier 1 admission a deterministic parent-side measure (calls x price, or quantised CPU recorded as an external event and replayed in admission) is recommended. Not changed here (O owns metering).",
   "crucible.rapid.vec.RapidVecEnv is a learner-facing batched interface (observation_only, reward 0.0); workstream L may expose it through crucible.experience.",
-  "D-9 recreation now includes 4.0 validation families; three families moved from v5-train to v5-eval-1 (ch_sign_reversal, ch_rule_change, ch_wandering_taste)."
+  "D-9 recreation now includes 4.0 validation families; three families moved from v5-train to v5-eval-1 (ch_sign_reversal, ch_rule_change, ch_wandering_taste).",
+  "Objective changes other workstreams see: hc_confounded, hc_feedback_hidden, ch_constraint_tightens, ch_demand_shift, ch_sign_reversal, ch_drifting_ideal, ch_tech_transition, cxc_balancing_constraint, cxc_latched_reversal, game_adaptive_rival and the four look-alike markets (mk_*) are prediction worlds in version 2 (objective predict_heldout, journal filings via the message kind; the outcome value is the prediction score). crucible.experience probes (probes.probe_rapid uses hc_confounded and ch_sign_reversal) and the research evaluator's mk_elastic example keep working (tests/test_v5_experience_oo.py and test_v5_experience_wave3.py pass on this branch); learners that assumed net income as the scored value of these families should read the objective type.",
+  "team_commons v2 (bad spells) is used by experience tests and gates (SP-11.1, SP-11.1b, OO, S): plumbing unchanged; stocks now fall during hidden spells.",
+  "tests/test_v5_research_unit.py and tests/test_v5_substrate_modes.py exceed the 5-minute direct-run budget and were not run here; they reference rapid families only through crucible.experience.",
+  "primitive_graph.true_response can now fix discrete decisions in a condition (used by the look-alike markets' certification state); fingerprints.legacy_recreation ignores journal messages of prediction worlds (D-9 still flags ch_sign_reversal, ch_rule_change, ch_wandering_taste, all evaluation families)."
  ],
  "history": {
   "wave3a": {
