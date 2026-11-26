@@ -28,37 +28,18 @@ GATES = ("W.1", "W.2", "W.3", "W.4", "W.5", "W.6", "W.7", "W.8", "W.9")
 
 # probe -> (outcome first observed, severity, owner workstream, note)
 KNOWN_OPEN: dict[str, dict] = {
-    "v5.commerce.partial_refund_keeps_arr": {
-        "outcome": "false_success", "severity": "high", "owner": "F",
-        "note": "a 99% refund keeps full ARR: subscriptions.py::_refund clears period_paid only on a full refund and "
-                "revenue.mrr uses list price (K.3's test asserts this behaviour)"},
-    "v5.commerce.circular_revenue_through_commitment_escrow": {
-        "outcome": "false_success", "severity": "high", "owner": "F",
-        "note": "commit milestone payouts leave escrow as flows integrity._tx_flows does not net"},
-    "v5.commerce.circular_revenue_through_project_reward": {
-        "outcome": "false_success", "severity": "high", "owner": "F",
-        "note": "inst project rewards leave escrow as flows integrity._tx_flows does not net"},
-    "v5.commerce.rebate_below_flag_threshold": {
-        "outcome": "false_success", "severity": "medium", "owner": "F",
-        "note": "binary FLAG_SHARE = 0.5: a 45% cashback keeps full MRR"},
-    "v5.commerce.owner_funded_five_star_ratings": {
-        "outcome": "false_success", "severity": "medium", "owner": "F",
-        "note": "products.ep_rate checks only 4.0 is_related, not the source of the rater's funds"},
     "v5.isolation.in_process_learner_reads_hidden_grader": {
         "outcome": "leak", "severity": "high", "owner": "L",
-        "note": "an in-process learner holding ExperienceEnv reaches the Tier 1 scenario's hidden configuration; "
-                "evaluated learners need an out-of-process path (HTTP API / subprocess bridge)"},
+        "note": "an in-process learner holding ExperienceEnv reaches the Tier 1 scenario's hidden configuration (by "
+                "construction: Python has no access control). The out-of-process path exists now "
+                "(experience.remote.host; its participant pipe was pickle-injectable until wave 3, probe "
+                "v5.isolation.remote_participant_cannot_run_code_in_the_world holds); to close this entry the "
+                "evaluation entry points must host evaluated learners remotely (and keep the evaluator handle out of "
+                "the learner's process), and make() must not be the evaluation path"},
     "v5.isolation.tier1_engines_cannot_import_oracles": {
         "outcome": "integrity_break", "severity": "low", "owner": "H",
         "note": "crucible/rapid/__init__.py imports admission -> references -> oracles eagerly; no participant path "
                 "(Tier 1 actions are data, programs are sandboxed)"},
-    "v5.experience.observation_only_is_the_default": {
-        "outcome": "false_success", "severity": "high", "owner": "L",
-        "note": "experience.make / check_mode(None) default to legacy_shaped_reward (Clarification 2, D-19); "
-                "workstream L is changing the default"},
-    "v5.crossworld.closed_worlds_release_their_bytes": {
-        "outcome": "integrity_break", "severity": "medium", "owner": "A",
-        "note": "substrate/artifacts._POOL keeps bytes of closed store-less worlds; workstream A is adding eviction"},
     "v5.social.sybils_with_a_fake_footprint": {
         "outcome": "false_success", "severity": "medium", "owner": "C",
         "note": "state-based engagement integrity cannot tell colluding agents with distinct controllers, own "
@@ -67,10 +48,24 @@ KNOWN_OPEN: dict[str, dict] = {
         "outcome": "false_success", "severity": "low", "owner": "O",
         "note": "the deterministic cost model bills an identical computation by its first measurement while a repeat "
                 "stays within MEMO_TOL (3x) + 1 ms; a stateful program can hide up to that much repeated work"},
+    "v5.network.media_tools_at_participant_call_sites_are_jailed": {
+        "outcome": "integrity_break", "severity": "high", "owner": "C",
+        "note": "social/render.run_tool (studio audio/video creation and editing) starts FFmpeg/SoX on participant "
+                "bytes as the world process's user with rlimits only; the fix is one call: "
+                "crucible.sandbox.isolation.run(argv, cwd=..., timeout=..., preexec_fn=_limits, env=...) (semantic/"
+                "media.run_tool is jailed). Not changed by O in wave 3: social/ internals were frozen for the "
+                "integration fix"},
+    "v5.network.image_decoders_run_outside_the_world_process": {
+        "outcome": "integrity_break", "severity": "medium", "owner": "C",
+        "note": "Pillow decodes participant images inside the world process (social/formats.inspect, social/render."
+                "open_image, semantic/media.open_image; owners C and D): a decoder memory-safety bug would run "
+                "outside every sandbox"},
     "v5.innovation.adoption_by_reading_the_package_source": {
         "outcome": "false_success", "severity": "medium", "owner": "G",
-        "note": "ablation evidence cannot tell 'output depends on the package's files' from 'uses the package'; a "
-                "per-dependency RPC boundary would"},
+        "note": "ablation evidence cannot tell 'output depends on the package's files' from 'uses the package' (nor "
+                "a program that inspects the ablation stub, or one wrong on purpose in a random subset of reruns, "
+                "credited with probability 1/(k+1) despite the unablated control rerun); a per-dependency RPC "
+                "boundary would. Such a dependent gains nothing that trivially calling the package would not"},
 }
 
 # probes that must hold in every build (a finding here fails the gate even if someone adds it to KNOWN_OPEN)
@@ -100,6 +95,29 @@ FIXED: dict[str, str] = {
     "O 3.10 / P7: following one's own organisation counted": "v5.social.own_organisations_inflate_followers",
     "C 3.10: sybil engagement not filtered": "v5.social.sybil_ring_engagement",
     "C skeptic 4: tracebacks expose host paths": "v5.sandbox.errors_do_not_disclose_host_paths",
+    # wave 3 (workstream O, on the integrated tree)
+    "O wave 3: module-level work ran unbilled at load time (up to 250 ms per cold start)":
+        "v5.sandbox.meter_forgery.work_at_import_time",
+    "O wave 3: nondeterministic output credited every locked package as adopted":
+        "v5.innovation.adoption_by_nondeterministic_output",
+    "O wave 3: a dead worker was reaped before its CPU was read (work delivered by a world call, then self-kill)":
+        "v5.sandbox.work_delivered_through_a_world_call_then_exit",
+    "O wave 3: work after a forged completion, then exit, unbilled in pooled workers":
+        "v5.sandbox.forged_completion_then_exit",
+    "O wave 3: the hosted learner's participant pipe unpickled what the learner sent (code ran in the world process "
+    "and read the grader)": "v5.isolation.remote_participant_cannot_run_code_in_the_world",
+}
+
+# open findings of the ratchet closed by their owner workstreams since wave 1, re-verified by the probe on the
+# integrated tree (each probe holds and its evidence shows the attack reached the mechanism it targets)
+FIXED_BY_OWNERS: dict[str, str] = {
+    "F 3.x / K.3: a 99% refund kept full ARR (F)": "v5.commerce.partial_refund_keeps_arr",
+    "F: commit milestone payouts not netted (F)": "v5.commerce.circular_revenue_through_commitment_escrow",
+    "F: inst project rewards not netted (F)": "v5.commerce.circular_revenue_through_project_reward",
+    "F: a 45% rebate kept full MRR (F)": "v5.commerce.rebate_below_flag_threshold",
+    "F P6: owner-funded ratings set the public rating (F)": "v5.commerce.owner_funded_five_star_ratings",
+    "O 3.13 / P15: legacy reward was the default (L)": "v5.experience.observation_only_is_the_default",
+    "O 3.12: closed worlds' bytes stayed in the artifact pool (A)": "v5.crossworld.closed_worlds_release_their_bytes",
 }
 
 

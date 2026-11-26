@@ -16,9 +16,16 @@ The world lives in a spawned child process that holds two pipes. Requests on the
 `PARTICIPANT_OPS`; anything else (``verify``, ``digest``, attribute access, ...) is refused with an error and never
 evaluated. The evaluator pipe serves `EVALUATOR_OPS`. The learner's process never holds the environment object, its
 world, its verifier or the evaluator pipe (give it only `part`).
+
+The participant pipe carries bounded JSON frames, never pickles (workstream O, wave 3): `Connection.recv` unpickles,
+and a pickle runs code while it is loaded - a learner holding only `part` could send an object whose `__reduce__`
+executes in the world process and reads the grader's hidden parameters and holdout (demonstrated: probe
+v5.isolation.remote_participant_cannot_run_code_in_the_world). The evaluator pipe is trusted and keeps pickles.
+Keep the evaluator handle out of the learner's process too: a learner sharing a process with `ev` can find it.
 """
 from __future__ import annotations
 
+import json
 import multiprocessing as mp
 import traceback
 from typing import Any
@@ -28,8 +35,45 @@ PARTICIPANT_OPS = ("agents", "observe", "execute", "observe_since", "tools", "ad
 EVALUATOR_OPS = ("verify", "digest", "describe", "close")
 
 
+MAX_FRAME = 32 * 2**20        # bytes of one participant request or reply
+
+
 class RemoteError(RuntimeError):
     pass
+
+
+def _jsonable(x):
+    try:
+        import numpy as np
+        if isinstance(x, np.generic):
+            return x.item()
+        if isinstance(x, np.ndarray):
+            return x.tolist()
+    except ImportError:
+        pass
+    if isinstance(x, (set, frozenset)):
+        return sorted(x)
+    raise TypeError(f"{type(x).__name__} is not JSON")
+
+
+def _send_json(conn, obj) -> None:
+    data = json.dumps(obj, default=_jsonable, separators=(",", ":"), allow_nan=False).encode()
+    if len(data) > MAX_FRAME:
+        data = json.dumps(["error", f"reply larger than {MAX_FRAME} bytes"]).encode()
+    conn.send_bytes(data)
+
+
+def _recv_json(conn):
+    """A participant frame: bytes parsed as JSON (no pickle, nothing executes while it is read)."""
+    return json.loads(conn.recv_bytes(MAX_FRAME))
+
+
+def _request(msg):
+    """(op, args, kwargs) of a participant frame, or None when it is not of that shape."""
+    if not (isinstance(msg, list) and len(msg) == 3 and isinstance(msg[0], str) and isinstance(msg[1], list)
+            and isinstance(msg[2], dict) and all(isinstance(k, str) for k in msg[2])):
+        return None
+    return msg[0], tuple(msg[1]), msg[2]
 
 
 def _serve(ref: dict, part, ev) -> None:
@@ -40,55 +84,83 @@ def _serve(ref: dict, part, ev) -> None:
     try:
         env = make(int(ref["tier"]), str(ref["name"]), int(ref.get("seed", 0)), ref.get("reward_mode"),
                    **dict(ref.get("kw") or {}))
-        part.send(("ready", None))
+        _send_json(part, ["ready", None])
     except Exception as e:  # noqa: BLE001 - reported to the parent, then the child exits
-        part.send(("error", f"{type(e).__name__}: {e}"))
+        _send_json(part, ["error", f"{type(e).__name__}: {e}"])
         return
     conns = [part, ev]
+
+    def reply(c, status, out):
+        if c is part:
+            try:
+                _send_json(c, [status, out])
+            except (TypeError, ValueError) as e:
+                _send_json(c, ["error", f"the reply is not JSON: {e}"])
+        else:
+            c.send((status, out))
     while conns:
         for c in wait(conns):
             try:
-                msg = c.recv()
+                if c is part:
+                    req = _request(_recv_json(c))
+                    if req is None:
+                        reply(c, "error", "a request is a JSON list [op, args, kwargs]")
+                        continue
+                    op, args, kw = req
+                else:
+                    op, args, kw = c.recv()
             except EOFError:
                 conns.remove(c)
                 if c is ev:                 # the evaluator went away: the world ends
                     conns = []
                 continue
-            op, args, kw = msg
+            except (ValueError, OSError) as e:      # not JSON, too large: refused, never evaluated
+                reply(c, "error", f"malformed request: {type(e).__name__}")
+                continue
             allowed = PARTICIPANT_OPS if c is part else EVALUATOR_OPS
             if op not in allowed:
-                c.send(("error", f"{op!r} is not available on this side (allowed: {list(allowed)})"))
+                reply(c, "error", f"{op!r} is not available on this side (allowed: {list(allowed)})")
                 continue
             try:
                 if op == "close":
                     env.close()
-                    c.send(("ok", None))
+                    reply(c, "ok", None)
                     conns = []
                     break
                 attr = getattr(env, op)
                 out = attr(*args, **kw) if callable(attr) else attr
-                c.send(("ok", out))
+                reply(c, "ok", out)
             except Exception as e:  # noqa: BLE001 - an environment error goes back to the caller
-                c.send(("error", f"{type(e).__name__}: {e}\n{traceback.format_exc(limit=3)}"))
+                reply(c, "error", f"{type(e).__name__}: {e}" + ("" if c is part else
+                                                                  f"\n{traceback.format_exc(limit=3)}"))
 
 
 class _Side:
+    _json = False
+
     def __init__(self, conn, ops: tuple):
         self._conn = conn
         self._ops = ops
 
+    def _exchange(self, op: str, args, kw):
+        if self._json:
+            _send_json(self._conn, [op, list(args), dict(kw)])
+            return tuple(_recv_json(self._conn))
+        self._conn.send((op, args, kw))
+        return self._conn.recv()
+
     def _call(self, op: str, *args, **kw) -> Any:
         if op not in self._ops:
             raise RemoteError(f"{op!r} is not available on this side")
-        self._conn.send((op, args, kw))
-        status, out = self._conn.recv()
+        status, out = self._exchange(op, args, kw)
         if status != "ok":
             raise RemoteError(out)
         return out
 
 
 class RemoteParticipant(_Side):
-    """The learner's handle: the participant protocol of `ExperienceEnv` and nothing else."""
+    """The learner's handle: the participant protocol of `ExperienceEnv` and nothing else (JSON frames)."""
+    _json = True
 
     def agents(self) -> list[str]:
         return self._call("agents")
@@ -126,8 +198,7 @@ class RemoteParticipant(_Side):
 
     def _raw(self, op: str, *args, **kw):
         """Send any request on the participant pipe (for tests that try what a participant may not do)."""
-        self._conn.send((op, args, kw))
-        return self._conn.recv()
+        return self._exchange(op, args, kw)
 
 
 class RemoteEvaluator(_Side):
@@ -169,7 +240,7 @@ def host(ref: dict, timeout: float = 300.0) -> tuple[RemoteParticipant, RemoteEv
     if not p_parent.poll(timeout):
         proc.terminate()
         raise RemoteError("the environment process did not start in time")
-    status, msg = p_parent.recv()
+    status, msg = _recv_json(p_parent)
     if status != "ready":
         proc.join(timeout=10)
         raise RemoteError(f"the environment process failed: {msg}")

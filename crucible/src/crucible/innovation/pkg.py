@@ -219,15 +219,28 @@ class Packages(Module):
         return out
 
     def _exercised(self, ctx, repo: str, files: dict, job: dict, principal: str, base: dict, label: str,
-                   replies: list | None = None) -> list[str]:
-        """Packages whose ablation changes a successful outcome (both outcomes observed by the parent). World calls
-        of an ablated run are answered from the first run's recorded replies, in order (a different call is
-        refused), so nothing happens twice in the world; at most MAX_ABLATE packages are ablated."""
+                   replies: list | None = None, info: dict | None = None) -> list[str]:
+        """Packages whose ablation changes a successful, reproducible outcome (all outcomes observed by the parent).
+        World calls of an ablated run are answered from the first run's recorded replies, in order (a different call
+        is refused), so nothing happens twice in the world; at most MAX_ABLATE packages are ablated.
+
+        Control (workstream O): one more run with nothing ablated, at a position among the ablated runs drawn from
+        the world's RNG (the program cannot tell which rerun is the control). An outcome that does not reproduce
+        without ablation (clock, process id, working directory, random numbers) says nothing about any dependency
+        and credits none - otherwise every locked package of a nondeterministic program would count as adopted
+        without being used. `info` receives {reproducible, control_position, ablated}."""
         from ..core.canonical import digest as _dg
         st = ctx.state
         out = []
         base_key = _dg(self._outcome(base))
-        for _, (name, _) in sorted(self.closure(st, repo).items())[:MAX_ABLATE]:
+        names = [name for _, (name, _) in sorted(self.closure(st, repo).items())[:MAX_ABLATE]]
+        if not names:
+            return out
+        pos = int(ctx.world.rng_for("pkg.ablation.control", ctx.world.main_seq, label, repo).integers(0, len(names) + 1))
+        order: list = list(names)
+        order.insert(pos, None)
+        reproducible = True
+        for name in order:
             seq = list(replies or [])
 
             def replay(tool, args, _seq=seq):
@@ -236,12 +249,18 @@ class Packages(Module):
                     return ok, val
                 _seq.clear()
                 return False, {"code": "forbidden", "message": "world calls are replayed during ablation"}
-            o2 = self._run(ctx, self._ablate(st, files, name), job, principal, label + ".ablate",
+            tree = files if name is None else self._ablate(st, files, name)
+            o2 = self._run(ctx, tree, job, principal, label + (".control" if name is None else ".ablate"),
                            world_access=replies is not None, timeout=10.0,
                            rpc_fn=replay if replies is not None else None)
-            if _dg(self._outcome(o2)) != base_key:
+            differs = _dg(self._outcome(o2)) != base_key
+            if name is None:
+                reproducible = not differs
+            elif differs:
                 out.append(name)
-        return out
+        if info is not None:
+            info.update(reproducible=reproducible, control_position=pos, ablated=len(names))
+        return out if reproducible else []
 
     @staticmethod
     def _outcome(o: dict):
@@ -643,8 +662,10 @@ class Packages(Module):
         out = self._run(ctx, files, job, ctx.actor, "pkg.exec", world_access=True, rpc_results=replies)
         code.charge_compute(ctx, ctx.actor, out["cpu_ms"], f"pkg.exec {repo}")
         res = out["result"] if out["ok"] and isinstance(out["result"], dict) else {}
-        ex = self._exercised(ctx, repo, files, job, ctx.actor, out, "pkg.exec", replies) if out["ok"] else []
-        eid, by_pkg = self._record_exec(ctx, repo, commit, "exec", out["ok"], res.get("calls"), exercised=ex)
+        info: dict = {}
+        ex = self._exercised(ctx, repo, files, job, ctx.actor, out, "pkg.exec", replies, info) if out["ok"] else []
+        eid, by_pkg = self._record_exec(ctx, repo, commit, "exec", out["ok"], res.get("calls"),
+                                        {"reproducible": info.get("reproducible")} if info else None, exercised=ex)
         return {"execution": eid, "ok": out["ok"], "result": res.get("result"), "error": out["error"],
                 "exercised": ex, "cpu_ms": out["cpu_ms"]}
 
@@ -662,12 +683,14 @@ class Packages(Module):
         res = self._ci(ctx, files, ctx.actor)
         code.charge_compute(ctx, ctx.actor, res["cpu_ms"], f"pkg.ci {repo}")
         ok = res["failed"] == 0 and res["passed"] > 0
+        info: dict = {}
         ex = self._exercised(ctx, repo, files, {"kind": "call", "target": "_pkgharness:tests", "args": {},
                                                 "caller": ctx.actor}, ctx.actor,
                              {"ok": True, "result": {"results": res["results"], "passed": res["passed"]}},
-                             "pkg.ci") if ok else []
+                             "pkg.ci", None, info) if ok else []
         eid, by_pkg = self._record_exec(ctx, repo, commit, "ci", ok, res.get("calls"),
-                                        {"tests": {"passed": res["passed"], "failed": res["failed"]}}, exercised=ex)
+                                        {"tests": {"passed": res["passed"], "failed": res["failed"]},
+                                         **({"reproducible": info.get("reproducible")} if info else {})}, exercised=ex)
         return {"execution": eid, "ok": ok, "passed": res["passed"], "failed": res["failed"],
                 "results": res["results"][:20], "exercised": ex}
 

@@ -1,6 +1,7 @@
 {
  "workstream": "O",
- "branch": "c5c/w1-sec",
+ "branch": "c5c/w3-sec",
+ "base": "feat/crucible-5-complete @ 87a6c54 (wave-1 and wave-2a merged); continues c5c/w1-sec",
  "requirements": {
   "W.1": {
    "implementation_files": [
@@ -10,77 +11,81 @@
     "src/crucible/sandbox/bridge.py",
     "src/crucible/sandbox/jail.py",
     "src/crucible/sandbox/isolation.py",
-    "src/crucible/redteam/v5/sandbox.py"
+    "src/crucible/redteam/v5/sandbox.py",
+    "src/crucible/redteam/v5/network.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py::test_W1_sandbox",
     "tests/test_v5_security_sandbox.py",
     "tests/test_sandbox.py"
    ],
-   "status_claim": "criteria met in an unofficial run on this branch: sandbox_tests_passed 38 (31-check escape matrix + 7 held W.1 probes), sandbox_escapes 0",
-   "notes": "Isolation (uid, Landlock ABI 4, seccomp) unchanged and re-verified. New: parent-side metering, quiescence (threads outliving a job, idle work), directory quota, per-tenant uids, host paths scrubbed, jailed FFmpeg/SoX/Chromium. Process isolation only: no gVisor/bwrap/KVM on this host (backends.detect)."
+   "status_claim": "NOT met (unofficial runs on the integrated tree and on a civ-fixed scratch tree): sandbox_tests_passed 38, sandbox_escapes 2, both KNOWN_OPEN owner C - the social studio starts FFmpeg/SoX on participant bytes unjailed (4-7 of 7-10 media launches at the participant call sites) and Pillow decodes participant images inside the world process (14 decodes)",
+   "notes": "Escape matrix (31 checks) and every limit/tenant/host-path probe hold. New call-site probes observe every subprocess the world process starts (CPython audit events) and Pillow's ImageFile.load in the world process (sys.monitoring) instead of testing the jail in isolation only. Jailed drop-ins for the owners: crucible.sandbox.isolation.run (one call in social/render.run_tool) and isolation.decode_image (Pillow in the jail, identical pixels, ~200 ms per image). social/ was frozen for the integration fix this wave, so O did not wire them."
   },
   "W.2": {
    "implementation_files": [
     "src/crucible/redteam/v5/isolation.py",
-    "src/crucible/goals/metrics.py",
-    "src/crucible/calibration/__init__.py"
+    "src/crucible/experience/remote.py",
+    "src/crucible/redteam/v5/civ.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py::test_W2_evaluator_isolation"
    ],
-   "status_claim": "NOT met: evaluator_leaks 1 (in-process learner reaches the Tier 1 grader's hidden configuration, owner L, high)",
-   "notes": "Fixed and holding: v5 static reachability over 85 world roots with Python import semantics (calibration downloader off the world import path), sandboxed code cannot import or read evaluator code, evaluator metrics (MRR/ARR/independent revenue...) refused in in-world predicates, 2470 population private-trait canaries not readable. Low structural finding: Tier 1 engines reach rapid.oracles through rapid/__init__ (owner H, no participant path)."
+   "status_claim": "NOT met: evaluator_leaks 1 (KNOWN_OPEN v5.isolation.in_process_learner_reads_hidden_grader, owner L); on the integrated tree also an error of the civilisation probe until civ.generate is fixed",
+   "notes": "Fixed this wave: experience.remote (L's out-of-process evaluation path) unpickled whatever the learner sent on its participant pipe; a learner holding only the participant handle ran code in the hosted world and read the Tier 1 grader's hidden rule and 50-record holdout (probe v5.isolation.remote_participant_cannot_run_code_in_the_world: critical leak before, held after; the participant pipe now carries bounded JSON frames). The in-process ExperienceEnv stays readable by construction; the entry closes when evaluation entry points host evaluated learners through remote.host and keep the evaluator handle out of the learner's process."
   },
   "W.3": {
    "implementation_files": [
     "src/crucible/redteam/v5/*.py",
     "src/crucible/sandbox/metering.py",
+    "src/crucible/sandbox/runner.py",
     "src/crucible/innovation/pkg.py",
     "src/crucible/rapid/engines/program_exec.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py::test_W3_reward_hacking"
    ],
-   "status_claim": "NOT met: reward_hack_probes 27 (>= 20), open_critical_high_reward_hacks 4 (F x3: partial refund keeps ARR, circular revenue through commitment escrow and project rewards; L: legacy reward is the default)",
-   "notes": "All metering/Tier 1/cloud-capacity/adoption hacks of the audits now hold (audit O P4/P5/P6, G S1/S2/5.1)."
+   "status_claim": "met in unofficial runs (integrated tree and civ-fixed scratch tree): reward_hack_probes 32 (>= 20), open_critical_high_reward_hacks 0",
+   "notes": "Closed this wave, each with a probe that found it before the fix and holds after: module-level work ran unbilled at load time (40 ms honest -> 0.08 ms; up to 250 ms free per cold start); a dead worker was reaped before its CPU clock was read (work delivered through a world call, then SIGKILL: billed 0 ms); work after a forged completion followed by exit in pooled service workers went unbilled; nondeterministic dependents credited every locked package as adopted. Owners closed F's escrow / project-reward / partial-refund / rebate findings and L's observation-only default (re-verified from each probe's evidence)."
   },
   "W.4": {
    "implementation_files": [
-    "src/crucible/social/integrity.py",
     "src/crucible/innovation/pkg.py",
+    "src/crucible/redteam/v5/innovation.py",
     "src/crucible/redteam/v5/social.py",
     "src/crucible/redteam/v5/commerce.py",
-    "src/crucible/redteam/v5/innovation.py"
+    "src/crucible/social/integrity.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py::test_W4_metric_manipulation"
    ],
-   "status_claim": "NOT met: metric_manipulation_probes 19 (>= 5), open_metric_manipulations 7 (F x5, C sybil-with-footprint limit, G source-inspection limit of ablation)",
-   "notes": "Held: audience counter writes, own-organisation follows, sybil rings, paid engagement, adoption by tracer write / shadow file / existence check, no metric-writing tools among 307."
+   "status_claim": "NOT met: metric_manipulation_probes 20 (>= 5), open_metric_manipulations 2 (KNOWN_OPEN medium: G adoption by reading the package source, C sybils with a fake footprint), plus the civilisation probe error until the civ fix",
+   "notes": "The merge 3381a5d renamed the adoption counter (calls -> executions / self_reported_calls) while the adoption probes kept reading 'calls': every adoption probe held vacuously and the honest control reported a false failure. Verdicts now read the parent-decided records and the evaluator's measure.adoptions_by_execution with labelled (independent) personas. Ablation gained an unablated control rerun at an RNG-drawn position (pkg._exercised): an unreproducible outcome credits nothing (probe v5.innovation.adoption_by_nondeterministic_output). The owner-funded-ratings probe now records its rating calls (a refusal for an unrelated reason would have made it vacuous)."
   },
   "W.5": {
    "implementation_files": [
     "src/crucible/redteam/v5/crossworld.py",
+    "src/crucible/redteam/v5/civ.py",
     "src/crucible/services/code.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py::test_W5_cross_world"
    ],
-   "status_claim": "criteria met in an unofficial run: cross_world_leaks 0 over 4 probes (+ tenant uid probe)",
-   "notes": "Artifact pool existence oracle, worker state, meter memo scope, tenant uids and pools per world, replay with another world present. _POOL eviction is measured under W.7."
+   "status_claim": "met on the civ-fixed scratch tree (cross_world_leaks 0); fails on the integrated tree only because the civilisation probe errors until civ.generate works",
+   "notes": "Two civilisations of different profiles in one process: no read by REF, no existence oracle. A's _POOL eviction holds (entry removed from KNOWN_OPEN)."
   },
   "W.6": {
    "implementation_files": [
     "src/crucible/services/code.py",
     "src/crucible/services/cloud.py",
-    "src/crucible/sandbox/bridge.py"
+    "src/crucible/sandbox/bridge.py",
+    "src/crucible/sandbox/runner.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py::test_W6_accounting"
    ],
-   "status_claim": "criteria met in an unofficial run: accounting_violations 0 over 10 probes",
-   "notes": "The 4.0 post-check misses metering breaks (skeptic S.1); these probes compare against out-of-band honest runs and ledger facts."
+   "status_claim": "met in unofficial runs: accounting_violations 0",
+   "notes": "Meter probes compare against three honest runs on distinct inputs (the deterministic memo billed repeated identical honest runs with one, possibly contention-inflated, measurement: one false finding in a gate run before)."
   },
   "W.7": {
    "implementation_files": [
@@ -90,33 +95,33 @@
    "tests": [
     "tests/v5/test_gate_W.py::test_W7_resource_limits"
    ],
-   "status_claim": "NOT met: resource_limit_escapes 1 (closed store-less worlds' bytes stay in substrate/artifacts._POOL; owner A, adding eviction)",
-   "notes": "Held: disk/inode quota, memory/CPU/time/thread limits, threads outliving requests, Tier 1 memory channel."
+   "status_claim": "met in unofficial runs: resource_limit_escapes 0",
+   "notes": "A predecessor's background work (pool debt) is billed with the next job without killing the fresh worker (it used to fail an honest request)."
   },
   "W.8": {
    "implementation_files": [
     "src/crucible/sandbox/jail.py",
     "src/crucible/sandbox/isolation.py",
-    "src/crucible/semantic/media.py",
-    "src/crucible/web/browser.py",
-    "src/crucible/redteam/v5/network.py"
+    "src/crucible/redteam/v5/network.py",
+    "src/crucible/redteam/v5/civ.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py::test_W8_network"
    ],
-   "status_claim": "criteria met in an unofficial run: network_escapes 0 over 5 probes",
-   "notes": "Guarded population and social worlds; jailed FFmpeg/SoX with a permissive whitelist and jailed Chromium (fetch, WebSocket, WebRTC, file://) against a loopback canary; sandbox sockets."
+   "status_claim": "met on the civ-fixed scratch tree (network_escapes 0); fails on the integrated tree only because the civilisation probe errors until the civ fix",
+   "notes": "A generated civilisation runs 6 h under the process guard while an agent fetches hostile URLs: 0 attempts (net.fetch answers 502 'only *.crucible hosts exist')."
   },
   "W.9": {
    "implementation_files": [
     "src/crucible/redteam/v5/private.py",
-    "src/crucible/redteam/v5/population.py"
+    "src/crucible/redteam/v5/population.py",
+    "src/crucible/redteam/v5/civ.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py::test_W9_private_state"
    ],
-   "status_claim": "criteria met in an unofficial run: private_state_leaks 0 over 6 probes",
-   "notes": "DMs, members-only items, drafts, private communities (1692 calls), population private columns (2470 canaries), cross-world artifacts, artifact existence oracles."
+   "status_claim": "met on the civ-fixed scratch tree (private_state_leaks 0; 2,462 population canaries in a civilisation, 2,500 calls, 675 kB read); fails on the integrated tree only because of the civilisation probe errors",
+   "notes": ""
   },
   "W.n1": {
    "implementation_files": [
@@ -126,64 +131,107 @@
    "tests": [
     "tests/v5/test_gate_W.py::test_Wn1_independent_adversarial_review"
    ],
-   "status_claim": "met in an unofficial run: 2 reviews (independent auditor + skeptic of area O); every finding closed has a held probe (suite.FIXED, 18 entries), every open one a probe (suite.KNOWN_OPEN, 12 entries)",
-   "notes": "The audit report is copied unchanged from the c5-complete worktree into docs/v5/audit/O_security.md so the gate can read it."
+   "status_claim": "met in unofficial runs: 2 reviews; every closed finding has a held probe (suite.FIXED 23, FIXED_BY_OWNERS 7), every open one a probe (KNOWN_OPEN 7)",
+   "notes": ""
   },
   "SP-16": {
    "implementation_files": [
     "src/crucible/hosting.py",
     "src/crucible/realworld/bridge.py",
-    "src/crucible/cli.py",
-    "src/crucible/api/http_server.py",
-    "src/crucible/api/mcp_server.py",
-    "src/crucible/experience/__main__.py",
-    "src/crucible/web/app.py",
-    "src/crucible/scale/pool.py"
+    "src/crucible/redteam/v5/network.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_16.py"
    ],
-   "status_claim": "criteria met in an unofficial run: realworld_enabled_by_default false, public_network_reachable_from_world false; latch engaged at 6/6 world-hosting entry points, unauthorised GET and POST refused, block and message rate limit enforced, moderation tools present, fabricated engagement excluded",
-   "notes": "The latch was inert before (zero call sites, skeptic S.3)."
+   "status_claim": "met in unofficial runs: realworld_enabled_by_default false, public_network_reachable_from_world false",
+   "notes": "The network measure uses only the W.8 probes (the media call-site probes of the same module measure sandboxing, SP-16b)."
+  },
+  "SP-16b": {
+   "implementation_files": [
+    "src/crucible/experience/remote.py",
+    "src/crucible/sandbox/isolation.py",
+    "src/crucible/redteam/v5/network.py",
+    "src/crucible/social/integrity.py",
+    "src/crucible/commerce/integrity.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_16b.py"
+   ],
+   "status_claim": "NOT met: integrity_mechanisms 5 (>= 4), realworld_abuse_paths 0 over 13 checks, cross_tenant_isolation_failures 0 over 5 checks, out_of_process_evaluation_mode true (Tier 1 and a 4.0 kernel world hosted, verified, evaluator operations refused, the pipe runs nothing it receives); unrestricted_media_tool_runs 18 (4 unjailed studio FFmpeg/SoX launches + 14 in-process Pillow decodes; owners C/D)",
+   "notes": "New gate test (D-22 requirement). Strict counting: an in-process decode of participant image bytes counts as an unrestricted media run."
+  },
+  "SP-16c": {
+   "implementation_files": [
+    "src/crucible/sandbox/metering.py",
+    "src/crucible/sandbox/runner.py",
+    "src/crucible/sandbox/boot.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/redteam/v5/isolation.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_16c.py"
+   ],
+   "status_claim": "NOT met: hidden_answer_probe_kinds 4 (Tier 1 holdout: 54 canaries over 38 participant texts; capability test splits; verification seeds; sealed sets), agent_reported_metering_trusted 0 (17 metering probes held, boot.py counts nothing), v4_redteam_tests_passing true; hidden_answers_extracted 1 = the open in-process learner object graph (owner L)",
+   "notes": "New gate test (D-22 requirement)."
+  },
+  "SP-15.8": {
+   "implementation_files": [],
+   "tests": [],
+   "status_claim": "NOT started by O this wave (depends on U; no gate test file)",
+   "notes": "Needs the generalisation evaluator's adversarial-learner controls (process-memory stashes, files outside the checkpoint, generator calibration shortcuts)."
   }
  },
  "limitations": [
-  "Metering is real CPU time: fresh runs in different processes agree only up to measurement noise; the deterministic memo makes forks and reruns exact within a process and lets a stateful program hide up to 3x + 1 ms of repeated identical work (KNOWN_OPEN low).",
-  "Work-unit scale (350 ns per unit) is calibrated on the reference need solvers on this host; C-heavy code now costs its real CPU (it was free under the line model).",
-  "Package adoption by ablation cannot tell output that depends on reading the package's files from real use (KNOWN_OPEN medium); a per-dependency RPC boundary would.",
-  "Engagement integrity is state-based: colluding agents with distinct controllers, own funding and a token footprint pass as organic (KNOWN_OPEN medium).",
-  "Chromium runs with --no-sandbox inside the jail (no user namespaces or setuid helper in this container); browser mode for the agent browser allows IPv4 TCP connect to the world app's port on any address (Landlock rules are per port, not per address); abstract AF_UNIX sockets are not scoped (Landlock ABI 4).",
-  "Process-level isolation only (shared kernel); no VM-grade backend available on this host.",
-  "Gate W tests assert the manifest criteria as written; W.2, W.3, W.4 and W.7 fail until the owners close the KNOWN_OPEN entries."
+  "Metering is real CPU time: fresh runs in different processes agree only up to measurement noise (40-105 ms observed for the same 300k-iteration loop on this shared host); the deterministic memo makes forks and reruns exact within a process and lets a stateful program hide up to 3x + 1 ms of repeated identical work (KNOWN_OPEN low).",
+  "Load-time allowance: up to 3 ms of a program's own module-level work per cold start is unbilled; imports the parent's text scan misses (computed __import__) are billed as the program's load work.",
+  "Adoption by ablation cannot tell output that depends on reading the package's files (or inspecting the ablation stub) from real use; a program wrong on purpose in a random subset of reruns is credited with probability 1/(k+1) despite the control rerun (KNOWN_OPEN medium, G). Such a dependent gains nothing honest trivial use would not.",
+  "Engagement integrity is state-based: colluding agents with distinct controllers, own funding and a token footprint pass as organic (KNOWN_OPEN medium, C).",
+  "Chromium runs with --no-sandbox inside the jail; the agent browser may connect over IPv4 TCP to the world app's port on any address; abstract AF_UNIX sockets are not scoped (Landlock ABI 4).",
+  "experience.remote isolates the world from a learner only if the learner's process does not also hold the evaluator handle; same-uid processes are not isolated from each other below that.",
+  "Process-level isolation only (shared kernel); no VM-grade backend on this host.",
+  "Civilisation and Tier 2 probes error on the integrated tree until civ.generate works ('space' dependency); verified on a scratch copy with c5c/w3-intfix applied. No Tier 2 domain is registered yet, so the Tier 2 probe set is empty (it grows with crucible.domains.REGISTRY).",
+  "Gate W/SP tests assert the manifest criteria as written; W.1, W.2, W.4, SP-16b and SP-16c fail until the owners close their KNOWN_OPEN entries."
  ],
  "integration_notes": [
-  "D-20 changes the sandbox contract: Worker.run returns parent-measured cpu_ms and (count_lines) parent-derived work_lines plus a 'meter' dict; boot.py no longer counts lines or reports CPU; a 'load' op runs before the first job of a target. Consumers updated minimally: services/code.py (clamp, per-world meter_scope + tenant), services/cloud.py (clamp cu), innovation/caps.py (clamp mean_cpu_ms), rapid/engines/program_exec.py (comment + clamp), sandbox/bridge.py (billed_cpu_ms, rpc_fn/rpc_results).",
-  "tests/test_hardening.py::test_deterministic_cost_of_a_request_does_not_depend_on_whether_the_worker_is_fresh and tests/test_sandbox.py::test_deterministic_work_accounting were rewritten to the D-20 contract (exact line arithmetic no longer exists).",
-  "G (innovation/pkg.py): pkg.exec/pkg.ci adoption now comes from parent-side ablation (_ablations: each locked package's files replaced by stubs that fail on import, world calls replayed from the first run's replies); the in-child tracer TRACE_PY was removed (harness _pkgharness.py). 'calls' per package = number of dependent outcomes. Advisory and lineage forgeries (G 5.1) remain G's.",
-  "F: goals/metrics.EVALUATOR_ONLY_METRICS makes check_predicate_scope refuse mrr_cents, arr_cents, active_subscriptions, independent_customers, churn_rate, profit_cents, one_time_revenue_cents, independent_revenue, revenue_from in contracts/charters/commitments; F's own test using evaluate_predicate directly is unaffected. KNOWN_OPEN owned by F: partial refunds keep ARR (K.3's test asserts it), escrow releases (commit, inst projects) not netted, 45% rebates, owner-funded ratings. F should expose a booked MRR for charters.",
-  "E (calibration/__init__.py): acquire/datasets are lazy module exports so world code importing the package for load() never loads the urllib downloader.",
-  "D/C (semantic/media.py run_tool and _render_html_chromium, web/browser.py BrowserSession): tools and Chromium run through sandbox/isolation (jail uid, Landlock, seccomp); they fail closed if the jail is unavailable unless CRUCIBLE_ALLOW_UNJAILED_TOOLS=1. Hard-linked Chromium copy under /var/tmp/crucible-jail.",
-  "C: social/integrity.py (evaluator side) provides organic_counts/classify and evaluator-only metrics organic_followers/organic_engagement (registered on import). Recommenders could discount the same classes (platform-level abuse prevention).",
-  "A: the W.7 probe v5.crossworld.closed_worlds_release_their_bytes looks for an eviction API in substrate/artifacts (evict_closed / evict / release_world / gc_pool / collect) and the bytes of closed worlds in _POOL; remove its KNOWN_OPEN entry once eviction lands.",
-  "L: KNOWN_OPEN v5.experience.observation_only_is_the_default and v5.isolation.in_process_learner_reads_hidden_grader (needs an out-of-process learner path).",
-  "H: rapid/__init__.py eagerly imports admission -> references -> oracles; engines import the package (low).",
-  "Entry points (cli.main, api.http_server.main, api.mcp_server.main, experience.__main__.main, web.app.main, scale.pool._worker_main) call crucible.hosting.engage first; tests/test_realworld_gate.py has an autouse fixture clearing the latch for its bridge tests.",
-  "docs/v5/audit/O_security.md is a verbatim copy of the independent review from the c5-complete worktree (needed by test_Wn1)."
+  "C (social/render.py, frozen for O this wave): run_tool should start tools through crucible.sandbox.isolation.run(list(argv), cwd=cwd, timeout=TIMEOUT_S, preexec_fn=_limits, env={...}) - one call returning the same CompletedProcess - as semantic/media.run_tool is jailed. open_image / formats.inspect (and D's semantic/media.open_image) can decode with isolation.decode_image(data, max_pixels=...) and build the image with PIL.Image.frombytes(mode, size, raw); pixels are identical (tested for PNG/JPEG/GIF/WebP). Then remove KNOWN_OPEN v5.network.media_tools_at_participant_call_sites_are_jailed and v5.network.image_decoders_run_outside_the_world_process.",
+  "L (experience/remote.py): the participant pipe uses bounded JSON frames both ways (send_bytes/recv_bytes + json; numpy scalars and sets converted); RemoteParticipant._raw still returns (status, out); the evaluator pipe keeps pickles. tests/v5/test_gate_OO.py::test_OO4 passes its remote assertions (it fails only on tiers_covered, unchanged). To close KNOWN_OPEN v5.isolation.in_process_learner_reads_hidden_grader, route evaluated learners through remote.host and keep the evaluator handle out of their process.",
+  "G (innovation/pkg.py, minimal edit): _exercised(..., info) adds an unablated control rerun at a position drawn from world.rng_for('pkg.ablation.control', main_seq, label, repo); exec/ci records carry 'reproducible'; an unreproducible outcome credits no package (one more sandbox run per pkg.exec/pkg.ci with dependencies). Advisory note for G 5.1: a reproduction whose test sniffs the package's file content fails on one release and passes on the next that changes the file, so it 'verifies' against a competitor's release; a control rerun plus requiring the failure to be raised from the package's frames would narrow it.",
+  "Sandbox contract (all consumers): load-time work beyond metering.LOAD_FREE_NS (3 ms, was 250 ms) is billed; boot.py preloads the trusted modules the parent's text scan finds (runner.preload_list: curated stdlib list and approved packages, at most 32) before the first job with the working directory off sys.path. Results must be JSON-native (NaN/Infinity refused by the boot module and the parent; hostile protocol bytes fail the job instead of raising in the parent). Worker.alive() no longer reaps; Worker.exited() and Worker.idle_cpu_ns() are new; WorkerPool bills an exited idle worker's work to the next job of its key without killing the fresh worker.",
+  "A/J: red-team world kinds 'civ' (civ.spec(profile, seed, population)) and 'tier2' (domains.spec(domain, config, seed)); crucible.redteam.v5.civ probes error (never skip) until civ.generate works; with c5c/w3-intfix applied all four civilisation probes hold and W.5/W.8/W.9 pass.",
+  "SP-16 test: the network measure uses only the W.8 probes of redteam.v5.network.",
+  "Ratchet: KNOWN_OPEN lost 7 entries fixed by their owners (F x5, L observation-only default, A pool eviction; suite.FIXED_BY_OWNERS with the probes that hold) and gained 2 (C media call sites, C/D in-process decoders); test_Wn1 checks FIXED and FIXED_BY_OWNERS."
  ],
  "test_results_unofficial": {
-  "tests/v5/test_gate_W.py + tests/v5/test_gate_SP_16.py": "7 passed (W.1, W.5, W.6, W.8, W.9, W.n1, SP-16), 4 failed on the manifest criteria only (W.2, W.3, W.4, W.7: KNOWN_OPEN items owned by L, F, C, G, A, H; ratchet clean)",
-  "v5 red team catalogue": "59 probes in ~35 s: 47 held, 12 findings, all in KNOWN_OPEN, 0 errors, 0 not applicable",
-  "tests/test_kernel.py tests/test_invariants.py tests/test_sandbox.py tests/test_v5_security_*.py": "71 passed",
-  "tests/test_hardening.py tests/test_open_security.py tests/test_realworld_gate.py tests/test_engineering_lab.py": "91 passed",
-  "tests/test_redteam.py tests/test_usefulness.py tests/test_goals.py": "71 passed",
-  "tests/test_entry.py tests/test_tooling.py tests/test_taskgen.py": "29 passed",
-  "tests/test_behavior.py": "35 passed",
-  "tests/test_v5_innovation_{caps,needs,pkg}.py tests/test_v5_semantic_media.py": "34 passed",
-  "tests/test_v5_semantic_media_world.py": "passed (16 with media)",
-  "tests/test_v5_commerce_{modules,institutions,contracts,labor}.py": "56 passed",
-  "tests/test_internet_adversarial.py tests/test_web.py tests/test_v5_social_recsys.py": "23 passed",
-  "tests/test_internet.py tests/v5/test_gate_C.py -k C_6": "passed (jailed browser)",
-  "tests/test_v5_calibration_core.py": "22 passed",
-  "pre-existing failures (identical at base 7c29c75)": "test_v5_rapid_engines (3), test_v5_rapid_families::test_registry_entries_carry_the_contract_fields, test_discovery::test_help_is_reference_material_without_guidance, test_v5_calibration_software (1 failed + 6 errors: extracted data absent)"
+  "tests/v5/test_gate_W.py + test_gate_SP_16.py (integrated tree)": "5 passed (W.3, W.6, W.7, W.n1, SP-16), 6 failed (W.1: C media KNOWN_OPEN; W.2, W.4, W.5, W.8, W.9: civilisation probe errors until the civ fix, plus KNOWN_OPEN of L/G/C)",
+  "tests/v5/test_gate_W.py (scratch copy = this branch + c5c/w3-intfix)": "7 passed (W.3, W.5, W.6, W.7, W.8, W.9, W.n1), 3 failed on KNOWN_OPEN only (W.1 C; W.2 L; W.4 G, C)",
+  "tests/v5/test_gate_SP_16b.py": "1 failed on unrestricted_media_tool_runs only (other four criteria met)",
+  "tests/v5/test_gate_SP_16c.py": "1 failed on hidden_answers_extracted only (other three criteria met)",
+  "v5 red team catalogue": "71 probes (4 civilisation probes error on the integrated tree), KNOWN_OPEN 7",
+  "tests/test_kernel.py test_invariants.py test_sandbox.py test_hardening.py test_open_security.py test_realworld_gate.py test_v5_security_sandbox.py test_v5_security_redteam.py": "123 passed",
+  "tests/test_v5_innovation_{caps,needs,pkg}.py test_v5_experience_{core,oo}.py": "43 passed, 1 failed (test_v5_experience_oo::test_evaluator_tools_are_hidden_and_refused_in_observation_only_and_kept_in_legacy: inst.adopt refuses evaluator metrics in legacy mode too; code untouched by this branch, L's c5c/w3-obs changes the test)",
+  "tests/test_v5_rapid_engines.py test_engineering_lab.py": "191 passed, 1 failed (batch path vs single worlds for net_hidden_bottleneck_swap; pre-existing, H's c5c/w3-rapid fixes it)",
+  "tests/test_v5_semantic_media.py test_redteam.py": "21 passed",
+  "tests/test_usefulness.py test_goals.py test_entry.py test_tooling.py test_internet_adversarial.py test_web.py": "104 passed",
+  "tests/test_behavior.py test_v5_commerce_modules.py": "57 passed",
+  "tests/v5/test_gate_OO.py -k OO4": "remote assertions pass; fails on tiers_covered 2 == 3 (no Tier 2 domain registered; unchanged)"
+ },
+ "previous": {
+  "branch": "c5c/w1-sec",
+  "test_results_unofficial": {
+   "tests/v5/test_gate_W.py + tests/v5/test_gate_SP_16.py": "7 passed (W.1, W.5, W.6, W.8, W.9, W.n1, SP-16), 4 failed on the manifest criteria only (W.2, W.3, W.4, W.7: KNOWN_OPEN items owned by L, F, C, G, A, H; ratchet clean)",
+   "v5 red team catalogue": "59 probes in ~35 s: 47 held, 12 findings, all in KNOWN_OPEN, 0 errors, 0 not applicable",
+   "tests/test_kernel.py tests/test_invariants.py tests/test_sandbox.py tests/test_v5_security_*.py": "71 passed",
+   "tests/test_hardening.py tests/test_open_security.py tests/test_realworld_gate.py tests/test_engineering_lab.py": "91 passed",
+   "tests/test_redteam.py tests/test_usefulness.py tests/test_goals.py": "71 passed",
+   "tests/test_entry.py tests/test_tooling.py tests/test_taskgen.py": "29 passed",
+   "tests/test_behavior.py": "35 passed",
+   "tests/test_v5_innovation_{caps,needs,pkg}.py tests/test_v5_semantic_media.py": "34 passed",
+   "tests/test_v5_semantic_media_world.py": "passed (16 with media)",
+   "tests/test_v5_commerce_{modules,institutions,contracts,labor}.py": "56 passed",
+   "tests/test_internet_adversarial.py tests/test_web.py tests/test_v5_social_recsys.py": "23 passed",
+   "tests/test_internet.py tests/v5/test_gate_C.py -k C_6": "passed (jailed browser)",
+   "tests/test_v5_calibration_core.py": "22 passed",
+   "pre-existing failures (identical at base 7c29c75)": "test_v5_rapid_engines (3), test_v5_rapid_families::test_registry_entries_carry_the_contract_fields, test_discovery::test_help_is_reference_material_without_guidance, test_v5_calibration_software (1 failed + 6 errors: extracted data absent)"
+  }
  }
 }

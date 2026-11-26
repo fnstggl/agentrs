@@ -91,6 +91,121 @@ def tool_command(argv: list[str], workdir: str) -> tuple[list[str], str]:
     return [sys.executable, "-I", "-S", "-B", JAIL, path, real, *argv[1:]], path
 
 
+def run(argv: list[str], *, cwd: str, timeout: float, preexec_fn=None, env: dict | None = None,
+        input: bytes | None = None):
+    """`subprocess.run` of a native tool on agent-supplied bytes, jailed (`tool_command`) with read-write access to
+    `cwd` only; the caller's rlimits (`preexec_fn`) and timeout still apply. Raises JailUnavailable where the jail
+    cannot be applied, unless CRUCIBLE_ALLOW_UNJAILED_TOOLS=1 (then the tool runs with the caller's limits only).
+    A drop-in for call sites that start FFmpeg/ffprobe/SoX themselves (e.g. social/render.run_tool)."""
+    import subprocess
+    cfg = None
+    cmd = list(argv)
+    try:
+        cmd, cfg = tool_command(cmd, cwd)
+    except JailUnavailable:
+        if not allow_unjailed():
+            raise
+    try:
+        return subprocess.run(cmd, cwd=cwd, input=input, capture_output=True, timeout=timeout, preexec_fn=preexec_fn,
+                              env=env if env is not None else {"PATH": "/usr/bin:/bin", "LC_ALL": "C"})
+    finally:
+        if cfg:
+            try:
+                os.unlink(cfg)
+            except OSError:
+                pass
+
+
+_DECODE_PY = r"""
+import json, os, sys
+d, max_px, site = sys.argv[1], int(sys.argv[2]), sys.argv[-1]
+sys.path.append(site)                      # only Pillow is readable there (Landlock)
+from PIL import Image
+Image.MAX_IMAGE_PIXELS = max_px
+try:
+    im = Image.open(os.path.join(d, "in.bin"))
+    w, h = im.size
+    if w * h > max_px:
+        raise ValueError("image %dx%d over the pixel limit" % (w, h))
+    fmt, mode0, n = im.format, im.mode, int(getattr(im, "n_frames", 1))
+    im.seek(0)
+    im.load()
+    out = im if im.mode in ("RGB", "RGBA", "L") else im.convert("RGBA" if "A" in im.mode or im.mode == "P" else "RGB")
+    with open(os.path.join(d, "out.raw"), "wb") as fh:
+        fh.write(out.tobytes())
+    meta = {"ok": True, "format": fmt, "source_mode": mode0, "mode": out.mode, "size": [w, h], "frames": n}
+except Exception as e:
+    meta = {"ok": False, "error": "%s: %s" % (type(e).__name__, str(e)[:200])}
+with open(os.path.join(d, "meta.json"), "w") as fh:
+    json.dump(meta, fh)
+"""
+
+
+def python_command(work: str, code: str, *args: str, kind: str = "image-decoder") -> tuple[list[str], str]:
+    """(command line running `python -c code args...` jailed like the media tools: own uid, read-only Python
+    standard library, Pillow and system libraries, read-write `work` only, no sockets, no new processes; config file
+    to delete after). Used for decoders of agent-supplied bytes written in Python (Pillow)."""
+    import sysconfig
+    ok, why = available()
+    if not ok:
+        raise JailUnavailable(why)
+    import PIL
+    site = os.path.dirname(os.path.dirname(os.path.abspath(PIL.__file__)))
+    py = os.path.realpath(sys.executable)
+    paths = sysconfig.get_paths()
+    ro = RO_SYSTEM + [paths["stdlib"], paths["platstdlib"], os.path.join(paths["stdlib"], "lib-dynload"),
+                      os.path.dirname(os.path.abspath(PIL.__file__)), os.path.join(site, "pillow.libs"),
+                      os.path.dirname(py), os.path.join(sys.base_prefix, "lib")]
+    uid = uid_for(kind)
+    cfg = _write_cfg({"uid": uid, "gid": uid, "mode": "tool", "ro": sorted(set(ro)), "exec": [py] + _loaders(),
+                      "rw": [work], "chown": [work]})
+    return [sys.executable, "-I", "-S", "-B", JAIL, cfg, py, "-I", "-S", "-B", "-c", code, work, *args, site], cfg
+
+
+def decode_image(data: bytes, *, max_pixels: int = 40_000_000, timeout: float = 30.0, mem_mb: int = 2048) -> dict:
+    """Decode agent-supplied image bytes with Pillow inside the jail (`python_command`). Returns {"ok", "format",
+    "source_mode", "mode", "size", "frames", "raw"} or {"ok": False, "error"}; `PIL.Image.frombytes(mode, size, raw)`
+    then builds the image in the caller without parsing anything (pixels are identical to an in-process decode).
+    Only the first frame is decoded. Raises JailUnavailable where the jail cannot be applied (callers fail closed, as
+    for the media tools)."""
+    import resource
+    import subprocess
+    work = tempfile.mkdtemp(prefix="decode-", dir=_base())
+    try:
+        with open(os.path.join(work, "in.bin"), "wb") as fh:
+            fh.write(bytes(data))
+        cmd, cfg = python_command(work, _DECODE_PY, str(int(max_pixels)))
+        lim = (mem_mb * 2**20, int(timeout) + 5, max_pixels * 4 + 2**20)
+
+        def pre():
+            os.setsid()
+            resource.setrlimit(resource.RLIMIT_AS, (lim[0], lim[0]))
+            resource.setrlimit(resource.RLIMIT_CPU, (lim[1], lim[1] + 5))
+            resource.setrlimit(resource.RLIMIT_FSIZE, (lim[2], lim[2]))
+            resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        try:
+            subprocess.run(cmd, cwd=work, capture_output=True, timeout=timeout, preexec_fn=pre,
+                           env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"})
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "error": f"decoding exceeded {timeout}s"}
+        finally:
+            os.unlink(cfg)
+        try:
+            meta = json.load(open(os.path.join(work, "meta.json")))
+        except (OSError, ValueError):
+            return {"ok": False, "error": "the decoder produced no result (crash or limit)"}
+        if not meta.get("ok"):
+            return {"ok": False, "error": str(meta.get("error", "")).replace(work, "<image>")}
+        w, h = meta["size"]
+        raw = open(os.path.join(work, "out.raw"), "rb").read()
+        if len(raw) != w * h * {"RGB": 3, "RGBA": 4, "L": 1}[meta["mode"]]:
+            return {"ok": False, "error": "decoder output has the wrong size"}
+        meta["raw"] = raw
+        return meta
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 # ---------------------------------------------------------------------------------------------- browser
 def _browser_root(src_exe: str) -> str:
     """A copy of the Playwright Chromium directory the jail uid can reach (the cache under /root is mode 700). Files

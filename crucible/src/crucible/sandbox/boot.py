@@ -178,13 +178,22 @@ SECCOMP = seccomp()
 
 # ------------------------------------------------------------------ 4. environment for user code
 os.chdir(WORKDIR)
+# Trusted modules the parent found named in the program's files (stdlib, approved packages): imported now, before the
+# first job and with the working directory NOT on the path (nothing of the program runs here), so their import cost
+# is not the program's work. Everything the program does at import time beyond them is measured and billed (D-20).
+sys.path[:] = list(CFG.get("sys_path", []))
+for _m in CFG.get("preload", [])[:32]:
+    try:
+        __import__(_m)
+    except Exception:  # noqa: BLE001 - a module unavailable here is imported (and fails) in the program's own time
+        pass
 sys.path[:] = [WORKDIR] + list(CFG.get("sys_path", []))
 sys.dont_write_bytecode = True
 _rpc_id = 0
 
 
 def _send(msg: dict) -> None:
-    PROTO_OUT.write(json.dumps(msg, separators=(",", ":")) + "\n")
+    PROTO_OUT.write(json.dumps(msg, separators=(",", ":"), allow_nan=False) + "\n")
     PROTO_OUT.flush()
 
 
@@ -270,7 +279,7 @@ def _run(job: dict) -> dict:
             result = _run_tests(job.get("pattern", "tests"))
         else:
             raise ValueError(f"unknown job kind {kind}")
-        json.dumps(result)
+        json.dumps(result, allow_nan=False)      # JSON-native results only (no NaN/Infinity)
         ok, err = True, None
     except SystemExit as e:
         ok, result, err = False, None, {"type": "SystemExit", "message": str(e)}

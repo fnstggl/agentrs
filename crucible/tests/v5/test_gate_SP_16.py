@@ -65,7 +65,9 @@ def network():
     ok, why = sandbox_available()
     assert ok, f"needs the real sandbox: {why}"
     from crucible.redteam.v5 import network as N, run, sandbox as SB
-    rep = run(N.probes() + [SB.SandboxEscapeMatrix()])
+    # the network probes of Gate W.8 (the media call-site probes of the same module measure sandboxing, SP-16b)
+    ps = [p for p in N.probes() if "W.8" in p.gates] + [SB.SandboxEscapeMatrix()]
+    rep = run(ps)
     return {r["name"]: r for r in rep["probes"]}
 
 

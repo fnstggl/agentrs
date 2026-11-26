@@ -48,6 +48,19 @@ _lock = threading.Lock()
 _counter = 0
 TICK_S = 0.025                 # how often the parent checks a running job's disk use
 TENANT_UID_BASE = 0x5C000000   # per-tenant sandbox uids: TENANT_UID_BASE + 16-bit hash of the tenant
+# Trusted modules the boot module imports before the first job when the program's files name them (their import cost
+# is the platform's, not the program's work; D-20 bills the program's own load-time work). Pure-computation stdlib
+# modules without import-time side effects; approved packages are added from SandboxConfig.packages.
+PRELOAD_STDLIB = frozenset((
+    "abc", "array", "ast", "base64", "binascii", "bisect", "bz2", "calendar", "cmath", "codecs", "collections",
+    "colorsys", "contextlib", "copy", "csv", "dataclasses", "datetime", "decimal", "difflib", "enum", "fnmatch",
+    "fractions", "functools", "graphlib", "gzip", "hashlib", "heapq", "hmac", "html", "inspect", "io", "itertools",
+    "json", "keyword", "lzma", "math", "numbers", "operator", "pathlib", "pprint", "queue", "random", "re",
+    "secrets", "shlex", "statistics", "string", "struct", "textwrap", "threading", "time", "tokenize", "types",
+    "typing", "unicodedata", "uuid", "weakref", "zipfile", "zlib"))
+MAX_PRELOAD = 32
+_IMPORT_RE = __import__("re").compile(rb"^[ \t]*(?:from[ \t]+([A-Za-z_][\w.]*)[ \t]+import\b|import[ \t]+([^\n#;]+))",
+                                      __import__("re").M)
 
 
 @dataclass
@@ -148,6 +161,36 @@ def _pkg_dir(cfg: SandboxConfig) -> str:
     return d
 
 
+def preload_list(files: dict, packages: tuple) -> list[str]:
+    """Trusted modules the program's files import (a parent-side text scan; nothing of the program runs): stdlib
+    modules of PRELOAD_STDLIB and approved packages, with their dotted submodules, at most MAX_PRELOAD. A module the
+    scan misses (a computed `__import__`) is simply imported by the program itself and billed as its load work."""
+    trusted = PRELOAD_STDLIB | set(packages)
+    out: list[str] = []
+    for rel in sorted(files):
+        if not rel.endswith(".py"):
+            continue
+        data = files[rel]
+        data = data.encode() if isinstance(data, str) else bytes(data)
+        for m in _IMPORT_RE.finditer(data):
+            names = [m.group(1)] if m.group(1) else [x.strip().split()[0] for x in m.group(2).split(b",") if x.strip()]
+            for raw in names:
+                try:
+                    name = raw.decode("ascii")
+                except UnicodeDecodeError:
+                    continue
+                parts = name.split(".")
+                if parts[0] in trusted and all(p.isidentifier() for p in parts) and name not in out:
+                    out.append(name)
+                    if len(out) >= MAX_PRELOAD:
+                        return out
+    return out
+
+
+def _no_constant(name: str):
+    raise ValueError(f"{name} is not JSON")
+
+
 def _size(x: Any) -> int:
     try:
         return len(json.dumps(x, separators=(",", ":")))
@@ -230,7 +273,8 @@ class Worker:
         # business
         boot_cfg = {"uid": uid, "gid": gid, "read_paths": reads,
                     "sys_path": syspath + [pkgs], "out_bytes": cfg.out_bytes, "allow_root": cfg.allow_root,
-                    "require_landlock": not cfg.allow_weak, "require_seccomp": not cfg.allow_weak}
+                    "require_landlock": not cfg.allow_weak, "require_seccomp": not cfg.allow_weak,
+                    "preload": preload_list(self.files, tuple(cfg.packages))}
         env = {"PATH": "/nonexistent", "LANG": "C.UTF-8", "PYTHONHASHSEED": "0", "OMP_NUM_THREADS": "1",
                "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1", "HOME": self.workdir}
         limits = (cfg.mem_mb, cfg.cpu_s, cfg.nproc, cfg.nofile, cfg.fsize_mb)
@@ -262,8 +306,26 @@ class Worker:
         self._idle_cpu = M.cpu_ns(self.proc.pid)
         return self
 
+    def exited(self) -> bool:
+        """Whether the process has terminated, WITHOUT reaping it: a terminated, unreaped process still reports its
+        CPU clock, so work done right before it died (e.g. a program that kills itself after its world calls) is
+        measured before the parent reaps it (in close/_kill)."""
+        if self.proc is None or self.proc.returncode is not None:
+            return True
+        try:
+            return os.waitid(os.P_PID, self.proc.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None
+        except ChildProcessError:
+            return True
+
     def alive(self) -> bool:
-        return self.proc is not None and self.proc.poll() is None
+        return self.proc is not None and not self.exited()
+
+    def idle_cpu_ns(self) -> int:
+        """CPU the process used since its last job's result (0 when busy or unknown); readable after it died."""
+        if self.proc is None or self._idle_cpu is None:
+            return 0
+        c = M.cpu_ns(self.proc.pid)
+        return max(0, c - self._idle_cpu) if c is not None else 0
 
     def close(self) -> None:
         """Stop the process at once (SIGKILL to its process group: nothing in it outlives the worker, and nothing
@@ -311,9 +373,9 @@ class Worker:
                     return {"op": "overflow"}
             line, _, self._buf = self._buf.partition(b"\n")
             self._last_bytes = len(line)
-            try:
-                m = json.loads(line)
-            except json.JSONDecodeError:
+            try:                              # hostile bytes: deep nesting, huge integers, NaN/Infinity
+                m = json.loads(line, parse_constant=_no_constant)
+            except (ValueError, RecursionError, MemoryError):
                 return {"op": "garbage"}
             return m if isinstance(m, dict) else {"op": "garbage"}
         finally:
@@ -327,7 +389,7 @@ class Worker:
 
     def _stderr_tail(self) -> str:
         try:
-            if self.proc and self.proc.poll() is not None:
+            if self.proc and self.exited():
                 return self._clean(self.proc.stderr.read()[-2000:].decode(errors="replace"))
         except Exception:  # noqa: BLE001
             pass
@@ -385,19 +447,28 @@ class Worker:
         t0 = time.monotonic()
         empty = {"threads": 0, "maxrss_kb": 0, "disk_bytes": 0, "background_ns": 0, "load_ns": 0, "killed": None}
         if not self.alive():
+            # work it did after its previous result before it died (a forged completion, then exit) is billed here
+            bg = int(self.carry_ns) + self.idle_cpu_ns()
+            self.carry_ns = 0
+            self._idle_cpu = None
+            self._kill()
             return self._finish(False, None, {"type": "WorkerDead", "message": self.dead_reason or "not running"}, "",
-                                cpu=0, job=job, transcript=[], wall_s=0.0, meter=empty)
+                                cpu=bg, job=job, transcript=[], wall_s=0.0, meter={**empty, "background_ns": bg})
         pid = self.proc.pid
         timeout = timeout or self.cfg.job_wall_s
         transcript: list = []
-        # 1. work done since the previous job's result (threads or code left running): billed here, worker killed
-        bg = int(self.carry_ns)
+        # 1. work done since the previous job's result (threads or code left running): billed here, worker killed.
+        # A predecessor's background work (carry_ns, the pool's debt of a worker it already killed) is billed with
+        # this job too, but does not stop this fresh worker.
+        carry = int(self.carry_ns)
         self.carry_ns = 0
+        own = 0
         now = M.cpu_ns(pid)
         if self._idle_cpu is not None and now is not None:
-            bg += max(0, now - self._idle_cpu)
+            own = max(0, now - self._idle_cpu)
+        bg = carry + own
         self._idle_cpu = None                 # busy: a pool sweep (e.g. from a nested world call) leaves it alone
-        if bg > M.BACKGROUND_SLACK_NS:
+        if own > M.BACKGROUND_SLACK_NS:
             reason = "the process kept working after its previous job returned"
             self.dead_reason = reason
             c = self._kill_measured()
@@ -409,10 +480,11 @@ class Worker:
 
         def died(reason: str, etype: str = "WorkerDied", c_start: int | None = None, extra: int = 0) -> dict:
             self.dead_reason = reason
+            c = M.cpu_ns(pid)                 # first: a terminated process is readable until it is reaped
             tail = self._stderr_tail()
-            c = self._kill_measured()
-            if c is None:
-                c = M.cpu_ns(pid)
+            c2 = self._kill_measured()
+            if c is None or (c2 is not None and c2 > c):
+                c = c2
             used = max(0, (c or 0) - (c_start or 0)) if c is not None and c_start is not None else 0
             err = {"type": etype, "message": reason, **({"stderr": tail[-800:]} if tail and etype != "Timeout" else {})}
             return self._finish(False, None, err, "", cpu=used + bg + extra, job=job, transcript=transcript,
@@ -559,24 +631,31 @@ class WorkerPool:
         self.debt: dict[str, int] = {}
         self.swept: list[dict] = []
 
+    def _bill_idle(self, k: str, w: Worker, why: str) -> None:
+        used = w.idle_cpu_ns()
+        if used > M.BACKGROUND_SLACK_NS:
+            ck = w._kill_measured()
+            if ck is not None and w._idle_cpu is not None:
+                used = max(used, ck - w._idle_cpu)
+            w._idle_cpu = None
+            self.debt[k] = self.debt.get(k, 0) + used
+            self.swept.append({"key": k, "background_ns": used})
+            del self.swept[:-50]
+            w.dead_reason = why
+
     def sweep(self, skip: str | None = None) -> None:
         for k, w in list(self.workers.items()):
-            if k == skip or not w.alive() or w._idle_cpu is None:
+            if k == skip or w.proc is None or w._idle_cpu is None:
                 continue
-            c = M.cpu_ns(w.proc.pid)
-            if c is not None and c - w._idle_cpu > M.BACKGROUND_SLACK_NS:
-                ck = w._kill_measured() or c
-                used = max(0, ck - w._idle_cpu)
-                self.debt[k] = self.debt.get(k, 0) + used
-                self.swept.append({"key": k, "background_ns": used})
-                del self.swept[:-50]
-                w.dead_reason = "the process kept working while idle"
+            self._bill_idle(k, w, "the process kept working while idle" if w.alive()
+                            else "the process worked after its result and exited")
 
     def get(self, key: str, files_fn: Callable[[], dict[str, str]]) -> Worker:
         self.sweep(skip=key)
         w = self.workers.get(key)
         if w is None or not w.alive():
             if w is not None:
+                self._bill_idle(key, w, "the process worked after its result and exited")
                 w.close()
             while len(self.workers) >= self.max_workers:
                 old = min(self.last_used, key=self.last_used.get)
@@ -592,6 +671,7 @@ class WorkerPool:
         w = self.workers.pop(key, None)
         self.last_used.pop(key, None)
         if w is not None:
+            self._bill_idle(key, w, "the process kept working while idle")   # billed with the key's next job
             w.close()
 
     def close(self) -> None:
