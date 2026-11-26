@@ -66,3 +66,21 @@ def test_convener_succeeds_where_idle_and_a_solo_funder_fail():
         out[name] = env.verify()["evaluation"][a]
     assert out["ref"]["success"], out["ref"]
     assert not out["idle"]["success"] and not out["solo"]["success"]
+
+
+def test_same_seed_same_log_with_council_decisions():
+    """Determinism (kernel rule): the same seed and the same actions (joining the council, a proposal the
+    managers vote on through inst) give the same state and event hashes."""
+    digests = []
+    for _ in range(2):
+        env = _env(seed=2)
+        a = env.agents()[0]
+        assert env.execute(a, {"tool": "inst.join", "args": {"org": O.COMMONS}})["ok"]
+        assert env.execute(a, {"tool": "inst.propose", "args": {
+            "org": O.COMMONS, "action": {"kind": "tool", "tool": "orgs.levy", "args": {"cents_per_customer": 200}},
+            "reason": "fund"}})["ok"]
+        env.advance(5 * 86400)
+        w = env.world
+        digests.append((w.digest(), w.events_range(w.seq - 1, w.seq)[0].hash))
+        assert not w.check_invariants()
+    assert digests[0] == digests[1]

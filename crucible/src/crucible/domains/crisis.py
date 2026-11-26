@@ -1772,7 +1772,7 @@ class CrisisCoordinator(K.ReadingReference):
         trade_of = {"plant": "power", "line": "power", "substation": "power", "pump": "water", "tower": "telecom",
                     "core": "telecom", "road": "roads", "hospital": "health", "depot": "fuel"}
         avail = [c for c in sorted(mine) if mine[c]["available"] and not mine[c]["busy"] and not mine[c]["lent_to"]]
-        todo = []
+        work_list = []
         for a in s["assets"]:
             if a["asset"] in worked or self.skip.get(a["asset"], 0) > now:
                 continue
@@ -1780,10 +1780,10 @@ class CrisisCoordinator(K.ReadingReference):
                 pri = 100.0 if a["kind"] == "road" else 50.0 if a["asset"] in chain else \
                     10.0 * (hh.get(a["district"], 0.0) + (0.3 if a["kind"] in ("line", "plant", "core") else 0.0)) / \
                     max(1.0, float(a["work_h"] or 12.0)) * 12.0
-                todo.append((-pri, a["asset"], "repair", trade_of.get(a["kind"])))
+                work_list.append((-pri, a["asset"], "repair", trade_of.get(a["kind"])))
             elif a["status"] == "unknown" and a["kind"] != "line" and (a["asset"] in chain or a["kind"] == "road"):
-                todo.append((-20.0, a["asset"], "inspect", None))
-        for _, aid, task, trade in sorted(todo):
+                work_list.append((-20.0, a["asset"], "inspect", None))
+        for _, aid, task, trade in sorted(work_list):
             if not avail:
                 break
             pick = next((c for c in avail if mine[c]["trade"] == trade), avail[0])
