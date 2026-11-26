@@ -91,6 +91,10 @@ class Bank(Module):
             if d < 0 and self.available(st, acct) + d < 0:
                 raise InsufficientFunds(f"{acct} has {fmt(self.available(st, acct))} available, needs {fmt(-d)}",
                                         account=acct)
+        # 5.0: rules bound to money leaving an account (an institution's charter) are checked on the postings
+        # themselves, whatever tool caused them (hook list `post_guards`; a guard raises to refuse)
+        for guard in self.world.hooks.get("post_guards", ()):
+            guard(ctx, net, kind, ref)
         tid = st.new_id("tx")
         owners = {st.tables["accounts"][a]["owner"] for a in net} - {SYSTEM}
         ctx.emit("bank.txn", {"id": tid, "postings": [[a, d] for a, d in sorted(net.items()) if d != 0], "kind": kind,
