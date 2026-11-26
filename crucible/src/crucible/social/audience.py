@@ -438,10 +438,34 @@ def viewers_of(world, item: int) -> np.ndarray:
     return idset.members(world.state, idset.key("vw", int(item)))
 
 
+def graph_follows(world) -> bool:
+    """True when the follow relation of this world is the social graph (module `social`, edges social.cols:follow)
+    and the audience module keeps no follower sets of its own: every world of the one population with the social
+    network (D-21 relationship migration, wave 3b). Only the crowd stand-in's worlds keep the follower bitsets
+    (`fo:<creator>`) and the `followers` count here."""
+    m = world.modules.get("aud")
+    return bool(getattr(m, "graph_follows", False))
+
+
+def _creator_node(world, code: int) -> int | None:
+    from . import nodes
+    rec = world.state.tables.get("aud_creator_info", {}).get(str(int(code)))
+    return None if rec is None else nodes.node_of(world, rec["principal"])
+
+
 def followers(world, creator: str | int) -> np.ndarray:
+    """Population rows that follow the creator (sorted). In worlds of the one population they are read from the
+    social graph (the one follow relation); in crowd worlds from the audience module's follower sets."""
     code = creator if isinstance(creator, (int, np.integer)) else creator_code(world, creator)
     if code is None:
         return np.zeros(0, dtype=np.int64)
+    if graph_follows(world):
+        from . import graph, nodes
+        node = _creator_node(world, int(code))
+        if node is None:
+            return np.zeros(0, dtype=np.int64)
+        f = graph.followers(world, node)
+        return f[f < nodes.OFFSET].astype(np.int64)
     return idset.members(world.state, idset.key("fo", int(code)))
 
 
@@ -450,6 +474,14 @@ def is_follower(world, codes: np.ndarray, viewers: np.ndarray) -> np.ndarray:
     codes = np.asarray(codes, np.int64)
     viewers = np.asarray(viewers, np.int64)
     out = np.zeros(codes.shape, dtype=bool)
+    if graph_follows(world):
+        from . import graph
+        cn = np.array([-1 if c < 0 else (_creator_node(world, int(c)) or -1) for c in codes.reshape(-1)],
+                      np.int64).reshape(codes.shape)
+        ok = cn >= 0
+        if ok.any():
+            out[ok] = graph.is_following(world, viewers[ok], cn[ok])
+        return out
     for c in np.unique(codes):
         if c < 0:
             continue
@@ -529,7 +561,14 @@ class Audience(Module):
             self.cfg["dim"] = int(columns.col(world, POP, "interests").shape[1])
         columns.declare(world, POP, n, _POP_COLS)
         columns.declare(world, ITEMS, int(self.cfg["max_items"]), _item_cols(int(self.cfg["dim"])))
-        columns.declare(world, CREATORS, int(self.cfg["max_creators"]), _CREATOR_COLS)
+        # D-21 relationship migration: with the one population and the social network the follow relation is the
+        # social graph (follows decided in the consumption engine are written there, recsys.features reads them
+        # there); the audience module keeps no follower sets or follower counts of its own - only counts of the
+        # follow DECISIONS made after consuming an item (analytics: subscribers per item and creator)
+        names = {m["name"] for m in world.spec.modules}
+        self.graph_follows = "social" in names and "pop" in names
+        ccols = {k: v for k, v in _CREATOR_COLS.items() if not (self.graph_follows and k == "followers")}
+        columns.declare(world, CREATORS, int(self.cfg["max_creators"]), ccols)
         st = world.state
         st.declare_table("aud_item_info", index=("creator", "platform"))
         st.declare_table("aud_creator_info", index=("principal",))
@@ -740,6 +779,13 @@ class Audience(Module):
             if rf.size:
                 g = v[rf]
                 first_in = np.r_[True, g[1:] != g[:-1]]
+                if self.graph_follows:
+                    # the engine decides follows only for viewers who do not follow the creator (read from the
+                    # social graph), so each first (creator, viewer) row of the batch is one new follow edge;
+                    # the edge itself is the social graph's (graph.follow_batch), never kept here
+                    _, fi = np.unique(g, return_index=True)
+                    new_follow[rf[fi]] = True
+                    continue
                 newm = idset.add(st, idset.key("fo", c), g[first_in], npop)
                 new_follow[rf[first_in][newm]] = True
                 new_followers[j] = int(newm.sum())
@@ -774,8 +820,9 @@ class Audience(Module):
         add_creators("watch_s", np.where(self_row, 0.0, ws), np.float64)
         arr = st.array_rows_mut(f"{CREATORS}.viewers", ucre)
         arr[ucre] += new_cviewers
-        arr = st.array_rows_mut(f"{CREATORS}.followers", ucre)
-        arr[ucre] += new_followers
+        if not self.graph_follows:
+            arr = st.array_rows_mut(f"{CREATORS}.followers", ucre)
+            arr[ucre] += new_followers
         self._record_batch(ev, "consume")
 
     # ------------------------------------------------------------------ analytics publication (delayed, noisy)
@@ -968,10 +1015,16 @@ def recount(world, events=None, *, check_members: bool = True) -> dict:
         first_cv_pos = fci[np.searchsorted(ucv, cv[fvi])]
         ret = first_cv_pos < fvi
         np.add.at(rc["returning_viewers"], uvk[ret] // npop, 1)
-        # subscribers: first follow decision of (creator, viewer)
+        # subscribers: first follow decision of (creator, viewer) - over the whole history where the audience module
+        # keeps follower sets (crowd worlds); per decision batch where the follow relation is the social graph (the
+        # engine decides a follow only for a viewer who does not follow the creator there, so each batch's first
+        # (creator, viewer) row is one new edge)
         fol = (~self_row & ((fl & F_FOLLOWED) > 0))[gorder]
         fk = cre[it[gorder]][fol] * npop + v[gorder][fol]
-        _, ffi = np.unique(fk, return_index=True)
+        if graph_follows(world):
+            _, ffi = np.unique(np.stack([seqs[gorder][fol], fk]), axis=1, return_index=True)
+        else:
+            _, ffi = np.unique(fk, return_index=True)
         np.add.at(rc["subscribers"], it[gorder][fol][ffi], 1)
         viewers_by_item = uvk
     else:
