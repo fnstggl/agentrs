@@ -390,10 +390,11 @@ LEVER_LIKE = {"levers", "sequence", "discrete"}
 
 
 def legacy_recreation(fp: dict) -> dict:
-    """D-9 at the mechanism level, for a v5 training family's fingerprint. `recreates`: 4.0 sealed test families
-    whose mechanism the v5 family reproduces - the same mechanism motif set in the shared vocabulary (observation
-    channels aside) offered through a lever-like interface (levers, discrete settings, sequences and queries only)
-    - so a learner trained on it would meet that sealed mechanism again. `exposes_novel`: 4.0 validation or test
+    """D-9 at the mechanism level, for a v5 training family's fingerprint. `recreates`: 4.0 validation and sealed
+    test families whose mechanism the v5 family reproduces - the same mechanism motif set in the shared vocabulary
+    (observation channels aside) offered through a lever-like interface (levers, discrete settings, sequences and
+    queries only) - so a learner trained on it would meet that held-out mechanism again (D-9 covers both 4.0
+    held-out splits). `exposes_novel`: 4.0 validation or test
     families whose held-out motifs the v5 family contains at all (recorded: the 4.0 split no longer holds those
     motifs out for a learner trained on v5-train)."""
     mech = set(fp["motifs"]) - CHANNEL_PRIMS
@@ -403,6 +404,6 @@ def legacy_recreation(fp: dict) -> dict:
         lm = set(rec["motifs"]) - CHANNEL_PRIMS
         if rec["novel"] and set(rec["novel"]) <= mech:
             exposes.append(name)
-        if rec["split"] == "test" and lm and mech == lm and iface <= LEVER_LIKE:
+        if lm and mech == lm and iface <= LEVER_LIKE:
             recreates.append(name)
     return {"recreates": sorted(recreates), "exposes_novel": sorted(exposes)}

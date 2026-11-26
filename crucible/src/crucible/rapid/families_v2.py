@@ -32,7 +32,9 @@ SHOP = "Maximise your net income over the horizon."
 
 
 # ====================================================================== 8.10.3 wandering preferences
-@family("ch_wandering_taste", engine="primitive_graph", category="8.10", item="8.10.3", split="train",
+# evaluation split (D-9): its mechanism motif set equals the 4.0 validation family scm_invu's (a moving peak is
+# still the inverted-U mechanism scm_invu holds out), so it may not be trained on
+@family("ch_wandering_taste", engine="primitive_graph", category="8.10", item="8.10.3", split="val",
         doc="Buyers like a design best when it matches their taste, and their taste wanders as a persistent hidden "
             "random walk across the whole design range. Sales show how well the current design fits, never in which "
             "direction taste has moved, so the design has to be re-probed and moved continually.",
