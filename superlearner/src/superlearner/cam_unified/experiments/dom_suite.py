@@ -798,7 +798,7 @@ def _run_condition_a(spec: RunSpec, run_dir: str, fams, row_id: str, t_start: fl
 # ============================================================================================ checkpoint e2e (W9)
 def ckpt_e2e(run_dir: str, *, updates: int = 200, n_envs: int = 2, seed: int = 0, preset: str = "dom_dev",
              act_rounds: int = 4, device: str = "cuda", chunk: Optional[int] = None, families=SMOKE_FAMILIES,
-             agent_kw: Optional[dict] = None) -> dict:
+             agent_kw: Optional[dict] = None, budget_s: float = 600.0) -> dict:
     """Plan §3 W9 real end-to-end check, part 1 (training): build the real `preset` stack, train until the agent
     has made `updates` learner updates (one update per round), resumable in chunks of `chunk` updates via
     full-lifetime checkpoints (each call does at most one chunk), then save weights-only. Returns progress."""
@@ -821,12 +821,18 @@ def ckpt_e2e(run_dir: str, *, updates: int = 200, n_envs: int = 2, seed: int = 0
     run_lifetime, loop = resolve_loop()
     todo = min(updates - stt["updates"], chunk or updates)
     t0 = time.time()
-    res = run_lifetime(st.agent, adapter, labels=labels, label_store=store, reward_mode="observation_only",
-                       learner=st.learner, days=None, max_decisions=todo * n_envs, update_every=1, think_s=None,
-                       checkpoint=None, on_step=None)
-    s = _lifetime_stats(res)
-    stt["updates"] += int(s.get("updates") or 0)
-    stt["chunks"].append({"t": time.time(), "wall_s": time.time() - t0, "loop": loop, **s})
+    done = 0
+    while done < todo and time.time() - t0 < budget_s:     # sub-chunks: the GPU-lock hold stays bounded
+        k = min(20, todo - done)
+        res = run_lifetime(st.agent, adapter, labels=labels, label_store=store, reward_mode="observation_only",
+                           learner=st.learner, days=None, max_decisions=k * n_envs, update_every=1, think_s=None,
+                           checkpoint=None, on_step=None)
+        s = _lifetime_stats(res)
+        done += int(s.get("updates") or 0)
+        stt["chunks"].append({"t": time.time(), "wall_s": time.time() - t0, "loop": loop, **s})
+        if not s.get("updates"):
+            break
+    stt["updates"] += done
     st.ops.save_full_lifetime(life)
     if stt["updates"] >= updates:
         info = st.ops.save_weights(os.path.join(run_dir, "weights.safetensors"))
