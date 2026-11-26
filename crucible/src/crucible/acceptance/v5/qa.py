@@ -217,10 +217,28 @@ def render_defects(entries: list[dict], header: str) -> str:
 
 # ------------------------------------------------------------------------------------------------- X.8
 INTEGRATION_SCRIPT = r'''
-import collections, json, sys, time
+import collections, json, os, sys, time
+import importlib
 import crucible
 crucible.load_all_modules()
+for _p in crucible.V5_PACKAGES + ("scale", "research", "redteam", "acceptance"):
+    try:
+        importlib.import_module("crucible." + _p)
+    except Exception:
+        pass
 out = {"errors": [], "worlds": []}
+SRC = os.path.dirname(os.path.abspath(crucible.__file__)) + os.sep
+executed = collections.Counter()           # distinct functions of each package executed after import
+M = sys.monitoring
+TOOL = 4
+M.use_tool_id(TOOL, "crucible-qa")
+def _start(code, offset):
+    f = code.co_filename
+    if f.startswith(SRC):
+        executed[f[len(SRC):].split(os.sep, 1)[0].removesuffix(".py")] += 1
+    return M.DISABLE
+M.register_callback(TOOL, M.events.PY_START, _start)
+M.set_events(TOOL, M.events.PY_START)
 try:
     from crucible import civ
     profiles = sorted(getattr(civ, "PROFILES", {}) or [])
@@ -253,7 +271,9 @@ try:
         out["worlds"].append({"tier": tier, "name": name, "ok": True})
 except Exception as exc:
     out["errors"].append(f"experience: {type(exc).__name__}: {exc}")
+M.set_events(TOOL, 0)
 out["imported"] = sorted({m.split(".")[1] for m in sys.modules if m.startswith("crucible.") and m.count(".") >= 1})
+out["executed"] = dict(executed)
 print("@@JSON@@" + json.dumps(out))
 '''
 
@@ -271,18 +291,36 @@ def integration_audit(root: str | None = None, profile: str = "auto", days: floa
         "errors": [f"integration probe crashed: {p.stderr[-800:]}"], "worlds": [], "imported": []}
     civ = next((w for w in res["worlds"] if "profile" in w), None)
     imported = set(res.get("imported", []))
+    executed = res.get("executed", {})
     world_pkgs = {"A", "B", "C", "D", "F", "G", "I", "J"}          # these must produce events in the civilization
+    verifiers = {"O", "P"}           # run against the integrated system rather than inside it: reachability only
     per = {}
     for ws, pkgs in WORKSTREAM_PACKAGES.items():
         names = [p_.split(".")[1] for p_ in pkgs]
         imp = all(n in imported for n in names)
         events = sum((civ or {}).get("events_by_package", {}).get(p_, 0) for p_ in pkgs)
-        ok = imp and (ws not in world_pkgs or events > 0)
-        per[ws] = {"imported": imp, "events": events, "connected": ok}
+        calls = sum(executed.get(n, 0) for n in names)
+        if ws in verifiers:
+            ok = imp and _targets_integrated_world(root, names[0])
+        else:
+            ok = imp and bool(civ) and calls > 0 and (ws not in world_pkgs or events > 0)
+        per[ws] = {"imported": imp, "events": events, "functions_executed": calls, "connected": ok}
     disconnected = sorted(ws for ws, v in per.items() if not v["connected"])
     return {"metrics": {"workstreams_checked": len(per), "disconnected_workstreams": len(disconnected),
                         "integrated_world_runs": 1 if civ else 0},
             "per_workstream": per, "disconnected": disconnected, "errors": res["errors"], "worlds": res["worlds"]}
+
+
+def _targets_integrated_world(root: str, pkg: str) -> bool:
+    """A verification package is connected when its code drives the integrated generator or the Tier 3 interface."""
+    d = os.path.join(root, "src", "crucible", pkg)
+    for dp, _, fn in os.walk(d):
+        for f in fn:
+            if f.endswith(".py"):
+                t = open(os.path.join(dp, f), encoding="utf-8", errors="replace").read()
+                if re.search(r"civ\.generate\(|make\(\s*3\s*,|tier3:", t):
+                    return True
+    return False
 
 
 # ------------------------------------------------------------------------------------------------- X.9
@@ -608,3 +646,43 @@ def artifacts(root: str | None = None) -> dict:
                         "required_artifacts_unpreserved": len(unpreserved), "artifact_hash_mismatches": len(mism),
                         "artifacts_without_location": len(noloc)},
             "unpreserved": unpreserved, "mismatched": mism, "problems": problems[:20]}
+
+
+# ------------------------------------------------------------------------------------------------- OO.13 / OO.15
+LEARNER_REWARD = re.compile(r"\b(def|class)\s+\w*(intrinsic_reward|learned_reward|reward_model|curiosity|"
+                            r"novelty_bonus|empowerment|cam_reward|internal_reward)\w*", re.I)
+
+
+def learner_reward_scan(root: str | None = None) -> dict:
+    """OO.13: definitions of a learner's internal reward function (intrinsic/learned reward, curiosity, novelty bonus,
+    empowerment, CAM reward) anywhere under crucible/ (src, tests, examples, benchmarks). Environment-side legacy
+    rewards are not learner rewards."""
+    root = root or M.crucible_root()
+    hits, n = [], 0
+    for dp, dn, fn in os.walk(root):
+        dn[:] = [x for x in dn if x not in (".git", "__pycache__", "node_modules", ".venv")]
+        for f in fn:
+            if f.endswith(".py"):
+                n += 1
+                for k, line in enumerate(open(os.path.join(dp, f), encoding="utf-8", errors="replace"), 1):
+                    if LEARNER_REWARD.search(line):
+                        hits.append(f"{_rel(root, os.path.join(dp, f))}:{k}: {line.strip()[:90]}")
+    return {"metrics": {"crucible_files_scanned": n, "learner_reward_functions_in_crucible": len(hits)}, "hits": hits}
+
+
+def oo_independence(root: str | None = None) -> dict:
+    """OO.15: OO.1-OO.8 whose committed evidence and review name different agents and sessions (and are VERIFIED)."""
+    from .checker import verify_all
+    root = root or M.crucible_root()
+    res = verify_all(root)
+    ok = []
+    for r in res["rows"]:
+        if r["id"] not in {f"OO.{i}" for i in range(1, 9)} or r["status"] != "VERIFIED":
+            continue
+        ev = json.load(open(os.path.join(root, r["evidence"])))
+        rv = json.load(open(os.path.join(root, r["review"])))
+        a, b = ev.get("identity") or {}, rv.get("reviewer") or {}
+        if a.get("agent") and b.get("agent") and a["agent"] != b["agent"] and \
+                (not a.get("session_sha256") or a.get("session_sha256") != b.get("session_sha256")):
+            ok.append(r["id"])
+    return {"metrics": {"oo_requirements_independently_verified": len(ok)}, "verified": ok}
