@@ -1,0 +1,1053 @@
+{
+ "area": "P_acceptance",
+ "workstreams": [
+  "P"
+ ],
+ "audited_commits": {
+  "requested": "a881d18",
+  "head_during_audit": "dd745b9 (adds Clarifications 2-3 and OO.1-8/RP.1-4)"
+ },
+ "subsystems": [
+  {
+   "name": "Acceptance checker core (--verify-all)",
+   "paths": [
+    "src/crucible/acceptance/v5/checker.py",
+    "src/crucible/acceptance/v5/__main__.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "13/13 unit tests pass; real tree exits 1 with 241/253 NOT_STARTED and honest reasons. 11/11 fabrication probes in throwaway repos give VERIFIED + CRUCIBLE_5_COMPLETE; on a clone of the real repo, keeping only one fabricated entry makes the real CLI exit 0 with CRUCIBLE_5_COMPLETE (probe_checker_fool.log, P12/P13).",
+   "key_defects": [
+    "verify_all iterates the manifest as given; empty or pruned manifest -> ok=True (checker.py:199-210, all([]))",
+    "never compares manifest ids/text/criteria/tests with manifest.derive()/requirements.py; criteria_history[0] can be rewritten silently (checker.py:84-89)",
+    "tests and implementation_files lists are not change-controlled (P10)",
+    "trusts evidence tree.clean/commit/produced_by/author fields written by the producer (checker.py:126-129, evidence.py:93-94)",
+    "JUnit completeness not checked: a subset of a file's cases suffices (checker.py:160-166); produced_by may be any case in the JUnit (checker.py:157); JUnit not bound to run id/commit",
+    "staleness only for listed files, all of which are empty; transitive imports ignored (checker.py:134-139)",
+    "dependencies never checked; no finiteness check on metrics (Infinity passes); no INCOMPLETE_BLOCKED status; no placeholder detection"
+   ],
+   "work_needed": "Anchor the manifest to derive() (ids, text, criteria, tests and impl lists under change control; manifest edits count as dirty); require reviewer re-execution in a clean clone with metric reproduction; collection-complete, run-bound JUnit; transitive module-hash staleness; dependency checks; INCOMPLETE_BLOCKED; X fixed-point rule; regression tests for probes P1-P14.",
+   "effort": "M"
+  },
+  {
+   "name": "Evidence recording",
+   "paths": [
+    "src/crucible/acceptance/v5/evidence.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "record() writes metrics, tree state and author from env vars; EVIDENCE_PATHS exempts ACCEPTANCE_MANIFEST.json from dirty detection (evidence.py:26); author defaults to 'unknown' (evidence.py:94).",
+   "key_defects": [
+    "self-asserted provenance (CRUCIBLE_V5_AUTHOR, PYTEST_CURRENT_TEST)",
+    "manifest exempt from clean-tree check",
+    "no capture of imported module hashes, environment visibility (GPU hidden?) or data checksums used"
+   ],
+   "work_needed": "Record imported crucible.* module hashes, dataset checksums and model hashes used; derive author from git/session identity; stop exempting the manifest; sign or commit the record.",
+   "effort": "S"
+  },
+  {
+   "name": "Independent review workflow",
+   "paths": [
+    "src/crucible/acceptance/v5/__main__.py:80-97",
+    "docs/v5/reviews/ (absent)"
+   ],
+   "verdict": "REDESIGN",
+   "evidence": "P12: the same shell ran 'run' as builder and 'review --reviewer ws-P', giving VERIFIED; review verifies nothing and is not committed; no review exists in the repository.",
+   "key_defects": [
+    "reviewer identity is a free-text CLI argument",
+    "no re-execution or reproduction of metrics",
+    "review not bound to the criteria/requirement version",
+    "reviews not committed, so there is no audit trail"
+   ],
+   "work_needed": "Make 'review' re-run the producing test and requirement tests from a fresh clone of the evidence commit and compare the metrics; record distinct git author and agent session for evidence and review commits; bind the review to evidence, criteria and requirement-text hashes; commit reviews.",
+   "effort": "M"
+  },
+  {
+   "name": "Official run pipeline",
+   "paths": [
+    "src/crucible/acceptance/v5/__main__.py:44-77"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "P12 ran end to end on a clone: pytest ran, JUnit attached by run_id, manifest evidence list updated.",
+   "key_defects": [
+    "runs in the working tree, not a clean clone",
+    "no --collect-only completeness record",
+    "silently ignores missing test files (only errors when none exist)"
+   ],
+   "work_needed": "Run from a clean clone at HEAD; record the collected node ids; fail if any listed test file is missing.",
+   "effort": "S"
+  },
+  {
+   "name": "Manifest derivation and content",
+   "paths": [
+    "src/crucible/acceptance/v5/manifest.py",
+    "src/crucible/acceptance/v5/requirements.py",
+    "docs/v5/ACCEPTANCE_MANIFEST.json"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "253 entries at dd745b9 (241 at a881d18); 0/253 have implementation_files; 132/253 name missing test files; workstream reports in docs/v5/workstreams/*.json list files for ~103 requirements but were never merged; about 52 mandatory spec statements have no entry; OO/RP added only at dd745b9.",
+   "key_defects": [
+    "missing requirements (see missing_requirements)",
+    "vacuous ==0 criteria without denominators (X.2-X.9)",
+    "count-based baseline criteria (A.1-A.3)",
+    "implementation files never merged from workstream reports",
+    "test_the_real_manifest_covers_every_spec_gate_item checks only Part 17 bullets"
+   ],
+   "work_needed": "Add the missing requirements with measurable criteria; add coverage denominators to every ==0 criterion; merge workstream file lists; make the manifest coverage test cover SP, notes and amendments.",
+   "effort": "M"
+  },
+  {
+   "name": "Gate A suite",
+   "paths": [
+    "tests/v5/test_gate_A.py (absent)"
+   ],
+   "verdict": "IMPLEMENT",
+   "evidence": "File missing; A.1-A.5 never recorded. The underlying properties partly hold (no diffs in the 4.0 benchmark packages; sealed store untouched).",
+   "key_defects": [
+    "no test",
+    "criteria weak (counts instead of baseline node ids; 16/25 instead of all 4.0 families and configurations)"
+   ],
+   "work_needed": "Write test_gate_A: run the 1,076 baseline node ids and require each to pass; hash-compare the 4.0 definition files and split tables against c07098b; run every 4.0 mech family (25) and OpenWorld family (74); hash and access-log check of ~/.crucible sealed store plus fingerprint non-reuse in v5 training registries; reproduce >= the available 4.0 acceptance/demo results with legacy_shaped_reward passed explicitly.",
+   "effort": "M"
+  },
+  {
+   "name": "Gate X and QA tooling",
+   "paths": [
+    "tests/v5/test_gate_X.py (absent)",
+    "docs/v5/reviews/ (absent)"
+   ],
+   "verdict": "IMPLEMENT",
+   "evidence": "None exists; workstream P has no code apart from the checker; no mutation testing, clean-room harness, defect register or final evidence report.",
+   "key_defects": [
+    "no placeholder/skip detector",
+    "no clean-checkout reproduction harness",
+    "no defect register for X.6",
+    "no integration audit for X.8",
+    "no claim-vs-evidence audit for X.9"
+   ],
+   "work_needed": "Implement test_gate_X with coverage denominators: re-run verify_all excluding X/SP-18/20; scan all acceptance tests (static plus mutation); clean-clone reproduction of every verified requirement (with dataset reacquisition); a defect register fed by W and audits; workstream integration check (each workstream's modules loaded by a Tier 3 world); claim extraction from docs and final report cross-checked with evidence.",
+   "effort": "L"
+  },
+  {
+   "name": "SP-1.3/1.5/18/20/21 and RP gate tests; final report generator",
+   "paths": [
+    "tests/v5/test_gate_SP_1_3.py",
+    "tests/v5/test_gate_SP_1_5.py",
+    "tests/v5/test_gate_SP_18.py",
+    "tests/v5/test_gate_SP_20.py",
+    "tests/v5/test_gate_SP_21.py",
+    "tests/v5/test_gate_RP.py"
+   ],
+   "verdict": "IMPLEMENT",
+   "evidence": "All absent; no final report or Part 18 table exists (only in MASTER_SPEC.md).",
+   "key_defects": [
+    "no tests",
+    "no final report"
+   ],
+   "work_needed": "Write the tests; SP-21 must run the adversarial probe suite (P1-P14 and more) against the real checker and require all to be rejected; generate the final report and Part 18 table from checker output.",
+   "effort": "M"
+  },
+  {
+   "name": "Persistent engineering documents",
+   "paths": [
+    "docs/v5/*.md"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "All 10 required documents present; MASTER_SPEC.md single commit 4a7591e (sha256 7b35feb3...). WORKSTREAMS.md names the old integration branch; ARCHITECTURE.md:133-134 claims learner updates 'in all three tiers' (false); PROGRESS.md claims a spec hash recorded in the commit (it is not).",
+   "key_defects": [
+    "stale branch reference",
+    "unsupported claims",
+    "no hash anchor for the verbatim spec"
+   ],
+   "work_needed": "Correct the claims; record the spec hash; update WORKSTREAMS for the recovery plan; add component docs for B, C1, C2, H1-3, I1-4, N1, N2, O.",
+   "effort": "S"
+  },
+  {
+   "name": "Progress ledger, push and durability",
+   "paths": [
+    "docs/v5/PROGRESS.md",
+    "/workspace/backups",
+    "origin/feat/crucible-5-complete"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "4 milestones; a881d18 on origin per local remote-tracking refs; dd745b9 not shown pushed; models (2.4 MB) committed; datasets 1.8 GB and backups on non-volume storage (workspace_is_volume=false); no secrets in tree or history.",
+   "key_defects": [
+    "milestones miss required fields (branch/commit/compute/next actions/remaining ids)",
+    "no machine-readable ledger",
+    "durability of datasets/backups not ensured",
+    "old branch fast-forwarded during recovery"
+   ],
+   "work_needed": "Machine-readable milestone ledger with all Part 1.5 fields plus checker-derived remaining ids; push each milestone; define the RP.4 artifact list and move it off container storage (HF Hub/remote) or record reproducible reacquisition with checksums.",
+   "effort": "S"
+  },
+  {
+   "name": "4.0 benchmark definitions and sealed store",
+   "paths": [
+    "src/crucible/mechanisms",
+    "src/crucible/worldgen",
+    "src/crucible/goals",
+    "src/crucible/usefulness",
+    "~/.crucible/sealed_*"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "git diff c07098b..HEAD: no change in mechanisms/worldgen/goals/usefulness/economy/actors; 25 mech families 7/7/11; sealed files mtime 2026-11-23 05:10 (pre-v5); ow-final accesses 1/1, contaminated false; no v5 code reads the store; no v5 rapid family named like a 4.0 held-out/sealed family; hashes unchanged after the regression.",
+   "key_defects": [
+    "structural (fingerprint) non-reuse not yet checked",
+    "default reward mode change required by Clarification 2 will touch 4.0 constructors"
+   ],
+   "work_needed": "Keep it; add a fingerprint-level contamination check; when defaults flip to observation_only, keep the legacy behaviour byte-identical under explicit selection.",
+   "effort": "S"
+  },
+  {
+   "name": "4.0 regression suite status",
+   "paths": [
+    "tests/ (excluding tests/v5)"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "Full regression (tests/ minus tests/v5, slots 1 CPU, GPU hidden): 1664 tests, 1657 passed, 5 failed, 2 skipped, 2481 s. 2 real defects (4.0 help lacks media_error; cxs_selected_layers batch-path broadcast bug at rapid/primitives.py:539), 3 stale Tier 1 contract tests needing a recorded decision.",
+   "key_defects": [
+    "see regression failures"
+   ],
+   "work_needed": "Fix the cxs_selected_layers batch-path bug; update the three Tier 1 foundation contract tests (engine count, module boundary) through a recorded decision; decide whether the 4.0 discovery test's error-code set may grow (media_error) or the v5 error should not appear in 4.0 help.",
+   "effort": "S"
+  },
+  {
+   "name": "v5 test-suite integrity",
+   "paths": [
+    "tests/v5/",
+    "tests/test_v5_*.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "433 tests scanned: 0 skip markers in gate tests, 0 early returns or except-pass in test bodies, 1 importorskip (test_v5_substrate_inference.py:7), 3 constant records that are honest fail-records, 14 assertion-free gate tests by design; gate tests use purpose-built partial worlds (social_helpers.py:19-25, _commerce_kit.py:8-21).",
+   "key_defects": [
+    "no gate is exercised inside an integrated civilisation",
+    "121/253 requirements have test files; P, A, B, G, N-Q, T-X, OO, RP have none",
+    "pytest pass of assertion-free gate tests is not evidence",
+    "importorskip silent-skip path"
+   ],
+   "work_needed": "Write the missing gate suites; add an integrated-civilisation variant per gate; replace importorskip with failure; run mutation tests on gate tests.",
+   "effort": "L"
+  }
+ ],
+ "requirements": [
+  {
+   "id": "A.1",
+   "verdict": "REPAIR",
+   "reason": "test_gate_A.py missing; the full regression run by this audit is not green (1664 tests, 5 failed, 2 skipped).",
+   "work_needed": "Fix the failures; implement test_gate_A that checks every c07098b baseline node id passes plus the whole current suite, with skips limited to documented hardware gates; run it with the GPU visible via slots to eliminate the 2 GPU skips.",
+   "criteria_weak": true
+  },
+  {
+   "id": "A.2",
+   "verdict": "IMPLEMENT",
+   "reason": "Property holds by git diff (no change in 4.0 benchmark packages; 13 modified 4.0 files keep the legacy default), but no gate test or evidence exists.",
+   "work_needed": "Hash-compare 4.0 mechanism/worldgen/goal/usefulness definitions and family split tables against c07098b; include the 74 OpenWorld families and 10 useful-work families, not just 25.",
+   "criteria_weak": true
+  },
+  {
+   "id": "A.3",
+   "verdict": "IMPLEMENT",
+   "reason": "No test; 4.0 suite exercises worlds indirectly.",
+   "work_needed": "Instantiate and step every 4.0 world family (25 mech + 74 OpenWorld) for a short horizon on >= 2 seeds; criterion = all, not >= 16.",
+   "criteria_weak": true
+  },
+  {
+   "id": "A.4",
+   "verdict": "IMPLEMENT",
+   "reason": "No test; this audit found sealed files unchanged since 2026-11-23, access 1/1, no v5 access path, no name clash with v5 train families.",
+   "work_needed": "Gate test hashing ~/.crucible/sealed_* against a recorded digest, checking the access log has no post-v5 entries, and checking fingerprint-level non-reuse of 4.0 val/test families in v5 training registries.",
+   "criteria_weak": true
+  },
+  {
+   "id": "A.5",
+   "verdict": "IMPLEMENT",
+   "reason": "Never attempted.",
+   "work_needed": "Reproduce all available 4.0 results (acceptance records A-J, demo_*.json, bench quick) with reward_mode='legacy_shaped_reward' passed explicitly; compare within declared tolerances.",
+   "criteria_weak": true
+  },
+  {
+   "id": "X.1",
+   "verdict": "IMPLEMENT",
+   "reason": "No test_gate_X; currently 253/253 unverified; self-referential count.",
+   "work_needed": "Count unverified requirements excluding X.*, SP-18, SP-20; final --verify-all closes the fixed point.",
+   "criteria_weak": false
+  },
+  {
+   "id": "X.2",
+   "verdict": "IMPLEMENT",
+   "reason": "No test; 132 entries name missing test files.",
+   "work_needed": "Collect every manifest test file plus the regression at the release commit in one recorded run; criterion needs executed_tests >= collected.",
+   "criteria_weak": true
+  },
+  {
+   "id": "X.3",
+   "verdict": "IMPLEMENT",
+   "reason": "No clean-room harness; this audit ran a 16-test subset in a fresh clone successfully (feasibility only).",
+   "work_needed": "Fresh clone + dataset reacquisition + rerun of every VERIFIED requirement's producing test; add clean_checkout_reproductions >= verified count.",
+   "criteria_weak": true
+  },
+  {
+   "id": "X.4",
+   "verdict": "REPAIR",
+   "reason": "Integration branch has failing tests (1664 tests, 5 failed, 2 skipped).",
+   "work_needed": "Fix failures; criterion needs tests_run >= full suite size.",
+   "criteria_weak": true
+  },
+  {
+   "id": "X.5",
+   "verdict": "IMPLEMENT",
+   "reason": "No document list defined; component docs missing for 13 interrupted workstreams; no final report.",
+   "work_needed": "Define the required document list (Part 20 deliverables) and check each exists and is current.",
+   "criteria_weak": true
+  },
+  {
+   "id": "X.6",
+   "verdict": "IMPLEMENT",
+   "reason": "No defect register exists; D-11 open; red-team v5 harness merged interrupted.",
+   "work_needed": "Create a defect register fed by Gate W and audits; criterion needs adversarial_reviews >= 1 and defects_triaged == defects_found.",
+   "criteria_weak": true
+  },
+  {
+   "id": "X.7",
+   "verdict": "IMPLEMENT",
+   "reason": "No detector; static scan found no skips/early returns in gate tests, 1 importorskip in a unit test.",
+   "work_needed": "Static plus mutation-based placeholder detection over all acceptance tests; criterion needs acceptance_tests_scanned >= count.",
+   "criteria_weak": true
+  },
+  {
+   "id": "X.8",
+   "verdict": "IMPLEMENT",
+   "reason": "civ/ and multiagent/ are 5-line stubs; no Tier 2 domain registered; 13 workstreams interrupted without reports.",
+   "work_needed": "Check each of the 16 workstreams' modules are loaded and exercised by an integrated Tier 3 world run.",
+   "criteria_weak": true
+  },
+  {
+   "id": "X.9",
+   "verdict": "IMPLEMENT",
+   "reason": "No final report; existing docs contain unsupported claims (ARCHITECTURE.md:133-134; PROGRESS.md milestone 0 hash claim).",
+   "work_needed": "Extract claims from the final report and docs and cross-check them against checker verdicts; criterion needs claims_checked >= claims.",
+   "criteria_weak": true
+  },
+  {
+   "id": "X.n1",
+   "verdict": "IMPLEMENT",
+   "reason": "Integration incomplete; cannot run yet.",
+   "work_needed": "Record integration state (all workstream branches merged, no ahead-of-integration branches) at the time X runs.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-1.3",
+   "verdict": "REPAIR",
+   "reason": "All 10 docs present; spec unchanged since 4a7591e but no hash of the user's text recorded; WORKSTREAMS.md stale; no test.",
+   "work_needed": "Record the spec sha256 at creation and check it; check docs currency (branch names, workstream list); write test_gate_SP_1_3.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-1.5",
+   "verdict": "REPAIR",
+   "reason": "4 milestones in PROGRESS.md but none has all 8 Part 1.5 fields; no machine-readable ledger; no test.",
+   "work_needed": "Machine-readable milestone ledger (branch, commit, active workstreams, failed tests, integration problems, remaining requirement ids from the checker, next actions, compute usage) and a test requiring every field in every milestone.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-18",
+   "verdict": "IMPLEMENT",
+   "reason": "No final report or completion table.",
+   "work_needed": "Generate the Part 18 table from checker output; criteria must require each VERIFIED row to map to checker-VERIFIED requirements and statuses in the allowed vocabulary.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-20",
+   "verdict": "IMPLEMENT",
+   "reason": "No deliverables audit; several deliverables (integrated civilizations, self-play, 15 domains) do not exist.",
+   "work_needed": "Map each of the 21 deliverables to manifest requirements and require them VERIFIED; check the final report's nine-way separation.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-21",
+   "verdict": "REPAIR",
+   "reason": "Command exists and exits nonzero on the real tree, but fabricated evidence is accepted (P1-P14) and pruning the manifest yields exit 0 and CRUCIBLE_5_COMPLETE.",
+   "work_needed": "Implement the checker repairs (manifest anchoring, reproduction-based review, JUnit completeness, transitive staleness, identities); SP-21 test runs a defined adversarial suite and requires 100% rejection.",
+   "criteria_weak": true
+  },
+  {
+   "id": "RP.1",
+   "verdict": "IMPLEMENT",
+   "reason": "No test; crucible core does not import CAM, but integrations/agentrs_cam2.py:40 and agentrs_sl.py:34 import agentrs.cam2/agentrs.sl lazily (4.0 optional adapters).",
+   "work_needed": "Define the criterion: no core/test/gate module imports CAM or depends on it; optional adapters allowed if never imported by core and not required by any gate.",
+   "criteria_weak": true
+  },
+  {
+   "id": "RP.2",
+   "verdict": "IMPLEMENT",
+   "reason": "Audit in progress (this report is one of ~15); skeptic reviews not yet produced.",
+   "work_needed": "Collect audit reports with independent skeptic review; bind each to a commit.",
+   "criteria_weak": false
+  },
+  {
+   "id": "RP.3",
+   "verdict": "REPAIR",
+   "reason": "a881d18 pushed; dd745b9 not shown pushed (local refs); ledger does not list exact remaining requirement ids.",
+   "work_needed": "Check every milestone commit in the ledger is reachable from origin; ledger remaining-ids equal the checker's unverified list at that commit; no dirty or unpushed workstream worktrees older than the milestone.",
+   "criteria_weak": true
+  },
+  {
+   "id": "RP.4",
+   "verdict": "REPAIR",
+   "reason": "Models committed and pushed (durable); datasets and backups on container storage (workspace_is_volume=false).",
+   "work_needed": "Define the artifact list (model checkpoints, encoder weights refs, datasets with checksums, experiment logs) and its durable location; check each is present and hash-matches.",
+   "criteria_weak": true
+  }
+ ],
+ "missing_requirements": [
+  {
+   "spec_ref": "Clarification 2",
+   "requirement": "Every public entry point (experience.registry.make, CLI run, Gym CrucibleEnv, PettingZoo env, MechVecEnv, KernelMechEnv, selfplay.arena, scale.rollout, ReferenceLearner) defaults to reward_mode='observation_only'.",
+   "note": "All default to legacy_shaped_reward today (probe_default_mode.log; experience/modes.py:3). OO.1 counts families, not entry points."
+  },
+  {
+   "spec_ref": "Clarification 2 / 11.3",
+   "requirement": "Observation-only operation with an externally assigned objective (objective delivered to the learner, outcomes verified only evaluator-side).",
+   "note": "OO.5 covers only the no-objective case."
+  },
+  {
+   "spec_ref": "Clarification 2",
+   "requirement": "Self-generated experiments, hypotheses and learning objectives in every tier without automatic reward.",
+   "note": "SP-11.4 needs only 1 roundtrip, tier unspecified."
+  },
+  {
+   "spec_ref": "Clarification 2",
+   "requirement": "Verified outcome labels may supervise evaluation/meta-learning but never become handcrafted intermediate rewards.",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "Clarification 2",
+   "requirement": "No CAM (or any learner's) internal reward function implemented inside Crucible.",
+   "note": "RP.1 covers imports only."
+  },
+  {
+   "spec_ref": "Clarification 2",
+   "requirement": "OO requirements assigned to a dedicated implementation subagent and an independent verification subagent.",
+   "note": "Process requirement; no entry."
+  },
+  {
+   "spec_ref": "Clarification 2 / 11.3",
+   "requirement": "Gymnasium scalar reward 0.0 documented as not a learning signal; aux/info/event-metadata/tool-response leak channels each probed per tier.",
+   "note": "OO.2 counts probe kinds but not channel x tier coverage."
+  },
+  {
+   "spec_ref": "Clarification 3.1",
+   "requirement": "Old branch feat/crucible-5-openworld preserved as an immutable reference; new branch from the latest recovered state.",
+   "note": "Old branch fast-forwarded 1ff011b -> a881d18 on 2026-11-26."
+  },
+  {
+   "spec_ref": "Clarification 3.7 / 1.4",
+   "requirement": "Never force-push, never overwrite unrelated work, never expose secrets.",
+   "note": "Audit found no PAT in tree/history; no entry checks it."
+  },
+  {
+   "spec_ref": "Clarification 3.7",
+   "requirement": "Unfinished work preserved in recoverable commits; no milestone work only in uncommitted worktrees.",
+   "note": "In RP.3 text but no criterion."
+  },
+  {
+   "spec_ref": "1.5",
+   "requirement": "Work of early-terminated sub-agents is reassigned and tracked to completion.",
+   "note": "13 agents interrupted; no entry tracks reassignment."
+  },
+  {
+   "spec_ref": "1.5 / 21 / Clarification 3.8",
+   "requirement": "Checker reports INCOMPLETE_BLOCKED when a genuine blocker prevents completion.",
+   "note": "checker.py:210 emits only IN_PROGRESS or CRUCIBLE_5_COMPLETE."
+  },
+  {
+   "spec_ref": "19 Phase 7",
+   "requirement": "A failed requirement is never removed from the manifest; criteria never changed to make the project pass.",
+   "note": "Not enforced: probes P2, P3, P4, P13."
+  },
+  {
+   "spec_ref": "1.3 / 1.4",
+   "requirement": "Every manifest entry lists implementation files, tests, commit; workstream reports merged.",
+   "note": "0/253 entries have implementation_files; 10 workstream reports unmerged."
+  },
+  {
+   "spec_ref": "0.7",
+   "requirement": "Durable backup of source, experiment records and important artifacts in authorized storage.",
+   "note": "Backups on container storage; RP.4 has no artifact list."
+  },
+  {
+   "spec_ref": "0.10",
+   "requirement": "Baseline 4.0 throughput, memory and world-generation cost established before changes.",
+   "note": "Partially via SP-13.8 v4_comparison_rows >= 1."
+  },
+  {
+   "spec_ref": "0 / 8 / D-9",
+   "requirement": "4.0 val/test and sealed families not moved into any v5 training distribution, checked structurally (fingerprints), not by name.",
+   "note": "A.4 covers sealed isolation only."
+  },
+  {
+   "spec_ref": "17 preamble / Recovery preamble 3",
+   "requirement": "Each gate capability re-demonstrated inside an integrated Tier 3 civilization, not only in purpose-built partial worlds.",
+   "note": "Gate tests build social-only/commerce-only worlds (tests/v5/social_helpers.py:19-25, _commerce_kit.py:8-21)."
+  },
+  {
+   "spec_ref": "4 intro",
+   "requirement": "All platforms share the civilization's participant population and world state.",
+   "note": "SP-4 counts platform kinds only."
+  },
+  {
+   "spec_ref": "3.2 / 5",
+   "requirement": "Fitted behavioural models actually drive Class 1 participant decisions in the running world.",
+   "note": "Calibration gates check fits, not in-world use."
+  },
+  {
+   "spec_ref": "19 Phase 3",
+   "requirement": "Seven early end-to-end vertical slices executed and recorded.",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "2.1",
+   "requirement": "Mode A environments run primarily on CPU; a technological invention can change economic outcomes, participant behaviour, resource demand and future technological opportunities.",
+   "note": "No explicit entry for the four-way effect."
+  },
+  {
+   "spec_ref": "2.2",
+   "requirement": "Compositional freedom across the 13 listed affordances; no predetermined strategy menu.",
+   "note": "SP-11.2 partially."
+  },
+  {
+   "spec_ref": "2.3",
+   "requirement": "All systems communicate through typed events and approved state interfaces; all 19 listed primitives.",
+   "note": "SP-2.3 requires 17 of 19."
+  },
+  {
+   "spec_ref": "3.1",
+   "requirement": "All 18 identity attributes represented.",
+   "note": "SP-3.1 requires >= 15."
+  },
+  {
+   "spec_ref": "3.2",
+   "requirement": "Class 2 models 100k-2M params and Class 3 2-20M params measured; strategic groups that compete, cooperate, pursue unrelated objectives and adapt over the lifetime; not identical copies of one policy.",
+   "note": "SP-3.2 counts classes only."
+  },
+  {
+   "spec_ref": "4.2",
+   "requirement": "Expensive generative models not required for ordinary simulation actions.",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "4.3",
+   "requirement": "Structured representations for software and products; semantic predictions validated and never the sole definition of value.",
+   "note": "E.1 covers 4 media modalities."
+  },
+  {
+   "spec_ref": "4.4",
+   "requirement": "Content choice depends on the 12 listed factors; continue/share/subscribe/disengage are actual simulated decisions.",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "4.5",
+   "requirement": "Popularity of one item reduces opportunities of competing content; delayed feedback, noisy analytics, changing audiences, evolving competitors.",
+   "note": "SP-4.5 counts mechanisms only."
+  },
+  {
+   "spec_ref": "5.1 / 5.2",
+   "requirement": "Dataset licence/privacy compliance; schema validation; time-based and user-level holdouts; missing-data handling; uncertainty estimation; observational vs experimentally identified effects distinguished.",
+   "note": "Gate F covers part."
+  },
+  {
+   "spec_ref": "6.2",
+   "requirement": "Rolling 30-day sales never counted as recurring revenue; sustained subscription validity.",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "6.3",
+   "requirement": "Objective usefulness by independently generated tests; subjective usefulness by diverse grounded participants, not a single LLM judge.",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "7 intro",
+   "requirement": "Objectives generated independently of worlds (IndependentlyGenerateGoal(world, difficulty)).",
+   "note": "T.3 counts objective types."
+  },
+  {
+   "spec_ref": "7.2",
+   "requirement": "Superficially similar worlds obeying fundamentally different causal rules (e.g. price-response variants) that the learner must disambiguate.",
+   "note": "Key anti-memorization requirement; no entry."
+  },
+  {
+   "spec_ref": "7.5",
+   "requirement": "Machine-readable registry documenting why each family is distinct.",
+   "note": "M.5 checks fingerprints exist."
+  },
+  {
+   "spec_ref": "8.1-8.10",
+   "requirement": "Each of the 60 named Tier 1 families implemented, with each category's behavioural requirement (intervention vs correlation, evaluation on unobserved conditions, programmatic controllers, discrete/continuous/programmatic actions, credit assignment, held-out opponents, genuine interdependence, belief revision).",
+   "note": "M.1/M.3 count totals and categories only."
+  },
+  {
+   "spec_ref": "8.12",
+   "requirement": "Fast CPU execution and batched simulation.",
+   "note": "SP-8.12 covers axes and consistency only."
+  },
+  {
+   "spec_ref": "9.3 / 9.16",
+   "requirement": "Content-domain difficulty levels toward 10M unique viewers; difficulty from complexity and scarcity, not arbitrary failure probabilities.",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "10 intro / 10.4",
+   "requirement": "Standalone worlds preserved; no training on a single permanent civilization; world forks, historical queries, independent replication; persistence and evolution of participants, organizations, relationships, products, technologies and institutions.",
+   "note": "Gate P covers snapshot/replay/accounting."
+  },
+  {
+   "spec_ref": "11.4",
+   "requirement": "Self-goal interface extended beyond the predefined 4.0 metrics.",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "11.6",
+   "requirement": "Algorithmic limitations separated from environment failures in reports.",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "Clarification 1",
+   "requirement": "Environment capabilities validated with scripted reference agents, small neural RL agents, statistical learners and lightweight language-model agents.",
+   "note": "Gates R and S use ReferenceLearner only."
+  },
+  {
+   "spec_ref": "Clarification 1",
+   "requirement": "Compatibility with existing learner interfaces preserved (Gym, PettingZoo, agentrs.cam2/sl adapters).",
+   "note": "Conflicts with a naive RP.1 import count."
+  },
+  {
+   "spec_ref": "12 intro / 12.2",
+   "requirement": "Learning agents found businesses, collaborate on software, trade, negotiate etc. in digital and integrated worlds; reproducible cross-play between policy versions; league evaluation; training-data provenance.",
+   "note": "Gate Q partial."
+  },
+  {
+   "spec_ref": "13.3 / 13.4",
+   "requirement": "Backend benchmarks (NumPy, compiled, Numba, PyTorch CPU, quantized, batched GPU); inference service with batching, quantization, short contexts, retrieval, prefix caching, bounded generation, versioning, CPU and selective GPU; no network-dependent API in the default simulation.",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "13.6 / 13.7",
+   "requirement": "Low-resolution participants never a source of fabricated outcomes; no interference with other tenants' experiments; no hidden external compute purchases.",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "14 intro / 14.1 / 14.2",
+   "requirement": "Diversity measured along six dimensions; balanced and configurable mixtures; compute and experience measured separately.",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "15.1 / 15.2 / 15.3",
+   "requirement": "No real-world generalization claims without Level 6 experiments; outcome metrics exclude tool-call counts, posts, agent-reported success and LLM judgments; record time to competence, action cost, compute, data use, retention, transfer.",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "15.7",
+   "requirement": "Development and confirmation experiments separated; sealed set never examined iteratively (access-budget audit).",
+   "note": "No entry."
+  },
+  {
+   "spec_ref": "16",
+   "requirement": "Participant consent, moderation, abuse prevention and integrity mechanisms; no real-world spam, fabricated engagement, covert influence, surveillance or impersonation.",
+   "note": "SP-16 criteria test only the real-world adapter and network."
+  },
+  {
+   "spec_ref": "20 / 21",
+   "requirement": "Final report separates implemented / verified / calibrated / approximation / scripted / learned / not established / failed / blocked, reports actual hardware, compute, model sizes, populations, world counts and test results; --verify-all itself checks full regression, committed final tree and verified reproduction instructions.",
+   "note": "SP-20 counts deliverables only."
+  }
+ ],
+ "tests_run": [
+  {
+   "command": "PYTHONPATH=src python -m pytest -q -p no:cacheprovider -x tests/test_v5_acceptance_checker.py",
+   "result": "13 passed in 1.73s"
+  },
+  {
+   "command": "python scratchpad/audit/P_acceptance/probe_checker_fool.py (11 fabrication probes in throwaway git repos)",
+   "result": "11/11 produced VERIFIED and CRUCIBLE_5_COMPLETE"
+  },
+  {
+   "command": "clean clone a881d18: PYTHONPATH=src python -m crucible.acceptance.v5 --verify-all",
+   "result": "exit 1; 241 NOT_STARTED; problems: no implementation files listed (241), no evidence record (241), test files missing (120)"
+  },
+  {
+   "command": "clean clone + probe commit: hard-coded record('A.2') gate test; acceptance.v5 run --requirement A.2 (author builder); review --reviewer ws-P; report --gate A",
+   "result": "A.2 VERIFIED"
+  },
+  {
+   "command": "same clone, manifest pruned to A.2 only: python -m crucible.acceptance.v5 --verify-all",
+   "result": "exit 0; project status: CRUCIBLE_5_COMPLETE"
+  },
+  {
+   "command": "clean clone dd745b9: weaken B.1 criteria and criteria_history[0] in memory; checker.check_requirement",
+   "result": "no criteria problem reported"
+  },
+  {
+   "command": "python scratchpad/audit/P_acceptance/probe_default_mode.py",
+   "result": "every entry point defaults to legacy_shaped_reward"
+  },
+  {
+   "command": "python scratchpad/audit/P_acceptance/probe_v4_defs2.py",
+   "result": "25 4.0 mech families (7/7/11); 74 v5 rapid families, 55 train; no name clash with 4.0 val/test/sealed"
+  },
+  {
+   "command": "python -I scan_tests.py / scan_returns.py over tests/v5 and tests/test_v5_*.py",
+   "result": "433 tests; 0 returns or except-pass in test bodies; 0 skip markers in tests/v5; 1 importorskip; 134 manifest ids never recorded"
+  },
+  {
+   "command": "clean clone dd745b9: pytest tests/test_v5_acceptance_checker.py tests/v5/test_gate_SP_4_8.py tests/v5/test_gate_SP_4_2.py tests/v5/test_gate_SP_4_7.py",
+   "result": "16 passed in 10.55s"
+  },
+  {
+   "command": "stat/sha256 of ~/.crucible/sealed_* before and after regression; sealed_access.jsonl review",
+   "result": "unchanged; last access 2026-11-23; accesses 1/1; contaminated false"
+  },
+  {
+   "command": "git diff --stat c07098b HEAD -- mechanisms worldgen goals usefulness economy actors; tests deleted/modified",
+   "result": "no changes; no 4.0 test modified or deleted"
+  },
+  {
+   "command": "git grep / git log --all -S for a GitHub fine-grained PAT prefix",
+   "result": "no occurrence"
+  },
+  {
+   "command": "clean clone dd745b9: CRUCIBLE_V5_AUTHOR=audit-probe python -m crucible.acceptance.v5 run --requirement SP-4.8; checker.check_requirement",
+   "result": "1 passed; honest measured metrics meet criteria; status IMPLEMENTED_UNVERIFIED (no implementation files listed; no independent review)"
+  },
+  {
+   "command": "pytest tests/test_discovery.py::test_help_is_reference_material_without_guidance (isolation) + load_all_modules probe",
+   "result": "fails in isolation too; unexplained error code media_error"
+  },
+  {
+   "command": "PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 0 --label 'audit: full regression' -- /venv/main/bin/python -m pytest -q -p no:cacheprovider tests --ignore=tests/v5 -o addopts='' --junitxml=.../regression.xml",
+   "result": "1664 tests: 1657 passed, 5 failed, 0 errors, 2 skipped (GPU-hidden Qwen tests), 2481 s. Failures: test_discovery::test_help_is_reference_material_without_guidance (v5 MediaError code media_error missing from 4.0 ERROR_MEANINGS: real regression); test_v5_rapid_engines five-engines and module-boundary tests and test_v5_rapid_families contract test (stale H0 contract after H1/H2 added 4 engines; program_exec imports sandbox.runner); test_batch_path_equals_single_worlds_bit_for_bit[cxs_selected_layers] (rapid/primitives.py:539 per-world sd not broadcast: real bug)."
+  }
+ ],
+ "critical_findings": [
+  "--verify-all exits 0 with CRUCIBLE_5_COMPLETE when requirements are deleted from the manifest (empty manifest is ok=True); manifest edits are exempt from the dirty-tree check (evidence.py:26, checker.py:207).",
+  "Hand-written evidence+JUnit+review with no test run is VERIFIED; the official run+review pipeline accepts a gate test that records constants; reviewer identity is a free-text string; nothing re-executes evidence.",
+  "Criteria can be weakened silently by rewriting criteria_history[0]; tests/implementation lists are not change-controlled; the checker never compares the manifest with requirements.py/derive().",
+  "No requirement can be verified: 0/253 entries list implementation files, 132 name missing tests (all of Gates A,B,G,N-Q,T-X,OO,RP); no P gate test, no evidence, no reviews, no final report.",
+  "reward_mode defaults to legacy_shaped_reward at every public entry point (make, Gym, PettingZoo, MechVecEnv, KernelMechEnv), contradicting the observation-only amendment; OO/RP entries only added at dd745b9.",
+  "Full regression is not green: 1664 tests, 5 failed (a 4.0 test broken by the v5 media_error code; cxs_selected_layers batch bug at rapid/primitives.py:539; 3 stale Tier 1 contract tests), 2 GPU skips; A.1/X.4 fail."
+ ],
+ "artifacts_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/P_acceptance",
+ "skeptic": {
+  "reviewer": "skeptic for area P_acceptance (workstream P)",
+  "tree": "feat/crucible-5-complete at f394dec (source identical to a881d18 outside docs and acceptance/v5)",
+  "artifacts_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/P_acceptance_skeptic/",
+  "overturned_subsystems": [
+   {
+    "name": "Acceptance checker core (--verify-all)",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "effort": "M-L",
+    "why": "With an honest, asserting gate test (SP-4.8) and a real committed defect (hidden +50% launch bonus in services/market.py, commit c415c28, which fails honestly), the official run+review with a sitecustomize injected through PYTHONPATH produced evidence 'clean: true' at c415c28 and the checker returned VERIFIED with no problems. An uncommitted change that makes market._complete raise is also still VERIFIED. The trust root is the producer's own record; only verifier-side re-execution in a fresh clone with a scrubbed, recorded environment closes this, which changes the evidence schema, the review, the run pipeline and verify_all together.",
+    "probes": [
+     "sp48_honest.log",
+     "sp48_mutant.log",
+     "sp48_envinject.log",
+     "uncommitted_breakage.log"
+    ]
+   },
+   {
+    "name": "Official run pipeline",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "effort": "M",
+    "why": "It runs in the working tree with the inherited environment (__main__.py:60-62) and records no sys.path, PYTHONPATH or import closure (evidence.py:68-77), so 'clean tree at commit X' does not determine what ran; demonstrated by the PYTHONPATH sitecustomize probe (S1.3).",
+    "probes": [
+     "sp48_envinject.log"
+    ]
+   },
+   {
+    "name": "4.0 benchmark definitions and sealed store",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S-M",
+    "why": "Reproduced: 25 mech families same splits, MechVecEnv bit-identical across c07098b/HEAD, legacy_check 11/11 identical, sealed hashes unchanged. But (1) the agent-visible 4.0 world.help 'errors' text changed (new 'media_error:' line with no meaning) because load_all_modules now imports all v5 packages (42 -> 89 kernel modules); (2) the recorded D-19 / Clarification 2 default flip collides with 4.0 protocol call sites that rely on the default (research/protocols.py:362,623; research/learners/training.py:103,163) and with legacy_check comparing against the default constructor (experience/leakage.py:536,541); (3) the sealed salt and the only sealed set are on non-volume container storage with no backup; (4) experience.registry.make(1, <test-split family>) builds training envs on 4.0 held-out families with no split guard or exposure accounting.",
+    "probes": [
+     "v4eq_clone_v4.json",
+     "v4eq_clone_head.json",
+     "help_errors.diff",
+     "legacy_check.log",
+     "probe_default_mode_head.log",
+     "test_split_reachable.log",
+     "v4dig_rerun.log"
+    ]
+   },
+   {
+    "name": "v5 test-suite integrity",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "effort": "L",
+    "why": "The v5 gate suite was never run in the audit (regression used --ignore=tests/v5). Running it: see gate_suite. test_C_3 fails at an integration point (social/recsys/service.py:184 expects crucible.population.register_activity; it only exists as population.core.register_activity) and has a latent crash behind it (test_gate_C.py:238 int() of a dict). SP-4.8's criterion metric hardcoded_social_revenue_bonuses stays 0 under a real +50% bonus. D-14/D-15 now formally supersede the stand-in partial worlds the social/commerce/population gates are built on.",
+    "probes": [
+     "gate_C3_run.log",
+     "c3_latent_bug.log",
+     "sp48_mutant.log",
+     "v5_gates_g1.log",
+     "v5_gates_g2.log"
+    ]
+   }
+  ],
+  "overturned_requirements": [
+   {
+    "id": "SP-21",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "why": "Fabricated or environment-substituted evidence is VERIFIED even with an honest asserting test (S1); needs verifier re-execution, not repairs to the producer-trusting checker."
+   },
+   {
+    "id": "A.2",
+    "from": "IMPLEMENT",
+    "to": "REPAIR",
+    "why": "Too harsh: experience/leakage.py:511 legacy_check already loads c07098b and compares 11 env/learner paths (11/11 identical, 6.2 s) and is wired into gates R and SP-11.3; the 1,076-node 4.0 baseline JUnit exists. Work: call it from test_gate_A against explicit legacy mode and add content hashes of definitions plus agent-visible help/tool text."
+   }
+  ],
+  "criteria_weak_corrections": [
+   {
+    "id": "X.1",
+    "from": false,
+    "to": true,
+    "why": "unverified_requirements == 0 is met by an all-zero record and by a pruned manifest; needs requirements_checked == len(derive())."
+   },
+   {
+    "id": "RP.2",
+    "from": false,
+    "to": true,
+    "why": "Counts report files; an empty 'Skeptic review' heading passes. Require cited probe logs that exist and hash-match."
+   }
+  ],
+  "additional_findings": [
+   "50/253 manifest entries (20%) are fully met by a record whose every metric is 0/False under the checker's own criterion_met (A.4, C.5, D.2, D.5, E.3, E.5, I.4, J.5, K.6, M.5, O.2-O.3, P.2-P.5, R.1, R.2, R.4, S.6, T.5, T.7, T.8, V.8, W.2, W.5-W.9, X.1-X.9, F.n1, I.n2, L.n1, N.n1, O.n1, S.n1, SP-5.4, SP-12.3, SP-16, RP.1, RP.4); none has a coverage (>= N) metric.",
+   "evidence.record() accepts +/-inf (evidence.py:86 rejects only NaN despite saying 'finite'); the checker accepts inf >= 1e9, -inf <= 0.01, p = -1 and accuracy 1.5.",
+   "verify_all never checks that the working tree equals a verified commit: an uncommitted breaking edit to a listed implementation file leaves the requirement VERIFIED (Part 21: 'final integrated implementation is committed').",
+   "4.0 open-world digests differ between two runs of the same commit (cloud.usage records measured cpu_ms, services/cloud.py:212-215), so A.5 reproduction_mismatches == 0 is undefined for open worlds until D-20; an initial c07098b-vs-HEAD digest difference was withdrawn as evidence for this reason.",
+   "Sealed salt and the only 4.0 sealed set (ow-final) exist only in /root/.crucible on non-volume storage; no backup in /workspace/backups; a recycle permanently loses the 4.0 final evaluation (A.4, RP.4).",
+   "First full v5 gate-suite run (minus H, GPU hidden): C-K 47/52 passed; L-SP first 40/62: 34 passed. 77 of 87 measured requirements already meet their manifest criteria in purpose-built partial worlds (stand-in populations, scripted creators, rule-based adopters); only implementation_files and a review string stand between them and VERIFIED, although D-14 records the subsystems are not one world.",
+   "E.5 gate: 5 reads of creator-assigned quality fields (domains/firms.py:290, social/reference.py:151, ...); experience.registry.make(1, <4.0 test-split family>) has no split guard (registry.py:115)."
+  ],
+  "upheld": [
+   "Evidence recording REPAIR (plus inf and environment-capture defects)",
+   "Independent review workflow REDESIGN",
+   "Manifest derivation and content EXTEND (manifest JSON == derive() today: 253 ids, text, criteria, deps identical; enforcement and coverage metrics missing)",
+   "Gate A suite IMPLEMENT (subsystem); Gate X and QA tooling IMPLEMENT; SP/RP gate tests IMPLEMENT",
+   "Persistent engineering documents REPAIR; Progress ledger REPAIR (head f394dec pushed per local refs)",
+   "4.0 regression suite status REPAIR",
+   "All other requirement verdicts"
+  ],
+  "gate_suite": {
+   "scope": "tests/v5 minus test_gate_H.py (needs GPU + Qwen), GPU hidden (--gpu-mb 0), via crucible.scale.slots, HEAD f394dec",
+   "group_C_to_K": {
+    "junit": "v5_gates_g1.xml",
+    "result": "52 tests: 47 passed, 5 failed (1574 s)",
+    "failed": [
+     "test_gate_C::test_C_3_consumption_produces_analytics:failure",
+     "test_gate_E::test_E3_controlled_artifact_changes_affect_participant_behaviour:failure",
+     "test_gate_E::test_E5_no_creator_assigned_quality_scores:failure",
+     "test_gate_F::test_F_3_heldout_reports_reproduce_from_checkpoints:failure",
+     "test_gate_F::test_F_7_dataset_provenance_and_checksums:failure"
+    ],
+    "notes": "C.3: population lacks package-level register_activity (integration gap). E.3: no participant probe registered. E.5: 5 reads of creator-assigned 'quality' fields (domains/firms.py:290, social/reference.py:151, ...). F.3/F.7: gharchive dataset tables_v1.npz missing and checksum mismatches; /workspace/data/crucible/gharchive_2024-10-07_96h was being rewritten by another tenant at 10:03-10:14 during the run, so these two may be a shared-data concurrency artifact."
+   },
+   "group_L_to_SP": {
+    "log": "v5_gates_g2.log",
+    "result": "first 40 of 62 tests: 34 passed, 6 failed; stopped while SP-3.2b (7200 s LM benchmark on CPU) was running; no JUnit (pytest writes it at exit)",
+    "failed": [
+     "test_gate_M::test_M8_mechanism_level_intervention_tests",
+     "test_gate_M::test_Mn1_renamed_or_parameter_variants_do_not_count",
+     "test_gate_S::test_S2_reference_learner_acts_in_tier2",
+     "test_gate_S::test_S3_reference_learner_acts_in_tier3",
+     "test_gate_S::test_S5_one_interface_many_world_types",
+     "test_gate_SP_11_1::test_SP_11_1_universal_contract"
+    ],
+    "not_run": "SP-3.2b and the 20 files after it (SP-4 .. SP-8.12); a follow-up job waited 30 min for a slot (9/9 CPUs held) and was cancelled"
+   },
+   "criteria_on_honest_records": {
+    "records": 87,
+    "criteria_met": 77,
+    "criteria_unmet": {
+     "E.3": [
+      "artifact_change_behavior_pvalue=1.0 fails <= 0.01"
+     ],
+     "E.5": [
+      "creator_assigned_quality_fields_read=5 fails == 0"
+     ],
+     "M.1": [
+      "admitted_train_families=51 fails >= 60"
+     ],
+     "M.2": [
+      "eval_families=18 fails >= 20"
+     ],
+     "M.7": [
+      "families_feasibility_validated=73 fails >= 80"
+     ],
+     "M.8": [
+      "families_with_intervention_tests=61 fails >= 80",
+      "intervention_test_failures=29 fails == 0"
+     ],
+     "S.2": [
+      "tier2_actions=0 fails >= 100",
+      "tier2_world_changes=0 fails >= 1"
+     ],
+     "S.3": [
+      "tier3_actions=0 fails >= 100",
+      "tier3_world_changes=0 fails >= 1"
+     ],
+     "SP-11.1": [
+      "observation_kinds=12 fails >= 13",
+      "tiers_supported=1 fails >= 3"
+     ],
+     "SP-2.1": [
+      "execution_modes=1 fails >= 3"
+     ]
+    },
+    "met_ids": [
+     "C.1",
+     "C.2",
+     "C.4",
+     "C.5",
+     "C.6",
+     "C.n1",
+     "D.1",
+     "D.2",
+     "D.3",
+     "D.4",
+     "D.5",
+     "E.1",
+     "E.2",
+     "E.4",
+     "E.n1",
+     "F.1",
+     "F.2",
+     "F.4",
+     "F.5",
+     "F.6",
+     "F.8",
+     "F.n1",
+     "I.1",
+     "I.2",
+     "I.3",
+     "I.4",
+     "I.5",
+     "I.6",
+     "I.7",
+     "I.n1",
+     "I.n2",
+     "J.1",
+     "J.2",
+     "J.3",
+     "J.4",
+     "J.5",
+     "J.6",
+     "J.7",
+     "J.n1",
+     "K.1",
+     "K.2",
+     "K.3",
+     "K.4",
+     "K.5",
+     "K.6",
+     "K.7",
+     "K.n1",
+     "L.1",
+     "L.2",
+     "L.3",
+     "L.4",
+     "L.5",
+     "L.n1",
+     "M.3",
+     "M.4",
+     "M.5",
+     "M.6",
+     "R.1",
+     "R.2",
+     "R.3",
+     "R.4",
+     "R.5",
+     "R.6",
+     "R.7",
+     "R.n1",
+     "S.1",
+     "S.4",
+     "S.5",
+     "S.6",
+     "S.7",
+     "S.8",
+     "SP-11.2",
+     "SP-11.3",
+     "SP-11.4",
+     "SP-11.5",
+     "SP-11.6",
+     "SP-2.3"
+    ]
+   },
+   "interpretation": "77 of 87 requirements measured by the current gate tests already meet their manifest criteria in purpose-built partial worlds (stand-in populations, scripted creators, rule-based adopters); with implementation_files filled in and a review string they would be VERIFIED, although D-14 records that these subsystems are not one world. The manifest has no criterion that distinguishes a partial-world pass from an integrated one."
+  },
+  "tests_run": [
+   {
+    "command": "clone_attack: CRUCIBLE_V5_AUTHOR=builder python -m crucible.acceptance.v5 run --requirement SP-4.8 (honest, 46e07b1)",
+    "result": "1 passed; seller_revenue_cents 6000; clean tree"
+   },
+   {
+    "command": "clone_attack: same, commit c415c28 with hidden +50% launch bonus in services/market.py",
+    "result": "1 failed (revenue assertion); hardcoded_social_revenue_bonuses = 0 with revenue 9000; IMPLEMENTED_UNVERIFIED"
+   },
+   {
+    "command": "clone_attack: PYTHONPATH=<evil>:src ... run --requirement SP-4.8 at c415c28; review --reviewer ws-P-qa; check_requirement",
+    "result": "1 passed; evidence clean:true at c415c28; VERIFIED, problems []"
+   },
+   {
+    "command": "clone_attack: uncommitted edit making Market._complete raise; check_requirement SP-4.8",
+    "result": "VERIFIED"
+   },
+   {
+    "command": "probe_v4_equivalence.py in clones at c07098b and f394dec",
+    "result": "25 mech families/splits identical; MechVecEnv 60-step obs/reward hashes identical (train/val/test); tools identical; help 'errors' text differs; registered modules 42 -> 89"
+   },
+   {
+    "command": "probe_v4_digest_rerun.py twice per clone",
+    "result": "4.0 tiny-world digest differs between two runs of the same commit (measured cpu_ms)"
+   },
+   {
+    "command": "leakage.legacy_check(n_steps=20) at HEAD",
+    "result": "11/11 identical, 6.2 s"
+   },
+   {
+    "command": "probe_zero_and_inf.py",
+    "result": "50/253 entries met by all-zero record; record() accepts +/-inf"
+   },
+   {
+    "command": "probe_manifest_vs_derive.py",
+    "result": "manifest == derive(): 253 ids, text, criteria, deps identical"
+   },
+   {
+    "command": "probe_default_mode_head.py",
+    "result": "check_mode(None), make, MechVecEnv, KernelMechEnv, CrucibleEnv default legacy_shaped_reward; 4 4.0 protocol call sites rely on default"
+   },
+   {
+    "command": "pytest tests/v5/test_gate_C.py -k C_3",
+    "result": "1 failed: ProtocolError feed: population module does not provide register_activity"
+   },
+   {
+    "command": "social_world(pop, aud) + audience.recount",
+    "result": "mismatches is a dict; int() at test_gate_C.py:238 raises TypeError"
+   },
+   {
+    "command": "make(1, <4.0 test-split family>) x3",
+    "result": "training envs built, no split guard"
+   },
+   {
+    "command": "pytest -q tests/test_v5_acceptance_checker.py",
+    "result": "13 passed"
+   },
+   {
+    "command": "sha256sum ~/.crucible/sealed_*",
+    "result": "hashes equal the auditor's; access log 4 lines"
+   }
+  ]
+ }
+}

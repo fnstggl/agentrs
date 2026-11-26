@@ -1,0 +1,745 @@
+{
+ "area": "L_experience",
+ "workstreams": [
+  "L"
+ ],
+ "commit": "a881d18",
+ "subsystems": [
+  {
+   "name": "Reward modes and defaults",
+   "paths": [
+    "src/crucible/experience/modes.py",
+    "src/crucible/experience/registry.py",
+    "src/crucible/research/envs.py",
+    "src/crucible/research/bridge.py",
+    "src/crucible/selfplay/arena.py",
+    "src/crucible/scale/rollout.py",
+    "src/crucible/api/gym_env.py",
+    "src/crucible/api/pettingzoo_env.py",
+    "src/crucible/integrations/agentrs_cam2.py",
+    "src/crucible/integrations/agentrs_sl.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "SP-11.3 reproduced (3 modes behave as specified when selected); probe_defaults: 13 constructors default to legacy_shaped_reward, default MechVecEnv nonzero reward 30/30 steps, default make(1,'mech:scm_additive') paid -8.04 over 20 ticks",
+   "key_defects": [
+    "check_mode(None) -> legacy (modes.py:34); make() default legacy (registry.py:99)",
+    "all adapters/wrappers default legacy; only parallel.FarmEnv defaults to observation_only",
+    "agentrs_sl adapter: no modes, native -0.01 invalid-call reward (agentrs_sl.py:235), outcome termination",
+    "HTTP/MCP CLIs have no reward-mode switch; OpenEnv metadata carries objective status in legacy",
+    "rapid verified mode pays when outcome success first true mid-episode (tier1.py:590-594)",
+    "legacy_check and CAM7 unified rollout rely on the legacy default"
+   ],
+   "work_needed": "flip every default to observation_only; legacy/verified as explicit recorded opt-ins; modes in sl adapter; --reward-mode in HTTP/MCP; terminal-only verified mode in rapid; update legacy_check, 4.0 baselines, CAM notes"
+  },
+  {
+   "name": "Reward-leakage defence (leakage battery, Gate R tests)",
+   "paths": [
+    "src/crucible/experience/leakage.py",
+    "tests/v5/test_gate_R.py"
+   ],
+   "verdict": "REDESIGN",
+   "effort": "M",
+   "evidence": "Gate R 8/8 pass (reproduced); probe_goal_oracle: observation-only learner recovers verifier progress 0.4 and independent_revenue 400000 exactly via 21 goals.check_now calls, scanner hits 0; probe_use_report: use.report returns verified_quality; probe_keyscan: Tier 1 'score' present, 14+1 false positives",
+   "key_defects": [
+    "detection by key name (PRIVILEGED_KEYS) and by invariance across reward modes cannot see mode-invariant world-tool oracles",
+    "key list omits score/success/quality/verified_quality",
+    "no coverage of RapidExperienceEnv, multi-agent rapid, Tier 2/3, v5 module worlds, sl adapter"
+   ],
+   "work_needed": "evaluator-metric registry + observation-only tool policy; adversarial oracle-recovery tests per tier; per-adapter coverage matrix; allowlist of legitimate consequence fields"
+  },
+  {
+   "name": "Observation contract and features",
+   "paths": [
+    "src/crucible/experience/observation.py",
+    "src/crucible/experience/features.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "S",
+   "evidence": "0 schema failures over 74 rapid families, 4.0 kernel worlds and the v5 module world; semantic_representations observed in the v5 module world (probe_v5_modules)",
+   "key_defects": [
+    "t units differ by tier (rapid: ticks)",
+    "objective text only (no numeric targets)",
+    "no monetary cost in results",
+    "static tool-category table maps 96/307 v5 tools to 'other'"
+   ],
+   "work_needed": "unit normalisation across tiers; structured objective metrics; result cost; categories for v5 hosts"
+  },
+  {
+   "name": "Tier 1 mechanism adapter (MechExperienceEnv)",
+   "paths": [
+    "src/crucible/experience/tier1.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "S",
+   "evidence": "core test: tick-for-tick equal to the kernel facility; probe_learning: learner improves through it",
+   "key_defects": [
+    "creator-defined 'score' (objective quantity) in observations and reports in observation-only mode (tier1.py:342, :231)",
+    "no exp self-experiment tool in Tier 1"
+   ],
+   "work_needed": "fidelity decision on 'score' (drop in observation-only unless an operator-observable quantity); add exp"
+  },
+  {
+   "name": "Tier 1 rapid adapter (RapidExperienceEnv)",
+   "paths": [
+    "src/crucible/experience/tier1.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "probe_rapid: 74 families build/validate; multi-agent: execute(a1) returns a0's result; a1 observe_since returned a0->a2 private message (rapid env: invisible); duplicates; t=1 after advance(3600); cost_s 0; world_changes 0 for 4 families",
+   "key_defects": [
+    "execute returns out['result'] of agent a0 (tier1.py:577)",
+    "shared unfiltered event log (tier1.py:514-530, 598-600) leaks private events",
+    "one tick per execute: no joint actions",
+    "no action_seq/cause, cost_s 0, t in ticks",
+    "last_changed never set",
+    "digest not a world digest"
+   ],
+   "work_needed": "delegate to rapid observe_since with per-agent seq map; per-tick joint stepping returning results[agent]; seconds/cost/cause; state-based last_changed and digest"
+  },
+  {
+   "name": "Kernel adapter (KernelExperienceEnv)",
+   "paths": [
+    "src/crucible/experience/kernel.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "core tests (lossless, visibility, own-only causes, scheduled provenance), SP-11.1/2/4/5, probe_no_objective (90 days, reward 0, observe 6-10 ms), probe_v5_modules (36 v5 modules, 0 schema failures)",
+   "key_defects": [
+    "default legacy",
+    "passes world-module evaluator oracles straight through in observation-only (goals.check_now, use.report)",
+    "verify() has verifier None without an objective",
+    "world log in memory grows ~0.9 MB/simulated day"
+   ],
+   "work_needed": "observation-only tool policy; meaningful verification without objective; store-backed long runs"
+  },
+  {
+   "name": "Tier 2 / Tier 3 construction paths",
+   "paths": [
+    "src/crucible/experience/registry.py",
+    "src/crucible/civ/__init__.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "S",
+   "evidence": "probe_tier2_contract: a conforming domains.base.Domain through make(2, ...) -> AttributeError for all name forms; tiers_available {1: True, 2: False, 3: False}",
+   "key_defects": [
+    "written against INTERFACE_CONTRACTS section 9, not workstream I's domains.base (module-level DOMAIN, configs dict, build(config, seed)->WorldSpec, objective(world, difficulty))",
+    "civ stub: Tier 3 IMPLEMENT"
+   ],
+   "work_needed": "rewrite Tier 2 branch on domains.base.REGISTRY/load_all/spec and per-principal objective; Tier 3 after J"
+  },
+  {
+   "name": "Tool interface, discovery, agent-created affordances",
+   "paths": [
+    "src/crucible/experience/features.py",
+    "src/crucible/experience/scripted.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "S",
+   "evidence": "SP-11.2 reproduced: discovered agent service tools (agent_services), paid call price exact, 3/3 permission refusals",
+   "key_defects": [
+    "categories assigned by static host table; v5 hosts unmapped",
+    "discovery/agent services only in kernel worlds",
+    "criterion counts categories available, not exercised"
+   ],
+   "work_needed": "v5 category mapping; affordance discovery wherever services can be created; exercised-category criterion"
+  },
+  {
+   "name": "Self-generated experiments (exp module)",
+   "paths": [
+    "src/crucible/experience/experiments.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "S",
+   "evidence": "SP-11.4 reproduced (rewards identical with/without experiments in all modes, no money moved); probe_goal_oracle: exp.register accepted goals.check_now as its measure",
+   "key_defects": [
+    "evaluator-backed read-only tools accepted as measures",
+    "kernel worlds only"
+   ],
+   "work_needed": "deny evaluator-backed measures via the shared registry; experiments in Tier 1 adapters"
+  },
+  {
+   "name": "Long-horizon experience and provenance",
+   "paths": [
+    "src/crucible/experience/kernel.py",
+    "tests/v5/test_gate_SP_11_5.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "S",
+   "evidence": "SP-11.5 reproduced: 8/8 features incl. consequences >=7 days later joined to own action_seq",
+   "key_defects": [
+    "rapid adapter has no causes/durations",
+    "Tier 2/3 untested"
+   ],
+   "work_needed": "provenance in rapid adapter; Tier 2/3 runs"
+  },
+  {
+   "name": "Experience store",
+   "paths": [
+    "src/crucible/experience/store.py"
+   ],
+   "verdict": "RETAIN",
+   "effort": "S",
+   "evidence": "core test (roundtrip, crash recovery, tamper detection); S.4 reproduced (1,140 records, reopen, verify, train fresh learner)",
+   "key_defects": [
+    "single writer without lock",
+    "full observation per record"
+   ],
+   "work_needed": "file lock for shared volumes; optional compaction"
+  },
+  {
+   "name": "Reference learner",
+   "paths": [
+    "src/crucible/experience/reference.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "S",
+   "evidence": "S.6 reproduced (0 checkpoint mismatches); probe_learning: score -0.29 -> 0.75, success 29%, vs frozen -0.45 / 0%, wait-only -0.006 (scm_additive:3, 3000 steps, observation-only)",
+   "key_defects": [
+    "default reward_mode legacy (reference.py:98)",
+    "GAE bootstrap uses V(s_T) not V(s_T+1) (reference.py:287)",
+    "learn_from_records does not reset recurrent state across agents/worlds",
+    "free-text args fall back to 'x'/actor id",
+    "checkpoint omits recurrent state",
+    "torch.load(weights_only=False)",
+    "learning shown on one Tier 1 task only"
+   ],
+   "work_needed": "fix defaults/bootstrap/state resets; text-argument head or LM proposal; learning sanity per tier"
+  },
+  {
+   "name": "Driver loop, vectorisation, process parallelism",
+   "paths": [
+    "src/crucible/experience/loop.py",
+    "src/crucible/experience/parallel.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "S",
+   "evidence": "run_learner used by all gate tests; S.7 passed (slot-scheduled, --cpu 4): parallel_environments 4, 4 worker processes, 432 farm steps, 0 failures, 14 learner updates",
+   "key_defects": [
+    "run_learner drives one agent only",
+    "world-change counting depends on last_changed (rapid never sets it)",
+    "VecExperience is sequential in one process"
+   ],
+   "work_needed": "multi-agent driver; state-based change detection fallback"
+  },
+  {
+   "name": "CLI and reproducibility",
+   "paths": [
+    "src/crucible/experience/__main__.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "S",
+   "evidence": "S.8 reproduced for Tier 1 mech (identical digests in two fresh processes)",
+   "key_defects": [
+    "rapid digest not world state",
+    "Tier 2/3 absent"
+   ],
+   "work_needed": "real digests per adapter; one reproducible command per tier"
+  },
+  {
+   "name": "External surfaces (Gymnasium, PettingZoo, HTTP/OpenEnv, MCP)",
+   "paths": [
+    "src/crucible/api/gym_env.py",
+    "src/crucible/api/pettingzoo_env.py",
+    "src/crucible/api/http_server.py",
+    "src/crucible/api/mcp_server.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "battery tests on Gym/PZ pass; source inspection of observation spaces and CLIs",
+   "key_defects": [
+    "defaults legacy",
+    "observations are rendered text + time only (lossy for exact quantities)",
+    "no Gym/PZ wrapper over ExperienceEnv (no rapid/Tier 2/Tier 3 access)",
+    "no mode switch on HTTP/MCP"
+   ],
+   "work_needed": "structured Observation on all surfaces; Gym/PZ wrappers over make(); mode flags"
+  },
+  {
+   "name": "Learner integrations (CAM 2.0, AGENTRS sl)",
+   "paths": [
+    "src/crucible/integrations/"
+   ],
+   "verdict": "REPAIR",
+   "effort": "S",
+   "evidence": "test_cam2_adapter_reward_modes passes; agentrs_sl source inspection",
+   "key_defects": [
+    "sl adapter: no modes, invalid-call penalty, outcome termination, progress metric/target in goal()",
+    "cam2 default legacy"
+   ],
+   "work_needed": "reward modes in sl adapter; observation-only defaults"
+  },
+  {
+   "name": "Training exports (trajectories, league)",
+   "paths": [
+    "src/crucible/training/"
+   ],
+   "verdict": "EXTEND",
+   "effort": "S",
+   "evidence": "source inspection; used by cli.py only",
+   "key_defects": [
+    "not connected to crucible-exp/1 records or reward modes"
+   ],
+   "work_needed": "unify formats; record reward mode"
+  },
+  {
+   "name": "Learner guide and CAM compatibility",
+   "paths": [
+    "docs/v5/LEARNER_GUIDE.md",
+    "examples/experience_external_adapter.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "S",
+   "evidence": "SP-11.6 reproduced; mapping checked against cam7-ref superlearner/cam_unified/interfaces.py:86-311",
+   "key_defects": [
+    "guide states legacy default, claims no evaluator data in results/tools, shows a Tier 2 contract I does not implement, claims t seconds everywhere",
+    "CAM gaps: ExecutionResult.cost, GoalSpec.metrics; CAM7 rollout uses MechVecEnv default"
+   ],
+   "work_needed": "correct the guide; document the default flip and CAM migration"
+  }
+ ],
+ "requirements": [
+  {
+   "id": "R.1",
+   "verdict": "REPAIR",
+   "reason": "0 nonzero rewards on covered paths in observation-only, but legacy is the default of 13 constructors (default MechVecEnv rewarded 30/30 steps); sl adapter pays a native penalty; rapid/T2/T3 not covered",
+   "work_needed": "flip defaults; modes in sl adapter; measure every adapter and tier incl. default construction",
+   "criteria_weak": true
+  },
+  {
+   "id": "R.2",
+   "verdict": "REDESIGN",
+   "reason": "key-name scan finds 0 while goals.check_now yields the exact verifier progress (0.4) and use.report yields verified_quality; Tier 1 'score'",
+   "work_needed": "evaluator-metric registry, observation-only tool policy, oracle-recovery tests per tier",
+   "criteria_weak": true
+  },
+  {
+   "id": "R.3",
+   "verdict": "REPAIR",
+   "reason": "planted canaries absent (reproduced) but evaluator functions over others' private payment graph are callable; rapid observe_since leaks other agents' private events",
+   "work_needed": "close tool oracles; fix rapid visibility; canaries in rapid multi-agent, domains, civs",
+   "criteria_weak": true
+  },
+  {
+   "id": "R.4",
+   "verdict": "EXTEND",
+   "reason": "legitimate fields equal to legacy on covered envs (reproduced); unchecked on rapid/T2/T3",
+   "work_needed": "extend per tier; re-check after leak closure; allowlist of consequence fields",
+   "criteria_weak": false
+  },
+  {
+   "id": "R.5",
+   "verdict": "EXTEND",
+   "reason": "verify() produces evaluator-side outcomes on every adapter (reproduced); nothing evaluated without an objective; T2/T3 absent",
+   "work_needed": "per-tier evaluator logs, domain/civ evaluators, verification for no-objective runs",
+   "criteria_weak": true
+  },
+  {
+   "id": "R.6",
+   "verdict": "REPAIR",
+   "reason": "11/11 legacy runs byte-identical to 4.0 (reproduced) only because legacy is the default",
+   "work_needed": "explicit legacy opt-in in legacy_check, baselines and CAM migration; test explicit legacy + default obs-only",
+   "criteria_weak": true
+  },
+  {
+   "id": "R.7",
+   "verdict": "RETAIN",
+   "reason": "reference learner updates parameters in observation-only (reproduced) and genuinely improves in Tier 1 (score -0.29 -> 0.75 vs frozen -0.45)",
+   "work_needed": "add improvement-vs-frozen check to the gate",
+   "criteria_weak": true
+  },
+  {
+   "id": "R.n1",
+   "verdict": "REDESIGN",
+   "reason": "11 battery tests pass but cannot detect mode-invariant leakage; no rapid/T2/T3/integration coverage",
+   "work_needed": "as R.2 plus a per-adapter coverage matrix",
+   "criteria_weak": true
+  },
+  {
+   "id": "S.1",
+   "verdict": "REPAIR",
+   "reason": "passes on 4.0 mech facility (reproduced); on v5 rapid families world_changes is never counted and multi-agent results are misattributed",
+   "work_needed": "fix rapid adapter; measure on v5 rapid families incl. multi-agent",
+   "criteria_weak": true
+  },
+  {
+   "id": "S.2",
+   "verdict": "IMPLEMENT",
+   "reason": "no Tier 2 domain registered; make(2, ...) incompatible with domains.base.Domain (AttributeError)",
+   "work_needed": "rewrite Tier 2 branch on domains.base; run on >=3 domains",
+   "criteria_weak": true
+  },
+  {
+   "id": "S.3",
+   "verdict": "IMPLEMENT",
+   "reason": "crucible.civ is a stub",
+   "work_needed": "after J's generate, run on >=2 profiles",
+   "criteria_weak": true
+  },
+  {
+   "id": "S.4",
+   "verdict": "RETAIN",
+   "reason": "1,140 records stored, reopened, hash-verified, fresh learner updated (reproduced)",
+   "work_needed": "extend to all tiers once available",
+   "criteria_weak": false
+  },
+  {
+   "id": "S.5",
+   "verdict": "REPAIR",
+   "reason": "fails (5 world types, 1 v5 tier); rapid not included; metric >=3 world types passes without T2/T3",
+   "work_needed": "add rapid, domains, civs; criterion must require tiers 1, 2 and 3",
+   "criteria_weak": true
+  },
+  {
+   "id": "S.6",
+   "verdict": "RETAIN",
+   "reason": "0 mismatches incl. optimiser/RNG and identical future actions/update (reproduced)",
+   "work_needed": "include recurrent state; weights_only loading",
+   "criteria_weak": false
+  },
+  {
+   "id": "S.7",
+   "verdict": "RETAIN",
+   "reason": "VecExperience + RolloutFarm path reviewed; slot-scheduled re-run: passed (slot-scheduled, --cpu 4): parallel_environments 4, 4 worker processes, 432 farm steps, 0 failures, 14 learner updates",
+   "work_needed": "measure on Tier 2/3 worlds too",
+   "criteria_weak": false
+  },
+  {
+   "id": "S.8",
+   "verdict": "EXTEND",
+   "reason": "reproduced for Tier 1 mech only; rapid digest is not world state; T2/T3 absent",
+   "work_needed": "real digests per adapter; one reproducible command per tier",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-11.1",
+   "verdict": "REPAIR",
+   "reason": "fails: 12 kinds, 1 tier; semantic kind exists in the v5 module world but the test does not use it; rapid t in ticks",
+   "work_needed": "v5 artifact world in the test; unit fixes; T2/T3",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-11.2",
+   "verdict": "EXTEND",
+   "reason": "passes in open_digital (reproduced); 31% of v5 tools categorised 'other'; discovery only in kernel worlds",
+   "work_needed": "v5 category mapping; criterion on categories exercised",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-11.3",
+   "verdict": "REPAIR",
+   "reason": "3 modes verified (reproduced) but observation_only is not the universal default; sl adapter has no modes; rapid verified pays mid-episode",
+   "work_needed": "flip defaults; sl modes; terminal-only verified in rapid",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-11.4",
+   "verdict": "REPAIR",
+   "reason": "round trips and zero payment reproduced; exp accepts the goals.check_now evaluator oracle as a measure; not in Tier 1 adapters",
+   "work_needed": "deny evaluator-backed measures; experiments in every tier",
+   "criteria_weak": false
+  },
+  {
+   "id": "SP-11.5",
+   "verdict": "EXTEND",
+   "reason": "8/8 features reproduced in a kernel world; rapid lacks durations/causes; T2/T3 untested",
+   "work_needed": "provenance in rapid; T2/T3 runs",
+   "criteria_weak": false
+  },
+  {
+   "id": "SP-11.6",
+   "verdict": "REPAIR",
+   "reason": "external adapter uses only the public API and changes nothing (reproduced); guide inaccurate on defaults, leakage and Tier 2",
+   "work_needed": "correct the guide; document CAM migration for the default flip",
+   "criteria_weak": false
+  }
+ ],
+ "missing_requirements": [
+  "Amendment (a): observation_only is the default of every env/adapter/wrapper/server/CLI in all three tiers; legacy and verified only when explicitly selected and recorded in experience records",
+  "Amendment (a)/11.3: no evaluator data via world tools, tool responses or event metadata, tested by oracle-recovery (reconstruct verifier progress / grader quality), not only key names",
+  "Amendment (a): operation without an assigned objective indefinitely with bounded adapter state and meaningful verification",
+  "11.3: authorized verified outcome labels supplied separately for training/calibration (no operator label channel exists)",
+  "11.6/Clarification 1: multiple learners in one world through the interface (multi-agent driver; Tier 1 multi-seat and rapid team families; Tier 2/3 multi-participant)",
+  "11.1: exact structured observations on Gym, PettingZoo, HTTP/OpenEnv and MCP surfaces, and Gym wrappers over ExperienceEnv for every tier",
+  "11.6: separate algorithmic limitations from environment failures",
+  "Amendment (a)/11.4: self-generated experiments without automatic reward in every tier (kernel worlds only today)",
+  "One unit system across tiers (t seconds, cost_s, action_seq/cause in every adapter)",
+  "Learning-signal sanity: reference learner improves over a frozen copy in >=1 world per tier"
+ ],
+ "tests_run": [
+  {
+   "command": "pytest -q tests/v5/test_gate_R.py",
+   "result": "8 passed in 17.7s"
+  },
+  {
+   "command": "pytest -q tests/v5/test_gate_S.py -k 'not S7'",
+   "result": "S.1, S.4, S.6, S.8 passed; S.2, S.3 failed (no Tier 2 domain / no civ generator); S.5 failed (tiers_one_interface=1)"
+  },
+  {
+   "command": "crucible.scale.slots --cpu 4 -- pytest -q tests/v5/test_gate_S.py -k S7",
+   "result": "passed (slot-scheduled, --cpu 4): parallel_environments 4, 4 worker processes, 432 farm steps, 0 failures, 14 learner updates"
+  },
+  {
+   "command": "pytest -q tests/v5/test_gate_SP_11_{1..6}.py",
+   "result": "SP-11.2..11.6 passed; SP-11.1 failed (12/13 kinds, 1 tier)"
+  },
+  {
+   "command": "pytest -q tests/test_v5_experience_core.py",
+   "result": "11 passed"
+  },
+  {
+   "command": "probe_defaults.py",
+   "result": "13 constructors default to legacy; default MechVecEnv rewarded 30/30 steps"
+  },
+  {
+   "command": "probe_goal_oracle.py",
+   "result": "observation-only learner recovered independent_revenue 400000 (= evaluator) and progress 0.4 (= verifier) via 21 goals.check_now calls; leakage scanner 0 hits"
+  },
+  {
+   "command": "inline use.report probe (ow_tiny)",
+   "result": "verified_quality and independent revenue returned in observation_only"
+  },
+  {
+   "command": "probe_keyscan.py 100",
+   "result": "Tier 1 obs carry rig score; scanner false positives (rapid spec.objective, bounty reward)"
+  },
+  {
+   "command": "probe_rapid.py + private-event probe",
+   "result": "74 families validate; t in ticks; multi-agent result misattributed; private a0->a2 message delivered to a1 by observe_since; world_changes 0"
+  },
+  {
+   "command": "inline Tier 2 contract probe",
+   "result": "make(2, ...) with a real domains.base.Domain -> AttributeError"
+  },
+  {
+   "command": "probe_learning.py 3000",
+   "result": "trained score -0.29 -> 0.75 (success 29%); frozen -0.30 -> -0.48 (0%); wait-only -0.006"
+  },
+  {
+   "command": "probe_no_objective.py 90",
+   "result": "90 days, reward 0, observe 6-10 ms, memory +0.9 MB/day, verifier None"
+  },
+  {
+   "command": "probe_v5_modules.py",
+   "result": "36 v5 modules: 0 schema failures, semantic_representations present, 11 kinds, 5 world changes; 96/307 tools categorised 'other'"
+  }
+ ],
+ "critical_findings": [
+  "observation_only is not the default anywhere: make(), all adapters, MechVecEnv, KernelMechEnv, SelfPlay envs, Gym, PettingZoo, WorldEnv, CAM2 adapter and ReferenceLearner default to legacy; default MechVecEnv paid reward 30/30 steps",
+  "Privileged progress leaks via tools in observation_only: goals.check_now over independent_revenue let a learner recover the verifier's exact progress (0.4) in 21 read-only calls; use.report returns verified_quality; the battery sees 0",
+  "Gate R leakage tests prove only mode-invariance and key-name absence; world-tool oracles pass them by construction; no coverage of the rapid adapter, Tier 2/3, v5 module worlds or the sl adapter (which pays a native -0.01 penalty)",
+  "RapidExperienceEnv (v5 Tier 1) broken for multi-agent: execute(a1) returns a0's result, observe_since leaks private a0->a2 events to a1, events duplicated, t in ticks, cost_s 0, no causes, world_changes never counted",
+  "Tier 2 branch of make() is incompatible with workstream I's domains.base.Domain (AttributeError with a conforming domain); no domain registered and civ is a stub, so S.2, S.3, S.5 and SP-11.1 fail and would keep failing after I lands",
+  "Positive: reference learner genuinely learns in Tier 1 observation_only (score -0.29 -> 0.75 vs frozen -0.45); store, exact checkpoints, reproducible CLI, exp module and long-horizon provenance reproduced"
+ ],
+ "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/L_experience",
+ "skeptic": {
+  "reviewer": "independent skeptic (L_experience)",
+  "commit_reviewed": "dd745b9 (docs/manifest-only commit after a881d18; no source change)",
+  "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/L_experience_skeptic",
+  "overturned": [
+   {
+    "target": "Experience store",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S",
+    "why": "probe_store.py: crash between os.replace(part->final) (store.py:173) and manifest append (:178) silently loses records 10-14 on next seal, verify() passes; in-band {'$blob'} refs (store.py:212) rewrite or crash iterate (FileNotFoundError); 2 writers -> StoreCorrupt; tail-shard deletion undetected"
+   },
+   {
+    "target": "S.4",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "why": "probe_offline_boundary.py: records have no done/episode field (store.py:291-300); learn_from_records (reference.py:345) chains across Tier 1 resets: boundary |signal| 8.95/4.80/6.59 vs mean 0.07 inside; a0 message content {'$blob':..} made a1's store unreadable (probe_rapid_msg_schema_store.py)"
+   },
+   {
+    "target": "S.6",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "why": "probe_checkpoint_resume.py: gate test resets both learners before comparing; mid-episode resume loses recurrent state (|h| 33.9->0) and 7 buffered transitions; 1/11 greedy actions differ and post-update params differ"
+   },
+   {
+    "target": "S.7",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "why": "probe_farm_concurrency.py: concurrency uses parent dequeue time (parallel.py:131); with 2 worker processes and a busy parent it reports max_concurrent_environments=4 and the gate assertion passes (1 worker -> 3)"
+   },
+   {
+    "target": "Driver loop, vectorisation, process parallelism",
+    "from": "EXTEND",
+    "to": "REPAIR",
+    "why": "same probes: over-reporting concurrency metric and offline learning across episode resets are correctness defects"
+   },
+   {
+    "target": "Tier 1 rapid adapter (RapidExperienceEnv)",
+    "from": "REPAIR",
+    "to": "REBUILD",
+    "why": "probe_rapid_msg_schema_store.py: receiver observations fail validate_observation after one message in 6/6 multi-agent families; probe_rapid_spec.py: rapid.query spec returns family/seed/category/split in 38/74 families (8 'val') in observation_only; plus original defects; nearly every method needs replacing"
+   },
+   {
+    "target": "Tier 2 / Tier 3 construction paths",
+    "from": "REPAIR",
+    "to": "REBUILD (Tier 2 branch) / IMPLEMENT (Tier 3)",
+    "why": "registry.py:116-128,144-175 never executed by any test or caller (only TierUnavailable paths); written against an unimplemented contract (original P6 AttributeError)"
+   },
+   {
+    "target": "R.3",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "why": "same flaw as R.2: mode-invariant tool outputs pass canary/invariance tests; new counterexample rapid spec split/family/seed via the adapter (probe_rapid_spec.py)"
+   }
+  ],
+  "upheld": [
+   {
+    "target": "R.7",
+    "verdict": "RETAIN",
+    "why": "probe_learning_seeds.py: 4/4 extra mech runs improve (scm_additive seeds 1,2: 0.10->0.52, 0.09->0.57 vs wait-only -0.006); clear gain over baseline only on scm_additive; signal is 0 in rapid (13/13), so learning is shown only on 4.0 mech facilities"
+   },
+   {
+    "target": "Kernel adapter (KernelExperienceEnv)",
+    "verdict": "REPAIR",
+    "why": "probe_kernel_visibility.py: bystander saw no canary; probe_world_changes.py: 294 read-only calls counted 0 world changes; probe_delayed_30d.py: 31-day delayed result linked to own action_seq"
+   },
+   {
+    "target": "Tier 1 mech adapter",
+    "verdict": "REPAIR",
+    "why": "probe_mech_score.py: in 15/25 families obs 'score' is not net; tech_* score is a creator-defined objective quantity (techsys.py:61,372) and must leave observation_only"
+   },
+   {
+    "target": "Reward-leakage battery / R.2 / R.n1",
+    "verdict": "REDESIGN",
+    "why": "harsh but justified; rapid spec leak is a further counterexample the design cannot catch"
+   },
+   {
+    "target": "Long-horizon / Self-experiments / CLI / Observation contract",
+    "verdict": "EXTEND/REPAIR/EXTEND/EXTEND",
+    "why": "upheld; the contract validator caught the rapid errors (adapter fault), so 'validated in every world tried' is withdrawn"
+   }
+  ],
+  "requirements_added_since_audit": [
+   {
+    "id": "OO.1",
+    "verdict": "REPAIR",
+    "reason": "13 constructors default to legacy; tests/v5/test_gate_OO.py missing; tiers 2/3 absent",
+    "work_needed": "flip all defaults; per-family default-mode check over >=100 families incl. rapid/domains/civs",
+    "criteria_weak": false
+   },
+   {
+    "id": "OO.2",
+    "verdict": "REDESIGN",
+    "reason": "observation_only leaks: goals.check_now exact progress, use.report verified_quality, rapid query spec family/seed/split, tech_* score",
+    "work_needed": "evaluator-quantity registry, observation-only tool policy in all adapters, >=8 oracle-recovery probe kinds",
+    "criteria_weak": false
+   },
+   {
+    "id": "OO.3",
+    "verdict": "EXTEND",
+    "reason": "kernel worlds show consequences; rapid adapter drops causes/cost; no tiers 2/3",
+    "work_needed": "per-tier consequence-kind check incl. rapid and domains/civs",
+    "criteria_weak": false
+   },
+   {
+    "id": "OO.4",
+    "verdict": "REDESIGN",
+    "reason": "verifier metrics reachable via goals.check_now/exp; verify() on the learner-held in-process object; no ground-truth agreement test",
+    "work_needed": "separate evaluator handle not passed to learners; deny evaluator-backed tools in observation_only; verifier-vs-ground-truth test per tier",
+    "criteria_weak": false
+   },
+   {
+    "id": "OO.5",
+    "verdict": "REPAIR",
+    "reason": "90 objective-free days in tiny (memory +0.9 MB/day), no configured resource limits; no civ",
+    "work_needed": "configured resource limits and store-backed world log; 90-day civ run once J lands",
+    "criteria_weak": false
+   },
+   {
+    "id": "OO.6",
+    "verdict": "EXTEND",
+    "reason": "own-signal training works in mech/kernel; reference signal identically 0 in rapid (13/13); tiers 2/3 absent",
+    "work_needed": "configurable signal over resources/cash in every tier; external-reward update demo per tier",
+    "criteria_weak": false
+   },
+   {
+    "id": "OO.7",
+    "verdict": "EXTEND",
+    "reason": "kernel: 31-day delayed result with provenance reproduced; rapid has no provenance; tiers 2/3 absent",
+    "work_needed": "provenance in rapid adapter; >=30-day delayed outcomes in domains/civs",
+    "criteria_weak": false
+   },
+   {
+    "id": "OO.8",
+    "verdict": "REPAIR",
+    "reason": "legacy is the default, so explicit selection is not required",
+    "work_needed": "flip defaults; legacy_check and baselines pass legacy explicitly",
+    "criteria_weak": false
+   }
+  ],
+  "criteria_weak_changes": {
+   "S.4": true,
+   "S.6": true,
+   "S.7": true,
+   "S.5/SP-11.1": "must include multi-agent rapid receivers"
+  },
+  "additional_findings": [
+   "tests/v5/test_gate_OO.py named by OO.1-OO.8 does not exist",
+   "ReferenceLearner observation-only signal hard-wired to numbers['bank.balances.*'] (reference.py:86,199); zero in all sampled rapid families",
+   "rapid multi-agent message entities violate the Observation contract for the receiver (6/6 families)",
+   "any participant can DoS another's ExperienceStore via {'$blob': h} content",
+   "FarmRun concurrency measured from parent dequeue times; gate S.7 passes with 2-way parallelism"
+  ],
+  "tests_run": [
+   {
+    "command": "probe_store.py",
+    "result": "crash-window loss of 5 records with verify() passing; $blob round trip not equal / FileNotFoundError; 2 writers -> StoreCorrupt; tail truncation undetected"
+   },
+   {
+    "command": "probe_checkpoint_resume.py",
+    "result": "mid-episode: |h| 33.9->0, 7 transitions lost, 1/11 greedy mismatch, next-update params differ"
+   },
+   {
+    "command": "probe_learning_seeds.py 3000",
+    "result": "mech: 4/4 runs improve; clear gain over wait-only on scm_additive only; rapid: signal keys 0 in 13/13"
+   },
+   {
+    "command": "probe_world_changes.py",
+    "result": "294 read-only calls, 0 counted as world changes"
+   },
+   {
+    "command": "probe_rapid_spec.py",
+    "result": "38/74 families leak family/seed/category/split via rapid.query spec (8 split=val)"
+   },
+   {
+    "command": "probe_rapid_msg_schema_store.py",
+    "result": "6/6 multi-agent families: receiver obs schema error after one message; a0 content made a1 store unreadable"
+   },
+   {
+    "command": "probe_farm_concurrency.py 1 / slots --cpu 2 probe_farm_concurrency.py 2",
+    "result": "1 worker -> reported 3; 2 workers -> reported 4, gate assertion would pass"
+   },
+   {
+    "command": "probe_kernel_visibility.py",
+    "result": "bystander saw no canary or amount; recipient saw both"
+   },
+   {
+    "command": "probe_delayed_30d.py",
+    "result": "31-day delayed exp.resolved linked to action_seq via scheduled; 553 events after a 33-day gap"
+   },
+   {
+    "command": "probe_mech_score.py",
+    "result": "15/25 mech families: obs score != net"
+   },
+   {
+    "command": "probe_offline_boundary.py",
+    "result": "boundary |signal| 8.95/4.80/6.59 vs inside mean 0.07, max 0.23; no done field"
+   },
+   {
+    "command": "pytest tests/v5/test_gate_S.py -k 'S4 or S6'",
+    "result": "2 passed in 31.7 s (passes on the defective paths)"
+   }
+  ],
+  "critical_findings": [
+   "Rapid (v5 Tier 1) adapter emits schema-invalid observations to every message receiver and, in observation_only, hands learners family/seed/split in 38/74 families",
+   "S.4/S.6/S.7 RETAINs do not survive: offline learning crosses episode resets, checkpoints do not resume mid-episode, the concurrency metric over-reports",
+   "ExperienceStore loses records in the seal crash window and can be made unreadable by another agent's message content"
+  ]
+ }
+}

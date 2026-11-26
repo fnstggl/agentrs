@@ -1,0 +1,528 @@
+{
+ "area": "F_commerce",
+ "workstreams": [
+  "F (F1 commerce, F2 institutions)"
+ ],
+ "commit": "a881d18",
+ "subsystems": [
+  {
+   "name": "subscriptions billing engine (subs)",
+   "paths": [
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "K.1 7/7, K.2 6/6, K.3 5/5 reproduced; mandates cap pulls at plan price, bank.debit has no endpoint; dunning/trial/coupon/proration correct",
+   "key_defects": [
+    "only a FULL refund clears period_paid (l.298), so partially refunded periods stay qualifying at full price",
+    "cancel_at_period_end subscriptions keep counting for up to 365 days (annual)",
+    "not installed by any world family/domain/civilization; social/creators.py runs a parallel subscription billing (l.109) not seen by MRR",
+    "no metered/seat/goods-recurring billing"
+   ],
+   "work_needed": "net-of-refund period validity; scheduled-churn handling; become system of record for creators; install in Tier 2/3 worlds",
+   "effort": "M"
+  },
+  {
+   "name": "recurring revenue and profit metrics",
+   "paths": [
+    "src/crucible/commerce/revenue.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "K.5 0 mismatches, $100k ARR = $8,333.33 MRR, K.6 0-cent error reproduced; P1: 99% refund keeps ARR $100,000 for 200 days; P2: 45% cashback keeps full MRR; households probe: F1 revenue 0 for every bazaar firm",
+   "key_defects": [
+    "MRR = list price - coupon, not net of partial refunds/rebates/partial circular share",
+    "revenue_report flagged list (windowed) inconsistent with qualification (all-history)",
+    "households counterparty skipped -> 4.0 economy firms have zero revenue in F1 profit",
+    "metrics registered with subject -> readable in-world (oracle)",
+    "not used by any goal family; 4.0 'revenue' goal still uses rolling 30-day independent_revenue",
+    "CAC depends on an 'ads' kind no commerce world produces"
+   ],
+   "work_needed": "net MRR definition; consistent flagging; household attribution; evaluator-only registration plus a separate booked-MRR metric; MRR/ARR goal family",
+   "effort": "M"
+  },
+  {
+   "name": "related-party and circular-flow detection",
+   "paths": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/goals/metrics.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "K.4 0 errors and K.7 1.0/0.0 reproduced on the implementer's 13 schemes; my probes: commitment and inst project-reward payouts netted 0 (not flagged) vs plain transfer flagged; goods laundering share 0.005; 6-hop grant chain 2/6 unrelated; unlabelled second persona counted; ~6 ms per 1k txns per merchant cold",
+   "key_defects": [
+    "escrow releases other than market orders/bounties dropped from the netting graph (_tx_flows/_owner_key)",
+    "goods consideration never netted and pro-rata tracing dilutes with colluder's own funds",
+    "binary FLAG_SHARE=0.5: below it the full price counts",
+    "refunds treated as untainted and not netted -> refund-based ARR inflation",
+    "related_set closure limited to 4 rounds",
+    "controlled identity only via operator 'controller' label equality",
+    "full-ledger replay per merchant per seq (not Internet-scale)"
+   ],
+   "work_needed": "attribute and net all escrow instruments; market-price bound on goods exemption; proportional exclusion; fixpoint closure; adversarial red-team scheme set; incremental tracing",
+   "effort": "M"
+  },
+  {
+   "name": "products, offers, licences, entitlements, ratings, support",
+   "paths": [
+    "src/crucible/commerce/products.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "SP-6.1 scenarios reproduced (deliveries real: sandbox service execution, repo/doc grants, conserved goods); probe_seats: 1-seat licence used by 3 admins; P6: owner-funded socks' 5-star ratings accepted",
+   "key_defects": [
+    "seats stored, never enforced",
+    "ratings accepted from owner-funded payers (only 4.0 is_related checked)",
+    "support tickets have no consequence on customers"
+   ],
+   "work_needed": "enforce seats; exclude flagged payers' ratings; feed support outcomes into retention",
+   "effort": "S"
+  },
+  {
+   "name": "business lifecycle and world generation (ventures)",
+   "paths": [
+    "src/crucible/commerce/business.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "SP-6.1 formation and bankruptcy (wind-down refunds, insolvency claims) reproduced",
+   "key_defects": [
+    "incumbents static (no price/quality/capacity response) -> competition is only customer choice",
+    "no fundraising/investment beyond founder capital in commerce worlds"
+   ],
+   "work_needed": "adaptive competitors (population of firm minds), richer financing",
+   "effort": "M"
+  },
+  {
+   "name": "digital marketplaces (xchg)",
+   "paths": [
+    "src/crucible/commerce/marketplace.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "SP-6.1 marketplaces scenario reproduced (>=20 orders, >=10 buyers, fees reconcile, goods conserved)",
+   "key_defects": [
+    "participants limited to scripted patrons goods buyers/sellers",
+    "escrow-free settlement means disputes rely on operator funds (fine) but not integrated with v5 population"
+   ],
+   "work_needed": "population-driven buyers/sellers; integration with Tier 2 marketplace domain",
+   "effort": "M"
+  },
+  {
+   "name": "independent customers (patrons)",
+   "paths": [
+    "src/crucible/commerce/customers.py"
+   ],
+   "verdict": "REDESIGN",
+   "evidence": "K.n1 and SP-6.1 competition reproduced; code: one need per buyer, discovery only via prod.catalog, quality scored with hidden truth, ratings trusted at >=3",
+   "key_defects": [
+    "third separate, uncalibrated, hand-coded population (vs 4.0 consumers and v5 population)",
+    "demand only for 4 need-solver SaaS formats",
+    "no ads/social/word-of-mouth acquisition; support and marketing have no effect",
+    "fake-rating exploit (3 ratings flip prior)"
+   ],
+   "work_needed": "drive subs/prod from the v5 population (B) with calibrated, multi-channel discovery and semantic preferences; keep patrons as one behavioural class",
+   "effort": "L"
+  },
+  {
+   "name": "reference strategy and generated startup worlds",
+   "paths": [
+    "src/crucible/commerce/reference.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "K.n1 reproduced: ARR $126,257 / $135,892 (both seeds text.extract), idle $0; probe_reference: two-agent collusion meets the same objective on day 1 at $1,000 net",
+   "key_defects": [
+    "objective has no min independent customers / concentration cap",
+    "single parametric template; test seeds share a need",
+    "reference uses privileged knowledge (spec param need, kernel best solver)"
+   ],
+   "work_needed": "harden objective; structurally varied generated worlds; run in integrated civilization",
+   "effort": "S"
+  },
+  {
+   "name": "institutions (inst)",
+   "paths": [
+    "src/crucible/commerce/institutions.py",
+    "src/crucible/commerce/orgworld.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "SP-6.6 14/14 features, 9/9 blocked on 3 seeds reproduced; 37+ unit tests pass; probe_oracle: exact evaluator MRR recovered in 14 queries through a charter condition; project rewards bypass netting",
+   "key_defects": [
+    "charter conditions read evaluator metrics with a declared subject (hidden-evaluation oracle)",
+    "project rewards leave escrow unnetted",
+    "core-law attempts are malformed requests, not adversarial use of authorised mechanisms"
+   ],
+   "work_needed": "evaluator-only metric gating; escrow attribution; adversarial core-law/independence attempts through authorised mechanisms",
+   "effort": "M"
+  },
+  {
+   "name": "escrowed commitments (commit)",
+   "paths": [
+    "src/crucible/commerce/contracts.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "unit tests pass; probe_escrow_laundering: commitment payout to a self-funded customer not netted, payer not flagged",
+   "key_defects": [
+    "payouts invisible to reciprocal netting",
+    "predicate deliverables can read integrity-based evaluator metrics"
+   ],
+   "work_needed": "attribute escrow releases to payer; restrict predicates to booked/self metrics",
+   "effort": "S"
+  },
+  {
+   "name": "labour market (labor)",
+   "paths": [
+    "src/crucible/commerce/labor.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "unit tests and SP-6.6 shared-project feature pass (simulated workers complete dependent tasks)",
+   "key_defects": [
+    "task quality is a skill-match formula + noise; no artifact is produced"
+   ],
+   "work_needed": "tasks producing real artifacts verified by tests where possible",
+   "effort": "M"
+  },
+  {
+   "name": "4.0 economy demand and payments (consumers, shoppers, behavior)",
+   "paths": [
+    "src/crucible/economy/consumers.py",
+    "src/crucible/economy/shoppers.py",
+    "src/crucible/economy/behavior.py"
+   ],
+   "verdict": "REDESIGN",
+   "evidence": "probe_households (bazaar): firms paid from acct_households; F1 independent revenue 0, 4.0 metric counts all as independent",
+   "key_defects": [
+    "pooled household payer: no independent customers (Part 6.1/6.2)",
+    "two incompatible revenue definitions across 4.0 and 5.0",
+    "parallel product catalogue (market.listings vs products)"
+   ],
+   "work_needed": "per-consumer accounts or attributable payments; unify catalogue; route through prod/subs",
+   "effort": "L"
+  },
+  {
+   "name": "needs (formats, generators, exact verifiers, tiered solvers)",
+   "paths": [
+    "src/crucible/economy/needs.py"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "used by patrons in K.n1 runs and by SP-6.1 data/infrastructure/education scenarios that I reproduced (measured quality differences between tiers)",
+   "key_defects": [
+    "only computational needs with exact verifiers"
+   ],
+   "work_needed": "none for F; broaden needs is G/innovation scope",
+   "effort": "S"
+  }
+ ],
+ "requirements": [
+  {
+   "id": "K.1",
+   "verdict": "RETAIN",
+   "reason": "7/7 subscription scenarios reproduced through ordinary tools and bank mandates",
+   "work_needed": "official run; make subs the system of record for creators; exercise in an integrated world",
+   "criteria_weak": false
+  },
+  {
+   "id": "K.2",
+   "verdict": "RETAIN",
+   "reason": "6/6 cancellation scenarios reproduced incl. churn rate",
+   "work_needed": "official run; decide/report scheduled churn (cancel_at_period_end) explicitly",
+   "criteria_weak": false
+  },
+  {
+   "id": "K.3",
+   "verdict": "REPAIR",
+   "reason": "5/5 pass, but the expected behaviour codifies that partial refunds leave MRR at full price (k3_partial_refunds_bounded), enabling ARR inflation (P1)",
+   "work_needed": "net-of-refund qualifying amount; add a scenario asserting MRR falls after a partial refund",
+   "criteria_weak": true
+  },
+  {
+   "id": "K.4",
+   "verdict": "REPAIR",
+   "reason": "0 errors on the implementer's planted set; controlled identities escape via missing/different controller labels, 6-hop grant chains, escrow-routed funding",
+   "work_needed": "fixpoint closure, identity linkage beyond label equality, escrow attribution; adversarial planted set by red team",
+   "criteria_weak": true
+  },
+  {
+   "id": "K.5",
+   "verdict": "REPAIR",
+   "reason": "normalisation exact and $100k ARR = $8,333.33 MRR reproduced, but MRR is not net of partial refunds/rebates/partial circular share and counts non-renewing subscriptions; the 'independent recomputation' re-implements the same definition",
+   "work_needed": "net MRR definition; recompute from cash actually retained per period; consistency with windowed flagging",
+   "criteria_weak": true
+  },
+  {
+   "id": "K.6",
+   "verdict": "REPAIR",
+   "reason": "0-cent reconciliation in one scenario; household-pool revenue silently excluded (bazaar firms show F1 revenue 0); no accrual; CAC never non-zero",
+   "work_needed": "attribute household payments; multi-scenario reconciliation incl. 4.0 worlds; acquisition spend channel",
+   "criteria_weak": true
+  },
+  {
+   "id": "K.7",
+   "verdict": "REPAIR",
+   "reason": "1.0 detection / 0.0 FPR on 13 self-authored schemes; my schemes (commitment, project reward, goods at partner price, 45% rebate, partial refund) are not flagged",
+   "work_needed": "net escrow instruments, bound goods exemption, proportional exclusion; adversarial red-team scheme set in the criterion",
+   "criteria_weak": true
+  },
+  {
+   "id": "K.n1",
+   "verdict": "REPAIR",
+   "reason": "reference reaches $126k ARR, but the objective is met on day 1 by two cooperating agents at $1,000 net; worlds are one template, both seeds the same need",
+   "work_needed": "objective with min independent customers, concentration cap, net MRR; structurally varied generated worlds; integrated-civilization run",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-6.1",
+   "verdict": "EXTEND",
+   "reason": "20/20 features reproduced with scripted actors; competition static, support inconsequential, seats unenforced, no demand model for media/education/data, no population integration",
+   "work_needed": "adaptive competitors, consequential support, seat enforcement, population-driven demand across product kinds",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-6.6",
+   "verdict": "REPAIR",
+   "reason": "14/14 features and 9/9 blocks reproduced, but attempts are malformed requests; authorised mechanisms leak evaluator metrics (charter conditions) and route money around integrity accounting (project rewards, commitments)",
+   "work_needed": "evaluator-only metric gating; escrow attribution; adversarial attempts via authorised mechanisms in the criterion",
+   "criteria_weak": true
+  }
+ ],
+ "missing_requirements": [
+  "Part 6.2 has no SP-6.2 entry: discounts, customer acquisition/CAC, churn, operating costs, related-party distinctions and 'sustained subscription validity' are not acceptance-checked",
+  "Part 6.2 'do not confuse rolling 30-day sales with recurring revenue': nothing checks that goal families/objectives use MRR (the live 4.0 'revenue' goal uses rolling 30-day independent_revenue)",
+  "Part 6.1 'products must provide measurable usefulness/entertainment/educational value': no criterion that revenue tracks measured value (e.g. useless products earn ~0 from population customers)",
+  "Evaluator-side revenue/integrity metrics must not be readable in-world (Part 16 / observation-only amendment): no entry",
+  "Single system of record for recurring revenue across creators (C) and subs (F); one product catalogue (4.0 market.listings vs products)",
+  "Revenue from the v5 population and 4.0 household demand attributable to independent individuals (Part 6.1) in integrated worlds",
+  "Integrity analysis scalable to Internet-scale ledgers (Part 13)",
+  "Revenue integrity under multi-agent collusion using authorised institutions and escrow instruments (Part 6.6 + 12.3)"
+ ],
+ "tests_run": [
+  {
+   "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src timeout 900 /venv/main/bin/python -m pytest -q -p no:cacheprovider tests/v5/test_gate_K.py -k 'not Kn1'",
+   "result": "7 passed in 7.28s (K.1-K.7 metrics as in report)"
+  },
+  {
+   "command": "PYTHONPATH=src /venv/main/bin/python -m crucible.scale.slots --cpu 1 --gpu-mb 0 -- /venv/main/bin/python -m pytest -q -p no:cacheprovider tests/v5/test_gate_K.py -k Kn1",
+   "result": "1 passed in 122s; reference_arr_usd 126257.04, idle 0, first_day_met_max 50, independent_customers_min 618"
+  },
+  {
+   "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src timeout 900 /venv/main/bin/python -m pytest -q -p no:cacheprovider tests/v5/test_gate_SP_6_1.py tests/v5/test_gate_SP_6_6.py",
+   "result": "2 passed in 14.66s; SP-6.1 20/20; SP-6.6 14/14 features, 9/9 blocked"
+  },
+  {
+   "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src timeout 900 /venv/main/bin/python -m pytest -q -p no:cacheprovider tests/test_v5_commerce_modules.py tests/test_v5_commerce_institutions.py tests/test_v5_commerce_contracts.py tests/test_v5_commerce_labor.py",
+   "result": "56 passed in 18.31s"
+  },
+  {
+   "command": "/venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce/probe_gaming.py",
+   "result": "P1 ARR $100,000 from 1 partner with 99% refund (not flagged); P1b cancelled annual counted at day 300; P2 45% cashback full MRR; P3 goods laundering share 0.005; P4 unlabelled persona counted; P5 6-hop grant chain 2/6 unrelated; P6 fake ratings accepted; P7 admin tools forbidden; P8 one-time sales MRR 0"
+  },
+  {
+   "command": "/venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce/probe_escrow_laundering.py",
+   "result": "transfer flagged; commitment and project reward not flagged (netted 0, share 0.0909)"
+  },
+  {
+   "command": "/venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce/probe_oracle.py",
+   "result": "evaluator MRR recovered in-world via charter condition: 2000 cents in 14 queries (books show 8000)"
+  },
+  {
+   "command": "crucible.scale.slots --cpu 1 -- /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce/probe_reference.py",
+   "result": "collusion meets K.n1 objective day 1 (ARR $100,000, net $1,000); integrity cold cost ~6 ms per 1k txns per merchant"
+  },
+  {
+   "command": "/venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce/probe_households.py",
+   "result": "bazaar: firms with household sales have F1 independent revenue 0; 4.0 metric counts all"
+  },
+  {
+   "command": "/venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce/probe_seats.py",
+   "result": "1-seat licence read by 3/3 admins"
+  },
+  {
+   "command": "/venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce/probe_experience2.py",
+   "result": "KernelExperienceEnv default reward_mode legacy_shaped_reward; reward -150000 after venture.form with no objective"
+  }
+ ],
+ "critical_findings": [
+  "Qualifying ARR $100k is reached by one self-funded partner on a $100k annual plan with a 99% refund (net $1,000); K.n1 objective met on day 1 (only full refunds clear period_paid, subscriptions.py:298).",
+  "F2 escrow instruments (commit payouts contracts.py:256, inst project rewards institutions.py:1254) bypass circular-flow netting: payer not flagged, MRR counted; plain transfer is flagged.",
+  "Evaluator-only integrity metrics (mrr_cents etc., registered with subject) are readable in-world through charter conditions/commitment predicates: exact evaluator MRR recovered in 14 queries.",
+  "MRR counts list price for payers below FLAG_SHARE 0.5 (45% cashback keeps full MRR) and for cancel-at-period-end annual plans for up to a year.",
+  "Commerce stack is used only by tests/reference/red-team: no domain/civilization installs it; the live 'revenue' goal family uses rolling 30-day independent_revenue; 4.0 household-pool revenue is invisible to F1 metrics.",
+  "Demand is a scripted single-need patrons population separate from the v5 population; no acquisition channels; static incumbents; default experience reward is cash-delta legacy_shaped_reward."
+ ],
+ "files_written": [
+  "docs/v5/audit/F_commerce.md",
+  "docs/v5/audit/F_commerce.json"
+ ],
+ "skeptic": {
+  "reviewer": "skeptic (independent of the first F_commerce auditor)",
+  "head": "dd745b9 (differs from a881d18 only in docs/acceptance-manifest code)",
+  "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic",
+  "summary": "2 RETAIN requirement verdicts overturned (K.1, K.2), 1 RETAIN subsystem overturned (needs), 3 requirements and 4 subsystems made harsher; no harsh verdict found unjustified. New exploits: superseded-invoice refund keeps $100k ARR for 364 days at 1 cent net; input-ignoring i%m incumbents earn $61.5k ARR in the K.n1 world; charter enforcement bypassed by tools with implicit amounts (treasury drained with 0 decisions); wash trading moves the whole marketplace to a 30% exchange; creator memberships invisible to MRR; 100% scheduled churn invisible for 354 days.",
+  "overturned": [
+   {
+    "target": "K.1",
+    "kind": "requirement",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "criteria_weak": true,
+    "why": "S2: _refund clears period_paid only for the last invoice (subscriptions.py:298) and change_plan carries credit from an invoice later refunded (l.481-495): a fully refunded period stays paid for a year. S1: creators memberships (creators.py:109) bill outside subs, F1 MRR 0 with 5 paying fans. subs is installed by no world family, domain or civilization.",
+    "work_needed": "billing-state invariant on net retained cash per period across plan changes; void credit from refunded invoices; make subs the system of record for creators; install in Tier 2/3"
+   },
+   {
+    "target": "K.2",
+    "kind": "requirement",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "criteria_weak": true,
+    "why": "S6: 10/10 annual customers cancelled at period end report as 10 active, 0 cancelled, churn 0.0 and full ARR from day 11 to day 364; k2_cancel_at_period_end asserts it keeps counting.",
+    "work_needed": "report scheduled churn separately; exclude it from sustained ARR objectives; test it"
+   },
+   {
+    "target": "K.n1",
+    "kind": "requirement",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "criteria_weak": true,
+    "why": "S2: objective met for 364 days at 1 cent net. S4: input-ignoring round-robin incumbents earn $61.5k ARR beside the reference (reference.py:43 makes every incumbent tier 0 for schedule.jobs/text.extract), and an all-round-robin market pays $89k-$102k ARR. The world is a template outside the Part 7 generator; feasibility uses the kernel's best solver (reference.py:95).",
+    "work_needed": "demand with outside options and value calibrated above a trivial baseline, on the population and generator; adaptive incumbents; objective on net retained MRR with minimum independent customers and a concentration cap; negative controls (useless service, refund/collusion routes) in the criterion"
+   },
+   {
+    "target": "SP-6.1",
+    "kind": "requirement",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "criteria_weak": true,
+    "why": "S4: revenue does not track usefulness above a trivial baseline; f_educational_products (test_gate_SP_6_1.py:168-198) measures the course's code, not learner capability; media/edu/devtool/data buyers are the test script; S1: creators is a parallel billing path.",
+    "work_needed": "keep supply mechanics; redesign demand/value: population-driven demand per product kind, education judged by measured learner improvement, media through the social consumption engine billed by subs"
+   },
+   {
+    "target": "SP-6.6",
+    "kind": "requirement",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "criteria_weak": true,
+    "why": "S5: charter rules bind only top-level amount args (_amount institutions.py:74/125); check() returns when no rule matches (l.382); identity.authorize forwards tool_args not the real amount (identity.py:100-103). An admin drained the treasury via subs.subscribe/prod.buy/authorize_debit with 0 decisions while bank.transfer was refused; plus oracle on evaluator MRR (reproduced).",
+    "work_needed": "enforce charter money rules at the bank posting layer for chartered orgs' accounts; evaluator-only metric gating; adversarial authorised-mechanism attempts in the criterion"
+   },
+   {
+    "target": "subscriptions billing engine (subs)",
+    "kind": "subsystem",
+    "from": "EXTEND",
+    "to": "REPAIR",
+    "why": "S2 is a billing-state correctness defect (period_paid/credit after refunds), not missing coverage"
+   },
+   {
+    "target": "needs (formats, verifiers, tiered solvers)",
+    "kind": "subsystem",
+    "from": "RETAIN",
+    "to": "EXTEND",
+    "why": "S3/S4: verifiers exact, but round robin (input-ignoring) scores 0.80 and random 0.71 on schedule.jobs vs patron thresholds U[0.6,0.97]; sort tiers both 1.0; toy sizes. Scores need anchoring to a trivial/DIY baseline before they evidence measurable usefulness."
+   },
+   {
+    "target": "digital marketplaces (xchg)",
+    "kind": "subsystem",
+    "from": "EXTEND",
+    "to": "REPAIR",
+    "why": "S7: buyers_30d (marketplace.py:71) counts self-dealing buyers; scripted sellers rank by it (customers.py:326); 100 shells move all real sellers to a 30% exchange within 10 days and its fees count as independent revenue."
+   },
+   {
+    "target": "institutions (inst)",
+    "kind": "subsystem",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "why": "S5: enforcement keyed on tool and argument names instead of money leaving the org's accounts"
+   },
+   {
+    "target": "reference strategy and startup worlds (reference.py)",
+    "kind": "subsystem",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "why": "S2/S4, as for K.n1"
+   }
+  ],
+  "upheld": {
+   "K.3": "REPAIR (worse: a 100% refund keeps the period paid after a plan change, S2)",
+   "K.4": "REPAIR",
+   "K.5": "REPAIR",
+   "K.6": "REPAIR",
+   "K.7": "REPAIR",
+   "recurring revenue and profit metrics (revenue.py)": "REPAIR (strengthened by S2, S6)",
+   "related-party and circular-flow detection (integrity.py)": "REPAIR (S8: per-merchant cost linear in total ledger incl. unrelated traffic, ~4.5 ms/1k txns)",
+   "products/licences/ratings/support (products.py)": "REPAIR",
+   "business lifecycle (ventures)": "EXTEND (S4: incumbents static, input-ignoring tier never adapts)",
+   "escrowed commitments (commit)": "REPAIR",
+   "labour market (labor)": "EXTEND",
+   "independent customers (patrons)": "REDESIGN justified and strengthened: pays for input-ignoring services (no outside option); sellers follow raw counts (S4, S7)",
+   "4.0 economy demand (consumers/shoppers/behavior)": "REDESIGN justified (households dropped at integrity.py:244 and 304)"
+  },
+  "harsh_verdicts_unjustified": [],
+  "tests_that_pass_on_broken_implementation": [
+   "test_gate_K.py:296 k3_partial_refunds_bounded asserts the partial-refund loophole; no refund-after-plan-change case",
+   "k2_cancel_at_period_end asserts cancelled subscriptions keep counting; no scheduled-churn check",
+   "K.n1 test has no negative controls (useless/input-ignoring service, refund or collusion route)",
+   "test_gate_SP_6_6.py:472 tests the evaluator-only gate with the one metric lacking a subject; mrr_cents passes",
+   "SP-6.6 attempts never use an authorised tool with an implicit amount (S5)",
+   "test_gate_SP_6_1.py:197 educational scenario measures the course's solver, not learning"
+  ],
+  "missing_requirements": [
+   "Billing-state invariant: a period whose payments were refunded is unpaid regardless of later invoices; credit from refunded invoices is void",
+   "Scheduled churn reported separately and excluded from sustained recurring-revenue objectives",
+   "Revenue from independent customers ~0 for services that ignore their input or match a DIY baseline (outside option)",
+   "Charter/decision enforcement binds every debit from an organisation's accounts by posted amount, whatever the tool",
+   "Public market statistics used by participants exclude related/self-dealing counterparties (wash trading)",
+   "Educational products judged by measured learner capability change, not delivered-artifact quality"
+  ],
+  "tests_run": [
+   {
+    "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src /venv/main/bin/python -m pytest -q -p no:cacheprovider -x tests/v5/test_gate_K.py -k 'not Kn1' tests/v5/test_gate_SP_6_6.py",
+    "result": "8 passed, 1 deselected in 10.56s"
+   },
+   {
+    "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/rerun_probe_oracle.py",
+    "result": "evaluator MRR 2000 recovered in-world in 14 queries (books 8000)"
+   },
+   {
+    "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_creators_mrr.py /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_creators_mrr.json",
+    "result": "creator subscription ledger +30000 from 5 fans; F1 MRR 0, qualifying 0, independent customers 0"
+   },
+   {
+    "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_superseded_refund.py /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_superseded_refund.json",
+    "result": "A: ARR $100,000 days 1-364, objective met, customer net 1 cent, not flagged; B: annual->monthly ARR $100,000.08 for 364 days at net 0"
+   },
+   {
+    "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_needs_discrimination.py /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_needs_discrimination.json",
+    "result": "schedule.jobs round-robin 0.80 / random 0.71 / LPT 0.99; knapsack first-fit 0.90; sort tiers 1.0/1.0; tsp identity 0.29"
+   },
+   {
+    "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src /venv/main/bin/python -m crucible.scale.slots --cpu 1 --gpu-mb 0 -- /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_useless_service.py /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_useless_reference_only.json 75 1 reference_only",
+    "result": "best $118,191 (295 cust) while round-robin incumbents earn $65.7k; ref rr $7,054; ref garbage $0 (incumbents $95.1k)"
+   },
+   {
+    "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src /venv/main/bin/python -m crucible.scale.slots --cpu 1 --gpu-mb 0 -- /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_useless_service.py /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_useless_market.json 75 3 market",
+    "result": "all-round-robin market ARR $89.3k; all-random $40.1k; all-garbage $0 (seed 1 market-wide: $101.7k / $45.5k, probe_useless_market_all_sellers.json)"
+   },
+   {
+    "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_charter_bypass.py /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_charter_bypass_banktransfer.json bank.transfer",
+    "result": "bank.transfer refused; subs.subscribe, prod.buy, authorize_debit accepted; coop 10,000,000 -> 0 with 0 decisions"
+   },
+   {
+    "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_charter_bypass.py /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_charter_bypass_bank.json 'bank.*'",
+    "result": "subscribe/authorize_debit refused; prod.buy still drains 5,000,000"
+   },
+   {
+    "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_cancellations.py /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_cancellations.json",
+    "result": "days 11-364: 10 active, 0 cancelled, churn 0, ARR $12,000 though all 10 cancelled on day 10"
+   },
+   {
+    "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_wash_trading.py /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_wash_trading_100.json 100",
+    "result": "100 shells: by day 30 all 7 active sellers on the 30% exchange, BazaarX 0 sellers/0 buyers; $755 real-sale fees counted independent (60 shells: no migration)"
+   },
+   {
+    "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src /venv/main/bin/python -m crucible.scale.slots --cpu 1 --gpu-mb 0 -- /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_integrity_scale.py /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/F_commerce_skeptic/probe_integrity_scale.json",
+    "result": "flagged_payers mean per merchant 73 ms @8,023 txns, 179 ms @28,023, 319 ms @68,023 (added traffic unrelated to merchants)"
+   }
+  ],
+  "critical_findings": [
+   "Superseded-invoice refund: after a same-interval plan change the merchant refunds the original $100,000 invoice in full and the subscription stays paid; ARR $100,000 for 364 days at 1 cent net, payer not flagged (subscriptions.py:298, 481-495).",
+   "In the Gate K startup world the input-ignoring round-robin incumbents (reference.py:43 forces tier 0) earn $61.5k ARR; a market of only input-ignoring services pays $89k-$102k ARR: revenue does not require usefulness above a trivial baseline.",
+   "Charter enforcement bypass: rules match top-level amount args only (institutions.py:125, 382); an admin drained a chartered cooperative's treasury via subs.subscribe/prod.buy/bank.authorize_debit with 0 decisions while bank.transfer was refused.",
+   "Wash trading: 100 shell companies inflate buyers_30d and move every real seller to a 30% exchange within 10 days; resulting fees count as independent revenue (marketplace.py:71, customers.py:326).",
+   "Creator memberships (the population-facing subscriptions) are invisible to F1: 5 paying fans, MRR 0, independent customers 0.",
+   "Cancellations: 10/10 annual customers cancelled at period end report as active with churn 0 and full ARR for 354 days."
+  ]
+ }
+}

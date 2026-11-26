@@ -1,0 +1,562 @@
+{
+ "area": "D_semantic",
+ "workstreams": [
+  "D"
+ ],
+ "branch": "feat/crucible-5-complete",
+ "commit": "a881d18",
+ "subsystems": [
+  {
+   "name": "Pretrained content encoders (text/image/audio/video/code)",
+   "paths": [
+    "src/crucible/semantic/encoders/models.py",
+    "src/crucible/semantic/encoders/base.py",
+    "src/crucible/semantic/encoders/text.py",
+    "src/crucible/semantic/encoders/image.py",
+    "src/crucible/semantic/encoders/audio.py",
+    "src/crucible/semantic/encoders/video.py",
+    "src/crucible/semantic/encoders/code.py",
+    "src/crucible/semantic/encoders/validation.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Gate E rerun on a fresh cache: E.1 4 real modalities (5 with code), 0 stubs, min 22.7M params, reference cosines 1.0/0.999999/1.0; E.2 min separation 15.1; E.n1 9 forward passes and weight-dependent vectors in all 5 modalities. Own probe (CPU): paraphrase 0.831, numbers changed 0.831, negation 'safe' vs 'not safe' 0.965, sentiment flip 0.824, other topic -0.013; one-word edit at the end of a 3,200-word article 0.9997; image JPEG q60 0.956 vs colour change 0.881; audio other words 0.608; video reversed frame order 0.869.",
+   "key_defects": [
+    "Text vectors blind to negation, polarity and quantities (mean-pooled MiniLM): materially different content looks like a paraphrase",
+    "Long-document dilution: local edits vanish (0.9997)",
+    "Hard AST speech gate at 0.5 (audio.py:60) drops transcripts of borderline speech (observed 0.563)",
+    "Video ignores subtitle/caption streams ('available transcripts')",
+    "No structured product representation (4.3 'software and products')"
+   ],
+   "work_needed": "Add fine-grained semantic channels (NLI/cross-encoder or a stronger sentence model for polarity and negation, numeric and entity features), position-aware long-document pooling, a soft speech gate, caption-stream ingestion, and a product encoder (listing, price, features, reviews). Extend the E.2 suites with fine-grained changes and require separation there.",
+   "effort": "M"
+  },
+  {
+   "name": "Embedding cache and world embed record",
+   "paths": [
+    "src/crucible/semantic/cache.py",
+    "src/crucible/semantic/encoders/__init__.py",
+    "src/crucible/semantic/encoders/module.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "E.4 reproduced (0 failures, 10 hits, 5 recomputes). Own probe: disk hit identical, a one-word edit recomputed, 1 embed.recorded event (internal) for 2 calls, identical vector on the repeat. With TextEncoder.window changed 254->32 the cache key stayed the same and a stale vector was served (cosine 0.83 to the fresh one); the key carries no torch/transformers version and no device.",
+   "key_defects": [
+    "The preprocessing dict is hand-written (text.py:49-51), not derived from the parameters used: computation changes do not invalidate",
+    "CODE_VERSION is a manual bump (base.py:13)",
+    "Library versions and device not in the key",
+    "The E.4 test constructs the 'new version' keys itself (tautological)"
+   ],
+   "work_needed": "Derive the preprocessing hash from the live encoder attributes plus a source hash of the encoder modules; include library versions (and optionally device class) in the version; make E.4 mutate a real encoder parameter.",
+   "effort": "S"
+  },
+  {
+   "name": "Media creator tools (semantic/media.py, kernel module media)",
+   "paths": [
+    "src/crucible/semantic/media.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "16 media tests passed (13 media + 3 media_world): bit-exact outputs, sandboxed FFmpeg, playlist refusal, replay and regeneration.",
+   "key_defects": [
+    "Not in social_internet_modules: the social 'studio' (social/render.py) duplicates the tooling, so two media stacks exist"
+   ],
+   "work_needed": "Consolidate on one media tool implementation used by studio and media, with one recording scheme.",
+   "effort": "S"
+  },
+  {
+   "name": "Encoder to participant-behaviour integration (aud semantic path, E.3 probes)",
+   "paths": [
+    "src/crucible/semantic/encoders/effects.py",
+    "src/crucible/social/audience.py",
+    "src/crucible/social/recsys/features.py",
+    "src/crucible/social/consumption.py",
+    "src/crucible/population/text.py",
+    "src/crucible/social/textrep.py"
+   ],
+   "verdict": "REDESIGN",
+   "evidence": "No probe is registered (E.3 fails, p=1.0). The default aud.encoder is lexical random indexing (audience.py:112). The semantic path randomly projects MiniLM into the 32-d lexical interest space (audience.py:470-479). Probe: on-topic minus off-topic affinity 0.425 lexical vs -0.011+/-0.046 semantic. Integrated two-world run (1,500 people, 3 days): topic match opened/not-opened 0.444/0.250 lexical vs 0.171/0.221 semantic; Spearman(topic match, watch_s) 0.203 vs 0.026.",
+   "key_defects": [
+    "The pretrained encoders never drive behaviour by default",
+    "The semantic path makes the audience content-blind (space mismatch)",
+    "Population interests live in two different lexical spaces (population/text token_vec vs social/textrep word_vector)",
+    "E.3 probe registry empty"
+   ],
+   "work_needed": "Represent interests in the encoder space (or learn or calibrate a mapping from engagement data), make the pretrained encoders the default content representation in v5 social worlds (cached, once per artifact), register E.3 probes for text, image, audio and video in the real consumption engine, and add a negative control (random vectors must give no effect).",
+   "effort": "L"
+  },
+  {
+   "name": "Creator-assigned-quality audit (E.5)",
+   "paths": [
+    "src/crucible/semantic/encoders/audit.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "Gate E rerun: creator_assigned_quality_fields_read=5 (domains/firms.py:290,295,711; social/reference.py:151), so the test fails. Inspection: both look like false positives (task quality from the labour market; a lexical relevance method).",
+   "key_defects": [
+    "Name-regex static scan only (audit.py:32-35): it cannot detect score proxies under other names or data flow",
+    "Fails on the merged tree"
+   ],
+   "work_needed": "Triage the 5 hits (pragma or rename), and add a dynamic invariance test: vary creator-controlled metadata (title, tags, description, declared fields) with the bytes fixed and show behaviour is unchanged; vary the bytes and show it changes.",
+   "effort": "M"
+  },
+  {
+   "name": "Shared small-LM inference service",
+   "paths": [
+    "src/crucible/semantic/service.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "12 unit tests passed; own probe: cap enforced (500->20), 16/16 prefix hits, deterministic, one weights object for two services. Gate H: one weight copy for 8 participants, 237.5 tok/s, peak 5,813 MiB; prefix-cache speedup 0.986, identical outputs with the cache 5/8 (bf16).",
+   "key_defects": [
+    "Prefix cache yields no speedup and is not exact in bf16",
+    "Batches only within one act_batch call (no cross-caller continuous batching)",
+    "No selective-GPU policy or per-capability model routing",
+    "int8 is CPU-only and its quality was never benchmarked",
+    "Used only by semantic participants, which nothing integrates"
+   ],
+   "work_needed": "Make prefix reuse exact (fp32 prefix or no reuse in bf16) or measure and document the drift; share an inference queue across all semantic callers in a world; add capability routing (0.6B default, 1.7B for programming, negotiation and strategy per SP-3.2b); benchmark the quantized variants.",
+   "effort": "M"
+  },
+  {
+   "name": "Recorded semantic inference module",
+   "paths": [
+    "src/crucible/semantic/recording.py",
+    "src/crucible/semantic/modules.py"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "Unit tests: replay and regenerate without the model (the model call is patched to fail), operator-only tool hidden from in-world actors, module passes admission. Own probe: the log holds only digests (no prompt text); recorded outputs equal unrecorded ones; per-model accounting table.",
+   "key_defects": [
+    "Prompts are not recoverable from the log (digests only): post-hoc decision audits need the staged prompts archived separately"
+   ],
+   "work_needed": "Optionally archive the full prompts as evaluator-only artifacts, for auditing.",
+   "effort": "S"
+  },
+  {
+   "name": "Semantic participants (policy, retrieval, argument filling, BatchedRunner)",
+   "paths": [
+    "src/crucible/semantic/participants.py"
+   ],
+   "verdict": "REDESIGN",
+   "evidence": "Gate H rerun: 129 actions, 74 rejected (57%), 2/8 goals, 15 consequential actions of which only 2 serve a goal (13 junk: bank.open_account x4 after the goal was met, cal.create x6 titled 'cal', mail.send x3 with body 'mail.send'). Per-participant dump: argument values are often echoed prompt fragments (board '- forum.post: {...', url '-502'); ana never called docs.create, eli never created the repository, cara never mailed dev. World regenerated without the model to the same digest. No module outside semantic/ uses SemanticParticipant or SemanticGroup. Observations contain no reward (identity/bank/mail only); runner reward 0 without objectives.",
+   "key_defects": [
+    "Ephemeral Python policy objects outside the world: memory and history not persisted with snapshots or forks (no persistent identity)",
+    "Requires an evaluator-assigned text goal: no operation without an objective, no self-generated goals or needs",
+    "Only hostable in 4.0 worldgen families",
+    "Weak in-world competence (57% rejected calls; argument values are echoed prompt fragments)",
+    "No notion of goal completion: ben kept acting for 23 turns after paying",
+    "No adaptation or learning"
+   ],
+   "work_needed": "Make semantic participants world-resident identities (state in world tables or recorded artifacts, scheduled activation like the population), driven by their own needs and goals (goals.propose), routed to capability-appropriate models, with in-world competence measurement; bind them to the population's class-4 rows in the v5 standard profile.",
+   "effort": "L"
+  },
+  {
+   "name": "Gate H society scenario and verifiers",
+   "paths": [
+    "src/crucible/semantic/scenarios.py",
+    "tests/v5/test_gate_H.py"
+   ],
+   "verdict": "REBUILD",
+   "evidence": "Reproduced exactly: 8 participants in 4.0 open_digital, 2/8 verified (payment, instance), no collaborative or productive result. The gate tests assert nothing (they only record evidence).",
+   "key_defects": [
+    "Not a v5 standard world (open_digital 4.0)",
+    "Eight one-line assigned tasks: a scripted benchmark, not autonomous operation",
+    "Collaborative and productive goals all failed",
+    "Keyword verifiers for some goals (check_forum, check_question)"
+   ],
+   "work_needed": "Gate H on the v5 standard profile (10,000/256/32/8) inside the integrated civilization; semantic participants with persistent roles and needs; independently verified collaborative and productive outcomes (program passing hidden tests, multi-party agreement executed); multiple seeds.",
+   "effort": "M"
+  },
+  {
+   "name": "Population class-4 binding (semantic rows of the standard profile)",
+   "paths": [
+    "src/crucible/population/core.py",
+    "src/crucible/population/profiles.py"
+   ],
+   "verdict": "IMPLEMENT",
+   "evidence": "population/core.py:323 assigns policy_group 200 to class 4 and :333 sets next_active_at=NEVER for class>2; grep finds no binding of class-4 rows to any semantic policy.",
+   "key_defects": [
+    "Semantic rows of the standard profile are inert placeholders"
+   ],
+   "work_needed": "Bind class-4 rows to SemanticParticipants sharing one SemanticService, activated by the population scheduler.",
+   "effort": "M"
+  },
+  {
+   "name": "SP-3.2b capability benchmark",
+   "paths": [
+    "src/crucible/semantic/capbench/tasks.py",
+    "src/crucible/semantic/capbench/models.py",
+    "src/crucible/semantic/capbench/run.py",
+    "tests/v5/test_gate_SP_3_2b.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Not rerun in full (40 min, 10 GB). The evaluation sets regenerated bit-identically (sets_5dd8f4ce29d7eb22), and the shared numbers reproduced in Gate H (tool choice 0.6083, comprehension 0.90, SmolLM2 results). The prior report shows 6 candidates on 8 capabilities.",
+   "key_defects": [
+    "Negotiation is a single accept/counter decision",
+    "Communication checked by a fact-copy heuristic",
+    "~1B slot filled by 1.7B",
+    "No licence verification",
+    "Template-synthetic items only",
+    "Results not acted on (D-10 uses 0.6B everywhere; no routing)"
+   ],
+   "work_needed": "Multi-turn negotiation against other agents; human or independent-model judging of communication; a ~1B candidate if available locally; licence records; in-world capability tasks; implement the recommended routing.",
+   "effort": "M"
+  }
+ ],
+ "requirements": [
+  {
+   "id": "E.1",
+   "verdict": "RETAIN",
+   "reason": "Reproduced on a fresh cache: real_encoder_modalities=4, stub_vectors_detected=0, min_encoder_params=22,713,216; reference-model cosines about 1.0.",
+   "work_needed": "None for the criteria. Note that by default the world does not use these encoders for behaviour (see E.3).",
+   "criteria_weak": false
+  },
+  {
+   "id": "E.2",
+   "verdict": "EXTEND",
+   "reason": "The suite ratio of 15.1 passes, but its semantic changes are topic- or event-level only. My probe: negation 0.965 and sentiment flip 0.824 are as close as a paraphrase (0.831).",
+   "work_needed": "Add fine-grained semantic pairs (negation, polarity, quantities, factual correctness, quality differences) and require separation over nuisance changes for them; strengthen the text representation.",
+   "criteria_weak": true
+  },
+  {
+   "id": "E.3",
+   "verdict": "REDESIGN",
+   "reason": "No probe is registered (p=1.0, the test fails). Integrated probe: with aud.encoder='semantic', choices no longer follow topic (opened 0.171 vs not-opened 0.221; Spearman 0.026) because MiniLM is randomly projected into an unrelated lexical interest space.",
+   "work_needed": "Put interests and the content representation in one learned space, make the pretrained encoders the default in v5 social worlds, register probes per modality in the real consumption engine, require effects for >=4 modalities, and add a random-vector negative control.",
+   "criteria_weak": true
+  },
+  {
+   "id": "E.4",
+   "verdict": "REPAIR",
+   "reason": "Criteria met (0 failures, 10 hits, 5 recomputes). But a real encoder-computation change without editing the hand-written preprocessing dict keeps the key and serves stale vectors (cosine 0.83).",
+   "work_needed": "Derive the key from the live parameters plus code and library versions; the test must mutate the real encoder.",
+   "criteria_weak": true
+  },
+  {
+   "id": "E.5",
+   "verdict": "REPAIR",
+   "reason": "Fails on the merged tree: 5 participant-scope reads (domains/firms.py, social/reference.py), probably false positives. The name-regex audit cannot establish absence of score proxies.",
+   "work_needed": "Triage the hits; add a dynamic metadata-invariance test across the social and commerce engines.",
+   "criteria_weak": true
+  },
+  {
+   "id": "H.1",
+   "verdict": "REDESIGN",
+   "reason": "8 participants acted, but in the 4.0 open_digital family with evaluator-assigned one-line tasks. Only 4 made consequential actions. Class-4 rows of the v5 standard profile are inert; civ and multiagent are stubs.",
+   "work_needed": "Host semantic participants in the v5 standard-profile civilization, bound to population class-4 rows, operating on their own needs over a long horizon.",
+   "criteria_weak": true
+  },
+  {
+   "id": "H.2",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: model_weight_copies=1, participants_sharing_weights=8, one embedding storage pointer; probe confirms one weights object across service instances.",
+   "work_needed": "None.",
+   "criteria_weak": false
+  },
+  {
+   "id": "H.3",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: 8 distinct goals and 8 distinct histories; the unit test checks that prompts carry only their own goal and history. The goals are evaluator-assigned strings, and history digests are trivially distinct.",
+   "work_needed": "Persist per-participant state in the world; test for no cross-participant leakage under forks.",
+   "criteria_weak": true
+  },
+  {
+   "id": "H.4",
+   "verdict": "EXTEND",
+   "reason": "0.6083 on 120 held-out situations (CI low 0.519) passes by a hair on a clean benchmark that guarantees the correct tool among 10. In-world, 57% of calls were rejected and most actions did not serve the goal.",
+   "work_needed": "Measure in-world tool selection (goal-relevant tool when needed, call success); require the CI lower bound >= 0.6; improve scaffolding or route to 1.7B.",
+   "criteria_weak": true
+  },
+  {
+   "id": "H.5",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: 0.900 comprehension (p 3.3e-51), held-out genres 0.817, scoring chosen on dev.",
+   "work_needed": "Add in-world comprehension checks (acting on document contents) and non-template material.",
+   "criteria_weak": true
+  },
+  {
+   "id": "H.6",
+   "verdict": "REPAIR",
+   "reason": "15 consequential actions by 4 participants, but only 2 serve a goal; 13 are junk (bank.open_account x4 after the goal was met, cal.create x6 with title 'cal', mail.send x3 with body 'mail.send'). The criterion counts any state change.",
+   "work_needed": "Require goal- or need-relevant consequential actions by every participant, with consequences verified externally.",
+   "criteria_weak": true
+  },
+  {
+   "id": "H.7",
+   "verdict": "REPAIR",
+   "reason": "2 verified results (a single-call payment and a server rental). Neither is collaborative or productive; the collaborative (cara/dev) and productive (eli program, ana document) goals failed.",
+   "work_needed": "Achieve and independently verify at least one multi-agent collaboration and one productive artifact (code passing hidden tests), across seeds, in the v5 world.",
+   "criteria_weak": true
+  },
+  {
+   "id": "H.8",
+   "verdict": "RETAIN",
+   "reason": "Measured: peak 5,812.6 MiB, 237.5 tok/s GPU, 1.9 tok/s CPU (1 thread), batch statistics, prefix hits.",
+   "work_needed": "Report per-profile scaling and decision latency; the prefix-cache speedup is about 1.0.",
+   "criteria_weak": true
+  },
+  {
+   "id": "H.n1",
+   "verdict": "EXTEND",
+   "reason": "596M params and 2 smaller alternatives benchmarked (criteria met), but SP-3.2b says 0.6B is not effective on held-out programming, negotiation and strategy, and no model combination or routing is implemented.",
+   "work_needed": "Implement per-capability routing (smallest effective model per capability); evaluate a ~1B model; criteria should require effectiveness, not only size.",
+   "criteria_weak": true
+  },
+  {
+   "id": "E.n1",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: 9 counted forward passes, 0 stubs, weight perturbation changes vectors in all 5 modalities and restoration restores them.",
+   "work_needed": "Add weight_dependent_modalities==5 to the manifest criteria (currently only in the test).",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-3.2b",
+   "verdict": "EXTEND",
+   "reason": "6 candidates (2.1M, 22.7M, 135M, 360M, 0.6B, 1.7B) on 8 capabilities with intervals and held-out templates (sets reproduced bit-identically; shared numbers reproduced). But negotiation is single-shot, communication heuristic-checked, ~1B is 1.7B, licences unverified, and the results are not applied.",
+   "work_needed": "Multi-turn negotiation, an independent judge for communication, a ~1B candidate, licence records, in-world tasks, and a recommended-routing implementation.",
+   "criteria_weak": true
+  }
+ ],
+ "missing_requirements": [
+  "MASTER_SPEC 13.4 inference-service features (batching, quantization, short context, retrieval of relevant state, prefix caching, bounded generation, model versioning, CPU execution, selective GPU execution, no network calls) have no manifest entry of their own; only H.8 booleans touch them.",
+  "MASTER_SPEC 13.5 / 4.3: 'encode once, do not run a video encoder for every viewer', and reuse across worlds, measured in an integrated social world (encoder runs per artifact vs viewers). Only V.6 (workstream M) mentions caching.",
+  "MASTER_SPEC 4.3: structured representations for products (not only software).",
+  "MASTER_SPEC 4.3: semantic predictions of content properties must be validated and must not become the sole definition of value.",
+  "MASTER_SPEC 3.2 class 4: semantic agents must not be LM wrappers around predetermined scripts and must have meaningful opportunities to act (autonomy, own needs and goals); no entry.",
+  "MASTER_SPEC 3.2 class 4: use the smallest model OR COMBINATION of models that meets each capability (routing); no entry.",
+  "MASTER_SPEC 3.2 class 4: verify checkpoint availability, licences and tool-use capabilities; no entry.",
+  "MASTER_SPEC 3.1 / 3.3: semantic participants with persistent identity and state in the standard profile (8 semantic generalists bound to population rows).",
+  "User amendment (a): semantic participants operating without an assigned objective and with self-generated experiments; no D entry."
+ ],
+ "tests_run": [
+  {
+   "command": "TMPDIR=<scratch>/tmp_E CRUCIBLE_CACHE=<scratch>/cache_E PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 3000 -- python -m pytest -q -p no:cacheprovider tests/v5/test_gate_E.py",
+   "result": "4 passed (E.1, E.2, E.4, E.n1), 2 failed (E.3: no participant probe registered; E.5: 5 violations) in 96 s"
+  },
+  {
+   "command": "TMPDIR=<scratch>/tmp_H CRUCIBLE_CACHE=<scratch>/cache_H CRUCIBLE_DATA=<scratch>/data_H PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 7000 -- python -m pytest -q -s -p no:cacheprovider tests/v5/test_gate_H.py",
+   "result": "9 passed in 846 s (record-only tests). H.1 8 participants/129 actions; H.4 0.6083; H.5 0.900; H.6 15 (13 junk/goal-irrelevant); H.7 2/8 verified; H.8 5,812.6 MiB, 237.5 tok/s; H.n1 596M"
+  },
+  {
+   "command": "PYTHONPATH=src python -m pytest -q -p no:cacheprovider tests/test_v5_semantic_service.py tests/test_v5_semantic_participants.py tests/test_v5_semantic_media.py tests/test_v5_semantic_media_world.py (CPU, OMP_NUM_THREADS=1)",
+   "result": "36 passed in 121 s"
+  },
+  {
+   "command": "PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 2500 -- python -m pytest -q -p no:cacheprovider tests/test_v5_semantic_encoders.py",
+   "result": "19 passed in 27 s"
+  },
+  {
+   "command": "slots --cpu 1 --gpu-mb 0 -- python probe_encoders.py (CPU)",
+   "result": "negation 0.965, sentiment flip 0.824, paraphrase 0.831, other topic -0.013; stale cache on window change (key unchanged, cosine 0.83); embed.recorded once per vector"
+  },
+  {
+   "command": "python probe_aud_semantic_space.py",
+   "result": "lexical on-off topic margin 0.425; semantic path -0.011 +/- 0.046 (30 projections); raw MiniLM space 0.396"
+  },
+  {
+   "command": "slots --cpu 1 --gpu-mb 0 -- python probe_e3_integrated.py out.json 1500 3.0",
+   "result": "lexical: opened 0.444 vs not 0.250, Spearman 0.203; semantic: opened 0.171 vs not 0.221, Spearman 0.026"
+  },
+  {
+   "command": "python probe_service.py (SmolLM2-135M CPU)",
+   "result": "cap enforced (500->20), 16/16 prefix hits, deterministic rerun, shared weights, prompt text absent from log, recorded == unrecorded outputs"
+  },
+  {
+   "command": "slots --cpu 1 --gpu-mb 7000 -- python probe_society.py out.json 24",
+   "result": "378 s; same verification (ben, hana only); regenerate without model -> identical digest; ana 0 docs.create (forum.post with garbage board x3), eli 8x code.commit arg-shape errors and no repository, cara 11x net.fetch '-502', gus mailed providers with body 'mail.send', ben 4x bank.open_account after paying"
+  }
+ ],
+ "critical_findings": [
+  "E.3 unmet and unmeetable as designed: no probe registered; with aud.encoder='semantic' the MiniLM vector is randomly projected into an unrelated interest space and audience choices stop following content (Spearman 0.026 vs 0.203 lexical).",
+  "Pretrained encoders drive no participant behaviour by default (aud default 'c2-random-indexing', a lexical bag of words); text vectors are also blind to negation and sentiment (0.965 / 0.824 vs paraphrase 0.831).",
+  "E.5 fails on the merged tree (5 violations; likely false positives); the audit is a name regex that cannot establish absence of score proxies.",
+  "Gate H reproduces but is weak: 74/129 calls rejected, 2/8 trivial goals met, no collaborative or productive result, 13/15 'consequential' actions are junk (echoed prompt fragments as arguments), in a 4.0 family.",
+  "Semantic participants are unintegrated: nothing outside semantic/ uses them; population class-4 rows are inert (next_active_at=NEVER); no persistence, no self-goals; civ and multiagent are stubs.",
+  "SP-3.2b finds 0.6B ineffective for programming, negotiation and strategy, yet D-10 standardizes 0.6B and no routing exists; prefix cache gives 0.986x and changes 3/8 bf16 outputs."
+ ],
+ "scratch_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/D_semantic",
+ "skeptic": {
+  "role": "skeptic review of the D_semantic audit",
+  "head_commit": "dd745b9 (docs/manifest only since a881d18; no change under src/crucible/{semantic,social,population,experience} or tests)",
+  "scratch_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/D_semantic_skeptic",
+  "overturned": [
+   {
+    "target": "E.1",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "why": "The default social world runs 0 pretrained forward passes over 306 consumptions, and aud refuses image/audio/video (InvalidAction, social/audience.py:482-484). The only in-world use is unrecorded text encoding for learner observations.",
+    "probe": "probe_e1_integration.py, probe_experience_semantic.py"
+   },
+   {
+    "target": "E.n1",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "why": "The vectors participants consume are 32-d lexical hashes with no model. stub_check flags 0 SHA-256 random vectors in 5/5 suites and 0 lexical vectors, so the stub_vectors_detected criterion cannot detect a stub.",
+    "probe": "probe_e1_integration.py, probe_stubcheck.py"
+   },
+   {
+    "target": "H.3",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "why": "Goal, memory and history exist only on Python policies (participants.py:212-216). After a fork the policies hold 3-4 actions while the fork world has 1-2; goal and memory text are absent from the snapshot; history_digest is distinct by construction.",
+    "probe": "probe_gateh_nomodel.py part 5"
+   },
+   {
+    "target": "H.8",
+    "from": "RETAIN",
+    "to": "EXTEND",
+    "why": "Memory is the process-wide CUDA allocator peak only. On CPU (a supported mode) peak_vram_mb_measured is False and no host memory is reported. No per-participant, latency or standard-profile measurement.",
+    "probe": "probe_h2_h8_cpu.py"
+   },
+   {
+    "target": "H.4",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "why": "The benchmark always offers the correct tool. In the world, the BM25 goal shortlist (participants.py:306-325) excludes the needed tool on turn 0 for ana (docs.create), cara (mail.send) and eli (code.create_repo), and none of them ever called it in 24 rounds.",
+    "probe": "probe_gateh_nomodel.py part 2 plus the auditor's society dump"
+   },
+   {
+    "target": "H.6",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "why": "Junk satisfies the count (8 bank.open_account calls by one participant add 4). With no assigned objective the Qwen3-0.6B society makes 0 consequential actions in 48 turns; purposeful action needs the participant redesign.",
+    "probe": "probe_gateh_nomodel.py part 4, probe_no_objective.py"
+   },
+   {
+    "target": "H.7",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "why": "A single bank.transfer makes verified_productive_results 1 (collaborative 0, program 0). check_instance (scenarios.py:141) verifies a 64-core rental for a 1-core goal. With no objective nothing is produced.",
+    "probe": "probe_gateh_nomodel.py part 3, probe_no_objective.py"
+   }
+  ],
+  "upheld": [
+   {
+    "target": "H.2",
+    "verdict": "RETAIN",
+    "why": "loaded_copies discriminates: 1 copy for two same-key services, 2 after int8, 3 after bf16 (probe_h2_h8_cpu.py)."
+   },
+   {
+    "target": "H.5",
+    "verdict": "RETAIN",
+    "why": "0.900 reproduced. 0.78 [0.648, 0.872] on the 50 items a last-mentioned-option rule gets wrong; the rule alone scores 0.583, so the criterion is weak (probe_h5_peritem.py, probe_h5_shortcuts.py)."
+   },
+   {
+    "target": "Recorded semantic inference module",
+    "verdict": "RETAIN",
+    "why": "Recorded outputs alone re-derive 22/22 participant actions; admin.semantic_infer is hidden and forbidden; 0 inference/ext events are visible to participants. The auditor's regenerate-digest evidence does not discriminate: an unrecorded run also regenerates equal (probe_gateh_nomodel.py parts 6-7)."
+   },
+   {
+    "target": "SP-3.2b",
+    "verdict": "EXTEND",
+    "why": "Qwen3-0.6B programming 0.50 [0.326, 0.674] and strategy 0.4917 (held-out 0.35) reproduce exactly from sets rebuilt from the current sources. The 1.7B numbers were not re-run; no report is committed."
+   },
+   {
+    "target": "E.2",
+    "verdict": "EXTEND",
+    "why": "Kept, but the criterion is weaker than stated: lexical random indexing with no model reaches text separation 4.95 against the 1.5 bar (probe_stubcheck.py)."
+   },
+   {
+    "target": "E.3",
+    "verdict": "REDESIGN",
+    "why": "Kept with a correction. The seeded projection preserves MiniLM geometry (Pearson 0.907); the misalignment is that interests are lexical topic mixtures (probe_e1_integration.py)."
+   },
+   {
+    "target": "E.4 / Embedding cache",
+    "verdict": "REPAIR",
+    "why": "Kept, effort S -> M. New defect: the aud semantic path encodes without ctx (audience.py:474) and the cache key has no device, so a CPU-built world regenerates on GPU with a different digest (CPU->CPU equal) (probe_semantic_regen.py)."
+   },
+   {
+    "target": "E.5 / audit",
+    "verdict": "REPAIR",
+    "why": "5 hits reproduced. None is creator-assigned: quality comes from the labour market's skill-match formula (commerce/labor.py:450-453) and lead acceptance passes None (commerce/institutions.py:1580)."
+   },
+   {
+    "target": "H.1, Semantic participants, Gate H society, Population class-4",
+    "verdict": "REDESIGN/REDESIGN/REBUILD/IMPLEMENT",
+    "why": "Justified. With no objective the participants only make read-only calls; retrieval hides goal tools; class-4 rows are inert (population/core.py:323,333)."
+   }
+  ],
+  "net_requirement_verdicts": {
+   "E.1": "REPAIR",
+   "E.2": "EXTEND",
+   "E.3": "REDESIGN",
+   "E.4": "REPAIR",
+   "E.5": "REPAIR",
+   "E.n1": "REPAIR",
+   "H.1": "REDESIGN",
+   "H.2": "RETAIN",
+   "H.3": "REPAIR",
+   "H.4": "REDESIGN",
+   "H.5": "RETAIN",
+   "H.6": "REDESIGN",
+   "H.7": "REDESIGN",
+   "H.8": "EXTEND",
+   "H.n1": "EXTEND",
+   "SP-3.2b": "EXTEND"
+  },
+  "criteria_weak_updates": [
+   "H.5: a no-understanding 'last-mentioned option' rule scores 0.583 (bar 0.6, p << 0.01); require accuracy on a shortcut-controlled subset.",
+   "H.7: verified_productive_results counts any verified goal (a single transfer passes); count only collaborative or productive results, and verifiers must check the goal's terms (cores, payer account).",
+   "H.6: any state change counts (junk accounts count); require goal- or need-relevant actions verified externally.",
+   "E.1/E.n1: stub_vectors_detected cannot detect hash vectors; add weight dependence and a learned-structure margin over a lexical baseline, measured on artifacts the world consumes.",
+   "E.2: a lexical bag of words passes at 4.95; require separation beyond a lexical baseline on synonym/paraphrase and negation/polarity pairs.",
+   "H.3: distinct_histories is distinct by construction; require per-participant state persisted in world state and consistent across snapshot, fork and regenerate.",
+   "H.8: boolean criteria are satisfiable only on GPU; require host memory, per-participant state memory and per-profile scaling."
+  ],
+  "missing_requirements_added": [
+   "Device-independent regeneration of any embedding a world process consumes (record it in the world; device or numeric class in the cache key).",
+   "The content representation exposed to learners must be the one that drives participant behaviour, or be validated against it (today: 384-d MiniLM for learners, 32-d lexical for the audience).",
+   "In-world tool-selection measurement: recall of the goal tool in the candidate set and call success in the integrated world, not only on a benchmark that always includes the correct tool."
+  ],
+  "additional_findings": [
+   "aud.encoder='semantic' breaks regeneration across devices: CPU log -> GPU regenerate gives a different digest (CPU -> CPU equal); 0 embed.recorded/ext records in the log.",
+   "Learner observations carry MiniLM 384-d vectors (experience/kernel.py:362-377) but the audience reacts to 32-d lexical vectors; that env also defaults to legacy_shaped_reward (experience/kernel.py:59), against amendment (a) (workstream L).",
+   "BM25 goal retrieval (participants.py:306-325) explains 3 of the 6 failed Gate H goals; the available MiniLM encoder is not used for retrieval.",
+   "stub_check (encoders/audit.py:186-207) passes SHA-256 random vectors and lexical hashes.",
+   "Code reading, not probed (workstream I): domains/firms.py:290 'q = float(t[\"quality\"] or 0.0)' with lead acceptance passing quality=None (commerce/institutions.py:1580) suggests agent-accepted tasks earn 0 external sale revenue."
+  ],
+  "tests_run": [
+   {
+    "command": "slots --cpu 1 --gpu-mb 0 -- python probe_e1_integration.py",
+    "result": "default world 0 forward passes / 306 consumptions; PNG/WAV/MP4 refused (InvalidAction); semantic path pairwise-cosine Pearson 0.907"
+   },
+   {
+    "command": "slots --cpu 1 --gpu-mb 0 -- python probe_experience_semantic.py (fresh cache)",
+    "result": "8 MiniLM 384-d vectors in the learner observation, 8 forward passes, recorded 0; default reward_mode legacy_shaped_reward"
+   },
+   {
+    "command": "python probe_stubcheck.py",
+    "result": "0 stubs detected for SHA-256 random vectors (5/5 suites) and for lexical vectors; lexical E.2 text ratio 4.95"
+   },
+   {
+    "command": "probe_semantic_regen.py A (CPU) then B (CPU, empty cache) and B (GPU, empty cache)",
+    "result": "CPU->CPU digest equal; CPU->GPU digest differs; 0 embed/ext records"
+   },
+   {
+    "command": "python probe_h5_shortcuts.py",
+    "result": "last-mentioned-option rule 0.583 on comprehension test; tool-choice rules <= 0.175"
+   },
+   {
+    "command": "slots --cpu 1 --gpu-mb 6000 -- python probe_h5_peritem.py (Qwen3-0.6B, 101 s)",
+    "result": "0.900 overall; 0.986 on rule-right (70); 0.78 [0.648, 0.872] on rule-wrong (50)"
+   },
+   {
+    "command": "python probe_gateh_nomodel.py (FakeService)",
+    "result": "untouched 0/8; turn-0 goal tool missing for ana/cara/eli; single transfer -> H.7 metric 1; 64-core rental verified; 4 junk accounts counted; fork/snapshot lose participant state; 22/22 actions re-derived from recorded outputs; unrecorded run regenerates equal; admin.semantic_infer forbidden"
+   },
+   {
+    "command": "slots --cpu 1 --gpu-mb 7000 -- python probe_no_objective.py 6 (Qwen3-0.6B, goal='')",
+    "result": "48 turns, 12 waits, 22 read-only actions, 0 consequential actions, 0 goals.* calls"
+   },
+   {
+    "command": "slots --cpu 1 --gpu-mb 0 -- python probe_h2_h8_cpu.py (SmolLM2-135M)",
+    "result": "loaded_copies 1 -> 2 (int8) -> 3 (bf16); CPU: peak_vram None, no host memory, peak_vram_mb_measured False"
+   },
+   {
+    "command": "slots --cpu 1 --gpu-mb 6000 -- python -m crucible.semantic.capbench --models Qwen/Qwen3-0.6B --caps programming,strategic_decisions --no-encoders",
+    "result": "programming gen 0.50 [0.326, 0.674], MC 1.0; strategy 0.4917, held-out 0.35 (identical to D2.md); 124 s"
+   },
+   {
+    "command": "python -c 'crucible.semantic.encoders.audit.quality_fields()'",
+    "result": "5 violations (firms.py:290,295,711x2; reference.py:151)"
+   }
+  ],
+  "confidence_note": "High for the overturns. Each rests on a probe I ran, and the H.4/H.6/H.7 points are reproducible without a model. Not re-run: the Qwen3-1.7B SP-3.2b numbers and the full Gate H society (the auditor's 846 s run). The H.5 per-item and no-objective runs used the gate's exact model and scoring."
+ }
+}

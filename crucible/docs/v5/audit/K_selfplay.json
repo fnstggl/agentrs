@@ -1,0 +1,479 @@
+{
+ "area": "K_selfplay",
+ "workstreams": [
+  "K"
+ ],
+ "commit": "a881d18",
+ "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay",
+ "subsystems": [
+  {
+   "name": "multiagent civilization self-play harness",
+   "paths": [
+    "src/crucible/multiagent/__init__.py"
+   ],
+   "verdict": "IMPLEMENT",
+   "effort": "XL",
+   "evidence": "5-line docstring stub; no modules.py; no test_gate_Q.py/test_gate_SP_12_1.py/test_gate_SP_12_3.py; acceptance run for Q.1/SP-12.1/SP-12.3 exits 2 'no test files exist yet'; civ_available()=False; domains()={}",
+   "key_defects": [
+    "nothing implemented",
+    "no Tier 3 world to host it (civ stub)",
+    "workstream K never started (no agent report)"
+   ],
+   "work_needed": "policy/version registry, civilization harness running N independent learners + population groups through KernelExperienceEnv in observation_only with per-learner controller, civilization league, integrity/collusion battery, gate tests that fail without Tier 3"
+  },
+  {
+   "name": "selfplay.arena multi-seat envs (SelfPlayEnv, KernelSelfPlayEnv)",
+   "paths": [
+    "src/crucible/selfplay/arena.py:144-551"
+   ],
+   "verdict": "REPAIR",
+   "effort": "S",
+   "evidence": "test_selfplay.py 28 passed (per-seat isolation, kernel twin tick-for-tick); probe_arena_modes: default reward_mode legacy (arena.py:153,425); observation_only returns info['score'] nonzero 10/10 ticks (arena.py:368)",
+   "key_defects": [
+    "legacy_shaped_reward default violates observation-only amendment",
+    "info['score'] (operator-side objective quantity) returned in observation_only",
+    "numeric hidden-mechanism facilities only (Gate Q: does not pass)"
+   ],
+   "work_needed": "default observation_only; drop score from info outside legacy; leakage battery must scan info"
+  },
+  {
+   "name": "selfplay.arena Objective + play training loop",
+   "paths": [
+    "src/crucible/selfplay/arena.py:556-604",
+    "src/crucible/selfplay/arena.py:695-781"
+   ],
+   "verdict": "REDESIGN",
+   "effort": "M",
+   "evidence": "probe_arena_modes: Objective('score') in observation_only trains PG to eval 7629 net/tick (legacy 7579) -> mode bypassed; probe_joint_objective_leak: partner's private per-tick net recovered from 'joint' signal with max error 6.8e-09; in observation_only the joint signal is 0 on 120/120 ticks",
+   "key_defects": [
+    "creator-assigned training signals (joint/mixed/score)",
+    "joint objective is a private-information channel between participants (12.3)",
+    "cooperation manufactured by reward sharing, not permitted world interactions",
+    "under observation_only the loop gives learners no signal"
+   ],
+   "work_needed": "learner-owned signals computed from the learner's own observations; no evaluator quantity ever passed to learners; cooperation only through world tools"
+  },
+  {
+   "name": "selfplay.learners (spsa, pg, climber, fixed)",
+   "paths": [
+    "src/crucible/selfplay/learners.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "S",
+   "evidence": "probe_arena_modes: pg observation_only 72 counted updates, policy hash unchanged (326e6037...), eval 117 (=defaults); legacy 38 updates, hash changed, 508->4075 net/tick; climber/spsa no learning in observation_only; pg has 10,425 params",
+   "key_defects": [
+    "learn only from env reward / obs reward slot (learners.py:527)",
+    "updates counter counts optimizer steps with zero advantage (learners.py:440)",
+    "Individual.learns counts scripted climber as learner (arena.py:644)"
+   ],
+   "work_needed": "observed-signal option (own revenue-cost from obs scalars), count only parameter-changing updates, fix learns()"
+  },
+  {
+   "name": "selfplay.league SelfPlayLeague + training.league League (3.0)",
+   "paths": [
+    "src/crucible/selfplay/league.py",
+    "src/crucible/training/league.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "M",
+   "evidence": "probe_league: 8 distinct hashes per individual, snapshots A@2,B@2,A@5,B@5, run reproduces hash sequence and held-out eval exactly; held-out pool = hold/random/climber/funds variants (scripted only); no weights/model hash in league.json or meta.json; test_tooling -k league passed",
+   "key_defects": [
+    "no model hashes / training-data provenance / population composition",
+    "no held-out learned policy families",
+    "SelfPlayLeague match = numeric facility; training.League plays scripted factories only",
+    "no controller registration for seats"
+   ],
+   "work_needed": "civilization match type hosting ExperienceEnv learners, provenance records, learned held-out families, sealed seeds"
+  },
+  {
+   "name": "selfplay.modes / experiments / report (six interaction modes)",
+   "paths": [
+    "src/crucible/selfplay/modes.py",
+    "src/crucible/selfplay/experiments.py",
+    "src/crucible/selfplay/report.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "M",
+   "evidence": "test_the_six_interaction_modes_run_with_their_own_objectives_and_analyses and test_mode_analysis_functions passed (T1); families limited to abm_*/tech_* (modes.py:52-66)",
+   "key_defects": [
+    "numeric facilities only",
+    "legacy reward",
+    "cooperative mode depends on joint objective"
+   ],
+   "work_needed": "re-host cross_play/best_response/head_to_head/history_ratings over civilization match records"
+  },
+  {
+   "name": "selfplay.audit (transfer_invariance, conservation, classify_pair)",
+   "paths": [
+    "src/crucible/selfplay/audit.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "L",
+   "evidence": "test_no_transfer_between_participants_moves_the_objective, test_joint_outcomes_never_exceed..., test_audit_tells_value_creating_cooperation_from_tacit_collusion passed (T1); depends on rig_net and abm/techsys private diagnostics",
+   "key_defects": [
+    "no kernel-economy collusion detection (price fixing, bid rigging, wash trading, hidden channels, benchmark exploitation)",
+    "no planted-scheme battery with false-positive control"
+   ],
+   "work_needed": "civilization collusion battery reusing classify_pair logic + commerce.integrity schemes"
+  },
+  {
+   "name": "population.strategic class-3 policy groups (as K's learned groups)",
+   "paths": [
+    "src/crucible/population/strategic.py",
+    "src/crucible/population/nets.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "L",
+   "evidence": "probe_pop_strategic: default params 2,162,715 (MLP) / 2,362,203 (GRU); A 14 updates/112 steps/15 hashes, B 19/152/20, prev_hash chain intact, freeze_copy A@d2 hash unchanged while A changed; 119 deployments, 78 forum posts; 0 transfers between members; no topic shared across groups; 0-2 purchases per site. P5 (10 sim days, 12 members, slot scheduler, 326 s): A 48 updates, B 79; mean reward/decision early->late A 0.022->-0.012, frozen A@d2 0.042->0.011, B 0.032->0.052; balance change/member A +92c, A@d2 +1528c, B +1344c; topic entropy ~max (A 2.51->2.61); no evidence learning beats the frozen copy",
+   "key_defects": [
+    "4-head categorical over a templated shop (no open strategy space)",
+    "no cooperative actions",
+    "competition incidental and unmeasured",
+    "no held-out / cross-play evaluation",
+    "members have no controller -> related-party detection blind",
+    "one RNG stream shared by competing groups (strategic.py:335)"
+   ],
+   "work_needed": "extend action space to commerce/contract/labour/code tools, register controller per group, evaluate in civilization league"
+  },
+  {
+   "name": "controlled-identity accounting in multi-agent harnesses",
+   "paths": [
+    "src/crucible/experience/kernel.py:132-138",
+    "src/crucible/selfplay/arena.py:442-443",
+    "src/crucible/training/league.py:380",
+    "src/crucible/commerce/integrity.py:63-90"
+   ],
+   "verdict": "REPAIR",
+   "effort": "S",
+   "evidence": "probe_controlled_identity: second identity of same learner subscribing counted as MRR 2000, 1 independent customer, 2000 independent revenue when admitted as harnesses do (no controller); 0/0/0 with shared controller",
+   "key_defects": [
+    "harnesses never pass controller to admin.join",
+    "selfplay.audit integrity checks cover rig_net only"
+   ],
+   "work_needed": "controller per learner instance/group in every multi-agent harness; evaluator outcomes via commerce.integrity"
+  },
+  {
+   "name": "multi-agent experience adapters (KernelExperienceEnv agents=N, PettingZoo, ReferenceLearner)",
+   "paths": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/api/pettingzoo_env.py",
+    "src/crucible/experience/reference.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "M",
+   "evidence": "KernelExperienceEnv accepts several agents (used with scripted agents in SP-11.2/11.5 tests); ReferenceLearner trains on observed balance change in observation_only; defaults legacy (kernel.py:59, registry.py:99, pettingzoo_env.py:42); world-model loss changes weights without reward",
+   "key_defects": [
+    "never run with >=2 independent learners in one world",
+    "legacy default",
+    "weight change from self-supervised head is not policy-learning evidence"
+   ],
+   "work_needed": "multi-learner runs with per-learner processes/RNG, observation_only default"
+  },
+  {
+   "name": "Gate Q / SP-12.1 / SP-12.3 tests and evidence",
+   "paths": [
+    "tests/v5/"
+   ],
+   "verdict": "IMPLEMENT",
+   "effort": "M",
+   "evidence": "test files absent; checker exit 2",
+   "key_defects": [
+    "no tests",
+    "Gate S silently skips Tier 3 when civ unavailable (tests/v5/test_gate_S.py:135) - same pattern must not be copied"
+   ],
+   "work_needed": "gate tests that fail without Tier 3 and require behavioural improvement vs frozen controls"
+  }
+ ],
+ "requirements": [
+  {
+   "id": "Q.1",
+   "verdict": "IMPLEMENT",
+   "criteria_weak": true,
+   "reason": "no Tier 3 world (civ stub, civ_available False); no harness runs >=2 learned policies in one shared civilization",
+   "work_needed": "multiagent harness running >=2 independent learner instances (e.g. ReferenceLearner variants + pop class-2/3 groups) in a civilization under observation_only, each taking world-changing actions; evidence per-policy action counts + hashes; criteria must require Tier 3 and actual actions"
+  },
+  {
+   "id": "Q.2",
+   "verdict": "IMPLEMENT",
+   "criteria_weak": true,
+   "reason": "only pop_strategic A/B (population world) are independently updated groups; competition between them unmeasured (no shared topic in probe)",
+   "work_needed": "groups with disjoint params/optimisers/buffers/RNG verified by storage + hash chains, contending for a resource with a measured counterfactual effect"
+  },
+  {
+   "id": "Q.3",
+   "verdict": "IMPLEMENT",
+   "criteria_weak": true,
+   "reason": "no cooperative world actions for learned agents; 4.0 cooperation is team reward sharing that leaks private income",
+   "work_needed": "cooperation through tools (contracts, ventures, co-developed repos, trade) without shared reward; counterfactual value created; competition measured from world events"
+  },
+  {
+   "id": "Q.4",
+   "verdict": "IMPLEMENT",
+   "criteria_weak": true,
+   "reason": "no civilization self-play run exists",
+   "work_needed": "measured consequence chains caused by one learner and observed by another, across domains (cause provenance)"
+  },
+  {
+   "id": "Q.5",
+   "verdict": "EXTEND",
+   "criteria_weak": true,
+   "reason": "pop_strategic has a version/hash chain; SelfPlayLeague records no hashes, provenance or composition",
+   "work_needed": "policy registry (version, weights hash, parent, algorithm, training-data provenance, update log, population composition per match) + reproducible cross-play"
+  },
+  {
+   "id": "Q.6",
+   "verdict": "EXTEND",
+   "criteria_weak": true,
+   "reason": "held-out pool exists but is scripted-only and numeric-facility-only",
+   "work_needed": "held-out learned policy families never met in training, frozen evaluation in the civilization on sealed seeds with statistics"
+  },
+  {
+   "id": "Q.7",
+   "verdict": "EXTEND",
+   "criteria_weak": true,
+   "reason": "neural updates real (pg legacy, pop_strategic, ReferenceLearner) but selfplay learners do not learn in observation_only; counters/hash changes occur without policy improvement (pg 72 updates, hash unchanged). P5 (10 sim days, 12 members, slot scheduler, 326 s): A 48 updates, B 79; mean reward/decision early->late A 0.022->-0.012, frozen A@d2 0.042->0.011, B 0.032->0.052; balance change/member A +92c, A@d2 +1528c, B +1344c; topic entropy ~max (A 2.51->2.61); no evidence learning beats the frozen copy",
+   "work_needed": "behavioural/outcome improvement under observation_only vs frozen-copy control and held-out opponents in the civilization"
+  },
+  {
+   "id": "Q.8",
+   "verdict": "EXTEND",
+   "criteria_weak": true,
+   "reason": "classify_pair only for abm/techsys engines; commerce.integrity plants revenue schemes; no civilization collusion battery",
+   "work_needed": "planted price fixing, bid rigging, wash trading among controlled identities, hidden-channel coordination, mutual metric inflation; detection and false-positive rates; criteria should require scheme variety and a false-positive bound"
+  },
+  {
+   "id": "Q.n1",
+   "verdict": "IMPLEMENT",
+   "criteria_weak": true,
+   "reason": "only numeric-facility self-play exists",
+   "work_needed": "gate test refusing rig-only runs; civilization_selfplay_runs must be defined as Tier 3 with tool-acting learned policies"
+  },
+  {
+   "id": "SP-12.1",
+   "verdict": "IMPLEMENT",
+   "criteria_weak": true,
+   "reason": "no population mixes the 7 kinds; held-out learned families absent; semantic participants not combined with others",
+   "work_needed": "population manifest where all 7 kinds act in one world; diversity/homogeneity measure"
+  },
+  {
+   "id": "SP-12.3",
+   "verdict": "REPAIR",
+   "criteria_weak": true,
+   "reason": "controlled-identity subscription counted as 2000c MRR / 1 independent customer (harnesses pass no controller); joint objective leaks partner's private net (err 6.8e-09); info['score'] leak in observation_only",
+   "work_needed": "controller per learner/group in all harnesses; evaluator outcomes via commerce.integrity; remove privileged training signals; tests for hidden shared state, private-observation access, shared evaluator information; criteria cover only 1 of 4 prevented items"
+  }
+ ],
+ "missing_requirements": [
+  "Part 12 capability list (found competing businesses, collaborate on software, trade, negotiate, join organisations, develop competing technologies, create services used by other agents, form cooperative ventures, compete for scarce resources, respond to changing strategies) - only Q.3 touches it",
+  "12.2 recording: model hashes, participant identity, training-data provenance, experience/actions/outcome history, policy updates, population composition (Q.5 counts versions only)",
+  "12.2 reproducible cross-play between policy versions; league or population-based evaluation",
+  "12.1 shared-training vs independently-updated participants; avoid a homogeneous population",
+  "12.3 no unauthorized access to private observations; no shared evaluator information; no collusive benchmark exploitation; cooperation emerges through permitted world interactions (not shared reward)",
+  "Amendment (a) for self-play: observation_only default in every multi-agent env/harness; self-play learners learn from observed consequences only; evaluator-side verification of self-play outcomes",
+  "12.1 / 3.2 class 3 within self-play: diverse learning algorithms, participants with unrelated objectives, lifetime adaptation"
+ ],
+ "tests_run": [
+  {
+   "command": "cd crucible && PYTHONPATH=src timeout 900 /venv/main/bin/python -m pytest -q -p no:cacheprovider tests/test_selfplay.py",
+   "result": "28 passed in 44.17s"
+  },
+  {
+   "command": "PYTHONPATH=src timeout 900 /venv/main/bin/python -m pytest -q -p no:cacheprovider -x tests/test_tooling.py -k league",
+   "result": "1 passed, 9 deselected"
+  },
+  {
+   "command": "PYTHONPATH=src timeout 900 /venv/main/bin/python -m pytest -q -p no:cacheprovider -x tests/test_v5_population_core.py",
+   "result": "11 passed in 66.29s"
+  },
+  {
+   "command": "PYTHONPATH=src /venv/main/bin/python -m crucible.acceptance.v5 run --requirement Q.1 (and SP-12.1, SP-12.3)",
+   "result": "exit 2: no test files exist yet for this selection"
+  },
+  {
+   "command": "PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay/probe_arena_modes.py",
+   "result": "defaults legacy everywhere; observation_only info['score'] nonzero 10/10; pg obs-only 72 updates hash unchanged; Objective('score') in obs-only learns to legacy level (eval 7629 vs 7579)"
+  },
+  {
+   "command": "PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay/probe_joint_objective_leak.py",
+   "result": "partner private net recovered from joint signal, max err 6.8e-09 (legacy); signal 0 on 120/120 ticks in observation_only"
+  },
+  {
+   "command": "PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay/probe_league.py",
+   "result": "independent hash sequences, snapshots, exact reproducibility; held-out scripted only; no model hash in league/meta"
+  },
+  {
+   "command": "PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay/probe_pop_strategic.py",
+   "result": "A/B hash-chained updates (14/19), frozen copy stable, tool-based acts; 0 member-to-member transfers; no topic shared across groups"
+  },
+  {
+   "command": "PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay/probe_controlled_identity.py",
+   "result": "no controller: MRR 2000, independent customers 1; shared controller: 0"
+  },
+  {
+   "command": "PYTHONPATH=src /venv/main/bin/python -m crucible.scale.slots --cpu 1 --gpu-mb 0 --timeout 1500 -- ... /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay/probe_pop_strategic_learning.py 10",
+   "result": "P5 (10 sim days, 12 members, slot scheduler, 326 s): A 48 updates, B 79; mean reward/decision early->late A 0.022->-0.012, frozen A@d2 0.042->0.011, B 0.032->0.052; balance change/member A +92c, A@d2 +1528c, B +1344c; topic entropy ~max (A 2.51->2.61); no evidence learning beats the frozen copy"
+  }
+ ],
+ "critical_findings": [
+  "Gate Q has no implementation: multiagent/ is a 5-line stub, test_gate_Q.py / test_gate_SP_12_1.py / test_gate_SP_12_3.py do not exist, civ_available()=False, domains()={}; checker exits 'no test files exist yet'.",
+  "Observation-only default violated: check_mode(None), SelfPlayEnv, KernelSelfPlayEnv, KernelExperienceEnv, registry.make, PettingZoo/Gym default to legacy_shaped_reward; selfplay learners cannot learn in observation_only (pg 72 'updates', weights unchanged).",
+  "Reward leak: in observation_only SelfPlayEnv still returns info['score'] and play() feeds it to Objective('score'); a PG learner reaches legacy performance (eval 7629 vs 7579) in 'observation_only'. The leakage battery ignores info.",
+  "The 4.0 'joint' cooperative objective hands each learner its partner's private per-tick net (recovered to 6.8e-09): cooperation is manufactured by reward sharing, not emergent through permitted interactions (12.3).",
+  "Controlled-identity revenue counted: multi-agent harnesses admit agents without a controller; a same-learner identity's subscription counts as 2000c MRR / 1 independent customer; with a shared controller commerce.integrity excludes it.",
+  "Only in-world learned groups are pop_strategic A/B: real hash-chained updates and frozen copies, but a 4-head template choice with no cooperative actions, no measured competition and no held-out/cross-play evaluation."
+ ],
+ "files_written": [
+  "docs/v5/audit/K_selfplay.md",
+  "docs/v5/audit/K_selfplay.json"
+ ],
+ "skeptic": {
+  "reviewer": "skeptic pass, area K_selfplay",
+  "commit_reviewed": "dd745b9 (no source change vs audited a881d18 in selfplay/population/experience/multiagent)",
+  "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay_skeptic",
+  "overturned": [
+   {
+    "target": "selfplay.arena multi-seat envs (SelfPlayEnv, KernelSelfPlayEnv)",
+    "from": "REPAIR (S)",
+    "to": "REPAIR (M)",
+    "why": "S1: 'isolation is real' holds for memory, not information. In observation_only, MechExperienceEnv (tier1.py:222-224,314,342) and kernel rig.read (mechanisms/module.py:398-410) expose per-seat `score`; for tech_handoff (team_net, techsys.py:868-869) the partner's private net is recovered as 2*score-own to max 1.60 c (kernel 1.61 c; partner |net| mean 349 c) on 40/40 ticks. Leakage battery misses it (PRIVILEGED_KEYS lacks score, leakage.py:37; Tier 1 invariance single-seat only, leakage.py:340)."
+   },
+   {
+    "target": "selfplay.arena Objective + play loop",
+    "from": "REDESIGN",
+    "to": "REDESIGN (Objective kinds) / REPAIR (play loop)",
+    "why": "S1: for abm families score == own net on 40/40 ticks; S6: legacy reward == observed (revenue-cost)/scale within 3e-8 on abm_duopoly, tech_handoff, abm_commons. The auditor's Objective('score') result is a harness reward bypass, not privileged information; play() needs only a learner-side signal. joint/mixed (and score in team_net families) remain privileged -> Objective REDESIGN stands."
+   },
+   {
+    "target": "selfplay.audit (classify_pair)",
+    "from": "EXTEND (L)",
+    "to": "REDESIGN (L)",
+    "why": "S4: the class is set by the analyst's reference: the test's competitive pair (0.90 p0) is 'tacit_collusion' vs a 0.70 p0 price war; the planted cartel (1.15 p0) is 'value_creating_cooperation' vs a 1.30 p0 cartel; circular_manipulation.possible is the constant False (audit.py:350) even with 1e6 c paid between the pair; no detection output; needs engine-private per-seat diagnostics. transfer_invariance/conservation remain EXTEND (rig-only)."
+   },
+   {
+    "target": "selfplay.modes / experiments / report",
+    "from": "EXTEND (M)",
+    "to": "REDESIGN (M)",
+    "why": "Code: modes.evaluate builds SelfPlayEnv from a Task (modes.py:83-96); cross_play is a 2-seat matrix over evaluate(task,[a,b]) (modes.py:212-240); best_response/run_* take Task + arena Individuals; SelfPlayLeague.head_to_head plays arena matches (league.py:284-310); report_A/B are 4.0 write-ups. Only formulas (cross-play gap, win-matrix cycle check, lagged_response) carry over to N-participant civilization worlds."
+   },
+   {
+    "target": "population.strategic class-3 policy groups (as K's learned groups)",
+    "from": "EXTEND (L)",
+    "to": "REDESIGN (L)",
+    "why": "S7: StrategicGroup.learn creates a fresh Adam/RMSprop per update (strategic.py:121) so per-update weight change is independent of evidence (A max|dw| 2.39e-3/2.42e-3/2.43e-3 = 8*lr for rewards x1e-3/x1/x1e3; B mean|dw| ~20% of mean|w| per update). S2 (synthetic stationary bandit at the world's reward scale): default A signal seed 1 went P(best) 0.991 -> 0.004 (entropy 0.024, locked on a worse arm); default B strong seed 2 0.999 -> 0.051; default A null seed 1 sharpened to entropy 0.41 with no signal; h64 signal mean P(best) 0.70 at 100 updates -> 0.454 at 200. Plus template 4-head action space executed by scripted _carry_out (auditor)."
+   },
+   {
+    "target": "Q.7",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "why": "Every existing neural learner meets the manifest criteria (>=100 updates, hash changed) without learning: selfplay PG 72 updates with hash unchanged in obs-only (auditor P1), ReferenceLearner 5/5 hash changes with observed signal 0 (S3), class-3 steps evidence-independent (S7) and unstable (S2). Needs an evidence-scaled learning rule and behavioural gain vs frozen control in Tier 3."
+   },
+   {
+    "target": "Q.8",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "why": "S4: the only collusion logic is a reference-relative classifier with no detection semantics and a hard-coded 'circular manipulation impossible'; planted_collusion_undetected==0 is circular when the planter picks the reference."
+   },
+   {
+    "target": "SP-12.3",
+    "from": "REPAIR",
+    "to": "REPAIR (larger scope, effort S->M)",
+    "why": "S1: a second private-information channel (team_net score) that survives observation_only, via observations, tool responses and events; plus arena.py:368 info returns every seat's net/revenue/cost to the harness."
+   },
+   {
+    "target": "Q.2",
+    "from": "IMPLEMENT",
+    "to": "EXTEND",
+    "why": "S5 (paired counterfactual, population world seed 11, 4 days, lr=0 so weights identical): group A sites got 252 visits with B present vs 336 with B absent (+33%), 5/6 A members more visits without B; topics overlap {3,10}. Independently updated competing groups exist and contend measurably for one population; missing are a Tier 3 host, a sound update rule (S7/S2), a controller per group and a counterfactual competition metric. Consistent with the auditor's own Q.5 EXTEND which rests on the same groups."
+   }
+  ],
+  "confirmed": [
+   {
+    "target": "multiagent civilization self-play harness",
+    "verdict": "IMPLEMENT",
+    "evidence": "multiagent/__init__.py 5-line docstring; civ_available() False; domains() []"
+   },
+   {
+    "target": "selfplay.learners",
+    "verdict": "REPAIR (S)",
+    "evidence": "S6: obs-derived own net equals the legacy reward to 3e-8, so a learner-side signal restores legacy learning (OO.6-permitted)"
+   },
+   {
+    "target": "selfplay.league + training.league",
+    "verdict": "EXTEND",
+    "evidence": "generic League base; SelfPlayLeague hard-wires legacy SelfPlayEnv (league.py:60); held-out climber reads the reward slot (learners.py:527) and degenerates in obs-only"
+   },
+   {
+    "target": "controlled-identity accounting",
+    "verdict": "REPAIR (S)",
+    "evidence": "admin.join accepts controller (services/admin.py:17-23) but add_agent does not expose it (experience/kernel.py:132, S3); participants cannot create persons in-world (only id.create_org, covered by related_parties)"
+   },
+   {
+    "target": "multi-agent experience adapters",
+    "verdict": "EXTEND",
+    "evidence": "S3: params/optimizer/generator isolated, disjoint hash chains, zero native reward; but no multi-agent driver (loop.py:21 single agent), ~75% rejected actions, 3 world changes per learner in 160 steps, 0 cross-learner events, observed signal 0 c, hash changed on 5/5 update calls. ReferenceLearner must not count as a K learned group."
+   },
+   {
+    "target": "Gate Q / SP-12.x tests",
+    "verdict": "IMPLEMENT",
+    "evidence": "no test files; tests/v5 has test_gate_K.py but that is commerce Gate K"
+   },
+   {
+    "target": "Q.1, Q.3, Q.4, Q.n1, SP-12.1",
+    "verdict": "IMPLEMENT",
+    "evidence": "S3 shows zero cross-learner consequences; population class-4 rows get policy_group 200 (population/core.py:323) but no module operates group 200 -> semantic class is a label"
+   },
+   {
+    "target": "Q.5, Q.6",
+    "verdict": "EXTEND",
+    "evidence": "no counter-evidence; Q.6 held-out pool scripted and numeric-only"
+   }
+  ],
+  "additional_missing_requirements": [
+   "Cross-participant information isolation at the learner interface: no observation/tool-response/event field may let one participant reconstruct another's private quantities (derivability test with a canary in the other seat's private record, not a key-name scan) - S1",
+   "Learning-evidence validity: updates must scale with evidence, a no-signal control must not sharpen, and claims need behavioural gain over a frozen copy with CIs - S2/S7",
+   "Collusion detection without an analyst-chosen reference, with a measured false-positive rate on independent competitive learners - S4",
+   "A multi-agent ExperienceEnv driver interleaving >=2 external learners in one world with per-learner clock budgets and cross-learner cause provenance - S3"
+  ],
+  "tests_run": [
+   {
+    "command": "cd crucible && PYTHONPATH=src timeout 900 /venv/main/bin/python -m pytest -q -p no:cacheprovider -x tests/test_selfplay.py -k \"each_seat_sees_only or audit_tells or individuals_share_no_weights or heldout_population_never\"",
+    "result": "4 passed, 24 deselected in 10.48s (pass despite S1 and S4)"
+   },
+   {
+    "command": "PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay_skeptic/probe_score_cross_seat_leak.py",
+    "result": "tech_handoff obs-only: score in obs/rig.read/events 40/40; partner net recovered max err 1.60 c (kernel 1.61 c), partner |net| mean 349 c; abm: score==own net 40/40; find_keys hits 0"
+   },
+   {
+    "command": "slots --cpu 1 -- python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay_skeptic/probe_strategic_rule.py",
+    "result": "h64 strong 8/8 learn (P(best) 0.998 @67); h64 signal 0.544@67, 0.70@100, 0.454@200; 4 collapses after P(best)>=0.9; default A null seed1 entropy 0.41 without signal; default A signal seed1 0.991->0.004"
+   },
+   {
+    "command": "PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay_skeptic/probe_strategic_step_scale.py",
+    "result": "per-update dw independent of reward scale x1e-3..x1e3 (A max 2.39e-3..2.43e-3; B mean ~20% of mean|w|)"
+   },
+   {
+    "command": "PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay_skeptic/probe_two_learners_kernel.py",
+    "result": "isolated params, disjoint hashes; no driver; rejected 124/159 and 117/159; 3 world changes each; 0 cross-learner events; observed signal 0; hash changed 5/5 updates"
+   },
+   {
+    "command": "PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay_skeptic/probe_classify_reference.py",
+    "result": "compete vs war -> tacit_collusion; collude vs harsher cartel -> value_creating_cooperation; circular_possible False with 1e6 c paid"
+   },
+   {
+    "command": "PYTHONPATH=src /venv/main/bin/python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay_skeptic/probe_obs_derived_net.py",
+    "result": "legacy reward == obs (rev-cost)/scale within 3e-8 (abm_duopoly, tech_handoff, abm_commons)"
+   },
+   {
+    "command": "slots --cpu 1 -- python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/K_selfplay_skeptic/probe_strategic_competition.py 4",
+    "result": "A visits 252 (B present) vs 336 (B absent), first visits 205 vs 275, purchases 5 vs 2, revenue 2855 vs 1966 c; 5/6 A members more visits without B; weights hashes identical across runs; 206 s"
+   }
+  ],
+  "critical_findings": [
+   "NEW LEAK: in observation_only the Tier 1 multi-seat adapter (MechExperienceEnv) and the kernel rig.read expose per-seat `score`; in tech_handoff (team_net) it reveals the partner's private net to 1.6 c on every tick, through observations, tool responses and events. The leakage battery cannot see it (no `score` in PRIVILEGED_KEYS; single-seat Tier 1 test). Seat 'isolation' is memory-only.",
+   "classify_pair is not a collusion detector: the same competitive pair is 'tacit_collusion' and a planted cartel is 'value_creating_cooperation' depending only on the chosen reference; circular manipulation is hard-coded impossible. selfplay.audit and Q.8 -> REDESIGN.",
+   "Class-3 learning rule re-creates its optimizer every update (strategic.py:121): step size independent of evidence (8*lr for A; ~20% of |w| per update for B) and unstable on a clean synthetic bandit (lock-in on a worse arm, collapse, sharpening without signal). pop_strategic -> REDESIGN; its hash changes are not learning evidence.",
+   "Two neural learners in one kernel world share nothing but also do nothing together: no multi-agent driver, 0 cross-learner events, 0 observed signal, yet hashes change every update. Q.7's counters are met with no learning by every existing learner.",
+   "Auditor's Leak 1 recharacterised: for abm families `score` is the seat's own net and the legacy reward equals observable revenue minus cost, so the PG result shows a harness reward bypass, not privileged information; learners' REPAIR (S) confirmed."
+  ]
+ }
+}

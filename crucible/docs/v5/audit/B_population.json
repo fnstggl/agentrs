@@ -1,0 +1,593 @@
+{
+ "area": "B_population",
+ "workstreams": [
+  "B"
+ ],
+ "audited_commit": "a881d18 (HEAD dd745b9 adds docs only)",
+ "subsystems": [
+  {
+   "name": "Persistent individual state (schema, genesis, state evolution)",
+   "paths": [
+    "crucible/src/crucible/population/schema.py",
+    "crucible/src/crucible/population/core.py:246-337",
+    "crucible/src/crucible/population/web.py:457-648"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "All 18 Part-3.1 fields represented, heterogeneous and evolving at standard scale (standard profile 10296 rows ({'1': 10000, '2': 256, '3': 32, '4': 8}), 30 simulated days, 415728 visits by 10256 distinct visitors, 10256 distinct activated, learner_initiated=0, attention violations=0, days_with_activity=30, wall s/day [56.4, 101.7, 176.4]..[341.9, 334.0, 398.5]); same-situation utility SD 0.2; interest drift toward enjoyed content cosine 0.873 with unvisited individuals unchanged (0.0).",
+   "key_defects": [
+    "employment and secondary goals evolve by daily coin flips (core.py:466-497), not experience",
+    "product usage history is 12 known-resource slots + 4 purchases; no subscriptions/recurring usage",
+    "beliefs are 8 fixed channel beliefs; knowledge is a topic vector in a closed 16-topic lexicon",
+    "no explicit personal goals beyond 6 goal codes; no commitments other than a work window"
+   ],
+   "work_needed": "Make employment, goals, commitments and beliefs experience-driven and connected to the economy/labour domains; extend usage history to subscriptions and services; validate state dynamics against data where possible.",
+   "effort": "M"
+  },
+  {
+   "name": "Activation scheduler, attention ledger, money/bank pathway, deterministic replay of learned weights",
+   "paths": [
+    "crucible/src/crucible/population/core.py:340-452",
+    "crucible/src/crucible/substrate/attention.py",
+    "crucible/src/crucible/population/core.py:573-589",
+    "crucible/src/crucible/population/adaptive.py:264-304"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "Reproduced: tests/test_v5_population_core.py 11/11 (replay, regeneration and mid-run resume give identical hashes and digests, learned weights rebuilt from checkpoint + logged updates); 0 attention violations over the standard run; 0 learner-initiated population events; purchases are bank.pay_invoice from the individual's own account; 17.4k-21.2k sessions/day over 30 days (575,862 total) at 10,296 individuals.",
+   "key_defects": [
+    "adaptive participants only act on 2-hour decision rounds (core.py:350-353), a scheduling artefact",
+    "per-day wall time grows (56 s -> ~400 s by day 30) as forum follows and entrepreneur sites accumulate"
+   ],
+   "work_needed": "Keep; document the 2-hour aggregation; profile and bound per-day cost growth.",
+   "effort": "S"
+  },
+  {
+   "name": "Class-1 vectorised behavioural decision models and calibration plug-in",
+   "paths": [
+    "crucible/src/crucible/population/models.py:101-162",
+    "docs/v5/FIDELITY_REGISTER.md:23-32"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "probe_calibration.py: all 9 decisions run 'plausible:*@1' hand-set logistic coefficients. browse_session@1, continue_watching@1, purchase@1, churn@1 do not exist; content_consumption@1 and commercial_response@1 load but share no feature names with models.FEATURES, so build() silently keeps the hand model. watch_duration@1, return_daily@1, session_rate@1, news_click@1 are never referenced by the population.",
+   "key_defects": [
+    "no fitted model reaches any population decision",
+    "FIDELITY_REGISTER.md claims six fitted models are used by 'pop (workstream B)' - false",
+    "silent fallback hides the mismatch (models.py:151-161)",
+    "coefficients are invented (fidelity 'plausible, unvalidated')"
+   ],
+   "work_needed": "Write explicit feature adapters (quantile mapping as in social/consumption.py CalibratedOpen) for return_daily@1/session_rate@1 (session start and rhythm), content_consumption@1/watch_duration@1/news_click@1 (continue/consume), commercial_response@1 (purchase/ad response); fail loudly when a declared calibration cannot be mapped; held-out validation of the simulated population against the fitted marginals; correct the fidelity register.",
+   "effort": "L"
+  },
+  {
+   "name": "Resource-visit engine (popweb), generated sites (popsites), text representation",
+   "paths": [
+    "crucible/src/crucible/population/web.py",
+    "crucible/src/crucible/population/sites.py",
+    "crucible/src/crucible/population/text.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Pages are executed from deployed site code via net.fetch; site behaviours separate (probe_quality: utility rich 0.184, thin 0.110, spam 0.035, broken -0.389; 2-day return rich 0.356 vs broken 0.02); fork intervention (probe_intervention, 3 seeds) abandon gap +0.44..+0.55, p<1e-21; external agents' sites built with ordinary tools are discovered (probe_agent) and only their operator reads analytics.",
+   "key_defects": [
+    "utility = closed 160-word random-index bag-of-words relevance x length/distinct-token richness (web.py:362-370, text.py:46-64): exploitable by lexicon stuffing, blind to meaning",
+    "an agent's thin site scored the same as its rich site (0.152 vs 0.147)",
+    "no semantic encoder (Gate E) wired in",
+    "text-only web + one forum; no video/audio/image consumption, no C1 platforms",
+    "willingness to pay is a product-independent constant formula (web.py:387)",
+    "sandboxed page execution dominates cost (~75%)"
+   ],
+   "work_needed": "Route content understanding through crucible.semantic encoders with cache; model task-usefulness (information need satisfied) instead of lexical overlap; open-vocabulary interests; connect visits to C1 platforms/media; price/value perception from product content; bound page-execution cost (shared response cache keyed by deployment).",
+   "effort": "L"
+  },
+  {
+   "name": "Population <-> social internet integration (pop vs crowd, package API)",
+   "paths": [
+    "crucible/src/crucible/population/__init__.py",
+    "crucible/src/crucible/social/scale.py:1-30",
+    "crucible/src/crucible/social/recsys/service.py:177-188",
+    "crucible/src/crucible/social/consumption.py:483-488"
+   ],
+   "verdict": "REDESIGN",
+   "evidence": "probe_integration.py: crucible.population exports neither register_activity nor wake (contract INTERFACE_CONTRACTS section 2 says it does); a world with pop+aud+feed fails at install with 'ProtocolError: feed: the population module does not provide register_activity'; 'from crucible.population import wake' raises ImportError. C2 built a second population 'crowd' on the same 'pop' table, mutually exclusive with B's. No module outside population/ uses population_world; civ and multiagent are stubs.",
+   "key_defects": [
+    "two incompatible population implementations sharing table name 'pop'",
+    "social internet runs only on 'crowd' (no adaptive/strategic classes, no web browsing, no purchases)",
+    "Part 4: 'All platforms must share the civilization's participant population' violated",
+    "no Tier 2/3 environment includes the population"
+   ],
+   "work_needed": "One population: merge crowd's lazy contact graph and creator logic into pop (or vice versa), export the contract API from crucible.population, register the social activities (browse, share, ...) with pop, run C1/C2 gate tests on pop, and make civ/domains compose population_world.",
+   "effort": "L"
+  },
+  {
+   "name": "Class-2 small adaptive neural participants",
+   "paths": [
+    "crucible/src/crucible/population/adaptive.py",
+    "crucible/src/crucible/population/nets.py:61-83",
+    "crucible/src/crucible/population/web.py:274-283,420-422"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "probe_adaptive.py (3 seeds, identical-init learning vs frozen groups, controlled site switch): learning hash changes, frozen unchanged; 21-22 updates/336-352 Adam steps in 10 days; held-out MSE 0.036/0.055/0.042 vs 0.075/0.075/0.082; phase-2 utility improvement +0.111 [0.079,0.144], +0.114 [0.082,0.146], +0.153 [0.119,0.187]. 187,585 parameters (within 0.1-2M). Shared weights: one policy object per group, 256 distinct personal memories. Standard profile: max inference batch 71 over 30 days; 84 updates / 1,344 Adam steps / 85 distinct hashes in 30 days.",
+   "key_defects": [
+    "network controls only the web-activity target choice; every other decision of class-2 individuals is class-1 logistic",
+    "personal GRU memory shows no benefit (with vs without memory: -0.018, -0.051, +0.028 utility)",
+    "improvement mostly general (present before the switch), adaptation to the new condition clear in 2/3 seeds only",
+    "learns to mimic the hand utility via known_sat; regression target is the hand formula",
+    "max batch 71 barely above the G.3 threshold of 64",
+    "single default policy group"
+   ],
+   "work_needed": "Let the policy drive session/activity/consumption/purchase/leave decisions; train memory with multi-step (BPTT) objectives and show it matters on a test where history is needed; several independently learning groups by default; pre-registered new-condition protocol against class-1 and memoryless baselines with CIs.",
+   "effort": "M"
+  },
+  {
+   "name": "Class-3 strategic neural participants",
+   "paths": [
+    "crucible/src/crucible/population/strategic.py"
+   ],
+   "verdict": "REDESIGN",
+   "evidence": "Two groups (MLP 2.16M REINFORCE/Adam, GRU 2.36M A2C/RMSprop), independent updates and freeze_copy verified (probe_frozen). Dev scale: 40/40 rewards = -0.012 (hosting cost only). Standard scale: A2C loss_before/after swings e.g. 965 -> -7040 (unnormalised advantages); ~15 decisions per member per 30 days. 30-day standard run: both groups collapse onto one price level (A 217/240 at index 1, B 225/240 at index 3); group A's last REINFORCE losses are exactly -0.0 and its 56 updates gave only 54 distinct hashes (entropy collapse, weights stopped changing); mean rewards rise in both groups (A 4.3->9.1, B 13.5->40.9 first vs second half) even after A stopped changing, i.e. market growth, no control.",
+   "key_defects": [
+    "only role: entrepreneur (Part 3.2 lists ten roles)",
+    "action space = 4 categorical parameters of one scripted 'rich shop' template (strategic.py:153-156, 389-423): a bandit over a predefined decision tree, not strategy learning",
+    "unstable/unnormalised policy-gradient updates",
+    "no cooperation, no unrelated objectives, no evaluation of improvement",
+    "reward = raw balance change (fine as the agent's own observation) but too sparse at small scale",
+    "policy entropy collapse (group A deterministic, updates no longer change weights)"
+   ],
+   "work_needed": "Tool-level action spaces (compose products, prices, content, hiring, investment, collaboration) through ordinary tools; several roles with differing objectives; normalised advantages, PPO-style updates, league of historical checkpoints; measured strategic improvement vs frozen and scripted baselines; integrate with multiagent (K) self-play.",
+   "effort": "XL"
+  },
+  {
+   "name": "Class-4 compact semantic generalists as population members",
+   "paths": [
+    "crucible/src/crucible/population/core.py:323,333,349",
+    "crucible/src/crucible/semantic/participants.py"
+   ],
+   "verdict": "IMPLEMENT",
+   "evidence": "probe_integration.py: class-4 rows have next_active_at=NEVER and 0 sessions; nothing in population drives them. D2's SemanticParticipant exists but operates in separate worldgen worlds, not as population members.",
+   "key_defects": [
+    "profiles count semantic participants that never act",
+    "no routing of decisions that need language to a semantic model"
+   ],
+   "work_needed": "Drive class-4 rows with crucible.semantic participants (batched, cached), give them ordinary tools, budget their inference through the slot scheduler, and test them inside the population world.",
+   "effort": "L"
+  },
+  {
+   "name": "Population profiles and large-scale simulation",
+   "paths": [
+    "crucible/src/crucible/population/profiles.py",
+    "crucible/src/crucible/population/core.py:201-225"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Profile table matches Part 3.3 (matches_spec). Measured: standard 56-400 s/sim-day (30 days in 2.0 h); large (101,120 rows) 1.1 s create, 100k sessions in the first 10 sim-hours in 40 s; internet (10,001,120 rows) 34-37 s create, 5.3 GB, 8.6 GB RSS after the first hour. Internet profile (10,001,120 rows): create 34-37 s, RSS 5.3 GB; 8 simulated hours (00:00-08:00) took ~490 s wall for 3.35M sessions with RSS rising to 11.8 GB; the 07:00-08:00 hour alone took 304 s for 0.9M sessions (per-session cost rising), so one simulated day would take hours on one CPU and memory grows with the in-memory log. Large (101,120 rows): first 10 simulated hours 40 s wall, 100,184 sessions, 1.04 GB.",
+   "key_defects": [
+    "no profile benchmark exists in the repository (Part 3.3 'benchmark every profile')",
+    "no labelled aggregate/statistical-estimate mode for routine decisions at 10M+",
+    "internet profile carries ~405 bytes/row dense state (4 GB) rather than sparse/lazy state",
+    "per-individual Python loops in forum and exploration paths"
+   ],
+   "work_needed": "Benchmark harness for all four profiles (30-day standard, multi-day large, internet with aggregate mode); lazy/sparse state for inactive individuals; explicitly labelled statistical-estimate mode; vectorise forum/exploration loops.",
+   "effort": "L"
+  },
+  {
+   "name": "Evaluator-side population analysis",
+   "paths": [
+    "crucible/src/crucible/population/analysis.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "Metrics recomputed from the recorded log only (visit blobs, cols.batch); used by my probes successfully; CMH-stratified preference test; two-proportion tests.",
+   "key_defects": [
+    "behaviours() counts a behaviour as present at >= 10 events",
+    "no metric for 'simultaneously active', memory relevance, held-out policy loss, strategic improvement",
+    "useful/unsatisfactory labels come from the generated-site note only (agent-built sites unlabelled)"
+   ],
+   "work_needed": "Add the metrics the gate tests need (held-out loss, new-condition protocol, simultaneous activity, per-class decision coverage), with evaluator-side verification of agent-built resources.",
+   "effort": "S"
+  },
+  {
+   "name": "Gate tests for B, G, SP-3.1, SP-3.3, SP-3.4, SP-4.1",
+   "paths": [
+    "crucible/tests/v5/ (missing test_gate_B.py, test_gate_G.py, test_gate_SP_3_1.py, test_gate_SP_3_2.py, test_gate_SP_3_3.py, test_gate_SP_3_4.py, test_gate_SP_4_1.py)"
+   ],
+   "verdict": "IMPLEMENT",
+   "evidence": "'python -m crucible.acceptance.v5 run --requirement B.1' -> 'No test files exist yet for this selection'; git log --all shows these files never existed.",
+   "key_defects": [
+    "19 workstream-B requirements have no executable acceptance test"
+   ],
+   "work_needed": "Write the gate tests (30-day standard run through the slot scheduler, fork-based interventions with >=3 seeds, learning protocols) and record official evidence.",
+   "effort": "M"
+  }
+ ],
+ "requirements": [
+  {
+   "id": "B.1",
+   "verdict": "REPAIR",
+   "reason": "Mechanism works at 10,296 individuals (standard profile 10296 rows ({'1': 10000, '2': 256, '3': 32, '4': 8}), 30 simulated days, 415728 visits by 10256 distinct visitors, 10256 distinct activated, learner_initiated=0, attention violations=0, days_with_activity=30, wall s/day [56.4, 101.7, 176.4]..[341.9, 334.0, 398.5]); no gate test, no official evidence; the population is not part of any Tier 2/3 world.",
+   "work_needed": "Write tests/v5/test_gate_B.py running the standard profile 30 days through the slot scheduler; count distinct individuals with autonomous activity (not declared rows); run it in the integrated civilization once pop is unified with crowd.",
+   "criteria_weak": true
+  },
+  {
+   "id": "B.2",
+   "verdict": "REPAIR",
+   "reason": "0 learner-initiated population events (analysis.learner_initiated), 575,862 sessions in 30 days (17.4k-21.2k/day) at 10,296 individuals; no gate test.",
+   "work_needed": "Gate test with the same metrics plus a learner actively using tools in the world, to show consumer events stay population-initiated while a learner acts.",
+   "criteria_weak": false
+  },
+  {
+   "id": "B.3",
+   "verdict": "REPAIR",
+   "reason": "Preference effect (return rate above vs below the per-resource median interest match, CMH-stratified) 0.17-0.20 at day 3/7 and 0.345 at day 30 (p~0, 100,370 pairs over 54 resources); mechanically built into the hand utility formula; no gate test.",
+   "work_needed": "Gate test; also show effects of non-interest preferences (price sensitivity, loyalty, novelty) on the corresponding decisions with randomised exposure.",
+   "criteria_weak": false
+  },
+  {
+   "id": "B.4",
+   "verdict": "REPAIR",
+   "reason": "Standard profile, 7-day window: day 30: return gap 0.1142 (p=6.8e-119), abandon gap 0.096 (p=9.1e-80); criteria met in the probe from day 14 on, but at day 7 the return gap was only 0.034 (<0.05) and on the dev world with a 1-day window 0.006 (p=0.84): the effect needs about a week of history. Labels come from generated-site behaviours only; no gate test.",
+   "work_needed": "Gate test with a fixed protocol (window, evaluator-side usefulness labels that also cover agent-built resources); strengthen return-to-useful dynamics (bookmarks, subscriptions) so it holds at shorter horizons.",
+   "criteria_weak": false
+  },
+  {
+   "id": "B.5",
+   "verdict": "REPAIR",
+   "reason": "Standard profile ran 30 simulated days with activity on 30 days, sessions/day 17416..23697, last-week/first-week sessions 1.12 (criteria met in the probe); wall 2.0 h on one CPU, per-day cost rising 56.4 -> 398.5 s. No gate test, no official evidence, not in an integrated civilization.",
+   "work_needed": "Gate test over >=30 simulated days at the standard profile (wall ~2 h on one CPU); reduce per-day cost growth.",
+   "criteria_weak": false
+  },
+  {
+   "id": "B.6",
+   "verdict": "REPAIR",
+   "reason": "Fork-based intervention (2 most-visited rich sites redeployed broken) at 400 individuals, 3 seeds: abandon-rate gap +0.44/+0.51/+0.55, p<1e-21; visit-share gap significant in 2/3 seeds. Not run at 10,000; no gate test.",
+   "work_needed": "Gate test at the standard profile with paired forks, >=3 seeds, pre-registered outcome and minimum effect size; include positive changes (new useful resource) as well as degradations.",
+   "criteria_weak": true
+  },
+  {
+   "id": "G.1",
+   "verdict": "REPAIR",
+   "reason": "Standard profile has 256 class-2 rows; 254-256 act within days; decisions are batched in 2-hour rounds with max batch 71 over 30 days, so 'simultaneously active' is not measured by any code.",
+   "work_needed": "Define and measure simultaneous activity (e.g. distinct adaptive individuals acting within one decision window / one day), gate test.",
+   "criteria_weak": true
+  },
+  {
+   "id": "G.2",
+   "verdict": "EXTEND",
+   "reason": "256 distinct personal memories exist, but with-memory vs without-memory learning shows no benefit (-0.018, -0.051, +0.028 utility), so the personal state carries no demonstrated information.",
+   "work_needed": "Train memory with multi-step objectives; test persistence across sessions and that individual memory changes behaviour (memory-ablation arm must lose).",
+   "criteria_weak": true
+  },
+  {
+   "id": "G.3",
+   "verdict": "REPAIR",
+   "reason": "One shared AdaptivePolicy object per group; max inference batch 71 over 30 days at the standard profile (40 with two groups).",
+   "work_needed": "Gate test; raise batch sizes (decision rounds per group) with margin above 64; measure throughput.",
+   "criteria_weak": false
+  },
+  {
+   "id": "G.4",
+   "verdict": "REDESIGN",
+   "reason": "Two strategic groups (MLP/REINFORCE, GRU/A2C) update independently (probe_frozen) and hashes differ, but the 'strategy' is 4 categorical parameters of a scripted template, A2C updates are unstable (loss 965 -> -7040) and no strategic improvement is shown. Over 30 days group A collapsed (loss -0.0, 56 updates -> 54 distinct hashes).",
+   "work_needed": "Redesign class 3 (tool-level actions, roles, stable algorithms) and require each group's hash to change from its own members' data, freeze-one-group independence, and measured strategy improvement.",
+   "criteria_weak": true
+  },
+  {
+   "id": "G.5",
+   "verdict": "REPAIR",
+   "reason": "Class-2 weight hashes change from experience (21-22 updates, 336-352 Adam steps in 10 days; frozen identical-init control unchanged); held-out MSE 0.036-0.055 vs 0.075-0.082. No gate test.",
+   "work_needed": "Gate test recording hashes, examples, held-out loss (not the per-batch training loss) and a perturbation-only negative control.",
+   "criteria_weak": true
+  },
+  {
+   "id": "G.6",
+   "verdict": "REPAIR",
+   "reason": "Learning vs frozen identical-init group after a controlled site switch: +0.111 [0.079,0.144], +0.114 [0.082,0.146], +0.153 [0.119,0.187]; but the gain is mostly general (present before the switch) and the failing-site share drops clearly in 2/3 seeds only.",
+   "work_needed": "Pre-registered new-condition protocol measuring change-specific adaptation (difference-in-differences vs pre-switch), against class-1 and memoryless baselines, in the integrated world; gate test.",
+   "criteria_weak": true
+  },
+  {
+   "id": "G.7",
+   "verdict": "IMPLEMENT",
+   "reason": "No comparison of the population's compact numerical policies with language-capable alternatives on population decisions exists (SP-3.2b compares models on semantic capability tasks only).",
+   "work_needed": "Run the same browsing/entrepreneur decisions with AdaptiveNet/strategic nets and with small LMs (SmolLM2/Qwen via crucible.semantic) on identical situations; report quality, cost and latency.",
+   "criteria_weak": true
+  },
+  {
+   "id": "G.n1",
+   "verdict": "REPAIR",
+   "reason": "Actual adaptation is shown at small scale (see G.6) but only for one decision type and with a weak frozen baseline.",
+   "work_needed": "Same as G.6 plus coverage of more decision types and of the strategic class.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-3.1",
+   "verdict": "EXTEND",
+   "reason": "All 18 fields represented, heterogeneous and evolving; same-situation utility SD 0.16 (day 3) -> 0.20 (day 30), interest drift cosine 0.63 -> 0.87 with unvisited individuals unchanged; but employment and goals evolve by random draws, several fields only trivially (attention left, wake time).",
+   "work_needed": "Experience-driven dynamics for every field, gate test measuring evolution caused by experience (vs a no-experience control) per field.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-3.2",
+   "verdict": "IMPLEMENT",
+   "reason": "Classes 1-3 exist; class-4 rows are inert (next_active_at=NEVER, 0 sessions); D2's semantic participants are not population members.",
+   "work_needed": "Drive class-4 rows with crucible.semantic participants using ordinary tools inside the population world; test that each class acts.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-3.3",
+   "verdict": "EXTEND",
+   "reason": "Profile table matches Part 3.3; standard and large run; internet profile creates 10M rows (5.3 GB) but there is no aggregate/lazy mode, no labelled estimate, and no benchmark in the repository.",
+   "work_needed": "Benchmarks for all four profiles in the repository; lazy/sparse state and validated aggregate mode for the internet profile; test.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-3.4",
+   "verdict": "EXTEND",
+   "reason": "Shared-policy learning shown; independent groups and frozen historical copies work (probe_frozen); personal-state adaptation not shown (memory ablation no effect); competing architectures exist but strategic learning is not shown.",
+   "work_needed": "Five separate tests each with weight hashes, training examples, held-out losses, behaviour change and evaluation outcome; plus negative controls (memory edit only, random perturbation).",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-4.1",
+   "verdict": "EXTEND",
+   "reason": "All 13 behaviours occur (>=10 events each; e.g. day 3 standard: 20k discoveries, 13k searches, 335 purchases, 17.9k leaves) with a finite attention ledger (0 violations) - but on a text-only web plus one forum; 'consume media' and 'move between platforms' are page reads and activity switches, not media or distinct platforms.",
+   "work_needed": "Run the population on the C1/C2 platforms (video, audio, images, subscriptions) and count platform switches across real platforms; gate test with meaningful minimum rates.",
+   "criteria_weak": true
+  }
+ ],
+ "missing_requirements": [
+  {
+   "spec": "Part 3.2 class 1",
+   "text": "Train and calibrate the class-1 behavioural models using appropriate empirical datasets wherever possible",
+   "note": "Gate F checks that models were fitted, not that the population's decisions use them; no entry requires population decisions to run fitted models (they currently run none)."
+  },
+  {
+   "spec": "Part 3.2 class 2",
+   "text": "Adaptive participants must adapt their behaviour when products, environments or other participants change",
+   "note": "G.6 tests one new condition; no entry covers changes of products and of other participants."
+  },
+  {
+   "spec": "Part 3.2 class 3",
+   "text": "Strategic participants operate as entrepreneurs, researchers, engineers, developers, employees, organizations, investors, competitors, collaborators, community operators; learn strategies rather than execute predefined decision trees; some compete, some cooperate, some pursue unrelated objectives, some adapt throughout the lifetime; the civilization is not a collection of identical copies of one policy",
+   "note": "Only G.4 (>=2 groups, distinct hashes) and Q.3 (one cooperative and one competitive interaction, workstream K) exist; role diversity, strategy learning vs scripted baseline and objective diversity have no entry."
+  },
+  {
+   "spec": "Part 3.2 class 4",
+   "text": "Semantic generalists act as population members with ordinary world tools, not wrappers around scripts; smallest sufficient model per capability",
+   "note": "H.* and SP-3.2b test semantic participants in separate worlds; nothing requires them to be members of the population."
+  },
+  {
+   "spec": "Part 3.3",
+   "text": "Benchmark every profile; large profiles use resource-aware sparse or lazy state and batched inference; do not allocate a checkpoint per participant; internet-scale aggregate simulation must be validated and distinct-viewer claims need distinct identities or a labelled statistical estimate",
+   "note": "V.1 (workstream M) benchmarks development/standard/large only; I.1/I.3 (workstream C) target the crowd module; no entry covers the internet profile of the population or validation of its aggregate mode."
+  },
+  {
+   "spec": "Part 3.4",
+   "text": "Changing a participant's written memory is not sufficient evidence of neural learning; randomly perturbing parameters is not learning; record training examples and evaluation outcomes",
+   "note": "No negative-control requirement (e.g. perturbation-only or memory-edit-only arms must fail the learning criteria)."
+  },
+  {
+   "spec": "Part 4 introduction / 4.1",
+   "text": "All platforms share the civilization's participant population; participants move between different platforms and prioritise opportunities by learned preferences and goals",
+   "note": "No entry requires the social platforms (C1/C2) to run on the same population as browsing, commerce and the strategic classes; currently they cannot (pop vs crowd)."
+  },
+  {
+   "spec": "Part 3.1",
+   "text": "Preferences and decisions evolve through experience (for every listed field, not only interests)",
+   "note": "SP-3.1 only measures interest drift; employment/goals evolve by random draws and would pass 'evolving' checks."
+  },
+  {
+   "spec": "Clarification 2 applied to the population",
+   "text": "Participant-internal utilities/satisfaction never reach a learner through observations, tool responses or event metadata",
+   "note": "OO.2 is generic; a population-specific probe (pop.me, popweb.visits, forum content, event visibility) should be part of it."
+  }
+ ],
+ "tests_run": [
+  {
+   "command": "cd crucible && PYTHONPATH=src timeout 900 /venv/main/bin/python -m pytest -q -p no:cacheprovider -x tests/test_v5_population_core.py",
+   "result": "11 passed in 51.10s"
+  },
+  {
+   "command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement B.1",
+   "result": "No test files exist yet for this selection"
+  },
+  {
+   "command": "python probe_calibration.py",
+   "result": "9/9 decisions plausible:*@1; 4 referenced fitted models absent, 2 present but feature-incompatible"
+  },
+  {
+   "command": "python probe_run.py development - 3 24 900",
+   "result": "1,042 rows, 25-32 s/sim-day, 13/13 behaviours, 0 learner-initiated, return gap 0.006 (p=0.84) at 1-day window"
+  },
+  {
+   "command": "slots --cpu 1 -- python probe_scale.py standard 30 24 ... 3,7,14,30",
+   "result": "30 simulated days at 10,296 rows; day 30: return gap 0.114, abandon gap 0.096, preference effect 0.345, 0 attention violations, 0 learner-initiated; 575862 sessions"
+  },
+  {
+   "command": "slots --cpu 1 -- python probe_adaptive.py {0,1,2} 5",
+   "result": "learning vs frozen identical-init: utility +0.111/+0.114/+0.153 (CI low 0.079/0.082/0.119); held-out MSE 0.036/0.055/0.042 vs 0.075/0.075/0.082; frozen hash unchanged"
+  },
+  {
+   "command": "python probe_adaptive_mem.py {0,1,2} 5",
+   "result": "with-memory minus without-memory utility -0.018 [-0.051,0.013], -0.051 [-0.080,-0.022], +0.028 [-0.004,0.059]; class-1 phase-2 utility 0.10-0.13 vs adaptive 0.15-0.20"
+  },
+  {
+   "command": "python probe_frozen.py",
+   "result": "freeze_copy hashes unchanged while sources change (adaptive and strategic); dev-scale strategic rewards 40/40 = -0.012"
+  },
+  {
+   "command": "python probe_intervention.py",
+   "result": "3 seeds: abandon gap +0.55/+0.51/+0.44 (p 9e-34/3e-28/2e-22); visit-share gap -0.036 (p=0.08), -0.123 (p=8e-9), -0.055 (p=0.007)"
+  },
+  {
+   "command": "python probe_quality.py 0",
+   "result": "utility rich 0.184, thin 0.110, offtopic 0.098, spam 0.035, flaky 0.001, broken -0.389"
+  },
+  {
+   "command": "python probe_stuffing.py",
+   "result": "word-salad site utility 0.099 vs genuine 0.090; 1-day return 0.213 vs 0.184"
+  },
+  {
+   "command": "python probe_agent.py",
+   "result": "agent sites deployed via tools and discovered (63/103 visits via forum mention); thin 0.152 vs rich 0.147 utility; operator-only analytics; no reward in observation"
+  },
+  {
+   "command": "python probe_integration.py",
+   "result": "crucible.population exports nothing; pop+aud+feed: ProtocolError at install; class-4 rows 0 sessions"
+  },
+  {
+   "command": "python probe_profile.py",
+   "result": "~75% of wall time in sandboxed page execution; day 5 28.5 s vs day 2 18 s (dev)"
+  },
+  {
+   "command": "slots --cpu 1 -- python probe_profiles.py large 10; internet 1; internet 8",
+   "result": "Internet profile (10,001,120 rows): create 34-37 s, RSS 5.3 GB; 8 simulated hours (00:00-08:00) took ~490 s wall for 3.35M sessions with RSS rising to 11.8 GB; the 07:00-08:00 hour alone took 304 s for 0.9M sessions (per-session cost rising), so one simulated day would take hours on one CPU and memory grows with the in-memory log. Large (101,120 rows): first 10 simulated hours 40 s wall, 100,184 sessions, 1.04 GB."
+  }
+ ],
+ "critical_findings": [
+  "Population is not integrated: crucible.population exports no API, so feed/consumption (C2) cannot run on 'pop' (ProtocolError at install); a duplicate 'crowd' population owns the same table; nothing outside tests uses population_world; civ/multiagent are stubs.",
+  "No fitted calibration model is used by any population decision (all 9 are hand-set 'plausible' logistic rules); FIDELITY_REGISTER.md:23-32 falsely claims six fitted models drive 'pop (workstream B)'.",
+  "Gate tests for B, G, SP-3.1, SP-3.3, SP-3.4, SP-4.1 do not exist; acceptance runner reports 'No test files exist yet'.",
+  "Class-2 learning is real (identical-init learning vs frozen: utility +0.11..+0.15, CI>0 in 3/3 seeds; held-out MSE halves) but limited to one decision, and personal GRU memory gives no measurable benefit.",
+  "Class 3 is a 4-parameter bandit over a scripted entrepreneur template: unstable unnormalised A2C (loss 965 -> -7040), REINFORCE group collapsed to a deterministic price choice (loss -0.0, repeated hashes) over 30 days; only one role; class-4 rows are inert (next_active_at=NEVER).",
+  "Content judgement is a closed 160-word bag-of-words x length/distinct-token score: a meaningless word-salad of topic words scored as well as a 'rich' article site (utility 0.099 vs 0.090, 1-day return 0.21 vs 0.18) and an agent's thin site equalled its rich site (0.152 vs 0.147)."
+ ],
+ "skeptic": {
+  "reviewer": "skeptic subagent, area B_population",
+  "code_commit": "a881d18 (HEAD f394dec adds docs/manifest only)",
+  "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/B_population_skeptic/",
+  "overturned": [
+   {
+    "target": "Activation scheduler, attention ledger, money/bank pathway, deterministic replay of learned weights",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "M",
+    "why": "Replay/regenerate/resume hold even with learner commands, an odd-time snapshot and a tamper control (S3), but the attention ledger never binds: 0.0 of individual-days reach 95% of budget (dev 3 d, standard 2 d), mean use 3-4%, ~2.5 min browsing/individual/day; 20x budgets leave behaviour unchanged (S1'); '0 violations' holds by construction (attention.py:99 grants min(request,left)); session_min is never read; sessions take no simulated time.",
+    "work_needed": "Calibrate time-use (budgets, dwell, session length) to empirical data, make sessions occupy simulated time, draw all activities/platforms from one binding budget; add a test where attention binds and a budget counterfactual moves behaviour; keep the replay machinery."
+   },
+   {
+    "target": "Resource-visit engine (popweb), generated sites (popsites), text representation",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "effort": "L-XL",
+    "why": "Utility = closed-lexicon token overlap x length/distinct share (web.py:365-368). S4: an off-topic tax article plus one cooking-keyword line scores 0.743, above a genuine sourdough article (0.719); synonyms halve relevance (0.452 -> 0.243) and the synonym article scores below a word salad (0.439 vs 0.451). Also a shared global res.vec perceived-content cache (web.py:240-244) and product-independent WTP (web.py:387). Learners would learn keyword placement.",
+    "work_needed": "Keep the visit mechanics (fetch, checkout, recorded batches, visit log); rebuild the utility model, the evaluator's usefulness labels and the interest space around one learned content representation shared with the social platforms; add anti-gaming tests (stuffing, off-topic keyword appendix, synonym invariance)."
+   }
+  ],
+  "upheld": [
+   {
+    "target": "Population <-> social internet integration",
+    "verdict": "REDESIGN",
+    "note": "The auditor's ProtocolError is only a two-name export bug (S5: patched in-process, pop+aud+feed runs 1 day, 44 browse sessions). But pop interests (population/text.py) and social item embeddings (social/textrep.py) are unrelated 32-d spaces: across them, the matching topic ranks first for 3/16 topics vs 16/16 within pop's space; mean matching cosine 0.047 vs 0.933 (S5b). Gates D, I and SP-4.6 run on crowd."
+   },
+   {
+    "target": "Class-1 decision models + calibration plug-in",
+    "verdict": "REPAIR",
+    "note": "Reproduced 0/9 fitted (S7); models.py:155 swallows all load exceptions silently."
+   },
+   {
+    "target": "Class-2 adaptive",
+    "verdict": "EXTEND",
+    "note": "Not overturned; add the privileged shared res.vec candidate features."
+   },
+   {
+    "target": "Class-3 strategic",
+    "verdict": "REDESIGN",
+    "note": "Entrepreneur sites always use behaviour 'rich' (strategic.py:155): quality comes from the template. The infrastructure is reusable, so REDESIGN rather than REBUILD."
+   },
+   {
+    "target": "Class-4",
+    "verdict": "IMPLEMENT",
+    "note": "core.py:333,349 never activate classes 3-4."
+   },
+   {
+    "target": "Gate tests",
+    "verdict": "IMPLEMENT",
+    "note": "tests/v5 has no B/G/SP-3.1/3.3/3.4/SP-4.1 gate file; test_gate_SP_4.py uses named actors, not the population."
+   },
+   {
+    "target": "Profiles",
+    "verdict": "EXTEND",
+    "note": "Add: at the internet profile's D=16, 16 topic pairs have cosine >0.3 (max 0.746)."
+   },
+   {
+    "target": "G.4",
+    "verdict": "REDESIGN",
+    "note": "Harsh: the literal criteria are already met. Defensible only with criteria_weak=true; strengthen the criteria rather than pass them."
+   }
+  ],
+  "requirement_changes": [
+   {
+    "id": "B.2",
+    "verdict": "REPAIR",
+    "criteria_weak": true,
+    "reason": "learner_initiated is trivially 0 without learners; with a learner it stays 0 (S3), and a positive control shows it counts only triggers (3/229), not the consumption a learner-triggered wake forces (core.py:381-394) (S6).",
+    "work_needed": "Gate with active learners; attribute consumption caused by learner-triggered wakes/shares."
+   },
+   {
+    "id": "B.4",
+    "verdict": "REDESIGN",
+    "criteria_weak": true,
+    "reason": "Circular: 'useful' = the generator's behaviour label, and the population utility uses the same lexicon/length features the generator produces; 'rich' prose has a distinct-token share of 0.156 (S4).",
+    "work_needed": "Evaluator-side usefulness labels independent of the utility formula (e.g. task/need fulfilment), after the content-judgement redesign."
+   },
+   {
+    "id": "SP-4.1",
+    "verdict": "EXTEND",
+    "criteria_weak": true,
+    "reason": "'Limited attention and time' not met in substance: attention never binds (S1/S1b).",
+    "work_needed": "Add a binding-attention criterion and empirical time-use."
+   }
+  ],
+  "refuted_hypotheses": [
+   "Cheap-product purchase bonus (web.py:398) as an exploitable retention shortcut: not observed (S2; cheap vs no-shop 1-day returns 0.16 vs 0.21, 0.17 vs 0.23, 0.22 vs 0.26 over 3 seeds; purchases too rare)."
+  ],
+  "missing_requirements": [
+   "Part 4.1: limited attention must actually constrain behaviour (a binding share of individual-days, a budget counterfactual, empirical daily time use); '0 violations' holds by construction.",
+   "Part 4/4.3 applied to the population: population interests and every platform's content representations must share one space (today they do not, S5b).",
+   "Gate E/Part 4.3 applied to the population: content judgement must be robust to keyword stuffing and off-topic keyword appendices (S4)."
+  ],
+  "tests_run": [
+   {
+    "command": "probe_attention_binding.py normal / x20 (dev 400 individuals, 8 sites, 3 d)",
+    "result": "exhausted share 0.0 (all days), mean use 3%; x20 budgets: sessions 2229->2178, visits 1375->1342, minutes 2289->2208"
+   },
+   {
+    "command": "crucible.scale.slots --cpu 1 -- probe_attention_binding_std.py std (standard profile, 2 d)",
+    "result": "exhausted 0.0/0.0, mean use 4.0%/4.2%, p99 19%/21%, 2.5 min/individual/day, 0 violations, 203 s"
+   },
+   {
+    "command": "probe_cheap_product.py 1,2,3",
+    "result": "no retention advantage for $1 products; 0 purchases of $300 products"
+   },
+   {
+    "command": "probe_replay_learner.py",
+    "result": "replay digest equal, regenerate hash equal, odd-time resume equal, tampered log refused, learner_initiated 0/1548"
+   },
+   {
+    "command": "probe_text_judgement.py",
+    "result": "tax+keywords 0.743 > real article 0.719 > word salad 0.451 > synonym article 0.439"
+   },
+   {
+    "command": "probe_integration_patch.py",
+    "result": "with 2 exported names pop+aud+feed runs 1 d (44 browse sessions)"
+   },
+   {
+    "command": "probe_space_mismatch.py",
+    "result": "matching topic first 3/16 across spaces vs 16/16 within pop's; diagonal cosine 0.047 vs 0.933"
+   },
+   {
+    "command": "probe_learner_metric_control.py",
+    "result": "learner_initiated 3/229 with nudges (wake batches only), 0/194 without"
+   },
+   {
+    "command": "probe_models_status.py",
+    "result": "0/9 fitted"
+   },
+   {
+    "command": "pytest -q -p no:cacheprovider -x tests/test_v5_population_core.py -k 'attention or purchases or replay'",
+    "result": "3 passed in 44.02s"
+   }
+  ],
+  "critical_findings": [
+   "Attention is decorative: no individual-day ever reaches its budget (standard profile mean use 4%, ~2.5 min browsing/day); 20x budgets change nothing; '0 violations' holds by construction.",
+   "Content judgement rewards lexicon tokens, not meaning: an off-topic tax article plus one keyword line beats a genuine article; synonyms halve relevance.",
+   "pop and the social engine use unrelated content spaces; the obvious export fix would run silently with random affinities (3/16 topics matched)."
+  ]
+ }
+}

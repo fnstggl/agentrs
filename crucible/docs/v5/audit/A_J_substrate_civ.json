@@ -1,0 +1,709 @@
+{
+ "area": "A_J_substrate_civ",
+ "workstreams": [
+  "A",
+  "J"
+ ],
+ "commit": "a881d18",
+ "subsystems": [
+  {
+   "name": "kernel transactions/replay/regeneration/snapshots/forks",
+   "paths": [
+    "src/crucible/core/kernel.py",
+    "src/crucible/core/state.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "87-module world: 30 days replay digest equal (287k events, 40 s), in-process snapshot equal, resume +1 day hash equal; 2-day regeneration hash equal; no-intervention forks identical (P2,P4,P12). Cross-process World.load fails with pop_adaptive (P5). typed_events=True changes the event-type sequence; removing the subscriber RNG bump restores it (P8). Same spec+seed twice gives different hashes (P9).",
+   "key_defects": [
+    "K1 kernel.py:1003-1008 + 965-966: replay(base_blob) runs Module.on_load before w.store is attached -> pop_adaptive on_load cannot read its checkpoint blob in a new process (NotFound) although the blob is in the store",
+    "K2 kernel.py:581: every subscriber call advances the emitter's RNG counter (+1000); a pure validator or any coupling module changes unrelated random draws (observer effect, confounds counterfactual removal)",
+    "K3 (pre-existing 4.0) sandbox/boot.py:335 records tracebacks with per-process temp paths in ext outcomes -> run-to-run hashes differ; breaks hash-based independent replication",
+    "log_retain 2M (kernel.py:348,604) -> 365-day runs need a store for replay"
+   ],
+   "work_needed": "Attach store before on_load in from_blob/replay; separate RNG streams for subscribers keyed by (seq, owner); normalise recorded traceback paths; cross-process resume and replication tests; historical-query API (snapshot at seq + read_events).",
+   "effort": "M"
+  },
+  {
+   "name": "content-addressed artifacts",
+   "paths": [
+    "src/crucible/substrate/artifacts.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "127 substrate tests pass; blobs verified on read. 2 dev-profile days with adaptive participants: 1,767 blobs, 15.7 MB in the store (resume.sqlite).",
+   "key_defects": [
+    "unbounded blob growth: every cols.batch writes a blob, no retention or compaction (~2.9 GB per 365-day dev run, more at standard)",
+    "store-less worlds keep every byte in the process-global _POOL (artifacts.py:63) forever",
+    "in-process fallbacks (_POOL/_SOURCES) mask missing-store bugs in tests (see K1)"
+   ],
+   "work_needed": "Retention/compaction tied to snapshots, bounded pool, tests that run resume in a fresh process.",
+   "effort": "M"
+  },
+  {
+   "name": "columns and batch events",
+   "paths": [
+    "src/crucible/substrate/columns.py"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "~30k cols.batch events over 30 days replayed exactly and regenerated exactly (2 days); column invariants clean every day; no out-of-applier writes (P10); SP-2.3 rollback scenarios pass.",
+   "key_defects": [],
+   "work_needed": "None for the mechanism; storage growth is handled under artifacts.",
+   "effort": "S"
+  },
+  {
+   "name": "identity indices",
+   "paths": [
+    "src/crucible/substrate/ids.py"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "3,451 principal references across all tables after 3 days, 0 dangling, 0 p<i> outside population rows (P11).",
+   "key_defects": [],
+   "work_needed": "None in ids; the disjoint populations belong to the primitives redesign.",
+   "effort": "S"
+  },
+  {
+   "name": "typed event bus",
+   "paths": [
+    "src/crucible/substrate/bus.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "Only 11 of 77 emitted module event types are typed in the all-module world (P7). Validation is off by default and enabling it alters the trajectory (P8). Only 3 production subscriptions exist (social/content.py:208-209, social/communities.py:235-236, domains/firms.py:116).",
+   "key_defects": [
+    "4.0 owner schemas are registered only as an import side effect of primitives.py (lines 172-179)",
+    "typed validation alters the simulation (K2)",
+    "almost no cross-module communication through typed events"
+   ],
+   "work_needed": "Register schemas at module load; give every v5 event type a schema; validate in CI worlds without changing RNG; couplings through subscribers.",
+   "effort": "M"
+  },
+  {
+   "name": "shared primitives and duplicate-fact check",
+   "paths": [
+    "src/crucible/substrate/primitives.py",
+    "src/crucible/substrate/assets.py"
+   ],
+   "verdict": "REDESIGN",
+   "evidence": "problems(world)==[] in the all-module world, while forum_follows=292 vs social follow edges=0; forum_boards vs communities; market.listings vs products vs xchg_listings (D-11 open); gov vs inst; contracts vs commitments vs subs; pop.employer (200 abstract ids, random job changes) vs jobs/labor; >=6 disjoint populations (pop, crowd, 4.0 consumers 5,000 rows, patrons, npcs, society minds, labor workers, sci_npc); economy.needs vs innovation.needs; content vs aud_item_info metadata (P6).",
+   "key_defects": [
+    "check_no_duplicates trusts opt-in shared_facts declarations; only assets declares any (assets.py:57)",
+    "SP-2.3 duplicate scan covers 4.0 families only",
+    "D-11 unresolved; the same unresolved ownership for relationship, community, institution, contract and employment",
+    "several independent populations of simulated people"
+   ],
+   "work_needed": "Decide one owner per fact (D-11 and its siblings); adapters or migration for the 4.0 owners; one population with behavioural classes as views; a data-level duplicate detector run on the integrated civ.",
+   "effort": "L"
+  },
+  {
+   "name": "attention ledger",
+   "paths": [
+    "src/crucible/substrate/attention.py"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "Invariants checked inside Cols.check_invariants held on all 30 days (P2) and in SP-2.3.",
+   "key_defects": [],
+   "work_needed": "None.",
+   "effort": "S"
+  },
+  {
+   "name": "recorded inference",
+   "paths": [
+    "src/crucible/substrate/inference.py"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "All-module world: 26 records (pop.adaptive, pop.strategic), regeneration exact with 0 inference executions, replay 0 executions (P4); SP-2.3 OS-entropy MLP case passes.",
+   "key_defects": [
+    "learning steps are re-executed (not recorded) on load (adaptive.py:284-292), which assumes bit-exact torch"
+   ],
+   "work_needed": "Optionally record learning outcomes (weights hash + checkpoint) to drop the bit-exactness assumption across machines.",
+   "effort": "S"
+  },
+  {
+   "name": "execution-mode registry",
+   "paths": [
+    "src/crucible/substrate/modes.py",
+    "src/crucible/domains/modes.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "status(): A operational via 4.0 mechanisms only; B 'provider lists no environments'; C 'no provider registered'; SP-2.1 execution_modes=1.",
+   "key_defects": [
+    "crucible.rapid registers no Mode A provider",
+    "no domain registered",
+    "Mode C check (1-day determinism + replay) would accept any world"
+   ],
+   "work_needed": "Register rapid, domain and civ providers; make the Mode C check require integration (shared facts, cross-module causation).",
+   "effort": "S"
+  },
+  {
+   "name": "generic assets module",
+   "paths": [
+    "src/crucible/substrate/assets.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Correct in the SP-2.3 scenarios; no world module uses it (grep: only redteam).",
+   "key_defects": [
+    "unused by any world system"
+   ],
+   "work_needed": "Wire products, licences and design rights to assets, or drop the kind.",
+   "effort": "S"
+  },
+  {
+   "name": "civilization generator and profiles",
+   "paths": [
+    "src/crucible/civ/__init__.py"
+   ],
+   "verdict": "IMPLEMENT",
+   "evidence": "5-line docstring; no generate/PROFILES/chains, no Mode C provider, no tests/v5/test_gate_O.py, test_gate_P.py, test_gate_SP_10_*.py; experience.make(tier=3) raises TierUnavailable and defaults to legacy_shaped_reward (experience/registry.py:99,136-142).",
+   "key_defects": [
+    "missing entirely",
+    "Tier 3 default reward mode would violate amendment (a)"
+   ],
+   "work_needed": "civ.generate(profile, seed, population_profile) with genesis through ordinary APIs, 10 structural profiles with a structural fingerprint, observation_only default, Mode C provider, gate tests.",
+   "effort": "XL"
+  },
+  {
+   "name": "integrated world composition (all subsystems in one kernel world)",
+   "paths": [
+    "src/crucible/social/recsys/service.py",
+    "src/crucible/social/scale.py",
+    "src/crucible/social/audience.py",
+    "src/crucible/population/__init__.py",
+    "src/crucible/commerce/customers.py"
+   ],
+   "verdict": "REDESIGN",
+   "evidence": "No world holds pop+feed: feed needs crucible.population.register_activity (service.py:179-187), which the package does not export; gate C.3 fails on exactly this (T3). crowd refuses to coexist with pop (scale.py:158); aud needs pop listed earlier without declaring it (audience.py:424,452). With a shim, 87 modules run 30 days, but products, subscriptions, communities, capabilities, packages, science runs, charters, labour records and audience items all stay at 0; only 4.0 and population web/forum activity occurs (P2,P3,P6).",
+   "key_defects": [
+    "population and recommender cannot be combined",
+    "the social engine was built and gated against the stand-in crowd population",
+    "v5 subsystems inert when co-loaded: disconnected mini-environments behind one dispatcher",
+    "population never uses commerce or innovation; commerce customers are a separate NPC class"
+   ],
+   "work_needed": "Unify the population; wire population activities to platforms (aud distribution of forum/blog content), commerce (prod/subs purchases from wallets) and labour; seed entities through a generator; declare real dependencies.",
+   "effort": "XL"
+  },
+  {
+   "name": "cross-domain couplings",
+   "paths": [],
+   "verdict": "IMPLEMENT",
+   "evidence": "Only 3 production subscriptions in the whole code base; no v5 coupling science->technology->industry, usage->infrastructure, social->adoption, education->workforce, supply->prices.",
+   "key_defects": [
+    "Part 10.2 has no reusable v5 mechanism"
+   ],
+   "work_needed": "Subscribers and needs relations with their own RNG streams; at least 8 coupling families.",
+   "effort": "L"
+  },
+  {
+   "name": "causal chains and counterfactual removal",
+   "paths": [
+    "src/crucible/evaluation/counterfactual.py",
+    "src/crucible/evaluation/causal.py",
+    "src/crucible/evaluation/emergence.py"
+   ],
+   "verdict": "IMPLEMENT",
+   "evidence": "No chains.trace/counterfactual. Forks are clean (P12); 4.0 fork_compare/useful_novelty exist for 4.0 entities only.",
+   "key_defects": [
+    "missing for v5 entities",
+    "K2 confounds removals"
+   ],
+   "work_needed": "Provenance tracer plus multi-seed fork-remove-advance with effect sizes; exclude scheduled shocks.",
+   "effort": "M"
+  },
+  {
+   "name": "long-horizon persistence",
+   "paths": [
+    "src/crucible/core/kernel.py",
+    "src/crucible/evaluation/longrun.py",
+    "src/crucible/evaluation/invariants.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "Dev profile: 30 days at 6.8-10.4 s/day, 0 invariant errors, steady ~9.4k events/day, exact replay and snapshot (P2). Standard profile: 15.0, 24.6, 77.9 and 105.5 s per day over 4 days; 79% of day 4 is popweb visits running sandboxed programs, with 486 sandbox worker starts in that day (P13, P14). Cross-process resume fails (P5).",
+   "key_defects": [
+    "K1",
+    "growing wall time per day at the standard profile",
+    "unbounded blob growth",
+    "no historical-query API",
+    "longrun harness measures 4.0 sectors only"
+   ],
+   "work_needed": "Fix K1; a warm sandbox pool or cohort batching for popweb; store-backed 365-day runs with snapshots; extend run_long to v5 activity.",
+   "effort": "L"
+  },
+  {
+   "name": "reusable 4.0 world generation pieces",
+   "paths": [
+    "src/crucible/worldgen/generator.py",
+    "src/crucible/worldgen/admission.py",
+    "src/crucible/worlds/digital_civilization.py",
+    "src/crucible/worlds/open_industry.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Tested 4.0 families, genesis through APIs, shocks, industry supply chain with energy and freight; all run in the all-module world without errors.",
+   "key_defects": [
+    "target the 4.0 need-format economy and its own populations",
+    "module name civ already taken by worlds/digital_civilization.py"
+   ],
+   "work_needed": "Reuse the genesis pattern, fork tooling and admission for a v5 generator; do not reuse the separate populations.",
+   "effort": "M"
+  }
+ ],
+ "requirements": [
+  {
+   "id": "SP-2.1",
+   "verdict": "EXTEND",
+   "reason": "Registry runs providers for real; only Mode A is operational, and only via 4.0 mechanisms (execution_modes=1).",
+   "work_needed": "Rapid Mode A provider, registered domains (B), civ provider (C); the Mode C check must verify integration.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-2.3",
+   "verdict": "REDESIGN",
+   "reason": "Rollback and inference replay are real, but measured with test-only modules; the duplicate-fact check is vacuous (opt-in) while real duplicates exist.",
+   "work_needed": "Fact-ownership redesign, a data-level duplicate scan on the integrated civ, rollback and inference metrics on real v5 modules, K2 fix.",
+   "criteria_weak": true
+  },
+  {
+   "id": "O.1",
+   "verdict": "IMPLEMENT",
+   "reason": "No generator; co-loading 87 modules gives zero v5 interaction.",
+   "work_needed": "Civ generator with seeded entities and participants active in every subsystem; metric based on activity and coupling, not co-loading.",
+   "criteria_weak": true
+  },
+  {
+   "id": "O.2",
+   "verdict": "REDESIGN",
+   "reason": "Principal ids are consistent (0 dangling), but facts are duplicated and there are >=6 disjoint populations.",
+   "work_needed": "Primitives redesign, one population, adapters for the 4.0 owners.",
+   "criteria_weak": true
+  },
+  {
+   "id": "O.3",
+   "verdict": "EXTEND",
+   "reason": "Ledger invariants hold over 30 days, but money also lives outside the ledger (pop.wallet_cents, 4.0 pooled households) and v5 flows are absent.",
+   "work_needed": "Integrated money flows for all classes; exogenous inflow accounting; related-party checks on the civ.",
+   "criteria_weak": true
+  },
+  {
+   "id": "O.4",
+   "verdict": "IMPLEMENT",
+   "reason": "3 production subscriptions; no cross-system causation.",
+   "work_needed": "Couplings; a metric of events in one module that causally change another module's state.",
+   "criteria_weak": true
+  },
+  {
+   "id": "O.5",
+   "verdict": "IMPLEMENT",
+   "reason": "No couplings exist.",
+   "work_needed": "Six or more effect types, each shown by multi-seed counterfactual forks.",
+   "criteria_weak": true
+  },
+  {
+   "id": "O.6",
+   "verdict": "IMPLEMENT",
+   "reason": "No chain tooling or civ.",
+   "work_needed": "Trace plus counterfactual removal; exclude scripted events.",
+   "criteria_weak": true
+  },
+  {
+   "id": "O.7",
+   "verdict": "IMPLEMENT",
+   "reason": "No profiles.",
+   "work_needed": "Three or more profiles with a measurable structural distance (module set, coupling graph, topology, institutions).",
+   "criteria_weak": true
+  },
+  {
+   "id": "O.n1",
+   "verdict": "REDESIGN",
+   "reason": "Today's all-module world is exactly disconnected mini-environments behind one dispatcher.",
+   "work_needed": "The integration redesign; a metric defined on data flow between modules.",
+   "criteria_weak": true
+  },
+  {
+   "id": "P.1",
+   "verdict": "REPAIR",
+   "reason": "A 30-day in-process run works at the dev profile (4.0 activity only); no civ; cross-process resume broken; the standard profile slows to 105 s/day by day 4.",
+   "work_needed": "Civ, K1 fix, sandbox/popweb performance, store-backed runs for every horizon and seed.",
+   "criteria_weak": true
+  },
+  {
+   "id": "P.2",
+   "verdict": "REPAIR",
+   "reason": "0 invariant violations and 0 proc.failed in the probes, but no civ-level monitored run.",
+   "work_needed": "InvariantMonitor plus proc.failed and rejection accounting on civ runs.",
+   "criteria_weak": false
+  },
+  {
+   "id": "P.3",
+   "verdict": "REPAIR",
+   "reason": "In-process snapshot/resume is exact; cross-process World.load fails with pop_adaptive (K1).",
+   "work_needed": "Fix the store/on_load order; a cross-process resume test.",
+   "criteria_weak": true
+  },
+  {
+   "id": "P.4",
+   "verdict": "EXTEND",
+   "reason": "Replay exact over 30 days; regeneration exact with 0 inference reruns.",
+   "work_needed": "Run on the civ at 365 days with a store; include regeneration and fix K3.",
+   "criteria_weak": true
+  },
+  {
+   "id": "P.5",
+   "verdict": "IMPLEMENT",
+   "reason": "Event-accounting metric undefined; no harness.",
+   "work_needed": "Define per-module event counts vs state, batch rows vs column deltas, audience recount.",
+   "criteria_weak": true
+  },
+  {
+   "id": "P.6",
+   "verdict": "IMPLEMENT",
+   "reason": "Events are steady, but v5 economic and social activity is 0.",
+   "work_needed": "Civ with endogenous v5 activity; ratio per subsystem.",
+   "criteria_weak": true
+  },
+  {
+   "id": "P.n1",
+   "verdict": "IMPLEMENT",
+   "reason": "No runs exist.",
+   "work_needed": "Two or more independent seeds per horizon.",
+   "criteria_weak": false
+  },
+  {
+   "id": "SP-10.1",
+   "verdict": "IMPLEMENT",
+   "reason": "No profiles.",
+   "work_needed": "Ten profiles with structural differences plus a structural fingerprint.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-10.3",
+   "verdict": "IMPLEMENT",
+   "reason": "No chains.",
+   "work_needed": "Three chain classes (agent artifact, social, technical), each confirmed by counterfactual removal; criteria need a counterfactual metric.",
+   "criteria_weak": true
+  }
+ ],
+ "missing_requirements": [
+  "Part 2.1 Mode C: a technological invention must be able to change economic outcomes, participant behaviour, resource demand and future technological opportunities",
+  "Part 2.3: all systems communicate through typed events and approved state interfaces (typed-event coverage; no cross-module state writes)",
+  "Part 2.3: deterministic simulation wherever possible (same spec+seed -> same hashes; broken by K3); only replay is in the manifest",
+  "Part 10: preserve standalone worlds for scientific experiments; do not train exclusively on a single permanent civilization",
+  "Part 10.2: consequences must arise from reusable interactions, not scripted ones",
+  "Part 10.3: scripted narrative events do not count; scripted reference policies labelled accurately",
+  "Part 10.4: world forks, historical queries, independent replication, horizons beyond 365 days, and persistence/evolution of participants, organisations, relationships, products, technologies and institutions",
+  "Amendment (a) for Tier 3: observation_only default for every civ profile (experience registry currently defaults to legacy_shaped_reward)"
+ ],
+ "tests_run": [
+  {
+   "command": "PYTHONPATH=src python -m pytest -q -p no:cacheprovider tests/test_v5_substrate_*.py",
+   "result": "127 passed in 21 s"
+  },
+  {
+   "command": "PYTHONPATH=src python -m pytest -q -p no:cacheprovider -x tests/v5/test_gate_SP_2_3.py tests/v5/test_gate_SP_2_1.py",
+   "result": "2 passed; SP-2.3 metrics pass on test-only modules; SP-2.1 execution_modes=1"
+  },
+  {
+   "command": "PYTHONPATH=src python -m pytest -q -p no:cacheprovider -x tests/v5/test_gate_C.py::test_C_3_consumption_produces_analytics",
+   "result": "FAILED: ProtocolError feed: the population module does not provide register_activity"
+  },
+  {
+   "command": "probe_allmods.py (all 89 modules)",
+   "result": "4 construction failures (aud ordering, cal/calendar duplicate applier, crowd vs pop, feed register_activity); 87 modules build with shim"
+  },
+  {
+   "command": "slots -- probe_run.py 30 calendar,crowd replay (shim)",
+   "result": "30 days, 0 invariant errors, replay/snapshot/resume exact; v5 commerce/social/innovation inert"
+  },
+  {
+   "command": "probe_kinds.py 3 (shim)",
+   "result": "cohort decisions only from pop/popweb/adaptive/attention/feed sessions; 0 rows in every v5 commerce, social, innovation, institution, labour and science table"
+  },
+  {
+   "command": "probe_regen.py 2 (shim)",
+   "result": "26 inference records; regeneration hash equal; 0 inference reruns in regeneration and replay"
+  },
+  {
+   "command": "probe_resume.py ref/part/resume (SQLite, crash, new process)",
+   "result": "FAIL NotFound blob in pop_adaptive.on_load; without adaptive/strategic: resumed hash equals the uninterrupted run"
+  },
+  {
+   "command": "probe_dupfacts.py (shim)",
+   "result": "problems()==[] while duplicates exist (follows 292 vs 0, etc.)"
+  },
+  {
+   "command": "probe_typed.py",
+   "result": "11 of 77 emitted module event types typed"
+  },
+  {
+   "command": "probe_observer4.py",
+   "result": "typed_events changes the trajectory; the RNG bump in _notify is the root cause"
+  },
+  {
+   "command": "probe_determinism.py",
+   "result": "same spec+seed twice -> different hashes (sandbox traceback paths)"
+  },
+  {
+   "command": "probe_writes.py (shim)",
+   "result": "no v5 cross-module or out-of-applier writes; 4.0 bank->ops_days, shoppers->retail"
+  },
+  {
+   "command": "probe_identity.py (shim)",
+   "result": "3,451 refs, 0 dangling"
+  },
+  {
+   "command": "probe_forks.py (shim)",
+   "result": "no-intervention forks identical"
+  },
+  {
+   "command": "slots -- probe_run.py 3 (pop.profile=standard, shim)",
+   "result": "15.6/23.8/79.0 s per day"
+  },
+  {
+   "command": "slots -- probe_profile.py (standard, day 4 cProfile)",
+   "result": "105.5 s; 78 s in popweb sandboxed page visits; 486 sandbox worker starts in that day"
+  }
+ ],
+ "critical_findings": [
+  "Tier 3 does not exist: crucible/civ is a 5-line docstring (no generator, profiles, couplings, chains, Mode C provider, Gate O/P/SP-10 tests). All 13 J requirements are unmet.",
+  "The real population (pop) cannot be combined with the recommender (feed): register_activity is not exported from crucible.population (social/recsys/service.py:179-187). Gate C.3 fails on this; the social gates C2/D/I were built on the stand-in crowd population, which refuses to coexist with pop.",
+  "Loading all 87 modules into one world (shim) runs 30 days cleanly, but every v5 commerce/social/innovation/institution/labour/science table stays empty: disconnected mini-environments behind one dispatcher (O.n1).",
+  "The duplicate-fact check is vacuous (opt-in; only assets declares). Real duplicates exist: relationships, communities, products (D-11 open), institutions, contracts, employment, and >=6 disjoint populations.",
+  "Cross-process snapshot resume fails with pop_adaptive: kernel replay(base_blob) runs on_load before attaching the store (kernel.py:1003-1008, 965-966). In-process tests hide this.",
+  "Subscriber notification advances the emitter's RNG (kernel.py:581), so typed validation or any coupling module changes the trajectory, which confounds the counterfactual removal Gate O/SP-10.3 relies on. The 4.0 sandbox also makes run-to-run hashes differ."
+ ],
+ "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/A_J_substrate_civ/",
+ "skeptic": {
+  "reviewer": "independent skeptic (A_J_substrate_civ)",
+  "head_reviewed": "7c29c75 (source identical to a881d18 outside acceptance/v5; later commits are docs/manifest only)",
+  "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/A_J_substrate_civ_skeptic/",
+  "summary": "All four RETAIN verdicts are overturned to REPAIR. Their evidence (in-process counters, record-table hooks, sign/bound invariants) would also pass on the defects found. Columns have no writer ownership and wrap integers silently. An agent can take the handle of a population individual and receive money meant for it. The attention invariant cannot detect minting. Replay re-runs neural training and fails on another CPU ISA, and regeneration cannot run cross-process. The mode registry is satisfiable by a one-module 'civilization'. O.4 IMPLEMENT was harsh (EXTEND). SP-2.1 and P.1 have no implementation to repair (IMPLEMENT). P.4 EXTEND becomes REPAIR.",
+  "subsystem_changes": [
+   {
+    "name": "columns and batch events",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S-M",
+    "why": "S1: columns.batch checks only that the table exists (columns.py:123). 61% of per-column writes in one all-module day come from a module that did not declare the column (popweb->pop.wallet_cents/spent_cents, feed->pop.satisfaction). A spoofed kind 'aud.consumption' set spent_cents. int32 set 3e9 -> -2147483648 and add 2x(2^31-1) -> -2 were committed silently with clean invariants (columns.py:149-151, 200). Tests cover float16 only (test_v5_substrate_columns.py:138).",
+    "work_needed": "per-column writer declaration + enforcement in batch/applier; writer recorded in event; integer range/overflow refusal; tests"
+   },
+   {
+    "name": "identity indices",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S",
+    "why": "S4: an agent joined with handle 'p7'. A transfer to 'p7' paid the agent (resolve_handle fallback, identity.py:217-223). After individual 7 materialised, two persons have handle p7 (ensure_principal does not check handles, ids.py:46-60). No invariant fires.",
+    "work_needed": "reserve p\\d+ handles in create_person/create_org; ensure_principal refuses taken handles; handle-uniqueness invariant"
+   },
+   {
+    "name": "attention ledger",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S",
+    "why": "S8: conservation left+spent==budget held in a real run (max err 2.6e-5 min). But a column write minting 43.8 min for 17 individuals left attention.check and check_invariants empty: the invariant (attention.py:127-150) checks only bounds, and any module can write the columns (S1). Population uses ~1% of its budget per day.",
+    "work_needed": "conservation invariant; restrict writes to attention.spend/reset"
+   },
+   {
+    "name": "recorded inference",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "M",
+    "why": "S2: cross-process replay ran 180 torch forward and 32 backward passes (on_load re-learning, adaptive.py:264-292). Under ATEN_CPU_CAPABILITY=default the replay fails: 'adaptive group 0 step 9: rebuilt weights differ from the log'. Cross-process regenerate diverged at seq 287 (recorded output not available: regenerate has no store, kernel.py:1043-1058) and re-ran inference 50 times. The first auditor's counter wrapped only recorded() and ran in-process.",
+    "work_needed": "store weights (or deltas) per learning step so replay/load never re-train; store parameter for regenerate; cross-process and cross-ISA replay/regen tests"
+   },
+   {
+    "name": "kernel transactions/replay/regeneration/snapshots/forks",
+    "from": "REPAIR (M)",
+    "to": "REPAIR (L)",
+    "effort": "L",
+    "why": "New defects. K4: regenerate cannot read blobs cross-process (S2). K5: store-less worlds keep every event in _unflushed forever (5,046 after 1 day; kernel.py:610, 917-920), so log_retain frees nothing. K6: with a store, log trimming ends log replay and the mode check then treats replay as not checked (modes.py:185-189). K7: the subscriber savepoint is taken after the triggering event is applied (kernel.py:550, 571). With callers that swallow errors (consumers.py:612-617, npcs.py:446-452), forum.post committed without its content record (3 posts vs 2 content items, S7).",
+    "work_needed": "K1-K7 fixes; cross-process tests"
+   },
+   {
+    "name": "execution-mode registry",
+    "from": "EXTEND",
+    "to": "REPAIR",
+    "effort": "S",
+    "why": "S6: a one-module 'civilization' (identity, 3 events) and a provider with check=lambda p: {'ok': True} raise execution_modes from 1 to 3 (custom checks self-attest, modes.py:203).",
+    "work_needed": "Mode C check must require O.1/O.2/O.n1 integration on data flow; no self-attested checks for acceptance"
+   },
+   {
+    "name": "long-horizon persistence",
+    "from": "REPAIR (L)",
+    "to": "REPAIR (L); performance part REDESIGN (B/C)",
+    "effort": "L",
+    "why": "S9 (standard profile, 10,296 rows, all modules, 1 CPU, 8 days): 15.9/24.2/76.1/88.9/78.8/87.6/89.0/94.9 s per day. Pages (~2.2k/day) and resources (32) plateau from day 3. The steep days 1-3 rise is site discovery, not unbounded growth (refines the first auditor 105 s/day, which was under cProfile). Mean 86 s/day from day 3, drifting up ~3 s/day at constant page volume. ~8.7 h per 365-day seed; ~32 CPU h for P.1 1,330 sim-days, with v5 inert (0 products, 0 communities).",
+    "work_needed": "as first auditor, plus K4-K6; performance budget per simulated day with v5 active"
+   }
+  ],
+  "subsystems_upheld": [
+   "typed event bus REPAIR (but A5's 'cross-module communication absent' is too harsh: S5 shows 23 initiator->emitter module pairs through schema-validated Ctx.call inside one transaction)",
+   "content-addressed artifacts REPAIR (K4 adds: regeneration cannot reach the store)",
+   "shared primitives / duplicate check REDESIGN",
+   "generic assets EXTEND",
+   "civ generator + profiles IMPLEMENT",
+   "integrated world composition REDESIGN (pop+feed failure reproduced: probe_pop_feed.log)",
+   "cross-domain couplings IMPLEMENT",
+   "causal chains IMPLEMENT",
+   "reusable 4.0 pieces EXTEND"
+  ],
+  "requirement_changes": [
+   {
+    "id": "SP-2.1",
+    "from": "EXTEND",
+    "to": "IMPLEMENT",
+    "why": "Modes B and C have no provider (no domain registers; civ is a stub). The metric is satisfiable by trivial providers (S6)."
+   },
+   {
+    "id": "P.1",
+    "from": "REPAIR",
+    "to": "IMPLEMENT",
+    "why": "No civilization exists to run. S9 (standard profile, 10,296 rows, all modules, 1 CPU, 8 days): 15.9/24.2/76.1/88.9/78.8/87.6/89.0/94.9 s per day. Pages (~2.2k/day) and resources (32) plateau from day 3. The steep days 1-3 rise is site discovery, not unbounded growth (refines the first auditor 105 s/day, which was under cProfile). Mean 86 s/day from day 3, drifting up ~3 s/day at constant page volume. ~8.7 h per 365-day seed; ~32 CPU h for P.1 1,330 sim-days, with v5 inert (0 products, 0 communities)."
+   },
+   {
+    "id": "P.4",
+    "from": "EXTEND",
+    "to": "REPAIR",
+    "why": "Replay re-trains neural participants and is ISA-dependent; regeneration is not cross-process (S2)."
+   },
+   {
+    "id": "O.4",
+    "from": "IMPLEMENT",
+    "to": "EXTEND",
+    "why": "Harsh: 25 cross-module event types/day already flow via typed nested tool calls (S5). Missing: v5 participation (6 v5 types) and causal measurement."
+   }
+  ],
+  "criteria_weak_changes": [
+   {
+    "id": "P.2",
+    "from": false,
+    "to": true,
+    "why": "Integer wrap (S1), duplicate handles (S4), forum/content split (S7) and attention minting (S8) all leave check_invariants() == []. The criterion needs an invariant-coverage list plus fault-injection evidence."
+   },
+   {
+    "id": "O.4",
+    "from": true,
+    "to": true,
+    "why": "Confirmed: the metric already reads 25 (>=10) in the disconnected world O.n1 forbids (S5)."
+   }
+  ],
+  "missing_requirements": [
+   "Column/table write ownership enforced (approved state interfaces), not by convention (S1)",
+   "Identity namespace integrity between agents and population principals: reserved handles, uniqueness invariant (S4)",
+   "Machine-independent, cross-process replay and cross-process regeneration of recorded trajectories without re-training (S2)",
+   "Event/subscriber atomicity independent of the emitter's error handling (S7)",
+   "Invariant coverage with fault injection showing every declared invariant fires (makes P.2 meaningful)",
+   "Realistic activity level of the integrated population (S8: ~1% of attention budget used), not only the P.6 late/early ratio"
+  ],
+  "side_findings": [
+   "population/strategic.py:403 sorted(ctx.state.ids('providers'))[0] raises IndexError in any world without 4.0 compute providers: 38 of 42 pop_strategic.decide runs failed in the population world (B/P.2).",
+   "Cross-process reruns of the population world (same ISA) gave identical hashes (1afabcfc...). K3 needs sandbox tracebacks to occur, so it is not universal.",
+   "Standard-profile per-day time: S9 (standard profile, 10,296 rows, all modules, 1 CPU, 8 days): 15.9/24.2/76.1/88.9/78.8/87.6/89.0/94.9 s per day. Pages (~2.2k/day) and resources (32) plateau from day 3. The steep days 1-3 rise is site discovery, not unbounded growth (refines the first auditor 105 s/day, which was under cProfile). Mean 86 s/day from day 3, drifting up ~3 s/day at constant page volume. ~8.7 h per 365-day seed; ~32 CPU h for P.1 1,330 sim-days, with v5 inert (0 products, 0 communities)."
+  ],
+  "per_day_standard_profile": [
+   {
+    "day": 1,
+    "wall_s": 15.9,
+    "pages": 225,
+    "res": 12
+   },
+   {
+    "day": 2,
+    "wall_s": 24.2,
+    "pages": 1171,
+    "res": 31
+   },
+   {
+    "day": 3,
+    "wall_s": 76.1,
+    "pages": 2264,
+    "res": 32
+   },
+   {
+    "day": 4,
+    "wall_s": 88.9,
+    "pages": 2210,
+    "res": 32
+   },
+   {
+    "day": 5,
+    "wall_s": 78.8,
+    "pages": 1954,
+    "res": 32
+   },
+   {
+    "day": 6,
+    "wall_s": 87.6,
+    "pages": 2174,
+    "res": 32
+   },
+   {
+    "day": 7,
+    "wall_s": 89.0,
+    "pages": 2295,
+    "res": 32
+   },
+   {
+    "day": 8,
+    "wall_s": 94.9,
+    "pages": 2284,
+    "res": 32
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "pytest -q -p no:cacheprovider -x tests/test_v5_substrate_columns.py tests/test_v5_substrate_inference.py tests/test_v5_substrate_modes.py",
+    "result": "17 passed in 6.3 s (they pass despite S1/S2/S6 defects: float16-only range tests, in-process store-less inference test)"
+   },
+   {
+    "command": "probe_cols_owner.py 1",
+    "result": "cross-module column writes 2731/4482; int32 3e9 -> -2147483648, add 2x(2^31-1) -> -2, spoofed kind accepted, invariants []"
+   },
+   {
+    "command": "probe_replay_neural.py run/replay/regen (+ ATEN_CPU_CAPABILITY=default)",
+    "result": "replay same ISA: digest equal, 180 fwd/32 bwd; replay DEFAULT ISA: ProtocolError rebuilt weights differ; regen cross-process: hash differs, 50 inference re-runs"
+   },
+   {
+    "command": "probe_regen_diverge.py cross|same",
+    "result": "cross: first divergence seq 287 'recorded inference output ... not available'; same-process: exact"
+   },
+   {
+    "command": "probe_learn_isa.py under auto/default/avx2/avx512",
+    "result": "weights hash 218806a6 (AVX512/AVX2) vs f38078a1 (DEFAULT)"
+   },
+   {
+    "command": "probe_identity_squat.py",
+    "result": "transfer to 'p7' paid squatter agent; two persons with handle p7; invariants []"
+   },
+   {
+    "command": "probe_attention.py 30",
+    "result": "conservation holds (max 2.6e-5); minted 43.8 min undetected; ~1% budget use"
+   },
+   {
+    "command": "probe_subscriber_atomicity.py",
+    "result": "3 forum posts vs 2 content items after swallowed CapacityExceeded; tool path rejects correctly"
+   },
+   {
+    "command": "probe_cross.py 1",
+    "result": "25 cross-module event types (6 v5); _unflushed 5046 without store; 17 runtime-only keys"
+   },
+   {
+    "command": "probe_modes_trivial.py",
+    "result": "execution_modes 1 -> 3 with one-module Mode C and self-attesting Mode B"
+   },
+   {
+    "command": "slots --cpu 1 -- probe_standard_days.py 8",
+    "result": "S9 (standard profile, 10,296 rows, all modules, 1 CPU, 8 days): 15.9/24.2/76.1/88.9/78.8/87.6/89.0/94.9 s per day. Pages (~2.2k/day) and resources (32) plateau from day 3. The steep days 1-3 rise is site discovery, not unbounded growth (refines the first auditor 105 s/day, which was under cProfile). Mean 86 s/day from day 3, drifting up ~3 s/day at constant page volume. ~8.7 h per 365-day seed; ~32 CPU h for P.1 1,330 sim-days, with v5 inert (0 products, 0 communities)."
+   },
+   {
+    "command": "probe_pop_feed.py (inline, PATCH_POP=0)",
+    "result": "ProtocolError feed: the population module does not provide register_activity"
+   },
+   {
+    "command": "probe_strategic_err.py",
+    "result": "IndexError at population/strategic.py:403"
+   }
+  ],
+  "critical_findings": [
+   "Recorded replay is not machine-independent. Replay/load re-runs neural training and fails under another CPU ISA, and regeneration cannot run in a new process. 'Replay without rerunning inference' holds only in-process.",
+   "Columns (the population state substrate) have no writer ownership and silently wrap integer values. Any module can rewrite population wallets, purchases or attention with no recorded population decision and no invariant firing.",
+   "Identity namespace collision: agents can register 'p<i>' handles and intercept payments addressed to population individuals.",
+   "Event/subscriber atomicity breaks when the emitter swallows errors: a forum post committed without its coupled content record (real 4.0 call sites).",
+   "SP-2.1's mode registry can be satisfied by a one-module 'civilization'."
+  ]
+ }
+}

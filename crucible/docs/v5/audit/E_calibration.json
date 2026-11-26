@@ -1,0 +1,526 @@
+{
+ "area": "E_calibration",
+ "workstreams": [
+  "E",
+  "E1",
+  "E2",
+  "E-unify"
+ ],
+ "commit": "a881d18",
+ "subsystems": [
+  {
+   "name": "Dataset acquisition, checksums, provenance, licences",
+   "paths": [
+    "src/crucible/calibration/datasets.py",
+    "src/crucible/calibration/criteo.py",
+    "src/crucible/calibration/gharchive.py",
+    "docs/v5/calibration/datasets/*.json",
+    "docs/v5/calibration/DATASETS.md"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "verify() ok for all files of 4 datasets. Own sha256/md5 match the recorded values and outside sources: Zenodo md5 0820331067a3... for KuaiRand-Pure, the Criteo HF LFS oid 2716e1bf..., the HF mirror oids for MIND, and a re-downloaded GH Archive 2024-10-07-0 (sha256 match, 175,507 events, 16/16 type counts equal the npz). Row counts equal the published statistics.",
+   "key_defects": [
+    "MIND-small taken from the unofficial mirror huyva/MIND-small, which skips the licence acceptance the official gated repo requires (MSR non-commercial research licence)",
+    "GH Archive extraction keeps raw numeric actor ids (gharchive.py:15), which the public API can re-identify (Part 5.1)",
+    "GH Archive raw checksums are recorded on first use (trust on first use); one hour verified by audit",
+    "no repository licence notice for checkpoints derived from CC BY-NC-SA (Criteo) and MSR-NC (MIND) data"
+   ],
+   "work_needed": "Acquire MIND through the official gated source with recorded licence acceptance (or document the authorisation); salted-hash actor and repo ids at extraction and re-derive the tables; add licence notices for derived checkpoints.",
+   "effort": "S"
+  },
+  {
+   "name": "Offline fitting and held-out evaluation pipelines (E1 fitlib, E2 toolchain)",
+   "paths": [
+    "src/crucible/calibration/fit_e1.py",
+    "src/crucible/calibration/fitlib.py",
+    "src/crucible/calibration/kuairand.py",
+    "src/crucible/calibration/mind.py",
+    "src/crucible/calibration/metrics.py",
+    "src/crucible/calibration/fit_commercial.py",
+    "src/crucible/calibration/fit_software.py",
+    "src/crucible/calibration/scoring_e2.py",
+    "src/crucible/calibration/fitmeta_e2.py",
+    "src/crucible/calibration/gbdt_e2.py",
+    "docs/v5/calibration/plans/",
+    "docs/v5/calibration/reports/"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Independent recomputation: Criteo full test (2,795,919) primary 0.11425529 = reported, constant baseline 0.2091478 = reported; session_rate deviance 3.30146 = reported from raw CSVs with own code; content_consumption rnd_test split rebuilt independently (89,752 rows, B0 0.4815997 = reported). Project reproducers give abs diff 0 for 8 more metrics. Prior-day-only features; user plus later-time holdouts; plan d6f4767 is an ancestor of fit d86f683 and its sha256 matches.",
+   "key_defects": [
+    "no comparison against the simulator's existing rule-based behaviour (Part 5.3); baselines are constants and popularity only",
+    "selection ignores long-horizon stability and compute efficiency; the 4-day forward simulation shows the kept return_daily retention error 0.076 worse than both baselines (0.074, 0.072)",
+    "commercial model selected by outcome log loss, not uplift accuracy; worse uplift ranking than T-logistic (Qini 0.087 vs 0.089 visit, 0.159 vs 0.200 conversion)",
+    "E2 amendment 1 added the eventually-kept candidates after run-1 test metrics were seen (disclosed)",
+    "two duplicate toolchains and card schemas"
+   ],
+   "work_needed": "Add rule-based-simulator baselines scored on the same held-out rows; add long-horizon stability (multi-week forward simulation) and cost to the selection rule; add uplift-targeted selection (Qini/AUUC) for intervention models; unify the toolchains.",
+   "effort": "M"
+  },
+  {
+   "name": "Model registry and checkpoints",
+   "paths": [
+    "src/crucible/calibration/registry.py",
+    "src/crucible/calibration/predictors.py",
+    "src/crucible/calibration/portable.py",
+    "src/crucible/calibration/registry_e2.py",
+    "docs/v5/calibration/models/"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "All 9 models load with SHA-256 verified (p3); F.6 tamper test passes; npz without pickle, each under 5 MB; portable predictions equal sklearn (unit tests pass); reproducers abs diff 0.",
+   "key_defects": [
+    "two card schemas maintained in parallel (cosmetic)"
+   ],
+   "work_needed": "None required; optionally migrate to one card schema.",
+   "effort": "S"
+  },
+  {
+   "name": "Behavioural-domain coverage (Part 5.3)",
+   "paths": [
+    "docs/v5/calibration/models/",
+    "src/crucible/calibration/registry.py:57-71"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Registered domains: content_selection (KuaiRand random exposure, MIND), watch_duration, browsing_frequency (2 models), advertising_response (Criteo ITT), software_adoption (2 GH Archive short-horizon associations).",
+   "key_defects": [
+    "attention allocation, repeat consumption (only a descriptive table, 145 repeat rows), purchase or price response, product retention or churn, community participation and social diffusion are not modelled",
+    "one platform per domain, 1 week to 1 month of data; RecSim NG unused; no sequence models"
+   ],
+   "work_needed": "Fit and evaluate the missing prioritised behaviours on suitable public data (e.g. retention or churn datasets, community and diffusion datasets) under the same plan, holdout and baseline protocol.",
+   "effort": "L"
+  },
+  {
+   "name": "Commercial intervention-response model (Criteo randomized ITT)",
+   "paths": [
+    "src/crucible/calibration/commercial.py",
+    "src/crucible/calibration/fit_commercial.py",
+    "docs/v5/calibration/reports/commercial_response@1.json"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "Recomputed on the full test split: ITT difference in means 0.01031 (se 0.00033), model-implied 0.00738, observed uplift increasing over predicted deciles 2-9 (top decile observed 0.058 vs predicted 0.066). The naive exposed-vs-unexposed contrast among the treated is 0.378, about 37x the ITT; the model and report never use exposure causally, only a labelled Wald estimate. Pooled-test composition bias diagnosed (stratified 0.0077, IPW 0.0075).",
+   "key_defects": [
+    "simulator interface is a 64-type marginal table independent of ad content, price, relevance and frequency",
+    "negative predicted effects not confirmed (decile 0 predicted -0.0059, observed +0.0037)",
+    "unused by world code (see the integration subsystem)"
+   ],
+   "work_needed": "Keep as the offline model; redesign the in-world mapping (see integration).",
+   "effort": "S"
+  },
+  {
+   "name": "Integration of fitted models into world participants (population, social, commerce, domains)",
+   "paths": [
+    "src/crucible/population/models.py:100-162",
+    "src/crucible/social/consumption.py:140-226,335-336",
+    "src/crucible/social/recsys/service.py:50-52,120",
+    "src/crucible/domains/common.py:75-115",
+    "src/crucible/domains/learning.py:457-474",
+    "src/crucible/domains/modules.py:2"
+   ],
+   "verdict": "REDESIGN",
+   "evidence": "p3/p8: in a population world run for one simulated day, all 9 population decisions are 'plausible, unvalidated'. calibration.load was called for content_consumption@1 and commercial_response@1, and both were silently discarded because their features are not in population FEATURES; browse_session@1, continue_watching@1, purchase@1 and churn@1 do not exist. Default social world: 0 load calls, feed calibrated = {}. p4: the 'learn' module (SlateClicks) is not registered by load_all_modules. p7: CalibratedOpen p_open is exactly invariant (max |dp| = 0.0) to uniformly better or worse affinity, and one viewer's probabilities change with other viewers in the batch. grep: no world code references commercial_response, watch_duration, return_daily, session_rate, content_consumption_feed or the software models.",
+   "key_defects": [
+    "feature-name-equality plug-in that no registered model can satisfy, with silent fallback (models.py:146-158)",
+    "8 of 9 checkpoints never consumed by world code; news_click only behind an opt-in config set only in tests",
+    "batch-relative quantile mapping (consumption.py:179-187) erases absolute relevance and couples individuals",
+    "SlateClicks applies a news-click model to lesson search with a hand factor of 0.05 for irrelevant results; its module is not registered",
+    "the Criteo type table, if wired, gives content- and price-independent ad response"
+   ],
+   "work_needed": "Write explicit per-model adapters from world state to each card's feature_map (fixed quantile maps fitted once on world reference distributions, not per batch), plug them into pop, feed, shorts/tube, commerce/ads and software adoption, and fail loudly when a configured model cannot be used. Enable them by default in Tier 2/3 worlds. Validate in-world aggregates against held-out data and in-world randomised experiments against the KuaiRand random-exposure and Criteo ITT estimates.",
+   "effort": "L"
+  },
+  {
+   "name": "Fidelity register and SP-5.4 machinery",
+   "paths": [
+    "docs/v5/FIDELITY_REGISTER.md",
+    "src/crucible/calibration/fidelity.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "SP-5.4 test fails: important_mechanisms_without_record=40 (p2). v5_rows parses 18 of 35 rows; the blank line 35 hides rows 36-52. Rows 23-33 claim 'via calibration.load(...)' use in pop, social, commerce and software that p3/p8 show does not happen.",
+   "key_defects": [
+    "parser stops at the first blank line and silently drops 17 rows",
+    "at least 10 rows falsely claim empirically fitted in-world mechanisms; row 45 contradicts rows 26-27",
+    "module-granularity matching lets one false 'pop' row cover all 9 hand-set population decisions",
+    "no check that claimed use is real; ARCHITECTURE.md:105 also overstates"
+   ],
+   "work_needed": "Parse all table blocks; add records for the 40 modules and per-decision rows for population; correct the false rows to 'plausible, unvalidated (fitted model available, not wired)'; add a runtime truthfulness check (instrument calibration.load and the decision path in an integrated run).",
+   "effort": "M"
+  },
+  {
+   "name": "Gate F / SP-5.5 audit and reproduction machinery",
+   "paths": [
+    "src/crucible/calibration/audit.py",
+    "src/crucible/calibration/reproduce.py",
+    "tests/v5/test_gate_F.py",
+    "tests/v5/test_gate_SP_5_5.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "Gate F fast tests pass (12/13 together with SP-5.4/5.5; only SP-5.4 fails). Reproducers match my independent recomputations.",
+   "key_defects": [
+    "F.3 reproduction test marked @slow and excluded from default runs",
+    "sp55 counts an amendment written after test exposure as prespecification",
+    "no Gate F test checks in-world use or limit compliance"
+   ],
+   "work_needed": "Run F.3 officially through slots; flag test-informed amendments for reviewer decision; add integration criteria.",
+   "effort": "S"
+  }
+ ],
+ "requirements": [
+  {
+   "id": "F.1",
+   "verdict": "RETAIN",
+   "reason": "5 canonical domains qualify; gate test passes (unofficial). Models do not drive world behaviour.",
+   "work_needed": "Official evidence from a clean tree plus review; add a criterion that each counted domain drives an in-world decision.",
+   "criteria_weak": true
+  },
+  {
+   "id": "F.2",
+   "verdict": "RETAIN",
+   "reason": "content_consumption fitted on randomised exposure and beats its baseline (split and baseline reproduced); commercial_response ITT reproduced on the full test split.",
+   "work_needed": "Official evidence; the criterion should require in-world use of both models.",
+   "criteria_weak": true
+  },
+  {
+   "id": "F.3",
+   "verdict": "RETAIN",
+   "reason": "9 held-out reports; 2 recomputed independently and 8 metrics via reproducers, all with zero difference.",
+   "work_needed": "Run the @slow F.3 test through slots for official evidence.",
+   "criteria_weak": false
+  },
+  {
+   "id": "F.4",
+   "verdict": "EXTEND",
+   "reason": "Comparisons only against constant or popularity baselines; Part 5.3 also requires comparison against the existing rule-based simulator behaviour.",
+   "work_needed": "Feature-map the population and BUILTIN feed rules onto the held-out rows and report learned vs rule-based.",
+   "criteria_weak": true
+  },
+  {
+   "id": "F.5",
+   "verdict": "RETAIN",
+   "reason": "ECE, Brier, PIT-KS, coverage and reliability tables for all 9 models.",
+   "work_needed": "Official run.",
+   "criteria_weak": false
+  },
+  {
+   "id": "F.6",
+   "verdict": "RETAIN",
+   "reason": "9 checkpoints load with verified hashes; tamper test passes.",
+   "work_needed": "Official run.",
+   "criteria_weak": false
+  },
+  {
+   "id": "F.7",
+   "verdict": "REPAIR",
+   "reason": "Checksums verified against outside sources, but MIND was obtained from an unofficial mirror that skips licence acceptance, and GH Archive actor ids are kept.",
+   "work_needed": "Authorised MIND acquisition with recorded licence acceptance; hashed ids; licence notices.",
+   "criteria_weak": true
+  },
+  {
+   "id": "F.8",
+   "verdict": "RETAIN",
+   "reason": "Substantive limits in every card and report.",
+   "work_needed": "Official run; tighten the criterion beyond a 200-character minimum.",
+   "criteria_weak": true
+  },
+  {
+   "id": "F.n1",
+   "verdict": "RETAIN",
+   "reason": "0 synthetic-only domains; all 4 datasets verified real.",
+   "work_needed": "Official run.",
+   "criteria_weak": false
+  },
+  {
+   "id": "SP-5.4",
+   "verdict": "REPAIR",
+   "reason": "Test fails (40 modules without a record); the parser drops 17 rows; at least 10 rows claim fitted in-world use that does not exist.",
+   "work_needed": "Fix the parser, add missing records, correct the false rows, add a runtime truthfulness check.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-5.5",
+   "verdict": "REPAIR",
+   "reason": "Passes, but the E2 kept candidates were added by an amendment written after run-1 test metrics were computed (disclosed).",
+   "work_needed": "Checker flags test-informed amendments as a protocol deviation for the reviewer, or confirm on an untouched holdout.",
+   "criteria_weak": true
+  }
+ ],
+ "missing_requirements": [
+  "Fitted models must drive participant decisions in integrated worlds: population, social, commerce, software (Part 5 objective, Part 4.4)",
+  "Comparison of fitted models against the existing rule-based simulator behaviour (Part 5.3)",
+  "Model selection on long-horizon stability and computational efficiency (Part 5.3)",
+  "In-world validation: integrated-simulator user-activity distributions, retention curves, heterogeneity and long-horizon aggregate drift vs held-out data (Part 5.5)",
+  "In-world randomised experiments (random exposure, ad holdout) validated against KuaiRand random-exposure and Criteo ITT estimates (Part 5.2)",
+  "World use must stay inside the card limits; no per-batch quantile maps erasing absolute effects; no out-of-scope reuse (Part 5.2)",
+  "Coverage of attention allocation, repeat consumption, purchase, retention, community participation and social diffusion (Part 5.3)",
+  "Privacy: no re-identifiable ids in calibration data (Part 5.1)",
+  "Licence compliance and authorised acquisition of datasets and derived checkpoints (Part 5.1)",
+  "Fidelity-register truthfulness: claimed runtime use verified (Part 5.4)"
+ ],
+ "tests_run": [
+  {
+   "command": "PYTHONPATH=src timeout 900 python -m pytest -q -p no:cacheprovider tests/v5/test_gate_F.py tests/v5/test_gate_SP_5_4.py tests/v5/test_gate_SP_5_5.py -m 'not slow'",
+   "result": "12 passed, 1 failed (SP-5.4: important_mechanisms_without_record=40), 1 deselected (F.3 slow)"
+  },
+  {
+   "command": "PYTHONPATH=src timeout 900 python -m pytest -q -p no:cacheprovider tests/test_v5_calibration_core.py tests/test_v5_social_calibrated.py",
+   "result": "24 passed"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration/p1_checksums.py",
+   "result": "all files ok for kuairand_pure, mind_small, criteo_uplift_v2.1, gharchive_2024-10-07_96h; schemas valid"
+  },
+  {
+   "command": "sha256sum/md5sum on raw files; curl Zenodo record 10439422 and HF tree APIs; re-download data.gharchive.org/2024-10-07-0.json.gz",
+   "result": "all checksums match outside sources; GH Archive hour sha256 and 16 event-type counts match the extraction"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration/p5_criteo_recompute.py",
+   "result": "full test split primary 0.11425529 = reported; constant baseline 0.2091478 = reported; ITT 0.01031; naive exposure contrast 0.378"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration/p6_session_rate.py",
+   "result": "Poisson deviance 3.30146 = reported; B0 3.72459 = reported; predicted rate 1.32 vs observed 1.75"
+  },
+  {
+   "command": "inline: rebuild content_consumption rnd_test from raw CSV",
+   "result": "89,752 rows, 3,805 users, B0 log loss 0.4815997 = reported"
+  },
+  {
+   "command": "slots --cpu 1 -- python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration/p9_reproduce.py",
+   "result": "8 metrics reproduced (abs diff 0 or 2.8e-17)"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration/p3_usage.py",
+   "result": "all 9 population decisions plausible; fitted features never in population FEATURES"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration/p8_world_usage.py",
+   "result": "population world: 6 load calls, all discarded; default social world: 0 load calls"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration/p4_modules.py",
+   "result": "learn module not registered; feed DEFAULTS calibrated = {}"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration/p7_calibrated_open.py",
+   "result": "p_open invariant to uniform affinity shift or scale (max |dp| = 0.0); depends on batch composition"
+  },
+  {
+   "command": "python -c fidelity.sp54_metrics()",
+   "result": "75 important, 40 missing, 18 of 35 register rows parsed"
+  }
+ ],
+ "critical_findings": [
+  "No population decision uses a fitted model: models.build loads content_consumption@1 and commercial_response@1, then silently discards them (feature names never match FEATURES); all 9 decisions run 'plausible, unvalidated' in an integrated run.",
+  "Only news_click@1 is reachable from world code, behind an opt-in feed config set only in tests; the 'learn' domain that uses it is not registered. Criteo, watch, return, session, feed and software models are never consumed.",
+  "FIDELITY_REGISTER rows 23-33 claim fitted in-world use 'via calibration.load' that does not happen; SP-5.4 fails (40 modules) and its parser drops 17 rows after a blank line.",
+  "CalibratedOpen quantile-maps affinity by rank within the session batch: p_open is exactly invariant to uniformly better content (max |dp| = 0) and depends on other viewers in the batch, a non-transferable simulator artifact.",
+  "Offline calibration is genuine: checksums match Zenodo, HF and GH Archive; I reproduced the Criteo full-test primary 0.114255 and session_rate deviance 3.3015 exactly; ITT (0.010) is correctly kept separate from the naive exposure contrast (0.378).",
+  "Protocol and licence: the E2 amendment added the eventually-kept candidates after test metrics were seen (disclosed; SP-5.5 passes); MIND came from an unofficial mirror that skips the licence gate; raw GitHub actor ids are kept."
+ ],
+ "files_written": [
+  "docs/v5/audit/E_calibration.md",
+  "docs/v5/audit/E_calibration.json"
+ ],
+ "skeptic": {
+  "reviewer": "independent skeptic pass",
+  "head_commit": "dd745b9 (area code identical to a881d18)",
+  "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration_skeptic",
+  "summary": "7 verdicts changed: S3 registry RETAIN->REPAIR, S5 commercial RETAIN->REDESIGN, S8 effort S->M with its 'measures correctly' claim overturned, F.1 RETAIN->REPAIR, F.2 RETAIN->REDESIGN, F.6 RETAIN->REPAIR, F.8 RETAIN->REPAIR. Upheld: S1, S2, S4, S6 (strengthened), S7, F.3, F.4, F.5, F.7, F.n1, SP-5.4, SP-5.5. criteria_weak set to true for F.3, F.5, F.6 and F.n1.",
+  "overturned": [
+   {
+    "target": "Model registry and checkpoints (S3)",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S",
+    "why": "s1: editing the unhashed model_card.json (features order, feature_quantiles, prior_rate, selection.kept) changes predictions and in-world inputs while load succeeds, hash_mismatches=0 and qualifies=True; the F.6 tamper test only flips an npz byte (test_gate_F.py:170).",
+    "work_needed": "Bring the card's behavioural fields under the hash (or move them into the npz) and pin card plus checkpoint hashes in an index outside the model directory; extend the tamper test to cards."
+   },
+   {
+    "target": "Commercial intervention-response model (S5)",
+    "from": "RETAIN",
+    "to": "REDESIGN",
+    "effort": "L",
+    "why": "s3: respond(rng, types, treated) and sample_types(rng, n) take no individual state, ad content, relevance, price or frequency. The default table gives 18.4% of individuals a negative effect down to -2.6pp (honest table min -0.14pp), and the type-level slope is 0.84. transport scales the absolute ATE 15x (0.0025 to 0.039) with the base rate. Criteo sub-sampled the data so the incrementality level cannot be deduced. Offline estimator upheld.",
+    "work_needed": "Design an in-world ad-response mechanism that ties response to observable individual state and to ad attributes (creative relevance through the content models, frequency and saturation, price), labels the absolute effect as non-empirical, validates transport against an independent randomised source, and makes the honest table the default."
+   },
+   {
+    "target": "Gate F / SP-5.5 audit and reproduction machinery (S8)",
+    "from": "REPAIR (S)",
+    "to": "REPAIR (M)",
+    "effort": "M",
+    "why": "s2: with every E1 report rewritten so the kept model loses, calibration set to NaN and limits replaced by 200 'x' characters, plus a relabelled fake purchase model, all fast F criteria (F.1, F.3-F.6, F.8, F.n1) still pass and domains rise from 5 to 6. The slow F.3 checks only the kept model's primary metric.",
+    "work_needed": "Recompute baseline and calibration metrics from data in the reproduction; require kept beats baseline in F.4; reject non-finite calibration values; cross-check reports against cards; run the reproduction in the official gate path."
+   },
+   {
+    "target": "F.1",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "why": "No fitted domain drives any decision in an integrated world (r8 rerun: all 9 population decisions plausible; the default social world makes 0 loads). The fast metric also counts a relabelled model as a new domain (s2).",
+    "work_needed": "Wire at least 3 domains into the default Tier 2 and Tier 3 worlds through validated adapters; change the criterion to count domains whose model drives recorded in-world decisions."
+   },
+   {
+    "target": "F.2",
+    "from": "RETAIN",
+    "to": "REDESIGN",
+    "why": "Commercial response needs a redesigned in-world interface and nothing calls it (s3). The randomised-exposure content model is never used, while the only reachable exposure-response model is observational news_click, whose card forbids causal use (limit 3).",
+    "work_needed": "Integrate content_consumption (randomised exposure) as the exposure-response model for feed and short-video platforms and run in-world random-exposure validation against KuaiRand; redesign the ad interface as for S5."
+   },
+   {
+    "target": "F.6",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "why": "s1: checkpoint_hash_mismatches==0 holds while card parameters that determine behaviour are altered. The expected hash sits in the card next to the file (self-referential).",
+    "work_needed": "As for S3.",
+    "criteria_weak": true
+   },
+   {
+    "target": "F.8",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "why": "The limits are documented but not enforced and are broken by world code: CalibratedOpen uses news_click as an exposure response (limit 3), SlateClicks uses it on lesson search (limit 2), and s8 shows it accepted on social posts (limit 1). s2 shows 200 characters of filler pass.",
+    "work_needed": "Machine-readable allowed-use and population scopes per card, enforced at load or by the consumer, plus a negative test that a forbidden use raises.",
+    "criteria_weak": true
+   }
+  ],
+  "upheld": [
+   {
+    "target": "S1 datasets",
+    "verdict": "REPAIR",
+    "note": "MIND ungated mirror confirmed (datasets.py:144-190). Actor-id privacy severity lowered: extracted tables are outside the repo (/workspace/data/crucible/...) and never committed."
+   },
+   {
+    "target": "S2 offline pipelines",
+    "verdict": "EXTEND",
+    "note": "No feature leakage found in MIND popularity (hours < h) or KuaiRand PriorCounts. Added defect: selection ignores calibration (kept news_click ECE 0.0031 vs constant 0.00068; return_daily 0.0261 vs 0.0210). Equal-width ECE puts 86% of news_click rows in one bin."
+   },
+   {
+    "target": "S4 coverage",
+    "verdict": "EXTEND",
+    "note": "upheld"
+   },
+   {
+    "target": "S6 integration",
+    "verdict": "REDESIGN",
+    "note": "Strengthened. s4: with matching names, the purchase decision returns 4n probabilities for n individuals and is labelled empirically fitted. s5: the calibrated open ignores follow, share, seen, familiarity, satisfaction and duration. s8: limits not enforced. test_v5_social_calibrated.py:49,68 would pass on the defect."
+   },
+   {
+    "target": "S7 fidelity register",
+    "verdict": "REPAIR",
+    "note": "Rows 23/24/27/31/32 spot-checked; record_problems never checks that a claimed model is loaded."
+   },
+   {
+    "target": "F.3",
+    "verdict": "RETAIN",
+    "criteria_weak": true,
+    "note": "Numbers reproduce, but the manifest criterion counts fabricated reports (s2); reproduction is slow-only and covers only the kept primary metric."
+   },
+   {
+    "target": "F.4",
+    "verdict": "EXTEND",
+    "criteria_weak": true,
+    "note": "s2: 7 losing comparisons still count; test_F_4 never asserts on learned_models_beating_baseline."
+   },
+   {
+    "target": "F.5",
+    "verdict": "RETAIN",
+    "criteria_weak": true,
+    "note": "s7 independently reproduces the ECE/Brier/coverage of 4 models exactly. NaN accepted (s2); no in-world calibration measured."
+   },
+   {
+    "target": "F.7",
+    "verdict": "REPAIR",
+    "note": "Licence route upheld; privacy severity lowered."
+   },
+   {
+    "target": "F.n1",
+    "verdict": "RETAIN",
+    "criteria_weak": true,
+    "note": "The 'not synthetic' status is a self-declared flag, linked to checkpoints only by card claims."
+   },
+   {
+    "target": "SP-5.4",
+    "verdict": "REPAIR",
+    "note": "t1 reproduces 40 missing."
+   },
+   {
+    "target": "SP-5.5",
+    "verdict": "REPAIR",
+    "note": "selection_check reads only cards; 'better' means the primary metric only."
+   }
+  ],
+  "requirement_verdicts_after_skeptic": {
+   "F.1": "REPAIR",
+   "F.2": "REDESIGN",
+   "F.3": "RETAIN",
+   "F.4": "EXTEND",
+   "F.5": "RETAIN",
+   "F.6": "REPAIR",
+   "F.7": "REPAIR",
+   "F.8": "REPAIR",
+   "F.n1": "RETAIN",
+   "SP-5.4": "REPAIR",
+   "SP-5.5": "REPAIR"
+  },
+  "criteria_weak_after_skeptic": {
+   "F.1": true,
+   "F.2": true,
+   "F.3": true,
+   "F.4": true,
+   "F.5": true,
+   "F.6": true,
+   "F.7": true,
+   "F.8": true,
+   "F.n1": true,
+   "SP-5.4": true,
+   "SP-5.5": true
+  },
+  "additional_findings": [
+   "The world can wire in only the observational news_click model (its card forbids causal use) as an exposure response, while the randomised-exposure KuaiRand model is never used.",
+   "CalibratedOpen reads no follow, share-arrival, already-seen, familiarity, satisfaction or duration state (s5): enabling calibration removes social diffusion and repeat avoidance from opening on that platform.",
+   "World-facing card parameters (feature_quantiles, prior_rate) are outside every integrity check (s1).",
+   "The fast Gate F suite passes on degraded or fabricated evidence (s2); unofficial Gate F passes are weak evidence.",
+   "The default ad-response table is the over-dispersed 'model' table (slope 0.84, 18% spurious negative responders). Criteo distorted the incrementality level, so in-world ad return on investment is set by transport and a hand-chosen base rate."
+  ],
+  "tests_run": [
+   {
+    "command": "PYTHONPATH=src timeout 900 python -m pytest -q -p no:cacheprovider tests/v5/test_gate_F.py tests/v5/test_gate_SP_5_4.py tests/v5/test_gate_SP_5_5.py tests/test_v5_social_calibrated.py -m 'not slow'",
+    "result": "14 passed, 1 failed (SP-5.4: 40), 1 deselected (F.3 slow)"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration_skeptic/s1_card_tamper.py",
+    "result": "card edits: load ok, 0 mismatches, qualifies; news_click mean p 0.039->0.082; gate metrics unchanged"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration_skeptic/s2_gate_fabrication.py",
+    "result": "all fast F criteria met on degraded registry; domains 5->6 with fake model; 7 losing comparisons and 7 NaN calibrations counted"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration_skeptic/s3_commercial_types.py",
+    "result": "respond/sample_types ignore individual and ad attributes; 18.4% negative responders (model table); transport ATE 0.0025-0.039"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration_skeptic/s4_popplug_semantics.py",
+    "result": "purchase.prob returns 20 values for 5 individuals once names match; labelled empirically fitted"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration_skeptic/s5_calibrated_open_social.py",
+    "result": "CalibratedOpen reads no follow/share/seen/familiar/satisfaction/duration state"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration_skeptic/s6_report_card_consistency.py",
+    "result": "reports consistent with cards for all 9 models"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration_skeptic/s7_calibration_recompute.py",
+    "result": "ECE/Brier/coverage of content_consumption, content_consumption_feed, watch_duration, return_daily equal the reports"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/E_calibration_skeptic/s8_limits_enforcement.py",
+    "result": "news_click accepted on the social-posts platform; no limit check"
+   },
+   {
+    "command": "rerun auditor p7_calibrated_open.py and p8_world_usage.py",
+    "result": "identical outputs"
+   }
+  ]
+ }
+}

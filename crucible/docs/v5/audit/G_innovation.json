@@ -1,0 +1,582 @@
+{
+ "area": "G_innovation",
+ "workstreams": [
+  "G"
+ ],
+ "worktree": "/workspace/agentrs/.worktrees/c5-complete (feat/crucible-5-complete @ a881d18)",
+ "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/G_innovation",
+ "subsystems": [
+  {
+   "name": "Capability registry v5",
+   "paths": [
+    "src/crucible/innovation/caps.py",
+    "src/crucible/services/capabilities.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "T1/T2 pass; caps.try/verify execute the live service via cloud.call_endpoint (caller pays, capacity enforced); adoption requires own successful trial (invariant caps.py:564-584). P7: caps.tried/adopted payloads seen by participant and provider carry 'independent'. P3 R4: search results carry independent_trials/ok_rate/adopters. grep: 4.0 categories/graph have 0 references to cap_decls.",
+   "key_defects": [
+    "evaluator is_related verdict exposed in search results and event payloads (caps.py:153-165,353,457) - Sybil oracle, violates observation-only amendment",
+    "parallel 4.0/v5 concepts (install vs adopt_service, caps.test vs caps.verify, ops.requests vs needs.requests); v5 declarations not in caps.categories/graph/review",
+    "no subjective-usefulness path (reviews) for declarations; registry opt-in so no 4.0 world has it",
+    "discovery recorded on any search hit (cap_seen)"
+   ],
+   "work_needed": "Remove 'independent' and independence-filtered stats from agent-visible payloads (keep evaluator-side; show raw counts or none). Merge v5 declarations into 4.0 categories/graph/review/evidence; one test mechanism; wire registry into Tier 2/3 world generators."
+  },
+  {
+   "name": "Needs graph",
+   "paths": [
+    "src/crucible/innovation/needs.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "L",
+   "evidence": "T2 SP-6.4: 6 relation types used, 0 invalid paths. P5: world-data edges for skill:, transport: (with capacity constrains), coordination: yield no needs; only cap: fires. P3 R3: needs.derived (kind/target/path, holders list) delivered to operator and to participants.",
+   "key_defects": [
+    "observables/dispatch hard-wired to compute:/cap:/pkg: prefixes (needs.py:263,287,314,323): not reusable by other domains without code edits",
+    "derived needs pushed into holders' observations and needs.mine (needs.py:415-418,461-475): environment opportunity oracle; payload leaks other holders' identities",
+    "adopters read module internals nmod._held directly (adopt.py:211)",
+    "covers none of the 6.4 examples beyond compute capacity, failing producers, schema complements and package advisories"
+   ],
+   "work_needed": "Make derivation evaluator-side by default (vis internal, needs.mine off in observation_only); define a registration interface so any module contributes typed nodes, resources with capacity/utilisation observables and constraints; rules generic over node kinds; extend to skills, transport/market access, coordination, content/community, supply inputs; validate on worlds whose relations are only data."
+  },
+  {
+   "name": "Software ecosystem (pkg)",
+   "paths": [
+    "src/crucible/innovation/pkg.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "T2 SP-6.5: 15 features, 2 adoptions by execution (scripted history). P1: assert-False repro verified as critical advisory against vecmath, created an alternative need for dependent p:ana, never fixable (1.0.1 added to affected); _pkgtrace._C overwrite recorded independent adoption with 1000 calls and zero real calls; own files under deps/vecmath/ recorded adoption; non-fork with description 'fork of eve/vecmath' registered forked_from=vecmath; invariants [] throughout.",
+   "key_defects": [
+    "advisory verified iff any repro test fails (pkg.py:772) - no requirement that the test exercises the package or passes on a fixed/reference version",
+    "adoption tracer counter lives in user-reachable module global _pkgtrace._C (pkg.py:44-66) and attributes by path substring /deps/<name>/ including dependent-authored files",
+    "fork lineage parsed from user-settable description (pkg.py:306-309)",
+    "remedies() returns only same-package releases despite docstring (pkg.py:828-840): switching to a substitute package can never address a need",
+    "no autonomous developer population; deployed-service execution of package code not traced"
+   ],
+   "work_needed": "Verify advisories by differential execution (repro fails on affected release, calls into package code, passes on a reference or later release) plus independent review; trace calls out-of-band (tracer state outside the user interpreter, or parent-side sys.monitoring with frames attributed by mounted-file digests); reject dependent files under deps/; first-class forked_from on code repos; substitute-package remedies; developer participants that search, depend, execute, upgrade and file issues autonomously."
+  },
+  {
+   "name": "Demand side: need-driven participants and problem formats",
+   "paths": [
+    "src/crucible/innovation/adopt.py",
+    "src/crucible/innovation/formats.py",
+    "src/crucible/economy/needs.py"
+   ],
+   "verdict": "REDESIGN",
+   "effort": "L",
+   "evidence": "P3 R1: innovation_spec(needs={'palette.extract':1}) -> KeyError. P3 R2: novel palette.extract service: 24 'discoverers', 0 trials, 0 adopters, 0 transactions vs route service 24/72/24/487. P6: with module use, adopters accept gen.* categories (still predefined families). P2: market J.3-J.6 hold on 4 seeds.",
+   "key_defects": [
+    "participants can only hold predefined formats with built-in verifiers (adopt.py:78): novel categories have no demand",
+    "quality judged with generator hidden truth (adopt.py:143,186): perfect-perception oracle, J.5 guaranteed by construction",
+    "fixed single need per participant set at genesis; no endogenous demand change, no income",
+    "forum discovery requires literal format name in title/snippet (adopt.py:107); templated posts",
+    "parallel to 4.0 economy/consumers and workstream-B population; no fidelity register row; parameters uncalibrated"
+   ],
+   "work_needed": "Replace with population-B individuals whose tasks and needs evolve with world state; evaluation via participant-authored tests and noisy experience, not hidden truth; open-ended needs (tasks expressed as goals that novel capabilities can satisfy, subjective utility from diverse grounded responses); calibrate adoption against software_repo_growth@1 or other data and add fidelity rows."
+  },
+  {
+   "name": "Gate J/L measurement helpers",
+   "paths": [
+    "src/crucible/innovation/measure.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "S",
+   "evidence": "P5 N2: 5,000,000-cent acct_genesis 'endowment' to creator after 12 adoptions -> special_case_bonuses 0 (kind 'grant' -> 1). P3 R2: discoverers=24 for product with 0 trials. Code: categories are artifact kinds (measure.py:64,75).",
+   "key_defects": [
+    "special_case_bonuses excludes all endowment-kind system transfers (measure.py:312)",
+    "discoverers counts mere search hits / learned hosts (measure.py:89-105)",
+    "product category = artifact kind; is_agent counts scripted admin.join kind=agent principals as agents"
+   ],
+   "work_needed": "Count every post-admission system credit; static scan of all modules; define discovery as inspection or trial; categories by capability semantics; provenance field separating scripted, NPC and learner creators."
+  },
+  {
+   "name": "Scenario worlds and Gate L chain evidence",
+   "paths": [
+    "src/crucible/innovation/scenarios.py",
+    "tests/v5/test_gate_L.py"
+   ],
+   "verdict": "REDESIGN",
+   "effort": "L",
+   "evidence": "T2 L.4 4/4 chains, L.5 3/3. P2 alternative seeds: capacity 4/4; batch fails at seed 8 (out of order; base CU 3.54M with vs 4.36M without); social L.5 fails at seed 3 (3/9 forum adopters remain). Extractors match literal hosts (test_gate_L.py:47-110). Software chain 4/5 stages scripted. cu_per_ms 5000 tuning (scenarios.py:199,228).",
+   "key_defects": [
+    "four hand-built single-purpose lean worlds, one chain each; not a civilisation",
+    "per-scenario chain extractors keyed on host names; no generic chain discovery",
+    "scripted stages counted (software chain, on_request builder) contrary to Part 10.3",
+    "single seed per chain, hand-tuned L.5 thresholds, no replication rate"
+   ],
+   "work_needed": "Generic causal-chain miner over the event log (stage = state change in a subsystem, linked by recorded causal edges); run inside Tier 3 civ worlds with population and autonomous creators; L.5 as fork-removal effect sizes with CIs over >=5 seeds; enforce agent-artifact, social and technical chain composition and exclude scripted stages."
+  },
+  {
+   "name": "Scripted reference agents",
+   "paths": [
+    "src/crucible/innovation/reference.py"
+   ],
+   "verdict": "RETAIN",
+   "effort": "S",
+   "evidence": "Act only through world.execute as their own principals; labelled kind=scripted; drove every reproduced gate run (T2, P2).",
+   "key_defects": [
+    "counted as 'agents' by is_agent, so J.1 can be met by scripts alone (labelling, not a code defect)"
+   ],
+   "work_needed": "Keep as feasibility references; never as sole evidence for J.1/L.3; add an LM or learner creator alongside."
+  },
+  {
+   "name": "World construction (innovation_spec, Infra)",
+   "paths": [
+    "src/crucible/innovation/worlds.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "M",
+   "evidence": "Builds lean worlds used by every scenario; grep shows no Tier 2 domain, civ or population module composes caps(registry)/needs/pkg (only redteam/v5/worlds.py).",
+   "key_defects": [
+    "not composed into any Tier 2/3 world; civ and multiagent are stubs",
+    "hard-coded FORMAT_SCHEMAS and a single STANDARD_INTERFACE (route.render)"
+   ],
+   "work_needed": "Provide composition recipes consumed by domains (software ecosystem 9.2, technology invention 9.6, infrastructure 9.7) and civ generator; generate interfaces and formats procedurally."
+  },
+  {
+   "name": "4.0 usefulness substrate",
+   "paths": [
+    "src/crucible/usefulness/"
+   ],
+   "verdict": "RETAIN",
+   "effort": "S",
+   "evidence": "T4 52 tests pass; P6 shows its generated categories register as NEEDS and v5 adopters accept them.",
+   "key_defects": [
+    "not used by any v5 scenario or gate; still predefined procedural families (by design, preserved per spec)"
+   ],
+   "work_needed": "Use as one demand source in integrated worlds alongside open-ended needs."
+  },
+  {
+   "name": "Sandbox",
+   "paths": [
+    "src/crucible/sandbox/runner.py",
+    "src/crucible/sandbox/boot.py"
+   ],
+   "verdict": "RETAIN",
+   "effort": "S",
+   "evidence": "P8 capabilities(): landlock_abi 4 (net), seccomp, nobody; pool allow_weak False; T3 test_sandbox passes; all pkg/caps executions ran there.",
+   "key_defects": [
+    "measured code shares the interpreter with in-sandbox instrumentation (exploited in pkg tracer, see pkg)"
+   ],
+   "work_needed": "Keep; move measurement instrumentation out of the user-reachable interpreter state."
+  },
+  {
+   "name": "Cloud hosting and metering (cost model)",
+   "paths": [
+    "src/crucible/services/cloud.py",
+    "src/crucible/sandbox/bridge.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "P4: builtin sorted(3e6)+24 MB bytes: real 149.4 ms, metered 0.043 ms; 2,000-iteration Python loop: real 1.7 ms, metered 4.04 ms. P3 R5: same 300-item sort 135.2 ms (bubble) vs 0.039 ms (sorted).",
+   "key_defects": [
+    "deterministic cost model = executed Python lines x 0.001 ms (bridge.py:20,101-102): C/builtin work is free, so 'actual world resource consumption' (J.7) and capacity-driven needs are not compute",
+    "scenarios rescale with cu_per_ms 5000 to make constraints bind"
+   ],
+   "work_needed": "Deterministic but faithful work accounting (e.g. instruction or opcode counts including C calls via perf-free counters, calibrated per-builtin cost tables, or recorded real CPU replayed from the log); report memory and I/O; recalibrate CU against real CPU."
+  },
+  {
+   "name": "Code hosting and issue tracking",
+   "paths": [
+    "src/crucible/services/code.py",
+    "src/crucible/services/issues.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "S",
+   "evidence": "Used by every pkg action in T2/P1; fork lineage only via description string (code.py:316 'fork of X'), forgeable (P1 P4).",
+   "key_defects": [
+    "no first-class forked_from or commit ancestry on repos"
+   ],
+   "work_needed": "Record fork parent and base commit in repo state; expose it to pkg."
+  },
+  {
+   "name": "4.0 autonomous invention, open-endedness census and causal evaluation",
+   "paths": [
+    "src/crucible/actors/innovators.py",
+    "src/crucible/evaluation/open_endedness.py",
+    "src/crucible/evaluation/causal.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "M",
+   "evidence": "T3 test_npc_innovation passes; grep: not referenced by any innovation/ code or gate test.",
+   "key_defects": [
+    "v5 gates use scripted creators although autonomous NPC inventors (problem identification, program grammar, trials, hill climbing) exist",
+    "census/ablation machinery not applied to v5 registry, needs or pkg"
+   ],
+   "work_needed": "Connect innovators to v5 declarations, needs consequences and packages; use census and ablation as Gate J/L instruments."
+  }
+ ],
+ "requirements": [
+  {
+   "id": "J.1",
+   "verdict": "EXTEND",
+   "reason": "Reproduced 4 products (1 service, 3 packages) but all created by scripted reference agents in a lean standalone world; scripted principals count as 'agents' (measure.py:24-36); no learner or LM agent has used caps/pkg; implementation_files empty.",
+   "work_needed": "Re-run inside a Tier 2 software or technology-invention domain and a Tier 3 civ; add a non-scripted creator (4.0 NPC innovator, small learner or LM agent) acting only through tools; record provenance; list implementation files in the manifest.",
+   "criteria_weak": true
+  },
+  {
+   "id": "J.2",
+   "verdict": "RETAIN",
+   "reason": "Publication is a real public caps.declared (search-indexed) or pkg.released event; reproduced 4.",
+   "work_needed": "Re-run in the integrated world; list implementation files.",
+   "criteria_weak": false
+  },
+  {
+   "id": "J.3",
+   "verdict": "REPAIR",
+   "reason": "Discovery counts any search hit or learned host: a novel service nobody tested had 24 'discoverers' (P3). Discoverers are workstream-G rule-based adopters, not population B.",
+   "work_needed": "Redefine discovery as inspecting the declaration/docs or trying it; count population-B principals; require discovery through more than one channel.",
+   "criteria_weak": true
+  },
+  {
+   "id": "J.4",
+   "verdict": "EXTEND",
+   "reason": "Users are principals for whom the product executed (sound); reproduced 24, robust across 4 seeds; but they are G adopters with fixed needs.",
+   "work_needed": "Use population-B users with their own evolving tasks in the integrated world.",
+   "criteria_weak": false
+  },
+  {
+   "id": "J.5",
+   "verdict": "EXTEND",
+   "reason": "Fork contrast tier-1 vs tier-0 gives p=1.6e-12; robust over 4 seeds; but adopters score outputs with the generator's hidden truth against fixed thresholds (adopt.py:143), so the effect is guaranteed by construction.",
+   "work_needed": "Adopters judge with their own imperfect tests or experience; replicate across >=5 seeds and several product types; report effect sizes.",
+   "criteria_weak": false
+  },
+  {
+   "id": "J.6",
+   "verdict": "RETAIN",
+   "reason": "1,092 real ledger sales from 24 unrelated participants' own accounts; related parties and system accounts excluded.",
+   "work_needed": "Strengthen criterion: several independent payers, net of refunds, sustained over a window; re-run in integrated world.",
+   "criteria_weak": true
+  },
+  {
+   "id": "J.7",
+   "verdict": "REPAIR",
+   "reason": "Delta +57,694 CU is the product's own footprint versus no product, measured by a cost model that counts Python lines (P4: 149 ms builtin work metered 0.043 ms).",
+   "work_needed": "Faithful work accounting; measure change in pre-existing resource consumption (providers' utilisation, displaced work) between fork arms with CIs.",
+   "criteria_weak": true
+  },
+  {
+   "id": "J.n1",
+   "verdict": "EXTEND",
+   "reason": "Categories are artifact kinds (api_service, software_package); the package category has 1 scripted user and 0 transactions; novel categories get no demand (P3).",
+   "work_needed": "Require >=2 capability categories each passing J.1-J.7, at least one absent from the predefined formats.",
+   "criteria_weak": true
+  },
+  {
+   "id": "L.1",
+   "verdict": "EXTEND",
+   "reason": "5 fork-arm differences in G's own scenario worlds; several are the product's own adoptions rather than pre-existing conditions.",
+   "work_needed": "Measure effects on pre-existing conditions in a civ world with CIs over seeds.",
+   "criteria_weak": true
+  },
+  {
+   "id": "L.2",
+   "verdict": "EXTEND",
+   "reason": "8 needs, all labels from G's own rule engine restricted to compute/cap/pkg (P5: skill/transport/coordination edges produce none); needs are pushed to holders as an oracle.",
+   "work_needed": "Generic node and observable registration across domains; needs evaluator-side by default; demonstrate needs from education, transport, coordination and content mechanisms.",
+   "criteria_weak": true
+  },
+  {
+   "id": "L.3",
+   "verdict": "EXTEND",
+   "reason": "2 addressed: one by scripted on_request builder polling needs.requests, one by a scripted fixed release.",
+   "work_needed": "Addressed by autonomous entrepreneurs or learners reacting to observable consequences in the integrated world.",
+   "criteria_weak": false
+  },
+  {
+   "id": "L.4",
+   "verdict": "REDESIGN",
+   "reason": "4 chains from 4 hand-built worlds, extractors keyed on literal hosts (test_gate_L.py:47-110); software chain 4/5 stages scripted; batch chain out of order at seed 8 (P2); no civ.",
+   "work_needed": "Generic chain mining over the event log of Tier 3 civ runs; enforce Part 10.3 composition (agent artifact, social, technical) and exclude scripted stages; replicate over seeds.",
+   "criteria_weak": true
+  },
+  {
+   "id": "L.5",
+   "verdict": "EXTEND",
+   "reason": "Fork-from-snapshot removal is exact and sound; but predicates are hand-tuned per chain on single seeds; on alternative seeds 2 of 12 predicates fail (batch@8, social@3).",
+   "work_needed": "Apply the removal instrument to mined chains with effect-size tests across >=5 seeds and a pre-registered confirmation rate.",
+   "criteria_weak": true
+  },
+  {
+   "id": "L.n1",
+   "verdict": "REPAIR",
+   "reason": "Runtime check excludes every endowment-kind system transfer: a 5,000,000-cent post-success 'endowment' bonus counted 0 (P5); static scan limited to crucible/innovation.",
+   "work_needed": "Count all post-admission system-account credits to creator circles regardless of kind; scan every module; add planted-bonus positive control.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-6.3",
+   "verdict": "EXTEND",
+   "reason": "Works for a service of a predefined format (24 full discover-test-adopt-use paths; broken service tested by 24, adopted by 0; independent suite 1.0 vs 0.5); a novel-category service gets 0 trials (P3); subjective usefulness absent.",
+   "work_needed": "Open-ended demand with participant-authored tests and diverse grounded subjective responses; demonstrate adoption of a service of a category that did not exist at genesis.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-6.4",
+   "verdict": "EXTEND",
+   "reason": "6 relation types used and 0 special-case triggers by static literal and rename checks; but rules dispatch on compute/cap/pkg prefixes and data-supplied relations for other kinds yield nothing (P5).",
+   "work_needed": "Registration interface for nodes/resources/observables from any module; generality test with relations supplied only as data in several domains; cover the 6.4 examples.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-6.5",
+   "verdict": "REPAIR",
+   "reason": "All 15 features exist but are exercised once by a scripted history; advisory verification, adoption-by-execution and fork lineage are forgeable (P1) and invariants do not detect it; no substitute-package remedies.",
+   "work_needed": "Differential advisory verification; isolated call tracing; first-class lineage; substitute remedies; autonomous developer population; forgery positive controls as criteria.",
+   "criteria_weak": true
+  }
+ ],
+ "missing_requirements": [
+  "6.3: subjective usefulness from diverse grounded participant responses (no single global LLM judge) - no manifest entry",
+  "6.3: adoption of a genuinely novel product category (not a predefined format) - no criterion; currently impossible (P3)",
+  "6.3: dynamically discovered uses for existing technologies; workflows combining independently created services as first-class registry objects",
+  "6.4: agent-created novel combination of capabilities whose adoption changes future civilisation state without designer-supplied demand (route.batch was hand-added to FORMATS)",
+  "6.4: the example need mechanisms (workflow change, transport/market access, coordination needs, content->communities/tools, education->skill availability)",
+  "6.5: forgery resistance of adoption-by-execution and advisory verification; stars-not-adoption as a criterion; adoption by autonomous independent developers; long-horizon maintenance; agent programs run in the sandbox (no G entry)",
+  "10.3/Gate L: at least one chain with an agent-created artifact, one social, one technical (recorded in L.4 metrics but not in criteria); no scripted narrative stages; chains in the integrated Tier 3 civilisation; replication across seeds",
+  "Observation-only amendment: no evaluator verdicts ('independent') or derived-need oracle in tool responses/event metadata by default; innovation worlds reachable through experience.make in observation_only mode (experience/registry.py:99 and api/gym_env.py:71 still default to legacy_shaped_reward)",
+  "SP-5.4 coverage: fidelity register rows for modules caps, needs, pkg, adopt, infra (none exist)",
+  "Manifest hygiene: all 17 G entries have implementation_files [] which checker.py:95-97 reports as a problem"
+ ],
+ "tests_run": [
+  {
+   "command": "slots --cpu 1 -- pytest -q -p no:cacheprovider tests/test_v5_innovation_caps.py tests/test_v5_innovation_needs.py tests/test_v5_innovation_pkg.py",
+   "result": "21 passed in 24.8 s"
+  },
+  {
+   "command": "slots --cpu 1 -- env TMPDIR=<scratch>/tmp pytest -q -p no:cacheprovider --junitxml=<scratch>/gates_junit.xml tests/v5/test_gate_J.py tests/v5/test_gate_L.py tests/v5/test_gate_SP_6_3.py tests/v5/test_gate_SP_6_4.py tests/v5/test_gate_SP_6_5.py",
+   "result": "17 passed in 96 s; unofficial evidence values identical to docs/v5/components/G.md"
+  },
+  {
+   "command": "slots --cpu 1 -- pytest -q -p no:cacheprovider tests/test_sandbox.py tests/test_npc_innovation.py",
+   "result": "9 passed in 80.7 s"
+  },
+  {
+   "command": "slots --cpu 1 -- pytest -q -p no:cacheprovider tests/test_usefulness.py",
+   "result": "52 passed in 16.4 s"
+  },
+  {
+   "command": "python <scratch>/probe_pkg_integrity.py",
+   "result": "forged assert-False advisory verified (critical), created alternative need, unfixable; _pkgtrace._C overwrite and fake deps/vecmath/ files each recorded an independent adoption; description-based fork lineage forged; invariants []"
+  },
+  {
+   "command": "slots --cpu 1 -- python <scratch>/probe_seed_robustness.py 1,3,4,8 capacity,batch,social,market",
+   "result": "capacity 4/4 chain+L.5; batch 3/4 (seed 8 out of order, base CU lower with composite); social L.5 3/4 (seed 3 fails 25% threshold); market J.3-J.6 hold on 4/4"
+  },
+  {
+   "command": "python <scratch>/probe_registry_openness.py",
+   "result": "novel need KeyError; novel palette.extract service 24 discoverers/0 trials/0 adopters; needs.derived with path visible to operator and participants; search exposes independence stats; same sort 135.2 ms vs 0.039 ms metered"
+  },
+  {
+   "command": "python <scratch>/probe_cost_model.py",
+   "result": "builtin-heavy request real 149.4 ms metered 0.043 ms; Python loop real 1.7 ms metered 4.04 ms"
+  },
+  {
+   "command": "python <scratch>/probe_needs_generality.py",
+   "result": "data edges for skill/transport/coordination produce no needs (only cap: fires); 5,000,000-cent system 'endowment' bonus -> special_case_bonuses 0; kind 'grant' -> 1"
+  },
+  {
+   "command": "python <scratch>/probe_use_integration.py",
+   "result": "with module use, adopters hold gen.allocate.ee2534e9 and a provide need is derived (path exists, unused by any scenario)"
+  },
+  {
+   "command": "python <scratch>/probe_independence_leak.py",
+   "result": "caps.tried and caps.adopted payloads visible to p:u000 and p:ana contain 'independent'"
+  },
+  {
+   "command": "python -c 'sandbox.runner.capabilities(); code.sandbox_pool(world).cfg'",
+   "result": "landlock_abi 4 (net), seccomp, nobody; allow_weak False; count_lines True"
+  }
+ ],
+ "critical_findings": [
+  "pkg.advisory is 'verified' iff any repro test fails (pkg.py:772): an assert-False repro that never touches vecmath was verified critical, spawned an alternative need for its dependent, and can never be marked fixed.",
+  "Adoption-by-execution is forgeable: dependent code overwrote _pkgtrace._C (pkg.py:46) or committed its own deps/vecmath/ files; both recorded independent adoptions with no real calls; invariants stayed clean.",
+  "Demand is closed to predefined formats with hidden-truth verifiers (adopt.py:78,143): a novel palette.extract service got 24 'discoverers', 0 trials, 0 adopters. 6.3 novel categories / 6.4 novel combinations cannot be adopted.",
+  "The deterministic cost model meters Python lines (sandbox/bridge.py:20,101): 149 ms of builtin work is metered 0.043 ms, a 1.7 ms loop 4.04 ms. J.7 and the capacity-driven needs rest on it; builtins give free compute.",
+  "Gate L chains come from 4 hand-built lean worlds with host-keyed extractors; the software chain has 4 of 5 stages scripted; civ is a stub and no domain, population or civ uses innovation; 2 of 12 alternative-seed checks fail.",
+  "Observation-only conflicts: the needs oracle reaches holders (adopters read nmod._held); 'independent' verdicts appear in search results and caps.tried/adopted (a Sybil oracle). L.n1 misses system 'endowment' bonuses."
+ ],
+ "reproduced_gate_metrics": {
+  "J.1": 4,
+  "J.2": 4,
+  "J.3": 24,
+  "J.4": 24,
+  "J.5": 1.55e-12,
+  "J.6": 1092,
+  "J.7": 57694.1,
+  "J.n1": 2,
+  "L.1": 5,
+  "L.2": 8,
+  "L.3": 2,
+  "L.4": "4 chains / min 4 stages",
+  "L.5": "3/3",
+  "L.n1": 0,
+  "SP-6.3": 1,
+  "SP-6.4": "6 relations / 0 triggers",
+  "SP-6.5": "15 features / 2 adoptions"
+ },
+ "transfer_shortcuts": [
+  "poll needs.mine/needs.requests: world names the scarce capability exactly",
+  "build only predefined formats; novelty earns zero trials",
+  "adoption decided by hidden-truth quality score and price thresholds only",
+  "push work into C builtins: compute and capacity limits vanish",
+  "forge package adoption via tracer counter; grief competitors with fake advisories",
+  "read evaluator independence verdicts from 'independent' fields",
+  "forum discovery requires literal format name in post"
+ ],
+ "skeptic": {
+  "reviewer": "skeptic pass (G_innovation)",
+  "worktree_head": "dd745b9 (docs/manifest-only commit after a881d18; no change under src/crucible/{innovation,sandbox,services,usefulness})",
+  "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/G_innovation_skeptic",
+  "tests_run": [
+   {
+    "command": "slots --cpu 1 -- python probe_meter_tamper.py (cost_model deterministic)",
+    "result": "honest 49 OK/351 overloaded per hour; 4 in-code tamper variants (reset __main__._LINES, sys.monitoring.set_events(4,0), _LINES=-1e9, work inside re-import) 400/400 OK; metered cpu_ms 0.029/0.011/-999999.971/0.041 vs 40.04; used_cu -2.0e10; invariants []"
+   },
+   {
+    "command": "slots --cpu 1 -- python probe_meter_tamper_measured.py (cost_model measured)",
+    "result": "rebinding __main__._cpu_ms gives cpu_ms -1.0e9 per request, used_cu -5.0e10; invariants []"
+   },
+   {
+    "command": "slots --cpu 1 -- python probe_j_metrics.py",
+    "result": "10/10 caps.adopted events visible to provider carry hidden-truth 'mean score 1.0', 10 public forum posts too; always-failing service: J.6 n=30, 120 cents, 10 payers with 30/30 refunded; creator-funded mule: 500 calls counted independent; undeployed service published=True, 10 discoverers; invariants []"
+   },
+   {
+    "command": "slots --cpu 1 -- python probe_oracle_dependence.py 2 (scenarios.capacity)",
+    "result": "factual: bo built h37, 57 need requests, 63 boroute adoptions, L.3=1; adopters blind to needs engine: bo never built, 0 requests, 0 adoptions, L.3=0; blind + bo unconditional day 2: 17 adoptions via own re-search, L.3=1"
+   },
+   {
+    "command": "slots --cpu 1 -- python probe_use_lab_leak.py",
+    "result": "use.probe returns hidden-evaluator mean_score 0.2369 (worst tier) vs 0.9993 (best tier) to the operator; use.report exposes verified_quality; no reward_mode"
+   },
+   {
+    "command": "slots --cpu 1 -- python probe_planted_need.py",
+    "result": "only emerged need is provide cap:route.render (complements) held by all 12 route.shortest participants, never produced or used; disappears with needs_cfg interfaces=[]"
+   },
+   {
+    "command": "slots --cpu 1 -- python probe_reference_labels.py",
+    "result": "ServiceCreator.kind 'scripted' but persons.kind 'agent', measure.is_agent True, counted by J.1; direct world.state/modules reads at reference.py:55,120,139,154,220,261,289; uses needs.requests/needs.mine"
+   },
+   {
+    "command": "slots --cpu 1 -- pytest -q -p no:cacheprovider -x tests/test_sandbox.py tests/test_v5_innovation_caps.py",
+    "result": "17 passed in 8.4 s (no test of meter or tracer tampering; test_sandbox.py:93-96 checks only determinism)"
+   }
+  ],
+  "overturned_subsystems": [
+   {
+    "name": "Sandbox",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "M",
+    "why": "Isolation holds, but accounting/attestation (_LINES, tool 4, _IMPORTING, _cpu_ms in boot.py:227-296; _pkgtrace) lives in the user interpreter and is rewritten by 1-3 lines of user code (S1, S2); invariants clean.",
+    "work_needed": "Parent-side (out-of-process) work accounting and execution/import attestation; reject negative/non-finite values; red-team tests for meter and tracer tampering."
+   },
+   {
+    "name": "Cloud hosting and metering (cost model)",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "effort": "L",
+    "why": "cloud.py:212 and ap_usage (cloud.py:763-777) accept negative/zero CU from the worker; capacity check (cloud.py:175-181) uses that EMA, so one forged report disables overload; both cost models forgeable. A tamper-proof deterministic meter that also charges builtins needs a different execution substrate.",
+    "work_needed": "Fuel/instruction metering outside the metered program (fuel-metered interpreter or WASM runtime, or out-of-process tracing) plus builtin/C-call cost; validate values. Cross-cutting: every cost_model=deterministic world (innovation, population, training league, ow_families, redteam, semantic)."
+   },
+   {
+    "name": "Scripted reference agents",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S",
+    "why": "Joined as kind 'agent' (reference.py:34-35) and counted by measure.is_agent, contrary to 10.3 accurate labelling; reads world.state directly despite docstring (reference.py:3-5, line 154 is a decision input); depends on needs.requests/needs.mine oracles and never acts without them (S4 blind arm).",
+    "work_needed": "Distinct 'scripted' principal kind excluded by is_agent; remove state reads; act on observable consequences only."
+   },
+   {
+    "name": "4.0 usefulness substrate",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "M",
+    "why": "use.probe (usefulness/module.py:107-160) returns hidden-evaluator mean_score (0.24 vs 1.00 by tier) and use.report returns verified_quality (module.py:191-201,366,415) to operators; live in ow_market/ow_frontier/ow_composite/ow_heldout/ow_tiny/ow_works; no reward_mode gating (S5).",
+    "work_needed": "Evaluator-only by default or explicit legacy mode; keep revenue/retention/error consequences."
+   },
+   {
+    "name": "Needs graph",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "effort": "L",
+    "why": "Acts as an in-world oracle that drives the chain it measures: holders receive needs events (needs.py:415-446), adopters publish and switch only via needs._held (adopt.py:207-238), entrepreneur builds only on needs.requests (reference.py:99-109). Hiding it sets L.3 to 0 (S4). Planted STANDARD_INTERFACES (worlds.py:45-49) create phantom participant needs (S6).",
+    "work_needed": "Split into an evaluator-only labeller (invisible in-world by default) and in-world observable consequences (complaints, tickets, status/outage pages, churn) actors interpret themselves; generic observables registered by other modules; holders only when own activity requires the target."
+   }
+  ],
+  "overturned_requirements": [
+   {
+    "id": "J.2",
+    "from": "RETAIN",
+    "to": "EXTEND",
+    "criteria_weak": true,
+    "why": "published is hard-coded True for every service declaration (measure.py:67); withdrawn service still counts (S3D); only scripted creators labelled 'agent' publish (S7).",
+    "work_needed": "Non-scripted agent publishing in the integrated world; published = discoverable while live."
+   },
+   {
+    "id": "J.6",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "criteria_weak": true,
+    "why": "measure.py:136-161 counts gross sale txns, ignoring refunds (cloud.py:161-162) and funding provenance: 30 refunded sales from an always-failing service and 500 creator-funded calls counted (S3B, S3C).",
+    "work_needed": "Net of refunds, delivered calls only, Gate K circular/related-flow detection on funding, several payers over a sustained period."
+   },
+   {
+    "id": "J.5",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "criteria_weak": true,
+    "why": "Only judge is the hidden-truth verifier with fixed threshold (adopt.py:139-146,158): 24/24 vs 1/24 by construction; produced by the demand side the auditor rated REDESIGN; the hidden score also reaches the creator (S3A).",
+    "work_needed": "Fallible participant-owned judgement in open demand; replication across seeds."
+   },
+   {
+    "id": "J.7",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "criteria_weak": true,
+    "why": "CU delta rests on a meter the product can drive to -2e10 (S1, S2); a rent-only metric would be trivially positive.",
+    "work_needed": "Depends on the metering redesign; then effect on pre-existing resources."
+   },
+   {
+    "id": "L.3",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "criteria_weak": true,
+    "why": "Need-addressed-by-new-service exists only through the needs oracle; with it hidden L.3 = 0 and no third-party-observable signal reveals the shortage (S4).",
+    "work_needed": "Entrepreneurs reacting to public consequences; labeller evaluator-side only."
+   },
+   {
+    "id": "SP-6.3",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "criteria_weak": true,
+    "why": "Auditor's own P3: novel-category service gets 0 trials because participants hold only predefined formats with hidden-truth scorers; extending the format list cannot yield novel categories.",
+    "work_needed": "Demand-side redesign: participants with problems not drawn from the format registry, own tests, diverse grounded subjective responses."
+   }
+  ],
+  "upheld": [
+   "Demand side REDESIGN (strengthened: hidden-truth score written into adoption notes and public posts, adopt.py:162-172)",
+   "Scenario worlds / Gate L chain evidence REDESIGN and L.4 REDESIGN (S4: chain A later stages oracle-mediated)",
+   "Capability registry REPAIR (add: caps.adopted relays adopter note with hidden score to provider, caps.py:455-459)",
+   "Software ecosystem REPAIR (tracer fix = same out-of-process attestation; ablation-based dependence verification suggested)",
+   "Gate J/L measurement REPAIR but effort S->M (refunds/circular funding, hard-coded published, phantom needs, non-live discovery, scripted-as-agent)",
+   "L.2 EXTEND with weak criteria (2 of 8 gate needs are phantom route.render needs, S6)",
+   "J.4 EXTEND (failed trials of an always-failing service count as testing, S3B)"
+  ],
+  "missing_requirements_added": [
+   "Metering and attestation integrity: work accounting, capacity enforcement and adoption-by-execution evidence must be unforgeable by the metered program (no manifest entry; J.7, SP-6.5, L.2 supply needs and every exact-fork claim depend on it)",
+   "J.6 criterion: transactions net of refunds with funding provenance outside the creator's circle",
+   "L.2/SP-6.4 criterion: derived needs held only by principals whose own activity requires the target; planted world interfaces excluded",
+   "OO.2 leak probes must cover tool responses (use.probe, use.report) and free-text event payloads (adoption notes, forum posts)"
+  ],
+  "critical_findings": [
+   "Sandboxed service code can rewrite its own work meter (boot.py _LINES/_cpu_ms/sys.monitoring tool 4): 400/400 requests served where honest code gets 49, cpu_ms down to -1e9 and instance used_cu -2e10, invariants clean, in both cost models (S1, S2).",
+   "Gate L chain A is oracle-mediated: with participants blind to needs._held the entrepreneur never builds and L.3 = 0 (S4).",
+   "Hidden-evaluator quality scores reach in-world agents: adopters' notes and posts ('mean score 1.0') to the creator; use.probe 0.24 vs 0.999 and use.report verified_quality to operators in six registered ow_* families (S3A, S5).",
+   "J.6 counts refunded sales and creator-funded circular purchases as independent transactions (S3B, S3C).",
+   "Scripted creators are recorded as kind 'agent' and counted by J.1/J.2 (S7)."
+  ]
+ }
+}

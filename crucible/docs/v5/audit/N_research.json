@@ -1,0 +1,806 @@
+{
+ "area": "N_research",
+ "workstreams": [
+  "N"
+ ],
+ "audited_head": "dd745b9 (task commit a881d18; no src change between them)",
+ "subsystems": [
+  {
+   "name": "Training-distribution registry and sampler",
+   "paths": [
+    "src/crucible/rapid/families.py",
+    "src/crucible/mechanisms/base.py",
+    "src/crucible/worldgen/generator.py",
+    "src/crucible/domains/base.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "verdict": "IMPLEMENT",
+   "effort": "L",
+   "evidence": "No cross-tier registry or sampler in src (grep). Per-tier fragments only: rapid 74 families (55 train/19 val; objectives 69 maximize_net); mechanisms 25; worldgen 18; domains 0; civ stub. p4: tiers_available={1:T,2:F,3:F}.",
+   "key_defects": [
+    "no registry of objectives, participant policy distributions, action interfaces, difficulty levels across tiers",
+    "no sampler or mixtures",
+    "rapid PARTITIONS maps val and test to one public partition (families.py:44)",
+    "no evaluation-reuse guard outside the 4.0 protocols"
+   ],
+   "work_needed": "Versioned cross-tier registry keyed by the six Part 14 diversity dimensions; a seeded, resumable sampler with balanced/configurable mixtures that refuses eval partitions by id and fingerprint; gate test SP-14.1."
+  },
+  {
+   "name": "Mixed tier curriculum 50/30/20",
+   "paths": [],
+   "verdict": "IMPLEMENT",
+   "effort": "M",
+   "evidence": "No mixture config anywhere; Tier 2 has 0 domains and Tier 3 is a stub (p4).",
+   "key_defects": [
+    "absent",
+    "blocked by workstreams I and J"
+   ],
+   "work_needed": "Default compute-share mixture with experience counted separately; a scheduler allocating measured compute; evidence of realised shares from an executed run over all three tiers."
+  },
+  {
+   "name": "Adaptive curriculum (goals.curriculum.GoalSampler)",
+   "paths": [
+    "src/crucible/goals/curriculum.py",
+    "src/crucible/goals/contracts.py"
+   ],
+   "verdict": "REBUILD",
+   "effort": "L",
+   "evidence": "p3: the weak goal family's share fell 0.22->0.07, 0.17->0.07, 0.16->0.13 (band filter drops p_success<0.05, curriculum.py:76); uniform random share 0; accepted the test world family engineering_lab_heldout under split=train and labelled the goal train (contracts.py:330). Only user is tests/test_goals.py.",
+   "key_defects": [
+    "moves away from measured weaknesses",
+    "no random-diversity share, no collapse guard",
+    "no partition guard",
+    "4.0 goal arms only, generates no environments",
+    "none of the ten 14.3 weakness categories measured"
+   ],
+   "work_needed": "Weakness profiler from evaluator-side, non-sealed results; a generator targeting weak structural dimensions (compose drivers); at least 20% uniform share and an entropy floor; a planted-weakness control learner to evidence T.5/T.8."
+  },
+  {
+   "name": "Procedural structural composition (research/v5/compose.py)",
+   "paths": [
+    "src/crucible/research/v5/compose.py",
+    "src/crucible/rapid/generator.py",
+    "src/crucible/rapid/admission.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "M",
+   "evidence": "p1: 60 random genomes, 60 distinct ids, 28 calibrated; 24 run through rapid.admit: 7 admitted, 23 feasible (failures no_dominant_strategy 9, identifiability 8, difficulty 6). Registry restored exactly. p9: the anti-default 25/75 rule reaches a median 0.82 of the oracle's improvement (more than 0.75 in 7/13), while admission's canonical strategies reach 0.28.",
+   "key_defects": [
+    "unused and untested",
+    "objective always maximize_net (compose.py:404, 590)",
+    "distinctness by genome digest",
+    "calibration shortcut: target set {0.2,0.25,0.3,0.7,0.75,0.8} with the default at the opposite end, published in the tool schema (compose.py:468, 495)",
+    "no claims, reference or oracle; identification always lever_sign",
+    "participants are equation primitives",
+    "no batch admission driver"
+   ],
+   "work_needed": "Continuous targets decoupled from default side; quartile/anti-default rules in admission's trivial set; an objective registry varied independently; generated claims and identification; a batch admission loop with fingerprint-distance dedup; real participant policies."
+  },
+  {
+   "name": "World-proposal interface",
+   "paths": [],
+   "verdict": "IMPLEMENT",
+   "effort": "M",
+   "evidence": "No API; family_spec(proposer=...) only records a name. p8: learner code can rewrite RF.FAMILIES[...].split and read the sealed salt, so no in-process interface could be tamper-proof.",
+   "key_defects": [
+    "absent",
+    "registry and evaluator live in the learner's process"
+   ],
+   "work_needed": "An out-of-process proposal service running admission, novelty against train and eval fingerprints, resource estimate, difficulty band and safety; accept/reject with public reasons only; tamper probes."
+  },
+  {
+   "name": "Research protocol harness (evaluate/lifetime/timescales/internalisation/transfer/compare)",
+   "paths": [
+    "src/crucible/research/protocols.py",
+    "src/crucible/research/tasks.py",
+    "src/crucible/research/envs.py",
+    "src/crucible/research/learner.py",
+    "examples/ow_benchmark.py"
+   ],
+   "verdict": "REDESIGN",
+   "effort": "XL",
+   "evidence": "45/45 tests pass (test_research_protocols.py + test_research_envs.py). p4: P.evaluate on a rapid family raises AttributeError; make_task raises KeyError; protocols take no reward_mode and build MechVecEnv(tasks, spec) with the legacy default (protocols.py:362, envs.py:47); nonzero reward on 10/10 steps and in the observation's reward slot.",
+   "key_defects": [
+    "bound to 4.0 Task/MechVecEnv and padded lever/gauge vectors",
+    "legacy shaped reward always (conflicts with Clarification 2)",
+    "levels are the 4.0 transfer categories; no Level 2; Level 5 lacks new domains and action interfaces",
+    "cannot evaluate any v5 world"
+   ],
+   "work_needed": "Rebase on crucible.experience (ExperienceEnv records, tool actions, evaluator-side verifiers), observation_only by default, legacy explicit; a GeneralizationLevel spec building level 1-5 splits from the distribution registry; keep the protocol and statistics bodies."
+  },
+  {
+   "name": "Fresh-process weights-only evaluation",
+   "paths": [
+    "src/crucible/research/protocols.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "p2: GlobalStash (constant checkpoint, state in a class attribute) gets verdict internalised, valid, gain 0.998, p=0.0005, weights_changed_by_training=false, no warning. Reload is in-process (protocols.py:1245); ow_benchmark runs training and evaluation in one worker.",
+   "key_defects": [
+    "not fresh-process",
+    "checkpoint not split into parameters vs memory/replay/optimizer",
+    "no invalidation when a gain appears with an unchanged checkpoint"
+   ],
+   "work_needed": "Subprocess evaluator (isolated interpreter, empty HOME and cache, read-only checkpoint, expected hash verified in the child); a parameter-only manifest; adversarial controls (process stash, file stash, memory-in-checkpoint) in the gate test."
+  },
+  {
+   "name": "Positive controls",
+   "paths": [
+    "tests/test_research_protocols.py",
+    "src/crucible/research/baselines.py",
+    "src/crucible/research/learners/"
+   ],
+   "verdict": "EXTEND",
+   "effort": "L",
+   "evidence": "Timescales, internalisation, memoriser and transfer tests pass on hand-made one-lever peak tasks. p7, observation_only: WeightLearner internalised (0.998) -> no_gain_detected (0.0); ContextLearner gain 0.86->0.02 and late-early +0.32->-0.28, yet still attributed fast (min_effect=0.0, protocols.py:1032/1058). meta_np FAILED its criteria (docs/experiments/ow_meta_np_result.json).",
+   "key_defects": [
+    "test-only classes",
+    "toy tasks",
+    "read the scalar reward",
+    "the transfer control is a constant policy (Level 1)",
+    "no minimum effect size",
+    "nothing on new v5 families"
+   ],
+   "work_needed": "Controls in src, learning from observed consequences; seven kinds (adding pretrained competence, persistent state, meta, transferable efficiency); at least 3 admitted v5 families of different engines; a prespecified minimum effect; null controls."
+  },
+  {
+   "name": "Learning curves and N_q / acceleration",
+   "paths": [
+    "src/crucible/research/protocols.py",
+    "src/crucible/research/stats.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "p6: _steps_pair gives bounds when one arm is censored (correct); a seed-mean N_q of [4, None, None] reports 4.0; N_q interpolated (3.25 between measured 2 and 4, stats.py:179); mean-curve N_q is None when half the tasks reach; bootstrap drops a=0 (protocols.py:1444); no survival estimator.",
+   "key_defects": [
+    "no 1,2,4..64 informative-interaction schedule",
+    "N_q on the mean curve rather than per run",
+    "censored seeds dropped in seed means",
+    "interpolated counts"
+   ],
+   "work_needed": "Geometric per-task schedules; per-run right-censored N_q; Kaplan-Meier and restricted-mean N_q with intervals; acceleration bounds; time-to-competence, cost, data, retention and transfer columns."
+  },
+  {
+   "name": "Statistics (multi-seed, world+learner variation)",
+   "paths": [
+    "src/crucible/research/stats.py",
+    "src/crucible/research/protocols.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "p5: identical learners, 3 seeds x 12 tasks, seed effect sd 0.15: compare-style paired test significant in 94% of 400 null trials (nominal 5%). Unit 'task (mean over seeds)' (protocols.py:1696, 1889).",
+   "key_defects": [
+    "intervals ignore learner-seed variance",
+    "no null-calibration test",
+    "no preregistration record"
+   ],
+   "work_needed": "Crossed world x seed hierarchical bootstrap or mixed-effects permutation; at least 5 seeds for significance; a null-calibration gate test; hashed preregistered metrics; confirmation only on sealed v5 partitions."
+  },
+  {
+   "name": "Matched-budget comparison",
+   "paths": [
+    "src/crucible/research/protocols.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "M",
+   "evidence": "compare(): identical streams, step grid and seeds (matched experience); compute matched post hoc by interpolating at compute_budget_s; 4.0 tasks only.",
+   "key_defects": [
+    "compute budget not enforced during training",
+    "4.0 only"
+   ],
+   "work_needed": "Enforced compute-budget stopping; cross-tier support through the rebased harness."
+  },
+  {
+   "name": "A/B/C/D training-diversity comparison configuration",
+   "paths": [],
+   "verdict": "IMPLEMENT",
+   "effort": "L",
+   "evidence": "No config exists; 'original six families' undefined (4.0 has 25 families, 7 train/base); arms C/D need Tier 2/3 (absent).",
+   "key_defects": [
+    "absent",
+    "blocked by I and J for arms C and D",
+    "no external-checkpoint (CAM-replacement) adapter"
+   ],
+   "work_needed": "Executable four-arm config with an identical learner class and seeds, matched experience and compute, seven control kinds; a multi-seed smoke with evidence."
+  },
+  {
+   "name": "Sealed sets and evaluation-partition protection",
+   "paths": [
+    "src/crucible/research/sealed.py",
+    "src/crucible/evaluation/harness.py",
+    "src/crucible/rapid/families.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "p8: open_set from a Learner method refused; but the salt is readable from a Learner method with plain open(); a val family was relabelled train by learner code; rapid.make serves val families unguarded. p3: GoalSampler sampled a test world under split=train.",
+   "key_defects": [
+    "4.0 test families only; no v5 sealed partition",
+    "same-process, same-uid trust boundary",
+    "mutable registry"
+   ],
+   "work_needed": "v5 sealed partitions per tier; evaluator in a separate process or uid; frozen registry views; guarded factories; at least 5 leak-vector gate probes."
+  },
+  {
+   "name": "Level 6 authorization-gated adapter",
+   "paths": [
+    "src/crucible/realworld/"
+   ],
+   "verdict": "EXTEND",
+   "effort": "M",
+   "evidence": "tests/test_realworld_gate.py 14 passed; RealWorldBridge() refuses: 'no authorisation document: the real-world bridge is off'. No evaluation adapter and no Level 6 methodology document.",
+   "key_defects": [
+    "a bridge, not a protocol-interoperable evaluation adapter",
+    "no methodology"
+   ],
+   "work_needed": "Level6Adapter behind the protocol interface using RealWorldBridge.measure; a methodology doc; tests for refusal and for no claim without executed experiments."
+  },
+  {
+   "name": "Independent evaluation for learners",
+   "paths": [
+    "src/crucible/research/tasks.py",
+    "src/crucible/rapid/oracles.py",
+    "src/crucible/evaluation/harness.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "L",
+   "evidence": "4.0: Task.score from private references, computed operator-side. v5 Tier 1: oracles exist evaluator-side but no learner protocol uses them; Tier 2/3 absent.",
+   "key_defects": [
+    "no v5 verifier contract in the protocols",
+    "no check against banned proxy outcomes"
+   ],
+   "work_needed": "A per-world evaluator-side verifier contract used by every protocol; static and runtime tests that outcomes come only from verifier-owned state."
+  },
+  {
+   "name": "Claim-integrity notes (I.n2 scanner, K.n2, S.n1)",
+   "paths": [
+    "tests/v5/test_gate_I.py",
+    "src/crucible/commerce/reference.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "S",
+   "evidence": "I.n2 test passed: unsupported_realism_claims=0, statements_checked=3, files_scanned=34; the content is currently honest (FIDELITY_REGISTER.md:52, social/cascade.py:14). The disclaimer regex accepts any sentence containing not/no/without; narrow corpus; asserts only checked>0. K.n2 and S.n1: no test or metric.",
+   "key_defects": [
+    "weak heuristic",
+    "narrow scope",
+    "K.n2 and S.n1 absent"
+   ],
+   "work_needed": "Broader corpus (README, PROGRESS, IMPLEMENTATION_STATUS, ARCHITECTURE, reports, evidence notes); clause-level claim/negation with planted controls; a machine-readable scripted label on reference results; an S.n1 scanner."
+  },
+  {
+   "name": "N gate test suites",
+   "paths": [
+    "tests/v5/"
+   ],
+   "verdict": "IMPLEMENT",
+   "effort": "M",
+   "evidence": "test_gate_T.py, test_gate_U.py, test_gate_SP_14_{1,2,4}.py and test_gate_SP_15_{3,5,6}.py do not exist; checker: all 25 N requirements NOT_STARTED.",
+   "key_defects": [
+    "absent"
+   ],
+   "work_needed": "Write the gate tests against the integrated system, with adversarial and null controls."
+  }
+ ],
+ "requirements": [
+  {
+   "id": "T.1",
+   "verdict": "EXTEND",
+   "reason": "compose.py yields distinct genomes but is unused and untested; distinctness by digest",
+   "work_needed": "Wire compose into the registry; count admitted, fingerprint-distinct structures; gate test",
+   "criteria_weak": true
+  },
+  {
+   "id": "T.2",
+   "verdict": "EXTEND",
+   "reason": "5 population kinds exist as equation primitives in Tier 1 only",
+   "work_needed": "Real participant policy distributions in the registry; show measured behavioural or outcome differences across at least 3 configurations",
+   "criteria_weak": true
+  },
+  {
+   "id": "T.3",
+   "verdict": "IMPLEMENT",
+   "reason": "Objective always maximize_net; rapid has 3 objective types",
+   "work_needed": "Objective registry crossed with structures; at least 5 objective types evaluated evaluator-side",
+   "criteria_weak": true
+  },
+  {
+   "id": "T.4",
+   "verdict": "EXTEND",
+   "reason": "7/24 generated families admitted in p1; no batch admission; shortcut uncaught (p9)",
+   "work_needed": "Batch admission driver to at least 50 with the shortcut fixed and added to the trivial set",
+   "criteria_weak": false
+  },
+  {
+   "id": "T.5",
+   "verdict": "REBUILD",
+   "reason": "GoalSampler de-prioritises the measured weakness (p3)",
+   "work_needed": "Weakness profiler plus targeted generator; planted-weakness control; p-value of the share shift",
+   "criteria_weak": true
+  },
+  {
+   "id": "T.6",
+   "verdict": "IMPLEMENT",
+   "reason": "No uniform random component (frontier 10% on hard arms only)",
+   "work_needed": "At least 20% uniform share plus an entropy floor; measure non-collapse",
+   "criteria_weak": true
+  },
+  {
+   "id": "T.7",
+   "verdict": "REPAIR",
+   "reason": "4.0 sealed only; v5 partitions mutable and unguarded; salt readable; GoalSampler leak (p3, p8)",
+   "work_needed": "v5 sealed partitions, out-of-process evaluator, frozen registry, guarded factories, at least 5 leak probes",
+   "criteria_weak": true
+  },
+  {
+   "id": "T.8",
+   "verdict": "IMPLEMENT",
+   "reason": "No weakness measurement or targeted-improvement experiment",
+   "work_needed": "Targeted vs untargeted training on at least 3 weaknesses, multi-seed, p-values",
+   "criteria_weak": true
+  },
+  {
+   "id": "U.1",
+   "verdict": "REDESIGN",
+   "reason": "4.0 transfer categories on 4.0 tasks only; no Level 2; Level 5 lacks domains and interfaces",
+   "work_needed": "Rebase protocols on crucible.experience; level 1-5 split builder from the registry; execute all five on v5 worlds",
+   "criteria_weak": true
+  },
+  {
+   "id": "U.2",
+   "verdict": "EXTEND",
+   "reason": "Gated bridge exists and is off by default; no evaluation adapter or methodology",
+   "work_needed": "Level6Adapter behind the protocol interface plus a methodology doc and refusal tests",
+   "criteria_weak": true
+  },
+  {
+   "id": "U.3",
+   "verdict": "REPAIR",
+   "reason": "In-process reload; certified a process-memory stash as internalised (p2)",
+   "work_needed": "Subprocess weights-only evaluator, hash verified in the child, parameter-only manifest, adversarial controls",
+   "criteria_weak": true
+  },
+  {
+   "id": "U.4",
+   "verdict": "EXTEND",
+   "reason": "5 kinds classified in 4.0 tests on toy tasks, legacy reward; fail under observation_only (p7)",
+   "work_needed": "Controls in src, observation-derived signals, nontrivial v5 families, minimum effect size, null controls",
+   "criteria_weak": true
+  },
+  {
+   "id": "U.5",
+   "verdict": "EXTEND",
+   "reason": "Matched experience plus post-hoc matched compute, 4.0 only",
+   "work_needed": "Enforced compute budgets; cross-tier",
+   "criteria_weak": true
+  },
+  {
+   "id": "U.6",
+   "verdict": "REPAIR",
+   "reason": "Uniform env-step curves; no 1..64 informative-interaction schedule",
+   "work_needed": "Geometric per-task schedule including the pre-adaptation point",
+   "criteria_weak": true
+  },
+  {
+   "id": "U.7",
+   "verdict": "EXTEND",
+   "reason": "Independent private-reference scoring exists for 4.0; not for v5 learners",
+   "work_needed": "Evaluator-side verifier contract used by every protocol on every tier",
+   "criteria_weak": true
+  },
+  {
+   "id": "U.8",
+   "verdict": "REPAIR",
+   "reason": "Seeds averaged away; 94% false-positive rate under the null (p5)",
+   "work_needed": "Hierarchical world x seed intervals plus a null-calibration test; at least 5 seeds",
+   "criteria_weak": true
+  },
+  {
+   "id": "I.n2",
+   "verdict": "REPAIR",
+   "reason": "Currently 0 unsupported claims, but the scanner heuristic and scope are weak",
+   "work_needed": "Broader corpus, clause-level negation, planted controls",
+   "criteria_weak": true
+  },
+  {
+   "id": "K.n2",
+   "verdict": "IMPLEMENT",
+   "reason": "Reference results lack a machine-readable scripted label; no test",
+   "work_needed": "Label results scripted/not-a-learner; test and evidence",
+   "criteria_weak": false
+  },
+  {
+   "id": "S.n1",
+   "verdict": "IMPLEMENT",
+   "reason": "No test or metric",
+   "work_needed": "Scanner of S-gate evidence notes and docs for learning-success claims; evidence",
+   "criteria_weak": false
+  },
+  {
+   "id": "SP-14.1",
+   "verdict": "IMPLEMENT",
+   "reason": "No cross-tier registry or sampler",
+   "work_needed": "Registry of the 9 kinds plus sampler plus partition refusal; gate test",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-14.2",
+   "verdict": "IMPLEMENT",
+   "reason": "No mixture; Tier 2/3 absent",
+   "work_needed": "Compute-share mixture executed over all tiers with measured shares",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-14.4",
+   "verdict": "IMPLEMENT",
+   "reason": "No proposal interface",
+   "work_needed": "Out-of-process proposal validation with the 6 checks and tamper probes",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-15.3",
+   "verdict": "REPAIR",
+   "reason": "Censoring bounds correct in transfer; per-run N_q, survival and 1..64 schedule missing; censored seeds dropped",
+   "work_needed": "Per-run censored N_q, survival estimators, acceleration bounds",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-15.5",
+   "verdict": "IMPLEMENT",
+   "reason": "No A/B/C/D config; arms C/D blocked; 'original six families' undefined",
+   "work_needed": "Four-arm config, seven control kinds, matched budgets, executed multi-seed smoke",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-15.6",
+   "verdict": "IMPLEMENT",
+   "reason": "No positive-control transfer on new families",
+   "work_needed": "Known-transfer and known-null controls on new nontrivial v5 families, detected by the evaluator",
+   "criteria_weak": true
+  }
+ ],
+ "missing_requirements": [
+  "Part 14 preamble: diversity measured across all six dimensions (parameters, causal structures, compositions, objectives, participant policies, action spaces); seeds alone insufficient",
+  "14.1: sampler compatible with external learner infrastructure; balanced and configurable mixtures; a version on the distribution",
+  "14.2: compute and environment experience measured separately; all tiers available from the start; OpenWorld training not postponed",
+  "14.3: ten named weakness categories; learning-progress, regret, uncertainty and success measures; collapse prevention; curriculum never accesses sealed evaluation results",
+  "Part 15 preamble: distinguish memorization, pretrained competence, context adaptation, persistent state, neural weight learning, meta-learning, transferable efficiency (U.4 covers 5)",
+  "15.1: no claim of real-world generalization without executed authorized experiments",
+  "15.2: banned proxy outcomes (tool calls, reasoning length, posts, websites, agent-reported success, LLM judgments, unverified milestones) never used as outcomes",
+  "15.3: time to competence, total action cost, wall-clock, data usage, retention, transfer, sample efficiency",
+  "15.4: clearing written memories, retrieval indexes and replay; optimizer reset; immutable architecture config; within-episode adaptation experiments distinguished",
+  "15.7: paired world comparisons, prespecified metrics, dev/confirmation separation, independent holdouts, transparent failure reporting, no winner selection on the sealed set",
+  "Clarification 2 x Part 15: research protocols and positive controls must run with observation_only as default and learner-supplied rewards (OO.1/OO.6 cover environments, not the instrument)",
+  "Instrument integrity: adversarial controls against the evaluator (process-memory stash, out-of-checkpoint files, generator calibration shortcuts)"
+ ],
+ "tests_run": [
+  {
+   "command": "pytest -q tests/test_research_stats.py tests/test_goals.py",
+   "result": "21 passed (69.9 s)"
+  },
+  {
+   "command": "pytest -q tests/test_research_protocols.py -k 'timescales or internalisation or memoriser or overlapping or transfer_efficiency or sealed or frozen'",
+   "result": "19 passed, 16 deselected (17.7 s)"
+  },
+  {
+   "command": "pytest -q tests/test_research_protocols.py tests/test_research_envs.py",
+   "result": "45 passed (61.9 s)"
+  },
+  {
+   "command": "pytest -q tests/v5/test_gate_I.py -k In2",
+   "result": "1 passed; unofficial evidence unsupported_realism_claims=0, statements_checked=3, files_scanned=34"
+  },
+  {
+   "command": "pytest -q tests/test_realworld_gate.py",
+   "result": "14 passed (17.7 s)"
+  },
+  {
+   "command": "python -c 'checker.verify_all()' (read-only)",
+   "result": "all 25 N requirements NOT_STARTED; test files missing for T, U, SP-14.x, SP-15.x"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/N_research/probes/p1_compose.py 60 24 (via crucible.scale.slots --cpu 1)",
+   "result": "60 distinct genomes, 28 calibrated; 24 admission runs: 7 admitted, 23 feasible"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/N_research/probes/p2_weights_only.py",
+   "result": "process-stash learner certified internalised (gain 0.998, checkpoint unchanged, no warning)"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/N_research/probes/p3_curriculum.py",
+   "result": "weak share 0.22->0.07 / 0.17->0.07 / 0.16->0.13; uniform share 0; test world accepted as train"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/N_research/probes/p4_integration.py",
+   "result": "tiers {1:T,2:F,3:F}; all defaults legacy; protocols cannot run rapid families; 10/10 nonzero reward steps"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/N_research/probes/p5_stats.py",
+   "result": "false-positive rate 0.94 for identical learners (nominal 0.05)"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/N_research/probes/p6_censoring.py",
+   "result": "ratio bounds correct; seed-mean N_q drops censored seeds; N_q interpolated; no survival estimator"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/N_research/probes/p7_obsonly_controls.py",
+   "result": "observation_only: weight control no_gain (0.0); context control gain 0.02 yet attributed fast"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/N_research/probes/p8_tamper.py",
+   "result": "val->train relabel possible; rapid.make unguarded; salt readable from a Learner; open_set refused"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/N_research/probes/p9_shortcut.py 10",
+   "result": "anti-default 25/75 rule median share 0.82 (more than 0.75 in 7/13) vs canonical 0.28"
+  }
+ ],
+ "critical_findings": [
+  "Workstream N's v5 scope is essentially unimplemented: no cross-tier registry or sampler, 50/30/20 mixture, v5 curriculum, proposal interface, six-level framework, A/B/C/D config or new-family positive controls; no N gate tests exist; all 25 requirements NOT_STARTED.",
+  "The weights-only internalisation protocol is in-process and certified a learner whose checkpoint never changed (state kept in process memory) as 'internalised', valid, with no warning (p2).",
+  "Comparison intervals average learner seeds away (unit 'task (mean over seeds)'); 94% false-positive rate for identical learners under seed-level variation (p5).",
+  "The research instrument always runs legacy shaped reward (MechVecEnv default, no reward_mode in the protocols); its positive controls fail or are misclassified under the mandated observation_only default (p4, p7).",
+  "The only adaptive curriculum (GoalSampler) moves away from measured weaknesses, has no random share, and samples held-out test worlds labelled train (p3).",
+  "compose.py calibration plants a simulator shortcut (optimum at 25%/75% opposite the published default) that a fixed rule exploits for a median 0.82 of the oracle's improvement, undetected by admission (p9); v5 partitions are mutable and the sealed salt is readable by learner code (p8)."
+ ],
+ "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/N_research",
+ "verdict_counts": {
+  "subsystems": {
+   "RETAIN": 0,
+   "REPAIR": 5,
+   "EXTEND": 5,
+   "REDESIGN": 1,
+   "REBUILD": 1,
+   "IMPLEMENT": 5
+  },
+  "requirements": {
+   "RETAIN": 0,
+   "REPAIR": 6,
+   "EXTEND": 7,
+   "REDESIGN": 1,
+   "REBUILD": 1,
+   "IMPLEMENT": 10
+  }
+ },
+ "skeptic": {
+  "reviewer": "skeptic agent",
+  "date": "2026-11-26",
+  "audited_head": "dd745b9",
+  "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/N_research_skeptic/",
+  "summary": "Central conclusion upheld (N essentially unimplemented; 25/25 NOT_STARTED reproduced). Integrity verdicts were too generous: the evaluator executes learner-written pickles and trusts learner self-reported state hashes, and held-out families are not enforced, so U.3/T.7/U.7 need REDESIGN. Three negative factual claims were too strong: 26/74 v5 Tier 1 families run through the protocols via rapid.mechview; the observation-only control collapse is a two-line control bug; the compose shortcut mostly vanishes on admitted worlds. GoalSampler's selection signal works on learnable weaknesses (REBUILD -> REDESIGN).",
+  "overturned": [
+   {
+    "target": "Fresh-process weights-only evaluation",
+    "kind": "subsystem",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "effort": "L",
+    "why": "s2: protocols._parse_checkpoint torch.load(weights_only=False)/pickle.loads (protocols.py:267,272,275) executed a learner payload that rebound protocols._paired: a HoldLearner was certified internalised, valid, gain 0.9, no warning; a learner adapting during 'frozen' eval with constant state_hash passed frozen checks and with 0 updates was certified internalised (warning only)."
+   },
+   {
+    "target": "U.3",
+    "kind": "requirement",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "why": "s2: trust model (learner and evaluator in one process, integrity self-reported via state_hash/frozen flag, evaluator deserialises learner pickles) undermines weights-only claims; 0 of 9 Part 15.4 checks run in a fresh process."
+   },
+   {
+    "target": "Sealed sets and evaluation-partition protection",
+    "kind": "subsystem",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "effort": "L",
+    "why": "s4: train_stream/task_stream accept 4.0 sealed 'test' families (abm_network_fx:0, split test) and P.lifetime trained on v5 val family des_perishable then reported disjoint ok:true; guard is id+mechanism fingerprint only (protocols.py:186,211). Plus p8/s2: all guards in learner-controlled process; v5 has no sealed partition."
+   },
+   {
+    "target": "T.7",
+    "kind": "requirement",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "why": "s4 seed-only partition guard, p8 mutable registry/unguarded rapid.make/readable salt, s2 evaluator code execution, p3 trusted split: leaks are structural, not a missing check."
+   },
+   {
+    "target": "Independent evaluation for learners",
+    "kind": "subsystem",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "effort": "L",
+    "why": "s2: the 'independent' evaluator shares memory with and executes bytes from the learner; scores from private references can be re-compared by learner code. Needs a separate-process verifier with a data-only interface."
+   },
+   {
+    "target": "U.7",
+    "kind": "requirement",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "why": "s2 as above; criterion independent_evaluator_used==True is a self-report that would pass today."
+   },
+   {
+    "target": "Adaptive curriculum (goals.curriculum.GoalSampler)",
+    "kind": "subsystem",
+    "from": "REBUILD",
+    "to": "REDESIGN",
+    "effort": "L",
+    "why": "s6: with a learnable weakness the weak family got above-uniform share in 10/10 seeds (0.245 vs 0.20, sign p~0.001); p3 used a hopeless arm that the documented 0.05-0.95 band (curriculum.py:76) drops by design. Scoring core reusable; arm space/generation/weakness profiling/random share/partition guard need re-architecture."
+   },
+   {
+    "target": "T.5",
+    "kind": "requirement",
+    "from": "REBUILD",
+    "to": "REDESIGN",
+    "why": "s6: selection on measured learner behaviour already detectable (p~0.001) on 4.0 goal arms; missing v5 worlds and weakness->structure mapping."
+   },
+   {
+    "target": "SP-15.6",
+    "kind": "requirement",
+    "from": "IMPLEMENT",
+    "to": "EXTEND",
+    "why": "s1/s8: v5 Tier 1 lever families run through internalisation/timescales/transfer via rapid.mechview.make_task; WeightLearner internalised (p .034), Hold no_gain, ContextLearner fast-only on 4 new v5 families in 14 s. Transfer experiment, transferring control with independent ground truth, negative control and gate test missing."
+   }
+  ],
+  "upheld": [
+   {
+    "target": "Research protocol harness",
+    "verdict": "REDESIGN",
+    "note": "upheld on the Learner/EnvSpec padded-vector contract only (48/74 Tier 1 families, Tier 2/3, Level 5 action interfaces). Reasons 1 and 2 of the audit refuted by s1 (26/74 v5 families run) and s3 (reward mode is a one-parameter switch with identical results). Effort likely L, not XL."
+   },
+   {
+    "target": "Positive controls",
+    "verdict": "EXTEND",
+    "note": "s3 refutes p7 as an instrument defect (controls read the reward slot; deriving signal from observed revenue-cost restores identical results); s8 controls classify correctly on v5 families. Audit summary says REPAIR but JSON/MD say EXTEND."
+   },
+   {
+    "target": "Procedural structural composition (research/v5/compose.py)",
+    "verdict": "EXTEND",
+    "note": "s5: anti-default shortcut median 0.045 on 21 admitted worlds (2/21 > 0.75), not 0.82; best-constant share median 0.76 (>=0.95 in 38%) so drivers matter; 13/21 admitted instances are uncalibrated fallbacks (compose.py:507-509), mixing cost regimes within a family."
+   },
+   {
+    "target": "T.2",
+    "verdict": "EXTEND",
+    "note": "s9: populations change node sets and values but every world has one agent a0; rivals are graph primitives, not policies."
+   },
+   {
+    "target": "Statistics / U.8",
+    "verdict": "REPAIR",
+    "note": "compare_runs -> _per_task_mean -> _paired verified (protocols.py:1612-1700,1771-1889); p5 applies to real path."
+   },
+   {
+    "target": "Learning curves / U.6 / SP-15.3",
+    "verdict": "REPAIR",
+    "note": "censored seeds dropped via _f+nanmean; _steps_pair drops censored resamples (protocols.py:1444)."
+   },
+   {
+    "target": "Claim-integrity notes / I.n2",
+    "verdict": "REPAIR",
+    "note": "s7: scanner missed 5/6 planted claims; test comment claims evidence notes are scanned but no code does; repo content currently honest (1 false-positive hit in 681 unscanned files)."
+   },
+   {
+    "target": "IMPLEMENT verdicts (registry/sampler, 50/30/20, world proposal, A/B/C/D, K.n2, S.n1, SP-14.x, N gate tests)",
+    "verdict": "IMPLEMENT",
+    "note": "experience.registry.make (registry.py:99) is an unversioned cross-tier constructor defaulting to LEGACY with no sampler/mixture/reuse guard; gate test files absent; checker 25/25 NOT_STARTED reproduced."
+   }
+  ],
+  "corrected_critical_findings": [
+   "Replace 'cannot run a single v5 Tier 1 family': runs 26/74 lever-view families via rapid.mechview.make_task; cannot run the other 48, Tier 2 or Tier 3 (s1).",
+   "Replace 'positive controls collapse under observation_only': MechVecEnv legacy reward == observed revenue-cost (max abs diff 3e-8); controls that use observed net reproduce legacy verdicts exactly (s3).",
+   "Qualify the compose shortcut: on admitted worlds the anti-default rule reaches median 0.045, >0.75 in 2/21 (s5); p9's 0.82 was on unadmitted calibrated rival-free worlds."
+  ],
+  "additional_findings": [
+   "Evaluator executes learner-written pickle checkpoints (protocols.py:250-276): a non-learning learner was certified internalised, valid, gain 0.9 by rebinding protocols._paired (s2).",
+   "Frozen verification trusts learner state_hash() (protocols.py:341-346); a test-time-adapting learner passed frozen checks and was certified internalised with 0 updates; non-reproduction is only a warning (s2).",
+   "Held-out families are never enforced: partition is by seed range only (tasks.py:19-23, train_stream :256); sealed test families and v5 val families train freely with disjoint ok:true (s4).",
+   "tests/test_research_protocols.py:26 hard-codes another session's scratch path as CRUCIBLE_CACHE (harmless if absent; hidden cross-session dependency)."
+  ],
+  "tests_run": [
+   {
+    "command": "python s1_mechview_protocols.py",
+    "result": "26/74 rapid families lever-view (23 train, 3 val); evaluate and internalisation run end to end in 9.4 s; val-family training tasks pass overlap()"
+   },
+   {
+    "command": "python s2_evaluator_tamper.py",
+    "result": "Saboteur (hold) internalised valid gain 0.9 no warning, evaluator function replaced; test-time trainer frozen unchanged=True, internalised valid with 0 updates (warning only)"
+   },
+   {
+    "command": "python s3_obsonly_controls_fixed.py",
+    "result": "legacy reward - observed net max abs 2.98e-08; observation_only with observed-net controls: internalised 0.9977, context gain 0.8593 (identical to legacy)"
+   },
+   {
+    "command": "python s4_family_partition_leak.py",
+    "result": "train_stream accepts 4.0 test family (abm_network_fx:0 split test); lifetime trained on v5 val family des_perishable completes with disjoint ok:true"
+   },
+   {
+    "command": "python s5_compose_admitted_static.py",
+    "result": "21 admitted worlds: anti-default median 0.045 (2/21 > 0.75); best-constant median 0.764 (38% >= 0.95); 13/21 uncalibrated"
+   },
+   {
+    "command": "python s6_goalsampler_learnable_weakness.py",
+    "result": "learnable weakness share 0.245 vs uniform 0.20, 10/10 seeds above; hard-levels-hopeless 0.186, 0/10 above"
+   },
+   {
+    "command": "python s7_In2_scanner.py",
+    "result": "5/6 planted unsupported claims missed; 1 (false-positive) hit in 681 unscanned files"
+   },
+   {
+    "command": "python s8_controls_on_v5.py",
+    "result": "on 4 v5 train families: WeightLearner internalised (gain 1.44, p .034), Hold no_gain, ContextLearner fast-only (p .004); 14.3 s"
+   },
+   {
+    "command": "python s9_compose_populations.py",
+    "result": "all 5 population kinds single-agent a0; rivals are adaptive_opponent graph nodes; several calibrated instances default within 1-2% of oracle"
+   },
+   {
+    "command": "checker.verify_all() in-process (read-only)",
+    "result": "NOT_STARTED 253 overall; 25/25 N NOT_STARTED; no file written"
+   },
+   {
+    "command": "pytest -q -p no:cacheprovider -x tests/test_research_protocols.py -k 'internalisation or sealed or timescales'",
+    "result": "13 passed, 22 deselected (10.3 s)"
+   },
+   {
+    "command": "pytest -q -p no:cacheprovider -x tests/v5/test_gate_I.py -k In2",
+    "result": "1 passed (2.4 s)"
+   }
+  ],
+  "verdict_counts_after_review": {
+   "subsystems": {
+    "RETAIN": 0,
+    "REPAIR": 3,
+    "EXTEND": 4,
+    "REDESIGN": 5,
+    "REBUILD": 0,
+    "IMPLEMENT": 5
+   },
+   "requirements": {
+    "RETAIN": 0,
+    "REPAIR": 4,
+    "EXTEND": 7,
+    "REDESIGN": 5,
+    "REBUILD": 0,
+    "IMPLEMENT": 9
+   },
+   "subsystem_verdicts": {
+    "Training-distribution registry and sampler": "IMPLEMENT",
+    "Mixed tier curriculum 50/30/20": "IMPLEMENT",
+    "Adaptive curriculum (goals.curriculum.GoalSampler)": "REDESIGN",
+    "Procedural structural composition (research/v5/compose.py)": "EXTEND",
+    "World-proposal interface": "IMPLEMENT",
+    "Research protocol harness (evaluate/lifetime/timescales/internalisation/transfer/compare)": "REDESIGN",
+    "Fresh-process weights-only evaluation": "REDESIGN",
+    "Positive controls": "EXTEND",
+    "Learning curves and N_q / acceleration": "REPAIR",
+    "Statistics (multi-seed, world+learner variation)": "REPAIR",
+    "Matched-budget comparison": "EXTEND",
+    "A/B/C/D training-diversity comparison configuration": "IMPLEMENT",
+    "Sealed sets and evaluation-partition protection": "REDESIGN",
+    "Level 6 authorization-gated adapter": "EXTEND",
+    "Independent evaluation for learners": "REDESIGN",
+    "Claim-integrity notes (I.n2 scanner, K.n2, S.n1)": "REPAIR",
+    "N gate test suites": "IMPLEMENT"
+   },
+   "requirement_verdicts": {
+    "T.1": "EXTEND",
+    "T.2": "EXTEND",
+    "T.3": "IMPLEMENT",
+    "T.4": "EXTEND",
+    "T.5": "REDESIGN",
+    "T.6": "IMPLEMENT",
+    "T.7": "REDESIGN",
+    "T.8": "IMPLEMENT",
+    "U.1": "REDESIGN",
+    "U.2": "EXTEND",
+    "U.3": "REDESIGN",
+    "U.4": "EXTEND",
+    "U.5": "EXTEND",
+    "U.6": "REPAIR",
+    "U.7": "REDESIGN",
+    "U.8": "REPAIR",
+    "I.n2": "REPAIR",
+    "K.n2": "IMPLEMENT",
+    "S.n1": "IMPLEMENT",
+    "SP-14.1": "IMPLEMENT",
+    "SP-14.2": "IMPLEMENT",
+    "SP-14.4": "IMPLEMENT",
+    "SP-15.3": "REPAIR",
+    "SP-15.5": "IMPLEMENT",
+    "SP-15.6": "EXTEND"
+   }
+  }
+ }
+}

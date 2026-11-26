@@ -1,0 +1,705 @@
+{
+ "area": "C_social",
+ "workstreams": [
+  "C",
+  "C1",
+  "C2"
+ ],
+ "subsystems": [
+  {
+   "name": "Platform registry, catalogue and content sites",
+   "paths": [
+    "src/crucible/social/platforms.py",
+    "src/crucible/social/content.py",
+    "src/crucible/social/sites.py",
+    "src/crucible/social/nodes.py",
+    "src/crucible/social/edges.py",
+    "src/crucible/social/formats.py",
+    "src/crucible/social/integration.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "SP-4 reproduced (16 platform kinds via tools, one catalogue/identity space); C.1 reproduced (text, HTML, PNG, WAV, H.264 published and decoded by another principal); probes p2, p5.",
+   "key_defects": [
+    "content.update (content.py:351) never re-indexes the aud item: distributed embedding/terms stay those of the original artifact (p2: cos 0.14 to new bytes) - bait-and-switch",
+    "content.open is not a consumption event; integration.record_impressions/record_consumption are never called (p5: 5 reads -> 0 impressions/views)",
+    "population creators (scale.publish_post) bypass the catalogue: 28 of 29 distributed items invisible to search/latest/trending/comments",
+    "aud default platforms ['posts','articles'] - 'articles' is not a C1 platform"
+   ],
+   "work_needed": "Single publish path for population and agents; re-index on update/remove; record tool reading through aud; align platform names."
+  },
+  {
+   "name": "Creator studio and artifact formats",
+   "paths": [
+    "src/crucible/social/studio.py",
+    "src/crucible/social/render.py",
+    "src/crucible/social/formats.py"
+   ],
+   "verdict": "RETAIN",
+   "effort": "S",
+   "evidence": "SP-4.2 reproduced: 10 formats x 7 life-cycle steps, 24 content tools; apps/packages run in the sandbox; C.1 independent decoding (ffprobe, Pillow, wave).",
+   "key_defects": [
+    "expressiveness is minimal (text-card images, synthesised tones, slideshow video) - acceptable as lightweight tools"
+   ],
+   "work_needed": "None blocking; richer media editing optional."
+  },
+  {
+   "name": "Social graph, messaging, creator memberships, newsletters, launches, Q&A",
+   "paths": [
+    "src/crucible/social/graph.py",
+    "src/crucible/social/messaging.py",
+    "src/crucible/social/creators.py",
+    "src/crucible/social/launch.py",
+    "src/crucible/social/qa.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "SP-4 and C.n1 reproduced (counters recount from events, self-votes/repeat votes refused); p5 cross-state probe.",
+   "key_defects": [
+    "population follows live in aud 'fo' idsets, population shares in feed inboxes: p5 shows 78 population follows vs C1 follower count 0, 9 shares vs 0 C1 share rows",
+    "follow_batch/share_batch (graph.py:101,112) never called; trending ignores population shares",
+    "content.inspect reports followers 0 beside subscribers 78 (two inconsistent follower truths)"
+   ],
+   "work_needed": "One follow graph and one share log written by both population batches and agent tools; feed recommenders read it."
+  },
+  {
+   "name": "Communities",
+   "paths": [
+    "src/crucible/social/communities.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "L",
+   "evidence": "SP-4.7 reproduced (13 features verified); C.4 reproduced (16 formed, 14 active after 30 days) - all by scripted ReferenceParticipants.",
+   "key_defects": [
+    "join_batch/leave_batch/touch_batch (communities.py:148-158) never called: the autonomous population never joins, posts, lurks or churns",
+    "formation/persistence is produced by scripted driver code (reference.py:178-205), not emergent"
+   ],
+   "work_needed": "Population-level membership and participation decisions driven by experienced value; churn and inactivity measured on the population; participant-founded subjects from population/agents."
+  },
+  {
+   "name": "Browser workflow",
+   "paths": [
+    "src/crucible/social/web.py"
+   ],
+   "verdict": "RETAIN",
+   "effort": "S",
+   "evidence": "C.6 reproduced with Playwright Chromium: 9 steps passed, 5 state changes verified, headless twin identical event-hash chain.",
+   "key_defects": [
+    "operates on C1 state only (no population audience visible)"
+   ],
+   "work_needed": "Extend once C1/C2 state is unified (creator analytics pages)."
+  },
+  {
+   "name": "Audience accounting (exact sets, view rule, recount)",
+   "paths": [
+    "src/crucible/social/audience.py",
+    "src/crucible/social/idset.py"
+   ],
+   "verdict": "RETAIN",
+   "effort": "S",
+   "evidence": "SP-4.6 reproduced; D.5 0 violations/384 checks; at 10M identities 23,576,322 exposures and 10,568,231 distinct viewers recounted with 0 mismatches; all tool-level counter writes refused (p2).",
+   "key_defects": [
+    "recount's forced-view test (audience.py:820-832) only checks impression-before-consumption: 500 views injected by module code pass with 0 mismatches and 0 forced views (p2) - no decision provenance"
+   ],
+   "work_needed": "Record the deciding process/actor per batch and count as organic only engine/participant-tool batches (evaluator-side)."
+  },
+  {
+   "name": "Content representation (textrep + aud encoder bridge)",
+   "paths": [
+    "src/crucible/social/textrep.py",
+    "src/crucible/social/vocab.py",
+    "src/crucible/social/audience.py"
+   ],
+   "verdict": "REDESIGN",
+   "effort": "L",
+   "evidence": "p3: natural English article 330 mean unique viewers vs keyword-stuffed 1,540 vs meaningless hash-selected tokens 3,213/4,000; 32-d noise sd 0.179; synonyms cos -0.22; p1: image publish refused with default encoder; p4: semantic mode maps football text->politics, cooking->cars.",
+   "key_defects": [
+    "32-d lexical random indexing over a closed 576-word vocabulary; interests are centroids of that vocabulary",
+    "audience rewards hash-vector alignment, not meaning: token-optimised gibberish wins",
+    "non-text kinds raise InvalidAction with the default encoder (audience.py:482)",
+    "semantic mode projects D's vector with a random Gaussian matrix (audience.py:475) into an unrelated space - multimodal reach is a lottery"
+   ],
+   "work_needed": "One shared learned/pretrained multimodal space for content and individuals; interests defined in it; validation that behaviour tracks meaning; adversarial token-gaming test."
+  },
+  {
+   "name": "Recommendation mechanisms",
+   "paths": [
+    "src/crucible/social/recsys/__init__.py",
+    "src/crucible/social/recsys/algorithms.py",
+    "src/crucible/social/recsys/training.py",
+    "src/crucible/social/recsys/features.py",
+    "src/crucible/social/recsys/service.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "M",
+   "evidence": "D.1-D.5 and SP-4.5 reproduced: 12 distinct algorithms end to end (max exposure Jaccard 0.38), ALS/logistic refits on delayed noisy feedback, 46 hidden-parameter probes 0 leaks.",
+   "key_defects": [
+    "algorithm change only by configured day schedule or operator override (service.py:118-128); no platform adapts its own distribution",
+    "content-based mechanisms inherit the broken representation",
+    "candidate pools of a few hundred items"
+   ],
+   "work_needed": "Platform-side adaptive policies (objective-driven re-weighting, A/B), larger retrieval, evolving competitors."
+  },
+  {
+   "name": "Consumption and behaviour engine",
+   "paths": [
+    "src/crucible/social/consumption.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "L",
+   "evidence": "D.5/I.4 reproduced (no attention overspend at 10M); decisions are per-individual seeded draws; FIDELITY_REGISTER rows 41-46 'plausible, unvalidated'.",
+   "key_defects": [
+    "content value = lexical affinity + social signals only; no usefulness/need satisfaction",
+    "hand-set parameters; fitted watch_duration@1, return_daily@1, content_consumption_feed@1 not wired (news_click@1 only when configured)",
+    "text kinds only"
+   ],
+   "work_needed": "Calibrated defaults, multimodal kinds, satisfaction from what the artifact does for the current need."
+  },
+  {
+   "name": "Population integration",
+   "paths": [
+    "src/crucible/social/scale.py",
+    "src/crucible/social/recsys/service.py",
+    "src/crucible/social/consumption.py",
+    "src/crucible/social/reference.py"
+   ],
+   "verdict": "REDESIGN",
+   "effort": "L",
+   "evidence": "C.3 fails: 'feed: the population module does not provide register_activity' (service.py:184); consumption.py:487 imports a non-existent population.wake; three populations with 24/16/8-topic vocabularies and incompatible interest spaces.",
+   "key_defects": [
+    "C2 engine runs only on its own stand-in 'crowd'",
+    "B's pop interests (population/text.py sign hashing) not comparable to item embeddings",
+    "autonomous population uses only feed platforms (posts/articles); never communities, messaging, newsletters, launches, Q&A, search, creator memberships"
+   ],
+   "work_needed": "One civilization population and one interest/content space; B's scheduler drives social activities on every platform."
+  },
+  {
+   "name": "Scale path and cascade experiments",
+   "paths": [
+    "src/crucible/social/scale.py",
+    "src/crucible/social/cascade.py",
+    "src/crucible/social/experiments.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "M",
+   "evidence": "Gate I reproduced at 10M identities on one thread (9 passed, 658 s): item 0 318,659/627,712/1,148,449 viewers at h1/2/3; 10,568,231 qualifying distinct events; organic 2.5M run top item 203,583. p6 anatomy at 500k.",
+   "key_defects": [
+    "positive-control reach is mostly a genesis effect (13 items for 8 feed slots in hour 1; ~76% of actives view item 0); trending slot delivered 57% of top-item exposure",
+    "organic reach is first-mover feed retrieval (91% interest source), not sharing cascades",
+    "single text platform on the stand-in population"
+   ],
+   "work_needed": "Run on the unified population and multiple platforms, warm-started catalogues, cascade-shape diagnostics vs empirical distributions."
+  },
+  {
+   "name": "Gate evidence harness (reference participants, gate tests)",
+   "paths": [
+    "src/crucible/social/reference.py",
+    "tests/v5/test_gate_C.py",
+    "tests/v5/test_gate_SP_4.py",
+    "tests/v5/test_gate_SP_4_7.py",
+    "tests/v5/test_gate_SP_4_8.py",
+    "tests/v5/test_gate_I.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "C.2/C.4/C.5/SP-4/SP-4.7/SP-4.8 measured on scripted drivers or the test body; test_gate_C.py:203 counts kind='impress' and b.get('sources') (always 0); test_gate_C.py:238 int(dict) bug; Gate I tests assert almost nothing.",
+   "key_defects": [
+    "C.5 effects follow from the driver's candidate order (reference.py:132)",
+    "population channels never counted in C.2",
+    "C.3 cannot run in the integrated configuration"
+   ],
+   "work_needed": "Measure gates on the autonomous population; fix the two test bugs; assert criteria in tests."
+  },
+  {
+   "name": "Social-economic interoperability",
+   "paths": [
+    "src/crucible/social/launch.py",
+    "src/crucible/social/creators.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "L",
+   "evidence": "SP-4.8 reproduced: 2 scripted chains, 0 bonus transactions, static scan clean, counterfactual social-only revenue 0.",
+   "key_defects": [
+    "only chain is the test body calling tools in order",
+    "population never discovers/buys/subscribes through content; infra cost, retention and demand effects not exercised"
+   ],
+   "work_needed": "Population-level discover->visit->try->subscribe->review loop through commerce/cloud modules with measurable infra and retention consequences."
+  }
+ ],
+ "requirements": [
+  {
+   "id": "C.1",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: 2 text, 2 image, 1 audio, 2 video published and decoded by another principal.",
+   "work_needed": "None for publication; consumption of non-text kinds by the population is blocked by the representation (see C_social subsystem 'Content representation').",
+   "criteria_weak": false
+  },
+  {
+   "id": "C.2",
+   "verdict": "REPAIR",
+   "reason": "6 channels verified, all from 60 scripted reference participants; population channels counted with a wrong batch kind/field (always 0).",
+   "work_needed": "Measure discovery channels of the autonomous population across platforms; fix test_gate_C.py:203.",
+   "criteria_weak": true
+  },
+  {
+   "id": "C.3",
+   "verdict": "REPAIR",
+   "reason": "Test fails in the integrated configuration (feed cannot install with B's pop); on crowd it would pass (p5: 69,716 rows, 0 mismatches); tool reading produces no analytics; test has an int(dict) bug.",
+   "work_needed": "Wire feed to population.core (register_activity, wake); record content.open as consumption; fix test_gate_C.py:238.",
+   "criteria_weak": false
+  },
+  {
+   "id": "C.4",
+   "verdict": "EXTEND",
+   "reason": "16 formed / 14 active after 30 days, but founded and sustained by scripted drivers; population cannot join communities.",
+   "work_needed": "Population participation through join/leave/touch batches driven by value; measure on the population.",
+   "criteria_weak": true
+  },
+  {
+   "id": "C.5",
+   "verdict": "REPAIR",
+   "reason": "p-values reproduced (5e-5, 1e-8, 5e-5) but effects follow mechanically from the scripted candidate order.",
+   "work_needed": "Randomised follow/share/subscription experiments on the autonomous population with effect sizes.",
+   "criteria_weak": true
+  },
+  {
+   "id": "C.6",
+   "verdict": "RETAIN",
+   "reason": "Reproduced with Chromium: 9/9 steps, 5 verified state changes, identical headless twin.",
+   "work_needed": "Extend to pages showing population-driven analytics after state unification.",
+   "criteria_weak": false
+  },
+  {
+   "id": "C.n1",
+   "verdict": "REPAIR",
+   "reason": "All tool-level counter writes refused (9 test probes + 6 audit probes); but module code can inject impression+consumption rows that recount accepts as clean; C1 vs C2 follower counts disagree.",
+   "work_needed": "Decision provenance per batch; unify follower/share state; count probes at both tool and module level.",
+   "criteria_weak": true
+  },
+  {
+   "id": "D.1",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: 12 mechanisms end to end, max pairwise exposure Jaccard 0.38.",
+   "work_needed": "None for the criterion; representation redesign will change content-based arms.",
+   "criteria_weak": false
+  },
+  {
+   "id": "D.2",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: interest vs trending arms differ, p=0.0 for exposure and consumption.",
+   "work_needed": "Add effect-size thresholds.",
+   "criteria_weak": true
+  },
+  {
+   "id": "D.3",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: 1 scheduled change at day 3, exposure-age shift p=0.0 vs counterfactual fork.",
+   "work_needed": "Add endogenous, platform-driven algorithm evolution (spec 4.5 'may change over time').",
+   "criteria_weak": true
+  },
+  {
+   "id": "D.4",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: 46 probes by a viewer and a creator, 0 leaks; analytics stable under repetition.",
+   "work_needed": "None.",
+   "criteria_weak": false
+  },
+  {
+   "id": "D.5",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: 0 exposure invariant violations, 0 attention overspend over 384 checks and a full recount.",
+   "work_needed": "None.",
+   "criteria_weak": false
+  },
+  {
+   "id": "I.1",
+   "verdict": "REPAIR",
+   "reason": "Reproduced 10,000,000 distinct identities (exact mode), but on the C2 stand-in population 'crowd'; B's pop cannot drive the engine.",
+   "work_needed": "Run the 10M profile on the unified civilization population.",
+   "criteria_weak": false
+  },
+  {
+   "id": "I.2",
+   "verdict": "RETAIN",
+   "reason": "Reproduced at 10M: 23,576,322 exposures recounted, 0 mismatches.",
+   "work_needed": "None.",
+   "criteria_weak": false
+  },
+  {
+   "id": "I.3",
+   "verdict": "RETAIN",
+   "reason": "Reproduced at 10M: 10,568,231 distinct viewers recounted member by member, 0 mismatches.",
+   "work_needed": "None.",
+   "criteria_weak": false
+  },
+  {
+   "id": "I.4",
+   "verdict": "RETAIN",
+   "reason": "Reproduced at 10M: 0 attention ledger violations, 0 daily over-budget consumption.",
+   "work_needed": "None.",
+   "criteria_weak": false
+  },
+  {
+   "id": "I.5",
+   "verdict": "REPAIR",
+   "reason": "Reproduced: 0 forced views, 9 share generations; but the forced-view metric cannot detect module-level injection (p2).",
+   "work_needed": "Provenance-based forced-view metric.",
+   "criteria_weak": true
+  },
+  {
+   "id": "I.6",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: item 0 reached 1,148,449 unique viewers in 3 simulated hours; caveat: genesis/first-mover effect in a ~13-item catalogue.",
+   "work_needed": "Report cascade anatomy (sources, competing items) with the evidence.",
+   "criteria_weak": false
+  },
+  {
+   "id": "I.7",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: 10,568,231 qualifying distinct consumption events at 10M.",
+   "work_needed": "None (capacity only).",
+   "criteria_weak": false
+  },
+  {
+   "id": "I.n1",
+   "verdict": "EXTEND",
+   "reason": "Reproduced at 2.5M: top item 203,583 unique viewers in 24 h, 0 forced views; reach is early-item feed retrieval (p6: 91% interest source) on keyword-matched text.",
+   "work_needed": "Demonstrate on the unified population with a meaningful representation; separate first-mover effects from adoption.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-4",
+   "verdict": "REDESIGN",
+   "reason": "16/16 platform kinds work via tools for 4 scripted principals, but the autonomous population uses only feed platforms; C1 and C2 state are disjoint.",
+   "work_needed": "Unify state and population; criterion should require population activity on each platform.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-4.2",
+   "verdict": "REPAIR",
+   "reason": "Reproduced 10 kinds x 7 steps, 24 tools; but 'update' does not propagate to distribution (stale embedding).",
+   "work_needed": "Re-index aud items on content.update.",
+   "criteria_weak": false
+  },
+  {
+   "id": "SP-4.5",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: 10 required mechanisms, delayed feedback (6 h), label noise 5%, analytics noise log-sd 0.053.",
+   "work_needed": "None for the criterion.",
+   "criteria_weak": false
+  },
+  {
+   "id": "SP-4.6",
+   "verdict": "RETAIN",
+   "reason": "Reproduced: 10 quantities distinguished, view rule documented, 0 recount mismatches.",
+   "work_needed": "None.",
+   "criteria_weak": false
+  },
+  {
+   "id": "SP-4.7",
+   "verdict": "EXTEND",
+   "reason": "Reproduced 13 features through scripted principals; no population participation.",
+   "work_needed": "Population membership/participation/churn.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-4.8",
+   "verdict": "EXTEND",
+   "reason": "Reproduced 2 scripted chains, 0 bonuses; no population-level chain, no infra/retention/demand consequences.",
+   "work_needed": "Population discover->buy->review loop through commerce/cloud with measured consequences.",
+   "criteria_weak": true
+  }
+ ],
+ "missing_requirements": [
+  "Part 4 intro: all platforms share the civilization's participant population and world state - no criterion requires the autonomous population to act on each platform or C1/C2 state consistency.",
+  "4.3: representations must let participants respond to genuinely different content (meaning, not tokens) - no C entry; needs an adversarial token-optimised-content test.",
+  "4.3/4.2: re-encode distributed items when content is updated (aud index) - E.4 covers D's cache only.",
+  "4.1/4.6: tool-based reading (content.open) recorded as consumption with analytics.",
+  "4.7: population membership, inactivity and churn; success by sustained voluntary participation of the population.",
+  "4.5: platform algorithms evolve endogenously; independently evolving (adaptive) competitors; changing audiences.",
+  "4.6: no artificial virality multipliers (static + dynamic check); forced-view detection by decision provenance.",
+  "4.8: population-level social-to-economy chain incl. infrastructure cost, retention and demand effects.",
+  "Integration: social internet present in Tier 2 content/community domains and Tier 3 civilizations (civ is a stub).",
+  "User amendment (a): any social environment wrapper defaults to reward_mode=observation_only with Gym reward 0.0; creator analytics remain observations.",
+  "4.4: default consumption behaviour calibrated from empirical data where fitted models exist (watch_duration@1, return_daily@1)."
+ ],
+ "tests_run": [
+  {
+   "command": "PYTHONPATH=src pytest -q tests/test_v5_social_audience.py tests/test_v5_social_idset.py tests/test_v5_social_recsys.py tests/test_v5_social_calibrated.py",
+   "result": "18 passed (27 s)"
+  },
+  {
+   "command": "PYTHONPATH=src pytest -q tests/v5/test_gate_C.py -k 'not C_6'",
+   "result": "5 passed, 1 failed (C.3: ProtocolError feed: the population module does not provide register_activity)"
+  },
+  {
+   "command": "slots --cpu 2 -- pytest -q tests/v5/test_gate_C.py -k C_6",
+   "result": "1 passed (Chromium, 9/9 steps)"
+  },
+  {
+   "command": "slots --cpu 1 -- pytest -q tests/v5/test_gate_D.py",
+   "result": "5 passed (136 s)"
+  },
+  {
+   "command": "PYTHONPATH=src pytest -q tests/v5/test_gate_SP_4.py tests/v5/test_gate_SP_4_2.py tests/v5/test_gate_SP_4_7.py tests/v5/test_gate_SP_4_8.py",
+   "result": "4 passed (21 s)"
+  },
+  {
+   "command": "PYTHONPATH=src pytest -q tests/v5/test_gate_SP_4_5.py tests/v5/test_gate_SP_4_6.py",
+   "result": "2 passed (82 s)"
+  },
+  {
+   "command": "slots --cpu 1 -- pytest -q -s tests/v5/test_gate_I.py (10M positive control + 2.5M organic, 1 thread)",
+   "result": "9 passed (658 s); I.6 1,148,449; I.7 10,568,231; I.n1 203,583"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/C_social/probes/p1_integration.py",
+   "result": "C1+crowd+aud+feed works for text; image publish refused with default encoder; works with semantic"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/C_social/probes/p2_update_and_counters.py",
+   "result": "update leaves stale embedding (cos 0.14); tool writes refused; 500 injected views pass recount with 0 mismatches/0 forced"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/C_social/probes/p3_shortcuts.py",
+   "result": "unique viewers: natural 330, keyword-stuffed 1,540, multi-topic salad 782, meaningless tokens 3,213/4,000"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/C_social/probes/p4_semantic_bridge.py",
+   "result": "semantic mode misaligns topics (football->politics, cooking->cars)"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/C_social/probes/p5_cross_state.py",
+   "result": "content.open not counted; 78 aud follows vs 0 C1 followers; 0 C1 share rows; 28/29 items not catalogued"
+  },
+  {
+   "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/C_social/probes/p6_cascade_anatomy.py 500000",
+   "result": "positive control hour 1: 13 items; top-item sources trending 57% share 33%; organic top 23,598 (91% interest)"
+  }
+ ],
+ "critical_findings": [
+  "Audience rewards hash-vector alignment, not content: meaningless tokens reached 3,213/4,000 people vs 330 for an informative English article (p3).",
+  "Three disjoint populations; the C2 engine cannot run with B's pop (C.3 fails at feed install, service.py:184); autonomous population never uses communities, messaging, newsletters, launches, Q&A or search.",
+  "Multimodal distribution broken: default encoder refuses non-text; semantic mode uses a random projection that destroys topical alignment (p1, p4).",
+  "content.update leaves the distributed representation stale (bait-and-switch, p2).",
+  "C1 and C2 keep separate follower/share truths (78 vs 0 followers, p5); tool reading is never consumption.",
+  "Community, sharing/following and social-to-purchase evidence comes from scripted drivers; social internet is not wired into any Tier 2 domain or civilization."
+ ],
+ "artifacts_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/C_social",
+ "commit": "a881d18",
+ "skeptic": {
+  "reviewer": "independent skeptic (C_social)",
+  "head": "dd745b9 (social/ unchanged since a881d18; only acceptance/v5 manifest+requirements differ)",
+  "probes_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/C_social_skeptic",
+  "method": "Attempted to refute every RETAIN and generous verdict and to test harsh ones with self-written runtime probes (single thread); verdicts changed only on probe evidence.",
+  "overturned": [
+   {
+    "target": "subsystem: Audience accounting",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S-M",
+    "probe": "s2_recount_persistence.py",
+    "why": "recount() verifies only the in-memory log window: 439 false mismatches after snapshot restore, 643 with log_retain=2000, 0 only when full history is passed from a store (no caller does); no decision provenance (auditor p2); C1 reading unaccounted."
+   },
+   {
+    "target": "subsystem: Browser workflow",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S",
+    "probe": "s6_browser_entry.py",
+    "why": "Social pages exist only in the test-built make_social_web_app; the deployable crucible.web.app main (make_web_app) serves generic service-host consoles for social.crucible etc.; no runner/agent uses it."
+   },
+   {
+    "target": "subsystem: Consumption/behaviour engine",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "effort": "L",
+    "probe": "s7_engine_value.py",
+    "why": "Identical embedding, 15 vs 600 words: blurb wins unique viewers 1922/1251 vs 1208/532, shares and subscribers; value = frac_read*(affinity-0.2) (consumption.py:379-381) ignores what the reader gains. Mechanics retainable, value model must be redesigned."
+   },
+   {
+    "target": "C.1",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "probe": "s9_media_publish_integrated.py",
+    "why": "Measured only in a C1-only world; with aud distributing pics/pods/shorts under the default encoder, image/audio/video publish is refused (InvalidAction no encoder); works only with the random-projection semantic mode."
+   },
+   {
+    "target": "D.4",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "probe": "s4_observable_shortcut.py, s3_leaks_and_time.py",
+    "why": "Public aud.item events (delivered in every learner's observation, agents/base.py:96-103) carry the platform's exact 32-d emb (diff 5e-7) and terms; from public data an agent's post reached 2,287 vs 320 viewers for a natural article (7x). D.4 scans only 16 config strings."
+   },
+   {
+    "target": "SP-4",
+    "from": "REDESIGN",
+    "to": "EXTEND",
+    "probe": "s8_batch_apis.py",
+    "why": "Too harsh and inconsistent with the auditor's REPAIR verdicts on catalogue/graph: population batch APIs work on population rows (500 joins, 500 follows, 50 leaves; visible in community.view and profile; invariants clean). Missing: population behaviour on platforms + one state truth."
+   }
+  ],
+  "criteria_weak_changes": [
+   {
+    "id": "I.1",
+    "from": false,
+    "to": true,
+    "why": "counts table rows; only 3,628,555 of 10M identities made any decision"
+   },
+   {
+    "id": "I.2",
+    "from": false,
+    "to": true,
+    "why": "no persistence/restore condition; recount is window-only (S2)"
+   },
+   {
+    "id": "I.3",
+    "from": false,
+    "to": true,
+    "why": "same as I.2"
+   },
+   {
+    "id": "I.4",
+    "from": false,
+    "to": true,
+    "why": "measured only on the feed path where the engine clamps attention by construction; C1 tools spend no attention"
+   },
+   {
+    "id": "I.6",
+    "from": false,
+    "to": true,
+    "why": ">=1M unique viewers satisfiable by a genesis broadcast in a ~13-item catalogue (p6); no cascade-shape condition"
+   },
+   {
+    "id": "I.7",
+    "from": false,
+    "to": true,
+    "why": "counts (identity,item) pairs; spec 4.6 requires 10M distinct identities with qualifying consumption for a 10M-viewer claim"
+   },
+   {
+    "id": "D.4",
+    "from": false,
+    "to": true,
+    "why": "marker scan of 16 config strings cannot detect per-item representation leaks (S4)"
+   }
+  ],
+  "upheld": {
+   "subsystems": [
+    "Creator studio RETAIN (S3: Landlock/seccomp sandbox blocks host reads)",
+    "Platform registry/catalogue REPAIR",
+    "Social graph REPAIR (S8)",
+    "Communities EXTEND (S8)",
+    "Content representation REDESIGN (strengthened by S4)",
+    "Recommendation EXTEND (S5)",
+    "Population integration REDESIGN (S1; blocker is 2 aliases but B/C2 interest spaces unrelated)",
+    "Scale path EXTEND",
+    "Gate harness REPAIR",
+    "Social-economic EXTEND"
+   ],
+   "requirements": [
+    "C.2 REPAIR",
+    "C.3 REPAIR (S1,S10)",
+    "C.4 EXTEND",
+    "C.5 REPAIR",
+    "C.6 RETAIN",
+    "C.n1 REPAIR",
+    "D.1 RETAIN (S5)",
+    "D.2 RETAIN",
+    "D.3 RETAIN",
+    "D.5 RETAIN (single in-memory run only)",
+    "I.1 REPAIR",
+    "I.2 RETAIN",
+    "I.3 RETAIN",
+    "I.4 RETAIN",
+    "I.5 REPAIR",
+    "I.6 RETAIN",
+    "I.7 RETAIN",
+    "I.n1 EXTEND",
+    "SP-4.2 REPAIR",
+    "SP-4.5 RETAIN (S5)",
+    "SP-4.6 RETAIN",
+    "SP-4.7 EXTEND",
+    "SP-4.8 EXTEND"
+   ]
+  },
+  "probes": [
+   {
+    "script": "s1_pop_integration.py",
+    "result": "aliasing population.register_activity/wake at runtime: engine runs on B pop (1,982 consumption rows, 0 mismatches in 3 days) but B vs C2 same-word cosine 0.06; true topic rank 6.8/16 (chance 8.5); viewed items matching viewer B topic 4.5% (~chance)"
+   },
+   {
+    "script": "s2_recount_persistence.py",
+    "result": "recount: 0 before restore; 439 after from_blob restore; 643 with log_retain=2000; 0 with MemoryStore events; 20-day full-log 0 (aud_batches kept from day 6)"
+   },
+   {
+    "script": "s3_leaks_and_time.py",
+    "result": "sandbox host reads all PermissionError; tracebacks reveal host paths; public aud.item payload has emb(32)+terms"
+   },
+   {
+    "script": "s4_observable_shortcut.py",
+    "result": "observation-only optimised 12-word post 2,287 mean unique viewers vs natural 320 vs privileged 3,277; cos(views-weighted public emb, hidden mean interest) 0.85/0.70"
+   },
+   {
+    "script": "s5_learned_recsys.py",
+    "result": "cf/engagement params change 8/7 times in 2 days; views/impression random .299 trending .302 cf .360 engagement .388 interest .411; engagement AUC .589 vs interest .634"
+   },
+   {
+    "script": "s6_browser_entry.py",
+    "result": "deployable make_web_app renders generic service-host page for social.crucible; social pages only via make_social_web_app"
+   },
+   {
+    "script": "s7_engine_value.py",
+    "result": "identical embedding: 15-word blurb beats 600-word piece on viewers/shares/subscribers in both seeds"
+   },
+   {
+    "script": "s8_batch_apis.py",
+    "result": "join/touch/follow/leave batches work on population rows; 451 members, 500 C1 followers, 0 aud followers; health counts mere joiners as active"
+   },
+   {
+    "script": "s9_media_publish_integrated.py",
+    "result": "default encoder: pics/pods/shorts publish refused; semantic encoder: all published"
+   },
+   {
+    "script": "s10_c3_with_alias.py",
+    "result": "C.3 body with aliases fails only at test_gate_C.py:238 int(dict)"
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "PYTHONPATH=src pytest -q -p no:cacheprovider tests/test_v5_social_audience.py",
+    "result": "5 passed (8.6 s)"
+   },
+   {
+    "command": "PYTHONPATH=src pytest -q -p no:cacheprovider tests/v5/test_gate_C.py -k C_3",
+    "result": "1 failed: ProtocolError at recsys/service.py:186 (reproduced)"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/C_social_skeptic/s1_pop_integration.py .. s10_c3_with_alias.py (10 probes, 1 thread each)",
+    "result": "see probes"
+   }
+  ],
+  "additional_findings": [
+   "Every learner observation carries the platform's per-item embedding and terms via public aud.item events (audience.py:200-203); representation gaming is learnable from observations (S4).",
+   "Tool-based reading (content.open, site/community/message reads) spends no attention; only feed.* charges attention (recsys/service.py:299-304).",
+   "Gate I evidence: only 3,628,555 of 10M identities made any decision; no gate verifies 10M distinct identities with qualifying consumption (spec 4.6).",
+   "community.health counts members who only joined as active_7d/active_30d (S8).",
+   "studio.run/test error tracebacks expose host filesystem paths (minor, Gate W)."
+  ],
+  "additional_missing_requirements": [
+   "D.4 must include representation-leak probes (no per-item emb/terms in observations, events or tools) and an adversarial observation-derived gaming test.",
+   "Audience verification must work across snapshot/restore and log truncation (recount from the durable store); check I.2/I.3/D.5 on a resumed persistent run.",
+   "C.1 must be measured in the integrated distributed configuration with the default encoder.",
+   "Spec 4.6: verify 10M distinct identities with qualifying consumption or label the result estimated.",
+   "Finite attention for tool-using participants on every platform.",
+   "Social browser pages reachable from the deployable browser entry point.",
+   "Spec 4.4: reader's gain depends on what content provides, not only topical cosine x fraction read."
+  ],
+  "critical_findings": [
+   "Token/keyword gaming is discoverable from legitimate observations (public emb in aud.item events + public views): 7x reach over a natural article without privileged access (S4).",
+   "Audience verification is not persistent: recount gives false mismatches after restore (439) or log truncation (643); only correct when fed the store's full history (S2).",
+   "C.1 fails in the default integrated configuration: image/audio/video publishing refused when media platforms are distributed (S9).",
+   "Consumption value is independent of what content provides: same-embedding 15-word blurb out-performs a 600-word piece (S7).",
+   "B-pop integration blocker is two missing aliases, but B and C2 interest spaces are unrelated, so engine affinities on pop are noise (S1)."
+  ]
+ }
+}

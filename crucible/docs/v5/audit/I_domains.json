@@ -1,0 +1,493 @@
+{
+ "area": "I_domains",
+ "workstreams": [
+  "I",
+  "I1",
+  "I2",
+  "I3",
+  "I4"
+ ],
+ "audited_commit": "a881d18 (HEAD moved to dd745b9 during audit; no domain code change)",
+ "subsystems": [
+  {
+   "name": "Domain framework (base/modes/modules/seats)",
+   "paths": [
+    "crucible/src/crucible/domains/base.py",
+    "crucible/src/crucible/domains/__init__.py",
+    "crucible/src/crucible/domains/modes.py",
+    "crucible/src/crucible/domains/modules.py",
+    "crucible/src/crucible/domains/seats.py",
+    "crucible/src/crucible/experience/registry.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "test_v5_domains_framework.py 7 passed (fake tiny-based probe only). p06_contract.py: after base.register, experience.registry.domains()==[], tiers_available {2: False}; registry path on base.Domain -> AttributeError 'tuple' object has no attribute 'values'. p01: REGISTRY empty. load_all_modules registers seat,sci but not fleet,learn,firms.",
+   "key_defects": [
+    "Contract mismatch: base.Domain (tuple configs, build(cfg,rng,ov)->recipe, objective(w,p,d), REGISTRY) vs INTERFACE_CONTRACTS s9 / experience.registry (module-level DOMAIN, dict configs, build(cfg,seed)->WorldSpec, objective(w,d)); Tier 2 unreachable via experience.make",
+    "validate() compares digest(structure) only: number-only structures {'x':1}/{'x':2} pass (base.py:109), contrary to its own docstring",
+    "experience.make default reward_mode=legacy_shaped_reward; _DomainObjective.step_reward = evaluator score delta (registry.py:99,145-170) - violates observation-only default",
+    "domains/modules.py imports only seats+science; fleet/learn/firms absent from MODULES after crucible.load_all_modules()",
+    "three incompatible seat mechanisms (seats.Seats, common.make_seat, fleet on_join via admin.join); framework seat never becomes fleet operator (p04d)",
+    "no reference-isolation check (N.n1)"
+   ],
+   "work_needed": "One contract; observation_only default with evaluator-side verify(); structural-difference check on built worlds (module sets, couplings, topology, participant types); register all domain modules; single seat mechanism; reference isolation scan."
+  },
+  {
+   "name": "Scientific research world (sci, lawlang)",
+   "paths": [
+    "crucible/src/crucible/domains/science.py",
+    "crucible/src/crucible/domains/lawlang.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "p02_science.py (100 sim days, 0.5 s): hidden law/gain not leaked through sci.phenomena/apparatus; true-law fit p=0.099 vs constant p=0.0; rivals published 9 papers, replicators filed 22 reports; invariants clean. sci.replications and sci.paper raise KeyError 'id'. True-law paper got 1 consistent + 1 refuted (p=2.8e-05) independent replication. Admission passes (p07).",
+   "key_defects": [
+    "sci.replications / sci.paper crash: _public_rep reads r['id'] (science.py:446) but applier pops id (science.py:733)",
+    "replication chi-square uses stated sd only while readings include noise_rel*|truth|: the module refutes the true law",
+    "no novel-condition evaluation / evaluator-side validity measure (spec 9.5)",
+    "narrow law space: 4 forms, always 2 variables",
+    "rival labs never publish a consistent model (9/9 refuted): weak competition",
+    "no Domain definition, configs, objective, evaluator, reference"
+   ],
+   "work_needed": "Fix crashes; document/calibrate replication test; add held-out/novel-condition evaluator; richer procedural law generator (more vars, interactions, confounders); Domain with >=5 configs and reference."
+  },
+  {
+   "name": "Engineering infrastructure world (fleet)",
+   "paths": [
+    "crucible/src/crucible/domains/infra_world.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "M",
+   "evidence": "p04_fleet.py/p04c (60 days, 2 seeds): baseline cost 2.80M/2.87M cents, wages 83%, energy <2%; fleet.staff technicians=0 -> -83.8%/-80.8% cost with attainment 0.99997/1.0; follow_demand cuts energy 42-53% but total ~flat (SLA credits). _sim_obs passes hidden true cpu_ms to candidate controllers (infra_world.py:1381,1449). p04d: framework seat not operator.",
+   "key_defects": [
+    "degenerate cost structure: firing all technicians is a one-call shortcut satisfying 'reduce cost while preserving reliability' (defaults infra_world.py:76-79, ep_staff 1521)",
+    "fleet.experiment simulates with hidden demand process and hands hidden true cpu_ms to participant code (perfect-twin oracle)",
+    "tiny default scale (1 site, 10 machines); fleet over-provisioned 2.3-2.8x masks unrepaired failures",
+    "seat wiring only via admin.join hook",
+    "no Domain definition, objective, configs, reference"
+   ],
+   "work_needed": "Recalibrate cost and understaffing consequences (repair backlog, SLA penalties, realistic energy share); experiments only on recorded past traffic and measured telemetry; wire seat; Domain with configs (topologies, tariffs, thermal, batch), evaluator from operator_costs/reliability, scripted controller reference that beats baseline without shortcut."
+  },
+  {
+   "name": "Autonomous firms + team kit (labor/organizational substrate)",
+   "paths": [
+    "crucible/src/crucible/domains/firms.py",
+    "crucible/src/crucible/domains/_kit.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "M",
+   "evidence": "p05_firms.py (30 days): 3 firms, 14 hires, 66 tasks, 51 external sales, 0 proc failures, invariants clean, replay and regeneration equal. Cash 5.0M -> 10.4M from acct_external sales.",
+   "key_defects": [
+    "revenue from unconditional external buyer: hours*rate*quality from acct_external (firms.py:281-296), no demand",
+    "unknown skills silently dropped (firms.py:158)",
+    "TeamOps/ToolPolicy references exist but no labour/organizational Domain, evaluator or objective"
+   ],
+   "work_needed": "Replace external buyer with client demand/contracts; validate configs loudly; build 9.9 and 9.12 domains (project briefs, independent project evaluator, consortium objective evaluator) and references using TeamOps."
+  },
+  {
+   "name": "Education world (learn, concepts, common)",
+   "paths": [
+    "crucible/src/crucible/domains/learning.py",
+    "crucible/src/crucible/domains/concepts.py",
+    "crucible/src/crucible/domains/common.py"
+   ],
+   "verdict": "REDESIGN",
+   "effort": "L",
+   "evidence": "p03/p03b: learn.study -> internal error KeyError 'id' (learning.py:324 reads r['id'], applier 675 pops it); every learn.tick proc.failed; 0 study sessions; final scores identical with/without lessons. p03c (in-memory bypass, 2 seeds): none 0.054/0.056, correct 0.097/0.110, wrong-key 0.117/0.122, prose 0.054/0.056. p03d: buggy answers genuinely wrong at L2-L3. FIDELITY_REGISTER has no education rows.",
+   "key_defects": [
+    "world non-functional: learners never study (KeyError 'id')",
+    "with bug bypassed, wrong-answer lessons produce more measured learning than correct ones (inverted incentive)",
+    "learners read only 'Example:/Practice: p => a' lines; prose ignored; learn.check is a format oracle (non-transferable shortcut)",
+    "hand-set learning constants cited as FIDELITY_REGISTER rows that do not exist",
+    "content limited to ~8-13 arithmetic concepts"
+   ],
+   "work_needed": "Fix crash; rebuild learner model so content correctness monotonically drives outcomes (controls correct>none>wrong); ground parameters empirically; read artifacts through learned/semantic representations; broaden concept library; Domain with configs, evaluator (final_scores on fresh problems), reference."
+  },
+  {
+   "name": "Tier 2 domain definitions (15 DOMAINs, configs, objectives, evaluators, references)",
+   "paths": [
+    "crucible/src/crucible/domains/"
+   ],
+   "verdict": "IMPLEMENT",
+   "effort": "XL",
+   "evidence": "p01: crucible.domains.REGISTRY == [], no d5_* families; experience.registry.domains() == []; tests/v5/test_gate_N.py absent; acceptance run N.1 -> 'no test files exist yet'. Recovery branches/worktrees of I1-I4 hold no additional files.",
+   "key_defects": [
+    "0/15 domains exist; 11/15 have no code in crucible.domains (startup, software, content, community, invention, industrial, information, organizational beyond firms, marketplace, crisis, research commercialization)"
+   ],
+   "work_needed": "Per domain: procedural build, >=3 structurally distinct train configs + compositional + structural eval configs, public objective and objective-less operation, independent evaluator, evaluator-side reference succeeding on multiple seeds while idle fails, intervention-based mechanics probes; Gate N test with evidence."
+  },
+  {
+   "name": "Building blocks outside crucible.domains (for 9.1/9.2/9.3/9.4/9.8/9.13)",
+   "paths": [
+    "crucible/src/crucible/commerce/reference.py",
+    "crucible/src/crucible/commerce/subscriptions.py",
+    "crucible/src/crucible/commerce/marketplace.py",
+    "crucible/src/crucible/innovation/worlds.py",
+    "crucible/src/crucible/social/communities.py",
+    "crucible/src/crucible/social/content.py",
+    "crucible/src/crucible/economy/industry.py"
+   ],
+   "verdict": "EXTEND",
+   "effort": "L",
+   "evidence": "p08: commerce startup reference reaches ARR $33.2k in 45 days with 300 customers; idle $0. p09: innovation_spec runs 3 days, 0 proc failures; community/content/creators/xchg/subs/pkg/industry/freight/shocks registered. Not audited in depth (other workstreams).",
+   "key_defects": [
+    "none packaged as Tier 2 domains; single structure each; no domain evaluators/configs"
+   ],
+   "work_needed": "Compose into domain configs with distinct structures; evaluators; references; scaling (content to 10M viewers)."
+  },
+  {
+   "name": "Module admission as evidence",
+   "paths": [
+    "crucible/src/crucible/worldgen/admission.py"
+   ],
+   "verdict": "REPAIR",
+   "effort": "S",
+   "evidence": "p07: admit() passes sci, learn, fleet on all 8 checks despite proven crashes (sci.replications KeyError, learn.tick proc.failed every tick).",
+   "key_defects": [
+    "counts only 'internal error' on random tool calls (admission.py:73-78); proc.failed ignored; random args never reach real ids"
+   ],
+   "work_needed": "Count process failures; drive realistic call sequences (ids from earlier results); fail on any proc.failed."
+  }
+ ],
+ "requirements": [
+  {
+   "id": "N.1",
+   "verdict": "IMPLEMENT",
+   "reason": "0/15 domains registered (REGISTRY empty, no d5_* families, no DOMAIN).",
+   "work_needed": "Implement all 15 domains on one contract; count a domain only if it passes N.2-N.7 and is reachable via experience.make(2,...) in observation_only mode.",
+   "criteria_weak": true
+  },
+  {
+   "id": "N.2",
+   "verdict": "IMPLEMENT",
+   "reason": "No configurations exist; base.validate accepts number-only structure differences.",
+   "work_needed": "Generate >=3 train configs per domain differing in module set/couplings/topology/participant types, verified on built worlds by a structural diff, not on a self-declared dict.",
+   "criteria_weak": true
+  },
+  {
+   "id": "N.3",
+   "verdict": "IMPLEMENT",
+   "reason": "Four kernel modules have real mechanics (sci, fleet, firms; learn broken), but no domain and mechanics() would be self-reported.",
+   "work_needed": "Per-domain required-mechanics probes by intervention (disable mechanic -> measured outcome change) for every mechanic listed in 9.1-9.15; fix learn crash.",
+   "criteria_weak": true
+  },
+  {
+   "id": "N.4",
+   "verdict": "IMPLEMENT",
+   "reason": "No domain evaluate(); only evaluator-side helpers (learn.final_scores, fleet operator_costs/reliability).",
+   "work_needed": "Evaluator per domain from ground truth, unreachable from learner tools/observations, cross-checked by independent recomputation and red-team gaming attempts.",
+   "criteria_weak": true
+  },
+  {
+   "id": "N.5",
+   "verdict": "IMPLEMENT",
+   "reason": "No domain reference; fleet objective is trivially met by technicians=0 shortcut; commerce startup reference exists outside domains.",
+   "work_needed": "Scripted reference per domain succeeding on >=3 seeds incl. eval configs, with idle/null baseline failing and degenerate shortcuts closed.",
+   "criteria_weak": true
+  },
+  {
+   "id": "N.6",
+   "verdict": "IMPLEMENT",
+   "reason": "No domain build functions; lawlang and fleet make_world are procedural generators usable later.",
+   "work_needed": "Procedural instance generation per config with measured variation in world properties and feasibility check per instance (not seed count only).",
+   "criteria_weak": true
+  },
+  {
+   "id": "N.7",
+   "verdict": "IMPLEMENT",
+   "reason": "No eval configs exist.",
+   "work_needed": "Compositional and structural eval configs per domain, sealed from training, with automated proof that their combinations/structures are absent from training configs.",
+   "criteria_weak": true
+  },
+  {
+   "id": "N.n1",
+   "verdict": "IMPLEMENT",
+   "reason": "No references exist; framework intends evaluator-side references but has no isolation check.",
+   "work_needed": "Static+dynamic scan: reference code not importable from sandbox, not in any tool list, observation, document or event; test in test_gate_N.",
+   "criteria_weak": false
+  }
+ ],
+ "missing_requirements": [
+  "No SP-9.x manifest entries: per-domain required mechanics of 9.1-9.15 (e.g. 9.1 subscription billing/retention/profitability; 9.2 executable code/dependencies/adoption; ...) are not individually required.",
+  "Part 9 preamble: autonomous participants per domain (no entry).",
+  "Part 9 preamble: open-ended actions per domain (no entry).",
+  "Part 9 preamble: 'Do not simply write a task prompt over an unchanged environment' - require domains/configs to differ in world structure, not only objective text.",
+  "9.3: difficulty levels scaling toward 10 million simulated unique viewers (I.1 covers population size only).",
+  "9.10: improvement measured on new test problems, with content controls (correct > none > wrong) - not time viewed.",
+  "9.15: genuine causal connection from scientific discovery to economic outcome (chain test).",
+  "9.16: feasibility without guaranteed success (null baseline fails, not every learner succeeds); difficulty from complexity/scarcity/uncertainty, not arbitrary failure probabilities.",
+  "Clarification 2 for Tier 2: each domain observation_only by default, operable without an assigned objective, evaluator separated (OO.1-OO.4 are global and owned by L).",
+  "Degenerate-strategy red team per domain objective (e.g. fleet technicians=0).",
+  "Each domain reachable through crucible.experience.make(2, ...) and composable into Tier 3 (S.2/Gate O depend on it)."
+ ],
+ "tests_run": [
+  {
+   "command": "PYTHONPATH=src /venv/main/bin/python -m pytest -q -p no:cacheprovider -x tests/test_v5_domains_framework.py",
+   "result": "7 passed (fake tiny-based probe domain only)"
+  },
+  {
+   "command": "PYTHONPATH=src /venv/main/bin/python -m crucible.acceptance.v5 run --requirement N.1",
+   "result": "no test files exist yet for this selection (tests/v5/test_gate_N.py absent)"
+  },
+  {
+   "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains/p01_registry.py",
+   "result": "domains REGISTRY [], no d5_* families"
+  },
+  {
+   "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains/p02_science.py",
+   "result": "sci world runs; no law leak; sci.replications and sci.paper KeyError 'id'; true law refuted by 1 of 2 independent replications"
+  },
+  {
+   "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains/p03_learning.py, p03b_learning_debug.py",
+   "result": "learn.study internal error KeyError 'id'; every learn.tick proc.failed; 0 study sessions in all variants"
+  },
+  {
+   "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains/p03c_learning_patched.py (in-memory bypass)",
+   "result": "seed3/4 final mean: none .054/.056, correct .097/.110, wrong-key .117/.122, prose .054/.056"
+  },
+  {
+   "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains/p03d_buggy_rate.py",
+   "result": "buggy answers wrong at L2-L3 for most concepts"
+  },
+  {
+   "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains/p04_fleet.py 10, p04b_fleet_leak.py, p04c_fleet_levers.py, p04d_fleet_seat.py",
+   "result": "fleet runs; technicians=0 cuts cost 81-84% with attainment >=0.99997 over 60 days; experiment obs carry hidden true cpu_ms; framework seat not operator"
+  },
+  {
+   "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains/p05_firms.py",
+   "result": "firms hire/work/sell; 0 failures; replay+regeneration equal; revenue from unconditional acct_external buyer"
+  },
+  {
+   "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains/p06_contract.py",
+   "result": "experience.registry.domains()==[] after base.register; AttributeError on registry path; make() default legacy_shaped_reward"
+  },
+  {
+   "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains/p07_admission.py",
+   "result": "admission passes sci, learn, fleet despite crashes"
+  },
+  {
+   "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains/p08_startup_block.py",
+   "result": "commerce startup reference ARR $33.2k/45 days/300 customers; idle $0"
+  },
+  {
+   "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains/p09_blocks.py",
+   "result": "innovation_spec runs 3 days, 0 proc failures; community/content/creators/xchg/subs/pkg/industry/freight/shocks registered"
+  }
+ ],
+ "critical_findings": [
+  "0 of 15 Tier 2 domains exist: crucible.domains REGISTRY empty, no d5_* families, no DOMAIN, no tests/v5/test_gate_N.py; 11 domains have no code; only kernel modules sci, fleet, firms, learn exist.",
+  "Education world non-functional: learn.study raises KeyError('id') (learning.py:324 vs applier 675), every learn.tick fails, learners never study; with bug bypassed, wrong-key lessons beat correct ones on evaluator scores (2 seeds).",
+  "Framework/contract split: base.Domain vs experience.registry (module DOMAIN, dict configs, build(cfg,seed)); Tier 2 unreachable via experience.make (AttributeError); make() defaults to legacy_shaped_reward = evaluator score delta.",
+  "Infrastructure: wages are 83% of default cost; fleet.staff technicians=0 cuts cost 81-84% with attainment >=0.99997 over 60 days (one-call shortcut); fleet.experiment hands hidden true cpu_ms and hidden demand process to participant code.",
+  "Science: real hidden-law/apparatus/rival/replicator mechanics work, but sci.replications and sci.paper crash (KeyError 'id'); no novel-condition evaluator; replication test ignores relative noise and refuted the true law once.",
+  "Admission passes sci/learn/fleet despite these crashes (ignores proc.failed); firms earn from an unconditional external buyer; fleet/learn/firms not registered by crucible.load_all_modules()."
+ ],
+ "domains": {
+  "9.1 startup economy": "missing; building block commerce.reference startup_world+ReferenceSaaS works",
+  "9.2 software ecosystem": "missing; building block innovation.worlds.innovation_spec runs",
+  "9.3 content": "missing; social content/creators/recsys/aud modules exist (C1/C2 interrupted)",
+  "9.4 community": "missing; social/communities.py exists",
+  "9.5 scientific research": "kernel module sci works with 2 endpoint crashes; no Domain/evaluator/configs/reference",
+  "9.6 technology invention": "missing; innovation caps/adopt partial",
+  "9.7 engineering infrastructure": "kernel module fleet works; degenerate cost shortcut; hidden-data leak; no Domain",
+  "9.8 industrial economy": "missing; 4.0 industry/freight/open_industry",
+  "9.9 labor marketplace": "firms + labor + _kit; no Domain/evaluator",
+  "9.10 education": "kernel module learn broken (KeyError); inverted dynamics when bypassed; no Domain",
+  "9.11 information": "missing; 4.0 search only",
+  "9.12 organizational": "firms + inst/commit partial; no Domain",
+  "9.13 digital marketplace": "missing; commerce xchg building block",
+  "9.14 crisis recovery": "missing; 4.0 shocks only",
+  "9.15 research commercialization": "missing entirely"
+ },
+ "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains/",
+ "skeptic": {
+  "reviewer_role": "skeptic for area I_domains (workstream I)",
+  "commit": "dd745b9 (no domain-code change since a881d18)",
+  "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains_skeptic/",
+  "subsystem_verdicts": [
+   {
+    "name": "Domain framework (base/modes/modules/seats)",
+    "auditor": "REPAIR",
+    "skeptic": "REPAIR",
+    "status": "upheld",
+    "evidence": "s5: a registry-contract DOMAIN injected at runtime is reachable via experience.make(2,...); default legacy reward -0.15 == evaluator score delta (0.50->0.35); observation_only reward 0.0 and no score/success/details keys in observation; validate() accepts 5 configs differing only in n_sites; run_reference passes the World to reference(); tiers_available() reports {2: True} for any module defining DOMAIN. s6: ensure_modules registers fleet/learn/firms on demand, so KernelExperienceEnv works; only raw World.create/replay fails (ProtocolError unknown module 'fleet').",
+    "corrections": [
+     "auditor defect 4 (registration gap) is minor: learner path via KernelExperienceEnv/api.local.ensure_modules works"
+    ],
+    "added_defects": [
+     "references are omniscient by contract (World object) - feasibility for an observation-limited learner not shown",
+     "learner never occupies the domain seat (make() joins fresh p:agent; participant_principal unused)",
+     "tiers_available()[2] becomes True for any object named DOMAIN (gate S counts it)"
+    ]
+   },
+   {
+    "name": "Scientific research world (sci, lawlang)",
+    "auditor": "REPAIR",
+    "skeptic": "REPAIR",
+    "status": "upheld, defect strengthened",
+    "evidence": "s1: 4 law families x 3 seeds x 3 replicators: true law consistent/refuted 14/22 at noise_rel 0.02 (61% refuted), 33/3 at 0.0; constants+10%, +25% and AIC polynomial 0/108 consistent (no false positives). s1b: 0 hits for law text/constants/gain/offset/drift/noise_rel in 24 read-only calls (31 read-only tools incl. world.describe/help/api), observation and visible events. Self-replication labelled independent=False. sci.replications/sci.paper KeyError reproduced.",
+    "added_defects": [
+     "replication false-negative rate 61% for the true law with 2% relative noise (science.py:265 stated_sd only vs 515 noise)",
+     "zero tests for sci; not used by any world family/civ/experience path"
+    ]
+   },
+   {
+    "name": "Engineering infrastructure world (fleet)",
+    "auditor": "REPAIR",
+    "skeptic": "REPAIR",
+    "status": "upheld, evidence corrected",
+    "evidence": "s2 (180 days, seeds 5/9): technicians=0 attainment 0.99996 at d60 but 0.98442 at d150 and 0.22752 at d180 (10/10 failed); seed 9 0.40559 at d180 (12/12 failed); baseline >=0.99993 throughout. s2b: technicians=1 cost 5.14M vs 8.72M and 5.52M vs 9.10M (-41%) with attainment unchanged and 0 failed machines at all checkpoints. s2c: hidden true cpu_ms 7.4192 recovered exactly via 8 fleet.experiment results (telemetry shows 7.4795). s6: experience-env agent with handle 'agent' is operator (fleet.staff ok); a second learner is refused (lacks fleet.operate).",
+    "corrections": [
+     "technicians=0 is not a free shortcut beyond ~120-150 days (delayed wear effects work); the durable shortcut is technicians=1 (-41%)",
+     "seat is wired on the learner path for exactly one learner whose handle matches config; multi-learner operation unsupported",
+     "cpu_ms leak confirmed at runtime but low value (telemetry +-0.8%); hidden demand-process twin (infra_world.py:1376) is the substantive privilege"
+    ]
+   },
+   {
+    "name": "Autonomous firms + team kit",
+    "auditor": "EXTEND",
+    "skeptic": "REPAIR",
+    "status": "overturned",
+    "evidence": "s3: same world, firm hourly rate x1/x10/x100 -> sales 10.45M / 104.3M / 1,043.0M cents in 30 days (exactly linear, zero price elasticity); 100% of earned firm inflows are external_sale from acct_external (firms.py:280-296); unknown skill 'code' silently dropped.",
+    "why": "an unconditional zero-elasticity money faucet is a correctness defect in the economic core (firms can never be insolvent, so solvency/dismissal/band logic never binds), not a lack of comprehensiveness",
+    "work_needed": "replace _sell_output faucet with client demand (contracted clients with budgets, price-responsive demand); loud config validation; tests; wire into 9.9/9.12 domains"
+   },
+   {
+    "name": "Education world (learn, concepts, common)",
+    "auditor": "REDESIGN",
+    "skeptic": "REDESIGN",
+    "status": "upheld, rationale overturned",
+    "evidence": "s4 (3 seeds x 42 d x 30 learners, KeyError bypassed in memory): none 0.056, correct 0.107, strictly-wrong keys 0.164, buggy 0.127, buggy_only 0.143. s4b: misconception answers graded correct frac_simplify 100/100/100%, div 100/0/0%, sub 83/34/0%, add 49/14/5%, gcd 45/18/7% (L1/L2/L3); with misconceptions made strictly wrong in memory: wrong 0.019 < none 0.056 < correct 0.107 on 3/3 seeds. s4d: grade('12/18', simplify 12/18) == True (Fraction normalisation, concepts.py:28-33,93-95,206-208); div L1 problems exact so buggy == solve (concepts.py:375). s4c unpatched: 167 proc.failed (learn.tick KeyError 'id'), 0 sessions.",
+    "why": "the inversion is a grader/misconception-generator bug, not inverted learner dynamics; the learner model orders controls correctly once fixed. REDESIGN still holds because learners read only a fixed line grammar (Example:/Practice:/Next:), learn.check is a format oracle, discovery uses one fixed query string (learning.py:448), and forgetting constants are ungrounded (adult addition accuracy 0.12-0.17 after 7 weeks; no FIDELITY_REGISTER rows despite learning.py:14,53).",
+    "work_needed": "fix KeyError; form-aware grading and genuinely-wrong misconception generators; permanent control test correct > none > wrong; redesign artifact reading (representations, not a line grammar); ground constants; remove format oracle; tests"
+   },
+   {
+    "name": "Tier 2 domain definitions (15)",
+    "auditor": "IMPLEMENT",
+    "skeptic": "IMPLEMENT",
+    "status": "upheld",
+    "evidence": "git diff feat/crucible-5-complete...recovery/c5-I{1..4}-*: no branch-only domain files; acceptance run N.1: no test files."
+   },
+   {
+    "name": "Building blocks outside domains",
+    "auditor": "EXTEND",
+    "skeptic": "EXTEND",
+    "status": "upheld with caveat",
+    "evidence": "commerce/reference.py:88 ReferenceSaaS reads world.spec.params['need']; line 95 deploys service_repo_files(need, best_tier(need)) = the world's own top-tier solver (worlds/digital_civilization.py:25-30) while incumbents run weaker tiers; one need per startup world.",
+    "added_defects": [
+     "9.1 reference is privileged (spec params + world-internal best solver), so its ARR success does not establish feasibility for a tool-limited participant; demand discovery trivial (single need)"
+    ]
+   },
+   {
+    "name": "Module admission as evidence",
+    "auditor": "REPAIR",
+    "skeptic": "REPAIR",
+    "status": "upheld",
+    "evidence": "admission.py:66-78 counts only 'internal error' of random calls; money-conservation check (total == 0) passes the firms acct_external faucet."
+   }
+  ],
+  "requirement_changes": [
+   {
+    "id": "N.n1",
+    "field": "criteria_weak",
+    "from": false,
+    "to": true,
+    "why": "reference_paths_exposed == 0 is vacuously satisfied with no references or a scanner that finds nothing; needs a planted-exposure positive control and coverage of world.describe/api/help and sandbox import paths"
+   },
+   {
+    "id": "N.5",
+    "field": "work_needed",
+    "from": "scripted reference per domain succeeding on >=3 seeds...",
+    "to": "same, plus references must be tool-only and observation-limited (no World object, no spec.params, no world-internal solvers), checked dynamically",
+    "why": "base.run_reference hands the World to reference(); ReferenceSaaS reads spec params and the world's own best solver"
+   }
+  ],
+  "requirement_verdicts": {
+   "N.1": "IMPLEMENT",
+   "N.2": "IMPLEMENT",
+   "N.3": "IMPLEMENT",
+   "N.4": "IMPLEMENT",
+   "N.5": "IMPLEMENT",
+   "N.6": "IMPLEMENT",
+   "N.7": "IMPLEMENT",
+   "N.n1": "IMPLEMENT"
+  },
+  "additional_missing_requirements": [
+   "Evaluator horizon per domain must exceed its slowest delayed effect (fleet wear collapse at ~150 days would pass a 60-day evaluation).",
+   "Validity of executable graders and misconception generators (misconception answers must grade wrong; form-sensitive tasks must reject unsimplified forms).",
+   "Tier 2 learners occupy the domain's participant seat; more than one learner per domain world supported.",
+   "Unit and integration tests exist for every domain kernel module (currently 0 for sci, fleet, learn, firms).",
+   "No price-insensitive exogenous revenue source (zero-elasticity buyer) funds in-world participants."
+  ],
+  "critical_findings": [
+   "Zero tests exist for the ~5,000 lines of domain kernel modules (sci, fleet, learn, firms); nothing outside crucible/domains uses them (no world family, civ profile or experience path).",
+   "Education inversion is a grader bug: simplify 12/18 => 12/18 grades correct (Fraction normalisation), div L1 always exact; strictly wrong lessons score 0.164 vs correct 0.107; with genuinely wrong misconceptions wrong 0.019 < none 0.056 < correct 0.107 (3/3 seeds).",
+   "Firms revenue is a zero-elasticity faucet: rate x100 -> sales x100 exactly (1,043M cents/30 d); 100% of earned inflows from acct_external. Verdict EXTEND -> REPAIR.",
+   "fleet: technicians=0 collapses (attainment 0.23/0.41 by day 180) - delayed effects work; technicians=1 is the durable -41% shortcut; hidden cpu_ms 7.4192 exfiltrated exactly through fleet.experiment results.",
+   "sci: replication refutes the TRUE law in 22/36 (61%) independent replications at 2% relative noise, with 0/108 false positives; hidden-law isolation confirmed (0 leaks).",
+   "Default experience.make(2) reward is the evaluator's score delta (runtime: -0.15 == 0.35-0.50); observation_only is clean; references receive the World (omniscient) by contract."
+  ],
+  "tests_run": [
+   {
+    "command": "PYTHONPATH=src /venv/main/bin/python -m pytest -q -p no:cacheprovider -x tests/test_v5_domains_framework.py",
+    "result": "7 passed"
+   },
+   {
+    "command": "PYTHONPATH=src /venv/main/bin/python -m crucible.acceptance.v5 run --requirement N.1",
+    "result": "no test files exist yet for this selection"
+   },
+   {
+    "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains_skeptic/s1_science.py",
+    "result": "true law refuted 22/36 at noise_rel 0.02 (3/36 at 0.0); wrong models 0/108 consistent; crashes reproduced"
+   },
+   {
+    "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains_skeptic/s1b_science_leak.py",
+    "result": "0 hidden-value hits"
+   },
+   {
+    "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains_skeptic/s2_fleet_horizon.py 180",
+    "result": "technicians=0 attainment 0.228 (seed 5) / 0.406 (seed 9) by day 180; baseline >=0.99993"
+   },
+   {
+    "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains_skeptic/s2b_fleet_staff1.py",
+    "result": "technicians=1: -41% cost over 180 days, attainment unchanged, 0 failed"
+   },
+   {
+    "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains_skeptic/s2c_fleet_exfil.py",
+    "result": "hidden cpu_ms 7.4192 recovered exactly via experiment results"
+   },
+   {
+    "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains_skeptic/s3_firms_buyer.py",
+    "result": "sales linear in price x1/x10/x100; 100% of earned inflows external_sale"
+   },
+   {
+    "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains_skeptic/s4_learning_controls.py 3,4,5",
+    "result": "none 0.056, correct 0.107, strict-wrong 0.164, buggy 0.127, buggy_only 0.143"
+   },
+   {
+    "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains_skeptic/s4b_learning_buggyfix.py",
+    "result": "misconception-graded-correct table; strict misconceptions: wrong 0.019 < none 0.056 < correct 0.107"
+   },
+   {
+    "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains_skeptic/s4c_learning_unpatched.py",
+    "result": "167 proc.failed (KeyError 'id'), 0 sessions in every variant"
+   },
+   {
+    "command": "inline grade check (s4d_grader.log)",
+    "result": "grade('12/18', simplify 12/18) True; div L1 buggy == solve"
+   },
+   {
+    "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains_skeptic/s5_framework_contract.py",
+    "result": "make(2) reachable for registry-contract DOMAIN; legacy reward = evaluator delta; observation_only clean; validate accepts numbers-only; reference gets World"
+   },
+   {
+    "command": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/I_domains_skeptic/s6_module_registration.py",
+    "result": "raw World.create fails (unknown module fleet); KernelExperienceEnv works; agent is operator; second learner refused"
+   },
+   {
+    "command": "git diff feat/crucible-5-complete...recovery/c5-I{1..4}-* -- crucible/src/crucible/domains",
+    "result": "no branch-only files"
+   }
+  ]
+ }
+}

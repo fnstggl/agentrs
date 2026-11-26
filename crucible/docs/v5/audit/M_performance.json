@@ -1,0 +1,851 @@
+{
+ "area": "M_performance",
+ "workstreams": [
+  "M"
+ ],
+ "audited_commit": "a881d18",
+ "auditor_note": "Workstream M never ran (no agent report, no gate V / SP-13.7 / SP-13.8 test files). Verdicts rest on code reading plus probes run by the auditor through crucible.scale.slots --cpu 1; probe scripts and outputs are in /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/M_performance",
+ "hardware": {
+  "cpu": "2x Intel Xeon Gold 6226 (12c/24t each), 48 logical CPUs, AVX-512, 2 NUMA nodes",
+  "cgroup_cpu_quota_cpus": 11.52,
+  "cgroup_throttled_fraction_since_start": 0.189,
+  "loadavg_during_audit": "9-13",
+  "slot_budget": {
+   "cpus": 9,
+   "gpu_mb": 24000,
+   "jobs": 8
+  },
+  "container_ram_limit_gib": 90.5,
+  "host_ram_gib": 188,
+  "gpu": "1x NVIDIA RTX A6000 46068 MiB (driver 560.35.03)",
+  "disk_free_gb": 21.1,
+  "pids_max": 2816,
+  "numba_installed": false
+ },
+ "measurements": {
+  "profiles_1cpu_24h": {
+   "development": {
+    "rows": 1042,
+    "sim_days_per_wall_hour": 98.5,
+    "activations_per_wall_s": 72,
+    "events_per_sim_day": 9587,
+    "event_json_mb_per_day": 5.2,
+    "blob_mb_per_day": 3.4,
+    "snapshot_mb": 0.68,
+    "peak_rss_mb": 717,
+    "policy_updates": 0
+   },
+   "standard": {
+    "rows": 10296,
+    "sim_days_per_wall_hour": 64.9,
+    "activations_per_wall_s": 466,
+    "events_per_sim_day": 22911,
+    "event_json_mb_per_day": 11.2,
+    "blob_mb_per_day": 17.1,
+    "snapshot_mb": 3.8,
+    "peak_rss_mb": 812,
+    "policy_updates": 2
+   },
+   "large": {
+    "rows": 101120,
+    "sim_days_per_wall_hour": 22.2,
+    "activations_per_wall_s": 1585,
+    "events_per_sim_day": 96666,
+    "event_json_mb_per_day": 37.6,
+    "blob_mb_per_day": 147.0,
+    "snapshot_mb": 33.0,
+    "peak_rss_mb": 1497,
+    "policy_updates": 3
+   },
+   "internet_1M_daytime_hour": {
+    "rows": 1001120,
+    "create_s": 5.9,
+    "wall_s_per_sim_hour": 17.0,
+    "activations_per_wall_s": 16420,
+    "peak_rss_mb": 2342
+   },
+   "internet_10M_first_30min": {
+    "rows": 10001120,
+    "create_s": 36.5,
+    "rss_after_create_mb": 4877,
+    "first_30min_wall_s": 23.7,
+    "peak_rss_mb": 8355,
+    "state_digest_s": 8.2
+   }
+  },
+  "event_driven_vs_dense_standard_3h": {
+   "event_driven_wall_s": 8.47,
+   "dense_wall_s": 18.5,
+   "speedup": 2.18,
+   "activation_ratio": 28.6,
+   "due_scan_10M_s": 0.0265
+  },
+  "batched_inference_class2": {
+   "params": 187585,
+   "speedup_B32": 7.8,
+   "speedup_B256": 6.4,
+   "speedup_B1000": 5.9,
+   "numpy_vs_torch": [
+    0.34,
+    0.45
+   ],
+   "int8_vs_fp32": [
+    1.19,
+    1.4
+   ],
+   "int8_argmax_agreement": [
+    0.906,
+    0.941
+   ],
+   "decisions_per_s_B256": 20353
+  },
+  "param_counts": {
+   "adaptive_gru_bandit_h256": 187585,
+   "strategic_mlp_h1024": 2162715,
+   "strategic_gru_h576": 2362203,
+   "qwen3_0_6b_claimed_D2": 596049920
+  },
+  "embedding_cache_synthetic": {
+   "requests": 12000,
+   "distinct": 200,
+   "hit_rate": 0.983,
+   "vectors_computed": 200,
+   "second_cache_disk_hits": 50
+  },
+  "slots_enforcement": {
+   "affinity_cpus_in_1cpu_slot": 48,
+   "rlimits": "all unlimited",
+   "ram_allocated_mb_unreserved": 1024,
+   "torch_threads_override": 8,
+   "gpu_reserved_mb": 100,
+   "gpu_allocated_mb": 1024,
+   "fifo": false,
+   "zombie_counted_alive": true,
+   "usage_log_jobs_over_110pct_cpu": 13,
+   "usage_log_jobs_considered": 219
+  },
+  "v4_workloads_on_v5_tree": {
+   "bank_transfer_tx_s": [
+    7978,
+    8147
+   ],
+   "mixed_tx_s": [
+    8903,
+    8603
+   ],
+   "replay_ev_s": [
+    47931,
+    45876
+   ],
+   "tiny_d_s": [
+    2.82,
+    3.08
+   ],
+   "bazaar_d_s": [
+    1.1,
+    1.15
+   ],
+   "open_digital_d_s": [
+    2.85,
+    2.69
+   ],
+   "open_industry_d_s": [
+    29.4,
+    29.9
+   ],
+   "mech_scm_additive_d_s": [
+    174,
+    171
+   ]
+  },
+  "v4_vs_v5_population_100k": {
+   "v4_bazaar_100k_aggregate_consumers_sim_days_per_hour": 1830,
+   "v4_world_rss_mb": 42,
+   "v5_large_sim_days_per_hour": 22.2,
+   "v5_peak_rss_mb": 1497,
+   "note": "not equivalent fidelity"
+  },
+  "substrate_reproduction_100k_into_1M": {
+   "recorded_transaction_s": 0.0202,
+   "replay_s": 0.0176,
+   "exact": true,
+   "us_per_event": 10.47,
+   "claimed": {
+    "transaction_s": 0.018,
+    "replay_s": 0.017,
+    "us_per_event": 10.1
+   }
+  },
+  "blob_compressibility_zlib6": 1.53,
+  "sandbox_children_cpu_vs_world_cpu_200p_24h": [
+   15.62,
+   10.72
+  ]
+ },
+ "subsystems": [
+  {
+   "name": "Resource scheduler (crucible.scale.slots)",
+   "paths": [
+    "src/crucible/scale/slots.py"
+   ],
+   "verdict": "REDESIGN",
+   "evidence": "Probe in a --cpu 1 --gpu-mb 100 slot: affinity 48 CPUs, all rlimits unlimited, 1 GB RAM allocated, torch.set_num_threads(8) effective, 1,024 MB VRAM allocated under a 100 MB reservation. Usage log: 13 of 219 jobs >110% of reserved CPU (max 1.8x). Fairness probe: a later 1-CPU request was admitted before an earlier 2-CPU request. A zombie pid counts as alive. tests/test_v5_slots.py passes (bookkeeping only).",
+   "key_defects": [
+    "tracks 3 of 7 SP-13.7 dimensions (CPU threads, GPU MB, jobs); no RAM, GPU time, disk, inference concurrency, active worlds",
+    "nothing enforced: only BLAS env vars (slots.py:151-152); GPU hidden only when gpu_mb==0 (slots.py:153-154)",
+    "no FIFO/fairness, so large jobs can starve; an oversized request runs 'alone' above budget (slots.py:103-108)",
+    "_alive treats zombies as alive (slots.py:69-76)",
+    "usage log has no VRAM/disk/GPU-time; cpu_s/peak_rss from RUSAGE_CHILDREN are cumulative in library use and max-of-one-descendant (slots.py:176-179)",
+    "timeout signals only the direct child (slots.py:166-172)",
+    "external CLI only: the simulation (kernel, WorldPool, inference service) never consults it"
+   ],
+   "work_needed": "Keep the flock ledger as the admission layer. Add an enforcing resource governor: sched_setaffinity; RLIMIT_AS or an RSS watchdog; torch per-process memory fraction plus an nvidia-smi per-pid VRAM watchdog; GPU-seconds accounting; a disk quota watchdog on store/cache dirs; an inference-concurrency semaphore in SemanticService and the encoders; an active-world counter in World.create/WorldPool. Also: FIFO queue with reservation, zombie-safe liveness, per-job VRAM/disk/GPU-time logging, and an adversarial test per dimension.",
+   "effort": "L"
+  },
+  {
+   "name": "v5 performance benchmark and report harness",
+   "paths": [],
+   "verdict": "IMPLEMENT",
+   "evidence": "No tests/v5/test_gate_V.py, test_gate_SP_13_7.py or test_gate_SP_13_8.py; no v5 bench module; no M agent report; no targets in docs (grep).",
+   "key_defects": [
+    "none of the 12 Part 13.8 quantities recorded for v5",
+    "no equivalent-workload 4.0 comparison designed",
+    "no profile benchmark",
+    "no peak CPU/RAM/VRAM sampling"
+   ],
+   "work_needed": "crucible/scale/bench5.py plus the three gate test files. Cover all four profiles with every class active, >=30 sim days, >=3 seeds. Record the 12 quantities (including inference tokens, storage growth, snapshot size, world-gen cost), sampled peak CPU/RSS/VRAM, an experience-per-compute metric, an equivalent-workload 4.0 comparison, and targets recorded before running.",
+   "effort": "L"
+  },
+  {
+   "name": "Crucible 4.0 benchmark suite (baseline instrument)",
+   "paths": [
+    "src/crucible/scale/bench.py",
+    "src/crucible/bench/run.py",
+    "examples/bench_openworld.py",
+    "docs/benchmarks/",
+    "docs/v5/evidence/baseline_perf/"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "Reran --quick --only kernel,families on the v5 tree: kernel 8,147 vs 7,978 transfers/s, replay 45,876 vs 47,931 ev/s; family idle rates within +/-10% of the recorded baseline. No regression.",
+   "key_defects": [
+    "covers only 4.0 workloads",
+    "its rollout section uses WorldEnv's legacy shaped-reward default"
+   ],
+   "work_needed": "Use it as the 4.0 side of SP-13.8; pass reward_mode explicitly in its rollout section.",
+   "effort": "S"
+  },
+  {
+   "name": "WorldPool / RolloutFarm",
+   "paths": [
+    "src/crucible/scale/pool.py",
+    "src/crucible/scale/rollout.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "WorldEnv() default reward_mode is legacy_shaped_reward (rollout.py:128); probe: an exogenous +12,345-cent deposit with no action gave reward 12345.0. Worker cap, BLAS pinning, pid budget and optional RLIMIT_AS exist (pool.py:64,107-130,360-363). The 4.0 multi-process tests were not rerun (they need >1 CPU).",
+   "key_defects": [
+    "violates amendment (a): shaped scalar reward by default",
+    "not connected to a global resource budget"
+   ],
+   "work_needed": "Default observation_only; legacy/terminal modes only when explicitly selected; report active worlds and memory to the governor.",
+   "effort": "S"
+  },
+  {
+   "name": "Columnar state and batch events (storage efficiency)",
+   "paths": [
+    "src/crucible/substrate/columns.py",
+    "src/crucible/substrate/artifacts.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Reproduced A.md: 0.020 s per 100k-row cohort into a 1M table; replay/regeneration/fork exact; 10.5 us per event. Large profile: 147 MB blobs + 37.6 MB event JSON per sim day (about 1.83 KB per individual-day). Blobs are ZIP_STORED (artifacts.py:212) and compress only 1.53x.",
+   "key_defects": [
+    "uncompressed blobs despite the ARCHITECTURE.md claim",
+    "whole-row rewrites of unchanged columns in pop.session (core.py:447)",
+    "process-global _POOL unbounded without a store (artifacts.py:63,165)",
+    "a 30-day 10M run would need about 550 GB against 21 GB free disk"
+   ],
+   "work_needed": "Delta/sparse encoding of only changed columns, deterministic compression, log compaction via checkpoints, bounded _POOL, and a storage-growth target in Gate V.",
+   "effort": "M"
+  },
+  {
+   "name": "Event-driven activation and aggregation",
+   "paths": [
+    "src/crucible/population/core.py",
+    "src/crucible/social/scale.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Standard profile, 3 h from 09:00: event-driven 8.47 s vs dense-every-tick 18.5 s (2.18x) with 28.6x fewer activations. Due scan 26.5 ms at 10M rows. Adaptive aggregation: 2 calls, 74 decisions, max batch 45.",
+   "key_defects": [
+    "cost dominated by work unrelated to decisions (sandbox, per-individual tool calls, storage)",
+    "aggregation only for class 2 (core.py:351)",
+    "two separate population ticks (pop.tick and crowd.tick) and modules that cannot coexist (social/scale.py:158)"
+   ],
+   "work_needed": "Make cost scale with decisions (hot-path fixes), aggregate strategic/semantic decisions, unify crowd and pop, measure at the large and internet profiles.",
+   "effort": "M"
+  },
+  {
+   "name": "Shared weights and batched numerical inference",
+   "paths": [
+    "src/crucible/population/adaptive.py",
+    "src/crucible/population/nets.py",
+    "src/crucible/population/strategic.py",
+    "src/crucible/substrate/inference.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "One net per policy group, memory in a column (adaptive.py:307-338). Batched forward 5.9-7.8x faster than one call per participant; NumPy re-impl 0.34-0.45x torch (max err 3e-7); int8 dynamic 1.19-1.40x faster with 6-9% argmax disagreement; Numba absent.",
+   "key_defects": [
+    "no in-tree benchmark of the 13.3 alternatives",
+    "tiny in-world batches",
+    "quantized behaviour equivalence unmeasured",
+    "no GPU path for class 2/3 at large N"
+   ],
+   "work_needed": "Backend benchmark matrix with a recorded choice; aggregate decisions into larger batches; quantization equivalence tests; optional GPU batching.",
+   "effort": "M"
+  },
+  {
+   "name": "Compact semantic inference service",
+   "paths": [
+    "src/crucible/semantic/service.py",
+    "src/crucible/semantic/participants.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Code has batching, int8 CPU quantization, bounded context/generation, BM25 retrieval, prefix KV cache, weights-hash versioning, CPU/GPU selection. D2's claims (not reproduced here, GPU job owned by the D auditor): 252 gen tok/s, prefix-cache speedup 1.00-1.07, CPU 6.5 tok/s.",
+   "key_defects": [
+    "low decode throughput (plain token loop, no static KV/CUDA graphs)",
+    "not wired into the population profile: class 4 rows inert",
+    "no inference-concurrency limit"
+   ],
+   "work_needed": "Faster batched decode engine, a pop_semantic module, token-count and VRAM reporting per profile, a concurrency semaphore tied to the governor.",
+   "effort": "M"
+  },
+  {
+   "name": "Multimodal caching",
+   "paths": [
+    "src/crucible/semantic/cache.py",
+    "src/crucible/semantic/encoders/__init__.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Probe: 12,000 requests over 200 artifacts gave hit rate 0.983, 200 vectors computed, 50/50 disk hits from a second cache; key includes encoder version and preprocessing hash.",
+   "key_defects": [
+    "default social (audience.py:112) and population (population/text.py) paths use two different lexical random-indexing encoders, so the cache is off the integrated path"
+   ],
+   "work_needed": "Route the default representations through semantic.encode plus the cache (or a declared numeric fast path); measure the hit rate on the integrated multimodal workload across worlds.",
+   "effort": "M"
+  },
+  {
+   "name": "Large-population techniques",
+   "paths": [
+    "src/crucible/social/idset.py",
+    "src/crucible/social/scale.py",
+    "src/crucible/substrate/ids.py",
+    "src/crucible/social/recsys/",
+    "src/crucible/population/profiles.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Exact bitsets (1.25 MB per 10M), on-demand hashed ContactGraph (scale.py:74), lazy principals, columns, derived-init internet profile (10M created in 36.5 s, 8.4 GB peak). idset tests pass.",
+   "key_defects": [
+    "no aggregate transitions, hierarchical or adaptive-resolution simulation, or batched cohort behaviour",
+    "principals still materialised as Python dict records (about 17k/day per 100k people)"
+   ],
+   "work_needed": "Adaptive-resolution design (individually simulated active core plus a validated statistical periphery), columnar principal/bank records for members, a per-identity memory model.",
+   "effort": "L"
+  },
+  {
+   "name": "Approximation vs high-fidelity error measurement",
+   "paths": [],
+   "verdict": "IMPLEMENT",
+   "evidence": "No approximate mode; the 'estimated population mode' claimed in ARCHITECTURE.md section 4 and DECISION_LOG D-5 does not exist (grep 'estimated' empty in social/population/substrate).",
+   "key_defects": [
+    "V.9 and 13.6 comparisons impossible",
+    "a documented design claim is unsupported"
+   ],
+   "work_needed": "Low-fidelity tier (cohort transitions, or crowd as the explicit low-fi model); paired runs against full B individuals at 100k-1M; errors for adoption, audience distributions, revenue, diffusion, retention, intervention effects and rare events, with CIs and documented limits.",
+   "effort": "L"
+  },
+  {
+   "name": "10M-identity scale path",
+   "paths": [
+    "src/crucible/social/cascade.py",
+    "src/crucible/social/scale.py",
+    "tests/v5/test_gate_I.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Unofficial Gate I records (2026-11-25, commit b30cac86, an ancestor of a881d18): 10M identities, 10.57M qualifying views, 0 recount mismatches, run 153 s, all on the simplified crowd population. My run: B's internet profile 10M creation plus 30 min OK.",
+   "key_defects": [
+    "10M exists only on the simplified crowd path or as B pop creation; never the integrated population with social/commerce",
+    "no official run on this tree"
+   ],
+   "work_needed": "One integrated 10M world running at least 1 sim day under recorded RSS/wall/disk targets, with per-identity decisions recounted, as an official run.",
+   "effort": "L"
+  },
+  {
+   "name": "Hot-path efficiency of the integrated population world",
+   "paths": [
+    "src/crucible/population/web.py",
+    "src/crucible/population/core.py",
+    "src/crucible/services/code.py",
+    "src/crucible/sandbox/runner.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "web.py:775 rebuilds set(own) per element (0.387 s vs 0.00034 s hoisted at 5k/5k). core.py:165 per-individual loop. money_deposit writes one-row batches (884/day at large). Sandbox process per program call (code.py:196) and an ldconfig fork per capabilities() (runner.py:67-70): children CPU 15.6 s vs world 10.7 s (200 people, 24 h).",
+   "key_defects": [
+    "quadratic forum grouping",
+    "per-individual Python paths and one-row batches",
+    "process spawn per sandboxed call"
+   ],
+   "work_needed": "Hoist/vectorise grouping, batch deposits per cohort, vectorise spendable, persistent sandbox workers per hosted site, cache capabilities(), add profiling regression benchmarks.",
+   "effort": "M"
+  }
+ ],
+ "requirements": [
+  {
+   "id": "V.1",
+   "verdict": "IMPLEMENT",
+   "reason": "No harness/gate test/targets. Ad-hoc runs: development/standard/large at 98.5/64.9/22.2 sim days per wall hour, 1 day, 1 seed; class 4 inert.",
+   "work_needed": "Gate V benchmark of every profile with all classes active, >=30 days, >=3 seeds, 13.8 quantities, against pre-recorded targets.",
+   "criteria_weak": true
+  },
+  {
+   "id": "V.2",
+   "verdict": "EXTEND",
+   "reason": "10M only on the simplified crowd path (unofficial, ancestor commit) and B internet-profile creation (auditor run, 8.4 GB); no integrated or official run.",
+   "work_needed": "Official integrated 10M run (pop plus social) >=1 sim day, recording identities that decided, exact recounts, RSS/wall/disk vs targets.",
+   "criteria_weak": true
+  },
+  {
+   "id": "V.3",
+   "verdict": "REPAIR",
+   "reason": "Counts computable/logged (0.19M, 2.16M, 2.36M, 596M, D1 encoders) but no Gate V record.",
+   "work_needed": "Aggregate parameter counts of all loaded models into the Gate V/SP-13.8 report.",
+   "criteria_weak": false
+  },
+  {
+   "id": "V.4",
+   "verdict": "EXTEND",
+   "reason": "Micro speedup 5.9-7.8x reproduced; in-world batches tiny (max 45); alternatives unbenchmarked; Numba absent.",
+   "work_needed": "In-world batched vs per-participant cost at equal decisions; NumPy/compiled/quantized/GPU matrix with a recorded choice.",
+   "criteria_weak": true
+  },
+  {
+   "id": "V.5",
+   "verdict": "EXTEND",
+   "reason": "Auditor probe 2.18x wall / 28.6x activations at standard; no gate test; fixed costs dominate.",
+   "work_needed": "Gate test at the large/internet profiles showing cost proportional to due participants after the hot-path fixes.",
+   "criteria_weak": true
+  },
+  {
+   "id": "V.6",
+   "verdict": "EXTEND",
+   "reason": "Cache correct (0.983 synthetic hit rate) but not on the default integrated path.",
+   "work_needed": "Hit rate on the integrated multimodal workload across worlds/participants, plus invalidation checks.",
+   "criteria_weak": true
+  },
+  {
+   "id": "V.7",
+   "verdict": "IMPLEMENT",
+   "reason": "No integrated peak measurement; slots log lacks VRAM.",
+   "work_needed": "Sample CPU/RSS/VRAM per profile run; require values within budget.",
+   "criteria_weak": true
+  },
+  {
+   "id": "V.8",
+   "verdict": "REDESIGN",
+   "reason": "Violations exist undetected (13/219 CPU overruns; 1 GB VRAM under a 100 MB reservation); no enforcement.",
+   "work_needed": "Enforcing governor (SP-13.7) and violation accounting over all official runs in 7 dimensions.",
+   "criteria_weak": true
+  },
+  {
+   "id": "V.9",
+   "verdict": "IMPLEMENT",
+   "reason": "No approximate mode or comparison; the claimed estimated mode is absent.",
+   "work_needed": "Low-fi tier, paired high-fi runs, errors for 7 quantities with CIs and documented limits.",
+   "criteria_weak": true
+  },
+  {
+   "id": "V.n1",
+   "verdict": "IMPLEMENT",
+   "reason": "No targets recorded anywhere.",
+   "work_needed": "Adopt machine-specific targets (proposal in M_performance.md section 6) via DECISION_LOG before official runs.",
+   "criteria_weak": false
+  },
+  {
+   "id": "SP-13.7",
+   "verdict": "REDESIGN",
+   "reason": "3/7 dimensions tracked, 0 enforced; no FIFO; zombie leak; not consulted by the simulation.",
+   "work_needed": "Enforcing governor consulted by kernel/WorldPool/inference/encoders; adversarial over-allocation test per dimension.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-13.8",
+   "verdict": "IMPLEMENT",
+   "reason": "No v5 report; 4.0 baseline exists; no equivalent-workload design (4.0 aggregate consumers vs v5 individuals differ about 82x).",
+   "work_needed": "12 quantities per profile plus a designed equivalent-workload 4.0 comparison and an experience-per-compute metric.",
+   "criteria_weak": true
+  }
+ ],
+ "missing_requirements": [
+  "13.3 benchmark NumPy / compiled kernels / Numba-or-equivalent / PyTorch CPU / quantized / batched GPU and choose by measured workload",
+  "13.3 avoid excessive Python object creation in high-frequency paths",
+  "13.4 the nine semantic-service features (batching, quantization, short context, retrieval, prefix caching, bounded generation, versioning, CPU execution, selective GPU); semantic generation only where necessary; numeric ordinary preference decisions; no network-dependent API calls by default",
+  "13.5 reuse representations across participants and simulation worlds (E.4 covers only invalidation)",
+  "13.6 investigate the 10 large-population techniques; low-resolution participants must not fabricate outcomes; document approximation limits; Phase 5 validate approximate simulation modes",
+  "13.7 inspect available hardware; do not interfere with other compute tenants (CAM experiments in the original); establish performance budgets before stress tests; no hidden external compute purchases",
+  "13 preamble / 13.8 maximize meaningful diverse learner experience per unit of compute (no experience-per-compute metric)",
+  "3.3 benchmark every profile including internet scale (V.1 names three; V.2 only 'tested')",
+  "3.3 large profiles must use resource-aware sparse/lazy state and batched inference",
+  "1.2 coordinate actual compute through a resource scheduler; do not start many expensive GPU jobs at once",
+  "13.1 group compatible decisions for batched inference across all neural and semantic classes (G.3 covers class 2 only)",
+  "Amendment (a) applied to the owned 4.0 farm path: crucible.scale.rollout.WorldEnv and the bench rollout section must default to observation_only"
+ ],
+ "proposed_gate_V_targets": [
+  {
+   "target": "development sim days per CPU-hour",
+   "value": ">= 60",
+   "now": 98.5
+  },
+  {
+   "target": "standard sim days per CPU-hour",
+   "value": ">= 46 (365 d <= 8 h on 1 CPU)",
+   "now": 64.9
+  },
+  {
+   "target": "large sim days per CPU-hour",
+   "value": ">= 7.6 (365 d <= 48 h on 1 CPU)",
+   "now": 22.2
+  },
+  {
+   "target": "internet 10M",
+   "value": ">= 0.6 sim days per wall hour on <= 4 CPUs, peak RSS <= 32 GB",
+   "now": "unmeasured (about 1/h extrapolated)"
+  },
+  {
+   "target": "storage growth",
+   "value": "<= 200 B per individual-day and <= 15 GB per official run",
+   "now": "1830 B per individual-day (large)"
+  },
+  {
+   "target": "snapshot at 10M",
+   "value": "<= 1 GB, <= 60 s, fork exact",
+   "now": "33 MB / 1.9 s at 100k"
+  },
+  {
+   "target": "world-generation cost",
+   "value": "<= 30 s per world",
+   "now": "about 15-20 s sandbox deploy plus 3 s create"
+  },
+  {
+   "target": "class-2 inference",
+   "value": ">= 15k decisions per CPU-s at B >= 256; in-world mean batch >= 64",
+   "now": "20,353 micro; in-world max 45"
+  },
+  {
+   "target": "event-driven",
+   "value": "dense/event wall ratio >= 10x at large; cost <= 1.2x per 2x due participants",
+   "now": "2.18x at standard"
+  },
+  {
+   "target": "semantic service",
+   "value": ">= 500 gen tok/s at 0.6B, batch >= 16, <= 8 GB VRAM",
+   "now": "252 (D2 claim)"
+  },
+  {
+   "target": "embedding cache",
+   "value": "hit rate >= 0.9 on the integrated multimodal workload over 3 worlds",
+   "now": "0.983 synthetic only"
+  },
+  {
+   "target": "parallel worlds",
+   "value": "efficiency >= 0.85 at 8 worlds in a 9-CPU budget",
+   "now": "0.85 (4.0 baseline)"
+  },
+  {
+   "target": "budget compliance",
+   "value": "0 violations in 7 enforced dimensions over all official runs",
+   "now": ">= 13 CPU overruns logged; VRAM overrun demonstrated"
+  }
+ ],
+ "tests_run": [
+  {
+   "command": "slots --cpu 1 -- pytest -q -p no:cacheprovider -x tests/test_v5_slots.py tests/test_v5_substrate_columns.py tests/test_v5_social_idset.py",
+   "result": "21 passed in 4.9 s"
+  },
+  {
+   "command": "slots --cpu 1 -- python profile_bench.py development 24",
+   "result": "98.5 sim days per wall hour, 717 MB peak, 0 policy updates"
+  },
+  {
+   "command": "slots --cpu 1 -- python profile_bench.py standard 6 / standard 24",
+   "result": "41.6 (night-heavy) / 64.9 sim days per wall hour, 812 MB"
+  },
+  {
+   "command": "slots --cpu 1 -- python profile_bench.py large 24",
+   "result": "22.2 sim days per wall hour, 1497 MB, 184 MB storage per sim day"
+  },
+  {
+   "command": "slots --cpu 1 -- python internet_profile_probe.py 1000000 1",
+   "result": "create 5.9 s; 17 s per daytime sim hour; 16,420 activations/s; 2.3 GB peak"
+  },
+  {
+   "command": "slots --cpu 1 -- python internet_10M_create_probe.py 10000000",
+   "result": "create 36.5 s; RSS 4.9 GB after create; 8.4 GB peak; first 30 sim minutes 23.7 s"
+  },
+  {
+   "command": "slots --cpu 1 -- python tick_profile_probe.py 2000000",
+   "result": "11.0 of 17.7 s in epoll waits on sandbox site deployment; 97 fork_exec"
+  },
+  {
+   "command": "slots --cpu 1 -- python subproc_probe.py 200 24 / 2000 24",
+   "result": "81/107 sandbox processes and 83/109 ldconfig forks; children CPU > world CPU"
+  },
+  {
+   "command": "slots --cpu 1 -- python event_driven_probe.py standard 3",
+   "result": "speedup 2.18x wall, 28.6x activations; due scan 26.5 ms at 10M"
+  },
+  {
+   "command": "slots --cpu 1 -- python batch_inference_probe.py 32|256|1000",
+   "result": "batched 7.8x/6.4x/5.9x; NumPy 0.34-0.45x; int8 1.19-1.40x with 0.91-0.94 argmax agreement"
+  },
+  {
+   "command": "slots --cpu 1 -- python cache_probe.py <fresh dir>",
+   "result": "hit rate 0.983; 200 computes for 12,000 requests; 50/50 disk hits"
+  },
+  {
+   "command": "slots --cpu 1 --gpu-mb 100 -- python slots_enforcement_probe.py 1024 1024",
+   "result": "affinity 48, rlimits unlimited, 1 GB RAM, torch threads 8, 1024 MB VRAM under a 100 MB reservation"
+  },
+  {
+   "command": "python slots_fairness_probe.py <private ledger>",
+   "result": "no FIFO (later 1-CPU request admitted first); zombie counted alive"
+  },
+  {
+   "command": "python usage_analysis.py /tmp/crucible-slots/usage.jsonl",
+   "result": "13 of 219 jobs >110% of reserved CPU (max 1.8x); no VRAM field"
+  },
+  {
+   "command": "slots --cpu 1 -- examples/bench_openworld.py --quick --only kernel,families --families tiny,bazaar,open_digital,open_industry,mech_scm_additive --workers 1 --no-merge --out <scratch>",
+   "result": "no regression vs 4.0 baseline (8147 vs 7978 tx/s; families +/-10%)"
+  },
+  {
+   "command": "slots --cpu 1 -- python -m crucible.substrate.bench --rows 100000 --table-rows 1000000 --store sqlite --events 5000",
+   "result": "reproduces A.md: 0.020 s transaction, 0.018 s replay exact, 10.5 us/event"
+  },
+  {
+   "command": "slots --cpu 1 -- python blob_compress_probe.py",
+   "result": "batch blobs compress 1.53x with zlib-6"
+  },
+  {
+   "command": "slots --cpu 1 -- python -c WorldEnv default probe",
+   "result": "default legacy_shaped_reward; reward 12345.0 for an exogenous deposit with no action"
+  },
+  {
+   "command": "python forum_quadratic set(own) timing",
+   "result": "0.387 s vs 0.00034 s hoisted at 5k/5k"
+  }
+ ],
+ "critical_findings": [
+  "Workstream M never ran: no gate V / SP-13.7 / SP-13.8 tests, no v5 benchmark, no recorded throughput targets; all 12 M requirements unmet.",
+  "crucible.scale.slots enforces nothing: 3 of 7 dimensions tracked; a 100 MB GPU reservation allocated 1,024 MB; affinity 48 CPUs, no rlimits; 13/219 logged jobs exceeded reserved CPU; no FIFO; zombies keep slots; simulation never consults it.",
+  "Storage growth blocks long/large runs: about 1.83 KB per individual-day (large: 184 MB per sim day), uncompressed ZIP_STORED blobs, whole-row rewrites; a 30-day 10M run would need about 550 GB against 21 GB free disk.",
+  "No approximate large-population mode and no high-fidelity comparison (V.9); the 'estimated population mode' claimed in ARCHITECTURE.md and DECISION_LOG D-5 does not exist in code.",
+  "Amendment (a) violated in the owned path: crucible.scale.rollout.WorldEnv defaults to legacy_shaped_reward (rollout.py:128); probe returned reward 12345.0 for an exogenous deposit with no action.",
+  "Integrated population cost is dominated by work unrelated to decisions: event-driven only 2.18x faster than dense (28.6x fewer activations); sandbox process per program call costs more CPU than the world; quadratic set(own) in popweb forum (web.py:775); class-4 semantic rows never act; 10M exists only on the simplified crowd path or as B pop creation."
+ ],
+ "files_written": [
+  "/workspace/agentrs/.worktrees/c5-complete/crucible/docs/v5/audit/M_performance.md",
+  "/workspace/agentrs/.worktrees/c5-complete/crucible/docs/v5/audit/M_performance.json"
+ ],
+ "skeptic": {
+  "reviewer": "skeptic, area M_performance",
+  "date": "2026-11-26",
+  "tree": "HEAD 7c29c75; src identical to audited a881d18 except acceptance/v5/manifest.py and requirements.py",
+  "probes_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/M_performance_skeptic/",
+  "overturned_subsystems": [
+   {
+    "name": "Multimodal caching",
+    "from": "EXTEND",
+    "to": "REPAIR",
+    "why": "Cache key not derived from the live preprocessing: TextEncoder.window 254->32 left cache_key unchanged and the cache served the old vector (cosine 0.797 to the correct one). preprocessing dict is hand-written (encoders/text.py), CODE_VERSION a manual bump (encoders/base.py:13). Auditor probed reuse only.",
+    "probe": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/M_performance_skeptic/cache_invalidation_probe.py"
+   },
+   {
+    "name": "Event-driven activation and aggregation",
+    "from": "EXTEND",
+    "to": "REPAIR",
+    "why": "Integrated standard world, 24 h: 0 pop.wake batches, 0 woken individuals in 25,861 activations despite 919 forum replies, an employment batch and purchases. Activation is random rhythm + 15-min polling; the only population.wake caller is social/consumption.py:487, which cannot load with pop. No 13.2 trigger activates anyone.",
+    "probe": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/M_performance_skeptic/event_trigger_probe.py"
+   },
+   {
+    "name": "WorldPool / RolloutFarm",
+    "from": "REPAIR (S)",
+    "to": "EXTEND (M)",
+    "why": "4.0 tests 18 passed (reproduced), but no v5 world is a registered family (generate/WorldEnv KeyError for 'population'; population_world used only by tests/test_v5_population_core.py), artifacts._POOL leaks across closed worlds in long-lived workers (12->48 MB over 4 development worlds, RSS 714->769 MB), check_mode(None) returns legacy_shaped_reward (contrary to D-19), WorldEnv default reward 12345.0 for an exogenous deposit.",
+    "probe": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/M_performance_skeptic/pool_hosts_v5_probe.py, pool_leak_probe.py, reward_default_probe.py"
+   },
+   {
+    "name": "10M-identity scale path",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "why": "The only acting 10M social run uses the crowd stand-in, ruled out by D-14/D-15; C2 cannot run with pop. B's pop at 10M does decide in a daytime hour (2.8M activations, ~3.16M distinct) but with no platforms, 755.8 MB blobs per hour in RAM, RSS 11.4->13.1 GB per sim hour (container exhausted in ~3 sim days), ~1M Python-dict principals after 9 sim h, 4,424 one-row deposit batches per hour, 0 of 20 class-4 rows acting.",
+    "probe": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/M_performance_skeptic/pop10M_daytime_probe.py"
+   }
+  ],
+  "overturned_requirements": [
+   {
+    "id": "V.2",
+    "from": "EXTEND",
+    "to": "IMPLEMENT",
+    "criteria_weak": true,
+    "why": "No admissible integrated 10M social run: crowd is a stand-in (D-14/D-15), C2 cannot load with pop; pop at 10M runs a daytime hour but without social platforms and with unbounded memory growth."
+   },
+   {
+    "id": "V.5",
+    "from": "EXTEND",
+    "to": "REPAIR",
+    "criteria_weak": true,
+    "why": "0 event-triggered activations in an integrated standard day; the 2.18x speedup is sparse random scheduling vs a dense tick. Criterion should require trigger-caused activations and cost proportional to them."
+   },
+   {
+    "id": "V.6",
+    "from": "EXTEND",
+    "to": "REPAIR",
+    "criteria_weak": true,
+    "why": "Stale vector served after a preprocessing change (key not derived from the computation); cache not on the default integrated path."
+   }
+  ],
+  "upheld": [
+   {
+    "target": "Resource scheduler / V.8 / SP-13.7",
+    "verdict": "REDESIGN",
+    "note": "Strengthened: backgrounded grandchild escapes (slot released after 0.11 s, usage log wall 0.0 cpu 0.0); budget self-declared via CRUCIBLE_SLOT_CPUS env (4-CPU request admitted with ledger 2/2 full); 64 CPU / 999,999 MB admitted when idle, unflagged; semantic probe peaked at 4,384 MB VRAM inside a 4,000 MB slot."
+   },
+   {
+    "target": "v5 benchmark harness / V.1 / SP-13.8",
+    "verdict": "IMPLEMENT",
+    "note": "No gate V / SP-13.7 / SP-13.8 test files; nothing writes a v5 performance record."
+   },
+   {
+    "target": "4.0 benchmark suite",
+    "verdict": "RETAIN (narrow: 4.0 instrument only)",
+    "note": "Reproduced the storage, memory and rollout sections too: storage identical to the baseline for 13/14 families (tiny is nondeterministic in 4.0 as well, from its measured cost model), memory within 1 MB, rollout 119 vs 134 steps/s under higher load. Registers no v5 world, so it cannot supply the v5 side of SP-13.8; its rollout section uses the legacy reward default."
+   },
+   {
+    "target": "Columnar state and batch events",
+    "verdict": "EXTEND",
+    "note": "36% of set-batch bytes unchanged (popweb.search 97%, popweb.seen 98%); delta + zlib gives ~2.4x, ~700 B per individual-day, still ~3.5x over the proposed 200 B; only checkpoint + compaction (D-21) can bound it."
+   },
+   {
+    "target": "Shared weights and batched numerical inference / V.4",
+    "verdict": "EXTEND",
+    "note": "Not re-probed; in-world batches tiny; V.4 criterion weak."
+   },
+   {
+    "target": "Compact semantic inference service",
+    "verdict": "EXTEND",
+    "note": "Now on own GPU evidence: batched 303 tok/s vs 36.6 tok/s single (8.56x); prefix cache 1.35x (885-token prefix); identical outputs 11/16 (prefix) and 12/16 (batched vs single) in bf16; peak 4,384 MB. Not wired to population class 4."
+   },
+   {
+    "target": "Large-population techniques",
+    "verdict": "EXTEND",
+    "note": "Columnar principals and batched deposits required (987k dict principals and 4,424 one-row deposit batches per daytime hour at 10M)."
+   },
+   {
+    "target": "Approximation vs high fidelity / V.9",
+    "verdict": "IMPLEMENT",
+    "note": "No approximate mode anywhere in src."
+   },
+   {
+    "target": "Hot paths",
+    "verdict": "REPAIR",
+    "note": "web.py:775 verified; add the unchanged-column rewrites."
+   },
+   {
+    "target": "V.3",
+    "verdict": "REPAIR",
+    "note": "Counts exist (pop.policy_update.params, nets.n_params, SemanticService.info params = 596,049,920); only the report is missing."
+   },
+   {
+    "target": "V.7",
+    "verdict": "IMPLEMENT",
+    "note": "Harsh but correct; instruments exist (bench.cgroup_cpu, bench.sample_gpu, service.peak_vram_mb), effort S."
+   },
+   {
+    "target": "V.n1",
+    "verdict": "IMPLEMENT",
+    "note": "The auditor's section 6 targets were proposed after seeing the measurements and several sit just below them; they ignore the D-16 encoder cost; they need justification independent of the observed numbers via change control."
+   }
+  ],
+  "target_table_corrections": [
+   "World generation <= 30 s marked 'yes' is false at 10M: creation alone takes 35.6-36.5 s.",
+   "The internet profile is now measured for one daytime hour: 0.41 sim days per wall hour (1 loaded CPU), RSS 13.1 GB after 9 sim hours and growing ~1.8 GB per sim hour; the <= 32 GB peak target would be crossed within about one sim day."
+  ],
+  "additional_missing_requirements": [
+   "Bounded memory in long-lived workers (_POOL release on World.close or a store for every world); prerequisite for OO.5.",
+   "v5 worlds hostable by WorldPool/RolloutFarm so that 13.7 active-world limits apply to v5.",
+   "Performance budget for the D-16 pretrained-encoder default path (measured 4.7 page-sized docs/s per CPU thread; ~260-370 CPU-s per standard sim day estimated vs 55 s per sim day for the whole world today).",
+   "Activations caused by recorded trigger events (13.2), measured in the integrated world.",
+   "Behavioural equivalence of batched vs single semantic inference and of quantized numerical inference.",
+   "Scheduler budget stored with the ledger and accounting for detached descendants."
+  ],
+  "tests_run": [
+   {
+    "command": "slots --cpu 4 -- pytest -q -p no:cacheprovider tests/test_scale.py -k 'not throughput_grows'",
+    "result": "18 passed, 1 deselected in 54.9 s"
+   },
+   {
+    "command": "slots --cpu 2 -- python bench_sections_probe.py (storage, memory, rollout; 1 worker)",
+    "result": "all ok; matches the 4.0 baseline except tiny (nondeterministic in 4.0 too); spawn-bootstrap errors in the log come from the probe's missing __main__ guard"
+   },
+   {
+    "command": "python tiny_determinism_probe.py <v5 src> / <4.0 src c07098b>",
+    "result": "both nondeterministic: 1941/1933 and 1932/1941 events"
+   },
+   {
+    "command": "python slots_escape_probe.py (private ledger)",
+    "result": "escape after 0.11 s; self-declared budget admitted; oversize admitted"
+   },
+   {
+    "command": "slots --cpu 1 -- python pool_leak_probe.py 4 6",
+    "result": "_POOL 12->48 MB; RSS 714->769 MB after close"
+   },
+   {
+    "command": "slots --cpu 1 -- python event_trigger_probe.py standard 24",
+    "result": "0 pop.wake, 0 woken, 25,861 activations"
+   },
+   {
+    "command": "slots --cpu 1 -- python storage_breakdown_probe.py standard 24",
+    "result": "1,664 B per individual-day; 36% unchanged"
+   },
+   {
+    "command": "slots --cpu 1 --gpu-mb 4000 -- python semantic_service_probe.py cuda",
+    "result": "303 vs 36.6 tok/s; prefix 1.35x; 11/16 and 12/16 identical; 4,384 MB peak"
+   },
+   {
+    "command": "python cache_invalidation_probe.py",
+    "result": "stale vector served, cosine 0.797"
+   },
+   {
+    "command": "python encoder_throughput_probe.py",
+    "result": "4.7 docs/s on 1 thread"
+   },
+   {
+    "command": "python pool_hosts_v5_probe.py",
+    "result": "KeyError: unknown world family 'population'"
+   },
+   {
+    "command": "python reward_default_probe.py",
+    "result": "check_mode(None)=legacy; default reward 12345.0, observation_only 0.0"
+   },
+   {
+    "command": "slots --cpu 1 -- python pop10M_daytime_probe.py 10000000 8 1",
+    "result": "08-09 h in 362 s; 2.8M activations; 755.8 MB blobs; RSS 13.1 GB"
+   }
+  ],
+  "critical_findings": [
+   "The embedding cache serves stale vectors when a real preprocessing parameter changes (cosine 0.797); spec 13.5 keying is violated.",
+   "Event-driven computation is not demonstrated in the integrated world: 0 trigger-caused activations in a standard day; the 2.18x is random-rhythm sparsity.",
+   "No admissible 10M social capability: crowd is a stand-in (D-14/D-15), C2 cannot load with pop; pop at 10M runs a daytime hour (0.41 sim days per wall hour) but its memory grows ~1.8 GB per sim hour.",
+   "The parallel-world and rollout machinery cannot host any v5 world, and artifacts._POOL leaks across closed worlds in long-lived workers.",
+   "check_mode(None) returns legacy_shaped_reward, so every adapter that omits the mode defaults to shaped reward (amendment (a), D-19).",
+   "The slots scheduler can be escaped by detaching and bypassed by setting the budget env var; VRAM overrun reproduced (4,384 MB in a 4,000 MB slot)."
+  ]
+ }
+}

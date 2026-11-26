@@ -1,0 +1,787 @@
+{
+ "area": "H_rapid",
+ "workstreams": [
+  "H (H0 finished; H1, H2, H3 interrupted and merged)"
+ ],
+ "audited_tree": {
+  "branch": "feat/crucible-5-complete",
+  "commit_assigned": "a881d18",
+  "head_at_audit": "dd745b9 (docs/manifest only; rapid, mechanisms and tests unchanged since a881d18)",
+  "rapid_source_digest": "12ed0ba902248d274d5653a1d7a0e690"
+ },
+ "headline_counts": {
+  "registered_families": 74,
+  "registered_train": 55,
+  "registered_eval": 19,
+  "admitted_seeds_0_2": {
+   "total": 69,
+   "train": 51,
+   "eval": 18
+  },
+  "admitted_seeds_10_12": {
+   "total": 65,
+   "train": 48,
+   "eval": 17
+  },
+  "admitted_on_both_seed_sets": {
+   "total": 65,
+   "train": 48,
+   "eval": 17
+  },
+  "rejected_seeds_0_2": {
+   "net_cascade": [
+    "difficulty"
+   ],
+   "pe_cascade_guard": [
+    "no_dominant_strategy"
+   ],
+   "pe_contention_sched": [
+    "identifiability"
+   ],
+   "pe_rollout_targeting": [
+    "difficulty"
+   ],
+   "pe_stream_processor": [
+    "achievable",
+    "identifiability",
+    "no_dominant_strategy",
+    "difficulty"
+   ]
+  },
+  "admitted_0_2_but_not_10_12": [
+   "des_bottleneck",
+   "dl_short_term_damage",
+   "pe_router",
+   "pe_rule_induction"
+  ],
+  "engines_with_admitted_families": 9,
+  "legacy_engines_preserved": 3,
+  "distinct_engine_scenario_pairs": 44,
+  "primitive_graph_families": 29,
+  "part8_items_with_registered_family": 54,
+  "part8_items_with_admitted_family": 50,
+  "part8_items_missing": [
+   "8.2.2",
+   "8.2.3",
+   "8.5.1",
+   "8.5.4",
+   "8.6.5",
+   "8.7.5"
+  ],
+  "part8_items_no_admitted_family": [
+   "8.3.4",
+   "8.3.5",
+   "8.6.3",
+   "8.7.4"
+  ],
+  "lever_only_admitted_families": 24,
+  "graph_edit_admitted_families": 1,
+  "coordinate_admitted_families": 4,
+  "multi_participant_admitted_families": 6,
+  "objective_types": {
+   "maximize_net": 69,
+   "predict_heldout": 4,
+   "heldout_tests": 1
+  }
+ },
+ "subsystems": [
+  {
+   "name": "Causal primitive registry (Part 7.1)",
+   "paths": [
+    "src/crucible/rapid/primitives.py",
+    "src/crucible/rapid/primitive_checks.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "28 versioned primitives with schemas and characteristic checks; SP-7.1 gate passes (primitives_registered=28). Probe p03 re-ran every check's calls with per-instance (B,) parameters: 25 conform, selection_effect crashes (broadcast (B,) x (B,n)).",
+   "key_defects": [
+    "SelectionEffect.apply (primitives.py:539) multiplies p['sd'] of shape (B,) by z[:, :n] of shape (B,n): violates the module's own per-instance parameter contract; this is the cxs_selected_layers batch failure",
+    "SP-7.1 gate checks per-instance parameters only for saturation (test_gate_SP_7_1.py:37-43)"
+   ],
+   "work_needed": "sd = np.asarray(p['sd']); sd = sd[:, None] if sd.ndim == 1 else sd (verified in memory: 0 mismatches, p13); add a per-instance-parameter conformance test over all 28 primitives.",
+   "effort": "S"
+  },
+  {
+   "name": "Structural generator and recipes (Part 7.2)",
+   "paths": [
+    "src/crucible/rapid/generator.py",
+    "src/crucible/rapid/recipes.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "compose() covers 8 topologies, 4 temporal classes, 7 observation channels; Composed (recipes.py:30) builds 16 H3 primitive_graph families from compose recipes; lookalike_market gives 4 same-interface/different-rule markets, distinguished by claims.lookalike_matrix in gate M.8 (lookalike_rules_distinguished=true).",
+   "key_defects": [
+    "Only primitive_graph worlds are compositional; the other 45 families are one hand-written scenario per family (44 distinct engine/scenario pairs for 74 families)",
+    "No IndependentlyGenerateGoal(world, difficulty): 69/74 families use maximize_net; objectives are fixed per family",
+    "H3 recipes deliberately price levers so the optimum is interior (recipes.price_levers_at), which evades the min/mid/max dominance check rather than removing constant-setting solutions",
+    "No participant-population, institution or resource-constraint composition axis in Tier 1 generation"
+   ],
+   "work_needed": "Make objectives an independent generator output; extend composition to non-graph engines (scenario parameters as composable modules); generate worlds outside the hand-registered list and admit them automatically.",
+   "effort": "L"
+  },
+  {
+   "name": "H0 engines: primitive_graph, discrete_event, graph_dynamical, state_machine, search",
+   "paths": [
+    "src/crucible/rapid/engines/base.py",
+    "src/crucible/rapid/engines/primitive_graph.py",
+    "src/crucible/rapid/engines/discrete_event.py",
+    "src/crucible/rapid/engines/graph_dynamical.py",
+    "src/crucible/rapid/engines/state_machine.py",
+    "src/crucible/rapid/engines/search.py"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "Each module has its own transition code (event heap, network dynamics, transition matrices, search fields); 199/203 rapid unit tests pass (the 4 failures are stale tests or the primitive bug); all families on these engines except net_cascade admitted on seeds 0-2.",
+   "key_defects": [
+    "des_bottleneck and dl_short_term_damage fail difficulty on held-out seeds 10-12 (family tuning, not engine)",
+    "batch path depends on primitive per-instance conformance (see primitives)"
+   ],
+   "work_needed": "None structural; keep. Family-level tuning belongs to the family registry item.",
+   "effort": "S"
+  },
+  {
+   "name": "H1/H2 engines: program_exec, experiment_lab, planning, strategic",
+   "paths": [
+    "src/crucible/rapid/engines/program_exec.py",
+    "src/crucible/rapid/engines/experiment_lab.py",
+    "src/crucible/rapid/engines/planning.py",
+    "src/crucible/rapid/engines/strategic.py",
+    "src/crucible/rapid/eval_program_exec.py",
+    "src/crucible/rapid/eval_experiment_lab.py",
+    "src/crucible/rapid/evaluator_h2.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "Independent transition functions per scenario (e.g. strategic._adv_price_war/_adv_blotto/...; program_exec runs agent code inside the dynamics through crucible.sandbox). Families on all four are admitted (program_exec 5/9, experiment_lab 2/2, planning 8/8, strategic 10/10 on seeds 0-2). Probe p14: own intervention claims fail for 4 of 9 program_exec families, plan_distribution, strat_bargain, strat_blotto, strat_entry, strat_price_war, team_assembly.",
+   "key_defects": [
+    "No unit tests at all for these engines or the 45 H1-H3 families (families_h3.py:14 cites tests/test_v5_rapid_h3.py which does not exist)",
+    "Claimed mechanisms not confirmed by their own controlled interventions in 6 admitted H2 families (e.g. plan_distribution: shipping to high vs low demand sells the same 31 units; team_assembly revenue_one_component_only=0)",
+    "pe_contention_sched claim fails on float equality (ratio 2.989644 vs expected 2.989648): tolerance bug",
+    "4 of 9 program_exec families are rejected on seeds 0-2 and 6 of 9 on seeds 10-12 (pe_router, pe_rule_induction drop out)",
+    "no kernel/full-kernel representation of any structured-action family"
+   ],
+   "work_needed": "Unit tests per engine and scenario; fix or retune each failing claim/family; tolerance fix; held-out-seed robustness; decide what kernel representation (if any) structured families claim.",
+   "effort": "L"
+  },
+  {
+   "name": "Family registry and families (Part 8.1-8.10)",
+   "paths": [
+    "src/crucible/rapid/families.py",
+    "src/crucible/rapid/families_pg.py",
+    "src/crucible/rapid/families_des.py",
+    "src/crucible/rapid/families_net.py",
+    "src/crucible/rapid/families_posm.py",
+    "src/crucible/rapid/families_search.py",
+    "src/crucible/rapid/families_h1.py",
+    "src/crucible/rapid/families_h2.py",
+    "src/crucible/rapid/families_h3.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "Independent admission (p02) seeds 0-2: 69/74 admitted (51 train, 18 eval); seeds 10-12: 65 (48 train, 17 eval). 10 categories covered. Item map (p08): 6 of the 60 enumerated items have no family, 4 more no admitted family; 9 items covered only by evaluation families. Best-constant probe (p07): in 17/31 admitted lever families one constant lever setting from a 7-point grid reaches >0.75 of the oracle's gain (>=0.98 in 9; above the oracle in hc_confounded, net_routing, net_topology_shift).",
+   "key_defects": [
+    "Below Gate M thresholds (51/60 train, 18/20 eval; robust 48/17)",
+    "Many 'hidden causal' and 'changing environment' families are solved by a constant setting (cx_overdose 0.996, cx_competing_causes 0.991, hc_conditional 0.990, cx_balancing_loop 0.982, cxs_selected_layers 0.983, game_adaptive_rival 0.980, ch_tech_transition 0.918): no causal inference or belief revision is needed to capture most value",
+    "24/69 admitted families are lever-only; graph_edit is offered by one admitted family",
+    "Unique fixed brief text per family identifies the family to a learner (except the deliberate look-alikes)"
+   ],
+   "work_needed": "Add >=9 robust train and >=3 robust eval families, cover the 10 missing/unadmitted items, retune constant-dominated families so state-dependent policies are needed, move more families off pure levers.",
+   "effort": "L"
+  },
+  {
+   "name": "Admission and evaluator side (Part 7.4)",
+   "paths": [
+    "src/crucible/rapid/admission.py",
+    "src/crucible/rapid/oracles.py",
+    "src/crucible/rapid/references.py",
+    "src/crucible/rapid/refs_h3.py",
+    "src/crucible/rapid/identify.py",
+    "src/crucible/rapid/claims.py",
+    "src/crucible/rapid/claims_h3.py",
+    "src/crucible/rapid/policies.py",
+    "src/crucible/rapid/report.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "Ten checks run on every family and each rejects its negative control (SP-7.4 gate passed, 2,081 secrets scanned, 0 exposure findings, static isolation ok). Probes show the criteria are too permissive: p07 constant dominance, p14 claims not required, p06/p11 distinctness, p15 leak scan blind spots.",
+   "key_defects": [
+    "no_dominant_strategy tests only levers min/mid/max, one option of a decision and even/all-on-one allocations (policies.canonical_actions; admission.py:383,406); a grid-searched constant beats the 0.75 threshold in 17/31 lever families",
+    "Intervention claims are not an admission check: 9 admitted families fail their own claims",
+    "distinct = fingerprint distance > 0 (admission.py:165); vs 4.0 it is vacuous because 4.0 and v5 motif vocabularies do not overlap (p11: all 4.0 val/test families at 0.58-0.68 from every v5 train family)",
+    "Leak scan only matches non-integer floats with repr length >= 7 (admission.py:91): 42 string, 4 integer and 248 short/integral hidden values are never scanned",
+    "difficulty axis check is 'the config digest changes' (admission.py:355), not that the world gets harder",
+    "The generic reference (references.practice_constant) replays copies of the scored world with the same noise; the 'oracle' is beaten by a constant in 3 families and by the reference (share > 1) in 4"
+   ],
+   "work_needed": "Add a best-constant / simple-adaptive baseline to no_dominant_strategy; make claims a required check; replace distance>0 with a calibrated threshold plus cross-family intervention discrimination; map 4.0 motif vocabulary onto v5 primitives; scan strings/ints/rounded values; require difficulty axes to move the reference share monotonically; make oracles true upper references.",
+   "effort": "M"
+  },
+  {
+   "name": "Structural fingerprints and distinctness registry (Part 7.5)",
+   "paths": [
+    "src/crucible/rapid/fingerprints.py"
+   ],
+   "verdict": "REDESIGN",
+   "evidence": "Probe p06: of 178 single-axis difficulty variants (horizon x2, +2 distractors, graph size x2, ...), 116 have fingerprint distance > 0 to their own family (horizon 0.025, n_variables 0.042-0.058), so by fingerprints.counted (line 261: duplicate only at distance == 0.0) they would count as new structural families; the closest real pair is 0.063. Gate test M.n1 crashes (TypeError, team_assembly nested unit_cost).",
+   "key_defects": [
+    "Numeric coefficients enter the fingerprint through horizon buckets (line 104), node-count buckets (line 127) and reading-count buckets",
+    "For non-graph engines topology and motif_edges are the scenario label string (line 130) and motifs are hand-declared per scenario (e.g. strategic.motifs), not measured",
+    "participants and objective components are the family's own declarations (lines 151-154)",
+    "No threshold: any nonzero component difference makes a new family; no controlled-intervention verification of the difference to the nearest family"
+   ],
+   "work_needed": "Make fingerprints invariant to difficulty axes and coefficients (exclude horizon/size buckets or treat them as axes), measure mechanism structure behaviourally (intervention-response signatures), set a calibrated distance threshold validated against parameter and axis variants, and verify every claimed difference to the nearest family by an intervention that separates them.",
+   "effort": "M"
+  },
+  {
+   "name": "Structured action interface (Part 8.11)",
+   "paths": [
+    "src/crucible/rapid/actions.py",
+    "src/crucible/rapid/program.py"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "Ten JSON-schema action kinds (levers, discrete, graph_edit, sequence, query, experiment, message, program, allocate, coordinate) with per-world schemas; SP-8.11 gate reproduced: action_types=10, effects_verified=10. Programs run in crucible.sandbox.",
+   "key_defects": [
+    "Usage is thin for some kinds (graph_edit in 1 admitted family, coordinate in 4) - a family-coverage issue, not an interface defect"
+   ],
+   "work_needed": "None to the interface; broaden use through families.",
+   "effort": "S"
+  },
+  {
+   "name": "RapidEnv and observations (observation-only behaviour)",
+   "paths": [
+    "src/crucible/rapid/env.py",
+    "src/crucible/rapid/observation.py",
+    "src/crucible/experience/tier1.py (consumer)",
+    "src/crucible/experience/registry.py (consumer)"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "RapidEnv.step returns only observation/result/events (p09: no reward key across 3,676 steps of all 74 families; one objective text mentions scoring). Probe p04: the participant's 'spec' query returns family, seed, engine, category and split ('val' for evaluation families). Probe p10: experience.make and RapidExperienceEnv default to reward_mode='legacy_shaped_reward'; the 4.0 lever view gives nonzero shaped reward by default; rapid has no objective-free mode. Probe p12: PublicView is bypassed by v._PublicView__env; RapidEnv.outcome() and ExperienceEnv.verify() are callable by whoever holds the env.",
+   "key_defects": [
+    "Family/seed/split identity exposed to participants (env.py:68, :235) - memorisation key and evaluation-partition leak",
+    "Learner-interface default is legacy_shaped_reward, contradicting the observation-only amendment (registry.py:99, tier1.py:472)",
+    "No operation without an assigned objective in Tier 1 (objective text always present)",
+    "Evaluator outcome reachable in-process from the participant's object"
+   ],
+   "work_needed": "Remove family/seed/category/split from the participant spec; default reward_mode='observation_only'; add objective=None worlds; move outcome()/verify() behind an evaluator handle the learner does not receive (or a separate process).",
+   "effort": "M"
+  },
+  {
+   "name": "Fast batch path and kernel twin (Part 8.12)",
+   "paths": [
+    "src/crucible/rapid/batch.py",
+    "src/crucible/rapid/mechview.py"
+   ],
+   "verdict": "EXTEND",
+   "evidence": "SP-8.12 gate reproduced: 9 axes, sim_kernel_mismatches=0 over 320 ticks (4 families), batch-vs-single mismatches 0, ~20,300 batch world-steps/s under load. Unit test bit_for_bit fails for cxs_selected_layers (primitive bug).",
+   "key_defects": [
+    "Batch path covers 31/74 families (primitive_graph and routing); kernel twin covers only lever-view families (26) and hosts the same engine code via rig, so it checks hosting/accounting, not two independent representations",
+    "BatchRapid is used only by tests; no learner or curriculum uses the fast path",
+    "kernel_world puts family_split into WorldSpec params (mechview.py:181)"
+   ],
+   "work_needed": "Fix the primitive; extend batched stepping to other engines where valid; wire the batch path into learner rollouts; state explicitly which representations are claimed equivalent and test all of them.",
+   "effort": "M"
+  },
+  {
+   "name": "Crucible 4.0 engines and sealed/validation families (D-9)",
+   "paths": [
+    "src/crucible/mechanisms/scm.py",
+    "src/crucible/mechanisms/abm.py",
+    "src/crucible/mechanisms/techsys.py",
+    "src/crucible/mechanisms/base.py",
+    "src/crucible/research/sealed.py"
+   ],
+   "verdict": "RETAIN",
+   "evidence": "git log: src/crucible/mechanisms unchanged since 4.0 checkpoint 3 (c453d27); 4.0 engine tests 326 passed (test_mech_scm/abm/techsys/rig/evaluator); 25 families (7 train, 7 val, 11 test) intact; mechview adds engine 'rapid' without MECH_FAMILIES entries.",
+   "key_defects": [
+    "Preservation is literal only: no check that v5 training families do not recreate 4.0 sealed test mechanisms (scm_regime vs ch_sign_reversal/ch_rule_change, scm_feedback vs cx_reactive_history/cx_balancing_loop, tech_contention vs pe_contention_sched); the distinctness check cannot see it"
+   ],
+   "work_needed": "Keep the code; add a mechanism-level contamination check of v5 train against 4.0 val/test (shared vocabulary) and document which 4.0 sealed claims ('motif absent from training') no longer hold.",
+   "effort": "S"
+  },
+  {
+   "name": "Tier 1 unit and gate tests",
+   "paths": [
+    "tests/test_v5_rapid_engines.py",
+    "tests/test_v5_rapid_families.py",
+    "tests/test_v5_rapid_actions.py",
+    "tests/test_v5_rapid_primitives.py",
+    "tests/v5/test_gate_M.py",
+    "tests/v5/test_gate_SP_7_1.py",
+    "tests/v5/test_gate_SP_7_3.py",
+    "tests/v5/test_gate_SP_7_4.py",
+    "tests/v5/test_gate_SP_8_11.py",
+    "tests/v5/test_gate_SP_8_12.py"
+   ],
+   "verdict": "REPAIR",
+   "evidence": "Rapid unit files: 199 passed, 4 failed (reproduced). Gate M + SP-7.4: 9 passed, 2 failed (M8 with 29 claim failures, Mn1 TypeError). SP-7.1/7.3/8.11/8.12: 4 passed, but SP-7.3 passes only because it asserts == 4 while recording 4 of 8.",
+   "key_defects": [
+    "test_five_engines_registered... asserts exactly 5 engines (test_v5_rapid_engines.py:22) - stale",
+    "test_engine_modules_share_only_the_contract forbids program_exec's sandbox import (line 34) - stale boundary",
+    "test_registry_entries... asserts 5 engines (test_v5_rapid_families.py:26) - stale",
+    "SP-7.3 gate: _transition_markers knows only 4 kinds and asserts len(implemented) == 4 (test_gate_SP_7_3.py:23,77), so it can never record 8",
+    "M.n1 variant builder crashes on nested lists (test_gate_M.py:190)",
+    "M.2 records legacy_4_0_val_test_families_untouched=0 because mech engines are not loaded (test_gate_M.py:62)"
+   ],
+   "work_needed": "Update stale assertions to the registry, add markers and a >=8 assertion for SP-7.3, make the variant builder recursive and add axis variants to M.n1, call ensure_engines() in M.2, add unit tests for H1-H3.",
+   "effort": "M"
+  }
+ ],
+ "requirements": [
+  {
+   "id": "M.1",
+   "verdict": "EXTEND",
+   "reason": "Independent admission: 51 admitted training families on seeds 0-2, 48 on held-out seeds 10-12; below 60. Count also inherits the fingerprint and dominance weaknesses.",
+   "work_needed": ">=12 more robust training families (60 admitted on both seed sets), after repairing no_dominant_strategy, making claims a required check and redesigning fingerprints.",
+   "criteria_weak": true
+  },
+  {
+   "id": "M.2",
+   "verdict": "EXTEND",
+   "reason": "18 admitted evaluation families (17 on held-out seeds); below 20. Evaluation membership ('split': 'val') is visible to participants through the spec query; novelty to training is only distance > 0.",
+   "work_needed": ">=3 more robust eval families; hide split; require measured structural novelty relative to training with a calibrated threshold.",
+   "criteria_weak": true
+  },
+  {
+   "id": "M.3",
+   "verdict": "RETAIN",
+   "reason": "All 10 categories have admitted families on both seed sets (reproduced).",
+   "work_needed": "None for the metric; the 60 enumerated items need their own requirement (6 missing, 4 unadmitted).",
+   "criteria_weak": true
+  },
+  {
+   "id": "M.4",
+   "verdict": "RETAIN",
+   "reason": "9 v5 engines with admitted families plus 3 preserved 4.0 engines (12 >= 6); source inspection confirms separate transition code per engine.",
+   "work_needed": "None; strengthen the import-only independence check with behavioural markers per engine.",
+   "criteria_weak": false
+  },
+  {
+   "id": "M.5",
+   "verdict": "REDESIGN",
+   "reason": "Every family has a fingerprint (metric met) but fingerprints are not structural: 116/178 difficulty-axis variants differ from their own family; non-graph engines are fingerprinted by scenario labels and declared motifs.",
+   "work_needed": "Coefficient- and axis-invariant behavioural fingerprints with an intervention-verified difference to the nearest family.",
+   "criteria_weak": true
+  },
+  {
+   "id": "M.6",
+   "verdict": "RETAIN",
+   "reason": "10 action modalities offered by admitted families, effects verified in SP-8.11 (reproduced).",
+   "work_needed": "None for the metric; graph_edit (1 family) and coordinate (4) need broader use.",
+   "criteria_weak": false
+  },
+  {
+   "id": "M.7",
+   "verdict": "EXTEND",
+   "reason": "73 families feasibility-validated, 0 admitted infeasible; criterion asks 80.",
+   "work_needed": "More families (see M.1/M.2).",
+   "criteria_weak": false
+  },
+  {
+   "id": "M.8",
+   "verdict": "REPAIR",
+   "reason": "Gate fails: 61 families with all claims passing, 29 failures in 13 families (9 admitted); criterion asks 80 and 0 failures. Claims verify each family's own mechanism, not the difference to other families.",
+   "work_needed": "Fix or retune failing families and the pe_contention_sched tolerance; add cross-family discriminating interventions; reach 80 families.",
+   "criteria_weak": true
+  },
+  {
+   "id": "M.n1",
+   "verdict": "REDESIGN",
+   "reason": "Gate test crashes (TypeError on team_assembly's nested unit_cost) and the criterion min_fingerprint_distance > 0 cannot separate real families (0.063) from horizon or distractor variants (0.025-0.06).",
+   "work_needed": "Recursive variant builder, add difficulty-axis variants, and a calibrated threshold after the fingerprint redesign.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-7.1",
+   "verdict": "REPAIR",
+   "reason": "28 versioned primitives with passing characteristic checks (reproduced), but selection_effect breaks the per-instance parameter contract and the gate checks it only for saturation.",
+   "work_needed": "One-line broadcast fix; per-instance conformance test for all 28.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-7.3",
+   "verdict": "REPAIR",
+   "reason": "All eight kinds exist with admitted families (program_exec, strategic, experiment_lab, planning included), but the gate test records new_engine_kinds=4 because it only has markers for four kinds and asserts == 4.",
+   "work_needed": "Add transition markers for the four new kinds, assert >= 8, add engine unit tests.",
+   "criteria_weak": false
+  },
+  {
+   "id": "SP-7.4",
+   "verdict": "REPAIR",
+   "reason": "Ten checks each reject a control and 0 exposure findings (reproduced), but the dominance check misses constant-setting solutions, claims are not required, leak scan ignores strings/ints/short floats, 4.0 distinctness is vacuous, and family/seed/split reach participants via the spec query.",
+   "work_needed": "See the admission subsystem; add spec-identity leakage and dominance-by-best-constant negative controls.",
+   "criteria_weak": true
+  },
+  {
+   "id": "SP-8.11",
+   "verdict": "RETAIN",
+   "reason": "Ten action types offered by admitted families, each with a verified world effect (reproduced).",
+   "work_needed": "None.",
+   "criteria_weak": false
+  },
+  {
+   "id": "SP-8.12",
+   "verdict": "EXTEND",
+   "reason": "9 axes and 0 mismatches reproduced, but the axis check does not show difficulty changes, the twin covers 4 lever families hosting the same engine code, the batch path covers 31/74 families, fails on cxs_selected_layers, and is unused by learners.",
+   "work_needed": "Monotone difficulty measurement per axis, twin/batch coverage of every claimed equivalence, wire the fast path to rollouts.",
+   "criteria_weak": true
+  }
+ ],
+ "missing_requirements": [
+  "SP-7.2 structural composition (topologies, functional forms, temporal relations, observation channels, affordances, participants, networks, resources, institutions, initial conditions, historical trajectories; look-alike worlds with different rules) has no manifest entry.",
+  "SP-7.5 machine-readable distinctness registry whose claimed structural differences are verified by controlled interventions has no entry (M.5 only counts fingerprints).",
+  "Part 7 IndependentlyGenerateGoal(world, difficulty): objectives generated independently of worlds (69/74 families are maximize_net).",
+  "Each of the 60 enumerated families of Parts 8.1-8.10 implemented as a real admitted environment (6 missing: 8.2.2, 8.2.3, 8.5.1, 8.5.4, 8.6.5, 8.7.5; 4 unadmitted: 8.3.4, 8.3.5, 8.6.3, 8.7.4).",
+  "8.2 scientific success independently evaluated on previously unobserved conditions.",
+  "8.4 discrete, continuous and programmatic actions in resource allocation.",
+  "8.5 reward-independent observation that separates useful discovery from random novelty.",
+  "8.8 policy populations and held-out opponent families.",
+  "8.9 success requires genuine interdependence (independent agents solving the same task cannot succeed).",
+  "8.10 learners must revise beliefs: previously successful constant strategies must not suffice after the change.",
+  "8.12 fast CPU and batched simulation where valid, with a throughput target and use by learners.",
+  "Mechanism-level non-contamination of the preserved 4.0 val/test families by v5 training families (A.4 covers dataset isolation only).",
+  "Tier 1 observation-only specifics: no family/seed/split identity in participant-visible data, objective-free operation, observation_only default in the Tier 1 learner adapter, evaluator outcome unreachable from the participant's object.",
+  "Admission robustness on held-out seeds (counts on seeds 10-12 are lower: 48 train/17 eval)."
+ ],
+ "tests_run": [
+  {
+   "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src timeout 900 /venv/main/bin/python -m pytest -q -p no:cacheprovider tests/test_v5_rapid_engines.py tests/test_v5_rapid_families.py -k 'five_engines or share_only_the_contract or bit_for_bit or contract_fields'",
+   "result": "4 failed, 30 passed: the four known Tier 1 failures reproduced"
+  },
+  {
+   "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src timeout 900 /venv/main/bin/python -m pytest -q -p no:cacheprovider tests/test_v5_rapid_primitives.py tests/test_v5_rapid_actions.py tests/test_v5_rapid_engines.py tests/test_v5_rapid_families.py",
+   "result": "199 passed, 4 failed"
+  },
+  {
+   "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && PYTHONPATH=src /venv/main/bin/python -m crucible.scale.slots --cpu 1 --gpu-mb 0 -- python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/H_rapid/p02_admit_all.py 0,1,2 (independent admission of all 74 families)",
+   "result": "69 admitted (51 train, 18 eval); rejected net_cascade, pe_cascade_guard, pe_contention_sched, pe_rollout_targeting, pe_stream_processor; 0 errors"
+  },
+  {
+   "command": "same, seeds 10,11,12",
+   "result": "65 admitted (48 train, 17 eval); additionally rejected des_bottleneck, dl_short_term_damage, pe_router, pe_rule_induction"
+  },
+  {
+   "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && CRUCIBLE_CACHE=<scratch> pytest tests/v5/test_gate_SP_7_1.py tests/v5/test_gate_SP_7_3.py tests/v5/test_gate_SP_8_11.py tests/v5/test_gate_SP_8_12.py",
+   "result": "4 passed; recorded SP-7.1 primitives=28, SP-7.3 new_engine_kinds=4 (stale), SP-8.11 action_types=10, SP-8.12 axes=9, mismatches=0"
+  },
+  {
+   "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && crucible.scale.slots --cpu 1 -- pytest tests/v5/test_gate_M.py tests/v5/test_gate_SP_7_4.py (cache = my independent admission)",
+   "result": "9 passed, 2 failed (M8: 29 claim failures; Mn1: TypeError); recorded M.1=51, M.2=18, M.3=10, M.4=12, M.5 missing=0, M.6=10, M.7=73, SP-7.4 checks=10 exposure=0"
+  },
+  {
+   "command": "cd /workspace/agentrs/.worktrees/c5-complete/crucible && pytest tests/test_mech_scm.py tests/test_mech_abm.py tests/test_mech_techsys.py tests/test_mech_rig.py tests/test_mech_evaluator.py",
+   "result": "326 passed (4.0 engines preserved)"
+  },
+  {
+   "command": "probe p03_primitive_batch_params.py",
+   "result": "selection_effect crashes with per-instance params; 25 others conform"
+  },
+  {
+   "command": "probe p13_selection_fix.py",
+   "result": "unpatched broadcast error reproduced; with sd[:, None] 0 mismatching ticks for cxs_selected_layers"
+  },
+  {
+   "command": "probe p06_fingerprint_sensitivity.py",
+   "result": "116 of 178 difficulty-axis variants have fingerprint distance > 0; closest real pair 0.063"
+  },
+  {
+   "command": "probe p07_best_constant.py",
+   "result": "17 of 31 admitted lever families: best constant > 0.75 of oracle gain; 3 above the oracle"
+  },
+  {
+   "command": "probe p14_claims.py",
+   "result": "13 families fail their own intervention tests, 9 of them admitted"
+  },
+  {
+   "command": "probe p08 item map",
+   "result": "54/60 items registered, 50/60 admitted"
+  },
+  {
+   "command": "probe p04_spec_leak.py",
+   "result": "spec query returns family, seed, category, split"
+  },
+  {
+   "command": "probe p09_reward_leak.py",
+   "result": "no reward key in any step result; no grading text except one objective statement"
+  },
+  {
+   "command": "probe p10_oo_default.py",
+   "result": "experience.make default legacy_shaped_reward; 4.0 lever view gives nonzero reward by default; no objective-free rapid mode"
+  },
+  {
+   "command": "probe p11 legacy overlap",
+   "result": "4.0 and v5 motif vocabularies disjoint apart from generic names; every 4.0 val/test family 0.58-0.68 from every v5 train family"
+  },
+  {
+   "command": "probe p12_isolation.py",
+   "result": "PublicView bypassable; outcome()/verify() reachable from participant objects"
+  },
+  {
+   "command": "probe p15_string_secrets.py",
+   "result": "294 hidden values never scanned by the leak check; no verbatim string leak found"
+  }
+ ],
+ "critical_findings": [
+  "Gate M below threshold on independent admission: 51/60 train and 18/20 eval (seeds 0-2); only 48/17 also pass held-out seeds 10-12. 6 of the 60 Part 8 items have no family; 4 more have none admitted.",
+  "Fingerprint is not structural: 116/178 horizon/size/distractor variants have distance>0 to their own family (0.025-0.06 vs 0.063 closest real pair), so parameter variants would count. M.n1 gate test crashes (TypeError).",
+  "no_dominant_strategy tests only min/mid/max: one grid-searched constant lever setting gets >75% of oracle gain in 17/31 admitted lever families (>=0.98 in 9, above the 'oracle' in 3). Hidden-causal/changing worlds reduce to static tuning.",
+  "Intervention claims are not an admission check: 13 families fail their own controlled-intervention tests (29 failures), 9 of them admitted (cx_balancing_loop, plan_distribution, strat_bargain, team_assembly...). Gate M.8 fails.",
+  "Participant 'spec' query reveals family name, seed, category and split='val' (memorisation key, eval-partition leak). Tier 1 learner adapter defaults to legacy_shaped_reward; no objective-free rapid mode.",
+  "Known failures: 3 stale tests (engine count, sandbox import) + real bug primitives.py:539 SelectionEffect (B,) sd x (B,n) z; sd[:,None] fixes it (0 mismatches). SP-7.3 gate stale: records 4/8 though all 8 kinds have admitted families."
+ ],
+ "files_written": [
+  "crucible/docs/v5/audit/H_rapid.md",
+  "crucible/docs/v5/audit/H_rapid.json"
+ ],
+ "skeptic": {
+  "reviewer": "skeptic subagent, area H_rapid (workstream H)",
+  "probe_dir": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/H_rapid_skeptic",
+  "overturned": [
+   {
+    "target": "H0 engines: primitive_graph, discrete_event, graph_dynamical, state_machine, search",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S",
+    "why": "Mutation probe s02/s03: test_v5_rapid_engines.py caught 0/6 mechanism-breaking mutants and the full 165-test unit suite caught 3/6. Admission admitted eng_delayed_controller with all delays removed. The graph_edit mechanism (built links carry traffic) is verified nowhere: that mutant passes the unit tests, claims and SP-8.11, and is rejected only by an incidental leak-scan hit. cx_balancing_loop (pg) fails its own claim."
+   },
+   {
+    "target": "Structured action interface (Part 8.11)",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S-M",
+    "why": "s05/s10: through crucible.experience, execute() steps one agent per tick (experience/tier1.py:573), so coordinate (same-tick commitment, rapid/env.py:238) is never agreed: agreed=False and 0 hits vs agreed=True, hit=True direct. Non-first agents receive a0's result (tier1.py:577, env.py:208); a1's invalid action returns ok:True. In 38/38 families the 'tools' query that spec_coverage credits as tool discovery is identical to the reset observation. graph_edit: 1 admitted family, op add_edge only, effect untested."
+   },
+   {
+    "target": "Crucible 4.0 engines and sealed/validation families (D-9)",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S",
+    "why": "s08/s08b: all 11 test-split families can be instantiated by any learner via experience.make(1,'mech:<fam>',seed) with legacy_shaped_reward by default (nonzero rewards); sealing covers seeds only. v5-train contains analogues of the sealed mechanisms (scm_feedback doc 'Both motifs are absent from training' is now false; scm_regime~ch_sign_reversal; abm_network_fx~net_diffusion/cxs_lockin). The engine code itself is unchanged and acceptable."
+   },
+   {
+    "target": "Structural generator and recipes (Part 7.2)",
+    "from": "EXTEND",
+    "to": "REDESIGN",
+    "effort": "L",
+    "why": "s11: random recipes are admitted at 1/16 (rapid.generator.compose) and 1/14 (research.v5.compose, calibrated); the module's own docstring says 1/40 (research/v5/compose.py:26). The calibrated composer prices levers so the best constant is interior (compose.py:19-24), and its one admitted world is solved by a constant at 0.955. 0/14 generated families have claims (compose.py:591), and their categories come from a lookup table (compose.py:53). pg-only, no objective generation."
+   },
+   {
+    "target": "Admission and evaluator side (Part 7.4)",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "effort": "M",
+    "why": "Scoped to the oracle/reference layer (achievable, no_dominant_strategy, difficulty). s15: 27/69 admitted families, all six ch_* 8.10 families among them, anchor difficulty on practice_constant, a constant chosen by replaying deep copies of the same world with identical noise (references.py:489,523). Difficulty requires that constant to reach 5-98% of the oracle gain (admission.py:48,411); dominance tests canonical constants only; the oracle is an open-loop schedule that constants can beat. This selects for static-tuning worlds. The other checks stay REPAIR; s04 adds a leak-scan false positive on a legitimate consequence."
+   },
+   {
+    "target": "SP-7.4",
+    "from": "REPAIR",
+    "to": "REDESIGN",
+    "effort": "M",
+    "why": "Same anchor problem as the admission subsystem; criteria weak."
+   },
+   {
+    "target": "SP-8.11",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S",
+    "why": "The gate counts schema presence plus one plumbing check per type via direct env.step. Through the learner path, coordinate fails and results are misattributed; tool discovery is credited vacuously; the graph_edit effect on dynamics is untested (mutant survives). criteria_weak -> true."
+   },
+   {
+    "target": "SP-8.12",
+    "from": "EXTEND",
+    "to": "REPAIR",
+    "effort": "M",
+    "why": "s13: 19 of 35 axis settings in 14 families do not lower the reference share; doubling observation_noise changes it by exactly 0.000 in 4 families (hc_confounded, cx_competing_causes, net_routing, mk_elastic) because the hindsight reference replays the realised noise. Admission only checks that the config digest changes (admission.py:355)."
+   },
+   {
+    "target": "M.3",
+    "from": "RETAIN",
+    "to": "REPAIR",
+    "effort": "S",
+    "why": "The count of 10 survives strict filtering at RapidEnv level (s09). But categories are declared labels; in the learner path 8.9 collapses: 4 families need coordinate (unplayable via the adapter), team_formation has one agent, team_assembly fails its claims. 8.8 has only 3/7 families passing their own claims."
+   }
+  ],
+  "upheld": [
+   {
+    "target": "M.4",
+    "verdict": "RETAIN",
+    "note": "Engine modules import no other engine; mutants change outcomes; strict family set still spans 9 v5 + 3 legacy engines."
+   },
+   {
+    "target": "M.6",
+    "verdict": "RETAIN",
+    "note": "levers, discrete, allocate, query, graph_edit and message verified through the adapter for a single agent (s07, s10). Criteria weak (schema presence)."
+   },
+   {
+    "target": "H1/H2 engines",
+    "verdict": "REPAIR",
+    "note": "s12: the regret-matching opponent converges to the best response to each constant play; genuine learning opponents, not scripted."
+   },
+   {
+    "target": "Fingerprints / M.5 / M.n1",
+    "verdict": "REDESIGN",
+    "note": "Horizon bucket fingerprints.py:104, scenario label :130, duplicate only at distance==0.0 :261. Not harsh."
+   },
+   {
+    "target": "Fast batch path and kernel twin / M.7",
+    "verdict": "EXTEND",
+    "note": "Batch is genuinely vectorised; the twin is the same engine code (consistent by construction); unused by learners; civ is a stub."
+   },
+   {
+    "target": "M.1 / M.2",
+    "verdict": "EXTEND",
+    "note": "Effective counts 30 train / 11 eval under combined spec conditions (s14). M.2 criteria weak: des_perishable and net_topology_shift are one-parameter variants of training scenarios (s01)."
+   },
+   {
+    "target": "M.8",
+    "verdict": "REPAIR",
+    "note": "Mutation adds: claims miss the graph_edit and diagnostic-test mechanisms; generated families carry no claims."
+   },
+   {
+    "target": "RapidEnv and observations",
+    "verdict": "REPAIR",
+    "note": "Add: multi-agent adapter stepping; posm_unlock per-step progress 'signal' (state_machine.py:152) as a privileged goal-progress cue."
+   },
+   {
+    "target": "Families, primitive registry, SP-7.1, SP-7.3, Tier 1 tests",
+    "verdict": "unchanged",
+    "note": "Tier 1 tests REPAIR is strengthened by the mutation results."
+   }
+  ],
+  "revised_subsystem_verdicts": {
+   "Causal primitive registry (Part 7.1)": "REPAIR",
+   "Structural generator and recipes (Part 7.2)": "REDESIGN",
+   "H0 engines": "REPAIR",
+   "H1/H2 engines": "REPAIR",
+   "Family registry and families": "EXTEND",
+   "Admission and evaluator side (Part 7.4)": "REDESIGN",
+   "Structural fingerprints and distinctness registry": "REDESIGN",
+   "Structured action interface (Part 8.11)": "REPAIR",
+   "RapidEnv and observations": "REPAIR",
+   "Fast batch path and kernel twin": "EXTEND",
+   "Crucible 4.0 engines and sealed families": "REPAIR",
+   "Tier 1 unit and gate tests": "REPAIR"
+  },
+  "revised_requirement_verdicts": {
+   "M.1": {
+    "verdict": "EXTEND",
+    "criteria_weak": true
+   },
+   "M.2": {
+    "verdict": "EXTEND",
+    "criteria_weak": true
+   },
+   "M.3": {
+    "verdict": "REPAIR",
+    "criteria_weak": true
+   },
+   "M.4": {
+    "verdict": "RETAIN",
+    "criteria_weak": false
+   },
+   "M.5": {
+    "verdict": "REDESIGN",
+    "criteria_weak": true
+   },
+   "M.6": {
+    "verdict": "RETAIN",
+    "criteria_weak": true
+   },
+   "M.7": {
+    "verdict": "EXTEND",
+    "criteria_weak": false
+   },
+   "M.8": {
+    "verdict": "REPAIR",
+    "criteria_weak": true
+   },
+   "M.n1": {
+    "verdict": "REDESIGN",
+    "criteria_weak": true
+   },
+   "SP-7.1": {
+    "verdict": "REPAIR",
+    "criteria_weak": true
+   },
+   "SP-7.3": {
+    "verdict": "REPAIR",
+    "criteria_weak": false
+   },
+   "SP-7.4": {
+    "verdict": "REDESIGN",
+    "criteria_weak": true
+   },
+   "SP-8.11": {
+    "verdict": "REPAIR",
+    "criteria_weak": true
+   },
+   "SP-8.12": {
+    "verdict": "REPAIR",
+    "criteria_weak": true
+   }
+  },
+  "effective_counts": {
+   "train_admitted_seeds_0_2": 51,
+   "train_also_seeds_10_12": 48,
+   "train_plus_own_claims": 41,
+   "train_plus_not_constant_dominated": 30,
+   "eval_admitted": 18,
+   "eval_strict": 11,
+   "note": "constant-dominance was measured only for the 31 lever families, so the strict counts are upper bounds"
+  },
+  "additional_missing_requirements": [
+   "Learner-facing multi-agent contract: simultaneous actions of several participants in one tick through crucible.experience",
+   "Engine-level mechanism regression tests that fail when a mechanism is removed (mutation-sensitive)",
+   "Difficulty/dominance anchored on a non-hindsight reference: an adaptive policy must beat the best constant",
+   "Access control and mechanism-level contamination checks for the 4.0 sealed test mechanisms",
+   "Generator admission yield and per-generated-family intervention claims",
+   "Difficulty axes must change measured difficulty monotonically"
+  ],
+  "critical_findings": [
+   "Multi-agent Tier 1 families cannot be played as intended through crucible.experience: one agent per tick (tier1.py:573) while coordinate needs the same tick (env.py:238) -> coordinate never agreed; non-first agents get a0's result (tier1.py:577).",
+   "Admission plus generator calibration select for static-tuning worlds: 27/69 admitted families' difficulty anchor is a constant chosen on the scored episode's own noise, and difficulty requires it to reach 5-98% of the oracle gain.",
+   "Mutation: 0/6 mechanism-breaking mutants caught by the engine unit tests; eng_delayed_controller without delays is admitted; graph_edit's effect on dynamics is verified nowhere.",
+   "All 11 sealed 4.0 test-split mechanisms can be instantiated by any learner via crucible.experience with shaped reward by default; v5-train contains their analogues.",
+   "Generator: 1/16 and 1/14 random recipes admitted; the admitted generated world is solved by a constant at 0.955; generated families have no claims.",
+   "Difficulty axes: 19/35 probed settings are no harder; the noise axis is invisible to the hindsight reference (exactly 0.000 change in 4 families)."
+  ],
+  "tests_run": [
+   {
+    "command": "cd crucible && PYTHONPATH=src python -m pytest -q -p no:cacheprovider tests/test_v5_rapid_{engines,families,actions}.py (4 known failures deselected), unmutated",
+    "result": "165 passed"
+   },
+   {
+    "command": "same with MUTANT=<m> PYTHONPATH=src:/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/H_rapid_skeptic/mut -p mutplug, for 6 mutants",
+    "result": "pg_nolag 165 pass; des_servers_ignored 1 fail (claims test); net_meanfield 1 fail (claims test); net_built_edges_ignored 165 pass; posm_tests_uninformative 1 fail (identification test); des_maint_memoryless 165 pass"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/H_rapid_skeptic/s02_mutation.py <none|mutant> (claims seeds 0-2, admit seeds 0-2, SP-8.11 effects)",
+    "result": "baseline all pass/admitted; eng_delayed_controller admitted with delays removed; net_repair graph-edit mutant passes claims and SP-8.11"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/H_rapid_skeptic/s05_adapter_multiagent.py; s10_interface_integration.py",
+    "result": "coordinate never agreed via adapter (direct: agreed, hit); a1 invalid action -> ok:True waited; 38/38 'tools' queries equal the reset observation"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/H_rapid_skeptic/s07_oo_default.py; s07b_vecenv.py",
+    "result": "rapid adapter mode legacy, scalar 0; lever-view MechVecEnv nonzero shaped reward by default"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/H_rapid_skeptic/s08_sealed_access.py; s08b_sealed_reward.py",
+    "result": "11/11 sealed test families instantiable with arbitrary seed, legacy reward nonzero"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/H_rapid_skeptic/s09_category_robustness.py; s14_strict_counts.py (auditor's admission/claims/constant data)",
+    "result": "strict counts 30 train / 11 eval; every category keeps at least 2 families"
+   },
+   {
+    "command": "crucible.scale.slots --cpu 1 -- python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/H_rapid_skeptic/s11_generator.py 3 16 14",
+    "result": "generator.compose 1/16 admitted; research compose 1/14 admitted, best constant 0.955; 0 claims"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/H_rapid_skeptic/s12_opponent_adapts.py",
+    "result": "regret-matching opponent best-responds to each constant play"
+   },
+   {
+    "command": "crucible.scale.slots --cpu 1 -- python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/H_rapid_skeptic/s13_axes.py <14 families>",
+    "result": "16 harder, 19 not harder"
+   },
+   {
+    "command": "python /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/audit/H_rapid_skeptic/s15_reference_kinds.py; s01_param_variants.py; s04_lag_check.py; s06_result_keys.py",
+    "result": "27/69 hindsight-constant references; 2 eval scenario variants; leak-scan false positive; posm_unlock progress signal"
+   }
+  ]
+ }
+}
