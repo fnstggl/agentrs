@@ -10,7 +10,7 @@ key                            likelihood   target y
 ``error_code``                 CATEGORICAL  0 = no error, else 1 + sha256(code) mod (n_error_classes - 1)
 ``cost``                       GAUSSIAN     symlog(cost) in the world's money unit (Crucible: integer cents)
 ``duration``                   GAUSSIAN     symlog(duration) in simulated days
-``reward``                     GAUSSIAN     the verified return increment (raw)
+``reward``                     GAUSSIAN     the verified return increment (raw); unobserved in observation_only
 ``num:<metric>@<entity>[unit]`` GAUSSIAN    symlog(v_new - v_prev) for a numeric observation whose key was seen before
 ``lvl:<metric>@<entity>[unit]`` GAUSSIAN    symlog(v_new) when the (metric, entity, unit) key is seen for the first time
 ``cnt:<kind>/<type>``          COUNT        number of new observations of that event type in the step (0 included)
@@ -205,9 +205,10 @@ class OutcomeTracker:
         return out
 
     def realize(self, prev_obs: Sequence[Observation], action: Optional[Action], result: Optional[ExecutionResult],
-                next_obs: Sequence[Observation], reward: float) -> list:
+                next_obs: Sequence[Observation], reward: Optional[float]) -> list:
         """Observed outcomes of ``action``: the five core keys, every numeric observation in ``next_obs`` (delta to its
-        previous value, or level when first seen) and event-type counts. Updates the tracker state."""
+        previous value, or level when first seen) and event-type counts. Updates the tracker state. ``reward`` None
+        (reward_mode "observation_only"): the core 'reward' outcome is unobserved."""
         self.ingest(prev_obs)          # values visible at decision time are the "before" values
         specs = _core_specs(result.meta.get("cost_unit", self.money_unit) if result is not None else self.money_unit,
                             self.n_error_classes)
@@ -216,7 +217,12 @@ class OutcomeTracker:
                     symlog(float(result.cost)), symlog(float(result.duration))]
             for s, v in zip(specs[:4], vals):
                 s.y, s.observed = v, True
-        specs[4].y, specs[4].observed = float(reward), True
+        if reward is None:
+            # observation_only (plan 2026-11-26 §2): the verified return is not an actor-side observation; the
+            # 'reward' query stays in the set (stable CORE_INDEX) but is never a belief / Kalman / world-model target
+            specs[4].y, specs[4].observed = 0.0, False
+        else:
+            specs[4].y, specs[4].observed = float(reward), True
         # numeric observations: latest value per key within this step
         latest: "OrderedDict[str, Observation]" = OrderedDict()
         for o in sorted((o for o in next_obs if o.kind == ObsKind.NUMERIC and o.value is not None

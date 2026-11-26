@@ -403,11 +403,12 @@ class OutcomeHead(nn.Module):
     def __init__(self, cfg: CamConfig, cond_dim: Optional[int] = None, n_layers: int = 1, max_classes: int = 32,
                  survival_edges: Optional[torch.Tensor] = None, min_df: float = 2.1, min_std: float = 1e-3,
                  nb_support: int = 256, count_log_max: float = 20.0, validate: bool = True,
-                 film_init_std: float = 0.0):
+                 film_init_std: Optional[float] = None):
         """film_init_std: initial std of the particle-conditioning FiLM weights (0 = exact zero init: at
         initialisation every particle predicts the same outcome distribution, and the mixture's first-order gradient
         moves all particles' predictions together - the symmetric start does not break by itself; a small positive
-        value starts the hypotheses slightly apart)."""
+        value starts the hypotheses slightly apart). None = 1/sqrt(cond_dim) for the DOM presets (plan 2026-11-26
+        §1 BeliefModule: break the symmetric dead start, measured act_cond gradient 3e-7 at 0), 0 otherwise."""
         super().__init__()
         D = cfg.d_model
         self.cfg = cfg
@@ -430,6 +431,8 @@ class OutcomeHead(nn.Module):
         self.out_norm = nn.LayerNorm(D)
         self.cond_dim = cond_dim or cfg.d_particle
         self.film = nn.Linear(self.cond_dim, 2 * D)
+        if film_init_std is None:
+            film_init_std = self.cond_dim ** -0.5 if str(getattr(cfg, "preset", "") or "").startswith("dom") else 0.0
         if film_init_std > 0:
             nn.init.normal_(self.film.weight, std=film_init_std)
         else:
