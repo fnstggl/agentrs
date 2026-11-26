@@ -8,8 +8,8 @@ Learner kinds (each must act through the interface and achieve the capability it
 * small neural RL: `ReferenceLearner` (recurrent network, PPO-clip) acts and updates its parameters;
 * statistical: the external curiosity learner (`examples/external_learner/curiosity_learner.py`, numpy linear
   prediction models with its own prediction-error reward) acts and updates its parameters;
-* lightweight language model: the frozen `agents.llm.LLMPolicy` on Qwen3-0.6B (local weights, greedy decoding) emits
-  tool calls that the world carries out. Needs the model in the local Hugging Face cache; runs on the GPU when the
+* lightweight language model: the frozen `agents.llm.LLMPolicy` on Qwen3-1.7B (local weights, greedy decoding) emits
+  tool calls that the world carries out and whose consequence another participant observes. Needs the model in the local Hugging Face cache; runs on the GPU when the
   slot scheduler grants one, else on the CPU.
 
 Improvement over a frozen copy (prespecified before running): a `ReferenceLearner` is trained in one world of the tier
@@ -20,6 +20,7 @@ copy on the mean AND on at least 3 of 4 held-out seeds (both copies follow their
 sampling seed). The do-nothing outcome is reported beside it, so that "learned to stop doing harm" is not mistaken
 for learning the mechanism. A tier that cannot be built fails."""
 import importlib.util
+import json
 import os
 
 import numpy as np
@@ -31,12 +32,14 @@ from crucible.experience.reference import ReferenceLearner
 from crucible.experience.registry import make
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(5400)]
-CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 4000 -- python -m pytest "
+CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 7000 -- python -m pytest "
        "tests/v5/test_gate_SP_11_6c.py")
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HOUR = 3600
 CIV = "balanced"
 EVAL_SEEDS = (11, 12, 13, 14)
+# Qwen3-0.6B only replied "wait" in six turns (measured on this branch); Qwen3-1.7B (LLMPolicy's default) acts
+LM_MODEL = "Qwen/Qwen3-1.7B"
 
 
 def _attempt(fn):
@@ -83,21 +86,28 @@ def _language_model() -> dict:
     from crucible.agents.llm import LLMPolicy
     env = make(0, "tiny", 3, agents=["writer", "reader"], endowment=500_000, overrides={"n_consumers": 40})
     a, b = env.agents()
-    pol = LLMPolicy(model="Qwen/Qwen3-0.6B", device="cuda" if torch.cuda.is_available() else "cpu",
+    pol = LLMPolicy(model=LM_MODEL, device="cuda" if torch.cuda.is_available() else "cpu",
                     max_new_tokens=96, interface="v4",
                     goal=f"Tell {b} by mail that the market opens at nine, then post a short note on the forum.")
     pol.reset(a, np.random.default_rng(0))
-    ok, calls = 0, 0
+    ok, calls, tools_ok = 0, 0, []
     for _ in range(6):
         act = pol.act(env.world.observe(a), env.tools(a))
         if act is not None and act.get("tool") != "wait":
             calls += 1
             r = env.execute(a, act)
             ok += int(bool(r.get("ok")))
+            if r.get("ok"):
+                tools_ok.append(act["tool"])
             pol.observe_result(act, r)
         env.advance(HOUR)
-    return {"validated": ok >= 2, "tool_calls": calls, "ok": ok, "device": pol.backend.device,
-            "parse_failures": pol.stats["parse_failures"], "model": "Qwen/Qwen3-0.6B"}
+    # the capability: the model's tool calls are carried out and their consequence reaches the other participant
+    got = env.execute(b, {"tool": "mail.inbox", "args": {}})
+    received = bool(got.get("ok")) and any(m.get("from") == a or m.get("sender") == a or a in json.dumps(m)
+                                           for m in (got.get("result") or []))
+    return {"validated": ok >= 1 and received, "tool_calls": calls, "ok": ok, "tools_ok": tools_ok,
+            "consequence_seen_by_other": received, "device": pol.backend.device,
+            "parse_failures": pol.stats["parse_failures"], "waits": pol.stats["waits"], "model": LM_MODEL}
 
 
 class _Wait:
