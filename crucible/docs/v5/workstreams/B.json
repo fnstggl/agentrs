@@ -9,6 +9,7 @@
     "src/crucible/population/api.py",
     "src/crucible/population/core.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
@@ -21,7 +22,7 @@
    "tests": [
     "tests/v5/test_gate_B.py"
    ],
-   "status_claim": "implemented; gate test asserts the manifest criteria; not run in full on this branch",
+   "status_claim": "implemented; gate run on 85ae921 queued (the 4184cce run errored in the fixture: the learner's principal was shadowed by a counter dict, fixed in 36950aa)",
    "notes": ""
   },
   "B.2": {
@@ -31,6 +32,7 @@
     "src/crucible/population/api.py",
     "src/crucible/population/core.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
@@ -43,7 +45,7 @@
    "tests": [
     "tests/v5/test_gate_B.py"
    ],
-   "status_claim": "implemented; gate test asserts the manifest criteria; not run in full on this branch",
+   "status_claim": "implemented; learner acts every simulated day through ordinary tools (search, page fetch, forum feed, forum post; probe: 4/4 commands ok, 0 learner-initiated population events); gate run queued",
    "notes": ""
   },
   "B.3": {
@@ -53,6 +55,7 @@
     "src/crucible/population/api.py",
     "src/crucible/population/core.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
@@ -65,7 +68,7 @@
    "tests": [
     "tests/v5/test_gate_B.py"
    ],
-   "status_claim": "implemented; gate test asserts the manifest criteria; not run in full on this branch",
+   "status_claim": "implemented; gate run queued",
    "notes": ""
   },
   "B.4": {
@@ -75,6 +78,7 @@
     "src/crucible/population/api.py",
     "src/crucible/population/core.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
@@ -87,7 +91,7 @@
    "tests": [
     "tests/v5/test_gate_B.py"
    ],
-   "status_claim": "implemented; gate test asserts the manifest criteria; not run in full on this branch",
+   "status_claim": "implemented; gate run queued",
    "notes": ""
   },
   "B.5": {
@@ -97,6 +101,7 @@
     "src/crucible/population/api.py",
     "src/crucible/population/core.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
@@ -109,7 +114,7 @@
    "tests": [
     "tests/v5/test_gate_B.py"
    ],
-   "status_claim": "implemented; gate test asserts the manifest criteria; not run in full on this branch",
+   "status_claim": "implemented; gate run queued",
    "notes": ""
   },
   "B.6": {
@@ -119,6 +124,7 @@
     "src/crucible/population/api.py",
     "src/crucible/population/core.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
@@ -131,7 +137,7 @@
    "tests": [
     "tests/v5/test_gate_B.py"
    ],
-   "status_claim": "implemented; gate test asserts the manifest criteria; not run in full on this branch",
+   "status_claim": "implemented; gate run queued",
    "notes": ""
   },
   "G.1": {
@@ -142,19 +148,22 @@
     "src/crucible/population/core.py",
     "src/crucible/population/experiments.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/nets.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
     "src/crucible/population/sites.py",
+    "src/crucible/population/strategic.py",
     "src/crucible/population/text.py",
     "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
     "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented; not run in full on this branch",
+   "status_claim": "implemented (D-32 addendum: class-2 day review); failed at 4184cce (207 took sessions in a 4-day run); CPU probe on 85ae921's code (256 adaptive, 1.6 days): 256/256 members' policies stepped their memory on each day; gate run queued",
    "notes": ""
   },
   "G.2": {
@@ -165,19 +174,22 @@
     "src/crucible/population/core.py",
     "src/crucible/population/experiments.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/nets.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
     "src/crucible/population/sites.py",
+    "src/crucible/population/strategic.py",
     "src/crucible/population/text.py",
     "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
     "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented; not run in full on this branch",
+   "status_claim": "implemented; failed at 4184cce (251 distinct: members never activated kept the zero state); CPU probe: 256 distinct, 256 changed from the initial state; gate run queued",
    "notes": ""
   },
   "G.3": {
@@ -188,19 +200,22 @@
     "src/crucible/population/core.py",
     "src/crucible/population/experiments.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/nets.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
     "src/crucible/population/sites.py",
+    "src/crucible/population/strategic.py",
     "src/crucible/population/text.py",
     "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
     "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented; not run in full on this branch",
+   "status_claim": "implemented; failed at 4184cce (34: only the resource-choice batch was reported); now the largest forward pass per decision kind (CPU probe: day review 174, activity 59, resource 36); gate run queued",
    "notes": ""
   },
   "G.5": {
@@ -211,19 +226,22 @@
     "src/crucible/population/core.py",
     "src/crucible/population/experiments.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/nets.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
     "src/crucible/population/sites.py",
+    "src/crucible/population/strategic.py",
     "src/crucible/population/text.py",
     "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
     "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented; not run in full on this branch",
+   "status_claim": "criteria met in an unofficial run at 4184cce (weights changed, 1,456 optimizer steps, held-out loss decrease 0.0435); rerun queued",
    "notes": ""
   },
   "G.6": {
@@ -234,19 +252,22 @@
     "src/crucible/population/core.py",
     "src/crucible/population/experiments.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/nets.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
     "src/crucible/population/sites.py",
+    "src/crucible/population/strategic.py",
     "src/crucible/population/text.py",
     "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
     "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented; not run in full on this branch",
+   "status_claim": "criteria met in an unofficial run at 4184cce (new-condition improvement CI low 0.135, 3 seeds); rerun queued",
    "notes": ""
   },
   "G.n1": {
@@ -257,49 +278,74 @@
     "src/crucible/population/core.py",
     "src/crucible/population/experiments.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/nets.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
     "src/crucible/population/sites.py",
+    "src/crucible/population/strategic.py",
     "src/crucible/population/text.py",
     "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
     "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented; not run in full on this branch",
+   "status_claim": "criteria met in an unofficial run at 4184cce (adaptation CI low 0.135, 3 seeds, weights changed in all); rerun queued",
    "notes": ""
   },
   "G.4": {
    "implementation_files": [
     "src/crucible/population/activation.py",
+    "src/crucible/population/adaptive.py",
     "src/crucible/population/api.py",
     "src/crucible/population/core.py",
+    "src/crucible/population/experiments.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/nets.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
-    "src/crucible/population/strategic.py"
+    "src/crucible/population/semantics.py",
+    "src/crucible/population/sites.py",
+    "src/crucible/population/strategic.py",
+    "src/crucible/population/text.py",
+    "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
+    "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented (class 3 redesign)",
+   "status_claim": "criteria met in an unofficial run at 4184cce (independent_strategic_groups 3, distinct_group_weight_hashes 4, frozen control unchanged); rerun queued",
    "notes": ""
   },
   "G.7": {
    "implementation_files": [
+    "src/crucible/population/activation.py",
     "src/crucible/population/adaptive.py",
+    "src/crucible/population/api.py",
+    "src/crucible/population/core.py",
     "src/crucible/population/experiments.py",
+    "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/nets.py",
-    "src/crucible/semantic/service.py"
+    "src/crucible/population/profiles.py",
+    "src/crucible/population/schema.py",
+    "src/crucible/population/semantics.py",
+    "src/crucible/population/sites.py",
+    "src/crucible/population/strategic.py",
+    "src/crucible/population/text.py",
+    "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
+    "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_G.py"
    ],
-   "status_claim": "implemented",
+   "status_claim": "criteria met in an unofficial run at 4184cce (3 language-model rows: SmolLM2-135M rho 0.32, SmolLM2-360M 0.43, Qwen3-0.6B 0.24 vs compact learned 0.78 / frozen 0.10, 237,506 parameters); rerun queued",
    "notes": ""
   },
   "SP-3.1": {
@@ -309,18 +355,20 @@
     "src/crucible/population/api.py",
     "src/crucible/population/core.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
     "src/crucible/population/sites.py",
     "src/crucible/population/text.py",
     "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
     "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_3_1.py"
    ],
-   "status_claim": "implemented",
+   "status_claim": "criteria met in an unofficial run at 96920ab (18 identity/state fields, heterogeneity and drift > 0)",
    "notes": ""
   },
   "SP-3.2": {
@@ -329,30 +377,48 @@
     "src/crucible/population/adaptive.py",
     "src/crucible/population/api.py",
     "src/crucible/population/core.py",
-    "src/crucible/population/experiments.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/nets.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
-    "src/crucible/population/strategic.py"
+    "src/crucible/population/semantics.py",
+    "src/crucible/population/sites.py",
+    "src/crucible/population/strategic.py",
+    "src/crucible/population/text.py",
+    "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
+    "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_3_2.py"
    ],
-   "status_claim": "classes 1-3 act; class 4 acts once workstream D's pop_semantic is merged",
+   "status_claim": "classes 1-3 act (unofficial run at 96920ab: participant_classes 3); class 4 acts once workstream D's pop_semantic (c5c/w3b-sem, crucible.semantic.generalists, bound through population.register_class_runtime) is merged - the gate composes it when the module is registered",
    "notes": ""
   },
   "SP-3.2c": {
    "implementation_files": [
+    "src/crucible/population/activation.py",
     "src/crucible/population/adaptive.py",
-    "src/crucible/population/experiments.py",
+    "src/crucible/population/api.py",
+    "src/crucible/population/core.py",
+    "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/nets.py",
-    "src/crucible/population/strategic.py"
+    "src/crucible/population/profiles.py",
+    "src/crucible/population/schema.py",
+    "src/crucible/population/semantics.py",
+    "src/crucible/population/sites.py",
+    "src/crucible/population/strategic.py",
+    "src/crucible/population/text.py",
+    "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
+    "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_3_2c.py"
    ],
-   "status_claim": "implemented",
+   "status_claim": "criteria met in an unofficial run at 96920ab (class 2 237,506 parameters, class 3 2.10-2.38M, 4 behaviour kinds, 0 identical copies)",
    "notes": ""
   },
   "SP-3.3": {
@@ -361,27 +427,47 @@
     "src/crucible/population/api.py",
     "src/crucible/population/core.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/profiles.py",
-    "src/crucible/population/schema.py"
+    "src/crucible/population/schema.py",
+    "src/crucible/population/semantics.py",
+    "src/crucible/population/sites.py",
+    "src/crucible/population/text.py",
+    "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
+    "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_3_3.py"
    ],
-   "status_claim": "implemented",
+   "status_claim": "criteria met in an unofficial run at 4184cce (4 profiles: 1,042 / 10,296 / 101,120 / 10,001,120 rows)",
    "notes": ""
   },
   "SP-3.4": {
    "implementation_files": [
+    "src/crucible/population/activation.py",
     "src/crucible/population/adaptive.py",
+    "src/crucible/population/api.py",
+    "src/crucible/population/core.py",
     "src/crucible/population/experiments.py",
+    "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/nets.py",
-    "src/crucible/population/strategic.py"
+    "src/crucible/population/profiles.py",
+    "src/crucible/population/schema.py",
+    "src/crucible/population/semantics.py",
+    "src/crucible/population/sites.py",
+    "src/crucible/population/strategic.py",
+    "src/crucible/population/text.py",
+    "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
+    "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_3_4.py",
     "tests/test_v5_population_core.py"
    ],
-   "status_claim": "implemented",
+   "status_claim": "criteria met in an unofficial run at 4184cce (5 learning kinds tested); the personal-state benefit itself is not significant (CI -0.065..0.087)",
    "notes": ""
   },
   "SP-4.0": {
@@ -391,13 +477,20 @@
     "src/crucible/population/api.py",
     "src/crucible/population/core.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/profiles.py",
-    "src/crucible/population/schema.py"
+    "src/crucible/population/schema.py",
+    "src/crucible/population/semantics.py",
+    "src/crucible/population/sites.py",
+    "src/crucible/population/text.py",
+    "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
+    "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_4_0.py"
    ],
-   "status_claim": "measurement implemented; most platforms' population activity is workstream C's",
+   "status_claim": "measurement implemented; fails at 4184cce in the balanced civilisation (5 of 15 platforms with population activity): the population's activity on video, image, messaging, newsletter, membership, developer and knowledge platforms is workstream C's (c5c/w3b-soc adds it); populations_in_v5_world 1 and duplicate_person_facts 0 are met",
    "notes": ""
   },
   "SP-4.1": {
@@ -407,62 +500,84 @@
     "src/crucible/population/api.py",
     "src/crucible/population/core.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
     "src/crucible/population/profiles.py",
     "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
     "src/crucible/population/sites.py",
     "src/crucible/population/text.py",
     "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
     "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_4_1.py"
    ],
-   "status_claim": "implemented",
+   "status_claim": "criteria met in an unofficial run at 96920ab (13 browsing behaviours, 0 attention violations)",
    "notes": ""
   },
   "SP-4.4": {
    "implementation_files": [
     "src/crucible/population/activation.py",
+    "src/crucible/population/analysis.py",
+    "src/crucible/population/api.py",
     "src/crucible/population/choice.py",
+    "src/crucible/population/core.py",
     "src/crucible/population/models.py",
+    "src/crucible/population/modules.py",
+    "src/crucible/population/profiles.py",
+    "src/crucible/population/schema.py",
     "src/crucible/population/semantics.py",
     "src/crucible/population/sites.py",
     "src/crucible/population/text.py",
     "src/crucible/population/web.py",
+    "src/crucible/population/worlds.py",
     "src/crucible/population/writing.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_4_4.py"
    ],
-   "status_claim": "implemented",
+   "status_claim": "failed at 96920ab (10 of 12 factors: attention and social relationships under the 1e-3 threshold because a cohort-wide shift of an alternative-specific input cancels in the softmax and the attention ratio had almost no spread at the day boundary); measurement follows the decision structure since 36950aa (one alternative perturbed; a quarter of the day's attention; contacts in the community computed instead of zeros): 12 of 12 on a CPU probe world; gate run queued",
    "notes": ""
   }
  },
  "history": {
   "wave 1/2 (ws-B, CORE-POP c5c/w2-corepop)": "columnar population, profiles, event-driven activation, popweb over net.fetch, purchases through the bank, class 2 adaptive groups, a 4-head class 3, package API of ONE_WORLD_CONTRACTS section 1, gate tests B/G/SP-3.x/SP-4.1 (no report: the wave-2 engineer was stopped before writing one)",
-  "wave 3b (this branch)": "fitted runtime models in class 1 (D-30), provenance on every population batch, class 3 redesign (D-31), class 2 activity choice and memory through time (D-32), SP-3.2c/SP-4.0/SP-4.4 gate tests, criteria asserted in every B-owned gate test"
+  "wave 3b (this branch)": "fitted runtime models in class 1 (D-30), provenance on every population batch, class 3 redesign (D-31), class 2 activity choice and memory through time (D-32), SP-3.2c/SP-4.0/SP-4.4 gate tests, criteria asserted in every B-owned gate test",
+  "wave 3b continuation (this branch, after the usage-limit stop)": "gate B fixture fix, class-2 day review (G.1-G.3), SP-4.4 measurement structure, delta-only popweb batches, class-3 decision grid, no-op deposits, DECISION_LOG D-32 addendum"
  },
  "limitations": [
   "session_minutes@1 is not used: its minutes count KuaiRand pool videos only (median 0.06-0.2 min per session) and its contract declares no scale factor; session length stays the individual's plausible log-normal (pop.decision.session_length).",
-  "daily_return@1 has no content, notification or satisfaction inputs: the population's daily activity does not respond to what platforms show (satisfaction acts through activity choice, abandonment and returns to resources).",
+  "daily_return@1 has no content, notification or satisfaction inputs: whether an individual browses on a day does not respond to what platforms show (satisfaction acts through activity choice, abandonment and returns to resources); class 2 does not learn its daily engagement either (the day review steps its memory, the fitted model decides activity).",
   "extra_sessions@1 is served as the E3 review's constant C2 rate (no individual heterogeneity in sessions per active day).",
   "article_open_semantic@1 is a news-article model (MIND) extrapolated to the population's web page slates; its text affinity is the cosine of the individual's interests (which drift towards consumed items) with the headline, not the mean embedding of its consumed items; own topic views are tracked for the four most read topics.",
   "customer_return@1 gives P(another order within 90 days); the day of that order is drawn from the customer's own mean gap (30 days after a first order).",
-  "Generated web sites (popsites) still write their articles from the 16-topic lexicon templates; strategic participants and population members write from the real corpus (population.writing).",
+  "Spam sites are keyword lists; rich, thin and off-topic generated sites retell the real corpus.",
   "Class 3 roles are entrepreneurs/publishers, competitors and collaborators; researchers, engineers, employees, organisations and investors are not class-3 roles here.",
-  "Personal memory benefit in the integrated worlds is measured (SP-3.4) but small by construction: most of what predicts an individual's utility is in its observation; the BPTT unit test shows the memory can carry hidden traits.",
-  "Population worlds with sandboxed sites are not reproducible across worlds in one process (DEF-P-27, D-20 metering memo: cloud.usage cpu_ms differs); tests/test_v5_population_core.py::test_same_seed_same_hashes_replay_regeneration_and_resume fails at the integration head for that reason (first divergence: cloud.usage of a page fetch)."
+  "Personal memory benefit in the integrated worlds is measured (SP-3.4) but not significant: most of what predicts an individual's utility is in its observation; the BPTT unit test shows the memory can carry hidden traits.",
+  "G.1 counts members whose policy stepped their memory on one day (day review or session); members that took sessions on one day are fewer (fitted daily return, about 40-60% of class-2 members per day in the small worlds).",
+  "Population-world throughput (social internet + web, development, CPU): the wave-3b population changes (multi-visit sessions, provenance on every batch, article slates) made it slower than the integration head (118 vs 155 simulated days per CPU-hour at 4184cce, GPU run); measured before/after of this continuation's optimisations pending (job perf2)."
  ],
  "integration_notes": [
   "E (calibration): register the population's in-world probes: `from crucible.population import fidelity_probes; INWORLD_PROBES.update(fidelity_probes.PROBES)` (lazy, inside inworld_claims) - the register's default claims population.daily_return / session_frequency / article_choice and commerce.customer_retention need them (population code may import only calibration.runtime).",
-  "E (calibration): two tests of tests/test_v5_calibration_inworld.py assume the population records no fitted decision of its own, which is no longer true (D-30): test_wired_world_decisions_count_and_agree_with_check_provenance asserts that pop.session/pop.activation carry no provenance (replace by `assert m['decision_events_without_model_provenance'] == 0`; pop.activation is merged into pop.session), and test_stamped_decisions_without_runtime_evaluation_do_not_count asserts fitted_models_used_in_world == 0 in a world whose population now takes daily_return@1 / extra_sessions@1 decisions (check instead that no counted batch has kind calibstamp.*, i.e. the stamped batches are unbacked).",
+  "E (calibration), REQUIRED with this branch: tests/test_v5_calibration_inworld.py assumes the population records no fitted decision of its own and that the fixture owns pop.active / pop.sessions; since D-30 the population declares and writes those columns itself, so 4 of its 24 tests fail on this branch. Three edits make all 24 pass (verified on this branch): (1) `_declare`: `columns.grant(world, \"pop\", list(cols), owner)` instead of granting \"pop\" (the fixture module must be allowed to write the population's columns it now shares); (2) test_wired_world_decisions_count_and_agree_with_check_provenance: replace the three lines after the comment 'the population's own session and activation decisions carry no provenance yet' by `assert m['decision_events_without_model_provenance'] == 0, m['_without_by_kind']`; (3) test_stamped_decisions_without_runtime_evaluation_do_not_count: replace the three assertions on fitted_models_used_in_world / _runtime_backing / NotWired by `assert not [b for b in au.counted() if b['kind'].startswith('calibstamp.')]` (the population's own daily decisions are wired and count; the stamped ones must not).",
   "E (calibration): session_minutes@1 needs a declared scale factor (share of app time its pool-video minutes stand for) before a population can use it for session length.",
   "C (social): the feed's sessions should spend at most `population.session_budget(world, idx)` minutes (the population's session length); population.activation counts items reached from minutes when an activity does not report them (pop.tick.items).",
   "C (social): SP-4.0 needs the population's own activity on every Part 4 platform (short/long video, images, messaging, creator subscriptions, newsletters, developer and knowledge platforms); population.analysis.platform_activity counts impress./consume. decision batches, relation-table decisions and member events per platform.",
   "D (semantic): pop_semantic binds class 4 through population.register_class_runtime; the binding contract is documented there (rows, activation, session provenance model class4.<owner>, attention, experience). SP-3.2 composes pop_semantic into its world when the module is registered.",
   "O / orchestrator: DEF-P-27 (D-20 metering memo) breaks same-process determinism of population worlds with sandboxed sites.",
   "M (perf): population hot paths changed - forum feeds shared by readers with the same follow set, post representations cached per text, article slates assembled once per page, web/purchase columns declared only by popweb (internet profile rows ~0.6 KB lighter).",
-  "M (perf): scale/gatev.py's dense policy observer evaluates pop.models['session_start'] if present; that decision is retired (D-30) - the population's activation policy is now runtime daily_return@1 / extra_sessions@1 (population.activation.decide_day), which the dense arm should evaluate for every eligible individual instead."
- ]
+  "M (perf): scale/gatev.py's dense policy observer evaluates pop.models['session_start'] if present; that decision is retired (D-30) - the population's activation policy is now runtime daily_return@1 / extra_sessions@1 (population.activation.decide_day), which the dense arm should evaluate for every eligible individual instead.",
+  "ONE_WORLD_CONTRACTS section 1 (orchestrator): the population API gained `session_budget(world, idx)` (minutes the current session may still take) and `wake(ctx, idx, at, activity)` now accepts one time per row (one batch for many individuals); `register_class_runtime` documents the class-3/4 binding contract. ECON's work/shopping and social's notifications can batch their wake-ups (civ standard: 3,315 pop.wake batches in 3 days, one per individual).",
+  "E: DEF-E-1 ('No population decision uses a fitted model') is fixed by this branch (D-30; regression test tests/test_v5_population_core.py::test_fitted_runtime_models_take_population_decisions); its owner can close it.",
+  "K (self-play): DEF-K-6's '4-head template' part is gone (class 3 redesign, D-31): four strategic groups with REINFORCE / frozen twin / A2C / PPO and objectives profit and reach; `population.strategic.behaviour(world)` reports competition, cooperation, objectives and lifetime policy shift.",
+  "D (semantic): crucible.semantic.generalists (pop_semantic) binds class 4 through population.register_class_runtime(world, 4, handler, owner=...) with handler(ctx, idx, now) -> next_active_at; the contract matches this branch (core.register_class_runtime docstring). It calls population.deposit if exported, else population.core.money_deposit (kept).",
+  "DEF-B-1 (critical, open, area B): the population is integrated (social internet, civ, economy use it; SP-4.0 measures one population and 0 duplicate facts); its last part - class-4 rows inert - closes when D's pop_semantic is merged and SP-3.2 measures participant_classes 4. Close it then (fixed_by: c5c/w3b-sem + c5c/w3b-pop).",
+  "C (social): SP-4.0 counts per platform the population's impressions/consumption batches (impress.<p>/consume.<p> on the pop table), content.published events with a population creator, msg.message with a population sender, creators.membership with a population fan, nlsub/cmember/follow relation-table batches WITH decision provenance (extra.decision), and popweb/pop_social batch kinds (population.analysis.SPEC_PLATFORMS). If letters.subscribe_many (popinbox) records its nlsub batch without decision provenance, newsletters will not count: record it through population.record_decisions(table='nlsub', ...).",
+  "M (perf, R7): done on this branch - class-3 decisions on the group's common grid (one forward pass per group), class-2 day review batched per decision round, money_deposit skips no-op deposits, popweb visit batches are delta-only (unchanged columns and rows not rewritten); the quadratic set(own) of R7 was already gone. Not done: merging the up-to-five visit steps of a web session into one recorded batch (each step records its own batches)."
+ ],
+ "test_results_unofficial": {
+  "tests/test_v5_population_core.py": "15 passed, 0 failed (CPU, in chunks, 85ae921 code; incl. test_same_seed_same_hashes_replay_regeneration_and_resume and the new test_class2_day_review_steps_every_members_memory_and_replays_exactly)",
+  "tests/test_v5_population_api.py tests/test_kernel.py tests/test_invariants.py": "57 passed, 0 failed (CPU)"
+ }
 }
