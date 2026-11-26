@@ -154,7 +154,7 @@ def net_cascade(rng, d):
             "connected. A crew repairs one link per tick; new links can be built.",
         distinct_because="connectivity of origin-destination pairs over a failing graph (breadth of the surviving "
                          "network), repaired by discrete dispatch and graph edits",
-        axes={"graph_size": 12, "horizon": 60}, objective="maximize_net",
+        axes={"graph_size": 20, "horizon": 60}, objective="maximize_net",
         claims=(C + "repair_restores", C + "built_link_carries_traffic"),
         reference="crucible.rapid.claims_v2:learn_which_links_matter",
         identify=I + "repair_sign")
