@@ -399,6 +399,39 @@ their own production and keep on their own measurements (FR-TECH-ADOPT); the eva
 efficiency at the operating points the adopters ran versus their former point, from the hidden physics (noise-free,
 so a no-op technology kept after a lucky trial scores zero).
 
+## D-57 Tier 2 domains 9.11-9.15 are standalone compositions on the one population (2026-11-26, workstream I-3)
+The information, organizational, marketplace, crisis and commercialization domains are mode-B worlds (D-48's
+standalone form) composed from the existing subsystems - `docs`/`search` (9.11), the commerce `commit` module
+(9.12), `xchg`/`products`/`market` (9.13), `sci` (9.15) - plus one domain kernel module each (`infoeco`, `orgeco`,
+`mktplace`, `crisis`, `rcomm`) that adds only what the section needs and does not exist: changing facts and
+publishers, a shared backbone and its council, goods physics and traders, lifeline physics and operators, the
+practice phenomenon's economy. The one population (`crucible.population`) is the source of every simulated human
+decision (look-ups, households, shopping, practice, service use: recorded cohort batches with decision provenance
+inside the population's sessions). They do not compose the civilisation generator because none of their mechanics
+needs the semantic text path (no world runs Qwen); `tier3` composes each into a civilisation (commercialization adds
+its phenomenon to the civilisation's laboratories). References are tool-only two-phase policies
+(`_dom3.ReadingReference`: read-only tool calls, then actions) and every evaluator is cached per simulated instant
+(the learner interface asks it after every action).
+
+## D-58 Crisis recovery is judged against the same disruption without the coordinator (2026-11-26, workstream I-3)
+Absolute restoration thresholds did not separate a coordinator from the operators acting alone: instance severity
+varies by seed far more than what coordination changes. The hazard is therefore exogenous - its draws come from the
+world's own stream keyed by the hour (`rng_for("crisis-hazard", h)`), so what participants do never changes which
+event strikes - and the evaluator re-runs the world's own spec without any coordinator (cached by spec hash) and
+requires the households' lost service-hours to be at most 80% (0.8^difficulty) of that counterfactual, the
+hospital's downtime at most max(12 h, 60% of the counterfactual), and 95% of households restored by day 7 and through
+day 10. The idle seat's ratio is 1.0 by construction, so the null baseline always fails.
+
+## D-59 The 9.15 science-to-economy link and what investors may read (2026-11-26, workstream I-3)
+The phenomenon's hidden law in `sci` IS the population's practice physics (one fact): what the founder learns by
+measurement is what lowers people's bills, and adoption follows only people's own bills. Counterfactual removal of the
+discovery is a founder identical in every action except that its advisor comes from common practice (the population's
+habitual setting, handed to it by the evaluator as the most generous knowledge available without the data) - it
+must fail where the founder with the discovery succeeds, with at least twice the retained adopters (SP-9.15).
+Habits scatter around the population-wide best single setting, so a constant advice cannot imitate the discovery.
+Investors are in-world actors: they read the public record (reports by other labs on other apparatus), never the
+`sci` independence/relatedness flags, which are evaluator-only (D-19); the evaluator's validation uses those flags.
+
 ## D-69 Research instrument: confinement of the weights-only child, adversarial controls, and a positive-control design with the power to see known effects (2026-11-26, workstream N, wave 3b)
 The wave-3a development run of the controls (5 learner seeds, protocol seeds) labelled 2 of 5 kinds correctly and 1 of
 7 explanations. Diagnosis on establishment seeds only (no protocol seed was re-used to choose a design):
