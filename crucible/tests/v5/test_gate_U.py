@@ -183,7 +183,7 @@ def test_U3_fresh_process_weights_only(tmp_path):
     checks = out["weights"]["checks"]
     passed = [k for k in FR.CHECKS if checks.get(k)]
     adversarial = {}
-    for kind in ("memory_in_params", "pickle", "arch_edit"):
+    for kind in ("memory_in_params", "pickle", "arch_edit", "widened_layers"):
         r = FR.weights_only_eval(FR.tampered_copy(out["weights"]["manifest"], kind, str(tmp_path / kind)), worlds[:1])
         adversarial[kind] = (not r["ok"]) and bool(r.get("refused"))
     st = out["stateful"]
