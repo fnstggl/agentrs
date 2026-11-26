@@ -1,6 +1,6 @@
 {
  "preset": "dom_dev",
- "commit": "dd88be78cb91febab2b0a612ec82c1449f790d77",
+ "commit": "889096834592b1afa172136e0f231bcf48d444df",
  "device": "cuda",
  "n_tools": 145,
  "B": 4,
@@ -14,10 +14,10 @@
   0.0
  ],
  "decide_s": [
-  9.946680948603898,
-  9.355403027962893,
-  9.04351874999702,
-  7.358531573787332
+  15.154288210906088,
+  11.826240968424827,
+  11.450806407257915,
+  6.617788982111961
  ],
  "executed_tools": [
   "market.browse",
@@ -47,6 +47,7 @@
   "B": 8,
   "executed": 192,
   "unstamped": 0,
+  "stamp_in_proposal_v4_slot": 192,
   "updates": 3,
   "updated": 3,
   "losses_last_update": {
@@ -63,7 +64,7 @@
    6.0,
    11.0
   ],
-  "seconds": 52.773493382148445
+  "seconds": 76.17359473602846
  },
  "peak_gpu_gb": 6.294989109039307
 }
