@@ -365,7 +365,7 @@ class CentralLearner:
                  settle: int = 2, waiting_ttl_s: float = 3600.0,
                  queue_kwargs: Optional[dict] = None, keep_versions: int = 5, validate_fn=None,
                  record_traces: bool = True, meter: Optional[ComputeMeter] = None, resume: bool = True,
-                 fsync: bool = True):
+                 fsync: bool = True, lag_validation: Optional[str] = None):
         self.run_dir = os.path.abspath(run_dir)
         self.paths = run_paths(self.run_dir)
         for d in self.paths.values():
@@ -377,7 +377,7 @@ class CentralLearner:
         self.publisher = CheckpointPublisher(self.paths["ckpt"], keep_last=keep_versions, validate_fn=validate_fn,
                                              fsync=fsync)
         self.traces = TraceRecorder(self.paths["traces"], name="learner") if record_traces else None
-        self.router = LagRouter(max_lag=max_lag, mode=lag_mode)
+        self.router = LagRouter(max_lag=max_lag, mode=lag_mode, validation_file=lag_validation)
         self.assembler = TrajectoryAssembler(stale_s=stale_s, segment_len=segment_len, burn_in=burn_in,
                                              settle=settle, waiting_ttl_s=waiting_ttl_s)
         self.min_decisions = min_decisions
@@ -727,6 +727,8 @@ class LearnerSpec:
     cuda: bool = False              # False: the process never sees the GPU (CUDA_VISIBLE_DEVICES=""), so a CPU-only
                                     # learner holds no CUDA context on the shared card (torch.optim's step otherwise
                                     # initialises one through its CUDA-graph capture check)
+    lag_validation: Optional[str] = None    # validated-max-lag file used when max_lag is None (default: the toy's)
+    keep_versions: int = 5                  # published versions kept on disk (lag validation keeps them all)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -749,7 +751,8 @@ def learner_main(spec: dict, stop_event=None) -> None:
                        max_batch_trajectories=s.max_batch_trajectories,
                        publish_every=s.publish_every, train_actors=s.train_actors, ingest_segments=s.ingest_segments,
                        stale_s=s.stale_s, max_backlog=s.max_backlog, segment_len=s.segment_len, burn_in=s.burn_in,
-                       settle=s.settle, queue_kwargs=s.queue_kwargs, validate_fn=validate)
+                       settle=s.settle, queue_kwargs=s.queue_kwargs, validate_fn=validate,
+                       lag_validation=s.lag_validation, keep_versions=s.keep_versions)
     try:
         L.run(stop_event=stop_event, max_updates=s.max_updates, max_seconds=s.max_seconds)
     finally:

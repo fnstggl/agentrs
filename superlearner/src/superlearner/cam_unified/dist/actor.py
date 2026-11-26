@@ -23,6 +23,16 @@ carries ``extra["state_version"]`` (the weights version the latent state was bui
 ``model_version`` after a refresh without rebuild) and ``extra["deterministic"]`` (the policy acted greedily, so
 ``behavior_logp`` is 0 = log 1), which the learner's router needs to decide what is exactly on-policy.
 
+**Record-producing policies** (`RecordPolicyP`, e.g. the integrated CAM agent of `cam_policy.CamActorPolicy`) build
+their own EventRecords and DecisionTraces (the integrated agent's records carry its realised outcome specs, budget,
+option and behaviour provenance; it archives the observations delivered after an action itself, as world-event
+records attributed to that action). For them the actor runs `_episode_records`: the same SMDP harness, with
+observations deduplicated by event ``seq`` across ``execute`` / ``advance_time`` / ``collect_events``, verified
+rewards from the evaluator's ``take_rewards()`` when it has one (else score increments), and the actor stamping only
+routing facts on the policy's records (``state_version``, ``deterministic``, ``incarnation``, ``drift``); the think time
+is the policy's (``policy.think_days``, the config's ``think_s``) unless the spec sets one. Per-phase wall times
+(``stats["phase_s"]``) and the policy's semantic-model token counters go into the status and the compute meter.
+
 Crash recovery: environment exceptions close the running episodes with an explicit ``episode_end`` record
 (``truncated: true``), rebuild the environment (a new world, hence new environment ids and seeds) and continue (up to
 ``max_env_failures`` in a row). A killed process is restarted by the launcher under the same actor id with
@@ -58,6 +68,14 @@ def derive_seed(seed: int, *salt) -> int:
     return random.Random("/".join(str(x) for x in (seed,) + salt)).randrange(2 ** 31)
 
 
+def _accepts(fn, name: str) -> bool:
+    try:
+        ps = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
+    return name in ps
+
+
 def resolve(path: str):
     """"package.module:attr" -> the attribute."""
     mod, _, attr = path.partition(":")
@@ -77,6 +95,37 @@ class ActorPolicyP(Protocol):
     def act(self, obs_lists: list, tools: list, goals: list) -> tuple: ...             # -> ([B] Action|None, [B] info)
     def load_weights(self, state_dict: dict, version: int) -> None: ...                # weights-only swap
     def rebuild_state(self, history: list) -> None: ...                                # [B] list[EventRecord]
+
+
+@runtime_checkable
+class RecordPolicyP(Protocol):
+    """A policy that produces its own records (``produces_records = True``; see the module docstring)."""
+
+    produces_records: bool
+    think_days: float
+
+    def reset(self, obs: ObservationBatch, goals: list, tools: list) -> None: ...
+    def act_batch(self, obs: ObservationBatch, tools: list, active: list) -> list: ...   # [B] Action | None
+    def observe_batch(self, results: list, rewards: list, next_obs: ObservationBatch) -> list: ...
+    # -> [(EventRecord, DecisionTrace | None)] (decision records + action-less world-event records)
+    def end_episode(self, reason: str) -> list: ...                                     # -> [EventRecord]
+    def load_weights(self, state_dict: dict, version: int) -> None: ...
+    def rebuild_state(self, history: list) -> None: ...
+
+
+def merge_by_seq(seen_seq: int, *lists) -> tuple:
+    """Concatenate observation lists, dropping environment events already delivered (seq <= seen_seq, or repeated
+    within the lists). -> (observations, new seen seq)."""
+    out, top, here = [], seen_seq, set()
+    for lst in lists:
+        for o in lst or []:
+            if o.seq is not None:
+                if o.seq <= seen_seq or o.seq in here:
+                    continue
+                here.add(o.seq)
+                top = max(top, o.seq)
+            out.append(o)
+    return out, top
 
 
 @dataclass
@@ -104,6 +153,7 @@ class ActorSpec:
     incarnation: int = 0            # process restarts under this actor id (set by the launcher)
     cuda: bool = False              # False: CUDA_VISIBLE_DEVICES="" in the actor process (no GPU context per actor;
                                     # GPU inference goes through the shared semantic server or an explicit cuda=True)
+    drift_mode: str = "exact"       # PolicyClient drift: "exact" (reference copy) or "meta_sum" (published deltas)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -125,7 +175,8 @@ class ActorProcess:
             os.makedirs(d, exist_ok=True)
         self.queue = ExperienceQueue(p["spool"], **spec.queue_kwargs)
         self.writer = self.queue.writer(spec.actor_id, batch_records=spec.batch_records)
-        self.client = PolicyClient(p["ckpt"], refresh_at=spec.refresh_at, actor_id=spec.actor_id)
+        self.client = PolicyClient(p["ckpt"], refresh_at=spec.refresh_at, actor_id=spec.actor_id,
+                                   drift_mode=spec.drift_mode)
         self.meter = ComputeMeter(spec.actor_id, role="actor")
         self.incarnation = int(spec.incarnation)
         self.rng = random.Random(derive_seed(spec.seed, self.incarnation, "episodes") if self.incarnation
@@ -145,10 +196,17 @@ class ActorProcess:
         kw = dict(spec.policy_kwargs)
         if semantic is not None:
             kw["semantic"] = semantic
-        self.policy = resolve(spec.policy_factory)(seed=derive_seed(spec.seed, self.incarnation), **kw)
+        factory = resolve(spec.policy_factory)
+        for name, val in (("actor_id", spec.actor_id), ("run_dir", spec.run_dir)):
+            if name not in kw and _accepts(factory, name):
+                kw[name] = val
+        self.policy = factory(seed=derive_seed(spec.seed, self.incarnation), **kw)
+        self.records_mode = bool(getattr(self.policy, "produces_records", False))
+        self.stats["phase_s"] = {}
+        self._tok_prev: dict = {}
         try:
             self._act_takes_active = "active" in inspect.signature(self.policy.act).parameters
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, AttributeError):
             self._act_takes_active = False
 
     # ---------------------------------------------------------------- helpers
@@ -267,7 +325,162 @@ class ActorProcess:
         if prev:
             self.writer.flush()
 
+    def _phase(self, name: str, t0: float) -> float:
+        t1 = time.perf_counter()
+        ph = self.stats["phase_s"]
+        ph[name] = ph.get(name, 0.0) + (t1 - t0)
+        return t1
+
+    def _account_tokens(self) -> None:
+        fn = getattr(self.policy, "compute_counters", None)
+        if fn is None:
+            return
+        cur = fn()
+        delta = {k: v - self._tok_prev.get(k, 0) for k, v in cur.items()}
+        self._tok_prev = dict(cur)
+        self.meter.add(**{k: v for k, v in delta.items() if v})
+        self.stats["semantic"] = dict(cur)
+
+    def _rewards(self, B: int, prev_score: list) -> tuple:
+        """-> (verified reward increments [B], scores [B]): the evaluator's take_rewards() when it has one (the
+        harness' verified return), else increments of evaluate_goal().score."""
+        ev = self.evaluator
+        if ev is not None and hasattr(ev, "take_rewards"):
+            r = [float(x) for x in ev.take_rewards()]
+            return r, [p + x for p, x in zip(prev_score, r)]
+        sc = self._scores(B)
+        return [a - b for a, b in zip(sc, prev_score)], sc
+
+    def _refresh_decision(self, history) -> None:
+        if self.client.maybe_refresh(self.policy, "decision"):
+            self.stats["refreshes"] += 1
+            self.stats["versions_used"].append(self.client.version)
+            if self.client.drift > self.spec.rebuild_threshold:
+                self.policy.rebuild_state(history)
+                self.client.state_rebuilt()
+                self.stats["rebuilds"] += 1
+
+    def _episode_records(self) -> None:
+        """The SMDP harness for record-producing policies (module docstring)."""
+        s, env = self.spec, self.env
+        t = time.perf_counter()
+        if self.client.maybe_refresh(self.policy, "trajectory"):
+            self.stats["refreshes"] += 1
+            self.stats["versions_used"].append(self.client.version)
+        self.client.state_rebuilt()
+        t = self._phase("refresh", t)
+        ep_seed = self.rng.randrange(2**31)
+        n_env = len(getattr(env, "env_ids", [])) or getattr(env, "B", None)
+        obs = env.reset(seeds=[ep_seed + b for b in range(int(n_env))] if n_env else None)
+        B = len(obs.env_ids)
+        goals = env.goals()
+        tools = env.available_tools()
+        self.policy.reset(obs, goals, tools)
+        t = self._phase("reset", t)
+        self._env_ids, self._goals = list(obs.env_ids), goals
+        cursors = list(getattr(env, "initial_cursors", lambda: [0] * B)())
+        seen = [max([o.seq for o in ol if o.seq is not None] or [-1]) for ol in obs.observations]
+        ep_ids = list(self.policy.episode_ids)
+        think = s.think_days if s.think_days > 0 else float(getattr(self.policy, "think_days", 0.0))
+        prev_score = [0.0] * B
+        if self.evaluator is not None and not hasattr(self.evaluator, "take_rewards"):
+            prev_score = self._scores(B)
+        ep_return = [0.0] * B
+        done = list(obs.done)
+        batch = obs
+        step = 0
+        self._open_episodes = {b: (ep_ids[b], obs.env_ids[b], 0) for b in range(B)}
+        self.writer.note_open_episodes([(ep_ids[b], obs.env_ids[b], self.incarnation) for b in range(B)])
+        version_at_start = self.client.version
+        history = [[] for _ in range(B)]
+        while not all(done):
+            if self._stop():
+                break
+            t = time.perf_counter()
+            tools = env.available_tools()
+            t = self._phase("tools", t)
+            active = [not d for d in done]
+            sv, dr = self.client.state_version, self.client.drift
+            with self.meter.gpu():
+                actions = self.policy.act_batch(batch, tools, active)
+            t = self._phase("act", t)
+            actions = [a if active[b] else None for b, a in enumerate(actions)]
+            results = env.execute(actions)
+            t = self._phase("execute", t)
+            durations = [(results[b].duration + think) if actions[b] is not None else 0.0 for b in range(B)]
+            adv = env.advance_time(durations)
+            evs, cursors = env.collect_events(cursors)
+            t = self._phase("advance", t)
+            rewards, prev_score = self._rewards(B, prev_score)
+            t = self._phase("reward", t)
+            nxt = []
+            for b in range(B):
+                res_obs = results[b].observations if results[b] is not None else []
+                merged, seen[b] = merge_by_seq(seen[b], res_obs, adv.observations[b], evs[b])
+                nxt.append(merged if actions[b] is not None else [])
+            next_batch = ObservationBatch(list(obs.env_ids), nxt, list(adv.t), list(adv.done))
+            with self.meter.gpu():
+                out = self.policy.observe_batch(results, rewards, next_batch)
+            t = self._phase("observe", t)
+            n_active = 0
+            for rec, tr in out:
+                rec.extra = dict(rec.extra or {})
+                rec.extra.setdefault("incarnation", self.incarnation)
+                if rec.action is not None:
+                    n_active += 1
+                    rec.extra.update({"kind": "decision", "state_version": sv, "drift": dr,
+                                      "deterministic": bool(getattr(self.policy, "greedy", False)) or
+                                      bool((rec.action.logp_parts or {}).get("greedy"))})
+                    b = obs.env_ids.index(rec.env_id)
+                    ep_return[b] += float(rec.reward)
+                    history[b].append(rec)
+                    self._open_episodes[b] = (rec.episode_id, rec.env_id, int(rec.step) + 1)
+                    if rec.done:
+                        self._open_episodes.pop(b, None)
+                    self.stats["records"] += 1
+                else:
+                    self.stats["world_records"] = self.stats.get("world_records", 0) + 1
+                    self.stats["records"] += 1
+                self.writer.put(rec, tr)
+            t = self._phase("queue", t)
+            done = [bool(d) for d in adv.done]
+            batch = next_batch
+            step += 1
+            self.stats["decisions"] += n_active
+            self.meter.add(env_steps=n_active, decisions=n_active, sim_days=sum(durations),
+                           env_cost=sum(r.cost for r in results if r is not None), records=len(out))
+            self._account_tokens()
+            if s.refresh_at == "decision" and not all(done):
+                self._refresh_decision(history)
+                t = self._phase("refresh", t)
+            self.status()
+        ended = all(done)
+        extra = self.policy.end_episode("episode_end" if ended else "actor stopped")
+        for rec in extra:
+            self.writer.put(rec, None)
+            self.stats["records"] += 1
+        if ended:
+            self.stats["episodes"] += 1
+            mean_ret = sum(ep_return) / max(1, B)
+            self.recent_scores.append(mean_ret)
+            final = None
+            if self.evaluator is not None and hasattr(self.evaluator, "evaluate_goal"):
+                try:                                    # logging only: never handed to the policy
+                    final = [float(self.evaluator.evaluate_goal(b).score) for b in range(B)]
+                except Exception:                       # noqa: BLE001
+                    final = None
+            self.episode_log.append([self.stats["episodes"], version_at_start, self.client.version, mean_ret,
+                                     time.time(), final])
+        else:                                   # stopped mid-episode: close it explicitly
+            self._close_truncated("actor stopped")
+        self._open_episodes = {}
+        self.writer.note_open_episodes([])
+        self.writer.flush()
+        self.status()
+
     def _episode(self) -> None:
+        if self.records_mode:
+            return self._episode_records()
         s, env = self.spec, self.env
         if self.client.maybe_refresh(self.policy, "trajectory"):
             self.stats["refreshes"] += 1
