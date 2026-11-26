@@ -346,6 +346,128 @@ def m_adopted_from_papers(w, t0, t1, ctx):
     return float(sum(1 for e in _window(w, ctx) if e.type == "links.rnd"))
 
 
+# --------------------------------------------------------------------------------------------- invention (SP-2.1b)
+INVENTOR = {"handle": "inventor", "host": "inventor-svc", "price": 3}
+
+
+def _invention_setup(w, ctx):
+    """A scripted reference inventor (labelled `scripted`, crucible.innovation.reference.ServiceCreator) is admitted
+    in every arm; in the factual arm it writes, deploys and declares a service for one of the civilisation's
+    published work formats at the best known solver tier (better than every incumbent) and announces it on the
+    forum. In `no_invention` it does nothing. Everything after that is the world's: individuals of the population
+    search, try the declared capability on their own work, adopt it by their own accepted outcomes, pay per call."""
+    from ..economy.needs import NEEDS
+    from ..innovation.reference import ServiceCreator
+    fams = (w.modules["work"].config.get("families") or []) if "work" in w.modules else []
+    need = sorted(f["need"] for f in fams)[0]
+    tier = len(NEEDS[need].tiers) - 1
+    ag = ServiceCreator(INVENTOR["handle"], need, INVENTOR["host"], tier=tier, price=INVENTOR["price"], at=w.now,
+                        cores=1, announce=True)
+    ag.ensure(w)
+    provs = w.query(ag.actor, "cloud.providers")
+    ctx["provider"] = sorted(provs, key=lambda p: (-p["cores_free"], p["provider"]))[0]["provider"] if provs else None
+    ctx["agent"], ctx["need"] = ag, need
+    ctx["active"] = ctx["arm"] != "no_invention"
+
+
+def _inv_decl(w, ctx):
+    return getattr(ctx.get("agent"), "declaration", None)
+
+
+def _inv_rows(w, ctx):
+    d = _inv_decl(w, ctx)
+    if d is None or "work_exp" not in w.state.tables:
+        return []
+    return [r for _, r in w.state.scan("work_exp") if r["prov"] == d]
+
+
+def m_inv_revenue(w, t0, t1, ctx):
+    """economic: money the inventor received (from population individuals' calls) in the window."""
+    st, bank = w.state, w.modules["bank"]
+    who = getattr(ctx.get("agent"), "actor", None)
+    tot = 0
+    for e in _window(w, ctx):
+        if e.type == "bank.txn":
+            for a, d in e.payload["postings"]:
+                if d > 0 and bank.account_owner(st, a) == who:
+                    tot += d
+    return float(tot)
+
+
+def m_incumbent_revenue(w, t0, t1, ctx):
+    """economic: what the incumbent SaaS firms (merchants of the population's subscriptions) were paid by the
+    population in the window."""
+    st, bank = w.state, w.modules["bank"]
+    inc = {r["merchant"] for _, r in st.scan("sub_subs")} if "sub_subs" in st.tables else set()
+    from ..substrate import ids
+    tot = 0
+    for e in _window(w, ctx):
+        if e.type != "bank.txn":
+            continue
+        pay = [a for a, d in e.payload["postings"] if d < 0 and ids.index(bank.account_owner(st, a)) is not None]
+        if not pay:
+            continue
+        for a, d in e.payload["postings"]:
+            if d > 0 and bank.account_owner(st, a) in inc:
+                tot += d
+    return float(tot)
+
+
+def m_inv_adopters(w, t0, t1, ctx):
+    """behaviour: individuals who rely on the invention for a step of their own work at the end of the window."""
+    return float(len({r["i"] for r in _inv_rows(w, ctx) if r["active"]}))
+
+
+def m_inv_uses(w, t0, t1, ctx):
+    """behaviour: steps of the population's work delegated to the invention."""
+    return float(sum(int(r["uses"]) for r in _inv_rows(w, ctx)))
+
+
+def m_inv_compute(w, t0, t1, ctx):
+    """resource demand: compute units used by the inventor's deployed service."""
+    tot = 0.0
+    for key, h in w.state.scan("svc_hours"):
+        if h["host"] == INVENTOR["host"] and h["hour"] * 3600 >= t0:
+            tot += float(h["cu"])
+    return tot
+
+
+def m_inv_provider_kwh(w, t0, t1, ctx):
+    """resource demand: energy drawn from the grid by the datacenter of the provider the inventor rents from (the
+    provider it would pick at the fork, in every arm)."""
+    prov = ctx.get("provider")
+    return float(sum(e.payload["kwh"] for e in _window(w, ctx) if e.type == "make.energy"
+                     and e.payload.get("consumer") == prov))
+
+
+def _needs(w):
+    from ..innovation import relations
+    try:
+        return relations.label(w)
+    except Exception:  # noqa: BLE001 - a world whose relation graph cannot be read has no derived needs
+        return []
+
+
+def m_inv_needs(w, t0, t1, ctx):
+    """future technological opportunities: needs the evaluator-side relation graph (crucible.innovation.relations:
+    bottlenecks, scarcity of capacity, unreliable producers) derives at the end of the window that involve the
+    invention's capability or service - demand for capacity, substitutes or complements that did not exist before."""
+    d = _inv_decl(w, ctx)
+    keys = {f"cap:{ctx.get('need')}", f"svc:{INVENTOR['host']}", INVENTOR["host"]} | ({d} if d else set())
+    import json as _j
+    return float(sum(1 for n in _needs(w) if any(k in _j.dumps(n, default=str) for k in keys)))
+
+
+def m_needs_total(w, t0, t1, ctx):
+    return float(len(_needs(w)))
+
+
+INVENTION_KINDS = {"economic_outcomes": ("inventor_revenue", "incumbent_revenue"),
+                   "participant_behaviour": ("adopters", "delegated_uses"),
+                   "resource_demand": ("service_compute", "provider_kwh"),
+                   "future_opportunities": ("invention_needs", "needs_total")}
+
+
 # --------------------------------------------------------------------------------------------- the battery
 EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
     Experiment("science_technology", "replicated public science about a machine model changes producers' process "
@@ -390,6 +512,15 @@ EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
                 "provider_cu": m_agent_provider_cu, "provider_kwh": m_agent_provider_kwh,
                 "web_revenue": m_web_revenue},
                "provider_kwh", setup=_agent_setup("shop"), during=_agent_during, chain=True),
+    Experiment("invention", "a technological invention (a scripted reference inventor's service for a published "
+               "work format, better than every incumbent's solver) changes economic outcomes, participant behaviour, "
+               "resource demand and future technological opportunities (SP-2.1b); counterfactual: the inventor is "
+               "admitted but never builds it",
+               "balanced", 2.0, 8.0, {"no_invention": _noop},
+               {"inventor_revenue": m_inv_revenue, "incumbent_revenue": m_incumbent_revenue,
+                "adopters": m_inv_adopters, "delegated_uses": m_inv_uses, "service_compute": m_inv_compute,
+                "provider_kwh": m_inv_provider_kwh, "invention_needs": m_inv_needs, "needs_total": m_needs_total},
+               "adopters", setup=_invention_setup, during=_agent_during),
     Experiment("agent_science", "a scripted researcher's paper: replication, R&D trials, process settings, output",
                "research_intensive", 1.0, 14.0, {"no_paper": _noop},
                {"adopted": m_adopted_from_papers, "true_quality": m_true_quality, "bound_yield": m_bound_yield,
@@ -398,4 +529,5 @@ EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
 ]}
 
 EFFECT_EXPERIMENTS = [n for n, e in EXPERIMENTS.items() if e.category is not None]
+INVENTION_EXPERIMENTS = ["invention"]
 CHAIN_EXPERIMENTS = [n for n, e in EXPERIMENTS.items() if e.chain]

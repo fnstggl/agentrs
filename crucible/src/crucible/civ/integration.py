@@ -62,14 +62,42 @@ def subsystems(world, pv: CH.Provenance, since_seq: int = 0) -> dict:
             if sa and sb and sa != sb and sa not in CH.NOT_STAGES and sb not in CH.NOT_STAGES:
                 connected[sa] += 1
                 connected[sb] += 1
+    pop_ev = population_carried(world, pv, since_seq)
     rows = {s: {"present": present[s], "events": int(active.get(s, 0)), "cross_edges": int(connected.get(s, 0)),
+                "population_events": int(pop_ev.get(s, 0)),
                 "modules": [m for m in SUB.SUBSYSTEMS[s]["modules"] if m in world.modules]}
             for s in SUB.SUBSYSTEMS}
     strict = [s for s, r in rows.items() if r["present"] and r["events"] > 0 and r["cross_edges"] > 0]
     return {"subsystems": rows, "present": sum(r["present"] for r in rows.values()),
             "active": sum(1 for r in rows.values() if r["present"] and r["events"] > 0),
             "strict": len(strict), "strict_names": strict,
-            "missing": sorted(set(SUB.SUBSYSTEMS) - set(strict))}
+            "missing": sorted(set(SUB.SUBSYSTEMS) - set(strict)),
+            "with_population_activity": sorted(s for s, r in rows.items() if r["population_events"] > 0),
+            "without_population_activity": sorted(s for s, r in rows.items() if r["present"] and
+                                                  r["population_events"] == 0)}
+
+
+def population_carried(world, pv: CH.Provenance, since_seq: int = 0) -> Counter:
+    """Events per subsystem that the population's own decisions caused: events of transactions whose root is a
+    process of a population module (the population's activity ticks: browsing, feeds, creation, communities, work,
+    shopping, goods) or a command issued by a population principal. A subsystem with none is present but carries no
+    population activity (it may still be used by organisations, labs or agents)."""
+    from ..substrate import ids
+    pop_mods = set(SUB.POPULATION_MODULES) | {"pop_social", "feed"}
+    out: Counter = Counter()
+    for s_, sub in pv.subsystem.items():
+        if s_ <= since_seq or sub not in SUB.SUBSYSTEMS:
+            continue
+        r = pv.roots.get(s_)
+        if r is None:
+            continue
+        root = pv.events[r]
+        if root.type == "proc":
+            if pv.proc_module.get(r) in pop_mods:
+                out[sub] += 1
+        elif root.type == "cmd" and isinstance(root.actor, str) and ids.index(root.actor) is not None:
+            out[sub] += 1
+    return out
 
 
 def cross_system(pv: CH.Provenance, since_seq: int = 0) -> dict:

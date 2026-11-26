@@ -27,15 +27,10 @@ def workers() -> int:
 
 
 def code_digest() -> str:
-    here = os.path.dirname(os.path.abspath(__file__))
-    h = hashlib.sha256()
-    roots = [here, os.path.join(os.path.dirname(here), "economy", "industry.py")]
-    for r in roots:
-        files = [r] if r.endswith(".py") else sorted(os.path.join(r, f) for f in os.listdir(r) if f.endswith(".py"))
-        for f in files:
-            with open(f, "rb") as fh:
-                h.update(f.encode() + fh.read())
-    return h.hexdigest()[:16]
+    """Digest of every source file of the `crucible` package (crucible.civ.longrun.code_key): a cached result is
+    reused only by exactly the code that produced it (a change in any subsystem invalidates it)."""
+    from .longrun import code_key
+    return code_key()
 
 
 def _cache_path(kind: str, params: dict) -> str:
@@ -124,6 +119,27 @@ def _strip(r: dict) -> dict:
     return r
 
 
+# --------------------------------------------------------------------------------------------- SP-2.1b
+INVENTION_SEEDS = (51, 52, 53)
+
+
+def invention(seeds=INVENTION_SEEDS) -> dict:
+    """SP-2.1b: the four kinds of consequence of an invention (crucible.civ.experiments.INVENTION_KINDS), each
+    confirmed when one of its measures is confirmed by the counterfactual (no_invention arm) across seeds against the
+    placebo reshuffling noise."""
+    from . import experiments as X
+    r = _safe("invention", "effect", seeds)
+    eff = r["effects"].get("no_invention", {})
+    kinds = {}
+    for kind, ms in X.INVENTION_KINDS.items():
+        kinds[kind] = {m: {k: eff[m][k] for k in ("effect_mean", "ci95", "reshuffle_noise_rms", "confirmed",
+                                                   "factual", "intervention")} for m in ms if m in eff}
+        kinds[kind]["confirmed"] = any(v.get("confirmed") for v in kinds[kind].values() if isinstance(v, dict))
+    return {"invention_effect_kinds_confirmed": sum(1 for v in kinds.values() if v["confirmed"]), "kinds": kinds,
+            "error": r.get("error"), "seeds": list(seeds), "scripted_inventor": True,
+            "invariant_errors": r.get("invariant_errors")}
+
+
 # --------------------------------------------------------------------------------------------- O.6, SP-10.3
 CHAIN_ARMS = {
     # experiment -> arm -> (what the arm removes, chain class, {measure: subsystem it stands for})
@@ -173,6 +189,261 @@ def chain_results(seeds=CHAIN_SEEDS) -> dict:
             "chains_with_social_activity": sum(1 for c in good if c["class"] == "social"),
             "chains_with_technical_activity": sum(1 for c in good if c["class"] == "technical"),
             "chains": chains_out, "experiments": raw}
+
+
+# --------------------------------------------------------------------------------------------- SP-10.2
+# coupling -> (profile whose world exercises its mechanism, the mechanism's own trace in the event log). The trace is
+# what the coupling's mechanism records when it acts - never the downstream quantity it changes.
+COUPLING_TRACE = {
+    "science_process": ("balanced", lambda w, e: e.type == "links.rnd_check"),
+    "compute_energy": ("balanced", lambda w, e: e.type == "links.energy"),
+    "goods_supply": ("balanced", lambda w, e: e.type == "make.retail_sold" and _pop_buyer(e)),
+    "goods_wom": ("balanced", lambda w, e: e.type == "goods.wom"),
+    "org_coordination": ("balanced", lambda w, e: e.type == "links.coordination"),
+    "freight_energy": ("balanced", lambda w, e: e.type == "links.load" and e.payload["coupling"] == "freight_energy"),
+    "lab_energy": ("balanced", lambda w, e: e.type == "links.load" and e.payload["coupling"] == "lab_energy"),
+    "energy_cost_pricing": ("balanced", lambda w, e: e.type in ("links.price_ref", "links.repriced")),
+    "grid_curtailment": ("infrastructure_constrained", lambda w, e: e.type == "links.curtailed"),
+    "datacenter_siting": ("infrastructure_constrained", lambda w, e: e.type == "links.dc"
+                          and bool(e.payload.get("moved_from"))),
+}
+SCRIPTED_MODULES = ("shocks",)                  # scheduled exogenous narrative (never part of a civilisation)
+COUPLING_RUN = {"seed": 31, "warm_days": 2, "arm_days": 4}
+
+
+def _pop_buyer(e) -> bool:
+    from ..substrate import ids
+    return ids.index(str(e.payload.get("buyer", ""))) is not None
+
+
+def _downstream(w, evs) -> dict:
+    """What the couplings move, per arm (evaluator-side): grid energy, goods bought, compute prices, datacenter
+    regions."""
+    kwh = sum(float(e.payload["kwh"]) for e in evs if e.type in ("make.energy", "make.run"))
+    return {"grid_kwh": round(kwh, 1), "goods_bought": sum(1 for e in evs if e.type == "make.retail_sold"),
+            "compute_prices": sorted(int(r["price"]) for _, r in w.state.scan("providers")),
+            "datacenter_regions": sorted(r["region"] for _, r in w.state.scan("civ_dc")),
+            "backup_kwh": round(sum(float(e.payload["kwh"]) for e in evs if e.type == "links.backup" or
+                                    (e.type == "links.load" and e.payload.get("backup"))), 1)}
+
+
+def couplings_battery(seed: int | None = None, warm_days: int | None = None, arm_days: int | None = None) -> dict:
+    """SP-10.2: every executable coupling of the catalogue is removed at a fork of a world whose mechanism exercises
+    it, against a control fork with the same footprint (one operator command); removable = its trace is present in
+    the control and absent after removal. Reusable = present in at least two structurally different profiles with
+    only numeric parameters. Scripted consequence paths = scripted modules in any profile, one-off (non-periodic)
+    jobs scheduled by the coupling engine, and scripted-module events in the battery's runs."""
+    import torch
+    torch.set_num_threads(1)
+    from . import couplings as C, generator, profiles as P
+    p = dict(COUPLING_RUN)
+    p.update({k: v for k, v in (("seed", seed), ("warm_days", warm_days), ("arm_days", arm_days)) if v is not None})
+    DAY = 86400
+
+    def run():
+        t = time.time()
+        executable = sorted(c for c, rec in C.CATALOGUE.items() if not rec.pending)
+        pending = sorted(c for c, rec in C.CATALOGUE.items() if rec.pending)
+        by_prof: dict[str, list[str]] = {}
+        for c in executable:
+            by_prof.setdefault(COUPLING_TRACE[c][0], []).append(c)
+        arms_out: dict[str, dict] = {}
+        scripted = {"profiles_with_scripted_modules": [], "one_off_coupling_jobs": [], "scripted_events": 0}
+        for prof, cids in sorted(by_prof.items()):
+            w = generator.generate(prof, p["seed"])
+            w.advance_time(int(p["warm_days"]) * DAY)
+            t0 = w.now
+            for sid, j in w.state.scan("sched"):
+                if j["proc"].startswith("civlinks.") and not j.get("period"):
+                    scripted["one_off_coupling_jobs"].append(f"{prof}:{j['proc']}")
+            res = {}
+            for arm in ["control", *cids]:
+                f = w.fork(f"sp102-{prof}-{arm}")
+                s0 = f.seq
+                if arm == "control":
+                    f.system_call("admin.links_placebo", {"n": 1})
+                else:
+                    C.remove(f, arm)
+                f.advance_time(t0 + int(p["arm_days"]) * DAY)
+                evs = f.events_range(s0)
+                res[arm] = {"trace": {c: sum(1 for e in evs if COUPLING_TRACE[c][1](f, e)) for c in cids},
+                            "downstream": _downstream(f, evs), "events": len(evs),
+                            "proc_failed": sum(1 for e in evs if e.type == "proc.failed")}
+                scripted["scripted_events"] += sum(1 for e in evs if e.type.split(".", 1)[0] in SCRIPTED_MODULES)
+                f.close()
+            w.close()
+            for c in cids:
+                ctl, rem = res["control"]["trace"][c], res[c]["trace"][c]
+                arms_out[c] = {"profile": prof, "trace_control": ctl, "trace_removed": rem,
+                               "removable": ctl > 0 and rem == 0, "downstream_control": res["control"]["downstream"],
+                               "downstream_removed": res[c]["downstream"], "proc_failed": res[c]["proc_failed"]}
+        for name in sorted(P.PROFILES):
+            mods = generator.recipe(name, p["seed"])["module_list"]
+            bad = sorted(set(mods) & set(SCRIPTED_MODULES))
+            if bad:
+                scripted["profiles_with_scripted_modules"].append(f"{name}:{bad}")
+        uses = {c: [n for n, pr in sorted(P.PROFILES.items()) if c in pr.couplings] for c in executable}
+        generic = {c: all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                          for v in C.CATALOGUE[c].params.values()) for c in executable}
+        structures = {c: len({P.structural_digest(P.PROFILES[n]) for n in uses[c]}) for c in executable}
+        reusable = [c for c in executable if structures[c] >= 2 and generic[c]]
+        removable = [c for c in executable if arms_out[c]["removable"]]
+        n_scripted = len(scripted["profiles_with_scripted_modules"]) + len(scripted["one_off_coupling_jobs"]) + \
+            int(scripted["scripted_events"])
+        return {"params": p, "executable": executable, "pending": pending, "uses": uses, "reusable": reusable,
+                "reusable_couplings": len(reusable), "removable": removable,
+                "couplings_removable_fraction": round(len(removable) / max(1, len(executable)), 4),
+                "scripted_consequence_paths": n_scripted, "scripted_detail": scripted, "arms": arms_out,
+                "wall_s": round(time.time() - t, 1)}
+    return cached("couplings", p, run)
+
+
+# --------------------------------------------------------------------------------------------- SP-10.0
+PERSIST_RUN = {"profile": "balanced", "seed": 41, "days": 8, "replications": 3, "fork_day": 4}
+# entity kind -> state tables holding entities of that kind (Part 10.4: participants, organisations, relationships,
+# products, technologies, institutions; communities and content as well)
+ENTITY_TABLES = {
+    "organisations": ("orgs", "providers", "facilities"),
+    "relationships": ("forum_follows", "members", "social_edges", "follows"),
+    "products": ("products", "plans", "retail", "subscriptions"),
+    "technologies": ("designs", "machines", "deployments", "repos", "capabilities", "cap_decls", "process_notes",
+                     "sci_papers"),
+    "institutions": ("constitutions", "inst_charters", "civ_links"),
+    "communities": ("communities", "forum_boards"),
+    "content": ("content", "forum_posts"),
+}
+
+
+def _replicate_child(profile: str, seed: int, until: int) -> dict:
+    import subprocess
+    env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
+    code = ("import json,sys,torch; torch.set_num_threads(1); import crucible; crucible.load_all_modules(); "
+            "from crucible.civ import generator as g; "
+            f"w=g.generate({profile!r},{int(seed)}); w.advance_time({int(until)}); "
+            "print(json.dumps({'hash':w.last_hash,'digest':w.digest(),'seq':w.seq}))")
+    pr = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, timeout=3600)
+    if pr.returncode != 0:
+        return {"ok": False, "error": pr.stderr.decode(errors="replace")[-800:]}
+    return {"ok": True, **json.loads(pr.stdout.decode().strip().splitlines()[-1])}
+
+
+def _census(w) -> dict:
+    """{kind: {entity id: record digest}} (participants: per-individual digest of the population's own columns)."""
+    from ..core.canonical import digest
+    from ..substrate import columns
+    st = w.state
+    out: dict[str, dict] = {}
+    for kind, tables in ENTITY_TABLES.items():
+        d = {}
+        for t in tables:
+            if t in st.tables:
+                for k, r in st.scan(t):
+                    d[f"{t}:{k}"] = digest(dict(r), size=8)
+        out[kind] = d
+    if "pop" in columns.tables(w):
+        cols = [c for c in ("n_sessions", "satisfaction", "spent_cents", "last_activity") if
+                c in columns.tables(w)["pop"]["columns"]]
+        arr = [columns.col(w, "pop", c) for c in cols]
+        n = columns.rows(w, "pop")
+        out["participants"] = {f"p{i}": digest([float(a[i]) for a in arr], size=8) for i in range(n)}
+    # an organisation also evolves through its money: the balances of its accounts
+    bank = w.modules.get("bank")
+    if bank is not None:
+        for aid, a in st.scan("accounts"):
+            key = f"orgs:{a['owner']}"
+            if key in out["organisations"]:
+                out["organisations"][key] += f"|{bank.balance(st, aid)}"
+    return out
+
+
+def persistence(profile: str | None = None, seed: int | None = None, days: int | None = None) -> dict:
+    """SP-10.0 on one store-backed civilisation: forks (an unchanged fork reproduces its parent, an intervened one
+    diverges, the parent is untouched), the historical-query kinds of crucible.civ.history (each verified),
+    independent replications (fresh processes that rebuild the same spec and seed and must reach the same event hash
+    and state digest), entity kinds that persist and evolve, and the standalone (Mode A/B) worlds and Tier 3
+    profiles that training can draw from."""
+    import shutil
+    import torch
+    torch.set_num_threads(1)
+    from ..storage.sqlite import SQLiteStore
+    from . import couplings as C, generator, history, profiles as P
+    p = dict(PERSIST_RUN)
+    p.update({k: v for k, v in (("profile", profile), ("seed", seed), ("days", days)) if v is not None})
+    DAY = 86400
+
+    def run():
+        t = time.time()
+        wd = tempfile.mkdtemp(prefix="civ-sp100-")
+        try:
+            store = SQLiteStore(os.path.join(wd, "civ.sqlite"))
+            w = generator.generate(p["profile"], p["seed"], store=store, world_id="sp100")
+            w.snapshot()
+            w.advance_time(DAY)
+            day1 = {"hash": w.last_hash, "digest": w.digest(), "seq": w.seq}
+            w.snapshot()
+            c1 = _census(w)
+            w.advance_time(int(p["fork_day"]) * DAY)
+            w.snapshot()
+            # forks
+            before = w.digest()
+            f_same, f_int = w.fork("sp100-same"), w.fork("sp100-int")
+            C.remove(f_int, "goods_wom")
+            t_f = w.now + DAY
+            f_same.advance_time(t_f)
+            f_int.advance_time(t_f)
+            parent_untouched = w.digest() == before
+            w.advance_time(t_f)
+            forks = {"parent_untouched": parent_untouched, "unchanged_fork_equals_parent": f_same.digest() ==
+                     w.digest() and f_same.last_hash == w.last_hash, "intervened_fork_diverges":
+                     f_int.digest() != f_same.digest()}
+            forks["fork_divergence_supported"] = all(forks.values())
+            f_same.close()
+            f_int.close()
+            w.advance_time(int(p["days"]) * DAY)
+            w.snapshot()
+            c2 = _census(w)
+            hist = history.verify(w)
+            kinds = {}
+            for kind in sorted(set(c1) | set(c2)):
+                a, b = c1.get(kind, {}), c2.get(kind, {})
+                persisted = len(set(a) & set(b))
+                changed = sum(1 for k in set(a) & set(b) if a[k] != b[k])
+                new = len(set(b) - set(a))
+                kinds[kind] = {"at_day_1": len(a), "at_end": len(b), "persisted": persisted, "changed": changed,
+                               "new": new, "persists_and_evolves": persisted > 0 and (changed + new) > 0}
+            w.close()
+            reps = [_replicate_child(p["profile"], p["seed"], DAY) for _ in range(int(p["replications"]))]
+            rep_ok = [r for r in reps if r.get("ok") and r["hash"] == day1["hash"] and r["digest"] == day1["digest"]]
+            from ..substrate import modes as M
+            M.discover()
+            standalone = {}
+            for mode in ("A", "B"):
+                n = 0
+                for prov in M.providers(mode):
+                    try:
+                        n += len(prov.names())
+                    except Exception:  # noqa: BLE001 - a provider that cannot list counts as none
+                        pass
+                standalone[mode] = n
+            return {"params": p, "forks": forks, "fork_divergence_supported": forks["fork_divergence_supported"],
+                    "history": hist, "historical_query_kinds": hist["historical_query_kinds"],
+                    "replications": reps, "independent_replications": len(rep_ok), "day1": day1,
+                    "entity_kinds": kinds,
+                    "entity_kinds_persisting_and_evolving": sum(1 for v in kinds.values()
+                                                                if v["persists_and_evolves"]),
+                    "standalone_environments": standalone, "tier3_profiles": len(P.PROFILES),
+                    "wall_s": round(time.time() - t, 1)}
+        finally:
+            shutil.rmtree(wd, ignore_errors=True)
+    return cached("persistence", p, run)
+
+
+# --------------------------------------------------------------------------------------------- SP-19.3
+def vertical_slices() -> dict:
+    """SP-19.3: the seven Phase 3 vertical slices (crucible.civ.slices.run_all), executed and recorded."""
+    from . import slices
+    return cached("slices", {"civ": slices.CIV_RUN, "learner": slices.LEARNER_RUN,
+                             "rapid": list(slices.RAPID_FAMILIES)}, slices.run_all)
 
 
 # --------------------------------------------------------------------------------------------- O.7, SP-10.1
@@ -250,13 +521,14 @@ def _main(argv):
     if what == "experiment":          # one experiment into the cache: experiment <name> effect|chain
         from . import experiments as X
         kind = argv[2] if len(argv) > 2 else ("chain" if X.EXPERIMENTS[argv[1]].chain else "effect")
-        seeds = CHAIN_SEEDS if kind == "chain" else EFFECT_SEEDS
+        seeds = CHAIN_SEEDS if kind == "chain" else INVENTION_SEEDS if argv[1] == "invention" else EFFECT_SEEDS
         r = _safe(argv[1], kind, seeds)
         print(json.dumps({"experiment": argv[1], "confirmed": r.get("confirmed"), "error": r.get("error"),
                           "effects": r.get("effects")}, indent=1, default=str)[:20000])
         return 0
     fn = {"integration": integration, "effects": effects, "chains": chain_results, "structure": structure,
-          "long": long_horizon}[what]
+          "long": long_horizon, "couplings": couplings_battery, "persistence": persistence,
+          "invention": invention, "slices": vertical_slices}[what]
     r = fn()
     if what in ("effects", "chains"):
         r = {k: v for k, v in r.items() if k != "experiments"}
