@@ -38,6 +38,11 @@ MAX_INIT_CHUNK = 250_000
 SEGMENTS = ("casual", "enthusiast", "shopper", "social")
 DEFAULT_MIX = {"casual": 0.45, "enthusiast": 0.2, "shopper": 0.15, "social": 0.2}
 N_EMPLOYERS = 200
+# Triggered wake-ups are part of the population's public API (contract section 1: `wake`): any subsystem schedules
+# them through `wake`, which keeps the earliest pending wake-up and checks the activity; no module writes the two
+# columns directly except `pop` itself (which clears them when the wake-up fires).
+WAKE_INTERFACE = "pop.wake"
+columns.register_interface(WAKE_INTERFACE, ("wake_at", "wake_act"))
 
 
 # ============================================================================================ public API (contract 2)
@@ -98,7 +103,7 @@ def wake(ctx: Ctx, idx: np.ndarray, at: int, activity: str) -> None:
         return
     columns.batch(ctx, TABLE, "pop.wake", sel, {"wake_at": np.full(sel.size, at, np.int64),
                                                 "wake_act": np.full(sel.size, reg["spec"][activity]["slot"], np.int16)},
-                  extra={"activity": activity, "at": at})
+                  extra={"activity": activity, "at": at}, _iface=WAKE_INTERFACE)
 
 
 def class_members(world, cls: int) -> np.ndarray:
@@ -246,9 +251,19 @@ class Population(Module):
                     st.arrays[f"{TABLE}.{k}"][lo:hi] = v
 
     # ------------------------------------------------------------------ genesis and initial state
+    def check_habit_slots(self, world) -> None:
+        """Every registered activity needs a habit slot (column `habit`, H = dims.H): a world that registers more
+        activities than the profile has slots fails at creation instead of failing every tick."""
+        k = len(_registry(world)["order"])
+        if k > self.d["H"]:
+            raise ProtocolError(f"pop: {k} activities are registered ({', '.join(_registry(world)['order'])}) but the "
+                                f"population has {self.d['H']} habit slots; configure the pop module with "
+                                f"dims: {{H: >= {k}}}")
+
     def genesis(self, ctx):
         w = ctx.world
         n = self.prof["n"]
+        self.check_habit_slots(w)
         if self.prof["init"] == "batch":
             for lo in range(0, n, MAX_INIT_CHUNK):
                 hi = min(n, lo + MAX_INIT_CHUNK)
@@ -399,6 +414,7 @@ class Population(Module):
         """Activate `due`: session decision, activity choice, dispatch, then the recorded session batch."""
         w = ctx.world
         reg = _registry(w)
+        self.check_habit_slots(w)
         ds = w.runtime["pop.models"]
         c = lambda name: columns.col(w, TABLE, name)[due]  # noqa: E731
         bud = c("attention_budget_min").astype(np.float64)
