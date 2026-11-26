@@ -202,7 +202,9 @@ def _switch_tick(rng, H: int) -> float:
 AFTER = 100_000        # a tick after every timed switch (pricing the regime that comes later)
 
 
-@_pg("ch_sign_reversal", category="8.10", item="8.10.1", split="train",
+# evaluation split (D-9): its mechanism motif set equals the 4.0 sealed test family scm_regime's, so it may not
+# be trained on
+@_pg("ch_sign_reversal", category="8.10", item="8.10.1", split="val",
         doc="The key lever raises sales until a hidden tick; from then on the same lever lowers them, permanently. "
             "What used to work has to be abandoned.",
         distinct_because="compose chain with a timed regime switch spliced into the lever path (gain from positive "
@@ -330,6 +332,8 @@ def ch_demand_shift(rng, d):
     up = bool(rng.random() < 0.5)
     rg = c.splice(tot, "regime_change", {"before": 1.0, "after": u(rng, 1.6, 2.0) if up else u(rng, 0.4, 0.55),
                                          "at": _switch_tick(rng, H), "trig": 1e18}, trigger=[])
+    if up:                     # the capacity range can serve the shifted demand (capacity can follow it up)
+        c.set_params(cap_node, cap=2.0 * c.node(cap_node)["params"]["cap"])
     c.set_params(c.sold, half=u(rng, 30.0, 45.0))
     c.process_noise(u(rng, 0.8, 1.2), into=tot)
     c.set_lever(a, default=u(rng, 4.0, 6.0))
@@ -381,7 +385,8 @@ def ch_tech_transition(rng, d):
     return cfg
 
 
-@_pg("ch_rule_change", category="8.10", item="8.10.6", split="train",
+# evaluation split (D-9): its mechanism motif set equals the 4.0 sealed test family scm_regime's
+@_pg("ch_rule_change", category="8.10", item="8.10.6", split="val",
         doc="A platform ranks offers by one criterion until a hidden tick and by another from then on: the lever that "
             "earned visibility stops paying and the one that did not starts to.",
         distinct_because="compose chain split into two saturating paths with opposite timed regime switches at the "

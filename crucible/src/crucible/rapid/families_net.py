@@ -37,9 +37,20 @@ def _routing(rng, d, rewire: bool):
                     "away). Gauges: flow delivered, and the latency of each route."}
     cfg["income_cents_per_tick"] = int(cfg["price"] * (sum(c2) + 1)) + 1
     if rewire:
-        a2 = list(assign)
-        while a2 == assign:
-            a2 = [int(j) for j in rng.permutation(assign)]
+        # among a few random rewirings (permutations of the second-hop assignment) take the one that changes the
+        # routes' bottleneck capacities most - min(first hop, second hop shared by the routes using it) - so the
+        # change always moves where traffic should go
+        def caps(a):
+            n = [a.count(j) for j in range(J)]
+            return np.array([min(c1[k], c2[a[k]] / n[a[k]]) for k in range(K)])
+        best, a2 = -1.0, None
+        for _ in range(24):
+            cand = [int(j) for j in rng.permutation(assign)]
+            if cand == assign:
+                continue
+            ch = float(np.abs(caps(cand) - caps(assign)).sum())
+            if ch > best:
+                best, a2 = ch, cand
         cfg["assign2"] = a2
         cfg["rewire_at"] = int(rng.integers(int(d["horizon"]) // 3, 2 * int(d["horizon"]) // 3))
     return cfg

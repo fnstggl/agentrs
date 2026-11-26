@@ -62,11 +62,11 @@ EVALUATOR_MODULES = ("crucible.rapid.oracles", "crucible.rapid.admission", "cruc
                      "crucible.rapid.eval_experiment_lab", "crucible.rapid.evaluator_h2", "crucible.rapid.dominance",
                      "crucible.rapid.distinct", "crucible.rapid.goals_eval", "crucible.rapid.refs_h3",
                      "crucible.rapid.claims_h3", "crucible.rapid.refs_v2", "crucible.rapid.claims_v2",
-                     "crucible.rapid.twin")
+                     "crucible.rapid.twin", "crucible.rapid.categories")
 WORLD_MODULES = ("crucible.rapid.env", "crucible.rapid.engines", "crucible.rapid.families", "crucible.rapid.actions",
                  "crucible.rapid.observation", "crucible.rapid.mechview", "crucible.rapid.batch",
                  "crucible.rapid.program", "crucible.rapid.generator", "crucible.rapid.primitives",
-                 "crucible.rapid.goals")
+                 "crucible.rapid.goals", "crucible.rapid.vec")
 
 # config keys that hold hidden answers, by engine (numbers under them must never reach a participant)
 SECRET_KEYS = {

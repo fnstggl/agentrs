@@ -302,7 +302,7 @@ def reference_rule_induction(view, env) -> None:
 
 def identify_rule_induction(env) -> dict:
     c = env._config
-    f = ri_fit(PublicView(env), c, scan=13, extra=1)
+    f = ri_fit(PublicView(env), c)                 # the reference's own probe design (a public procedure)
     th = c["hidden"]["theta"]
     return {"question": "where the response to the first field starts to bend", "estimate": f["theta"],
             "truth": float(th), "ok": bool(abs(f["theta"] - th) <= 0.75)}
@@ -452,23 +452,49 @@ def dead_time_exact(env) -> dict:
             "dead_time": L}
 
 
+def _ultimate_gain(G: float, tau: float, L: int) -> float:
+    """The proportional gain at which the linearised loop e[k+1] = e[k] + (-G K e[k-L] - e[k]) / tau stops being
+    stable (bisection on the growth of a unit deviation over 600 inner steps; evaluator side, hidden plant)."""
+    def grows(K):
+        e = [1.0] * (L + 1)
+        for _ in range(600):
+            e.append(e[-1] + (-G * K * e[-1 - L] - e[-1]) / tau)
+            if abs(e[-1]) > 1e6:
+                return True
+        return max(abs(x) for x in e[-60:]) > 0.5
+    lo, hi = 0.0, 1.0 / G
+    while not grows(hi) and hi < 1e4:
+        lo, hi = hi, 2 * hi
+    for _ in range(40):
+        mid = (lo + hi) / 2
+        lo, hi = (lo, mid) if grows(mid) else (mid, hi)
+    return hi
+
+
 def aggressive_gain_oscillates(env) -> dict:
-    """With the delay in the loop, a high-gain proportional controller oscillates and tracks far worse than a
-    dead-time compensating controller on the same plant and noise."""
+    """The dead time is what makes high-gain feedback fail: a proportional gain a quarter above the delayed loop's
+    ultimate gain (where it stops being stable) - a gain the same plant without its dead time tolerates - tracks
+    the setpoint far worse with the plant's dead time in the loop than on a counterfactual copy of the plant whose
+    dead time is removed, on the same noise (evaluator side)."""
     c, h = env._config, env._config["hidden"]
-    src = consts(G=h["G"], KP=3.0 / h["G"], UMAX=c["umax"]) + """
+    ku = _ultimate_gain(h["G"], h["tau"], int(h["L"]))
+    kp = 1.25 * ku
+    ku0 = _ultimate_gain(h["G"], h["tau"], 0)
+    src = consts(G=h["G"], KP=kp, UMAX=c["umax"]) + """
 def act(obs, caller):
     r = obs["setpoint"]
     return {"u": max(0.0, min(UMAX, r / G + KP * (r - obs["reading"])))}
 """
     err = {}
-    for lab, s in (("aggressive_p", src), ("smith_predictor", smith_source(c, h["G"], h["tau"], h["L"], 3.0))):
+    for lab, L in (("with_dead_time", int(h["L"])), ("dead_time_removed", 0)):
         e = fork(env)
-        e.step({"kind": "program", "source": s, "ticks": 6})
+        e._engine.sc.h["L"] = L
+        e.step({"kind": "program", "source": src, "ticks": 6})
         for _ in range(5):
             e.step(None)
         err[lab] = e._state["err"] / max(1, e._state["steps"])
-    return {"ok": bool(err["aggressive_p"] > 1.5 * err["smith_predictor"]), "mean_abs_error": err}
+    return {"ok": bool(kp < ku0 and err["with_dead_time"] > 1.5 * err["dead_time_removed"]), "mean_abs_error": err,
+            "gain": kp, "ultimate_gain_with_dead_time": ku, "ultimate_gain_without": ku0, "dead_time": int(h["L"])}
 
 
 # ====================================================================== contention
@@ -639,16 +665,32 @@ def reference_stream(view, env) -> None:
 
 
 def identify_stream(env) -> dict:
-    """Which sensor drifts fastest: the audits' residual (reading minus true value) of each sensor changes most
-    from tick to tick."""
+    """Which sensor drifts fastest: from the daily audits (the true value of one sample and every sensor's reading
+    of it), each sensor's residual (reading minus true value) is followed over the episode; a sensor whose reading
+    stops changing has stuck, and only its ticks before that count. The drift speed is estimated from how much
+    faster the residual spreads over five ticks than over one (a random walk's increments add up, measurement noise
+    does not), so noise does not masquerade as drift."""
     view = PublicView(env)
-    res = []
-    while not view.done and view.t < 15:
+    res, raw = [], []
+    while not view.done and view.t < view.horizon - 1:
         r = view.step(None)
         n = r["observation"]["numbers"]
-        res.append(np.asarray(r["observation"]["arrays"]["audit_readings"]) - n["audit_value"])
-    d = np.abs(np.diff(np.asarray(res), axis=0)).mean(axis=0)
-    est = int(np.argmax(d))
+        a = np.asarray(r["observation"]["arrays"]["audit_readings"], dtype=float)
+        raw.append(a)
+        res.append(a - n["audit_value"])
+    R, A = np.asarray(res), np.asarray(raw)
+    speed_est = []
+    for i in range(R.shape[1]):
+        stuck = np.nonzero(np.abs(np.diff(A[:, i])) < 1e-9)[0]
+        end = int(stuck[0]) + 1 if len(stuck) else len(A)
+        r = R[:end, i]
+        if len(r) < 8:
+            speed_est.append(-np.inf)
+            continue
+        v1 = float(np.var(np.diff(r)))
+        v5 = float(np.var(r[5:] - r[:-5]))
+        speed_est.append(max(v5 - v1, 0.0) / 4.0)
+    est = int(np.argmax(speed_est))
     h = env._config["hidden"]
     speed = np.asarray(h["o_sd"]) + env._config["mean"] * np.asarray(h["g_sd"])
     top2 = [int(i) for i in np.argsort(-speed)[:2]]
@@ -865,33 +907,39 @@ def identify_fleet(env) -> dict:
 
 
 def service_pays_later(env) -> dict:
-    """Same noise, one copy services the most worn working machines now: it loses output immediately and gains
-    later, through failures that do not happen (summed over three noise replicates of the world)."""
+    """Same noise (common random numbers), one copy services the three most worn working machines now, the other
+    does not: servicing costs output at once (the mean immediate revenue change is negative), and the serviced
+    machines fail less often afterwards (their failures over the next 15 ticks, summed over six noise replicates
+    of the world). Failures of the other machines are not counted: they see the same draws in both copies."""
     from .env import Env
     c = env._config
+    names = list(c["machine_names"])
     imm, fail_a, fail_b = [], 0, 0
-    for r in range(3):
+
+    def failed(r, who):
+        return sum(1 for x in r["observation"]["text"] if x.endswith(" failed") and x[:-7] in who)
+    for r in range(6):
         base = env if r == 0 else Env(env.family, env.seed, env._config, env.difficulty,
                                       world_seed=env.world_seed + 104729 * r)
         e0 = fork(base)
         for _ in range(4):
             e0.step(None)
-        worn = sorted(range(len(c["machine_names"])), key=lambda i: -e0._state["w"][i])
+        worn = sorted(range(len(names)), key=lambda i: -e0._state["w"][i])
         worn = [i for i in worn if e0._state["down"][i] == 0][:3]
+        who = {names[i] for i in worn}
         a, b = fork(e0), fork(e0)
         for i in worn:
-            ra = a.step({"kind": "discrete", "decision": "service", "choice": c["machine_names"][i]})
+            ra = a.step({"kind": "discrete", "decision": "service", "choice": names[i]})
             rb = b.step(None)
             imm.append(ra["observation"]["resources"]["revenue_cents_last_tick"] -
                        rb["observation"]["resources"]["revenue_cents_last_tick"])
-        fa0, fb0 = a._state["failures"], b._state["failures"]
+            fail_a += failed(ra, who)
+            fail_b += failed(rb, who)
         for _ in range(15):
-            a.step(None)
-            b.step(None)
-        fail_a += a._state["failures"] - fa0
-        fail_b += b._state["failures"] - fb0
-    return {"ok": bool(all(x < 0 for x in imm) and fail_a < fail_b), "immediate_revenue_change": imm,
-            "failures_after_service": fail_a, "failures_without": fail_b}
+            fail_a += failed(a.step(None), who)
+            fail_b += failed(b.step(None), who)
+    return {"ok": bool(np.mean(imm) < 0 and fail_a < fail_b), "mean_immediate_revenue_change": float(np.mean(imm)),
+            "serviced_machine_failures_after_service": fail_a, "serviced_machine_failures_without": fail_b}
 
 
 def vibration_tracks_wear(env) -> dict:
@@ -1137,29 +1185,40 @@ def identify_rollout(env) -> dict:
 
 def adoption_is_delayed(env) -> dict:
     """Exposed users of a ready group (its adopter share set above its readiness level, as the controlled
-    condition) pay nothing in the tick they are exposed (same noise, with and without the exposures); their
-    subscriptions arrive ticks later."""
+    condition) pay nothing in the tick they are exposed (same noise, with and without the exposures: revenue is no
+    higher than without them) and are all pending; those who adopt do so ticks later, at different delays (four noise replicates of the world). Revenue
+    is not compared beyond the exposure tick: unexposed users can adopt by word of mouth in the other copy."""
+    from .env import Env
     c, h = env._config, env._config["hidden"]
-    a, b = fork(env), fork(env)
     k = 0
     g = c["group_names"][k]
     idx = [i for i, u in enumerate(c["users"]) if u["group"] == g]
     want = int(np.ceil(h["tau"][k] * len(idx))) + 1
-    for e in (a, b):
-        for j, i in enumerate(idx):
-            e._state["status"][i] = 2 if j < want else 0
-    ids = [i for i in idx[want:] if a._state["status"][i] == 0][:int(c["capacity"])]
-    ra = a.step(expose_ids(ids))
-    rb = b.step(None)
-    same_now = ra["observation"]["resources"]["revenue_cents_last_tick"] == \
-        rb["observation"]["resources"]["revenue_cents_last_tick"]
-    pending = sum(1 for i in ids if a._state["status"][i] == 1)
-    later = []
-    for _ in range(12):
-        later.append(a.step(None)["observation"]["resources"]["revenue_cents_last_tick"] -
-                     b.step(None)["observation"]["resources"]["revenue_cents_last_tick"])
-    return {"ok": bool(ids and same_now and pending == len(ids) and max(later) > 0), "exposed": len(ids),
-            "revenue_gain_later": later}
+    same_all, pending_all, delays, exposed = True, True, [], 0
+    for r in range(4):
+        base = env if r == 0 else Env(env.family, env.seed, env._config, env.difficulty,
+                                      world_seed=env.world_seed + 104729 * r)
+        a, b = fork(base), fork(base)
+        for e in (a, b):
+            for j, i in enumerate(idx):
+                e._state["status"][i] = 2 if j < want else 0
+        ids = [i for i in idx[want:] if a._state["status"][i] == 0][:int(c["capacity"])]
+        exposed += len(ids)
+        ra = a.step(expose_ids(ids))
+        rb = b.step(None)
+        # no exposed user pays in the exposure tick (in the other copy some of them may adopt by word of mouth)
+        same_all &= ra["observation"]["resources"]["revenue_cents_last_tick"] <= \
+            rb["observation"]["resources"]["revenue_cents_last_tick"]
+        pending_all &= all(a._state["status"][i] == 1 for i in ids)
+        seen = set()
+        for d in range(1, 13):
+            a.step(None)
+            for i in ids:
+                if i not in seen and a._state["status"][i] == 2:
+                    seen.add(i)
+                    delays.append(d)
+    return {"ok": bool(exposed and same_all and pending_all and len(delays) >= 2 and len(set(delays)) >= 2),
+            "exposed": exposed, "adopted_later": len(delays), "adoption_delays": sorted(delays)}
 
 
 def unready_groups_reject(env) -> dict:

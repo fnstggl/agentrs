@@ -405,15 +405,38 @@ def drift_direction(env) -> dict:
 
 
 def demand_shift(env) -> dict:
-    """The marginal value of capacity jumps at the hidden tick, in the claimed direction (forks)."""
+    """At the hidden tick demand shifts in the claimed direction and capacity has to follow (forks, common noise):
+    with capacity held at its top (so demand binds) the customers served jump by more than 30% at the tick, and the
+    capacity setting that earns most (net income per tick, over a grid of held capacities) is higher after the
+    shift than before it for an upward shift, lower for a downward one."""
     cl = env._config["claim"]
     A, B = _lname(env, cl["lever"]), _lname(env, cl["second"])
     at = _at(env, cl["regime"])
-    x = float(cl["capacity_before"])
-    before, after = _split_effect(env, {A: x + 3.0, B: 2.0}, {A: x, B: 2.0}, cl["outcome"], at, settle=4)
-    ok = after > 1.3 * before if cl["direction"] == "up" else after < 0.7 * before
-    return {"ok": bool(ok and before > 0), "capacity_effect_before": before, "capacity_effect_after": after,
-            "direction": cl["direction"], "switch_tick": at}
+    T = env.horizon
+    t = np.arange(T)
+    pre, post = (t >= 4) & (t < at), t >= at + 4
+    lv = env._engine.public_levers()
+    top = float(next(x["max"] for x in lv if x["name"] == A))
+    served = _series(env, _hold({A: top, B: 2.0}), T, cl["outcome"])
+    jump = float(served[post].mean() / max(served[pre].mean(), 1e-9))
+
+    def net_series(cap):
+        e = fork(env)
+        out = []
+        for _ in range(T):
+            r = e.step({"kind": "levers", "values": {A: cap, B: 2.0}})
+            out.append(_rev(r["observation"]) - float(r["observation"]["resources"].get("cost_cents_last_tick", 0.0)))
+        return np.asarray(out)
+    grid = [float(x) for x in np.linspace(1.0, top, 10)]
+    nets = [net_series(cap) for cap in grid]
+    best_before = grid[int(np.argmax([n[pre].mean() for n in nets]))]
+    best_after = grid[int(np.argmax([n[post].mean() for n in nets]))]
+    if cl["direction"] == "up":
+        ok = jump > 1.3 and best_after > best_before
+    else:
+        ok = jump < 0.7 and best_after < best_before
+    return {"ok": bool(ok), "served_after_over_before_at_top_capacity": jump, "best_capacity_before": best_before,
+            "best_capacity_after": best_after, "direction": cl["direction"], "switch_tick": at}
 
 
 def shift_direction(env) -> dict:

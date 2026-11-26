@@ -128,8 +128,12 @@ def market_signature(env) -> dict:
     late = fork(env)
     for _ in range(45):
         late.step({"kind": "levers", "values": {P: 9.0}})
-    early_eff = _units(env, 6.0) - _units(env, 3.0)
-    late_eff = _units(env, 6.0, start=late) - _units(env, 3.0, start=late)
+    # the price effect is measured on either side of the conversion curve's hidden midpoint, where it is steepest
+    # (two fixed prices can both sit on a flat, saturated stretch and hide a change of sensitivity)
+    m = float(cfg["claim"].get("mid", 4.5))
+    p_lo, p_hi = max(1.0, m - 0.75), min(10.0, m + 0.75)
+    early_eff = _units(env, p_hi) - _units(env, p_lo)
+    late_eff = _units(env, p_hi, start=late) - _units(env, p_lo, start=late)
     drift = early_eff < 0 and late_eff < 2.0 * early_eff
     sig = "gate" if gated else ("signal" if interior_peak else ("drift" if drift else
                                                                ("elastic" if decreasing else "none")))

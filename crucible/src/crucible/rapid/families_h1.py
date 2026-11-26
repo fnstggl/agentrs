@@ -86,7 +86,7 @@ def pe_rule_induction(rng, d):
     hid = {"theta": u(rng, 3.0, 7.0), "k1": u(rng, 0.5, 1.5), "k2": u(rng, 0.12, 0.3), "p": u(rng, 1.5, 2.5),
            "off": [u(rng, -3.0, 3.0) for _ in range(3)], "slope": [u(rng, 0.3, 1.5) for _ in range(3)]}
     hid["validation"] = [rec(0, 10, 0, 5) for _ in range(30)]
-    hid["holdout"] = [rec(7, 15, 2, 7) for _ in range(50)]
+    hid["holdout"] = [rec(10.5, 15, 2, 7) for _ in range(50)]        # beyond the probe box in the first field
     cfg = {"engine": "program_exec", "scenario": "rule_induction", "horizon": int(d["horizon"]), "fields": fields,
            "categories": cats, "box": box, "probe_cost": float(d["experiment_cost"]), "submit_cost": 4.0,
            "budget": float(d["resources"]), "probe_sd": 0.25 * float(d["observation_noise"]), "tol": 0.3,
@@ -343,7 +343,7 @@ def lab_kinetics(rng, d):
                instruments={"probe": {"cost": 1.0, "measures": [species[1]], "sd": round(0.02 * noise, 6)},
                             "chromatograph": {"cost": 4.0, "measures": list(species), "sd": round(0.006 * noise, 6)}},
                heldout=heldout, tol=0.01, hidden=hid)
-    cfg["objective"] = {"type": "predict_heldout", "quantity": species[1],
+    cfg["objective"] = {"type": "predict_heldout", "scoring": "gaussian_tolerance", "quantity": species[1],
                         "text": f"Predict the noise-free concentration of {species[1]} at these conditions "
                                 f"(loads, and one temperature, beyond what you can set; 'time' is the sampling "
                                 f"time; a prediction is judged with tolerance 0.01): {heldout}. "
@@ -375,7 +375,7 @@ def lab_drift_blanks(rng, d):
                vars=[{"name": nx, "min": 0.0, "max": 4.0, "default": 0.0}], quantity=q, monitor_name=mon,
                max_replicates=6, instruments={"meter": {"cost": 1.0, "measures": [q], "sd": round(0.15 * noise, 6)}},
                heldout=heldout, tol=0.08, hidden=hid)
-    cfg["objective"] = {"type": "predict_heldout", "quantity": q,
+    cfg["objective"] = {"type": "predict_heldout", "scoring": "gaussian_tolerance", "quantity": q,
                         "text": f"Predict the drift-free effect on {q} (reading minus a blank's reading in the "
                                 f"same tick, without noise) at these doses: {heldout}. " + JOURNAL}
     cfg["brief"] = (f"A meter reads {q} of a preparation at dose {nx} (0-4). Its baseline may move between "

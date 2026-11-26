@@ -85,6 +85,13 @@ class GraphDynamical(RapidEngine):
         self.noise = st("noise")
         self.w_default = np.asarray([x["w_default"] for x in cfgs], dtype=float)
         self.n_normal = self.K + 2
+        agg = {bool(x.get("aggregate_only")) for x in cfgs}
+        if len(agg) > 1:
+            raise ValueError("batched routing instances differ in their measurement channel")
+        # aggregate_only: end-to-end measurement only - delivered flow and the flow-weighted mean latency, never a
+        # route's own latency (network tomography); computed here so the batch and single paths agree
+        self.aggregate = agg.pop()
+        self.n_read = 2 if self.aggregate else self.K + 1
 
     @classmethod
     def batch(cls, configs: list[dict]) -> "GraphDynamical":
@@ -94,7 +101,7 @@ class GraphDynamical(RapidEngine):
         B = self.B if B is None else B
         return {"q1": np.zeros((B, self.K)), "q2": np.zeros((B, self.J)), "o1": np.zeros((B, self.K)),
                 "dem": np.zeros(B) + self.d_mean, "w": np.zeros((B, self.K)) + self.w_default,
-                "delivered": np.zeros(B), "arrived": np.zeros(B), "read": np.zeros((B, self.K + 1))}
+                "delivered": np.zeros(B), "arrived": np.zeros(B), "read": np.zeros((B, self.n_read))}
 
     def draw(self, rng, B=1):
         return rng.standard_normal(self.n_normal * B).reshape(B, self.n_normal), np.zeros((B, 0))
@@ -127,6 +134,11 @@ class GraphDynamical(RapidEngine):
         read = np.empty((dem.shape[0], self.K + 1))
         read[:, 0] = deliv + self.noise * 10.0 * z[:, 1]
         read[:, 1:] = lat1 + lat2 + self.noise[:, None] * z[:, 2:]
+        if self.aggregate:
+            fs = flow.sum(axis=1)
+            mean_lat = np.where(fs > 0, (flow * read[:, 1:]).sum(axis=1) / np.where(fs > 0, fs, 1.0),
+                                read[:, 1:].mean(axis=1))
+            read = np.stack([read[:, 0], mean_lat], axis=1)
         st.update(q1=q1, q2=q2, o1=o1, delivered=st["delivered"] + deliv, arrived=arrived, read=read)
         rev = self.price * deliv
         cost = (self.toll * flow).sum(axis=1) + self.hold * (q1.sum(axis=1) + q2.sum(axis=1))
@@ -246,15 +258,7 @@ class GraphDynamical(RapidEngine):
         r = self.batch_step(st, z, u, t)
         c = self.config
         a = self.agents[0]
-        if c.get("aggregate_only"):
-            # end-to-end measurement only: delivered flow and the flow-weighted mean latency, no per-route latency
-            # (the routes' own latencies stay hidden, as in network tomography)
-            f = r["flow"][0]
-            lat = r["readings"][0, 1:]
-            mean_lat = float((f * lat).sum() / f.sum()) if f.sum() > 0 else float(lat.mean())
-            nums = {c["gauge_names"][0]: float(r["readings"][0, 0]), c["gauge_names"][1]: mean_lat}
-        else:
-            nums = {c["gauge_names"][k]: float(r["readings"][0, k]) for k in range(self.K + 1)}
+        nums = {c["gauge_names"][k]: float(r["readings"][0, k]) for k in range(self.n_read)}
         return {"obs": {a: {"numbers": nums}}, "revenue": {a: float(r["revenue"][0])},
                 "cost": {a: float(r["cost"][0])}, "info": {"delivered": float(r["delivered"][0])}}
 
@@ -448,6 +452,13 @@ class GraphDynamical(RapidEngine):
             # reconnects a pair given the other failures
             m = {"threshold", "state_dependent_effect"}
         return sorted(m)
+
+    def observation_channels(self):
+        c = self.config
+        if self.sc == "routing":
+            # route latencies (or, with aggregate_only, only the flow-weighted mean over the routes) carry noise
+            return sorted({"noisy"} | ({"aggregated"} if c.get("aggregate_only") else set()))
+        return []
 
     def outcome(self, state, ledger):
         a = self.agents[0]

@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from typing import Any
 
-FP_VERSION = "rapid-fp/2"
+FP_VERSION = "rapid-fp/3"
 WEIGHTS = {"engine": 1.0, "motifs": 2.0, "motif_edges": 1.0, "topology": 1.0, "temporal": 1.0, "observation": 1.0,
            "action_interface": 1.5, "objective": 1.0, "participants": 0.5}
 PROBE_SEEDS = tuple(range(8))      # instances whose structures are united into the family's fingerprint
@@ -153,7 +153,7 @@ def instance_fingerprint(env) -> dict:
         lags = {("lagged" if int(e.get("lag", 0) or 0) > 0 else "instant") for e in edges} or {"instant"}
         temporal.update(lags=sorted(lags), stateful=bool(motifs & STATEFUL),
                         regimes=bool(tr.get("regimes")) or "regime_change" in motifs)
-        obs = _observed_structure(env)
+        obs = {"channels": sorted(eng.observation_channels()), **_observed_structure(env)}
     kinds_offered: set[str] = set()
     for a in eng.agents:
         sp = eng.action_space(a)
@@ -184,10 +184,11 @@ def _observed_structure(env) -> dict:
         if not e.done:
             obs.append(e.step(None)["observation"])
     return {"readings": any(o["numbers"] for o in obs), "arrays": any(o["arrays"] for o in obs),
-            # entity kinds listed from the start (a catalogue the world shows); kinds that come and go with events
-            # (a job waiting, a trip) depend on what happens, so only whether entities appear at all counts
+            # entity kinds listed from the start (a catalogue the world shows); entities that come and go with
+            # events (a job waiting, a unit tripping) depend on what happens - on coefficients - so they are not
+            # structure (a parameter variant once differed from its family only in whether a trip happened in
+            # the first ticks)
             "entities": sorted({str(x.get("kind") or "entity") for x in obs[0]["entities"]}),
-            "event_entities": any(o["entities"] for o in obs[1:]),
             "resources": sorted({_resource_kind(k) for o in obs for k in o["resources"]})}
 
 
@@ -390,10 +391,11 @@ LEVER_LIKE = {"levers", "sequence", "discrete"}
 
 
 def legacy_recreation(fp: dict) -> dict:
-    """D-9 at the mechanism level, for a v5 training family's fingerprint. `recreates`: 4.0 sealed test families
-    whose mechanism the v5 family reproduces - the same mechanism motif set in the shared vocabulary (observation
-    channels aside) offered through a lever-like interface (levers, discrete settings, sequences and queries only)
-    - so a learner trained on it would meet that sealed mechanism again. `exposes_novel`: 4.0 validation or test
+    """D-9 at the mechanism level, for a v5 training family's fingerprint. `recreates`: 4.0 validation and sealed
+    test families whose mechanism the v5 family reproduces - the same mechanism motif set in the shared vocabulary
+    (observation channels aside) offered through a lever-like interface (levers, discrete settings, sequences and
+    queries only) - so a learner trained on it would meet that held-out mechanism again (D-9 covers both 4.0
+    held-out splits). `exposes_novel`: 4.0 validation or test
     families whose held-out motifs the v5 family contains at all (recorded: the 4.0 split no longer holds those
     motifs out for a learner trained on v5-train)."""
     mech = set(fp["motifs"]) - CHANNEL_PRIMS
@@ -403,6 +405,6 @@ def legacy_recreation(fp: dict) -> dict:
         lm = set(rec["motifs"]) - CHANNEL_PRIMS
         if rec["novel"] and set(rec["novel"]) <= mech:
             exposes.append(name)
-        if rec["split"] == "test" and lm and mech == lm and iface <= LEVER_LIKE:
+        if lm and mech == lm and iface <= LEVER_LIKE:
             recreates.append(name)
     return {"recreates": sorted(recreates), "exposes_novel": sorted(exposes)}

@@ -267,7 +267,83 @@ def _interface_check(fa: str, fb: str) -> dict | None:
 LOOKALIKE = {"mk_elastic", "mk_signal", "mk_gate", "mk_drift"}
 # pairwise difference protocols: families whose difference a dedicated intervention shows (evaluator side,
 # "module:function" taking a seed and returning {"ok", ...})
-PAIR_PROTOCOLS: dict[frozenset, str] = {}
+PAIR_PROTOCOLS: dict[frozenset, str] = {
+    frozenset(("sci_dose_response", "sci_competing_hypotheses")): "crucible.rapid.distinct:law_turns_over",
+    frozenset(("des_inventory", "des_perishable")): "crucible.rapid.distinct:overstock_expires",
+    frozenset(("net_routing", "net_topology_shift")): "crucible.rapid.distinct:latency_profile_changes",
+}
+
+
+def _expired_after_overstock(family: str, seed: int) -> int:
+    """Units that expired after the order lever was held at its top for three ticks and the world then left alone
+    to the horizon (evaluator side: the engine's expiry count)."""
+    env = make(family, seed)
+    sp = env.action_space()
+    props = sp.kinds["levers"]["properties"]["values"]["properties"]
+    name = sorted(props)[0]
+    for _ in range(3):
+        env.step({"kind": "levers", "values": {name: float(props[name]["maximum"])}})
+    while not env.done:
+        env.step({"kind": "levers", "values": {name: 0.0}})
+    return int(env._state.get("expired", 0))
+
+
+def overstock_expires(seed: int) -> dict:
+    """des_inventory vs des_perishable (fingerprints differ in a decay motif): the same intervention - order the
+    most for three ticks, then nothing - leaves expired units in the perishable world and none in the other."""
+    a, b = _expired_after_overstock("des_perishable", seed), _expired_after_overstock("des_inventory", seed)
+    return {"ok": a > 0 and b == 0, "expired_perishable": a, "expired_inventory": b}
+
+
+def _latency_shift(family: str, seed: int) -> float:
+    """Largest change, between the first and the last third of the episode, of a route's mean latency relative to
+    the mean over routes, with the traffic split held even (public readings; the same intervention in any routing
+    world)."""
+    env = make(family, seed)
+    sp = env.action_space()
+    names = sorted(sp.kinds["levers"]["properties"]["values"]["properties"])
+    rows = []
+    while not env.done:
+        r = env.step({"kind": "levers", "values": {n: 1.0 / len(names) for n in names}})
+        rows.append(list(r["observation"]["numbers"].values())[1:])
+    R = np.asarray(rows, dtype=float)
+    k = len(R) // 3
+    e, l_ = R[3:k].mean(axis=0), R[-k:].mean(axis=0)
+    return float(np.max(np.abs(l_ / max(l_.mean(), 1e-9) - e / max(e.mean(), 1e-9))))
+
+
+def latency_profile_changes(seed: int) -> dict:
+    """net_routing vs net_topology_shift (fingerprints differ in a regime change of the network): under an even
+    split held for the whole episode, the routes' relative latencies change between the first and last third in
+    the rewired network, by far more than in the static one."""
+    a, b = _latency_shift("net_topology_shift", seed), _latency_shift("net_routing", seed)
+    return {"ok": a > 3.0 * b and a > 0.1, "relative_latency_change_shift": a, "relative_latency_change_static": b}
+
+
+def _law_shape(family: str, seed: int) -> dict:
+    """The noise-free law of a prediction world along its first setting (second setting at its minimum), from the
+    settable range out to twice its top - a controlled intervention beyond what any participant can set (evaluator
+    side): whether the response turns over (falls by more than 2% of its range after its maximum)."""
+    from .engines.primitive_graph import true_response
+    env = make(family, seed)
+    eng = env._engine
+    lv = eng.public_levers()
+    a, b = lv[0], lv[1]
+    xs = np.linspace(a["min"], 2.0 * a["max"], 25)
+    y = np.asarray(true_response(eng, [{a["name"]: float(x), b["name"]: float(b["min"])} for x in xs],
+                                 env._config["objective"]["gauge"]), dtype=float)
+    k = int(np.argmax(y))
+    drop = float(y[k] - y[k:].min())
+    return {"turns_over": bool(drop > 0.02 * (np.ptp(y) + 1e-9)), "argmax": float(xs[k]), "drop": drop}
+
+
+def law_turns_over(seed: int) -> dict:
+    """sci_dose_response vs sci_competing_hypotheses: both are prediction worlds with two settings whose fingerprints
+    differ in their motifs (a rise-and-fall response vs a saturating or power law). Verified when, driven past the
+    settable range, the dose world's law turns over and the hypotheses world's law (either hypothesis) does not."""
+    d = _law_shape("sci_dose_response", seed)
+    h = _law_shape("sci_competing_hypotheses", seed)
+    return {"ok": d["turns_over"] and not h["turns_over"], "dose": d, "hypotheses": h}
 
 
 def _observation_check(fa: str, fb: str) -> dict | None:

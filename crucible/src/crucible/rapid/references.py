@@ -131,8 +131,12 @@ def science_additive(view, env, x1, x2, g):
 
 
 def field(view, env):
-    G = env._config["G"]
-    dig_cost = env._config["dig_cost"]
+    """Probe a coarse lattice of the field, then dig the best estimated cells while they promise more than one and
+    a half digs' cost, probing the neighbours of each dug cell. The grid size is read from the public cell names;
+    the cost of a dig is learned from the money the first dig cost (it is not announced)."""
+    cells = view.action_space().limits["decisions"]["dig"]
+    G = 1 + max(max(int(a), int(b)) for a, b in (c[1:].split("_") for c in cells))
+    dig_cost = None
     est = {}
     for x in range(0, G, 2):
         for y in range(0, G, 2):
@@ -144,9 +148,11 @@ def field(view, env):
     dug = set()
     while not view.done:
         best = max((c for c in est if c not in dug), key=lambda c: est[c], default=None)
-        if best is None or est[best] < 1.5 * dig_cost:
+        if best is None or (dig_cost is not None and est[best] < 1.5 * dig_cost):
             break
-        view.step({"kind": "discrete", "decision": "dig", "choice": cell_name(*best)})
+        r = view.step({"kind": "discrete", "decision": "dig", "choice": cell_name(*best)})
+        if dig_cost is None and r["result"]["ok"]:
+            dig_cost = float(r["observation"]["resources"].get("cost_cents_last_tick", 0.0))
         dug.add(best)
         for dx, dy in ((1, 0), (0, 1), (-1, 0), (0, -1)):
             nb = (best[0] + dx, best[1] + dy)

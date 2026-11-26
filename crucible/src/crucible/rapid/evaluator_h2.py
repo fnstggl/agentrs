@@ -197,19 +197,21 @@ def claim_distribution(env) -> dict:
     hi, lo = int(np.argmax(c["lam"])), int(np.argmin(c["lam"]))
     sold = {}
     for lab, i in (("high", hi), ("low", lo)):
-        # ship the same 20 units to one site and count what that site sells over the next twelve ticks, relative
-        # to not shipping (same noise): the extra sales the shipment makes there
-        e, f = fork(env), fork(env)
-        e.step({"kind": "allocate", "amounts": {c["site_names"][i]: 20.0}})
-        f.step(None)
+        # ship the same 20 units to one site and count the extra sales that site makes over the next four ticks,
+        # relative to not shipping on the same noise, summed over four noise replicates: the extra stock sells
+        # as fast as the site's demand allows
         key = f"{c['site_names'][i]}.sold"
-        per = []
-        for k in range(30):
-            per.append(nums(e.step(None)["observation"]).get(key, 0.0) -
-                       nums(f.step(None)["observation"]).get(key, 0.0))
-        # once the shipment has arrived, the site sells the extra stock at the rate its demand allows: the
-        # largest per-tick extra sale over the next ticks (averaged over the best three) measures that rate
-        sold[lab] = float(np.mean(sorted(per)[-3:]))
+        tot = 0.0
+        for r in range(4):
+            base = replicate(env, r)
+            for _ in range(3):                # the sites sell down their opening stock first
+                base.step(None)
+            e, f = fork(base), fork(base)
+            e.step({"kind": "allocate", "amounts": {c["site_names"][i]: 20.0}})
+            f.step(None)
+            for k in range(4):            # short enough that the extra stock is not sold out at either site
+                tot += nums(e.step(None)["observation"]).get(key, 0.0) - nums(f.step(None)["observation"]).get(key, 0.0)
+        sold[lab] = tot / 16.0
     return {"ok": first == int(c["lead"]) and sold["high"] > sold["low"], "lead": int(c["lead"]),
             "first_difference_at": first, "extra_sales_rate_high_demand_site": sold["high"],
             "extra_sales_rate_low_demand_site": sold["low"]}
@@ -1173,18 +1175,29 @@ def claim_price_war(env) -> dict:
     def pu(e):
         d = float(c["temp"]) * (e._state["V"][0][1] - e._state["V"][0][0])
         return 1.0 / (1.0 + math.exp(-max(-30.0, min(30.0, d))))
-    a, b = fork(env), fork(env)
-    for _ in range(30):
-        a.step(_pw_price(c, 16.0))
-        cut = b.t > 0 and b._state["modes"][0] == 1
-        b.step(_pw_price(c, 11.0 if cut else 16.0))
-    passive, retaliate = pu(a), pu(b)
+    from .env import Env
+    pa, pb = [], []
+    for r in range(3):                       # three noise replicates; within each, the same noise for both copies
+        base = env if r == 0 else Env(env.family, env.seed, env._config, env.difficulty,
+                                      world_seed=env.world_seed + 104729 * r)
+        a, b = fork(base), fork(base)
+        for _ in range(30):
+            a.step(_pw_price(c, 16.0))
+            cut = b.t > 0 and b._state["modes"][0] == 1
+            b.step(_pw_price(c, 11.0 if cut else 16.0))
+        pa.append(pu(a))
+        pb.append(pu(b))
+    passive, retaliate = float(np.mean(pa)), float(np.mean(pb))
     hi, lo = fork(env), fork(env)
-    for _ in range(4):
+    other = f"{c['rival_names'][1]}.price"
+    diffs = []
+    # long enough for a trigger rival's punishment of the opening prices (at most six periods) to run out
+    for k in range(10):
         rh = hi.step(_pw_price(c, 18.0))
         rl = lo.step(_pw_price(c, 10.5))
-    other = f"{c['rival_names'][1]}.price"
-    resp = nums(rh["observation"])[other] - nums(rl["observation"])[other]
+        if k >= 6:
+            diffs.append(nums(rh["observation"])[other] - nums(rl["observation"])[other])
+    resp = float(np.mean(diffs))
     return {"ok": passive > retaliate + 0.1 and resp > 1.0, "undercut_propensity_vs_passive": passive,
             "undercut_propensity_vs_retaliation": retaliate, "other_rival_price_high_minus_low": resp,
             "other_kind": c["rival_kind"][1]}
@@ -1253,16 +1266,20 @@ def identify_entry(env) -> dict:
 def claim_entry(env) -> dict:
     """Incumbent policies differ: entering a tough incumbent's market loses money period after period, a soft one
     accommodates, and a reputation-minded one fights for its first periods and then accommodates. Fight rates are
-    measured over three noise replicates."""
+    measured over eight noise replicates (a short patience leaves few early periods per replicate)."""
     eng, st, c = inside(env)
     M = len(c["market_names"])
     rate: dict = {"tough": [], "soft": [], "reputation_early": [], "reputation_late": []}
-    for r in range(3):
+    for r in range(8):
         e = replicate(env, r)
         e.step(_enter(c, range(M)))
-        rows = [nums(e.step(None)["observation"]) for _ in range(16)]
+        fought = []                                   # the incumbents' decisions, read evaluator side each period
+        for _ in range(16):
+            before = list(e._state["fought"])
+            e.step(None)
+            fought.append([e._state["fought"][m] > before[m] for m in range(M)])
         for m in range(M):
-            f = [row[f"{c['market_names'][m]}.my_profit"] < 0 for row in rows]
+            f = [row[m] for row in fought]
             k = c["inc_kind"][m]
             if k == "reputation":
                 p = int(c["patience"][m]) - 1
@@ -1386,7 +1403,8 @@ def identify_bargain(env) -> dict:
 def claim_bargain(env) -> dict:
     """Private preferences make trade-offs pay: at the last round of a deal with a time-dependent counterpart, terms
     built from its weights are accepted while uniform terms worth the same to you are rejected; a tit-for-tat
-    counterpart rejects a moderate offer made cold but accepts it after you have conceded to it."""
+    counterpart keeps rejecting a moderate offer repeated cold but accepts it once you have conceded to it (tough
+    terms first, then the moderate ones)."""
     eng, st, c = inside(env)
     w = c["my_w"]
     K = int(c["rounds"])
@@ -1421,9 +1439,13 @@ def claim_bargain(env) -> dict:
         x = lp_offer(w, c["cp_v"][j], vt)
         f1, f2 = fork(e), fork(e)
         n0 = e._state["deals_made"]
-        f1.step(_bg_act(c, x))
-        f2.step(_bg_act(c, [1.0] * len(w)))
-        f2.step(_bg_act(c, x))
+        # same noise, three proposals each: the moderate terms three times (no concession), or tough terms first and
+        # then the moderate ones twice (a concession, which a tit-for-tat counterpart answers by lowering its
+        # aspiration after the rejection it is offered in)
+        for step in (x, x, x):
+            f1.step(_bg_act(c, step))
+        for step in ([1.0] * len(w), x, x):
+            f2.step(_bg_act(c, step))
         out["tft_cold_accepted"] = f1._state["deals_made"] > n0
         out["tft_after_concession_accepted"] = f2._state["deals_made"] > n0
     ok = "tradeoff_accepted" in out and "tft_cold_accepted" in out and out["tradeoff_accepted"] \
@@ -1482,18 +1504,27 @@ def oracle_blotto(env) -> dict:
 
 
 def reference_blotto(view, env):
-    """Public: estimate the contest's decisiveness from observed efforts and shares, predict the opponent's next
-    efforts by its last ones, and best-respond."""
+    """Public: estimate each site's prize from the income observed against the shares won (revenue = sum of prize x
+    share, least squares over the periods so far; prizes are not announced), the contest's decisiveness from
+    observed efforts and shares, predict the opponent's next efforts by its last ones, and best-respond."""
     sp = view.action_space()
     sites = _targets(sp)
     B = float(sp.limits["allocate_total"])
-    prize = dict(zip(env._config["site_names"], env._config["prize"]))      # public prizes
     r_est = []
     r = 1.5
     obs = view.step({"kind": "allocate", "amounts": {s: B / len(sites) for s in sites}})["observation"]
     last_x = {s: B / len(sites) for s in sites}
+    S_rows, R_rows = [], []
+    prize = {s: 100.0 for s in sites}
     while not view.done:
         x = nums(obs)
+        S_rows.append([x[f"{s}.my_share"] for s in sites])
+        R_rows.append(float(obs["resources"].get("revenue_cents_last_tick", 0.0)))
+        if len(S_rows) >= len(sites) + 2:
+            est, *_ = np.linalg.lstsq(np.asarray(S_rows), np.asarray(R_rows), rcond=None)
+            prize = {s: float(max(v, 1.0)) for s, v in zip(sites, est)}
+        elif sum(S_rows[-1]) > 0:
+            prize = {s: R_rows[-1] / sum(S_rows[-1]) for s in sites}
         y = [x[f"{s}.rival_effort"] for s in sites]
         for s, yy in zip(sites, y):
             sh = x[f"{s}.my_share"]
@@ -1538,9 +1569,17 @@ def claim_blotto(env) -> dict:
     ra2, rb2 = a.step(None), b.step(None)
     differs_next = any(nums(ra2["observation"])[f"{s}.rival_effort"] != nums(rb2["observation"])[f"{s}.rival_effort"]
                        for s in c["site_names"])
-    lo, hi = fork(env), fork(env)
-    sl = nums(lo.step({"kind": "allocate", "amounts": {s0: 1.0}})["observation"])[f"{s0}.my_share"]
-    sh = nums(hi.step({"kind": "allocate", "amounts": {s0: 4.0}})["observation"])[f"{s0}.my_share"]
+    # the contest at the site the opponent contests hardest, in the first period it contests any (its effort this
+    # period does not depend on yours, so both copies face the same rival effort there)
+    base = fork(env)
+    probe = nums(fork(base).step(None)["observation"])
+    while not base.done and max(probe[f"{s}.rival_effort"] for s in c["site_names"]) <= 0:
+        base.step(None)
+        probe = nums(fork(base).step(None)["observation"])
+    sx = max(c["site_names"], key=lambda s: probe[f"{s}.rival_effort"])
+    lo, hi = fork(base), fork(base)
+    sl = nums(lo.step({"kind": "allocate", "amounts": {sx: 1.0}})["observation"])[f"{sx}.my_share"]
+    sh = nums(hi.step({"kind": "allocate", "amounts": {sx: 4.0}})["observation"])[f"{sx}.my_share"]
     return {"ok": same_now and differs_next and sh > sl, "opponent_unchanged_same_period": same_now,
             "opponent_changed_next_period": differs_next, "share_effort_1": sl, "share_effort_4": sh}
 
@@ -1591,16 +1630,26 @@ def oracle_interdiction(env) -> dict:
 
 
 def reference_interdiction(view, env):
-    """Public: estimate the attacker's route frequencies from catches and breaches (exponential smoothing), assume a
-    moderate catch rate per inspector, and deploy to maximise expected catches weighted by bounty plus damage."""
+    """Public: estimate the attacker's route frequencies from catches and breaches (exponential smoothing) and each
+    route's damage per breach from the costs observed against the breaches per route (least squares over the
+    periods so far; damages are not announced), assume a moderate catch rate per inspector, and deploy to maximise
+    expected catches weighted by bounty plus damage."""
     sp = view.action_space()
     routes = _targets(sp)
     I = float(sp.limits["allocate_total"])
-    dmg = dict(zip(env._config["route_names"], env._config["damage"]))      # public route damages
+    dmg = {r: 60.0 for r in routes}
+    rows, costs = [], []
     freq = {r: 1.0 / len(routes) for r in routes}
     obs = view.step({"kind": "allocate", "amounts": {r: I / len(routes) for r in routes}})["observation"]
+    last_alloc = [I / len(routes)] * len(routes)
     while not view.done:
         x = nums(obs)
+        # cost of a period = damage of each breach + a price per inspector deployed (both unknown)
+        rows.append([x[f"{r}.got_through"] for r in routes] + [float(sum(last_alloc))])
+        costs.append(float(obs["resources"].get("cost_cents_last_tick", 0.0)))
+        if len(rows) >= len(routes) + 3:
+            est, *_ = np.linalg.lstsq(np.asarray(rows), np.asarray(costs), rcond=None)
+            dmg = {r: float(max(v, 0.0)) for r, v in zip(routes, est[:-1])}
         n = sum(x[f"{r}.caught"] + x[f"{r}.got_through"] for r in routes)
         for r in routes:
             f = (x[f"{r}.caught"] + x[f"{r}.got_through"]) / max(n, 1.0)
@@ -1610,6 +1659,7 @@ def reference_interdiction(view, env):
             r = routes[k]
             return 5 * freq[r] * (1 - math.exp(-0.35 * xx)) * (30.0 + dmg[r]) - xx
         alloc = greedy_alloc(gain, I, 0.5, len(routes))
+        last_alloc = list(alloc)
         obs = view.step({"kind": "allocate", "amounts": dict(zip(routes, alloc))})["observation"]
 
 
@@ -1778,7 +1828,8 @@ def reference_profile(view, env):
             Fm = np.asarray([[know[ags[0]][i][k] for i in range(n)] for k in range(len(slots))])
             if len(Y) >= 3:
                 Xa = np.asarray(X)
-                w_hat = np.linalg.solve(Xa.T @ Xa + 0.5 * np.eye(n), Xa.T @ np.asarray(Y))
+                Ya = np.asarray(Y) / (float(np.abs(Y).max()) or 1.0)     # payoffs in units of the largest seen
+                w_hat = np.linalg.solve(Xa.T @ Xa + 0.5 * np.eye(n), Xa.T @ Ya)
             else:
                 w_hat = np.ones(n) / math.sqrt(n)
             k = int(np.argmax(Fm @ w_hat))
@@ -1786,7 +1837,7 @@ def reference_profile(view, env):
             res = r["results"][ags[0]]
             if res.get("ok") and (res.get("result") or {}).get("agreed"):
                 X.append(list(Fm[k]))
-                Y.append(res["result"]["payoff"] / float(env._config["scale"]))     # the payoff scale is public
+                Y.append(float(res["result"]["payoff"]))
             obs = r["observations"]
             stage = None
             continue
@@ -1823,11 +1874,18 @@ def identify_profile(env) -> dict:
 
 def claim_profile(env) -> dict:
     """Distributed information: choosing by the pooled, correctly weighted attributes earns more than choosing by
-    any one participant's attribute alone (same options, same noise)."""
+    any one participant's attribute alone (same options, same noise in each comparison; summed over four noise
+    replicates of the world, since option values also carry noise no attribute shows)."""
+    from .env import Env
     eng, st, c = inside(env)
+    reps = [env] + [Env(env.family, env.seed, env._config, env.difficulty, world_seed=env.world_seed + 104729 * r)
+                    for r in range(1, 4)]
 
     def by(score):
-        e = fork(env)
+        return sum(_by(score, base) for base in reps)
+
+    def _by(score, base):
+        e = fork(base)
         while not e.done:
             s = e._state
             if s["open"]:
@@ -2230,18 +2288,24 @@ def claim_formation(env) -> dict:
     for k in range(S):
         if not any(c["skills"][w][k] for w in team):
             team.append(next(w for w in range(W) if c["skills"][w][k]))
-    gap_skill = 0
+    # a needed skill exactly one member of the team holds: without that member the team cannot cover it
+    sole = [k for k in range(S) if sum(c["skills"][w][k] for w in team) == 1]
+    gap_skill = sole[0] if sole else 0
     holder = next(w for w in team if c["skills"][w][gap_skill])
-    weak = [w for w in team if w != holder and not c["skills"][w][gap_skill]] or \
-        [w for w in range(W) if not c["skills"][w][gap_skill]][:1]
+    weak = [w for w in team if w != holder]
+    budget = float(c["budget"])
+
+    def pay(tm):                  # above every reservation, within the period's budget
+        res = sum(float(c["reservation"][w]) for w in tm) or 1.0
+        f = min(1.3, 0.999 * budget / res)
+        return {c["worker_names"][w]: float(c["reservation"][w]) * f for w in tm}
     full, cut = 0, 0
     for r in range(12):
         for lab, tm in (("full", team), ("cut", weak)):
             e = replicate(env, r)
             e._state["task"] = [1] * S + [300.0]
             e._state["trust"] = [1.0] * W
-            e.step({"kind": "allocate", "amounts": {c["worker_names"][w]: float(c["reservation"][w]) * 1.3
-                                                    for w in tm}})
+            e.step({"kind": "allocate", "amounts": pay(tm)})
             done = int(e._state["done"])
             if lab == "full":
                 full += done
@@ -2252,6 +2316,6 @@ def claim_formation(env) -> dict:
     for _ in range(10):
         lo.step({"kind": "allocate", "amounts": {c["worker_names"][w0]: float(c["reservation"][w0]) * 1.0}})
         hi.step({"kind": "allocate", "amounts": {c["worker_names"][w0]: float(c["reservation"][w0]) * 1.4}})
-    return {"ok": full > 0 and cut == 0 and lo._state["trust"][w0] < hi._state["trust"][w0],
-            "completed_full_team": full, "completed_without_skill_holder": cut,
+    return {"ok": bool(sole) and full > 0 and cut == 0 and lo._state["trust"][w0] < hi._state["trust"][w0],
+            "completed_full_team": full, "completed_without_skill_holder": cut, "sole_holder_skill": bool(sole),
             "trust_at_reservation_pay": lo._state["trust"][w0], "trust_at_generous_pay": hi._state["trust"][w0]}

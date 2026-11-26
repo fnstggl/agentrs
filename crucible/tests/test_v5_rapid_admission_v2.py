@@ -72,9 +72,13 @@ def test_fingerprints_ignore_axes_and_are_purely_categorical(family):
 
 
 def test_d9_recreation_of_a_sealed_mechanism_is_detected():
-    hits = {n: FP.legacy_recreation(F.REGISTRY[n]["fingerprint"])["recreates"] for n in F.families(split="train")}
+    hits = {n: FP.legacy_recreation(F.REGISTRY[n]["fingerprint"])["recreates"] for n in F.FAMILIES}
     assert "scm_regime" in hits["ch_sign_reversal"]            # a timed strength/sign switch of one lever
+    assert "scm_invu" in hits["ch_wandering_taste"]            # a 4.0 validation mechanism counts too (H-D2)
     assert not hits["ch_silent_reversal"]                      # ... differs from it in its mechanism motifs
+    # D-9: such families are evaluation families; no training family recreates a 4.0 held-out mechanism
+    assert F.FAMILIES["ch_sign_reversal"].split == "val" and F.FAMILIES["ch_wandering_taste"].split == "val"
+    assert not any(hits[n] for n in F.families(split="train"))
 
 
 # ====================================================================== distinctness by intervention
