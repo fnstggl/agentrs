@@ -68,3 +68,26 @@ Disk: 21 GB free after calibration data (1.8 GB under /workspace/data/crucible).
   test, which does not list the new error code `media_error`. [Count corrected 2026-11-26 by workstream P from the JUnit.]
 * Interrupted work is incomplete: no Tier 2 domain is registered yet, the new Tier 1 families have not been through
   admission, population/social gate tests have not been run officially. Requirements verified: 0 of 241.
+
+## Milestone 4 - recovery audit and redesign (2026-11-26, branch feat/crucible-5-complete)
+
+* New integration branch `feat/crucible-5-complete` from a881d18 (`feat/crucible-5-openworld` left untouched).
+* Clarification 2 (observation-only default) and 3 (recovery preamble) recorded; manifest grew to 253, then 354
+  requirements (D-22 additions from the audits, D-23 stricter criteria, D-24 hardened checker).
+* Fifteen independent audits, each with an adversarial skeptic review (`docs/v5/audit/`). Common finding: subsystems
+  worked in isolation; six disjoint populations; no fitted model used in-world; lexical content judgement; checker
+  could be fooled (11/11 fabrication probes). Decisions D-14..D-21 (one population, one semantic space, domains as
+  civilization configurations, usefulness through activities, observation-only everywhere, metering outside the
+  measured process, kernel repairs); `ONE_WORLD_CONTRACTS.md`.
+
+## Milestone 5 - wave 1 and wave 2a merged (2026-11-26, 87a6c54)
+
+* Ten workstream branches merged after a second usage-limit interruption (all their work had been committed; the
+  three worktrees with uncommitted changes were committed as recovery commits and pushed first).
+* Integrated regression (tests/test_*.py, 1,643 tests): 18 failed, 24 errors; 21 of these are caused by the
+  orchestrator's root-only TMPDIR (postgres initdb, Chromium profile directory), the rest are merge interactions
+  (substrate streams/facts/modes/resume/history, population core, semantic cache, econ_work, innovation needs, rapid
+  fingerprints, scale worker recycling, one 4.0 world test) assigned to the owning workstreams in wave 3.
+* Known integration bug: two kernel modules named `space`; `civ.generate` fails -> integration fix running.
+* Machine-readable ledger: `docs/v5/PROGRESS.json` milestone M5 (remaining requirement ids, failing tests, next actions).
+* Requirements verified: 0 of 354 (no official evidence run yet; the checker reports IN_PROGRESS).
