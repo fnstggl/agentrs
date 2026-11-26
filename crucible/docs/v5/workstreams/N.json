@@ -127,7 +127,7 @@
     "tests/test_v5_research_adversarial.py"
    ],
    "notes": "15 checks computed in a fresh python -I child that runs under the sandbox Landlock jail (own uid, no sockets, read-only stdlib/numpy/source, read-write only its private directory): adds authorised_configuration (declared configuration keys, learners.CONFIG) and filesystem_confined (a canary outside cannot be opened). Adversarial checkpoints (memory in params, pickle, architecture edit) refused; process stash detected.",
-   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 15/15 fresh-process weights-only checks in the jailed child; 3 adversarial checkpoints refused; process stash detected (in-process gain 0.43, fresh 0.0). Since then: parameter shapes are checked (widened layers refused, DEF-O-12), regression test passes in-shell"
+   "status_claim": "PASSED (unofficial gate run on c526d27, and in-shell on the branch head 2cb1225): 15/15 fresh-process weights-only checks in the jailed child; on the head 4/4 adversarial checkpoints refused (memory in params, pickle, architecture edit, widened layers under a rehashed manifest - DEF-O-12); process stash detected (in-process gain 0.43, fresh 0.0); weights gain from the checkpoint alone 0.40"
   },
   "U.4": {
    "implementation_files": [
@@ -277,8 +277,8 @@
    "tests": [
     "tests/v5/test_gate_SP_15_5.py"
    ],
-   "notes": "Arms C and D are not executed while Tier 2 is absent; seven control kinds run.",
-   "status_claim": "CRITERIA MET, EXPERIMENT UNINFORMATIVE (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 4 arms executed under matched experience and compute budgets with the neutral ReferenceLearner, 7 control kinds; but every arm scored identically (the learner sits at the score floor on the Tier 1 evaluation worlds whatever it was trained on; DEF-N-7). The comparison now records floor_share, arms_identical and informative (rerun queued)"
+   "notes": "comparison.compare reports floor_share, ceiling_share per arm, arms_identical and informative; the gate records neutral_scores_at_floor_share, arms_identical and comparison_informative. Arms C and D train one identical architecture-neutral learner across tiers (comparison.NEUTRAL).",
+   "status_claim": "CRITERIA MET, EXPERIMENT UNINFORMATIVE: 4 arms executed under matched experience and compute budgets with the neutral ReferenceLearner, 7 control kinds (unofficial gate runs on c526d27 with 9 Tier 2 domains and on the branch head with 15, the latter on a CPU slot). Every arm scored identically (arms_identical true, comparison_informative false, 75% of evaluation scores at the floor of the normalised score): the neutral learner is at the floor on the Tier 1 evaluation worlds whatever it was trained on (DEF-N-7)"
   },
   "SP-15.6": {
    "implementation_files": [
@@ -418,7 +418,7 @@
   }
  },
  "limitations": [
-  "Tier 2: c5c/w3b-domfw, dom1, dom2 and dom3 are merged at their heads of 2026-11-26 ~19:30 (15 domains, 75 configurations register). The slot runs of U.1, SP-14.2, SP-14.2b, SP-15.5 used the predecessor's checkout with 9 domains; SP-14.1 was run in-shell with 15. A rerun on the head (slot job C) was queued behind ~46 jobs.",
+  "Tier 2: c5c/w3b-domfw, dom1, dom2 and dom3 are merged at their heads of 2026-11-26 ~19:30 (15 domains, 75 configurations register). U.1, SP-14.2 and SP-14.2b were measured by slot runs on the predecessor's checkout c526d27 (9 domains); SP-14.1, SP-11.6b and U.3 in-shell on the head; SP-15.5 also on the head (CPU slot). A rerun of U.1/SP-14.2/SP-14.2b on the head needs a GPU slot: on a CPU slot the civ text path is too slow (SP-15.5 alone took 44 min).",
   "T.4: static generated worlds cannot pass admission's no_dominant_strategy check by construction (the hindsight-best constant is optimal when the best setting does not move). Validated worlds come from the driver wandering_optimum (single lever) with the scripted perturbation-tracker reference research.v5.genref; multi-lever wandering worlds mostly fail (the hindsight constant takes the static gain of cost-calibrated levers). The reference is scripted, labelled as such.",
   "SP-15.5 / U.1 Level 5: the architecture-neutral ReferenceLearner (crucible.experience) is at the score floor on Tier 1 evaluation worlds whatever it was trained on, so the A/B/C/D comparison and Level 5 transfer are executable but uninformative (DEF-N-7, owner L/N).",
   "SP-15.6: the known-negative sham shows a transfer-effect estimate of 0.20 against the transfer control's 0.28; their labels differ by precision, not by a large effect difference.",
