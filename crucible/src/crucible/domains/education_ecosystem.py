@@ -15,11 +15,13 @@ the public education statistics (`learn.stats`, `learn.readers`, `learn.curricul
 what independent learners choose to study and what it does to their knowledge counts.
 
 Objective (public): independent learners study the participant's material and, on a delayed test of NEW problems,
-improve more than comparable learners who did not. Evaluator (evaluator side, never a tool): the Board's placement
-score is each learner's baseline; a delayed final test (7 days after the evaluation time, the evaluator's own random
-stream, problems never published anywhere) measures retained knowledge; the gain of readers on the concepts the
-material covers is compared with the gain of non-readers on the same concepts (one-sided Welch test). Time spent
-reading is not learning: a document without worked problems teaches nothing, a document with wrong answers harms.
+know measurably more than they would have without it. Evaluator (evaluator side, never a tool): a delayed final test
+(7 days after the evaluation time, the evaluator's own random stream, problems never published in either world)
+measures retained knowledge; each reader's score on the concepts it studied in the material is compared with the
+SAME individual's score in the counterfactual world without the material (the same instance with the seat idle, on
+the same paper with the same answer draws), by a one-sided paired t-test - the same individuals, so the comparison
+has no self-selection. Time spent reading is not learning: a document without worked problems teaches nothing, a
+document with wrong answers harms, material that displaces better material than itself scores below zero.
 
 Configurations (structure measured on the built world: curriculum concepts and the shape of their prerequisite
 graph, discovery channels, population authors, the incumbent textbook, staggered cohorts):
@@ -119,23 +121,25 @@ def objective(world, principal, difficulty):
     t = TARGET.get(int(difficulty), TARGET[3])
     return {"text": (f"Develop educational material (public documents) that measurably improves the learning of this "
                      f"world's learners: within {HORIZON_DAYS:.0f} days at least {t['readers']} independent learners "
-                     f"must study it, and on a delayed test of new problems their improvement on the concepts it "
-                     f"covers must exceed that of comparable learners who did not study it by at least "
-                     f"{t['delta']:.2f} (share of problems answered correctly), with statistical significance "
-                     f"(one-sided p <= 0.05)."),
+                     f"must study it, and on a delayed test of new problems on the concepts they studied in it they "
+                     f"must score at least {t['delta']:.2f} higher (share of problems answered correctly) than the "
+                     f"same learners would have without your material, with statistical significance (one-sided "
+                     f"p <= 0.05)."),
             "readers": t["readers"], "delta": t["delta"], "window_days": HORIZON_DAYS, "delay_days": DELAY_DAYS,
             "difficulty": int(difficulty)}
 
 
-def _welch_one_sided(a, b) -> tuple[float, float]:
-    """(mean(a) - mean(b), one-sided p of a > b) by Welch's t-test."""
+def _paired_one_sided(d) -> tuple[float, float]:
+    """(mean(d), one-sided p of mean(d) > 0) by a paired (one-sample) t-test on per-individual differences."""
     from scipy import stats
-    a, b = np.asarray(a, float), np.asarray(b, float)
-    if a.size < 2 or b.size < 2:
-        return (float(a.mean() - b.mean()) if a.size and b.size else 0.0), 1.0
-    r = stats.ttest_ind(a, b, equal_var=False, alternative="greater")
+    d = np.asarray(d, float)
+    if d.size < 2:
+        return (float(d.mean()) if d.size else 0.0), 1.0
+    if float(np.ptp(d)) == 0.0:
+        return float(d.mean()), (0.0 if d.mean() > 0 else 1.0)
+    r = stats.ttest_1samp(d, 0.0, alternative="greater")
     p = float(r.pvalue) if np.isfinite(r.pvalue) else 1.0
-    return float(a.mean() - b.mean()), p
+    return float(d.mean()), p
 
 
 def readers_of(world, principals) -> dict[int, set]:
@@ -148,41 +152,65 @@ def readers_of(world, principals) -> dict[int, set]:
     return out
 
 
+_SHADOW: dict[str, object] = {}
+_SHADOW_KEEP = 2
+
+
+def shadow(world):
+    """The counterfactual: the same world instance (spec and seed) in which the participant publishes nothing (its
+    seat never acts), advanced to `world.now` (evaluator side; a small cache per spec, advanced incrementally)."""
+    from ..core.kernel import World
+    key = world.spec.hash()
+    w0 = _SHADOW.pop(key, None)
+    if w0 is not None and w0.now > world.now:
+        w0.close()
+        w0 = None
+    if w0 is None:
+        w0 = World.create(world.spec, world_id=f"shadow-{key[:12]}")
+    while len(_SHADOW) >= _SHADOW_KEEP:
+        _SHADOW.pop(next(iter(_SHADOW))).close()
+    _SHADOW[key] = w0
+    if w0.now < world.now:
+        w0.advance_time(world.now)
+    return w0
+
+
 def evaluate(world, principal, obj):
+    """The causal effect of the participant's material on its readers, on NEW problems after a delay: each
+    independent reader's delayed test score on the concepts it studied in the material, minus the SAME individual's
+    score in the counterfactual world without the material (same instance, nobody at the seat acts), on the same
+    paper with the same answer draws (common random numbers; problems published in either world excluded).
+    Comparing the same individuals removes self-selection (motivated learners read more of everything); time spent
+    reading earns nothing, and material that displaces better material or teaches errors scores below zero."""
     from ..substrate import columns
     from .common import independent
     L = world.modules["learn"]
     mine = set(world.principals_of(principal)) | {principal}
     rd = {i: cs for i, cs in readers_of(world, mine).items() if independent(world, principal, f"p{i}")}
     covered = sorted(set().union(*rd.values())) if rd else []
-    state = columns.col(world, "learn", "state")
-    placed = columns.col(world, "learn", "placed")
-    enrolled = np.flatnonzero(state > 0)
-    details = {"readers": len(rd), "covered_concepts": covered, "enrolled": int(enrolled.size)}
+    details = {"readers": len(rd), "covered_concepts": covered,
+               "enrolled": int((columns.col(world, "learn", "state") > 0).sum())}
     if not rd or not covered:
         return {"success": False, "score": 0.0, "details": {**details, "effect": 0.0, "p_value": 1.0}}
     at = int(world.now + DELAY_DAYS * 86400)
-    final = L.final_scores(world, at, "education-evaluator", k=4, who=enrolled, concepts=covered)
-    kc = [L.cix[c] for c in covered]
-
-    def gain(i):
-        base = placed[i, kc]
-        ok = base >= 0
-        if not ok.any():
-            return None
-        f = np.array([final[int(i)][c] for c in covered])
-        return float(np.mean(f[ok] - base[ok]))
-    g_read = [g for i in sorted(rd) if (g := gain(i)) is not None]
-    g_ctrl = [g for i in enrolled.tolist() if i not in rd and (g := gain(i)) is not None]
-    eff, p = _welch_one_sided(g_read, g_ctrl)
+    w0 = shadow(world)
+    L0 = w0.modules["learn"]
+    exclude = L.published_keys(world) | L0.published_keys(w0)
+    who = np.array(sorted(rd), np.int64)
+    f1 = L.final_scores(world, at, "education-evaluator", k=4, who=who, concepts=covered, exclude=exclude)
+    f0 = L0.final_scores(w0, at, "education-evaluator", k=4, who=who, concepts=covered, exclude=exclude)
+    diffs = [float(np.mean([f1[i][c] - f0[i][c] for c in sorted(rd[i])])) for i in who.tolist()]
+    eff, p = _paired_one_sided(diffs)
     need = obj.get("readers", TARGET[1]["readers"])
     delta = float(obj.get("delta", TARGET[1]["delta"]))
     ok = len(rd) >= need and eff >= delta and p <= 0.05
     score = min(1.0, len(rd) / need) * 0.5 + 0.5 * max(0.0, min(1.0, eff / delta)) * (1.0 if p <= 0.05 else 0.5)
     return {"success": bool(ok), "score": round(float(score), 4),
-            "details": {**details, "effect": round(eff, 4), "p_value": p, "readers_gain": round(float(np.mean(g_read)), 4)
-                        if g_read else None, "control_gain": round(float(np.mean(g_ctrl)), 4) if g_ctrl else None,
-                        "n_readers_measured": len(g_read), "n_controls": len(g_ctrl)}}
+            "details": {**details, "effect": round(eff, 4), "p_value": p,
+                        "readers_score": round(float(np.mean([np.mean([f1[i][c] for c in rd[i]]) for i in rd])), 4),
+                        "counterfactual_score": round(float(np.mean([np.mean([f0[i][c] for c in rd[i]])
+                                                                     for i in rd])), 4),
+                        "readers_harmed": int(sum(1 for x in diffs if x < 0)), "n_readers_measured": len(diffs)}}
 
 
 # ============================================================================================ policies

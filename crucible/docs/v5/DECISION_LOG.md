@@ -326,8 +326,13 @@ activities `study` and `teach`. Lessons are read by a reading model of ordinary 
 worked problems and exercises in curriculum notations, Q/A pairs, numbered lists; prose teaches nothing), not by a
 fixed line format, and the format oracle `learn.check` is removed. Grading is form-aware and a misconception only
 bites where its answer is wrong, so wrong content can never raise measured learning (the skeptic's finding: v1's
-inversion was a grader bug). The 9.10 evaluator compares readers' gains on a delayed test of new problems with
-non-readers'; SP-9.10's content controls (correct > none > wrong, same instance) are part of the gate. Learning
+inversion was a grader bug). The 9.10 evaluator is counterfactual: each independent reader's score on a delayed test
+of new problems (the concepts it studied in the material) against the SAME individual's score in the same instance
+with the seat idle, on one paper with the same answer draws, one-sided paired t-test. A first version compared
+readers' gains with non-readers' and was confounded by self-selection: with wrong answer keys readers still gained
+0.005 more than non-readers (p 0.17), whereas the counterfactual effect of the same material is -0.044 (and +0.076
+for the reference course, numeracy_search seed 0; the counterfactual world is digest-equal to the null-baseline
+run). SP-9.10's content controls (correct > none > wrong, same instance, one shared paper) are part of the gate. Learning
 constants are literature-grounded functional forms (FR-LEARN-1..6), not fits. Standalone Tier 2 worlds give the
 population an outside option (`elsewhere`, FR-ELSEWHERE-1) so that participation is a choice, not a default.
 
