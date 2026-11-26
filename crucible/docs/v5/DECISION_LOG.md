@@ -276,3 +276,61 @@ authorisation and that the official licence is pending (`datasets()["mind_small"
 derived artifacts stay marked non-commercial research only and no MIND data is redistributed (LICENSE_NOTICE.md). No
 agent accepted the licence on the owner's behalf or used a credential. Follow-up when the official files are available:
 verify the mirror against them (or re-fit) and record the acceptance (who, when, licence version).
+
+## D-81 The CAM adapters live on the AGENTRS side (2026-11-26, workstream P, RP.1, Clarification 1)
+Crucible must not import CAM; CAM may import Crucible. The 4.0 adapters, example and tests that imported `agentrs.cam2`
+/ `agentrs.sl` from inside `crucible/` are moved (git history kept) to the AGENTRS side of the repository, where they
+stay runnable: `crucible/src/crucible/integrations/agentrs_cam2.py` -> `src/agentrs/cam2/envs/crucible_adapter.py`
+(re-exported by `agentrs.cam2.envs.crucible_env`, the module the CAM 2.0 env pool already loads),
+`crucible/src/crucible/integrations/agentrs_sl.py` -> `src/agentrs/sl/crucible_world.py`,
+`crucible/examples/ow_cam_baseline.py` -> `scripts/cam2/crucible_ow_baseline.py` (its pool now names the 4.0 reward
+contract explicitly, OO.8), and the seven CAM/superlearner tests of `crucible/tests/test_agents_llm.py` ->
+`tests/cam2/test_crucible_adapter.py` and `tests/test_sl_crucible_world.py` (test bodies as in the tree, module path
+renamed). The relocated modules import Crucible by absolute name (`crucible.integrations`, `crucible.api.render`, ...)
+and add `crucible/src` to `sys.path` when Crucible is not installed. The LLM-policy, action-template and neural-RL
+tests stay in `crucible/tests/test_agents_llm.py`. Compatibility with the existing learner interface is preserved
+(Clarification 1): the env-pool name `"crucible"`, the task-family syntax and the adapters' behaviour are unchanged.
+Remaining CAM imports in `crucible/` are workstream L's leakage probes of these adapters (`experience/probes.py`
+`probe_sl`/`probe_cam2` and two v5 tests), which L moves or removes; after this move `probe_sl`/`probe_cam2` cannot
+import `crucible.integrations.agentrs_*` any more. How Gate A.1 counts the seven relocated 4.0 node ids: D-82.
+
+## D-83 Acceptance hardening after the wave-3b independent verification (2026-11-26, workstream P)
+An independent verifier attacked the D-26 machinery with eight new fabrication probes (tests/test_v5_acceptance_probes.py
+P31-P37) in throwaway repositories; all eight reached VERIFIED on the D-26 code (55433e7):
+* P31: the producing test's own record() is honest (it records the defect), but a fixture teardown or a helper called
+  by the test records again with laundered metrics; the last record is filed, and only the honest call is scanned;
+* P32: constant criteria metrics plus one auxiliary metric derived from the implementation's source file: the review's
+  ablation, which compared all metrics, called the measurement dependent although the implementation is never called;
+* P33: the recorded criteria values are constants chosen by whether the implementation raised (`12 if ok else 0`), the
+  ablation exception being caught with `except BaseException as exc` and used, which the swallow rule allowed;
+* P34: an autouse fixture execs a patch compiled from a string (no assignment for the static scan; the runtime
+  detector skipped functions compiled from `<...>`);
+* P35: the patch lives in a helper module next to the gate test (a file inside the checkout, which the runtime
+  detector accepted);
+* P36: a committed unchecked-hash `.pyc` replaces the committed (defective) source; CPython loads it without reading
+  the source, the records hash the `.py` the reviewer reads, and ablation edits only the `.py`;
+* P37: more than 200,000 opened paths overflow the files-read audit list, so a data file read afterwards escapes
+  staleness.
+Decision (no manifest criterion changes; the checker only becomes stricter; evidence schema crucible.v5.evidence/4):
+* every record carries its caller (function, file, line) and the pytest phase; the checker requires that it was made
+  during the producing test's call phase by a record() call in that test's body - the call the static scan examined;
+* the static scan reports, per record() call, the metrics whose value is fixed by the test's source (constants, pure
+  builtins of constants, `a if c else b` with constant branches, a multiplication by a literal zero, names bound
+  only to such values, module-level constants); a producing record whose criteria metric is among them is rejected. A record of constants followed by
+  an unconditional `pytest.fail` (the honest "nothing measured" path) stays allowed, because such a test cannot pass;
+* ablation is judged on the requirement's criteria metrics: when the ablated run records at all, every criteria metric
+  must differ from the evidence (an auxiliary metric cannot carry the dependence); the clone marker no longer says
+  whether a run is an ablation;
+* a `BaseException` (or bare) handler that does not re-raise is a swallow even when it uses what it caught;
+* `exec` / `eval` / `compile` in a test module or harness file is a blocking finding (`dynamic_code`); at run time a
+  function attribute of a module under `src/` whose code lives in the checkout outside `src/` (test code), or a
+  module-level function or ordinary method compiled from a string, is a patch;
+* committed bytecode or compiled extension modules (`*.pyc`, `*.pyo`, `__pycache__/`, `*.so`, `*.pyd`) in the tree at
+  the evidence commit are rejected;
+* the files-read audit keeps only paths under the clone, and a record whose list overflowed says so and is rejected.
+Residual trust, restated (D-26): identities are declared; the interpreter's own files are trusted; a test that detects
+the ablation (it can read the implementation's files) and records differently under it passes the ablation check,
+and constants laundered through arithmetic with measured values (beyond a multiplication by a literal zero) or
+through another module pass the static detector - the caller binding, the release reproduction and reviewers reading the test remain the
+defence. Data patches (module constants, registries, instances) installed by test helpers are not detected at run
+time. Consequence: records of schema evidence/3 are rejected.

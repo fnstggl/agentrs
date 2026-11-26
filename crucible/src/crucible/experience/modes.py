@@ -21,6 +21,8 @@ of a mode; every learner-facing constructor calls one of them.
 """
 from __future__ import annotations
 
+import os
+
 LEGACY = "legacy_shaped_reward"
 VERIFIED = "verified_terminal_outcome"
 OBSERVATION_ONLY = "observation_only"
@@ -37,17 +39,40 @@ OPERATOR_RECORD_KEYS = ("score", "success", "random_score", "score_first_half", 
                         "objective_quantity")
 
 
+# --- historical baseline selection (workstream P, DECISION_LOG D-82; minimal edit in workstream L's module) -----------
+# A process started to reproduce Crucible 4.0 - the unmodified 4.0 regression suite of Gate A.1, the 4.0 records of
+# Gate A.5 - selects the 4.0 reward contract for every constructor that names no mode by exporting
+# CRUCIBLE_HISTORICAL_BASELINE=4.0 (inherited by its worker processes). That is an explicit selection of the historical
+# baseline (Clarification 2, OO.8), made by the experimenter for a whole process tree; nothing else ever sets it, the
+# official acceptance runner removes it from every measured process, and evidence recorded under it is rejected.
+HISTORICAL_BASELINE_ENV = "CRUCIBLE_HISTORICAL_BASELINE"
+HISTORICAL_BASELINES = {"4.0": LEGACY}
+
+
+def historical_baseline() -> str | None:
+    """The historical baseline this process was explicitly started to reproduce ("4.0"), or None. Any other value of
+    the variable is an error, never silently ignored."""
+    v = os.environ.get(HISTORICAL_BASELINE_ENV)
+    if not v:
+        return None
+    if v not in HISTORICAL_BASELINES:
+        raise ValueError(f"{HISTORICAL_BASELINE_ENV} must be one of {sorted(HISTORICAL_BASELINES)}, got {v!r}")
+    return v
+
+
 def check_mode(mode: str | None) -> str:
     """The reward mode, validated. ``None`` (nothing selected) is observation-only: legacy and verified modes exist
-    only when a caller names them."""
-    m = DEFAULT_MODE if mode is None else str(mode)
+    only when a caller names them, or when the process was explicitly started as a historical baseline
+    (`historical_baseline`)."""
+    hb = historical_baseline() if mode is None else None
+    m = (HISTORICAL_BASELINES[hb] if hb else DEFAULT_MODE) if mode is None else str(mode)
     if m not in REWARD_MODES:
         raise ValueError(f"reward_mode must be one of {REWARD_MODES}, got {mode!r}")
     return m
 
 
 def is_explicit_legacy(mode: str | None) -> bool:
-    return mode is not None and str(mode) == LEGACY
+    return (mode is not None and str(mode) == LEGACY) or (mode is None and historical_baseline() == "4.0")
 
 
 def evaluator_access(mode: str | None) -> str:

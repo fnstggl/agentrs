@@ -217,6 +217,11 @@ def is_startup_hook(path: str) -> bool:
     return b.endswith(".pth") or b in {f"{n}.py" for n in STARTUP_HOOK_NAMES}
 
 
+def is_compiled(path: str) -> bool:
+    """Bytecode (a committed unchecked-hash .pyc is loaded without its source) or a compiled extension module."""
+    return path.endswith((".pyc", ".pyo", ".so", ".pyd")) or "__pycache__/" in path
+
+
 def hidden_changes(root: str) -> list[str]:
     """What `git status` does not show but can change what runs: index flags that hide edits of tracked files,
     ignored code files in src/ and tests/, and start-up hooks anywhere in the tree (tracked or ignored)."""
@@ -371,6 +376,23 @@ def integrity_problems(ctx: Ctx, e: dict, rec: dict, commit: str) -> list[str]:
     bad = testscan.blocking(fn["findings"])
     if bad:
         probs.append(f"producing test {name} is not a genuine measurement: {', '.join(bad)}")
+    # the record must come from a record() call of this test's body - the call examined here - during its call
+    # phase: not from a fixture's teardown, a helper or another function that records over it (wave 3b, D-83)
+    cal = rec.get("caller") or {}
+    sites = [c for c in fn.get("record_calls") or [] if c["span"][0] <= int(cal.get("line") or -1) <= c["span"][1]]
+    if rec.get("phase") != "call":
+        probs.append(f"the record was not made during the producing test's call phase (phase {rec.get('phase')!r}): "
+                     "it must come from a record() call in the test body")
+    if cal.get("function") != name or cal.get("file") != f or not sites:
+        probs.append(f"the record was not made by a record() call in the body of the producing test {name} (made by "
+                     f"{cal.get('function')!r} at {cal.get('file')}:{cal.get('line')})")
+    crit = {c["metric"] for c in e["criteria"]}
+    for c in sites:
+        const = sorted(set(c["const_keys"]) & crit)
+        if const:
+            probs.append(f"constant criteria metric(s) {const}: the producing test's record() call at line "
+                         f"{c['span'][0]} records values fixed by the test's source (constants, or a constant chosen "
+                         "by a condition), not measured ones")
     if fn["measured_asserts"] < 1:
         probs.append(f"producing test {name} has no assertion on measured values")
     if fn["records"] < 1:
@@ -401,6 +423,9 @@ def env_problems(ctx: Ctx, rec: dict) -> list[str]:
     if rec.get("patched_functions"):
         probs.append(f"functions patched with code from outside the tree and the interpreter: "
                      f"{rec['patched_functions'][:3]}")
+    if (rec.get("environment") or {}).get("historical_baseline"):
+        probs.append("the measured process ran as a historical baseline (CRUCIBLE_HISTORICAL_BASELINE): its default "
+                     "reward mode was not observation-only")
     inj = sorted(k for k in (rec.get("python_env") or {}) if k not in ALLOWED_PY_ENV)
     if inj:
         probs.append(f"code-injection variables in the measured process: {inj[:5]}")
@@ -444,6 +469,11 @@ def harness_problems(ctx: Ctx, e: dict, commit: str) -> list[str]:
     hooks = [f for f in ctx.tree_files(commit) if is_startup_hook(f)]
     if hooks:
         probs.append(f"interpreter startup hooks in the tree at the evidence commit: {hooks[:3]}")
+    compiled = [f for f in ctx.tree_files(commit) if is_compiled(f)]
+    if compiled:
+        probs.append(f"compiled bytecode or extension modules committed in the tree at the evidence commit (CPython can "
+                     f"load them instead of the reviewed source, and no static check or ablation reads them): "
+                     f"{compiled[:3]}")
     ctx._harness[key] = probs
     return probs
 
@@ -466,6 +496,9 @@ def module_problems(ctx: Ctx, e: dict, rec: dict, commit: str) -> list[str]:
     impl_py = [f for f in e["implementation_files"] if f.endswith(".py")]
     if impl_py and not any(f in mods for f in impl_py):
         probs.append("the producing process imported none of the listed implementation modules")
+    if rec.get("files_read_truncated"):
+        probs.append("files_read is truncated (the process opened more files under the clone than the audit hook keeps):"
+                     " staleness of what it read cannot be established")
     tree = set(ctx.tree_files(commit))
     reads = {p: b for p, b in (rec.get("files_read") or {}).items() if p in tree and p not in mods}
     rblobs = ctx.blobs(commit, sorted(p for p, b in reads.items() if b))
@@ -494,7 +527,7 @@ def module_problems(ctx: Ctx, e: dict, rec: dict, commit: str) -> list[str]:
 def ablation_problems(ctx: Ctx, e: dict, ev: dict, rv: dict, commit: str) -> list[str]:
     """The review's ablation run: every listed implementation module ablated at the evidence commit, the producing
     test run alone, and its measurement did not survive."""
-    from .official import ablatable, ablation_sensitive
+    from .official import ablatable, ablation_survivors
     files = ablatable(ctx.root, e, commit)
     if not files:
         return []
@@ -527,9 +560,11 @@ def ablation_problems(ctx: Ctx, e: dict, ev: dict, rv: dict, commit: str) -> lis
             got = got or {}
         elif not ctx.committed(rec_rel):
             probs.append("ablation: the ablated run's record is not committed")
-    if not ablation_sensitive(ev.get("metrics") or {}, got, e.get("tolerance")):
-        probs.append("ablation: the producing test records the same metrics when every function of the implementation "
-                     "modules raises - the measurement does not depend on the implementation")
+    survived = [] if got is None else ablation_survivors(ev.get("metrics") or {}, got, e.get("tolerance"),
+                                                         e["criteria"])
+    if survived:
+        probs.append(f"ablation: the producing test records the same criteria metrics {survived[:4]} when every function "
+                     "of the implementation modules raises - the measurement does not depend on the implementation")
     return probs
 
 

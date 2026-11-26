@@ -38,7 +38,7 @@ import types
 
 from .manifest import crucible_root, docs_dir
 
-SCHEMA = "crucible.v5.evidence/3"
+SCHEMA = "crucible.v5.evidence/4"                  # /4: caller, phase, files_read_truncated (D-83)
 RUN_SCHEMA = "crucible.v5.run/2"
 REVIEW_SCHEMA = "crucible.v5.review/3"
 MARKER = "crucible_v5_run.json"                     # inside the clone's git dir: <clone>/.git/crucible_v5_run.json
@@ -55,20 +55,31 @@ STARTUP_HOOK_NAMES = ("sitecustomize", "usercustomize")
 # ------------------------------------------------------------------------------------------------- files read
 _OPENED: set[str] = set()
 _OPENED_MAX = 200_000
+_TRUNCATED = [False]                                 # more distinct files under the checkout than _OPENED_MAX
+_HOOK_ROOT = [""]                                    # only paths under the checkout are kept (set at installation)
 
 
 def _open_hook(event: str, args: tuple) -> None:
-    if event != "open" or not args or len(_OPENED) >= _OPENED_MAX:
+    if event != "open" or not args:
         return
     p = args[0]
     if isinstance(p, (str, bytes, os.PathLike)) and not isinstance(p, int):
         try:
-            _OPENED.add(os.path.abspath(os.fsdecode(p)))
+            ap = os.path.abspath(os.fsdecode(p))
         except (TypeError, ValueError):
-            pass
+            return
+        if _HOOK_ROOT[0] and not ap.startswith(_HOOK_ROOT[0]):
+            return                                   # outside the checkout: never stale-relevant, never counted
+        if ap in _OPENED:
+            return
+        if len(_OPENED) >= _OPENED_MAX:
+            _TRUNCATED[0] = True                     # the record says so and the checker rejects it
+            return
+        _OPENED.add(ap)
 
 
 if os.environ.get("CRUCIBLE_V5_RUN_ID"):            # only inside official runs: no cost anywhere else
+    _HOOK_ROOT[0] = os.path.abspath(crucible_root()) + os.sep
     sys.addaudithook(_open_hook)
 
 
@@ -150,6 +161,7 @@ def environment() -> dict:
     return {"python": sys.version.split()[0], "platform": platform.platform(), "cpu_quota": cpus, "gpu": gpu,
             "cuda_visible_devices": vis, "gpu_visible": bool(gpu) and vis not in ("", "-1"),
             "torch_cuda_available": torch_cuda, "host": platform.node(),
+            "historical_baseline": os.environ.get("CRUCIBLE_HISTORICAL_BASELINE") or None,
             "threads": {k: os.environ.get(k) for k in ("OMP_NUM_THREADS", "MKL_NUM_THREADS")}}
 
 
@@ -238,32 +250,46 @@ def _functions_of(obj):
 
 def patched_functions(root: str) -> list[str]:
     """Functions reachable from modules of the checkout (module attributes, and the methods of classes defined there)
-    whose code was compiled from a real file outside the checkout and outside the interpreter: a patch."""
+    whose code is not implementation code: compiled from a real file outside the checkout and outside the interpreter;
+    or - for the modules under `src/` - compiled from a file of the checkout outside `src/` (a test or a test helper
+    module put it there), or compiled from a string (``exec``/``compile``) as a module-level function or an ordinary
+    method (the dunder methods dataclasses and namedtuple generate are exempt). Any of these is a patch."""
     root = os.path.realpath(root)
+    src = os.path.join(root, "src")
     trusted = trusted_dirs()
     ok: dict[str, bool] = {}
 
-    def foreign(fn) -> str | None:
+    def foreign(fn, owner_in_src: bool, member: str | None) -> str | None:
         fname = fn.__code__.co_filename
-        if not fname or fname.startswith("<"):
+        if not fname:
             return None
+        if fname.startswith("<"):
+            dunder = member is not None and member.startswith("__") and member.endswith("__")
+            return None if (not owner_in_src or dunder) else f"code compiled from {fname} (exec/compile)"
         if fname not in ok:
             rf = os.path.realpath(fname)
             ok[fname] = _under(rf, [root]) or _under(rf, trusted)
-        return None if ok[fname] else os.path.realpath(fname)
+        if not ok[fname]:
+            return os.path.realpath(fname)
+        if owner_in_src:
+            rf = os.path.realpath(fname)
+            if _under(rf, [root]) and not _under(rf, [src]):
+                return f"{os.path.relpath(rf, root)} (test code)"
+        return None
 
     out = []
     for name, mod in list(sys.modules.items()):
         f = getattr(mod, "__file__", None)
         if not f or not _under(os.path.realpath(f), [root]):
             continue
+        in_src = _under(os.path.realpath(f), [src])
         try:
             items = list(vars(mod).items())
         except TypeError:
             continue
         for attr, val in items:
             for _, fn in _functions_of(val):
-                where = foreign(fn)
+                where = foreign(fn, in_src, None)
                 if where:
                     out.append(f"{name}.{attr} <- {where}")
             if isinstance(val, type) and getattr(val, "__module__", None) == name:
@@ -273,7 +299,7 @@ def patched_functions(root: str) -> list[str]:
                     continue
                 for mname, mval in members:
                     for _, fn in _functions_of(mval):
-                        where = foreign(fn)
+                        where = foreign(fn, in_src, mname)
                         if where:
                             out.append(f"{name}.{attr}.{mname} <- {where}")
     return sorted(set(out))
@@ -393,7 +419,7 @@ def official_run(root: str | None = None) -> dict | None:
         return None
     if marker.get("run_id") != rid or marker.get("commit") != head:
         return None
-    return {"run_id": rid, "out": out, "kind": marker.get("kind", "evidence"), "commit": head}
+    return {"run_id": rid, "out": out, "commit": head}
 
 
 def _check_metrics(metrics: dict) -> None:
@@ -427,6 +453,13 @@ def record(requirement: str, metrics: dict, *, command: str | None = None, artif
     it never makes a record official."""
     _check_metrics(metrics)
     root = root or crucible_root()
+    fr = sys._getframe(1)                             # who called record(): the checker binds it to a call site
+    cf = os.path.realpath(fr.f_code.co_filename)
+    caller = {"function": fr.f_code.co_name, "line": fr.f_lineno,
+              "file": os.path.relpath(cf, os.path.realpath(root)) if cf.startswith(os.path.realpath(root) + os.sep)
+              else cf}
+    cur = os.environ.get("PYTEST_CURRENT_TEST", "")
+    phase = cur.rsplit(" (", 1)[1].rstrip(")") if " (" in cur else None
     run = official_run(root)
     arts = []
     for a in artifacts:
@@ -441,13 +474,14 @@ def record(requirement: str, metrics: dict, *, command: str | None = None, artif
     mods, outside = imported_modules(root)
     reads = files_read(root) if run else {}
     rec = {"schema": SCHEMA, "requirement": requirement, "gate": gate_of(requirement),
-           "produced_by": os.environ.get("PYTEST_CURRENT_TEST", "").split(" (")[0] or command or "unknown",
+           "produced_by": cur.split(" (")[0] or command or "unknown", "caller": caller, "phase": phase,
            "command": command, "run_id": run["run_id"] if run else None, "official": bool(run),
            "recorded_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
            "tree": tree_state(root), "environment": environment(), "identity": identity(),
            "author": os.environ.get("CRUCIBLE_V5_AGENT") or os.environ.get("CRUCIBLE_V5_AUTHOR") or "",
            "binding": _manifest_binding(root, requirement),
            "modules": mods, "modules_outside_root": outside, "files_read": reads,
+           "files_read_truncated": bool(_TRUNCATED[0]) if run else False,
            "interpreter": interpreter(), "site_hooks": site_hooks(), "foreign_modules": foreign_modules(root),
            "patched_functions": patched_functions(root), "python_env": python_env(),
            "datasets": dataset_checksums(datasets),

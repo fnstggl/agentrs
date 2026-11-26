@@ -12,7 +12,13 @@ For each test function it reports:
 * `constant_record` - an evidence `record()` whose metrics are all literal constants (directly or through a name
   bound only to such a dict) without a following unconditional pytest.fail (an honest "nothing measured" record that
   then fails is reported as `constant_record_then_fail`, which is not a placeholder);
-* `placeholder_text` - TODO / FIXME / XXX / placeholder / NotImplementedError in the function's source.
+* `placeholder_text` - TODO / FIXME / XXX / placeholder / NotImplementedError in the function's source;
+* `dynamic_code`  - `exec` / `eval` / `compile` anywhere in the module (code no static rule can read).
+
+`record_call_sites` lists each record() call of a test body with its span and the metric names whose value is fixed by
+the test's source (constants, `12 if ok else 0`, names bound only to such values); the checker rejects a producing
+test whose record names a criteria metric among them (wave 3b, D-83). A `BaseException` (or bare) handler that does not
+re-raise is a `swallow` even when it uses what it caught: it is the handler that absorbs the ablation exception.
 
 Findings that come from outside the test body apply to every test of the module, because fixtures and helpers act on
 any test that uses them: `patch` (monkeypatch without undo, `setattr`/`delattr`, attribute, item or `sys.modules`
@@ -38,7 +44,7 @@ import sys
 import sysconfig
 
 BLOCKING = ("no_assert", "trivial_assert", "early_return", "swallow", "skip", "mock", "patch", "constant_record",
-            "placeholder_text")
+            "placeholder_text", "dynamic_code")
 BROAD_EXCEPTIONS = {"Exception", "BaseException"}
 # hooks through which a conftest or plugin decides what runs, what is collected or what is reported
 OUTCOME_HOOKS = {"pytest_pyfunc_call", "pytest_runtest_call", "pytest_runtest_protocol", "pytest_runtest_setup",
@@ -267,9 +273,22 @@ def swallow_findings(node, *, helper: bool = False) -> list[str]:
                            for b in n.body for x in ast.walk(b))
             if reraises:
                 continue
-            if (only and not helper) or (broad and not _uses(n)) or (only and broad):
+            # catching BaseException (or everything) and carrying on: the one handler that absorbs the ablation
+            # exception, KeyboardInterrupt and SystemExit; using what was caught does not make it a measurement
+            if (only and not helper) or (broad and not _uses(n)) or (only and broad) or "BaseException" in names:
                 out.append("swallow")
     return out
+
+
+DYNAMIC_CODE = {"exec", "eval", "compile", "builtins.exec", "builtins.eval", "builtins.compile"}
+
+
+def dynamic_code_findings(tree: ast.Module) -> list[str]:
+    """`exec` / `eval` / `compile` anywhere in a test module or harness file: code that no static check reads (a
+    patch compiled from a string is invisible to the patch rules)."""
+    return ["dynamic_code" for n in ast.walk(tree) if isinstance(n, ast.Call) and
+            isinstance(n.func, (ast.Name, ast.Attribute)) and _root_name(n.func) in ("exec", "eval", "compile", "builtins")
+            and _dotted(n.func) in DYNAMIC_CODE][:1]
 
 
 def _is_fixture(fn) -> bool:
@@ -378,8 +397,20 @@ def module_flags(tree: ast.Module) -> dict:
                     if _is_fixture(m):
                         fixtures[m.name] = (_outside_findings(m, local, mock, fixture=True), names | args, False)
             helpers[n.name] = (found, refs)
-    return {"mock_import": mock, "skip_module": skip_module, "local": local, "consts": consts,
-            "module_level": sorted(set(patch_findings(tree, local))), "helpers": helpers, "fixtures": fixtures}
+    scalars: dict[str, bool] = {}
+    for n in tree.body:                         # module-level scalar constants (N = 12, NAMES = ("a", "b"))
+        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+            nm = n.targets[0].id
+            scalars[nm] = scalars.get(nm, True) and _is_const_expr(n.value)
+        elif isinstance(n, (ast.AugAssign, ast.AnnAssign)) and isinstance(getattr(n, "target", None), ast.Name):
+            scalars[n.target.id] = False
+    for n in ast.walk(tree):                    # ... unless something rebinds them inside a function
+        if isinstance(n, ast.Global):
+            for nm in n.names:
+                scalars[nm] = False
+    return {"mock_import": mock, "skip_module": skip_module, "local": local, "consts": consts, "scalars": scalars,
+            "module_level": sorted(set(patch_findings(tree, local)) | set(dynamic_code_findings(tree))),
+            "helpers": helpers, "fixtures": fixtures}
 
 
 def used_findings(fn, mflags: dict) -> list[str]:
@@ -410,6 +441,108 @@ def _const_call(n, mflags: dict) -> bool:
         all(_is_const_expr(a) for a in n.args) and all(_is_const_expr(k.value) for k in n.keywords)
 
 
+def _const_valued(n, names: dict[str, bool]) -> bool:
+    """Is the value of `n` fixed by the test's source, whatever the implementation does? Constants, pure builtins of
+    constants, arithmetic and boolean combinations of constants, conditional expressions whose both branches are
+    constant (`12 if ok else 0` carries only whether something raised, not a measured value), and names bound only to
+    such values."""
+    if _is_const_expr(n):
+        return True
+    if isinstance(n, ast.Name):
+        return bool(names.get(n.id, False))
+    if isinstance(n, ast.IfExp):
+        return _const_valued(n.body, names) and _const_valued(n.orelse, names)
+    if isinstance(n, ast.UnaryOp):
+        return _const_valued(n.operand, names)
+    if isinstance(n, ast.BinOp):
+        if isinstance(n.op, ast.Mult) and any(isinstance(x, ast.Constant) and not isinstance(x.value, (bool, str))
+                                              and x.value == 0 for x in (n.left, n.right)):
+            return True                         # 0 * measured: a measurement multiplied away
+        return _const_valued(n.left, names) and _const_valued(n.right, names)
+    if isinstance(n, ast.BoolOp):
+        return all(_const_valued(v, names) for v in n.values)
+    if isinstance(n, ast.Compare):
+        return _const_valued(n.left, names) and all(_const_valued(c, names) for c in n.comparators)
+    if isinstance(n, (ast.Tuple, ast.List, ast.Set)):
+        return all(_const_valued(e, names) for e in n.elts)
+    if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in PURE_BUILTINS:
+        return all(_const_valued(a, names) for a in n.args) and all(_const_valued(k.value, names) for k in n.keywords)
+    return False
+
+
+_CONTAINERS = (ast.List, ast.Dict, ast.Set, ast.ListComp, ast.DictComp, ast.SetComp)
+
+
+def _scalar_constants(fn, mflags: dict) -> dict[str, bool]:
+    """Names of `fn`'s body bound only to constant-valued expressions (module-level constants included unless the
+    body rebinds them); any other binding (augmented assignment, loop or with target, unpacking, walrus, except-as,
+    an argument) makes a name non-constant."""
+    names: dict[str, bool] = dict(mflags.get("scalars", {}))
+    for a in [*fn.args.args, *fn.args.kwonlyargs, *fn.args.posonlyargs]:
+        names[a.arg] = False
+    for x in (fn.args.vararg, fn.args.kwarg):
+        if x is not None:
+            names[x.arg] = False
+    assigns, others, simple = [], set(), set()
+    for n in _walk_body(fn):
+        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+            assigns.append((n.targets[0].id, n.value))
+            simple.add(id(n.targets[0]))
+    for n in _walk_body(fn):
+        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store) and id(n) not in simple:
+            others.add(n.id)
+        elif isinstance(n, ast.ExceptHandler) and n.name:
+            others.add(n.name)
+    # a container bound once (`found = []`) and filled later (`found.append(x)`, `found[k] = v`, passed to a call)
+    # holds whatever was put in it: not a constant
+    for n in _walk_body(fn):
+        if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name):
+            others.add(n.value.id) if any(nm == n.value.id and isinstance(v, _CONTAINERS) for nm, v in assigns) else None
+        elif isinstance(n, ast.Subscript) and isinstance(n.ctx, (ast.Store, ast.Del)) and isinstance(n.value, ast.Name):
+            others.add(n.value.id)
+        elif isinstance(n, ast.Call) and not (isinstance(n.func, ast.Name) and n.func.id in PURE_BUILTINS):
+            for a in [*n.args, *(k.value for k in n.keywords)]:
+                if isinstance(a, ast.Name) and any(nm == a.id and isinstance(v, _CONTAINERS) for nm, v in assigns):
+                    others.add(a.id)
+    local = {nm for nm, _ in assigns} | others
+    for nm in local:
+        names[nm] = nm not in others
+    for _ in range(3):                          # bindings may refer to each other: iterate to a fixed point
+        for nm, val in assigns:
+            if nm not in others:
+                names[nm] = all(_const_valued(v, names) for x, v in assigns if x == nm)
+    for nm in others:
+        names[nm] = False
+    return names
+
+
+def record_call_sites(fn, mflags: dict) -> list[dict]:
+    """Every record() call in `fn`'s body: its source span and, when its metrics are a dict literal (directly or
+    through a name bound once to one), the metric names whose recorded value is constant-valued."""
+    names = _scalar_constants(fn, mflags)
+    dicts: dict[str, list] = {}
+    for n in _walk_body(fn):
+        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+            dicts.setdefault(n.targets[0].id, []).append(n.value)
+    out = []
+    for n in _walk_body(fn):
+        if not _is_record_call(n):
+            continue
+        m = n.args[1] if len(n.args) > 1 else next((k.value for k in n.keywords if k.arg == "metrics"), None)
+        if isinstance(m, ast.Name) and len(dicts.get(m.id, [])) == 1 and isinstance(dicts[m.id][0], ast.Dict):
+            m = dicts[m.id][0]
+        keys, const = None, []
+        if isinstance(m, ast.Dict) and all(isinstance(k, ast.Constant) and isinstance(k.value, str) for k in m.keys):
+            keys = [k.value for k in m.keys]
+            const = [k.value for k, v in zip(m.keys, m.values) if _const_valued(v, names)]
+        elif isinstance(m, ast.Call) and _dotted(m.func) == "dict" and not m.args and \
+                all(k.arg is not None for k in m.keywords):
+            keys = [k.arg for k in m.keywords]
+            const = [k.arg for k in m.keywords if _const_valued(k.value, names)]
+        out.append({"span": [n.lineno, getattr(n, "end_lineno", n.lineno)], "keys": keys, "const_keys": const})
+    return out
+
+
 def scan_function(fn, src_lines: list[str], mflags: dict) -> dict:
     findings: list[str] = []
     asserts = measured = 0
@@ -429,6 +562,7 @@ def scan_function(fn, src_lines: list[str], mflags: dict) -> dict:
                 and n.func.attr in ("update", "setdefault", "__setitem__"):
             const_names[n.func.value.id] = False
     record_calls, fail_lines = [], []
+    record_calls_info = record_call_sites(fn, mflags)
     for n in _walk_body(fn):
         if isinstance(n, ast.Assert):
             asserts += 1
@@ -495,7 +629,7 @@ def scan_function(fn, src_lines: list[str], mflags: dict) -> dict:
             findings.append("placeholder_text")
             break
     return {"name": fn.name, "line": fn.lineno, "asserts": asserts, "measured_asserts": measured,
-            "records": len(record_calls), "findings": sorted(set(findings))}
+            "records": len(record_calls), "record_calls": record_calls_info, "findings": sorted(set(findings))}
 
 
 def scan_source(src: str) -> list[dict]:
@@ -582,6 +716,7 @@ def harness_findings(src: str) -> list[str]:
             out.add("exit_status")
     if module_flags(tree)["mock_import"]:
         out.add("mock")
+    out.update(dynamic_code_findings(tree))
     if patch_findings(tree, local):
         out.add("module_patch")
     return sorted(out)

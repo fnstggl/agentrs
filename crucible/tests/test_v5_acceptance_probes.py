@@ -674,3 +674,242 @@ def test_ablate_source_keeps_module_code_and_makes_every_function_raise():
         with pytest.raises(exc):
             call()
     assert new.splitlines()[1] == "from __future__ import annotations"
+
+
+# ================================================================================================= wave 3b (P31-P38)
+# Independent verification of the D-26 machinery (workstream P, wave 3b). Each probe is an attack that a cheating
+# producer can mount with the official pipeline and a few committed lines; all of them reached VERIFIED on the D-26
+# code (55433e7) and are rejected after the wave-3b hardening (DECISION_LOG D-83).
+
+TEARDOWN_OVERRIDE = '''import pytest
+
+from crucible.acceptance.v5 import evidence
+import widgets
+
+
+@pytest.fixture(autouse=True)
+def _final():
+    yield
+    evidence.record("Z.1", {"widgets": widgets.count(), "leaks": 0 * widgets.leaks()})
+
+
+def test_z():
+    n = widgets.count()
+    leaks = widgets.leaks()
+    evidence.record("Z.1", {"widgets": n, "leaks": leaks})
+    assert n >= 10
+'''
+
+HELPER_OVERRIDE = '''from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def _finish():
+    evidence.record("Z.1", {"widgets": widgets.count(), "leaks": 0 * widgets.leaks()})
+
+
+def test_z():
+    n = widgets.count()
+    leaks = widgets.leaks()
+    evidence.record("Z.1", {"widgets": n, "leaks": leaks})
+    _finish()
+    assert n >= 10
+'''
+
+
+@pytest.mark.parametrize("src", [TEARDOWN_OVERRIDE, HELPER_OVERRIDE], ids=["fixture_teardown", "helper"])
+def test_P31_a_record_made_outside_the_scanned_test_body_is_rejected(tmp_path, monkeypatch, src):
+    """The producing test's own record() is honest and passes the static scan (it records the defect: leaks=1), but a
+    fixture teardown or a helper records again afterwards with laundered metrics; the last record is the one filed.
+    The record must come from a record() call of the producing test's body (the call the static scan examined),
+    during the test's call phase."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT, test_src=src)
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED" and has(row, "record() call"), row["problems"]
+
+
+AUX_METRIC = '''import hashlib
+
+from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def test_z():
+    build = int(hashlib.sha256(open(widgets.__file__, "rb").read()).hexdigest()[:8], 16)
+    evidence.record("Z.1", {"widgets": 12, "leaks": 0, "build": build})
+    assert build > 0
+'''
+
+
+def test_P32_an_auxiliary_metric_cannot_make_constant_criteria_look_measured(tmp_path, monkeypatch):
+    """The criteria metrics are constants and the implementation is never called. One extra metric (a hash of the
+    implementation's source file) changes when the implementation is ablated, so an ablation judged on all metrics
+    calls the measurement dependent. Ablation is judged on the criteria metrics, and constant criteria metrics are
+    named by the static detector."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT, test_src=AUX_METRIC)
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED", row["problems"]
+    assert has(row, "constant") and has(row, "criteria metric"), row["problems"]
+
+
+IFEXP_CONST = '''from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def test_z():
+    try:
+        widgets.count()
+        widgets.leaks()
+        probe = None
+    except BaseException as exc:
+        probe = exc
+    n = 12 if probe is None else 0
+    leaks = 0 if probe is None else 1
+    evidence.record("Z.1", {"widgets": n, "leaks": leaks})
+    assert n >= 10 and leaks == 0
+'''
+
+
+def test_P33_criteria_metrics_that_only_encode_whether_the_implementation_raised_are_rejected(tmp_path, monkeypatch):
+    """The implementation is called (and is defective: leaks() returns 1), but the recorded values are constants
+    chosen by whether it raised; the ablation exception (a BaseException) is caught and used, which the D-26 swallow
+    rule allowed. Both the BaseException handler and the constant-valued criteria metrics are named."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT, test_src=IFEXP_CONST)
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED", row["problems"]
+    assert has(row, "swallow") and has(row, "criteria metric"), row["problems"]
+
+
+EXEC_PATCH = GOOD_TEST.replace("import widgets\n", '''import pytest
+import widgets
+
+
+@pytest.fixture(autouse=True)
+def _setup():
+    exec(compile("import widgets\\nwidgets.leaks = lambda: 0\\n", "<setup>", "exec"), {})
+    yield
+''')
+
+
+def test_P34_a_patch_compiled_from_a_string_is_rejected(tmp_path, monkeypatch):
+    """An autouse fixture execs a patch: the static scan sees no assignment and the runtime patch detector skipped
+    functions compiled from '<...>' sources."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT, test_src=EXEC_PATCH)
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED" and (has(row, "dynamic_code") or has(row, "patched")), row["problems"]
+
+
+KIT = '''import widgets
+
+
+def prepare():
+    widgets.leaks = _zero
+
+
+def _zero():
+    return 0
+'''
+
+KIT_TEST = GOOD_TEST.replace("import widgets\n", "import widgets\nimport _zkit\n").replace(
+    "    n = widgets.count()\n", "    _zkit.prepare()\n    n = widgets.count()\n")
+
+
+def test_P35_a_patch_installed_by_a_test_helper_module_is_rejected(tmp_path, monkeypatch):
+    """The patch lives in a helper module next to the gate test (like tests/v5/_commerce_kit.py): the test file
+    holds no assignment, and the patch's code is a file inside the checkout, which the D-26 runtime detector
+    accepted. Implementation functions whose code lives in test files are patches."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT, test_src=KIT_TEST, extra_files={"tests/v5/_zkit.py": KIT})
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED" and has(row, "patched"), row["problems"]
+
+
+CORE_DEFECT = "def leaks():\n    return 1\n"
+SPLIT_WIDGETS = "from ._core import leaks  # noqa: F401\n\n\ndef count():\n    return 12\n"
+
+
+def _unchecked_pyc(source: str, dest: str) -> None:
+    import py_compile
+    tmp = dest + ".src.py"
+    with open(tmp, "w") as fh:
+        fh.write(source)
+    py_compile.compile(tmp, cfile=dest, doraise=True,
+                       invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+    os.remove(tmp)
+
+
+def test_P36_committed_bytecode_that_replaces_the_reviewed_source_is_rejected(tmp_path, monkeypatch):
+    """The committed source of widgets._core is defective (leaks() returns 1); a committed unchecked-hash .pyc next
+    to it (which CPython loads without looking at the source) returns 0. The records hash the .py the reviewer
+    reads, and ablation cannot touch it. Committed bytecode or compiled modules are rejected."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=SPLIT_WIDGETS, extra_files={"src/widgets/_core.py": CORE_DEFECT})
+    cache = os.path.join(r.root, "src", "widgets", "__pycache__")
+    os.makedirs(cache, exist_ok=True)
+    tag = sys.implementation.cache_tag
+    _unchecked_pyc("def leaks():\n    return 0\n", os.path.join(cache, f"_core.{tag}.pyc"))
+    git(r.top, "add", "-f", os.path.join(cache, f"_core.{tag}.pyc"))
+    r.commit("bytecode")
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED" and has(row, "bytecode"), row["problems"]
+
+
+FLOOD_TEST = GOOD_TEST.replace("import widgets\n", '''import widgets
+
+
+def _flood():
+    for i in range(200_001):
+        try:
+            open(f"/nonexistent-crucible-probe/{i}")
+        except OSError:
+            pass
+''').replace("    n = widgets.count()\n", "    _flood()\n    n = widgets.count() + 0 * len(open('data/w.txt').read())\n")
+
+
+def test_P37_a_files_read_overflow_cannot_hide_a_data_file_from_staleness(tmp_path, monkeypatch):
+    """The audit hook records at most 200,000 opened paths; a helper opens 200,001 nonexistent paths first, so the
+    data file read afterwards is not in files_read, and a later change of it does not make the evidence stale."""
+    r = Repo(str(tmp_path), monkeypatch, test_src=FLOOD_TEST, extra_files={"data/w.txt": "x"})
+    attempt(r)
+    r.write("data/w.txt", "changed after the evidence")
+    r.commit("data changed")
+    _, row = rejected(r)
+    assert has(row, "files_read") or has(row, "stale"), row["problems"]
+
+
+def test_testscan_flags_the_wave3b_evasions_without_false_positives():
+    def site(src):
+        f = next(x for x in testscan.scan_source(src) if x["name"] == "test_z")
+        return f, f["record_calls"][0]
+    f, c = site(AUX_METRIC)
+    assert c["const_keys"] == ["widgets", "leaks"] and "build" not in c["const_keys"]
+    f, c = site(IFEXP_CONST)
+    assert "swallow" in f["findings"] and c["const_keys"] == ["widgets", "leaks"]
+    assert "dynamic_code" in site(EXEC_PATCH)[0]["findings"]
+    zero = GOOD_TEST.replace('{"widgets": n, "leaks": leaks}', '{"widgets": n, "leaks": 0 * widgets.leaks()}')
+    assert site(zero)[1]["const_keys"] == ["leaks"]
+    # what an honest measurement looks like is not flagged: a container filled by the test, a method named eval,
+    # a value derived from a call, an except Exception that records the error
+    honest = '''from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def test_z():
+    found = []
+    for i in range(widgets.count()):
+        found.append(i)
+    model = widgets
+    model.__dict__.get("eval", lambda: None)
+    errors = []
+    try:
+        widgets.leaks()
+    except Exception as exc:
+        errors.append(repr(exc))
+    n = len(found)
+    evidence.record("Z.1", {"widgets": n, "leaks": widgets.leaks(), "errors": len(errors)})
+    assert n >= 10 and not errors
+'''
+    f, c = site(honest)
+    assert c["const_keys"] == [] and f["findings"] == [], (f, c)
+    assert site(GOOD_TEST)[1] == {"span": [8, 8], "keys": ["widgets", "leaks"], "const_keys": []}
+    assert not testscan.dynamic_code_findings(__import__("ast").parse("m = load().eval()\nx = re.compile('a')\n"))
+    assert checker.is_compiled("src/w/__pycache__/x.cpython-312.pyc") and checker.is_compiled("src/w/_c.so")
+    assert not checker.is_compiled("src/w/x.py")

@@ -43,7 +43,8 @@ DEFAULT_REL, DEFAULT_ABS = 1e-6, 1e-9
 ABLATIONS_DIR = "docs/v5/reviews/ablations"
 ABLATION_EXC = "__CrucibleAblated__"
 SCRUB_PREFIXES = ("PYTHON", "PYTEST_", "CRUCIBLE_V5_", "COV_CORE_")
-SCRUB_NAMES = ("LD_PRELOAD", "LD_AUDIT", "COVERAGE_PROCESS_START")
+SCRUB_NAMES = ("LD_PRELOAD", "LD_AUDIT", "COVERAGE_PROCESS_START",
+               "CRUCIBLE_HISTORICAL_BASELINE")          # a 4.0 reproduction switch (D-82) never reaches a gate
 PYTEST = ["-s", "-m", "pytest", "-p", "crucible.acceptance.v5.evidence"]   # -s: no user site; the plugin installs
 #                                                                         the files-read audit hook before collection
 
@@ -84,8 +85,8 @@ def clone(root: str, commit: str, dest: str, run_id: str, kind: str) -> str:
          top, dest)
     _git(dest, "checkout", "--quiet", "--detach", sha)
     gd = _git(dest, "rev-parse", "--absolute-git-dir")
-    with open(os.path.join(gd, MARKER), "w") as fh:
-        json.dump({"run_id": run_id, "commit": sha, "kind": kind, "created_at": _now()}, fh)
+    with open(os.path.join(gd, MARKER), "w") as fh:          # no run kind: the measured process need not know
+        json.dump({"run_id": run_id, "commit": sha, "created_at": _now()}, fh)   # whether it is being ablated
     return os.path.join(dest, prefix) if prefix != "." else dest
 
 
@@ -185,7 +186,7 @@ def execute(root: str, tests: list[str], *, commit: str = "HEAD", kind: str = "e
         ablated_sha = _git(croot, "rev-parse", "HEAD")
         gd = _git(dest, "rev-parse", "--absolute-git-dir")
         with open(os.path.join(gd, MARKER), "w") as fh:
-            json.dump({"run_id": run_id, "commit": ablated_sha, "kind": kind, "created_at": _now()}, fh)
+            json.dump({"run_id": run_id, "commit": ablated_sha, "created_at": _now()}, fh)
         ablation = {"base_commit": sha, "ablated_commit": ablated_sha, "functions_ablated": done}
     before = _status(dest)
     present = [t for t in tests if os.path.exists(os.path.join(croot, t))]
@@ -351,9 +352,23 @@ def reproduce(root: str, e: dict, ev: dict, *, agent: str, scratch: str | None =
             "mismatches": mism, "criteria_failures": crit, "installed": installed, "commit": rec["commit"]}
 
 
-def ablation_sensitive(ev_metrics: dict, ablated: dict | None, tolerance: dict | None) -> bool:
-    """The measurement depends on the implementation: the ablated run recorded nothing, or something different."""
-    return ablated is None or bool(compare_metrics(ev_metrics, ablated.get("metrics") or {}, tolerance))
+def ablation_survivors(ev_metrics: dict, ablated: dict | None, tolerance: dict | None,
+                       criteria: list[dict] | None = None) -> list[str]:
+    """The criteria metrics (all metrics when no criteria are given) that the ablated run recorded unchanged. The
+    requirement's measurement is its criteria metrics: an auxiliary metric that changes under ablation (a hash of the
+    implementation's source, the commit) says nothing about whether the criteria were measured (wave 3b, D-83)."""
+    if ablated is None:
+        return []
+    got = ablated.get("metrics") or {}
+    names = [n for n in dict.fromkeys(c["metric"] for c in criteria or []) if n in ev_metrics] or list(ev_metrics)
+    return [n for n in names if not compare_metrics({n: ev_metrics[n]}, got, tolerance)]
+
+
+def ablation_sensitive(ev_metrics: dict, ablated: dict | None, tolerance: dict | None,
+                       criteria: list[dict] | None = None) -> bool:
+    """The measurement depends on the implementation: the ablated run recorded nothing, or every criteria metric
+    differs from the evidence."""
+    return ablated is None or not ablation_survivors(ev_metrics, ablated, tolerance, criteria)
 
 
 def ablate(root: str, e: dict, ev: dict, *, agent: str, scratch: str | None = None, install: bool = True,
@@ -379,7 +394,8 @@ def ablate(root: str, e: dict, ev: dict, *, agent: str, scratch: str | None = No
                                                                                           {}).values()),
             "node": node, "pytest_rc": rec["pytest_rc"], "record_produced": got is not None,
             "record_path": installed.get(e["id"]),
-            "sensitive": ablation_sensitive(ev["metrics"], got, e.get("tolerance"))}
+            "survivors": ablation_survivors(ev["metrics"], got, e.get("tolerance"), e.get("criteria")),
+            "sensitive": ablation_sensitive(ev["metrics"], got, e.get("tolerance"), e.get("criteria"))}
 
 
 def review(root: str | None = None, *, requirement: str, agent: str | None = None, verdict: str = "approved",
