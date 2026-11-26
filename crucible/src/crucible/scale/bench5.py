@@ -16,7 +16,7 @@ blobs are compacted by workstream A's retention after every day (crucible.substr
 | inference token counts | tokens the shared space's language model scored, items each encoder computed, recorded inference calls by kind, generated tokens of the semantic service |
 | event storage growth | bytes per simulated day and per individual-day: raw = event rows as the store holds them (read with one SQL aggregate per day, outside the measured CPU) + array-blob bytes written (before compaction); resident = store growth after compaction and VACUUM |
 | snapshot size | bytes and seconds of `World.snapshot_blob()` at the end; a fork from it must have the same state digest |
-| world-generation cost | wall and CPU seconds, events and RSS of `World.create` |
+| world-generation cost | wall and CPU seconds, events and RSS of `World.create`, plus the first simulated day's CPU beyond a median day (deployments and warm-up the world's first processes do; the T5 check uses the sum) |
 | approximation error | from crucible.scale.approx (the estimated large-population mode against individual simulation) |
 
 Class activity is measured per participant class (rows; individuals whose session count grew; decisions recorded by
@@ -353,6 +353,12 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
             os.replace(partial_out + ".tmp", partial_out)
     wall = time.time() - t_run
     cpu = cpu_s() - c_run - compact_cpu
+    if len(series) >= 3:
+        # what the first simulated day costs beyond an ordinary day: deployments and warm-up that World.create leaves
+        # to the world's first processes, model loading and lazy imports (counted as generation cost: stricter)
+        rest = sorted(r["cpu_s"] for r in series[1:])
+        gen["first_day_excess_cpu_s"] = round(max(0.0, series[0]["cpu_s"] - rest[len(rest) // 2]), 3)
+    gen["inclusive_cpu_s"] = round(gen["cpu_s"] + gen.get("first_day_excess_cpu_s", 0.0), 3)
     w.listeners.remove(ec)
     sim_days = (w.now - (end - int(days * DAY))) / DAY
     tc, cc = time.time(), cpu_s()
@@ -648,7 +654,8 @@ def aggregate(runs: list[dict]) -> dict:
                          lambda r: r["event_storage_growth"]["raw_bytes_per_individual_day"]),
                         ("snapshot_bytes", lambda r: r["snapshot_size"]["bytes"]),
                         ("snapshot_s", lambda r: r["snapshot_size"]["seconds"]),
-                        ("generation_cpu_s", lambda r: r["world_generation_cost"]["cpu_s"])):
+                        ("generation_cpu_s", lambda r: r["world_generation_cost"].get(
+                            "inclusive_cpu_s", r["world_generation_cost"]["cpu_s"]))):
             v = col(f)
             agg[name] = {"mean": round(stt.mean(v), 4), "min": round(min(v), 4), "max": round(max(v), 4)}
         agg["classes_acting"] = min(sum(1 for c in r["class_activity"].values() if c["acting"]) for r in rs)
