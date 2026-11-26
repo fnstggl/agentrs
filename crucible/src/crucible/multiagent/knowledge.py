@@ -53,6 +53,7 @@ class Knowledge:
         self.mine: set[str] = set()
         self.tool_stats: dict[str, dict] = {}
         self.packages: OrderedDict[str, dict] = OrderedDict()   # import path -> {package, api}: packages it found
+        self.addressed: set[str] = set()     # ids of things other principals addressed to it (events naming it)
         self.caps: list[str] = []
         self.fresh = 0                       # counter for names it invents (repositories, handles, hosts)
         self.t = 0
@@ -162,7 +163,10 @@ class Knowledge:
                 # an event's own `id` names the thing of its type ("deal.offer" -> a deal, "id.invite" -> an
                 # invite): file it under both nouns of the type
                 for noun in {typ.split(".", 1)[0], typ.rsplit(".", 1)[-1]}:
-                    self.note_value(noun, pay["id"], t, mine=own and e.get("actor") == self.me)
+                    if pay["id"].startswith(noun[:3]):      # ids abbreviate their noun: deal_, inv_, off_, prd_
+                        self.note_value(noun, pay["id"], t, mine=own and e.get("actor") == self.me)
+                if e.get("actor") != self.me and any(v == self.me for k, v in pay.items() if k not in ("by",)):
+                    self.addressed.add(pay["id"])       # something addressed to it (an offer, an invitation)
             actor = e.get("actor")
             if isinstance(actor, str) and actor != self.me and actor.startswith(("p:", "o:")):
                 self.note_value("actor", actor, t)

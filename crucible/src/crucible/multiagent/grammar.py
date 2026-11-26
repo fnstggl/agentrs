@@ -116,7 +116,8 @@ def _known(kn: Knowledge, fname: str, s: dict, values: list[str], source: str = 
             continue
         seen.add(v)
         rec, n, mine, kind = _recency(kn, v)
-        out.append(Cand(v, "mine" if mine else source, kind, mine, rec, 0.0, n))
+        out.append(Cand(v, "mine" if mine else source, kind, mine, rec, 0.0, n,
+                        meta={"addressed": True} if v in kn.addressed else {}))
         if len(out) >= MAX_CANDS:
             break
     return out

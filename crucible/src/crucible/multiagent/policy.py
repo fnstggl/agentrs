@@ -53,7 +53,7 @@ BUCKETS = 1024
 EMB = 16
 HIDDEN = 64
 TOOL_FLAGS = 7
-CAND_NUM = 5
+CAND_NUM = 6
 N_EVENT_BUCKETS = 32
 KINDS = ("person", "organisation", "account", "artifact", "service", "repo", "deal", "prd", "plan", "lst", "inv",
          "pkg", "proj", "task", "ord", "sub", "ent", "dep", "inst", "entity")
@@ -88,7 +88,7 @@ def cand_tokens(c: G.Cand, fname: str) -> list[int]:
 
 def cand_num(c: G.Cand) -> list[float]:
     return [float(c.recency), 1.0 if c.mine else 0.0, float(c.bin), math.log1p(c.n_seen) / 5.0,
-            1.0 if c.value is G.OMIT else 0.0]
+            1.0 if c.value is G.OMIT else 0.0, 1.0 if c.meta.get("addressed") else 0.0]
 
 
 def _symlog(x: float) -> float:
@@ -338,7 +338,7 @@ class PolicyGroup:
                 slot_recs.append({"ftok": ftok, "ctoks": ctoks, "cnum": cnum.numpy(), "ci": ci})
                 if cs[ci].value is not G.OMIT:
                     args[sl.name] = cs[ci].value
-                    meta.update(cs[ci].meta)
+                    meta.update({k: v for k, v in cs[ci].meta.items() if k != "addressed"})
         self.decisions += 1
         rec = {"identity": identity, "t": int(obs.get("t", 0)), "x": state, "h": h_prev, "names": names,
                "ttoks": ttoks, "tflags": tfl.numpy(), "htoks": htoks, "hidx": hidx, "ti": ti, "slots": slot_recs, "logp": logp, "v": value,
