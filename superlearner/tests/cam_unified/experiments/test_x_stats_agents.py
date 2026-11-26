@@ -25,7 +25,7 @@ def test_two_level_bootstrap_covers_the_mean_and_widens_with_seed_variation():
     flat = ST.two_level(np.ones((3, 16)) + rng.normal(0, 0.3, (1, 16)), n_boot=600)
     spread = ST.two_level(np.ones((3, 16)) + rng.normal(0, 0.3, (1, 16)) + np.array([[-2], [0], [2]]), n_boot=600)
     assert (spread["hi"] - spread["lo"]) > 3 * (flat["hi"] - flat["lo"])   # seed variation enters the interval
-    d = ST.paired(np.full((3, 8), 2.0) + rng.normal(0, 0.1, (3, 8)), np.full((1, 8), 1.0))
+    d = ST.paired(np.full((3, 8), 2.0) + rng.normal(0, 0.1, (3, 8)), np.full((1, 8), 1.0), single_seed="zero")
     assert d["lo"] > 0.8 and d["p_gt0"] == 1.0
     assert ST.two_level(np.full((2, 3), np.nan))["mean"] is None
 
