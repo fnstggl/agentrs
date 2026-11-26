@@ -206,3 +206,36 @@ SP-21, SP-20 and SP-21, so their canonical gate test is that requirement's exist
 (`requirements.GATE_TEST_OVERRIDE`): tests/v5/test_gate_SP_1_3.py, test_gate_SP_1_5.py, test_gate_SP_21.py,
 test_gate_SP_20.py and test_gate_SP_21.py, replacing the per-id file names the first build assigned (files that never
 existed). This changes where the evidence is produced, not what is measured.
+
+## D-26 Acceptance hardening after the wave-3 adversarial verification (2026-11-26, workstream P)
+An independent verifier attacked the D-24 checker with 31 new fabrication probes (tests/test_v5_acceptance_probes.py,
+P15-P29) in throwaway repositories. 26 succeeded on the D-24 code (VERIFIED, a terminal project status, or an accepted
+self-review): environment injection through user site-packages (PYTHONUSERBASE + usercustomize, the S1 attack in a form the PYTHONPATH scrub
+missed) and through a poisoned interpreter (.pth hook); constant metrics laundered through a helper, a module-level
+dict or a dict() call; implementation patches in fixtures, helpers or plain attribute assignment; a conftest hook that
+rewrites outcomes or replaces the test body; contextlib.suppress and broad fallbacks; stale evidence after a data
+file or dataset changed; tamper code (a sitecustomize on the clone's PYTHONPATH, a conftest) that hides itself from
+the module list and is reverted after the run; assume-unchanged / skip-worktree / ignored start-up hooks hiding a
+broken working tree; a fully consistent forgery; re-anchoring the specification in the ledger; a blocker that names
+no requirement; weakening in manifest history that predates the ledger; self-review without session identities.
+Decision (no manifest criterion changes; the checker only becomes stricter):
+* the measured process gets a scrubbed environment (no PYTHON*/PYTEST_*/LD_PRELOAD/LD_AUDIT, `python -s`) and every
+  record lists the interpreter, its start-up hooks (checked against docs/v5/baselines/python_site_hooks.json), foreign
+  modules, functions patched from foreign files, injection variables and the files the process read under the clone;
+* staleness covers the files read, the conftest/pytest configuration files on the tests' paths and declared datasets;
+  conftest files are scanned for outcome-rewriting hooks and patches; start-up hook files in the tree are rejected;
+* every review ablates the implementation: the producing test is run alone in a clone whose listed implementation
+  modules raise in every function (a BaseException, so broad handlers cannot absorb it); a measurement that survives
+  ablation does not depend on its implementation and is rejected (the dynamic counterpart of the static detector);
+* the project status is terminal (CRUCIBLE_5_COMPLETE or INCOMPLETE_BLOCKED) only after the release check
+  `--verify-all --reproduce`, which re-executes and ablates every VERIFIED requirement in a clone of HEAD - the tree
+  being released, not the evidence commit - so neither a consistent forgery nor any change since the evidence escapes
+  it; static checks alone report IN_PROGRESS;
+* ledger anchors are immutable; every committed manifest version in HEAD's history is checked (no requirement removed,
+  today's criteria imply every committed criteria version); a blocker blocks a requirement only if its BLOCKERS.md
+  section names it; official runs and reviews need a session identity.
+Residual trust, stated: identities are still declared; the interpreter's own files (standard library, installed
+packages) are trusted; static detection of patches has limits (registry insertions paired with removal count as
+negative controls); ablation shows that a measurement depends on its implementation, not that it measures the right
+property. Consequence for evidence: records of schema evidence/2 are rejected; official evidence must be produced
+with this machinery.

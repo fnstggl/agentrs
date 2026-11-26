@@ -346,10 +346,19 @@ def workstream_files(root: str | None = None) -> dict[str, dict]:
             o = out.setdefault(rid, {"tests": [], "implementation_files": [], "sources": [], "skipped": []})
             o["sources"].append(os.path.basename(f))
             for kind in ("tests", "implementation_files"):
+                paths = []
                 for p in info.get(kind, []) or []:
                     if not isinstance(p, str):
                         continue
                     c = _clean_path(p)
+                    if c and any(ch in c for ch in "*?[") and not os.path.isabs(c) and ".." not in c.split("/"):
+                        hits = sorted(os.path.relpath(h, root_) for h in glob.glob(os.path.join(root_, c), recursive=True)
+                                      if os.path.isfile(h))       # a pattern names every file it matches
+                        if hits:
+                            paths += [(p, h) for h in hits]
+                            continue
+                    paths.append((p, c))
+                for p, c in paths:
                     if not c or os.path.isabs(c) or ".." in c.split("/"):
                         o["skipped"].append((p, "not a path relative to crucible/"))
                     elif not os.path.exists(os.path.join(root_, c)):

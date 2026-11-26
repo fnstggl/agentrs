@@ -26,16 +26,26 @@ tests, 1,074 passed, 2 skipped, 694 s wall with three groups in parallel, one th
 PYTHONPATH=src python -m crucible.acceptance.v5 run --gate B --agent ws-B
 git add docs/v5/evidence && git commit -m "evidence: gate B"
 # independent review (another agent and session): re-executes the tests in another fresh clone of the evidence commit
-# and compares the metrics within the declared tolerance; writes docs/v5/reviews/; then commit it
+# and compares the metrics within the declared tolerance, then ablates the implementation (every function of the
+# listed implementation modules raises) and requires the producing test's measurement not to survive; writes
+# docs/v5/reviews/ (review, reproduction and ablation records); then commit it
 PYTHONPATH=src python -m crucible.acceptance.v5 review --requirement B.1 --agent qa-1 --verdict approved --notes "..."
 git add docs/v5/reviews && git commit -m "review: B.1"
-# release check: everything above plus a fresh re-execution of every VERIFIED requirement
+# release check (D-26): the only way to a terminal project status. Static checks plus a fresh re-execution and
+# ablation of every VERIFIED requirement in a clone of HEAD (the tree being released, not the evidence commit)
 PYTHONPATH=src python -m crucible.acceptance.v5 --verify-all --reproduce --agent release-check
 # after merging a workstream branch: rebuild the manifest and merge the workstream reports' file lists
 PYTHONPATH=src python -m crucible.acceptance.v5 build-manifest [--decision D-<n>]
 PYTHONPATH=src python -m crucible.acceptance.v5 merge-workstreams
 PYTHONPATH=src python -m crucible.acceptance.v5 final-report            # docs/v5/FINAL_REPORT.md from the checker
 ```
+Official runs and reviews need a session identity (`CRUCIBLE_V5_SESSION`, or the harness's `CLAUDE_CODE_SESSION_ID`)
+and run the tests with a scrubbed environment (no PYTHON*/PYTEST_*/LD_PRELOAD variables, `python -s`); every record
+lists the interpreter, its start-up hooks (checked against docs/v5/baselines/python_site_hooks.json), foreign modules,
+patched functions and the files the process read. Run them with `TMPDIR` unset or world-traversable: the jailed
+Chromium (crucible.sandbox.jail drops to its own uid) and the PostgreSQL test fixture (runs initdb as the `postgres`
+user) cannot enter a temporary directory below a root-only directory such as an agent scratchpad, and their tests then
+fail for that reason alone (DEF-P-16).
 Gate tests that need more than one CPU or the GPU run under the slot scheduler, e.g. Gate A with the GPU visible:
 `python -m crucible.scale.slots --cpu 3 --gpu-mb 4000 --label "P: gate A" -- env CRUCIBLE_GATE_A_WORKERS=3 PYTHONPATH=src
 python -m crucible.acceptance.v5 run --gate A --agent ws-P`.
