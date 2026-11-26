@@ -1021,15 +1021,19 @@ def test_OO14_leak_channels_probed_per_tier(tier_probes):
     guide = open(os.path.join(ROOT, "docs", "v5", "LEARNER_GUIDE.md")).read()
     gym_doc = inspect.getsource(__import__("crucible.experience.gym", fromlist=["x"]))
     documented = "not a learning signal" in guide and "not a learning signal" in gym_doc
+    verdicts = (res["tiers"].get(2) or {}).get("verdicts") or {"probed": [], "not_probed": []}
     metrics = {"tiers_covered": len(covered), "leak_channels_probed_per_tier": min_channels if per else 0,
                "verifier_values_recovered": recovered, "scalar_reward_documented": documented,
-               "tier3_positive_control_leaks": int(pc["n_leaks"]) if pc else 0}
+               "tier3_positive_control_leaks": int(pc["n_leaks"]) if pc else 0,
+               "tier2_domain_verdicts_scanned": len(verdicts["probed"]),
+               "tier2_domain_verdicts_without_distinctive_values": len(verdicts["not_probed"])}
     path = os.path.join(os.environ.get("TMPDIR", "/tmp"), "OO14_tier_probes.json")
     with open(path, "w") as fh:
         json.dump(res, fh, indent=1, default=str)
     record("OO.14", metrics, command=CMD, notes=f"crucible.experience.probes_tiers per tier: {per}; leaks: "
            f"{[l for r in res['tiers'].values() for l in r['leaks']][:6]}; tiers that could not run: "
-           f"{res['errors']}; Tier 3 positive control (the same probes in a legacy civilisation): "
+           f"{res['errors']}; Tier 2 domain evaluator verdicts scanned: {verdicts['probed']}, without a distinctive number "
+           f"after the scripted reference (not scanned): {verdicts['not_probed']}; Tier 3 positive control (the same probes in a legacy civilisation): "
            f"{pc['kinds_with_leaks'] if pc else pc_err}")
     assert recovered == 0 and documented, metrics
     assert metrics["tier3_positive_control_leaks"] > 0, f"the Tier 3 probes are not shown sensitive: {pc_err or pc}"

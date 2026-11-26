@@ -513,11 +513,15 @@ def domain_evaluation_values(env, agent: str) -> dict[str, float]:
     return out
 
 
-def probe_domain(seed: int = 7, reference_days: float = 6.0, names: list[str] | None = None) -> dict:
+def probe_domain(seed: int = 7, reference_days: float = 6.0, names: list[str] | None = None,
+                 max_reference_days: float = 30.0) -> dict:
     """Tier 2: every registered Part 9 domain's first configuration through `make(2, ...)`: the kernel-world probes,
     the identity probe and the domain evaluator's own verdict: the domain's scripted reference (acting only through
-    the interface, `crucible.domains.base.drive`) works on the objective for `reference_days`, so the evaluator has
-    something to judge; its score and details never reach the seat."""
+    the interface, `crucible.domains.base.drive`) works on the objective for `reference_days`, then in further
+    chunks of `reference_days` up to `max_reference_days` while the verdict has no distinctive number yet (many
+    domains judge outcomes that take weeks), so the evaluator has something to judge; its score and details never
+    reach the seat. A domain whose verdict still has no distinctive number is named in the notes and in the probe's
+    `verdict_not_probed` kind (never counted as a clean verdict scan)."""
     from ..domains import base as DB
     out = None
     for name in (tier2_names() if names is None else list(names)):
@@ -528,20 +532,33 @@ def probe_domain(seed: int = 7, reference_days: float = 6.0, names: list[str] | 
         env.advance(HOUR)
         dom = DB.REGISTRY[env.domain]
         obj = getattr(env._objectives.get(a), "objective", None) or {}
-        drove = DB.drive(env, {a: dom.reference_policy(a, obj)}, days=reference_days, dt=int(dom.dt), trace=False)
-        P.notes.append(f"tier2 {name}: scripted reference drove the seat for {reference_days} days "
-                       f"({drove['agents'][a]['actions']} actions, {drove['agents'][a]['ok']} ok)")
+        pol = dom.reference_policy(a, obj)
+        days, acts, ok = 0.0, 0, 0
+        vals: dict[str, float] = {}
+        while days < max_reference_days:
+            drove = DB.drive(env, {a: pol}, days=reference_days, dt=int(dom.dt), trace=False)
+            days += reference_days
+            acts += int(drove["agents"][a]["actions"])
+            ok += int(drove["agents"][a]["ok"])
+            vals = domain_evaluation_values(env, a)
+            if vals:
+                break
+        P.notes.append(f"tier2 {name}: scripted reference drove the seat for {days:g} days ({acts} actions, {ok} ok)")
         sweep = tool_sweep(P, env.tools(a), lambda t, ar: env.execute(a, {"tool": t, "args": ar}),
                            f"tier2 {name} identity", fill=harvest_fill(harvest([env.observe(a)], {"principal": [a]})))
         env.advance(HOUR)
         reach = [env.observe(a), env.tools(a), env.observe_since(a, 0), sweep]
         probe_identity(P, env, a, reach, f"tier2 {name} identity")
         vals = domain_evaluation_values(env, a)
+        verdicts = {"probed": [], "not_probed": []}
         if vals:
             P.scan_channel("observation", reach, values=vals, label=f"tier2 {name} domain evaluator verdict")
+            verdicts["probed"].append(name)
         else:
-            P.notes.append(f"tier2 {name}: the domain evaluator's verdict has no distinctive number to look for")
-        r = merge(r, P.result())
+            verdicts["not_probed"].append(name)
+            P.notes.append(f"tier2 {name}: the domain evaluator's verdict has no distinctive number to look for after "
+                           f"{days:g} days of the scripted reference (verdict not probed)")
+        r = merge(r, dict(P.result(), verdicts=verdicts))
         out = r if out is None else merge(out, r)
     return out
 
@@ -595,10 +612,14 @@ def merge(a: dict, b: dict) -> dict:
     ch = dict(a.get("channels") or {})
     for c, n in (b.get("channels") or {}).items():
         ch[c] = ch.get(c, 0) + n
-    return {"surface": a["surface"], "tier": a.get("tier", b.get("tier")), "kinds": kinds,
-            "leaks": (a["leaks"] + b["leaks"])[:200], "n_leaks": a["n_leaks"] + b["n_leaks"],
-            "notes": a["notes"] + b["notes"], "channels": dict(sorted(ch.items())),
-            "channels_probed": sorted(c for c, n in ch.items() if n > 0)}
+    out = {"surface": a["surface"], "tier": a.get("tier", b.get("tier")), "kinds": kinds,
+           "leaks": (a["leaks"] + b["leaks"])[:200], "n_leaks": a["n_leaks"] + b["n_leaks"],
+           "notes": a["notes"] + b["notes"], "channels": dict(sorted(ch.items())),
+           "channels_probed": sorted(c for c, n in ch.items() if n > 0)}
+    if "verdicts" in a or "verdicts" in b:          # Tier 2: domains whose evaluator verdict was (not) scanned
+        va, vb = a.get("verdicts") or {}, b.get("verdicts") or {}
+        out["verdicts"] = {k: list(va.get(k, [])) + list(vb.get(k, [])) for k in ("probed", "not_probed")}
+    return out
 
 
 TIER_SURFACES: dict[int, Callable[[], dict]] = {1: probe_tier1, 2: probe_domain, 3: probe_civ}
