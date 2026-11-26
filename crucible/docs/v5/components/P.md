@@ -31,8 +31,8 @@ BLOCKERS.md whose text names it), otherwise IN_PROGRESS. Static checks alone nev
 codes 0, 3, 1. Project-level problems also include working-tree changes git status does not show (assume-unchanged,
 skip-worktree, ignored code files or start-up hooks).
 
-Adversarial verification (wave 3): tests/test_v5_acceptance_probes.py holds 32 attack probes (P15-P30) beyond the
-recovery audit's P1-P14; 27 of them succeeded against the D-24 checker and all are rejected now (D-26). SP-21's gate
+Adversarial verification (wave 3): tests/test_v5_acceptance_probes.py holds 34 attack probes (P15-P30) beyond the
+recovery audit's P1-P14; 29 of them succeeded against the D-24 checker and all are rejected now (D-26). SP-21's gate
 runs both probe files.
 
 Residual trust (stated, not hidden): identities are declared agent names plus hashed session ids, not signatures; a

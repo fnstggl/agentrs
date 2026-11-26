@@ -76,9 +76,14 @@ def _dotted(n) -> str:
     return ".".join(reversed(parts))
 
 
+PURE_BUILTINS = {"int", "float", "str", "bool", "len", "abs", "round", "min", "max", "sum", "sorted", "tuple", "list"}
+
+
 def _is_const_expr(n) -> bool:
     if isinstance(n, ast.Constant):
         return True
+    if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in PURE_BUILTINS:
+        return all(_is_const_expr(a) for a in n.args) and all(_is_const_expr(k.value) for k in n.keywords)
     if isinstance(n, ast.UnaryOp):
         return _is_const_expr(n.operand)
     if isinstance(n, ast.BinOp):
@@ -339,6 +344,17 @@ def module_flags(tree: ast.Module) -> dict:
         elif isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and isinstance(n.func.value, ast.Name) \
                 and n.func.attr in ("update", "setdefault", "__setitem__", "pop", "clear"):
             consts[n.func.value.id] = False
+    for n in tree.body:                         # helpers whose every return is a constant metric dict
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and not n.name.startswith("test"):
+            local_const: dict[str, bool] = {}
+            for x in _walk_body(n):
+                if isinstance(x, ast.Assign) and len(x.targets) == 1 and isinstance(x.targets[0], ast.Name):
+                    local_const[x.targets[0].id] = local_const.get(x.targets[0].id, True) and _const_dict(x.value)
+            rets = [x.value for x in _walk_body(n) if isinstance(x, ast.Return)]
+            if rets and all(r is not None and (_const_dict(r) or (isinstance(r, ast.Name) and
+                                                                  local_const.get(r.id, consts.get(r.id, False))))
+                            for r in rets):
+                consts[f"{n.name}()"] = True
     # what fixtures, helpers and classes of the module do acts on the tests that use them
     helpers: dict[str, tuple[list[str], set[str]]] = {}
     fixtures: dict[str, tuple[list[str], set[str], bool]] = {}
@@ -387,6 +403,13 @@ def used_findings(fn, mflags: dict) -> list[str]:
     return out
 
 
+def _const_call(n, mflags: dict) -> bool:
+    """A call of a module helper whose every return is a constant metric dict, with constant arguments."""
+    return isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and \
+        bool(mflags.get("consts", {}).get(f"{n.func.id}()")) and \
+        all(_is_const_expr(a) for a in n.args) and all(_is_const_expr(k.value) for k in n.keywords)
+
+
 def scan_function(fn, src_lines: list[str], mflags: dict) -> dict:
     findings: list[str] = []
     asserts = measured = 0
@@ -397,7 +420,7 @@ def scan_function(fn, src_lines: list[str], mflags: dict) -> dict:
         if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
             nm = n.targets[0].id
             assigned.add(nm)
-            const_names[nm] = const_names.get(nm, True) and _const_dict(n.value)
+            const_names[nm] = const_names.get(nm, True) and (_const_dict(n.value) or _const_call(n.value, mflags))
         elif isinstance(n, (ast.AugAssign, ast.AnnAssign)) and isinstance(getattr(n, "target", None), ast.Name):
             const_names[n.target.id] = False
         elif isinstance(n, ast.Subscript) and isinstance(n.ctx, ast.Store) and isinstance(n.value, ast.Name):
@@ -450,7 +473,7 @@ def scan_function(fn, src_lines: list[str], mflags: dict) -> dict:
     mconsts = mflags.get("consts", {})
     for rc in record_calls:
         metrics = rc.args[1] if len(rc.args) > 1 else next((k.value for k in rc.keywords if k.arg == "metrics"), None)
-        const = _const_dict(metrics) or (isinstance(metrics, ast.Name) and (
+        const = _const_dict(metrics) or _const_call(metrics, mflags) or (isinstance(metrics, ast.Name) and (
             const_names.get(metrics.id, False) if metrics.id in assigned else mconsts.get(metrics.id, False)))
         if const:
             if any(fl > rc.lineno for fl in fail_lines):

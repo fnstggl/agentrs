@@ -205,11 +205,19 @@ def test_z():
 '''
 
 
-@pytest.mark.parametrize("src", [HELPER_CONST, MODULE_CONST, DICT_CALL], ids=["helper", "module_dict", "dict_call"])
+# the implementation is called first, so the ablated implementation raises before anything is recorded and the
+# ablation alone would count the measurement as dependent: only the static detector can see the laundering
+CALL_FIRST_CONST = HELPER_CONST.replace("    m = _measure()\n", "    widgets.count()\n    m = _measure()\n")
+BUILTIN_CONST = DICT_CALL.replace("dict(widgets=12, leaks=0)", '{"widgets": int("12"), "leaks": len([])}')
+
+
+@pytest.mark.parametrize("src", [HELPER_CONST, MODULE_CONST, DICT_CALL, CALL_FIRST_CONST, BUILTIN_CONST],
+                         ids=["helper", "module_dict", "dict_call", "call_first", "builtins"])
 def test_P16_constant_metrics_that_evade_the_static_scan_are_caught_by_ablation(tmp_path, monkeypatch, src):
-    """The implementation is defective and never called; the metrics are constants laundered through a helper, a
-    module-level dict or a dict() call. The review's ablation run (every implementation function raises) still
-    reproduces them, so the measurement does not depend on the implementation."""
+    """The implementation is defective; the metrics are constants laundered through a helper, a module-level dict, a
+    dict() call or pure builtins. The review's ablation run (every implementation function raises) reproduces them
+    when the implementation is never called; when it is called first (call_first), the static detector names the
+    constant record."""
     r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT, test_src=src)
     _, row = attempt(r)
     assert row["status"] != "VERIFIED"
@@ -637,7 +645,8 @@ def test_P30_an_extra_test_file_cannot_stand_in_for_the_canonical_gate_test(tmp_
 
 # ------------------------------------------------------------------------------------------------- static detector
 def test_testscan_flags_the_new_evasions():
-    for src, finding in ((HELPER_CONST, None), (MODULE_CONST, "constant_record"), (DICT_CALL, "constant_record"),
+    for src, finding in ((HELPER_CONST, "constant_record"), (MODULE_CONST, "constant_record"),
+                         (DICT_CALL, "constant_record"), (CALL_FIRST_CONST, "constant_record"), (BUILTIN_CONST, "constant_record"),
                          (AUTOUSE_PATCH, "patch"), (ASSIGN_PATCH, "patch"), (SETATTR_HELPER, "patch"),
                          (SUPPRESS_TEST, "swallow"), (FALLBACK_TEST, "swallow")):
         f = next(x for x in testscan.scan_source(src) if x["name"] == "test_z")
