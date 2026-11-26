@@ -37,7 +37,13 @@ What is measured where (this checkout):
   visited rich sites fail and the two broken ones become rich; measured with the formulas of tests/v5/test_gate_G.py
   on the same helpers (`crucible.population.analysis`, the adaptive module's policies, `compact_vs_language` for
   G.7); G.4 from the civilisation's own class-3 strategic groups.
-* E, H, Q - not measured on a civilisation in this checkout (reasons in NOT_MEASURED).
+* H - Gate H's society on a civilisation (`h_battery`): the eight semantic participants of
+  `crucible.semantic.scenarios` (their goals, the shared Qwen3-0.6B behind one batched `SemanticService`, the
+  BatchedRunner, the evaluator's goal checks) admitted into a civilisation (module `semantic_inference` added),
+  acting through the civilisation's own tools while its population lives on; H.1-H.3 and H.6-H.8 with the formulas
+  of tests/v5/test_gate_H.py. H.4, H.5 and H.n1 evaluate held-out sets staged in 4.0 open_digital worlds
+  (crucible.semantic.capbench) and are not measured on a civilisation.
+* E, Q - not measured on a civilisation in this checkout (reasons in NOT_MEASURED).
 """
 from __future__ import annotations
 
@@ -55,10 +61,13 @@ ARMS = ("factual", "no_saas", "no_novelty", "garbage")
 AUTONOMOUS = {"profile": "balanced", "seed": 71, "days": 30}
 D_RUN = {"profile": "balanced", "seed": 13, "switch_day": 3}
 G_RUN = {"profile": "balanced", "seeds": [0, 1, 2], "phase_days": 5}
+H_RUN = {"profile": "balanced", "seed": 17, "warm_h": 8, "rounds": 24, "dt": 600,
+         "model": "Qwen/Qwen3-0.6B"}
 NOT_MEASURED = {
     "E": "Gate E's encoder battery is world-independent and its E.3 probe is a reading world; no controlled artifact "
          "pairs are planted into a civilisation's platforms",
-    "H": "the development population has 2 semantic participants; H.1-H.3 need 8",
+    "H": "H.4, H.5 and H.n1 evaluate held-out situations staged in 4.0 open_digital worlds "
+         "(crucible.semantic.capbench); no civilisation-staged set exists",
     "Q": "Gate Q (civilisation-wide self-play) has no implementation in this checkout (workstream K)",
 }
 
@@ -831,6 +840,70 @@ def g_metrics(runs: list[dict]) -> dict:
     return out
 
 
+# --------------------------------------------------------------------------------------------- H
+def h_battery(p: dict | None = None) -> dict:
+    """Gate H's society in a civilisation (see the module docstring)."""
+    import torch
+    torch.set_num_threads(1)
+    from ..core.kernel import World
+    from ..semantic.participants import SemanticGroup, consequential_actions
+    from ..semantic.scenarios import GOALS, Member, Society, run_society, verify
+    from ..semantic.service import SemanticService, loaded_copies, peak_vram_mb
+    from . import generator
+    p = {**H_RUN, **(p or {})}
+    t0 = time.time()
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+    service = SemanticService(p["model"], device="auto", max_batch=16, max_new_tokens=640)
+    sp = generator.spec(p["profile"], p["seed"])
+    sp.modules.append({"name": "semantic_inference", "config": {}})
+    w = World.create(sp, world_id=f"civ-H-{p['seed']}")
+    w.advance_time(int(p["warm_h"]) * 3600)        # the civilisation's morning: the population is up
+    group = SemanticGroup(service, w, record=True)
+    soc = Society(w, group)
+    for handle, goal, check in GOALS:
+        r = w.system_call("admin.join", {"handle": handle, "endowment": 500_000, "kind": "agent",
+                                         "controller": f"semantic:{service.model_id}"})
+        m = Member(handle, goal, check, r["principal"], r["account"])
+        m.policy = group.participant(goal)
+        soc.members.append(m)
+    run_society(soc, rounds=int(p["rounds"]), dt=int(p["dt"]), seed=0)
+    v = verify(w, soc)
+    out: dict = {}
+    acted = [m for m in soc.members if m.policy.stats["actions"] > 0]
+    out["H.1"] = {"semantic_participants": len({m.principal for m in acted}), "participants_admitted": len(soc.members),
+                  "world_family": w.spec.family, "rounds": int(p["rounds"]),
+                  "actions_total": sum(m.policy.stats["actions"] for m in soc.members),
+                  "world_modules": len(w.modules)}
+    ws = {id(m.policy.group.service.weights) for m in soc.members}
+    out["H.2"] = {"model_weight_copies": loaded_copies(p["model"]),
+                  "participants_sharing_weights": sum(1 for m in soc.members
+                                                      if m.policy.group.service.weights is service.weights),
+                  "distinct_weight_objects": len(ws)}
+    out["H.3"] = {"distinct_goals": len({m.policy.goal for m in soc.members}),
+                  "distinct_histories": len({m.policy.history_digest() for m in soc.members})}
+    ca = consequential_actions(w, [m.principal for m in soc.members])
+    by_tool: dict[str, int] = {}
+    for c in ca:
+        by_tool[c["tool"]] = by_tool.get(c["tool"], 0) + 1
+    out["H.6"] = {"consequential_actions_executed": len(ca),
+                  "participants_with_consequential_actions": len({c["actor"] for c in ca}), "by_tool": by_tool}
+    ok = [h for h, r in v.items() if r.get("verified")]
+    out["H.7"] = {"verified_productive_results": len(ok), "goals": len(v), "verified_goals": ",".join(ok)}
+    u = service.usage()
+    pk = peak_vram_mb(service.device)
+    out["H.8"] = {"peak_vram_mb_measured": pk is not None, "tokens_per_second_measured": u["tokens_per_s"] is not None,
+                  "peak_vram_mb": pk or 0.0, "gpu_tokens_per_s": u["tokens_per_s"] or 0.0,
+                  "prompt_tokens": u["prompt_tokens"], "gen_tokens": u["gen_tokens"], "batches": u["batches"],
+                  "device": service.device}
+    out["_run"] = {"verify": {h: bool(r.get("verified")) for h, r in v.items()}, "events": w.seq,
+                   "proc_failed": sum(1 for e in w.log if e.type == "proc.failed"),
+                   "invariants": w.check_invariants()[:5], "wall_s": round(time.time() - t0, 1)}
+    w.close()
+    service.close()
+    return json.loads(json.dumps(out, default=str))
+
+
 # --------------------------------------------------------------------------------------------- all gates
 def run_all(workers: int = 1, creation: dict | None = None, autonomous: dict | None = None) -> dict:
     t = time.time()
@@ -850,15 +923,17 @@ def run_all(workers: int = 1, creation: dict | None = None, autonomous: dict | N
     dm = attempt("D", lambda: _in_child("D", None), {})
     gr = attempt("G", lambda: g_runs(workers=workers), [])
     gm = attempt("G metrics", lambda: g_metrics(gr), {}) if gr else {}
+    hm = attempt("H", lambda: _in_child("H", None), {})
     measured = {"D": {k: v for k, v in dm.items() if k.startswith("D.")},
                 "G": gm,
+                "H": {k: v for k, v in hm.items() if k.startswith("H.")},
                 "J": {k: v for k, v in jm.items() if not k.startswith("_")},
                 "L": {k: v for k, v in lm.items() if not k.startswith("_")},
                 "B": {k: v for k, v in au.items() if k.startswith("B.")},
                 "C": {k: v for k, v in au.items() if k.startswith("C.")},
                 "K": {k: v for k, v in au.items() if k.startswith("K.")}}
     for g, nm in (("J", "creation"), ("L", "creation"), ("B", "autonomous"), ("C", "autonomous"), ("K", "autonomous"),
-                  ("D", "D"), ("G", "G")):
+                  ("D", "D"), ("G", "G"), ("H", "H")):
         if nm in errors:
             measured[g] = {rid: f"the {nm} battery failed: {errors[nm][:300]}" for rid in manifest_criteria(g)}
     gates = {g: evaluate(g, measured.get(g, {})) for g in GATES}
@@ -869,7 +944,7 @@ def run_all(workers: int = 1, creation: dict | None = None, autonomous: dict | N
             "creation_runs": {a: {k: A[a][k] for k in ("events", "proc_failed", "invariants", "wall_s")} for a in A}
             if A else {},
             "j_rows": jm["_rows"], "l_effects": lm["_effects"], "autonomous_run": au.get("_run"),
-            "d_run": dm.get("_run"),
+            "d_run": dm.get("_run"), "h_run": hm.get("_run"),
             "g_runs": [{k: r.get(k) for k in ("seed", "events", "proc_failed", "invariants", "wall_s",
                                                "phase2_difference", "phase1_difference", "behaviour", "switch")}
                        for r in gr],
@@ -893,7 +968,7 @@ def _in_child(what: str, p: dict | None) -> dict:
 def _main(argv) -> int:
     if argv and argv[0] == "run":
         what, p, path = argv[1], json.loads(argv[2]) or None, argv[3]
-        r = {"autonomous": autonomous_run, "D": d_battery}[what](p)
+        r = {"autonomous": autonomous_run, "D": d_battery, "H": h_battery}[what](p)
         with open(path, "w") as fh:
             json.dump(r, fh)
         return 0
