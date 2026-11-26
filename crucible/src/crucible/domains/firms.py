@@ -287,12 +287,12 @@ class Firms(Module):
             t = st.tables["inst_tasks"][tid]
             if t["status"] != "done" or st.has("firms_sales", tid):
                 continue
-            q = float(t["quality"] or 0.0)
+            q = float(t["quality"] or 0.0)  # not-a-content-score: measured outcome of a finished task (labour market / lead acceptance), not declared by its author
             amount = int(t["effort_hours"] * f["rate"] * q)
             if amount > 0:
                 bank.move(ctx, "acct_external", f["account"], amount, "external_sale",
                           f"{org} output of task {tid}", ref=tid)
-            ctx.emit("firms.sale", {"id": tid, "firm": org, "amount": amount, "quality": round(q, 4)},
+            ctx.emit("firms.sale", {"id": tid, "firm": org, "amount": amount, "quality": round(q, 4)},  # not-a-content-score: measured task outcome recorded with the sale
                      vis=(org,))
 
     def _internal_work(self, ctx, org, f, rng) -> None:
@@ -708,7 +708,7 @@ class Firms(Module):
     def ap_sale(self, ev):
         p = ev.payload
         self.world.state.insert("firms_sales", p["id"], {"firm": p["firm"], "amount": p["amount"],
-                                                         "quality": p["quality"], "t": ev.t})
+                                                         "quality": p["quality"], "t": ev.t})  # not-a-content-score: measured task outcome (applier of firms.sale)
 
     @applier("firms.decision")
     def ap_decision(self, ev):

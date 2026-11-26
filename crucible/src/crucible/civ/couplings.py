@@ -572,7 +572,7 @@ class CivLinks(Module):
                     continue
                 pts = [{b["speed_var"]: float(s), b["temp_var"]: float(t)} for s in g for t in g]
                 law = sci.truth(b["phenomenon"], pts)
-                phys = np.array([100.0 * ind.quality(mdl, p[b["speed_var"]], p[b["temp_var"]]) for p in pts])
+                phys = np.array([100.0 * ind.quality(mdl, p[b["speed_var"]], p[b["temp_var"]]) for p in pts])  # not-a-content-score: industrial physics: quality response of a machine model at process settings
                 if not np.allclose(law, phys, rtol=1e-6, atol=1e-6):
                     errs.append(f"phenomenon {b['phenomenon']} disagrees with the physics of {b['model']}")
         return errs

@@ -22,6 +22,7 @@ exogenous economy (`acct_external`) into that account; every payment is then a r
 """
 from __future__ import annotations
 
+import contextlib
 import math
 
 import numpy as np
@@ -43,6 +44,22 @@ N_EMPLOYERS = 200
 # columns directly except `pop` itself (which clears them when the wake-up fires).
 WAKE_INTERFACE = "pop.wake"
 columns.register_interface(WAKE_INTERFACE, ("wake_at", "wake_act"))
+
+
+@contextlib.contextmanager
+def running_as(ctx: Ctx, module: str | None):
+    """Run a block as kernel module `module` for column write ownership (`substrate.columns`): an activity handler
+    is its owner module's code even though the population's tick calls it, so it writes the owner's columns (and,
+    within its package, its siblings'), never the population's own; the population's API (`experience`,
+    `money_deposit`) writes the population's columns as `pop` on behalf of whichever module calls it."""
+    prev = getattr(ctx, "module", None)
+    if module is not None and module not in ctx.world.modules:
+        module = prev
+    ctx.module = module
+    try:
+        yield ctx
+    finally:
+        ctx.module = prev
 
 
 # ============================================================================================ public API (contract 2)
@@ -390,7 +407,8 @@ class Population(Module):
                 decided: list[str] = []
                 w.runtime["pop.tick.decisions"] = decided
                 try:
-                    nx = rt["handler"](ctx, bound, now)
+                    with running_as(ctx, rt["owner"]):
+                        nx = rt["handler"](ctx, bound, now)
                 finally:
                     w.runtime.pop("pop.tick.decisions", None)
                 nx = np.full(bound.size, now + 6 * 3600, np.int64) if nx is None else np.asarray(nx, np.int64)
@@ -464,7 +482,8 @@ class Population(Module):
                 if sel.size == 0:
                     continue
                 by_act[a] = int(sel.size)
-                out = sp["handler"](ctx, due[sel], now)
+                with running_as(ctx, sp["owner"]):
+                    out = sp["handler"](ctx, due[sel], now)
                 if out is not None:
                     u = np.asarray(out, np.float64).reshape(-1)
                     if u.shape[0] != sel.size or not np.all(np.isfinite(u)):
@@ -689,9 +708,10 @@ def money_deposit(ctx: Ctx, i: int) -> str | None:
     amount = int(columns.col(w, TABLE, "wallet_cents")[i]) + int(accrued(w, ix)[0])
     if amount > 0:
         bank.move(ctx, "acct_external", acct, amount, "income", "income deposited")
-    columns.batch(ctx, TABLE, "pop.deposit", ix, {"wallet_cents": np.zeros(1, np.int64),
-                                                  "income_day": np.array([ctx.now // DAY], np.int32)},
-                  extra={"amount": amount})
+    with running_as(ctx, "pop"):
+        columns.batch(ctx, TABLE, "pop.deposit", ix, {"wallet_cents": np.zeros(1, np.int64),
+                                                      "income_day": np.array([ctx.now // DAY], np.int32)},
+                      extra={"amount": amount})
     return acct
 
 

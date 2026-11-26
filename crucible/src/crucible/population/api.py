@@ -177,9 +177,10 @@ def experience(ctx: Ctx, idx, activity: str, utility, *, item_vecs=None, satisfa
                 vals["habit"] = hab
     if not vals:
         return None
-    return record_decisions(ctx, f"pop.experience.{activity}"[:64], ix, vals, model_id=EXPERIENCE_MODEL[0],
-                            model_version=EXPERIENCE_MODEL[1], fidelity_id=EXPERIENCE_MODEL[2],
-                            extra={"activity": activity, "n": int(ix.size)})
+    with core.running_as(ctx, "pop"):          # the population's own columns, updated by its own API
+        return record_decisions(ctx, f"pop.experience.{activity}"[:64], ix, vals, model_id=EXPERIENCE_MODEL[0],
+                                model_version=EXPERIENCE_MODEL[1], fidelity_id=EXPERIENCE_MODEL[2],
+                                extra={"activity": activity, "n": int(ix.size)})
 
 
 # ============================================================================================ provenance (evaluator)

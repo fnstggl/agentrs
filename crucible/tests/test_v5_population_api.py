@@ -23,10 +23,13 @@ class _ProbeActivity(Module):
     depends = ("pop",)
 
     def install(self, world):
+        from crucible.substrate import columns
+        # a subsystem records decisions in columns it owns (column write ownership: the handler runs as its module)
+        columns.declare(world, "pop", P.n_individuals(world), {"probe_value": ("float32", (), 0.0)})
         P.register_activity(world, "probe", self.act, owner="pop_api_probe", prior=3.0)
 
     def act(self, ctx, idx, now):
-        P.record_decisions(ctx, "test.probe", idx, {"last_utility": np.full(idx.size, 0.25, np.float32)},
+        P.record_decisions(ctx, "test.probe", idx, {"probe_value": np.full(idx.size, 0.25, np.float32)},
                            model_id="probe-model", model_version="1", fidelity_id="test-probe")
         return np.full(idx.size, 0.1)
 

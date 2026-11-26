@@ -61,7 +61,7 @@ TOPICS = ("football_nfl", "recipes", "newspolitics", "finance-real-estate", "mov
 
 def arm_texts(world, topic: str, seed: int) -> dict[str, tuple[str, str]]:
     names = semantics.topic_names()
-    t = names.index(topic) if topic in names else int(np.argmax(semantics.popularity()))
+    t = names.index(topic) if topic in names else int(np.argmax(semantics.popularity()))  # not-a-content-score: real MIND topic shares (fallback topic), not an item score
     rng = np.random.default_rng(seed)
     title, body = writing.compose(rng, t, 5, 1.0)
     n_words = len(body.split())

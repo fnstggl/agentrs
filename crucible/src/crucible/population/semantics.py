@@ -110,7 +110,7 @@ def topic_words(t: int) -> list[str]:
 
 
 def popularity() -> np.ndarray:
-    return asset()["popularity"]
+    return asset()["popularity"]  # not-a-content-score: real MIND topic shares (interest prior), not an item score
 
 
 # ============================================================================================ topic subspace

@@ -130,10 +130,10 @@ def build(news_path: str = MIND_NEWS, out_dir: str = DATA) -> dict:
     popularity = np.array([len(by[t]) for t in topics], dtype=np.float64)
     popularity /= popularity.sum()
     os.makedirs(out_dir, exist_ok=True)
-    np.savez_compressed(os.path.join(out_dir, NAME + ".npz"), centroids_topic=C.astype(np.float32),
-                        basis_topic=basis.astype(np.float32), popularity=popularity.astype(np.float64),
-                        singular_values=s[:K_MAX].astype(np.float64),
-                        vocab_coords=(VW @ basis.T).astype(np.float32))
+    arrays = {"centroids_topic": C.astype(np.float32), "basis_topic": basis.astype(np.float32),
+              "popularity": popularity.astype(np.float64),  # not-a-content-score: real MIND topic shares (prior)
+              "singular_values": s[:K_MAX].astype(np.float64), "vocab_coords": (VW @ basis.T).astype(np.float32)}
+    np.savez_compressed(os.path.join(out_dir, NAME + ".npz"), **arrays)
     meta = {"name": NAME, "space_id": space.SPACE_ID, "space_version": space.SPACE_VERSION, "space_dim": space.DIM,
             "block": "topic", "block_slice": [TOPIC.start, TOPIC.stop], "k_max": K_MAX, "topics": topics,
             "categories": [cat[t] for t in topics], "words": words, "energy": energy, "vocab": vocab,
