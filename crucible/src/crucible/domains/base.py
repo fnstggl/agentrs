@@ -1100,8 +1100,8 @@ def sandbox_can_import_crucible() -> bool:
 
 
 # ---------------------------------------------------------------------------------------------- dice (SP-9.16)
-DICE_WORDS = re.compile(r"fail|success|succeed|error|break|crash|reject|accept|win|lose|luck|chance|outage|bug",
-                        re.I)
+DICE_WORDS = re.compile(r"fail|success|succeed|error|break|crash|reject|accept|win|lose|luck|chance|outage|bug|"
+                        r"\bok\b|\bpass(es|ed)?\b", re.I)
 PRAGMA = re.compile(r"#\s*fidelity:\s*([A-Za-z0-9_.:\-]+)")
 
 
