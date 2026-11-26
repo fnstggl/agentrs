@@ -352,11 +352,18 @@ def part_e(model, held) -> dict:
                                 cond=(c[0][idx], c[1][idx]))
         s0, _, _ = filler.score(progs, prefix, ctxs, 1.0, exact_rows=True)           # without the latent
     same_tokens = tokens == [[list(h.tokens) for h in p.holes] for p in progs]
+    with torch.no_grad(), model._autocast():                  # the latent recomputed by the core in another order
+        _, c_rev = decision_conditioning(model, list(reversed(sub)))
+    flip = torch.arange(len(sub) - 1, -1, -1, device=c[0].device)
+    core_batch_invariant = bool(torch.equal(c[0], c_rev[0][flip]))
+    core_max_abs = float((c[0].float() - c_rev[0][flip].float()).abs().max())
     return {"actions": len(sub), "sampled_tokens": int(sum(ns)), "rescore_twice_bit_identical": bool(torch.equal(s1, s2)),
             "rescore_other_batch_bit_identical": all(float(s3[j]) == float(s1[i]) for j, i in enumerate(perm)),
             "record_unchanged": same_tokens, "requires_grad": bool(s1.requires_grad),
             "incremental_vs_rescore_max_abs": float((lp_inc - s1.detach()).abs().max()),
             "latent_changes_logp_mean_abs": float((s1 - s0).abs().mean()),
+            "cam_tokens_bit_identical_other_batch_order": core_batch_invariant,
+            "cam_tokens_max_abs_diff_other_batch_order": core_max_abs,
             "consumed": [p.consumed() for p in progs]}
 
 
@@ -432,11 +439,22 @@ def part_g(model, json_steps) -> dict:
     sub = json_steps[:4]
     if sub:
         with torch.no_grad():
-            lp1, nt = demo_string_log_prob(model, sub, cond="latent")
+            progs, ctxs = demo_string_programs(model, sub)
+            with model._autocast():
+                prefix, c = decision_conditioning(model, sub)
+                r1, _, nt = gen.filler.score(progs, prefix, ctxs, 1.0, exact_rows=True, cond=c)
+                rev = list(reversed(range(len(sub))))
+                idx = torch.tensor(rev, device=prefix.device)
+                r2, _, _ = gen.filler.score([progs[i] for i in rev], prefix[idx], [ctxs[i] for i in rev], 1.0,
+                                            exact_rows=True, cond=(c[0][idx], c[1][idx]))
+            # end to end: the CAM latent recomputed by the core in another batch order (the core's batch invariance)
+            lp1, _ = demo_string_log_prob(model, sub, cond="latent")
             lp2, _ = demo_string_log_prob(model, list(reversed(sub)), cond="latent")
-        out["replay"] = {"actions": len(sub), "tokens": nt.tolist(), "nll_per_token": (-lp1 / nt.float()).tolist(),
-                         "bit_identical_other_order": bool(torch.equal(lp1, lp2.flip(0))),
-                         "finite": bool(torch.isfinite(lp1).all())}
+        out["replay"] = {"actions": len(sub), "tokens": nt.tolist(), "nll_per_token": (-r1 / nt.float()).tolist(),
+                         "decoder_bit_identical_other_order": bool(torch.equal(r1, r2.flip(0))),
+                         "finite": bool(torch.isfinite(r1).all()),
+                         "recomputed_latent_bit_identical_other_order": bool(torch.equal(lp1, lp2.flip(0))),
+                         "recomputed_latent_max_abs_dlogp": float((lp1 - lp2.flip(0)).abs().max())}
         # greedy decoding of the demonstrated templates' holes on the real decision contexts (strings + JSON value)
         progs, ctxs = demo_string_programs(model, sub)
         with torch.no_grad(), model._autocast():
@@ -466,7 +484,7 @@ def part_g(model, json_steps) -> dict:
                          "demo_input_head": [json.dumps(st.action.args.get("input"), ensure_ascii=False)[:160]
                                              for st in sub[:2]],
                          "rescore_bit_identical": bool(torch.equal(s1, s2))}
-    out["pass"] = bad == 0 and ok > 0 and (not sub or (out["replay"]["bit_identical_other_order"]
+    out["pass"] = bad == 0 and ok > 0 and (not sub or (out["replay"]["decoder_bit_identical_other_order"]
                                                        and out["greedy"]["valid_arguments"] == len(sub)
                                                        and out["greedy"]["rescore_bit_identical"]))
     return out
