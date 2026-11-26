@@ -99,6 +99,13 @@ class Work(Module):
         out = []
         for f in self.cfg("families"):
             g = {**FAMILY_DEFAULTS, **f}
+            if g.get("category"):
+                # a procedurally generated category (usefulness families): registered under its deterministic name,
+                # identically in every process that builds, replays or regenerates this world
+                from ..usefulness import category as C
+                from ..usefulness import families as _fams  # noqa: F401  (registers the families)
+                cat = C.instantiate(g["category"]["family"], int(g["category"]["seed"]), g["category"].get("params"))
+                g["need"] = C.register_category(cat).name
             if g["need"] not in _needs():
                 raise ValueError(f"work family needs a registered problem format, not {g['need']!r}")
             if g["then"] is not None and g["then"] not in _needs():
@@ -622,12 +629,17 @@ class Work(Module):
         """Post a public request for help with an unserved task: what it is and an example of the individual's own
         input (truncated) - the demand signal an entrepreneur can read."""
         import json
-        ex = json.dumps(sample, sort_keys=True)[:600]
+        ex = json.dumps(sample, sort_keys=True)
+        if len(ex) > 6000:
+            ex = ex[:6000]
+        nd = _needs()[need]
+        what = nd.doc[:1500] if need.startswith("gen.") else ""      # nobody documented it: say what the task is
         try:
             ctx.call("forum.post", {"board": self.cfg("ask_board"),
                                     "title": f"Looking for a service: {self.task_text(need)[:120]}",
                                     "body": f"I do this by hand and it takes me about "
-                                            f"{float(self._col('diy')[i, 0]):.0f} minutes a task. Example input: {ex}"},
+                                            f"{float(self._col('diy')[i, 0]):.0f} minutes a task. {what}\n"
+                                            f"Example input: {ex}"},
                      as_principal=p)
             return True
         except CrucibleError:
