@@ -443,7 +443,8 @@ class Feed(Module):
             g = int(columns.col(ctx.world, "pop", "aud_i_gen")[i]) if \
                 int(columns.col(ctx.world, "pop", "aud_i_item")[i]) == item else 0
             if con.size:
-                self.engine.deliver(ctx, con, np.full(con.size, item), np.full(con.size, min(g + 1, 255)))
+                self.engine.deliver(ctx, con, np.full(con.size, item), np.full(con.size, min(g + 1, 255)),
+                                    platform=rec["platform"])
         if "social" in ctx.world.modules and (follow or share):
             from .. import graph as G
             from . import features as F

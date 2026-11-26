@@ -23,10 +23,12 @@ C1 = ["social_ids", "social_rows", "content", "studio", "social", "shorts", "tub
 DISTRIBUTED = ["posts", "blog", "pics", "shorts", "tube", "pods", "launch", "dev", "kb", "community", "social"]
 #: each platform's own distribution: genuinely different mechanisms (Part 4.5)
 MIXTURES = {
-    "posts": [{"name": "social", "weight": 1.0}, {"name": "chronological", "weight": 1.0},
-              {"name": "interest", "weight": 0.8}, {"name": "explore", "weight": 0.2}],
-    "blog": [{"name": "interest", "weight": 1.0}, {"name": "search", "weight": 0.6},
-             {"name": "chronological", "weight": 0.6}, {"name": "reputation", "weight": 0.4}],
+    "posts": [{"name": "social", "weight": 1.0}, {"name": "chronological", "weight": 0.8},
+              {"name": "engagement", "weight": 0.8}, {"name": "interest", "weight": 0.5},
+              {"name": "explore", "weight": 0.2}],
+    "blog": [{"name": "interest", "weight": 0.8}, {"name": "engagement", "weight": 0.6},
+             {"name": "search", "weight": 0.5}, {"name": "reputation", "weight": 0.4},
+             {"name": "chronological", "weight": 0.4}],
     "pics": [{"name": "trending", "weight": 1.0}, {"name": "interest", "weight": 0.6},
              {"name": "explore", "weight": 0.3}],
     "shorts": [{"name": "engagement", "weight": 1.0}, {"name": "explore", "weight": 0.4},

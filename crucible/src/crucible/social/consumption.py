@@ -251,12 +251,18 @@ class Engine:
                            for p, c in sorted((feed_module.cfg.get("calibrated") or {}).items())}
 
     # ------------------------------------------------------------------ distribution
-    def build_feed(self, ctx, platform: str, idx: np.ndarray, rng):
+    def build_feed(self, ctx, platform: str, idx: np.ndarray, rng, *, pool: np.ndarray | None = None,
+                   mixture=None):
+        """`pool` / `mixture` override the platform's candidate pool and recommender mixture (a community's own
+        posts in its chronological feed, a search result list)."""
         w = ctx.world
         pc = {**DEFAULT_PLATFORM, **self.feed.platform_cfg(platform)}
         k = int(pc["k"])
         V = idx.size
-        pool = candidate_pool(w, platform, int(pc["pool"]), float(pc["pool_days"]))
+        if pool is None:
+            pool = candidate_pool(w, platform, int(pc["pool"]), float(pc["pool_days"]))
+        else:
+            pool = np.unique(np.asarray(pool, np.int64))
         feed = np.full((V, k), -1, np.int64)
         src = np.zeros((V, k), np.int8)
         gen = np.zeros((V, k), np.uint8)
@@ -285,7 +291,7 @@ class Engine:
             feed[rr, slot] = ring[rr, cc]
             gen[rr, slot] = rgen[rr, cc]
             src[rr, slot] = AUD.SOURCE_CODE["share"]
-        mix = self.feed.mixture(platform, ctx.now)
+        mix = self.feed.mixture(platform, ctx.now) if mixture is None else mixture
         if pool.size and k > 0:
             recs, rsrc = mix.rank(w, platform, idx, pool, k + islots, rng)
             # drop recommended items already placed from the inbox, then fill the remaining slots in order
@@ -307,15 +313,17 @@ class Engine:
         return feed, src, gen, used_inbox
 
     # ------------------------------------------------------------------ the session
-    def run(self, ctx, platform: str, idx: np.ndarray) -> dict:
+    def run(self, ctx, platform: str, idx: np.ndarray, *, pool: np.ndarray | None = None, mixture=None,
+            activity: str | None = None) -> dict:
         w = ctx.world
         b = self.b
         idx = np.unique(np.asarray(idx, dtype=np.int64))
         V = idx.size
         if V == 0:
-            return {"sessions": 0}
+            return {"sessions": 0, "utility": np.zeros(0)}
         rng = ctx.rng("feed.session", platform)
-        feed, src, gen, used_inbox = self.build_feed(ctx, platform, idx, rng)
+        feed, src, gen, used_inbox = self.build_feed(ctx, platform, idx, rng, pool=pool, mixture=mixture)
+        self._activity = activity or f"feed.{platform}"
         k = feed.shape[1]
         has_item = feed >= 0
         fe = np.where(has_item, feed, 0)
@@ -508,7 +516,8 @@ class Engine:
             dur = columns.col(w, AUD.ITEMS, "duration_s")[fe].astype(np.float64)
             pull = np.einsum("vk,vkd->vd", view * (watch / np.maximum(dur, 1.0)), E)
             rows = np.flatnonzero(view.any(axis=1))
-            population.experience(ctx, idx[rows], f"feed.{platform}", sess_val[rows], item_vecs=pull[rows])
+            population.experience(ctx, idx[rows], getattr(self, "_activity", None) or f"feed.{platform}",
+                                  sess_val[rows], item_vecs=pull[rows])
         social = "social" in w.modules
         vf, pf = np.nonzero(followed)
         if vf.size and social:
@@ -537,7 +546,7 @@ class Engine:
             rec, it, gg = rec[okr], it[okr], gg[okr]
             n_deliv = int(rec.size)
             if n_deliv:
-                self.deliver(ctx, rec, it, gg)
+                self.deliver(ctx, rec, it, gg, platform=platform)
         vl, pl = np.nonzero(liked)
         if vl.size:
             likers = idx[vl]
@@ -551,9 +560,11 @@ class Engine:
                 columns.batch(ctx, "pop", "feed.activity", u_, {"feed_social": ring_push(old, newi, cnt)},
                               mode="set")
         return {"sessions": int(V), "impressions": int(n_imp), "opened": int(n_open), "views": int(view.sum()),
-                "shares": int(shared.sum()), "deliveries": n_deliv, "follows": int(vf.size), "utility": sess_val}
+                "shares": int(shared.sum()), "deliveries": n_deliv, "follows": int(vf.size), "utility": sess_val,
+                "idx": idx, "feed": feed, "view": view, "watch": watch}
 
-    def deliver(self, ctx, recipients: np.ndarray, items: np.ndarray, gens: np.ndarray) -> None:
+    def deliver(self, ctx, recipients: np.ndarray, items: np.ndarray, gens: np.ndarray, *,
+                platform: str | None = None) -> None:
         """Put shared items into the recipients' inboxes (newest first); each recipient notices the notification
         with probability `notice_prob` and then comes back after `share_delay_s` (unless it was coming back sooner)."""
         w = ctx.world
@@ -568,6 +579,10 @@ class Engine:
         if noticed.size:
             if "crowd" in w.modules:
                 from .scale import wake
+                wake(ctx, noticed, ctx.now + int(self.feed.cfg["share_delay_s"]), activity="share")
             else:
+                # the notification brings the recipient back to the platform of the shared item (its inbox
+                # entries open that platform's feed)
                 from ..population import wake
-            wake(ctx, noticed, ctx.now + int(self.feed.cfg["share_delay_s"]), activity="share")
+                plat = platform or w.state.tables["aud_item_info"][str(int(items[0]))]["platform"]
+                wake(ctx, noticed, ctx.now + int(self.feed.cfg["share_delay_s"]), activity=f"feed.{plat}")

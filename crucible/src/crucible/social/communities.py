@@ -59,7 +59,9 @@ CMEMBER = EdgeTable("cmember", {
     "spells": ("int32", (), 0), "last_active": ("int64", (), -1), "posts": ("int32", (), 0),
     "comments": ("int32", (), 0), "kudos_given": ("int32", (), 0), "kudos_recv": ("int32", (), 0),
     "attended": ("int32", (), 0), "removed": ("int32", (), 0), "warnings": ("int32", (), 0),
-    "muted_until": ("int64", (), -1)})
+    "muted_until": ("int64", (), -1),
+    # the member's own experienced value of taking part (population members; an EMA of realised session value)
+    "value": ("float32", (), 0.0), "visits": ("int32", (), 0)})
 DEFAULT_RULES = {"join": "open", "visibility": "public", "post": "members", "comment": "members",
                  "governance": "owner", "vote_threshold": 0.5, "quorum": 0.2, "vote_window_s": 3 * DAY,
                  "inactive_days": 30, "prune_days": 0, "min_trust_propose": 1, "min_trust_kudos": 0,
@@ -425,6 +427,30 @@ class Communities(Module):
         CMEMBER.update(ctx, "community.visit", rows, {"last_active": np.full(rows.size, ctx.now, np.int64)},
                        mode="max")
         return int(rows.size)
+
+    def experience_many(self, ctx: Ctx, node_arr: np.ndarray, comm_arr: np.ndarray, values: np.ndarray, *,
+                        rate: float = 0.3, decision: dict | None = None) -> int:
+        """Members' experienced value of a visit (population members): the EMA `value` and the visit counter of
+        their membership rows, and their last activity. One recorded decision batch."""
+        rows = self._lookup(ctx.world, node_arr, comm_arr)
+        ok = rows >= 0
+        if not ok.any():
+            return 0
+        v = CMEMBER.view(ctx.world)
+        r, val = rows[ok], np.asarray(values, np.float64)[ok]
+        r, first = np.unique(r, return_index=True)
+        val = val[first]
+        new = ((1 - rate) * v["value"][r].astype(np.float64) + rate * np.clip(val, -2, 2)).astype(np.float32)
+        vals = {"value": new, "visits": (v["visits"][r] + 1).astype(np.int32),
+                "last_active": np.maximum(v["last_active"][r], ctx.now).astype(np.int64)}
+        if decision is not None:
+            from ..population import record_decisions
+            record_decisions(ctx, "community.experience", r, vals, model_id=decision["model_id"],
+                             model_version=decision["model_version"], fidelity_id=decision["fidelity_id"],
+                             table=CMEMBER.name)
+        else:
+            CMEMBER.update(ctx, "community.experience", r, vals)
+        return int(r.size)
 
     def _bump(self, ctx: Ctx, principal: str, c: dict, kind: str, **add) -> None:
         node = nodes.node_of(ctx.world, principal)
