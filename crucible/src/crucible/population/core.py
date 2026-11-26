@@ -854,6 +854,8 @@ def money_deposit(ctx: Ctx, i: int) -> str | None:
     amount = int(columns.col(w, TABLE, "wallet_cents")[i]) + int(accrued(w, ix)[0])
     if amount > 0:
         bank.move(ctx, "acct_external", acct, amount, "income", "income deposited")
+    elif int(columns.col(w, TABLE, "income_day")[i]) == ctx.now // DAY:
+        return acct            # deposited earlier today and nothing new: the batch would change nothing (R7)
     with running_as(ctx, "pop"):
         columns.batch(ctx, TABLE, "pop.deposit", ix, {"wallet_cents": np.zeros(1, np.int64),
                                                       "income_day": np.array([ctx.now // DAY], np.int32)},

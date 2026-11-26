@@ -832,9 +832,15 @@ class PopWeb(Module):
                          "intent_at": np.where(intent, core.NEVER, c("intent_at")).astype(np.int64),
                          "intent_prod": np.where(intent, -1, c("intent_prod")).astype(np.int16)})
         vals["web_last_at"] = np.where(has, now, c("web_last_at")).astype(np.int64)
-        for k in ("suggest_from", "suggest_src", "contact_trust", "abandoned", "prefs"):
-            if np.array_equal(vals[k], c(k)):
-                del vals[k]            # unchanged columns are not rewritten
+        # delta-only batch (R6/R7): a column no row changes is not rewritten, and only rows with a change are
+        # recorded (the visit log and the resource counters below keep every visit)
+        chg = np.zeros(n, bool)
+        for k in list(vals):
+            cur = c(k)
+            d = (np.asarray(vals[k]).astype(cur.dtype, copy=False) != cur).reshape(n, -1).any(axis=1)
+            if not d.any():
+                del vals[k]
+            chg |= d
         if minutes.sum() > 0:
             mi = np.flatnonzero(minutes > 0)
             attention.spend(ctx, idx[mi], minutes[mi], activity=activity)
@@ -847,10 +853,14 @@ class PopWeb(Module):
                "paid": paid[v], "evaluated": evaluated[v], "cls": cls[v], "minutes": minutes[v].astype(np.float32),
                "match": match0[v]}
         ref = artifacts.put_array_blob(ctx, log) if v.size else None
-        record_decisions(ctx, f"popweb.{activity}", idx, vals, mode="set", model_id=VISIT_MODEL[0],
-                         model_version=VISIT_MODEL[1], fidelity_id="pop.decision.visit_outcome",
-                         extra={"t": int(now), "visits": int(v.size), "first": int(first.sum()),
-                                "abandoned": int(abandoned.sum()), "bought": int(bought.sum()), "visits_ref": ref})
+        ch = np.flatnonzero(chg)
+        if ch.size and vals:
+            record_decisions(ctx, f"popweb.{activity}", idx[ch], {k: np.asarray(x)[ch] for k, x in vals.items()},
+                             mode="set", model_id=VISIT_MODEL[0], model_version=VISIT_MODEL[1],
+                             fidelity_id="pop.decision.visit_outcome",
+                             extra={"t": int(now), "visits": int(v.size), "first": int(first.sum()),
+                                    "abandoned": int(abandoned.sum()), "bought": int(bought.sum()), "visits_ref": ref,
+                                    "cohort": int(n)})
         if bought.any():
             self._repurchase(ctx, idx, rows, bought, paid, prod_of, now, rng)
         if v.size:

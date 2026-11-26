@@ -455,7 +455,10 @@ class PopStrategic(Module):
         st = ctx.state
         rng = ctx.rng("pop_strategic.decide")
         groups = columns.col(w, TABLE, "policy_group")
-        nxt = np.full(idx.size, now + int(self.cfg["decide_every_s"]), np.int64)
+        # the next decision on the group's common grid (multiples of decide_every_s): every member of a group that is
+        # due decides in the same forward pass from its second decision on (batched inference, MASTER_SPEC 13.3)
+        E = int(self.cfg["decide_every_s"])
+        nxt = np.full(idx.size, (now // E + 1) * E, np.int64)
         by: dict[str, list] = {}
         for i in idx.tolist():
             g = self._group_of_code(st, int(groups[i]))
