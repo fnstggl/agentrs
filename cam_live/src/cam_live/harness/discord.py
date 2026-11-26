@@ -171,6 +171,15 @@ class DiscordClient:
                 "humans_not_pending": sum(1 for m in humans if not m["pending"]),
                 "distinct": len({m["id_hash"] for m in humans})}
 
+    @staticmethod
+    def member_retention(earlier: Sequence[Mapping[str, Any]], later: Sequence[Mapping[str, Any]]) -> Dict[str, int]:
+        """Aggregate retention between two member snapshots: how many of the people (not bots, not declared test
+        accounts) of the earlier snapshot are still members in the later one. Works on pseudonyms only."""
+        cohort = {m["id_hash"] for m in earlier if not m["bot"] and not m["test_account"]}
+        present = {m["id_hash"] for m in later if not m["bot"] and not m["test_account"]}
+        return {"cohort": len(cohort), "retained": len(cohort & present), "left": len(cohort - present),
+                "joined_since": len(present - cohort)}
+
     # ---- channels and messages -----------------------------------------------------------------------------
     @staticmethod
     def _channel(c: Dict[str, Any]) -> Dict[str, Any]:

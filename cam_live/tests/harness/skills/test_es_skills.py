@@ -12,7 +12,7 @@ from cam_live.harness.http_api import HttpApiExecutor
 from cam_live.harness.skills import (STATUS_RETIRED, STATUS_STALE, STATUS_VALIDATED, Skill, SkillBindError,
                                      SkillExecutor, SkillInductionError, SkillLibrary, Trace, beta_cdf,
                                      beta_interval, bind, protected_reasons)
-from support import ScopedPolicy, act, create_and_publish, listing_probe, make_ctx
+from es_support import ScopedPolicy, act, create_and_publish, listing_probe, make_ctx
 
 EVIDENCE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "docs", "evidence", "ES"))
 
@@ -158,6 +158,25 @@ def test_induction_needs_a_common_successful_segment(tmp_path, notes):
     t3 = Trace.from_pairs([t1.steps[0].action and (t1.steps[0].action, t1.steps[0].result), (bad, http.execute(bad, ctx))])
     with pytest.raises(SkillInductionError):
         ex.inducer.induce([t3])
+    http.close()
+
+
+def test_the_reusable_segment_is_found_inside_longer_differing_traces(tmp_path, notes):
+    http, lib, ex = setup(tmp_path)
+    ctx = make_ctx(ScopedPolicy())
+
+    def extra(path):
+        a = act("http.get", {"url": notes.url + path})
+        return a, http.execute(a, ctx)
+
+    p1, b1, a1 = create_and_publish(http, ctx, notes.url, "first of two", "body one")
+    p2, b2, a2 = create_and_publish(http, ctx, notes.url, "second of two", "body two")
+    t1 = Trace.from_pairs([extra("/api/text"), extra("/api/items")] + p1, before=b1, after=a1)      # unrelated lead-in
+    t2 = Trace.from_pairs(p2 + [extra("/api/text")], before=b2, after=a2)                           # unrelated tail
+    candidate = ex.inducer.induce([t1, t2], probe=listing_probe(notes.url))
+    assert candidate.operations() == ["http.request", "http.request"] and candidate.provenance["segment_offsets"] == [2, 0]
+    assert candidate.provenance["action_ids"] == [[a.action_id for a, _ in p1], [a.action_id for a, _ in p2]]
+    assert sorted(candidate.arg_schema["properties"]) == ["body", "title"]
     http.close()
 
 
@@ -536,7 +555,7 @@ def test_measured_primitive_only_versus_skill_based_execution(tmp_path, notes):
                 "the state before as well as after, to check its postconditions) and persists its monitoring "
                 "record after every run, so harness latency per task is not lower; what falls is the number of "
                 "decisions the learner has to make (3 -> 1 per task).",
-        "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_skills.py"
+        "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_skills.py"
                    "::test_measured_primitive_only_versus_skill_based_execution -q --rootdir=cam_live",
     }
     os.makedirs(EVIDENCE, exist_ok=True)

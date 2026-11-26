@@ -61,11 +61,11 @@ _MISSING = object()
 
 
 class SkillInductionError(ValueError):
-    pass
+    """The given traces cannot be turned into a skill (no common successful segment, a protected step, ...)."""
 
 
 class SkillBindError(LookupError):
-    pass
+    """A template could not be instantiated: an argument is missing or an earlier step did not yield a value."""
 
 
 # --------------------------------------------------------------------------------------------------------------
@@ -289,11 +289,19 @@ def evaluate_condition(cond: VerificationCondition, observations: Sequence[Obser
         spec = bind(cond.spec, args or {})
     except SkillBindError:
         return None
-    info = info or {}
+    info = info if info is not None else {}
+    cache = info.setdefault("_cache", {})
+
+    def cached(fn: Callable, obs: Sequence[Observation]) -> Any:
+        key = (fn.__name__, id(obs))
+        if key not in cache:
+            cache[key] = (obs, fn(obs))          # the sequence is kept alive so its id stays unique
+        return cache[key][1]
+
     if kind == "text_present":
         if not observations:
             return None
-        found = str(spec.get("text", "")) in _obs_text(observations)
+        found = str(spec.get("text", "")) in cached(_obs_text, observations)
         return (not found) if spec.get("absent") else found
     if kind == "url_matches":
         urls = [u for o in observations for u in (o.data.get("url"), o.provenance.uri) if u]
@@ -303,7 +311,7 @@ def evaluate_condition(cond: VerificationCondition, observations: Sequence[Obser
     if kind in ("metric", "element_state"):
         key = "q:" + spec["name"] if "name" in spec else "d:" + str(spec.get("path", ""))
         op, want = spec.get("op", "eq" if "equals" not in spec else "eq"), spec.get("value", spec.get("equals"))
-        now = state_leaves(observations).get(key, _MISSING)
+        now = cached(state_leaves, observations).get(key, _MISSING)
         if op == "exists":
             return now is not _MISSING if observations else None
         if now is _MISSING:
@@ -311,7 +319,7 @@ def evaluate_condition(cond: VerificationCondition, observations: Sequence[Obser
         if op in ("delta_eq", "delta_ge"):
             if before is None:
                 return None
-            was = state_leaves(before).get(key, _MISSING)
+            was = cached(state_leaves, before).get(key, _MISSING)
             if was is _MISSING or not isinstance(now, (int, float)) or not isinstance(was, (int, float)):
                 return None
             d = float(now) - float(was)
@@ -790,12 +798,15 @@ def fresh_arguments(skill: Skill, rng: random.Random) -> Dict[str, Any]:
 # --------------------------------------------------------------------------------------------------------------
 # Library (persistent, versioned, monitored)
 # --------------------------------------------------------------------------------------------------------------
-def _atomic_write(path: str, text: str) -> None:
+def _atomic_write(path: str, text: str, durable: bool = True) -> None:
+    """Write through a temporary file and rename, so a reader never sees a torn file. ``durable`` also forces the
+    bytes to disk (used whenever a version or a status changes; plain run counters skip the fsync)."""
     tmp = f"{path}.tmp.{os.getpid()}"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(text)
         f.flush()
-        os.fsync(f.fileno())
+        if durable:
+            os.fsync(f.fileno())
     os.replace(tmp, path)
 
 
@@ -832,11 +843,12 @@ class SkillLibrary:
         skill.updated_at = self.clock.now()
         d = os.path.join(self.dir, skill.skill_id)
         os.makedirs(d, exist_ok=True)
-        _atomic_write(os.path.join(d, f"v{skill.version}.json"), skill.to_json())
         self._skills[skill.skill_id] = skill
         index = json.dumps({sid: {"version": s.version, "status": s.status, "name": s.name}
                             for sid, s in self._skills.items()}, sort_keys=True, indent=1)
-        if index != self._index_text:                    # the index changes only with a version or a status
+        changed = index != self._index_text              # the index changes only with a version or a status
+        _atomic_write(os.path.join(d, f"v{skill.version}.json"), skill.to_json(), durable=changed)
+        if changed:
             _atomic_write(self._index_path(), index)
             self._index_text = index
 

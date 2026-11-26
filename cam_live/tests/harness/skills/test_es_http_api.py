@@ -4,7 +4,7 @@ import json
 from cam_live.contracts import FailureClass, Modality, ModalityExecutor, ResultStatus, VerificationCondition
 from cam_live.harness.http_api import (ApiModality, HttpApiExecutor, RateLimiter, parse_rate_limit, schema_errors,
                                        scrub, structure_hash)
-from support import NotesApp, ScopedPolicy, act, make_ctx
+from es_support import NotesApp, ScopedPolicy, act, make_ctx
 
 
 def test_executor_implements_the_contract():

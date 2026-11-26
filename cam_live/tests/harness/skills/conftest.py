@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from support import AppServer, NotesApp  # noqa: E402
+from es_support import AppServer, NotesApp  # noqa: E402
 
 
 @pytest.fixture

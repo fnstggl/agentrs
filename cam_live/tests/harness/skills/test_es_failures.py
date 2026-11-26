@@ -9,7 +9,7 @@ from cam_live.contracts import (ActionResult, AuthorizationDecision, AuthVerdict
 from cam_live.harness.failures import (CATEGORY, FailureEvidence, RetryPolicy, RetryRule, authorization_result,
                                        classify, failed_result, failure_observation, failure_of, run_with_retries)
 from cam_live.harness.http_api import HttpApiExecutor
-from support import ScopedPolicy, act, make_ctx
+from es_support import ScopedPolicy, act, make_ctx
 
 F = FailureClass
 CASES = [

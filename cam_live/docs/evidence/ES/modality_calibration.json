@@ -1,0 +1,177 @@
+{
+ "attempts_per_cell": 150,
+ "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_modality.py::test_estimates_calibrate_on_a_simulated_mix_and_selection_shifts -q --rootdir=cam_live",
+ "environment": "simulation (seeded); no real executor involved",
+ "estimates": {
+  "api|A": {
+   "compute_s": 0.0,
+   "expected_cost": 0.6981462196524055,
+   "kind": "api",
+   "latency_s": 0.30184465616983536,
+   "n": 300.0,
+   "n_context": 150.0,
+   "p_sd": 0.038226025655794846,
+   "p_success": 0.6533280770021908,
+   "primitive_ops": 1.0,
+   "recovery_s": 0.30078545179062216
+  },
+  "api|B": {
+   "compute_s": 0.0,
+   "expected_cost": 11.979142691168887,
+   "kind": "api",
+   "latency_s": 0.30225747546308335,
+   "n": 300.0,
+   "n_context": 150.0,
+   "p_sd": 0.01804896310767573,
+   "p_success": 0.05333859102855901,
+   "primitive_ops": 1.0,
+   "recovery_s": 0.3028465243189971
+  },
+  "structured_browser|A": {
+   "compute_s": 0.0,
+   "expected_cost": 0.4993704622973681,
+   "kind": "structured_browser",
+   "latency_s": 0.39619032607562027,
+   "n": 460.0,
+   "n_context": 310.0,
+   "p_sd": 0.013176880891988076,
+   "p_success": 0.9419349388053441,
+   "primitive_ops": 1.0,
+   "recovery_s": 0.41650106401460896
+  },
+  "structured_browser|B": {
+   "compute_s": 0.0,
+   "expected_cost": 8.750603994491012,
+   "kind": "structured_browser",
+   "latency_s": 0.5996368011906852,
+   "n": 460.0,
+   "n_context": 150.0,
+   "p_sd": 0.02730503417194564,
+   "p_success": 0.13334288241645093,
+   "primitive_ops": 1.0,
+   "recovery_s": 0.5967688349017638
+  },
+  "visual_heavy|A": {
+   "compute_s": 2.5000000007634795,
+   "expected_cost": 6.331584390908294,
+   "kind": "visual_heavy",
+   "latency_s": 2.986054788666057,
+   "n": 300.0,
+   "n_context": 150.0,
+   "p_sd": 0.021790786928749927,
+   "p_success": 0.9200000580702368,
+   "primitive_ops": 2.0,
+   "recovery_s": 2.987542392124917
+  },
+  "visual_heavy|B": {
+   "compute_s": 2.5000000007634795,
+   "expected_cost": 6.300568082435927,
+   "kind": "visual_heavy",
+   "latency_s": 3.0160634831360817,
+   "n": 300.0,
+   "n_context": 150.0,
+   "p_sd": 0.020938559227451196,
+   "p_success": 0.9266666079143883,
+   "primitive_ops": 2.0,
+   "recovery_s": 3.033578055755167
+  },
+  "visual_light|A": {
+   "compute_s": 0.3000000001401198,
+   "expected_cost": 2.551018762071076,
+   "kind": "visual_light",
+   "latency_s": 1.203025057451567,
+   "n": 440.0,
+   "n_context": 151.0,
+   "p_sd": 0.034744930248614435,
+   "p_success": 0.7483449460628324,
+   "primitive_ops": 2.0,
+   "recovery_s": 1.216017463301458
+  },
+  "visual_light|B": {
+   "compute_s": 0.300000000020744,
+   "expected_cost": 2.3103930585214734,
+   "kind": "visual_light",
+   "latency_s": 1.2032562837273872,
+   "n": 440.0,
+   "n_context": 289.0,
+   "p_sd": 0.023358691709146014,
+   "p_success": 0.7993079139636966,
+   "primitive_ops": 2.0,
+   "recovery_s": 1.2130980204711856
+  }
+ },
+ "greedy_choice_after_experience": {
+  "A": "structured_browser",
+  "B": "visual_light"
+ },
+ "greedy_choice_before_experience": {
+  "A": "structured_browser",
+  "B": "structured_browser"
+ },
+ "max_abs_error_p_success": 0.05332807700219078,
+ "mean_abs_error_p_success": 0.021668550514979505,
+ "simulated_mix": {
+  "api|A": {
+   "compute_s": 0.0,
+   "latency_s": 0.3,
+   "p_success": 0.6,
+   "primitive_ops": 1
+  },
+  "api|B": {
+   "compute_s": 0.0,
+   "latency_s": 0.3,
+   "p_success": 0.05,
+   "primitive_ops": 1
+  },
+  "structured_browser|A": {
+   "compute_s": 0.0,
+   "latency_s": 0.4,
+   "p_success": 0.95,
+   "primitive_ops": 1
+  },
+  "structured_browser|B": {
+   "compute_s": 0.0,
+   "latency_s": 0.6,
+   "p_success": 0.1,
+   "primitive_ops": 1
+  },
+  "visual_heavy|A": {
+   "compute_s": 2.5,
+   "latency_s": 3.0,
+   "p_success": 0.9,
+   "primitive_ops": 2
+  },
+  "visual_heavy|B": {
+   "compute_s": 2.5,
+   "latency_s": 3.0,
+   "p_success": 0.92,
+   "primitive_ops": 2
+  },
+  "visual_light|A": {
+   "compute_s": 0.3,
+   "latency_s": 1.2,
+   "p_success": 0.7,
+   "primitive_ops": 2
+  },
+  "visual_light|B": {
+   "compute_s": 0.3,
+   "latency_s": 1.2,
+   "p_success": 0.8,
+   "primitive_ops": 2
+  }
+ },
+ "thompson_share_after_300_more_choices": {
+  "A": {
+   "api": 0.0,
+   "structured_browser": 0.9937888198757764,
+   "visual_heavy": 0.0,
+   "visual_light": 0.006211180124223602
+  },
+  "B": {
+   "api": 0.0,
+   "structured_browser": 0.0,
+   "visual_heavy": 0.0,
+   "visual_light": 1.0
+  }
+ }
+}
