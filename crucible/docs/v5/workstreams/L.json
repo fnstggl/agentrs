@@ -19,8 +19,8 @@
     "tests/v5/test_gate_R.py",
     "tests/test_v5_experience_core.py"
    ],
-   "status_claim": "",
-   "notes": ""
+   "status_claim": "implemented; gate passes on the integrated tree (wave-3b rerun, GPU slot, real civilisations)",
+   "notes": "probe surfaces now include the external batched adapter and the out-of-process evaluation path"
   },
   "R.2": {
    "implementation_files": [
@@ -35,8 +35,8 @@
     "tests/v5/test_gate_R.py",
     "tests/test_v5_experience_wave3b.py"
    ],
-   "status_claim": "",
-   "notes": ""
+   "status_claim": "implemented; gate passes on the integrated tree (wave-3b rerun incl. the Tier 3 civilisation surface)",
+   "notes": "wave 3b: every evaluator-only metric of the registry union swept through self-goal and commitment predicates; EVALUATOR-ONLY documented metrics (social.integrity organic_*) joined the union (DECLARED_EVALUATOR_ONLY)"
   },
   "R.3": {
    "implementation_files": [
@@ -49,7 +49,7 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes on the integrated tree (canaries incl. a civilisation)",
    "notes": ""
   },
   "R.4": {
@@ -61,7 +61,7 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "R.5": {
@@ -73,8 +73,8 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "",
-   "notes": ""
+   "status_claim": "implemented; gate passes",
+   "notes": "evaluator-side verification also through remote.evaluate (the evaluator closes the participant pipe before verifying)"
   },
   "R.6": {
    "implementation_files": [
@@ -83,7 +83,7 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "R.7": {
@@ -94,7 +94,7 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "R.n1": {
@@ -107,8 +107,8 @@
    "tests": [
     "tests/v5/test_gate_R.py"
    ],
-   "status_claim": "",
-   "notes": ""
+   "status_claim": "implemented; gate passes on the integrated tree",
+   "notes": "surfaces: mech, rapid, kernel, innovation, selfplay, numeric, gym, external (stand-in for the AGENTRS adapters, RP.1), remote (adversarial evaluated learner), civ (incl. the population's private state)"
   },
   "S.1": {
    "implementation_files": [
@@ -118,7 +118,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "S.2": {
@@ -128,8 +128,8 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "",
-   "notes": ""
+   "status_claim": "implemented; measured with the Part 9 domains merged on this branch (run pending at this commit)",
+   "notes": "c5c/w3b-dom1/dom2 merged read-only: startup, content, community, research, education, infrastructure"
   },
   "S.3": {
    "implementation_files": [
@@ -138,7 +138,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes on real civilisations (wave-3b rerun)",
    "notes": ""
   },
   "S.4": {
@@ -151,7 +151,7 @@
     "tests/v5/test_gate_S.py",
     "tests/test_v5_experience_core.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "S.5": {
@@ -163,7 +163,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; Tier 2 measurement pending at this commit",
    "notes": ""
   },
   "S.6": {
@@ -173,7 +173,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "S.7": {
@@ -184,7 +184,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes through crucible.scale.slots --cpu 4 (wave-3b rerun)",
    "notes": ""
   },
   "S.8": {
@@ -195,7 +195,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "SP-11.1": {
@@ -208,7 +208,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_1.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; Tier 2 measurement pending at this commit (Tiers 1 and 3 measured: 13 kinds)",
    "notes": ""
   },
   "SP-11.2": {
@@ -218,7 +218,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_2.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "SP-11.3": {
@@ -229,7 +229,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_3.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "SP-11.4": {
@@ -241,7 +241,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_4.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "SP-11.5": {
@@ -252,7 +252,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_5.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "SP-11.6": {
@@ -265,8 +265,8 @@
    "tests": [
     "tests/v5/test_gate_SP_11_6.py"
    ],
-   "status_claim": "",
-   "notes": ""
+   "status_claim": "implemented; gate passes",
+   "notes": "the external curiosity learner can be evaluated out of process (evaluated(part, ...))"
   },
   "SP-11.1b": {
    "implementation_files": [
@@ -279,7 +279,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_1b.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; Tier 2 measurement pending at this commit",
    "notes": ""
   },
   "SP-11.4b": {
@@ -290,7 +290,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_4b.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "SP-11.6c": {
@@ -303,7 +303,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_6c.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; run pending at this commit (slow, GPU)",
    "notes": ""
   },
   "SP-11.6d": {
@@ -315,7 +315,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_6d.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "SP-2.2": {
@@ -326,7 +326,7 @@
    "tests": [
     "tests/v5/test_gate_SP_2_2.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes on real civilisations (wave-3b rerun)",
    "notes": ""
   },
   "OO.1": {
@@ -338,8 +338,8 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "",
-   "notes": ""
+   "status_claim": "implemented; Tier 2 measurement pending at this commit (Tiers 1 and 3: 0 families not observation-only)",
+   "notes": "only Part 9 domains count as Tier 2 (fixtures never)"
   },
   "OO.2": {
    "implementation_files": [
@@ -351,7 +351,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes on the integrated tree",
    "notes": ""
   },
   "OO.3": {
@@ -363,7 +363,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; Tier 2 measurement pending at this commit",
    "notes": ""
   },
   "OO.4": {
@@ -376,8 +376,8 @@
     "tests/v5/test_gate_OO.py",
     "tests/test_v5_experience_isolation.py"
    ],
-   "status_claim": "",
-   "notes": ""
+   "status_claim": "implemented; Tier 2 measurement pending at this commit",
+   "notes": "reachability now measured on the evaluation path (remote.evaluate + adversarial evaluated learner, sealed seed) per tier"
   },
   "OO.5": {
    "implementation_files": [
@@ -388,8 +388,8 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "",
-   "notes": ""
+   "status_claim": "implemented; slow run pending at this commit",
+   "notes": "civ day cost on the integrated tree (GPU slot): about 21 s per simulated day after a 4 s build, rss +2.1 GB after 10 days, ~11k events/day, log retained at 300k"
   },
   "OO.6": {
    "implementation_files": [
@@ -399,7 +399,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; Tier 2 measurement pending at this commit",
    "notes": ""
   },
   "OO.7": {
@@ -410,7 +410,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "OO.8": {
@@ -421,7 +421,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "OO.9": {
@@ -435,8 +435,8 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "",
-   "notes": ""
+   "status_claim": "implemented; Tier 2 entry point measurement pending at this commit",
+   "notes": "the evaluation entry point (remote.evaluate) and its CLI are checked too"
   },
   "OO.10": {
    "implementation_files": [
@@ -447,7 +447,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; Tier 2 measurement pending at this commit",
    "notes": ""
   },
   "OO.11": {
@@ -459,8 +459,8 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "",
-   "notes": ""
+   "status_claim": "implemented; Tier 2 measurement pending at this commit",
+   "notes": "Tier 2 worlds get the learner-side exp/goals modules"
   },
   "OO.12": {
    "implementation_files": [
@@ -469,7 +469,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; gate passes",
    "notes": ""
   },
   "OO.14": {
@@ -483,8 +483,8 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "",
-   "notes": ""
+   "status_claim": "implemented; Tier 2 measurement pending at this commit",
+   "notes": "Tier 2 probes adapt to restricted domain worlds and check the domain evaluator's verdict"
   },
   "OO.16": {
    "implementation_files": [
@@ -495,7 +495,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "",
+   "status_claim": "implemented; Tier 2 measurement pending at this commit",
    "notes": ""
   }
  },
