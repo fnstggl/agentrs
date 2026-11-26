@@ -268,12 +268,15 @@ def ch_sign_reversal(rng, d):
 @_pg("ch_constraint_tightens", category="8.10", item="8.10.2", split="train",
         doc="Output needs materials and machine hours together. At a hidden tick the machines lose much of their "
             "capacity per hour: from then on materials beyond what the machines can process are wasted, and the "
-            "best mix changes.",
+            "best mix changes. Predict output at mixes partly outside what can be set, under the conditions at the "
+            "end of the episode: a law learned before the change is wrong after it.",
         distinct_because="compose collider of two saturating inputs joined by complementarity, with a timed regime "
                          "switch on one input's productivity: a resource constraint that tightens mid-episode and "
                          "changes the optimal mix of complements",
-        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-        claims=(C + "constraint_tightens",), identify=C + "constraint_time", lever_view=True)
+        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="predict_heldout",
+        claims=(C + "constraint_tightens",), identify=C + "constraint_time", lever_view=True,
+        reference="crucible.rapid.refs_adapt:fir_shape_predict_recent", oracle="crucible.rapid.oracles:science_oracle",
+        version="2")
 def ch_constraint_tightens(rng, d):
     H = int(d["horizon"])
     c = Composed(rng, _base(d, topology="collider", motifs=["saturation", "saturation", "complementarity"]))
@@ -291,6 +294,15 @@ def ch_constraint_tightens(rng, d):
                    objective={"type": "maximize_net", "text": SHOP},
                    claim={"lever": a, "constrained": b, "outcome": c.sold, "regime": rg})
     price_levers_at(cfg, {a: u(rng, 7.0, 9.0), b: u(rng, 2.0, 3.5)})
+    held = [{c.name_of(a): float(p), c.name_of(b): float(q)} for p, q in
+            ((12.0, 3.0), (3.0, 12.0), (14.0, 14.0), (8.0, 13.0), (13.0, 6.0), (0.5, 9.0), (10.0, 0.5))]
+    text = ("Predict mean output under the conditions at the end of the episode if materials and machine hours were "
+            f"held at these values (partly outside what you can set): {held}. File predictions with the journal: "
+            "message to 'journal' with content {\"predictions\": [{\"set\": <condition>, \"value\": <number>}, "
+            "...]}. Only the last filing counts.")
+    cfg["objective"] = {"type": "predict_heldout", "heldout": held, "gauge": c.gauge_of(c.sold), "text": text}
+    cfg["journal"] = True
+    cfg["affordances"] = list(cfg["affordances"]) + ["message"]
     return cfg
 
 

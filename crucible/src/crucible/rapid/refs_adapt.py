@@ -943,3 +943,63 @@ def seed_as_communities_open(view, env=None, step: int = 2, wait: int = 1, cap: 
             seeded[n] += int(k)
             when[n] = view.t
         r = view.step({"kind": "allocate", "amounts": amt} if amt else None)
+
+
+# ====================================================================== prediction under a changed regime
+def _change_point(X: np.ndarray, y: np.ndarray, lo: np.ndarray, hi: np.ndarray, margin: int = 10) -> int:
+    """The split that best separates two regimes of the reading's law: for every split with at least `margin`
+    readings on each side, a quadratic law in each setting (plus their product) is fitted on each side; the split
+    with the smallest total squared error, if it beats one law for all by a clear margin (F test at 1%), else 0."""
+    n = len(y)
+    if n < 2 * margin + 5:
+        return 0
+    Z = (X - lo) / np.maximum(hi - lo, 1e-9)
+    F = np.c_[np.ones(n), Z, Z * Z, Z[:, :1] * Z[:, 1:2]] if X.shape[1] >= 2 else np.c_[np.ones(n), Z, Z * Z]
+    p = F.shape[1]
+
+    def sse(rows):
+        coef, *_ = np.linalg.lstsq(F[rows], y[rows], rcond=None)
+        return float(np.sum((F[rows] @ coef - y[rows]) ** 2))
+    allr = np.arange(n)
+    s0 = sse(allr)
+    best, bt = np.inf, 0
+    for tau in range(margin, n - margin):
+        s = sse(allr[:tau]) + sse(allr[tau:])
+        if s < best:
+            best, bt = s, tau
+    f = ((s0 - best) / p) / max(best / max(n - 2 * p, 1), 1e-12)
+    return bt if f > 3.5 else 0
+
+
+def fir_shape_predict_recent(view, env, lags: int = 1, gain: float = 0.06, seed: int = 0) -> None:
+    """`fir_shape_predict` for a world whose law may have changed during the episode, asked about the current
+    regime: settings are randomised every tick; at the end the most likely change point of the law is located
+    (`_change_point`) and the additive law is fitted to the readings after it only."""
+    rng = np.random.default_rng(seed)
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    gauge = obj.get("gauge")
+    names = sorted(held[0])
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+    lo = np.array([float(props[n]["minimum"]) for n in names])
+    hi = np.array([float(props[n]["maximum"]) for n in names])
+    X, y = [], []
+    while view.t < view.horizon - 2 and not view.done:
+        s = lo + rng.random(len(names)) * (hi - lo)
+        r = view.step({"kind": "levers", "values": {n: float(v) for n, v in zip(names, s)}})
+        nums = r["observation"]["numbers"]
+        key = gauge if gauge in nums else (next(iter(nums)) if nums else None)
+        X.append(s.copy())
+        y.append(nums.get(key, np.nan) if key else np.nan)
+    X, y = np.asarray(X), np.asarray(y, dtype=float)
+    ok = np.isfinite(y)
+    X, y = X[ok], y[ok]
+    if len(y) >= 20 and not view.done:
+        tau = _change_point(X, y, lo, hi)
+        Xr, yr = X[tau:], y[tau:]
+        pred, _ = fit_additive_lagged(Xr, yr, lo, hi, lags, gain=gain)
+        Xh = np.asarray([[float(c[n]) for n in names] for c in held])
+        view.step({"kind": "message", "to": "journal",
+                   "content": {"predictions": [{"set": c, "value": float(v)} for c, v in zip(held, pred(Xh))]}})
+    while not view.done:
+        view.step(None)
