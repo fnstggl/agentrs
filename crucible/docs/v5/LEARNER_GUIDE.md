@@ -312,11 +312,16 @@ and world digest (Gate S.8, for a mechanism and a rapid world).
 
 ## 11. What is not there yet
 
-* No v5 Tier 2 domain is registered (`crucible.domains.base.REGISTRY` is empty; D-17 makes the domains
-  configurations of `crucible.civ`). Every gate that needs Tier 2 fails and says so.
-* Tier 3 is reached through `crucible.civ`; on the wave-2a integration commit its generator raised (a duplicate
-  `space` module, fixed by the concurrent integration work). The Tier 3 gates fail until that fix is merged and pass
-  through the same code once it is (verified locally against the integration branch's tree).
+* Tier 2: the domain framework (`crucible.domains.base`, D-17/D-48) is merged and `make(2, "<domain>:<config>")`
+  builds its worlds (seats, public objective, evaluator-side `evaluate`, learner-side `exp`/`goals` modules); only
+  Part 9 domains count as Tier 2 (a test fixture never does). Until the Part 9 domains are registered (workstreams
+  I-1..I-3) every gate that needs Tier 2 fails and says so.
+* Tier 3 is reached through `crucible.civ` (all eleven profiles); every Tier 3 part of Gates R, S, OO and SP-11 runs
+  on real civilisations.
+* Learning improvement (SP-11.6c): the reference learner beats a frozen copy of itself in Tier 1 only through
+  learned inaction (it equals the do-nothing outcome), and in a civilisation neither copy changes its cash within the
+  budget: the reference learner cannot find income among ~580 tools in a few hundred decisions. An algorithmic
+  limitation of the interface-proof learner, not an environment failure.
 * In-world simulated participants that act through tools now receive participant views (the nested-call fix); what a
   module reads directly from world state for its own physics is reviewed per module, not filtered (population and
   goods choices read the artifact- and physics-derived attributes, not creator labels; D-15/D-18). The 4.0

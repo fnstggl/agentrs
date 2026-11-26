@@ -3,7 +3,502 @@
  "branch": "c5c/w3b-obs",
  "base": "55433e7 (feat/crucible-5-complete: waves 1, 2a, 3a + the integration fix); merged c5c/w3b-domfw f9e9d96",
  "summary": "Wave-3b continuation (in progress; see history for wave 3a). Re-ran every R/S/OO/SP-11 gate on the integrated tree with real civilisations: all Tier 3 parts pass; the only failures left are Tier 2 (no Part 9 domain registered yet). Added the out-of-process evaluation entry point (remote.evaluate: world, learner and evaluator in three processes, sealed seeds) with isolation probes (W.2/SP-16c), removed every CAM/AGENTRS import from the experience package and its tests (RP.1), re-probed the modules merged after wave 3a.",
- "requirements": {},
+ "requirements": {
+  "R.1": {
+   "implementation_files": [
+    "src/crucible/experience/modes.py",
+    "src/crucible/experience/tier1.py",
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/gym.py",
+    "src/crucible/research/envs.py",
+    "src/crucible/research/bridge.py",
+    "src/crucible/selfplay/arena.py",
+    "src/crucible/scale/rollout.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py",
+    "tests/test_v5_experience_core.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "R.2": {
+   "implementation_files": [
+    "src/crucible/core/evaluator_only.py",
+    "src/crucible/core/kernel.py",
+    "src/crucible/experience/probes.py",
+    "src/crucible/experience/probes_tiers.py",
+    "src/crucible/experience/isolation.py",
+    "src/crucible/goals/metrics.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py",
+    "tests/test_v5_experience_wave3b.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "R.3": {
+   "implementation_files": [
+    "src/crucible/core/evaluator_only.py",
+    "src/crucible/core/kernel.py",
+    "src/crucible/experience/probes_tiers.py",
+    "src/crucible/experience/isolation.py",
+    "src/crucible/experience/remote.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "R.4": {
+   "implementation_files": [
+    "src/crucible/experience/leakage.py",
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "R.5": {
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py",
+    "src/crucible/experience/remote.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "R.6": {
+   "implementation_files": [
+    "src/crucible/experience/leakage.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "R.7": {
+   "implementation_files": [
+    "src/crucible/experience/reference.py",
+    "src/crucible/experience/loop.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "R.n1": {
+   "implementation_files": [
+    "src/crucible/experience/leakage.py",
+    "src/crucible/experience/probes.py",
+    "src/crucible/experience/probes_tiers.py",
+    "src/crucible/experience/isolation.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "S.1": {
+   "implementation_files": [
+    "src/crucible/experience/tier1.py",
+    "src/crucible/experience/loop.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "S.2": {
+   "implementation_files": [
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "S.3": {
+   "implementation_files": [
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "S.4": {
+   "implementation_files": [
+    "src/crucible/experience/store.py",
+    "src/crucible/experience/loop.py",
+    "src/crucible/experience/reference.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py",
+    "tests/test_v5_experience_core.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "S.5": {
+   "implementation_files": [
+    "src/crucible/experience/registry.py",
+    "src/crucible/experience/tier1.py",
+    "src/crucible/experience/observation.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "S.6": {
+   "implementation_files": [
+    "src/crucible/experience/reference.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "S.7": {
+   "implementation_files": [
+    "src/crucible/experience/parallel.py",
+    "src/crucible/scale/rollout.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "S.8": {
+   "implementation_files": [
+    "src/crucible/experience/__main__.py",
+    "src/crucible/experience/tier1.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "SP-11.1": {
+   "implementation_files": [
+    "src/crucible/experience/observation.py",
+    "src/crucible/experience/tier1.py",
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_1.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "SP-11.2": {
+   "implementation_files": [
+    "src/crucible/experience/features.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_2.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "SP-11.3": {
+   "implementation_files": [
+    "src/crucible/experience/modes.py",
+    "src/crucible/experience/tier1.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_3.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "SP-11.4": {
+   "implementation_files": [
+    "src/crucible/experience/experiments.py",
+    "src/crucible/experience/selfexp.py",
+    "src/crucible/goals/selfgoals.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_4.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "SP-11.5": {
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_5.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "SP-11.6": {
+   "implementation_files": [
+    "docs/v5/LEARNER_GUIDE.md",
+    "examples/external_learner/curiosity_learner.py",
+    "src/crucible/experience/remote.py",
+    "examples/experience_external_adapter.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_6.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "SP-11.1b": {
+   "implementation_files": [
+    "src/crucible/experience/loop.py",
+    "src/crucible/experience/gym.py",
+    "src/crucible/api/http_server.py",
+    "src/crucible/api/mcp_server.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_1b.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "SP-11.4b": {
+   "implementation_files": [
+    "src/crucible/experience/experiments.py",
+    "src/crucible/experience/selfexp.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_4b.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "SP-11.6c": {
+   "implementation_files": [
+    "src/crucible/experience/reference.py",
+    "examples/external_learner/curiosity_learner.py",
+    "src/crucible/agents/llm.py",
+    "src/crucible/experience/scripted.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_6c.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "SP-11.6d": {
+   "implementation_files": [
+    "src/crucible/api/gym_env.py",
+    "src/crucible/api/pettingzoo_env.py",
+    "src/crucible/experience/leakage.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_6d.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "SP-2.2": {
+   "implementation_files": [
+    "src/crucible/experience/scripted.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_2_2.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.1": {
+   "implementation_files": [
+    "src/crucible/experience/modes.py",
+    "src/crucible/core/evaluator_only.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.2": {
+   "implementation_files": [
+    "src/crucible/experience/probes.py",
+    "src/crucible/experience/probes_tiers.py",
+    "src/crucible/core/evaluator_only.py",
+    "src/crucible/experience/isolation.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.3": {
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.4": {
+   "implementation_files": [
+    "src/crucible/experience/remote.py",
+    "src/crucible/core/evaluator_only.py",
+    "src/crucible/experience/isolation.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py",
+    "tests/test_v5_experience_isolation.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.5": {
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.6": {
+   "implementation_files": [
+    "examples/external_learner/curiosity_learner.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.7": {
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.8": {
+   "implementation_files": [
+    "src/crucible/experience/leakage.py",
+    "src/crucible/experience/modes.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.9": {
+   "implementation_files": [
+    "src/crucible/experience/modes.py",
+    "src/crucible/experience/registry.py",
+    "src/crucible/experience/__main__.py",
+    "src/crucible/api/mcp_server.py",
+    "src/crucible/experience/remote.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.10": {
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/probes_tiers.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.11": {
+   "implementation_files": [
+    "src/crucible/experience/selfexp.py",
+    "src/crucible/experience/experiments.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.12": {
+   "implementation_files": [
+    "src/crucible/experience/labels.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.14": {
+   "implementation_files": [
+    "src/crucible/experience/probes_tiers.py",
+    "src/crucible/experience/gym.py",
+    "src/crucible/experience/probes.py",
+    "src/crucible/experience/isolation.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  },
+  "OO.16": {
+   "implementation_files": [
+    "src/crucible/experience/probes_tiers.py",
+    "src/crucible/experience/tier1.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "",
+   "notes": ""
+  }
+ },
  "limitations": [],
  "integration_notes": [],
  "history": [
