@@ -253,8 +253,8 @@ Measured in that mirror (single CPU, slot scheduler):
 
 * gate SP-2.3: `shared_primitive_kinds` = 14 of the 19 Part 2.3 primitives (content artifacts, relationships,
   communities, institutions, contracts have known duplicates; all 19 have an owner); `cross_module_rollback_failures`
-  = 0 (30 fault-injected real multi-module transactions of a 99-module world before the window change, up to 9
-  modules each, 22 touching v5 modules; 240 composed scenarios, 215 failing as intended); `inference_replay_without_rerun`
+  = 0 (60 fault-injected real multi-module transactions of a 99-module world: 55 jobs, 5 commands, up to 9
+  modules each, 47 touching v5 modules; 240 composed scenarios, 215 failing as intended); `inference_replay_without_rerun`
   = true (139 recorded population inferences; replay and regeneration in new processes: 0 inference runs, exact;
   cross-process resume exact with the shared memo).
 * gate SP-2.1: `execution_modes` = 1 (A: rapid 9/9 engines responsive, 63 families, and the 4.0 mechanisms; B: the
