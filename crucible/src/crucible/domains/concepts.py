@@ -5,12 +5,24 @@ A concept is a kind of problem the world can generate, parse, solve and grade: `
 `buggy(p)` the answer under the concept's typical misconception, `level(p)` the difficulty (1-3) read off the
 problem's structure, and `grade(answer, p)` compares a stated answer with the solution after normalisation.
 
-Nothing here is a score anyone assigns: a lesson line is a worked example or an exercise only if its problem parses,
-and it is correct only if the stated answer equals the solver's. `PREREQS` is the prerequisite graph of the whole
-library; a world uses a subset closed under prerequisites (`closure`).
+Grading is form-aware: where the answer format asks for lowest terms (fractions, equation solutions), an equal but
+unsimplified fraction is wrong, and a quotient with a remainder at least the divisor is wrong. A misconception only
+bites where it yields a wrong answer (`misconception(p)` is None when the buggy procedure happens to give the right
+one), so a learner whose misconception was strengthened by wrong content can never score better because of it
+(the grader-validity property audit I S.5 asked for; tests/test_v5_domains_education.py checks it for every concept
+and level).
+
+Nothing here is a score anyone assigns: a worked problem in a lesson counts only if its problem is written in one of
+the curriculum's notations, and it is correct only if the stated answer equals the solver's. How a learner reads a
+document (`parse_lesson`) is a reading model, not a file format: it finds worked problems and exercises in ordinary
+writing (`12 + 7 = 19`, `What is 12 + 7? 19`, `Q: ... A: ...`, `Exercise: simplify 6/8 (answer: 3/4)`, numbered
+lists, `=>`), and a document that explains in prose only teaches nothing (time spent viewing is not learning).
+`PREREQS` is the prerequisite graph of the whole library; a world uses a subset closed under prerequisites
+(`closure`).
 """
 from __future__ import annotations
 
+import functools
 import math
 import re
 from dataclasses import dataclass
@@ -31,6 +43,21 @@ def _norm_frac(s: str):
     if not m or (m.group(2) is not None and int(m.group(2)) == 0):
         return None
     return Fraction(int(m.group(1)), int(m.group(2) or 1))
+
+
+def _norm_frac_lowest(s: str):
+    """A fraction answer whose format asks for lowest terms: the value only when written in lowest terms with a
+    positive denominator (an unsimplified answer such as 12/18 for 2/3 is a different, wrong answer)."""
+    s = str(s).strip().replace(" ", "")
+    m = re.fullmatch(r"(-?\d{1,9})(?:/(\d{1,9}))?", s)
+    if not m:
+        return None
+    num, den = int(m.group(1)), int(m.group(2) or 1)
+    if den == 0:
+        return None
+    if math.gcd(num, den) != 1 and not (num == 0 and den == 1):
+        return ("unsimplified", num, den)
+    return Fraction(num, den)
 
 
 def _norm_dec(s: str):
@@ -80,22 +107,48 @@ class Concept:
     buggy: Callable                         # params -> answer under the misconception
     level: Callable                         # params -> 1..3
     norm: Callable                          # answer text -> comparable value or None
+    alt: tuple = ()                         # other notations of the same problem (regexes with the same groups)
 
     def parse(self, text: str):
-        m = re.fullmatch(self.pattern, str(text).strip(), flags=re.IGNORECASE)
-        if not m:
-            return None
-        try:
-            return self.params(m.groups())
-        except (ValueError, ZeroDivisionError, OverflowError):
-            return None
+        t = str(text).strip().rstrip("?.!:").strip()
+        for pat in (self.pattern,) + tuple(self.alt):
+            m = re.fullmatch(pat, t, flags=re.IGNORECASE)
+            if not m:
+                continue
+            try:
+                return self.params(m.groups())
+            except (ValueError, ZeroDivisionError, OverflowError):
+                return None
+        return None
 
     def grade(self, answer: str, p) -> bool:
-        a = self.norm(answer)
-        return a is not None and a == self.norm(self.solve(p))
+        return _grade(self.name, str(answer), tuple(p))
+
+    def misconception(self, p) -> str | None:
+        """The answer under the concept's misconception, or None where the buggy procedure gives the right answer
+        (the misconception does not show on this problem)."""
+        return _misconception(self.name, tuple(p))
 
     def key(self, p) -> str:
         return f"{self.name}:{','.join(str(x) for x in p)}"
+
+
+@functools.lru_cache(maxsize=200_000)
+def _solution_norm(name: str, p: tuple):
+    con = LIBRARY[name]
+    return con.norm(con.solve(p))
+
+
+@functools.lru_cache(maxsize=400_000)
+def _grade(name: str, answer: str, p: tuple) -> bool:
+    a = LIBRARY[name].norm(answer)
+    return a is not None and a == _solution_norm(name, p)
+
+
+@functools.lru_cache(maxsize=200_000)
+def _misconception(name: str, p: tuple) -> str | None:
+    b = LIBRARY[name].buggy(p)
+    return None if _grade(name, str(b), p) else b
 
 
 def _r(rng, lo, hi) -> int:
@@ -172,7 +225,7 @@ def _div_solve(p):
 
 
 def _div_norm(s):
-    m = re.fullmatch(r"\s*(\d{1,9})(?:\s*r\s*(\d{1,9}))?\s*", str(s), flags=re.IGNORECASE)
+    m = re.fullmatch(r"\s*(\d{1,9})(?:\s*(?:r|remainder|rem)\s*(\d{1,9}))?\s*", str(s), flags=re.IGNORECASE)
     return None if not m else (int(m.group(1)), int(m.group(2) or 0))
 
 
@@ -204,8 +257,15 @@ def _frac_simplify_gen(rng, L):
 
 
 def _frac_simplify_bug(p):
+    """Divides by 2 once (whatever the common factor), or not at all when a term is odd."""
     a, b = p
-    return _fmt_frac(Fraction(a // 2, b // 2)) if a % 2 == 0 and b % 2 == 0 and b // 2 else f"{a}/{b}"
+    return f"{a // 2}/{b // 2}" if a % 2 == 0 and b % 2 == 0 and b // 2 else f"{a}/{b}"
+
+
+def _div_bug(p):
+    """Drops the remainder; on an exact division stops one step early and leaves the divisor as the remainder."""
+    q, r = divmod(p[0], p[1])
+    return f"{q - 1} r {p[1]}" if r == 0 else str(q)
 
 
 def _frac_add_gen(rng, L):
@@ -357,62 +417,73 @@ def _c(**kw):
 
 _c(name="add", title="Addition of whole numbers", doc="Add two whole numbers (carrying; negative numbers at level 3).",
    fmt="a + b", answer_fmt="the sum, e.g. 85", pattern=rf"({INT})\s*\+\s*({INT})", params=_pair, gen=_add_gen,
+   alt=(rf"(?:what is|compute|calculate|find)?\s*({INT})\s+plus\s+({INT})", rf"(?:the )?sum of ({INT}) and ({INT})"),
    text=lambda p: f"{p[0]} + {p[1]}", solve=lambda p: str(p[0] + p[1]),
    buggy=lambda p: str(_no_carry_add(p[0], p[1]) if min(p) >= 0 else abs(p[0]) + abs(p[1])),
    level=_add_level, norm=_norm_int)
 _c(name="sub", title="Subtraction of whole numbers", doc="Subtract (borrowing; negative results at level 3).",
    fmt="a - b", answer_fmt="the difference, e.g. 17", pattern=r"(\d{1,6})\s*-\s*(\d{1,6})", params=_pair,
+   alt=(r"(\d{1,6})\s+minus\s+(\d{1,6})",),
    gen=_sub_gen, text=lambda p: f"{p[0]} - {p[1]}", solve=lambda p: str(p[0] - p[1]),
    buggy=lambda p: str(_small_from_large(p[0], p[1]) if p[0] >= p[1] else p[1] - p[0]),
    level=_sub_level, norm=_norm_int)
 _c(name="mul", title="Multiplication", doc="Multiply whole numbers (times tables, then long multiplication).",
    fmt="a * b", answer_fmt="the product, e.g. 56", pattern=r"(-?\d{1,4})\s*[*×]\s*(-?\d{1,4})", params=_pair,
+   alt=(r"(-?\d{1,4})\s+(?:times|multiplied by)\s+(-?\d{1,4})", r"(-?\d{1,4})\s*x\s*(-?\d{1,4})"),
    gen=_mul_gen, text=lambda p: f"{p[0]} * {p[1]}", solve=lambda p: str(p[0] * p[1]), buggy=_mul_bug,
    level=_mul_level, norm=_norm_int)
 _c(name="div", title="Division with remainder", doc="Divide whole numbers; write the remainder as 'q r r'.",
    fmt="a div b", answer_fmt="quotient and remainder, e.g. 7 r 2 (or just 7 when exact)",
    pattern=r"(\d{1,6})\s*(?:div|÷)\s*(\d{1,4})", params=lambda g: (int(g[0]), int(g[1])) if int(g[1]) else 1 / 0,
-   gen=_div_gen, text=lambda p: f"{p[0]} div {p[1]}", solve=_div_solve, buggy=lambda p: str(p[0] // p[1]),
+   alt=(r"(\d{1,6})\s+divided by\s+(\d{1,4})",),
+   gen=_div_gen, text=lambda p: f"{p[0]} div {p[1]}", solve=_div_solve, buggy=_div_bug,
    level=_div_level, norm=_div_norm)
 _c(name="gcd", title="Greatest common divisor", doc="The largest whole number dividing both numbers.",
    fmt="gcd(a, b)", answer_fmt="a whole number, e.g. 6", pattern=r"gcd\(\s*(\d{1,5})\s*,\s*(\d{1,5})\s*\)",
+   alt=(r"(?:the )?(?:gcd|greatest common divisor|highest common factor) of (\d{1,5}) and (\d{1,5})",),
    params=_pair, gen=_gcd_gen, text=lambda p: f"gcd({p[0]}, {p[1]})", solve=lambda p: str(math.gcd(*p)),
    buggy=lambda p: str(min(p)), level=_size_level, norm=_norm_int)
 _c(name="lcm", title="Least common multiple", doc="The smallest positive number both numbers divide.",
    fmt="lcm(a, b)", answer_fmt="a whole number, e.g. 12", pattern=r"lcm\(\s*(\d{1,4})\s*,\s*(\d{1,4})\s*\)",
+   alt=(r"(?:the )?(?:lcm|least common multiple|lowest common multiple) of (\d{1,4}) and (\d{1,4})",),
    params=lambda g: _pair(g) if min(_pair(g)) > 0 else 1 / 0, gen=_gcd_gen, text=lambda p: f"lcm({p[0]}, {p[1]})",
    solve=lambda p: str(_lcm(*p)), buggy=lambda p: str(p[0] * p[1]), level=_size_level, norm=_norm_int)
 _c(name="frac_simplify", title="Simplifying fractions", doc="Write a fraction in lowest terms.",
    fmt="simplify a/b", answer_fmt="a fraction in lowest terms, e.g. 2/3", pattern=r"simplify\s+(\d{1,4})\s*/\s*(\d{1,4})",
+   alt=(r"(\d{1,4})\s*/\s*(\d{1,4}) in (?:its )?lowest terms", r"reduce\s+(\d{1,4})\s*/\s*(\d{1,4})"),
    params=lambda g: _pair(g) if int(g[1]) else 1 / 0, gen=_frac_simplify_gen, text=lambda p: f"simplify {p[0]}/{p[1]}",
    solve=lambda p: _fmt_frac(Fraction(*p)), buggy=_frac_simplify_bug,
-   level=lambda p: 1 if math.gcd(*p) <= 3 else (2 if math.gcd(*p) <= 9 else 3), norm=_norm_frac)
+   level=lambda p: 1 if math.gcd(*p) <= 3 else (2 if math.gcd(*p) <= 9 else 3), norm=_norm_frac_lowest)
 _c(name="frac_add", title="Adding fractions", doc="Add two fractions; give the result in lowest terms.",
    fmt="a/b + c/d", answer_fmt="a fraction in lowest terms, e.g. 5/6",
    pattern=r"(\d{1,3})\s*/\s*(\d{1,3})\s*\+\s*(\d{1,3})\s*/\s*(\d{1,3})", params=_frac_pair, gen=_frac_add_gen,
    text=lambda p: f"{p[0]}/{p[1]} + {p[2]}/{p[3]}", solve=lambda p: _fmt_frac(Fraction(p[0], p[1]) + Fraction(p[2], p[3])),
-   buggy=lambda p: _fmt_frac(Fraction(p[0] + p[2], p[1] + p[3])), level=_frac_add_level, norm=_norm_frac)
+   buggy=lambda p: _fmt_frac(Fraction(p[0] + p[2], p[1] + p[3])), level=_frac_add_level, norm=_norm_frac_lowest)
 _c(name="frac_mul", title="Multiplying fractions", doc="Multiply two fractions; give the result in lowest terms.",
    fmt="a/b * c/d", answer_fmt="a fraction in lowest terms, e.g. 3/8",
    pattern=r"(\d{1,3})\s*/\s*(\d{1,3})\s*[*×]\s*(\d{1,3})\s*/\s*(\d{1,3})", params=_frac_pair,
    gen=_frac_mul_gen, text=lambda p: f"{p[0]}/{p[1]} * {p[2]}/{p[3]}",
    solve=lambda p: _fmt_frac(Fraction(p[0], p[1]) * Fraction(p[2], p[3])),
    buggy=lambda p: _fmt_frac(Fraction(p[0] * p[3], p[1] * p[2])) if p[2] else "0", level=_frac_mul_level,
-   norm=_norm_frac)
+   norm=_norm_frac_lowest)
 _c(name="percent", title="Percentages", doc="Compute a percentage of a number.", fmt="p% of n",
    answer_fmt="a number (up to 2 decimals), e.g. 12.5", pattern=r"(\d{1,3})\s*%\s*of\s*(\d{1,6})", params=_pair,
+   alt=(r"(\d{1,3})\s+percent of\s+(\d{1,6})",),
    gen=_pct_gen, text=lambda p: f"{p[0]}% of {p[1]}", solve=lambda p: _fmt_dec(p[0] * p[1] / 100),
    buggy=lambda p: _fmt_dec(p[0] * p[1] / 10), level=_pct_level, norm=_norm_dec)
 _c(name="lin_eq", title="Linear equations", doc="Solve a*x + b = c for x.", fmt="ax + b = c (or ax - b = c)",
    answer_fmt="x as a whole number or fraction, e.g. -3", pattern=r"(-?\d{0,3})x\s*([+-])\s*(\d{1,4})\s*=\s*(-?\d{1,5})",
    params=lambda g: _lin_params(g) if _lin_params(g)[0] != 0 else 1 / 0, gen=_lin_gen, text=_lin_text,
-   solve=_lin_x, buggy=lambda p: _lin_x(p, flip=True), level=_lin_level, norm=_norm_frac)
+   alt=(r"solve\s+(-?\d{0,3})x\s*([+-])\s*(\d{1,4})\s*=\s*(-?\d{1,5})(?:\s+for x)?",),
+   solve=_lin_x, buggy=lambda p: _lin_x(p, flip=True), level=_lin_level, norm=_norm_frac_lowest)
 _c(name="mean", title="Averages (mean)", doc="The mean of a list of numbers.", fmt="mean of a, b, c",
    answer_fmt="a number (up to 2 decimals), e.g. 4.5", pattern=r"mean of\s+(-?\d{1,4}(?:\s*,\s*-?\d{1,4}){1,9})",
+   alt=(r"(?:the )?(?:average|arithmetic mean) of\s+(-?\d{1,4}(?:\s*,\s*-?\d{1,4}){1,9})",),
    params=_mean_params, gen=_mean_gen, text=lambda p: "mean of " + ", ".join(str(x) for x in p),
    solve=lambda p: _fmt_dec(sum(p) / len(p)), buggy=lambda p: _fmt_dec(_median(p)), level=_mean_level, norm=_norm_dec)
 _c(name="binary", title="Binary numbers", doc="Write a whole number in base 2.", fmt="n in binary",
    answer_fmt="binary digits, e.g. 1101", pattern=r"(\d{1,6})\s+in binary", params=lambda g: (int(g[0]),),
+   alt=(r"(?:write|convert)\s+(\d{1,6})\s+(?:in|to) (?:binary|base 2)",),
    gen=_bin_gen, text=lambda p: f"{p[0]} in binary", solve=lambda p: bin(p[0])[2:],
    buggy=lambda p: bin(p[0])[2:][::-1].lstrip("0") or "0", level=lambda p: _size_level(p, 16, 256), norm=_bin_norm)
 _c(name="power_mod", title="Modular powers", doc="Compute a^e modulo m.", fmt="a^e mod m",
@@ -468,29 +539,117 @@ def identify(problem: str, curriculum) -> tuple[str, tuple] | None:
     return None
 
 
-LINE = re.compile(r"^\s*(example|practice)\s*:\s*(.+?)\s*=>\s*(.+?)\s*$", re.IGNORECASE)
-NEXT = re.compile(r"^\s*next\s*:\s*(doc_[0-9a-z_]+)\s*$", re.IGNORECASE)
+# ---------------------------------------------------------------------------------------------- the reading model
+_PREFIX = re.compile(
+    r"^\s*(?:[-*\u2022]\s*|\(?\d{1,3}[.)]\s*)?"
+    r"(?:(?P<kw>worked example|for example|example|e\.g\.|practice problem|practice|exercise|try this|try it|try|"
+    r"question|quiz|problem|your turn|test yourself|check yourself|q)\s*\d{0,3}\s*[:.)\-]\s*)?", re.IGNORECASE)
+_PRACTICE = {"practice", "practice problem", "exercise", "try this", "try it", "try", "question", "quiz", "problem",
+             "your turn", "test yourself", "check yourself", "q"}
+_ASK = re.compile(r"^(?:what is|what's|compute|calculate|find|work out|evaluate|determine|solve for x in)\s+",
+                  re.IGNORECASE)
+_SPLITS = (
+    re.compile(r"^(?P<p>.+?)\s*(?:=>|->|\u2192)\s*(?P<a>.+)$"),
+    re.compile(r"^(?P<p>.+?)\s*\(\s*(?:answer|ans|solution)\s*[:=]?\s*(?P<a>[^()]+?)\s*\)\s*\.?$", re.IGNORECASE),
+    re.compile(r"^(?P<p>.+?)[\s,;]+(?:answer|ans|solution|a)\s*[:=]\s*(?P<a>.+)$", re.IGNORECASE),
+    re.compile(r"^(?P<p>.+?)[,;:]\s*x\s*=\s*(?P<a>-?[\d/ ]+)$", re.IGNORECASE),
+    re.compile(r"^(?P<p>.+?)\?\s*(?P<a>\S.*)$"),
+    re.compile(r"^(?P<p>.+?)\s+(?:is|equals|gives|makes)\s+(?P<a>\S.*)$", re.IGNORECASE),
+    re.compile(r"^(?P<p>[^=]+?)\s*=\s*(?P<a>[^=]+)$"),
+)
+_ANSWER_LINE = re.compile(r"^\s*(?:a|answer|ans|solution)\s*[:=.)]\s*(?P<a>.+?)\s*$", re.IGNORECASE)
+NEXT = re.compile(r"\b(?:next|continue(?: with)?|then read|go on to|follow[- ]?up|part \d+)\b[^\n]{0,80}?"
+                  r"(doc_[0-9a-z_]+)", re.IGNORECASE)
+
+
+def _clean_answer(a: str) -> str:
+    a = str(a).strip().strip("`*_\"'").strip()
+    a = re.sub(r"^(?:x\s*=\s*|it is\s+|it's\s+|the answer is\s+)", "", a, flags=re.IGNORECASE)
+    return a.rstrip(".!;,").strip()[:40]
+
+
+def _problem(text: str, curriculum):
+    t = _ASK.sub("", str(text).strip().strip("`*_").strip()).strip()
+    return identify(t, curriculum)
+
+
+def read_line(line: str, curriculum):
+    """One line as a learner reads it: (kind, concept, params, stated answer or None) for a worked problem or an
+    exercise written in a curriculum notation, else None."""
+    m = _PREFIX.match(line)
+    kw = (m.group("kw") or "").lower() if m else ""
+    rest = line[m.end():] if m else line
+    rest = rest.strip()
+    if not rest:
+        return None
+    kind = "practice" if kw in _PRACTICE else "example"
+    for sp in _SPLITS:
+        mm = sp.match(rest)
+        if not mm:
+            continue
+        hit = _problem(mm.group("p"), curriculum)
+        if hit is not None:
+            ans = _clean_answer(mm.group("a"))
+            if ans:
+                return kind, hit[0], hit[1], ans
+    hit = _problem(rest.rstrip("?"), curriculum)
+    if hit is not None:
+        return ("practice" if rest.endswith("?") or kw else kind), hit[0], hit[1], None
+    return None
 
 
 def parse_lesson(body: str, curriculum, max_lines: int = 60) -> dict:
     """The learning items a learner reads in a document: worked examples and exercises, in order, each with its
-    concept, level and whether its stated answer is correct (evaluated by the world's solver), plus a `Next:` link."""
+    concept, level and whether its stated answer is correct (evaluated by the world's solver), plus a link to a
+    next document. An exercise whose answer follows on the next line (`Q: ...` / `A: ...`) is read as one item; a
+    problem without any stated answer teaches nothing and is skipped."""
     items = []
     nxt = None
-    for line in str(body).splitlines():
-        m = LINE.match(line)
-        if m:
-            if len(items) >= max_lines:
-                continue
-            hit = identify(m.group(2), curriculum)
-            if hit is None:
-                continue
-            c, p = hit
-            con = LIBRARY[c]
-            items.append({"kind": m.group(1).lower(), "concept": c, "level": int(con.level(p)), "key": con.key(p),
-                          "params": list(p), "stated": m.group(3)[:40], "correct": bool(con.grade(m.group(3), p))})
+    lines = str(body).splitlines()
+    k = 0
+    while k < len(lines):
+        line = lines[k]
+        k += 1
+        if nxt is None:
+            n = NEXT.search(line)
+            if n:
+                nxt = n.group(1)
+        if len(items) >= max_lines or len(line) > 400:
             continue
-        n = NEXT.match(line)
-        if n and nxt is None:
-            nxt = n.group(1)
+        got = read_line(line, curriculum)
+        if got is None:
+            continue
+        kind, c, p, ans = got
+        if ans is None and k < len(lines):
+            am = _ANSWER_LINE.match(lines[k])
+            if am:
+                ans = _clean_answer(am.group("a"))
+                kind = "practice"
+                k += 1
+        if not ans:
+            continue
+        con = LIBRARY[c]
+        items.append({"kind": kind, "concept": c, "level": int(con.level(p)), "key": con.key(p), "params": list(p),
+                      "stated": ans, "correct": bool(con.grade(ans, p))})
     return {"items": items, "next": nxt}
+
+
+# ---------------------------------------------------------------------------------------------- writing styles
+STYLES = ("arrow", "equals", "qa", "question", "numbered", "answer_paren")
+
+
+def write_item(kind: str, con: "Concept", p, answer: str, style: str, n: int = 1) -> list[str]:
+    """One worked problem or exercise written in a style (how authors - population teachers, references - write)."""
+    t = con.text(p)
+    lab = "Example" if kind == "example" else "Practice"
+    if style == "arrow":
+        return [f"{lab}: {t} => {answer}"]
+    if style == "equals" and "=" not in t:
+        return [f"{'' if kind == 'example' else 'Try: '}{t} = {answer}"]
+    if style == "qa":
+        return [f"Q: What is {t}?", f"A: {answer}"]
+    if style == "question":
+        return [f"{'' if kind == 'example' else 'Exercise: '}What is {t}? {answer}"]
+    if style == "numbered":
+        return [f"{n}. {'' if kind == 'example' else 'Exercise: '}{t} (answer: {answer})"]
+    return [f"{'Example' if kind == 'example' else 'Exercise'} {n}: {t} (answer: {answer})"]
