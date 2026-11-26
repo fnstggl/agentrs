@@ -214,6 +214,16 @@ def _public_text(v: Any, depth: int = 0) -> bool:
     return False
 
 
+def _work_task(d: dict) -> bool:
+    """A record of an institution's work task (`commerce.institutions`: the `inst.project` task list, the
+    `inst.task_progress` event): its "progress" is how much of the task its assignee has done - a world fact the
+    project's members see - not the evaluator's goal progress."""
+    tid = d.get("task", d.get("id"))
+    return isinstance(tid, str) and tid.startswith("task_") and set(d) <= {
+        "id", "task", "progress", "title", "skills", "effort_hours", "depends_on", "assignee", "reward", "status",
+        "quality"}
+
+
 def _key_hits(x: Any, keys=EVALUATOR_KEYS, path: str = "", out: list | None = None, depth: int = 0) -> list[str]:
     out = [] if out is None else out
     if depth > 40:
@@ -221,7 +231,9 @@ def _key_hits(x: Any, keys=EVALUATOR_KEYS, path: str = "", out: list | None = No
     if isinstance(x, dict):
         for k, v in x.items():
             last = str(k).rsplit(".", 1)[-1]
-            if last in keys:
+            if last == "progress" and _work_task(x):
+                pass                            # a work task's completion (institutions: inst.project, inst.task_progress)
+            elif last in keys:
                 out.append(f"{path}.{k}")
             elif last == "independent" and isinstance(v, (bool, dict)):
                 out.append(f"{path}.{k}")       # a relatedness verdict (or a verdict per package)

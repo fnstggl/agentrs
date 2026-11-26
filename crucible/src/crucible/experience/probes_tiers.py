@@ -585,6 +585,8 @@ def probe_domain(seed: int = 7, reference_days: float = 6.0, names: list[str] | 
         env.advance(HOUR)
         reach = [env.observe(a), env.tools(a), env.observe_since(a, 0), sweep]
         probe_identity(P, env, a, reach, f"tier2 {name} identity")
+        # every Part 9 world composes the population: its individuals' private state never reaches the seat
+        probe_population_private(P, env, a, reach, f"tier2 {name} population private state")
         exprs, coefs = hidden_mechanisms(env.world)
         if exprs:
             # the hidden law of the world (what a learner is meant to discover by experiment) never reaches the seat:

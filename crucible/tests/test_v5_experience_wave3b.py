@@ -108,3 +108,18 @@ def test_hidden_mechanism_probe_finds_a_planted_law_and_nothing_else():
     one.scan_channel("observation", reach + [{"fit": {"k": v}}], values=coefs, canaries=exprs, label=n)
     assert any(l["kind"] == "exact_value" for l in one.result()["leaks"])
     assert any(str(x).startswith("1.0 + ") or "*" in str(x) for x in I._hidden_of(env).values())
+
+
+def test_key_name_probe_tells_a_work_task_progress_from_goal_progress():
+    """`progress` is an evaluator key (the goal verifier's progress); an institution work task's completion
+    (`inst.project` task records, `inst.task_progress` events) is a world fact its project members see."""
+    from crucible.experience.probes import _key_hits
+    task_event = {"type": "inst.task_progress", "payload": {"id": "task_000002", "progress": 0.308}}
+    task_row = {"result": {"tasks": [{"task": "task_000001", "title": "api", "skills": ["software"],
+                                      "effort_hours": 12.0, "depends_on": [], "assignee": "p:w1", "reward": 0,
+                                      "status": "open", "progress": 0.27, "quality": None}]}}
+    assert _key_hits([task_event, task_row]) == []
+    goal = {"agents": {"p:a": {"success": False, "progress": 0.44}}}
+    disguised = {"id": "task_000003", "progress": 0.44, "objective_progress": 0.44}
+    assert _key_hits(goal) == [".agents.p:a.progress"]
+    assert _key_hits(disguised) == [".progress"]                   # not a plain task record: still flagged
