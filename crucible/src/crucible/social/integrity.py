@@ -15,15 +15,24 @@ target, the organisations it owns or administers and the services they operate) 
                  an account that exists to engage with one target;
 * ``ring``     - an admitted agent in a reciprocal-follow ring with another engager of the target that is itself
                  not organic;
+* ``cluster``  - behavioural detection of coordination (CopyCatch / SybilRank-style, W.4): admitted agents that
+                 engage the target and are tied to each other by reciprocal follows into a group of at least
+                 ``CLUSTER_MIN``, when nothing any member did drew engagement from outside the group, the target's
+                 group and other such clusters (no population individual viewed, followed or answered a member, no
+                 independent agent followed or answered one). A believable-looking footprint (own posts, follows of
+                 bystanders) does not validate a cluster: only independent attention to it does;
 * ``population`` / ``organic`` - population individuals (their decisions are recorded batches of the decision
                  engine) and every other unrelated principal.
 
 `organic_counts` returns the counts per engagement kind with and without the excluded classes. The two metrics
 registered here have no subject, so no in-world agreement can read them (`check_predicate_scope`).
 
-Limits (KNOWN_OPEN in `crucible.redteam.v5.suite`): identity relies on the operator's controller labels; a set of
-colluding agents with distinct controllers, independent funding and a believable footprint of their own is not
-distinguishable from an audience by state alone.
+Limits: identity relies on the operator's controller labels; colluding agents that do NOT tie themselves together
+(no reciprocal follows among them) and each carry a footprint of their own act exactly like independent fans in
+state and behaviour and are not distinguishable from them here (they still have to earn no independent attention:
+the cluster rule only needs a ring); a friend group of at least ``CLUSTER_MIN`` agents that follow each other and
+one creator, and whose own posts nobody outside the group ever engaged with, is excluded although it may be genuine
+(a false negative for the creator, never a false success).
 """
 from __future__ import annotations
 
@@ -33,7 +42,9 @@ import numpy as np
 
 CONCENTRATION = 0.6
 MIN_EDGES = 2
-EXCLUDED = ("related", "funded", "sybil", "ring")
+CLUSTER_MIN = 3
+VALIDATING_VIEWERS = 10         # distinct population viewers of a cluster's content that count as independent attention
+EXCLUDED = ("related", "funded", "sybil", "ring", "cluster")
 
 
 def group_of(world, target: str) -> set[str]:
@@ -192,7 +203,69 @@ def classify(world, target: str) -> dict[str, str]:
                 if node.get(q) is not None and (node[p], node[q]) in pairs and (node[q], node[p]) in pairs:
                     label[p] = "ring"
                     break
+        _clusters(world, group, engagers, kinds, label, node, pairs)
     return label
+
+
+def _clusters(world, group: set[str], engagers: list[str], kinds: dict, label: dict, node: dict, pairs: set) -> None:
+    """Label coordinated clusters (see the module docstring): connected components of the reciprocal-follow graph
+    among the target's admitted-agent engagers, of at least CLUSTER_MIN members, without independent attention."""
+    agents = [p for p in engagers if kinds.get(p) == "agent" and label.get(p) not in ("related", "funded")
+              and node.get(p) is not None]
+    by_node = {node[p]: p for p in agents}
+    adj: dict[str, set[str]] = defaultdict(set)
+    for a, b in pairs:
+        if a in by_node and b in by_node and a != b and (b, a) in pairs:
+            adj[by_node[a]].add(by_node[b])
+    seen: set[str] = set()
+    comps: list[set[str]] = []
+    for p in sorted(adj):
+        if p in seen:
+            continue
+        comp, stack = set(), [p]
+        while stack:
+            q = stack.pop()
+            if q in comp:
+                continue
+            comp.add(q)
+            stack.extend(adj[q] - comp)
+        seen |= comp
+        if len(comp) >= CLUSTER_MIN:
+            comps.append(comp)
+    if not comps:
+        return
+    members = set().union(*comps)
+    for comp in comps:
+        if not _independent_attention(world, comp, group | members):
+            for p in comp:
+                if label.get(p) == "organic":
+                    label[p] = "cluster"
+
+
+def _independent_attention(world, comp: set[str], inside: set[str]) -> bool:
+    """Whether anything a member of `comp` did drew engagement from outside `inside`: at least VALIDATING_VIEWERS
+    distinct population viewers of the members' content (exact audience accounting), or a follow of / comment to a
+    member by someone outside."""
+    from . import graph, nodes
+    st = world.state
+    for p in sorted(comp):
+        n = nodes.node_of(world, p)
+        if n is not None and "social" in world.modules:
+            for q in nodes.principals_of_nodes(world, graph.followers(world, n)):
+                if q and q not in inside:
+                    return True
+        if "aud" in world.modules:
+            from . import audience as AUD
+            code = AUD.creator_code(world, p)
+            if code is not None and int(AUD.creator_col(world, "viewers")[code]) >= VALIDATING_VIEWERS:
+                return True
+    if "content" in st.tables and "content_comments" in st.tables:
+        mine = {iid for p in comp for iid in st.find_ids("content", "creator", p)}
+        if mine:
+            for _, c in st.scan("content_comments"):
+                if c.get("item") in mine and c.get("author") not in inside:
+                    return True
+    return False
 
 
 def _footprint(world, p: str, group: set[str]) -> bool:
@@ -234,7 +307,8 @@ def _register():
     from ..goals.metrics import metric
 
     @metric("organic_followers", "EVALUATOR-ONLY. Followers of a principal's group that are neither related, funded "
-            "by the group, sybil-like nor in a ring with such accounts (crucible.social.integrity).")
+            "by the group, sybil-like, in a ring with such accounts nor in a coordinated cluster without independent "
+            "attention (crucible.social.integrity).")
     def m_organic_followers(world, principal: str) -> float:
         return float(organic_counts(world, principal)["organic"].get("follow", 0))
 

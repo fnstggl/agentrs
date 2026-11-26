@@ -161,21 +161,20 @@ def image_info(data: bytes) -> dict:
         fmt = "webp"
     else:
         raise FormatError("not a PNG, JPEG, GIF or WebP image")
+    # every pixel is decoded (a truncated or corrupt file fails), in the jail: participant bytes never reach a native
+    # decoder inside the world process (crucible.sandbox.isolation.decode_image; Gate W.1 / SP-16b)
+    from ..sandbox import isolation
     try:
-        from PIL import Image
-        Image.MAX_IMAGE_PIXELS = MAX_PIXELS
-        with Image.open(io.BytesIO(data)) as im:
-            w, h = im.size
-            if w * h > MAX_PIXELS:
-                raise FormatError(f"image of {w}x{h} pixels exceeds {MAX_PIXELS}")
-            im.load()               # decodes every pixel: a truncated or corrupt file fails here
-            mode = im.mode
-            frames = getattr(im, "n_frames", 1)
-    except FormatError:
-        raise
-    except Exception as e:  # noqa: BLE001 - Pillow raises many types for bad data
-        raise FormatError(f"image does not decode: {type(e).__name__}: {e}") from None
-    return {"image_format": fmt, "width": int(w), "height": int(h), "mode": mode, "frames": int(frames)}
+        meta = isolation.decode_image(bytes(data), max_pixels=MAX_PIXELS)
+    except isolation.JailUnavailable as e:
+        raise FormatError(f"untrusted images cannot be decoded here: {e}") from None
+    if not meta.get("ok"):
+        err = str(meta.get("error", ""))
+        if "pixel limit" in err or "DecompressionBomb" in err:
+            raise FormatError(f"image exceeds {MAX_PIXELS} pixels: {err[:160]}")
+        raise FormatError(f"image does not decode: {err[:200]}")
+    w, h = (int(x) for x in meta["size"])
+    return {"image_format": fmt, "width": w, "height": h, "mode": meta["source_mode"], "frames": int(meta["frames"])}
 
 
 def wav_info(data: bytes) -> dict:

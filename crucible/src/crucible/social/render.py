@@ -68,10 +68,22 @@ def _limits():
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
 
+def _jailed(argv: Sequence[str], cwd: str, timeout: float):
+    from ..sandbox import isolation
+    return isolation.run(list(argv), cwd=cwd, timeout=timeout, preexec_fn=_limits,
+                         env={"PATH": "/usr/bin:/bin", "LC_ALL": "C", "MALLOC_ARENA_MAX": "2"})
+
+
 def run_tool(argv: Sequence[str], cwd: str) -> bytes:
+    """Run FFmpeg/SoX on participant bytes in `cwd`, jailed (`crucible.sandbox.isolation.run`: own uid, Landlock with
+    read-write access to `cwd` only, seccomp without sockets or new processes) in addition to the rlimits and the
+    timeout (Part 16, Gate W.1). Where the jail cannot be applied this fails closed (MediaError) unless
+    CRUCIBLE_ALLOW_UNJAILED_TOOLS=1."""
+    from ..sandbox import isolation
     try:
-        p = subprocess.run(list(argv), cwd=cwd, capture_output=True, timeout=TIMEOUT_S, preexec_fn=_limits,
-                           env={"PATH": "/usr/bin:/bin", "LC_ALL": "C", "MALLOC_ARENA_MAX": "2"})
+        p = _jailed(argv, cwd, TIMEOUT_S)
+    except isolation.JailUnavailable as e:
+        raise MediaError(f"untrusted media cannot be processed here: {e}") from None
     except subprocess.TimeoutExpired:
         raise MediaError(f"{os.path.basename(argv[0])} exceeded {TIMEOUT_S}s") from None
     except OSError as e:
@@ -108,11 +120,12 @@ class _Work:
 def tool_versions() -> dict:
     out = {}
     for name, argv in (("ffmpeg", [FFMPEG, "-version"]), ("sox", [SOX, "--version"])):
-        try:
-            out[name] = subprocess.run(argv, capture_output=True, timeout=10).stdout.decode(
-                "utf-8", "replace").splitlines()[0][:120]
-        except Exception:  # noqa: BLE001
-            out[name] = None
+        # the version query starts the same native binaries, so it runs in the same jail as every studio launch
+        with _Work({}) as w:
+            try:
+                out[name] = _jailed(argv, w.dir, 10.0).stdout.decode("utf-8", "replace").splitlines()[0][:120]
+            except Exception:  # noqa: BLE001 - a missing tool is recorded as None in the tool-chain identity
+                out[name] = None
     try:
         import PIL
         out["pillow"] = PIL.__version__
@@ -305,14 +318,25 @@ IMAGE_OPS = ("resize", "crop", "rotate", "flip", "mirror", "grayscale", "blur", 
              "text", "thumbnail", "border", "invert")
 
 
-def open_image(data: bytes):
-    from PIL import Image
-    Image.MAX_IMAGE_PIXELS = 40_000_000
+def decode_pixels(data: bytes, max_pixels: int = 40_000_000) -> dict:
+    """Decode participant image bytes outside the world process (`crucible.sandbox.isolation.decode_image`: Pillow
+    in the jail; Gate W.1 / SP-16b): {"format", "source_mode", "mode", "size", "frames", "raw"}. Raises MediaError
+    when the bytes do not decode or the jail cannot be applied (fail closed)."""
+    from ..sandbox import isolation
     try:
-        im = Image.open(io.BytesIO(data))
-        im.load()
-    except Exception as e:  # noqa: BLE001
-        raise MediaError(f"not a decodable image: {type(e).__name__}") from None
+        meta = isolation.decode_image(bytes(data), max_pixels=int(max_pixels))
+    except isolation.JailUnavailable as e:
+        raise MediaError(f"untrusted images cannot be decoded here: {e}") from None
+    if not meta.get("ok"):
+        raise MediaError(f"not a decodable image: {str(meta.get('error', ''))[:200]}")
+    return meta
+
+
+def open_image(data: bytes):
+    """A participant image as an RGB Pillow image, decoded in the jail (only raw pixels cross into this process)."""
+    from PIL import Image
+    meta = decode_pixels(data)
+    im = Image.frombytes(meta["mode"], tuple(meta["size"]), meta["raw"])
     return im.convert("RGB")
 
 
