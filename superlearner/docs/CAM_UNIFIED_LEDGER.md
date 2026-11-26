@@ -100,3 +100,37 @@ and their commits persist on disk. Completed: wave 1 `wf_c9e0d81b-aaa` (merged).
   `runs/cam_unified/`, plus CAM 7.0 / 6.1 runs) is NOT in git; file list + sha256 are in that evidence dir.
 - Resume: re-run wave 2 from the merged state (S: the 200-decision real ow_tiny run is not done; only 6-decision smoke
   runs exist), then verify/fix, then A01–A22 acceptance.
+
+### 2026-11-26 — Session 3: recovery, independent audit, complete implementation (branch `feat/cam-7.0-unified-complete`)
+
+Governing documents added (verbatim): `CAM_UNIFIED_SPEC_RECOVERY_2026-11-26.md` (recovery/audit directive),
+`CAM_UNIFIED_SPEC_META_REWARDS.md` (meta-learned rewards, credit, autonomy — mandatory), `CAM_UNIFIED_SPEC_DOM.md`
+(1B core, CAM strategic dominance). Manifest v2: 147 requirements (+76: OB, UR, SE, IR, CR, KV, AU, CD, EX-A..K,
+RPT-01, VER-01, DOM-01..13). Executable checker: `python -m superlearner.verify_completion [--run-tests --only ids]`
+(claims vs files, resolvable tests, recorded JUnit passes in `docs/evidence/test_results/`, integration entry,
+verified_by, experiment verdict files; engineering vs scientific reported separately). At creation: 0/147
+engineering-complete — the earlier IMPLEMENTED claims had never had test results recorded.
+
+- Branch created from `feat/cam-7.0-unified` 72c97c8 (preserved untouched) + merged Crucible 5.0
+  `origin/feat/crucible-5-openworld` db70810 (an interrupted multi-agent build pushed at 08:49 UTC by another session).
+  Push credential: root-only helper (see memory); every milestone pushed.
+- Audit workflow `wf_038852ca-d04` (11 independent auditors + synthesis critic) launched 09:02 UTC.
+- Implemented while it ran (all new files, tests recorded):
+  * `credit/exact.py`, `credit/estimators.py`: exact tabular MDPs; REINFORCE/all-actions/COCOA/HCA/RUDDER verified
+    unbiased against enumerated gradients; COCOA variance 1.57 vs REINFORCE 19.75 (key-to-door d6).
+  * `credit/meta_exact.py`: Zheng-style meta-gradient through K inner updates; exact == finite differences;
+    detaching the inner reward zeroes it; sampled truncated estimator cosine 0.9997; learned reward values the costly
+    key pickup (+1.26) and beats extrinsic-reward training (J 1.53 vs 1.12) — Exp J's essential test, tabular.
+  * `selfeval/evaluator.py` (verified-outcome success/hazard/magnitude/resource heads, calibration report),
+    `selfeval/intrinsic.py` (R_psi, lifetime value), `credit/heads.py` (outcome encoder, hindsight model, RUDDER
+    ReturnDecomposer with discounted conservation).
+  * `envs/experience.py`: observation-only Crucible 5.0 adapter, three channels (actor / released labels /
+    private), oracle-normalised verified utility for rapid families (none defines success upstream).
+  * `core/semantic_xattn.py` (DOM-05) + `superlearner` scale: 1,081,244,162 core params.
+  * `semantic/decoder_xattn.py` (DOM-03): hooked multilayer gated latent cross-attention into Qwen decoder layers.
+  * `autonomy/goals.py`, `autonomy/curriculum.py`: observation-grounded self-goals, operator-side verifier, C_chi.
+- Crucible 5.0 findings (audit + own probes; NOT fixed upstream, worked around CAM-side): mech `rig.episode` payload
+  leaks `family:seed` (25/25 families incl. test split); rapid `query{target:'spec'}` leaks family/seed/split/engine/
+  category/difficulty (36/73); six multi-agent rapid families broken (a0's result returned to all agents, private
+  messages visible); kernel verifiers give false early success after one long advance (adapter now steps <=1 h);
+  Tier 2/3 absent; no released-label channel upstream (CAM operator implements one).
