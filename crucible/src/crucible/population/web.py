@@ -102,7 +102,8 @@ def _member(a: np.ndarray, v: np.ndarray) -> np.ndarray:
 @register_module
 class PopWeb(Module):
     """Resource discovery, visits, use, return, abandonment, purchases; activities `web`, `search`, `forum`.
-    Config: {page_ttl_s: 10800, max_depth: 3, genesis_known: 2, search_limit: 6, forum: true}."""
+    Config: {page_ttl_s: 10800, max_depth: 3, max_visits: 5, genesis_known: 2, search_limit: 6, forum: true,
+    currency_cents_per_gbp: 100}."""
     name = "popweb"
     host = "popweb"
     version = "1"
@@ -124,7 +125,7 @@ class PopWeb(Module):
         columns.declare(world, TOPIC_TABLE, len(semantics.topic_names()), {"views": ("int64", (), 0)})
         self.ttl = int(self.config.get("page_ttl_s", 3 * 3600))
         self.max_depth = int(self.config.get("max_depth", 3))
-        self.max_visits = int(self.config.get("max_visits", 3))
+        self.max_visits = int(self.config.get("max_visits", 5))
         # money: world cents per GBP-equivalent unit for customer_return@1 (the contract's declared currency factor)
         self.gbp_cents = float(self.config.get("currency_cents_per_gbp", 100.0))
         core.register_activity(world, "web", self.act_web, owner=self.name, prior=1.0, goals=(1, 2, 4))
