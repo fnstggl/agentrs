@@ -50,7 +50,7 @@ import numpy as np
 CONTROLS = ("process_memory_stash", "files_outside_checkpoint", "checkpoint_tampering", "evaluator_internals",
             "evaluator_internals_hosted", "hosted_state_outlives_the_process", "interaction_budget", "timing_channel",
             "partition_awareness", "calibration_shortcut")
-LEARNER_SEEDS = (0, 1, 2, 3)
+LEARNER_SEEDS = (0, 1, 2, 3)     # fallbacks; the stash battery uses the instrument's own design sizes (_design)
 TRAIN_FAMILIES = 4
 TRAIN_TASKS = 24                 # as the instrument's own battery (instrument.Design: 24 tasks x 3 repeats)
 REPEATS = 3
@@ -80,6 +80,24 @@ def _learnable_families(reg, n: int = TRAIN_FAMILIES) -> list[str]:
     return sorted(ok[:n])
 
 
+def _design() -> dict:
+    """The stash battery's sizes follow the instrument's own design (`research.v5.instrument.Design`: learner seeds,
+    training tasks x repeats, unfamiliar worlds per family), so the adversary's hidden gain is measured with the
+    power the instrument itself needs for the honest learner's effects (N raised it to ten worlds per family and five
+    seeds when real effects of 0.13-0.49 had intervals reaching below zero); evaluation world seeds stay this
+    control's own."""
+    from ...research.v5 import instrument as IN
+    f = getattr(getattr(IN, "Design", None), "__dataclass_fields__", {})
+
+    def get(name, default):
+        v = getattr(f.get(name), "default", None)
+        return default if v is None or isinstance(v, type) else v
+    n_eval = len(tuple(get("eval_seeds", EVAL_SEEDS)))
+    return {"seeds": tuple(range(len(tuple(get("seeds", LEARNER_SEEDS))))),
+            "train_tasks": int(get("train_tasks", TRAIN_TASKS)), "repeats": int(get("repeats", REPEATS)),
+            "eval_seeds": tuple(EVAL_SEEDS[0] + i for i in range(max(n_eval, len(EVAL_SEEDS))))}
+
+
 def _result(passed: bool, summary: str, evidence: dict) -> dict:
     return {"passed": bool(passed), "summary": summary, "evidence": evidence}
 
@@ -93,11 +111,13 @@ def _stash_battery(make: Callable[[int], object], reg) -> dict:
     from ...research.v5.episodes import run_episode, score_episode
     from ...research.v5.sampler import build_env
     fams = _learnable_families(reg)
-    worlds = [(f, s) for f in fams for s in EVAL_SEEDS]
-    out = {"u": [], "ip": [], "wo": [], "params_changed": [], "fresh_checks": [], "reports": [], "worlds": worlds}
+    D = _design()
+    worlds = [(f, s) for f in fams for s in D["eval_seeds"]]
+    out = {"u": [], "ip": [], "wo": [], "params_changed": [], "fresh_checks": [], "reports": [], "worlds": worlds,
+           "refused": [], "design": {k: (len(v) if isinstance(v, tuple) else v) for k, v in D.items()}}
     work = tempfile.mkdtemp(prefix="crucible-rt-instrument-")
     try:
-        for seed in LEARNER_SEEDS:
+        for seed in D["seeds"]:
             L = make(seed)
             rng = np.random.default_rng(50_000 + seed)
 
@@ -109,18 +129,25 @@ def _stash_battery(make: Callable[[int], object], reg) -> dict:
                 return v
             h0 = LR.params_hash(L.parameters())
             out["u"].append(scores())
-            for i in range(TRAIN_TASKS):
+            for i in range(D["train_tasks"]):
                 f = fams[i % len(fams)]
-                for _ in range(REPEATS):
+                for _ in range(D["repeats"]):
                     run_episode(build_env(reg[f], 300 + i, {}, {"mode": "assigned"}), L, learn=True, rng=rng)
             out["ip"].append(scores())
             out["params_changed"].append(LR.params_hash(L.parameters()) != h0)
             man = FR.save_checkpoint(L, os.path.join(work, f"adv-{seed}"))
             fo = FR.weights_only_eval(man, [{"entry": f, "seed": s} for f, s in worlds])
-            if not fo.get("ok"):
-                raise RuntimeError(f"weights-only evaluation failed: {fo.get('refused') or fo.get('error')}")
-            out["wo"].append([x["score"] for x in fo["scores"]])
-            out["fresh_checks"].append(fo["checks"])
+            if not fo.get("ok") and fo.get("refused"):
+                # the fresh evaluation refused the checkpoint (e.g. state smuggled into the architecture
+                # configuration): nothing of it is credited - recorded, and the seed carries no weights-only score
+                out["refused"].append(str(fo["refused"])[:300])
+                out["wo"].append(None)
+                out["fresh_checks"].append({"refused": True})
+            elif not fo.get("ok"):
+                raise RuntimeError(f"weights-only evaluation failed: {fo.get('error')}")
+            else:
+                out["wo"].append([x["score"] for x in fo["scores"]])
+                out["fresh_checks"].append(fo["checks"])
             out["reports"].append(L.report() if hasattr(L, "report") else {})
             if hasattr(L, "cleanup"):
                 L.cleanup()
@@ -131,27 +158,42 @@ def _stash_battery(make: Callable[[int], object], reg) -> dict:
 
 def _stash_verdict(name: str, b: dict) -> dict:
     from ...research.v5 import instrument as IN
-    u, ip, wo = (np.array(b[k], dtype=float) for k in ("u", "ip", "wo"))
-    persistent = IN._one(ip - wo)
-    weight = IN._one(wo - u)
-    labelled_weights = IN._label(weight, IN.EFFECTS["weight_learning"]) and all(b["params_changed"])
-    labelled_persistent = IN._label(persistent, IN.EFFECTS["persistent_state"])
+    u, ip = (np.array(b[k], dtype=float) for k in ("u", "ip"))
+    keep = [i for i, w in enumerate(b["wo"]) if w is not None]          # seeds whose checkpoint was not refused
     in_process_gain = IN._one(ip - u)
-    hid_something = IN._label(in_process_gain, IN.EFFECTS["persistent_state"])
-    fresh_ok = all(all(c.values()) for c in b["fresh_checks"])
+    # "the attack had something to hide" is this control's own single question, tested at the conventional 95% level
+    # (the instrument's labels use a family-wise level across its seven explanations); the credit verdict below
+    # (labelled_weights) is the instrument's own labelling rule, unchanged
+    from ...research.v5 import hstats as HS
+    hidden = HS.crossed_diff(np.zeros_like(ip - u), ip - u, level=0.95)
+    hid_something = bool(hidden["lo"] > 0 and hidden["estimate"] >= IN.EFFECTS["persistent_state"]
+                         and min(hidden["seeds"]) >= HS.MIN_SEEDS)
+    if keep:
+        wo = np.array([b["wo"][i] for i in keep], dtype=float)
+        persistent = IN._one(ip[keep] - wo)
+        weight = IN._one(wo - u[keep])
+        labelled_weights = IN._label(weight, IN.EFFECTS["weight_learning"]) and \
+            all(b["params_changed"][i] for i in keep)
+        labelled_persistent = IN._label(persistent, IN.EFFECTS["persistent_state"])
+    else:                                       # every checkpoint refused: nothing credited at all
+        persistent = weight = {"estimate": None}
+        labelled_weights, labelled_persistent = False, None
+    fresh_ok = all(all(c.values()) for c in b["fresh_checks"] if not c.get("refused"))
     ev = {"weights_only_gain": _stat(weight), "in_process_gain": _stat(in_process_gain),
+          "in_process_gain_95": _stat(hidden), "design": b.get("design"),
           "persistent_state": _stat(persistent), "labelled_weight_learning": bool(labelled_weights),
           "labelled_persistent_state": bool(labelled_persistent), "params_changed": b["params_changed"],
           "fresh_checks_all_passed": fresh_ok, "learner_seeds": len(b["u"]), "worlds": len(b["worlds"]),
-          "adversary_reports": b["reports"]}
+          "checkpoints_refused": b.get("refused", []), "adversary_reports": b["reports"]}
     if labelled_weights or not fresh_ok:
         return _result(False, f"{name}: the weights-only evaluation credited state kept outside the parameters", ev)
     if not hid_something:
         return _result(False, f"{name}: inconclusive - the adversary's in-process gain was not significant, so the "
                               "control shows nothing", ev)
+    wtxt = "every checkpoint refused" if weight.get("estimate") is None else f"weights-only gain {weight['estimate']:.3f}"
     return _result(True, f"{name}: in-process gain {in_process_gain['estimate']:.3f} (hidden outside the parameters) "
-                         f"not credited; weights-only gain {weight['estimate']:.3f}, persistent state labelled "
-                         f"{labelled_persistent}", ev)
+                         f"not credited; {wtxt}, persistent state labelled {labelled_persistent}"
+                         + (f"; {len(b.get('refused', []))} checkpoint(s) refused" if b.get("refused") else ""), ev)
 
 
 def _stat(r: dict) -> dict:

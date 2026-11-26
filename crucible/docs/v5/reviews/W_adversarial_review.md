@@ -5,7 +5,7 @@ Reviewer: workstream O (security), wave 3b, on branch `c5c/w3b-sec` from the int
 research instrument (N), the media/social call sites (C, D), the package ablation (G) or the kernel memo (A/K3), and it
 re-measured the earlier security workstreams' own claims instead of trusting them. Every verdict below rests on a probe
 or control that is part of the gate suite, so it is re-executed (and ablated) whenever the gate runs:
-`crucible.redteam.v5` (Gate W, 81 probes on this branch; Tier 2 probes grow with the domain registry) and `crucible.redteam.v5.instrument` (SP-15.8, 9 controls).
+`crucible.redteam.v5` (Gate W, 82 probes on this branch; Tier 2 probes grow with the domain registry: 129 on the check merge, 45 of them Tier 2) and `crucible.redteam.v5.instrument` (SP-15.8, 10 controls).
 
 Targets named by the assignment: metering, ablation-based adoption, media/JavaScript isolation, network isolation,
 cross-tenant state, and the research instrument's evaluator.
@@ -92,24 +92,39 @@ diverging without it); the remaining difference from c07098b is the A.5/D-20 req
 
 ## 5. Check merge with the wave-3b siblings (read-only on their branches)
 
-A scratch clone of this branch with c5c/w3b-soc, -sem, -obs, -econ2, -domfw, -dom1, -dom2, -dom3 and -research merged
-(their heads at 18:49 UTC; only DECISION_LOG.md conflicted, resolved as a union), measured with this branch's probes:
+A scratch clone of this branch with c5c/w3b-soc, -sem, -obs, -econ2, -research, -domfw, -dom1, -dom2, -dom3 and
+-rapid merged (first at their 18:49 UTC heads, again at their 20:15 UTC heads; every merge clean), measured with this
+branch's probes and controls:
 
-* fixed by their owners there (the probes hold): image decoders run outside the world process (C, D); media tools at
-  the participant call sites are jailed (C; one launch the probe counted was `ffmpeg -version`, which parses no
-  participant bytes - the probe now ignores version queries); sybils with a fake footprint (C); adoption by reading
-  the package source (G: attested package boundary).
-* still open there: the in-process learner reads the hidden grader (L), the evaluated learner reaches sealed
-  material (L, DEF-O-13), SP-15.8 checkpoint shapes, interaction budget and in-harness driver (N, DEF-O-10..12).
+* fixed by their owners there (the probes hold): media tools at the participant call sites are jailed (C; all 7
+  launches) and no image is decoded in the world process (C, D); sybils with a fake footprint (C); adoption by
+  reading the package source (G: attested package boundary). The ratchet lists these four as KNOWN_OPEN on this
+  branch; after the merge they must move to `suite.FIXED_BY_OWNERS` (the ratchet fails "fixed but still listed"
+  until then - intended).
+* still open there: the in-process learner reads the hidden grader and the evaluated learner reaches sealed material
+  (L, DEF-O-13; on the merge remote.evaluate runs the learner in its own process but as root: it read the 4.0 sealed
+  salt, sets and tasks and another process's environment); SP-15.8 checkpoint shapes (widened layers accepted),
+  interaction budget (60 interactions counted for a grant of 1) and the in-harness driver (gc reaches the
+  evaluator) (N, DEF-O-10..12). The jailed learner host closes the last one wherever it is used
+  (`evaluator_internals_hosted` and `hosted_state_outlives_the_process` pass on the merge).
 * NEW there (MUST_HOLD probe `v5.isolation.world_code_cannot_import_evaluator_side_code` fails): world code reaches
   `crucible.rapid.oracles` through core.kernel -> substrate.bus -> substrate.primitives -> substrate.facts ->
   crucible.domains -> domains.base -> experience.registry -> crucible.rapid -> rapid.admission -> rapid.references ->
-  rapid.oracles (domain framework import in substrate.facts; rapid/__init__ imports admission eagerly), and
-  `crucible.semantic.capbench` (test splits) through semantic.generalists.module -> generalists.brain ->
-  semantic.routing -> capbench.run (D's routing reads the capbench report through the package). Owners I-fw/A, H, D.
-* Tier 2: 9 domains register (18 evaluation configurations); 4 modules of c5c/w3b-dom3 do not register against
-  framework v2 (each an erroring probe, `v5.tier2.<module>.does_not_load`); results of the Tier 2 probes are in
-  workstreams/O.json.
+  refs_v2 -> dominance -> rapid.oracles (domains.base.make_env imports experience.registry - new in domfw; registry
+  imports crucible.rapid; rapid/__init__ imports admission eagerly), and `crucible.semantic.capbench` (test splits)
+  through semantic.generalists.module -> generalists.brain -> semantic.routing -> capbench.run (new in sem). Owners
+  I-fw, H, D (any one edge per chain; workstreams/O.json integration notes).
+* SP-15.8 on the merge: N's instrument now labels at a family-wise level across seven explanations and its weights
+  learner trains from a replay buffer; with the control's old sizes (4 seeds, 3 worlds per family) the stash
+  adversary's in-process gain (0.17, interval -0.31..0.66) was not significant, so the stash control was
+  inconclusive (not passed). The stash battery now takes its sizes from the instrument's own design (5 seeds, its
+  number of unfamiliar worlds per family) and tests "the attack had something to hide" at 95% (its single question);
+  the credit verdict stays the instrument's own label. N's fresh evaluation now refuses an architecture
+  configuration carrying extra keys; the file-stash control counts a refused checkpoint as not credited (it used to
+  stop with an error).
+* Tier 2: 15 domains register on the merge (45 probes: offline + evaluator isolation per evaluation configuration,
+  metric-write tools per domain). Probe results on the merge are in workstreams/O.json; CPU-only runs are slow
+  (community > 290 s for one simulated day), so the full set runs in the GPU slot (gate W's timeout is 3 h).
 
 ## 6. Residual risks (stated, not fixed here)
 
