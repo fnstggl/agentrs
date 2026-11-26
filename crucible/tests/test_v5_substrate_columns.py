@@ -398,3 +398,24 @@ def test_integer_columns_never_wrap(col, v, mode):
     assert int(C.col(w, "ints", col)[0]) == 0
     ok = w.execute(p, {"tool": "ints.put", "args": {"col": col, "v": 100, "mode": "add"}})
     assert ok.ok and int(C.col(w, "ints", col)[0]) == 200
+
+
+def test_population_handles_are_reserved_and_cannot_be_squatted():
+    """Skeptic S4: an agent took handle p7 and received payments meant for individual 7."""
+    w = make(n=50)
+    w.advance_time(3600)
+    r = w.execute(w.system_call("admin.join", {"handle": "squat-a", "endowment": 10_000})["principal"],
+                  {"tool": "id.create_org", "args": {"handle": "p7", "name": "p7"}})
+    assert not r.ok and r.error["code"] == "conflict"
+    with pytest.raises(Exception):
+        w.system_call("admin.join", {"handle": "p7", "endowment": 0})
+    payer = w.system_call("admin.join", {"handle": "squat-b", "endowment": 10_000})["principal"]
+    bank = w.modules["bank"]
+    r = w.execute(payer, {"tool": "bank.transfer", "args": {"from_account": bank.primary_account(w.state, payer),
+                                                            "to": "p7", "amount": 500, "memo": "for 7"}})
+    assert not r.ok and r.error["code"] == "not_found"          # not materialised yet: nobody receives it
+    w.system_call("coltest.join", {"i": 7})
+    r = w.execute(payer, {"tool": "bank.transfer", "args": {"from_account": bank.primary_account(w.state, payer),
+                                                            "to": "p7", "amount": 500, "memo": "for 7"}})
+    assert r.ok and bank.balance(w.state, bank.primary_account(w.state, "p7")) == 500
+    assert w.check_invariants() == []

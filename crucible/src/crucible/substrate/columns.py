@@ -21,7 +21,7 @@ column only when the module running the context (`Ctx.module`: the endpoint's, t
 its owner, a module of the same package as the owner (the population package's modules share the population
 table), or a module the owner granted it to (`grant`). Columns that belong to an approved interface
 (`register_interface`, e.g. the attention ledger) are written only through that interface (`attention.spend/reset`),
-by any module. System code without a module (operator tools) may write any column. The writer is recorded in the
+by any module, or by the module that declared them (initialising the rows it creates). System code without a module (operator tools) may write any column. The writer is recorded in the
 event (`by`), and the applier re-checks it in live execution, so emitting `cols.batch` by hand cannot bypass it.
 Integer values are range-checked: a cast or an `add` that would wrap is refused, never committed.
 
@@ -73,11 +73,15 @@ def may_write(world, table: str, col: str, writer: str | None, iface: str | None
     """None if `writer` may write `table.col` (through `iface`), else the reason it may not."""
     reg = _registry(world).get(table) or {}
     need = _IFACES.get(col)
+    owner = reg.get("by", {}).get(col)
     if need is not None:
-        return None if iface == need else f"column {table}.{col} is written only through the {need} interface"
+        # the interface, or the declaring module itself (it initialises the rows it creates); the interface's own
+        # invariant (attention conservation) checks the result either way
+        if iface == need or (writer is not None and writer == owner):
+            return None
+        return f"column {table}.{col} is written only through the {need} interface"
     if writer is None:
         return None                     # system code (operator tools, genesis of the kernel)
-    owner = reg.get("by", {}).get(col)
     if owner is None or writer == owner or writer in reg.get("grants", {}).get(col, ()):
         return None
     pw, po = _package(writer), _package(owner)

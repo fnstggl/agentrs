@@ -12,8 +12,10 @@
     python tests/v5_resume_child.py regen  SPEC.json DB               a NEW process: regenerate the stored log (handlers
                                                                        re-run, recorded outcomes injected)
 
-Every mode prints one JSON line: seq, last hash, digest, invariant violations, and how many recorded neural
-inferences were (re-)executed in this process (`inference_runs`, counted at the recorded-inference boundary).
+Every mode prints one JSON line: seq, last hash, digest, invariant violations, how many recorded neural inferences
+were (re-)executed in this process (`inference_runs`, counted at the recorded-inference boundary) and how many torch
+backward passes ran (`backward_passes`: training re-executed, e.g. when on_load rebuilds weights from an older
+checkpoint plus logged updates).
 """
 import json
 import os
@@ -30,13 +32,19 @@ from crucible.core.kernel import World, WorldSpec  # noqa: E402
 from crucible.storage.sqlite import SQLiteStore  # noqa: E402
 from crucible.substrate import inference  # noqa: E402
 
+RUNS = {"n": 0, "backward": 0}
 try:
     import torch
     torch.set_num_threads(1)
+    _bw = torch.Tensor.backward
+
+    def _count_backward(self, *a, **kw):     # training steps re-executed in this process (skeptic S2)
+        RUNS["backward"] += 1
+        return _bw(self, *a, **kw)
+    torch.Tensor.backward = _count_backward
 except ImportError:   # worlds without neural participants do not need it
     pass
 
-RUNS = {"n": 0}
 _orig = inference.recorded
 
 
@@ -55,7 +63,7 @@ for _m in list(sys.modules.values()):          # modules that imported the funct
 
 def report(w, **extra):
     out = {"seq": w.seq, "hash": w.last_hash, "digest": w.digest(), "invariants": w.check_invariants()[:5],
-           "inference_runs": RUNS["n"], "modules": sorted(w.modules), **extra}
+           "inference_runs": RUNS["n"], "backward_passes": RUNS["backward"], "modules": sorted(w.modules), **extra}
     print(json.dumps(out), flush=True)
 
 

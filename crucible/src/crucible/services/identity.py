@@ -32,6 +32,13 @@ ROLES = ("owner", "admin", "member")
 MEMBER_CAPS = {"code.read", "code.write", "docs.read", "docs.write", "issues.write", "support.reply", "cal.write",
                "cloud.read", "analytics.read"}
 HANDLE = r"[a-z][a-z0-9-]{1,30}"
+# 5.0: "p<i>" (no leading zeros, crucible.substrate.ids.pid) is the handle of population individual i
+_POP_HANDLE = re.compile(r"p(0|[1-9][0-9]*)")
+
+
+def _reserved(handle: str) -> None:
+    if _POP_HANDLE.fullmatch(handle):
+        raise Conflict(f"handle {handle} is reserved for population individual {handle[1:]}")
 WINDOW = 30 * 86400
 
 
@@ -56,6 +63,7 @@ class Identity(Module):
                       password: str | None = None) -> str:
         if not re.fullmatch(HANDLE, handle):
             raise InvalidAction(f"bad handle {handle!r}")
+        _reserved(handle)
         pid = f"p:{handle}"
         if ctx.state.has("principals", pid) or ctx.state.find_ids("orgs", "handle", handle):
             raise Conflict(f"handle {handle} taken")
@@ -71,6 +79,7 @@ class Identity(Module):
                    info: dict | None = None) -> str:
         if not re.fullmatch(HANDLE, handle):
             raise InvalidAction(f"bad handle {handle!r}")
+        _reserved(handle)
         oid = f"o:{handle}"
         if ctx.state.has("principals", oid) or ctx.state.find_ids("persons", "handle", handle):
             raise Conflict(f"handle {handle} taken")
@@ -218,6 +227,10 @@ class Identity(Module):
             # 5.0 population individuals "p<i>" (crucible.substrate.ids): their id is their handle. 4.0 person ids
             # always contain ':' and bare handles never do, so 4.0 resolution is unchanged.
             return x
+        if _POP_HANDLE.fullmatch(x):
+            # reserved for population individual i (skeptic S4): never another principal's handle, even before the
+            # individual is materialised
+            raise NotFound(f"no principal {x}")
         for table, prefix in (("persons", "p:"), ("orgs", "o:")):
             if state.find_ids(table, "handle", x):
                 return prefix + x
@@ -481,6 +494,17 @@ class Identity(Module):
         for mid, m in st.tables["members"].items():
             if not st.has("persons", m["person"]) or not st.has("orgs", m["org"]):
                 errs.append(f"dangling membership {mid}")
+        # 5.0 (skeptic S4): one principal per handle across persons and organisations; p<i> handles belong to
+        # population individual i only
+        seen: dict[str, str] = {}
+        for table in ("persons", "orgs"):
+            for rid, rec in st.tables[table].items():
+                h = rec.get("handle")
+                if h in seen:
+                    errs.append(f"handle {h} held by {seen[h]} and {rid}")
+                seen[h] = rid
+                if h is not None and _POP_HANDLE.fullmatch(h) and rid != h:
+                    errs.append(f"{rid} holds the population handle {h}")
         return errs
 
     def observe(self, world, actor):
