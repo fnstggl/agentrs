@@ -313,6 +313,35 @@ def m_agent_revenue(w, t0, t1, ctx):
     return float(tot)
 
 
+def _pop_payments_to(w, ctx, who) -> list[tuple[str, int]]:
+    """(paying population principal, cents) of every ledger posting in the window that moved a population
+    individual's money to `who` (independently verified adoption: the ledger, not the seller, says it happened)."""
+    from ..substrate import ids
+    st, bank = w.state, w.modules["bank"]
+    out = []
+    for e in _window(w, ctx):
+        if e.type != "bank.txn":
+            continue
+        payers = [bank.account_owner(st, a) for a, d in e.payload["postings"] if d < 0]
+        payers = [x for x in payers if ids.index(x) is not None]
+        if not payers:
+            continue
+        for a, d in e.payload["postings"]:
+            if d > 0 and bank.account_owner(st, a) == who:
+                out.append((payers[0], int(d)))
+    return out
+
+
+def m_agent_pop_revenue(w, t0, t1, ctx):
+    """economic: money population individuals paid the agent in the window."""
+    return float(sum(c for _, c in _pop_payments_to(w, ctx, getattr(ctx.get("agent"), "p", None))))
+
+
+def m_agent_pop_buyers(w, t0, t1, ctx):
+    """adoption: distinct population individuals who paid the agent in the window."""
+    return float(len({x for x, _ in _pop_payments_to(w, ctx, getattr(ctx.get("agent"), "p", None))}))
+
+
 def _agent_providers(w, ctx) -> set[str]:
     """The datacenter the agent rents from: the cheapest provider when the experiment forked (the same scope in
     every arm, also in those where the agent rents nothing)."""
@@ -508,6 +537,14 @@ EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
                                                         "remove_grid_curtailment": remove("grid_curtailment")},
                {"web_revenue": m_web_revenue, "failed_requests": m_failed_requests, "dc_kwh": m_dc_kwh},
                "failed_requests", category=4),
+    Experiment("social_discovery", "social discovery produces independently verified product adoption: a "
+               "labelled scripted agent's web shop is announced (or not) in a forum post; the population finds it "
+               "through the forum, search and contacts and buys with its own money (the ledger verifies every "
+               "purchase); the counterfactual arm builds the same shop and never posts",
+               "balanced", 1.0, 6.0, {"no_post": _noop},
+               {"population_buyers": m_agent_pop_buyers, "population_revenue": m_agent_pop_revenue,
+                "agent_visitors": m_agent_visitors},
+               "population_buyers", category=5, setup=_agent_setup("shop"), during=_agent_during),
     Experiment("social_adoption", "word of mouth between contacts changes what the population buys",
                "balanced", 2.0, 6.0, {"remove_goods_wom": remove("goods_wom")},
                {"goods_bought": m_goods_bought, "adopters": m_goods_adopters, "stockouts": m_stockouts},
