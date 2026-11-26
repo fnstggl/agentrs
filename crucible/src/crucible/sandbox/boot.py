@@ -10,9 +10,7 @@ import ctypes.util
 import io
 import json
 import os
-import resource
 import sys
-import time
 import traceback
 
 WORKDIR = sys.argv[1]
@@ -224,11 +222,6 @@ sdk.__doc__ = "In-sandbox SDK: call(tool, **args) reaches the synthetic internet
 sys.modules["crucible_sdk"] = sdk
 
 
-def _cpu_ms() -> float:
-    # CLOCK_PROCESS_CPUTIME_ID (ns resolution); getrusage is tick-granular on many kernels
-    return time.process_time() * 1000.0
-
-
 def _resolve(spec: str):
     mod_name, _, fn_name = spec.partition(":")
     if mod_name.endswith(".py"):
@@ -238,62 +231,26 @@ def _resolve(spec: str):
     return getattr(mod, fn_name) if fn_name else mod
 
 
-_LINES = [0]
-_MON = None
-_IMPORTING = [0]
+# D-20: this process reports only what the program produced (result, error, captured output). Work accounting -
+# CPU, wall time, memory, threads, disk - is measured by the parent from outside (crucible.sandbox.metering); nothing
+# here counts or times anything, because the program can rewrite everything in this address space.
+def _capture_err(e: BaseException) -> dict:
+    tb = traceback.format_exc(limit=6)
+    return {"type": type(e).__name__, "message": str(e)[:2000], "traceback": tb[-4000:]}
 
 
-def _quiet_import(name, globals=None, locals=None, fromlist=(), level=0):
-    _IMPORTING[0] += 1
+def _load(msg: dict) -> dict:
+    """Import the program a later job calls (its module-level code runs here, measured by the parent as load)."""
+    buf = io.StringIO()
+    old_out, old_err = sys.stdout, sys.stderr
+    sys.stdout = sys.stderr = buf
     try:
-        return _REAL_IMPORT(name, globals, locals, fromlist, level)
+        _resolve(msg["target"])
+        return {"ok": True, "error": None}
+    except BaseException as e:  # noqa: BLE001 - the job that follows reports the failure again
+        return {"ok": False, "error": _capture_err(e)}
     finally:
-        _IMPORTING[0] -= 1
-
-
-def _quiet_import_module(name, package=None):
-    _IMPORTING[0] += 1
-    try:
-        return _REAL_IMPORT_MODULE(name, package)
-    finally:
-        _IMPORTING[0] -= 1
-
-
-if CFG.get("count_lines"):
-    # Deterministic cost model: the work of a request is the Python lines it executes, and must not depend on what
-    # this process happened to have loaded already (a fresh worker - after a restart, in a fork of the world, in
-    # a resumed run - must charge what a warm one charges). Loading code is therefore never counted: neither the
-    # program itself (`_run` loads it before counting starts) nor a module imported while a request runs.
-    import builtins
-    import importlib
-    _REAL_IMPORT, _REAL_IMPORT_MODULE = builtins.__import__, importlib.import_module
-    builtins.__import__ = _quiet_import
-    importlib.import_module = _quiet_import_module
-_SHIM_A, _SHIM_B = _quiet_import.__code__, _quiet_import_module.__code__
-
-
-def _on_line(code, line):
-    if code is _SHIM_A or code is _SHIM_B:
-        return sys.monitoring.DISABLE         # our own import shims are not the program's work
-    if not _IMPORTING[0]:
-        _LINES[0] += 1
-
-
-def _count_on():
-    """Deterministic work accounting: count executed Python lines with sys.monitoring (PEP 669)."""
-    global _MON
-    mon = sys.monitoring
-    if _MON is None:
-        mon.use_tool_id(4, "crucible-work")
-        mon.register_callback(4, mon.events.LINE, _on_line)
-        _MON = mon
-    _LINES[0] = 0
-    mon.set_events(4, mon.events.LINE)
-
-
-def _count_off() -> int:
-    _MON.set_events(4, 0)
-    return _LINES[0]
+        sys.stdout, sys.stderr = old_out, old_err
 
 
 def _run(job: dict) -> dict:
@@ -301,19 +258,6 @@ def _run(job: dict) -> dict:
     buf = io.StringIO()
     old_out, old_err = sys.stdout, sys.stderr
     sys.stdout = sys.stderr = buf
-    c0, w0 = _cpu_ms(), time.perf_counter()
-    counting = bool(CFG.get("count_lines"))
-    if counting and job.get("kind", "call") == "call":
-        # load the program before counting starts (and drop what it prints while loading): the first request a
-        # fresh worker serves then costs, and records, exactly what every later request does
-        sys.stdout = sys.stderr = io.StringIO()
-        try:
-            _resolve(job["target"])
-        except BaseException:  # noqa: BLE001 - the counted run below reports the failure
-            pass
-        sys.stdout = sys.stderr = buf
-    if counting:
-        _count_on()
     try:
         kind = job.get("kind", "call")
         if kind == "call":
@@ -332,16 +276,10 @@ def _run(job: dict) -> dict:
         ok, result, err = False, None, {"type": "SystemExit", "message": str(e)}
     except BaseException as e:  # noqa: BLE001 - user code may raise anything
         ok, result = False, None
-        tb = traceback.format_exc(limit=6)
-        err = {"type": type(e).__name__, "message": str(e)[:2000], "traceback": tb[-4000:]}
+        err = _capture_err(e)
     finally:
-        lines = _count_off() if counting else None
         sys.stdout, sys.stderr = old_out, old_err
-    out = {"ok": ok, "result": result, "error": err, "stdout": buf.getvalue()[:out_cap],
-           "cpu_ms": round(_cpu_ms() - c0, 3), "wall_ms": round((time.perf_counter() - w0) * 1000.0, 3)}
-    if lines is not None:
-        out["work_lines"] = lines
-    return out
+    return {"ok": ok, "result": result, "error": err, "stdout": buf.getvalue()[:out_cap]}
 
 
 def _run_tests(folder: str) -> dict:
@@ -373,6 +311,10 @@ while True:
     if msg.get("op") == "job":
         res = _run(msg)
         res["op"], res["id"] = "done", msg["id"]
+        _send(res)
+    elif msg.get("op") == "load":
+        res = _load(msg)
+        res["op"], res["id"] = "loaded", msg["id"]
         _send(res)
     elif msg.get("op") == "exit":
         break

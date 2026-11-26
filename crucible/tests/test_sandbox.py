@@ -89,11 +89,16 @@ def test_persistent_worker_and_tests_runner():
     assert r["result"]["passed"] == 1 and r["result"]["failed"] == 1
 
 
-def test_deterministic_line_accounting():
+def test_deterministic_work_accounting():
+    # D-20: work is measured by the parent (process CPU clock), the deterministic model bills an identical
+    # computation with its first measurement; more work is billed more
     cfg = SandboxConfig(count_lines=True)
-    a = run_program({"s.py": "def f(n, c):\n    t = 0\n    for i in range(n):\n        t += i\n    return t\n"}, "s:f", 1000, cfg=cfg)
-    b = run_program({"s.py": "def f(n, c):\n    t = 0\n    for i in range(n):\n        t += i\n    return t\n"}, "s:f", 1000, cfg=cfg)
-    assert a["work_lines"] == b["work_lines"] and a["work_lines"] >= 2000
+    src = {"s.py": "def f(n, c):\n    t = 0\n    for i in range(n):\n        t += i\n    return t\n"}
+    a = run_program(src, "s:f", 20000, cfg=cfg)
+    b = run_program(src, "s:f", 20000, cfg=cfg)
+    big = run_program(src, "s:f", 2_000_000, cfg=cfg)
+    assert a["work_lines"] == b["work_lines"] and a["work_lines"] > 0 and b["meter"]["memo"] == "remembered"
+    assert big["work_lines"] > 20 * a["work_lines"] and big["meter"]["cpu_ns"] > 0
 
 
 def test_unsafe_paths_rejected():

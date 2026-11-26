@@ -412,7 +412,7 @@ class CapabilityRegistry(Capabilities):
                 continue
             if S.validate(d["outputs"], res.get("body"), "output"):
                 schema_fails += 1
-            cpus.append(float(res.get("cpu_ms") or 0.0))
+            cpus.append(max(0.0, float(res.get("cpu_ms") or 0.0)))   # measured outside the provider's process
             ch = run_in_ctx(ctx, "caps.suite", worker, {"kind": "call", "target": "suite:check",
                                                          "args": {"input": g["result"], "output": res.get("body")},
                                                          "caller": ctx.actor}, ctx.actor, timeout=5.0,

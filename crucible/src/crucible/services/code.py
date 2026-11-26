@@ -150,6 +150,8 @@ class Code(Module):
         p = ctx.world.spec.params
         free = float(p.get("free_cpu_ms_per_day", 30_000))
         price = float(p.get("dev_compute_cents_per_cpu_s", 2.0))
+        cpu_ms = float(cpu_ms or 0.0)
+        cpu_ms = cpu_ms if cpu_ms == cpu_ms and 0.0 < cpu_ms < 1e15 else 0.0   # parent-measured; never negative
         day = ctx.now // 86400
         use = ctx.state.get("compute_use", payer)
         used = use["ms"] if use and use["day"] == day else 0.0
@@ -174,9 +176,13 @@ class Code(Module):
                     raise ServiceUnavailable("untrusted code execution is disabled: Landlock/seccomp unavailable "
                                              f"on this host ({caps}); see docs/SECURITY.md")
             p = world.spec.params
+            # D-20: work is measured by the parent; one uid per world lineage (its own process budget) and the
+            # deterministic memo keyed by the same lineage (forks and reruns bill identical computations alike)
+            lineage = world.spec.hash()[:16]
             cfg = SandboxConfig(mem_mb=int(p.get("sandbox_mem_mb", 1024)), job_wall_s=float(p.get("sandbox_job_s", 10)),
                                 allow_weak=bool(p.get("allow_weak_sandbox", False)),
-                                count_lines=p.get("cost_model") == "deterministic")
+                                count_lines=p.get("cost_model") == "deterministic",
+                                meter_scope=lineage, tenant=f"world:{lineage}")
             pool = WorkerPool(int(p.get("sandbox_max_workers", 24)), cfg)
             world.runtime["sandbox_pool"] = pool
         return pool

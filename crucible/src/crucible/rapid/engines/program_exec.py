@@ -14,7 +14,8 @@ compiles `program.py` once and executes it anew for every call), so a program is
 the world's input and `caller` = {"memory", "step", "tick"}. A program keeps state only by returning a dict with
 a `memory` entry (JSON, at most 4 kB), which the world hands back on the next call. A fresh sandbox process serves
 each tick's calls and is closed at the end of the tick (nothing is shared between ticks or between copies of a
-world). Work is accounted deterministically - executed Python lines, `SandboxConfig.count_lines` - and charged as
+world). Work is measured by the parent outside the sandboxed process (CPU time in work units, D-20,
+`crucible.sandbox.metering`; identical computations are billed identically, `SandboxConfig.count_lines`) and charged as
 compute cost; a call that raises, times out or returns something malformed is answered by the world's built-in
 fallback and reported.
 
@@ -100,7 +101,7 @@ class ProgramRunner:
         r = self.worker.run({"kind": "call", "target": "harness.py:call", "args": args,
                              "caller": {"memory": self.memory, **caller}})
         self.calls += 1
-        self.lines += int(r.get("work_lines") or 0)
+        self.lines += max(0, int(r.get("work_lines") or 0))     # parent-measured work units, never self-reported
         if not r.get("ok"):
             err = r.get("error") or {}
             if err.get("type") in ("Timeout", "WorkerDied", "WorkerDead"):
