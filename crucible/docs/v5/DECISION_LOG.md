@@ -208,8 +208,8 @@ test_gate_SP_20.py and test_gate_SP_21.py, replacing the per-id file names the f
 existed). This changes where the evidence is produced, not what is measured.
 
 ## D-26 Acceptance hardening after the wave-3 adversarial verification (2026-11-26, workstream P)
-An independent verifier attacked the D-24 checker with 31 new fabrication probes (tests/test_v5_acceptance_probes.py,
-P15-P29) in throwaway repositories. 26 succeeded on the D-24 code (VERIFIED, a terminal project status, or an accepted
+An independent verifier attacked the D-24 checker with 32 new fabrication probes (tests/test_v5_acceptance_probes.py,
+P15-P30) in throwaway repositories. 27 succeeded on the D-24 code (VERIFIED, a terminal project status, or an accepted
 self-review): environment injection through user site-packages (PYTHONUSERBASE + usercustomize, the S1 attack in a form the PYTHONPATH scrub
 missed) and through a poisoned interpreter (.pth hook); constant metrics laundered through a helper, a module-level
 dict or a dict() call; implementation patches in fixtures, helpers or plain attribute assignment; a conftest hook that
@@ -217,7 +217,8 @@ rewrites outcomes or replaces the test body; contextlib.suppress and broad fallb
 file or dataset changed; tamper code (a sitecustomize on the clone's PYTHONPATH, a conftest) that hides itself from
 the module list and is reverted after the run; assume-unchanged / skip-worktree / ignored start-up hooks hiding a
 broken working tree; a fully consistent forgery; re-anchoring the specification in the ledger; a blocker that names
-no requirement; weakening in manifest history that predates the ledger; self-review without session identities.
+no requirement; weakening in manifest history that predates the ledger; self-review without session identities; an
+extra test file (additions need no decision) standing in for the canonical gate test.
 Decision (no manifest criterion changes; the checker only becomes stricter):
 * the measured process gets a scrubbed environment (no PYTHON*/PYTEST_*/LD_PRELOAD/LD_AUDIT, `python -s`) and every
   record lists the interpreter, its start-up hooks (checked against docs/v5/baselines/python_site_hooks.json), foreign
@@ -233,7 +234,8 @@ Decision (no manifest criterion changes; the checker only becomes stricter):
   it; static checks alone report IN_PROGRESS;
 * ledger anchors are immutable; every committed manifest version in HEAD's history is checked (no requirement removed,
   today's criteria imply every committed criteria version); a blocker blocks a requirement only if its BLOCKERS.md
-  section names it; official runs and reviews need a session identity.
+  section names it; official runs and reviews need a session identity; the producing test must be in the
+  requirement's canonical gate test file (all 205 recorded ids of the tree already are).
 Residual trust, stated: identities are still declared; the interpreter's own files (standard library, installed
 packages) are trusted; static detection of patches has limits (registry insertions paired with removal count as
 negative controls); ablation shows that a measurement depends on its implementation, not that it measures the right

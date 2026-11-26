@@ -549,3 +549,20 @@ def test_a_merge_that_drops_ledger_entries_of_one_parent_is_detected(tmp_path):
     run("commit", "-qm", "main moves on")
     run("merge", "-q", "-s", "ours", "side", "-m", "merge that keeps only main's ledger")
     assert any("rewrites the ledger" in x for x in L.git_problems(root))
+
+
+def test_progress_ledger_records_and_updates_interrupted_workstreams(tmp_path):
+    from crucible.acceptance.v5 import progress as P
+    root = str(tmp_path)
+    os.makedirs(os.path.join(root, "docs", "v5"))
+    P.save({"schema": P.SCHEMA, "milestones": [], "interrupted_workstreams": []}, root)
+    P.add_interrupted(workstream="Q", why="usage limit", recovery_branch="c5c/w1-q", reassigned_to="Q2", root=root)
+    e = P.add_interrupted(workstream="Q", why="usage limit", recovery_branch="c5c/w1-q", reassigned_to="Q2",
+                          status="completed", root=root)
+    d = P.load(root)
+    assert len(d["interrupted_workstreams"]) == 1 and e["status"] == "completed"
+    assert [h["status"] for h in e["history"]] == ["reassigned"]
+    with pytest.raises(ValueError):
+        P.add_interrupted(workstream="Q", why="x", recovery_branch="b", reassigned_to="", root=root)
+    with pytest.raises(ValueError):
+        P.add_interrupted(workstream="Q", why="x", recovery_branch="b", reassigned_to="R", status="vanished", root=root)

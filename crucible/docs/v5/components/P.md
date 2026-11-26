@@ -16,18 +16,33 @@ D-24 (trust model), D-25 (gate files of P's added requirements).
 | completeness | `checker.junit_problems` | every collected node passed; every test function present at the commit (AST) was collected and passed; the producing test is one of the requirement's own tests |
 | genuineness | `testscan`, `checker.integrity_problems`, `checker.module_problems` | the producing test asserts on measured values and records non-constant metrics; no skip, early return, swallowed exception, mock or unreverted patch; the imported-module blob ids equal the commit's; no crucible module came from outside the clone; a listed implementation module was imported; nothing imported changed since (transitive staleness) |
 | criteria | `checker.criterion_met` | every criterion on the evidence's own finite metrics |
-| independent review | `official.review`, `checker.review_problems` | a different agent name and session re-executed the tests in another fresh clone of the evidence commit; the checker compares the reproduced metrics with the evidence within the declared tolerance; the review is bound to requirement text, criteria version, evidence hash and commit, and is committed |
+| environment (D-26) | `official._child_env`, `evidence.interpreter/site_hooks/foreign_modules/patched_functions`, `checker.env_problems` | the measured process got a scrubbed environment (no PYTHON*/PYTEST_*/LD_PRELOAD, `python -s`); its start-up hooks are those of docs/v5/baselines/python_site_hooks.json; no module came from outside the clone and the interpreter; no function of the clone's modules runs code from such a file; no injection variable |
+| harness (D-26) | `testscan.harness_findings`, `checker.harness_problems` | the conftest files on the tests' paths cannot rewrite outcomes (report/collection/session hooks, a mutating makereport, plugins) or patch the code; no sitecustomize/usercustomize/.pth file in the tree at the evidence commit; the producing test is in the requirement's canonical gate test file |
+| staleness beyond imports (D-26) | `evidence.files_read`, `checker.module_problems` | no file the process read under the clone (audit hook installed by `-p crucible.acceptance.v5.evidence`), no conftest/pytest configuration file and no declared dataset changed since the evidence |
+| independent review | `official.review`, `checker.review_problems` | a different agent name and session (both non-empty) re-executed the tests in another fresh clone of the evidence commit; the checker compares the reproduced metrics with the evidence within the declared tolerance; the review is bound to requirement text, criteria version, evidence hash and commit, and is committed |
+| ablation (D-26) | `official.ablate`, `checker.ablation_problems` | in a third clone every function of the listed implementation modules raises (a BaseException); the producing test, run alone there, recorded nothing or different metrics - a measurement that survives ablation does not depend on its implementation |
+| manifest history (D-26) | `manifest.history_problems`, `ledger.anchor_history` | every committed manifest version in HEAD's history: no requirement removed, today's criteria imply each committed criteria version (also before the ledger existed); ledger anchors are immutable |
 | dependencies | `checker.verify_all` | greatest fixed point; X depends on everything except X, SP-18, SP-20 |
-| release | `--verify-all --reproduce` | re-executes every VERIFIED requirement in a fresh clone |
+| release | `--verify-all --reproduce` | re-executes and ablates every VERIFIED requirement in a fresh clone of HEAD (the tree being released, not the evidence commit) |
 
-Project status: CRUCIBLE_5_COMPLETE (no project-level problem, all VERIFIED), INCOMPLETE_BLOCKED (no project-level
-problem and every unverified requirement BLOCKED by an open `BLK-<n>` of BLOCKERS.md), otherwise IN_PROGRESS. Exit
-codes 0, 3, 1.
+Project status: CRUCIBLE_5_COMPLETE (release check ran, no project-level problem, all VERIFIED), INCOMPLETE_BLOCKED
+(release check ran, no project-level problem and every unverified requirement BLOCKED by an open `BLK-<n>` of
+BLOCKERS.md whose text names it), otherwise IN_PROGRESS. Static checks alone never report a terminal status. Exit
+codes 0, 3, 1. Project-level problems also include working-tree changes git status does not show (assume-unchanged,
+skip-worktree, ignored code files or start-up hooks).
 
-Residual trust (stated, not hidden): identities are declared agent names plus hashed session ids, not signatures. A
-forger with write access can fabricate every file consistently; the release-time `--reproduce` re-executes the tests
-and exposes it. The static genuineness checks catch constants and missing assertions, not every way a test could
-measure the wrong thing; mutation testing of implementation files is not implemented.
+Adversarial verification (wave 3): tests/test_v5_acceptance_probes.py holds 32 attack probes (P15-P30) beyond the
+recovery audit's P1-P14; 27 of them succeeded against the D-24 checker and all are rejected now (D-26). SP-21's gate
+runs both probe files.
+
+Residual trust (stated, not hidden): identities are declared agent names plus hashed session ids, not signatures; a
+forger with write access can fabricate every file consistently, which only the release check (re-execution at HEAD)
+exposes - hence no terminal status without it. The interpreter's own files (standard library, installed packages) are
+trusted: run the release check in an environment installed from requirements.lock.txt. The static detector catches
+the common forms of constants, patches and swallowed errors, not every way a test could measure the wrong thing;
+registry insertions paired with a removal count as negative controls. Ablation shows that a measurement depends on its
+implementation, not that it measures the right property; requirements whose implementation lists no Python module
+cannot be ablated (reported, not blocking).
 
 ## Workflow
 

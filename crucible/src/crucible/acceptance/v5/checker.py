@@ -339,6 +339,9 @@ def junit_problems(ctx: Ctx, e: dict, rec: dict, run: dict | None, commit: str) 
     pb = rec.get("produced_by") or ""
     if "::" not in pb or pb.split("::", 1)[0] not in e["tests"]:
         probs.append(f"the producing test {pb!r} is not one of the requirement's tests")
+    elif pb.split("::", 1)[0] != M.canonical_test(e["id"], ctx.root):
+        probs.append(f"the producing test {pb!r} is not in the requirement's canonical gate test file "
+                     f"{M.canonical_test(e['id'], ctx.root)} (a listed extra test file cannot stand in for it)")
     else:
         c = by_key.get(node_key(pb))
         if c is None or c["outcome"] != "passed":

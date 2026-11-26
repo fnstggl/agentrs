@@ -619,6 +619,22 @@ def test_P29_skips_and_early_exits_hidden_outside_the_test_are_rejected(tmp_path
     rejected(r)
 
 
+def test_P30_an_extra_test_file_cannot_stand_in_for_the_canonical_gate_test(tmp_path, monkeypatch):
+    """Adding a test file to a requirement's list needs no decision. A producer adds one that measures an easier
+    function (count_v2) while the canonical gate test records nothing about the defective count()."""
+    widgets = DEFECT.replace("def count():\n    return 12", "def count():\n    return 3") + \
+        "\n\ndef count_v2():\n    return 12\n"
+    canonical = "import widgets\n\n\ndef test_z():\n    assert widgets.leaks() >= 0\n"
+    extra = GOOD_TEST.replace("widgets.count()", "widgets.count_v2()").replace("widgets.leaks()", "0 * widgets.leaks()")
+    r = Repo(str(tmp_path), monkeypatch, widgets=widgets, test_src=canonical,
+             extra_files={"tests/v5/test_gate_Z_extra.py": extra})
+    M.add_files(r.root, "Z.1", tests=["tests/v5/test_gate_Z_extra.py"])
+    M.sync(r.root)
+    r.commit("an extra test file for Z.1")
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED" and has(row, "canonical gate test file"), row["problems"]
+
+
 # ------------------------------------------------------------------------------------------------- static detector
 def test_testscan_flags_the_new_evasions():
     for src, finding in ((HELPER_CONST, None), (MODULE_CONST, "constant_record"), (DICT_CALL, "constant_record"),
