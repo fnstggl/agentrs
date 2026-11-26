@@ -1,46 +1,23 @@
-"""Governance check for superlearner/docs/CAM_UNIFIED_COMPLETION.json.
+"""Governance check for superlearner/docs/CAM_UNIFIED_COMPLETION.json (rebuilt 2026-11-26, plan §3 W9).
 
-A requirement may only claim a status its evidence supports:
-  IMPLEMENTED and above  -> implementation files exist and at least one acceptance test id resolves to a real test
-  INTEGRATION_TESTED and above -> at least one resolvable integration test and a non-null `verified_by` (workstream H)
-  EMPIRICALLY_DEMONSTRATED / FAILED_EMPIRICALLY -> at least one evidence entry
-Test ids have the form "relative/path/test_file.py::test_name" (relative to the repository root).
+The structural checks of the earlier version (files exist, a test id resolves to a `def`) are subsumed by the
+executable checker `superlearner.verify_completion`: a claim must be backed by commit-bound JUnit PASS records of
+its tests, clean integration runs that executed its integration entry, an independent verification record and, for
+empirical claims, an experiment result that passes the protocol checks. This test runs that checker on the real
+manifest and the recorded results, so a claim the evidence does not support FAILS here, visibly.
+
+To make it pass, the manifest owner either records results (``python -m superlearner.verify_completion
+--run-tests``, which runs every cited test with the binding plugin) or lowers the claims to what is recorded.
 """
 from __future__ import annotations
 
-import json
-import os
-import re
-
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-MANIFEST = os.path.join(ROOT, "superlearner", "docs", "CAM_UNIFIED_COMPLETION.json")
-ORDER = ["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "IMPLEMENTED", "INTEGRATION_TESTED", "FAILED_EMPIRICALLY",
-         "EMPIRICALLY_DEMONSTRATED"]
-AT_LEAST_IMPLEMENTED = {"IMPLEMENTED", "INTEGRATION_TESTED", "FAILED_EMPIRICALLY", "EMPIRICALLY_DEMONSTRATED"}
-AT_LEAST_INTEGRATED = {"INTEGRATION_TESTED", "FAILED_EMPIRICALLY", "EMPIRICALLY_DEMONSTRATED"}
-
-
-def _load() -> dict:
-    with open(MANIFEST) as fh:
-        return json.load(fh)
-
-
-def _resolves(test_id: str) -> bool:
-    if "::" not in test_id:
-        return False
-    path, name = test_id.split("::", 1)
-    name = name.split("[", 1)[0].split("::")[-1]
-    full = os.path.join(ROOT, path)
-    if not os.path.isfile(full):
-        return False
-    with open(full) as fh:
-        src = fh.read()
-    return re.search(rf"^\s*(async\s+)?def {re.escape(name)}\(", src, re.M) is not None
+import superlearner.verify_completion as vc
 
 
 def test_manifest_schema_and_statuses():
-    m = _load()
+    m = vc.load_manifest()
     allowed = set(m["allowed_statuses"])
+    assert allowed <= set(vc.STATUSES), allowed - set(vc.STATUSES)
     ids = [r["id"] for r in m["requirements"]]
     assert len(ids) == len(set(ids)), "duplicate requirement ids"
     for r in m["requirements"]:
@@ -50,24 +27,19 @@ def test_manifest_schema_and_statuses():
             assert d in ids, (r["id"], "unknown dependency", d)
 
 
-def test_claims_are_backed_by_files_and_tests():
-    m = _load()
-    problems = []
-    for r in m["requirements"]:
-        st = r["status"]
-        if st in AT_LEAST_IMPLEMENTED:
-            if not r["files"]:
-                problems.append(f"{r['id']}: {st} without implementation files")
-            for f in r["files"]:
-                if not os.path.exists(os.path.join(ROOT, f)):
-                    problems.append(f"{r['id']}: missing file {f}")
-            if not any(_resolves(t) for t in r["acceptance_tests"]):
-                problems.append(f"{r['id']}: {st} without a resolvable acceptance test")
-        if st in AT_LEAST_INTEGRATED:
-            if not any(_resolves(t) for t in r["integration_tests"]):
-                problems.append(f"{r['id']}: {st} without a resolvable integration test")
-            if not r.get("verified_by"):
-                problems.append(f"{r['id']}: {st} not confirmed by independent verification (verified_by)")
-        if st in {"EMPIRICALLY_DEMONSTRATED", "FAILED_EMPIRICALLY"} and not r["evidence"]:
-            problems.append(f"{r['id']}: {st} without evidence")
-    assert not problems, "\n".join(problems)
+def test_claims_are_backed_by_recorded_evidence():
+    rep = vc.check(vc.load_manifest(), vc.load_results())
+    lines = list(rep["global_problems"]) + [f"{rid}: {p}" for rid, ps in rep["problems"].items() for p in ps]
+    assert rep["claims_consistent"], f"{len(lines)} problems, e.g.\n" + "\n".join(lines[:40])
+
+
+def test_a_synthetic_claim_with_an_unexecuted_test_is_rejected():
+    m = {"allowed_statuses": vc.STATUSES, "workstreams": {"E": "memory"},
+         "requirements": [{"id": "Z01", "status": "IMPLEMENTED", "workstream": "E", "dependencies": [],
+                           "files": ["superlearner/src/superlearner/cam_unified/memory/checkpoint.py"],
+                           "acceptance_tests": ["superlearner/tests/cam_unified/memory/test_mem_checkpoint.py::"
+                                                "test_full_lifetime_roundtrip_restores_everything"],
+                           "integration_tests": [], "evidence": []}]}
+    rep = vc.check(m, {}, global_checks=False)
+    assert not rep["claims_consistent"]
+    assert any("never executed" in p for p in rep["problems"]["Z01"])
