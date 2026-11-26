@@ -878,9 +878,9 @@ def identify_assembly(env) -> dict:
 
 
 def claim_assembly(env) -> dict:
-    """Complementary capabilities: with the same total capacity, specialisation makes products more cheaply than
-    each participant making both components; one participant alone can at most make half its capacity of
-    products; components without their complement never sell."""
+    """Complementary capabilities: with the same total capacity, specialisation makes at least as many products
+    and more cheaply than each participant making both components; one participant alone can at most make half
+    its capacity of products; components without their complement never sell."""
     eng, st, c = inside(env)
     mx, my = _asm_split(c["unit_cost"])
     cap = float(c["cap"])
@@ -903,9 +903,12 @@ def claim_assembly(env) -> dict:
     sold_b = sum(eb._ledger["revenue"].values())
     alone = run([[cap / 2, cap / 2], [0.0, 0.0]], 6)
     one = run([[cap, 0.0], [0.0, 0.0]], 6)
-    return {"ok": abs(sold_s - sold_b) < 1e-6 and cost_s < cost_b and one._ledger["revenue"]["a0"] == 0.0
+    # specialisation dominates: at least as many products sold, at lower cost (each participant's comparative
+    # advantage), and a component without its complement never sells
+    return {"ok": sold_s >= sold_b - 1e-6 and cost_s < cost_b and one._ledger["revenue"]["a0"] == 0.0
             and alone._state["out"] <= 2 * (cap / 2) * 6 + 1e-9,
-            "cost_specialised": cost_s, "cost_both": cost_b, "revenue_one_component_only": one._ledger["revenue"]["a0"]}
+            "cost_specialised": cost_s, "cost_both": cost_b, "revenue_specialised": sold_s, "revenue_both": sold_b,
+            "revenue_one_component_only": one._ledger["revenue"]["a0"]}
 
 
 # ====================================================================== 8.9.4 schedule

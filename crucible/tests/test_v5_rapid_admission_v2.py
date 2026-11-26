@@ -18,7 +18,7 @@ from crucible.rapid.references import play
 
 # ====================================================================== dominance
 def test_the_search_covers_the_full_action_space_with_a_fixed_budget():
-    env = F.make("ch_format_switch", 0)
+    env = F.make("mk_elastic", 0)
     res = D.search(env, seed=0)
     assert res["episodes"] <= 1 + sum(D.BUDGET.values()) + 2
     assert {"grid", "random", "coordinate", "reactive", "repeat_best"} <= set(res["by_arm"])

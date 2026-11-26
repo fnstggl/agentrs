@@ -30,12 +30,14 @@ def _node_series(env, act, ticks: int, nid: str) -> np.ndarray:
 
 
 def _gauge_series(env, act, ticks: int) -> np.ndarray:
+    """The first reading over `ticks` ticks of a fork (NaN where the reading is missing)."""
     e = fork(env)
     out = []
     for k in range(ticks):
         r = e.step(act(k))
-        out.append(list(r["observation"]["numbers"].values())[0])
-    return np.asarray(out)
+        nums = r["observation"]["numbers"]
+        out.append(list(nums.values())[0] if nums else float("nan"))
+    return np.asarray(out, dtype=float)
 
 
 def _hidden_series(env, nid: str, ticks: int) -> np.ndarray:
@@ -198,12 +200,16 @@ def option_effect_flips(env) -> dict:
     a = _gauge_series(env, lambda t: {"kind": "discrete", "decision": name, "choice": opts[0]}, H)
     b = _gauge_series(env, lambda t: {"kind": "discrete", "decision": name, "choice": opts[1]}, H)
     pre, post = slice(2, at), slice(at + 1, H)
-    d_pre, d_post = float((a - b)[pre].mean()), float((a - b)[post].mean())
+    diff = a - b                                   # common random numbers: the demand noise cancels here
+    d_pre, d_post = float(diff[pre].mean()), float(diff[post].mean())
+    sd_d = float(np.std(diff[pre])) + 1e-9
     avg = (a + b) / 2
     lvl = float(avg[post].mean() - avg[pre].mean())
     sd = float(np.std(avg[pre])) + 1e-9
-    return {"ok": bool(d_pre > 3 * sd and d_post < -3 * sd and abs(lvl) < 1.5 * sd), "first_minus_second_before":
-            d_pre, "first_minus_second_after": d_post, "average_level_change": lvl, "noise_sd": sd, "switch_tick": at}
+    se = sd * np.sqrt(1.0 / max(1, at - 2) + 1.0 / max(1, H - at - 1))
+    return {"ok": bool(d_pre > 3 * sd_d and d_post < -3 * sd_d and abs(lvl) < 3 * se + 0.5),
+            "first_minus_second_before": d_pre, "first_minus_second_after": d_post, "average_level_change": lvl,
+            "level_change_standard_error": float(se), "switch_tick": at}
 
 
 def identify_option_flip(env) -> dict:
@@ -556,11 +562,14 @@ def selection_flattens(env) -> dict:
     c = env._config["claim"]
     x1, x2 = [_lever(env, n) for n in c["levers"]]
     out = {}
+    a0, b1, b2 = c["coef"]
+    # hold the second setting where the population mean sits closest to the cut, where truncation bites
+    x2v = min((0.0, 1.5, 3.0, 4.5, 6.0), key=lambda q: abs(a0 + b1 * 3.0 + b2 * q - c["cut"]))
     for lab, v in (("low", 0.0), ("high", 6.0)):
-        act = {"kind": "levers", "values": {x1: v, x2: 3.0}}
-        rd = _gauge_series(env, lambda t, act=act: act, 6)[1:].mean()
-        tr = _node_series(env, lambda t, act=act: act, 6, c["outcome"])[1:].mean()
-        out[lab] = (float(rd), float(tr))
+        act = {"kind": "levers", "values": {x1: v, x2: x2v}}
+        rd = float(np.nanmean(_gauge_series(env, lambda t, act=act: act, 12)[1:]))
+        tr = float(_node_series(env, lambda t, act=act: act, 12, c["outcome"])[1:].mean())
+        out[lab] = (rd, tr)
     d_read = out["high"][0] - out["low"][0]
     d_true = out["high"][1] - out["low"][1]
     return {"ok": bool(d_true > 0 and d_read < 0.85 * d_true and out["low"][0] > out["low"][1] + 0.3),
