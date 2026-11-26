@@ -35,7 +35,9 @@ observable. Probe kinds:
 Surfaces: the Tier 1 mechanism adapter, the Tier 1 rapid adapter (single- and multi-agent), kernel worlds with v5
 modules loaded (goal, experiment, institution and commitment predicates), the innovation registry, the self-play
 environments, the numeric environments (`MechVecEnv`, `KernelMechEnv`, `scale.rollout.WorldEnv`), the Gymnasium and
-PettingZoo environments (4.0 API wrappers and the `ExperienceEnv` wrappers), and the AGENTRS adapters (sl, CAM 2.0).
+PettingZoo environments (4.0 API wrappers and the `ExperienceEnv` wrappers), the external batched adapter of the CAM
+Unified shape (examples/experience_external_adapter.py, architecture-neutral: Crucible imports no CAM code, RP.1), the
+out-of-process evaluation path (`remote.evaluate`, an adversarial evaluated learner) and Tier 3 civilisations.
 
 Every probe returns ``{"surface", "kinds": {kind: {"checked": n, "leaks": m}}, "leaks": [...]}``; `run_all()`
 aggregates them into the OO.2 / R.2 / R.n1 metrics. A probe that cannot run raises; it never reports "no leak".
@@ -929,73 +931,119 @@ def probe_gym(steps: int = 8) -> dict:
     return P.result()
 
 
-# ====================================================================== surface: AGENTRS adapters
-def _agentrs() -> None:
-    here = os.path.dirname(os.path.abspath(__file__))
-    root = os.path.abspath(os.path.join(here, "..", "..", "..", "..", "src"))
-    if os.path.isdir(os.path.join(root, "agentrs")) and root not in sys.path:
-        sys.path.insert(0, root)
+# ====================================================================== surface: external learner adapters
+# Architecture-neutral stand-ins for the 4.0 AGENTRS adapters (integrations/agentrs_sl.py, agentrs_cam2.py: CAM learner
+# code, which Crucible must not import - RP.1, Clarification 1): the batched adapter of the CAM Unified `EnvAdapter`
+# shape that any future learner writes against the public interface (examples/experience_external_adapter.py), and
+# the out-of-process evaluation path a learner is evaluated through (crucible.experience.remote.evaluate).
+def _external_adapter():
+    """examples/experience_external_adapter.py, loaded from the repository by path (it is an example, not a package
+    module; it imports only crucible.experience's public names)."""
+    import importlib.util
+    root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+    path = os.path.join(root, "examples", "experience_external_adapter.py")
+    spec = importlib.util.spec_from_file_location("crucible_example_external_adapter", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {path}")
+    if spec.name in sys.modules:
+        return sys.modules[spec.name]
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod                  # dataclasses look their module up while the class is built
+    spec.loader.exec_module(mod)
+    return mod
 
 
-def probe_sl(steps: int = 10) -> dict:
-    _agentrs()
-    from agentrs.sl.world import Task
-    from ..integrations.agentrs_sl import CrucibleSLWorld
-    P = Probe("AGENTRS superlearner adapter (integrations.agentrs_sl)")
-    w = CrucibleSLWorld("solvency", "tiny", 0, 3600, max_decisions=steps)        # DEFAULT reward mode
-    w.initialize_world(Task("crucible/solvency", 1, "train"))
-    rs, got = [], [w.goal()]
-    bad = ["bank", "transfer"]                   # an incomplete (schema-invalid) call
+def probe_external(steps: int = 10) -> dict:
+    """The batched external adapter over a Tier 1 mechanism, a Tier 1 rapid world and a kernel world with a
+    verifiable objective: its default mode pays nothing (also not for schema-invalid calls), keeps serving after the
+    verifier saw success, names no evaluator metric in its goals, and its observations, tool lists, results and
+    events carry no evaluator key or the verifier's progress value."""
+    from ..core import evaluator_only as EO
+    X = _external_adapter()
+    P = Probe("external batched adapter (examples/experience_external_adapter.py: CAM Unified EnvAdapter shape)")
+    specs = [{"tier": 1, "name": "mech:scm_additive", "kw": {"validate": False}}, {"tier": 1, "name": "rapid:net_routing"},
+             {"tier": 0, "name": "tiny", "kw": {"agents": ["learner"], "endowment": 1_000_000,
+                                                "objectives": _cash_goal(1_500_000)}}]
+    env = X.ExperienceEnvAdapter(specs)                                           # its DEFAULT mode
+    batch = env.reset([3, 3, 3])
+    # scenario (operator side): a counterparty pays the learner, so the verifier sees the cash objective met
+    w = env.envs[2].world
+    payer = w.system_call("admin.join", {"handle": "payer", "endowment": 2_000_000})["principal"]
+    pacct = w.modules["bank"].primary_account(w.state, payer)
+    w.execute(payer, {"tool": "bank.transfer", "args": {"from_account": pacct, "to": env.agents[2], "amount": 700_000,
+                                                        "memo": "invoice"}})
+    got: list = [batch.observations, env.available_tools(), env.goals()]
+    learners = [X.TableLearner(seed=k) for k in range(len(specs))]
+    rs: list[float] = []
+    cursors = [o["cursor"] for o in batch.observations]
+    obs = batch.observations
     for k in range(steps):
-        sp = w.available_actions()
-        act = bad if k % 2 == 0 else ["wait", "END"]
-        if act[0] != "wait" and act[0] not in sp.allowed([]):
-            act = ["wait", "END"]
-        try:
-            w.execute("0", act)
-        except Exception:                        # noqa: BLE001 - an undecodable call: treat as a wait
-            w.execute("0", ["wait", "END"])
-        w.advance_time()
-        c = w.observe_consequences()
-        rs.append(c.reward)
-        got += [w.observe(), c]
-        st = w.verifier.status(w.world)
-        P.check("termination")
-        if c.done and st.get("success") and w.n_dec < w.max_decisions:
-            P.leak("termination", "sl episode ended because the verifier saw success")
-        if c.done:
-            break
-    # the adapter's native penalty for a schema-invalid call: the world refused the last call as invalid
-    w.execute("0", ["wait", "END"])
-    w.last_invalid = True
-    rs.append(w.observe_consequences().reward)
-    rewards(P, rs, "CrucibleSLWorld default mode")
-    goal = _plain(w.goal())
+        tools = env.available_tools()
+        if k % 2 == 0:
+            acts = [X.Action("bank.transfer", {}) for _ in specs]                 # a schema-invalid call everywhere
+        else:
+            acts = [L.act(o, ts) for L, o, ts in zip(learners, obs, tools)]
+        res = env.execute(acts)
+        env.advance_time([1.0] * len(specs))                                  # a day per decision
+        rs += env.rewards()
+        obs = env.observe()
+        evs, cursors = env.collect_events(cursors)
+        got += [[r.__dict__ if r is not None else None for r in res], obs, evs]
+    rewards(P, rs, "external adapter default mode")
+    kenv = env.envs[2]
+    a = env.agents[2]
+    st = dict(kenv._status.get(a) or {})                       # evaluator side (the probe reads it to look for it)
+    P.check("termination")
+    if st.get("success"):
+        after = env.execute([None, None, X.Action("bank.accounts", {})])[2]
+        if after is None or not after.ok or bool(getattr(kenv, "done", False)):
+            P.leak("termination", "the adapter stopped serving after the verifier saw success")
+    else:
+        P.notes.append("the cash objective was not met in the probe run: termination not exercised")
     P.check("key_name")
-    if any(isinstance(t, str) and t.startswith("metric:") for t in goal.get("tokens", [])):
-        P.leak("key_name", "sl goal() names the evaluator's progress metric", tokens=goal.get("tokens"))
-    scan(P, got, label="CrucibleSLWorld")
-    w.close()
+    ev_metrics = set(EO.evaluator_metrics()) | {"progress", "success"}
+    for g in env.goals():
+        words = set(re.findall(r"[a-z_]+", str(g or "")))
+        hit = sorted(w for w in words if w in ev_metrics and "_" in w)
+        if hit:
+            P.leak("key_name", "a goal names an evaluator metric", metrics=hit)
+    prog = st.get("progress")
+    vals = {"verifier.progress": float(prog)} if isinstance(prog, (int, float)) and distinctive(
+        float(prog), [x for _, x in numbers(got)]) else {}
+    scan(P, got, values=vals, label="external adapter")
+    env.close()
     return P.result()
 
 
-def probe_cam2(steps: int = 6) -> dict:
-    _agentrs()
-    from agentrs.cam2.envs.base import TaskRef
-    from agentrs.cam2.tools import ToolCall
-    from ..integrations.agentrs_cam2 import CrucibleAdapter
-    P = Probe("CAM 2.0 adapter (integrations.agentrs_cam2)")
-    ad = CrucibleAdapter(max_steps=steps)                                         # DEFAULT reward mode
-    obs = ad.reset(TaskRef("crucible", "solvency:tiny:0", 7))
-    rs, got = [], [obs]
-    for k in range(steps):
-        r = ad.step(ToolCall("bank.accounts") if k % 2 else ToolCall("bank.transfer"))
-        rs.append(r.reward)
-        got += [r.obs, r.info]
-        if r.terminated or r.truncated:
-            break
-    rewards(P, rs, "CAM 2.0 adapter default mode")
-    scan(P, got, label="CAM 2.0 adapter")
+def probe_remote(max_seeds: int = 8) -> dict:
+    """The evaluation path (`remote.evaluate`): an adversarial evaluated learner (crucible.experience.isolation) in a
+    world hosted with a sealed seed. Kinds: rewards it received (reward_scalar), evaluator operations on its pipe
+    (tool_sweep), the world's hidden values and the seed in everything it gathered (exact_value, identity), hidden-
+    grader data in its process (canary-like search over its whole object graph: counted as key_name)."""
+    from .isolation import probe as iso_probe
+    P = Probe("evaluation path (remote.evaluate: world, learner and evaluator in separate processes)")
+    fam = {"tier": 1, "name": "pe_rule_induction"}
+    r = iso_probe(dict(fam), family=fam, max_seeds=max_seeds)
+    if not r.get("examined"):
+        raise RuntimeError(f"the evaluated adversary did not run: {r.get('evaluation')}")
+    m = r["metrics"]
+    rewards(P, r.get("rewards") or [], "evaluated learner (hosted world)")
+    P.check("tool_sweep", m["evaluator_ops_tried"])
+    if m["evaluator_ops_accepted"]:
+        P.leak("tool_sweep", "the participant pipe accepted evaluator operations", n=m["evaluator_ops_accepted"])
+    P.check("exact_value", max(1, m["hidden_values_checked"]))
+    if m["hidden_values_in_learner_material"]:
+        P.leak("exact_value", "hidden values of the hosted world reached the learner", keys=r["hidden_found"])
+    P.check("identity", 1 + m["rebuild_seeds_tried"])
+    if m["seed_in_learner_material"] or m["rebuild_recovered_world"]:
+        P.leak("identity", "the learner obtained the sealed seed of the hosted world")
+    P.check("key_name")
+    if m["hidden_like_objects_in_learner"] or m["evaluator_objects_in_learner"]:
+        P.leak("key_name", "hidden-grader data or evaluator objects in the learner's process",
+               examples=r.get("gc_examples"))
+    P.check("canary", m["other_processes_examined"])
+    if m["other_process_memory_read"] or m["protocol_channels_opened"]:
+        P.leak("canary", "the learner read another evaluation process's memory or opened its channels")
     return P.result()
 
 
@@ -1008,8 +1056,8 @@ def probe_civ() -> dict:
 
 SURFACES: dict[str, Callable[[], dict]] = {
     "mech": probe_mech, "rapid": probe_rapid, "kernel": probe_kernel, "innovation": probe_innovation,
-    "selfplay": probe_selfplay, "numeric": probe_numeric, "gym": probe_gym, "sl": probe_sl, "cam2": probe_cam2,
-    "civ": probe_civ,
+    "selfplay": probe_selfplay, "numeric": probe_numeric, "gym": probe_gym, "external": probe_external,
+    "remote": probe_remote, "civ": probe_civ,
 }
 
 

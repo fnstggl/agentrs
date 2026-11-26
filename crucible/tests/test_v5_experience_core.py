@@ -209,25 +209,34 @@ def test_v5_tiers_are_not_substituted():
             make(3, "default", 0)
 
 
-# ---------------------------------------------------------------------------------------------- the CAM 2.0 adapter
-def test_cam2_adapter_reward_modes():
-    """The 4.0 CAM 2.0 adapter (integrations/agentrs_cam2.py; it needs the AGENTRS source, as tests/test_agents_llm.py
-    does) follows the reward modes: no progress, score or success in observation-only infos."""
-    import sys
-    src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
-    if src not in sys.path:
-        sys.path.insert(0, src)
-    from agentrs.cam2.envs.base import TaskRef
-    from agentrs.cam2.tools import ToolCall
+# ---------------------------------------------------------------------------------------------- an external adapter
+def test_external_batched_adapter_follows_the_reward_modes():
+    """The batched adapter of the CAM Unified `EnvAdapter` shape that an external learner writes against the public
+    interface (examples/experience_external_adapter.py; architecture-neutral - Crucible imports no CAM code, RP.1)
+    follows the reward modes: nothing paid and no evaluator key in observation-only, 1.0 once on the verified success
+    in verified mode, the 4.0 shaped reward only in explicit legacy mode."""
     from crucible.experience.leakage import find_keys
-    from crucible.integrations.agentrs_cam2 import CrucibleAdapter
+    from crucible.experience.probes import _cash_goal, _external_adapter
+    X = _external_adapter()
     seen = {}
     for mode in ("legacy_shaped_reward", "observation_only", "verified_terminal_outcome"):
-        env = CrucibleAdapter(max_steps=3, reward_mode=mode)
-        env.reset(TaskRef("crucible", "service:tiny:0", 7))
-        steps = [env.step(ToolCall("bank.accounts")) for _ in range(3)]
-        seen[mode] = ([s.info for s in steps], [s.reward for s in steps], [s.terminated for s in steps])
-    assert find_keys(seen["legacy_shaped_reward"][0])                 # 4.0 behaviour: progress in info
-    assert find_keys(seen["observation_only"][0]) == [] and set(seen["observation_only"][1]) == {0.0}
-    assert not any(seen["observation_only"][2])
-    assert all(set(i.get("eval", {})) <= {"success", "failed"} for i in seen["verified_terminal_outcome"][0])
+        env = X.ExperienceEnvAdapter([{"tier": 0, "name": "tiny", "kw": {
+            "agents": ["learner"], "endowment": 1_000_000, "objectives": _cash_goal(1_500_000)}}], reward_mode=mode)
+        env.reset([3])
+        w, a = env.envs[0].world, env.agents[0]
+        payer = w.system_call("admin.join", {"handle": "payer", "endowment": 2_000_000})["principal"]
+        w.execute(payer, {"tool": "bank.transfer", "args": {"from_account": w.modules["bank"].primary_account(
+            w.state, payer), "to": a, "amount": 700_000, "memo": "invoice"}})
+        rs, obs = [], []
+        for _ in range(4):
+            env.execute([X.Action("bank.transfer", {})])                  # schema-invalid: never penalised
+            env.advance_time([1.0])
+            rs += env.rewards()
+            obs += env.observe()
+        seen[mode] = (rs, obs, env.envs[0].verify()["agents"][a]["success"])
+        env.close()
+    rs, obs, ok = seen["observation_only"]
+    assert ok and set(rs) == {0.0} and find_keys(obs) == []
+    rs, obs, ok = seen["verified_terminal_outcome"]
+    assert ok and sorted(rs) == [0.0, 0.0, 0.0, 1.0] and find_keys(obs) == []
+    assert any(r != 0.0 for r in seen["legacy_shaped_reward"][0])

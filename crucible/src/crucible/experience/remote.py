@@ -302,7 +302,9 @@ def _target(spec: str):
         s = util.spec_from_file_location(name, mod)
         if s is None or s.loader is None:
             raise ImportError(f"cannot load {mod}")
+        import sys
         m = util.module_from_spec(s)
+        sys.modules[name] = m                     # dataclasses look their module up while the class is built
         s.loader.exec_module(m)
     else:
         m = importlib.import_module(mod)
@@ -330,19 +332,29 @@ def _learn(target: str, kw: dict, conn, out) -> None:
 
 
 def evaluate(ref: dict, learner: str, learner_kw: dict | None = None, *, timeout: float = 3600.0,
-             start_timeout: float = 900.0) -> dict:
+             start_timeout: float = 900.0, seed_draws: int = 3) -> dict:
     """Evaluate a learner out of process. `ref` names the world as `host` takes it ({"tier", "name", "seed",
     "reward_mode", "kw"}); without ``"seed"`` the world gets a `sealed_seed` that only this process knows. `learner`
     ("module:function" or "file.py:function") is called in its own spawned process as ``fn(participant,
     **learner_kw)`` with a `RemoteParticipant` and must return JSON data. This process keeps the evaluator handle:
     after the learner returns (or fails, or exceeds `timeout` seconds) it verifies, records the world's identity and
-    closes the world. Returns the evaluator's record (the seed and the verdict included: evaluator side)."""
+    closes the world. Returns the evaluator's record (the seed and the verdict included: evaluator side). A world that
+    cannot be built with a drawn sealed seed (a generator failure of that seed) is redrawn up to `seed_draws` times;
+    the failed draws are recorded."""
     ref = dict(ref)
     sealed = "seed" not in ref or ref.get("seed") is None
-    if sealed:
-        ref["seed"] = sealed_seed()
     t0 = time.perf_counter()
-    part, ev = host(ref, timeout=start_timeout)
+    failed: list[dict] = []
+    while True:
+        if sealed:
+            ref["seed"] = sealed_seed()
+        try:
+            part, ev = host(ref, timeout=start_timeout)
+            break
+        except RemoteError as e:
+            if not sealed or len(failed) + 1 >= int(seed_draws) or "environment process failed" not in str(e):
+                raise
+            failed.append({"seed": ref["seed"], "error": str(e)[:300]})
     ctx = mp.get_context("spawn")
     r_parent, r_child = ctx.Pipe(duplex=False)
     lp = ctx.Process(target=_learn, args=(str(learner), dict(learner_kw or {}), part._conn, r_child), daemon=True)
@@ -375,6 +387,7 @@ def evaluate(ref: dict, learner: str, learner_kw: dict | None = None, *, timeout
     finally:
         ev.close()
     return {"interface": "crucible-experience-evaluation/1", "ref": ref, "seed_sealed": sealed,
+            "seed_draws_failed": failed,
             "learner": str(learner), "learner_status": status, "learner_result": result, "learner_error": error,
             "learner_exitcode": lp.exitcode, "verification": verification, "describe": identity, "digest": digest,
             "processes": {"evaluator": os.getpid(), "learner": lp.pid, "world": ev._proc.pid},

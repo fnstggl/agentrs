@@ -313,24 +313,13 @@ def test_reference_learner_bootstraps_next_state_resets_between_worlds_and_check
     assert out["resets"] == 1 and out["transitions"] == 4
 
 
-# ---------------------------------------------------------------------------------------------- AGENTRS sl adapter
-def test_sl_adapter_pays_nothing_and_never_ends_on_the_verifier_by_default():
-    import sys
-    src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
-    if src not in sys.path:
-        sys.path.insert(0, src)
-    from agentrs.sl.world import Task
-    from crucible.integrations.agentrs_sl import CrucibleSLWorld
-    for mode in (None, LEGACY):
-        w = CrucibleSLWorld("solvency", "tiny", 0, 3600, max_decisions=4, reward_mode=mode)
-        w.initialize_world(Task("crucible/solvency", 1, "train"))
-        w.execute("0", ["wait", "END"])
-        w.last_invalid = True
-        c = w.observe_consequences()
-        g = w.goal()
-        if mode is None:
-            assert c.reward == 0.0 and not any(t.startswith("metric:") for t in g.tokens) and "target" not in g.numbers
-            assert EO.hidden(w.world)
-        else:
-            assert c.reward < 0 and any(t.startswith("metric:") for t in g.tokens)
-        w.close()
+# ---------------------------------------------------------------------------------------------- external adapters
+def test_external_adapter_pays_nothing_and_never_ends_on_the_verifier_by_default():
+    """Architecture-neutral stand-in for the 4.0 AGENTRS superlearner adapter check (RP.1): the batched external
+    adapter in its default mode pays no native penalty for schema-invalid calls, keeps serving after the verifier saw
+    success and names no evaluator metric in its goals (probe surface 'external')."""
+    from crucible.experience.probes import probe_external
+    r = probe_external(steps=6)
+    assert r["n_leaks"] == 0, r["leaks"]
+    assert r["kinds"]["reward_scalar"]["checked"] >= 18 and r["kinds"]["termination"]["checked"] == 1
+    assert not r["notes"], r["notes"]                      # the verifier's success was reached (termination exercised)

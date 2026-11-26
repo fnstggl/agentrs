@@ -56,7 +56,7 @@ def run_learner(env, learner, steps: int, *, agent: str | None = None, think_s: 
                 summary["schema_failures"] += 1
             summary["actions"] += 1
             summary["ok" if result.get("ok") else "rejected"] += 1
-            changed = bool(env.last_changed if tracked else env.digest() != d0)
+            changed = bool(env.last_changed) if tracked else bool(count_changes and env.digest() != d0)
         else:
             summary["waits"] += 1
         env.advance(int(think_s))

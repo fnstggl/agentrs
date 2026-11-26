@@ -6,7 +6,15 @@
 
 `run` drives the `ReferenceLearner` through `run_learner` on one environment, stores every interaction in an
 `ExperienceStore`, updates the learner, saves its checkpoint and writes a summary whose digests (experience store,
-learner parameters, final world state) identify the run: the same command gives the same digests.
+learner parameters, final world state) identify the run: the same command gives the same digests. `run` is a
+training/development path: the learner shares the world's process.
+
+`evaluate` is the evaluation path (W.2, OO.4): the world, the learner and the evaluator in three processes
+(`crucible.experience.remote.evaluate`); the learner holds only the participant pipe and the world gets a sealed seed
+unless ``--seed`` names one:
+
+    PYTHONPATH=src python -m crucible.experience evaluate --tier 1 --name pe_rule_induction \
+        --learner crucible.experience.remote:reference_learner --learner-kw '{"steps": 200}' --out /tmp/eval.json
 """
 from __future__ import annotations
 
@@ -69,7 +77,32 @@ def main(argv=None) -> int:
     r.add_argument("--resume", action="store_true")
     r.add_argument("--out")
     sub.add_parser("tiers", help="which tiers are available in this checkout")
+    e = sub.add_parser("evaluate", help="evaluate a learner out of process (world, learner, evaluator apart)")
+    e.add_argument("--tier", type=int, required=True)
+    e.add_argument("--name", required=True)
+    e.add_argument("--seed", type=int, default=None, help="default: a sealed seed only the evaluator knows")
+    e.add_argument("--reward-mode", default="observation_only")
+    e.add_argument("--agents", default="")
+    e.add_argument("--learner", default="crucible.experience.remote:reference_learner",
+                   help="module:function or file.py:function, called as fn(participant, **learner_kw)")
+    e.add_argument("--learner-kw", default="{}", help="JSON object")
+    e.add_argument("--timeout", type=float, default=3600.0)
+    e.add_argument("--out")
     a = p.parse_args(argv)
+    if a.cmd == "evaluate":
+        from .remote import evaluate
+        ref = {"tier": a.tier, "name": a.name, "reward_mode": a.reward_mode}
+        if a.seed is not None:
+            ref["seed"] = a.seed
+        if a.agents:
+            ref["kw"] = {"agents": a.agents.split(",")}
+        out = evaluate(ref, a.learner, json.loads(a.learner_kw), timeout=a.timeout)
+        text = json.dumps(out, indent=1, sort_keys=True, default=str)
+        if a.out:
+            with open(a.out, "w") as fh:
+                fh.write(text)
+        print(text)
+        return 0 if out["learner_status"] == "ok" else 1
     if a.cmd == "tiers":
         from .registry import domains, tiers_available
         print(json.dumps({"tiers": tiers_available(), "domains": sorted(domains())}, indent=1))

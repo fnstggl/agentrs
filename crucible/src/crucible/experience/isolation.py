@@ -188,12 +188,13 @@ def adversary(part, *, family: dict | None = None, max_seeds: int = 0, steps: in
         ann = t.get("annotations") or {}
         if ann.get("readOnlyHint") and not (t.get("inputSchema") or {}).get("required"):
             reach.append(part.execute(agent, {"tool": t["name"], "args": {}}))
+    rewards = []
     for _ in range(int(steps)):
         part.advance(int(getattr(part, "tick_s", 3600)))
         reach.append(part.observe(agent))
-        reach.append(part.reward(agent))
+        rewards.append(part.reward(agent))
     pipe = {op: part._raw(op)[0] for op in EVALUATOR_PROBE_OPS}
-    out: dict = {"reach": reach, "pipe": pipe, "gc": gc_scan(gc_limit)}
+    out: dict = {"reach": reach, "rewards": rewards, "pipe": pipe, "gc": gc_scan(gc_limit)}
     if proc:
         out["proc"] = proc_scan()
     if family and max_seeds > 0:
@@ -300,6 +301,7 @@ def probe(ref: dict, *, family: dict | None = None, max_seeds: int = 0, steps: i
     return {"examined": True, "held": held, "metrics": metrics, "hidden_found": hidden_found,
             "seed_sealed": ev["seed_sealed"], "processes": ev["processes"], "pipe": res["pipe"],
             "gc_examples": g.get("hidden_like_examples"), "rebuild_matched": rebuild.get("matched", [])[:3],
+            "rewards": [float(x) for x in res.get("rewards", [])], "plumbing_pipes": plumbing,
             "verification_present": ev.get("verification") is not None}
 
 
