@@ -3,37 +3,71 @@
  "branch": "c5c/w3b-dom1",
  "requirements": {
   "SP-9.1": {
-   "implementation_files": ["src/crucible/domains/startup.py", "src/crucible/domains/_t2kit.py"],
-   "tests": ["tests/v5/test_gate_SP_9_1.py", "tests/test_v5_domains_startup.py"],
+   "implementation_files": [
+    "src/crucible/domains/startup.py",
+    "src/crucible/domains/_t2kit.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_1.py",
+    "tests/test_v5_domains_startup.py"
+   ],
    "status_claim": "implemented; gate test written, official run pending (see test_results_unofficial)",
-   "notes": "The civilisation's digital-economy slice (base.civ_recipe): economy.work professionals of the one population, products/subs/ventures/rivals, search/ads/forum/support/cloud/code/caps. Five structurally distinct configurations (formats, two-step pipelines, generated undocumented category, compute market, reacting incumbents, ads). Evaluator: commerce.objective.check + 30-day cash-basis profit, 75-day horizon (D-53). Reference: commerce.reference.ReferenceSaaS re-expressed as a tool-only generator policy (LABELLED SCRIPTED)."
+   "notes": "The civilisation's digital-economy slice (base.civ_recipe): economy.work professionals of the one population, products/subs/ventures/rivals, search/ads/forum/support/cloud/code/caps. Five structurally distinct configurations (formats, two-step pipelines, generated undocumented category, compute market, reacting incumbents, ads). Evaluator: commerce.objective.check + 30-day cash-basis profit, 75-day horizon (D-53). Reference: commerce.reference.ReferenceSaaS re-expressed as a tool-only generator policy (LABELLED SCRIPTED). Unofficial 75-day reference runs (CPU slot): seed 0 ARR $122,843 from 312 independent customers, 30-day profit $4,008, all 10 mechanics exercised; seed 1 success, all 10 mechanics; 0 failed processes, 0 invariant violations; 364k-433k events per run (~5-6 min)."
   },
   "SP-9.2": {
-   "implementation_files": ["src/crucible/domains/software.py", "src/crucible/domains/_t2kit.py"],
-   "tests": ["tests/v5/test_gate_SP_9_2.py", "tests/test_v5_domains_software.py"],
+   "implementation_files": [
+    "src/crucible/domains/software.py",
+    "src/crucible/domains/_t2kit.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_2.py",
+    "tests/test_v5_domains_software.py"
+   ],
    "status_claim": "implemented; gate test written, official run pending",
    "notes": "code/issues/pkg/search/docs(/forum) slice and the population developers module devpop (D-51, FR-DEVPOP-1): own applications with own tests over 8 catalogue capabilities, preference-weighted package choice, pkg.ci independent testing, issues (bugs, docs, compatibility, feature requests), hand-coding, publishing own packages, upgrades, daily pkg.exec (adoption by execution, ablation-measured). A 4-day reference run: 11 independent adopters; stub package and self-adoption probes 0."
   },
   "SP-9.3": {
-   "implementation_files": ["src/crucible/domains/content_domain.py", "src/crucible/domains/_t2kit.py"],
-   "tests": ["tests/v5/test_gate_SP_9_3.py", "tests/test_v5_domains_content.py"],
+   "implementation_files": [
+    "src/crucible/domains/content_domain.py",
+    "src/crucible/domains/_t2kit.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_3.py",
+    "tests/test_v5_domains_content.py"
+   ],
    "status_claim": "implemented; gate test written (GPU slot), official run pending",
    "notes": "Social-media slice: content/studio, the shared semantic space, aud exact distinct-viewer bitsets, feed recommender mixtures per platform, follow/share graph, pop_social creators. Configurations by platform set and recommender mechanisms (posts, pics+posts, blog, blog+pics, kb+posts). Difficulty levels 1-4 -> 300/3k/100k/10M viewers on development/standard/large/internet populations (D-53). Copycat (re-typed texts) and spam probes."
   },
   "SP-9.4": {
-   "implementation_files": ["src/crucible/domains/community.py", "src/crucible/domains/_t2kit.py"],
-   "tests": ["tests/v5/test_gate_SP_9_4.py", "tests/test_v5_domains_community.py"],
+   "implementation_files": [
+    "src/crucible/domains/community.py",
+    "src/crucible/domains/_t2kit.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_4.py",
+    "tests/test_v5_domains_community.py"
+   ],
    "status_claim": "implemented; gate test written (GPU slot), official run pending",
    "notes": "Communities slice: social.communities, content/aud/feed on community+posts, follows, optional msg, pop_social community activity and the civic module commlife (D-51, FR-COMMLIFE-1): votes, proposals, events/RSVP/attendance, invitations and messages, spin-off chapters, successor communities after an absent owner. Configurations by genesis seeding, governance, join policy, messaging."
   },
   "SP-9.5": {
-   "implementation_files": ["src/crucible/domains/research_domain.py", "src/crucible/domains/science.py", "src/crucible/domains/lawlang.py", "src/crucible/domains/_t2kit.py"],
-   "tests": ["tests/v5/test_gate_SP_9_5.py", "tests/test_v5_domains_research.py"],
+   "implementation_files": [
+    "src/crucible/domains/research_domain.py",
+    "src/crucible/domains/science.py",
+    "src/crucible/domains/lawlang.py",
+    "src/crucible/domains/_t2kit.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_5.py",
+    "tests/test_v5_domains_research.py"
+   ],
    "status_claim": "implemented; gate test passed in an unofficial run before the framework merge (all 8 mechanics); rewritten on section_metrics, official run pending",
    "notes": "sci repaired (DEF-I-5): datasheet abs+rel precision, generalised chi-square with propagated calibration covariance, standards-bureau blind challenges at novel conditions; lawlang +5 families (3-variable and held-out). Population researchers scipop (FR-SCIPOP-1). Evaluator: novel-condition nRMSE + co-discovery priority + no copy + independent consistent replications (D-52). Reference (joint fit of law and calibration with certified anchors) succeeded on bench seeds 0, 1, 2 in unofficial runs once the co-discovery rule applied."
   }
  },
- "defects": {"DEF-I-5": "fixed (see DEFECTS.md)"},
+ "defects": {
+  "DEF-I-5": "fixed (see DEFECTS.md)"
+ },
  "limitations": [
   "Every coefficient of the three new population modules (scipop, devpop, commlife) is set by hand (plausible, unvalidated; FIDELITY_REGISTER).",
   "The software capabilities are a fixed catalogue of 8 small pure functions; developers' glue code is generated from a package's API by function name, so a package whose function is named differently is not found.",
@@ -41,7 +75,8 @@
   "The content domain's population creators write from one real news corpus; originality therefore uses a 90% shingle threshold, and the reference composes from the same corpus.",
   "Content difficulty 4 (10M viewers) is defined and its world spec built (internet population profile); no 10M-individual content run was made here.",
   "Community and content worlds run the shared space's text path (Qwen3-0.6B LM): their long runs belong in GPU slots; the slot queue was congested during this wave, see test_results_unofficial.",
-  "The startup reference reached $41k ARR at a 30-day loss in a 45-day run; profitability within the 75-day horizon is not yet verified."
+  "Community: the population's community model (CORE-POP pop_social) joins and contributes far above usual participation inequality (an idle founder's generic community: 150 members and 108 weekly contributors after 9 days; a keyword-stuffed community: 501 members after 10 days); I-1 answers with an organiser-presence rule in the evaluator and member exit to successor communities (commlife), which halved the spam community in 10 days, but the population model itself needs calibration.",
+  "Content: keyword-stuffed posts still reach viewers (54 distinct viewers in 2 days against 217 for the reference); the level-1 target is 500 of 1,500 individuals."
  ],
  "integration_notes": [
   "CIV: add the domain population modules to crucible.civ.generator.ORDER after their owners so the domains compose into Tier 3 with population activity: scipop after sci (needs pop, docs), devpop after pkg (needs code, issues, pop), commlife after community (needs pop, social_ids). sci's `challenge` config (standards bureau) is off unless configured.",
@@ -55,7 +90,9 @@
   "tests/test_v5_domains_framework.py": "24 passed (after the first framework merge)",
   "tests/test_v5_domains_research.py": "8 passed together with the pre-merge SP-9.5 test (CPU)",
   "tests/test_v5_domains_startup.py, _software.py, _community.py, _content.py": "all passed when run individually (CPU, short horizons)",
-  "tests/test_kernel.py tests/test_invariants.py": "51 passed before changes"
+  "tests/test_kernel.py tests/test_invariants.py": "51 passed before changes",
+  "startup 75-day reference runs": "seeds 0 and 1: success, 10/10 mechanics, 0 failed processes",
+  "research reference, other configurations (30 days, seed 0)": "survey, drift, drift_survey: success; heldout (structural, law outside the handbook): no success (feasible not guaranteed)"
  },
  "history": []
 }

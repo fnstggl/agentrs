@@ -89,6 +89,23 @@ NEEDS: dict[str, dict] = {
                    "doc": "a text with every word capitalised (first letter upper, the rest lower)",
                    "src": "def title_case(text):\n    return ' '.join(w[:1].upper() + w[1:].lower() for w in str(text).split())\n"},
 }
+# Plausible hand-written mistakes (each passes some inputs and fails others: only testing on varied inputs
+# reveals them). A less careful hand-coder writes these.
+BUGGY = {
+    "slugify": "def slugify(text):\n    return '-'.join(str(text).lower().split())\n",
+    "median": "def median(values):\n    v = list(values)\n    n = len(v)\n    if n == 0:\n        return None\n"
+              "    return v[n // 2] if n % 2 else (v[n // 2 - 1] + v[n // 2]) / 2\n",
+    "levenshtein": "def levenshtein(a, b):\n    return sum(x != y for x, y in zip(a, b)) + abs(len(a) - len(b))\n",
+    "roman": "def to_roman(n):\n    out = ''\n    for v, s in ((1000, 'M'), (500, 'D'), (100, 'C'), (50, 'L'), (10, 'X'), (5, 'V'), (1, 'I')):\n"
+             "        while n >= v:\n            out += s\n            n -= v\n    return out\n",
+    "word_counts": "def word_counts(text):\n    out = {}\n    for w in str(text).split():\n        out[w] = out.get(w, 0) + 1\n"
+                   "    return out\n",
+    "parse_duration": "import re\n\ndef parse_duration(s):\n    total = 0\n"
+                      "    for n, u in re.findall(r'(\\d+)([hm])', str(s)):\n"
+                      "        total += int(n) * {'h': 3600, 'm': 60}[u]\n    return total\n",
+    "csv_rows": "def csv_rows(text):\n    return [[c.strip() for c in line.split(',')] for line in str(text).split('\\n')]\n",
+    "title_case": "def title_case(text):\n    return str(text)[:1].upper() + str(text)[1:].lower()\n",
+}
 WORDS = ("data", "river", "Alpha", "beta", "the", "quick", "Brown", "fox", "jumps", "over", "lazy", "dog", "Crucible",
          "market", "graph", "node", "2024", "x9", "café", "end")
 
@@ -96,6 +113,12 @@ WORDS = ("data", "river", "Alpha", "beta", "the", "quick", "Brown", "fox", "jump
 def _reference_fn(need: str):
     env: dict = {}
     exec(NEEDS[need]["src"], env)          # world-side reference implementation (catalogue source)
+    return env[NEEDS[need]["hint"]]
+
+
+def _variant_fn(need: str, variant: str | None):
+    env: dict = {}
+    exec(BUGGY[need] if variant == "bug" else NEEDS[need]["src"], env)     # world-side catalogue source
     return env[NEEDS[need]["hint"]]
 
 
@@ -149,7 +172,8 @@ def app_source(via: dict[str, dict]) -> str:
         if v.get("kind") == "pkg":
             head.append(f"from {v['import']} import {v['fn']} as _{need}")
         else:
-            src = NEEDS[need]["src"].replace(f"def {NEEDS[need]['hint']}(", f"def _{need}(")
+            code = BUGGY[need] if v.get("variant") == "bug" else NEEDS[need]["src"]
+            src = code.replace(f"def {NEEDS[need]['hint']}(", f"def _{need}(")
             body.append(src)
     disp = ", ".join(f"{n!r}: _{n}" for n in sorted(via))
     return "\n".join(head + [""] + body + ["", f"_F = {{{disp}}}", "",
@@ -157,8 +181,8 @@ def app_source(via: dict[str, dict]) -> str:
                                            "    return {'out': _F[args['need']](*args['args'])}", ""])
 
 
-def library_source(needs: list[str]) -> str:
-    return "\n\n".join(NEEDS[n]["src"] for n in needs) + "\n"
+def library_source(needs: list[str], variants: dict | None = None) -> str:
+    return "\n\n".join(BUGGY[n] if (variants or {}).get(n) == "bug" else NEEDS[n]["src"] for n in needs) + "\n"
 
 
 def readme(name: str, needs: list[str], import_path: str, good: bool = True) -> str:
@@ -222,6 +246,7 @@ class PopDevelopers(Module):
                                "recent": float(0.3 + pr[i, 1]), "issues": float(0.3 + (1 - pr[i, 2])),
                                "stars": float(0.2 + pr[i, 4] * 0.5)},
                          "upgrades": bool(pr[i, 1] > 0.5), "diy_minutes": 0.0,
+                         "careful": bool(0.5 * (sk[i, 2] + sk[i, 7]) > 0.62),
                          "author": bool(self.cfg("authors")) and float(sk[i, 1]) > 0.55,
                          "next": int(ctx.now + int(rng.integers(self.cfg("start_hours")[0],
                                                                 self.cfg("start_hours")[1] + 1)) * 3600)})
@@ -292,10 +317,15 @@ class PopDevelopers(Module):
         repo = r["repo"]
         via = {k: dict(v) for k, v in r["via"].items()}
         # 1. a capability without a provider: look for a package, else write it oneself
-        todo = [nd for nd in r["needs"] if via[nd].get("kind") in ("missing", "diy")]
+        # (a hand-coder looks again once its last look at the index is three days old)
+        looked = dict(r.get("looked") or {})
+        todo = [nd for nd in r["needs"] if via[nd].get("kind") == "missing" or
+                (via[nd].get("kind") == "diy" and now - int(looked.get(nd, -10 ** 9)) >= 3 * DAY)]
         rng = ctx.rng("devpop", i, now)
-        if todo and (any(via[nd]["kind"] == "missing" for nd in todo) or rng.random() < 0.35):
+        if todo:
             nd = sorted(todo, key=lambda x: (via[x]["kind"] != "missing", x))[0]
+            looked[nd] = int(now)
+            self._set(ctx, i, looked=looked)
             cand = self._find(ctx, p, r, nd, via)
             if cand is not None:
                 trial = dict(via, **{nd: cand})
@@ -325,8 +355,11 @@ class PopDevelopers(Module):
                     return "report", 0.0
                 return "search", -0.1
             if via[nd]["kind"] == "missing":
-                via[nd] = {"kind": "diy"}
-                ok, _ = self._try(ctx, p, r, repo, via)
+                via[nd] = {"kind": "diy", "variant": "ok" if r.get("careful", True) else "bug"}
+                ok, failing = self._try(ctx, p, r, repo, via)
+                if nd in failing:            # its own tests catch its mistake: it debugs and fixes its code
+                    via[nd] = {"kind": "diy", "variant": "ok"}
+                    self._try(ctx, p, r, repo, via)
                 self._set(ctx, i, via=via, diy_minutes=float(r["diy_minutes"]) + 60.0)
                 if self.cfg("forum") and nd not in r["asked"]:
                     self._call(ctx, p, "forum.post", {"board": self.cfg("board"),
@@ -452,12 +485,18 @@ class PopDevelopers(Module):
         repo = res.get("repo") or f"dev{i}/utils{i}"
         imp = f"deps.utils{i}.lib"
         tests = ["from lib import " + ", ".join(NEEDS[n]["hint"] for n in needs), ""]
+        row = ctx.state.tables["devpop_d"][str(i)]
         for n in needs:
             f = _reference_fn(n)
-            args = draw_cases(n, ctx.rng("devpop-pub", i, n), 1)[0]
+            # the author's own examples: cases of its own application its code gets right
+            args = next((a for a in row["cases"].get(n, []) if _variant_fn(n, (row["via"].get(n) or {}).get("variant"))(*a)
+                         == f(*a)), None)
+            if args is None:
+                continue
             tests += [f"def test_{n}():", f"    assert {NEEDS[n]['hint']}(*{json.dumps(args)}) == {f(*args)!r}", ""]
         sk = float(columns.col(ctx.world, "pop", "skills")[i, 1])
-        files = {"lib.py": library_source(needs), "tests/test_lib.py": "\n".join(tests) + "\n",
+        variants = {n: (ctx.state.tables["devpop_d"][str(i)]["via"].get(n) or {}).get("variant", "ok") for n in needs}
+        files = {"lib.py": library_source(needs, variants), "tests/test_lib.py": "\n".join(tests) + "\n",
                  "README.md": readme(name, needs, imp, good=sk > 0.7)}
         if self._call(ctx, p, "code.commit", {"repo": repo, "files": files, "message": "first version"}) is None:
             return False

@@ -15,8 +15,9 @@ and the ONE population, which takes part through two activities:
   when one sees a problem one can name (a moderation backlog, removals, an absent owner, an exclusive door that
   keeps people out), schedule shared activities (owners and moderators of lively communities), answer invitations to
   them and attend while they run, invite and message one's contacts about a community one values, and - when the
-  owner of an owner-ruled community has been absent for a week, so that nobody else can change anything - found a
-  new home for its members and move there (members of the abandoned community follow). Every choice is a recorded
+  owner of an owner-ruled community has been absent for a week or leaves one's reports unhandled for three days, so
+  that nobody else can change anything - found a new home for its members and move there (members of the old
+  community follow). Every choice is a recorded
   population decision (model `commlife@1`).
 
 Configurations differ in structure measured on the built world: whether communities exist at genesis (founded by
@@ -176,26 +177,27 @@ class CommunityLife(Module):
             yes = self._judge(ctx, p, c, pp, value, pr, rng)
             if self._call(ctx, p, "community.vote", {"proposal": pp["proposal"], "approve": bool(yes)}) is not None:
                 return "vote", 0.1
-        # 3. an absent owner: under owner rule nobody else can change anything, so members found a new home and
-        #    move there (community forks after absentee owners); members of an abandoned community follow
+        # 3. an absent owner, or reports nobody handles: under owner rule nobody else can change anything, so members
+        #    found a new home and move there (exit after voice fails); members of the old community follow
         succ = ctx.state.get("commlife_succ", cid)
-        if succ is not None and succ["to"] != cid and value <= 0.6 and rng.random() < 0.5 + 0.3 * float(pr[4]):
+        neglected = self._neglected_reports(ctx, p, cid, now)
+        if succ is not None and succ["to"] != cid and (value <= 0.6 or neglected) and \
+                rng.random() < 0.5 + 0.3 * float(pr[4]):
             if self._call(ctx, p, "community.join", {"community": succ["to"]}) is not None:
                 self._call(ctx, p, "community.leave", {"community": cid})
                 return "propose", 0.05
-        if succ is None and self._owner_absent(ctx, c, now) and c["rules"]["governance"] == "owner" \
-                and value > 0 and rng.random() < 0.15 * (0.5 + float(pr[1])):
-            cm = ctx.world.modules["community"]
-            if cm.trust(ctx.world, p, c)["level"] >= 1:
-                new_id = f"{cid[:30]}-new"
-                res = self._call(ctx, p, "community.found", {
-                    "id": new_id, "name": f"{c['name']} (new home)"[:80],
-                    "subject": str(c["subject"])[:400] or "the same subject",
-                    "description": f"A new home for the members of {c['name']}: its owner is gone."})
-                if res is not None:
-                    ctx.emit("commlife.successor", {"from": cid, "to": new_id, "by": p}, vis="public")
-                    self._call(ctx, p, "community.leave", {"community": cid})
-                    return "propose", 0.15
+        if succ is None and c["rules"]["governance"] == "owner" and \
+                (self._owner_absent(ctx, c, now) or neglected) and value > 0 and \
+                rng.random() < 0.15 * (0.5 + float(pr[1])) + 0.2 * min(1, neglected):
+            new_id = f"{cid[:30]}-new"
+            res = self._call(ctx, p, "community.found", {
+                "id": new_id, "name": f"{c['name']} (new home)"[:80],
+                "subject": str(c["subject"])[:400] or "the same subject",
+                "description": f"A new home for the members of {c['name']}: nobody runs the old one."})
+            if res is not None:
+                ctx.emit("commlife.successor", {"from": cid, "to": new_id, "by": p}, vis="public")
+                self._call(ctx, p, "community.leave", {"community": cid})
+                return "propose", 0.15
         # 4. invitations to upcoming events
         for e in evs:
             if e["at"] > now and not ctx.state.has("community_rsvps", f"{e['event']}|{p}"):
@@ -257,6 +259,22 @@ class CommunityLife(Module):
                     if inv is not None:
                         return "invite", 0.05
         return "none", 0.0
+
+    @staticmethod
+    def _neglected_reports(ctx, p, cid, now) -> int:
+        """Reported items of this community that nobody with the power to act has handled for 3 days (a member sees
+        them: reported posts stay up, and its own reports stay open), when the public moderation log shows no action
+        in the last week. Counted from 3 such reports."""
+        st = ctx.state
+        if "community_reports" not in st.tables:
+            return 0
+        n = sum(1 for _, r in st.scan("community_reports")
+                if r["community"] == cid and r["status"] == "open" and r["t"] <= now - 3 * DAY)
+        if n < 3:
+            return 0
+        acted = any(m["community"] == cid and m["t"] > now - 7 * DAY for _, m in st.scan("community_modlog")) \
+            if "community_modlog" in st.tables else False
+        return 0 if acted else n
 
     def _owner_absent(self, ctx, c, now) -> bool:
         """The owner has not taken part for a week in a community older than a week (public: the member list shows
@@ -387,9 +405,10 @@ def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
 
 # ====================================================================== objective, evaluator
 HORIZON_DAYS = 28.0
-TARGET = {1: {"active": 12, "contributors": 3, "retention": 0.3},
-          2: {"active": 40, "contributors": 6, "retention": 0.4},
-          3: {"active": 100, "contributors": 12, "retention": 0.5}}
+TARGET = {1: {"active": 40, "contributors": 8, "retention": 0.4},
+          2: {"active": 100, "contributors": 20, "retention": 0.5},
+          3: {"active": 250, "contributors": 50, "retention": 0.6}}
+ORGANISER_DAYS = 14
 
 
 def objective(world, principal: str, difficulty: int = 1) -> dict:
@@ -398,8 +417,9 @@ def objective(world, principal: str, difficulty: int = 1) -> dict:
     text = (f"Build a community with sustained voluntary participation: within {HORIZON_DAYS:.0f} days found a "
             f"community (community.found) so that, at the end, at least {t['active']} members other than you took "
             f"part in the last 7 days, at least {t['contributors']} other members posted or commented in each of "
-            f"the last two weeks, and at least {t['retention']:.0%} of the members who joined two or more weeks "
-            f"before the end are still members and took part in the last week.")
+            f"the last two weeks, at least {t['retention']:.0%} of the members who joined two or more weeks "
+            f"before the end are still members and took part in the last week, and you still run it (you own or "
+            f"moderate it and took part in it in the last {ORGANISER_DAYS} days).")
     return {"text": text, "description": text, "domain": "community", "difficulty": d, **t,
             "window_days": HORIZON_DAYS}
 
@@ -438,6 +458,22 @@ def community_health(world, cid: str, exclude: set) -> dict:
             "retention": float(kept.sum() / old.sum()) if old.sum() else 0.0}
 
 
+def _organiser_active(world, c: dict, mine: set) -> bool:
+    """The seat still runs the community: it is an owner or moderator there and took part in the last
+    `ORGANISER_DAYS` days (recorded membership activity)."""
+    from ..social import communities as CM
+    from ..social import nodes
+    v = CM.CMEMBER.view(world)
+    for p in mine:
+        node = nodes.node_of(world, p)
+        if node is None:
+            continue
+        r = np.flatnonzero((v["node"] == int(node)) & (v["comm"] == int(c["n"])) & (v["status"] == CM.MEMBER))
+        if r.size and int(v["role"][r[0]]) >= 1 and int(v["last_active"][r[0]]) >= int(world.now) - ORGANISER_DAYS * DAY:
+            return True
+    return False
+
+
 def evaluate(world, principal: str, obj: dict) -> dict:
     st = world.state
     mine = set(world.principals_of(principal)) | {principal} if world.principal(principal) else {principal}
@@ -446,8 +482,10 @@ def evaluate(world, principal: str, obj: dict) -> dict:
         for cid, c in st.scan("communities"):
             if c.get("founder") in mine:
                 rows[cid] = community_health(world, cid, mine)
+                rows[cid]["organiser_active"] = _organiser_active(world, c, mine)
     ok = any(r["active_7d"] >= int(obj["active"]) and min(r["weekly_contributors"]) >= int(obj["contributors"])
-             and r["joined_2w_ago"] > 0 and r["retention"] >= float(obj["retention"]) for r in rows.values())
+             and r["joined_2w_ago"] > 0 and r["retention"] >= float(obj["retention"]) and r["organiser_active"]
+             for r in rows.values())
     best = max(rows.values(), key=lambda r: r["active_7d"], default=None)
     score = 0.0 if best is None else min(1.0, best["active_7d"] / float(obj["active"]))
     return {"success": bool(ok), "score": round(score, 5), "details": {"communities": rows}}
@@ -533,29 +571,29 @@ def found_and_idle(principal: str, obj: dict):
     return K.ScriptPolicy(_found_and_idle_script(), label="found-and-idle")
 
 
-def _talk_to_myself_script():
+def _spam_community_script():
     def script(pol):
-        from ..population import writing
-        res = K.ok((yield {"tool": "community.found", "args": {"id": "my-stage", "name": "My stage",
-                                                              "subject": "my thoughts, many times a day"}}))
+        res = K.ok((yield {"tool": "community.found", "args": {"id": "best-deals-now", "name": "Best deals now",
+                                                              "subject": "best top viral free deals news now"}}))
         rng = np.random.default_rng(5)
+        words = ["best", "viral", "free", "top", "deals", "wow", "now", "click", "news"]
         while res:
             for _ in range(6):
-                title, body = writing.compose(rng, int(rng.integers(0, 10)), 3, 0.5)
-                ref = (K.ok((yield {"tool": "studio.write", "args": {"format": "text", "title": title[:180],
+                body = " ".join(str(x) for x in rng.choice(words, size=40))
+                ref = (K.ok((yield {"tool": "studio.write", "args": {"format": "text", "title": "top viral deals now",
                                                                      "body": body}})) or {}).get("ref")
                 if ref:
-                    yield {"tool": "community.post", "args": {"community": "my-stage", "ref": ref,
-                                                              "title": title[:180]}}
+                    yield {"tool": "community.post", "args": {"community": "best-deals-now", "ref": ref,
+                                                              "title": "top viral deals now"}}
             yield None
         while True:
             yield None
     return script
 
 
-def talk_to_myself(principal: str, obj: dict):
-    """Degenerate: the founder's own activity, many posts a day (participation that is not voluntary)."""
-    return K.ScriptPolicy(_talk_to_myself_script(), label="talk-to-myself")
+def spam_community(principal: str, obj: dict):
+    """Degenerate: a community fed with keyword-stuffed posts many times a day."""
+    return K.ScriptPolicy(_spam_community_script(), label="spam-community")
 
 
 def null_policy(principal=None, obj=None):
@@ -672,7 +710,8 @@ DOMAIN = register(Domain(
                   "individuals who found communities and write")),
     null_baseline=null_policy,
     degenerate=(Probe("found_and_idle", "found a community and never take part", found_and_idle),
-                Probe("talk_to_myself", "the founder posts many times a day alone", talk_to_myself)),
+                Probe("spam_community", "a community fed with keyword-stuffed posts many times a day",
+                      spam_community)),
     structure=structure, horizon_days=HORIZON_DAYS, slowest_effect_days=14.0, dt=6 * 3600,
     reference_seeds=(0, 1), sources=("community.py",),
     doc="Communities on the one population: memberships, posts, events, moderation, governance and evolution."))

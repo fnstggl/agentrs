@@ -353,17 +353,11 @@ as consistent (difficulty sets the accuracy threshold and the replications neede
   the last 7 days with the dependency still active. Developers' repositories belong to an account organisation each
   founds through the identity module, because `code.create_repo` derives the repository name from an owner handle
   that population principals lack (it raises IndexError for `p<i>`; integration note).
-* Content (9.3): difficulty levels 1-4 target 300 / 3,000 / 100,000 / 10,000,000 distinct verified viewers and build
+* Content (9.3): difficulty levels 1-4 target 500 / 5,000 / 100,000 / 10,000,000 distinct verified viewers and build
   their worlds with the development / standard / large / internet population profiles (`overrides={"population":
   ...}`); originality excludes an artifact first published by someone else and a text whose five-word shingles are
   90% in an earlier item by another creator (the population writes from one real news corpus, so the threshold is
   high).
-* Community (9.4): participation counts only members other than the seat. In probes an idle founder's generic
-  community drew 65-100 members in 1-3 days from the population's join model (CORE-POP's to review, integration
-  note); members of an owner-ruled community whose owner has been absent for a week found a new home and move there
-  (commlife, D-51), so sustained participation should need an active organiser - the SP-9.4 gate test runs the idle
-  founder as a control and asserts it fails.
-
 ## D-69 Research instrument: confinement of the weights-only child, adversarial controls, and a positive-control design with the power to see known effects (2026-11-26, workstream N, wave 3b)
 The wave-3a development run of the controls (5 learner seeds, protocol seeds) labelled 2 of 5 kinds correctly and 1 of
 7 explanations. Diagnosis on establishment seeds only (no protocol seed was re-used to choose a design):
@@ -423,3 +417,18 @@ only in Tier 1, so the A/B/C/D comparison runs every arm with the architecture-n
 in; experience is counted in decisions. A Tier 2 package that fails to load is reported (`Registry.unavailable`,
 quoted by `TierUnavailable`) instead of failing the whole research instrument; domains that do not satisfy the
 framework contract are not merged into this branch (they make `crucible.domains.load_all` raise for every domain).
+
+* Community (9.4): participation counts only members other than the seat. In probes an idle founder's generic
+  community drew 65-100 members in 1-3 days from the population's join model (CORE-POP's to review, integration
+  note); members of an owner-ruled community whose owner has been absent for a week found a new home and move there
+  (commlife, D-51), so sustained participation should need an active organiser - the SP-9.4 gate test runs the idle
+  founder as a control and asserts it fails.
+
+* Community (9.4): participation counts only members other than the seat, and the seat must still run the
+  community (owner or moderator, active there in the last 14 days): "build a community" is the organiser's
+  achievement. In probes an idle founder's generic community drew 65-150 members (108 weekly contributors after 9
+  days) from the population's join and contribution model, far above the usual participation inequality of online
+  communities (CORE-POP's to review, integration note); members of an owner-ruled community whose owner has been
+  absent for a week found a new home and move there (commlife, D-51). Targets: 40 / 100 / 250 members active in the
+  last week, 8 / 20 / 50 weekly contributors, retention 0.4 / 0.5 / 0.6. The SP-9.4 gate runs an idle founder and a
+  keyword-stuffed community as controls.
