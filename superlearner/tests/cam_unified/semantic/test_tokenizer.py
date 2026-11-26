@@ -242,3 +242,25 @@ def test_action_tokens_resolve_the_schema_the_action_was_taken_with(enc, cfg):
     small = ObservationTokenizer(cfg, enc, tool_registry_size=2)  # the registry is a bounded LRU
     small.register_tools(sample_tools(4))
     assert len(small._tool_by_key) == 2 and set(small._keys_by_name) == {"run_python", "send_message"}
+
+
+def test_default_observation_budget_is_the_config_share_and_builtin_actions_resolve_with_row_lists(enc, cfg):
+    """Contract/config v3: the tokenizer's default observation budget is cfg.obs_token_budget (cfg.max_obs_tokens, or
+    max_ctx_tokens // 2 when 0), and ACTION tokens of the generator's built-in tools (wait / noop, appended to every
+    row by the action generator) resolve when the row's environment tool list is given (action(actions,
+    tool_lists))."""
+    from dataclasses import replace
+    from superlearner.cam_unified.semantic.actions import builtin_tools
+    from superlearner.cam_unified.testing import sample_observations
+    tok = ObservationTokenizer(cfg, enc)
+    assert tok.max_obs_tokens == cfg.obs_token_budget == cfg.max_ctx_tokens // 2
+    assert ObservationTokenizer(replace(cfg, max_obs_tokens=20), enc).max_obs_tokens == 20
+    obs = [sum((sample_observations(8, seed=s) for s in range(6)), [])]
+    _, st = tok.observations_with_stats(obs, None, [0.0])
+    assert st["n_tokens"][0] <= cfg.obs_token_budget and st["dropped_obs"][0] > 0
+    env_tools = sample_tools(4)
+    wait = builtin_tools(cfg)[0]
+    tok.tools([env_tools + builtin_tools(cfg)])                  # what the generator does for every row
+    a = Action("wait", {"seconds": 600}, logp_parts={"decode": {"key": wait.key}})
+    with_rows = tok.action([a], tool_lists=[env_tools])
+    assert torch.allclose(with_rows.x, tok.action([a]).x, atol=1e-5) and int(with_rows.mask.sum()) == 4

@@ -1,9 +1,11 @@
 """CamUnifiedAgent: per-environment state around CamUnifiedModel (spec Parts 11, 12, 14, 18.1, 20 A22).
 
-AgentP shape (used by runtime.run_steps and, later, workstream F's actors and G's OpenWorld harness):
+AgentP shape (used by runtime.run_steps, workstream F's actors and - through `stage1.harness_agent.HarnessAgent` -
+G's OpenWorld lifetime harness `envs.harness.run_lifetime`):
 
     act(obs_batch: ObservationBatch, tools_batch: [B] list[ToolSchema]) -> [B] Action | None   (None = done env)
     observe(results: [B] ExecutionResult, rewards: [B] float, next_obs: ObservationBatch) -> list[EventRecord]
+    observe(transition: envs.agent_protocol.Transition) -> list[EventRecord]      (harness call shape)
     update() -> dict                                    (one learner step; no-op when cfg.continual_updates is False)
     reset(env_ids: list[str] | None) -> None
     flush() -> list[EventRecord]                        (end of a run: archive undelivered post-action observations)
@@ -22,6 +24,14 @@ the acting context, and (b) the fresh on-policy buffer (actor + value with GAE u
 gamma = exp(-kappa * dt), plus the reasoner's compute cost): PPO-clip for decoder-sampled decisions (exact behaviour
 probability), advantage-weighted regression for planner-selected ones (the argmax selection has no tractable
 behaviour probability), then hands them to the injected trainer, which weights, back-propagates and steps.
+With workstream E's classes: the Consolidator runs every update (archived events -> memory segments in the
+MemoryIndex; its first segments make the index serve their version), the ReplaySampler is synced from the archive
+before sampling, every consumed event (fresh decisions and replayed records) gets the update id in its archived
+training provenance (`EventArchive.mark_used` -> `EventRecord.training_provenance["used_in_updates"]`), memory
+consumed by fresh decisions is linked to the update (`Consolidator.link_weights`), and events of an abandoned branch
+(`exclude_events`, set after a resume) are never drawn. With workstream F's TraceRecorder, one DecisionTrace per
+decision is recorded and update refs are patched in by event id per lifetime. `loss_cap` bounds the magnitude of any
+one objective before the trainer's global gradient clip (off by default).
 
 Checkpoint attribute contract (the duck-typed contract of workstream E's memory/checkpoint.py:CheckpointOps):
     model, config, weights_exclude, optimizers (+ setter; make_optimizers when the trainer has it), schedulers,
@@ -73,9 +83,11 @@ class ReplayP(Protocol):                      # workstream E: memory/replay.py:R
     # optional: add(records: list[EventRecord]) -> None (notification of newly archived records)
 
 
-class TraceRecorderP(Protocol):               # workstream F: observe/trace.py:TraceRecorder
+class TraceRecorderP(Protocol):               # a list recorder (doubles); F's TraceRecorder is detected by shape:
     def record(self, traces: list) -> None: ...                # list[DecisionTrace]
     # optional: link_updates(decision_ids: list[str], update_id: str) -> None
+    # F's observe/trace.py:TraceRecorder: record(trace) one DecisionTrace per call and
+    # add_update_refs(event_ids, update_id, env_id) (patch lines keyed by event id); see _record / _link_traces
 
 
 class TrainerP(Protocol):                     # workstream D: learn/trainer.py:CombinedTrainer
@@ -107,6 +119,8 @@ class FreshStep:
     decision_ids: list
     lp: torch.Tensor = None         # [b] hindsight learning progress (filled one decision later)
     planner: torch.Tensor = None    # [b] bool: chosen by the planner's argmax (no exact behaviour probability)
+    event_ids: list = None          # [b] archived EventRecord ids of the decisions (training provenance)
+    env_ids: list = None            # [b] environment ids (trace patches are keyed per lifetime)
 
     def subset(self, js: Sequence[int]) -> "FreshStep":
         idx = torch.tensor(list(js), dtype=torch.long, device=self.logp_old.device)
@@ -114,7 +128,9 @@ class FreshStep:
                          None if self.inputs is None else self.inputs.select(js), [self.actions[j] for j in js],
                          self.logp_old[idx], self.value_old[idx], self.reward[idx], self.dt[idx], self.done[idx],
                          self.version, [self.decision_ids[j] for j in js], self.lp[idx],
-                         None if self.planner is None else self.planner[idx])
+                         None if self.planner is None else self.planner[idx],
+                         None if self.event_ids is None else [self.event_ids[j] for j in js],
+                         None if self.env_ids is None else [self.env_ids[j] for j in js])
 
 
 @dataclass
@@ -127,6 +143,7 @@ class UpdateBatch:
     model: Optional[CamUnifiedModel] = None
     adapt_seq: Optional[SequenceBatch] = None
     adapt_aux: Optional[ReplayAux] = None
+    records: Optional[list] = None      # the replayed EventRecord sequences behind `seq` (for record-level objectives)
     _filt: object = None
     _adapt_filt: object = None
 
@@ -174,11 +191,41 @@ def objective_adapt(agent: "CamUnifiedAgent", batch: UpdateBatch) -> dict:
 
 
 def objective_memory(agent: "CamUnifiedAgent", batch: UpdateBatch) -> dict:
-    """L_memory from the retriever's own objective (RetrieverP.loss(seq, Zs)), when it defines one."""
+    """L_memory. The retriever's own sequence objective (RetrieverP.loss(seq, Zs)) when it defines one; otherwise,
+    for workstream E's Retriever, its compression objective on the replayed archived sequences: each replayed slice
+    is encoded as a memory segment by the *online* event and segment encoders and every event token must be
+    identified among all event tokens of the batch from its segment's latent memory tokens (contrastive
+    reconstruction, `Retriever.compression_loss`), so the memory tokens keep the information of their events. The
+    keys the index serves come from the frozen target snapshot; `CamUnifiedAgent.memory_sync_every` moves the
+    target to the trained encoders and migrates the index (E's sync_target + Consolidator.reencode_step)."""
     r = agent.model.retriever
-    if batch.seq is None or not agent.config.use_memory or r is None or not hasattr(r, "loss"):
+    if batch.seq is None or not agent.config.use_memory or r is None:
         return {}
-    return {"losses": {"memory": r.loss(batch.seq, batch.filtered().Zs)}}
+    if hasattr(r, "loss"):
+        return {"losses": {"memory": r.loss(batch.seq, batch.filtered().Zs)}}
+    if not (hasattr(r, "compression_loss") and hasattr(r, "encode_records")) or not batch.records:
+        return {}
+    groups = [list(g) for g in batch.records if len(g) >= 2]
+    if not groups:
+        return {}
+    L = max(len(g) for g in groups)
+    dev = agent.device
+    ev = r.encode_records([x for g in groups for x in g], target=False).to(dev)
+    n, D = len(groups), ev.shape[-1]
+    x = torch.zeros(n, L, D, device=dev)
+    mask = torch.zeros(n, L, dtype=torch.bool, device=dev)
+    dt = torch.zeros(n, L, device=dev)
+    p = 0
+    for i, g in enumerate(groups):
+        t_end = max(float(e.t_sim) for e in g)
+        x[i, :len(g)] = ev[p:p + len(g)]
+        mask[i, :len(g)] = True
+        dt[i, :len(g)] = torch.tensor([float(e.t_sim) - t_end for e in g], device=dev)
+        p += len(g)
+    loss = r.compression_loss(x, mask, dt)
+    return {"losses": {"memory": loss}, "metrics": {"memory/compression": float(loss.detach()),
+                                                    "memory/segments": n, "memory/events": int(mask.sum()),
+                                                    "memory/chance": math.log(max(1, int(mask.sum())))}}
 
 
 def gae_semi_markov(entries: list, kappa: float, lam: float, lp_coef: float) -> dict:
@@ -277,7 +324,8 @@ def objective_policy(agent: "CamUnifiedAgent", batch: UpdateBatch) -> dict:
     if reason_cost is not None:
         mets["policy/reason_compute"] = float(reason_cost.detach())
         mets["policy/ponder_mean"] = float(out["ponder"].detach().mean())
-    return {"losses": losses, "metrics": mets, "consumed": [d for s in subs for d in s.decision_ids]}
+    return {"losses": losses, "metrics": mets, "consumed": [d for s in subs for d in s.decision_ids],
+            "consumed_events": [(e, v) for s in subs for e, v in zip(s.event_ids or [], s.env_ids or [])]}
 
 
 DEFAULT_OBJECTIVES = {"world": objective_world, "adapt": objective_adapt, "memory": objective_memory,
@@ -338,7 +386,9 @@ class CamUnifiedAgent:
                  consolidator=None, actor_id: str = "actor0", seed: int = 0, seq_len: int = 8, n_seqs: int = 4, adapt_seq_len: int = 65,
                  adapt_n_seqs: int = 2, greedy: bool = False, objectives: Optional[dict] = None,
                  fresh_max_steps: int = 256, decision_budget: Optional[int] = None,
-                 funds_fn: Optional[Callable] = None, awr_beta: float = 1.0, awr_max_weight: float = 20.0):
+                 funds_fn: Optional[Callable] = None, awr_beta: float = 1.0, awr_max_weight: float = 20.0,
+                 loss_cap: Optional[float] = None, loss_cap_beta: float = 0.9,
+                 memory_sync_every: Optional[int] = None):
         self.model = model
         self.config: CamConfig = model.cfg
         self.archive = archive
@@ -359,6 +409,18 @@ class CamUnifiedAgent:
         self.funds_fn = funds_fn or (lambda obs: default_funds(obs, model.money_unit))
         self.awr_beta = awr_beta
         self.awr_max_weight = awr_max_weight
+        # magnitude cap per objective (spec 12.5 "do not let a large reconstruction loss dominate decision-relevant
+        # learning"): an objective whose running magnitude m_k (EMA of |L_k|, detached) exceeds `loss_cap` enters
+        # the combined loss as L_k * loss_cap / m_k (same gradient direction, bounded scale). D's trainer clips the
+        # *global* gradient norm, so without it one objective of magnitude 1e3 shrinks every other objective's step
+        # by the same factor. None = off. The scales are logged per update (balance/<objective>).
+        self.loss_cap = loss_cap
+        self.loss_cap_beta = float(loss_cap_beta)
+        self.loss_mag: dict = {}
+        # every k updates: snapshot the trained online memory encoders as the retriever's new key version and
+        # migrate the memory index to it (E: Retriever.sync_target + Consolidator.reencode_step); None = never
+        self.memory_sync_every = memory_sync_every
+        self.memory_sync_log: list = []
         self.py_rng = random.Random(seed)
         self.torch_rng = torch.Generator().manual_seed(seed)
         self.seed = seed
@@ -382,6 +444,10 @@ class CamUnifiedAgent:
         self._funds0: list = []
         self._ep_decisions: list = []
         self.timing = {"act_s": 0.0, "observe_s": 0.0, "update_s": 0.0}
+        # archived events of an abandoned branch (written after the checkpoint a lifetime was resumed from): real
+        # experience of a world state that no longer exists; never drawn for training (see `_sample`)
+        self.exclude_events: set = set()
+        self.provenance_stats = {"marked_events": 0, "replay_records_excluded": 0}
         if trainer is not None and callable(getattr(trainer, "make_optimizers", None)):
             self.make_optimizers = trainer.make_optimizers
 
@@ -626,6 +692,33 @@ class CamUnifiedAgent:
         self.steps[b] += 1
         return rec
 
+    # ---------------------------------------------------------------- recorder adapters (list doubles / F's recorder)
+    def _per_trace_recorder(self) -> bool:
+        return self.recorder is not None and hasattr(self.recorder, "add_update_refs")
+
+    def _record(self, traces: list) -> None:
+        if self.recorder is None or not traces:
+            return
+        if self._per_trace_recorder():                 # F's TraceRecorder: one DecisionTrace per call
+            for t in traces:
+                self.recorder.record(t)
+        else:
+            self.recorder.record(traces)
+
+    def _link_traces(self, decision_ids: list, events: list, update_id: str) -> None:
+        """Link the traces of consumed decisions to a learner update: F's recorder by event id per lifetime
+        (`events` = [(event_id, env_id)]), a list recorder by decision id."""
+        if self.recorder is None:
+            return
+        if self._per_trace_recorder():
+            by_env: dict = {}
+            for e, env in events:
+                by_env.setdefault(env, []).append(e)
+            for env, eids in sorted(by_env.items(), key=lambda kv: str(kv[0])):
+                self.recorder.add_update_refs(sorted(set(eids)), update_id, env_id=env)
+        elif hasattr(self.recorder, "link_updates") and decision_ids:
+            self.recorder.link_updates(decision_ids, update_id)
+
     def _archive(self, records: list) -> None:
         if not records or self.archive is None:
             return
@@ -709,7 +802,9 @@ class CamUnifiedAgent:
         self.state.scatter(rows, sub)
         for j, b in enumerate(rows):
             actions[b] = dec.actions[j]
-        ids = [(new_id("e_"), new_id("d_")) for _ in rows]
+        # event id = the executed action's id: observations the environment attributes to the action
+        # (Observation.caused_by = action_id) then resolve to its archived record
+        ids = [(dec.actions[j].action_id or new_id("e_"), new_id("d_")) for j in range(len(rows))]
         regs = [list(self.state.registries[b].slot.items()) for b in rows]
         self._pending = (rows, dec, now, ids, self.version, regs)
         self.timing["act_s"] += time.perf_counter() - t0
@@ -742,6 +837,15 @@ class CamUnifiedAgent:
             if r.startswith("mem:"):
                 out.append(r[4:])
                 continue
+            if r.startswith("seg:"):                   # E's memory segment: the segment and its source event ids
+                out.append(r)
+                ret = self.model.retriever
+                if ret is not None and callable(getattr(ret, "resolve_ref", None)):
+                    try:
+                        out.extend(str(e) for e in ret.resolve_ref(r))
+                    except (KeyError, RuntimeError, ValueError):
+                        pass
+                continue
             if r.startswith("act:"):
                 if self._last_eid.get(b):
                     out.append(self._last_eid[b])
@@ -761,11 +865,20 @@ class CamUnifiedAgent:
             out.append(r)
         return list(dict.fromkeys(out))
 
-    def observe(self, results: Sequence[Optional[ExecutionResult]], rewards: Sequence[float],
-                next_obs: ObservationBatch) -> list:
+    def observe(self, results, rewards: Optional[Sequence[float]] = None,
+                next_obs: Optional[ObservationBatch] = None) -> list:
         """Consequences of the last act(): outcomes -> beliefs/Bayes updates, EventRecords -> archive (+ index,
         replay notification), DecisionTraces -> recorder, fresh buffer for the policy objective. Returns the records
-        (including world-event records of post-action observations at episode ends)."""
+        (including world-event records of post-action observations at episode ends).
+
+        Two call shapes: observe(results [B], rewards [B], next_obs) (runtime.run_steps), or observe(transition) with
+        a lifetime-harness `envs.agent_protocol.Transition` (records [B] carrying the ExecutionResults, next_obs,
+        rewards = verified return increments). Only those fields are read: the harness's own records are its
+        transcript; the agent archives its own records (with its predictions, behaviour provenance, outcomes)."""
+        if rewards is None and next_obs is None and hasattr(results, "records") and hasattr(results, "next_obs"):
+            tr = results
+            results = [None if r is None else r.result for r in tr.records]
+            rewards, next_obs = list(tr.rewards), tr.next_obs
         t0 = time.perf_counter()
         if self._pending is None:
             return []
@@ -841,15 +954,15 @@ class CamUnifiedAgent:
             else:
                 self._post[b] = (nxt[j], float(next_obs.t[b]), eid, False)
         self._archive(records)
-        if self.recorder is not None:
-            self.recorder.record(traces)
+        self._record(traces)
         dev = self.device
         planner = torch.tensor([str(dec.behavior[j]["policy"]).startswith("planner") for j in range(len(rows))],
                                device=dev)
         fs = FreshStep(list(rows), [self.episode_ids[b] for b in rows], dec.inputs, list(dec.actions),
                        dec.logp.detach().float(), dec.value.detach().float(), torch.tensor(rew, device=dev),
                        torch.tensor(dt_actual, device=dev), torch.tensor(done, device=dev), version,
-                       [ids[j][1] for j in range(len(rows))], torch.zeros(len(rows), device=dev), planner)
+                       [ids[j][1] for j in range(len(rows))], torch.zeros(len(rows), device=dev), planner,
+                       [ids[j][0] for j in range(len(rows))], [self.env_ids[b] for b in rows])
         self.fresh.append(fs)
         for j, b in enumerate(rows):
             self._last_fresh[b] = (fs, j)
@@ -936,9 +1049,43 @@ class CamUnifiedAgent:
         for s in self.replay.sample(n, length):
             recs = s.records if hasattr(s, "records") else s
             recs = [r for r in (recs or []) if r.action is not None]
+            if self.exclude_events:
+                keep = [r for r in recs if r.event_id not in self.exclude_events]
+                self.provenance_stats["replay_records_excluded"] += len(recs) - len(keep)
+                recs = keep
             if recs:
                 out.append(recs)
         return out
+
+    def _memory_sync(self) -> Optional[dict]:
+        """Every `memory_sync_every` updates: new retriever key version from the trained online encoders, then the
+        index is re-encoded from raw archived events to it and promoted once it covers every segment."""
+        k = self.memory_sync_every
+        r = self.model.retriever
+        con = self.consolidator
+        if not k or r is None or con is None or self.version % int(k) != 0 or not hasattr(r, "sync_target") \
+                or not hasattr(con, "reencode_step"):
+            return None
+        before = r.key_version
+        after = r.sync_target()
+        info = {"version_before": before, "version_after": after, "synced": after != before,
+                "reason": (getattr(r, "sync_info", {}) or {}).get("reason")}
+        if after != before:
+            rr = con.reencode_step(max_items=None)
+            info.update({k2: rr.get(k2) for k2 in ("reencoded", "coverage", "promoted", "dropped", "kept_pinned")})
+        info["served"] = getattr(getattr(r, "index", None), "current_version", None)
+        info["update"] = self.version
+        self.memory_sync_log.append(info)
+        return info
+
+    def _lora_trained(self) -> bool:
+        """True when the semantic model's trainable (LoRA) tensors are among the optimised parameters."""
+        sem = self.model.semantic
+        lora = list(sem.lora_parameters()) if callable(getattr(sem, "lora_parameters", None)) else []
+        if not lora:
+            return False
+        ids = {id(p) for opt in self.optimizers.values() for g in opt.param_groups for p in g["params"]}
+        return any(id(p) in ids for p in lora)
 
     def _trainer_step(self, losses: dict, consumed: list) -> dict:
         fn = self.trainer.step
@@ -967,11 +1114,16 @@ class CamUnifiedAgent:
             raise RuntimeError("CamUnifiedAgent.update() needs an injected trainer (workstream D's CombinedTrainer)")
         t0 = time.perf_counter()
         seq = aux = aseq = aaux = None
+        seqs, aseqs = [], []
         replay_ids, replay_decisions = [], []
         consolidated = None
         if self.config.use_memory and self.consolidator is not None and hasattr(self.consolidator, "step"):
             consolidated = self.consolidator.step()     # new archived events -> memory segments (E)
+            if hasattr(self.consolidator, "ensure_current"):
+                self.consolidator.ensure_current()      # first segments: the index starts serving their version
         if self.replay is not None and self.archive is not None and self.archive.count() > 0:
+            if hasattr(self.replay, "sync"):
+                self.replay.sync()                      # E's sampler: membership from the archive (CDC)
             seqs = self._sample(self.n_seqs, self.seq_len)
             if seqs:
                 seq, aux = self.tokenise_sequences(seqs)
@@ -985,8 +1137,8 @@ class CamUnifiedAgent:
                         replay_decisions.append(r.extra["decision_id"])
             replay_ids, replay_decisions = sorted(set(replay_ids)), sorted(set(replay_decisions))
         self.model.train()
-        batch = UpdateBatch(seq, aux, list(self.fresh), self.model, aseq, aaux)
-        losses, metrics, consumed = {}, {}, []
+        batch = UpdateBatch(seq, aux, list(self.fresh), self.model, aseq, aaux, records=list(seqs) or None)
+        losses, metrics, consumed, consumed_events = {}, {}, [], []
         for name, fn in self.objectives.items():
             out = fn(self, batch)
             if not out:
@@ -1000,16 +1152,44 @@ class CamUnifiedAgent:
                 losses[k] = v
             metrics.update(out.get("metrics", {}))
             consumed += out.get("consumed", [])
+            consumed_events += out.get("consumed_events", [])
         if not losses:
             self.model.eval()
             return {"updated": False, "reason": "no training data yet", "version": self.version}
+        raw_losses = {k: float(v.detach()) for k, v in losses.items()}
+        if self.loss_cap is not None:
+            for k, v in list(losses.items()):
+                m = abs(raw_losses[k])
+                prev = self.loss_mag.get(k)
+                self.loss_mag[k] = m if prev is None else self.loss_cap_beta * prev + (1 - self.loss_cap_beta) * m
+                sc = min(1.0, float(self.loss_cap) / max(self.loss_mag[k], 1e-12))
+                metrics[f"balance/{k}"] = sc
+                if sc < 1.0:
+                    losses[k] = v * sc
         tm = self._trainer_step(losses, consumed)
         self.model.eval()
+        if tm.get("skipped"):                         # D's trainer refused a non-finite loss / gradient: no step
+            self.timing["update_s"] += time.perf_counter() - t0
+            return {"updated": False, "reason": "trainer skipped the step (non-finite)", "version": self.version,
+                    **{f"trainer/{k}": v for k, v in tm.items()}}
         self.version = self.version + 1               # bumps the weights epoch (query-embedding cache invalid)
+        sem = self.model.semantic
+        if sem is not None and callable(getattr(sem, "mark_updated", None)) and self._lora_trained():
+            sem.mark_updated()                        # A's decoder_version (and encoder cache key with encoder LoRA)
         update_id = str(tm.get("update_id") or f"u_{self.actor_id}_{self.version}")
         linked = sorted(set(consumed) | set(replay_decisions))
-        if self.recorder is not None and hasattr(self.recorder, "link_updates") and linked:
-            self.recorder.link_updates(linked, update_id)
+        replay_env = {}
+        for s_ in list(seqs) + list(aseqs):
+            for r in s_:
+                replay_env[r.event_id] = r.env_id
+        events = sorted(set(consumed_events) | set(replay_env.items()))
+        self._link_traces(linked, events, update_id)
+        if self.archive is not None and hasattr(self.archive, "mark_used") and events:
+            # training provenance: EventRecord.training_provenance["used_in_updates"] of every consumed event
+            self.provenance_stats["marked_events"] += int(self.archive.mark_used([e for e, _ in events], update_id))
+        sync = self._memory_sync()
+        if sync is not None:
+            metrics["memory/sync"] = sync
         mem_used = sorted({str(i) for st in batch.fresh for ids in (st.inputs.memory_ids if st.inputs else [])
                            for i in ids})
         if mem_used and self.consolidator is not None and hasattr(self.consolidator, "link_weights"):
@@ -1029,9 +1209,10 @@ class CamUnifiedAgent:
                 self._last_fresh.pop(r, None)
         self.fresh = survivors
         self.timing["update_s"] += time.perf_counter() - t0
-        entry = {"update_id": update_id, "version": self.version, "losses": {k: float(v.detach())
-                                                                             for k, v in losses.items()},
-                 "consumed_decisions": consumed, "replay_events": replay_ids, "replay_decisions": replay_decisions,
+        entry = {"update_id": update_id, "version": self.version, "losses": raw_losses,
+                 "scaled_losses": {k: float(v.detach()) for k, v in losses.items()},
+                 "consumed_decisions": consumed, "consumed_events": sorted({e for e, _ in consumed_events}),
+                 "replay_events": replay_ids, "replay_decisions": replay_decisions,
                  "adapt_seq_T": None if aseq is None else len(aseq.steps), "memory_linked": mem_used,
                  "consolidated": consolidated,
                  "adapt_k_hist": {int(k): v for k, v in sorted(self.adapt_k_hist.items())}}

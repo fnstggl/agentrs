@@ -87,7 +87,7 @@ def test_30_step_run_exercises_every_call_path():
             if "#obs:" in ref:
                 eid, i = ref.split("#obs:")
                 assert eid == t["event_id"] and int(i) < len(ids[eid].observations)
-            elif ref.startswith(("e_", "w_")):
+            elif ref.startswith(("e_", "w_", "a_")):                    # event ids (= action ids of decisions)
                 assert ref in ids, ref                                   # memory / previous-action event ids
             else:
                 assert ref.startswith(("entity:", "relation:", "goal", "tool:", "option:", "budget")), ref

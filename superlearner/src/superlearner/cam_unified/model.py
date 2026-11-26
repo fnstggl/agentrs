@@ -383,8 +383,13 @@ ALIASES = {"semantic_encoder": "semantic", "encoder": "semantic", "sem": "semant
            "outcomes": "outcome_head", "dynamics": "world_model", "obs_tokenizer": "tokenizer"}
 # optional components loaded from their default path when the module exists (absent while the workstream has not
 # merged, reported in build_report; an import error *inside* an existing module is raised); the planner is never
-# auto-loaded: its `plan(model, PlanRequest)` interface must be confirmed when C merges
+# auto-loaded: its `plan(model, PlanRequest)` interface must be confirmed when C merges.
+# The pretrained semantic model is a *dependency*, not a component of its own: it is auto-loaded only when another
+# component that build_model constructs (from a dotted path or a class) takes it as a constructor parameter (A's
+# ObservationTokenizer(cfg, encoder), ActionGenerator(cfg, encoder, tokenizer)). Assemblies whose tokenizer and
+# action generator are given as instances never load a 0.6-4 B parameter model they would not use.
 AUTO_OPTIONAL = ("semantic", "entity_encoder")
+SEMANTIC_PARAMS = frozenset({"semantic", "semantic_encoder", "encoder", "sem"})
 
 
 def cfg_params(cfg: CamConfig) -> dict:
@@ -466,12 +471,44 @@ def available_components(paths: Optional[dict] = None) -> dict:
     return out
 
 
+def _constructor_params(spec) -> set:
+    """Parameter names of a component's constructor/factory (empty for an instance or an unresolvable path)."""
+    try:
+        target = resolve_path(spec) if isinstance(spec, str) else spec
+    except (ComponentUnavailable, ComponentImportError):
+        return set()
+    if not (inspect.isclass(target) or inspect.isfunction(target) or inspect.ismethod(target)):
+        return set()
+    return _params_of(target)
+
+
+def semantic_needed(cfg: CamConfig, components: dict, paths: dict) -> bool:
+    """True when a component build_model will construct (not an instance) takes the semantic encoder."""
+    need = required_components(cfg)
+    for name in BUILD_ORDER:
+        if name == "semantic":
+            continue
+        if name in components:
+            spec = components[name]
+        elif name in need or name in AUTO_OPTIONAL:
+            spec = paths.get(name)
+        else:
+            continue
+        if spec is None:
+            continue
+        if _constructor_params(spec) & SEMANTIC_PARAMS:
+            return True
+    return False
+
+
 def build_model(cfg: CamConfig, components: Optional[dict] = None, paths: Optional[dict] = None,
                 component_kwargs: Optional[dict] = None, **model_kwargs) -> "CamUnifiedModel":
     """Assemble CamUnifiedModel. `components` maps a name to an instance, class/factory or dotted path (overrides
     `paths`, which overrides DEFAULT_COMPONENT_PATHS). A component set to None is left out (allowed only when it is
     optional for `cfg`). The belief module's Kalman channel count is sized to the outcome-key budget
     (N_CONTINUOUS_CORE + max_numeric_outcomes) when its constructor takes `n_channels` and none is given.
+    The semantic encoder is auto-loaded (default path, or `paths["semantic"]`) only when a component built here
+    takes it (see SEMANTIC_PARAMS); pass components={"semantic": obj} to inject one.
     Raises ComponentUnavailable listing every required component that cannot be built; import errors inside existing
     modules propagate (ComponentImportError)."""
     components = dict(components or {})
@@ -483,6 +520,7 @@ def build_model(cfg: CamConfig, components: Optional[dict] = None, paths: Option
     built: dict = {}
     report: dict = {}
     missing = []
+    sem_auto = "semantic" not in components and semantic_needed(cfg, components, paths)
     for name in BUILD_ORDER:
         if name in components:
             spec = components[name]
@@ -490,6 +528,10 @@ def build_model(cfg: CamConfig, components: Optional[dict] = None, paths: Option
                 built[name] = None
                 report[name] = "absent: set to None"
                 continue
+        elif name == "semantic" and not sem_auto:
+            built[name] = None
+            report[name] = "absent: no component built here takes a semantic encoder"
+            continue
         elif name in need or name in AUTO_OPTIONAL:
             spec = paths.get(name)
         else:
@@ -662,6 +704,7 @@ class PlanRequest:
     horizon: int
     n_samples: int
     generator: Optional[torch.Generator] = None
+    candidates: Optional[list] = None    # [B*n] pre-drawn CAM candidates (row b*n+i); None = the planner samples them
 
 
 @dataclass
@@ -1000,11 +1043,54 @@ class CamUnifiedModel(nn.Module):
 
     def memory_tokens(self, ids: list, now: Optional[list] = None) -> Optional[TokenSet]:
         """Differentiable MEMORY tokens of stored retrieved ids (None when the retriever cannot rebuild them)."""
-        if self.retriever is None or not hasattr(self.retriever, "memory_tokens"):
+        if self.retriever is None:
             return None
-        M = self.retriever.memory_tokens(ids, now)
-        check_tokens(M, len(ids), self.cfg.d_model, "retriever.memory_tokens")
-        return as_kind(M, TokenKind.MEMORY)
+        if hasattr(self.retriever, "memory_tokens"):
+            M = self.retriever.memory_tokens(ids, now)
+            check_tokens(M, len(ids), self.cfg.d_model, "retriever.memory_tokens")
+            return as_kind(M, TokenKind.MEMORY)
+        return self.stored_memory_tokens(ids, now)
+
+    @torch.no_grad()
+    def stored_memory_tokens(self, ids: list, now: Optional[list] = None) -> Optional[TokenSet]:
+        """MEMORY tokens of stored retrieved segment ids read back from the retriever's memory index (E's
+        MemoryIndex: the same stored values `retrieve` returned when acting, as long as the served embedding version
+        is unchanged), laid out as `Retriever.retrieve` lays them out: [B, k*T, D], refs "seg:<id>", time = segment
+        end - now. No gradient (the values are the index's, as when acting). None without a readable index."""
+        r = self.retriever
+        idx = getattr(r, "index", None)
+        version = r.served_version() if callable(getattr(r, "served_version", None)) else None
+        if idx is None or version is None or not any(ids):
+            return None
+        B, D = len(ids), self.cfg.d_model
+        T = int(getattr(r, "n_mem", self.cfg.mem_segment_tokens))
+        k = max(len(i) for i in ids)
+        dev = self.device
+        x = torch.zeros(B, k, T, D, device=dev)
+        tm = torch.zeros(B, k, T, device=dev)
+        valid = torch.zeros(B, k, dtype=torch.bool, device=dev)
+        flat = [str(s) for row in ids for s in row]
+        kids = idx.kids_of(version, flat)
+        metas = {m["seg_id"]: m for m in idx.segments([s for s, kd in zip(flat, kids) if kd >= 0])}
+        have = [kd for kd in kids if kd >= 0]
+        vals = idx.values(version, have).to(dev) if have else None
+        p = q = 0
+        for b, row in enumerate(ids):
+            nb = float(now[b]) if now is not None else 0.0
+            for j, s in enumerate(row):
+                if kids[p] >= 0 and str(s) in metas:
+                    x[b, j] = vals[q].to(x.dtype)
+                    tm[b, j] = float(metas[str(s)]["t_end"]) - nb
+                    valid[b, j] = True
+                    q += 1
+                elif kids[p] >= 0:
+                    q += 1
+                p += 1
+        self._count("memory.stored_tokens", int(valid.sum()))
+        refs = [[(f"seg:{row[j]}" if j < len(row) else None) for j in range(k) for _ in range(T)] for row in ids]
+        return TokenSet(x.reshape(B, k * T, D), valid.unsqueeze(-1).expand(B, k, T).reshape(B, k * T),
+                        torch.full((B, k * T), int(TokenKind.MEMORY), dtype=torch.long, device=dev),
+                        tm.reshape(B, k * T), torch.full((B, k * T), -1, dtype=torch.long, device=dev), refs)
 
     # ---------------------------------------------------------------- the step equation
     def _goal_and_belief(self, goals: list, fast: Optional[FastState], B: int) -> tuple:
@@ -1494,6 +1580,42 @@ class CamUnifiedModel(nn.Module):
                 "value": self._value(vout), "value_logits": None if logits is None else logits.float(),
                 "ponder": None if ponder is None else ponder.float(), "memory_rebuilt": mem is not None}
 
+    @torch.no_grad()
+    def policy_probe(self, inp: StepInputs, actions: list) -> dict:
+        """The policy at fixed stored decisions (probe contexts) under the *current* weights, computed exactly as
+        when acting: per row the log-probability parts of the recorded actions (tool / evidence / typed-head / token
+        parts when the generator exposes `log_prob_parts`), the entropies of the corresponding distributions (the
+        tool entropy is the entropy of the full tool-pointer distribution over the row's available tools), the
+        option log-probability and the value V(R, G). Weight changes that change decisions show up here on a context
+        that stays fixed (spec 18.2 'changes in action distributions')."""
+        regs = copy.deepcopy(inp.registries)
+        live = StepInputs(**{**inp.__dict__, "registries": regs})
+        B = inp.B
+        with acting_mode(self), self._autocast():
+            enc = self.encode_step(live)
+            opt_tok, opt_lp = None, torch.zeros(B, device=enc.R.device)
+            if self.option_policy is not None:
+                opt_lp, _ = self.option_policy.log_prob(enc.R, enc.goal, inp.option_prev, inp.option_steps_prev,
+                                                        inp.option, inp.option_new)
+                opt_tok = self._option_token(inp.option, inp.option_steps)
+            goal_in = self._goal_inputs(enc, opt_tok, inp.budget)
+            T = self.tokenizer.tools(inp.tools)
+            ag = self.action_generator
+            if hasattr(ag, "log_prob_parts"):
+                lp, en = ag.log_prob_parts(enc.R, goal_in, enc.belief, T, enc.obs, inp.tools, inp.obs_lists, actions)
+            else:
+                lp0, en0 = ag.log_prob(enc.R, goal_in, enc.belief, T, enc.obs, inp.tools, inp.obs_lists, actions)
+                lp, en = {"total": lp0}, {"total": en0}
+            value = self._value(self.value_head(enc.R, enc.goal))
+        rows = []
+        for b in range(B):
+            rows.append({"logp": {k: float(v[b]) for k, v in lp.items()},
+                         "logp_total": float(sum(float(v[b]) for v in lp.values())),
+                         "entropy": {k: float(v[b]) for k, v in en.items()}, "option_logp": float(opt_lp[b]),
+                         "value": float(value[b]), "reason_iters": float(enc.rinfo["iters"][b])
+                         if enc.rinfo.get("iters") is not None else None})
+        return {"rows": rows, "version": self.version}
+
     def filter_sequence(self, seq, aux: Optional[ReplayAux] = None) -> FilterResult:
         """Run F_theta over a tokenised SequenceBatch with the acting context: Z_t = F(Z_{t-1}, [O_t; A_{t-1};
         TIME(dt_{t-1}); B_t; option_{t-1}; M_t; G_t]), where B_t is re-filtered along the sequence by the belief module
@@ -1640,10 +1762,15 @@ class LatentImaginationPlanner:
         dev = req.R.device
         rep = torch.arange(B, device=dev).repeat_interleave(n)                           # candidate rows [B*n]
         ag = model.action_generator
-        model._count("action_generator.sample")
-        cands = ag.sample(req.R[rep], req.goal_in.select(rep), req.belief.select(rep), req.tools.select(rep),
-                          req.obs.select(rep), [req.tool_lists[int(i)] for i in rep],
-                          [req.obs_lists[int(i)] for i in rep], temperature=1.0, greedy=False)
+        if req.candidates is not None:
+            if len(req.candidates) != B * n:
+                raise ShapeError(f"PlanRequest.candidates: {len(req.candidates)} actions for B*n={B * n}")
+            cands = list(req.candidates)
+        else:
+            model._count("action_generator.sample")
+            cands = ag.sample(req.R[rep], req.goal_in.select(rep), req.belief.select(rep), req.tools.select(rep),
+                              req.obs.select(rep), [req.tool_lists[int(i)] for i in rep],
+                              [req.obs_lists[int(i)] for i in rep], temperature=1.0, greedy=False)
         rows = rep.repeat_interleave(ns)                                                  # rollout rows [B*n*ns]
         cand_of_row = torch.arange(B * n, device=dev).repeat_interleave(ns)
         Bb = rows.shape[0]
