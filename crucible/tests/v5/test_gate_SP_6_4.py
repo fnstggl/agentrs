@@ -1,22 +1,25 @@
 """SP-6.4 - emerging needs from reusable activity-resource-capability-constraint-need relations, not special-case
-triggers (workstream G).
+triggers (workstream F+G, D-18).
 
-Three worlds driven by the same needs-graph machinery (crucible.innovation.needs), each producing a different
-emergence:
+The instrument is the evaluator-side relation graph (`crucible.innovation.relations`): relation providers read
+world state (the population's work activities, cloud deployments, the capability registry, packages) or relations
+a world declares as data; generic rules keyed only by relation type and observable names label needs. Nothing here
+is visible in-world.
 
-* capacity: growing use of a service creates a reliability (supply) bottleneck - consumes + constrains + produces;
-  failing producers create an alternative need - requires; a substitute addresses it - substitutes + produces;
-  adoption of route.shortest creates demand for a complementary standard interface - complements;
-* batch: a technology (route.batch over route.shortest) increases compute demand on another service until its
-  constraint binds;
-* software: a verified advisory constrains a package version that a dependent requires.
-
-`special_case_need_triggers` counts (a) recorded needs whose rule or path is not made of graph edges of a relation
-type, (b) string literals in the rule code that name any entity, format or principal, and (c) differences in the
-needs derived when every agent and host of the capacity world is renamed (the rules must not care what things are
-called).
+Measured:
+* in a world driven by the population (`economy.work`), needs arise from changed conditions: hand work on an
+  undocumented task is a bottleneck (`requires` + time share); after a provider automates the first step of a
+  two-step activity, the second step becomes the bottleneck (adoption creates a need); a service whose use grows
+  past its rented capacity creates a supply need (`consumes` + `constrains` + `produces`);
+* generality: relations supplied as data with no code change - a skill an activity requires (education), a
+  transport link whose capacity binds (`loads` + `constrains`), organisational coordination load (`requires`), a
+  content community's moderation tool, and a verified-advisory constraint - are labelled by the same rules;
+* `special_case_need_triggers`: needs whose rule is not one of the generic rules or whose path is not made of
+  graph edges, plus string literals in the rule code that name an entity, a format or a principal, plus
+  differences in the labels when every node of the data scenario is renamed.
 """
 import ast
+import inspect
 
 import pytest
 
@@ -24,77 +27,108 @@ import crucible
 
 crucible.load_all_modules()
 from crucible.acceptance.v5 import evidence  # noqa: E402
-from crucible.innovation import measure as M  # noqa: E402
-from crucible.innovation import scenarios as SC  # noqa: E402
-from crucible.innovation.needs import RELATIONS, special_case_triggers  # noqa: E402
+from crucible.core.kernel import World, WorldSpec  # noqa: E402
+from crucible.innovation import relations as R  # noqa: E402
 
-pytestmark = [pytest.mark.slow, pytest.mark.timeout(2400)]
-
-
-@pytest.fixture(scope="module")
-def worlds():
-    r = {"capacity": SC.capacity(counterfactual=False), "batch": SC.batch(counterfactual=False),
-         "software": SC.software(),
-         "capacity_renamed": SC.capacity(counterfactual=False, names={"ana": "zed", "anaroute": "zedpaths",
-                                                                      "bo": "kim", "boroute": "kimpaths"})}
-    yield r
-    for x in r.values():
-        SC.close(x)
+DAY = 86400
 
 
-def _shape(w, names: dict):
-    inv = {v: k for k, v in names.items()}
+def _data_world(names=None, seed=7):
+    nm = (lambda x: x) if names is None else (lambda x: names.get(x, x))
+    rels = [
+        # education: an activity requires a skill people mostly lack (time spent working around it)
+        {"src": nm("activity/analytics"), "src_kind": "activity", "rel": "requires", "dst": nm("skill/python"),
+         "dst_kind": "skill", "obs": {"time_share": 0.6, "holders": [nm(f"p{i}") for i in range(5)]}},
+        {"src": nm("course/py101"), "src_kind": "product", "rel": "teaches", "dst": nm("skill/python"),
+         "dst_kind": "skill"},
+        # transport: a market served over a link whose capacity binds
+        {"src": nm("service/freight"), "src_kind": "service", "rel": "loads", "dst": nm("transport/route7"),
+         "dst_kind": "resource"},
+        {"src": nm("capacity/route7"), "src_kind": "constraint", "rel": "constrains", "dst": nm("transport/route7"),
+         "dst_kind": "resource"},
+        {"src": nm("service/freight"), "src_kind": "service", "rel": "produces", "dst": nm("access/coastal-market"),
+         "dst_kind": "capability"},
+        # coordination: a growing organisation's coordination load
+        {"src": nm("activity/acme-ops"), "src_kind": "activity", "rel": "requires", "dst": nm("capability/coordination"),
+         "dst_kind": "capability", "obs": {"time_share": 0.45, "holders": [nm("p:acme-a"), nm("p:acme-b")]}},
+        # content communities: a new content form whose community lacks a moderation tool (failures of a stopgap)
+        {"src": nm("activity/clips-community"), "src_kind": "activity", "rel": "requires",
+         "dst": nm("capability/moderation"), "dst_kind": "capability",
+         "obs": {"failure_share": 0.4, "holders": [nm("p9"), nm("p10")], "relied_holders": [nm("p9"), nm("p10")]}},
+        # software: an advisory constrains a package that two repositories require
+        {"src": nm("repo/a/app"), "src_kind": "repository", "rel": "requires", "dst": nm("package/vec"),
+         "dst_kind": "package", "obs": {"holders": [nm("p:a")]}},
+        {"src": nm("repo/b/app"), "src_kind": "repository", "rel": "requires", "dst": nm("package/vec"),
+         "dst_kind": "package", "obs": {"holders": [nm("p:b")]}},
+        {"src": nm("advisory/1"), "src_kind": "constraint", "rel": "constrains", "dst": nm("package/vec"),
+         "dst_kind": "package", "attrs": {"affects": [nm("repo/a/app"), nm("repo/b/app")]}},
+    ]
+    nodes = {nm("transport/route7"): {"utilisation": 0.99, "refused_share": 0.2},
+             nm("service/freight"): {"holders": [nm("p20"), nm("p21"), nm("p22")]}}
+    spec = WorldSpec("relations-data", seed, [{"name": "identity", "config": {}}],
+                     {"relations": rels, "relation_nodes": nodes})
+    return World.create(spec)
 
-    def norm(x):
-        for a, b in sorted(inv.items(), key=lambda kv: -len(kv[0])):
-            x = x.replace(a, b)
-        return x
-    return [(n["t"], n["kind"], norm(n["target"]), n["rule"], tuple((norm(e["src"]), e["rel"], norm(e["dst"]))
-                                                                  for e in n["path"]), n["status"], n["resolved_t"],
-             tuple(sorted(norm(h) for h in n["holders_ever"])))
-            for _, n in w.state.scan("needs_open")]
+
+def _shape(needs, names=None):
+    inv = {v: k for k, v in (names or {}).items()}
+    return sorted((n["kind"], inv.get(n["target"], n["target"]), n["rule"], len(n["holders"])) for n in needs)
 
 
-def test_SP_6_4_needs_emerge_from_reusable_relations(worlds):
-    used: dict[str, int] = {}
-    rules: dict[str, int] = {}
-    invalid = 0
-    emergences = []
-    for name in ("capacity", "batch", "software"):
-        w = worlds[name]["world"]
-        chk = special_case_triggers(w)
-        invalid += chk["without_valid_path"]
-        for k, v in chk["relations_used"].items():
-            used[k] = used.get(k, 0) + v
-        for k, v in chk["rules"].items():
-            rules[k] = rules.get(k, 0) + v
-        for n in M.emerged_needs(w):
-            emergences.append(f"{name}: {n['kind']} {n['target']} via {'+'.join(e['rel'] for e in n['path'])}")
-    # (b) the rule code names no entity
-    import crucible.innovation.needs as N
-    from crucible.economy.needs import NEEDS
-    from crucible.innovation.formats import FORMATS
-    consts = {n.value for n in ast.walk(ast.parse(open(N.__file__).read()))
-              if isinstance(n, ast.Constant) and isinstance(n.value, str)}
-    entity_names = set(NEEDS) | set(FORMATS) | {"route.render"}
-    for name in ("capacity", "batch", "software"):
-        st = worlds[name]["world"].state
-        entity_names |= set(st.ids("hosts")) | set(st.ids("pkg_packages")) | set(st.ids("principals"))
-    literal_hits = sorted(consts & entity_names)
-    # (c) renaming every agent and host changes nothing about which needs arise, when, how and for whom
-    a = _shape(worlds["capacity"]["world"], {})
-    b = _shape(worlds["capacity_renamed"]["world"], worlds["capacity_renamed"]["names"])
-    rename_diff = sum(1 for x, y in zip(a, b) if x != y) + abs(len(a) - len(b))
-    m = {"reusable_need_relations": sum(1 for r in RELATIONS if used.get(r, 0) > 0),
-         "special_case_need_triggers": invalid + len(literal_hits) + rename_diff,
-         "needs_without_valid_relation_path": invalid, "rule_literals_naming_entities": len(literal_hits),
-         "rename_invariance_differences": rename_diff, "emerged_needs": len(emergences),
-         "distinct_emergences": len({e.split(" via ")[0].split(": ", 1)[1] + e.split(" via ")[1] for e in emergences}),
-         **{f"relation_uses[{r}]": used.get(r, 0) for r in RELATIONS}}
-    evidence.record("SP-6.4", m, notes="Relation types counted when they occur in the derivation path of a recorded "
-                                       f"need or in the path by which a need was addressed. Rules fired: {rules}. "
-                                       f"Emergences: {emergences}. Literal hits: {literal_hits}.")
-    assert m["reusable_need_relations"] >= 5
-    assert m["special_case_need_triggers"] == 0
-    kinds = " ".join(emergences)
-    assert "supply cap:route.shortest" in kinds and "pkg:geokit" in kinds and "complements" in kinds
+def _literals_naming_entities() -> list[str]:
+    """String literals in the rule code (label) that look like entity names (contain '/', ':' or '.')."""
+    tree = ast.parse(inspect.getsource(R.label))
+    bad = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            v = node.value
+            if len(v) > 2 and any(c in v for c in "/.:") and " " not in v:      # entity-like names, not prose
+                bad.append(v)
+    return bad
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(3600)
+def test_SP_6_4_emerging_needs_from_reusable_relations():
+    from crucible.innovation import experiments as X
+    # (1) a population world: needs from changed conditions
+    res = X.run_arm(11, "factual", n=700, days=20)
+    w = res["world"]
+    t0 = res["history"][0]
+    ever = {}
+    for h in res["history"]:
+        for nid, n in h["needs"].items():
+            ever.setdefault(nid, dict(n, first_t=h["t"]))
+    emerged = {k: v for k, v in ever.items() if v["first_t"] > t0["t"] + DAY}
+    pop_rules = sorted({v["rule"] for v in ever.values()})
+    pop_rels = sorted({p["rel"] for v in ever.values() for p in v["path"]})
+    # (2) relations as data, and the same with every node renamed
+    dw = _data_world()
+    data_needs = R.label(dw)
+    names = {"activity/analytics": "activity/x1", "skill/python": "skill/x2", "transport/route7": "transport/x3",
+             "service/freight": "service/x4", "access/coastal-market": "access/x5", "capability/coordination": "c/x6",
+             "activity/acme-ops": "activity/x7", "capability/moderation": "c/x8", "package/vec": "package/x9",
+             "repo/a/app": "repo/x10", "repo/b/app": "repo/x11", "advisory/1": "advisory/x12"}
+    rw = _data_world(names)
+    renamed = R.label(rw)
+    rename_diff = int(_shape(data_needs) != _shape(renamed, names))
+    data_rels = sorted({p["rel"] for n in data_needs for p in n["path"]})
+    data_targets = sorted(n["target"] for n in data_needs)
+    used_rels = sorted(set(pop_rels) | set(data_rels))
+    triggers = R.special_case_triggers(dw, data_needs) + R.special_case_triggers(rw, renamed)
+    last = R.label(w)
+    triggers += R.special_case_triggers(w, last)
+    literals = _literals_naming_entities()
+    special = triggers + len(literals) + rename_diff
+    m = {"reusable_need_relations": len(used_rels), "special_case_need_triggers": int(special),
+         "relation_types_used": ",".join(used_rels), "population_world_needs_ever": len(ever),
+         "population_world_needs_emerged_after_genesis": len(emerged),
+         "population_rules": ",".join(pop_rules), "data_scenario_needs": len(data_needs),
+         "data_scenario_targets": ";".join(data_targets), "rename_differences": rename_diff,
+         "entity_literals_in_rules": len(literals)}
+    evidence.record("SP-6.4", m, notes="emerged needs (population world): " + "; ".join(
+        f"{k} ({v['rule']}, first day {v['first_t'] // DAY}, {v['holders']} holders)" for k, v in sorted(emerged.items())))
+    assert len(used_rels) >= 5 and special == 0, m
+    assert emerged, "needs arise from changed conditions in the population world"
+    assert {"skill/python", "access/coastal-market", "capability/coordination", "capability/moderation",
+            "package/vec"} <= set(data_targets), data_targets

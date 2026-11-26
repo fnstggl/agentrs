@@ -67,6 +67,21 @@ def solve(args, caller):
 }
 
 
+def _published_programs() -> None:
+    """Programs for public formats (the founder wrote them from the published format documents)."""
+    from ..commerce.refsolvers import GARBAGE, SOLVERS
+    from ..economy.needs import NEEDS
+    for fmt, src in SOLVERS.items():
+        nd = NEEDS[fmt]
+        PROGRAMS.setdefault(nd.title, {
+            "name": fmt, "host": fmt.replace(".", "-") + "-pro", "keywords": list(nd.keywords[:6]),
+            "doc": f"Serves the public {fmt} format as documented ({nd.title.lower()}).",
+            "outputs": {"type": "object"}, "source": src, "garbage": GARBAGE[fmt]})
+
+
+_published_programs()
+
+
 def _json_type(v) -> str:
     if isinstance(v, bool):
         return "boolean"
@@ -102,9 +117,9 @@ class NoveltyCreator:
     kind = "scripted"
 
     def __init__(self, handle: str = "maker", endowment: int = 1_500_000, capital: int = 1_000_000,
-                 min_asks: int = 3, price: int = 4, program: str = "good"):
+                 min_asks: int = 3, price: int = 4, program: str = "good", skip: tuple = ()):
         self.handle, self.endowment, self.capital = handle, endowment, capital
-        self.min_asks, self.price, self.program = min_asks, price, program
+        self.min_asks, self.price, self.program, self.skip = min_asks, price, program, tuple(skip)
         self.me = f"p:{handle}"
         self.org = self.acct = None
         self.built: dict[str, dict] = {}
@@ -139,6 +154,8 @@ class NoveltyCreator:
 
     def day(self, world) -> None:
         for title, posts in sorted(self.asks(world).items()):
+            if title in self.skip:
+                continue
             if title not in self.built and len(posts) >= self.min_asks:
                 self._build(world, title, posts)
             elif title in self.built:
@@ -166,7 +183,7 @@ class NoveltyCreator:
         if not examples:
             return
         src = spec["source"] if self.program == "good" else spec["garbage"]
-        repo = self._do(world, "code.create_repo", name=spec["host"].replace("-", ""), owner=self.org)["repo"]
+        repo = self._do(world, "code.create_repo", name=spec["host"].replace("-", "")[:39], owner=self.org)["repo"]
         self._do(world, "code.commit", repo=repo, files=service_files(src, title, price=self.price), message="v1")
         provs = sorted(self._do(world, "cloud.providers"), key=lambda p: (p["price_core_hour_cents"], p["provider"]))
         inst = self._do(world, "cloud.rent", provider=provs[0]["provider"], cores=2, account=self.acct,

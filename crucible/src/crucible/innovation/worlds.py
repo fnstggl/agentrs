@@ -81,7 +81,9 @@ def innovation_spec(seed: int, *, participants: int = 24, needs: dict | None = N
     mods.append({"name": "caps", "config": {"registry": True}})
     mods.append({"name": "infra", "config": {"providers": providers} if providers else {}})
     mods.append({"name": "pkg", "config": {}})
-    mods.append({"name": "needs", "config": {"interfaces": STANDARD_INTERFACES, **(needs_cfg or {})}})
+    # historical 5.0 scenario worlds (pre-D-18): their scripted participants read the in-world needs signal; v5
+    # gates use popworld/experiments, where needs are labelled evaluator-side only
+    mods.append({"name": "needs", "config": {"interfaces": STANDARD_INTERFACES, "visible": True, **(needs_cfg or {})}})
     if with_adopters:
         cfg = {"n": participants, "needs": needs or {"route.shortest": 1.0},
                "channels": channels or {"search": 1.0}, **(adopt or {})}

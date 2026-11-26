@@ -72,7 +72,7 @@ DEFAULTS = {"families": [], "professional_share": 0.6, "use_min": 2.0, "shop_p":
             "need_end_month_p": 0.03, "prior_accept": 0.5, "prior_weight": 2.0, "rating_weight": 0.6,
             "wom": True, "forum_board": "tools", "post_p": 0.08, "search_limit": 8, "ads_click_rate": 0.03,
             "ticket_patience_days": 3, "refund_threshold": 0.35, "first_day": 1, "rate_after": 5,
-            "publish_formats": False, "ask_p": 0.15, "ask_board": "help"}
+            "publish_formats": False, "ask_p": 0.15, "ask_board": "help", "help_share": 0.3}
 
 
 def _draw(rng, lohi, n):
@@ -106,6 +106,11 @@ class Work(Module):
                 from ..usefulness import families as _fams  # noqa: F401  (registers the families)
                 cat = C.instantiate(g["category"]["family"], int(g["category"]["seed"]), g["category"].get("params"))
                 g["need"] = C.register_category(cat).name
+            if g.get("then_category"):
+                from ..usefulness import category as C
+                from ..usefulness import families as _fams  # noqa: F401
+                tc = g["then_category"]
+                g["then"] = C.register_category(C.instantiate(tc["family"], int(tc["seed"]), tc.get("params"))).name
             if g["need"] not in _needs():
                 raise ValueError(f"work family needs a registered problem format, not {g['need']!r}")
             if g["then"] is not None and g["then"] not in _needs():
@@ -378,7 +383,7 @@ class Work(Module):
             upd["spent"][r] += cash
             value = (baseline - spent_min) * float(vot[r]) - cash
             util[r] = float(np.clip(value / max(1.0, baseline * float(vot[r])), -1.0, 1.0)) + 0.1
-            if any(not self.relied(st, i, need) for _, need in steps):
+            if self._wants_help(st, i, steps, diy[r]):
                 shop.append(r)
         if out_rows:
             ctx.emit("work.outcomes", {"rows": out_rows, "t": int(now)}, vis="internal")
@@ -389,6 +394,17 @@ class Work(Module):
         self._after_session(ctx, idx, follow, now)
         self._maybe_shop(ctx, idx, np.array(sorted(set(shop)), np.int64), now)
         return util
+
+    def _wants_help(self, st, i: int, steps, diy_row) -> list[str]:
+        """Steps the individual looks for help with: unserved steps whose hand work is a large share
+        (>= `help_share`) of the hand work left in a task - nobody shops for a tool for a trivial part of a job,
+        and automating one step makes the next one the bottleneck (adoption creates needs)."""
+        unserved = [(s, need) for s, need in steps if not self.relied(st, i, need)]
+        if not unserved:
+            return []
+        hand = sum(float(diy_row[s]) for s, _ in unserved)
+        th = float(self.cfg("help_share"))
+        return [need for s, need in unserved if hand > 0 and float(diy_row[s]) / hand >= th]
 
     @staticmethod
     def _balance(st, p: str) -> int:
@@ -580,8 +596,10 @@ class Work(Module):
             i = int(idx[r])
             p = ids.pid(i)
             shopped.append(i)
-            for s, need in self._steps(i):
-                if self.relied(st, i, need):
+            steps = self._steps(i)
+            wanted = set(self._wants_help(st, i, steps, self._col("diy")[i]))
+            for s, need in steps:
+                if need not in wanted:
                     continue
                 sample, _ = _needs()[need].generate(w.rng_for("work-sample", i, need), float(self._col("size")[i]))
                 cands = self._candidates(ctx, p, i, need, contacts[k], sample)
@@ -612,7 +630,7 @@ class Work(Module):
                     evs.append(best_ev)
                     util[r] += 0.3
                 elif not cands and ctx.rng("work.ask", i).random() < float(self.cfg("ask_p")):
-                    if self._ask(ctx, p, i, need, sample, d * vot * tasks_m):
+                    if self._ask(ctx, p, i, need, sample, d):
                         asked.append(i)
         if shopped:
             columns.batch(ctx, TABLE, "work.shopped", np.array(shopped),
@@ -625,7 +643,7 @@ class Work(Module):
                                 {"choice": np.ones(len(set(asked)), np.int32)}, table=TABLE, **MODEL)
         return util
 
-    def _ask(self, ctx, p, i, need, sample, monthly_value) -> bool:
+    def _ask(self, ctx, p, i, need, sample, minutes) -> bool:
         """Post a public request for help with an unserved task: what it is and an example of the individual's own
         input (truncated) - the demand signal an entrepreneur can read."""
         import json
@@ -638,7 +656,7 @@ class Work(Module):
             ctx.call("forum.post", {"board": self.cfg("ask_board"),
                                     "title": f"Looking for a service: {self.task_text(need)[:120]}",
                                     "body": f"I do this by hand and it takes me about "
-                                            f"{float(self._col('diy')[i, 0]):.0f} minutes a task. {what}\n"
+                                            f"{float(minutes):.0f} minutes a task. {what}\n"
                                             f"Example input: {ex}"},
                      as_principal=p)
             return True

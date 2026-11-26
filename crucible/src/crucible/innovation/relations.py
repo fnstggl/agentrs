@@ -34,7 +34,8 @@ Rules (keyed only by relation type and observable names; none names a host, pack
                 need `provide x` for a's holders;
 * unreliable  - `requires` edge a -> x relied on through producer p whose `failure_share` or `reject_share` >=
                 `unreliable`: need `alternative x`;
-* scarcity    - `consumes` edge s -> r with r `constrains`-ed and `utilisation` >= `scarce` or `refused_share` >=
+* scarcity    - `consumes` (or `loads`) edge s -> r with r `constrains`-ed and `utilisation` >= `scarce` or
+                `refused_share` >=
                 `refused`: need `supply x` for everything s `produces`, held by s's users and operator;
 * overflow    - an activity with `lost_share` >= `overflow`: need `capacity a` (more throughput for its dominant
                 requirement);
@@ -105,6 +106,8 @@ def observe(world, edges: list[dict]) -> dict[str, dict]:
     for e in edges:                     # edge-level observables (e.g. time share of one requirement)
         for k, v in (e["attrs"].get("obs") or {}).items():
             obs.setdefault(_ekey(e), {})[k] = v
+    for n, vals in (world.spec.params.get("relation_nodes") or {}).items():   # node observables given as data
+        obs.setdefault(n, {}).update(vals)
     return obs
 
 
@@ -153,7 +156,7 @@ def label(world, thresholds: dict | None = None) -> list[dict]:
             if fs >= th["unreliable"] and relied:
                 add("alternative", e["dst"], "unreliable", relied, path(e), {"failure_share": o.get("failure_share"),
                                                                              "reject_share": o.get("reject_share")})
-        elif e["rel"] == "consumes":
+        elif e["rel"] in ("consumes", "loads"):
             ro = obs.get(e["dst"], {})
             cons = [c for c in by_dst.get(e["dst"], []) if c["rel"] == "constrains"]
             if cons and (float(ro.get("utilisation", 0.0)) >= th["scarce"] or
@@ -163,14 +166,14 @@ def label(world, thresholds: dict | None = None) -> list[dict]:
                     if pe["rel"] == "produces":
                         add("supply", pe["dst"], "scarcity", users, path(e, cons[0], pe),
                             {"utilisation": ro.get("utilisation"), "refused_share": ro.get("refused_share")})
-        elif e["rel"] == "constrains":
+        elif e["rel"] == "constrains" and e["attrs"].get("affects"):
+            hit, hs = [], []
             for req in by_dst.get(e["dst"], []):
-                if req["rel"] != "requires":
-                    continue
-                ro = obs.get(_ekey(req), {})
-                if e["attrs"].get("affects") and req["src"] in set(e["attrs"]["affects"]):
-                    add("alternative", e["dst"], "advisory", ro.get("holders") or [req["src"]], path(e, req),
-                        {"constraint": e["src"]})
+                if req["rel"] == "requires" and req["src"] in set(e["attrs"]["affects"]):
+                    hit.append(req)
+                    hs += obs.get(_ekey(req), {}).get("holders") or [req["src"]]
+            if hit:
+                add("alternative", e["dst"], "advisory", hs, path(e, *hit), {"constraint": e["src"]})
     for n, o in sorted(obs.items()):
         if "|" not in n and float(o.get("lost_share", 0.0)) >= th["overflow"]:
             reqs = [e for e in by_src.get(n, []) if e["rel"] == "requires"]
