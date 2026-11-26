@@ -602,13 +602,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-G-1 (critical, open): pkg.advisory is 'verified' iff any repro test fails (pkg.py:772): an assert-False repro that never touches vec
+### DEF-G-1 (critical, fixed): pkg.advisory is 'verified' iff any repro test fails (pkg.py:772): an assert-False repro that never touches vec
 
 ```json
 {
  "area": "G_innovation",
+ "fixed_by": "wave 2 (08ea124): an advisory is verified only by a release that makes its reproduction pass; wave 3b (c5c/w3b-econ2, D-42): a reproduction must exercise the package across the attested package boundary, so a test that never touches the package or only sniffs its source is refused",
  "id": "DEF-G-1",
  "owner": "G (ECON)",
+ "regression_tests": "tests/test_v5_innovation_pkg.py::test_advisories_are_verified_only_by_a_release_that_fixes_them; red-team probe v5.innovation.advisory_by_sniffing_the_package_source (tests/v5/test_gate_W.py::test_W4_metric_manipulation)",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -616,18 +618,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/G_innovation.json",
   "finding": 0
  },
- "status": "open",
+ "status": "fixed",
  "summary": "pkg.advisory is 'verified' iff any repro test fails (pkg.py:772): an assert-False repro that never touches vecmath was verified critical, spawned an alternative need for its dependent, and can never be marked fixed."
 }
 ```
 
-### DEF-G-2 (critical, open): Adoption-by-execution is forgeable: dependent code overwrote _pkgtrace._C (pkg.py:46) or committed its own dep
+### DEF-G-2 (critical, fixed): Adoption-by-execution is forgeable: dependent code overwrote _pkgtrace._C (pkg.py:46) or committed its own dep
 
 ```json
 {
  "area": "G_innovation",
+ "fixed_by": "wave 2: parent-side adoption by ablation, mounts owned by the package manager; wave 3b (D-42): the attested package boundary (measurement runs hold API proxies, each package runs in its own sandbox process, credit needs an exact control reproduction, a parent-observed call and a changed outcome)",
  "id": "DEF-G-2",
  "owner": "G (ECON)",
+ "regression_tests": "tests/test_v5_innovation_pkg.py::test_forged_adoption_and_lineage_are_not_recorded, ::test_attested_boundary_credits_calls_not_reading_the_package; tests/v5/test_gate_SP_6_5b.py (six forgeries, 0 credited, honest control credited)",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -635,18 +639,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/G_innovation.json",
   "finding": 1
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Adoption-by-execution is forgeable: dependent code overwrote _pkgtrace._C (pkg.py:46) or committed its own deps/vecmath/ files; both recorded independent adoptions with no real calls; invariants stayed clean."
 }
 ```
 
-### DEF-G-3 (critical, open): Demand is closed to predefined formats with hidden-truth verifiers (adopt.py:78,143): a novel palette.extract 
+### DEF-G-3 (critical, fixed): Demand is closed to predefined formats with hidden-truth verifiers (adopt.py:78,143): a novel palette.extract 
 
 ```json
 {
  "area": "G_innovation",
+ "fixed_by": "wave 2: the population's work on procedurally generated, undocumented task categories with world-physics acceptance; wave 3b (D-43, D-44): composed task categories, autonomous population developers who serve them from public requests, and workflows of independently created services",
  "id": "DEF-G-3",
  "owner": "G (ECON)",
+ "regression_tests": "tests/test_v5_innovation_devs.py; tests/v5/test_gate_SP_6_3.py; tests/v5/test_gate_SP_6_3b.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -654,18 +660,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/G_innovation.json",
   "finding": 2
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Demand is closed to predefined formats with hidden-truth verifiers (adopt.py:78,143): a novel palette.extract service got 24 'discoverers', 0 trials, 0 adopters. 6.3 novel categories / 6.4 novel combinations cannot be adopted."
 }
 ```
 
-### DEF-G-4 (critical, open): The deterministic cost model meters Python lines (sandbox/bridge.py:20,101): 149 ms of builtin work is metered
+### DEF-G-4 (critical, fixed): The deterministic cost model meters Python lines (sandbox/bridge.py:20,101): 149 ms of builtin work is metered
 
 ```json
 {
  "area": "G_innovation",
+ "fixed_by": "workstream O wave 3 (D-20): sandbox work is metered by the parent, C builtins are billed (probe v5.sandbox.c_builtins_are_billed, meter forgeries held); J.7 measures a pre-existing resource (the population's hand-work minutes saved) since wave 2, and reports developers' compute drawn from providers",
  "id": "DEF-G-4",
  "owner": "G (ECON)",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W3_reward_hacking; tests/v5/test_gate_J.py::test_J7_deployment_changes_world_resource_consumption",
  "requirements": [
   "J.7"
  ],
@@ -675,7 +683,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/G_innovation.json",
   "finding": 3
  },
- "status": "open",
+ "status": "fixed",
  "summary": "The deterministic cost model meters Python lines (sandbox/bridge.py:20,101): 149 ms of builtin work is metered 0.043 ms, a 1.7 ms loop 4.04 ms. J.7 and the capacity-driven needs rest on it; builtins give free compute."
 }
 ```
@@ -699,13 +707,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-G-6 (critical, open): Observation-only conflicts: the needs oracle reaches holders (adopters read nmod._held); 'independent' verdict
+### DEF-G-6 (critical, fixed): Observation-only conflicts: the needs oracle reaches holders (adopters read nmod._held); 'independent' verdict
 
 ```json
 {
  "area": "G_innovation",
+ "fixed_by": "wave 2: needs events evaluator-only by default, no independence verdicts in caps tools or events, L.n1 counts every post-admission system credit; wave 3b: the pull-request review rule uses public identity facts (no related-party verdict in-world), L.n1 verifies population income deposits against the population's own deposit records",
  "id": "DEF-G-6",
  "owner": "G (ECON)",
+ "regression_tests": "tests/test_v5_innovation_caps.py; tests/test_v5_innovation_needs.py; tests/test_v5_innovation_pkg.py::test_review_rule_uses_public_facts_not_the_evaluators_relatedness; tests/v5/test_gate_L.py::test_Ln1_no_special_case_success_bonuses",
  "requirements": [
   "L.n1"
  ],
@@ -715,7 +725,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/G_innovation.json",
   "finding": 5
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Observation-only conflicts: the needs oracle reaches holders (adopters read nmod._held); 'independent' verdicts appear in search results and caps.tried/adopted (a Sybil oracle). L.n1 misses system 'endowment' bonuses."
 }
 ```

@@ -220,3 +220,22 @@ def test_attested_boundary_credits_calls_not_reading_the_package(world):
     assert rec["reproducible"] is True and rec["boundary_calls"] == {"vecmath": 1}
     assert [a["repo"] for a in M.adoptions_by_execution(w)] == ["ben/reader"]
     assert w.check_invariants() == []
+
+
+def test_review_rule_uses_public_facts_not_the_evaluators_relatedness(world):
+    """Audit G 5.4 / DEF-G-6: the merge rule's outside-reviewer test is computed from public identity facts (not the
+    author, no organisation in common); the evaluator's related-party verdict (shared controller, money) is never
+    computed in-world, so a review event cannot be used as a Sybil oracle."""
+    w = world
+    w.system_call("admin.join", {"handle": "sock", "endowment": 1000, "kind": "agent", "controller": "lab-dan"})
+    w.system_call("admin.join", {"handle": "dan2", "endowment": 1000, "kind": "agent", "controller": "lab-dan"})
+    must(w, "dan2", "pkg.fork", package="vecmath", name="vec-d2")
+    must(w, "dan2", "code.commit", repo="dan2/vec-d2", files={"lib.py": R.VEC_LIB + "\n"})
+    pr = must(w, "dan2", "pkg.pr_open", repo="eve/vecmath", source_repo="dan2/vec-d2", title="tweak")["pr"]
+    must(w, "sock", "pkg.pr_diff", pr=pr)
+    rv = must(w, "sock", "pkg.pr_review", pr=pr, verdict="approve")
+    ev = [e for e in w.log if e.type == "pkg.review"][-1]
+    assert ev.payload["independent"] is True            # the public-fact rule: no shared organisation
+    assert not M.independent(w, "p:dan2", "p:sock")      # the evaluator: same controller, related
+    assert M.software_features(w)["evidence"]["independent_review"] == 0
+    assert w.state.get("pkg_reviews", rv["review"])["independent"]

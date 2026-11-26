@@ -343,7 +343,8 @@ def software_features(world: World) -> dict:
         "dependency_graph": len(deps) + (1 if transitive else 0),
         "issue_tracker": len(issues),
         "pull_requests": len(st.tables.get("pkg_prs", {})),
-        "independent_review": sum(1 for r in st.tables.get("pkg_reviews", {}).values() if r["independent"]),
+        "independent_review": sum(1 for r in st.tables.get("pkg_reviews", {}).values() if r["independent"] and
+                                  independent(world, r["reviewer"], st.tables["pkg_prs"][r["pr"]]["author"])),
         "testing": len(st.tables.get("pkg_execs", {})) + sum(1 for r in rel if r["tests"]["passed"] + r["tests"]["failed"]),
         "releases": len(rel),
         "documentation": sum(1 for r in rel if r["docs"]),

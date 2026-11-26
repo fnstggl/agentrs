@@ -1,248 +1,612 @@
 {
  "workstream": "G",
- "branch": "worktree-wf_62a0cf0b-bb3-5",
- "commit": "see git log of the branch (this file is committed with the work it describes)",
- "requirements": [
-  {
-   "id": "J.1",
+ "branch": "c5c/w3b-econ2",
+ "requirements": {
+  "J.1": {
    "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/experiments.py",
     "src/crucible/innovation/caps.py",
     "src/crucible/innovation/pkg.py",
-    "src/crucible/innovation/measure.py",
-    "src/crucible/innovation/scenarios.py",
-    "src/crucible/innovation/reference.py"
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
    ],
    "tests": [
     "tests/v5/test_gate_J.py",
     "tests/test_v5_innovation_caps.py",
-    "tests/test_v5_innovation_pkg.py"
+    "tests/test_v5_innovation_pkg.py",
+    "tests/test_v5_innovation_devs.py"
    ],
-   "state": "implemented",
-   "notes": "4 agent-created executable products (1 declared service that answered 1,092 requests, 3 packages). Creators are scripted reference agents acting through tools."
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "products of the population's autonomous developers (services, packages) that executed for independent users"
   },
-  {
-   "id": "J.2",
+  "J.2": {
    "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/experiments.py",
     "src/crucible/innovation/caps.py",
     "src/crucible/innovation/pkg.py",
-    "src/crucible/innovation/measure.py"
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
    ],
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "state": "implemented",
-   "notes": "published = public caps.declared (search-indexed) or public pkg.released; 4 measured."
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "published = live and declared (services) or released (packages) at the end"
   },
-  {
-   "id": "J.3",
+  "J.3": {
    "implementation_files": [
-    "src/crucible/innovation/caps.py",
-    "src/crucible/innovation/adopt.py",
-    "src/crucible/innovation/measure.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_J.py"
-   ],
-   "state": "implemented",
-   "notes": "24 independent discoverers of the service (caps.seen / learned host). Participants are workstream-G need-driven adopters until the workstream-B population exists; measure.discoverers counts any unrelated principal."
-  },
-  {
-   "id": "J.4",
-   "implementation_files": [
-    "src/crucible/innovation/caps.py",
-    "src/crucible/innovation/adopt.py",
-    "src/crucible/innovation/measure.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_J.py"
-   ],
-   "state": "implemented",
-   "notes": "24 independent users for whom the service executed (caps.try trials, counted use, paid calls)."
-  },
-  {
-   "id": "J.5",
-   "implementation_files": [
-    "src/crucible/innovation/adopt.py",
-    "src/crucible/innovation/scenarios.py",
-    "src/crucible/innovation/measure.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_J.py"
-   ],
-   "state": "implemented",
-   "notes": "Forks of one snapshot before creation: same declaration and price, Dijkstra vs hop-count implementation; 24/24 vs 1/24 adopters; Fisher exact p = 1.6e-12 (first run 2.0e-11)."
-  },
-  {
-   "id": "J.6",
-   "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
     "src/crucible/innovation/measure.py",
-    "src/crucible/innovation/adopt.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_J.py"
-   ],
-   "state": "implemented",
-   "notes": "1,092 ledger sales from 24 independent payers' own accounts (system accounts and related parties excluded)."
-  },
-  {
-   "id": "J.7",
-   "implementation_files": [
-    "src/crucible/innovation/measure.py",
-    "src/crucible/innovation/scenarios.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_J.py"
-   ],
-   "state": "implemented",
-   "notes": "+57,694 metered compute units and +9,100 cents compute rent vs the fork in which the agent does not create the product."
-  },
-  {
-   "id": "J.n1",
-   "implementation_files": [
-    "src/crucible/innovation/measure.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_J.py"
-   ],
-   "state": "implemented",
-   "notes": "2 categories: api_service (capability registry) and software_package (adopted by execution)."
-  },
-  {
-   "id": "L.1",
-   "implementation_files": [
+    "src/crucible/innovation/experiments.py",
     "src/crucible/innovation/caps.py",
-    "src/crucible/innovation/needs.py",
-    "src/crucible/innovation/scenarios.py",
-    "src/crucible/innovation/measure.py"
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "min over task categories of the best product's individuals who considered it after the interface check or tried it"
+  },
+  "J.4": {
+   "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "min over categories: individuals for whom it executed on their own input"
+  },
+  "J.5": {
+   "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "Fisher test kept/tried, factual vs garbage arm (developers ship input-ignoring programs), summed over categories"
+  },
+  "J.6": {
+   "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "paid calls net of refunds from independent payers (commerce.integrity payer weights)"
+  },
+  "J.7": {
+   "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "population hand-work minutes saved against the arm where the category is not built (pre-existing resource); developers' compute drawn from providers reported"
+  },
+  "J.n1": {
+   "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "task categories passing J.1-J.7, incl. generated undocumented and composed categories"
+  },
+  "L.1": {
+   "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
    ],
    "tests": [
     "tests/v5/test_gate_L.py"
    ],
-   "state": "implemented",
-   "notes": "5 effects measured by forks with/without the agent-created capability (needs, switching, base-service compute, overloads, paid calls)."
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "pre-existing conditions changed by inventions (counterfactual removal): hand-work minutes of novel and documented activities, tasks lost, incumbents' subscriptions, provider compute"
   },
-  {
-   "id": "L.2",
+  "L.2": {
    "implementation_files": [
-    "src/crucible/innovation/needs.py",
-    "src/crucible/innovation/measure.py"
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
    ],
    "tests": [
     "tests/v5/test_gate_L.py",
     "tests/test_v5_innovation_needs.py"
    ],
-   "state": "implemented",
-   "notes": "8 needs first derived after the first needs update (supply, alternative, provide via complements, package alternative)."
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "needs first labelled after genesis by the evaluator's relation graph"
   },
-  {
-   "id": "L.3",
+  "L.3": {
    "implementation_files": [
-    "src/crucible/innovation/needs.py",
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
     "src/crucible/innovation/measure.py",
-    "src/crucible/innovation/adopt.py"
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
    ],
    "tests": [
     "tests/v5/test_gate_L.py",
     "tests/test_v5_innovation_needs.py"
    ],
-   "state": "implemented",
-   "notes": "2 needs addressed by things created after they arose (a substitute service adopted by 32 holders; a fixed release adopted by the dependent); both resolved."
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "needs served by a provider created after the need's chain began and adopted by holders"
   },
-  {
-   "id": "L.4",
+  "L.4": {
    "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
     "src/crucible/innovation/measure.py",
-    "src/crucible/innovation/scenarios.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_L.py"
-   ],
-   "state": "implemented",
-   "notes": "4 chains of 4-5 stages in 4 worlds/seeds (capacity, technology-compute, social discovery, software security); first acts are scripted reference agents, later stages arise from generic mechanisms."
-  },
-  {
-   "id": "L.5",
-   "implementation_files": [
-    "src/crucible/innovation/scenarios.py",
-    "src/crucible/innovation/measure.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_L.py"
-   ],
-   "state": "implemented",
-   "notes": "3 of 3 removal forks confirm the dependency (exact under the deterministic cost model; invariants clean in every fork)."
-  },
-  {
-   "id": "L.n1",
-   "implementation_files": [
-    "src/crucible/innovation/measure.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_L.py"
-   ],
-   "state": "implemented",
-   "notes": "0 credits to creators from system accounts after genesis (runtime) and 0 references to system accounts outside genesis in crucible/innovation (static)."
-  },
-  {
-   "id": "SP-6.3",
-   "implementation_files": [
+    "src/crucible/innovation/experiments.py",
     "src/crucible/innovation/caps.py",
-    "src/crucible/innovation/adopt.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py"
+   ],
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "chains mined generically (need -> public request -> developer artifact -> adoption -> relief; adoption creating a need; package -> independent developer's adoption by execution -> service -> adoption); distinct first changes; no scripted stage"
+  },
+  "L.5": {
+   "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
     "src/crucible/innovation/measure.py",
-    "src/crucible/innovation/scenarios.py"
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py"
+   ],
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "chains whose later stages do not happen in the arm where the first change was removed"
+  },
+  "L.n1": {
+   "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py"
+   ],
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "notes": "system credits to creators after admission (population income deposits verified against the population's deposit records) + static scan"
+  },
+  "SP-6.3": {
+   "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_6_3.py",
     "tests/test_v5_innovation_caps.py"
    ],
-   "state": "implemented",
-   "notes": "A service created after genesis was discovered, tested on participants own generated inputs, adopted and used by 24; a useless service was tested by 24 and adopted by 0; independent suite 1.00 vs 0.50."
+   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending",
+   "notes": "a service for a generated undocumented category, created after genesis, discovered, tried on own input, adopted; garbage counterpart tried and not adopted"
   },
-  {
-   "id": "SP-6.4",
+  "SP-6.3b": {
    "implementation_files": [
-    "src/crucible/innovation/needs.py",
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/experiments.py",
     "src/crucible/innovation/caps.py",
-    "src/crucible/innovation/pkg.py"
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_6_4.py",
-    "tests/test_v5_innovation_needs.py"
+    "tests/v5/test_gate_SP_6_3b.py"
    ],
-   "state": "implemented",
-   "notes": "6 relation types used by derivation/addressing paths; 0 special-case triggers (path validity, rule-code literals, rename invariance)."
+   "status_claim": "implemented; passes on creation worlds locally (unofficial: 0 single-judge paths, 115 novel-category adoptions, 2 verified workflows used by 42 individuals); civilisation run pending",
+   "notes": "workflows: caps.compose registry objects verified by observed service-to-service calls (D-44); single-judge scan is static (AST) over the usefulness decision functions with an LM negative control"
   },
-  {
-   "id": "SP-6.5",
+  "SP-6.5b": {
+   "implementation_files": [
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/innovation/relations.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/redteam/v5/innovation.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_5b.py"
+   ],
+   "status_claim": "implemented; lean parts pass locally (6 forgeries 0 credited, honest control credited, star-only 0); civilisation part passes on creation worlds (unofficial)",
+   "notes": "attested package boundary (D-42); autonomous developers adopt other developers' packages through CI; creators' deployments never trusted in-process"
+  },
+  "W.4 (G share)": {
    "implementation_files": [
     "src/crucible/innovation/pkg.py",
-    "src/crucible/innovation/measure.py",
-    "src/crucible/innovation/reference.py"
+    "src/crucible/redteam/v5/innovation.py",
+    "src/crucible/redteam/v5/suite.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_6_5.py",
+    "tests/v5/test_gate_W.py::test_W4_metric_manipulation",
     "tests/test_v5_innovation_pkg.py"
    ],
-   "state": "implemented",
-   "notes": "15 of 15 features from recorded state; 2 adoptions by traced execution (one transitive); stars and declared-only dependencies not counted."
+   "status_claim": "closed for G: v5.innovation.adoption_by_reading_the_package_source holds (moved to FIXED_BY_OWNERS); 9 innovation probes hold locally",
+   "notes": "W.4 is owned by O; only G's KNOWN_OPEN entry is closed here"
   }
- ],
- "dependencies_used": [],
+ },
  "limitations": [
-  "Creators and developers are scripted reference agents (feasibility, labelled kind=scripted); participants are workstream-G rule-based need-driven adopters (crucible.innovation.adopt), not the workstream-B population.",
-  "The social channel used is the 4.0 forum; workstream-C platforms are not used yet.",
-  "Needs observables cover services, compute instances, declared capabilities and packages; content, communities, education, organisations and supply chains are not observed yet. complements comes from JSON-schema structure or world-configured relations.",
-  "Objective usefulness only for formats with a verifier (4.0 NEEDS and innovation.formats); subjective usefulness from diverse participant responses is not implemented here.",
-  "Adoption tracing counts Python-level calls into deps/<repo>/ (sys.setprofile); import-only use is not adoption.",
-  "The v5 registry is opt-in per world (caps config registry: true) so that 4.0 worlds keep their exact digests.",
-  "No substrate (workstream A) interface is used: it was not merged; packages are code repositories, not content-addressed artifacts, and cross-module effects use 4.0 hooks rather than bus.subscribe."
+  "Developer labour is modelled (devs.labour): an understood task is written as one of its known reference approaches chosen by craft; developers do not synthesise new algorithms. Quality is measured by world physics.",
+  "Civilisation evidence of this wave depends on the GPU slot queue; the local runs are on the ECON creation world with developers (same modules, cheaper compute) - see test_results_unofficial.",
+  "Package adoption is attested through the declared JSON API only (D-42).",
+  "SP-6.4b (need mechanism examples) is not finished: see integration_notes and not_done."
  ],
  "integration_notes": [
-  "innovation/caps.py registers a subclass of the 4.0 Capabilities module under the same name 'caps' (MODULES['caps'] is replaced when crucible.innovation.modules is imported). All 4.0 endpoints/appliers/processes are inherited unchanged. With config registry: true, caps.search accepts {query} (v5) as well as {q} (4.0 behaviour) and the v5 endpoints exist; without it the v5 endpoints are withdrawn at install and caps.search keeps its exact 4.0 schema, so 4.0/3.0 tool catalogues, digests and logs are unchanged (tests/test_diagnostics.py 3.0 catalogue check passes).",
-  "To enable the v5 registry in a world: {'name': 'caps', 'config': {'registry': true}}; add 'needs' and 'pkg' (pkg depends on identity, bank, code, issues); 'adopt' and 'infra' are optional (participants, providers). innovation.worlds.innovation_spec builds such a world.",
-  "Population (B) integration point: world.hooks['needs_demand'](world) -> [(principal, capability, schema)] declares what individuals' tasks require; population individuals that call caps.search/caps.try/caps.adopt_service as their principals are measured by innovation.measure without changes.",
-  "Civilization (J) integration point: needs module config 'interfaces' (standard capability schemas) and 'edges' (relations as data) let a generator add couplings without code; chains/counterfactual helpers are innovation.measure.Stage/chain_record/counterfactual and innovation.scenarios.arms.",
-  "Primitives (A, section 1.5): pkg adds package/release/dependency records over 4.0 code repositories (the software_repository owner) and does not declare a second repository table; caps declarations add typed descriptions of 4.0 cloud services (the service owner).",
-  "Evidence files under docs/v5/evidence/ produced while testing on this branch were not committed."
- ]
+  "CIV (crucible.civ.generator): add module 'devs' to ORDER after 'pkg' (and to SUBSYSTEMS technology_invention/software_development or POPULATION_MODULES), and draw generated work categories (innovation.inventworld.novel_family / composed_family) per profile; until then innovation.inventworld.civ_spec adds them on the generator's own spec.",
+  "F (economy/work.py): additive change - work families may carry 'compose': [{family, seed}, {family, seed}] (a composed generated category registered like other generated categories).",
+  "A/services (services/code.py): additive change - population principals p<i> can own repositories (handle = principal).",
+  "O (redteam/v5/suite.py): minimal edit - v5.innovation.adoption_by_reading_the_package_source moved from KNOWN_OPEN to FIXED_BY_OWNERS; redteam/v5/innovation.py gained two probes (adoption_by_inspecting_the_measurement_runs, advisory_by_sniffing_the_package_source).",
+  "O: DEF-O-3 (adoption forgery) is closed by D-42 as far as G's code goes; O may re-verify and close it."
+ ],
+ "history": {
+  "wave 1 (worktree-wf_62a0cf0b-bb3-5)": {
+   "workstream": "G",
+   "branch": "worktree-wf_62a0cf0b-bb3-5",
+   "commit": "see git log of the branch (this file is committed with the work it describes)",
+   "requirements": [
+    {
+     "id": "J.1",
+     "implementation_files": [
+      "src/crucible/innovation/caps.py",
+      "src/crucible/innovation/pkg.py",
+      "src/crucible/innovation/measure.py",
+      "src/crucible/innovation/scenarios.py",
+      "src/crucible/innovation/reference.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_J.py",
+      "tests/test_v5_innovation_caps.py",
+      "tests/test_v5_innovation_pkg.py"
+     ],
+     "state": "implemented",
+     "notes": "4 agent-created executable products (1 declared service that answered 1,092 requests, 3 packages). Creators are scripted reference agents acting through tools."
+    },
+    {
+     "id": "J.2",
+     "implementation_files": [
+      "src/crucible/innovation/caps.py",
+      "src/crucible/innovation/pkg.py",
+      "src/crucible/innovation/measure.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_J.py"
+     ],
+     "state": "implemented",
+     "notes": "published = public caps.declared (search-indexed) or public pkg.released; 4 measured."
+    },
+    {
+     "id": "J.3",
+     "implementation_files": [
+      "src/crucible/innovation/caps.py",
+      "src/crucible/innovation/adopt.py",
+      "src/crucible/innovation/measure.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_J.py"
+     ],
+     "state": "implemented",
+     "notes": "24 independent discoverers of the service (caps.seen / learned host). Participants are workstream-G need-driven adopters until the workstream-B population exists; measure.discoverers counts any unrelated principal."
+    },
+    {
+     "id": "J.4",
+     "implementation_files": [
+      "src/crucible/innovation/caps.py",
+      "src/crucible/innovation/adopt.py",
+      "src/crucible/innovation/measure.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_J.py"
+     ],
+     "state": "implemented",
+     "notes": "24 independent users for whom the service executed (caps.try trials, counted use, paid calls)."
+    },
+    {
+     "id": "J.5",
+     "implementation_files": [
+      "src/crucible/innovation/adopt.py",
+      "src/crucible/innovation/scenarios.py",
+      "src/crucible/innovation/measure.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_J.py"
+     ],
+     "state": "implemented",
+     "notes": "Forks of one snapshot before creation: same declaration and price, Dijkstra vs hop-count implementation; 24/24 vs 1/24 adopters; Fisher exact p = 1.6e-12 (first run 2.0e-11)."
+    },
+    {
+     "id": "J.6",
+     "implementation_files": [
+      "src/crucible/innovation/measure.py",
+      "src/crucible/innovation/adopt.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_J.py"
+     ],
+     "state": "implemented",
+     "notes": "1,092 ledger sales from 24 independent payers' own accounts (system accounts and related parties excluded)."
+    },
+    {
+     "id": "J.7",
+     "implementation_files": [
+      "src/crucible/innovation/measure.py",
+      "src/crucible/innovation/scenarios.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_J.py"
+     ],
+     "state": "implemented",
+     "notes": "+57,694 metered compute units and +9,100 cents compute rent vs the fork in which the agent does not create the product."
+    },
+    {
+     "id": "J.n1",
+     "implementation_files": [
+      "src/crucible/innovation/measure.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_J.py"
+     ],
+     "state": "implemented",
+     "notes": "2 categories: api_service (capability registry) and software_package (adopted by execution)."
+    },
+    {
+     "id": "L.1",
+     "implementation_files": [
+      "src/crucible/innovation/caps.py",
+      "src/crucible/innovation/needs.py",
+      "src/crucible/innovation/scenarios.py",
+      "src/crucible/innovation/measure.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_L.py"
+     ],
+     "state": "implemented",
+     "notes": "5 effects measured by forks with/without the agent-created capability (needs, switching, base-service compute, overloads, paid calls)."
+    },
+    {
+     "id": "L.2",
+     "implementation_files": [
+      "src/crucible/innovation/needs.py",
+      "src/crucible/innovation/measure.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_L.py",
+      "tests/test_v5_innovation_needs.py"
+     ],
+     "state": "implemented",
+     "notes": "8 needs first derived after the first needs update (supply, alternative, provide via complements, package alternative)."
+    },
+    {
+     "id": "L.3",
+     "implementation_files": [
+      "src/crucible/innovation/needs.py",
+      "src/crucible/innovation/measure.py",
+      "src/crucible/innovation/adopt.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_L.py",
+      "tests/test_v5_innovation_needs.py"
+     ],
+     "state": "implemented",
+     "notes": "2 needs addressed by things created after they arose (a substitute service adopted by 32 holders; a fixed release adopted by the dependent); both resolved."
+    },
+    {
+     "id": "L.4",
+     "implementation_files": [
+      "src/crucible/innovation/measure.py",
+      "src/crucible/innovation/scenarios.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_L.py"
+     ],
+     "state": "implemented",
+     "notes": "4 chains of 4-5 stages in 4 worlds/seeds (capacity, technology-compute, social discovery, software security); first acts are scripted reference agents, later stages arise from generic mechanisms."
+    },
+    {
+     "id": "L.5",
+     "implementation_files": [
+      "src/crucible/innovation/scenarios.py",
+      "src/crucible/innovation/measure.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_L.py"
+     ],
+     "state": "implemented",
+     "notes": "3 of 3 removal forks confirm the dependency (exact under the deterministic cost model; invariants clean in every fork)."
+    },
+    {
+     "id": "L.n1",
+     "implementation_files": [
+      "src/crucible/innovation/measure.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_L.py"
+     ],
+     "state": "implemented",
+     "notes": "0 credits to creators from system accounts after genesis (runtime) and 0 references to system accounts outside genesis in crucible/innovation (static)."
+    },
+    {
+     "id": "SP-6.3",
+     "implementation_files": [
+      "src/crucible/innovation/caps.py",
+      "src/crucible/innovation/adopt.py",
+      "src/crucible/innovation/measure.py",
+      "src/crucible/innovation/scenarios.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_6_3.py",
+      "tests/test_v5_innovation_caps.py"
+     ],
+     "state": "implemented",
+     "notes": "A service created after genesis was discovered, tested on participants own generated inputs, adopted and used by 24; a useless service was tested by 24 and adopted by 0; independent suite 1.00 vs 0.50."
+    },
+    {
+     "id": "SP-6.4",
+     "implementation_files": [
+      "src/crucible/innovation/needs.py",
+      "src/crucible/innovation/caps.py",
+      "src/crucible/innovation/pkg.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_6_4.py",
+      "tests/test_v5_innovation_needs.py"
+     ],
+     "state": "implemented",
+     "notes": "6 relation types used by derivation/addressing paths; 0 special-case triggers (path validity, rule-code literals, rename invariance)."
+    },
+    {
+     "id": "SP-6.5",
+     "implementation_files": [
+      "src/crucible/innovation/pkg.py",
+      "src/crucible/innovation/measure.py",
+      "src/crucible/innovation/reference.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_6_5.py",
+      "tests/test_v5_innovation_pkg.py"
+     ],
+     "state": "implemented",
+     "notes": "15 of 15 features from recorded state; 2 adoptions by traced execution (one transitive); stars and declared-only dependencies not counted."
+    }
+   ],
+   "dependencies_used": [],
+   "limitations": [
+    "Creators and developers are scripted reference agents (feasibility, labelled kind=scripted); participants are workstream-G rule-based need-driven adopters (crucible.innovation.adopt), not the workstream-B population.",
+    "The social channel used is the 4.0 forum; workstream-C platforms are not used yet.",
+    "Needs observables cover services, compute instances, declared capabilities and packages; content, communities, education, organisations and supply chains are not observed yet. complements comes from JSON-schema structure or world-configured relations.",
+    "Objective usefulness only for formats with a verifier (4.0 NEEDS and innovation.formats); subjective usefulness from diverse participant responses is not implemented here.",
+    "Adoption tracing counts Python-level calls into deps/<repo>/ (sys.setprofile); import-only use is not adoption.",
+    "The v5 registry is opt-in per world (caps config registry: true) so that 4.0 worlds keep their exact digests.",
+    "No substrate (workstream A) interface is used: it was not merged; packages are code repositories, not content-addressed artifacts, and cross-module effects use 4.0 hooks rather than bus.subscribe."
+   ],
+   "integration_notes": [
+    "innovation/caps.py registers a subclass of the 4.0 Capabilities module under the same name 'caps' (MODULES['caps'] is replaced when crucible.innovation.modules is imported). All 4.0 endpoints/appliers/processes are inherited unchanged. With config registry: true, caps.search accepts {query} (v5) as well as {q} (4.0 behaviour) and the v5 endpoints exist; without it the v5 endpoints are withdrawn at install and caps.search keeps its exact 4.0 schema, so 4.0/3.0 tool catalogues, digests and logs are unchanged (tests/test_diagnostics.py 3.0 catalogue check passes).",
+    "To enable the v5 registry in a world: {'name': 'caps', 'config': {'registry': true}}; add 'needs' and 'pkg' (pkg depends on identity, bank, code, issues); 'adopt' and 'infra' are optional (participants, providers). innovation.worlds.innovation_spec builds such a world.",
+    "Population (B) integration point: world.hooks['needs_demand'](world) -> [(principal, capability, schema)] declares what individuals' tasks require; population individuals that call caps.search/caps.try/caps.adopt_service as their principals are measured by innovation.measure without changes.",
+    "Civilization (J) integration point: needs module config 'interfaces' (standard capability schemas) and 'edges' (relations as data) let a generator add couplings without code; chains/counterfactual helpers are innovation.measure.Stage/chain_record/counterfactual and innovation.scenarios.arms.",
+    "Primitives (A, section 1.5): pkg adds package/release/dependency records over 4.0 code repositories (the software_repository owner) and does not declare a second repository table; caps declarations add typed descriptions of 4.0 cloud services (the service owner).",
+    "Evidence files under docs/v5/evidence/ produced while testing on this branch were not committed."
+   ]
+  }
+ }
 }

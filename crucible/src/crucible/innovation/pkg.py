@@ -30,8 +30,9 @@ Packages extend 4.0 code hosting (`code`: repositories, commits, forks, `crucibl
   through its declared public API with JSON-native arguments and results; a dependent that uses non-API internals or
   non-JSON values is not reproduced by the control run and is credited with nothing;
 * collaboration: `pkg.pr_open` (a change proposed from another repository, tested in the sandbox), `pkg.pr_diff`
-  (reading the change is recorded), `pkg.pr_review` (reviews count as independent only from principals unrelated to
-  the author who read the diff), `pkg.pr_merge` (maintainer; needs an independent approval and passing tests);
+  (reading the change is recorded), `pkg.pr_review` (a review counts for the merge rule only from an outside reviewer -
+  not the author, no organisation in common, public facts - who read the diff; the evaluator's related-party
+  verdict is never computed in-world), `pkg.pr_merge` (maintainer; needs an independent approval and passing tests);
   `pkg.report` files issues; `pkg.fork` forks with lineage;
 * failures: `pkg.advisory` reports a defect with a reproduction repository. It is accepted as *reported* (visible to
   the reporter and the maintainer) only if the reproduction's tests fail against the affected release AND they
@@ -208,9 +209,21 @@ class Packages(Module):
         """Facts about a dependent repository are public only if the repository is."""
         return "public" if r["visibility"] == "public" else tuple(sorted({r["owner"], ctx.actor}))
 
-    def _independent(self, world, a: str, b: str) -> bool:
-        from ..goals.metrics import is_related
-        return not is_related(world, a, b)
+    def _distinct(self, world, reviewer: str, author: str) -> bool:
+        """The merge rule's notion of an outside reviewer, from public identity facts only: not the author and no
+        organisation in common (shared membership, or one a member of the other's organisation). It is a world
+        rule anyone can check, not the evaluator's related-party verdict (`innovation.measure.independent`, which
+        also follows controllers and money and is never computed in-world: audit G 5.4)."""
+        if reviewer == author:
+            return False
+        st = world.state
+
+        def orgs(p):
+            out = {m["org"] for m in st.find("members", "person", p)} if "members" in st.tables else set()
+            if p.startswith("o:"):
+                out.add(p)
+            return out
+        return not (orgs(reviewer) & orgs(author)) and reviewer not in orgs(author) and author not in orgs(reviewer)
 
     def _manifest(self, files: dict) -> dict:
         raw = files.get("crucible.json")
@@ -921,7 +934,7 @@ class Packages(Module):
             raise Forbidden("read the change first (pkg.pr_diff)")
         rid = st.new_id("prrev")
         ctx.emit("pkg.review", {"id": rid, "pr": pr, "reviewer": ctx.actor, "verdict": verdict, "comment": comment[:5000],
-                                "independent": self._independent(ctx.world, ctx.actor, p["author"]),
+                                "independent": self._distinct(ctx.world, ctx.actor, p["author"]),
                                 "source_commit": p["source_commit"]},
                  vis=self._repo_vis(ctx, st.tables["repos"][p["repo"]]))
         return {"review": rid}

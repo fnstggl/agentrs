@@ -265,3 +265,44 @@ population-only world are reported as a second row and do not satisfy a target.
 Numbering note (integration merge): workstreams P and M both wrote D-26 in parallel; this entry was renumbered
 D-27 on merge. targets.json still says "adopted_by": "DECISION_LOG D-26" because editing it would change the
 SHA-256 that this entry adopts; that field refers to this entry.
+
+## D-42 Adoption by execution behind an attested package boundary (2026-11-26, workstream G, wave 3b)
+File ablation (wave 2) could not tell "the output depends on the package's files" from "the dependent uses the
+package" (KNOWN_OPEN W.4: a dependent that returns the length of the package's source was credited as adopting it;
+O's note: a program inspecting the ablation stub, or an advisory reproduction sniffing file content). Decision:
+measurement runs of `pkg.exec`, `pkg.ci` and advisory reproductions mount, in place of every locked package, a
+generated proxy of the public API its release declared; a call crosses through the parent to the package's own
+sandbox process. A package is credited only if an unablated control run (at an RNG-drawn position) reproduces the
+reported outcome exactly, the parent saw the package called in it, and in the run where the package's calls are
+refused the dependent called it and the outcome changed. Consequences: the dependent never holds the package's files
+in a measurement run (reading, hashing or listing them is not reproduced and credits nothing); a package is attested
+through its declared JSON API only (documented limit); a program that calls the package and branches on whether the
+call succeeded is credited (it executed the package). The red team's source-reading probe holds and moved from
+KNOWN_OPEN to FIXED_BY_OWNERS; two probes were added (inspecting the measurement runs, an advisory by sniffing the
+source).
+
+## D-43 Technology invention in civilisations is done by the population's autonomous developers (2026-11-26, workstream G, wave 3b)
+INT found invention inert in civilisations (no declarations, trials or packages). Decision: module `devs`
+(`crucible.innovation.devs`) makes the most technical individuals of the one population developers who act through
+the ordinary tools as themselves, from public observables only (requests for help, the registry's public counts,
+package search, their own metrics, statement and tickets), with developer labour modelled (FR-DEV-1, devs.labour:
+an understood task is written as one of its known reference approaches, chosen by craft; quality is measured by
+world physics). Gates J and L, SP-6.3, SP-6.3b and SP-6.5b are measured in civilisations built by
+`crucible.civ.generator` plus `devs` and work activities on generated, undocumented and composed task categories
+(`innovation.inventworld.civ_spec`), with counterfactual arms that differ only in the developers' module config
+(garbage programs, no building for generated categories, no building for documented formats; `innovation.civexp`).
+No creator is scripted (the wave-2 scripted creators remain for historical tests). A product's category is the task
+its users rely on it for; J.7 is the population's hand-work minutes (a pre-existing resource) saved against the arm
+in which the category is not built. Population principals `p<i>` may own repositories (additive change in
+services/code.py). Rules out: counting a scripted reference agent's product as evidence of open-ended creation in a
+civilisation.
+
+## D-44 Workflows combining independently created services are registry objects (2026-11-26, workstream G, wave 3b)
+SP-6.3b requires workflows of independently created services as first-class registry objects. Decision: a
+workflow is a live service of its composer with its own capability declaration plus a `caps.compose` record naming
+>= 2 live declarations of other providers; it is `declared` until the registry observes the composer's service
+calling every component successfully (service-to-service calls through the cloud, `cap_deps`), then `verified`
+(invariant-checked). Demand for workflows comes from work activities on composed task categories ("a, then b on its
+result", `usefulness.category.compose`, registered by `economy.work` from a `compose` family: an additive change);
+developers compose when live services of other developers for both stages convert their triers, else write the
+task stage by stage. Independence of the component creators is the evaluator's verdict (`innovation.gates`).
