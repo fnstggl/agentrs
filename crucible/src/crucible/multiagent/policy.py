@@ -13,9 +13,11 @@ network sees
 * a state vector built from the identity's own observation and its private `Knowledge` (balances and their change,
   counts of visible event types since its last decision, how many things of each kind it knows and owns, its last
   result, the clock);
-* per tool: a hashed bag of the tool's name tokens (so a tool deployed by another agent is scored by what its name
+* per tool (scored within its host, after the host is chosen: log pi(tool) = log pi(host) + log pi(tool | host)):
+  a hashed bag of the tool's name tokens (so a tool deployed by another agent is scored by what its name
   says), whether it is read-only, its time cost, its required slots, and the identity's own record with it (never
-  tried / succeeded / last attempt rejected);
+  tried / succeeded / last attempt rejected); one learnable scalar starts state-changing tools at `ACT_BIAS` log-odds
+  above read-only ones (an inductive bias toward acting, which learning can undo);
 * per candidate value: a hashed bag of the slot name, the candidate's source (seen, own, fresh name, enum, numeric
   bin, omitted, grammar variant) and id kind, plus its recency, ownership and bin position.
 
@@ -59,6 +61,7 @@ STATE_DIM = 12 + N_EVENT_BUCKETS + 2 * len(KINDS) + 8
 WAIT = {"name": "wait", "description": "do nothing this turn", "inputSchema": {"type": "object", "properties": {}},
         "annotations": {"readOnlyHint": True, "costSeconds": 0}}
 ALGOS = ("reinforce", "a2c", "ppo")
+ACT_BIAS = 1.5           # initial log-odds preference for a state-changing tool over a read-only one (learnable)
 ARCHS = ("mlp", "gru")
 HP_DEFAULT = {"lr": 3e-3, "gamma": 0.9, "lam": 0.9, "clip": 0.2, "epochs": 4, "ent": 0.01, "vf": 0.5,
               "update_every": 6, "max_grad": 1.0, "scale_decay": 0.98, "scale_floor": 1e-3}
@@ -166,6 +169,8 @@ class PolicyNet:
                 self.cand_emb = nn.EmbeddingBag(BUCKETS, EMB, mode="mean")
                 self.tool_head = nn.Sequential(nn.Linear(HIDDEN + EMB + TOOL_FLAGS, 48), nn.Tanh(), nn.Linear(48, 1))
                 self.host_head = nn.Sequential(nn.Linear(HIDDEN + EMB, 32), nn.Tanh(), nn.Linear(32, 1))
+                # inductive bias (learnable): a preference for state-changing tools over reading, from the start
+                self.act_bias = nn.Parameter(torch.tensor(ACT_BIAS))
                 self.slot_head = nn.Sequential(nn.Linear(HIDDEN + 3 * EMB + CAND_NUM, 48), nn.Tanh(),
                                                nn.Linear(48, 1))
                 self.value = nn.Sequential(nn.Linear(HIDDEN, 32), nn.Tanh(), nn.Linear(32, 1))
@@ -214,7 +219,7 @@ def tool_log_probs(net, z, ttoks, tflags, htoks, hidx):
     torch = _torch()
     n = len(ttoks)
     te = _bag(net.tool_emb, ttoks)
-    tl = net.tool_head(torch.cat([z.expand(n, -1), te, tflags], 1)).squeeze(1)
+    tl = net.tool_head(torch.cat([z.expand(n, -1), te, tflags], 1)).squeeze(1) + net.act_bias * (1.0 - tflags[:, 0])
     he = _bag(net.tool_emb, htoks)
     hl = net.host_head(torch.cat([z.expand(len(htoks), -1), he], 1)).squeeze(1)
     hi = torch.tensor(hidx, dtype=torch.long)
