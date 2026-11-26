@@ -46,8 +46,36 @@ def test_exact_expectations_on_enumerated_noisy_key_to_door():
     assert stats["rudder_immediate_exact"]["rel_var"] < 0.5 * stats["reinforce"]["rel_var"]
     # return-conditioned hindsight is biased (the reason the outcome, not the return, is the hindsight variable)
     hca = E.hca_return_grad(theta, batch, E.return_conditioned_hindsight(batch, probs))
-    assert tb.exact_stats(hca, probs, exact)["rel_bias"] > 0.3
+    hca_bias = tb.exact_stats(hca, probs, exact)["rel_bias"]
+    assert hca_bias > 1e-2                                       # 18 orders of magnitude above round-off
+    stats["hca_return"] = {"rel_bias": hca_bias}
     print("EXACT_NKD", json.dumps({k: {m: float(f"{v:.4g}") for m, v in s.items()} for k, s in stats.items()}))
+
+
+def test_return_conditioned_hindsight_bias_closed_form():
+    """COCOA App. L bandit: rewards (1, -2), pi = (2/3, 1/3). Return-conditioned HCA assigns advantages (1/3, -4/3);
+    the true advantages are (1, -2). COCOA on the same problem is exact."""
+    P = torch.zeros(1, 3, 2, 3, dtype=DT)
+    P[0, 0, 0, 1] = P[0, 0, 1, 2] = 1.0
+    P[0, 1, :, 1] = P[0, 2, :, 2] = 1.0
+    out = torch.zeros(1, 3, 2, 3, dtype=torch.long)
+    out[0, 0, 1, 2] = 1
+    out[0, 1:, :, :] = 2
+    mdp = tb.TabularMDP(P, out, torch.tensor([1.0, -2.0, 0.0], dtype=DT), torch.tensor([1.0, 0.0, 0.0], dtype=DT))
+    mdp.validate()
+    theta = torch.zeros(3, 2, dtype=DT)
+    theta[0] = torch.tensor([2.0, 1.0], dtype=DT).log()
+    pi = tb.policy(theta)[0]
+    assert pi.tolist() == pytest.approx([2 / 3, 1 / 3])
+    batch, probs = tb.enumerate_batch(mdp, theta)
+    exact = tb.exact_gradient(mdp, theta)
+    eye = torch.eye(2, dtype=DT)
+    from_adv = lambda adv: sum(pi[a] * (eye[a] - pi) * adv[a] for a in range(2))
+    assert torch.allclose(exact[0], from_adv([1.0, -2.0]), atol=1e-12)
+    hca = E.hca_return_grad(theta, batch, E.return_conditioned_hindsight(batch, probs))
+    assert torch.allclose((probs[:, None, None] * hca).sum(0)[0], from_adv([1 / 3, -4 / 3]), atol=1e-12)
+    assert tb.exact_stats(hca, probs, exact)["rel_bias"] == pytest.approx(16 / 81, abs=1e-9)
+    assert tb.exact_stats(E.reinforce_grad(theta, batch), probs, exact)["rel_bias"] < 1e-25
 
 
 def test_redistribution_as_immediate_reward_starves_the_key_decision_but_return_to_go_does_not():
