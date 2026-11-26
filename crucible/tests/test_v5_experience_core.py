@@ -54,8 +54,11 @@ def test_tier1_adapter_is_the_kernel_facility_tick_for_tick():
     s1 = t1.execute(a1, {"tool": "rig.spec", "args": {}})["result"]
     s2 = k.execute(a2, {"tool": "rig.spec", "args": {}})["result"]
     assert s1 == s2
-    assert {t["name"]: t["inputSchema"] for t in t1.tools(a1)} == \
-        {t["name"]: t["inputSchema"] for t in k.tools(a2) if t["name"] in {x["name"] for x in t1.tools(a1)}}
+    # the facility's tools are the kernel facility's own (the Tier 1 adapter adds only its self-experiment tools exp.*,
+    # crucible.experience.selfexp; the kernel world here is built without the exp module)
+    fac = {t["name"]: t["inputSchema"] for t in t1.tools(a1) if not t["name"].startswith("exp.")}
+    assert {t["name"] for t in t1.tools(a1)} - set(fac) == {"exp.register", "exp.result", "exp.mine"}
+    assert fac == {t["name"]: t["inputSchema"] for t in k.tools(a2) if t["name"] in fac}
     rng = np.random.default_rng(0)
     for _ in range(25):
         st = {lv["name"]: float(np.round(rng.uniform(lv["min"], lv["max"]), 3)) for lv in s1["levers"]}

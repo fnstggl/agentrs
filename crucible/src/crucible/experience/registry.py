@@ -230,6 +230,40 @@ def attach_domain(env, dom, difficulty: int = 1) -> None:
 
 
 # ====================================================================== Tier 3
+# Learner-side modules every Tier 3 world gets (as KernelExperienceEnv adds `exp` to Tier 0 worlds): self-generated
+# experiments (`exp`) and self-set learning goals (`goals`, without its evaluator tool `goals.check_now` in an
+# observation-only world). They read only what the agent itself may read and pay nothing (Clarification 2, OO.11).
+LEARNER_MODULES = ("goals", "exp")
+
+
+def civ_world(name: str, seed: int, *, population: str = "development", overrides: dict | None = None,
+              mode: str | None = None, learner_modules=LEARNER_MODULES, store=None):
+    """A Tier 3 civilisation world: `crucible.civ.generate(name, seed, population=..., overrides=...)` with the
+    evaluator-access policy of `mode` merged into the spec params (recorded in the spec, so replay and regeneration
+    keep it). When learner-side modules are requested and the civilisation lacks them, the world is built from
+    `crucible.civ.spec(...)` (the WorldSpec `generate` creates) plus those modules, with `generate`'s world-id rule."""
+    from ..core.kernel import World
+    civ = importlib.import_module("crucible.civ")
+    ov = dict(overrides or {})
+    ov["params"] = dict(ov.get("params") or {}, evaluator_access=evaluator_access(check_mode(mode)))
+    add = [m for m in (learner_modules or ())]
+    spec_fn = getattr(civ, "spec", None)
+    if not add or not callable(spec_fn):
+        return civ.generate(name, int(seed), population=population, overrides=ov, store=store)
+    sp = spec_fn(name, int(seed), population, overrides=ov)
+    have = {m["name"] for m in sp.modules}
+    extra = [m for m in add if m not in have]
+    if not extra:
+        return civ.generate(name, int(seed), population=population, overrides=ov, store=store)
+    import crucible
+    crucible.load_all_modules()
+    from ..api.local import ensure_modules
+    for m in extra:
+        sp.modules.append({"name": m, "config": {}})
+    ensure_modules([m["name"] for m in sp.modules])
+    return World.create(sp, world_id=f"civ-{sp.hash()[:12]}", store=store)
+
+
 def _make_civ(name: str, seed: int, mode: str, kw: dict):
     from .kernel import KernelExperienceEnv
     if not civ_available():
@@ -240,13 +274,12 @@ def _make_civ(name: str, seed: int, mode: str, kw: dict):
     if profiles is not None and name not in profiles:
         raise TierUnavailable(f"no civilisation profile {name!r}; profiles: {sorted(profiles)}")
     population = kw.pop("population", kw.pop("population_profile", "development"))
-    overrides = dict(kw.pop("overrides", None) or {})
-    overrides["params"] = dict(overrides.get("params") or {}, evaluator_access=evaluator_access(mode))
-    world = civ.generate(name, int(seed), population=population, overrides=overrides)
+    world = civ_world(name, int(seed), population=population, overrides=kw.pop("overrides", None), mode=mode,
+                      learner_modules=kw.pop("learner_modules", LEARNER_MODULES), store=kw.pop("store", None))
     agents = kw.pop("agents", None)
     if agents is None:
         seats = getattr(civ, "participant_seats", None)
         agents = list(seats(world)) if callable(seats) else ["agent"]
     ev = getattr(civ, "evaluate", None)
     return KernelExperienceEnv(world, int(seed), reward_mode=mode, tier=3, name=f"civ:{name}", agents=agents,
-                               evaluator=ev if callable(ev) else None, **kw)
+                               evaluator=kw.pop("evaluator", None) or (ev if callable(ev) else None), **kw)

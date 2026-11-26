@@ -318,8 +318,11 @@ class Ctx:
         n_ev, seq0, n_ext = len(self.events), self.world.seq, len(self.ext)
         try:
             out = ep.handler(sub, **args)
-            # a chain a participant started receives participant views (5.0, D-19); in-world processes do not
-            return EO.participant_result(self.world, tool, out) if self.origin != SYSTEM else out
+            # a chain a participant started receives participant views (5.0, D-19), and so does any call made AS a
+            # participant (a deferred workflow job, a trigger, a simulated participant acting through tools from a
+            # module process): only the system acting as itself sees evaluator fields
+            return EO.participant_result(self.world, tool, out) \
+                if (self.origin != SYSTEM or principal != SYSTEM) else out
         except CrucibleError as e:
             self.state.rollback_to(mark)
             del self.events[n_ev:]          # drop events emitted by the failed sub-call

@@ -54,21 +54,38 @@ TOOLS: dict[str, str] = {
     "use.report": "the usefulness ledger: hidden-grader verified quality and evaluator-netted independent revenue, "
                   "requests and customers (a service operator's own view is cloud.status/cloud.metrics and its bank "
                   "account)",
+    "caps.categories": "emergent markets selected and listed by independent buyers (the relatedness analysis); its "
+                       "min_adopters filter is a threshold oracle over independent-adopter counts",
 }
 
-_CAPS_VERDICTS = ("independent_trials", "independent_trial_ok_rate", "independent_adopters", "independent")
+_CAPS_VERDICTS = ("independent_trials", "independent_trial_ok_rate", "independent_adopters", "independent",
+                  "independent_payers", "independent_buyers")
+_SCI_VERDICTS = ("related_to_author", "independent", "independent_consistent")
 # tool -> keys removed (at any depth) from its result
 RESULT_FIELDS: dict[str, tuple[str, ...]] = {
     "caps.search": _CAPS_VERDICTS, "caps.declaration": _CAPS_VERDICTS, "caps.declarations": _CAPS_VERDICTS,
     "caps.verify": ("independent",),
+    # the capability registry's adoption statistics (services/capabilities.py `summary`, `graph`): installs and
+    # active installs stay (world facts); counts and flags computed with the relatedness analysis do not
+    "caps.view": _CAPS_VERDICTS, "caps.list": _CAPS_VERDICTS, "caps.evidence": _CAPS_VERDICTS,
+    "caps.get_evidence": _CAPS_VERDICTS, "caps.graph": _CAPS_VERDICTS + ("buyers",),
     "rig.read": ("score",), "rig.history": ("score",),
+    # the science world (domains/science.py, module `sci`): a replication report's verdict "consistent/refuted" is a
+    # statistical test on the reporter's own readings (a world observation), but `related_to_author` and
+    # `independent` are the evaluator's relatedness analysis (`goals.metrics.is_related`) - a participant filing
+    # replications from accounts it controls would otherwise learn which of them the evaluator links to it
+    "sci.replicate": _SCI_VERDICTS, "sci.paper": _SCI_VERDICTS, "sci.papers": _SCI_VERDICTS,
+    "sci.replications": _SCI_VERDICTS,
 }
 # event type -> payload keys removed (at any depth)
 EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     "caps.tried": ("independent",), "caps.adopted": ("independent",), "caps.verification": ("independent",),
+    "caps.installed": ("independent",), "caps.evidence": ("independent",), "caps.payer": ("independent",),
+    "caps.market": ("buyers",),
     "pkg.executed": ("independent",), "pkg.review": ("independent",),
     "rig.report": ("score",),
     "use.probe": ("mean",),
+    "sci.replication": ("related_to_author", "independent"),
 }
 # module name -> keys removed (at any depth) from that module's participant summary (`Module.observe`)
 SUMMARY_FIELDS: dict[str, tuple[str, ...]] = {
@@ -196,16 +213,37 @@ def participant_summary(world, module: str, summary: Any) -> Any:
     return _strip(summary, frozenset(keys))
 
 
+def evaluator_metrics() -> dict[str, str]:
+    """Every evaluator-only metric: this registry plus the lists other modules keep of their own evaluator
+    measurements (`goals.metrics.EVALUATOR_ONLY_METRICS`, the commerce workstream's `commerce.observables.EVALUATOR_ONLY`
+    and the recurring-revenue metrics behind it). One union, so a module that marks a metric on its side is never
+    readable through a participant-authored predicate in an observation-only world because this table missed it."""
+    out = dict(METRICS)
+    for modname, attr, why in (("crucible.goals.metrics", "EVALUATOR_ONLY_METRICS", "an evaluator measurement "
+                                "(goals.metrics.EVALUATOR_ONLY_METRICS)"),
+                               ("crucible.commerce.observables", "EVALUATOR_ONLY", "computed with hidden evaluator "
+                                "analysis (commerce.observables.EVALUATOR_ONLY)")):
+        try:
+            import importlib
+            names = getattr(importlib.import_module(modname), attr, ())
+        except ImportError:
+            continue
+        for n in names:
+            out.setdefault(str(n), why)
+    return out
+
+
 def metric_errors(world, predicate_leaves: Iterable[dict]) -> list[str]:
     """Errors for the evaluator-only metrics among a participant-authored predicate's leaves (none when the world
     keeps the 4.0 contract)."""
     if not hidden(world):
         return []
     out = []
+    ev = evaluator_metrics()
     for lf in predicate_leaves:
         m = lf.get("metric") if isinstance(lf, dict) else None
-        if m in METRICS:
-            out.append(f"metric {m!r} is evaluator-only ({METRICS[m]}); participants cannot read it")
+        if m in ev:
+            out.append(f"metric {m!r} is evaluator-only ({ev[m]}); participants cannot read it")
     return out
 
 
@@ -215,4 +253,4 @@ def describe() -> dict:
             "result_fields": {k: list(v) for k, v in sorted(RESULT_FIELDS.items())},
             "event_fields": {k: list(v) for k, v in sorted(EVENT_FIELDS.items())},
             "summary_fields": {k: list(v) for k, v in sorted(SUMMARY_FIELDS.items())},
-            "metrics": dict(sorted(METRICS.items()))}
+            "metrics": dict(sorted(evaluator_metrics().items()))}

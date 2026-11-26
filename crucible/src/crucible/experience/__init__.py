@@ -15,6 +15,7 @@ Public interface (everything a learner needs; nothing else is required to connec
     run_learner, run_learners (crucible.experience.loop), VecExperience / farm hooks (crucible.experience.parallel)
     ExperienceGymEnv, ExperienceParallelEnv (crucible.experience.gym: Gymnasium / PettingZoo over any tier)
     host -> (RemoteParticipant, RemoteEvaluator) (crucible.experience.remote: the world in its own process)
+    LabelChannel (crucible.experience.labels: verified outcome labels, evaluator side, explicitly authorised)
 
 Attributes are imported lazily so that the numeric environments (`research.envs`, which import
 `crucible.experience.modes`) never pull in the kernel adapters.
@@ -40,6 +41,7 @@ _LAZY = {
     "civ_available": ".registry",
     "VecExperience": ".parallel", "FarmRun": ".parallel",
     "TOOL_CATEGORIES": ".features", "tool_category": ".features",
+    "LabelChannel": ".labels",
 }
 
 __all__ = sorted(["DEFAULT_MODE", "LEGACY", "OBSERVATION_ONLY", "REWARD_MODES", "VERIFIED", "check_mode",

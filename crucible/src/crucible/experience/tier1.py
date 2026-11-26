@@ -99,6 +99,10 @@ class MechExperienceEnv(BaseExperienceEnv):
         self._now = 0
         self._t0 = 0                         # clock at the start of the current episode
         self.episode = 0
+        from .selfexp import AdapterExperiments
+        self._exp = AdapterExperiments(self._own_numbers, lambda typ, pl, a, cause: self._emit(
+            typ, pl, (a,), actor="exp", cause=cause))
+        self._annotated += annotate_tools(self._exp.tools())
         self._begin_episode()
 
     # ------------------------------------------------------------------ construction
@@ -188,6 +192,9 @@ class MechExperienceEnv(BaseExperienceEnv):
                                "action must be {'tool': str, 'args': object}")
             self._last_result[agent] = res
             return res
+        from .selfexp import NAMES as _EXP
+        if tool in _EXP:
+            return self._exp_execute(agent, tool, args)
         ent = self._tools.get(tool)
         if ent is None:
             res = error_result(self._now, tool, "unknown_tool", f"unknown tool {tool!r}; tools: {sorted(self._tools)}")
@@ -221,6 +228,35 @@ class MechExperienceEnv(BaseExperienceEnv):
         self.steps += 1
         self.last_changed = self._desired[s] != before        # the facility will run differently
         self.changes += int(self.last_changed)
+        return json_copy(res)
+
+    def _own_numbers(self, agent: str) -> dict:
+        """The agent's current observation numbers, without consuming its event cursor (self-experiment measures)."""
+        c = self._cursor[agent]
+        try:
+            return dict(self.observe(agent)["numbers"])
+        finally:
+            self._cursor[agent] = c
+
+    def _exp_execute(self, agent: str, tool: str, args: dict) -> dict:
+        from .selfexp import Refused, TOOLS
+        sch = next(t["inputSchema"] for t in TOOLS if t["name"] == tool)
+        errs = S.validate(sch, args)
+        if errs:
+            res = error_result(self._now, tool, "invalid_action", "; ".join(errs[:6]))
+            self._last_result[agent] = res
+            return res
+        seq = self._emit("cmd", {"tool": tool, "args": json_copy(args), "cost_s": 0}, (agent,), actor=agent)
+        try:
+            res = {"ok": True, "t": int(self._now), "tool": tool, "cost_s": 0,
+                   "result": self._exp.execute(agent, tool, args, seq, int(self._now))}
+        except Refused as e:
+            res = {"ok": False, "t": int(self._now), "tool": tool, "cost_s": 0,
+                   "error": {"code": e.code, "message": str(e)}}
+        res["action_seq"] = seq
+        self._actions[agent] += 1
+        self._last_result[agent] = res
+        self.steps += 1
         return json_copy(res)
 
     # tools ---------------------------------------------------------------------------------------------
@@ -293,7 +329,9 @@ class MechExperienceEnv(BaseExperienceEnv):
         while not self.done and self.next_tick_at() <= target:
             self._now = self.next_tick_at()
             self._tick()
+            self._exp.poll(int(self._now))
         self._now = target
+        self._exp.poll(int(self._now))
 
     def _tick(self) -> None:
         sp = self.vec.spec
@@ -514,6 +552,9 @@ class RapidExperienceEnv(BaseExperienceEnv):
         self._agents = [str(a) for a in (ags or [first.get("agent", "a0")])]
         self.multi = len(self._agents) > 1
         self.episode = 0
+        from .selfexp import AdapterExperiments
+        self._exp = AdapterExperiments(self._own_numbers, lambda typ, pl, a, cause: self._emit(
+            typ, pl, [a], actor="exp", cause=cause))
         self._begin()
 
     # ------------------------------------------------------------------ bookkeeping
@@ -600,9 +641,36 @@ class RapidExperienceEnv(BaseExperienceEnv):
         if agent not in self._vis:
             raise KeyError(f"unknown agent {agent!r}; agents: {self._agents}")
 
+    def _own_numbers(self, agent: str) -> dict:
+        """The agent's current observation numbers, without consuming its event cursor (self-experiment measures)."""
+        c = self._cursor[agent]
+        try:
+            return dict(self.observe(agent)["numbers"])
+        finally:
+            self._cursor[agent] = c
+
+    def _exp_execute(self, agent: str, tool: str, args: Any) -> dict:
+        from ..core import schema as S
+        from .selfexp import Refused, TOOLS
+        sch = next(t["inputSchema"] for t in TOOLS if t["name"] == tool)
+        args = args if isinstance(args, dict) else {}
+        errs = S.validate(sch, args)
+        if errs:
+            return self._finish(agent, error_result(self.now, tool, "invalid_action", "; ".join(errs[:5])))
+        seq = self._emit("cmd", {"tool": tool, "args": json_copy(args)}, [agent], actor=agent)
+        self._own[agent].append(seq)
+        try:
+            res = {"ok": True, "t": self.now, "tool": tool, "cost_s": 0, "action_seq": seq,
+                   "result": self._exp.execute(agent, tool, args, seq, self.now)}
+        except Refused as e:
+            res = {"ok": False, "t": self.now, "tool": tool, "cost_s": 0, "action_seq": seq,
+                   "error": {"code": e.code, "message": str(e)}}
+        self._last[agent] = json_copy(res)
+        return self._finish(agent, res, changed=False)
+
     def tools(self, agent: str) -> list[dict]:
         """The world's action kinds as interface tools ``rapid.<kind>``; each tool's input schema is the kind's
-        action schema."""
+        action schema; plus the self-experiment tools ``exp.*`` (`crucible.experience.selfexp`)."""
         self._check(agent)
         fn = getattr(self.env, "tools", None)
         tools = fn(agent) if callable(fn) else (self._obs[agent].get("tools") or [])
@@ -616,7 +684,7 @@ class RapidExperienceEnv(BaseExperienceEnv):
             ann.setdefault("costSeconds", self.tick_s)
             t["annotations"] = ann
             out.append(t)
-        return annotate_tools(out)
+        return annotate_tools(out + self._exp.tools())
 
     @staticmethod
     def _rapid_action(action: Any) -> Any:
@@ -634,6 +702,9 @@ class RapidExperienceEnv(BaseExperienceEnv):
         self.last_changed = False
         tool = action.get("tool", action.get("kind", "")) if isinstance(action, dict) else ""
         tool = str(tool) if "." in str(tool) or not tool else f"rapid.{tool}"
+        from .selfexp import NAMES as _EXP
+        if tool in _EXP:
+            return self._exp_execute(agent, tool, action.get("args"))
         if self.done:
             return self._finish(agent, error_result(self.now, tool, "conflict", "the episode is over (horizon "
                                                                                  "reached)"))
@@ -732,6 +803,7 @@ class RapidExperienceEnv(BaseExperienceEnv):
                 if oc.get("success") and a not in self._paid:
                     self._paid.add(a)
                     self._pending[a] += 1.0
+        self._exp.poll(self.now)
         return ret
 
     def _participant_result(self, res: Any) -> Any:
@@ -777,8 +849,10 @@ class RapidExperienceEnv(BaseExperienceEnv):
         while self._wait >= self.tick_s and not self.done:
             self._wait -= self.tick_s
             self._run_tick()
+            self._exp.poll(self.now)
         if self.done:
             self._wait = 0
+        self._exp.poll(self.now)
 
     def _event_view(self, agent: str, ev: dict) -> dict:
         c = ev["cause"]
@@ -829,7 +903,11 @@ class RapidExperienceEnv(BaseExperienceEnv):
         return [self._event_view(agent, self._log[q - 1]) for q in vis[i:]], len(self._log)
 
     def reset(self) -> None:
-        """A new episode of the same world (same seed, same noise)."""
+        """A new episode of the same world (same seed, same noise). Open self-experiments end with the episode (the
+        world's clock restarts): they are recorded as expired, never resolved."""
+        for r in self._exp.rows.values():
+            if r["status"] == "open":
+                r.update(status="expired", resolved_at=self.now)
         self.env.reset()
         self.episode += 1
         self._begin()
