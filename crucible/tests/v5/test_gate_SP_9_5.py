@@ -55,6 +55,7 @@ def test_SP_9_5_scientific_research_mechanics():
               "ablated_reference_success": bool(no_pop["success"]),
               "null_success": bool(null["success"]),
               "invariant_violations": sum(r["invariant_violations"] for r in runs + [null, no_pop]),
+              "reference_script_world_reads": len(base.reads_world(RD.reference_script)),
               "process_failures_all_runs": sum(r["proc_failed"] for r in runs + [null, no_pop])})
     evidence.record("SP-9.5", m, command=CMD, labels=dict(K.SCRIPTED),
                     notes=f"research:{cfg} seeds {[r['seed'] for r in runs]}, {runs[0]['days']} days; LABELLED "
@@ -73,4 +74,5 @@ def test_SP_9_5_scientific_research_mechanics():
     assert m["process_failures_all_runs"] == 0 and m["invariant_violations"] == 0
     for c, o in others.items():
         assert o["exercised"] >= 7 and o["proc_failed"] == 0 and o["invariant_violations"] == 0, (c, o)
+    assert m["reference_script_world_reads"] == 0          # the generator itself is tool-only too
     assert not checker.unmet("SP-9.5", m), checker.unmet("SP-9.5", m)
