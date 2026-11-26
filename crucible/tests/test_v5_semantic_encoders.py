@@ -265,7 +265,7 @@ def test_world_records_each_embedding_once_and_replays_and_regenerates_exactly()
     assert E.stats()["vectors_computed"]["text"] == computed
     # snapshots and forks carry the vectors
     s = World.from_blob(w.snapshot_blob())
-    key = E.cache_key(E.ref_of(texts[1].encode()), "text")
+    key = E.world_key(E.ref_of(texts[1].encode()), "text")          # world records are keyed without the machine
     assert np.array_equal(E.encode(s, E.ref_of(texts[1].encode()), "text"), E.encode(w, E.ref_of(texts[1].encode()),
                                                                                      "text"))
     assert s.state.get("embeddings", key)["sha256"] == w.state.get("embeddings", key)["sha256"]
