@@ -285,8 +285,8 @@
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
-   "status_claim": "implemented on the Gate I path (social.cascade, internet profile of pop); not run at 10M in this session",
-   "notes": "Same world as Gate I's positive control, run as a governed job under the T4 grants; records identities, identities with decisions, recounted qualifying distinct consumption events and resource use against T4. Coordinated with Gate I (not duplicated: Gate I owns the audience-accounting claims)."
+   "status_claim": "implemented and measured unofficially at 10M (2026-11-26, snapshot dc8f900): every T4 limit met",
+   "notes": "Same world as Gate I's positive control (social.cascade, internet profile of the one population), one governed job: 10,000,000 identities, 6,867,229 with recorded decisions, 13,089,265 qualifying distinct consumption events recounted from the store with 0 mismatches, 9 simulated hours, 596 s wall, 1 CPU, 16.4 GB summed PSS, 1.4 GB GPU, 0 violations (T4: 7,200 s, 4 CPUs, 32 GB, 5 GB disk). Creation 53 s and 0.84 KB resident per identity. Grant now 25 GB / 2.5 GB GPU (1.5x / 1.8x the measured peak) instead of the T4 ceiling, which held a third of the shared RAM budget."
   },
   "V.3": {
    "implementation_files": [
@@ -307,7 +307,7 @@
     "tests/v5/test_gate_V.py"
    ],
    "status_claim": "backend matrix measured (8 backends); in-world class-2 batches in the civ development world are tiny (mean 1.29-1.48, max 4): in-world speedup 1.41 < 2 - FAILS until B aggregates class-2 decisions (OPTIMISATION_REQUESTS R7)",
-   "notes": "The gate's speedup is computed at the in-world class-2 batch sizes of the suite runs."
+   "notes": "The gate's speedup is computed at the in-world class-2 batch sizes of the suite runs. Development worlds have 32 class-2 individuals, so their batches are small by construction (mean 1.29-1.48); the standard and large runs (queued) carry the in-world measurement. Shared batching service per class: see SP-13.1."
   },
   "V.5": {
    "implementation_files": [
@@ -316,8 +316,8 @@
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
-   "status_claim": "measured on the civ standard world (24 h): policy-compute speedup 28.1, 200 pop.wake trigger batches; the first run's two forks diverged (equal_outcomes false); the comparison now uses three forks and reports forks_reproducible",
-   "notes": "Dense observer evaluates the population's decision policies for every eligible individual each tick vs for the activated ones; equal hash chains; also requires activations caused by recorded population.wake triggers."
+   "status_claim": "measured unofficially on the civ standard world (24 h, three forks): speedup 28.2, equal outcomes, forks reproducible",
+   "notes": "Dense observer evaluates the population's decision policies for every eligible individual each tick vs the activated ones; three forks (plain, dense, plain) with equal hash chains 8157a78443dfd5bb; 23,452 vs 984,576 policy rows (0.076 vs 2.144 CPU-s); 200 pop.wake trigger batches; the whole world with the dense observer costs 1.10x."
   },
   "V.6": {
    "implementation_files": [
@@ -326,8 +326,8 @@
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
-   "status_claim": "measured on three 12-hour civ development worlds: hit rate 0.67 (first lookups only; one encoder run per artifact, 156 items reused across worlds via the disk cache); the workload now runs 96-hour worlds (30-day worlds show 0.97 world-record hits)",
-   "notes": "Three worlds (two replicas of a seed, another seed) in separate processes on one fresh cache directory; hit rate over all lookups; encoder runs per artifact; cross-world reuse."
+   "status_claim": "measured unofficially: hit rate 0.952 over three 96-hour civ development worlds (>= 0.9)",
+   "notes": "Three worlds (two replicas of seed 0, seed 1) in separate processes on one fresh cache: 15,115 lookups, 14,382 hits, 733 distinct items each encoded once, 358 items served across worlds from the disk cache (the second replica computed nothing). 12-hour worlds measured 0.67 (first lookups only), hence 96 hours."
   },
   "V.7": {
    "implementation_files": [
@@ -357,8 +357,8 @@
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
-   "status_claim": "validation crashed on the integrated tree (web resources created during a run); fixed in approx.outcomes with a regression test; rerun pending",
-   "notes": "Errors for the 7 quantities with 95% intervals over 3 target seeds; fit at 400, predict 1,600 individuals and a shop-share intervention."
+   "status_claim": "measured unofficially: 7 error metrics with 95% intervals over 3 target seeds (regression of the crash fixed)",
+   "notes": "Fit at 400 individuals (seed 0), predict 1,600 (seeds 1-3) and a shop-share intervention: adoption 0.012, retention 0.002, rare events 0.018 (relative), revenue 0.62 (relative), diffusion 0.38, audience distribution KS 0.91, intervention effect 0.99 (relative). The estimated cohort mode is valid for aggregate activity only and is never used in a world (FIDELITY_REGISTER scale.approx_cohort)."
   },
   "SP-13.8": {
    "implementation_files": [
@@ -396,10 +396,11 @@
     "src/crucible/scale/slots.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_1_2.py"
+    "tests/v5/test_gate_SP_1_2.py",
+    "tests/test_v5_slots.py"
    ],
-   "status_claim": "implemented; outcome depends on other agents' GPU use at run time",
-   "notes": "Census of container processes holding a GPU context, governed = environment carries a scheduler GPU grant; positive control job."
+   "status_claim": "implemented; census fixed to count CUDA contexts (2026-11-26); outcome depends on other agents' GPU use at run time",
+   "notes": "Census of container processes holding a CUDA context (device open AND /dev/nvidiactl or nvidia-uvm mapped); governed = environment carries a scheduler GPU grant; positive control job. The first census counted every process that had opened the device, which includes every CPU-only process importing the shared semantic space (lm.device() calls torch.cuda.is_available() at import): CPU test runs outside the scheduler were reported as GPU jobs. Device queries without a context are now reported apart (device_queries_without_context_max)."
   },
   "SP-3.3b": {
    "implementation_files": [
@@ -421,8 +422,8 @@
     "tests/v5/test_gate_SP_13_1.py",
     "tests/test_v5_perf_batching.py"
    ],
-   "status_claim": "service implemented and unit-verified (classes 2, 3 and 4 with the real models); in-world adoption by B/D and class-4 binding pending: the gate fails until class 4 acts",
-   "notes": "crucible.substrate.inference_batch groups compatible requests (same op, model id + weights hash, static parameters, row signature) from any call site into one recorded call per shared model; gather() drives generator tasks (activity handlers / class runtimes) in decision rounds. docs/v5/performance/BATCHING.md documents how B and D adopt it."
+   "status_claim": "service implemented and unit-verified on the real class-2, -3 and -4 models (6 call sites grouped: 2.84-3.41x); in-world adoption by B/D pending: the gate fails until class 3 and class 4 decide more than one participant per call in the civ world",
+   "notes": "crucible.substrate.inference_batch groups compatible requests (same op, model id + weights hash, static parameters, row signature) from any call site into one recorded call per shared model; decide / decide_many / gather (generator decision rounds) / batched (submit-flush); method_request batches any row-independent model method (e.g. B's act_scores) without a dedicated Op. Benchmark (backends.bench_service, 6 call sites x 4 rows): class 2 2.96x, class-3 GRU 2.94x, MLP 3.41x, class 4 (Qwen3-0.6B option scoring, bf16 GPU) 2.84x; merged outputs equal separate ones to 2e-7 on CPU fp32, class-4 logprobs differ by up to 0.26 nats in bf16 (recorded, replay exact; choice agreement now reported). BATCHING.md gives the adoption steps against B's and D's current call sites."
   },
   "SP-13.3": {
    "implementation_files": [
@@ -458,10 +459,12 @@
   }
  },
  "limitations": [
-  "Class 4 is not bound to a runtime on 55433e7 (D's pop_semantic is in progress on c5c/w3b-sem): V.1 and SP-13.1 fail until it acts; class 3 is never batched in the civ world (one member per recorded call).",
-  "The shared batching service is verified with the real class-2, class-3 and class-4 models in unit tests; no population or semantic code calls it yet (B and D own those call sites: BATCHING.md).",
-  "GPU contention: with 4 GPU job slots shared by ~18 engineers, the population/civ benchmarks (all need the GPU text path) wait for hours; the long standard/large suite runs are scheduled once.",
-  "cProfile with the CPU timer inflates call-heavy functions about 5x; the optimisation requests use it for ranking and the light per-function accumulators for shares."
+  "Class 4 is not bound to a runtime on 55433e7 (D binds it on c5c/w3b-sem: semantic/generalists): V.1 and SP-13.1 fail until it acts in the merged tree; class 3 is never batched in the civ world (one member per recorded call).",
+  "The shared batching service is verified with the real class-2, class-3 and class-4 models in unit tests and the service benchmark; no population or semantic code calls it yet (B and D own those call sites: BATCHING.md).",
+  "The 30-day civ standard (3 seeds) and large (1 seed) runs and the population-only standard row were still queued (one governed job, label 'M: bench5 civ standard x3 + large x1 (30 d) + population row', output under the M scratch directory suite_B*.json) when this report was written; V.1/V.n1/SP-3.3b/SP-13.8 have only development-profile measurements from this wave.",
+  "GPU contention: with 4 GPU job slots and a RAM budget of 69 GB shared by ~18 engineers whose grants average 6x their peaks, long benchmarks wait for hours.",
+  "cProfile with the CPU timer inflates call-heavy functions about 5x; the optimisation requests use it for ranking and the light per-function accumulators for shares.",
+  "The estimated cohort mode (V.9) reproduces aggregate adoption/retention/rare-event rates (<= 2% error) but not audience distributions, revenue, diffusion or intervention effects (38-99% error); it is labelled estimated and never used inside a world."
  ],
  "integration_notes": [
   "PRIORITY (measured): at the large profile the shopping activity's searches are 70% of the world's CPU (economy/work.py Work._candidates -> services/search.py Search._organic: 33,219 searches, 14.6 ms each, on day 2; 697.6 CPU-s per simulated day against 75 on day 1) and grow with the index; T3 (3.75 simulated days per CPU-hour) is at risk over 30 days. Request R1 (memoise rank signals per document and organic results per tick on table versions; outputs identical) to the owner of services/search.py and ECON.",
