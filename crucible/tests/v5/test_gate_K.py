@@ -824,6 +824,7 @@ def test_Kn1_reference_strategy_reaches_feasible_arr_objective():
                     "demand_from_population_only": all(r["demand_from_population_only"] for r in runs),
                     "scripted": True},
            command="crucible.commerce.reference.run(seed, days=75, n=1500)",
+           labels=dict(reference.LABELS),
            notes="LABELLED SCRIPTED reference strategy (not a learner, not evidence of learning). Generated startup "
                  "worlds (seeds 1, 4): demand only from the population's work activities (individuals delegate "
                  "their own tasks, judge by downstream acceptance and their time), 1-3 adaptive incumbents per "
@@ -834,3 +835,31 @@ def test_Kn1_reference_strategy_reaches_feasible_arr_objective():
     assert useless["final"]["arr_usd"] < 0.1 * target
     assert all(r["healthy"] for r in runs) and not any(r["agent_failures"] for r in runs)
     assert all(r["demand_from_population_only"] for r in runs)
+
+
+# ============================================================================ K.n2 reference is labelled scripted
+def test_Kn2_reference_results_labelled_scripted():
+    """K.n2 (workstream N): results of the reference strategy carry a machine-readable label (scripted, not a
+    learner, not evidence of learning) at their source; the K.n1 evidence record carries the same label; and no
+    document or evidence note presents the reference as evidence that a learner learned the objective
+    (`crucible.research.v5.integrity.scan_claims("reference_learning")`, with planted controls)."""
+    import ast
+    from crucible.commerce import reference
+    from crucible.research.v5 import integrity as G
+    r = reference.run(2, days=2, n=300, sustain_days=1)
+    r.pop("world", None)
+    result_labelled = r.get("labels") == reference.LABELS and reference.LABELS["scripted"] is True and \
+        reference.LABELS["learner"] is False
+    tree = ast.parse(open(os.path.abspath(__file__)).read())
+    rec_labelled = False
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "record" and n.args and \
+                isinstance(n.args[0], ast.Constant) and n.args[0].value == "K.n1":
+            rec_labelled = any(k.arg == "labels" for k in n.keywords)
+    scan = G.scan_claims("reference_learning", G.corpus())
+    ok = bool(result_labelled and rec_labelled and scan["unsupported_claims"] == 0 and scan["controls"]["ok"])
+    record("K.n2", {"reference_results_labelled_scripted": ok, "result_labels_present": bool(result_labelled),
+                    "k_n1_record_labelled": bool(rec_labelled), "reference_as_learning_claims": scan["unsupported_claims"],
+                    "files_scanned": scan["files_scanned"]},
+           labels=dict(reference.LABELS), notes=f"Result labels {r.get('labels')}; claims found {scan['claims'][:5]}")
+    assert ok
