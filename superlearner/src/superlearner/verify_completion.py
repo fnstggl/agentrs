@@ -804,7 +804,8 @@ def run_referenced_tests(manifest: dict, timeout: int = 7200, only: Optional[set
     base = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "superlearner.verify_completion",
             "-o", "junit_family=xunit1"]
     env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join([os.path.join(ROOT, "superlearner", "src"), env.get("PYTHONPATH", "")])
+    env["PYTHONPATH"] = os.pathsep.join([os.path.join(ROOT, "superlearner", "src"), os.path.join(ROOT, "crucible", "src"),
+                                         env.get("PYTHONPATH", "")])
     if unit:
         out = os.path.join(RESULTS_DIR, f"verify_{stamp}_unit.xml")
         print(f"running {len(unit)} tests -> {os.path.relpath(out, ROOT)}")

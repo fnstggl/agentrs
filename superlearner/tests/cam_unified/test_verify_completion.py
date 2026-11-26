@@ -199,6 +199,17 @@ def test_integration_claims_need_clean_records_that_executed_the_entry_and_an_in
     assert any("evidence entry is not a resolvable" in p for p in problems(rep, "A02"))
 
 
+def test_run_tests_separates_integration_tests_and_their_entries(repo):
+    acc, integ = f"{TEST_MOD}::test_feature_doubles", f"{INTEG_MOD}::test_feature_end_to_end"
+    m = manifest({"id": "A01", "status": "IMPLEMENTED", "files": [SRC_MOD], "acceptance_tests": [acc]},
+                 {"id": "A02", "status": "INTEGRATION_TESTED", "files": [SRC_MOD], "acceptance_tests": [acc],
+                  "integration_tests": [integ], "integration_entry": f"{SRC_MOD}:run"},
+                 {"id": "A03", "status": "IN_PROGRESS", "files": [SRC_MOD],
+                  "acceptance_tests": [f"{INTEG_MOD}::test_feature_end_to_end"]})
+    unit, integ_map = vc.referenced_tests(m, root=repo)
+    assert unit == [acc] and integ_map == {integ: [f"{SRC_MOD}:run"]}
+
+
 # ------------------------------------------------------------------------------------------ experiment results
 def _confirm_rows(t0, learners=("cam_full", "frozen"), seeds=(0, 1, 2), dup=None):
     rows = []
