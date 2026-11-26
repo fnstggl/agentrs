@@ -627,8 +627,9 @@ def usage(d: str | None = None, since: float | None = None) -> list[dict]:
 
 
 def budget_violations(rec: dict) -> list[dict]:
-    """Violations of a usage record in the seven budget dimensions (plus timeouts and orphans)."""
-    return [v for v in rec.get("violations") or () if v.get("dim") in DIMENSIONS + ("timeout", "orphans")]
+    """Violations of a usage record in the seven budget dimensions, plus processes left running after the command
+    (orphans). A job stopped at its own requested time limit (`timeout`) has not exceeded a budget."""
+    return [v for v in rec.get("violations") or () if v.get("dim") in DIMENSIONS + ("orphans",)]
 
 
 # ====================================================================== supervision

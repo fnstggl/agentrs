@@ -236,8 +236,9 @@ def _store_bytes(path: str) -> int:
 
 
 def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, compact_every: float = 1.0,
-        snapshot: bool = True, keep_store: bool = False) -> dict:
-    """One benchmark run (see the module docstring). Returns the report."""
+        snapshot: bool = True, keep_store: bool = False, partial_out: str | None = None) -> dict:
+    """One benchmark run (see the module docstring). Returns the report. With `partial_out`, the measurements so far
+    are written there after every simulated day (a run stopped by its time grant still reports what it measured)."""
     from ..storage.sqlite import SQLiteStore
     from ..substrate import columns, retention
     os.makedirs(store_dir, exist_ok=True)
@@ -289,6 +290,16 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
             next_compact = w.now + int(compact_every * DAY)
         row["store_bytes"] = _store_bytes(db)
         series.append(row)
+        if partial_out:
+            done = (w.now - (end - int(days * DAY))) / DAY
+            part = {**rep, "partial": True, "sim_days": round(done, 3), "series": series,
+                    "cpu_s": round(cpu_s() - c_run - compact_cpu, 2), "wall_s": round(time.time() - t_run, 2),
+                    "sim_days_per_cpu_hour": round(done / max((cpu_s() - c_run - compact_cpu) / 3600, 1e-9), 3),
+                    "sim_days_per_wall_hour": round(done / max((time.time() - t_run) / 3600, 1e-9), 3),
+                    "peak_ram_mb": round(vm_hwm_mb(), 1), "sessions": int(ec.sessions), "decisions": int(ec.decisions)}
+            with open(partial_out + ".tmp", "w") as fh:
+                json.dump(part, fh, default=str)
+            os.replace(partial_out + ".tmp", partial_out)
     wall = time.time() - t_run
     cpu = cpu_s() - c_run - compact_cpu
     w.listeners.remove(ec)
@@ -471,7 +482,21 @@ def _run_cmd(kind, profile, seed, days, store_dir, out) -> list[str]:
             str(seed), "--days", str(days), "--store-dir", store_dir, "--out", out]
 
 
-def governed(cmd: list[str], profile: str, label: str, store_dir: str, *, cpu: int = 1, gpu_mb: int | None = None) -> dict:
+def time_grant_s(profile: str, days: float, headroom: float = 3.0) -> float | None:
+    """Wall-time grant of a benchmark run: `headroom` x the time the profile's throughput target allows for `days`
+    (a run that cannot finish in that time has missed its target anyway; it is stopped, and reports what it
+    measured), at least one hour."""
+    try:
+        tg = {t["profile"]: t["value"] for t in targets()["targets"] if t["quantity"] == "sim_days_per_cpu_hour"}
+    except (OSError, ValueError, KeyError):
+        return None
+    if profile not in tg:
+        return None
+    return max(3600.0, headroom * days / float(tg[profile]) * 3600.0)
+
+
+def governed(cmd: list[str], profile: str, label: str, store_dir: str, *, cpu: int = 1, gpu_mb: int | None = None,
+             timeout_s: float | None = None) -> dict:
     """Run `cmd` as a governed job with declared grants in every dimension; returns the usage record."""
     from . import slots
     ram, disk, gpu = GRANTS[profile]
@@ -480,7 +505,8 @@ def governed(cmd: list[str], profile: str, label: str, store_dir: str, *, cpu: i
     env = dict(os.environ)
     env["PYTHONPATH"] = src + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     env.setdefault("OMP_NUM_THREADS", "1")
-    return slots.run_job(cmd, cpu=cpu, gpu_mb=gpu_mb, label=label, ram_mb=ram, disk_mb=disk, disk_dirs=[store_dir],
+    return slots.run_job(cmd, cpu=cpu, gpu_mb=gpu_mb, label=label, timeout_s=timeout_s, ram_mb=ram, disk_mb=disk,
+                         disk_dirs=[store_dir],
                          inference=2, worlds=4, gpu_s=(GPU_S if gpu_mb else None), env=env, sample_s=2.0, poll_s=2.0)
 
 
@@ -524,12 +550,18 @@ def suite(kinds=("civ",), profiles=PROFILES, seeds=(0, 1, 2), days: float = 30, 
                 pass
         sd = os.path.join(work, f"store-{k}-{p}-{s}")
         f = os.path.join(work, name + ".json")
-        rec = governed(_run_cmd(k, p, s, days, sd, f), p, f"M: bench5 {k} {p} seed {s} {days:g}d", sd)
+        rec = governed(_run_cmd(k, p, s, days, sd, f), p, f"M: bench5 {k} {p} seed {s} {days:g}d", sd,
+                       timeout_s=time_grant_s(p, days))
         shutil.rmtree(sd, ignore_errors=True)
         try:
             r = json.load(open(f))
         except (OSError, ValueError):
             r = None
+        if r is None:
+            try:
+                rec["partial_report"] = json.load(open(f + ".partial"))
+            except (OSError, ValueError):
+                pass
         if r is not None and rec.get("rc") == 0 and cache:
             with open(os.path.join(cache, name + ".json.tmp"), "w") as fh:
                 json.dump({"run": r, "usage": rec}, fh, default=str)
@@ -540,7 +572,10 @@ def suite(kinds=("civ",), profiles=PROFILES, seeds=(0, 1, 2), days: float = 30, 
             out["usage"].append(rec)
             out["reused"] += int(bool(r and r.get("reused_from_cache")))
             if r is None or rec.get("rc") != 0:
+                pr = rec.get("partial_report") or {}
                 out["failed"].append({"world": k, "profile": p, "seed": s, "rc": rec.get("rc"),
+                                      "partial_sim_days": pr.get("sim_days"),
+                                      "partial_sim_days_per_cpu_hour": pr.get("sim_days_per_cpu_hour"),
                                       "killed_by": rec.get("killed_by")})
             else:
                 r["usage"] = {x: rec.get(x) for x in ("peak_rss_mb", "peak_cpu", "mean_cpu", "cpu_s", "wall_s",
@@ -638,7 +673,8 @@ def main(argv=None) -> int:
     v.add_argument("--out", required=True)
     a = ap.parse_args(argv)
     if a.cmd == "run":
-        rep = run(a.world, a.profile, a.seed, a.days, a.store_dir, compact_every=a.compact_every)
+        rep = run(a.world, a.profile, a.seed, a.days, a.store_dir, compact_every=a.compact_every,
+                  partial_out=a.out + ".partial")
     else:
         rep = v4_equivalent(a.consumers, a.days, a.seed, a.work)
     with open(a.out + ".tmp", "w") as fh:
