@@ -182,7 +182,7 @@
     "tests/v5/test_gate_SP_12_1.py"
    ],
    "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit 2981d88 (tests/v5/test_gate_SP_12_1.py 1 passed in 220 s, short campaign 24 h); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "population_member_kinds 7 acting in one civilisation: current 5, independent 2 (+8 class-3 strategic present), historical 1, semantic 1, held-out 1 of 2, statistical 60 of 1000, compact neural 3 of 32; 6 distinct weight hashes; mean pairwise JS divergence of the learned groups' host usage 0.378."
+   "notes": "population_member_kinds 7 acting in one civilisation: current 5, independent 2 (+8 class-3 strategic present), historical 1, semantic 1, held-out 1 of 2, statistical 60 of 1000, compact neural 3 of 32; 6 distinct weight hashes; mean pairwise JS divergence of the learned groups' host usage 0.378. Caveat found afterwards (b243231): the semantic participant's record had no read-only flag, so its accepted read-only calls (world.find_tools, listings) counted as acting; the record now carries it and only accepted state-changing calls count - whether the semantic kind still acts in a 24 h short campaign (now one decision per simulated hour, builder goals in the words of the tools) is measured by the queued re-run."
   },
   "SP-12.1b": {
    "implementation_files": [
@@ -285,7 +285,7 @@
  ],
  "history": {
   "wave3b_session1": "first wave-3b agent (stopped by a usage limit ~19:05 UTC): crucible.multiagent (knowledge, grammar, policy, objectives, agents, registry, harness, evaluate, analysis, integrity, league, demonstrator, campaign), 4.0 selfplay repairs (D-62), gate files, D-60..D-62, DEF-K-1..6, fidelity records; verified only on CPU kernel worlds",
-  "wave3b_session2": "continuation: first real-civilisation gate runs (Q 9/9, SP-12.1/1b/2/3 passed, SP-12.3b crash fixed, SP-12.0 7-8 of 10); own-things memory and own-first candidates, demonstrator workflow fixes, BC lr 1e-2, 96 h full campaign, Q.1 duration metric"
+  "wave3b_session2": "continuation: first real-civilisation gate runs (Q 9/9, SP-12.1/1b/2/3 passed, SP-12.3b crash fixed, SP-12.0 7-8 of 10); own-things memory and own-first candidates, demonstrator workflow fixes, BC lr 1e-2, 96 h full campaign, Q.1 duration metric; semantic participants: read-only flag and error code recorded, builder goals re-worded (BM25 candidates: code.create_repo, code.commit, pkg.register first), one decision per hour in the short campaign"
  },
  "cpu_proxy_results": {
   "world": "kernel:open_digital (not a civilisation; development proxy only)",
