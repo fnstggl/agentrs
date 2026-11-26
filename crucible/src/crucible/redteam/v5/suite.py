@@ -106,6 +106,13 @@ FIXED: dict[str, str] = {
         "v5.sandbox.forged_completion_then_exit",
     "O wave 3: the hosted learner's participant pipe unpickled what the learner sent (code ran in the world process "
     "and read the grader)": "v5.isolation.remote_participant_cannot_run_code_in_the_world",
+    # wave 3b (workstream O, independent adversarial review W.n1 of the merged tree)
+    "O wave 3b review: nested sandbox runs (world calls that run programs) got fresh time limits while the caller's "
+    "clock stood still: one tool call held the world 42 s at no CPU cost": "v5.sandbox.nested_runs_multiply_wall_time",
+    "O wave 3b review: padding world-call messages farmed the protocol allowance (20 ns/byte): 0.15 s of work billed "
+    "0 ms": "v5.sandbox.protocol_allowance_farming",
+    "O wave 3b review: one lineage's flood of computations evicted every other world's anchors from the shared meter "
+    "memo file": "v5.crossworld.meter_memo_eviction_is_per_lineage",
 }
 
 # open findings of the ratchet closed by their owner workstreams since wave 1, re-verified by the probe on the

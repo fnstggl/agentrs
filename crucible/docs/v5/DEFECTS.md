@@ -1420,13 +1420,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-O-1 (critical, open): Sandbox metering is self-reported: agent code rewrote boot's __main__._LINES (or forged a done message) so pkg
+### DEF-O-1 (critical, fixed): Sandbox metering is self-reported: agent code rewrote boot's __main__._LINES (or forged a done message) so pkg
 
 ```json
 {
  "area": "O_security",
+ "fixed_by": "c5c/w1-sec + c5c/w3-sec (D-20): sandbox work measured by the parent (process CPU clock, wall, threads, disk), the program's counters and messages never consulted; re-verified on the wave-3b integrated tree (all 7 meter-forgery probes held)",
  "id": "DEF-O-1",
  "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W3_reward_hacking (v5.sandbox.meter_forgery.*), tests/v5/test_gate_W.py::test_W6_accounting, tests/test_v5_security_sandbox.py::test_work_is_measured_by_the_parent_and_child_counters_are_ignored",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1434,18 +1436,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/O_security.json",
   "finding": 0
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Sandbox metering is self-reported: agent code rewrote boot's __main__._LINES (or forged a done message) so pkg.exec billed 0c vs 240c and compute_use reached -40,000 s; integrity post-check still passed (bridge.py:100, code.py:148)."
 }
 ```
 
-### DEF-O-2 (critical, open): Tier 1 reward hack: pe_* program_exec families bill cost from sandbox-reported lines; a program setting _LINES
+### DEF-O-2 (critical, fixed): Tier 1 reward hack: pe_* program_exec families bill cost from sandbox-reported lines; a program setting _LINES
 
 ```json
 {
  "area": "O_security",
+ "fixed_by": "c5c/w1-sec (D-20): Tier 1 program cost billed from the parent's measurement; probe v5.rapid.program_forges_its_compute_cost holds (forged 3,713 vs honest 4,268)",
  "id": "DEF-O-2",
  "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W3_reward_hacking (v5.rapid.program_forges_its_compute_cost)",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1453,18 +1457,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/O_security.json",
   "finding": 1
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Tier 1 reward hack: pe_* program_exec families bill cost from sandbox-reported lines; a program setting _LINES negative turned cost 64,077 into -1.6e9 (cash +1.6e9) in pe_rule_induction (program_exec.py:103,1187)."
 }
 ```
 
-### DEF-O-3 (critical, open): Adoption-by-execution forgeable: pkg tracer runs in the agent's process; writing _pkgtrace._C recorded 3e9 'in
+### DEF-O-3 (critical, fixed): Adoption-by-execution forgeable: pkg tracer runs in the agent's process; writing _pkgtrace._C recorded 3e9 'in
 
 ```json
 {
  "area": "O_security",
+ "fixed_by": "c5c/w1-sec + c5c/w2-econ (pkg ablation): adoption only from parent-side ablation with replayed world calls and an unablated control rerun; tracer-counter forgery credits nothing (residual KNOWN_OPEN medium: dependence on the package's files, owner G)",
  "id": "DEF-O-3",
  "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W4_metric_manipulation (v5.innovation.adoption_counter_written_by_dependent, adoption_by_shadow_file_under_deps, adoption_by_nondeterministic_output)",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1472,18 +1478,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/O_security.json",
   "finding": 2
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Adoption-by-execution forgeable: pkg tracer runs in the agent's process; writing _pkgtrace._C recorded 3e9 'independent' calls into a never-called package; invariants pass (innovation/pkg.py:44-66,872-892)."
 }
 ```
 
-### DEF-O-4 (critical, open): Gate W does not exist: no test_gate_W.py or test_gate_SP_16.py; redteam.v5.probes() raises ModuleNotFoundError
+### DEF-O-4 (critical, fixed): Gate W does not exist: no test_gate_W.py or test_gate_SP_16.py; redteam.v5.probes() raises ModuleNotFoundError
 
 ```json
 {
  "area": "O_security",
+ "fixed_by": "c5c/w1-sec, c5c/w3-sec, c5c/w3b-sec: tests/v5/test_gate_W.py, test_gate_SP_16.py, test_gate_SP_16b.py, test_gate_SP_16c.py, test_gate_SP_15_8.py; crucible.redteam.v5 with 77 probes over 14 modules, suite/gate_metrics/KNOWN_OPEN ratchet; 0 probe errors or not-applicable on the integrated tree",
  "id": "DEF-O-4",
  "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py (all tests), tests/test_v5_security_redteam.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1491,18 +1499,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/O_security.json",
   "finding": 3
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Gate W does not exist: no test_gate_W.py or test_gate_SP_16.py; redteam.v5.probes() raises ModuleNotFoundError (9/10 modules missing), suite/gate_metrics missing; 6 substrate probes only, 1 silently N/A."
 }
 ```
 
-### DEF-O-5 (critical, open): No v5 module (population, social, commerce, innovation, semantic, experience, Tier 1/2/3) has red-team coverag
+### DEF-O-5 (critical, fixed): No v5 module (population, social, commerce, innovation, semantic, experience, Tier 1/2/3) has red-team coverag
 
 ```json
 {
  "area": "O_security",
+ "fixed_by": "c5c/w1-sec..w3b-sec: v5 probes for substrate, sandbox, network, isolation, cross-world, private state, population, social, commerce, innovation, experience, Tier 1 and civilisations (Tier 2 grows with the domain registry); static guard over v5 evaluator-side packages with world roots incl. experience adapters (v5.isolation.world_code_cannot_import_evaluator_side_code holds; calibration downloader not on the world import path)",
  "id": "DEF-O-5",
  "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W2_evaluator_isolation, tests/test_v5_security_sandbox.py::test_calibration_downloader_is_not_loaded_by_world_code",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1510,18 +1520,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/O_security.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "No v5 module (population, social, commerce, innovation, semantic, experience, Tier 1/2/3) has red-team coverage; static guard forbidden list is 4.0-only (calibration.datasets with urllib acquire reachable from world code)."
 }
 ```
 
-### DEF-O-6 (critical, open): reward_mode defaults to legacy_shaped_reward (experience/registry.py:99, modes.py:34), violating the observati
+### DEF-O-6 (critical, fixed): reward_mode defaults to legacy_shaped_reward (experience/registry.py:99, modes.py:34), violating the observati
 
 ```json
 {
  "area": "O_security",
+ "fixed_by": "L (D-19, observation_only default everywhere; v5.experience.observation_only_is_the_default holds) and O (threads that outlive a job kill the worker and are billed; v5.sandbox.thread_outlives_request holds)",
  "id": "DEF-O-6",
  "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W3_reward_hacking, tests/v5/test_gate_W.py::test_W7_resource_limits, tests/test_v5_security_sandbox.py::test_threads_outliving_a_job_kill_the_worker",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1529,7 +1541,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/O_security.json",
   "finding": 5
  },
- "status": "open",
+ "status": "fixed",
  "summary": "reward_mode defaults to legacy_shaped_reward (experience/registry.py:99, modes.py:34), violating the observation-only amendment; sandbox threads keep running after jobs return (unbilled CPU)."
 }
 ```
@@ -2138,13 +2150,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-P-16 (high, open): 19 4.0 regression tests fail only because TMPDIR lies below a root-only directory (agent scratchpads such as /
+### DEF-P-16 (high, fixed): 19 4.0 regression tests fail only because TMPDIR lies below a root-only directory (agent scratchpads such as /
 
 ```json
 {
  "area": "P_acceptance",
+ "fixed_by": "c5c/w3b-sec: crucible/sandbox/jail.py relocates a Playwright profile directory the jail uid cannot reach (TMPDIR below a root-only directory) into the jail's own home; tests/test_internet_adversarial.py, test_web.py, test_internet.py pass with TMPDIR in a 0700 scratchpad (26 passed). The 14 PostgreSQL fixture failures of the same report are not the jail's (pg_fixture runs initdb as postgres; unchanged, P/orchestrator)",
  "id": "DEF-P-16",
  "owner": "O (sandbox jail) / orchestrator (how the regression is run)",
+ "regression_tests": "tests/test_v5_security_sandbox.py::test_jailed_browser_starts_below_a_root_only_tmpdir",
  "requirements": [
   "A.1",
   "X.2",
@@ -2155,7 +2169,7 @@ B_population verdict) and P's own findings.
   "audit": "workstream P wave 3 (c5c/w3-qa): adversarial verification",
   "finding": null
  },
- "status": "open",
+ "status": "fixed",
  "summary": "19 4.0 regression tests fail only because TMPDIR lies below a root-only directory (agent scratchpads such as /tmp/claude-0, mode 700): the v5 jailed Chromium (crucible.sandbox.jail drops to its own uid; its Playwright profile directory is created under TMPDIR) cannot create its profile (5 tests: test_web x2, test_internet x2, test_internet_adversarial x1), and the 4.0 PostgreSQL fixture tests/pg_fixture.py runs initdb as the postgres user, which cannot enter the directory (14 test_storage[postgres] tests). Measured in Gate A.1 run 1 (TMPDIR in the scratchpad) and present in the orchestrator's M5 failed_tests. At c07098b the browser tests launch Chromium unjailed and are not affected; the postgres tests fail the same way at c07098b. Workaround: run regressions with TMPDIR unset (REPRODUCE.md). Fix for the jail: give the Playwright driver a jail-traversable temporary directory instead of the inherited TMPDIR."
 }
 ```
@@ -2253,6 +2267,7 @@ B_population verdict) and P's own findings.
 
 ```json
 {
+ "analysis_O_w3b": "Measured by O in wave 3b: not order-dependent but nondeterministic across processes. With per-process memos the test fails in 2 of 3 fresh processes at 87a6c54 and at 804f2c1 alone; on the current tree with the machine-level memo it fails deterministically on this machine (the anchors recorded first). The failing assertion is the junk service's long_term_adoption 1.0 (one of 31 customers retained; 0 expected): D-20 bills measured CPU, not executed lines, so the 4.0 trajectory differs from c07098b's and is fixed only per machine. Not a metering defect left to fix in the sandbox: it is the A.1 / D-20 requirement conflict (DEF-P-24), for the orchestrator's decision (re-baseline the 4.0 test under D-20, or a measurement-free deterministic work count, which cannot be made tamper-proof in-process - see O.json limitations)",
  "area": "P_acceptance",
  "id": "DEF-P-26",
  "owner": "O (sandbox metering, D-20) / A",
@@ -2269,13 +2284,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-P-27 (critical, open): Since the D-20 merge (33b5f2b), 4.0 open worlds whose agents run sandboxed programs are no longer reproducible
+### DEF-P-27 (critical, fixed): Since the D-20 merge (33b5f2b), 4.0 open worlds whose agents run sandboxed programs are no longer reproducible
 
 ```json
 {
  "area": "P_acceptance",
+ "fixed_by": "A/K3 (717e4c7, metering.DiskMemo: anchors shared by every process of the machine) + c5c/w3b-sec (per-lineage eviction: one world's flood can no longer evict another's anchors). A 4.0 open world whose agents run sandboxed programs gives identical event hashes in two new processes (seq 1,577 both); with per-process memos it diverges (1,577 vs 1,569). Residual, stated: on another machine with an empty memo a first run measures afresh, and 4.0's own c07098b trajectories (A.5) differ because D-20 bills measured CPU instead of executed lines - that is the A.5/D-20 requirement conflict of DEF-P-13/DEF-P-24, which needs the orchestrator's decision, not a metering fix",
  "id": "DEF-P-27",
  "owner": "O (D-20 metering) / orchestrator decision",
+ "regression_tests": "tests/test_v5_security_sandbox.py::test_a_4_0_open_world_with_agent_programs_is_reproducible_in_new_processes, tests/test_v5_substrate_memo.py::test_the_same_world_in_two_new_processes_gives_the_same_event_hashes",
  "requirements": [
   "A.5",
   "A.1",
@@ -2286,7 +2303,145 @@ B_population verdict) and P's own findings.
   "audit": "workstream P wave 3 (c5c/w3-qa): adversarial verification",
   "finding": null
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Since the D-20 merge (33b5f2b), 4.0 open worlds whose agents run sandboxed programs are no longer reproducible across processes: the 'deterministic' cost model bills the first parent-measured CPU time of a computation (crucible.sandbox.metering.MEMO, per process), so each fresh process bills differently. Measured: demo_lifetime at the same commit 87a6c54 gives 74,280 events in one fresh process and 78,900 in another (4.0: 78,353 in every run; 2d0f4ce, just before the D-20 merge: 78,353); Gate A.5 finds 6 of the 16 4.0 acceptance records changed by small amounts (e.g. A_real_software_creation requests_metered 15,629 vs 15,458; M_reproducibility events 7,362 vs 7,367). 4.0's reproducibility claim (record M) no longer holds in the merged tree. Needs a decision: keep a deterministic, measurement-free work count (4.0's executed-line model or a parent-side instruction count) for the deterministic cost model and use parent-measured CPU only for billing real hosts, or accept and document the loss under change control."
+}
+```
+
+### DEF-O-7 (high, fixed): Nested sandbox runs multiplied wall time: time a program spends in world calls did not count against its limit
+
+```json
+{
+ "area": "O_security",
+ "fixed_by": "c5c/w3b-sec: sandbox/runner.py nested jobs share the enclosing job's call-tree deadline (refused without starting once it is spent; recorded, so replay is exact); the call tree finishes within twice the outer limit",
+ "id": "DEF-O-7",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W7_resource_limits (v5.sandbox.nested_runs_multiply_wall_time), tests/test_v5_security_sandbox.py::test_nested_jobs_share_the_enclosing_jobs_time_limit",
+ "requirements": [
+  "W.7",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Nested sandbox runs multiplied wall time: time a program spends in world calls did not count against its limit and a world call may be code.run, so one tool call (3 s limit) fanning out to 16 nested sleeping programs held the single-threaded world 42 s at ~0 CPU cost (unbounded with depth and fan-out)."
+}
+```
+
+### DEF-O-8 (high, fixed): Protocol-allowance farming: the parent subtracted 20 ns per byte of every job message (world-call arguments an
+
+```json
+{
+ "area": "O_security",
+ "fixed_by": "c5c/w3b-sec: sandbox/metering.py PROTO_NS_PER_BYTE 20 -> 1.5 (below the fastest CPython JSON rate measured, 1.97 ns/byte), so no message shape a program chooses carries free work",
+ "id": "DEF-O-8",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W3_reward_hacking (v5.sandbox.protocol_allowance_farming), tests/test_v5_security_sandbox.py::test_protocol_allowance_cannot_hide_work_in_padded_messages",
+ "requirements": [
+  "W.3",
+  "W.6",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Protocol-allowance farming: the parent subtracted 20 ns per byte of every job message (world-call arguments and results included) from the measured CPU, but long strings encode at ~2 ns/byte; padding 20 world calls with 7 MB strings billed a 3M-iteration loop 0 ms (honest 396 ms)."
+}
+```
+
+### DEF-O-9 (low, fixed): The machine-level meter memo file (DiskMemo, shared by every world and process) evicted its oldest rows global
+
+```json
+{
+ "area": "O_security",
+ "fixed_by": "c5c/w3b-sec: sandbox/metering.py DiskMemo keeps a scope (lineage) column and evicts per lineage (a lineage's own oldest beyond MEMO_SCOPE_MAX; under global pressure the largest lineage first); the in-process Memo is bounded per lineage too",
+ "id": "DEF-O-9",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W5_cross_world (v5.crossworld.meter_memo_eviction_is_per_lineage), tests/test_v5_security_sandbox.py::test_meter_memo_file_evicts_per_lineage",
+ "requirements": [
+  "W.5",
+  "W.n1"
+ ],
+ "severity": "low",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "The machine-level meter memo file (DiskMemo, shared by every world and process) evicted its oldest rows globally: one world running many distinct computations evicted every other world's anchors, so their replications in new processes stopped being exact (100 of 100 victim anchors evicted in the scaled demonstration)."
+}
+```
+
+### DEF-O-10 (critical, open): The instrument's episode driver runs the learner in the harness process that holds the evaluator channel and i
+
+```json
+{
+ "area": "O_security",
+ "fix": "research/v5/evaluator.py: drive untrusted learners through crucible.sandbox.learnerhost.LearnerHost (jailed process holding only the participant socket; checkpoints copied out and hashed by the host) instead of in the harness; control evaluator_internals_hosted shows the same adversary reaches nothing there",
+ "id": "DEF-O-10",
+ "owner": "N",
+ "regression_tests": "tests/v5/test_gate_SP_15_8.py (control evaluator_internals)",
+ "requirements": [
+  "SP-15.8"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "The instrument's episode driver runs the learner in the harness process that holds the evaluator channel and is the evaluator's parent (same uid): an adversarial learner found the Evaluator through gc and read its own verified score mid-episode and its partition, read the evaluation family list, read /proc/<evaluator>/environ (sealed dir), the sealed salt and the evaluator's memory (evaluator.run_remote_episode)."
+}
+```
+
+### DEF-O-11 (high, open): Interaction budgets are enforced only by the learner-side driver: a learner granted 1 informative interaction 
+
+```json
+{
+ "area": "O_security",
+ "fix": "research/v5/evaluator.py: open_episode(..., budget=k); the server refuses (or marks budget_exceeded on the result of) informative actions beyond k",
+ "id": "DEF-O-11",
+ "owner": "N",
+ "regression_tests": "tests/v5/test_gate_SP_15_8.py (control interaction_budget)",
+ "requirements": [
+  "SP-15.8",
+  "SP-15.3"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "Interaction budgets are enforced only by the learner-side driver: a learner granted 1 informative interaction executed lever settings itself through its participant environment, the evaluator counted 60 and returned an unmarked result (learning curves after k interactions are forgeable)."
+}
+```
+
+### DEF-O-12 (medium, open): Fresh-process weights-only evaluation checks parameter names and numeric dtype but not shapes: a checkpoint wh
+
+```json
+{
+ "area": "O_security",
+ "fix": "research/v5/fresh.py _child: refuse unless every array's shape and dtype equal those of the freshly constructed architecture's parameters()",
+ "id": "DEF-O-12",
+ "owner": "N",
+ "regression_tests": "tests/v5/test_gate_SP_15_8.py (control checkpoint_tampering)",
+ "requirements": [
+  "SP-15.8",
+  "SP-15.4"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "Fresh-process weights-only evaluation checks parameter names and numeric dtype but not shapes: a checkpoint whose `weights` network is widened from 12 to 64 hidden units (rehashed by its writer) is accepted and scored, although the immutable architecture configuration declares the original network."
 }
 ```

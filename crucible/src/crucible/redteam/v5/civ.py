@@ -26,6 +26,8 @@ from .commerce import NoMetricWriteTools
 from .crossworld import ArtifactsDoNotCrossWorlds
 from .network import HOSTILE, _Guarded
 from .population import PopulationPrivateColumns
+from .private import SocialPrivateState
+from .social import AudienceCounterWrites
 
 PROFILE = "balanced"              # the default civilisation (every subsystem of the generator)
 OTHER = "digital_first"           # a structurally different one, for the cross-world probe
@@ -101,6 +103,29 @@ class CivArtifactsDoNotCross(ArtifactsDoNotCrossWorlds):
         self.secret = b"civilisation V private: launch code 4417-2291-XQ"
         self.ref = self.other.system_call("artifact.put", {"data_b64": b64(self.secret), "mime": "text/plain"},
                                           as_principal=va)["ref"]
+
+
+class CivSocialPrivateState(SocialPrivateState):
+    name = "v5.civ.social_private_state_not_readable"
+    world = _civ()
+    target, owner = "civ social", "C"
+    slow = True
+    description = ("In a generated civilisation (every platform, the unified population, commerce), a victim sends a "
+                   "direct message, publishes a members-only post behind a paid tier, keeps a draft and posts in a "
+                   "private community; an unrelated agent sweeps every read-only tool of the civilisation with every "
+                   "identifier it finds, guesses conversation ids and reads its observation stream. Checked: none "
+                   "of the four secrets reaches it.")
+
+
+class CivAudienceCounterWrites(AudienceCounterWrites):
+    name = "v5.civ.audience_counters_cannot_be_written"
+    world = _civ()
+    target, owner = "civ audience", "C"
+    slow = True
+    description = ("In a generated civilisation (the unified population behind the audience accounting), an agent "
+                   "publishes a post and tries every route to its view counters: a raw column batch, consumption and "
+                   "watch tools as a non-population principal, extra `views` arguments, switching the platform's "
+                   "recommender mixture. Checked: all are refused or have no effect, and the exact recount agrees.")
 
 
 # ---------------------------------------------------------------------------------------------- Tier 2 domains
@@ -215,5 +240,5 @@ def tier2_probes() -> list:
 
 
 def probes() -> list:
-    return [CivWorldOffline(), CivPopulationPrivateTraits(), CivNoMetricWriteTools(), CivArtifactsDoNotCross()] + \
-        tier2_probes()
+    return [CivWorldOffline(), CivPopulationPrivateTraits(), CivNoMetricWriteTools(), CivArtifactsDoNotCross(),
+            CivSocialPrivateState(), CivAudienceCounterWrites()] + tier2_probes()

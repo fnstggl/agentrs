@@ -374,3 +374,36 @@ def test_learner_host_runs_the_learner_jailed_with_only_its_participant_channel(
     assert not {k for k in found if k in ("other_process_environ_read", "sealed_salt_read", "evaluator_memory_read",
                                           "gc:evaluator", "tmp_listed")}, found
     assert att["list_proc"] != "ok" and att["listdir /tmp"] != "ok", att
+
+
+def test_a_4_0_open_world_with_agent_programs_is_reproducible_in_new_processes(tmp_path):
+    """DEFECTS DEF-P-27: since D-20 a 4.0 open world whose agents run sandboxed programs billed each fresh process's
+    own CPU measurement, so the same spec and seed gave different trajectories run to run (demo_lifetime: 74,280 vs
+    78,900 events). With the machine-level meter memo (A/K3; evicted per lineage since wave 3b) two NEW processes
+    give identical event hashes; without it (per-process memos) they diverge - the noise the memo removes."""
+    code = (
+        "import json, sys\nsys.path.insert(0, sys.argv[1])\nimport numpy as np\nimport crucible\n"
+        "crucible.load_all_modules()\nfrom crucible.core.kernel import World\nfrom crucible.agents.base import Runner\n"
+        "from crucible.worldgen.ow_families import ow_categories\nfrom crucible.usefulness.agents import ExampleInductor, "
+        "GarbageSeller, Shopper\nfrom crucible.worldgen import generate\n"
+        "spec = generate({'family': 'ow_tiny', 'overrides': {'n_consumers': 300}}, 1)\nw = World.create(spec)\n"
+        "cat = next(c for c in ow_categories(spec) if c.family == 'transform')\n"
+        "for h in ('ind', 'junk', 'buyer'):\n    w.system_call('admin.join', {'handle': h, 'endowment': 3_000_000})\n"
+        "req, _ = cat.generate(np.random.default_rng(4242), 0.6)\n"
+        "run = Runner(w, [('p:ind', ExampleInductor()), ('p:junk', GarbageSeller(cat.name)), "
+        "('p:buyer', Shopper(cat.name, req, wait_rounds=20))], dt=3600)\nrun.run(30)\n"
+        "jobs = sum(1 for e in w.log if e.type in ('cloud.usage', 'code.ran', 'code.run'))\n"
+        "print(json.dumps({'seq': w.seq, 'hash': w.last_hash, 'jobs': jobs, 'sandbox_outcomes': sum(1 for e in w.log "
+        "if e.type == 'ext.outcome' or 'cpu_ms' in json.dumps(e.payload, default=str))}))\n")
+
+    def run(memo):
+        env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1", CRUCIBLE_METER_MEMO=memo)
+        env.pop("CRUCIBLE_HOSTS_WORLDS", None)
+        p = subprocess.run([sys.executable, "-c", code, SRC], capture_output=True, text=True, timeout=900, env=env)
+        assert p.returncode == 0, p.stderr[-3000:]
+        return json.loads(p.stdout.strip().splitlines()[-1])
+    import json
+    memo = str(tmp_path / "memo.sqlite")
+    a, b = run(memo), run(memo)
+    assert a["sandbox_outcomes"] > 10, ("the agents must run sandboxed programs for this test to mean anything", a)
+    assert (a["seq"], a["hash"]) == (b["seq"], b["hash"]), (a, b)
