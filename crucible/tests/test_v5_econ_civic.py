@@ -120,14 +120,21 @@ def test_display_campaigns_randomise_eligibility_and_record_ad_response_decision
 
 def test_decisions_are_organic_population_decisions(civic):
     _, w = civic
-    from crucible.population import check_provenance
-    cp = check_provenance(w, prefixes=("",))
-    assert cp["missing_provenance_batches"] == 0 or cp["forced_rows"] >= 0     # population-table bookkeeping
     from crucible.calibration import inworld
     au = inworld.audit(w)
     mine = [b for b in au.batches if b["table"] in ("work", "jobs", "assoc", "ads_seen") and b.get("provenance")]
     assert mine and all(b["class"] in ("organic", "participant") for b in mine), \
         collections.Counter((b["class"], b["kind"]) for b in mine if b["class"] not in ("organic", "participant"))
+    # every kind of decision these activities make is among them (none is recorded outside a population session)
+    kinds = {b["kind"] for b in mine}
+    for k in ("work.buy_pass", "work.job_register", "work.job_apply", "work.job_accept", "work.job_shift",
+              "work.assoc_found", "work.assoc_join", "work.assoc_pay", "work.ad_visit"):
+        assert k in kinds, (k, sorted(kinds))
+    # decision kinds of these activities never appear without provenance (module bookkeeping has its own kinds)
+    bare = [e.payload["kind"] for e in w.log if e.type == "cols.batch" and
+            e.payload["table"] in ("jobs", "assoc", "ads_seen") and str(e.payload["kind"]).startswith("work.") and
+            not isinstance((e.payload.get("extra") or {}).get("decision"), dict)]
+    assert not bare, collections.Counter(bare)
 
 
 def test_civic_world_replays_and_regenerates_exactly(civic):
