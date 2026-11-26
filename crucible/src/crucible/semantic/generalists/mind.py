@@ -421,9 +421,10 @@ def intent_request(a: Agent, now: int, qv) -> dict:
         alt += "If your last actions above already achieved your goal, answer \"stop\" instead. "
     if started(a):
         alt += "If you are waiting for someone's answer, answer \"wait\" instead."
+    # no example phrase: small models copy it (Qwen3-0.6B answered "reply to a message" for unrelated goals)
     user = (f"{a.header(now, qv)}\n\n{alt.strip() + chr(10) if alt else ''}What single action do you take next for "
-            "your goal? Describe it in general terms, in at most six words, without names, numbers or other details "
-            "(for example: \"reply to a message\" or \"write an article\"). Answer with the action only.")
+            "your goal? Describe it in general terms, in two to six words: a verb and what it acts on, without "
+            "names, numbers or other details. Answer with the action only.")
     return {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
             "max_new_tokens": 16, "temperature": 0.0, "seed": 0, "prefix_messages": 1}
 
