@@ -230,6 +230,35 @@ REVIEWED: dict[str, dict] = {
     "industry.labor_days": _r(None, _V, "industrial labour hours per facility and day (production accounting)"),
     "cal.cal_invites": _r(None, _V, "calendar invitations"),
     "identity.invites": _r("organization", _P, "invitations to organisations", "identity.orgs"),
+    # ---------------------------------------------------------------- wave 3b (reviewed by A from the sibling branches'
+    # mandatory scans; see docs/v5/workstreams/A.json): population activity history (CORE-POP), Tier 2 domains (I)
+    **{f"pop.cols:pop.{c}": _r(None, _V, f"activity history of each individual for the fitted activation model "
+                                         f"({w}): a count of feed items it reached, not a product")
+       for c, w in (("hist_items", "items reached per day, ring of recent days"),
+                    ("sl_items", "items reached in sessions on earlier days"),
+                    ("td_items", "items reached today"))},
+    "popweb.cols:pop": _r("population", _X, "web-engine state of each individual (known sites, visits, pages "
+                                            "read), keyed by population row"),
+    "firms.firms_commissions": _r("contract", _P, "a client firm's request for work and its negotiation (asked "
+                                                  "contractors, offer); acceptance creates the escrowed commitment",
+                                  "contracts.contracts"),
+    "firms.firms_revenue": _r(None, _V, "private books of the autonomous firms (revenue by firm)", "firms.firms"),
+    "plantlabor.plantlabor_base": _r(None, _V, "a plant's own operator count before the labour market (a baseline "
+                                               "parameter of its production, not employment)"),
+    "techmkt.tech_needs": _r("need", _D, "improvement needs plants of the technology market publish (operation, "
+                                         "machine model) outside the needs graph"),
+    "orgeco.org_members": _r("organization", _X, "policy state (goal, slot, status) of the backbone council's "
+                                                 "autonomous member organisations, keyed by identity organisation"),
+    "orgeco.org_backbone": _r(None, _V, "the shared backbone's capacity and load (world physics of the domain)"),
+    "orgeco.org_hours": _r(None, _V, "hourly backbone telemetry (load, failures) of the domain"),
+    "orgeco.org_consider": _r(None, _V, "managers' private consideration state", "orgeco.org_members"),
+    "orgeco.org_projects": _r(None, _V, "the backbone's expansion projects under construction (domain physics)"),
+    "orgeco.org_props": _r("institution", _D, "the backbone council's proposals (quotas, levies, expansions), "
+                                              "decided outside the institutions owner"),
+    "orgeco.org_votes": _r("institution", _P, "votes on the council's proposals", "orgeco.org_props"),
+    "rcomm.rc_products": _r("product", _D, "products launched in the research-commercialisation domain, kept "
+                                           "outside the products owner"),
+    "rcomm.rc_subs": _r("subscription", _D, "subscriptions to those products, kept outside the subscriptions owner"),
 }
 
 #: the explicit, reviewed allow-list of duplicates that exist today. Each names the decision, the owner the facts
@@ -319,6 +348,23 @@ KNOWN_DUPLICATES: dict[str, dict] = {
                       "expires": _WAVE2,
                       "migration": "v5 worlds post work through the labour market (labor posts -> offers -> "
                                    "employment contracts); the 4.0 job board stays in 4.0 families"},
+    # wave 3b: duplicates found in the Tier 2 domain branches by the mandatory scan (reviewed by A, D-79)
+    "techmkt.tech_needs": {"target_owner": "needs.needs_nodes", "decision": "D-18/D-79", "workstream": "I-2",
+                           "expires": _WAVE2,
+                           "migration": "a plant's improvement need is a node of the one needs graph (activity: "
+                                        "production on the machine model; capability: process control), published "
+                                        "through the needs module and listed from there"},
+    "orgeco.org_props": {"target_owner": "inst.inst_charters", "decision": "D-21/D-79", "workstream": "I-3",
+                         "expires": _WAVE2,
+                         "migration": "the backbone council is an institution: a charter of the council with its "
+                                      "procedures; proposals and votes are inst decisions and ballots"},
+    "rcomm.rc_products": {"target_owner": "products.products", "decision": "D-11/D-79", "workstream": "I-3",
+                          "expires": _WAVE2,
+                          "migration": "a commercialised technology is launched as a product of the products owner "
+                                       "(plans, entitlements, purchases); rcomm keeps its pilots and pitches"},
+    "rcomm.rc_subs": {"target_owner": "subs.sub_subs", "decision": "D-21/D-79", "workstream": "I-3",
+                      "expires": _WAVE2,
+                      "migration": "subscriptions to those products are subscriptions of their plans"},
 }
 
 
