@@ -128,6 +128,9 @@ FIXED: dict[str, str] = {
     "O wave 3b review: jailed learner processes shared one uid: a learner SIGKILLed another learner process "
     "(F_SETOWN + F_SETSIG), probed pids (F_SETOWN ESRCH) and carried state to a fresh learner process (SysV IPC)":
         "v5.sandbox.hosted_learners_cannot_reach_each_other",
+    "O wave 3b review: advisory locks on files every tenant can open (flock on read-only standard-library files, "
+    "record locks on /dev/null, F_GETLK on read locks) carried 16-bit secrets from a long-lived service worker to "
+    "another world's program": "v5.crossworld.file_locks_do_not_cross_worlds",
 }
 
 # open findings of the ratchet closed by their owner workstreams since wave 1, re-verified by the probe on the

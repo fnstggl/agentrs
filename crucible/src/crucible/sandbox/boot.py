@@ -121,6 +121,15 @@ SELF_ONLY = [("kill", 0, "pid"), ("tkill", 0, "pid"), ("tgkill", 0, "pid"), ("rt
              ("ioprio_set", 1, 0), ("migrate_pages", 0, 0), ("move_pages", 0, 0)]
 # fcntl commands that make the kernel deliver SIGIO/SIGURG for a descriptor to an arbitrary process
 FCNTL_DENY = [8, 10, 15]   # F_SETOWN, F_SETSIG, F_SETOWN_EX
+# Advisory locks. A program's own files live in its private working directory (no other process can open them), so
+# every file a lock could be shared on is a system file every tenant reads (the standard library, numpy) or
+# /dev/null - a lock there is visible only to OTHER tenants: 16 bits crossed between two worlds through flock() on
+# standard-library files (wave-3b review, probe v5.crossworld.file_locks_do_not_cross_worlds). Taking a lock
+# therefore succeeds without effect (it could only ever exclude other tenants). Lock queries (F_GETLK) stay real:
+# since no sandboxed process holds a lock any more they report no other tenant's lock, and sqlite3 needs them (its
+# WAL mode fails with "disk I/O error" when F_GETLK is refused).
+LOCK_NOOP_FCNTL = [6, 7, 37, 38]   # F_SETLK, F_SETLKW, F_OFD_SETLK, F_OFD_SETLKW
+LOCK_DENY_FCNTL: list = []
 
 
 def seccomp() -> bool:
@@ -172,10 +181,14 @@ def seccomp() -> bool:
         if sc.seccomp_rule_add_array(ctx, errno_eperm, nr, 1, cmp) != 0:
             raise SystemExit(f"sandbox: seccomp self-only rule for {name} failed")
     nr = sc.seccomp_syscall_resolve_name(b"fcntl")
-    for cmd in FCNTL_DENY:
+    for cmd, action in [(c, errno_eperm) for c in FCNTL_DENY + LOCK_DENY_FCNTL] + \
+            [(c, 0x00050000) for c in LOCK_NOOP_FCNTL]:          # SCMP_ACT_ERRNO(0): returns 0, does nothing
         cmp = (ArgCmp * 1)(ArgCmp(1, 4, cmd, 0))  # SCMP_CMP_EQ
-        if nr >= 0 and sc.seccomp_rule_add_array(ctx, errno_eperm, nr, 1, cmp) != 0:
+        if nr >= 0 and sc.seccomp_rule_add_array(ctx, action, nr, 1, cmp) != 0:
             raise SystemExit("sandbox: seccomp fcntl rule failed")
+    nr = sc.seccomp_syscall_resolve_name(b"flock")
+    if nr >= 0 and sc.seccomp_rule_add(ctx, 0x00050000, nr, 0) != 0:   # flock: succeeds without effect (above)
+        raise SystemExit("sandbox: seccomp flock rule failed")
     if sc.seccomp_load(ctx) != 0:
         raise SystemExit("sandbox: seccomp_load failed")
     return True

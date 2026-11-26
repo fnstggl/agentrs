@@ -498,3 +498,27 @@ def test_jailed_learner_processes_have_own_uids_and_cannot_signal_each_other_or_
         assert v.proc.poll() is None, sig
         assert sig["setown_victim"] == sig["setsig"] == sig["setown_absent_pid"] == "errno 1", sig
         assert all(ipc[k] == "errno 1" for k in ("shm", "msg", "sem", "mq")), ipc
+
+
+SQL = ("import sqlite3\ndef f(a, c):\n    db = sqlite3.connect('t.db')\n    db.execute('pragma journal_mode=wal')\n"
+       "    db.execute('create table t(x)')\n    db.executemany('insert into t values (?)', [(i,) for i in range(10)])\n"
+       "    db.commit()\n    return db.execute('select sum(x) from t').fetchone()[0]\n")
+
+
+@needs_sandbox
+def test_advisory_locks_do_not_reach_other_tenants_and_sqlite_still_works():
+    """Wave-3b review: flock() on read-only standard-library files and record locks on /dev/null carried bits
+    between two tenants' programs. Locks are private to a program now (taking one succeeds without effect), so a
+    long-lived worker's locks are invisible to another tenant, while sqlite3 (WAL mode too) keeps working."""
+    from crucible.redteam.v5.crossworld import LOCK_HOLDER, LOCK_READER
+    secret = 0b1010011
+    w = Worker({"h.py": LOCK_HOLDER}, cfg=SandboxConfig(tenant="lock-holder")).start()
+    try:
+        held = w.run({"kind": "call", "target": "h:take", "args": {"bits": secret}})
+        assert held["ok"] and w.alive(), held
+        r = run_program({"r.py": LOCK_READER}, "r:read", None, cfg=SandboxConfig(tenant="lock-reader"))
+        assert r["ok"] and r["result"]["bits"] == {"flock": 0, "devnull": 0, "rdlock": 0}, r
+    finally:
+        w.close()
+    s = run_program({"s.py": SQL}, "s:f", None)
+    assert s["ok"] and s["result"] == 45, s

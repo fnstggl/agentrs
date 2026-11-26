@@ -367,7 +367,94 @@ class KernelIpcDoesNotCrossWorlds(V5Probe):
                        evd)
 
 
+_LOCK_FILES = ("abc.py", "ast.py", "base64.py", "bisect.py", "calendar.py", "codecs.py", "copy.py", "csv.py",
+               "datetime.py", "enum.py", "fnmatch.py", "functools.py", "gettext.py", "glob.py", "heapq.py", "hmac.py")
+_LOCK_LIB = ("import fcntl, os, struct\nFILES = " + repr(_LOCK_FILES) + "\nHELD = []\n"
+             "def _path(n):\n    return os.path.join(os.path.dirname(os.__file__), n)\n"
+             "def _try(fn):\n    try:\n        fn()\n        return 'ok'\n"
+             "    except OSError as e:\n        return 'errno %d' % e.errno\n")
+# three encodings of the same secret, one per lock kind: flock() on read-only standard-library files, POSIX write
+# locks on byte ranges of /dev/null (writable for every tenant), POSIX read locks on read-only files (seen by F_GETLK)
+LOCK_HOLDER = _LOCK_LIB + (
+    "def take(args, caller):\n    out = {'flock': {}, 'devnull': {}, 'rdlock': {}}\n"
+    "    null = open('/dev/null', 'r+b')\n    HELD.append(null)\n"
+    "    for i, n in enumerate(FILES):\n        if not int(args['bits']) >> i & 1:\n            continue\n"
+    "        f = open(_path(n), 'rb')\n        g = open(_path(n), 'rb')\n        HELD.extend((f, g))\n"
+    "        out['flock'][n] = _try(lambda: fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB))\n"
+    "        out['devnull'][n] = _try(lambda: fcntl.lockf(null, fcntl.LOCK_EX | fcntl.LOCK_NB, 1, i))\n"
+    "        out['rdlock'][n] = _try(lambda: fcntl.fcntl(g, fcntl.F_SETLK, struct.pack('hhqqi', fcntl.F_RDLCK, 0, 0, 0, 0)))\n"
+    "    return out\n")
+LOCK_READER = _LOCK_LIB + (
+    "def read(args, caller):\n    bits, out = {'flock': 0, 'devnull': 0, 'rdlock': 0}, {}\n"
+    "    null = open('/dev/null', 'r+b')\n"
+    "    for i, n in enumerate(FILES):\n        f = open(_path(n), 'rb')\n        r = {}\n"
+    "        r['flock'] = _try(lambda: fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB))\n"
+    "        r['devnull'] = _try(lambda: fcntl.lockf(null, fcntl.LOCK_EX | fcntl.LOCK_NB, 1, i))\n"
+    "        try:\n            q = fcntl.fcntl(f, fcntl.F_GETLK, struct.pack('hhqqi', fcntl.F_WRLCK, 0, 0, 0, 0))\n"
+    "            t, _w, _s, _l, pid = struct.unpack('hhqqi', q)\n"
+    "            r['rdlock'] = 'busy pid %d' % pid if t != fcntl.F_UNLCK else 'ok'\n"
+    "        except OSError as e:\n            r['rdlock'] = 'errno %d' % e.errno\n"
+    "        for k, v in r.items():\n            if v.startswith('errno 11') or v.startswith('errno 13') or v.startswith('busy'):\n"
+    "                bits[k] |= 1 << i\n"
+    "        try:\n            fcntl.flock(f, fcntl.LOCK_UN)\n            fcntl.lockf(null, fcntl.LOCK_UN, 1, i)\n"
+    "        except OSError:\n            pass\n"
+    "        f.close()\n        out[n] = r\n"
+    "    return {'bits': bits, 'files': out}\n")
+
+
+class FileLocksDoNotCrossWorlds(V5Probe):
+    name = "v5.crossworld.file_locks_do_not_cross_worlds"
+    attack_class = "cross_world/file_locks"
+    gates = ("W.5",)
+    target, owner = "sandbox", "O"
+    needs_sandbox = True
+    world = {"v5": "commerce"}
+    description = ("Every world's sandboxed programs may read the same system files (the Python standard library), "
+                   "and flock() works on a file opened read-only. A service deployed in this world (a long-lived "
+                   "worker) takes exclusive locks on a pattern of 16 standard-library files - 16 bits of a secret - "
+                   "and returns; a program in a second world (another tenant) tries a non-blocking lock on each and "
+                   "reads the bits from which ones are busy; the same secret also as POSIX write locks on byte "
+                   "ranges of /dev/null (writable for every tenant) and as POSIX read locks that F_GETLK would "
+                   "report (with the holder's pid). Checked: no bit crosses.")
+
+    SECRET = 0b1011001110001011
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("xw-locks", 20_000_000)
+        self.other = _second_world("commerce", 13, "xw-locks-other")
+
+    def attack(self, a: Attacker) -> None:
+        from .base import deploy, manifest, org_of
+        org, acct = org_of(a, self.att, "lockco", company=True)
+        deploy(a, self.att, org, acct, "locker", {"crucible.json": manifest(take=0), "service.py": LOCK_HOLDER})
+        r = a.act(self.att, "locker.take", bits=self.SECRET)
+        self.holder = r.result if r.ok else {"error": r.error}
+        o = self.other
+        p = o.system_call("admin.join", {"handle": "reader", "endowment": 2_000_000})["principal"]
+        rid = o.system_call("code.create_repo", {"name": "r"}, as_principal=p)["repo"]
+        o.system_call("code.commit", {"repo": rid, "files": {"r.py": LOCK_READER}}, as_principal=p)
+        rr = o.system_call("code.run", {"repo": rid, "target": "r.py:read"}, as_principal=p)
+        self.reader = rr.get("result") if isinstance(rr.get("result"), dict) else {"error": str(rr)[:400]}
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        self.other.close()
+        got = (self.reader or {}).get("bits")
+        body = (self.holder or {}).get("body", self.holder) if isinstance(self.holder, dict) else None
+        evd = {"holder": body, "reader": self.reader, "secret": self.SECRET}
+        if not isinstance(got, dict) or not isinstance(body, dict) or "flock" not in body:
+            raise NotApplicable(f"the lock programs did not run: {json.dumps(evd, default=str)[:400]}")
+        n = bin(self.SECRET).count("1")
+        crossed = {k: bin(int(v) & self.SECRET).count("1") for k, v in got.items()}
+        false_bits = {k: bin(int(v) & ~self.SECRET).count("1") for k, v in got.items()}
+        evd.update({"bits_crossed": crossed, "bits_set_but_not_secret": false_bits,
+                    "cross_world_leaks": sum(1 for v in crossed.values() if v)})
+        if any(crossed.values()):
+            return Verdict(LEAK, f"secret bits (of {n}) crossed to another world through advisory locks on shared "
+                                 f"files: {crossed}", evd, severity="high",
+                           fix="sandbox/boot.py seccomp: locks private to the program (no-op), lock queries refused")
+        return Verdict(HELD, f"no bit crossed through flock, /dev/null record locks or lock queries ({n} set)", evd)
+
 def probes() -> list:
     return [ArtifactsDoNotCrossWorlds(), ClosedWorldBytesAreReleased(), SandboxStateIsPerWorld(),
             ReplayIgnoresForeignStore(), MemoEvictionIsPerLineage(),
-            KernelIpcDoesNotCrossWorlds()]
+            KernelIpcDoesNotCrossWorlds(), FileLocksDoNotCrossWorlds()]
