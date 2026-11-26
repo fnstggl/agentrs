@@ -38,6 +38,26 @@ class 4 acts.
 Batching in the world (V.4, SP-13.1): class 2 134 recorded calls for 198 decisions (mean batch 1.29-1.48, max 4);
 class 3 120 calls for 120 decisions (mean 1.0); class 4 none.
 
+Governor records of the six runs (V.7, V.8): peak CPU 0.95-1.005 of a 1-CPU grant, summed PSS of the job (world plus
+its sandbox workers) 3.4-4.3 GB, GPU memory 1.4-2.2 GB (reported by the interpreter hook), GPU time 406-1,385 s, store
+growth 402-437 MB; 0 violations, every dimension declared. The suite (6 runs, 2 at a time) took 47 minutes of wall
+time.
+
+Second row, the population-only world (`population.worlds.population_world`, 4.0 services and generated sites), same
+seeds and days: 140.3 simulated days per CPU-hour (121.9-153.4), 207 transitions and 43 decisions per wall second,
+7,348 raw bytes per individual-day, snapshot 8.6 MB, fork exact. It does not satisfy a target (D-27 rule 3); it is
+half as fast as the civ world because sandboxed site handlers dominate it (OPTIMISATION_REQUESTS R8).
+
+Crucible 4.0 equivalent workload (SP-13.8, SP-0.10; `bazaar` family of the c07098b tree, run from that tree's own
+source, same days, as many consumers as the profile has individuals; aggregate consumers, so equal population size,
+not equal fidelity):
+
+| consumers | 4.0 simulated days per CPU-hour | 4.0 peak RAM MB | v5 civ (development, seed 0) |
+|---:|---:|---:|---|
+| 1,000 | 2,021 | 130 | 330 days per CPU-hour, 2,732 MB, 12.9 public events per CPU-s (4.0: 11.3) |
+| 10,000 | 3,096 | 153 | (standard: section 6) |
+| 100,000 | 1,367 | 361 | (large: section 6) |
+
 ## 2. Backend matrix (V.4, SP-13.3; class-2 AdaptiveNet, 195,777 parameters, one CPU thread)
 
 Decisions per second (paired argmax agreement with torch CPU in brackets where below 1):
