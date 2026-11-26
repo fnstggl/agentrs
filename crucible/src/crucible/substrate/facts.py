@@ -611,15 +611,25 @@ def scan_registry(names=None) -> dict:
 
 def audit(names=None, today=None) -> dict:
     """The registry-wide check: every item of every module classified. {modules, items, by_status, owners,
-    duplicates, known_duplicates, unreviewed, legacy, uninstallable, problems}."""
+    duplicates, known_duplicates, allow_listed_absent (allow-list entries of modules this tree does not ship),
+    unreviewed, legacy, uninstallable, problems}."""
     scan = scan_registry(names)
     bad = scan.pop("!uninstallable")
     items = [classify(k) for m in sorted(scan) for k in scan[m]]
     probs = _judge(items, today) + [f"module {m} could not be installed for the scan: {e}" for m, e in sorted(bad.items())]
+    seen = {c["key"] for c in items}
+    absent = []
     for k in KNOWN_DUPLICATES:
         r = REVIEWED.get(k)
         if r is None or r["role"] != _D:
             probs.append(f"allow-list entry {k} is not a reviewed duplicate")
+        if k not in seen:
+            # an entry for a module of a sibling branch that is not on this tree (reviewed ahead of its merge, wave
+            # 3b) is reported, never counted; an entry whose module IS here but no longer creates the item is stale
+            mod = k.split(".", 1)[0]
+            if names is None and mod in scan:
+                probs.append(f"allow-list entry {k} is stale: module {mod} no longer creates it (remove the entry)")
+            absent.append(k)
     by = {}
     for c in items:
         by[c["status"]] = by.get(c["status"], 0) + 1
@@ -628,6 +638,7 @@ def audit(names=None, today=None) -> dict:
             "owners": sorted(c["key"] for c in items if c["status"] == "owner"),
             "duplicates": sorted(c["key"] for c in dups),
             "known_duplicates": sorted(c["key"] for c in dups if c["key"] in KNOWN_DUPLICATES),
+            "allow_listed_absent": sorted(absent),
             "unreviewed": sorted(c["key"] for c in items if c["status"] == "unreviewed"),
             "legacy": sorted(c["key"] for c in items if c.get("role") == _L),
             "uninstallable": bad, "problems": probs}

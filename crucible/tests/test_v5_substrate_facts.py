@@ -33,7 +33,10 @@ def test_every_module_of_the_registry_is_scanned_and_classified(registry_audit):
 
 def test_the_known_duplicates_are_exactly_the_reviewed_allow_list(registry_audit):
     a = registry_audit
-    assert a["duplicates"] == a["known_duplicates"] == sorted(facts.KNOWN_DUPLICATES)
+    # entries reviewed ahead of a sibling branch's merge name modules this tree does not ship (never stale ones)
+    absent = a["allow_listed_absent"]
+    assert all(k.split(".", 1)[0] not in facts.shipped_modules() for k in absent), absent
+    assert a["duplicates"] == a["known_duplicates"] == sorted(set(facts.KNOWN_DUPLICATES) - set(absent))
     for key, e in facts.KNOWN_DUPLICATES.items():
         assert set(e) >= {"target_owner", "decision", "workstream", "migration", "expires"}
         datetime.date.fromisoformat(e["expires"])

@@ -297,6 +297,34 @@ artifacts module and stay byte-identical); `artifacts.export` copies every `art/
 pool blob it holds); a blob that no event names is never packed. Rejected: a compact in-state blob index (still
 O(blobs) per snapshot) and per-snapshot structural sharing (keeps the state itself, its digest and its forks O(blobs)).
 
+## D-79 Duplicate facts of sibling branches are reviewed before their merge (2026-11-26, workstream A, wave 3b)
+The mandatory duplicate-fact scan (D-21) runs over every module this tree ships. In wave 3b the Tier 2 domain
+branches (I-2, I-3) add modules whose tables copy shared facts (a plant's improvement needs outside the needs graph,
+a council's proposals and votes outside the institutions owner, products and subscriptions outside their owners).
+Workstream A reviewed them from those branches' scans before the merge: each is classified in `facts.REVIEWED` and,
+where it is a duplicate, put on the allow-list with its target owner, migration and the owning workstream (expiry
+2027-03-31), so the scan passes on the integration branch exactly when the branches merge and fails if one of them
+adds an unreviewed copy. On a tree without those modules the entries are reported (`audit()["allow_listed_absent"]`)
+and never counted; an entry whose module is shipped but no longer creates the item is a problem (stale entry), so the
+allow-list cannot drift away from the code. Rejected: waiting for the merge to classify (the integrated scan would
+fail until another wave).
+
+## D-80 The deterministic cost model anchors a program's load like a job (2026-11-26, workstream A, wave 3b)
+Every sandboxed page request of a population world loads its site program in a fresh worker before the job; load CPU
+above `LOAD_FREE_NS` (3 ms) is billed with the request (D-20, so import-time work is not free). On the shared machine
+the same load measured 2.9 ms in one run and 5.8 ms in the next: the same request then cost 0.1 ms or 2.9 ms, the
+job memo's tolerance rule billed the noisy figure ("exceeded"), and two runs of one spec and seed differed in
+`cloud.usage` (the K2 observer test and the K1 cross-process resume failed after the wave-3a merge). Decision: under
+the deterministic cost model the load CPU is anchored like a job - the first measurement per lineage, program files
+and target (machine-level memo, first writer wins), billed for every later load unless a fresh load exceeds
+`MEMO_TOL` x the anchor + `MEMO_SLACK_NS` (then billed fresh and flagged, so import-time work cannot grow unbilled) -
+and it is kept out of the job's own anchor and tolerance check (`Worker._finish(load=...)`). The parent's raw load
+measurement stays in `meter.load_ns`. Limit: a cold start that one run has and another does not (a new process
+resuming at a point where the uninterrupted run had warm workers) still bills the anchored load once more where it
+exceeds `LOAD_FREE_NS`; programs whose anchored load is within the allowance bill identically even then (site
+program loads measured 2.9-5.8 ms on the loaded machine, so this limit is live: measured by the K1 test). Minimal edit in `sandbox/runner.py` (owner: security workstream), regression test
+`tests/test_v5_substrate_memo.py::test_a_noisy_program_load_is_billed_by_its_anchor_like_a_job`.
+
 ## D-48 The Tier 2 domain contract `domains-framework/2` (2026-11-26, workstream I, wave 3b)
 Resolves the contract split of audit I_domains section 2 (DEF-I-3) on the D-17 side: `crucible.domains.base.Domain`
 is the only domain contract and `crucible.experience` consumes it unchanged. A configuration's world is

@@ -518,7 +518,7 @@ class Worker:
             if msg.get("ok") is True:
                 self._loaded.add(target)
         if load_ns and self.cfg.count_lines:
-            # Workstream A (kcal, wave 3b; K1/K2 determinism, D-79): the deterministic cost model anchors the program's
+            # Workstream A (kcal, wave 3b; K1/K2 determinism, D-80): the deterministic cost model anchors the program's
             # load CPU like a job's - the first measurement per lineage, program files and target, the same tolerance
             # rule (a load more than MEMO_TOL x the anchor + MEMO_SLACK_NS is billed fresh, so import-time work cannot
             # grow unbilled). Before, a fresh load measurement straddling LOAD_FREE_NS (2.9 vs 5.8 ms on a loaded
