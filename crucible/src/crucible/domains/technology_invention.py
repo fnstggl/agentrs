@@ -780,7 +780,7 @@ MECHANICS = (
 ACTORS = (
     Actor("households", ("cols.batch:goods.session",), "population individuals buying goods"),
     Actor("plants", ("make.run", "tech.need"), "the industry's firms producing and stating needs"),
-    Actor("utility", ("make.grid",), "the grid operator"),
+    Actor("haulier", ("freight.shipment",), "the freight operator moving the industry's goods"),
 )
 
 
