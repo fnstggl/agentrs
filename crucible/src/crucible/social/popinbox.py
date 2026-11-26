@@ -164,7 +164,7 @@ def _review_memberships(ctx: Ctx, i: int, p: str, rng) -> None:
     from . import graph
     for mid in st.find_ids("creator_members", "fan", p) if ("creator_members", "fan") in st.indexes else []:
         m = st.tables["creator_members"][mid]
-        if m.get("status") != "active" or m.get("cancel_at_end"):
+        if m.get("status") != "active" or m.get("cancel_at_period_end"):
             continue
         creator = m["creator"]
         t = st.tables["creator_tiers"].get(m["tier"], {})
