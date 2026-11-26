@@ -499,8 +499,10 @@ def ch_rule_change(rng, d):
      distinct_because="compositional evaluation family: the hysteresis-gated collider of cx_latched_pathway with "
                       "the timed regime reversal of ch_sign_reversal spliced onto the gated product; no training "
                       "family combines hysteresis with a regime switch",
-     axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-     claims=(C + "latched_reversal",), identify=C + "latched_reversal_time", reference=R + "latch_then_watch")
+     axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="predict_heldout",
+     claims=(C + "latched_reversal",), identify=C + "latched_reversal_time",
+     reference="crucible.rapid.refs_adapt:fir_shape_predict_recent_lagged",
+     oracle="crucible.rapid.oracles:science_oracle", version="2")
 def cxc_latched_reversal(rng, d):
     H = int(d["horizon"])
     c = Composed(rng, _base(d, topology="collider", motifs=["hysteresis", "saturation"], temporal="lagged"))
@@ -522,6 +524,16 @@ def cxc_latched_reversal(rng, d):
     costs = price_levers_at(cfg, {a: 10.0, b: tb})
     cfg["nodes"][int(b[1:])]["lever"]["cost"] = costs[b]
     cfg["nodes"][int(a[1:])]["lever"]["cost"] = u(rng, 0.5, 0.65) * gain / p["hi"]
+    held = [{c.name_of(a): float(x), c.name_of(b): float(q)} for x, q in
+            ((12.0, 3.0), (0.5, 12.0), (14.0, 14.0), (11.0, 8.0), (1.0, 1.0), (13.0, 11.0), (6.0, 15.0))]
+    text = ("Predict where output settles under the conditions at the end of the episode if the two levers were "
+            f"held at these values from a closed start (partly outside what you can set): {held}. File predictions "
+            "with the journal: message to 'journal' with content {\"predictions\": [{\"set\": <condition>, "
+            "\"value\": <number>}, ...]}. Only the last filing counts.")
+    cfg["objective"] = {"type": "predict_heldout", "heldout": held, "gauge": c.gauge_of(c.sold), "text": text,
+                        "settle_ticks": 15}
+    cfg["journal"] = True
+    cfg["affordances"] = list(cfg["affordances"]) + ["message"]
     return cfg
 
 
