@@ -23,7 +23,7 @@ from crucible.acceptance.v5.evidence import record
 from crucible.core import evaluator_only as EO
 from crucible.experience import make, validate_observation
 from crucible.experience.modes import LEGACY, OBSERVATION_ONLY, VERIFIED
-from crucible.experience.registry import civ_profiles, domains
+from crucible.experience.registry import civ_profiles, tier2_domains as domains
 
 pytestmark = pytest.mark.timeout(2400)
 CMD = "PYTHONPATH=src python -m pytest tests/v5/test_gate_OO.py"

@@ -104,8 +104,8 @@ def main(argv=None) -> int:
         print(text)
         return 0 if out["learner_status"] == "ok" else 1
     if a.cmd == "tiers":
-        from .registry import domains, tiers_available
-        print(json.dumps({"tiers": tiers_available(), "domains": sorted(domains())}, indent=1))
+        from .registry import tier2_domains, tiers_available
+        print(json.dumps({"tiers": tiers_available(), "domains": sorted(tier2_domains())}, indent=1))
         return 0
     out = _run(a)
     text = json.dumps(out, indent=1, sort_keys=True)

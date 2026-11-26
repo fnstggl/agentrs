@@ -31,6 +31,7 @@ from .observation import (OBSERVATION_KINDS, TIME_UNIT, Observation, kinds_prese
 _LAZY = {
     "ExperienceEnv": ".env", "BaseExperienceEnv": ".env", "INTERFACE_VERSION": ".env",
     "make": ".registry", "TierUnavailable": ".registry", "tiers_available": ".registry", "domains": ".registry",
+    "tier2_domains": ".registry",
     "MechExperienceEnv": ".tier1", "RapidExperienceEnv": ".tier1",
     "KernelExperienceEnv": ".kernel",
     "ExperienceStore": ".store", "make_record": ".store",

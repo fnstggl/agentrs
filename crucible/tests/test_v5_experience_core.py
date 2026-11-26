@@ -197,7 +197,7 @@ def test_reference_learner_is_seeded_and_updates():
 
 
 def test_v5_tiers_are_not_substituted():
-    from crucible.experience.registry import civ_available, domains
+    from crucible.experience.registry import civ_available, tier2_domains as domains
     if not domains():
         with pytest.raises(TierUnavailable):
             make(2, "anything", 0)

@@ -10,7 +10,7 @@ import pytest
 
 from crucible.acceptance.v5.evidence import record
 from crucible.experience import OBSERVATION_KINDS, kinds_present, validate_observation
-from crucible.experience.registry import civ_available, domains, make
+from crucible.experience.registry import civ_available, make, tier2_domains as domains
 
 pytestmark = pytest.mark.timeout(900)
 CMD = "PYTHONPATH=src python -m pytest tests/v5/test_gate_SP_11_1.py"

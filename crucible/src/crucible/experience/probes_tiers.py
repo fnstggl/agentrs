@@ -479,8 +479,8 @@ def _domain_env(name: str, seed: int, **kw):
 
 
 def tier2_names() -> list[str]:
-    from .registry import TierUnavailable, domains
-    doms = domains()
+    from .registry import TierUnavailable, tier2_domains
+    doms = tier2_domains()
     if not doms:
         raise TierUnavailable("no v5 Tier 2 domain is registered (crucible.domains.base.REGISTRY is empty; D-17: "
                               "domains are configurations of crucible.civ; workstream I)")

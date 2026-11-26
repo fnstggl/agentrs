@@ -32,8 +32,8 @@ def test_population_private_state_probe_finds_a_planted_value_and_nothing_else()
     ...): nothing in what a seat reaches in a domain world with the population, and a positive control - one
     individual's private value planted in a public event - is found."""
     from crucible.experience import probes_tiers as PT
-    from crucible.experience.registry import domains
-    name = next((n for n, d in sorted(domains().items())), None)
+    from crucible.experience.registry import tier2_domains
+    name = next((n for n, d in sorted(tier2_domains().items())), None)
     assert name is not None, "no Part 9 domain registered: the probe needs a world with the population"
     env = make(2, name, 3)
     a = env.agents()[0]
@@ -61,10 +61,10 @@ def test_fixture_domains_never_count_as_tier2_but_build_by_name():
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "v5"))
     import _domain_fixture
     from crucible.domains import base
-    from crucible.experience.registry import domains
+    from crucible.experience.registry import domains, tier2_domains
     _domain_fixture.register()
     try:
-        assert "fixture_retail" in domains(include_fixtures=True) and "fixture_retail" not in domains()
+        assert "fixture_retail" in domains() and "fixture_retail" not in tier2_domains()
         env = make(2, "fixture_retail:ring_standard", 0)
         assert env.tier == 2 and {"exp", "goals"} <= set(env.world.modules)
         names = {t["name"] for t in env.tools(env.agents()[0])}

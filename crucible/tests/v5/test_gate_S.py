@@ -17,7 +17,7 @@ from crucible.experience import ExperienceStore, validate_observation
 from crucible.experience.loop import run_learner
 from crucible.experience.parallel import FarmRun, VecExperience
 from crucible.experience.reference import ReferenceLearner
-from crucible.experience.registry import TierUnavailable, civ_available, domains, make
+from crucible.experience.registry import TierUnavailable, civ_available, make, tier2_domains as domains
 
 pytestmark = pytest.mark.timeout(1800)
 CMD = "PYTHONPATH=src python -m pytest tests/v5/test_gate_S.py"

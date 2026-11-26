@@ -58,12 +58,10 @@ def _rapid():
     return mod if hasattr(mod, "make") else None
 
 
-def domains(include_fixtures: bool = False) -> dict[str, Any]:
-    """v5 Tier 2 domains present in this checkout: name -> `crucible.domains.base.Domain` (every domain module of
-    `crucible.domains` registers itself with `base.register` at import; `load_all()` imports them). Only the Part 9
-    domains count as Tier 2 (`Domain.is_part9`): test fixtures (`fixture=True`, e.g. tests/v5/_domain_fixture.py) and
-    test domains outside Part 9 are left out unless `include_fixtures` - so a fixture registered by another test in
-    the same process never stands in for a real domain in a gate."""
+def domains(include_fixtures: bool = True) -> dict[str, Any]:
+    """Every registered v5 Tier 2 domain: name -> `crucible.domains.base.Domain` (every domain module of
+    `crucible.domains` registers itself with `base.register` at import; `load_all()` imports them), test fixtures
+    included (they can be built by name). What COUNTS as Tier 2 is `tier2_domains()`."""
     try:
         pkg = importlib.import_module("crucible.domains")
         base = importlib.import_module("crucible.domains.base")
@@ -77,6 +75,13 @@ def domains(include_fixtures: bool = False) -> dict[str, Any]:
         return reg
     return {n: d for n, d in reg.items() if (d.is_part9() if hasattr(d, "is_part9") else not getattr(d, "fixture",
                                                                                                          False))}
+
+
+def tier2_domains() -> dict[str, Any]:
+    """The domains that count as Tier 2 in every measurement: the Part 9 domains (`Domain.is_part9`). Test fixtures
+    (`fixture=True`, e.g. tests/v5/_domain_fixture.py) and test domains outside Part 9 are left out, so a fixture
+    registered by another test in the same process never stands in for a real domain in a gate."""
+    return domains(include_fixtures=False)
 
 
 def civ_available() -> bool:
@@ -96,14 +101,14 @@ def civ_profiles() -> list[str]:
 
 def tiers_available() -> dict[int, bool]:
     from ..mechanisms.base import MECH_FAMILIES  # noqa: F401 - Tier 1 always exists (4.0 mechanisms)
-    return {1: True, 2: bool(domains()), 3: civ_available()}
+    return {1: True, 2: bool(tier2_domains()), 3: civ_available()}
 
 
 def domain_and_config(name: str, doms: dict | None = None) -> tuple[Any, Any]:
     """(Domain, DomainConfig) for ``"<domain>"``, ``"<domain>:<config>"`` or ``"d5_<domain>_<config>"``; a bare
     domain name means its first training configuration. Any registered domain can be built by name (fixtures
-    included); only `domains()` decides what counts as Tier 2."""
-    doms = domains(include_fixtures=True) if doms is None else doms
+    included); only `tier2_domains()` decides what counts as Tier 2."""
+    doms = domains() if doms is None else doms
     if not doms:
         raise TierUnavailable("no v5 Tier 2 domain is present (crucible.domains.base.REGISTRY is empty; "
                               "workstream I / the civilisation generator, D-17)")
