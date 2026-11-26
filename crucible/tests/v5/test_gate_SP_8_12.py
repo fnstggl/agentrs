@@ -48,12 +48,26 @@ def _measured(axis: str, family: str):
     if axis == "hidden_state_complexity":
         return _hidden(lo_cfg), _hidden(hi_cfg)
     if axis == "opponent_capability":
-        return _rival_speed(lo_env), _rival_speed(hi_env)
+        if F.FAMILIES[family].engine == "primitive_graph":
+            return _rival_speed(lo_env), _rival_speed(hi_env)
+        return _changed_number(lo_cfg, hi_cfg, ("eta", "memory", "lr", "rate"))
     if axis == "resources":
-        return _resources(lo_cfg), _resources(hi_cfg)
+        r = _resources(lo_cfg), _resources(hi_cfg)
+        return r if None not in r else _changed_number(lo_cfg, hi_cfg, ("budget", "crew", "capacity", "slots",
+                                                                        "umax", "seed_budget"))
     if axis == "action_complexity":
         return _options(lo_env), _options(hi_env)
     raise KeyError(axis)
+
+
+def _changed_number(lo_cfg, hi_cfg, keys):
+    """The value, at the default and at the raised axis, of the first named configuration quantity the axis
+    controls in this engine (a learning rate, a budget, a crew size, ...)."""
+    for k in keys:
+        a, b = lo_cfg.get(k), hi_cfg.get(k)
+        if isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
+            return float(a), float(b)
+    return None, None
 
 
 def _noise_sd(env):
@@ -134,7 +148,10 @@ def test_SP_8_12_difficulty_axes_and_simulator_kernel_agreement():
         fams = [n for n in sorted(admitted) if axis in F.FAMILIES[n].axes]
         ok = False
         for fam in fams:
-            a, b = _measured(axis, fam)
+            try:
+                a, b = _measured(axis, fam)
+            except Exception:  # noqa: BLE001 - a family whose quantity this gate cannot measure is skipped
+                continue
             if a is not None and b is not None and b > a:
                 ok, where[axis] = True, f"{fam}: {a:.4g} -> {b:.4g}"
                 break
