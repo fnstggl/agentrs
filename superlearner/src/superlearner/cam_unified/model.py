@@ -47,6 +47,12 @@ from .interfaces import (Action, ActionSource, EntityRegistry, FastState, Imagin
 from .outcome_spec import (CONTINUOUS, CORE_INDEX, OutcomeQueryEncoder, OutcomeTracker, bind_channels,
                            build_outcome_batch, lookup_channels, make_room, make_text_encoder, select_outcomes,
                            with_targets)
+# seam commit (plan 2026-11-26 §3): runtime bodies moved to the owning workstreams' modules; the methods below are
+# one-line delegations. These modules never import `.model` at module level (no import cycle).
+from .core import belief_runtime as _belief
+from .memory import runtime as _memory
+from .world import train_seq as _train_seq
+from .world.planner_runtime import LatentImaginationPlanner  # noqa: F401  (re-export: model.LatentImaginationPlanner)
 
 N_CONTINUOUS_CORE = 3          # cost, duration, reward: the continuous core outcome keys (Kalman channels)
 
@@ -809,10 +815,11 @@ class CamUnifiedModel(nn.Module):
     entity_encoder, planner (else `LatentImaginationPlanner`).
     Extra knobs (constructor kwargs): imag_candidates / imag_horizon / imag_samples (default from cfg), unc_coef
     (uncertainty penalty), n_error_classes, money_unit, max_numeric_outcomes, max_event_types, amp (bf16 autocast;
-    default on for CUDA), reason_iters (fixed J; None = adaptive), reward_in_beliefs (whether the realised verified
-    reward increment is an observed outcome for the belief / Kalman updates; design decision, default True: the
-    evaluator's scalar score increment is the only evaluator output that reaches the learner, as a verified return,
-    and conditioning beliefs on it is standard meta-RL; False keeps it as a world-model target only)."""
+    default on for CUDA), reason_iters (fixed J; None = cfg.reason_iters_fixed, where 0 = adaptive),
+    reward_in_beliefs (None = cfg.reward_in_beliefs; whether the realised verified reward increment is an observed
+    outcome for the belief / Kalman updates; design decision, default True: the evaluator's scalar score increment
+    is the only evaluator output that reaches the learner, as a verified return, and conditioning beliefs on it is
+    standard meta-RL; False keeps it as a world-model target only)."""
 
     def __init__(self, cfg: CamConfig, *, tokenizer, core, outcome_head, world_model, action_generator, value_head,
                  semantic=None, entity_encoder=None, reasoner=None, beliefs=None, bayes=None, retriever=None,
@@ -820,7 +827,8 @@ class CamUnifiedModel(nn.Module):
                  imag_candidates: Optional[int] = None, imag_horizon: Optional[int] = None,
                  imag_samples: Optional[int] = None, unc_coef: float = 0.1, n_error_classes: int = 16,
                  money_unit: str = "cents", max_numeric_outcomes: int = 32, max_event_types: int = 16,
-                 amp: Optional[bool] = None, reason_iters: Optional[int] = None, reward_in_beliefs: bool = True):
+                 amp: Optional[bool] = None, reason_iters: Optional[int] = None,
+                 reward_in_beliefs: Optional[bool] = None):
         super().__init__()
         self.cfg = cfg
         self._version = 0
@@ -859,8 +867,11 @@ class CamUnifiedModel(nn.Module):
         self.max_numeric_outcomes = max_numeric_outcomes
         self.max_event_types = max_event_types
         self.amp = amp
-        self.reason_iters = reason_iters
-        self.reward_in_beliefs = reward_in_beliefs
+        # None = from the config (seam: cfg.reason_iters_fixed, 0 = adaptive; cfg.reward_in_beliefs, default True)
+        self.reason_iters = reason_iters if reason_iters is not None else \
+            (getattr(cfg, "reason_iters_fixed", 0) or None)
+        self.reward_in_beliefs = reward_in_beliefs if reward_in_beliefs is not None else \
+            getattr(cfg, "reward_in_beliefs", True)
         self.think_days = cfg.think_s / 86400.0
         self.calls: dict = {}         # component call counters and budget-drop counters (observability)
         self._retrieve_now = retriever is not None and "now" in _params_of(retriever.retrieve)
@@ -1041,56 +1052,12 @@ class CamUnifiedModel(nn.Module):
         check_tokens(ts, option.shape[0], self.cfg.d_model, "option_policy.token")
         return with_mask(as_kind(ts, TokenKind.OPTION), option >= 0)
 
+    # seam delegations: bodies in memory/runtime.py (owner W9)
     def memory_tokens(self, ids: list, now: Optional[list] = None) -> Optional[TokenSet]:
-        """Differentiable MEMORY tokens of stored retrieved ids (None when the retriever cannot rebuild them)."""
-        if self.retriever is None:
-            return None
-        if hasattr(self.retriever, "memory_tokens"):
-            M = self.retriever.memory_tokens(ids, now)
-            check_tokens(M, len(ids), self.cfg.d_model, "retriever.memory_tokens")
-            return as_kind(M, TokenKind.MEMORY)
-        return self.stored_memory_tokens(ids, now)
+        return _memory.memory_tokens(self, ids, now)
 
-    @torch.no_grad()
     def stored_memory_tokens(self, ids: list, now: Optional[list] = None) -> Optional[TokenSet]:
-        """MEMORY tokens of stored retrieved segment ids read back from the retriever's memory index (E's
-        MemoryIndex: the same stored values `retrieve` returned when acting, as long as the served embedding version
-        is unchanged), laid out as `Retriever.retrieve` lays them out: [B, k*T, D], refs "seg:<id>", time = segment
-        end - now. No gradient (the values are the index's, as when acting). None without a readable index."""
-        r = self.retriever
-        idx = getattr(r, "index", None)
-        version = r.served_version() if callable(getattr(r, "served_version", None)) else None
-        if idx is None or version is None or not any(ids):
-            return None
-        B, D = len(ids), self.cfg.d_model
-        T = int(getattr(r, "n_mem", self.cfg.mem_segment_tokens))
-        k = max(len(i) for i in ids)
-        dev = self.device
-        x = torch.zeros(B, k, T, D, device=dev)
-        tm = torch.zeros(B, k, T, device=dev)
-        valid = torch.zeros(B, k, dtype=torch.bool, device=dev)
-        flat = [str(s) for row in ids for s in row]
-        kids = idx.kids_of(version, flat)
-        metas = {m["seg_id"]: m for m in idx.segments([s for s, kd in zip(flat, kids) if kd >= 0])}
-        have = [kd for kd in kids if kd >= 0]
-        vals = idx.values(version, have).to(dev) if have else None
-        p = q = 0
-        for b, row in enumerate(ids):
-            nb = float(now[b]) if now is not None else 0.0
-            for j, s in enumerate(row):
-                if kids[p] >= 0 and str(s) in metas:
-                    x[b, j] = vals[q].to(x.dtype)
-                    tm[b, j] = float(metas[str(s)]["t_end"]) - nb
-                    valid[b, j] = True
-                    q += 1
-                elif kids[p] >= 0:
-                    q += 1
-                p += 1
-        self._count("memory.stored_tokens", int(valid.sum()))
-        refs = [[(f"seg:{row[j]}" if j < len(row) else None) for j in range(k) for _ in range(T)] for row in ids]
-        return TokenSet(x.reshape(B, k * T, D), valid.unsqueeze(-1).expand(B, k, T).reshape(B, k * T),
-                        torch.full((B, k * T), int(TokenKind.MEMORY), dtype=torch.long, device=dev),
-                        tm.reshape(B, k * T), torch.full((B, k * T), -1, dtype=torch.long, device=dev), refs)
+        return _memory.stored_memory_tokens(self, ids, now)
 
     # ---------------------------------------------------------------- the step equation
     def _goal_and_belief(self, goals: list, fast: Optional[FastState], B: int) -> tuple:
@@ -1104,18 +1071,7 @@ class CamUnifiedModel(nn.Module):
 
     def retrieve(self, Z_prev: torch.Tensor, G: TokenSet, Bt: TokenSet, filters: Optional[list] = None,
                  now: Optional[list] = None) -> tuple:
-        """M_t = Retrieve(Q(Z_{t-1}, G_t, B_t)) -> (TokenSet MEMORY [B,<=k,D], ids [B][k], scores)."""
-        B = Z_prev.shape[0]
-        self._count("retriever.retrieve")
-        q = self.retriever.query(Z_prev, G, Bt)
-        if q.dim() != 2 or q.shape[0] != B:
-            raise ShapeError(f"retriever.query: {tuple(q.shape)} != [B={B}, key_dim]")
-        if self._retrieve_now:
-            M, ids, scores = self.retriever.retrieve(q, self.cfg.mem_top_k, filters, now=now)
-        else:
-            M, ids, scores = self.retriever.retrieve(q, self.cfg.mem_top_k, filters)
-        check_tokens(M, B, self.cfg.d_model, "retriever.retrieve")
-        return as_kind(M, TokenKind.MEMORY), ids, scores
+        return _memory.retrieve(self, Z_prev, G, Bt, filters, now)        # seam: memory/runtime.py (owner W9)
 
     def context(self, O: TokenSet, A_prev: Optional[TokenSet], TIME: Optional[TokenSet], Bt: TokenSet,
                 opt_tok: Optional[TokenSet], M: Optional[TokenSet], G: TokenSet,
@@ -1175,134 +1131,52 @@ class CamUnifiedModel(nn.Module):
         return specs, build_outcome_batch(specs, self.query_encoder, state.registries, chans, self.device)
 
     # ---------------------------------------------------------------- outcome predictions (particles + Kalman)
+    # seam delegations: bodies in core/belief_runtime.py (owner W6)
     def _particle_dist(self, feat: torch.Tensor, ob: OutcomeBatch, fast: Optional[FastState]):
-        if self.cfg.use_fast_adaptation and fast is not None:
-            return self.outcome_head.dist(feat, ob, cond=fast.particles)
-        return self.outcome_head.dist(feat, ob)
+        return _belief.particle_dist(self, feat, ob, fast)
 
     def base_moments(self, Z_hat: torch.Tensor, fast: Optional[FastState], ob: OutcomeBatch) -> tuple:
-        """Outcome-head predictive mean/var [B,Q] from the action-conditioned latent Z_hat: the mixture over belief
-        particles (weights w) with fast adaptation, the unconditioned head otherwise. Also returns the features."""
-        B, Q = ob.lik.shape
-        feat = self.outcome_head.features(Z_hat, ob)
-        check_shape(feat, (B, Q, self.cfg.d_model), "outcome_head.features")
-        d = self._particle_dist(feat, ob, fast)
-        if self.cfg.use_fast_adaptation and fast is not None:
-            mk, vk = dist_mean(d).float(), dist_var(d).float()
-            check_shape(mk, (B, self.cfg.n_particles, Q), "outcome_head.dist(cond) mean")
-            w = torch.softmax(fast.logw.float(), -1).unsqueeze(-1)
-            mean = (w * mk).sum(1)
-            var = (w * (vk + mk * mk)).sum(1) - mean * mean
-        else:
-            mean, var = dist_mean(d).float(), dist_var(d).float()
-            check_shape(mean, (B, Q), "outcome_head.dist mean")
-        return mean, var.clamp_min(0.0), feat
+        return _belief.base_moments(self, Z_hat, fast, ob)
 
-    @staticmethod
-    def _continuous(ob: OutcomeBatch) -> torch.Tensor:
-        c = torch.zeros_like(ob.y_mask)
-        for k in CONTINUOUS:
-            c = c | (ob.lik == k)
-        return c
+    _continuous = staticmethod(_belief.continuous_mask)
 
     def _kalman_on(self) -> bool:
-        return self.cfg.use_fast_adaptation and self.bayes is not None
+        return _belief.kalman_on(self)
 
     def channels_of(self, fast: FastState, ob: OutcomeBatch) -> OutcomeBatch:
-        """The same queries with `channel` looked up in fast.channels by key (continuous keys only)."""
-        B, Q = ob.lik.shape
-        cont = self._continuous(ob).cpu()
-        ch = torch.full((B, Q), -1, dtype=torch.long)
-        for b in range(B):
-            table = fast.channels[b]
-            keys = ob.keys[b] if ob.keys is not None else []
-            for q, k in enumerate(keys):
-                if k is not None and bool(cont[b, q]):
-                    ch[b, q] = int(table.get(k, -1))
-        return OutcomeBatch(ob.q, ob.lik, ob.n_classes, ob.y, ob.censored, ob.y_mask, ch.to(ob.lik.device), ob.keys)
+        return _belief.channels_of(self, fast, ob)
 
     def kalman_bound(self, ob: OutcomeBatch) -> torch.Tensor:
-        return self._continuous(ob) & (ob.channel >= 0) & ob.q.mask
+        return _belief.kalman_bound(self, ob)
 
     def kalman_predict(self, fast: FastState, feat: torch.Tensor, ob: OutcomeBatch) -> tuple:
-        """Residual correction of the Kalman/NIG last layer: (corr_mean [B,Q], corr_var [B,Q], phi [B,Q,F],
-        bound [B,Q])."""
-        B, Q = ob.lik.shape
-        phi = self.bayes.features(feat, ob)
-        cm, cv = self.bayes.predict(fast, phi, ob)
-        check_shape(cm, (B, Q), "bayes.predict mean")
-        return cm.float(), cv.float().clamp_min(0.0), phi, self.kalman_bound(ob)
+        return _belief.kalman_predict(self, fast, feat, ob)
 
     def combine(self, head_mean, head_var, corr_mean, corr_var, bound) -> tuple:
-        """Bound continuous queries: (head + correction mean, the Kalman predictive variance); others: the head.
-        (B's BayesLastLayer.combine when present: same semantics.)"""
-        if hasattr(self.bayes, "combine"):
-            m, v = self.bayes.combine(head_mean, head_var, corr_mean, corr_var, bound)
-            return m.float(), v.float()
-        return torch.where(bound, head_mean + corr_mean, head_mean), torch.where(bound, corr_var, head_var)
+        return _belief.combine(self, head_mean, head_var, corr_mean, corr_var, bound)
 
     def kalman_log_prob(self, fast: FastState, phi: torch.Tensor, ob: OutcomeBatch, head_mean: torch.Tensor
                         ) -> torch.Tensor:
-        """log p(y | head mean + Kalman residual predictive) [B,Q] (0 where unbound/unobserved). Differentiable in
-        phi, head_mean and the Kalman statistics (hence the learned prior / noise)."""
-        if hasattr(self.bayes, "log_prob"):
-            return self.bayes.log_prob(fast, phi, ob, head_mean).float()
-        m, v = self.bayes.predict(fast, phi, ob)
-        v = v.float().clamp_min(1e-8)
-        r = ob.y.float() - head_mean.float()
-        lp = -0.5 * (math.log(2 * math.pi) + torch.log(v) + (r - m.float()) ** 2 / v)
-        return torch.where(self.kalman_bound(ob) & ob.y_mask, lp, torch.zeros_like(lp))
+        return _belief.kalman_log_prob(self, fast, phi, ob, head_mean)
 
     def residual_batch(self, ob: OutcomeBatch, base_mean: torch.Tensor) -> OutcomeBatch:
-        """Targets r = y - head mean on observed continuous queries (the Kalman layer's regression target)."""
-        cont = self._continuous(ob) & ob.y_mask
-        return with_targets(ob, torch.where(cont, ob.y.float() - base_mean.float(), torch.zeros_like(ob.y.float())),
-                            cont)
+        return _belief.residual_batch(self, ob, base_mean)
 
     def kalman_update(self, fast: FastState, feat: torch.Tensor, ob: OutcomeBatch, base_mean: torch.Tensor
                       ) -> FastState:
-        """Kalman/NIG update with the residuals of `ob` against `base_mean` (differentiable closed form when the
-        Bayes layer is). The layer allocates slots for new observed keys when it can (`assign_channels`)."""
-        resid = self.residual_batch(ob, base_mean)
-        phi = self.bayes.features(feat, resid)
-        return self.bayes.update(fast, phi, resid)
+        return _belief.kalman_update(self, fast, feat, ob, base_mean)
 
     def predict_outcomes(self, Z_hat: torch.Tensor, fast: Optional[FastState], ob: OutcomeBatch) -> tuple:
-        """Predictive mean/var [B,Q]: base_moments combined, on continuous outcomes with a bound channel, with the
-        Kalman/NIG last layer (mean head + phi^T mu_c, variance = Kalman predictive variance)."""
-        mean, var, feat = self.base_moments(Z_hat, fast, ob)
-        if self._kalman_on() and fast is not None:
-            cm, cv, _, bound = self.kalman_predict(fast, feat, ob)
-            mean, var = self.combine(mean, var, cm, cv, bound)
-        return mean, var, feat
+        return _belief.predict_outcomes(self, Z_hat, fast, ob)
 
     def belief_view(self, ob: OutcomeBatch) -> OutcomeBatch:
-        """The outcomes the belief / Kalman updates condition on (the realised reward is masked unless
-        reward_in_beliefs)."""
-        if self.reward_in_beliefs or ob.keys is None:
-            return ob
-        m = ob.y_mask.clone()
-        for b, keys in enumerate(ob.keys):
-            for q, k in enumerate(keys):
-                if k == "reward":
-                    m[b, q] = False
-        return OutcomeBatch(ob.q, ob.lik, ob.n_classes, ob.y, ob.censored, m, ob.channel, ob.keys)
+        return _belief.belief_view(self, ob)
 
     def mixture_ll(self, fast: FastState, feat: torch.Tensor, ob: OutcomeBatch, use: torch.Tensor) -> torch.Tensor:
-        """log sum_k w_k prod_{q in use} p(y_q | feat, m_k) [B] (0 where nothing is used)."""
-        B, Q = ob.lik.shape
-        d = self._particle_dist(feat, ob, fast)
-        K = fast.logw.shape[1]
-        y = ob.y.unsqueeze(1).expand(B, K, Q)
-        cens = None if ob.censored is None else ob.censored.unsqueeze(1).expand(B, K, Q)
-        lp = dist_log_prob(d, y, cens).float()
-        ll = torch.where(use.unsqueeze(1), lp, torch.zeros_like(lp)).sum(-1)              # [B,K]
-        return torch.logsumexp(torch.log_softmax(fast.logw.float(), -1) + ll, -1)
+        return _belief.mixture_ll(self, fast, feat, ob, use)
 
     def mixture_loglik(self, fast: FastState, Z_hat: torch.Tensor, ob: OutcomeBatch) -> torch.Tensor:
-        """Particle-mixture log p(y | B) per env [B] divided by the number of observed outcomes (per-outcome nats)."""
-        feat = self.outcome_head.features(Z_hat, ob)
-        return self.mixture_ll(fast, feat, ob, ob.y_mask) / ob.y_mask.float().sum(-1).clamp_min(1.0)
+        return _belief.mixture_loglik(self, fast, Z_hat, ob)
 
     # ---------------------------------------------------------------- deciding
     @torch.no_grad()
@@ -1456,79 +1330,14 @@ class CamUnifiedModel(nn.Module):
         return dt
 
     # ---------------------------------------------------------------- outcomes -> beliefs
-    @torch.no_grad()
-    @_acting
+    # seam delegations: bodies in core/belief_runtime.py (owner W6); observe_outcomes runs without gradients in
+    # acting (eval) mode there
     def observe_outcomes(self, state: CamState, decision: Decision, results: list, next_obs: list,
                          rewards: Sequence[float]) -> dict:
-        """Realise the outcomes of `decision` (OutcomeBatch with y), compute the hindsight learning progress of the
-        previous belief update, then update the particle beliefs and the Kalman/NIG last layer (use_fast_adaptation).
-        Kalman channels: slots are freed for the realised continuous keys by least-recently-realised eviction
-        (`make_room`), then allocated by the Bayes layer (B's `assign_channels`) or by the model; evictions and keys
-        that do not fit are counted. Returns {"outcomes", "specs", "belief_info", "lp" [B] or None, "belief_after",
-        "loglik" [B], "channels" [B] {"evicted", "unbound"}, "dropped" [B]}."""
-        cfg = self.cfg
-        B = state.B
-        specs = [state.trackers[b].realize(decision.inputs.obs_lists[b], decision.actions[b], results[b], next_obs[b],
-                                           float(rewards[b])) for b in range(B)]
-        dropped = [dict(state.trackers[b].last_dropped) for b in range(B)]
-        ch_stats = [{"evicted": 0, "unbound": 0} for _ in range(B)]
-        if self._kalman_on() and state.fast is not None:
-            pv, nv = self._bayes_prior()
-            chans = []
-            for b in range(B):
-                if self._bayes_allocates:
-                    make_room(state.fast, b, specs[b], state.trackers[b].last_seen, pv, nv, ch_stats[b])
-                    chans.append(lookup_channels(state.fast, b, specs[b]))
-                else:
-                    chans.append(bind_channels(state.fast, b, specs[b], state.trackers[b].last_seen, pv, nv,
-                                               ch_stats[b]))
-        else:
-            chans = [[-1] * len(s) for s in specs]
-        for d in dropped:
-            for k, n in d.items():
-                self._count(f"outcome_dropped/{k}", n)
-        with self._autocast():
-            ob = build_outcome_batch(specs, self.query_encoder, state.registries, chans, self.device)
-            out = {"outcomes": ob, "specs": specs, "belief_info": {}, "lp": None, "loglik": None,
-                   "channels": ch_stats, "dropped": dropped}
-            if cfg.use_fast_adaptation and state.fast is not None:
-                obb = self.belief_view(ob)
-                ll_now = self.mixture_loglik(state.fast, decision.Z_hat, obb)
-                out["loglik"] = ll_now
-                if cfg.use_learned_exploration and state.fast_prev is not None:
-                    # LP_{t-1} = log p(o_t | B_t) - log p(o_t | B_{t-1}): o_t is disjoint from the support o_{t-1}
-                    out["lp"] = (ll_now - self.mixture_loglik(state.fast_prev, decision.Z_hat, obb)).float()
-                before = state.fast.clone()
-                # Kalman target: residual of y against the same base prediction the residual is added to
-                base_mean, _, feat = self.base_moments(decision.Z_hat, before, obb)
-                self._count("beliefs.update")
-                fast1, binfo = self.beliefs.update(state.fast, decision.Z, decision.act_tokens, obb, self.outcome_head)
-                check_shape(fast1.logw, (B, cfg.n_particles), "beliefs.update logw")
-                self._count("bayes.update")
-                fast2 = self.kalman_update(fast1, feat, obb, base_mean)
-                state.fast_prev = before
-                state.fast = fast_detach(fast2)
-                out["belief_info"] = {k: v for k, v in (binfo or {}).items() if k != "feat"}
-                for b in range(B):
-                    table = state.fast.channels[b]
-                    ch_stats[b]["unbound"] = sum(1 for s in specs[b] if s.observed and int(s.lik) in CONTINUOUS
-                                                 and (s.key != "reward" or self.reward_in_beliefs)
-                                                 and s.key not in table)
-        for st in ch_stats:
-            self._count("channels.evicted", st["evicted"])
-            self._count("channels.unbound", st["unbound"])
-        out["belief_after"] = belief_summary(None if state.fast is None else state.fast.logw) or [{} for _ in range(B)]
-        return out
+        return _belief.observe_outcomes(self, state, decision, results, next_obs, rewards)
 
     def _bayes_prior(self) -> tuple:
-        """(prior variance [F] or scalar, noise) a freed slot is reset to: the Bayes layer's learned values when it
-        exposes them, the config initial values otherwise."""
-        pv, nv = self.cfg.bayes_prior_var_init, self.cfg.bayes_obs_var_init
-        if callable(getattr(self.bayes, "prior_var", None)):
-            pv = self.bayes.prior_var().detach().double()
-        if callable(getattr(self.bayes, "noise", None)):
-            nv = float(self.bayes.noise().detach())
-        return pv, nv
+        return _belief.bayes_prior(self)
 
     # ---------------------------------------------------------------- training-time recomputation
     def policy_evaluate(self, inp: StepInputs, actions: list) -> dict:
@@ -1616,123 +1425,18 @@ class CamUnifiedModel(nn.Module):
                          if enc.rinfo.get("iters") is not None else None})
         return {"rows": rows, "version": self.version}
 
+    # ---- seam delegations: replay filtering / world objective in world/train_seq.py, adaptation in
+    # core/belief_runtime.py (owner W6)
     def filter_sequence(self, seq, aux: Optional[ReplayAux] = None) -> FilterResult:
-        """Run F_theta over a tokenised SequenceBatch with the acting context: Z_t = F(Z_{t-1}, [O_t; A_{t-1};
-        TIME(dt_{t-1}); B_t; option_{t-1}; M_t; G_t]), where B_t is re-filtered along the sequence by the belief module
-        from the stored outcomes (B_t has seen o_{<t}), M_t is rebuilt from the stored retrieved ids (when the
-        retriever can) and option_{t-1} comes from the stored option decisions. Rows whose previous step ended an
-        episode restart from the initial state and a fresh belief."""
-        cfg = self.cfg
-        steps = seq.steps
-        B = steps[0].obs.B
-        dev = steps[0].obs.x.device
-        Z0 = self.core.init_state(B, device=dev).float()
-        Z = Z0
-        fast = self.beliefs.init_fast(B, device=dev) if cfg.use_fast_adaptation else None
-        prev, prev_done = None, torch.zeros(B, dtype=torch.bool, device=dev)
-        res = FilterResult([], [], [])
-        with self._autocast():
-            for t, st in enumerate(steps):
-                if bool(prev_done.any()):
-                    Z = torch.where(prev_done.view(B, 1, 1), Z0.to(Z.dtype), Z)
-                    if fast is not None:
-                        fast = fast_where(prev_done, self.beliefs.init_fast(B, device=dev), fast)
-                alive = ~prev_done
-                Bt = self.beliefs.tokens(fast) if fast is not None else self.empty_tokens(B)
-                opt_tok = None
-                if self.option_policy is not None and aux is not None:
-                    o = torch.tensor(aux.option_prev[t], dtype=torch.long, device=dev)
-                    s = torch.tensor(aux.option_steps_prev[t], dtype=torch.long, device=dev)
-                    opt_tok = self._option_token(torch.where(alive, o, torch.full_like(o, -1)), s)
-                M = None
-                if cfg.use_memory and aux is not None and any(aux.retrieved[t]):
-                    M = self.memory_tokens(aux.retrieved[t], aux.now[t])
-                    res.memory_rebuilt = res.memory_rebuilt or M is not None
-                A_prev = None if prev is None else with_mask(prev.act, alive)
-                dtp = (torch.full((B,), -1.0, device=dev) if prev is None else
-                       torch.where(alive, prev.dt.float().to(dev), torch.full((B,), -1.0, device=dev)))
-                TIME = self._time_tokens(dtp)
-                ctx = self.context(st.obs, A_prev, TIME, Bt, opt_tok, M, st.goal)
-                Z, _ = self.core(Z, ctx)
-                Z = Z.float()
-                res.Zs.append(Z)
-                res.beliefs.append(TokenSet.cat(Bt, opt_tok))
-                res.memory.append(M if M is not None else self.empty_tokens(B))
-                if fast is not None and bool(st.outcomes.y_mask.any()):
-                    fast, _ = self.beliefs.update(fast, Z, st.act, self.belief_view(st.outcomes), self.outcome_head)
-                    res.n_belief_updates += 1
-                prev, prev_done = st, st.done.to(torch.bool).to(dev)
-        return res
+        return _train_seq.filter_sequence(self, seq, aux)
 
     def world_loss(self, seq, filt: Optional[FilterResult]) -> dict:
-        """WorldModelP.loss with the acting-consistent belief / memory context when the world model accepts it."""
-        kw = {}
-        if filt is not None:
-            if "beliefs" in self._wm_loss_ctx:
-                kw["beliefs"] = filt.beliefs
-            if "memory" in self._wm_loss_ctx and self.cfg.use_memory:
-                kw["memory"] = filt.memory
-        return self.world_model.loss(seq, **kw)
+        return _train_seq.world_loss(self, seq, filt)
 
     def adapt_loss(self, seq, filt: FilterResult, k: int) -> tuple:
-        """L_adapt = -log p(Q | B_S, query actions) (spec 12.2). The support belief B_S is inferred from the first k
-        steps by the belief module (particles) *and* the Kalman/NIG last layer (residuals of the observed continuous
-        outcomes against the particle-mixture head mean, differentiable closed form); the later steps' observed
-        outcomes (queries, disjoint from the support) are then scored under B_S without further updates: outcomes on
-        a bound Kalman channel by the combined head + Kalman predictive (`kalman_log_prob`), all others by the
-        particle mixture. Gradients reach the core (via Z), outcome head, world-model prior, belief module, the
-        Kalman feature map Phi_theta and the Bayes layer's learned prior / noise. Returns (loss, metrics)."""
-        steps = seq.steps
-        T = len(steps)
-        B = steps[0].obs.B
-        Zs = filt.Zs
-        dev = Zs[0].device
-        fast = self.beliefs.init_fast(B, device=dev)
-        fast.channels = [{} for _ in range(B)]
-        kal = self._kalman_on()
-        n_kal = n_mix = 0
-        with self._autocast():
-            for t in range(k):
-                st = steps[t]
-                ob = self.belief_view(st.outcomes)
-                if not bool(ob.y_mask.any()):
-                    continue
-                Bt = self.beliefs.tokens(fast)
-                Z_hat, _ = self.world_model.prior(Zs[t], st.act, Bt, st.dt, sample=False)
-                ob = self.channels_of(fast, ob)
-                base_mean, _, feat = self.base_moments(Z_hat, fast, ob)
-                fast_n, _ = self.beliefs.update(fast, Zs[t], st.act, ob, self.outcome_head)
-                if kal:
-                    fast_n = self.kalman_update(fast_n, feat, ob, base_mean)
-                fast = fast_n
-            Bt = self.beliefs.tokens(fast)
-            nll, n = Zs[0].new_zeros(()).float(), 0
-            for t in range(k, T):
-                st = steps[t]
-                valid = st.outcomes.y_mask.any(-1) & ~self._padded(st)
-                if not bool(valid.any()):
-                    continue
-                Z_hat, _ = self.world_model.prior(Zs[t], st.act, Bt, st.dt, sample=False)
-                ob = self.channels_of(fast, st.outcomes)
-                base_mean, _, feat = self.base_moments(Z_hat, fast, ob)
-                kb = self.kalman_bound(ob) & ob.y_mask if kal else torch.zeros_like(ob.y_mask)
-                ll = self.mixture_ll(fast, feat, ob, ob.y_mask & ~kb)
-                if bool(kb.any()):
-                    phi = self.bayes.features(feat, ob)
-                    lpk = self.kalman_log_prob(fast, phi, ob, base_mean)
-                    ll = ll + torch.where(kb, lpk, torch.zeros_like(lpk)).sum(-1)
-                n_kal += int(kb.sum())
-                n_mix += int((ob.y_mask & ~kb).sum())
-                ll = ll / ob.y_mask.float().sum(-1).clamp_min(1.0)
-                nll = nll - (ll * valid.float()).sum() / valid.float().sum()
-                n += 1
-        loss = nll / max(1, n)
-        return loss, {"adapt_k": k, "adapt_T": T, "adapt_queries": n, "adapt_nll": float(loss.detach()),
-                      "adapt_kalman_outcomes": n_kal, "adapt_mixture_outcomes": n_mix}
+        return _belief.adapt_loss(self, seq, filt, k)
 
-    @staticmethod
-    def _padded(st) -> torch.Tensor:
-        return ~st.obs.mask.any(-1) & ~st.act.mask.any(-1)
+    _padded = staticmethod(_belief.padded_rows)
 
 
 def _params_of(fn) -> set:
@@ -1743,139 +1447,4 @@ def _params_of(fn) -> set:
 
 
 # ============================================================================ built-in planner (protocol-only)
-
-class LatentImaginationPlanner:
-    """Belief-aware multistep imagination over CAM-generated candidates (spec 7.1-7.2), composed only from the
-    contract protocols: n candidate first actions from the ActionGenerator; for each, `n_samples` stochastic futures
-    of `horizon` decisions: Z_hat = WorldModel.prior(Z, EncAction(a), B, dt) (stochastic latent), outcomes sampled from
-    the particle-conditioned outcome head combined with the Kalman/NIG last layer on bound continuous outcomes, an
-    *independent clone* of the FastState updated with the imagined outcomes (BeliefModule.update and the Kalman
-    update), the reasoner re-run on the imagined latent, and the next action sampled from the policy conditioned on
-    the revised belief. Return = sum_h gamma_h * reward_hat_h + gamma_H * V(R_H) (gamma = exp(-kappa dt)) minus
-    unc_coef * (particle disagreement on reward); the real action is the argmax candidate (recorded as
-    selection="argmax" with one-hot probs; its logp stays the generator's proposal log-probability). Nothing here
-    touches the environment, the archive or the real FastState. Workstream C's planner replaces it via the registry."""
-
-    def plan(self, model: CamUnifiedModel, req: PlanRequest) -> PlanResult:
-        cfg = model.cfg
-        B, n, H, ns = req.R.shape[0], req.n_candidates, req.horizon, req.n_samples
-        dev = req.R.device
-        rep = torch.arange(B, device=dev).repeat_interleave(n)                           # candidate rows [B*n]
-        ag = model.action_generator
-        if req.candidates is not None:
-            if len(req.candidates) != B * n:
-                raise ShapeError(f"PlanRequest.candidates: {len(req.candidates)} actions for B*n={B * n}")
-            cands = list(req.candidates)
-        else:
-            model._count("action_generator.sample")
-            cands = ag.sample(req.R[rep], req.goal_in.select(rep), req.belief.select(rep), req.tools.select(rep),
-                              req.obs.select(rep), [req.tool_lists[int(i)] for i in rep],
-                              [req.obs_lists[int(i)] for i in rep], temperature=1.0, greedy=False)
-        rows = rep.repeat_interleave(ns)                                                  # rollout rows [B*n*ns]
-        cand_of_row = torch.arange(B * n, device=dev).repeat_interleave(ns)
-        Bb = rows.shape[0]
-        Z = req.Z[rows]
-        fast = req.fast.select(rows) if (cfg.use_fast_adaptation and req.fast is not None) else None
-        kal = model._kalman_on() and fast is not None
-        goal_in, goal = req.goal_in.select(rows), req.goal.select(rows)
-        tools_t, obs_t = req.tools.select(rows), req.obs.select(rows)
-        tool_lists = [req.tool_lists[int(i)] for i in rows]
-        obs_lists = [req.obs_lists[int(i)] for i in rows]
-        mem = None if req.memory is None else req.memory.select(rows)
-        prosp = select_outcomes(req.prospective, rows.tolist())
-        r_idx = CORE_INDEX["reward"]
-        acts = [cands[int(c)] for c in cand_of_row]
-        ret = torch.zeros(Bb, device=dev)
-        pen = torch.zeros(Bb, device=dev)
-        disc = torch.ones(Bb, device=dev)
-        steps, first_out = [], None
-        R = req.R[rows]
-        for h in range(H):
-            act_tok = model.tokenizer.action(acts)
-            dt = model.expected_dt(Z, act_tok, acts, tool_lists)
-            belief = model.beliefs.tokens(fast) if fast is not None else model.empty_tokens(Bb)
-            model._count("world_model.prior")
-            Z_hat, _ = model.world_model.prior(Z, act_tok, belief, dt, sample=True)
-            feat = model.outcome_head.features(Z_hat, prosp)
-            if fast is not None:
-                d = model.outcome_head.dist(feat, prosp, cond=fast.particles)
-                mk = dist_mean(d).float()                                               # [Bb,K,Q]
-                w = torch.softmax(fast.logw.float(), -1)
-                k = torch.multinomial(w.cpu(), 1, generator=req.generator).view(Bb).to(dev)
-                ys = dist_sample(d, gen_on(req.generator, dev)).float()[torch.arange(Bb, device=dev), k]   # [Bb,Q]
-                base = (w.unsqueeze(-1) * mk).sum(1)
-                var = (w.unsqueeze(-1) * (dist_var(d).float() + mk * mk)).sum(1) - base * base
-                disagree = ((w * (mk[:, :, r_idx] - base[:, r_idx:r_idx + 1]) ** 2).sum(1)).sqrt()
-                mean = base
-                if kal:
-                    prosp_c = model.channels_of(fast, prosp)
-                    cm, cv, _, bound = model.kalman_predict(fast, feat, prosp_c)
-                    mean, var = model.combine(base, var.clamp_min(0), cm, cv, bound)
-                    eps = randn_like_gen(mean, req.generator)
-                    ys = torch.where(bound, mean + var.clamp_min(0).sqrt() * eps, ys)
-                    model._count("imagination.bayes.predict")
-            else:
-                d = model.outcome_head.dist(feat, prosp)
-                mean, var = dist_mean(d).float(), dist_var(d).float()
-                ys = dist_sample(d, gen_on(req.generator, dev)).float()
-                disagree = var[:, r_idx].clamp_min(0).sqrt()
-            ret = ret + disc * mean[:, r_idx]
-            pen = pen + disc * disagree
-            disc = disc * torch.exp(-cfg.kappa * dt)
-            if h == 0:
-                first_out = mean
-            imagined = with_targets(prosp, ys, prosp.q.mask.clone())
-            if fast is not None:
-                model._count("imagination.beliefs.update")
-                fast_n, _ = model.beliefs.update(fast, Z, act_tok, model.belief_view(imagined), model.outcome_head)
-                if kal:
-                    model._count("imagination.bayes.update")
-                    fast_n = model.kalman_update(fast_n, feat, model.belief_view(model.channels_of(fast, imagined)),
-                                                 base)
-                fast = fast_n
-            Z = Z_hat
-            belief = model.beliefs.tokens(fast) if fast is not None else model.empty_tokens(Bb)
-            if cfg.use_reasoning:
-                R, _ = model.reasoner(Z, TokenSet.cat(belief, mem, goal), model.reason_iters)
-            else:
-                R = Z
-            v = model._value(model.value_head(R, goal))
-            if fast is not None:
-                wn = torch.softmax(fast.logw.float(), -1)
-                ess = 1.0 / (wn * wn).sum(-1)
-            else:
-                ess = torch.ones(Bb, device=dev)
-            steps.append(ImaginedStep(Z.detach(), list(acts), act_tok, mean.detach(), var.detach(), v.detach(),
-                                      mean[:, r_idx].detach(), ess, disagree.detach()))
-            if h + 1 < H:
-                acts = ag.sample(R, goal_in, belief, tools_t, obs_t, tool_lists, obs_lists, temperature=1.0)
-        ret = ret + disc * steps[-1].value
-        score_row = ret - model.unc_coef * pen
-        scores = score_row.view(B, n, ns).mean(-1)                                       # [B,n]
-        choice = scores.argmax(-1)
-        actions, cand_out, imag_out = [], [], []
-        for b in range(B):
-            c = int(choice[b])
-            a = copy.deepcopy(cands[b * n + c])
-            a.source = ActionSource.CAM_PLANNER
-            a.logp_parts["select"] = 0.0                       # deterministic given the imagined scores
-            a.proposal = {"n": n, "selection": "argmax", "probs": [1.0 if i == c else 0.0 for i in range(n)],
-                          "chosen": c, "scores": [float(s) for s in scores[b]],
-                          "generator_logp": [float(cands[b * n + i].logp) for i in range(n)]}
-            actions.append(a)
-            cand_out.append([{"action": cands[b * n + i].to_dict(), "score": float(scores[b, i]),
-                              "logp": cands[b * n + i].logp, "source": ActionSource.CAM_PLANNER.value}
-                             for i in range(n)])
-            items = []
-            for i in range(n):
-                sl = slice((b * n + i) * ns, (b * n + i + 1) * ns)
-                keys = req.prospective.keys[b] if req.prospective.keys else []
-                items.append({"candidate": i, "horizon": H, "value": float(scores[b, i]),
-                              "return": float(ret[sl].mean()), "model_error": float(pen[sl].mean()),
-                              "outcomes": {k: float(first_out[sl, q].mean()) for q, k in enumerate(keys[:8])
-                                           if k is not None},
-                              "next_tools": [steps[1].action[j].tool for j in range(sl.start, sl.stop)]
-                              if H > 1 else []})
-            imag_out.append(items)
-        traj = ImaginedTrajectory(steps, ret.detach(), rows.detach(), cand_of_row.remainder(n).detach())
-        return PlanResult(actions, cand_out, imag_out, scores.detach(), traj)
+# LatentImaginationPlanner lives in world/planner_runtime.py (seam commit; imported above, re-exported here).
