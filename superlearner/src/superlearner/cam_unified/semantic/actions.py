@@ -316,6 +316,14 @@ class ActionGenerator(nn.Module):
         return number_candidates(src, self.opts.max_copy_candidates)
 
     # ------------------------------------------------------------------ the shared forward
+    def _legacy_only(self, what: str) -> None:
+        """The (R, goal, belief) entry points do not exist for a generator built in intent mode (bypass closed by
+        construction: there is no way to hand it raw goal / belief / tokenizer tool tokens)."""
+        if self.n_intent:
+            raise GrammarError(f"{what}(R, goal, belief, ...) is not available: this generator is built in intent mode "
+                               f"(cfg.n_intent={self.n_intent}); use {what.split('_')[0]}_from_intent / "
+                               f"log_prob_from_intent")
+
     def _intent_tools(self, tools: TokenSet, tool_lists: list):
         """Intent mode: `tools` are the core's outputs at the TOOL positions, one per tool of
         tool_lists_with_builtins (refs = ToolSchema.key, checked)."""
@@ -705,6 +713,7 @@ class ActionGenerator(nn.Module):
         logp_parts["sample_logp"]. rescore=False keeps the incremental value as `logp` (diagnostics only: under bf16
         it differs from log_prob by up to ~1 nat per action). Greedy actions: logp = 0.0 (deterministic behaviour),
         logp_parts["greedy"] = True, logp_parts["policy_logp"] = tau-softmax log-probability of the greedy path."""
+        self._legacy_only("sample")
         return self._sample(R, goal, belief, tools, obs, tool_lists, obs_lists, temperature, greedy, generator,
                             tool_mask, rescore, exact_rows, source, None)
 
@@ -830,6 +839,7 @@ class ActionGenerator(nn.Module):
         exact_rows (default self.exact_rows): every row is evaluated alone on its own un-padded tokens (all components),
         so the result is independent of the minibatch composition. temperature: evaluate the recorded paths under
         this temperature instead of the recorded one (e.g. the target policy at 1.0)."""
+        self._legacy_only("log_prob_parts")
         return self._log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions, evidence,
                                     exact_rows, temperature, None)
 
@@ -892,8 +902,7 @@ class ActionGenerator(nn.Module):
                           evidence: list) -> tuple:
         """log pi(evidence = labels | R, tool, obs) [B] and its entropy [B] (evidence-retrieval supervision).
         tool_names[b] names the tool the evidence is for; evidence[b] lists observation indices (<= max_evidence)."""
-        if self.n_intent:
-            raise GrammarError("evidence_log_prob reads (R, goal, belief): not available in intent mode")
+        self._legacy_only("evidence_log_prob")
         B, dev = R.shape[0], R.device
         zero = R.new_zeros((), dtype=torch.float32)
         parts = {"evidence": [zero for _ in range(B)]}
@@ -918,6 +927,7 @@ class ActionGenerator(nn.Module):
     def sample_candidates(self, R, goal, belief, tools, obs, tool_lists, obs_lists, n: int,
                           temperature: float = 1.0, generator=None) -> list:
         """n independent CAM-decoder samples per row -> [B][n] Action (each with its own logp and record)."""
+        self._legacy_only("sample_candidates")
         B = R.shape[0]
         idx = torch.arange(B, device=R.device).repeat_interleave(n)
         rep = lambda ts: None if ts is None else ts.select(idx)

@@ -182,8 +182,21 @@ def condition_g(model, B: int = 16, seed: int = 202, generator=None) -> dict:
     with model.latent_intervention(lambda R, I: (R, I[p])):
         si = _decide(model, env3, generator=generator)
     donor_i = sum(int(si.actions[b].tool == env.answer(int(perm[b]))) for b in range(B))
+    # R-only swap after the intent (diagnostic: R reaches the action only through I and the evaluator)
+    env4 = _new_env(B, seed, goals)
+    with model.latent_intervention(lambda R, I: (R[p], I)):
+        sr = _decide(model, env4, generator=generator)
+    own_r = sum(int(sr.actions[b].tool == env.answer(b)) for b in range(B))
+    # R swapped BEFORE the intent head reads it (I = Intent(R_donor, ctx_out_own)): how much of the goal the
+    # intent takes from R_t rather than from the core-processed context ctx_out
+    env5 = _new_env(B, seed, goals)
+    with model.latent_intervention(lambda R: R[p], before_intent=True):
+        sp = _decide(model, env5, generator=generator)
+    donor_pre = sum(int(sp.actions[b].tool == env.answer(int(perm[b]))) for b in range(B))
     return {"B": B, "no_swap_follow_own_goal": own / B, "swap_RI_follow_donor": donor / B,
             "swap_RI_follow_own": kept_own / B, "swap_I_only_follow_donor": donor_i / B,
+            "swap_R_only_after_intent_follow_own": own_r / B,
+            "swap_R_before_intent_follow_donor": donor_pre / B,
             "all_swapped_actions_stamped": bool(stamped),
             "swapped_tools": [a.tool for a in sw.actions], "donor_answers": [env.answer(int(perm[b]))
                                                                             for b in range(B)]}
@@ -257,6 +270,19 @@ def stamp_check(model, B: int = 4, seed: int = 505) -> dict:
     return out
 
 
+def decide_timing(model, B: int = 16, reps: int = 3, seed: int = 707, generator=None) -> dict:
+    """Wall seconds of a DOM decide (K = cfg.n_candidates, no-argument tools + the built-ins), median of reps."""
+    out = []
+    for r in range(reps):
+        env = _new_env(B, seed + r)
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        dec = _decide(model, env, generator=generator)
+        out.append(dec.timings)
+    med = {k: sorted(t[k] for t in out)[len(out) // 2] for k in out[0]}
+    return {"B": B, "K": int(model.cfg.n_candidates), "median": med, "all": out}
+
+
 def accuracy(model, B: int = 32, seed: int = 606, greedy: bool = False, generator=None) -> float:
     env = _new_env(B, seed)
     dec = _decide(model, env, greedy=greedy, generator=generator)
@@ -295,6 +321,7 @@ def run(out_path: Optional[str] = None, steps: int = 120, seed: int = 0, device:
                       "stamps": stamp_check(m)}
     from .fast import fast_param_count
     res["fast_set"] = fast_param_count(m)
+    res["decide_timing_B16_K4"] = decide_timing(m, B=16, generator=g)
     if torch.cuda.is_available():
         res["peak_gpu_gb"] = torch.cuda.max_memory_allocated() / 2**30
     res["total_s"] = time.perf_counter() - t0

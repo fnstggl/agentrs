@@ -1694,6 +1694,9 @@ class CamUnifiedModel(nn.Module):
                 opt_logp = ost.logp.float()
                 opt_tok = self._option_token(inp.option, inp.option_steps)
                 state.option, state.option_steps = inp.option.clone(), inp.option_steps.clone()
+            pre_hook = self.__dict__.get("_latent_pre_hook")
+            if pre_hook is not None:                 # Condition G variant: replace R_t before the intent reads it
+                enc.R = pre_hook(enc.R)
             I = self.intent(enc, opt_tok, budget)
             hook = self.__dict__.get("_latent_hook")
             if hook is not None:                     # Condition G: replace R_t / I_t (observations held constant)
@@ -1734,22 +1737,25 @@ class CamUnifiedModel(nn.Module):
                 k = int(sel_idx[b])
                 c = cands[b][k]
                 a = Action.from_dict(c.to_dict())
-                gen = float(c.logp)
-                a.logp_parts["gen_logp"] = gen
+                a.logp_parts["gen_logp"] = float(c.logp)
                 a.logp_parts["selection"] = float(sel_lp[b])
                 a.proposal = {"n": K, "probs": recs[b]["probs"], "chosen": k, "proposal_logp": recs[b]["gen_logp"],
                               "scores": recs[b]["q"], "selection": "softmax_q"}
-                a.logp = gen + float(sel_lp[b])
+                # float32, in the order policy_evaluate adds them (gen + sel + option): bit-identical replay
+                tot = gen_lp[b, k] + sel_lp[b].to(gen_lp.dtype)
                 if self.option_policy is not None:
                     a.option_id = int(state.option[b])
                     a.logp_parts["option"] = float(opt_logp[b])
-                    a.logp = float(a.logp) + float(opt_logp[b])
+                    tot = tot + opt_logp[b].to(gen_lp.dtype)
+                else:
+                    tot = tot + torch.zeros((), device=dev)
+                a.logp = float(tot)
                 _sel.attach_stamp(a, recs[b], cands[b], vers,
                                   extra={"r_hat": [float(x) for x in preds[b]["r_hat"]],
                                          "phi": [float(x) for x in preds[b]["phi"]],
                                          "v_int": [float(x) for x in preds[b]["v"]],
                                          "dt": [float(x) for x in preds[b]["dt"]],
-                                         "intervened": hook is not None})
+                                         "intervened": hook is not None or pre_hook is not None})
                 actions.append(a)
                 behavior.append(self.behavior_of(a, greedy))
             logp = torch.tensor([float(a.logp) for a in actions], device=dev)
@@ -1933,16 +1939,18 @@ class CamUnifiedModel(nn.Module):
                 "intent": t["intent"]}
 
     @contextmanager
-    def latent_intervention(self, fn):
+    def latent_intervention(self, fn, before_intent: bool = False):
         """DOM Condition G: inside the block, `fn(R [B,S,D], I [B,n,D]) -> (R', I')` replaces CAM's reasoned state
         and intent in every DOM decision (observations, tools and the core's context outputs are held constant).
+        before_intent=True: `fn(R) -> R'` replaces R_t before the intent head reads it (I_t = Intent(R', ctx_out)).
         Decisions taken under an intervention are stamped `intervened: True`."""
-        prev = self.__dict__.get("_latent_hook")
-        self.__dict__["_latent_hook"] = fn
+        key = "_latent_pre_hook" if before_intent else "_latent_hook"
+        prev = self.__dict__.get(key)
+        self.__dict__[key] = fn
         try:
             yield self
         finally:
-            self.__dict__["_latent_hook"] = prev
+            self.__dict__[key] = prev
 
     @torch.no_grad()
     @_det
