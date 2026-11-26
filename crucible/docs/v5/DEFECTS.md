@@ -922,13 +922,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-I-5 (critical, open): Science: real hidden-law/apparatus/rival/replicator mechanics work, but sci.replications and sci.paper crash (
+### DEF-I-5 (critical, fixed): Science: real hidden-law/apparatus/rival/replicator mechanics work, but sci.replications and sci.paper crash (
 
 ```json
 {
  "area": "I_domains",
+ "fixed_by": "c5c/w3b-dom1: sci.paper/sci.replications return ids (regression-tested); apparatus datasheets state absolute and relative precision (stated_sd, stated_rel); the replication and publication statistic is a generalised chi-square with the datasheet variance at the model's prediction plus the propagated WLS covariance of the reporter's gain/offset calibration (true law 80/80 consistent, constants +10% refuted 78/80 in the probe); novel-condition evaluation: the standards bureau's blind challenges outside every bookable range (sci.challenge, sci.challenges) and the research domain's evaluator-side novel-condition error (domains.research_domain.novel_error); the law space has five more structurally different families (lawlang.EXTRA_FAMILIES, three-variable and held-out forms)",
  "id": "DEF-I-5",
  "owner": "I",
+ "regression_tests": "tests/test_v5_domains_research.py::test_paper_and_replication_endpoints_and_calibrated_verdicts, ::test_challenges_measure_outside_every_apparatus_range_and_test_papers, ::test_apparatus_datasheet_states_relative_precision, tests/v5/test_gate_SP_9_5.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -936,7 +938,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/I_domains.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Science: real hidden-law/apparatus/rival/replicator mechanics work, but sci.replications and sci.paper crash (KeyError 'id'); no novel-condition evaluator; replication test ignores relative noise and refuted the true law once."
 }
 ```

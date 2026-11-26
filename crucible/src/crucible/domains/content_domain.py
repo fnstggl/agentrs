@@ -20,7 +20,7 @@ profile: level 4 is a world of 10,000,000 individuals and a target of 10,000,000
 Evaluator (hidden): the exact union of the viewer bitsets of the seat's original items (distinct verified viewers:
 an individual counts once however many items it viewed; a view needs the platform's minimum watch time), excluding
 items whose artifact or text the seat did not originate (an artifact first published by someone else, or a text
-whose word shingles mostly appear in an earlier item by another creator).
+whose five-word shingles appear almost entirely (90%) in an earlier item by another creator).
 
 Reference (hidden, LABELLED SCRIPTED): a tool-only creator that reads what is being read on its platforms, writes
 original pieces on the most-read subjects (composed from the real news corpus the population also writes from) and
@@ -37,7 +37,7 @@ from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, civ_recipe
 
 DAY = 86400
 HORIZON_DAYS = 10.0
-TARGET = {1: 300, 2: 3_000, 3: 100_000, 4: 10_000_000}          # distinct verified viewers
+TARGET = {1: 500, 2: 5_000, 3: 100_000, 4: 10_000_000}          # distinct verified viewers
 POPULATION_FOR = {1: "development", 2: "standard", 3: "large", 4: "internet"}
 
 STRUCTURES = {
@@ -142,7 +142,7 @@ def original_items(world, principal: str) -> tuple[list[dict], list[dict]]:
             copied.append(c)
             continue
         sh = _shingles(_text_of(world, c["ref"]))
-        if sh and any(len(sh & o) >= 0.5 * len(sh) for o in others_sh):
+        if sh and any(len(sh & o) >= 0.9 * len(sh) for o in others_sh):
             copied.append(c)
             continue
         orig.append(c)
@@ -168,6 +168,11 @@ def evaluate(world, principal: str, obj: dict) -> dict:
 
 
 # ====================================================================== the hidden reference (LABELLED SCRIPTED)
+def _tag(name) -> str:
+    t = re.sub(r"[^a-z0-9-]+", "-", str(name).lower()).strip("-")[:32]
+    return t if t and t[0].isalnum() else "topic"
+
+
 _STOP = frozenset("the a an and or of to in on for with at by from is are was were be it its this that as new how "
                   "why what who says said will about after over into more than".split())
 
@@ -176,10 +181,8 @@ def reference_script(per_day: int = 3):
     """A tool-only creator (see the module doc)."""
     def script(pol):
         from ..population import semantics, writing
-        plats = K.ok((yield {"tool": "content.platforms", "args": {}})) or []
-        pnames = [p if isinstance(p, str) else p.get("platform") for p in plats]
-        feeds = K.ok((yield {"tool": "feed.platforms", "args": {}})) or []
-        fnames = [p if isinstance(p, str) else p.get("platform") for p in feeds]
+        feeds = K.ok((yield {"tool": "feed.platforms", "args": {}})) or {}
+        fnames = [p.get("platform") for p in (feeds.get("platforms") if isinstance(feeds, dict) else feeds) or []]
         text_plats = [p for p in ("posts", "blog", "kb") if p in fnames]
         image_plats = [p for p in ("pics",) if p in fnames]
         names = semantics.topic_names()
@@ -188,7 +191,7 @@ def reference_script(per_day: int = 3):
         while True:
             words: dict = {}
             for p in text_plats + image_plats:
-                items = K.ok((yield {"tool": "content.list", "args": {"platform": p, "limit": 100}})) or []
+                items = K.ok((yield {"tool": "content.list", "args": {"platform": p, "limit": 50}})) or []
                 for it in (items if isinstance(items, list) else items.get("items", [])):
                     for wd in str(it.get("title", "")).lower().replace(",", " ").split():
                         if len(wd) > 3 and wd not in _STOP and wd.isalpha():
@@ -207,8 +210,7 @@ def reference_script(per_day: int = 3):
                         kind = "article" if p in ("blog", "kb") else "post"
                         yield {"tool": "content.publish", "args": {"ref": ref, "kind": kind, "platform": p,
                                                                    "title": title[:180],
-                                                                   "tags": [str(names[topic])[:30].lower()
-                                                                            .replace(" ", "-")]}}
+                                                                   "tags": [_tag(names[topic])]}}
                 for p in image_plats:
                     img = (K.ok((yield {"tool": "studio.image", "args": {"text": f"{title}\n\n{body[:300]}",
                                                                          "title": title[:180]}})) or {}).get("ref")
@@ -232,12 +234,19 @@ def _copycat_script():
             for p in ("posts", "blog", "pics", "kb"):
                 items = K.ok((yield {"tool": "content.list", "args": {"platform": p, "limit": 20}})) or []
                 for it in (items if isinstance(items, list) else items.get("items", []))[:3]:
-                    if it.get("creator") == pol.actor or not it.get("ref"):
+                    if it.get("creator") == pol.actor or not it.get("id"):
                         continue
-                    got = K.ok((yield {"tool": "content.get", "args": {"id": it["id"]}})) or {}
-                    ref = got.get("ref") or it.get("ref")
-                    yield {"tool": "content.publish", "args": {"ref": ref, "kind": it.get("kind", "post"),
-                                                               "platform": p, "title": str(it.get("title", "x"))[:180]}}
+                    got = K.ok((yield {"tool": "content.open", "args": {"id": it["id"]}})) or {}
+                    text = got.get("text") or ""
+                    if not text:
+                        continue
+                    ref = (K.ok((yield {"tool": "studio.write", "args": {"format": "text",
+                                                                         "title": str(it.get("title", "x"))[:180],
+                                                                         "body": text}})) or {}).get("ref")
+                    if ref:
+                        yield {"tool": "content.publish", "args": {"ref": ref, "kind": it.get("kind", "post"),
+                                                                   "platform": p,
+                                                                   "title": str(it.get("title", "x"))[:180]}}
             for _ in range(3):
                 yield None
     return script

@@ -419,3 +419,53 @@ must fail where the founder with the discovery succeeds, with at least twice the
 Habits scatter around the population-wide best single setting, so a constant advice cannot imitate the discovery.
 Investors are in-world actors: they read the public record (reports by other labs on other apparatus), never the
 `sci` independence/relatedness flags, which are evaluator-only (D-19); the evaluator's validation uses those flags.
+
+## D-51 Population participation the owning packages lack lives in the domain files (2026-11-26, workstream I-1)
+Three Tier 2 domains need population activities no subsystem package provides: research (individuals who study,
+publish and replicate with their own money), software development (individuals who build applications from packages
+or by hand, test, report, publish, upgrade and execute) and community civics (votes, proposals, events, invitations,
+successor communities after an absent owner). Decision: each is a kernel module of the domain file that needs it
+(`scipop` in domains/research_domain.py, `devpop` in domains/software.py, `commlife` in domains/community.py),
+registering a population activity (`crucible.population.register_activity`), acting only through the owning
+modules' public tools as the individual (`ctx.call(..., as_principal=p<i>)`) and recording every choice with
+decision provenance (`population.record_decisions`; models sci-research@1, devpop@1, commlife@1, FIDELITY_REGISTER
+FR-SCIPOP-1, FR-DEVPOP-1, FR-COMMLIFE-1). No owning package's internals change; the sci NPC labs stay for the
+civilisation's existing configuration but no domain configuration uses them (D-15). Composing these modules into
+Tier 3 needs them in `crucible.civ.generator.ORDER` (integration note to CIV).
+
+## D-52 Validity in the science institution and the definition of a discovery (2026-11-26, workstream I-1)
+The audit found the in-world replication verdict refuting the true law in most replications (relative noise outside
+the statistic). Decision: an apparatus' datasheet states an absolute and a relative precision (honest by default; a
+configuration may make it optimistic), and `sci` tests a claimed law with a generalised chi-square whose covariance
+is the datasheet variance at the model's prediction plus the propagated weighted-least-squares covariance of the
+reporter's own gain/offset calibration (true law 80/80 consistent, constants +10% refuted 78/80). Novel-condition
+evaluation is both an in-world institution - the standards bureau's blind challenges at conditions outside every
+bookable range, with published readings and per-paper results - and the evaluator's hidden novel-condition error
+(normalised RMSE against the true law at evaluator-drawn conditions outside the bookable ranges). The research
+objective's "discover and demonstrate validity" is: the principal's latest paper is accurate at novel conditions,
+the principal found an accurate law no later than two days after anyone else (independent co-discovery is
+credited), the claim is not a textual copy of an earlier paper by someone else, and independent labs replicated it
+as consistent (difficulty sets the accuracy threshold and the replications needed).
+
+## D-53 Horizons, difficulty and evaluators of the startup, software, content and community domains (2026-11-26, workstream I-1)
+* Startup (9.1): the horizon is 75 days because 14-day trials and monthly billing make profitability a
+  second-month outcome (a 45-day reference run reached $41k ARR at a loss); success needs the ARR target from enough
+  independent customers under a 5% concentration cap AND a positive 30-day cash-basis profit
+  (`commerce.objective.check`, `commerce.revenue.profit`).
+* Software (9.2): adoption is `innovation.pkg`'s ablation-measured adoption by execution by population developers in
+  the last 7 days with the dependency still active. Developers' repositories belong to an account organisation each
+  founds through the identity module, because `code.create_repo` derives the repository name from an owner handle
+  that population principals lack (it raises IndexError for `p<i>`; integration note).
+* Content (9.3): difficulty levels 1-4 target 500 / 5,000 / 100,000 / 10,000,000 distinct verified viewers and build
+  their worlds with the development / standard / large / internet population profiles (`overrides={"population":
+  ...}`); originality excludes an artifact first published by someone else and a text whose five-word shingles are
+  90% in an earlier item by another creator (the population writes from one real news corpus, so the threshold is
+  high).
+* Community (9.4): participation counts only members other than the seat, and the seat must still run the
+  community (owner or moderator, active there in the last 14 days): "build a community" is the organiser's
+  achievement. In probes an idle founder's generic community drew 65-150 members (108 weekly contributors after 9
+  days) from the population's join and contribution model, far above the usual participation inequality of online
+  communities (CORE-POP's to review, integration note); members of an owner-ruled community whose owner has been
+  absent for a week found a new home and move there (commlife, D-51). Targets: 40 / 100 / 250 members active in the
+  last week, 8 / 20 / 50 weekly contributors, retention 0.4 / 0.5 / 0.6. The SP-9.4 gate runs an idle founder and a
+  keyword-stuffed community as controls.
