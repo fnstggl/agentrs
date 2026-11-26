@@ -23,6 +23,14 @@ cooperation, program execution, labs, planning, teams, strategy, compositional c
 one of CAM's own actions carries the `event_id` of that action (`Observation.caused_by`), joined through Crucible's
 `action_seq`, so delayed consequences link back to the decision that caused them.
 
+Actor-visible environment ids are opaque (``x<i>-<hash of an operator-private salt>``): the family name and seed
+never reach the agent, the archive or the traces through `ObservationBatch.env_ids` / `EventRecord.env_id` (the
+mapping stays in `ExperienceOperator.private_verify`). Labels use the same opaque id, so the learner can join them to
+archived decisions. With ``adapter(deliver_results=True)`` (what `factory.make_env` builds) every executed action's
+direct result (`ExecutionResult.observations`, ``caused_by`` = the action id) is also delivered, once, at the head
+of the next `ObservationBatch` (`observe` / `advance_time`), so the next decision sees what it asked for in every
+loop. `ExperienceOperator.take_labels()` implements `interfaces.LabelSource` (each resolved episode once).
+
 Verified utility of an episode (evaluator side): for objectives with a declared target, success is the verifier's
 own `success`; for maximisation objectives the operator normalises the verified value against a null policy and the
 private oracle evaluated on forks of the same world at episode start, U = (v - v_null) / (v_oracle - v_null), and
@@ -31,6 +39,7 @@ success := U >= `success_threshold`. These references are private and are never 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import math
 import re
@@ -39,6 +48,8 @@ from typing import Callable, Optional, Sequence
 
 from ..interfaces import (Action, EvidenceKind, ExecutionResult, GoalSpec, ObsKind, Observation, ObservationBatch,
                           ToolSchema, new_id)
+from .labels import EVAL_STREAM, TRAIN_STREAM, from_outcome_label
+from .ow_convert import delivered_copy
 
 OBSERVATION_ONLY = "observation_only"
 LEGACY = "legacy_shaped_reward"
@@ -214,7 +225,8 @@ class _World:
         self.agent = self.env.agents()[0]
         self.episode = 0
         self.refs: Optional[dict] = None
-        self.env_id = f"{spec.name}#{spec.seed}"
+        self.name_id = f"{spec.name}#{spec.seed}"     # PRIVATE (family + seed): operator records only
+        self.env_id = self.name_id                     # replaced by the operator's opaque actor-visible id
         # Tier 1 rapid worlds count time in ticks (one tick per decision / advance); 4.0-derived worlds in seconds.
         self.sec_per_t = 3600.0 if spec.name.startswith("rapid:") else 1.0     # integrity worlds count seconds
         self.max_advance_s = KERNEL_MAX_ADVANCE_S if spec.tier == 0 else None
@@ -225,7 +237,10 @@ class ExperienceOperator:
 
     def __init__(self, specs: Sequence[WorldSpec], reward_mode: str = OBSERVATION_ONLY,
                  allow_reward_modes: Sequence[str] = (OBSERVATION_ONLY,), success_threshold: float = 0.5,
-                 compute_references: bool = True):
+                 compute_references: bool = True, salt: Optional[str] = None, stream: str = TRAIN_STREAM):
+        """`salt`: operator-private secret of the opaque env ids (random by default; pass the same value to
+        reproduce ids across processes). `stream`: ``"train"`` or ``"eval"`` (labels of an eval stream are tagged
+        and refused by a training LabelStore)."""
         if reward_mode not in allow_reward_modes:
             raise ValueError(f"reward_mode {reward_mode!r} not allowed (declare it in allow_reward_modes for a "
                              f"baseline condition); new CAM runs use {OBSERVATION_ONLY!r}")
@@ -234,15 +249,23 @@ class ExperienceOperator:
         self.reward_mode = reward_mode
         self.success_threshold = float(success_threshold)
         self.compute_references = compute_references
+        if stream not in (TRAIN_STREAM, EVAL_STREAM):
+            raise ValueError(f"stream must be {TRAIN_STREAM!r} or {EVAL_STREAM!r}")
+        self.stream = stream
+        self._salt = str(salt) if salt is not None else new_id()
         self.worlds = [_World(s, reward_mode) for s in specs]
+        for i, w in enumerate(self.worlds):
+            w.env_id = opaque_env_id(self._salt, i)
         self._released: dict = {}
+        self._taken: set = set()
         self._ref_cache: dict = {}
         if compute_references:
             for w in self.worlds:
                 w.refs = self._references(w)
 
     # ---------------------------------------------------------------------------------------- actor view
-    def adapter(self) -> "ExperienceAdapter":
+    def adapter(self, deliver_results: bool = False) -> "ExperienceAdapter":
+        """The actor view. ``deliver_results=True``: direct results also arrive in the next ObservationBatch."""
         fns = []
         for i, w in enumerate(self.worlds):
             env, agent = w.env, w.agent
@@ -254,7 +277,7 @@ class ExperienceOperator:
                                  advance=(lambda s, env=env, m=w.max_advance_s: _advance_chunked(env, s, m)),
                                  done=(lambda env=env: bool(getattr(env, "done", False))),
                                  reset=(lambda i=i: self.reset_world(i))))
-        return ExperienceAdapter(fns)
+        return ExperienceAdapter(fns, deliver_results=deliver_results)
 
     # ---------------------------------------------------------------------------------------- operator side
     def reset_world(self, i: int) -> None:
@@ -269,7 +292,7 @@ class ExperienceOperator:
         """Full evaluator record (PRIVATE: never to the learner)."""
         w = self.worlds[i]
         return {"verify": w.env.verify(), "references": w.refs, "family": w.spec.name, "seed": w.spec.seed,
-                "episode": w.episode}
+                "episode": w.episode, "env_id": w.env_id, "name_id": w.name_id}
 
     def resolved(self, i: int) -> bool:
         return bool(getattr(self.worlds[i].env, "done", False))
@@ -289,6 +312,26 @@ class ExperienceOperator:
             lab = self._label(w)
             self._released[key] = lab
             out.append(lab)
+        return out
+
+    def take_labels(self) -> list:
+        """`interfaces.LabelSource`: a `labels.LabelRecord` for every episode that resolved since the previous call,
+        each exactly once (pending episodes produce nothing). Opaque env id, the goal id the actor saw, the
+        resolution time on the world clock; no family, seed or reference value."""
+        out = []
+        for i, w in enumerate(self.worlds):
+            if not self.resolved(i):
+                continue
+            key = (i, w.episode)
+            if key in self._taken:
+                continue
+            (lab,) = self.release_labels([i])
+            self._taken.add(key)
+            meta = {"stream": EVAL_STREAM} if self.stream == EVAL_STREAM else {}
+            rec = from_outcome_label(lab, evaluator=lab.verifier or "crucible.experience",
+                                     goal_id=goal_id_of(w.env_id, i), t_end_days=lab.t_resolved_days, meta=meta)
+            if rec is not None:
+                out.append(rec)
         return out
 
     def _label(self, w: _World) -> OutcomeLabel:
@@ -341,6 +384,15 @@ class ExperienceOperator:
         return refs
 
 
+def opaque_env_id(salt: str, i: int) -> str:
+    """Actor-visible id of world `i`: no family, no seed; unguessable without the operator's salt."""
+    return f"x{int(i)}-" + hashlib.sha256(f"{salt}:{int(i)}".encode()).hexdigest()[:10]
+
+
+def goal_id_of(env_id: str, i: int) -> str:
+    return f"{env_id}:{int(i)}"
+
+
 def _advance_chunked(env, seconds: int, max_step: Optional[int]) -> None:
     if not max_step or seconds <= max_step:
         env.advance(seconds)
@@ -368,11 +420,13 @@ class _ActorFns:
 class ExperienceAdapter:
     """Actor-side EnvAdapter over Crucible 5.0 worlds (observation-only). Exposes no reward and no verifier."""
 
-    def __init__(self, fns: Sequence[_ActorFns]):
+    def __init__(self, fns: Sequence[_ActorFns], deliver_results: bool = False):
         self._fns = list(fns)
         self._seq_to_event: list = [dict() for _ in self._fns]
         self._cursor = [0 for _ in self._fns]
         self._text_seen: list = [set() for _ in self._fns]
+        self._results: list = [[] for _ in self._fns]     # direct results awaiting the next ObservationBatch
+        self.delivers_results = bool(deliver_results)
         self.env_ids = [f.env_id for f in self._fns]
 
     @property
@@ -384,8 +438,12 @@ class ExperienceAdapter:
         for i, f in enumerate(self._fns):
             ob = f.observe()
             self._cursor[i] = max(self._cursor[i], int(ob.get("cursor", 0) or 0))
-            obs_l.append(obs_to_records(ob, f.env_id, self._seq_to_event[i], first=first,
-                                        text_seen=self._text_seen[i], sec_per_t=f.sec_per_t))
+            recs = obs_to_records(ob, f.env_id, self._seq_to_event[i], first=first,
+                                  text_seen=self._text_seen[i], sec_per_t=f.sec_per_t)
+            if self._results[i]:
+                recs = self._results[i] + recs
+                self._results[i] = []
+            obs_l.append(recs)
             t_l.append(float(ob.get("t", 0)) * f.sec_per_t / 86400.0)
             done_l.append(f.done())
         return ObservationBatch(list(self.env_ids), obs_l, t_l, done_l)
@@ -396,6 +454,7 @@ class ExperienceAdapter:
             self._seq_to_event[i] = {}
             self._cursor[i] = 0
             self._text_seen[i] = set()
+            self._results[i] = []
         return self._batch(first=True)
 
     def observe(self) -> ObservationBatch:
@@ -422,6 +481,8 @@ class ExperienceAdapter:
                                   evidence=EvidenceKind.CONTROLLED, caused_by=a.action_id,
                                   meta={"action_seq": seq})
             err = None if r.get("ok") else json.dumps(r.get("error"), default=str)[:500]
+            if self.delivers_results:
+                self._results[i].append(delivered_copy(res_obs))
             out.append(ExecutionResult(ok=bool(r.get("ok")), observations=[res_obs], error=err, duration=dur,
                                        started_t=t, finished_t=t + dur, meta={"action_seq": seq}))
         return out
@@ -444,7 +505,7 @@ class ExperienceAdapter:
         for i, f in enumerate(self._fns):
             ob = f.observe()
             txt = ob.get("objective") or ""
-            out.append(GoalSpec(goal_id=f"{f.env_id}:{i}", text=str(txt)))
+            out.append(GoalSpec(goal_id=goal_id_of(f.env_id, i), text=str(txt)))
         return out
 
     def close(self) -> None:
@@ -453,8 +514,13 @@ class ExperienceAdapter:
 
 def leakage_scan(batch: ObservationBatch, forbidden: Sequence[str]) -> list:
     """Return every (env, observation) whose serialised form contains a forbidden token (family names, seeds as
-    'seed', 'success', 'reward', oracle values...). Used by the OB-02 test over all families CAM trains on."""
+    'seed', 'success', 'reward', oracle values...), and every env id that does. Used by the OB-02 test over all
+    families CAM trains on."""
     hits = []
+    for i, eid in enumerate(batch.env_ids):
+        for tok in forbidden:
+            if tok.lower() in str(eid).lower():
+                hits.append((eid, tok, "env_id"))
     for i, obs in enumerate(batch.observations):
         for o in obs:
             s = json.dumps(o.to_dict(), default=str).lower()

@@ -26,6 +26,7 @@ import copy
 import json
 import math
 import re
+from dataclasses import replace
 from typing import Any, Iterable, Optional
 
 from ..interfaces import EvidenceKind, ExecutionResult, Observation, ObsKind, ToolSchema
@@ -341,6 +342,26 @@ def result_observations(res: dict, tool: str, t_s: int, caused_by: Optional[str]
     text = f"{code}: {msg}" + (f"\n{compact_json(details)}" if details else "")
     return [Observation(ObsKind.ERROR, content=text, t=t, source=tool or "parser", evidence=EvidenceKind.CONTROLLED,
                         caused_by=caused_by, meta={"tool": tool, "code": code, "message": msg, "details": details})]
+
+
+RESULT_DELIVERY = "next_observation"
+
+
+def delivered_copy(o: Observation) -> Observation:
+    """The copy of a direct-result observation that an adapter delivers at the head of the next ObservationBatch
+    (redesign plan 2026-11-26 §2 step 5, W2): same content and ``caused_by`` (the action id), marked with
+    ``meta["result_of"]`` = the action id and ``meta["delivery"]`` so a loop that also merges
+    `ExecutionResult.observations` can drop the duplicate (`is_delivered_result`, `result_key`)."""
+    return replace(o, meta={**dict(o.meta or {}), "result_of": o.caused_by, "delivery": RESULT_DELIVERY})
+
+
+def is_delivered_result(o: Observation) -> bool:
+    return bool(o.meta) and o.meta.get("delivery") == RESULT_DELIVERY
+
+
+def result_key(o: Observation) -> tuple:
+    """Identity of a direct-result observation, equal for the ExecutionResult copy and the delivered copy."""
+    return (o.kind.value, o.caused_by, o.source, o.t, o.value, (o.meta or {}).get("field"), o.content)
 
 
 def result_dict(er: ExecutionResult, tool: str) -> dict:

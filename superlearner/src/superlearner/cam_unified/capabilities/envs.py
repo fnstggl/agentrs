@@ -20,6 +20,15 @@ failure of the full stack can be attributed. Hidden mechanism fields (`hidden`) 
   interfering observations.
 * `DelayEffectEnv`, `InteractionEnv`, `SwitchEnv` (C03, spec 6.6): an immediate vs a delayed payout, a pure
   interaction of two simultaneous interventions, an unannounced mechanism switch.
+
+Observation-only use (W2, plan 2026-11-26 §3): `observation_only(env)` (or `factory.make_env("capability", ...)`)
+switches an env to *observable payouts* - every executed action's payout and the row's running balance arrive as
+NUMERIC observations of the result (``source`` "payout" / "balance", unit "points"), so the same diagnostics run
+without an extrinsic reward - and to *result delivery* (a result's observations are delivered again, with the same
+``seq``, at the head of the next `advance_time` / `observe` batch; ``seq`` makes a merging loop drop the copy).
+`ScoreEvaluator(env, reward_mode=...)` gates `take_rewards()` through Crucible's `RewardGate` (0.0 in
+observation_only) and is an `interfaces.LabelSource`: `take_labels()` releases one `labels.LabelRecord` per finished
+row episode (value = verified episode return; utility / status when the env declares `utility_bounds`).
 """
 from __future__ import annotations
 
@@ -46,11 +55,14 @@ class DiagnosticEnv:
 
     name = "diagnostic"
     horizon = 1
+    observable_payouts = False       # W2: payout + balance as NUMERIC result observations (see the module docstring)
+    delivers_results = False         # W2: results re-delivered at the head of the next batch (same seq)
 
     def __init__(self, B: int, seed: int = 0):
         self.B = B
         self.seed = seed
         self.env_ids = [f"{self.name}{b}" for b in range(B)]
+        self.episode = 0
         self.reset()
 
     # ---- hooks
@@ -80,6 +92,8 @@ class DiagnosticEnv:
         self.returns = [0.0] * self.B
         self.hidden = [self._new(self.rng[b], b) for b in range(self.B)]
         self._pending = [[] for _ in range(self.B)]
+        self._results = [[] for _ in range(self.B)]
+        self.episode = getattr(self, "episode", 0) + 1
         obs = [[self._emit(b, o) for o in self._obs0(self.hidden[b], b)] for b in range(self.B)]
         return ObservationBatch(list(self.env_ids), obs, list(self.t), [False] * self.B)
 
@@ -95,8 +109,12 @@ class DiagnosticEnv:
     def done(self) -> list:
         return [self.k[b] >= self.horizon for b in range(self.B)]
 
+    def _take_results(self) -> list:
+        out, self._results = self._results, [[] for _ in range(self.B)]
+        return out
+
     def observe(self) -> ObservationBatch:
-        return ObservationBatch(list(self.env_ids), [[] for _ in range(self.B)], list(self.t), self.done())
+        return ObservationBatch(list(self.env_ids), self._take_results(), list(self.t), self.done())
 
     def available_tools(self) -> list:
         return [list(self._tools(self.hidden[b])) for b in range(self.B)]
@@ -118,7 +136,18 @@ class DiagnosticEnv:
                 ok, obs, r, err = self._act(self.hidden[b], a, self.rng[b], b)
             self.k[b] += 1
             self.returns[b] += float(r)
+            if self.observable_payouts:
+                obs = list(obs) + [
+                    Observation(ObsKind.NUMERIC, value=round(float(r), 6), unit="points", entity="me",
+                                entity_type="player", source="payout", meta={"metric": "payout of this action"}),
+                    Observation(ObsKind.NUMERIC, value=round(self.returns[b], 6), unit="points", entity="me",
+                                entity_type="player", source="balance", meta={"metric": "points this episode"})]
             obs = [self._emit(b, o) for o in obs]
+            if self.delivers_results or self.observable_payouts:       # W2 mode: direct results name their action
+                for o in obs:
+                    o.caused_by = o.caused_by or a.action_id
+            if self.delivers_results:
+                self._results[b].extend(obs)
             out.append(ExecutionResult(ok=ok, observations=obs, error=err, cost=0.0, duration=0.0,
                                        started_t=self.t[b], finished_t=self.t[b],
                                        meta={} if err is None else {"error_code": err}))
@@ -130,18 +159,73 @@ class DiagnosticEnv:
     def advance_time(self, duration: Sequence[float]) -> ObservationBatch:
         for b, d in enumerate(duration):
             self.t[b] += float(d)
-        return ObservationBatch(list(self.env_ids), [[] for _ in range(self.B)], list(self.t), self.done())
+        return ObservationBatch(list(self.env_ids), self._take_results(), list(self.t), self.done())
 
     def close(self) -> None:
         pass
 
 
+def observation_only(env: DiagnosticEnv) -> DiagnosticEnv:
+    """Switch a diagnostic env to observable payouts and result delivery (W2); returns the env."""
+    env.observable_payouts = True
+    env.delivers_results = True
+    return env
+
+
 class ScoreEvaluator:
     """GoalEvaluator: score = the row's cumulative return in the current episode (from the hidden mechanism); the
-    harness turns score differences into verified returns. `details` (the hidden mechanism) never reaches the agent."""
+    harness turns score differences into verified returns. `details` (the hidden mechanism) never reaches the agent.
 
-    def __init__(self, env: DiagnosticEnv):
+    W2: `reward_mode` (Crucible 5.0 modes; default legacy = unchanged) gates `take_rewards()` (the return increments
+    since the previous call; 0.0 in observation_only); `take_labels()` (`interfaces.LabelSource`) releases each
+    finished row episode once: value = the verified episode return; with ``env.utility_bounds() -> (null, best)``
+    utility = (value - null) / (best - null) and status success iff utility >= `success_threshold`, else status
+    "uncertain"."""
+
+    def __init__(self, env: DiagnosticEnv, reward_mode: str = "legacy_shaped_reward",
+                 success_threshold: float = 0.5):
+        from crucible.experience.modes import RewardGate, check_mode
         self.env = env
+        self.reward_mode = check_mode(reward_mode)
+        self.gate = RewardGate(self.reward_mode)
+        self.success_threshold = float(success_threshold)
+        self._taken_returns = [0.0] * env.B
+        self._taken_episode = env.episode
+        self._labelled: set = set()
+
+    def take_rewards(self) -> list:
+        e = self.env
+        if self._taken_episode != e.episode:              # a reset started new episodes: returns restart at 0
+            self._taken_returns, self._taken_episode = [0.0] * e.B, e.episode
+        out = []
+        for b in range(e.B):
+            key = f"{e.env_ids[b]}#{e.episode}"
+            inc = float(e.returns[b]) - self._taken_returns[b]
+            self._taken_returns[b] = float(e.returns[b])
+            self.gate.add_legacy(key, inc)
+            out.append(float(self.gate.take(key)))
+        return out
+
+    def take_labels(self) -> list:
+        from ..envs.labels import LabelRecord
+        e = self.env
+        bounds = e.utility_bounds() if hasattr(e, "utility_bounds") else None
+        out = []
+        for b, done in enumerate(e.done()):
+            key = (b, e.episode)
+            if not done or key in self._labelled:
+                continue
+            self._labelled.add(key)
+            v = float(e.returns[b])
+            util, status = None, "uncertain"
+            if bounds is not None and bounds[1] > bounds[0]:
+                util = (v - bounds[0]) / (bounds[1] - bounds[0])
+                status = "success" if util >= self.success_threshold else "failure"
+            out.append(LabelRecord(env_id=e.env_ids[b], episode=int(e.episode), status=status, utility=util,
+                                   value=v, t_resolved_days=float(e.t[b]), evaluator=f"capabilities.{type(e).__name__}",
+                                   goal_id=e._goal(e.hidden[b], b).goal_id, kind="terminal", t_start_days=0.0,
+                                   t_end_days=float(e.t[b])))
+        return out
 
     def evaluate_goal(self, env_index: int) -> IndependentGoalResult:
         e = self.env
@@ -322,6 +406,11 @@ class ProbeEnv(DiagnosticEnv):
 
     def _goal(self, h, b):
         return GoalSpec("probe", "Earn as much as possible over the next few decisions.")
+
+    def utility_bounds(self) -> tuple:
+        """(null, best) expected episode returns: always play safe vs probe then act on the result (evaluator side)."""
+        vb = self.value_bounds()
+        return vb["always_safe"], max(vb["probe_then_best"], vb["always_safe"])
 
     def value_bounds(self) -> dict:
         """Expected returns of the reference strategies (evaluator-side; for reporting)."""
