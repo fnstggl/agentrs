@@ -20,6 +20,19 @@ from .registry import CalibrationError, FittedModel, list_models, load
 __all__ = ["CalibrationError", "FittedModel", "acquire", "datasets", "list_models", "load"]
 
 
+class _Package(__import__("types").ModuleType):
+    """Importing the submodule `crucible.calibration.datasets` (other calibration modules do) must not replace the
+    package's `datasets` function by the submodule, as the eager import of 4.0 never did."""
+
+    def __setattr__(self, name, value):
+        if name in ("acquire", "datasets") and isinstance(value, __import__("types").ModuleType):
+            return
+        super().__setattr__(name, value)
+
+
+__import__("sys").modules[__name__].__class__ = _Package
+
+
 def __getattr__(name):
     if name in ("acquire", "datasets"):
         import importlib
