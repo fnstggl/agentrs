@@ -64,3 +64,22 @@ def test_reference_exchange_succeeds_where_idle_and_a_free_exchange_fail():
     assert out["ref"]["success"], out["ref"]
     assert not out["idle"]["success"] and not out["free"]["success"]
     assert out["free"]["details"]["operating_result_15d_cents"] <= 0
+
+
+def test_same_seed_same_log():
+    """Determinism (kernel rule): the same seed gives the same state and event hashes."""
+    out = []
+    for _ in range(2):
+        env = _env("two_categories", 5)
+        env.advance(6 * 86400)
+        w = env.world
+        out.append((w.digest(), w.events_range(w.seq - 1, w.seq)[0].hash))
+    assert out[0] == out[1]
+
+
+def test_evaluator_gives_the_same_verdict_on_a_world_rebuilt_from_its_log():
+    """The evaluator reads recorded world state only: on a world rebuilt from the event log alone (World.replay,
+    no in-memory history) it gives the same verdict (framework evaluator_report)."""
+    rep = base.evaluator_report(M.DOMAIN, "two_categories", 0, 6)
+    assert rep["ok"] and rep["replay_equal"] and rep["replay_digest_equal"], rep
+

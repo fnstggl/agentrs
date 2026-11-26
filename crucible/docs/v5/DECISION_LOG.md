@@ -416,10 +416,12 @@ so a no-op technology kept after a lucky trial scores zero).
 
 ## D-57 Tier 2 domains 9.11-9.15 are standalone compositions on the one population (2026-11-26, workstream I-3)
 The information, organizational, marketplace, crisis and commercialization domains are mode-B worlds (D-48's
-standalone form) composed from the existing subsystems - `docs`/`search` (9.11), the commerce `commit` module
-(9.12), `xchg`/`products`/`market` (9.13), `sci` (9.15) - plus one domain kernel module each (`infoeco`, `orgeco`,
-`mktplace`, `crisis`, `rcomm`) that adds only what the section needs and does not exist: changing facts and
-publishers, a shared backbone and its council, goods physics and traders, lifeline physics and operators, the
+standalone form) composed from the existing subsystems - `docs`/`search` (9.11), the commerce `commit` and `inst`
+modules (9.12: commitments, and the council's governance as an `inst` charter whose approved decisions are the only
+way the council's acts run), `xchg`/`products`/`market` (9.13), `sci` (9.15) - plus one domain kernel module each
+(`infoeco`, `orgeco`, `mktplace`, `crisis`, `rcomm`) that adds only what the section needs and does not exist:
+changing facts and publishers, a shared backbone and the council's acts, goods physics and traders, lifeline physics
+and operators, the
 practice phenomenon's economy. The one population (`crucible.population`) is the source of every simulated human
 decision (look-ups, households, shopping, practice, service use: recorded cohort batches with decision provenance
 inside the population's sessions). They do not compose the civilisation generator because none of their mechanics

@@ -18,18 +18,26 @@ World physics (module config generated per instance by `build`; nothing hidden i
   and pays its monthly subscription from its own account; a subscriber makes requests and experiences the share
   that succeed (the backbone's physics for its provider); trust falls with failures and a disappointed subscriber
   leaves for another provider or none. Providers' marketing makes individuals aware of them.
-* **Governance** (`orgs.propose`, `orgs.vote`): the backbone is held by a council of its member organisations.
-  Proposals - quotas (each member's share of capacity), a levy per customer into the expansion fund, an expansion
-  project - pass by a majority of members; managers vote from their goals and their own interest (a quota that
-  cuts their load, a levy they would pay, the congestion their customers suffer). Only passed proposals execute.
+* **Governance** is the commerce package's institutions (`crucible.commerce.institutions`, module `inst`): the
+  backbone is held by the council organisation `o:commons`, whose charter (adopted at genesis) decides every action
+  in its name by a majority of its members within three days (each provider's manager represents its
+  organisation; membership is open to a convener, up to a cap). The council's binding acts are tools only the
+  council itself can run, and only as the execution of an approved `inst` decision (`inst.propose` with action
+  `{kind: tool, tool: orgs.set_quotas | orgs.levy | orgs.expand, args}`): quotas (each member's share of
+  capacity), a levy per customer into the expansion fund, an expansion project. Managers vote (`inst.vote`) from
+  their goals and their own interest (a quota that cuts their load, a levy they would pay, the congestion their
+  customers suffer; anything else they reject). The charter also binds the council's money: nothing leaves its
+  accounts without a decision (`inst`'s posting guard).
 * **Contracts, negotiation and commitments** are the commerce package's own (`crucible.commerce.contracts`, module
   `commit`): offers and counter-offers in threads, escrowed payment released when a predicate over the world holds
-  by its due date (e.g. `orgeco_capacity`, the backbone capacity, a metric registered here), refunded otherwise.
+  by its due date (e.g. `orgeco_capacity` of the paying member: the capacity of the backbone it uses, a metric
+  registered here), refunded otherwise.
   Managers answer commitment offers from their goals: a mission organisation pledges within its budget; a profit or
   growth organisation pays up to what congestion costs it (its own customers' failures valued at its price); a
   rival refuses; they counter when the amount is above what they are willing to pay.
 
-The participant is a convener: a member of the council without customers of its own, with a modest budget. The
+The participant is a convener: it may join the council (`inst.join`) without customers of its own, with a modest
+budget. The
 independent evaluator reads the recorded log: the population's request success over the last 14 days, the number
 of customers served, the capacity added, and whether every member organisation stayed in business (`evaluate`).
 """
@@ -82,10 +90,11 @@ def _goal_vote(goal: str, kind: str, own_cut: float, congestion: float, convener
     if goal == "mission":
         return True, "it serves the shared outcome"
     if kind == "expansion":
-        return (congestion > 0.03 or goal == "profit"), "more capacity relieves congestion"
+        yes = congestion > 0.03 or goal == "profit"
+        return yes, "more capacity relieves congestion" if yes else "congestion does not hurt us enough yet"
     if kind == "levy":
-        return (congestion > 0.04 and goal != "growth") or congestion > 0.15, \
-            "we pay only when congestion costs us more"
+        yes = (congestion > 0.04 and goal != "growth") or congestion > 0.15
+        return yes, "congestion costs us more than the levy" if yes else "we pay only when congestion costs us more"
     if kind == "quotas":
         # a quota that cuts our own load is worth it only when shared congestion already hurts more
         return own_cut <= congestion + 0.02, "the quota costs us less than the congestion" if own_cut <= congestion \
@@ -93,12 +102,30 @@ def _goal_vote(goal: str, kind: str, own_cut: float, congestion: float, convener
     return False, "unknown proposal"
 
 
+# the council's governed acts (tools only `o:commons` runs, as the execution of an approved inst decision) and the
+# proposal kind a manager weighs each as
+GOVERNED = {"orgs.set_quotas": "quotas", "orgs.levy": "levy", "orgs.expand": "expansion"}
+COMMONS = "o:commons"
+
+
+def council_charter(n_members: int) -> dict:
+    """The council's `inst` charter: one majority procedure of the members (quorum one half, three days) decides
+    every action in the council's name, money leaving its accounts included; membership is open up to the
+    providers' representatives, the secretary and two conveners."""
+    council = {"type": "majority", "electorate": "members", "threshold": 0.5, "quorum": 0.5, "window_s": 3 * DAY}
+    return {"procedures": {"council": council},
+            "rules": [{"match": {"kind": "tool", "tool": "orgs.*"}, "procedure": "council"},
+                      {"match": {"kind": "tool", "tool": "*", "min_amount": 1}, "procedure": "council"},
+                      {"match": {"kind": "*"}, "procedure": "council"}],
+            "default": "council", "membership": {"admission": "open", "max_members": int(n_members) + 3}}
+
+
 @register_module
 class OrgEco(Module):
     name = "orgeco"
     host = "orgs"
     version = "1"
-    depends = ("identity", "bank", "commit", "pop", "artifacts", "cols")
+    depends = ("identity", "bank", "commit", "inst", "pop", "artifacts", "cols")
 
     def __init__(self, config=None):
         super().__init__(config)
@@ -108,9 +135,8 @@ class OrgEco(Module):
     # ------------------------------------------------------------------ install / genesis
     def install(self, world):
         st = world.state
-        for t, ix in (("org_members", ("goal",)), ("org_backbone", ()), ("org_props", ("status",)),
-                      ("org_votes", ("proposal",)), ("org_projects", ("status",)), ("org_hours", ()),
-                      ("org_consider", ())):
+        for t, ix in (("org_members", ("goal",)), ("org_backbone", ()), ("org_projects", ("status",)),
+                      ("org_hours", ()), ("org_consider", ()), ("org_use", ())):
             st.declare_table(t, index=ix)
         from .. import population as P
         n = P.n_individuals(world)
@@ -126,13 +152,23 @@ class OrgEco(Module):
                 _inner(*a)
             self.on_commit_offer(*a)
         world.hooks["on_commit_offer"] = chained
+        cur_d = world.hooks.get("on_inst_decision")
+
+        def decision(ctx, did, voter, _inner=cur_d):
+            if _inner is not None:
+                _inner(ctx, did, voter)
+            self.on_inst_decision(ctx, did, voter)
+        world.hooks["on_inst_decision"] = decision
         from ..goals import metrics as GM
 
-        @GM.metric("orgeco_capacity", "Capacity of the shared backbone (requests per hour) held by the council "
-                   "organisation o:commons.", subject={"org": "principal"}, instant=True)
-        def _capacity(w, org="o:commons"):
+        @GM.metric("orgeco_capacity", "Capacity (requests per hour) of the shared backbone an organisation carries "
+                   "its customers over (a member provider) or holds (the council o:commons); 0 for any other.",
+                   subject={"org": "principal"}, instant=True)
+        def _capacity(w, org=COMMONS):
             b = w.state.get("org_backbone", "backbone")
-            return float(b["capacity"]) if b else 0.0
+            if b is None or not (org == COMMONS or w.state.has("org_members", org)):
+                return 0.0
+            return float(b["capacity"])
 
     def genesis(self, ctx):
         w = ctx.world
@@ -144,6 +180,7 @@ class OrgEco(Module):
             bank.open_account(ctx, org, "checking")
         chair = idm.create_person(ctx, "commons-chair", "Backbone council secretary", "npc", {"role": "secretary"})
         commons = idm.create_org(ctx, "commons", "Backbone Council", chair, "association")
+        assert commons == COMMONS
         bank.open_account(ctx, commons, "checking")
         ctx.emit("orgs.backbone", {"id": "backbone", "capacity": float(self.c["capacity"]), "load": 0.0,
                                    "success": 1.0, "council": commons, "fund": 0}, vis="public")
@@ -155,6 +192,10 @@ class OrgEco(Module):
             ctx.emit("orgs.member", {"id": org, "manager": mgr, "goal": o["goal"], "slot": k, "price": int(o["price"]),
                                      "marketing": int(o["marketing"]), "pledge_budget": int(o["pledge_budget"]),
                                      "convener": False}, vis="public")
+            # the provider's manager represents it on the council (an ordinary identity membership)
+            idm.add_member(ctx, commons, mgr, "member", f"representative of {org}")
+        # the council governs itself by its charter (adopted by its secretary, the founding owner)
+        ctx.call("inst.adopt", {"org": commons, "charter": council_charter(len(self.c["orgs"]))}, as_principal=chair)
         self._genesis_people(ctx)
         base = (ctx.now // DAY) * DAY
         ctx.schedule(ctx.now + HOUR, "orgeco.hour", {}, prio=32, period=HOUR, key="orgeco.hour")
@@ -181,14 +222,12 @@ class OrgEco(Module):
     def backbone(self, st) -> dict:
         return st.tables["org_backbone"]["backbone"]
 
-    def council_member(self, ctx) -> str:
-        st = ctx.state
-        if st.has("org_members", ctx.actor):
-            return ctx.actor
+    def manager_of(self, st, person: str) -> str | None:
+        """The provider organisation a person manages (None for anyone else)."""
         for org, m in st.scan("org_members"):
-            if m["manager"] == ctx.actor:
+            if m["manager"] == person:
                 return org
-        raise Forbidden("you are not a member of the backbone council (orgs.join)")
+        return None
 
     # ------------------------------------------------------------------ the backbone's physics
     @process("hour")
@@ -227,9 +266,6 @@ class OrgEco(Module):
             err = contain(ctx, self._routine, ctx, org, m)
             if err is not None:
                 ctx.emit("orgs.failed", {"what": "routine", "org": org, "error": str(err)[:200]}, vis="internal")
-        for pid, p in sorted(st.scan("org_props")):
-            if p["status"] == "open" and ctx.now >= p["closes_t"]:
-                self._close(ctx, pid, p)
         for pid, p in sorted(st.scan("org_projects")):
             if p["status"] == "funding" and self.backbone(st)["fund"] >= p["cost"]:
                 ctx.emit("orgs.project_start", {"id": pid, "ready_t": int(ctx.now + p["build_days"] * DAY),
@@ -278,119 +314,123 @@ class OrgEco(Module):
         aw[:, m["slot"]] = 1
         columns.batch(ctx, TABLE, "orgs.marketing", rows, {"aware": aw}, extra={"org": org, "cents": int(cents)})
 
-    # ------------------------------------------------------------------ council: proposals and votes
-    @endpoint("join", S.obj(), cost_s=60)
-    def ep_join(self, ctx):
-        """Join the backbone council as a convener (a member without customers): you may propose and vote."""
-        st = ctx.state
-        if not ctx.actor.startswith("p:"):
-            raise Forbidden("persons join the council")
-        if st.has("org_members", ctx.actor):
-            return {"member": ctx.actor}
-        ctx.emit("orgs.member", {"id": ctx.actor, "manager": ctx.actor, "goal": "convener", "slot": -1, "price": 0,
-                                 "marketing": 0, "pledge_budget": 0, "convener": True}, vis="public")
-        ctx.emit("id.member", {"org": self.backbone(st)["council"], "person": ctx.actor, "role": "admin",
-                               "title": "convener"}, vis=(ctx.actor, self.backbone(st)["council"]))
-        return {"member": ctx.actor}
+    # ------------------------------------------------------------------ council: governed acts and votes
+    def _governed(self, ctx) -> None:
+        """The council's binding acts run only as the council organisation itself executing an approved `inst`
+        decision (its charter governs every `orgs.*` tool in its name)."""
+        if ctx.actor != COMMONS or not ctx.world.modules["inst"].executing(ctx.world, COMMONS):
+            raise Forbidden("only the council decides this: propose it with inst.propose {org: o:commons, action: "
+                            "{kind: tool, tool: ..., args: ...}}")
+        ident(ctx.world).authorize(ctx, COMMONS, "orgs.govern")
 
-    @endpoint("propose", S.obj({"kind": S.s_enum(["quotas", "levy", "expansion"]),
-                                "shares": {"type": "object", "additionalProperties": {"type": "number", "minimum": 0,
-                                                                                       "maximum": 1}},
-                                "cents_per_customer": S.s_int(minimum=1, maximum=10_000),
-                                "note": S.s_str(maxLength=1000)}, ["kind"]), cost_s=300)
-    def ep_propose(self, ctx, kind, shares=None, cents_per_customer=None, note=""):
-        """Put a proposal to the council (decided by a majority of the member organisations within three days):
-        `quotas` {shares: member -> share of capacity}, `levy` {cents_per_customer: charged once to each member per
-        current customer, into the expansion fund} or `expansion` (a project adding capacity, built once the fund
-        covers its cost)."""
-        me = self.council_member(ctx)
+    def _decision(self, ctx) -> str | None:
+        """The council decision being executed: the latest open one whose action is this tool call."""
         st = ctx.state
-        if kind == "quotas":
-            if not shares or any(not st.has("org_members", k) for k in shares) or sum(shares.values()) > 1.0001:
-                raise InvalidAction("quotas need member shares summing to at most 1")
-            body = {"shares": {k: round(float(v), 4) for k, v in sorted(shares.items())}}
-        elif kind == "levy":
-            if not cents_per_customer:
-                raise InvalidAction("a levy needs cents_per_customer")
-            body = {"cents_per_customer": int(cents_per_customer)}
-        else:
-            e = self.c["expansion"]
-            body = {"gain": float(e["gain"]), "cost": int(e["cost_cents"]), "build_days": int(e["build_days"])}
-        pid = st.new_id("orgprop")
-        ctx.emit("orgs.proposal", {"id": pid, "kind": kind, "body": body, "by": me, "note": note[:1000],
-                                   "closes_t": int(ctx.now + 3 * DAY)}, vis="public")
-        for slot, (org, m) in sorted(self.members(st).items()):
-            if not m["convener"]:
-                hours = 4 + int(ctx.world.rng_for("orgs-consider", pid, org).integers(0, 30))
-                ctx.schedule(ctx.now + hours * HOUR, "orgeco.vote_npc", {"proposal": pid, "org": org}, prio=55)
-        return {"proposal": pid}
+        for did in reversed(st.find_ids("inst_decisions", "org", COMMONS)):
+            d = st.tables["inst_decisions"][did]
+            a = d["action"]
+            if d["status"] == "open" and a.get("kind") == "tool" and a.get("tool") == ctx.tool and \
+                    (a.get("args") or {}) == (ctx.tool_args or {}):
+                return did
+        return None
 
-    @endpoint("vote", S.obj({"proposal": S.s_str(maxLength=40), "yes": S.s_bool()}, ["proposal", "yes"]))
-    def ep_vote(self, ctx, proposal, yes):
-        """Vote on an open council proposal (one vote per member)."""
-        me = self.council_member(ctx)
-        self._cast(ctx, proposal, me, bool(yes), "member vote")
-        return {"ok": True}
-
-    def _cast(self, ctx, proposal, member, yes, why):
+    @endpoint("set_quotas", S.obj({"shares": {"type": "object", "additionalProperties": {
+        "type": "number", "minimum": 0, "maximum": 1}}}, ["shares"]), cost_s=60)
+    def ep_set_quotas(self, ctx, shares):
+        """Council act (only as an approved decision of o:commons): set each member organisation's share of the
+        backbone's capacity (members left out lose their quota; shares sum to at most 1)."""
+        self._governed(ctx)
         st = ctx.state
-        p = st.get("org_props", proposal)
-        if p is None or p["status"] != "open":
-            raise Conflict("no open proposal")
-        if st.has("org_votes", f"{proposal}|{member}"):
-            raise Conflict("already voted")
-        ctx.emit("orgs.vote", {"id": f"{proposal}|{member}", "proposal": proposal, "member": member, "yes": bool(yes),
-                               "why": why}, vis="public")
+        if any(not st.has("org_members", k) for k in shares) or sum(shares.values()) > 1.0001:
+            raise InvalidAction("quotas need member organisations' shares summing to at most 1")
+        q = {k: round(float(v), 4) for k, v in sorted(shares.items())}
+        for org, m in sorted(st.scan("org_members")):
+            if m["status"] == "active":
+                ctx.emit("orgs.member_update", {"id": org, "changes": {"quota": q.get(org)}}, vis="public")
+        ctx.emit("orgs.act", {"kind": "quotas", "decision": self._decision(ctx), "body": {"shares": q}}, vis="public")
+        return {"quotas": q}
+
+    @endpoint("levy", S.obj({"cents_per_customer": S.s_int(minimum=1, maximum=10_000)}, ["cents_per_customer"]),
+              cost_s=60)
+    def ep_levy(self, ctx, cents_per_customer):
+        """Council act (only as an approved decision of o:commons): charge every member organisation once per
+        current customer into the expansion fund (each pays what its account holds, up to its levy)."""
+        self._governed(ctx)
+        st = ctx.state
+        bank = ctx.world.modules["bank"]
+        b = self.backbone(st)
+        fund = 0
+        for org, m in sorted(st.scan("org_members")):
+            if m["status"] != "active":
+                continue
+            cents = int(cents_per_customer) * int(m["customers"])
+            src = bank.primary_account(st, org)
+            cents = min(cents, int(bank.available(st, src)))
+            if cents > 0:
+                bank.move(ctx, src, bank.primary_account(st, b["council"]), cents, "levy", "council levy")
+                fund += cents
+        ctx.emit("orgs.fund", {"delta": int(fund), "by": "levy", "ref": self._decision(ctx)}, vis="public")
+        ctx.emit("orgs.act", {"kind": "levy", "decision": self._decision(ctx),
+                              "body": {"cents_per_customer": int(cents_per_customer), "raised": int(fund)}},
+                 vis="public")
+        return {"raised_cents": int(fund)}
+
+    @endpoint("expand", S.obj(), cost_s=60)
+    def ep_expand(self, ctx):
+        """Council act (only as an approved decision of o:commons): commission an expansion project (built by the
+        contractor once the expansion fund covers its cost)."""
+        self._governed(ctx)
+        st = ctx.state
+        if any(p["status"] in ("funding", "building") for _, p in st.scan("org_projects")):
+            raise Conflict("an expansion project is already under way")
+        e = self.c["expansion"]
+        pid = st.new_id("orgprj")
+        ctx.emit("orgs.project", {"id": pid, "gain": float(e["gain"]), "cost": int(e["cost_cents"]),
+                                  "build_days": int(e["build_days"]), "decision": self._decision(ctx)}, vis="public")
+        ctx.emit("orgs.act", {"kind": "expansion", "decision": self._decision(ctx), "body": {"project": pid}},
+                 vis="public")
+        return {"project": pid}
+
+    def on_inst_decision(self, ctx, did, voter) -> None:
+        """A provider's manager asked to vote on a council decision considers it within a day or so."""
+        st = ctx.state
+        d = st.get("inst_decisions", did)
+        if d is None or d["org"] != COMMONS:
+            return
+        org = self.manager_of(st, voter)
+        if org is None:
+            return
+        hours = 4 + int(ctx.world.rng_for("orgs-consider", did, org).integers(0, 30))
+        ctx.schedule(ctx.now + hours * HOUR, "orgeco.vote_npc", {"proposal": did, "org": org}, prio=55)
 
     @process("vote_npc")
     def pr_vote_npc(self, ctx, proposal, org):
         st = ctx.state
-        p = st.get("org_props", proposal)
+        d = st.get("inst_decisions", proposal)
         m = st.get("org_members", org)
-        if p is None or p["status"] != "open" or m is None or st.has("org_votes", f"{proposal}|{org}"):
+        if d is None or d["status"] != "open" or m is None or m["status"] != "active" or \
+                st.has("inst_ballots", f"{proposal}|{m['manager']}"):
             return
+        a = d["action"]
+        kind = GOVERNED.get(a.get("tool")) if a.get("kind") == "tool" else None
+        body = a.get("args") or {}
         hours = [h for _, h in sorted(st.scan("org_hours"))][-48:]
         cong = 1.0 - (float(np.mean([h["success"].get(org, 1.0) for h in hours])) if hours else 1.0)
         own_cut = 0.0
-        if p["kind"] == "quotas":
+        if kind == "quotas":
             b = self.backbone(st)
-            share = float(p["body"]["shares"].get(org, 0.0))
+            share = float((body.get("shares") or {}).get(org, 0.0))
             req = float(np.mean([h["requested_by"].get(org, 0.0) for h in hours])) if hours else 0.0
             own_cut = max(0.0, 1.0 - share * float(b["capacity"]) / req) if req > 0 else 0.0
-        convener = bool(st.tables["org_members"].get(p["by"], {}).get("convener"))
-        yes, why = _goal_vote(m["goal"], p["kind"], own_cut, cong, convener, ctx.rng("orgs-vote", proposal, org))
-        self._cast(ctx, proposal, org, yes, why)
-
-    def _close(self, ctx, pid, p):
-        st = ctx.state
-        voters = [org for org, m in st.scan("org_members") if m["status"] == "active"]
-        yes = sum(1 for v in st.find("org_votes", "proposal", pid) if v["yes"])
-        passed = yes * 2 > len(voters)
-        ctx.emit("orgs.decided", {"id": pid, "passed": passed, "yes": yes, "members": len(voters)}, vis="public")
-        if not passed:
-            return
-        bank = ctx.world.modules["bank"]
-        b = self.backbone(st)
-        if p["kind"] == "quotas":
-            for org, m in sorted(st.scan("org_members")):
-                if m["status"] == "active" and not m["convener"]:
-                    q = p["body"]["shares"].get(org)
-                    ctx.emit("orgs.member_update", {"id": org, "changes": {"quota": q}}, vis="public")
-        elif p["kind"] == "levy":
-            fund = 0
-            for org, m in sorted(st.scan("org_members")):
-                if m["status"] != "active" or m["convener"]:
-                    continue
-                cents = int(p["body"]["cents_per_customer"]) * int(m["customers"])
-                src = bank.primary_account(st, org)
-                cents = min(cents, int(bank.available(st, src)))
-                if cents > 0:
-                    bank.move(ctx, src, bank.primary_account(st, b["council"]), cents, "levy", f"levy {pid}")
-                    fund += cents
-            ctx.emit("orgs.fund", {"delta": int(fund), "by": "levy", "ref": pid}, vis="public")
-        else:
-            ctx.emit("orgs.project", {"id": pid, "gain": p["body"]["gain"], "cost": p["body"]["cost"],
-                                      "build_days": p["body"]["build_days"]}, vis="public")
+        # a proposal by a convener (a council member that represents no provider and is not its secretary)
+        convener = d["by"].startswith("p:") and self.manager_of(st, d["by"]) is None and \
+            d["by"] not in ident(ctx.world).org_owner_persons(st, COMMONS)
+        yes, why = _goal_vote(m["goal"], kind or "other", own_cut, cong, convener,
+                              ctx.rng("orgs-vote", proposal, org))
+        err = contain(ctx, ctx.call, "inst.vote", {"decision": proposal, "choice": "yes" if yes else "no"},
+                      m["manager"])
+        ctx.emit("orgs.vote_reason", {"decision": proposal, "org": org, "yes": bool(yes), "why": why,
+                                      "error": str(err)[:200] if err is not None else None}, vis="public")
 
     @endpoint("contribute", S.obj({"cents": S.s_int(minimum=100, maximum=10**9)}, ["cents"]), cost_s=60)
     def ep_contribute(self, ctx, cents):
@@ -408,18 +448,18 @@ class OrgEco(Module):
     @endpoint("telemetry", S.obj({"hours": S.s_int(minimum=1, maximum=24 * 14)}), read_only=True)
     def ep_telemetry(self, ctx, hours=24):
         """The backbone's public telemetry: capacity, requested and carried load, the success rate of each member's
-        requests per hour; members, their prices, quotas and customers; open proposals; projects; the fund."""
+        requests per hour; members, their prices, quotas and customers; projects; the fund. The council's decisions
+        are its members' business (inst.decisions {org: o:commons})."""
         st = ctx.state
         hs = [dict(h, t=k) for k, h in sorted(st.scan("org_hours"))][-int(hours):]
         b = self.backbone(st)
         return {"capacity": b["capacity"], "fund_cents": b["fund"], "council": b["council"],
+                "governed_acts": sorted(GOVERNED),
                 "hours": [{"t": h["at"], "capacity": h["capacity"], "requested": h["requested"], "load": h["load"],
                            "success": h["success"]} for h in hs],
                 "members": [{"member": org, "price": m["price"], "quota": m["quota"],
                              "customers": m["customers"], "status": m["status"], "convener": m["convener"]}
                             for org, m in sorted(st.scan("org_members"))],
-                "proposals": [{"proposal": k, "kind": p["kind"], "body": p["body"], "status": p["status"],
-                               "by": p["by"]} for k, p in sorted(st.scan("org_props"))][-20:],
                 "projects": [{"project": k, **p} for k, p in sorted(st.scan("org_projects"))]}
 
     # ------------------------------------------------------------------ commitments (commit offers to members)
@@ -460,9 +500,9 @@ class OrgEco(Module):
         if any(mm["deliverable"]["kind"] != "predicate" for mm in c["milestones"]):
             return respond("reject", "we pay only against outcomes the world verifies")
         from ..goals.metrics import predicate_leaves
-        if any(lf.get("metric") != "orgeco_capacity" for mm in c["milestones"]
-               for lf in predicate_leaves(mm["deliverable"]["predicate"])):
-            return respond("reject", "we pay only for backbone capacity")
+        if any(lf.get("metric") != "orgeco_capacity" or (lf.get("args") or {}).get("org") not in (org, COMMONS)
+               for mm in c["milestones"] for lf in predicate_leaves(mm["deliverable"]["predicate"])):
+            return respond("reject", "we pay only for the capacity of the backbone we use")
         total = sum(mm["amount"] for mm in c["milestones"])
         hours = [h for _, h in sorted(st.scan("org_hours"))][-72:]
         req = float(np.mean([h["requested_by"].get(org, 0.0) for h in hours])) if hours else 0.0
@@ -570,6 +610,11 @@ class OrgEco(Module):
                  extra={"t": int(now), "use": recs, "subscriptions": subs})
         if req_by:
             ctx.emit("orgs.requests", {"by": {k: int(v) for k, v in sorted(req_by.items())}}, vis="internal")
+        if recs:
+            # what this session's customers asked and got (the evaluator's record, kept as world state)
+            ctx.emit("orgs.usage", {"t": int(now), "requests": int(sum(r[2] for r in recs)),
+                                    "ok": int(sum(r[3] for r in recs)),
+                                    "users": sorted({int(r[0]) for r in recs if r[2] > 0})}, vis="internal")
         attention.spend(ctx, idx, np.full(m, 6.0), activity="online")
         return util
 
@@ -613,19 +658,18 @@ class OrgEco(Module):
         for k in old[:-24 * 21]:
             st.delete("org_hours", k)
 
-    @applier("orgs.proposal")
-    def ap_proposal(self, ev):
-        p = dict(ev.payload)
-        self.world.state.insert("org_props", p.pop("id"), p | {"status": "open", "t": ev.t})
+    @applier("orgs.act")
+    def ap_act(self, ev):
+        return None
 
-    @applier("orgs.vote")
-    def ap_vote(self, ev):
-        p = dict(ev.payload)
-        self.world.state.insert("org_votes", p.pop("id"), p | {"t": ev.t})
+    @applier("orgs.usage")
+    def ap_usage(self, ev):
+        st = self.world.state
+        st.put("org_use", f"{int(ev.payload['t']):012d}|{len(st.tables['org_use']):06d}", dict(ev.payload))
 
-    @applier("orgs.decided")
-    def ap_decided(self, ev):
-        self.world.state.patch("org_props", ev.payload["id"], status="passed" if ev.payload["passed"] else "rejected")
+    @applier("orgs.vote_reason")
+    def ap_vote_reason(self, ev):
+        return None
 
     @applier("orgs.fund")
     def ap_fund(self, ev):
@@ -683,14 +727,12 @@ def evaluate(world, principal: str, objective: dict) -> dict:
     st = world.state
     now = world.now
     t0 = now - int(objective.get("window_days", 14)) * DAY
-    use = []
-    for ev in world.events_range(0):
-        if ev.type == "cols.batch" and ev.payload.get("kind") == "orgs.online" and ev.t >= t0:
-            use.extend((ev.payload.get("extra") or {}).get("use") or [])
-    req = sum(r[2] for r in use)
-    okn = sum(r[3] for r in use)
+    # the customers' sessions in the window, from world state (equal on a world rebuilt from its log)
+    use = [u for _, u in st.scan("org_use") if u["t"] >= t0]
+    req = sum(u["requests"] for u in use)
+    okn = sum(u["ok"] for u in use)
     success = okn / req if req else 0.0
-    users = len({r[0] for r in use if r[2] > 0})
+    users = len({i for u in use for i in u["users"]})
     mem = [m for _, m in st.scan("org_members") if not m["convener"]]
     active = sum(1 for m in mem if m["status"] == "active")
     b = st.tables["org_backbone"]["backbone"]
@@ -717,37 +759,61 @@ def mechanics(world) -> dict:
 
 
 def mechanics_report(world, since_seq: int = 0) -> dict:
+    """Each required mechanic of 9.12 and the recorded events (after `since_seq`) that exercise it."""
     st = world.state
     c = K.event_counts(world, since_seq)
     goals = {m["goal"] for _, m in st.scan("org_members") if not m["convener"]}
-    votes = [v for _, v in st.scan("org_votes")]
-    split = {v["proposal"] for v in votes if v["yes"]} & {v["proposal"] for v in votes if not v["yes"]}
+    # provider organisations acting in the run: pricing and closing (member updates), marketing, commitment answers
+    acting: set[str] = set()
+    council = {"proposed": 0, "ballots": 0, "decided": 0}
+    ballots: dict[str, set] = {}
+    executed: list[str] = []
+    for ev in world.events_range(since_seq):
+        p = ev.payload
+        if ev.type == "orgs.member_update" and set(p["changes"]) & {"price", "status"}:
+            acting.add(p["id"])
+        elif ev.type == "cols.batch" and p.get("kind") == "orgs.marketing":
+            acting.add((p.get("extra") or {}).get("org"))
+        elif ev.type == "orgs.negotiation":
+            acting.add(p["org"])
+        elif ev.type == "inst.proposed" and p["org"] == COMMONS:
+            council["proposed"] += 1
+        elif ev.type == "inst.ballot" and st.tables["inst_decisions"].get(p["decision"], {}).get("org") == COMMONS:
+            council["ballots"] += 1
+            ballots.setdefault(p["decision"], set()).add(p["choice"])
+        elif ev.type == "inst.decided" and st.tables["inst_decisions"].get(p["id"], {}).get("org") == COMMONS:
+            council["decided"] += 1
+            if p["status"] == "executed":
+                executed.append(p["id"])
+    acting.discard(None)
+    split = sum(1 for v in ballots.values() if v == {"yes", "no"})
     congested = sum(1 for ev in world.events_range(since_seq) if ev.type == "orgs.hour" and
                     ev.payload["congestion_success"] < 1.0)
     countered = sum(1 for ev in world.events_range(since_seq) if ev.type == "commit.offer_status" and
                     ev.payload["status"] == "countered")
     settled = c["commit.settled"]
-    passed = sum(1 for _, p in st.scan("org_props") if p["status"] == "passed")
-    # a passed quota or levy binds every member at once (each member's load or money changes by the decision)
-    binding = sum(1 for _, p in st.scan("org_props") if p["status"] == "passed" and p["kind"] in ("quotas", "levy"))
+    acts = [ev.payload for ev in world.events_range(since_seq) if ev.type == "orgs.act"]
+    # an executed quota or levy binds every member at once (each member's load or money changes by the decision)
+    binding = sum(1 for a in acts if a["kind"] in ("quotas", "levy"))
     contrib = len({ev.payload["by"] for ev in world.events_range(since_seq) if ev.type == "orgs.fund"})
     ev_ = evaluate(world, "", {"horizon_days": 0})
     return {
-        "Organizations": {"exercised": c["orgs.member"] >= 3, "events": {"orgs.member": c["orgs.member"]}},
-        "Differing goals": {"exercised": len(goals) >= 3 and len(split) > 0,
-                            "events": {"goals": sorted(goals), "proposals_with_split_votes": len(split)}},
+        "Organizations": {"exercised": len(acting) >= 3, "events": {"provider_organisations_acting": len(acting),
+                                                                    "orgs.member_update": c["orgs.member_update"]}},
+        "Differing goals": {"exercised": len(goals) >= 3 and split > 0,
+                            "events": {"goals": sorted(goals), "decisions_with_split_ballots": split}},
         "Contracts": {"exercised": c["commit.created"] > 0, "events": {"commit.created": c["commit.created"]}},
         "Negotiation": {"exercised": c["commit.offer"] > 0 and (countered > 0 or c["orgs.negotiation"] > 1),
                         "events": {"commit.offer": c["commit.offer"], "countered": countered,
                                    "orgs.negotiation": c["orgs.negotiation"]}},
         "Coordination": {"exercised": binding > 0 or (c["orgs.project_start"] > 0 and contrib >= 2),
-                         "events": {"passed_binding_proposals": binding, "passed_proposals": passed,
+                         "events": {"executed_binding_acts": binding, "executed_council_decisions": len(executed),
                                     "fund_contributors": contrib, "orgs.project_start": c["orgs.project_start"]}},
         "Shared resources": {"exercised": congested > 0 and c["orgs.hour"] > 0,
                              "events": {"congested_hours": congested, "orgs.hour": c["orgs.hour"]}},
-        "Governance": {"exercised": c["orgs.proposal"] > 0 and c["orgs.vote"] > 0 and c["orgs.decided"] > 0,
-                       "events": {"orgs.proposal": c["orgs.proposal"], "orgs.vote": c["orgs.vote"],
-                                  "orgs.decided": c["orgs.decided"]}},
+        "Governance": {"exercised": council["proposed"] > 0 and council["ballots"] > 0 and council["decided"] > 0,
+                       "events": {"inst.proposed": council["proposed"], "inst.ballot": council["ballots"],
+                                  "inst.decided": council["decided"], "orgs.act": len(acts)}},
         "Commitments": {"exercised": settled > 0 or c["commit.breach"] > 0,
                         "events": {"commit.settled": settled, "commit.breach": c["commit.breach"]}},
         "Collective outcomes": {"exercised": ev_["details"]["requests"] > 0 and congested > 0,
@@ -801,7 +867,8 @@ def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
     inst = generate_instance(rng, {**STRUCTURES[config.name], **(ov.pop("instance", {}) or {})})
     n = int(ov.pop("population", POPULATION))
     mods = K.order_modules([("identity", {}), ("bank", {}), ("admin", {}), ("artifacts", {}), ("cols", {}),
-                            ("contracts", {}), ("commit", {}), ("pop", K.pop_config(n)), ("orgeco", inst)])
+                            ("contracts", {}), ("commit", {}), ("inst", {}), ("pop", K.pop_config(n)),
+                            ("orgeco", inst)])
     return K.recipe(mods, {"max_actions_per_hour": 600})
 
 
@@ -816,11 +883,11 @@ def objective(world, principal: str, difficulty: int = 1) -> dict:
 
 
 class CouncilConvener(K.ReadingReference):
-    """Scripted reference (evaluator side, tool-only): a convener. It joins the council, proposes an expansion
-    project and a levy per customer, proposes quotas in proportion to each member's customers as soon as congestion
-    shows, votes for its own proposals, pays its own budget into the fund, and offers each member a commitment to
-    pay towards the expansion, released when the backbone's capacity reaches the target by a due date (members
-    accept, counter or refuse from their own interest); it accepts the counters it receives."""
+    """Scripted reference (evaluator side, tool-only): a convener. It joins the council (`inst.join`), proposes an
+    expansion project and a levy per customer as council decisions (`inst.propose`), proposes quotas in proportion
+    to each member's customers as soon as congestion shows, pays its own budget into the fund, and offers each
+    member a commitment to pay towards the expansion, released when the backbone's capacity reaches the target by a
+    due date (members accept, counter or refuse from their own interest); it accepts the counters it receives."""
     cycle_s = 12 * HOUR
     pledges = True
 
@@ -831,16 +898,20 @@ class CouncilConvener(K.ReadingReference):
         self.offered: set[str] = set()
         self.contributed = False
         self.accepted: set[str] = set()
-        self.voted: set[str] = set()
 
     def reads(self, t):
         if not self.joined:
             return []
-        return [("tel", "orgs.telemetry", {"hours": 48}), ("inbox", "commit.inbox", {"status": "open"})]
+        return [("tel", "orgs.telemetry", {"hours": 48}), ("inbox", "commit.inbox", {"status": "open"}),
+                ("dec", "inst.decisions", {"org": COMMONS, "status": "any"})]
+
+    def _propose(self, kind, tool, args, reason):
+        return A("inst.propose", None, org=COMMONS, action={"kind": "tool", "tool": tool, "args": args},
+                 reason=reason)
 
     def decide(self, t, got):
         if not self.joined:
-            return [A("orgs.join", "join")]
+            return [A("inst.join", "join", org=COMMONS, note="convener for the backbone's capacity")]
         tl = got.get("tel")
         if not tl:
             return []
@@ -848,25 +919,28 @@ class CouncilConvener(K.ReadingReference):
         members = [m for m in tl["members"] if not m["convener"] and m["status"] == "active"]
         hours = tl["hours"]
         cong = 1.0 - (float(np.mean([min(h["success"].values() or [1.0]) for h in hours])) if hours else 1.0)
-        open_kinds = {p["kind"] for p in tl["proposals"] if p["status"] == "open"}
-        passed = {p["kind"] for p in tl["proposals"] if p["status"] == "passed"}
-        for p in tl["proposals"]:
-            if p["status"] == "open" and p["proposal"] not in self.voted:
-                self.voted.add(p["proposal"])
-                out.append(A("orgs.vote", None, proposal=p["proposal"], yes=p["by"] == self.me))
+        decs = got.get("dec") if isinstance(got.get("dec"), list) else []
+        kinds = {}
+        for d in decs:
+            k = GOVERNED.get((d.get("action") or {}).get("tool"))
+            if k:
+                kinds.setdefault(k, set()).add(d["status"])
+        open_kinds = {k for k, v in kinds.items() if "open" in v}
+        passed = {k for k, v in kinds.items() if "executed" in v}
         if "expansion" not in passed and "expansion" not in open_kinds and t >= self.proposed.get("expansion", 0):
-            out.append(A("orgs.propose", None, kind="expansion", note="more capacity for everyone"))
+            out.append(self._propose("expansion", "orgs.expand", {}, "more capacity for everyone"))
             self.proposed["expansion"] = t + 4 * DAY
         if self.pledges and "levy" not in passed and "levy" not in open_kinds and t >= self.proposed.get("levy", 0):
-            out.append(A("orgs.propose", None, kind="levy", cents_per_customer=450,
-                         note="each member pays per customer"))
+            out.append(self._propose("levy", "orgs.levy", {"cents_per_customer": 450},
+                                     "each member pays per customer into the expansion fund"))
             self.proposed["levy"] = t + 4 * DAY
         if self.pledges and cong > 0.02 and "quotas" not in open_kinds and t >= self.proposed.get("quotas", 0):
             total = sum(m["customers"] for m in members) or 1
             shares = {m["member"]: round(max(0.05, m["customers"] / total), 4) for m in members}
             sc = sum(shares.values())
-            out.append(A("orgs.propose", None, kind="quotas", shares={k: round(v / sc, 4) for k, v in shares.items()},
-                         note="shares by customers served"))
+            out.append(self._propose("quotas", "orgs.set_quotas",
+                                     {"shares": {k: round(v / sc, 4) for k, v in shares.items()}},
+                                     "shares by customers served"))
             self.proposed["quotas"] = t + 6 * DAY
         if not self.contributed:
             self.contributed = True
@@ -880,7 +954,7 @@ class CouncilConvener(K.ReadingReference):
             out.append(A("commit.offer", None, to=m["member"], terms={
                 "title": "contribution to the backbone expansion", "payer": "$you",
                 "milestones": [{"amount_cents": amt, "due_in_s": 30 * DAY, "deliverable": {
-                    "kind": "predicate", "predicate": {"metric": "orgeco_capacity", "args": {"org": "o:commons"},
+                    "kind": "predicate", "predicate": {"metric": "orgeco_capacity", "args": {"org": m["member"]},
                                                        "op": ">=", "value": target}}}]},
                 message="pay towards the expansion only if the capacity is built"))
         inbox = got.get("inbox")

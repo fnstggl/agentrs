@@ -69,3 +69,22 @@ def test_coordinator_beats_uncoordinated_response_idle_and_bystander_fail():
     assert out["ref"]["details"]["loss_ratio_vs_uncoordinated"] < 0.9
     assert not out["idle"]["success"] and not out["bystander"]["success"]
     assert out["idle"]["details"]["loss_ratio_vs_uncoordinated"] > 0.95
+
+
+def test_same_seed_same_log():
+    """Determinism (kernel rule): the same seed gives the same state and event hashes."""
+    out = []
+    for _ in range(2):
+        env = K.make_env("crisis", "quake_mesh", 4)
+        env.advance(3 * 86400)
+        w = env.world
+        out.append((w.digest(), w.events_range(w.seq - 1, w.seq)[0].hash))
+    assert out[0] == out[1]
+
+
+def test_evaluator_gives_the_same_verdict_on_a_world_rebuilt_from_its_log():
+    """The evaluator reads recorded world state only: on a world rebuilt from the event log alone (World.replay,
+    no in-memory history) it gives the same verdict (framework evaluator_report)."""
+    rep = base.evaluator_report(C.DOMAIN, "storm_radial", 0, 3)
+    assert rep["ok"] and rep["replay_equal"] and rep["replay_digest_equal"], rep
+

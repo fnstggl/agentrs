@@ -852,49 +852,77 @@ def objective(world, principal: str, difficulty: int = 1) -> dict:
     return {"text": text, "description": text, "difficulty": d, "horizon_days": 100, "min_adopters": need}
 
 
-def fit_optimum(rows: list[tuple[dict, float]], cond_names: list[str]) -> tuple[str, str, dict]:
-    """Least-squares fit of response = h(c) + k (setting - g(c))^2 with h and g quadratic in the conditions
-    (alternating: linear least squares for h and k given g, Gauss-Newton steps for g): returns (law expression for
-    the paper, advice expression g clipped to the setting range, fit info). Uses only the founder's own readings."""
+def _powers(C: np.ndarray, deg: int) -> np.ndarray:
+    feats = [np.ones(len(C))]
+    for j in range(C.shape[1]):
+        feats += [C[:, j] ** e for e in range(1, int(deg) + 1)]
+    return np.stack(feats, 1)
+
+
+def _poly_text(c, cond_names: list[str], deg: int) -> str:
+    t = [f"{c[0]:.6f}"]
+    for j, cn in enumerate(cond_names):
+        for e in range(1, int(deg) + 1):
+            x = c[1 + j * int(deg) + e - 1]
+            t.append(f"{x:.6f} * {cn}" if e == 1 else f"{x:.8f} * {cn} ** {e}")
+    return " + ".join(t)
+
+
+def fit_optimum(rows: list[tuple[dict, float]], cond_names: list[str], deg_g: int = 2,
+                deg_h: int = 2, deg_k: int = 0) -> tuple[str, str, dict]:
+    """Least-squares fit of response = h(c) + k(c) (setting - g(c))^2 with h, k and g polynomials in the conditions
+    (of degrees `deg_h`, `deg_k`, `deg_g`; alternating: linear least squares for h and k given g, Gauss-Newton steps
+    for g): returns (law expression for the paper, advice expression g clipped to the setting range, fit info).
+    Uses only the founder's own readings."""
     X = np.array([[r["setting"]] + [r[c] for c in cond_names] for r, _ in rows], np.float64)
     y = np.array([v for _, v in rows], np.float64)
     s, C = X[:, 0], X[:, 1:]
-    feats = [np.ones(len(X))]
-    for j in range(C.shape[1]):
-        feats += [C[:, j], C[:, j] ** 2]
-    F = np.stack(feats, 1)
-    beta = np.zeros(F.shape[1])
+    Fg, Fh, Fk = _powers(C, deg_g), _powers(C, deg_h), _powers(C, deg_k)
+    beta = np.zeros(Fg.shape[1])
     beta[0] = 0.5
     best = None
     for _ in range(80):
-        g = F @ beta
-        A_ = np.concatenate([F, ((s - g) ** 2)[:, None]], 1)
+        g = Fg @ beta
+        A_ = np.concatenate([Fh, Fk * ((s - g) ** 2)[:, None]], 1)
         coef, *_ = np.linalg.lstsq(A_, y, rcond=None)
-        h, k = coef[:-1], max(float(coef[-1]), 1e-3)
-        r = y - (F @ h + k * (s - g) ** 2)
+        h, kc = coef[:Fh.shape[1]], coef[Fh.shape[1]:]
+        kv = np.maximum(Fk @ kc, 1e-3)
+        r = y - (Fh @ h + kv * (s - g) ** 2)
         sse = float(np.sum(r ** 2))
         if best is None or sse < best[0]:
-            best = (sse, h.copy(), k, beta.copy())
-        J = (-2.0 * k * (s - g))[:, None] * F
+            best = (sse, h.copy(), kc.copy(), beta.copy())
+        J = (-2.0 * kv * (s - g))[:, None] * Fg
         step, *_ = np.linalg.lstsq(J, -r, rcond=None)
         beta = beta - 0.7 * step
+    sse, h, kc, beta = best
+    n, npar = len(rows), Fg.shape[1] + Fh.shape[1] + Fk.shape[1]
+    kt = f"{max(float(kc[0]), 1e-3):.6f}" if deg_k == 0 else f"({_poly_text(kc, cond_names, deg_k)})"
+    law = f"{_poly_text(h, cond_names, deg_h)} + {kt} * (setting - ({_poly_text(beta, cond_names, deg_g)})) ** 2"
+    bic = float(n * math.log(max(sse, 1e-12) / n) + npar * math.log(n))
+    return law, f"clip({_poly_text(beta, cond_names, deg_g)}, 0, 1)", {"sse": sse, "n": n, "k": float(kc[0]),
+                                                                      "params": npar, "bic": bic,
+                                                                      "deg_g": int(deg_g), "deg_h": int(deg_h),
+                                                                      "deg_k": int(deg_k)}
 
-    def poly(c):
-        t = [f"{c[0]:.6f}"]
-        for j, cn in enumerate(cond_names):
-            t.append(f"{c[1 + 2 * j]:.6f} * {cn}")
-            t.append(f"{c[2 + 2 * j]:.7f} * {cn} ** 2")
-        return " + ".join(t)
-    sse, h, k, beta = best
-    law = f"{poly(h)} + {k:.6f} * (setting - ({poly(beta)})) ** 2"
-    return law, f"clip({poly(beta)}, 0, 1)", {"sse": sse, "n": len(rows), "k": k}
+
+def select_optimum_model(rows: list[tuple[dict, float]], cond_names: list[str]) -> tuple[str, str, dict]:
+    """A scientist's model choice from its own readings: fit the optimum model with polynomial g, h and curvature k
+    of degrees 1-5 (g; at most the distinct levels of each condition minus one), 1-2 (h) and 0-2 (k) and keep the
+    one with the lowest Bayesian information criterion (fewer parameters unless the data demand more)."""
+    levels = min(len({round(float(r[c]), 6) for r, _ in rows}) for c in cond_names) if cond_names else 1
+    gmax = max(1, min(5, levels - 1))
+    fits = [fit_optimum(rows, cond_names, dg, dh, dk) for dg in range(1, gmax + 1) for dh in (1, 2)
+            for dk in (0, 1, 2)]
+    return min(fits, key=lambda f: (f[2]["bic"], f[2]["params"]))
 
 
 class ScienceFounder(K.ReadingReference):
     """Scripted reference (evaluator side, tool-only): a scientist-founder. It measures the phenomenon on the
     cheaper apparatus over a grid of settings and circumstances (with the certified standards, to correct the
-    apparatus' calibration), fits the optimum setting as a function of the circumstances from its own readings,
-    publishes the model, builds an advisor from the fitted optimum, pilots it, pitches the investor that funds
+    apparatus' calibration), fits the optimum setting as a function of the circumstances from its own readings
+    (polynomial model families chosen by the Bayesian information criterion),
+    publishes the model (and, when the first replications do not confirm it, a revised paper from twice the
+    readings), builds an advisor from the fitted optimum, pilots it, pitches the investor that funds
     validated science once an independent replication confirms the paper, launches a subscription, promotes it and
     pitches the growth investor once subscribers renewed. `discovery=False` is the counterfactual founder without the
     research: it builds the advisor from common practice (`common_practice`, the population's habitual setting) and
@@ -911,6 +939,14 @@ class ScienceFounder(K.ReadingReference):
             self.common = float(common_practice)
         self.stage = "start"
         self.run = self.paper = self.proto = self.pilot = self.product = self.advice = None
+        # a follow-up study when the first paper's replications do not confirm it: more readings, the model refit
+        # on all of them, a second paper for other labs to replicate
+        self.papers: list[str] = []
+        self.rows: list = []
+        self.std: list = []
+        self.design: list = []
+        self.run2 = None
+        self.followup = None
         self.app = None
         self.certified: dict[str, float] = {}
         self.price = 900
@@ -924,15 +960,56 @@ class ScienceFounder(K.ReadingReference):
         if self.stage == "measuring":
             return [("data", "sci.data", {"run": self.run})] if self.run else []
         out = [("status", "rc.status", {}), ("inv", "rc.investors", {}), ("reps", "sci.replications", {})]
+        if self.followup == "measuring" and self.run2:
+            out.append(("data2", "sci.data", {"run": self.run2}))
         if self.pilot:
             out.append(("pilot", "rc.pilot_results", {"pilot": self.pilot}))
         return out
 
-    def _replicated(self, got) -> bool:
+    def _my_reports(self, got) -> list:
         reps = got.get("reps")
-        mine = [r for r in (reps if isinstance(reps, list) else []) if r.get("paper") == self.paper and
+        return [r for r in (reps if isinstance(reps, list) else []) if r.get("paper") in self.papers and
                 r.get("reporter") != self.me and r.get("other_apparatus")]
+
+    def _replicated(self, got) -> bool:
+        mine = self._my_reports(got)
         return sum(r["verdict"] == "consistent" for r in mine) > sum(r["verdict"] == "refuted" for r in mine)
+
+    def _calibrate(self, std):
+        xs = np.array([self.certified[r["standard"]] for r in std])
+        ys = np.array([float(r["value"]) for r in std])
+        return np.polyfit(xs, ys, 1) if len(set(np.round(xs, 6))) >= 2 else (1.0, 0.0)
+
+    def _followup(self, got) -> list:
+        """When the reports on the paper(s) so far do not confirm them (no more consistent than refuted reports
+        once two have come in), measure as much again on the same apparatus, refit the model on all readings and
+        publish it as a second paper (once)."""
+        if not self.discovery or not self.paper:
+            return []
+        if self.followup is None:
+            mine = self._my_reports(got)
+            if len(mine) >= 2 and not self._replicated(got) and self.design:
+                self.followup = "starting"
+                return [A("sci.run", "run2", apparatus=self.app, design=self.design)]
+            return []
+        if self.followup == "measuring":
+            d = got.get("data2")
+            if not d or not d.get("readings"):
+                return []
+            pts = [r for r in d["readings"] if not r.get("standard") and r.get("value") is not None]
+            std = [r for r in d["readings"] if r.get("standard") in self.certified and r.get("value") is not None]
+            self.std += std
+            gain, off = self._calibrate(self.std)
+            cond = [n for n in (pts[0]["at"] if pts else {}) if n != "setting"]
+            rows = [(r["at"], (float(r["value"]) - off) / gain) for r in self.rows + pts]
+            law, _advice, _ = select_optimum_model(rows, cond)
+            self.followup = "done"
+            out = [A("sci.publish", "paper", phenomenon=PHEN, title="The optimal practice setting (revised)",
+                     model=law, data=[self.run, self.run2], calibration_runs=[self.run, self.run2],
+                     abstract="A larger study of the cost index over settings and circumstances: the optimum setting "
+                              "as a function of the circumstances, refit on all readings.")]
+            return out
+        return []
 
     def _pitch(self, got, rule):
         for i in (got.get("inv") or {}).get("investors", []):
@@ -961,31 +1038,36 @@ class ScienceFounder(K.ReadingReference):
                 return []
             app = sorted(apps, key=lambda a: a["price_cents"])[0]
             var = ph["vars"]
+            # a design that fits the run's 240-entry limit with the standards included: one condition - 7 settings
+            # x 7 circumstances, two readings each; two conditions - 6 x 5 x 4, one reading each; ten readings of
+            # each certified standard, so that the calibration (gain and offset) is precise enough for the model to
+            # survive other labs' replications on other apparatus
+            two = len(var) > 2
             grids = []
-            for v in var:
-                k = 7 if v["name"] == "setting" else (6 if len(var) == 2 else 4)
+            for j, v in enumerate(var):
+                k = (6 if two else 7) if v["name"] == "setting" else ((5 if j == 1 else 4) if two else 7)
                 grids.append([round(v["lo"] + (v["hi"] - v["lo"]) * i / (k - 1), 4) for i in range(k)])
             mesh = np.meshgrid(*grids, indexing="ij")
             pts = np.stack([m.ravel() for m in mesh], 1)
-            reps = 2 if len(var) == 2 else 1
-            design = [{"at": {v["name"]: float(x) for v, x in zip(var, row)}, "n": reps} for row in pts]
+            reps = 1 if two else 2
             self.certified = {x["id"]: float(x["certified"]) for x in ph["standards"]}
-            design += [{"standard": x["id"], "n": 3} for x in ph["standards"]]
+            design = [{"standard": x["id"], "n": 10} for x in ph["standards"]]
+            design += [{"at": {v["name"]: float(x) for v, x in zip(var, row)}, "n": reps} for row in pts]
             self.app = app["apparatus"]
             self.stage = "measuring"
-            return [A("sci.run", "run", apparatus=self.app, design=design[:240])]
+            self.design = design[:240]
+            return [A("sci.run", "run", apparatus=self.app, design=self.design)]
         if self.stage == "measuring":
             d = got.get("data")
             if not d or not d.get("readings"):
                 return []
             pts = [r for r in d["readings"] if not r.get("standard") and r.get("value") is not None]
             std = [r for r in d["readings"] if r.get("standard") in self.certified and r.get("value") is not None]
-            xs = np.array([self.certified[r["standard"]] for r in std])
-            ys = np.array([float(r["value"]) for r in std])
-            gain, off = (np.polyfit(xs, ys, 1) if len(set(np.round(xs, 6))) >= 2 else (1.0, 0.0))
+            gain, off = self._calibrate(std)
+            self.rows, self.std = list(pts), list(std)
             cond = [n for n in (pts[0]["at"] if pts else {}) if n != "setting"]
             rows = [(r["at"], (float(r["value"]) - off) / gain) for r in pts]
-            law, advice, _ = fit_optimum(rows, cond)
+            law, advice, _ = select_optimum_model(rows, cond)
             self.advice = advice
             self.stage = "piloting"
             return [A("sci.publish", "paper", phenomenon=PHEN, title="The optimal practice setting", model=law,
@@ -994,6 +1076,7 @@ class ScienceFounder(K.ReadingReference):
                                "smooth function of the circumstances."),
                     A("rc.prototype", "proto", name="Advisor v1", model=self.advice)]
         status = got.get("status") or {}
+        out += self._followup(got)
         if self.stage == "piloting" and self.proto:
             ready = any(p["prototype"] == self.proto and p["ready"] for p in status.get("prototypes", []))
             if ready and self.pilot is None:
@@ -1006,8 +1089,8 @@ class ScienceFounder(K.ReadingReference):
             return out
         if self.stage == "launch":
             self.stage = "market"
-            return [A("rc.launch", "launch", prototype=self.proto, name="Practice Advisor",
-                      price_cents_month=self.price)]
+            return out + [A("rc.launch", "launch", prototype=self.proto, name="Practice Advisor",
+                            price_cents_month=self.price)]
         if self.stage == "market" and self.product:
             cash = status.get("cash_cents", 0)
             if self.ads < 4 and cash > 25_000:
@@ -1029,7 +1112,12 @@ class ScienceFounder(K.ReadingReference):
         if tag == "run":
             self.run = res["run"]
         elif tag == "paper":
-            self.paper = res["paper"]
+            self.paper = self.paper or res["paper"]
+            self.papers.append(res["paper"])
+        elif tag == "run2":
+            self.run2 = res["run"]
+            self.followup = "measuring"
+
         elif tag == "proto":
             self.proto = res["prototype"]
         elif tag == "pilot":

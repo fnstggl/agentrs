@@ -58,3 +58,23 @@ def test_the_discovery_founder_succeeds_and_the_common_practice_founder_does_not
     assert out[True]["success"], out[True]
     assert not out[False]["success"]
     assert out[True]["details"]["adopters_retained"] > 2 * out[False]["details"]["adopters_retained"]
+
+
+def test_same_seed_same_log():
+    """Determinism (kernel rule): the same seed gives the same state and event hashes (practice weeks, labs'
+    replication runs)."""
+    out = []
+    for _ in range(2):
+        env = K.make_env("commercialization", "linear_optimum", 6)
+        env.advance(10 * 86400)
+        w = env.world
+        out.append((w.digest(), w.events_range(w.seq - 1, w.seq)[0].hash))
+    assert out[0] == out[1]
+
+
+def test_evaluator_gives_the_same_verdict_on_a_world_rebuilt_from_its_log():
+    """The evaluator reads recorded world state only: on a world rebuilt from the event log alone (World.replay,
+    no in-memory history) it gives the same verdict (framework evaluator_report)."""
+    rep = base.evaluator_report(R.DOMAIN, "linear_optimum", 0, 10)
+    assert rep["ok"] and rep["replay_equal"] and rep["replay_digest_equal"], rep
+
