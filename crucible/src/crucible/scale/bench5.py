@@ -54,8 +54,10 @@ QUANTITIES = ("transitions_per_s", "decisions_per_s", "sim_days_per_wall_hour", 
 #: RAM grants are about 1.6-2x the measured peak (2026-11-26: development 2.7 GB over 30 days, standard 3.1 GB and
 #: large 3.9 GB over their first days) so that a run reserves no more of the shared RAM budget than it can use.
 #: Disk grants (store growth) leave room for two large runs at once within the machine's ~11 GB of free disk.
+#: The internet profile (the 10M capacity run, V.2) measured 16.4 GB summed PSS and 1.4 GB of GPU memory on
+#: 2026-11-26 (596 s); its grant is 1.5x / 1.8x that, below T4's 32 GB ceiling, which is a target, not a grant.
 GRANTS = {"development": (4500, 1500, 3500), "standard": (6000, 1500, 3500), "large": (8000, 4000, 3500),
-          "internet": (32768, 5120, 3500)}
+          "internet": (25000, 5120, 2500)}
 GPU_S = 4 * 86400                     # GPU-time grant of one run: seconds of held CUDA context (the run's wall time)
 
 

@@ -156,7 +156,29 @@ The class-4 logprobs change with the batch composition in bfloat16 (different GE
 calls are recorded, so replay is exact, and from this version on the benchmark also reports the agreement of the
 chosen options (`choice_agreement`), which is what a participant acts on.
 
-## 7. Pending
+## 7. Ten-million-identity capacity run (V.2, T4; snapshot dc8f900, 2026-11-26 19:28-19:38)
 
-The 30-day standard (3 seeds) and large (1 seed) civ runs, the population-only standard row and the 10M capacity
-run (V.2) are queued as governed jobs; their results replace this paragraph.
+`gatev capacity --n 10000000`: the internet profile of the one population with the posts platform
+(`social.cascade`, the world of Gate I's positive control), one governed job (1 CPU, GPU for the shared space).
+
+| quantity | measured | T4 |
+|---|---:|---:|
+| identities (columnar rows of `pop`) | 10,000,000 | >= 10M |
+| identities that made at least one recorded decision | 6,867,229 | - |
+| qualifying distinct consumption events (recounted from the store) / recount mismatches | 13,089,265 / 0 | >= 10M |
+| simulated hours | 9 | - |
+| creation: wall s / resident MB | 53.1 / 8,239 (0.84 KB per identity) | - |
+| job wall s / CPU s | 596 / 493 | <= 7,200 |
+| CPUs granted | 1 | <= 4 |
+| peak summed PSS of the job (governor) | 16,404 MB | <= 32,768 |
+| peak GPU memory (interpreter hook) | 1,366 MB | - |
+| store growth | 0 MB (no store attached) | <= 5,120 |
+
+Every T4 limit is met with margin; 0 violations in the job's seven dimensions. The cumulative distinct-consumption
+count grows with the cascade's reach (hour 6: 0.59M, hour 7: 3.5M, hour 8: 9.0M, hour 9: 13.1M; 260 CPU-s for the
+last hour). From this run on the internet grant is 25 GB / 2.5 GB GPU (1.5x / 1.8x the measured peaks).
+
+## 8. Pending
+
+The 30-day standard (3 seeds) and large (1 seed) civ runs and the population-only standard row are queued as one
+governed job; their results replace this paragraph.
