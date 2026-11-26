@@ -695,3 +695,214 @@ def drop_switch_tracker(view, env=None, test: int = 5, level: float = 0.7, drop:
                 slow = 0.9 * slow + 0.1 * x
             if len(a) == 3 and len(b) == 3 and a[-1] != b[-1]:
                 lev[cur] = up if a[-1] > b[-1] else dn
+
+
+# ====================================================================== additive shape laws with input lags
+def _shape_cols(shape: tuple, x: np.ndarray) -> np.ndarray:
+    """Basis columns of one setting for a candidate shape: ("lin",), ("sat", h), ("quad",), ("step", q),
+    ("sat_lin", h) - a saturating term plus a linear one."""
+    kind = shape[0]
+    if kind == "lin":
+        return x[:, None]
+    if kind == "quad":
+        return np.c_[x, x * x]
+    if kind == "sat":
+        xp = np.maximum(x, 0.0)
+        return (xp / (xp + shape[1]))[:, None]
+    if kind == "sat_lin":
+        xp = np.maximum(x, 0.0)
+        return np.c_[xp / (xp + shape[1]), x]
+    if kind == "step":
+        return (x >= shape[1]).astype(float)[:, None]
+    raise ValueError(shape)
+
+
+def _shape_options(lo: float, hi: float) -> list[tuple]:
+    span = hi - lo
+    out = [("lin",), ("quad",)]
+    out += [("sat", float(h)) for h in np.geomspace(0.05 * span, 1.2 * span, 10)]
+    out += [("sat_lin", float(h)) for h in np.geomspace(0.05 * span, 1.2 * span, 6)]
+    out += [("step", float(q)) for q in np.linspace(lo + 0.1 * span, hi - 0.1 * span, 9)]
+    return out
+
+
+def _design(Xl: list[np.ndarray], shapes: list[tuple]) -> np.ndarray:
+    """Xl[l] holds the settings l ticks before each reading (n x J); one block of shape columns per lag."""
+    cols = [np.ones((len(Xl[0]), 1))]
+    for Xk in Xl:
+        for j, sh in enumerate(shapes):
+            cols.append(_shape_cols(sh, Xk[:, j]))
+    return np.hstack(cols)
+
+
+def _cv(F: np.ndarray, y: np.ndarray, k: int = 5) -> float:
+    folds = np.arange(len(y)) % k
+    err = 0.0
+    for i in range(k):
+        tr, te = folds != i, folds == i
+        coef, *_ = np.linalg.lstsq(F[tr], y[tr], rcond=None)
+        err += float(np.sum((F[te] @ coef - y[te]) ** 2))
+    return err
+
+
+def fit_additive_lagged(X: np.ndarray, y: np.ndarray, lo: np.ndarray, hi: np.ndarray, lags: int,
+                        Z: np.ndarray | None = None, gain: float = 0.03):
+    """An additive law y_t = c + sum_l sum_j b_lj phi_j(x_j,t-l), l = 0..L, with one shape phi_j per setting and the
+    number of lags L <= `lags` chosen by five-fold cross-validation (coordinate search over `_shape_options`, two
+    passes, for every L on the same readings; a more complex shape or a longer lag must lower the cross-validated
+    error by `gain`). `Z` (optional) holds covariates that do not respond to the settings (readings of exogenous
+    cycles); they enter linearly and are held at their means for predictions. Returns (predict_settled,
+    (shapes, L)): predict_settled(Xq) is the law's response with each condition held (all lags at the condition)."""
+    n, J = X.shape
+    M = int(lags)
+    yy = y[M:]
+    ok = np.isfinite(yy)
+    if Z is not None and Z.size:
+        Zs = Z[M:]
+        ok &= np.isfinite(Zs).all(axis=1)
+        Zs = Zs[ok]
+        zbar = Zs.mean(axis=0)
+    else:
+        Zs, zbar = None, None
+    yy = yy[ok]
+
+    def des(Xl, shapes, Zm=None):
+        F = _design(Xl, shapes)
+        if Zs is not None:
+            F = np.c_[F, Zs if Zm is None else Zm]
+        return F
+    best_all = None
+    for L in range(M + 1):
+        Xl = [X[M - l:n - l][ok] for l in range(L + 1)]
+        shapes = [("lin",)] * J
+        best = _cv(des(Xl, shapes), yy)
+        for _ in range(2):
+            for j in range(J):
+                for sh in _shape_options(float(lo[j]), float(hi[j])):
+                    cand = list(shapes)
+                    cand[j] = sh
+                    e = _cv(des(Xl, cand), yy)
+                    if e < best * (1.0 - gain):
+                        best, shapes = e, cand
+        if best_all is None or best < best_all[0] * (1.0 - gain):
+            best_all = (best, L, shapes, Xl)
+    _, L, shapes, Xl = best_all
+    coef, *_ = np.linalg.lstsq(des(Xl, shapes), yy, rcond=None)
+
+    def predict(Xq):
+        Xq = np.asarray(Xq, dtype=float)
+        Zm = None if Zs is None else np.repeat(zbar[None, :], len(Xq), axis=0)
+        return des([Xq] * (L + 1), shapes, Zm) @ coef
+    return predict, (shapes, L)
+
+
+def _exogenous(X: np.ndarray, R: np.ndarray, alpha: float = 0.01) -> list[int]:
+    """Columns of R (other readings) that do not respond to the randomised settings X: the F test of a regression
+    of each reading on the settings (current and one lag) is not significant at `alpha`."""
+    from math import exp, lgamma, log
+    out = []
+    n = len(X)
+    F = np.c_[np.ones(n - 1), X[1:], X[:-1]]
+    p = F.shape[1] - 1
+    for k in range(R.shape[1]):
+        r = R[1:, k]
+        if not np.isfinite(r).all() or np.std(r) < 1e-9:
+            continue
+        coef, *_ = np.linalg.lstsq(F, r, rcond=None)
+        rss1 = float(np.sum((r - F @ coef) ** 2))
+        rss0 = float(np.sum((r - r.mean()) ** 2))
+        d2 = n - 1 - p - 1
+        if d2 <= 0 or rss1 <= 0:
+            continue
+        f = ((rss0 - rss1) / p) / (rss1 / d2)
+        # upper tail of F(p, d2) by the regularised incomplete beta (continued fraction)
+        x = d2 / (d2 + p * f)
+        a, b = d2 / 2.0, p / 2.0
+
+        def betacf(a, b, x, it=200):
+            qab, qap, qam = a + b, a + 1.0, a - 1.0
+            c, d = 1.0, 1.0 - qab * x / qap
+            d = 1.0 / (d if abs(d) > 1e-30 else 1e-30)
+            h = d
+            for m in range(1, it):
+                m2 = 2 * m
+                aa = m * (b - m) * x / ((qam + m2) * (a + m2))
+                d = 1.0 + aa * d
+                d = 1.0 / (d if abs(d) > 1e-30 else 1e-30)
+                c = 1.0 + aa / c if abs(c) > 1e-30 else 1e-30
+                h *= d * c
+                aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
+                d = 1.0 + aa * d
+                d = 1.0 / (d if abs(d) > 1e-30 else 1e-30)
+                c = 1.0 + aa / c if abs(c) > 1e-30 else 1e-30
+                de = d * c
+                h *= de
+                if abs(de - 1.0) < 3e-12:
+                    break
+            return h
+        if x <= 0.0:
+            pval = 0.0
+        elif x >= 1.0:
+            pval = 1.0
+        else:
+            front = exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * log(x) + b * log(1.0 - x))
+            pval = front * betacf(a, b, x) / a if x < (a + 1.0) / (a + b + 2.0) else \
+                1.0 - exp(lgamma(a + b) - lgamma(a) - lgamma(b) + b * log(1.0 - x) + a * log(x)) * \
+                betacf(b, a, 1.0 - x) / b
+        if pval > alpha:
+            out.append(k)
+    return out
+
+
+def fir_shape_predict(view, env, lags: int = 1, hold: tuple = (1, 1), seed: int = 0, covariates: bool = True,
+                      gain: float = 0.06) -> None:
+    """Scripted public reference for prediction objectives on processes without feedback whose settings act after a
+    few ticks: hold uniformly random settings for a few ticks each (a design that randomises the settings, so
+    hidden demand cycles and past regimes cannot confound it), fit an additive law of the reading on each
+    setting's current and `lags` previous values with one shape per setting (linear, quadratic, saturating,
+    saturating plus linear, or a step; chosen by cross-validation), and file the law's response with each held-out
+    condition held. Other readings that do not respond to the settings (an F test under the randomised design:
+    readings of exogenous cycles) enter as covariates, which removes cycle noise without biasing the effects. The
+    reading is the gauge the objective names (public: the objective text says what to predict)."""
+    rng = np.random.default_rng(seed)
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    gauge = obj.get("gauge")
+    names = sorted(held[0])
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+    lo = np.array([float(props[n]["minimum"]) for n in names])
+    hi = np.array([float(props[n]["maximum"]) for n in names])
+    X, y, R = [], [], []
+    others = None
+    while view.t < view.horizon - 2 and not view.done:
+        s = lo + rng.random(len(names)) * (hi - lo)
+        for _ in range(int(rng.integers(hold[0], hold[1] + 1))):
+            if view.t >= view.horizon - 2 or view.done:
+                break
+            r = view.step({"kind": "levers", "values": {n: float(v) for n, v in zip(names, s)}})
+            nums = r["observation"]["numbers"]
+            key = gauge if gauge in nums else (next(iter(nums)) if nums else None)
+            if others is None:
+                others = sorted(k for k in nums if k != key)
+            X.append(s.copy())
+            y.append(nums.get(key, np.nan) if key else np.nan)
+            R.append([float(nums.get(k, np.nan)) for k in others])
+    X, y = np.asarray(X), np.asarray(y, dtype=float)
+    if len(y) >= 20 + lags and not view.done:
+        Z = None
+        if covariates and others:
+            Rm = np.asarray(R, dtype=float)
+            keep = _exogenous(X, Rm)
+            Z = Rm[:, keep] if keep else None
+        pred, _ = fit_additive_lagged(X, y, lo, hi, lags, Z=Z, gain=gain)
+        Xh = np.asarray([[float(c[n]) for n in names] for c in held])
+        view.step({"kind": "message", "to": "journal",
+                   "content": {"predictions": [{"set": c, "value": float(v)} for c, v in zip(held, pred(Xh))]}})
+    while not view.done:
+        view.step(None)
+
+
+def fir_shape_predict_lagged(view, env) -> None:
+    """`fir_shape_predict` for worlds whose settings act through lagged paths: settings held one or two ticks, up
+    to three lags of each setting."""
+    fir_shape_predict(view, env, lags=3, hold=(1, 2), gain=0.04)

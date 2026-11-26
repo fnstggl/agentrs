@@ -25,28 +25,40 @@ def _distractors(gb: GraphBuilder, rng, n: int, noise: float) -> None:
 # ====================================================================== 8.1 hidden causal systems
 @family("hc_confounded", engine="primitive_graph", category="8.1", item="8.1.1", split="train",
         doc="A hidden demand cycle drives both the previous operator's spending lever and sales: the records show a "
-            "strong positive spending-sales correlation, but spending itself lowers sales slightly and costs money.",
+            "strong positive spending-sales correlation, but spending itself lowers sales; a second lever helps "
+            "with sharply diminishing returns. Predict sales at settings partly outside what can be set, as "
+            "interventions: the records give the wrong sign, and a straight line through tests gives the wrong "
+            "shape.",
         distinct_because="hidden confounder with two children (natural-regime lever and outcome) plus historical "
-                         "records: the passive association and the interventional effect have opposite signs",
-        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-        claims=(C + "confounded_reversal",), identify=I + "lever_sign", lever_view=True)
+                         "records: the passive association and the interventional effect have opposite signs; "
+                         "scored by interventional predictions at held-out conditions",
+        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="predict_heldout",
+        claims=(C + "confounded_reversal",), identify=I + "lever_sign", lever_view=True,
+        reference="crucible.rapid.refs_adapt:fir_shape_predict", oracle="crucible.rapid.oracles:science_oracle",
+        version="2")
 def hc_confounded(rng, d):
     gb = GraphBuilder(rng)
-    U = gb.prim("hidden_confounding", {"mean": 0.0, "sd": u(rng, 0.4, 0.5), "ar": 0.9}, role="confounder")
+    U = gb.prim("hidden_confounding", {"mean": 0.0, "sd": u(rng, 0.5, 0.6), "ar": 0.85}, role="confounder")
     X = gb.lever(0.0, 10.0, 5.0, cost=u(rng, 40, 70), natural={"x": [(U, 0, 2.0)], "bias": 5.0, "sd": 0.3})
     Q = gb.lever(0.0, 10.0, 2.0, cost=u(rng, 60, 100))
-    base = gb.prim("saturation", {"cap": u(rng, 25, 35), "half": u(rng, 2, 4)}, x=[(Q, 0, 1.0)])
+    base = gb.prim("saturation", {"cap": u(rng, 40, 55), "half": u(rng, 1.0, 2.0)}, x=[(Q, 0, 1.0)])
     sales = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
-                    bias={"x": u(rng, 35, 45)}, x=[(U, 0, u(rng, 3.5, 4.5)), (X, 0, -u(rng, 0.3, 0.8)),
+                    bias={"x": u(rng, 35, 45)}, x=[(U, 0, u(rng, 3.5, 4.5)), (X, 0, -u(rng, 0.8, 1.2)),
                                                    (base, 0, 1.0)])
     proxy = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 50.0}, x=[(U, 0, 3.0)])
     noise = float(d["observation_noise"])
-    gb.gauge(sales, [("measurement_noise", {"sd": noise * 3})])
+    gy = gb.gauge(sales, [("measurement_noise", {"sd": noise * 3})])
     gb.gauge(proxy, [("measurement_noise", {"sd": 4.0})])
     _distractors(gb, rng, d["n_variables"], noise)
+    held = [{gb.name_of(X): p, gb.name_of(Q): q} for p, q in
+            ((13.0, 0.5), (15.0, 13.0), (0.5, 16.0), (12.0, 12.0), (16.0, 3.0), (2.0, 14.0), (14.0, 18.0))]
+    text = ("Predict mean units sold if the two spending levers were held at these values (partly outside what you "
+            f"can set): {held}. File predictions with the journal: message to 'journal' with content "
+            "{\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
     return gb.build(horizon=int(d["horizon"]), money={"revenue_node": sales, "price": 100.0, "cap": 200.0},
-                    affordances=["levers"], warmup=40, endowment=500_000,
-                    objective={"type": "maximize_net", "text": "Maximise your net income over the horizon."},
+                    affordances=["levers", "message"], warmup=40, endowment=500_000,
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gy, "text": text},
+                    journal=True,
                     brief="You take over a shop. Two spending levers; gauges: units sold and a footfall count. "
                           "You have the previous operator's records.",
                     claim={"lever": X, "outcome": sales, "confounder": U})
