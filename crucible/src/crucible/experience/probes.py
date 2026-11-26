@@ -739,27 +739,33 @@ def _predicate_oracles(P: Probe, env, a: str, ids: dict, truth: float) -> None:
         P.leak("predicate_oracle", "exp.register accepted an evaluator-backed measure",
                code=(r.get("error") or {}).get("code"))
     # 4 a charter condition over an evaluator metric
-    P.check("predicate_oracle")
     charter = {"procedures": {"vote": {"type": "majority", "electorate": "members"}},
                "rules": [{"match": {"kind": "tool", "tool": "bank.transfer", "when": dict(pred, value=100_000)},
                           "procedure": "vote"}]}
-    r = ex("inst.adopt", org=org, charter=charter)
-    if r["ok"]:
-        P.leak("predicate_oracle", "inst.adopt accepted a charter condition over an evaluator-only metric")
-    elif (r.get("error") or {}).get("code") not in ("forbidden",):
-        P.notes.append(f"inst.adopt refused for another reason: {r.get('error')}")
+    if "inst.adopt" in tools:
+        P.check("predicate_oracle")
+        r = ex("inst.adopt", org=org, charter=charter)
+        if r["ok"]:
+            P.leak("predicate_oracle", "inst.adopt accepted a charter condition over an evaluator-only metric")
+        elif (r.get("error") or {}).get("code") not in ("forbidden",):
+            P.notes.append(f"inst.adopt refused for another reason: {r.get('error')}")
+    else:
+        P.notes.append("no institutions module (inst) in this world: charter conditions not present")
     # 5 a commitment milestone (deliverable predicate) over an evaluator metric
-    P.check("predicate_oracle")
     w = env.world
     other = w.system_call("admin.join", {"handle": "counterpart", "endowment": 100_000})["principal"]
     terms = {"title": "probe", "payer": "$you", "milestones": [{"amount_cents": 100, "due_in_s": 2 * DAY,
                                                                  "deliverable": {"kind": "predicate",
                                                                                  "predicate": pred}}]}
-    r = ex("commit.offer", to=other, terms=terms, as_org=org)
-    if r["ok"]:
-        P.leak("predicate_oracle", "commit.offer accepted a deliverable over an evaluator-only metric")
-    elif (r.get("error") or {}).get("code") != "forbidden":
-        raise RuntimeError(f"commit.offer refused for another reason, the probe proves nothing: {r.get('error')}")
+    if "commit.offer" in tools:
+        P.check("predicate_oracle")
+        r = ex("commit.offer", to=other, terms=terms, as_org=org)
+        if r["ok"]:
+            P.leak("predicate_oracle", "commit.offer accepted a deliverable over an evaluator-only metric")
+        elif (r.get("error") or {}).get("code") != "forbidden":
+            raise RuntimeError(f"commit.offer refused for another reason, the probe proves nothing: {r.get('error')}")
+    else:
+        P.notes.append("no commitment module (commit) in this world: deliverable predicates not present")
     # 6 every evaluator-only metric of the registry union (commerce, social integrity, usefulness, rig, lab, ...)
     # through the two agreement channels a participant authors alone: a self-goal and a commitment deliverable
     from ..core import evaluator_only as EO

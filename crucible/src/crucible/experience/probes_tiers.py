@@ -135,6 +135,11 @@ def probe_nested(P: Probe, env, agent: str, label: str, *, unit: int = HOUR) -> 
     from ..core import evaluator_only as EO
     names = {t["name"] for t in env.tools(agent)}
     if "wf.define" not in names:
+        if getattr(env, "tier", None) == 2 and "wf" not in env.world.modules:
+            # a Tier 2 domain is a restriction of the civilisation (D-17): a world without the workflow module has no
+            # call-on-behalf channel to probe; recorded, never counted as "no leak"
+            P.notes.append(f"{label}: no workflow module in this domain world - nested-call channel not present")
+            return
         raise RuntimeError(f"{label}: no workflow module (wf) - the nested-call probe proves nothing here")
 
     def ex(_tool, **args):
@@ -233,10 +238,16 @@ def revenue_scenario(env, values: dict[str, str], *, unit: int, window_units: in
         raise RuntimeError(r.error)
     w.runtime["evaluator_canary"] = values["RUNTIME"]
     w._run_system("canary", lambda ctx: ctx.emit("note", {"canary": values["INTERNAL"]}, vis="internal"))
-    r = w.execute(friend, {"tool": "mail.send", "args": {"to": [third], "subject": "private",
-                                                         "body": f"between us: {values['PRIVATEMAIL']}"}})
-    if not r.ok:
-        raise RuntimeError(r.error)
+    if "mail" in w.modules:
+        r = w.execute(friend, {"tool": "mail.send", "args": {"to": [third], "subject": "private",
+                                                             "body": f"between us: {values['PRIVATEMAIL']}"}})
+        if not r.ok:
+            raise RuntimeError(r.error)
+    else:
+        # a restricted (Tier 2) world without mail: another participant's private data as a private event of the
+        # friend's addressed to the third participant only
+        w._run_system("canary-private", lambda ctx: ctx.emit("note", {"from": friend, "body": f"between us: "
+                                                                      f"{values['PRIVATEMAIL']}"}, vis=(third,)))
     w.spec.params["evaluator_note"] = values["SPEC"]
     for amount in PAYMENTS:
         env.advance(unit)
@@ -464,8 +475,28 @@ def tier2_names() -> list[str]:
     return [f"{d}:{c.name}" for d, dom in sorted(doms.items()) for c in dom.configs[:1]]
 
 
-def probe_domain(seed: int = 7) -> dict:
-    """Tier 2: every registered v5 domain's first configuration through `make(2, ...)`."""
+def domain_evaluation_values(env, agent: str) -> dict[str, float]:
+    """Distinctive numbers of the domain evaluator's verdict for `agent` (score and details: evaluator side). Numbers
+    of the public objective (everything in it is public: thresholds, targets) and numbers with fewer than four
+    significant digits (0.1 also is a layout weight) are left out."""
+    ev = (env.verify().get("evaluation") or {}).get(agent) or {}
+    obj = getattr(getattr(env, "_objectives", {}).get(agent), "objective", None) or {}
+    public = [x for _, x in numbers(_plain(obj))]
+    out: dict[str, float] = {}
+    for path, x in numbers(_plain(ev)):
+        x = float(x)
+        sig = len(f"{abs(x):.12g}".replace(".", "").replace("-", "").strip("0").split("e")[0])
+        if distinctive(x, public) and not x.is_integer() and sig >= 4:
+            out[f"evaluation{path}"] = x
+    return out
+
+
+def probe_domain(seed: int = 7, reference_days: float = 6.0) -> dict:
+    """Tier 2: every registered Part 9 domain's first configuration through `make(2, ...)`: the kernel-world probes,
+    the identity probe and the domain evaluator's own verdict: the domain's scripted reference (acting only through
+    the interface, `crucible.domains.base.drive`) works on the objective for `reference_days`, so the evaluator has
+    something to judge; its score and details never reach the seat."""
+    from ..domains import base as DB
     out = None
     for name in tier2_names():
         r = probe_kernel_tier(lambda: _domain_env(name, seed), tier=2, label=f"tier2 {name}", unit=HOUR)
@@ -473,8 +504,21 @@ def probe_domain(seed: int = 7) -> dict:
         env = _domain_env(name, IDENTITY_SEED)
         a = env.agents()[0]
         env.advance(HOUR)
-        reach = [env.observe(a), env.tools(a), env.observe_since(a, 0)]
+        dom = DB.REGISTRY[env.domain]
+        obj = getattr(env._objectives.get(a), "objective", None) or {}
+        drove = DB.drive(env, {a: dom.reference_policy(a, obj)}, days=reference_days, dt=int(dom.dt), trace=False)
+        P.notes.append(f"tier2 {name}: scripted reference drove the seat for {reference_days} days "
+                       f"({drove['agents'][a]['actions']} actions, {drove['agents'][a]['ok']} ok)")
+        sweep = tool_sweep(P, env.tools(a), lambda t, ar: env.execute(a, {"tool": t, "args": ar}),
+                           f"tier2 {name} identity", fill=harvest_fill(harvest([env.observe(a)], {"principal": [a]})))
+        env.advance(HOUR)
+        reach = [env.observe(a), env.tools(a), env.observe_since(a, 0), sweep]
         probe_identity(P, env, a, reach, f"tier2 {name} identity")
+        vals = domain_evaluation_values(env, a)
+        if vals:
+            P.scan_channel("observation", reach, values=vals, label=f"tier2 {name} domain evaluator verdict")
+        else:
+            P.notes.append(f"tier2 {name}: the domain evaluator's verdict has no distinctive number to look for")
         r = merge(r, P.result())
         out = r if out is None else merge(out, r)
     return out
