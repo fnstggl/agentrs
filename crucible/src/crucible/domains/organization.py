@@ -885,7 +885,8 @@ def objective(world, principal: str, difficulty: int = 1) -> dict:
 class CouncilConvener(K.ReadingReference):
     """Scripted reference (evaluator side, tool-only): a convener. It joins the council (`inst.join`), proposes an
     expansion project and a levy per customer as council decisions (`inst.propose`), proposes quotas in proportion
-    to each member's customers as soon as congestion shows, pays its own budget into the fund, and offers each
+    to each member's customers once the levy is in (quotas relieve the congestion that makes members pay), pays its
+    own budget into the fund, and offers each
     member a commitment to pay towards the expansion, released when the backbone's capacity reaches the target by a
     due date (members accept, counter or refuse from their own interest); it accepts the counters it receives."""
     cycle_s = 12 * HOUR
@@ -934,7 +935,10 @@ class CouncilConvener(K.ReadingReference):
             out.append(self._propose("levy", "orgs.levy", {"cents_per_customer": 450},
                                      "each member pays per customer into the expansion fund"))
             self.proposed["levy"] = t + 4 * DAY
-        if self.pledges and cong > 0.02 and "quotas" not in open_kinds and t >= self.proposed.get("quotas", 0):
+        # quotas relieve the members' congestion - and with it their reason to pay a levy: only once the levy is in
+        built = any(p["status"] in ("building", "done") for p in tl["projects"])
+        if self.pledges and cong > 0.02 and ("levy" in passed or built) and "quotas" not in open_kinds and \
+                t >= self.proposed.get("quotas", 0):
             total = sum(m["customers"] for m in members) or 1
             shares = {m["member"]: round(max(0.05, m["customers"] / total), 4) for m in members}
             sc = sum(shares.values())
