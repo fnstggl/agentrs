@@ -52,8 +52,10 @@ to the seller there (the operator takes its commission from the seller). The ind
 offer - its own belief about the product, the price per month of access, and the venue's buyer protection read from
 the venue's PUBLIC dispute record (share of disputes refunded) - so an unknown seller on a protective venue can be
 worth trying where its subscription is not. When a bought pass turns out badly (its belief falls below
-`refund_threshold`) it disputes the order within the venue's window. A pass expires; the individual then shops
-again (subscription, another pass, or by hand). Decisions are recorded as `work.buy_pass`.
+`refund_threshold`) it disputes the order within the venue's window; once it has used it enough to rate the
+product it rates the seller on the venue with the same stars (`xchg.rate`, the venue's public seller rating). A pass
+expires; the individual then shops again (subscription, another pass, or by hand). Decisions are recorded as
+`work.buy_pass` (ratings as `work.rate`).
 
 Display advertising (wave 3b; calibration/RUNTIME.md "Advertising response"). An advertiser turns one of its `ads`
 campaigns of kind `display` (kind `display` keeps it out of search results) into a display campaign for a format
@@ -518,6 +520,19 @@ class Work(Module):
                     rate_i.append(i)
                 except CrucibleError:
                     pass
+                # a pass bought on an exchange: the same judgement rates the seller on that venue (the venue's
+                # public seller rating comes only from its buyers of settled orders)
+                o = st.get("xchg_orders", e["order"]) if e.get("order") and "xchg_orders" in st.tables else None
+                if o is not None and o["buyer"] == p and o["status"] in ("settled", "resolved") and \
+                        int(o["refunded"]) < int(o["amount"]) and not st.has("xchg_ratings", e["order"]):
+                    try:
+                        ctx.call("xchg.rate", {"order": e["order"], "stars": stars,
+                                               "text": "works for my tasks" if stars >= 4 else "mixed results"
+                                               if stars == 3 else "my work keeps getting rejected"},
+                                 as_principal=p)
+                        rate_i.append(i)
+                    except CrucibleError:
+                        pass
                 ctx.emit("work.exp_note", {"key": f"{i}|{prov_id}", "rated": True}, vis="internal")
                 if stars >= 4 and ctx.rng("work.post", i).random() < float(self.cfg("post_p")):
                     if self._post(ctx, p, need, prov):

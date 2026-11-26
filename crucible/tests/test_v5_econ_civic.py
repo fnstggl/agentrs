@@ -47,6 +47,19 @@ def test_population_buys_passes_on_exchanges_with_its_own_money(civic):
     assert all(o["buyer"] in {f"p{k}" for k in range(700)} for o in orders if o["disputed"])
     dec = _decisions(w, "work.buy_pass")
     assert dec and all(e.payload["extra"]["decision"]["model_id"] == "work.value" for e in dec)
+    # buyers rate sellers on the venue from their own experience (settled orders only, one rating per order)
+    rated = list(st.scan("xchg_ratings"))
+    assert rated, "pass buyers rated sellers on the venues"
+    by_order = {oid: o for oid, o in st.scan("xchg_orders")}
+    refunded_at = {}                       # when an order was refunded in full (a later dispute may do that)
+    for e in w.log:
+        if e.type == "xchg.order_status" and e.payload["refunded"] >= by_order[e.payload["id"]]["amount"]:
+            refunded_at.setdefault(e.payload["id"], e.seq)
+    rated_at = {e.payload["id"]: e.seq for e in w.log if e.type == "xchg.rating"}
+    for oid, r in rated:
+        o = by_order[oid]
+        assert o["buyer"][1:].isdigit() and r["seller"] == o["seller"]
+        assert rated_at[oid] < refunded_at.get(oid, float("inf")), "rated while the order stood"
 
 
 def test_labour_market_hires_individuals_who_are_paid_and_work_shifts(civic):
