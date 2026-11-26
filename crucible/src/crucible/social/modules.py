@@ -11,7 +11,7 @@ from . import scale  # noqa: F401  (C2: module crowd)
 from . import audience  # noqa: F401  (C2: module aud)
 from .recsys import service  # noqa: F401  (C2: module feed)
 from . import popsocial  # noqa: F401  (the population creates content: module pop_social)
-from . import probes  # noqa: F401  (Gate E.3 probes on the feeds: social_feed, social_feed_image)
+from . import probes  # noqa: F401  (Gate E.3 probe on the image feed: social_feed_image)
 
 #: every C1 module in dependency order (the social internet of one world)
 C1_MODULES = ["social_ids", "social_rows", "content", "studio", "social", "shorts", "tube", "posts", "pics", "blog",

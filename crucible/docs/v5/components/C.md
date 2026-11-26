@@ -60,8 +60,9 @@ events: no participant observes an item's representation.
 
 ## E.3 probes (`social.probes`)
 
-`social_feed` (text posts) and `social_feed_image` (image platform): 6,000 members browse one platform's feed for
-three simulated days among six real news pieces plus the probed artifact; the outcome is seconds of consumption of the
-probed item per individual. Both arms differ only in the artifact's bytes. Without common random numbers between the
-arms (the engine's draws follow the event positions), the per-individual noise is large; the probes measure the
-feed path, the reading probe (`population_reading`) remains the most powerful one.
+`social_feed_image` (image platform): 6,000 members browse the image platform's feed for three simulated days among
+poster cards of six real news pieces plus the probed image; the outcome is seconds of consumption of the probed item
+per individual. Both arms differ only in the artifact's bytes. The same world on the text-post platform
+(`probes.make_world(..., platform="posts")`) is not registered: workstream D's `space_feed` (semantic.feedprobe)
+measures the text-post feed. Without common random numbers between the arms (the engine's draws follow the event
+positions), the per-individual noise is large; the reading probe (`population_reading`) remains the most powerful.

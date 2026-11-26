@@ -1,7 +1,8 @@
 """Gate E.3 probes on the social internet's feeds (`crucible.semantic.encoders.effects`; workstream C, wave 3b).
 
-`social_feed` (text) and `social_feed_image` (image): the integrated social internet of the ONE population
-(`crucible.social.worlds.social_world`: pop, the catalogue and sites, `aud` with the shared-space encoder, the feeds
+`social_feed_image` (image; the text-post version of the same world, `make_world(..., platform="posts")`, is not
+registered because workstream D's `space_feed` measures the text-post feed): the integrated social internet of the
+ONE population (`crucible.social.worlds.social_world`: pop, the catalogue and sites, `aud` with the shared-space encoder, the feeds
 with the platform's recommender mixture and the consumption engine, finite attention) where 6,000 individuals browse
 one platform's feed for three simulated days. The catalogue is fixed and identical in both arms - six real news
 abstracts of the population's corpus (as text posts, or as poster cards of the same text on the image platform),
@@ -87,11 +88,11 @@ def run(world) -> np.ndarray:
 
 
 def _register() -> None:
+    # The text version of this probe (make_world(..., platform="posts")) is not registered: workstream D's
+    # `space_feed` (crucible.semantic.feedprobe) measures the same text-post feed of the one population, and E.3
+    # runs every registered probe (each pair costs two world runs and widens the Bonferroni correction). The image
+    # platform's feed is measured here only.
     from ..semantic.encoders import effects
-    effects.register_probe("social_feed", lambda d, m, s: make_world(d, m, s, platform="posts"), run,
-                           modality="text", doc="the one population browsing the text-post feed of the social "
-                                                "internet (recommenders + consumption engine); outcome: seconds "
-                                                "of consumption of the probed post per individual")
     effects.register_probe("social_feed_image", lambda d, m, s: make_world(d, m, s, platform="pics"), run,
                            modality="image", doc="the same on the image platform: the probed image among poster "
                                                  "cards of real news; outcome: seconds looking at it per individual")
