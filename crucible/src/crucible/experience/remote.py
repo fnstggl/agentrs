@@ -52,7 +52,7 @@ from typing import Any
 
 PARTICIPANT_OPS = ("agents", "observe", "execute", "observe_since", "tools", "advance", "reward", "reward_mode",
                    "now", "done", "tick_s")
-EVALUATOR_OPS = ("verify", "digest", "describe", "close")
+EVALUATOR_OPS = ("verify", "digest", "describe", "close", "close_participant")
 
 
 MAX_FRAME = 32 * 2**20        # bytes of one participant request or reply
@@ -146,6 +146,14 @@ def _serve(ref: dict, part, ev) -> None:
                     env.close()
                     reply(c, "ok", None)
                     conns = []
+                    break
+                if op == "close_participant":
+                    # the evaluation is over: no participant request is served any more (a process the learner
+                    # left behind with a copy of its pipe cannot act while the evaluator verifies)
+                    if part in conns:
+                        conns.remove(part)
+                    part.close()
+                    reply(c, "ok", None)
                     break
                 attr = getattr(env, op)
                 out = attr(*args, **kw) if callable(attr) else attr
@@ -250,6 +258,10 @@ class RemoteEvaluator(_Side):
 
     def describe(self) -> dict:
         return self._call("describe")
+
+    def close_participant(self) -> None:
+        """Stop serving the participant pipe (the end of a learner's evaluation, before verification)."""
+        self._call("close_participant")
 
     def close(self) -> None:
         try:
@@ -381,6 +393,7 @@ def evaluate(ref: dict, learner: str, learner_kw: dict | None = None, *, timeout
         lp.join(timeout=10)
     r_parent.close()
     try:
+        ev.close_participant()
         verification = ev.verify()
         identity = ev.describe()
         digest = ev.digest()

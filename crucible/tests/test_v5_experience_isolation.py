@@ -64,3 +64,20 @@ def test_evaluated_kernel_world_learner_reaches_no_evaluator_data():
     r = I.probe({"tier": 0, "name": "tiny", "kw": {"agents": ["learner"]}})
     assert r["examined"] and r["held"], r
     assert r["metrics"]["hidden_values_checked"] >= 2 and r["metrics"]["evaluator_ops_accepted"] == 0
+
+
+def test_the_participant_pipe_is_closed_before_the_evaluator_verifies():
+    """A process a learner leaves behind with a copy of its pipe cannot act during verification: the evaluator stops
+    the world serving the participant side first."""
+    from crucible.experience import host
+    from crucible.experience.remote import RemoteError
+    part, ev = host({"tier": 1, "name": "rapid:net_routing", "seed": 4})
+    try:
+        a = part.agents()[0]
+        part.advance(int(part.tick_s))
+        ev.close_participant()
+        with pytest.raises((EOFError, OSError, RemoteError)):
+            part.observe(a)
+        assert "outcome" in ev.verify()
+    finally:
+        ev.close()

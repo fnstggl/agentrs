@@ -31,7 +31,8 @@ import os
 from typing import Any
 
 HIDDEN_KEYS = frozenset({"holdout", "theta", "hidden"})
-EVALUATOR_PROBE_OPS = ("verify", "digest", "describe", "close", "env", "world", "__dict__", "_engine", "gate",
+EVALUATOR_PROBE_OPS = ("verify", "digest", "describe", "close", "close_participant", "env", "world", "__dict__",
+                       "_engine", "gate",
                        "evaluator", "task", "_objectives", "_status")
 
 
