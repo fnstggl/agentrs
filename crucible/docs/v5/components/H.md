@@ -64,3 +64,44 @@ Gate tests added: `tests/v5/test_gate_SP_0_9.py`, `SP_7_0`, `SP_7_2`, `SP_7_5`, 
 * `net_topology_shift`'s claim fails on seeds 3, 5 and 9 (outside the admission seed sets).
 * Families still declare a default objective (type and text); the measured independence is that every default
   objective is scored by its type's generic rule and the generator serves every family from its public face.
+
+
+## Wave 3b (workstream H, continuation on the integrated tree 55433e7)
+
+Admission (`admission.CHECKS`, H-D1) and the gate tests are unchanged. On the integrated tree the baseline was
+22 training and 8 evaluation families robustly admitted (seeds 0-2 and 10-12); `pe_stream_processor` had fallen out
+because the D-20 line metering priced its reference program out of its margin. Every family below was re-measured
+with the full admission on both seed sets after its change (probes, not evidence).
+
+What made families pass, by kind of fix:
+
+* **Model-based public references** (D-64): `strat_blotto` (opponent values from first-order conditions, averaging
+  weight by prediction error), `strat_interdiction` (catch rate by maximum likelihood, the attacker's softmax
+  learning fitted to its observed attempts), `strat_bargain` (counterpart weights inferred from offers, aspiration
+  read off the offer, type probed by a rejected concession), `pe_contention_sched` (hidden classes by model selection
+  over class splits on job speeds under a two-job cap), `pe_stream_processor` (a lean estimator program).
+* **Worlds that were static-tuning worlds made adaptive**, versions bumped: `des_bottleneck` v2 (the bottleneck
+  moves), `ch_rule_change` and `cxc_competing_rule` v2 (the old lever is penalised after the rule change; reference
+  `refs_adapt.drop_switch_tracker`), `cx_latched_pathway` (wide hysteresis band; reference
+  `refs_adapt.latch_open_and_hold` finds the latch publicly), `team_assembly` (holding costs), `pe_deadtime_control`
+  (faster setpoint schedule, 40 ticks), `strat_interdiction` and `net_repair` (larger defaults).
+* **Interventional prediction** (D-63): `hc_conditional`, `cx_competing_causes`, `cx_balancing_loop` v2 score
+  predictions of the (settled) response at held-out settings; references `refs_adapt.interleaved_law_predict`
+  (cross-validated law library on an interleaved design), `arx_settled_predict` (Hammerstein-ARX steady state);
+  `hc_causal_prediction` (interleaved additive fit), `sci_slow_response` (dead time and rate from a step test; the
+  science oracle now predicts where slow processes settle - it scored the transient before, -50),
+  `sci_selection_bias` (the cut sits inside the settable range; 256 units surveyed so readings are never missing).
+* **New families for the four Part 8 items that had none** (D-65): `srch_leads` (8.5.1), `srch_ventures` (8.5.4),
+  `plan_commit` (8.6.5), `net_balance` (8.7.5, three operators).
+
+New modules: `refs_adapt.py` (adaptive public references), `claims_w3b.py` (claims, identification, oracles and
+references of the redesigned and new families). Engine additions: search scenarios `leads` and `ventures`, planning
+scenario `commit`, graph scenario `balance` (multi-participant, team objective), DES `mu_at` (shifting bottleneck),
+planning `site_rate` (site demand regimes) and `chain_mu`, router retooling (engine support only).
+
+Tried and not admitted in wave 3b (measured, left as they are or with a better reference): `plan_distribution`
+(site demand regimes, low-margin terms: the reference reaches 0.5-0.9 of the hindsight constant's ratio threshold on
+some seeds only), `plan_supply_chain` (second demand shift, holding costs), `plan_perishable`, `plan_portfolio`
+(reference now splits staff; passes seeds 0-2 only), `pe_router` (retooled lines: the law-aware router is not an
+upper bound under higher loads), `ch_drifting_ideal` (narrow drifting peak: threshold rules on a reading track it),
+`ch_sign_reversal`, `cxc_latched_reversal`, `cxs_lockin`, `strat_price_war`.
