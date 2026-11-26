@@ -1,0 +1,287 @@
+{
+ "device": "cuda",
+ "dtype": "float32",
+ "configs": [
+  {
+   "label": "theta_1.9M",
+   "theta_parameters": 1853456,
+   "psi_parameters": 419329,
+   "support_rows_per_step": 64,
+   "query_rows": 64,
+   "rows": [
+    {
+     "mode": "unroll",
+     "K": 1,
+     "seconds_median": 0.00920787826180458,
+     "peak_extra_memory_mb": 30.97802734375,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "unroll",
+     "K": 2,
+     "seconds_median": 0.013695125002413988,
+     "peak_extra_memory_mb": 47.333984375,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "unroll",
+     "K": 4,
+     "seconds_median": 0.02316024899482727,
+     "peak_extra_memory_mb": 66.720703125,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "unroll",
+     "K": 8,
+     "seconds_median": 0.05643566511571407,
+     "peak_extra_memory_mb": 104.55859375,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "checkpoint",
+     "K": 1,
+     "seconds_median": 0.008647509850561619,
+     "peak_extra_memory_mb": 48.77392578125,
+     "rel_diff_vs_unroll": 2.316219333660885e-07
+    },
+    {
+     "mode": "checkpoint",
+     "K": 2,
+     "seconds_median": 0.014928307849913836,
+     "peak_extra_memory_mb": 64.76025390625,
+     "rel_diff_vs_unroll": 2.2518788731178002e-07
+    },
+    {
+     "mode": "checkpoint",
+     "K": 4,
+     "seconds_median": 0.026565061882138252,
+     "peak_extra_memory_mb": 81.90185546875,
+     "rel_diff_vs_unroll": 3.132068027650506e-07
+    },
+    {
+     "mode": "checkpoint",
+     "K": 8,
+     "seconds_median": 0.06962522398680449,
+     "peak_extra_memory_mb": 114.18505859375,
+     "rel_diff_vs_unroll": 2.408197047603762e-07
+    },
+    {
+     "mode": "first_order",
+     "K": 1,
+     "seconds_median": 0.013308870140463114,
+     "peak_extra_memory_mb": 30.97802734375,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "first_order",
+     "K": 2,
+     "seconds_median": 0.01674964977428317,
+     "peak_extra_memory_mb": 46.50830078125,
+     "rel_diff_vs_unroll": 0.0044724775530244005
+    },
+    {
+     "mode": "first_order",
+     "K": 4,
+     "seconds_median": 0.02765609184280038,
+     "peak_extra_memory_mb": 81.56884765625,
+     "rel_diff_vs_unroll": 0.006619776049487539
+    },
+    {
+     "mode": "first_order",
+     "K": 8,
+     "seconds_median": 0.06069066235795617,
+     "peak_extra_memory_mb": 151.68994140625,
+     "rel_diff_vs_unroll": 0.01823709766281827
+    }
+   ]
+  },
+  {
+   "label": "theta_10M",
+   "theta_parameters": 10000400,
+   "psi_parameters": 419329,
+   "support_rows_per_step": 64,
+   "query_rows": 64,
+   "rows": [
+    {
+     "mode": "unroll",
+     "K": 1,
+     "seconds_median": 0.009377532172948122,
+     "peak_extra_memory_mb": 134.85791015625,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "unroll",
+     "K": 2,
+     "seconds_median": 0.015116866677999496,
+     "peak_extra_memory_mb": 223.375,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "unroll",
+     "K": 4,
+     "seconds_median": 0.02601762767881155,
+     "peak_extra_memory_mb": 307.9501953125,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "unroll",
+     "K": 8,
+     "seconds_median": 0.04592233011499047,
+     "peak_extra_memory_mb": 477.1005859375,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "checkpoint",
+     "K": 1,
+     "seconds_median": 0.012335126753896475,
+     "peak_extra_memory_mb": 246.77197265625,
+     "rel_diff_vs_unroll": 2.48980692865906e-07
+    },
+    {
+     "mode": "checkpoint",
+     "K": 2,
+     "seconds_median": 0.02391703985631466,
+     "peak_extra_memory_mb": 299.67431640625,
+     "rel_diff_vs_unroll": 2.4279492980678915e-07
+    },
+    {
+     "mode": "checkpoint",
+     "K": 4,
+     "seconds_median": 0.052448463160544634,
+     "peak_extra_memory_mb": 376.37646484375,
+     "rel_diff_vs_unroll": 2.707452145756651e-07
+    },
+    {
+     "mode": "checkpoint",
+     "K": 8,
+     "seconds_median": 0.11384146614000201,
+     "peak_extra_memory_mb": 529.37646484375,
+     "rel_diff_vs_unroll": 2.516632862459625e-07
+    },
+    {
+     "mode": "first_order",
+     "K": 1,
+     "seconds_median": 0.009625731967389584,
+     "peak_extra_memory_mb": 134.85791015625,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "first_order",
+     "K": 2,
+     "seconds_median": 0.013707106932997704,
+     "peak_extra_memory_mb": 215.02392578125,
+     "rel_diff_vs_unroll": 0.00729805357742486
+    },
+    {
+     "mode": "first_order",
+     "K": 4,
+     "seconds_median": 0.025052492041140795,
+     "peak_extra_memory_mb": 375.89697265625,
+     "rel_diff_vs_unroll": 0.008859146807701149
+    },
+    {
+     "mode": "first_order",
+     "K": 8,
+     "seconds_median": 0.06432751519605517,
+     "peak_extra_memory_mb": 697.64306640625,
+     "rel_diff_vs_unroll": 0.016008474060662806
+    }
+   ]
+  },
+  {
+   "label": "theta_1.9M_rows2048",
+   "theta_parameters": 1853456,
+   "psi_parameters": 419329,
+   "support_rows_per_step": 2048,
+   "query_rows": 64,
+   "rows": [
+    {
+     "mode": "unroll",
+     "K": 1,
+     "seconds_median": 0.007174212951213121,
+     "peak_extra_memory_mb": 83.73046875,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "unroll",
+     "K": 2,
+     "seconds_median": 0.014628092292696238,
+     "peak_extra_memory_mb": 162.76708984375,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "unroll",
+     "K": 4,
+     "seconds_median": 0.026164991315454245,
+     "peak_extra_memory_mb": 268.70654296875,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "unroll",
+     "K": 8,
+     "seconds_median": 0.0491272141225636,
+     "peak_extra_memory_mb": 478.58544921875,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "checkpoint",
+     "K": 1,
+     "seconds_median": 0.015328999608755112,
+     "peak_extra_memory_mb": 117.384765625,
+     "rel_diff_vs_unroll": 5.297439843073637e-07
+    },
+    {
+     "mode": "checkpoint",
+     "K": 2,
+     "seconds_median": 0.024450107011944056,
+     "peak_extra_memory_mb": 135.15234375,
+     "rel_diff_vs_unroll": 5.496949658798751e-07
+    },
+    {
+     "mode": "checkpoint",
+     "K": 4,
+     "seconds_median": 0.04309354303404689,
+     "peak_extra_memory_mb": 151.6767578125,
+     "rel_diff_vs_unroll": 5.184906075361189e-07
+    },
+    {
+     "mode": "checkpoint",
+     "K": 8,
+     "seconds_median": 0.09442572994157672,
+     "peak_extra_memory_mb": 183.9814453125,
+     "rel_diff_vs_unroll": 4.877201130614149e-07
+    },
+    {
+     "mode": "first_order",
+     "K": 1,
+     "seconds_median": 0.009078037925064564,
+     "peak_extra_memory_mb": 83.1748046875,
+     "rel_diff_vs_unroll": 0.0
+    },
+    {
+     "mode": "first_order",
+     "K": 2,
+     "seconds_median": 0.013083823956549168,
+     "peak_extra_memory_mb": 142.27880859375,
+     "rel_diff_vs_unroll": 0.0018637543614489546
+    },
+    {
+     "mode": "first_order",
+     "K": 4,
+     "seconds_median": 0.021670771297067404,
+     "peak_extra_memory_mb": 263.35986328125,
+     "rel_diff_vs_unroll": 0.004591504643933059
+    },
+    {
+     "mode": "first_order",
+     "K": 8,
+     "seconds_median": 0.044380515813827515,
+     "peak_extra_memory_mb": 505.52197265625,
+     "rel_diff_vs_unroll": 0.009242992485876605
+    }
+   ]
+  }
+ ],
+ "command": "python -m cam_live.reward.evidence --out cam_live/docs/evidence/C --device cuda --reps 200000",
+ "torch": "2.15.0+cu132"
+}
