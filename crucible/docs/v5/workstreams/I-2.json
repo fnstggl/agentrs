@@ -1,0 +1,85 @@
+{
+ "workstream": "I",
+ "key": "dom2",
+ "file": "I-2",
+ "branch": "c5c/w3b-dom2",
+ "decisions": [
+  "D-54",
+  "D-55",
+  "D-56"
+ ],
+ "requirements": {
+  "SP-9.6": {
+   "implementation_files": [
+    "src/crucible/domains/technology_invention.py",
+    "src/crucible/domains/base.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_6.py",
+    "tests/test_v5_domains_invention.py"
+   ],
+   "status_claim": "implemented; unofficial runs on this branch: reference forming_standard seeds 1, 2 succeed (gain 0.135, 0.084), seed 0 no adopter (2/3 majority); null, broken_program, freeze fail; all 7 mechanics exercised",
+   "notes": "techmkt: executable process technologies (interface process_control/1, sandboxed, recorded outputs, range/type checks), plants' needs, trials on their own runs, adoption on their own measurements, licence fees. Evaluator: adopters plus noise-free expected-efficiency gain from the hidden physics."
+  },
+  "SP-9.7": {
+   "implementation_files": [
+    "src/crucible/domains/engineering_infrastructure.py",
+    "src/crucible/domains/infra_world.py",
+    "src/crucible/domains/base.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_7.py",
+    "tests/test_v5_domains_infrastructure.py"
+   ],
+   "status_claim": "implemented; unofficial: reference single_site_tou seeds 0, 1 succeed at difficulty 1 (cost reduction 0.136 / 0.076 at attainment loss < 0.001); null, fire_repair_crew (backlog 44 vs 16), starve_capacity (attainment 0.69) fail; all 9 mechanics exercised",
+   "notes": "fleet repaired (DEF-I-4): cost structure, replay-only experiments, population end users (activity apps), seats as operator engineers; evaluator against a deterministic shadow world (same spec, nobody acts)."
+  },
+  "SP-9.8": {
+   "implementation_files": [
+    "src/crucible/domains/industrial_economy.py",
+    "src/crucible/domains/firms.py",
+    "src/crucible/domains/base.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_8.py",
+    "tests/test_v5_domains_industry.py"
+   ],
+   "status_claim": "implemented; unofficial: reference standard_ring seeds 0, 1 succeed at difficulty 1 (profit 3.13M / 1.70M cents in 45 days), fails difficulty 2 on seed 1; null, trade_only, no_operators fail; all 10 mechanics exercised",
+   "notes": "civilisation industry slice + households (civgoods) + labour market; plantlabor makes factories' operators their labour-market employees; revenue counts only the company's own production."
+  },
+  "SP-9.9": {
+   "implementation_files": [
+    "src/crucible/domains/labor_marketplace.py",
+    "src/crucible/domains/firms.py",
+    "src/crucible/domains/base.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_9.py",
+    "tests/test_v5_domains_labor.py"
+   ],
+   "status_claim": "implemented; unofficial: reference pipeline_open seeds 0, 1 deliver 3/3 stages by the deadline (team 4-6 population workers); null, post_only, lowball fail; all 9 mechanics exercised",
+   "notes": "workers are population individuals (activity job_search, FR-FIRMS-JOBS); firms' revenue only from clients' bounded budgets (DEF-I-6 firms part); evaluator counts stages whose tasks have measured quality at the bar, done by the deadline by the seat company's employees."
+  },
+  "SP-9.10": {
+   "implementation_files": [
+    "src/crucible/domains/education_ecosystem.py",
+    "src/crucible/domains/learning.py",
+    "src/crucible/domains/concepts.py",
+    "src/crucible/domains/elsewhere.py",
+    "src/crucible/domains/base.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_10.py",
+    "tests/test_v5_domains_education.py"
+   ],
+   "status_claim": "implemented; unofficial: reference numeracy_search seed 0 succeeds (539 readers, effect 0.082, p 4e-26 at 42 days); content controls are measured by the gate test",
+   "notes": "learn v2 on the population (DEF-I-2): knowledge columns, study/teach activities, reading model, form-aware grading, Board tests and certificates, delayed new-problem evaluator."
+  }
+ },
+ "history": {
+  "waves 1-3a": "the kernel modules fleet (infra_world.py), firms (firms.py, _kit.py) and learn (learning.py, concepts.py, common.py) were left by the interrupted agents I2-I4 of the first run; no domain definition existed (audit I_domains)."
+ },
+ "limitations": [],
+ "integration_notes": [],
+ "tests_run": {}
+}
