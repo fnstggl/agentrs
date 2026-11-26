@@ -40,7 +40,7 @@ def _ob(y, B, D, q_tok, observed=True):
                         torch.zeros(B, 1, dtype=torch.long, device=dev), [["y"] for _ in range(B)])
 
 
-def run_adapt_experiment(seed: int = 0, steps: int = 1000, B: int = 64, d_model: int = 64, K: int = 8, Dp: int = 32,
+def run_adapt_experiment(seed: int = 0, steps: int = 2500, B: int = 64, d_model: int = 64, K: int = 8, Dp: int = 32,
                          bayes_feat: int = 8, lr: float = 1e-3, kalman_dropout: float = 0.5, mix_aux: float = 1.0,
                          n_eval: int = 512, device=None) -> dict:
     dev = torch.device(device or "cpu")
@@ -150,7 +150,7 @@ SLOW = os.environ.get("CAM_RUN_SLOW") == "1"
 @pytest.mark.skipif(not SLOW, reason="slow learning test: set CAM_RUN_SLOW=1 to run")
 def test_gated_fusion_reaches_the_oracle_with_calibrated_predictions():
     for seed in (0, 1, 2):
-        r = run_adapt_experiment(seed=seed)["familiar"]
+        r = run_adapt_experiment(seed=seed)["familiar"]          # 2500 steps (1000 leave the particles at +0.06)
         print(seed, {k: {n: round(v, 3) for n, v in row.items() if v is not None} for k, row in r.items()})
         assert r[2]["nll_full"] <= r[2]["nll_oracle"] + 0.05, (seed, r[2])
         assert 0.8 <= r[2]["z_sd"] <= 1.2, (seed, r[2])

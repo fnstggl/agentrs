@@ -62,6 +62,17 @@ from .stack import build_stack, capability_config
 R_IDX = CORE_INDEX["reward"]
 
 
+def _mem(tag: str) -> dict:
+    """GPU memory at a phase of the run (GB; logged when CAM_W6_MEMLOG=1)."""
+    if not torch.cuda.is_available():
+        return {}
+    m = {"phase": tag, "allocated_gb": torch.cuda.memory_allocated() / 2 ** 30,
+         "peak_gb": torch.cuda.max_memory_allocated() / 2 ** 30, "t": time.time()}
+    if os.environ.get("CAM_W6_MEMLOG") == "1":
+        print("[W6 mem]", m, flush=True)
+    return m
+
+
 def obs_only(model) -> bool:
     """Observation-only measurements: the verified return is no world-model target; read the observable payout."""
     return str(getattr(model.cfg, "reward_mode", "legacy")) == "observation_only"
@@ -143,6 +154,7 @@ class CausalSettings:
     lr_final_frac: float = 0.05
     payout_key: str = "num:points@me[points]"   # observable payout outcome (observation-only measurements)
     wm_kwargs: dict = field(default_factory=dict)   # WorldModel constructor overrides (e.g. open_loop_samples)
+    sem_cache_mb: int = 0                # > 0: bound the semantic encoder's hidden-state cache (GPU memory budget)
     core_kwargs: dict = field(default_factory=dict)  # UnifiedCore constructor overrides (e.g. emb_std)
 
 
@@ -222,6 +234,8 @@ def train_world(stack, groups: list, steps: int, lr_decay: bool = False, lr_fina
         trainer.step({"world": out["world"]})
         model.version = model.version + 1
         hist.append(float(out["world"].detach()))
+        if i < 2 or (i + 1) % 100 == 0:
+            _mem(f"train_step_{i + 1}")
         if metrics is not None:
             metrics.append({k: float(v.detach()) for k, v in out.items()
                             if torch.is_tensor(v) and v.numel() == 1})
@@ -570,13 +584,23 @@ def run_causal(settings: Optional[CausalSettings] = None, root: Optional[str] = 
             # one tool with two boolean arguments: the contemplated interventions are the four lever settings
             stack.info["t1_actions"] = {f"x{int(x)}w{int(v)}": Action("set_levers", {"x": x, "w": v})
                                         for x in (False, True) for v in (False, True)}
+        if st.sem_cache_mb and hasattr(stack.semantic, "cache_max_bytes"):
+            stack.semantic.cache_max_bytes = int(st.sem_cache_mb) * 2 ** 20
+        mem = [_mem("built")]
         eps = record(stack, env, st.record_episodes, st.seed * 10_007)
+        # the agent's fresh on-policy buffer (decision inputs incl. FastStates) is not used by the world objective
+        stack.agent.fresh = []
+        stack.agent._last_fresh = {}
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        mem.append(_mem("recorded"))
         rng.shuffle(eps)
         n_ho = max(2, int(len(eps) * st.heldout_frac))
         heldout_g = groups_of(eps[:n_ho], st.batch_seqs, rng)
         train_g = groups_of(eps[n_ho:], st.batch_seqs, rng)
         tm: list = []
         hist = train_world(stack, train_g, st.train_steps, st.lr_decay, st.lr_final_frac, metrics=tm)
+        mem.append(_mem("trained"))
         heldout, train = tokenise(stack.agent, heldout_g), tokenise(stack.agent, train_g)
         res = {"n_train_episodes": len(eps) - n_ho, "n_heldout_episodes": n_ho, "loss_first": hist[0],
                "loss_last10": mean(hist[-10:]), "components": stack.real_component_report(),
@@ -584,7 +608,8 @@ def run_causal(settings: Optional[CausalSettings] = None, root: Optional[str] = 
                                                        "wm_ema_target", "kl_free_bits_group", "wm_consistency",
                                                        "n_layers", "d_model", "n_state", "sem_test_model")},
                "train_metrics_last10": {k: mean([m[k] for m in tm[-10:] if k in m]) for k in (tm[-1] if tm else {})},
-               "world_model_has_target_core": getattr(stack.model.world_model, "target_core", None) is not None}
+               "world_model_has_target_core": getattr(stack.model.world_model, "target_core", None) is not None,
+               "memory": mem}
         dev0 = 100_000 + 1000 * st.seed
         res["t1_actions_differ"] = measure_actions_differ(stack, heldout, all_steps=bool(st.preset))
         if st.preset:
@@ -694,7 +719,7 @@ def run_lp_probe(st: CausalSettings, root: Optional[str] = None, device=None) ->
 
 DOM_SETTINGS = dict(preset="dom_dev", train_steps=800, lr=1e-3, lr_decay=True, lr_final_frac=0.05, grad_clip=10.0,
                     B=32, record_episodes=12, batch_seqs=4, horizons=(1, 2, 3, 4),
-                    wm_kwargs={"open_loop_samples": 2}, cfg_overrides={"grad_checkpoint": True},
+                    wm_kwargs={"open_loop_samples": 2}, cfg_overrides={"grad_checkpoint": True}, sem_cache_mb=256,
                     # the dom preset's state_emb_std=0.02 (W3's switch, not yet read by the seam core) through the
                     # real UnifiedCore's own constructor argument
                     core_kwargs={"emb_std": 0.02})
