@@ -197,6 +197,10 @@ def test_SP_8_11_action_types():
             counted.append(item)
             where[item] = f"{host} (specific effect)"
             continue
+        if item == "tool discovery":
+            # a `tools` query that only repeats the tool list every observation already carries discovers
+            # nothing (skeptic review); only a world whose catalogue grows the action space counts
+            continue
         for fam in admitted:
             if _offers(fam, kind) and generic_effect(fam, kind):
                 counted.append(item)

@@ -143,7 +143,8 @@ def net_cascade(rng, d):
             "connected. A crew repairs one link per tick; new links can be built.",
         distinct_because="connectivity of origin-destination pairs over a failing graph (breadth of the surviving "
                          "network), repaired by discrete dispatch and graph edits",
-        axes={"graph_size": 12, "horizon": 60}, objective="maximize_net", claims=(C + "repair_restores",),
+        axes={"graph_size": 12, "horizon": 60}, objective="maximize_net",
+        claims=(C + "repair_restores", C + "built_link_carries_traffic"),
         identify=I + "repair_sign")
 def net_repair(rng, d):
     N = int(d["graph_size"])

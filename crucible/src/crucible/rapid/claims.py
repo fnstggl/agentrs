@@ -456,6 +456,40 @@ def repair_restores(env) -> dict:
             "repaired_link": cfg["edge_names"][bridge]}
 
 
+def built_link_carries_traffic(env) -> dict:
+    """A link the participant builds (graph_edit add_edge) between the two sides of a cut that separates a demand
+    pair carries that pair's traffic: served demand rises against leaving the cut open (same noise, several
+    replicates). Checks the mechanism of graph edits, not only that the new link is listed."""
+    from .engines.graph_dynamical import components
+    eng, st, cfg = inside(env)
+    N = cfg["n_nodes"]
+    edges = [tuple(e) for e in cfg["edges"]]
+    import itertools
+    for size in (1, 2, 3):
+        for S in itertools.combinations(range(len(edges)), size):
+            comp = components(N, [e for k, e in enumerate(edges) if k not in S])
+            split = [(a, b) for a, b in cfg["pairs"] if comp[a] != comp[b]]
+            if split:
+                a, b = split[0]
+                served = {}
+                for lab, build in (("left_open", False), ("built_link", True)):
+                    vals = []
+                    for e in [fork(env)] + _replicates(env, 3):
+                        e._state["alive"] = e._state["alive"].copy()
+                        e._state["alive"][list(S)] = 0.0
+                        names = e._config["node_names"]
+                        act = {"kind": "graph_edit", "op": "add_edge", "src": names[a], "dst": names[b],
+                               "weight": 1.0} if build else None
+                        r = e.step(act)
+                        if build and not r["result"]["ok"]:
+                            return {"ok": False, "error": r["result"].get("error")}
+                        vals.append(e.step(None)["observation"]["numbers"][cfg["gauge_names"][0]])
+                    served[lab] = float(np.mean(vals))
+                return {"ok": served["built_link"] > served["left_open"], **served,
+                        "cut": [cfg["edge_names"][k] for k in S]}
+    return {"ok": False, "note": "no small cut separates a demand pair"}
+
+
 # ====================================================================== state machines
 def regime_sign(env) -> dict:
     eng, st, cfg = inside(env)
