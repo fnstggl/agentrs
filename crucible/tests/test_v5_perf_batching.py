@@ -343,7 +343,16 @@ def test_method_requests_batch_any_row_independent_model_method():
     k3 = IB.compat_key(IB.method_request(b, "scores", x, outputs=("scores", "memory"), model_id="adaptive:1"))
     k4 = IB.compat_key(IB.method_request(a, "scores", x, outputs=("scores", "memory"), model_id="adaptive:0",
                                          static={"use_memory": False}))
-    assert len({k1, k2, k3, k4}) == 4
+    k5 = IB.compat_key(IB.method_request(a, "scores", x, outputs=("scores", "memory"), keep=("scores",),
+                                         model_id="adaptive:0"))
+    assert len({k1, k2, k3, k4, k5}) == 5
+    kept = {}
+    w._run_system("test.keep", lambda ctx: kept.update(o=IB.decide(ctx, IB.method_request(
+        a, "scores", x, outputs=("scores", "memory"), keep=("scores",), model_id="adaptive:0"))))
+    assert set(kept["o"]) == {"scores"}
+    np.testing.assert_allclose(kept["o"]["scores"], a.scores(x["obs"], x["mem"], x["cand"])[0], rtol=1e-5, atol=1e-5)
+    with pytest.raises(ProtocolError):
+        IB.method_request(a, "scores", x, outputs=("scores", "memory"), keep=("nope",), model_id="adaptive:0")
     with pytest.raises(ProtocolError):
         IB.method_request(a, "scores", x, args=("obs", "mem"), model_id="adaptive:0")
     with pytest.raises(ProtocolError):           # a tuple output must be named

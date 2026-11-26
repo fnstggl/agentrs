@@ -472,27 +472,37 @@ def semantic_request(svc, kind: str, requests: list[dict], *, cls: int = 4, labe
 _METHOD_OPS: dict[str, Op] = {}
 
 
-def method_op(method: str, args: tuple, outputs: tuple | None = None) -> Op:
+def method_op(method: str, args: tuple, outputs: tuple | None = None, keep: tuple | None = None) -> Op:
     """The Op that calls `model.<method>(*[inputs[a] for a in args])` on the merged rows: for any row-independent
     model method without a dedicated Op (e.g. a policy's `act_scores(obs, mem, acand) -> (scores, memory)`). The
-    output is an array, a dict of arrays, or a tuple of arrays named by `outputs`. One Op per (method, args,
-    outputs), so requests of different methods never share a call."""
+    output is an array, a dict of arrays, or a tuple of arrays named by `outputs`; `keep` names the outputs that are
+    returned and recorded (the others are dropped before recording, so a caller that needs only the scores does
+    not store the memory). One Op per (method, args, outputs, keep), so requests of different methods never share
+    a call."""
     args = tuple(args)
     outputs = tuple(outputs) if outputs else None
+    keep = tuple(keep) if keep else None
     if not args or not all(isinstance(a, str) and a for a in args) or len(set(args)) != len(args):
         raise ProtocolError("method_op needs distinct input names")
-    name = f"method.{method}({','.join(args)})" + (f"->{','.join(outputs)}" if outputs else "")
+    if keep and outputs and not set(keep) <= set(outputs):
+        raise ProtocolError("method_op: keep must name some of the outputs")
+    name = (f"method.{method}({','.join(args)})" + (f"->{','.join(outputs)}" if outputs else "")
+            + (f"[{','.join(keep)}]" if keep else ""))
     with _LOCK:
         op = _METHOD_OPS.get(name)
         if op is None:
-            def run(model, x, static, method=method, args=args, outputs=outputs):
+            def run(model, x, static, method=method, args=args, outputs=outputs, keep=keep):
                 out = getattr(model, method)(*[x[a] for a in args])
                 if outputs:
                     if not isinstance(out, (tuple, list)) or len(out) != len(outputs):
                         raise ProtocolError(f"{name}: expected {len(outputs)} outputs")
-                    return {k: np.asarray(v) for k, v in zip(outputs, out)}
+                    out = {k: np.asarray(v) for k, v in zip(outputs, out)}
+                    return {k: out[k] for k in keep} if keep else out
                 if isinstance(out, dict):
-                    return {k: np.asarray(v) for k, v in out.items()}
+                    out = {k: np.asarray(v) for k, v in out.items()}
+                    if keep and not set(keep) <= set(out):
+                        raise ProtocolError(f"{name}: the method returned no output {sorted(set(keep) - set(out))}")
+                    return {k: out[k] for k in keep} if keep else out
                 if isinstance(out, (tuple, list)):
                     raise ProtocolError(f"{name}: a tuple output needs `outputs` names")
                 return np.asarray(out)
@@ -501,19 +511,21 @@ def method_op(method: str, args: tuple, outputs: tuple | None = None) -> Op:
 
 
 def method_request(model, method: str, inputs: dict, *, model_id: str, args: tuple | None = None,
-                   outputs: tuple | None = None, model_hash: str | None = None, cls: int | None = None,
-                   static: dict | None = None, label: str = "") -> Request:
+                   outputs: tuple | None = None, keep: tuple | None = None, model_hash: str | None = None,
+                   cls: int | None = None, static: dict | None = None, label: str = "") -> Request:
     """A request for `model.<method>` (see `method_op`): `inputs` maps argument names to row-first arrays, passed
     positionally in `args` order (default: the order of `inputs`). `model_hash` defaults to the model's
     `weights_hash()`; `static` holds any setting outside the weights that changes the output (two requests share a
-    call only if it is equal). Class-2 example (population/adaptive.py `choose_activity`):
+    call only if it is equal). Class-2 examples (population/adaptive.py): `choose_activity`:
     `method_request(pol, "act_scores", {"obs": o, "mem": m, "acand": a}, outputs=("scores", "memory"),
-    model_id=f"adaptive:{gid}", cls=2, static={"use_memory": pol.use_memory})`."""
+    model_id=f"adaptive:{gid}", cls=2, static={"use_memory": pol.use_memory})`; `choose` (scores only):
+    `method_request(pol, "scores", {"obs": o, "mem": m, "cand": c}, outputs=("scores", "memory"), keep=("scores",),
+    model_id=f"adaptive:{gid}", cls=2)`."""
     args = tuple(args or inputs)
     if set(args) != set(inputs):
         raise ProtocolError("method_request: args must name every input exactly once")
     h = model_hash if model_hash is not None else model.weights_hash()
-    return Request(method_op(method, args, outputs), model, model_id, h,
+    return Request(method_op(method, args, outputs, keep), model, model_id, h,
                    {a: np.ascontiguousarray(inputs[a]) for a in args}, cls=cls, static=dict(static or {}),
                    label=label)
 

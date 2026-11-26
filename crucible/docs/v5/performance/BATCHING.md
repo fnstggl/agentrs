@@ -67,8 +67,10 @@ caller):
 
 1. `population/adaptive.py` `choose()`: replace
    `inference.recorded(ctx, f"pop.adaptive.{gid}", f"adaptive:{gid}", pol.weights_hash(), inp, lambda: {...})` by
-   `out = IB.decide(ctx, IB.adaptive_request(pol, inp["obs"], inp["mem"], inp["cand"], model_id=f"adaptive:{gid}"))`
-   (`out["scores"]`, `out["memory"]`; the `mask` stays with the caller).
+   `out = IB.decide(ctx, IB.method_request(pol, "scores", {"obs": o, "mem": m, "cand": c}, outputs=("scores",
+   "memory"), keep=("scores",), model_id=f"adaptive:{gid}", cls=2, static={"use_memory": pol.use_memory}))`
+   (records only the scores, as today; `IB.adaptive_request` records scores and memory; the `mask` stays with the
+   caller).
 2. `population/adaptive.py` `choose_activity()`: replace the `pop.adaptive_act.{gid}` recorded call by
    `IB.decide(ctx, IB.method_request(pol, "act_scores", {"obs": o, "mem": m, "acand": a}, outputs=("scores",
    "memory"), model_id=f"adaptive:{gid}", cls=2, static={"use_memory": pol.use_memory}))` (generic Op for any
