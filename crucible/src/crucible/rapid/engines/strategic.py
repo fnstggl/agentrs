@@ -212,7 +212,7 @@ class Strategic(RapidEngine):
             return {"R": [0.0, 0.0, 0.0], "me": 0, "counts": [[0] * 3 for _ in range(3)]}
         if sc == "profile":
             K = len(c["slot_names"])
-            return {"F": [[0.0] * 3 for _ in range(K)], "fresh": 0, "open": 0, "decisions": 0}
+            return {"F": [[0.0] * 3 for _ in range(K)], "eps": [0.0] * K, "fresh": 0, "open": 0, "decisions": 0}
         if sc == "commons":
             return {"S": [float(k) * float(f) for k, f in zip(c["Kp"], c["s0_frac"])], "ground": [-1] * 3,
                     "effort": [0.0] * 3, "collapsed": [0] * len(c["patch_names"])}
@@ -292,8 +292,7 @@ class Strategic(RapidEngine):
                 raise ActionError("there is no open set of options (the last one was decided)")
             k = c["slot_names"].index(plan["option"])
             F = state["F"][k]
-            val = float(c["scale"]) * (sum(w * f for w, f in zip(c["w"], F)) + float(c["value_sd"])
-                                       * float(rng.standard_normal()))
+            val = float(c["scale"]) * (sum(w * f for w, f in zip(c["w"], F)) + float(c["value_sd"]) * state["eps"][k])
             state["open"] = 0
             state["decisions"] += 1
             state["pend"] = val
@@ -587,6 +586,7 @@ class Strategic(RapidEngine):
         ags = self.agents
         K = len(c["slot_names"])
         Z = rng.standard_normal((K, 3))
+        Ze = rng.standard_normal(K)                      # each option's own quality, seen by nobody
         pend = float(st.pop("pend", 0.0))
         n = len(ags)
         rev = {x: max(pend, 0.0) / n for x in ags}
@@ -594,6 +594,7 @@ class Strategic(RapidEngine):
         period = int(c["period"])
         if t % period == 0:
             st["F"] = [[float(Z[k, a_]) for a_ in range(3)] for k in range(K)]
+            st["eps"] = [float(x) for x in Ze]
             st["open"] = 1
             st["fresh"] = 1
         else:

@@ -1227,13 +1227,13 @@ def reference_entry(view, env):
 
 
 def identify_entry(env) -> dict:
-    """Question: which incumbents fight an entrant who stays? Enter every market and stay ten periods; an incumbent
-    that still fights (losing periods) in at least two of the last four is classed as fighting."""
+    """Question: which incumbents fight an entrant who stays? Enter every market and stay fourteen periods; an
+    incumbent that still fights (losing periods) in at least three of the last six is classed as fighting."""
     view = PublicView(env)
     markets = sorted(view.action_space().limits["decisions"])
     view.step({"kind": "sequence", "steps": [{"kind": "discrete", "decision": m, "choice": "enter"} for m in markets]})
-    rows = [nums(view.step(None)["observation"]) for _ in range(10)]
-    est = sorted(m for m in markets if sum(r[f"{m}.my_profit"] < 0 for r in rows[-4:]) >= 2)
+    rows = [nums(view.step(None)["observation"]) for _ in range(14)]
+    est = sorted(m for m in markets if sum(r[f"{m}.my_profit"] < 0 for r in rows[-6:]) >= 3)
     c = env._config
     truth = sorted(c["market_names"][k] for k in range(len(c["market_names"])) if c["inc_kind"][k] == "tough")
     return {"question": "which incumbents fight a persistent entrant", "estimate": est, "truth": truth,
@@ -1497,17 +1497,20 @@ def reference_blotto(view, env):
 
 
 def identify_blotto(env) -> dict:
-    """Question: at which site will the opponent put the most effort next period? Play an even allocation for eight
-    periods, then predict the site of the opponent's largest last effort."""
+    """Question: at which site will the opponent put the most effort next period? Play an even allocation for ten
+    periods and predict the site where its effort was largest most often over the last four; the truth is its effort
+    in the period after (computed from its private state)."""
     view = PublicView(env)
     sites = _targets(view.action_space())
     B = float(view.action_space().limits["allocate_total"])
     even = {"kind": "allocate", "amounts": {s: B / len(sites) for s in sites}}
-    for _ in range(8):
+    tops = []
+    for _ in range(10):
         x = nums(view.step(even)["observation"])
-    est = max(sites, key=lambda s: x[f"{s}.rival_effort"])
-    y = env._engine.opponent_allocation(env._state, float(peek(env).standard_normal()))
-    truth = env._config["site_names"][int(np.argmax(y))]
+        tops.append(max(sites, key=lambda s: x[f"{s}.rival_effort"]))
+    est = max(set(tops[-4:]), key=lambda s: (tops[-4:].count(s), tops[-1] == s))
+    view.step(even)
+    truth = env._config["site_names"][int(np.argmax(env._state["y"]))]
     return {"question": "the opponent's most contested site next period", "estimate": est, "truth": truth,
             "ok": est == truth}
 
@@ -1723,7 +1726,7 @@ def oracle_profile(env) -> dict:
             s = e._state
             if not s["open"]:
                 return None
-            vals = [sum(w * f for w, f in zip(c["w"], F)) for F in s["F"]]
+            vals = [sum(w * f for w, f in zip(c["w"], F)) + float(c["value_sd"]) * ep for F, ep in zip(s["F"], s["eps"])]
             k = int(np.argmax(vals))
             if vals[k] * float(c["scale"]) <= threshold:
                 return None
@@ -1857,14 +1860,14 @@ def oracle_commons(env) -> dict:
                     {"kind": "levers", "values": {"effort": E}}]}
             return acts
         return fn
-    return best_of(env, {f"escapement {f} of capacity, liquidate last {L}": pol(f, L) for f in (0.45, 0.55, 0.65)
-                         for L in (0, 3, 6)})
+    return best_of(env, {f"escapement {f} of capacity, liquidate last {L}": pol(f, L)
+                         for f in (0.45, 0.55, 0.65, 0.75, 0.85) for L in (3, 6, 9)})
 
 
 def reference_commons(view, env):
     """Public, per participant: each takes its own ground (by its position in the team, so nobody crowds); it
     surveys before fishing, takes the first survey as roughly the ground's capacity, and fishes the survey down to
-    55% of that each period (effort from the stated 2% per unit), liquidating in the last three periods."""
+    60% of that each period (effort from the stated 2% per unit), liquidating in the last three periods."""
     ags = view.agents()
     grounds = [o for o in view.action_space(ags[0]).limits["decisions"]["ground"] if o != "rest"]
     P = len(grounds)
@@ -1881,27 +1884,27 @@ def reference_commons(view, env):
                 continue
             S = nums(obs[a]).get("my_ground_survey", 0.0)
             last = view.horizon - view.t <= 3
-            E = emax if last else _effort_for(S, 0.55 * cap[a], q, emax)
+            E = emax if last else _effort_for(S, 0.6 * cap[a], q, emax)
             acts[a] = {"kind": "levers", "values": {"effort": E}}
         obs = view.step(acts)["observations"]
 
 
 def identify_commons(env) -> dict:
-    """Question: which ground has the largest carrying capacity? Survey without fishing for fifteen periods (stocks
-    regrow toward capacity) and compare the late surveys."""
+    """Question: which ground has the largest carrying capacity? Survey without fishing for 26 periods (stocks
+    regrow toward capacity) and compare the last ten surveys."""
     view = PublicView(env)
     ags = view.agents()
     grounds = [o for o in view.action_space(ags[0]).limits["decisions"]["ground"] if o != "rest"]
     P = len(grounds)
     sv = {g: [] for g in grounds}
-    for t in range(15):
+    for t in range(26):
         acts = {}
         for i, a in enumerate(ags):
             g = grounds[(i + t * len(ags)) % P] if P > len(ags) else grounds[i % P]
             acts[a] = {"kind": "sequence", "steps": [{"kind": "discrete", "decision": "ground", "choice": g},
                                                      {"kind": "levers", "values": {"effort": 0.0}}]}
         r = view.step(acts)
-        if t >= 9:
+        if t >= 16:
             for i, a in enumerate(ags):
                 x = nums(r["observations"][a])
                 g = grounds[(i + t * len(ags)) % P] if P > len(ags) else grounds[i % P]

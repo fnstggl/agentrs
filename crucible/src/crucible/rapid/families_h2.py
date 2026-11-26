@@ -441,11 +441,11 @@ def strat_learning_rival(rng, d):
 def team_profile(rng, d):
     K = max(2, int(d["action_complexity"]))
     names = neutral_names(rng, K)
-    w = np.asarray([u(rng, 0.2, 1.0) for _ in range(3)])
-    w[int(rng.integers(3))] += 0.6
+    w = np.asarray([u(rng, 0.2, 0.7) for _ in range(3)])
+    w[int(rng.integers(3))] += 0.8
     w = w / np.linalg.norm(w)
     return {"engine": "strategic", "scenario": "profile", "horizon": int(d["horizon"]), "agents": ["a0", "a1", "a2"],
-            "slot_names": names, "w": w.tolist(), "value_sd": 0.3, "scale": 400.0, "decision_cost": 20.0, "period": 3,
+            "slot_names": names, "w": w.tolist(), "value_sd": 0.4, "scale": 400.0, "decision_cost": 20.0, "period": 3,
             "endowment": 50_000,
             "objective": {"type": "maximize_net", "text": "Maximise the team's total payoff from joint choices."},
             "brief": f"Every 3 periods a new set of {K} options ({', '.join(names)}) appears. Each of you sees one "
@@ -467,7 +467,7 @@ def team_commons(rng, d):
     K = [u(rng, 800.0, 1500.0) for _ in range(P)]
     return {"engine": "strategic", "scenario": "commons", "horizon": int(d["horizon"]), "agents": ["a0", "a1", "a2"],
             "patch_names": names, "Kp": K, "rp": [u(rng, 0.25, 0.5) for _ in range(P)],
-            "allee": [k * u(rng, 0.1, 0.2) for k in K], "s0_frac": [u(rng, 0.7, 0.95) for _ in range(P)],
+            "allee": [k * u(rng, 0.15, 0.4) for k in K], "s0_frac": [u(rng, 0.7, 0.95) for _ in range(P)],
             "crowd": u(rng, 0.6, 1.2), "catchability": 0.02, "e_max": 10.0, "unit_price": 5.0, "effort_cost": 6.0,
             "shock_sd": 0.15, "survey_sd": float(d["observation_noise"]), "endowment": 50_000,
             "objective": {"type": "maximize_net", "text": "Maximise the team's landings value minus effort costs."},
