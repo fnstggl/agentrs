@@ -1423,26 +1423,27 @@ MECHANICS = ("Search", "Documents", "Knowledge artifacts", "Queries", "Source pr
              "Updating facts", "Independent user satisfaction", "Verified retrieval performance")
 
 
-def mechanics(world) -> dict:
-    """Each required mechanic of 9.11 and the recorded events that exercise it (measured on the log)."""
-    c = K.event_counts(world)
+def mechanics_report(world, since_seq: int = 0) -> dict:
+    """Each required mechanic of 9.11 and the recorded events (after `since_seq`) that exercise it, measured on the
+    world's log."""
+    c = K.event_counts(world, since_seq)
     led = _ledger(world)
     st = world.state
-    looks = led["lookups"]
-    by_ch = {k: sum(1 for r in looks if (r["ch"] > 0) == k) for k in (False, True)}
+    t0 = world.events_range(since_seq, since_seq + 1)[0].t if since_seq and since_seq < world.seq else 0
+    looks = [r for r in led["lookups"] if r["t"] >= t0]
+    web = sum(1 for r in looks if r["ch"] == 0)
+    svc = [r for r in looks if r["ch"] > 0]
     outcomes = {o: sum(1 for r in looks if r["outcome"] == o) for o in ("ok", "wrong", "none")}
-    cited = sum(1 for _, p in st.scan("info_prov") if p["cites"])
-    changes = sum(len(v) - 1 for v in led["facts"].values())
-    served = [r for r in looks if r["ch"] > 0]
-    mrr_n = 0
-    for r in served[:400]:
+    cited = sum(1 for _, p in st.scan("info_prov") if p["cites"] and p["t"] >= t0)
+    changes = sum(1 for v in led["facts"].values() for tt, _ in v[1:] if tt >= t0)
+    judged = 0
+    for r in svc[:400]:
         relevance(world, led, r)
-        mrr_n += 1
-    sat = sum(1 for r in served if r["outcome"] in ("ok", "wrong"))
-    table = {
-        "Search": {"exercised": by_ch[False] > 0 and by_ch[True] > 0 and c["info.served"] > 0,
-                   "events": {"web_search_lookups": by_ch[False], "service_lookups": by_ch[True],
-                              "info.served": c["info.served"]}},
+        judged += 1
+    sat = sum(1 for r in svc if r["outcome"] in ("ok", "wrong"))
+    return {
+        "Search": {"exercised": web > 0 and len(svc) > 0 and c["info.served"] > 0,
+                   "events": {"web_search_lookups": web, "service_lookups": len(svc), "info.served": c["info.served"]}},
         "Documents": {"exercised": c["docs.create"] > 0, "events": {"docs.create": c["docs.create"]}},
         "Knowledge artifacts": {"exercised": cited > 0, "events": {"documents_citing_sources": cited}},
         "Queries": {"exercised": len(looks) > 0, "events": {"batch:info.lookup": c["batch:info.lookup"],
@@ -1453,16 +1454,17 @@ def mechanics(world) -> dict:
         "Updating facts": {"exercised": changes > 0 and c["docs.edit"] > 0,
                            "events": {"fact_changes": changes, "docs.edit": c["docs.edit"]}},
         "Independent user satisfaction": {"exercised": sat > 0 and c["batch:pop.session"] > 0,
-                                          "events": {"service_outcomes": sat, "info.feedback": c["info.feedback"],
-                                                     "batch:pop.session": c["batch:pop.session"]}},
-        "Verified retrieval performance": {"exercised": mrr_n > 0, "events": {"judged_result_lists": mrr_n}},
+                                          "events": {"service_outcomes": sat, "info.feedback": c["info.feedback"]}},
+        "Verified retrieval performance": {"exercised": judged > 0, "events": {"judged_result_lists": judged}},
     }
-    return table
+
+
+def mechanics(world) -> dict:
+    return mechanics_report(world, 0)
 
 
 # ====================================================================== the domain (configurations, objective, reference)
-from .base import Domain, DomainConfig, register  # noqa: E402
-from ._kit import A, ToolPolicy  # noqa: E402
+from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, register  # noqa: E402
 
 POPULATION = 400
 
@@ -1490,8 +1492,7 @@ STRUCTURES = {
 
 
 def _structure(name: str) -> dict:
-    """What is structurally different about a configuration: the kind of entities, the fact-change process and
-    which kinds of publishers (participants) the world has."""
+    """The declared structural intent of a configuration (documentation; the framework measures `structure`)."""
     s = STRUCTURES[name]
     src = s["sources"]
     pubs = [f"official:{src['official']['mode']}"]
@@ -1501,6 +1502,15 @@ def _structure(name: str) -> dict:
     if src["wiki"].get("on"):
         pubs.append("wiki")
     return {"entities": s["kind"], "fact_change_process": s["change"]["process"], "publishers": sorted(pubs)}
+
+
+def structure(world) -> dict:
+    """Measured on the built world: the kind of entities, the fact-change process and the kinds of publishers that
+    exist (with the official operators' publishing mode)."""
+    mod = world.modules["infoeco"]
+    kinds = sorted({s["kind"] + (f":{s['mode']}" if s["kind"] == "official" else "")
+                    for _, s in world.state.scan("info_sources")})
+    return {"entities": mod.cfg["kind"], "fact_change_process": mod.cfg["change"]["process"], "publishers": kinds}
 
 
 CONFIGS = (
@@ -1514,16 +1524,17 @@ CONFIGS = (
                  "transit lines; timetable and fare changes are announced days ahead ('from day N'); a news desk "
                  "and a content farm"),
     DomainConfig("software_announced_spam", "eval_compositional", _structure("software_announced_spam"),
-                 "software libraries (seen in training) with announced changes (seen in training) and two content "
-                 "farms (never combined with libraries in training)"),
+                 "software libraries (seen in training) with announced changes (seen in training) and content farms "
+                 "(never combined with libraries in training)"),
     DomainConfig("local_wiki_shocks", "eval_structural", _structure("local_wiki_shocks"),
                  "local businesses with correlated regional shocks (a new change process) and a community wiki "
                  "corrected by readers who were misled (a new kind of publisher); no news desks"),
 )
 
 
-def build(config: DomainConfig, rng, overrides: dict) -> dict:
+def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
     ov = dict(overrides or {})
+    rng = K.seeded_rng(config.name, seed)
     inst = generate_instance(rng, _merge(STRUCTURES[config.name], ov.pop("instance", {}) or {}))
     n = int(ov.pop("population", POPULATION))
     mods = K.order_modules([("identity", {}), ("bank", {}), ("admin", {}), ("artifacts", {}), ("cols", {}),
@@ -1534,165 +1545,198 @@ def build(config: DomainConfig, rng, overrides: dict) -> dict:
 def objective(world, principal: str, difficulty: int = 1) -> dict:
     d = max(1, int(difficulty))
     users = 15 + 10 * d
-    return {"description": f"Run an information service on this world's web that people choose to rely on: over the "
-                           f"last 10 of the first 30 days, at least {users} different people must have looked "
-                           f"things up through your service, what they found and acted on must have been right at "
-                           f"least 80% of the time and at least 10 points more often than with the open web "
-                           f"search, and the right answer must come near the top of what your service returns.",
-            "window_days": 10, "horizon_days": 30, "min_users": users, "min_success": 0.8, "margin": 0.1,
-            "min_mrr": 0.6}
+    text = (f"Run an information service on this world's web that people choose to rely on: over the last 10 of the "
+            f"first 30 days, at least {users} different people must have looked things up through your service, "
+            f"what they found and acted on must have been right at least 80% of the time and at least 10 points "
+            f"more often than with the open web search, and the right answer must come near the top of what your "
+            f"service returns.")
+    return {"text": text, "description": text, "window_days": 10, "horizon_days": 30, "min_users": users,
+            "min_success": 0.8, "margin": 0.1, "min_mrr": 0.6, "difficulty": d}
 
 
-class Reference(ToolPolicy):
+class InfoCurator(K.ReadingReference):
     """Scripted reference (evaluator side, tool-only): a fact-checking retrieval service. It indexes what the web
     search finds for every entity in the public directory, spends its daily inquiry calls on the facts its own users
     ask about most and has not checked recently, learns each publisher's accuracy from those checks, publishes a
-    dated fact sheet per entity it has checked (pinned for that entity's queries) and ranks publishers by their
-    measured accuracy, recent documents first."""
-    every = 6 * HOUR
+    dated fact sheet per entity it has checked (pinned for that entity's queries, citing the documents that agreed)
+    and ranks publishers by their measured accuracy, recent documents first."""
+    cycle_s = 6 * HOUR
 
-    def __init__(self, world, principal: str):
-        super().__init__(world, principal)
+    def __init__(self, principal, objective):
+        super().__init__(principal, objective)
         self.svc = None
         self.ents: list[dict] = []
         self.known: dict[str, str] = {}            # doc -> owner
-        self.by_ent: dict[str, set] = {}           # entity id -> documents the web search shows for its name
-        self.agree: dict[str, set] = {}            # entity id -> documents whose claim matched a check
-        self.cited: dict[str, list] = {}
+        self.by_ent: dict[str, set] = {}
         self.indexed: set[str] = set()
         self.verified: dict[tuple, tuple] = {}     # (entity id, attr) -> (value, t)
-        self.acc: dict[str, list[int]] = {}        # publisher -> [right, checked]
-        self.sheets: dict[str, str] = {}           # entity id -> my doc
-        self.pending_sheets: dict[str, str] = {}
-        self.calls_day = -1
-        self.calls = 0
-        self.handlers.append(self.on_result)
+        self.to_score: list[tuple] = []
+        self.acc: dict[str, list[int]] = {}
+        self.agree: dict[str, set] = {}
+        self.cited: dict[str, list] = {}
+        self.sheets: dict[str, str] = {}
+        self.sheet_body: dict[str, str] = {}
+        self.pending_sheets: set[str] = set()
+        self.calls_day, self.calls = -1, 0
 
-    def on_result(self, tag, res):
-        if tag == "svc":
-            self.svc = res["service"]
-        elif tag and tag.startswith("verify:"):
-            _, eid, attr = tag.split(":")
-            self.verified[(eid, attr)] = (res["value"], self.world.now)
-            self._score_sources(eid, attr, res["value"])
-        elif tag and tag.startswith("sheet:"):
-            self.sheets[tag.split(":", 1)[1]] = res["doc"]
-
-    def _score_sources(self, eid, attr, value):
-        e = next(x for x in self.ents if x["entity"] == eid)
-        day = self.world.now // DAY
-        others = tuple(name_tokens(x["name"]) for x in self.ents)
-        for did in sorted(self.by_ent.get(eid, ())):
-            owner = self.known[did]
-            if owner == self.me:
-                continue
-            d = self.q("docs.get", doc=did)
-            if "error" in d:
-                continue
-            c = read_claim(d["title"], d["body"], e["name"], attr, day, others)
-            if c is None:
-                continue
-            a = self.acc.setdefault(owner, [0, 0])
-            a[0] += int(c[0] == value)
-            a[1] += 1
-            if c[0] == value:
-                self.agree.setdefault(eid, set()).add(did)
-
-    def plan(self):
-        if self.svc is None:
-            return [A("info.service_create", tag="svc", name="Checked Facts",
-                      description="Opening times, prices, versions, departures and fares checked with the source "
-                                  "and dated. Ask about any business, library or line.")]
-        out = []
+    def reads(self, t):
         if not self.ents:
-            self.ents = self.q("info.entities").get("entities", [])
+            return [("ents", "info.entities", {})]
+        out = [(f"s:{e['entity']}", "search.query", {"q": e["name"], "kind": "doc", "limit": 10}) for e in self.ents]
+        if self.svc:
+            out.append(("stats", "info.service_stats", {"service": self.svc}))
+        need = sorted({d for eid, _, _ in self.to_score for d in self.by_ent.get(eid, ())})
+        out += [(f"d:{d}", "docs.get", {"doc": d}) for d in need]
+        return out
+
+    def decide(self, t, got):
+        if "ents" in got:
+            self.ents = (got["ents"] or {}).get("entities", [])
+        if self.svc is None:
+            return [K.A("info.service_create", "svc", name="Checked Facts",
+                        description="Opening times, prices, versions, departures and fares checked with the source "
+                                    "and dated. Ask about any business, library or line.")]
         for e in self.ents:
-            r = self.q("search.query", q=e["name"], kind="doc", limit=10)
-            for x in r.get("results", []):
+            for x in (got.get(f"s:{e['entity']}") or {}).get("results", []):
                 self.known.setdefault(x["id"], x["owner"])
                 self.by_ent.setdefault(e["entity"], set()).add(x["id"])
-        new = [d for d in self.known if d not in self.indexed]
+        self._score(t, got)
+        out = []
+        new = [d for d in sorted(self.known) if d not in self.indexed]
         for k in range(0, len(new), 200):
-            out.append(A("info.service_add", service=self.svc, docs=new[k:k + 200]))
+            out.append(K.A("info.service_add", None, service=self.svc, docs=new[k:k + 200]))
         self.indexed |= set(new)
-        # demand from my own users' queries
-        stats = self.q("info.service_stats", service=self.svc)
-        words = dict(stats.get("top_query_words") or []) if "error" not in stats else {}
-        day = self.world.now // DAY
+        words = dict((got.get("stats") or {}).get("top_query_words") or [])
+        day = t // DAY
         if day != self.calls_day:
             self.calls_day, self.calls = day, 0
         cand = []
         for e in self.ents:
-            dem = 1.0 + sum(words.get(t, 0) for t in name_tokens(e["name"]))
+            dem = 1.0 + sum(words.get(w, 0) for w in name_tokens(e["name"]))
             for a in e["attributes"]:
                 v = self.verified.get((e["entity"], a))
-                age = (self.world.now - v[1]) / DAY if v else 60.0
+                age = (t - v[1]) / DAY if v else 60.0
                 cand.append((-(dem * (1.0 + age)), e["entity"], a))
         for _, eid, a in sorted(cand)[: max(0, min(3, 12 - self.calls))]:
-            out.append(A("info.verify", tag=f"verify:{eid}:{a}", entity=eid, attribute=a))
+            out.append(K.A("info.verify", f"verify:{eid}:{a}", entity=eid, attribute=a))
             self.calls += 1
-        # fact sheets for entities with checked facts, pinned for their names
         for e in self.ents:
-            vals = {a: self.verified[(e["entity"], a)] for a in e["attributes"] if (e["entity"], a) in self.verified}
+            eid = e["entity"]
+            vals = {a: self.verified[(eid, a)] for a in e["attributes"] if (eid, a) in self.verified}
             if not vals:
                 continue
-            body = " ".join(f"As of day {int(t // DAY)}, " + _lc(ATTRS[a]["say"][0].format(n=e["name"], v=v))
-                            for a, (v, t) in sorted(vals.items()))
+            body = " ".join(f"As of day {int(tt // DAY)}, " + _lc(ATTRS[a]["say"][0].format(n=e["name"], v=v))
+                            for a, (v, tt) in sorted(vals.items()))
             body = f"{body} Checked directly with {e['name']}."
             title = f"{e['name']}: checked " + ", ".join(sorted(vals))
-            if e["entity"] in self.sheets:
-                cur = self.q("docs.get", doc=self.sheets[e["entity"]])
-                if cur.get("body") != body:
-                    out.append(A("docs.edit", doc=self.sheets[e["entity"]], title=title, body=body))
-                agree = sorted(self.agree.get(e["entity"], ()))[:50]
-                if agree and agree != self.cited.get(e["entity"]):
-                    self.cited[e["entity"]] = agree
-                    out.append(A("info.cite", doc=self.sheets[e["entity"]], cites=agree))
-            elif e["entity"] not in self.pending_sheets:
-                self.pending_sheets[e["entity"]] = "creating"
-                out.append(A("docs.create", tag=f"sheet:{e['entity']}", title=title, body=body,
-                             visibility="public"))
+            if eid in self.sheets:
+                if self.sheet_body.get(eid) != body:
+                    self.sheet_body[eid] = body
+                    out.append(K.A("docs.edit", None, doc=self.sheets[eid], title=title, body=body))
+                agree = sorted(self.agree.get(eid, ()))[:50]
+                if agree and agree != self.cited.get(eid):
+                    self.cited[eid] = agree
+                    out.append(K.A("info.cite", None, doc=self.sheets[eid], cites=agree))
+            elif eid not in self.pending_sheets:
+                self.pending_sheets.add(eid)
+                self.sheet_body[eid] = body
+                out.append(K.A("docs.create", f"sheet:{eid}", title=title, body=body, visibility="public"))
         mine = [d for d in self.sheets.values() if d not in self.indexed]
         if mine:
-            out.append(A("info.service_add", service=self.svc, docs=mine))
+            out.append(K.A("info.service_add", None, service=self.svc, docs=mine))
             self.indexed |= set(mine)
         weights = {o: round(((a[0] + 1) / (a[1] + 2)) ** 2, 4) for o, a in self.acc.items() if a[1] >= 2}
         weights[self.me] = 4.0
         pins = [{"terms": " ".join(sorted(name_tokens(e["name"]))), "doc": self.sheets[e["entity"]]}
                 for e in self.ents if e["entity"] in self.sheets]
-        out.append(A("info.service_rank", service=self.svc, publisher_weights=weights, recency_half_life_days=30,
-                     pins=pins[:300]))
+        out.append(K.A("info.service_rank", None, service=self.svc, publisher_weights=weights,
+                       recency_half_life_days=30, pins=pins[:300]))
         return out
 
+    def _score(self, t, got):
+        """Learn publishers' accuracy: compare what each document says with the values just checked."""
+        day = t // DAY
+        others = tuple(name_tokens(x["name"]) for x in self.ents)
+        names = {e["entity"]: e["name"] for e in self.ents}
+        for eid, attr, value in self.to_score:
+            for did in sorted(self.by_ent.get(eid, ())):
+                owner = self.known.get(did)
+                d = got.get(f"d:{did}")
+                if owner == self.me or not d:
+                    continue
+                c = read_claim(d["title"], d["body"], names[eid], attr, day, others)
+                if c is None:
+                    continue
+                a = self.acc.setdefault(owner, [0, 0])
+                a[0] += int(c[0] == value)
+                a[1] += 1
+                if c[0] == value:
+                    self.agree.setdefault(eid, set()).add(did)
+        self.to_score = []
 
-class IndexAllProbe(ToolPolicy):
+    def handle(self, tag, result, action):
+        if result is None:
+            return
+        if tag == "svc":
+            self.svc = result["service"]
+        elif tag and tag.startswith("verify:"):
+            _, eid, attr = tag.split(":")
+            self.verified[(eid, attr)] = (result["value"], self.t)
+            self.to_score.append((eid, attr, result["value"]))
+        elif tag and tag.startswith("sheet:"):
+            self.sheets[tag.split(":", 1)[1]] = result["doc"]
+
+
+class IndexEverything(K.ReadingReference):
     """Degenerate-strategy probe: a service that indexes everything the web search shows and curates nothing."""
-    every = 12 * HOUR
+    cycle_s = 12 * HOUR
 
-    def __init__(self, world, principal):
-        super().__init__(world, principal)
+    def __init__(self, principal, objective):
+        super().__init__(principal, objective)
         self.svc = None
+        self.ents: list[dict] = []
         self.indexed: set[str] = set()
-        self.handlers.append(lambda tag, res: setattr(self, "svc", res["service"]) if tag == "svc" else None)
 
-    def plan(self):
+    def reads(self, t):
+        if not self.ents:
+            return [("ents", "info.entities", {})]
+        return [(f"s:{e['entity']}", "search.query", {"q": e["name"], "kind": "doc", "limit": 10}) for e in self.ents]
+
+    def decide(self, t, got):
+        if "ents" in got:
+            self.ents = (got["ents"] or {}).get("entities", [])
         if self.svc is None:
-            return [A("info.service_create", tag="svc", name="Everything Search",
-                      description="Opening hours, prices, timetables, fares, software versions and documentation for every business, library and line.")]
+            return [K.A("info.service_create", "svc", name="Everything Search",
+                        description="Opening hours, prices, timetables, fares, software versions and documentation "
+                                    "for every business, library and line.")]
         found = []
-        for e in self.q("info.entities").get("entities", []):
-            for x in self.q("search.query", q=e["name"], kind="doc", limit=10).get("results", []):
+        for e in self.ents:
+            for x in (got.get(f"s:{e['entity']}") or {}).get("results", []):
                 if x["id"] not in self.indexed:
                     found.append(x["id"])
                     self.indexed.add(x["id"])
-        return [A("info.service_add", service=self.svc, docs=found[k:k + 200]) for k in range(0, len(found), 200)]
+        return [K.A("info.service_add", None, service=self.svc, docs=found[k:k + 200])
+                for k in range(0, len(found), 200)]
+
+    def handle(self, tag, result, action):
+        if tag == "svc" and result:
+            self.svc = result["service"]
 
 
-def reference(world, principal: str, objective: dict):
-    return Reference(world, principal)
-
+Reference = InfoCurator
+IndexAllProbe = IndexEverything
 
 DOMAIN = register(Domain(
     name="information", title="Information ecosystem", spec_part="9.11", required_mechanics=MECHANICS,
-    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=reference, mechanics=mechanics,
+    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=InfoCurator,
+    mechanics=tuple(Mechanic(m, (), f"measured by information.mechanics_report: {m}",
+                             count=K.measured(mechanics_report, m)) for m in MECHANICS),
+    seats=(Seat("agent", 1_000_000, "Information service operator"),),
+    actors=(Actor("population readers", ("cols.batch:info.lookup",), "individuals looking things up"),
+            Actor("publishers", ("docs.create", "docs.edit"), "operators, news desks, aggregators, farms, wiki"),
+            Actor("news desks", ("info.check",), "reporters checking facts with their own capacity")),
+    degenerate=(Probe("index_everything", "a service that indexes every search result and curates nothing",
+                      IndexEverything),),
+    structure=structure, mode="B", horizon_days=30.0, slowest_effect_days=7.0, dt=3 * HOUR,
+    reference_seeds=(0, 1), sources=("information.py", "_dom3.py"),
     doc=__doc__.split("\n\n")[0]))

@@ -182,11 +182,6 @@ class Commercialization(Module):
             bank.move(ctx, "acct_genesis", acct, int(inv["budget"]), "endowment", f"fund of {inv['handle']}")
             ctx.emit("rc.investor", {"id": org, "manager": mgr, **{k: v for k, v in inv.items() if k != "handle"}},
                      vis="public")
-        # the founder's seat (the learner occupies it): a person with little money
-        f = idm.create_person(ctx, "founder", "Founder", "agent", {"controller": "learner seat", "role": "founder"})
-        acct = bank.open_account(ctx, f, "checking")
-        bank.move(ctx, "acct_genesis", acct, int(self.c["founder_cash"]), "endowment", "founder's savings")
-        ctx.emit("rc.misc", {"id": "founder", "principal": f}, vis="internal")
         self._genesis_people(ctx)
         ctx.schedule((ctx.now // DAY) * DAY + DAY + 2 * HOUR, "rcomm.day", {}, prio=46, period=DAY, key="rcomm.day")
 
@@ -214,9 +209,6 @@ class Commercialization(Module):
         m = compile_expr(model_text, self.cond)
         pts = [{k: float(v) for k, v in zip(self.cond, row)} for row in np.atleast_2d(cond)]
         return np.clip(np.asarray(m.at(pts), np.float64), 0.0, 1.0)
-
-    def founder(self, st) -> str:
-        return st.tables["rc_misc"]["founder"]["principal"]
 
     # ------------------------------------------------------------------ the population's practice
     def act_practice(self, ctx, idx, now):
@@ -755,9 +747,13 @@ MECHANICS = ("Research", "Experimentation", "Technical development", "Product cr
 
 
 def mechanics(world) -> dict:
+    return mechanics_report(world, 0)
+
+
+def mechanics_report(world, since_seq: int = 0) -> dict:
     st = world.state
-    c = K.event_counts(world)
-    subs = K.batch_records(world, "rc.practice", "subscriptions")
+    c = K.event_counts(world, since_seq)
+    subs = K.batch_records(world, "rc.practice", "subscriptions", since_seq)
     renews = [x for x in subs if x[2] == "renew"]
     trials = [x for x in subs if x[2] == "trial"]
     led = [x for _, x in st.scan("rc_ledger")]
@@ -783,8 +779,9 @@ def mechanics(world) -> dict:
 
 
 # ====================================================================== the domain
-from .base import Domain, DomainConfig, register  # noqa: E402
-from ._kit import A, ToolPolicy  # noqa: E402
+from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, register  # noqa: E402
+
+A = K.A
 
 POPULATION = 600
 STRUCTURES = {
@@ -830,8 +827,9 @@ CONFIGS = (
 )
 
 
-def build(config: DomainConfig, rng, overrides: dict) -> dict:
+def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
     ov = dict(overrides or {})
+    rng = K.seeded_rng(config.name, seed)
     inst = generate_instance(rng, {**STRUCTURES[config.name], **(ov.pop("instance", {}) or {})})
     n = int(ov.pop("population", POPULATION))
     mods = K.order_modules([("identity", {}), ("bank", {}), ("admin", {}), ("artifacts", {}), ("cols", {}),
@@ -839,20 +837,16 @@ def build(config: DomainConfig, rng, overrides: dict) -> dict:
     return K.recipe(mods, {"max_actions_per_hour": 600})
 
 
-def participant(world) -> str:
-    return world.state.tables["rc_misc"]["founder"]["principal"]
-
-
 def objective(world, principal: str, difficulty: int = 1) -> dict:
     d = max(1, int(difficulty))
     need = 20 + 10 * d
-    return {"description": f"Turn the science of this world's practice phenomenon into a product people adopt on "
+    text = (f"Turn the science of this world's practice phenomenon into a product people adopt on "
                            f"their own: by day 100 your published model of the phenomenon must be confirmed by at "
                            f"least one independent replication (and confirmed more often than refuted), at least "
                            f"{need} people outside your venture must pay for your product, having renewed at least "
                            f"once, its revenue over the last 30 days must exceed its hosting and promotion costs, and "
-                           f"you must stay solvent.",
-            "horizon_days": 100, "min_adopters": need}
+                           f"you must stay solvent.")
+    return {"text": text, "description": text, "difficulty": d, "horizon_days": 100, "min_adopters": need}
 
 
 def fit_optimum(rows: list[tuple[dict, float]], cond_names: list[str]) -> tuple[str, str, dict]:
@@ -893,34 +887,142 @@ def fit_optimum(rows: list[tuple[dict, float]], cond_names: list[str]) -> tuple[
     return law, f"clip({poly(beta)}, 0, 1)", {"sse": sse, "n": len(rows), "k": k}
 
 
-class Reference(ToolPolicy):
+class ScienceFounder(K.ReadingReference):
     """Scripted reference (evaluator side, tool-only): a scientist-founder. It measures the phenomenon on the
-    cheaper apparatus over a grid of settings and circumstances, fits the optimum setting as a function of the
-    circumstances from its own readings, publishes the model, builds an advisor from the fitted optimum, pilots it,
-    pitches the investor that funds validated science once an independent replication confirms the paper, launches
-    a subscription at a price below the savings its pilot showed, promotes it and pitches the growth investor once
-    subscribers renewed. `discovery=False` is the counterfactual founder without the research: it builds the advisor
-    from what is known without the phenomenon's data (the population's habitual setting) and otherwise acts alike."""
-    every = 12 * HOUR
+    cheaper apparatus over a grid of settings and circumstances (with the certified standards, to correct the
+    apparatus' calibration), fits the optimum setting as a function of the circumstances from its own readings,
+    publishes the model, builds an advisor from the fitted optimum, pilots it, pitches the investor that funds
+    validated science once an independent replication confirms the paper, launches a subscription, promotes it and
+    pitches the growth investor once subscribers renewed. `discovery=False` is the counterfactual founder without the
+    research: it builds the advisor from common practice (`common_practice`, the population's habitual setting) and
+    otherwise acts alike."""
+    cycle_s = 12 * HOUR
+    discovery = True
+    common = 0.5
 
-    def __init__(self, world, principal, discovery: bool = True, common_practice: float = 0.5):
-        super().__init__(world, principal)
-        self.discovery = discovery
-        self.common = float(common_practice)
+    def __init__(self, principal, objective, discovery=None, common_practice=None):
+        super().__init__(principal, objective)
+        if discovery is not None:
+            self.discovery = bool(discovery)
+        if common_practice is not None:
+            self.common = float(common_practice)
         self.stage = "start"
-        self.run = None
-        self.paper = None
-        self.proto = None
-        self.pilot = None
-        self.product = None
-        self.advice = None
+        self.run = self.paper = self.proto = self.pilot = self.product = self.advice = None
+        self.app = None
+        self.certified: dict[str, float] = {}
         self.price = 900
         self.pitched: set[str] = set()
         self.ads = 0
-        self.certified: dict[str, float] = {}
-        self.handlers.append(self.on_result)
 
-    def on_result(self, tag, res):
+    def reads(self, t):
+        if self.stage == "start":
+            return [] if not self.discovery else [("phen", "sci.phenomena", {}),
+                                                  ("apps", "sci.apparatus", {"phenomenon": PHEN})]
+        if self.stage == "measuring":
+            return [("data", "sci.data", {"run": self.run})] if self.run else []
+        out = [("status", "rc.status", {}), ("inv", "rc.investors", {}), ("reps", "sci.replications", {})]
+        if self.pilot:
+            out.append(("pilot", "rc.pilot_results", {"pilot": self.pilot}))
+        return out
+
+    def _replicated(self, got) -> bool:
+        reps = got.get("reps")
+        mine = [r for r in (reps if isinstance(reps, list) else []) if r.get("paper") == self.paper and
+                r.get("reporter") != self.me and r.get("other_apparatus")]
+        return sum(r["verdict"] == "consistent" for r in mine) > sum(r["verdict"] == "refuted" for r in mine)
+
+    def _pitch(self, got, rule):
+        for i in (got.get("inv") or {}).get("investors", []):
+            if (rule == "validated") == ("replication" in i["looks_for"]) and i["investor"] not in self.pitched:
+                amt = min(int(i["max_ticket_cents"]), int(i["available_cents"]))
+                if amt < 10_000:
+                    continue
+                if rule == "validated" and not (self.paper and self._replicated(got)):
+                    return None
+                self.pitched.add(i["investor"])
+                bps = int(math.ceil(amt / 100_000 * (900 if rule == "validated" else 300)))
+                return A("rc.pitch", None, investor=i["investor"], amount_cents=amt, equity_bps=min(5000, max(1, bps)))
+        return None
+
+    def decide(self, t, got):
+        out = []
+        if self.stage == "start":
+            if not self.discovery:
+                self.advice = f"{self.common:.3f}"
+                self.stage = "piloting"
+                return [A("rc.prototype", "proto", name="Advisor v1", model=self.advice)]
+            phs = got.get("phen") or []
+            apps = got.get("apps") or []
+            ph = next((p for p in phs if (p.get("phenomenon") or p.get("id")) == PHEN), None)
+            if ph is None or not apps:
+                return []
+            app = sorted(apps, key=lambda a: a["price_cents"])[0]
+            var = ph["vars"]
+            grids = []
+            for v in var:
+                k = 7 if v["name"] == "setting" else (6 if len(var) == 2 else 4)
+                grids.append([round(v["lo"] + (v["hi"] - v["lo"]) * i / (k - 1), 4) for i in range(k)])
+            mesh = np.meshgrid(*grids, indexing="ij")
+            pts = np.stack([m.ravel() for m in mesh], 1)
+            reps = 2 if len(var) == 2 else 1
+            design = [{"at": {v["name"]: float(x) for v, x in zip(var, row)}, "n": reps} for row in pts]
+            self.certified = {x["id"]: float(x["certified"]) for x in ph["standards"]}
+            design += [{"standard": x["id"], "n": 3} for x in ph["standards"]]
+            self.app = app["apparatus"]
+            self.stage = "measuring"
+            return [A("sci.run", "run", apparatus=self.app, design=design[:240])]
+        if self.stage == "measuring":
+            d = got.get("data")
+            if not d or not d.get("readings"):
+                return []
+            pts = [r for r in d["readings"] if not r.get("standard") and r.get("value") is not None]
+            std = [r for r in d["readings"] if r.get("standard") in self.certified and r.get("value") is not None]
+            xs = np.array([self.certified[r["standard"]] for r in std])
+            ys = np.array([float(r["value"]) for r in std])
+            gain, off = (np.polyfit(xs, ys, 1) if len(set(np.round(xs, 6))) >= 2 else (1.0, 0.0))
+            cond = [n for n in (pts[0]["at"] if pts else {}) if n != "setting"]
+            rows = [(r["at"], (float(r["value"]) - off) / gain) for r in pts]
+            law, advice, _ = fit_optimum(rows, cond)
+            self.advice = advice
+            self.stage = "piloting"
+            return [A("sci.publish", "paper", phenomenon=PHEN, title="The optimal practice setting", model=law,
+                      data=[self.run], calibration_runs=[self.run],
+                      abstract="Cost index measured over settings and circumstances; the optimum setting is a "
+                               "smooth function of the circumstances."),
+                    A("rc.prototype", "proto", name="Advisor v1", model=self.advice)]
+        status = got.get("status") or {}
+        if self.stage == "piloting" and self.proto:
+            ready = any(p["prototype"] == self.proto and p["ready"] for p in status.get("prototypes", []))
+            if ready and self.pilot is None:
+                out.append(A("rc.pilot", "pilot", prototype=self.proto, users=20))
+            if self.pilot and (got.get("pilot") or {}).get("status") == "done":
+                self.stage = "launch"
+            p = self._pitch(got, "validated")
+            if p:
+                out.append(p)
+            return out
+        if self.stage == "launch":
+            self.stage = "market"
+            return [A("rc.launch", "launch", prototype=self.proto, name="Practice Advisor",
+                      price_cents_month=self.price)]
+        if self.stage == "market" and self.product:
+            cash = status.get("cash_cents", 0)
+            if self.ads < 4 and cash > 25_000:
+                self.ads += 1
+                out.append(A("rc.advertise", None, product=self.product, cents=min(40_000, cash // 3)))
+            p = self._pitch(got, "validated")
+            if p:
+                out.append(p)
+            prod = next((x for x in status.get("products", []) if x["product"] == self.product), None)
+            if prod and prod["paying"] >= 25:
+                p = self._pitch(got, "traction")
+                if p:
+                    out.append(p)
+        return out
+
+    def handle(self, tag, res, action):
+        if res is None:
+            return
         if tag == "run":
             self.run = res["run"]
         elif tag == "paper":
@@ -932,123 +1034,36 @@ class Reference(ToolPolicy):
         elif tag == "launch":
             self.product = res["product"]
 
-    def _pitch(self, rule):
-        inv = self.q("rc.investors").get("investors", [])
-        for i in inv:
-            looks = i["looks_for"]
-            if (rule == "validated") == ("replication" in looks) and i["investor"] not in self.pitched:
-                amt = min(int(i["max_ticket_cents"]), int(i["available_cents"]))
-                if amt < 10_000:
-                    continue
-                self.pitched.add(i["investor"])
-                bps = max(1, int(math.ceil(amt / 100_000 * 900)) if rule == "validated" else
-                          int(math.ceil(amt / 100_000 * 300)))
-                return A("rc.pitch", investor=i["investor"], amount_cents=amt, equity_bps=min(5000, bps))
-        return None
 
-    def plan(self):
-        now = self.world.now
-        out = []
-        if self.stage == "start":
-            if not self.discovery:
-                self.advice = f"{self.common:.3f}"
-                self.stage = "build"
-            else:
-                ph = self.q("sci.phenomena")
-                phs = ph if isinstance(ph, list) else ph.get("phenomena", [])
-                apps = self.q("sci.apparatus", phenomenon=PHEN)
-                apps = apps if isinstance(apps, list) else apps.get("apparatus", [])
-                app = sorted(apps, key=lambda a: a["price_cents"])[0]
-                var = next(p for p in phs if (p.get("phenomenon") or p.get("id")) == PHEN)["vars"]
-                grids = []
-                for v in var:
-                    k = 7 if v["name"] == "setting" else (6 if len(var) == 2 else 4)
-                    grids.append([round(v["lo"] + (v["hi"] - v["lo"]) * t / (k - 1), 4) for t in range(k)])
-                mesh = np.meshgrid(*grids, indexing="ij")
-                pts = np.stack([m.ravel() for m in mesh], 1)
-                reps = 2 if len(var) == 2 else 1
-                design = [{"at": {v["name"]: float(x) for v, x in zip(var, row)}, "n": reps} for row in pts]
-                # the certified standards on the same apparatus, to correct its calibration
-                stds = next(p for p in phs if (p.get("phenomenon") or p.get("id")) == PHEN)["standards"]
-                self.certified = {x["id"]: float(x["certified"]) for x in stds}
-                design += [{"standard": x["id"], "n": 3} for x in stds]
-                self.app = app["apparatus"]
-                self.stage = "measuring"
-                return [A("sci.run", tag="run", apparatus=self.app, design=design[:240])]
-        if self.stage == "measuring":
-            d = self.q("sci.data", run=self.run) if self.run else {"error": 1}
-            if "error" in d or not d.get("readings"):
-                return []
-            pts = [r for r in d["readings"] if not r.get("standard") and r.get("value") is not None]
-            std = [r for r in d["readings"] if r.get("standard") in self.certified and r.get("value") is not None]
-            xs = np.array([self.certified[r["standard"]] for r in std])
-            ys = np.array([float(r["value"]) for r in std])
-            gain, off = (np.polyfit(xs, ys, 1) if len(set(np.round(xs, 6))) >= 2 else (1.0, 0.0))
-            names = [k for k in pts[0]["at"]] if pts else []
-            cond = [n for n in names if n != "setting"]
-            rows = [(r["at"], (float(r["value"]) - off) / gain) for r in pts]
-            law, advice, info = fit_optimum(rows, cond)
-            self.advice = advice
-            self.stage = "build"
-            out.append(A("sci.publish", tag="paper", phenomenon=PHEN, title="The optimal practice setting",
-                         model=law, data=[self.run], calibration_runs=[self.run],
-                         abstract="Cost index measured over settings and circumstances; the optimum setting is a "
-                                  "smooth function of the circumstances."))
-        if self.stage == "build":
-            self.stage = "piloting"
-            out.append(A("rc.prototype", tag="proto", name="Advisor v1", model=self.advice))
-            return out
-        if self.stage == "piloting" and self.proto:
-            st = self.q("rc.status")
-            ready = any(p["prototype"] == self.proto and p["ready"] for p in st.get("prototypes", []))
-            if ready and self.pilot is None:
-                out.append(A("rc.pilot", tag="pilot", prototype=self.proto, users=20))
-            if self.pilot:
-                r = self.q("rc.pilot_results", pilot=self.pilot)
-                if r.get("status") == "done":
-                    self.stage = "launch"
-            p = self._pitch("validated")
-            if p and self.paper and self._replicated():
-                out.append(p)
-            elif p:
-                self.pitched.discard(p["args"]["investor"])
-            return out
-        if self.stage == "launch":
-            self.stage = "market"
-            out.append(A("rc.launch", tag="launch", prototype=self.proto, name="Practice Advisor",
-                         price_cents_month=self.price))
-            return out
-        if self.stage == "market" and self.product:
-            st = self.q("rc.status")
-            cash = st.get("cash_cents", 0)
-            if self.ads < 4 and cash > 25_000:
-                self.ads += 1
-                out.append(A("rc.advertise", product=self.product, cents=min(40_000, cash // 3)))
-            p = self._pitch("validated")
-            if p and self.paper and self._replicated():
-                out.append(p)
-            elif p:
-                self.pitched.discard(p["args"]["investor"])
-            prod = next((x for x in st.get("products", []) if x["product"] == self.product), None)
-            if prod and prod["paying"] >= 25:
-                p = self._pitch("traction")
-                if p:
-                    out.append(p)
-        return out
-
-    def _replicated(self) -> bool:
-        reps = self.q("sci.replications")
-        reps = reps if isinstance(reps, list) else []
-        mine = [r for r in reps if r.get("paper") == self.paper and r.get("reporter") != self.me
-                and r.get("other_apparatus")]
-        return sum(r["verdict"] == "consistent" for r in mine) > sum(r["verdict"] == "refuted" for r in mine)
+class CommonPracticeFounder(ScienceFounder):
+    """Degenerate-strategy probe and the counterfactual without the discovery: the same founder building its
+    advisor from common practice (a setting it cannot personalise without the phenomenon's data)."""
+    discovery = False
+    common = 0.5
 
 
-def reference(world, principal, objective):
-    return Reference(world, principal)
+def structure(world) -> dict:
+    """Measured on the built world: the law family of the phenomenon, its condition variables and the kinds of
+    financing on offer."""
+    mod = world.modules["rcomm"]
+    kinds = sorted({"grant" if i.get("equity_per_100k_bps", 0) <= 1 else
+                    ("growth" if i["rule"] == "traction" else "angel") for i in mod.c["investors"]})
+    return {"law_family": mod.c["family"], "conditions": list(mod.cond), "financing": kinds}
 
+
+Reference = ScienceFounder
 
 DOMAIN = register(Domain(
     name="commercialization", title="Research commercialization", spec_part="9.15", required_mechanics=MECHANICS,
-    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=reference, mechanics=mechanics,
-    participant_principal=participant, doc=__doc__.split("\n\n")[0]))
+    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=ScienceFounder,
+    mechanics=tuple(Mechanic(m, (), f"measured by commercialization.mechanics_report: {m}",
+                             count=K.measured(mechanics_report, m)) for m in MECHANICS),
+    seats=(Seat("founder", DEFAULTS["founder_cash"], "Founder"),),
+    actors=(Actor("practitioners", ("cols.batch:rc.practice",), "population individuals paying their own bills"),
+            Actor("labs", ("sci.paper", "sci.replication", "sci.booked"), "rival and replication labs"),
+            Actor("investors", ("rc.pitch_status",), "investors deciding on pitches from the public record")),
+    degenerate=(Probe("common_practice_advisor", "an advisor built without the research (common practice)",
+                      CommonPracticeFounder),),
+    structure=structure, mode="B", horizon_days=100.0, slowest_effect_days=60.0, dt=12 * HOUR,
+    reference_seeds=(1, 2), sources=("commercialization.py", "_dom3.py", "science.py"),
+    doc=__doc__.split("\n\n")[0]))

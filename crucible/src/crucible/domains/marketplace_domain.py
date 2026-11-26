@@ -855,9 +855,13 @@ MECHANICS = ("Two-sided participation", "Discovery", "Transactions", "Trust", "Q
 
 
 def mechanics(world) -> dict:
+    return mechanics_report(world, 0)
+
+
+def mechanics_report(world, since_seq: int = 0) -> dict:
     st = world.state
-    c = K.event_counts(world)
-    shop = K.batch_records(world, "mkt.shop", "shopping")
+    c = K.event_counts(world, since_seq)
+    shop = K.batch_records(world, "mkt.shop", "shopping", since_seq)
     bought = [r for r in shop if len(r) > 4 and r[4] == "bought"]
     outcomes = [r for r in shop if len(r) > 4 and r[4] == "outcome"]
     by_ex: dict[str, set] = {}
@@ -868,7 +872,7 @@ def mechanics(world) -> dict:
     q = [u["quality"] for _, u in st.scan("mkt_units")]
     disputed = sum(1 for _, o in st.scan("xchg_orders") if o["disputed"])
     resolved = sum(1 for _, o in st.scan("xchg_orders") if o["disputed"] and o["status"] != "disputed")
-    reviews = [ev.payload for ev in world.events_range(0) if ev.type == "mkt.review"]
+    reviews = [ev.payload for ev in world.events_range(since_seq) if ev.type == "mkt.review"]
     reprices = sum(1 for r in reviews for d in r["decisions"] if d["action"] == "reprice")
     joins = [d for r in reviews for d in r["decisions"] if d["action"] == "join" and d.get("buyers_30d", 0) > 0]
     per: dict[tuple, int] = {}
@@ -896,8 +900,9 @@ def mechanics(world) -> dict:
 
 
 # ====================================================================== the domain
-from .base import Domain, DomainConfig, register  # noqa: E402
-from ._kit import A, ToolPolicy  # noqa: E402
+from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, register  # noqa: E402
+
+A = K.A
 
 POPULATION = 700
 STRUCTURES = {
@@ -946,8 +951,9 @@ CONFIGS = (
 )
 
 
-def build(config: DomainConfig, rng, overrides: dict) -> dict:
+def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
     ov = dict(overrides or {})
+    rng = K.seeded_rng(config.name, seed)
     inst = generate_instance(rng, {**STRUCTURES[config.name], **(ov.pop("instance", {}) or {})})
     n = int(ov.pop("population", POPULATION))
     mods = K.order_modules([("identity", {}), ("bank", {}), ("admin", {}), ("artifacts", {}), ("cols", {}),
@@ -959,26 +965,27 @@ def build(config: DomainConfig, rng, overrides: dict) -> dict:
 def objective(world, principal: str, difficulty: int = 1) -> dict:
     d = max(1, int(difficulty))
     buyers, sellers = 50 + 25 * d, 4 + d
-    return {"description": f"Build an online exchange that buyers and traders choose on their own: by day 45, over "
+    text = (f"Build an online exchange that buyers and traders choose on their own: by day 45, over "
                            f"the last 30 days at least {buyers} different people must have bought on your exchange "
                            f"from at least {sellers} independent traders, at least 25% of those who bought in the "
                            f"first half of that period must have come back to buy again in the second half, and the "
                            f"exchange must pay for itself over the last 15 days (its commissions must exceed the "
-                           f"refunds, promotions and incentives you pay).",
-            "window_days": 30, "horizon_days": 45, "min_buyers": buyers, "min_sellers": sellers,
+                           f"refunds, promotions and incentives you pay).")
+    return {"text": text, "description": text, "difficulty": d, "window_days": 30, "horizon_days": 45, "min_buyers": buyers, "min_sellers": sellers,
             "min_retention": 0.25}
 
 
-class Reference(ToolPolicy):
+class ExchangeOperator(K.ReadingReference):
     """Scripted reference (evaluator side, tool-only): a low-fee, buyer-protecting exchange. It opens an exchange
     at a 4% take rate and lists it in the directory, subsidises the trader side for three weeks (a weekly listing
     bonus and a per-sale bonus) and promotes the exchange to buyers, refunds every dispute whose buyer received a
     lower grade than listed, removes traders with repeated upheld disputes, then raises its fee to 9% and stops
     the subsidies so that the exchange pays for itself."""
-    every = 12 * HOUR
+    cycle_s = 12 * HOUR
+    fee_bps, late_fee_bps, subsidy = 400, 900, True
 
-    def __init__(self, world, principal):
-        super().__init__(world, principal)
+    def __init__(self, principal, objective):
+        super().__init__(principal, objective)
         self.ex = None
         self.registered = False
         self.started = None
@@ -986,53 +993,80 @@ class Reference(ToolPolicy):
         self.promos = 0
         self.upheld: dict[str, int] = {}
         self.banned: set[str] = set()
-        self.handlers.append(self.on_result)
+        self.resolved: set[str] = set()
 
-    def on_result(self, tag, res):
-        if tag == "create":
-            self.ex = res["exchange"]
+    def reads(self, t):
+        return [("orders", "xchg.mine", {"role": "operator"})] if self.ex else []
 
-    def plan(self):
-        now = self.world.now
+    def decide(self, t, got):
         if self.ex is None:
-            return [A("xchg.create", tag="create", name="FairCart", take_rate_bps=400,
+            return [A("xchg.create", "create", name="FairCart", take_rate_bps=self.fee_bps,
                       description="Low fees; every buyer is protected: if what arrives is below the listed grade, "
                                   "you get your money back.", dispute_days=14, resolve_days=3)]
         out = []
         if not self.registered:
-            self.registered, self.started = True, now
-            out.append(A("mkt.register", exchange=self.ex))
-            out.append(A("mkt.incentive", exchange=self.ex, cents_per_week=3000, cents_per_sale=250, days=21))
-        weeks = (now - self.started) // (7 * DAY)
+            self.registered, self.started = True, t
+            out.append(A("mkt.register", None, exchange=self.ex))
+            if self.subsidy:
+                out.append(A("mkt.incentive", None, exchange=self.ex, cents_per_week=3000, cents_per_sale=250,
+                             days=21))
+        weeks = (t - self.started) // (7 * DAY)
         if weeks >= self.promos and self.promos < 4:
             self.promos += 1
-            out.append(A("mkt.promote", exchange=self.ex, cents=40_000 if self.promos == 1 else 16_000))
-        if not self.raised and now - self.started >= 24 * DAY:
+            out.append(A("mkt.promote", None, exchange=self.ex, cents=40_000 if self.promos == 1 else 16_000))
+        if not self.raised and t - self.started >= 24 * DAY and self.late_fee_bps != self.fee_bps:
             self.raised = True
-            out.append(A("xchg.set_fee", exchange=self.ex, take_rate_bps=900))
-        orders = self.q("xchg.mine", role="operator")
-        if isinstance(orders, list):
-            for o in orders:
-                if o.get("status") != "disputed":
-                    continue
-                note = str(o.get("note") or "")
-                if "listed as grade" in note:
-                    out.append(A("xchg.resolve", order=o["id"], refund_pct=100, note="below the listed grade"))
-                    self.upheld[o["seller"]] = self.upheld.get(o["seller"], 0) + 1
-                else:
-                    out.append(A("xchg.resolve", order=o["id"], refund_pct=50, note="partial refund"))
+            out.append(A("xchg.set_fee", None, exchange=self.ex, take_rate_bps=self.late_fee_bps))
+        orders = got.get("orders")
+        for o in orders if isinstance(orders, list) else []:
+            if o.get("status") != "disputed" or o["id"] in self.resolved:
+                continue
+            self.resolved.add(o["id"])
+            note = str(o.get("note") or "")
+            if "listed as grade" in note:
+                out.append(A("xchg.resolve", None, order=o["id"], refund_pct=100, note="below the listed grade"))
+                self.upheld[o["seller"]] = self.upheld.get(o["seller"], 0) + 1
+            else:
+                out.append(A("xchg.resolve", None, order=o["id"], refund_pct=50, note="partial refund"))
         for seller, n in sorted(self.upheld.items()):
             if n >= 3 and seller not in self.banned:
                 self.banned.add(seller)
-                out.append(A("mkt.ban", exchange=self.ex, seller=seller))
+                out.append(A("mkt.ban", None, exchange=self.ex, seller=seller))
         return out
 
+    def handle(self, tag, res, action):
+        if tag == "create" and res is not None:
+            self.ex = res["exchange"]
 
-def reference(world, principal, objective):
-    return Reference(world, principal)
 
+class FreeExchange(ExchangeOperator):
+    """Degenerate-strategy probe: the same exchange that never charges a fee (buyers and traders come, but it never
+    pays for itself)."""
+    fee_bps, late_fee_bps = 0, 0
+
+
+def structure(world) -> dict:
+    """Measured on the built world: the goods categories traded, the incumbents' dispute rules (lenient or strict)
+    and whether most traders are honest."""
+    mod = world.modules["mktplace"]
+    rules = sorted({"strict" if float(i["refund_share"]) >= 0.3 else "lenient" for i in mod.c["incumbents"]})
+    honest = sum(1 for s in mod.specs.values() if s["honest"]) * 2 > len(mod.specs)
+    return {"categories": sorted(mod.cats), "incumbent_rules": rules,
+            "incumbents": "one" if len(mod.c["incumbents"]) == 1 else "several", "honest_majority": honest}
+
+
+Reference = ExchangeOperator
 
 DOMAIN = register(Domain(
     name="marketplace", title="Digital marketplace", spec_part="9.13", required_mechanics=MECHANICS,
-    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=reference, mechanics=mechanics,
+    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=ExchangeOperator,
+    mechanics=tuple(Mechanic(m, (), f"measured by marketplace_domain.mechanics_report: {m}",
+                             count=K.measured(mechanics_report, m)) for m in MECHANICS),
+    seats=(Seat("agent", 1_000_000, "Exchange founder"),),
+    actors=(Actor("buyers", ("cols.batch:mkt.shop",), "population individuals shopping on exchanges they know"),
+            Actor("traders", ("mkt.review", "mkt.produced"), "sellers deciding where to list, prices, production"),
+            Actor("incumbent operators", ("xchg.order_status",), "orders settled and disputes decided")),
+    degenerate=(Probe("free_exchange", "the same exchange without any fee", FreeExchange),),
+    structure=structure, mode="B", horizon_days=45.0, slowest_effect_days=14.0, dt=6 * HOUR,
+    reference_seeds=(0, 1), sources=("marketplace_domain.py", "_dom3.py"),
     doc=__doc__.split("\n\n")[0]))

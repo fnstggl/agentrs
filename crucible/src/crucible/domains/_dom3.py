@@ -165,6 +165,7 @@ def run_env(env, agent: str, policy, *, days: float, dt: int = 3 * HOUR, max_act
     steps = int(round(days * DAY / dt))
     if hasattr(policy, "reset"):
         policy.reset(agent, np.random.default_rng(0))
+    max_actions_per_step = max(int(max_actions_per_step), int(getattr(policy, "burst", 0) or 0))
     n_ok = n_err = 0
     rewards = []
     for _ in range(steps):
@@ -178,7 +179,9 @@ def run_env(env, agent: str, policy, *, days: float, dt: int = 3 * HOUR, max_act
                 n_ok += 1
             else:
                 n_err += 1
-            if hasattr(policy, "observe_result"):
+            if hasattr(policy, "observe"):
+                policy.observe(0.0, res, env.observe(agent), False)
+            elif hasattr(policy, "observe_result"):
                 policy.observe_result(act, res)
         env.advance(int(dt))
         rewards.append(float(env.reward(agent)))
@@ -245,3 +248,80 @@ def session_provenance(world, table: str, kinds: Iterable[str]) -> dict:
         out["organic_rows"] += int(inside.sum())
         out["forced_rows"] += int((~inside).sum())
     return out
+
+
+# ====================================================================== framework adapters (domains-framework/2)
+def seeded_rng(name: str, seed: int):
+    """The generator a domain's `build` draws its procedural instance from (seed and configuration name)."""
+    from ..core.canonical import digest
+    return np.random.default_rng(np.random.SeedSequence([int(seed), int(digest(name)[:8], 16)]))
+
+
+def measured(report_fn, name: str):
+    """`Mechanic.count` from a domain's measured mechanics report `report_fn(world, since_seq) -> {mechanic:
+    {"exercised", "events"}}`: the number of recorded events behind the mechanic when it is exercised, else 0.
+    The report is computed once per (world, log position, since_seq)."""
+    def count(world, since_seq):
+        key = ("dom3.mech", id(world.state), int(world.seq), int(since_seq), report_fn.__module__)
+        cache = world.runtime.setdefault("dom3.mech", {})
+        if key not in cache:
+            cache.clear()
+            cache[key] = report_fn(world, int(since_seq))
+        row = cache[key].get(name) or {}
+        if not row.get("exercised"):
+            return 0
+        ev = row.get("events") or {}
+        n = sum(int(v) for v in ev.values() if isinstance(v, (int, float)) and not isinstance(v, bool))
+        return max(1, n)
+    return count
+
+
+from .base import ScriptedReference as _ScriptedReference, act_ as _act  # noqa: E402
+
+
+class ReadingReference(_ScriptedReference):
+    """A two-phase tool-only reference on the framework's `ScriptedReference`. Each cycle it first calls the
+    read-only tools `reads(t)` asks for (their results arrive as its own tool results, nothing else), then
+    `decide(t, got)` returns the cycle's actions; `handle(tag, result, action)` receives those actions' results. It
+    holds no World: everything it knows came back from its own tool calls (checked by base.reads_world)."""
+    burst = 96
+    replan_s = 0
+    cycle_s = 6 * HOUR
+
+    def __init__(self, principal, objective):
+        super().__init__(principal, objective)
+        self.phase = "read"
+        self.got: dict = {}
+        self.next_cycle = 0
+
+    def reads(self, t: int) -> list:
+        return []
+
+    def decide(self, t: int, got: dict) -> list:
+        return []
+
+    def handle(self, tag, result, action) -> None:
+        pass
+
+    def plan(self, obs):
+        t = self.t
+        if self.phase == "read":
+            if t < self.next_cycle:
+                return []
+            self.got = {}
+            self.phase = "decide"
+            reqs = list(self.reads(t) or [])
+            if reqs:
+                return [_act(tool, f"read:{key}", **(args or {})) for key, tool, args in reqs]
+        self.phase = "read"
+        self.next_cycle = t + int(self.cycle_s)
+        return list(self.decide(t, self.got) or [])
+
+    def on_result(self, tag, result, action):
+        if tag and tag.startswith("read:"):
+            self.got[tag[5:]] = result
+        else:
+            self.handle(tag, result, action)
+
+
+A = _act

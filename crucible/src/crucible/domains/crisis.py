@@ -1559,15 +1559,19 @@ MECHANICS = ("Cascading disruptions", "Scarce resources", "Prioritization", "Coo
 
 
 def mechanics(world) -> dict:
-    c = K.event_counts(world)
+    return mechanics_report(world, 0)
+
+
+def mechanics_report(world, since_seq: int = 0) -> dict:
+    c = K.event_counts(world, since_seq)
     led = _ledger(world)
     backup = sum(1 for _, _, up in led["states"] for _ in [0])
     on_backup = 0
-    for ev in world.events_range(0):
+    for ev in world.events_range(since_seq):
         if ev.type == "crisis.state":
             on_backup += len(ev.payload.get("on_backup") or [])
     reasons = {}
-    for ev in world.events_range(0):
+    for ev in world.events_range(since_seq):
         if ev.type == "crisis.priority":
             reasons[ev.payload["reason"]] = reasons.get(ev.payload["reason"], 0) + 1
     mod = world.modules["crisis"]
@@ -1620,8 +1624,9 @@ def mechanics(world) -> dict:
 
 
 # ====================================================================== the domain
-from .base import Domain, DomainConfig, register  # noqa: E402
-from ._kit import A, ToolPolicy  # noqa: E402
+from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, register  # noqa: E402
+
+A = K.A
 
 POPULATION = 600
 STRUCTURES = {
@@ -1662,8 +1667,9 @@ CONFIGS = (
 )
 
 
-def build(config: DomainConfig, rng, overrides: dict) -> dict:
+def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
     ov = dict(overrides or {})
+    rng = K.seeded_rng(config.name, seed)
     inst = generate_instance(rng, {**STRUCTURES[config.name], **(ov.pop("instance", {}) or {})})
     n = int(ov.pop("population", POPULATION))
     mods = K.order_modules([("identity", {}), ("bank", {}), ("admin", {}), ("artifacts", {}), ("cols", {}),
@@ -1674,17 +1680,17 @@ def build(config: DomainConfig, rng, overrides: dict) -> dict:
 def objective(world, principal: str, difficulty: int = 1) -> dict:
     d = max(1, int(difficulty))
     ratio = round(0.8 ** d, 3)
-    return {"description": f"You coordinate the response to the disruption that hits this region on its first day. "
+    text = (f"You coordinate the response to the disruption that hits this region on its first day. "
                            f"By the end of day 7 at least 95% of households must again have power, water and "
                            f"telecommunications, and keep them through day 10. Over the 10 days, households must lose "
                            f"at most {ratio:.0%} of the service-hours they would have lost had the operators responded "
                            f"alone, and the regional hospital may be out of service for at most 12 hours or 60% of "
-                           f"what it would have been without you, whichever is more.",
-            "horizon_days": 10, "restore_day": 7, "min_restored": 0.95, "max_loss_ratio": ratio,
+                           f"what it would have been without you, whichever is more.")
+    return {"text": text, "description": text, "difficulty": d, "horizon_days": 10, "restore_day": 7, "min_restored": 0.95, "max_loss_ratio": ratio,
             "max_hospital_ratio": 0.6, "hospital_floor_h": 12}
 
 
-class Reference(ToolPolicy):
+class CrisisCoordinator(K.ReadingReference):
     """Scripted reference (evaluator side, tool-only): an emergency coordinator that uses the levers an operator
     lacks. It joins; lends a crew to the utilities that ask for help and gets every utility's agreement; asks for
     the hospital's chain first (its district's substation and pump, the core exchange and the depot's substation);
@@ -1692,10 +1698,10 @@ class Reference(ToolPolicy):
     reserve parts to whoever is waiting for one and buys replacements; keeps generators fuelled and the hospital's
     water tank filled with its trucks; and invests early in backup power for the hospital district's pump and the
     core district's tower."""
-    every = 2 * HOUR
+    cycle_s = 2 * HOUR
 
-    def __init__(self, world, principal):
-        super().__init__(world, principal)
+    def __init__(self, principal, objective):
+        super().__init__(principal, objective)
         self.joined = False
         self.lent: set[str] = set()
         self.agreed: set[str] = set()
@@ -1709,21 +1715,25 @@ class Reference(ToolPolicy):
         self.watered = 0
         self.bought: set[str] = set()
         self.aid = False
-        self.handlers.append(self.on_result)
 
-    def on_result(self, tag, res):
+    def handle(self, tag, res, action):
+        if res is None:
+            return
         if tag == "join":
             self.joined = True
         elif tag and tag.startswith("agree:") and res.get("agreed"):
             self.agreed.add(tag.split(":", 1)[1])
 
-    def plan(self):
+    def reads(self, t):
+        return [("sit", "crisis.situation", {})] if self.joined else []
+
+    def decide(self, t, got):
         if not self.joined:
-            return [A("crisis.join", tag="join")]
-        s = self.q("crisis.situation")
-        if "error" in s:
+            return [A("crisis.join", "join")]
+        s = got.get("sit")
+        if not s:
             return []
-        now = self.world.now
+        now = t
         out = []
         assets = {a["asset"]: a for a in s["assets"]}
         owner = {"plant": "o:powerco", "line": "o:powerco", "substation": "o:powerco", "pump": "o:waterco",
@@ -1740,7 +1750,7 @@ class Reference(ToolPolicy):
             op = o["operator"]
             if op in owner.values() and not o["agreed"] and op not in self.agreed and \
                     (op not in ("o:powerco", "o:telco") or op in self.lent):
-                out.append(A("crisis.agree", tag=f"agree:{op}", operator=op))
+                out.append(A("crisis.agree", f"agree:{op}", operator=op))
         # the hospital's chain first
         hd = s["hospital"]["district"]
         chain = ["hospital", f"sub{hd[1:]}", f"pump{hd[1:]}", "core", f"sub{assets['depot0']['district'][1:]}",
@@ -1834,11 +1844,66 @@ class Reference(ToolPolicy):
         return out
 
 
-def reference(world, principal, objective):
-    return Reference(world, principal)
+class Bystander(K.ReadingReference):
+    """Degenerate-strategy probe: joins, asks every operator to put every asset first (without the help that
+    would make them agree) and otherwise watches - priorities nobody follows change nothing."""
+    cycle_s = 12 * HOUR
 
+    def __init__(self, principal, objective):
+        super().__init__(principal, objective)
+        self.joined = False
+        self.asked: set[str] = set()
+
+    def reads(self, t):
+        return [("sit", "crisis.situation", {})] if self.joined else []
+
+    def decide(self, t, got):
+        if not self.joined:
+            return [A("crisis.join", "join")]
+        owner = {"plant": "o:powerco", "line": "o:powerco", "substation": "o:powerco", "pump": "o:waterco",
+                 "tower": "o:telco", "core": "o:telco", "road": "o:works"}
+        out = []
+        for a in (got.get("sit") or {}).get("assets", []):
+            if a["kind"] in owner and a["asset"] not in self.asked:
+                self.asked.add(a["asset"])
+                out.append(A("crisis.request", None, operator=owner[a["kind"]], asset=a["asset"], rank=1))
+        return out
+
+    def handle(self, tag, res, action):
+        if tag == "join" and res is not None:
+            self.joined = True
+
+
+def structure(world) -> dict:
+    """Measured on the built world: the hazard, whether the power network has loops, whether secondary events
+    occur and whether households can be called out as volunteers."""
+    mod = world.modules["crisis"]
+    nodes = {l["a"] for l in mod.lines.values()} | {l["b"] for l in mod.lines.values()}
+    edges = [(l["a"], l["b"]) for l in mod.lines.values()]
+    import json as _json
+    shape = _json.loads(base_graph_shape(nodes, edges))
+    return {"hazard": mod.c["hazard"], "grid_has_loops": bool(shape["cyclic"]),
+            "secondary_events": float(mod.c["aftershock_rate_per_day"]) > 0, "volunteers": bool(mod.c.get("volunteers"))}
+
+
+def base_graph_shape(nodes, edges):
+    from .base import graph_shape
+    return graph_shape(nodes, edges, directed=False)
+
+
+Reference = CrisisCoordinator
 
 DOMAIN = register(Domain(
     name="crisis", title="Crisis recovery", spec_part="9.14", required_mechanics=MECHANICS, configs=CONFIGS,
-    build=build, objective=objective, evaluate=evaluate, reference=reference, mechanics=mechanics,
+    build=build, objective=objective, evaluate=evaluate, reference=CrisisCoordinator,
+    mechanics=tuple(Mechanic(m, (), f"measured by crisis.mechanics_report: {m}",
+                             count=K.measured(mechanics_report, m)) for m in MECHANICS),
+    seats=(Seat("agent", 1_000_000, "Emergency coordinator"),),
+    actors=(Actor("households", ("cols.batch:crisis.household",), "population individuals living with the outage"),
+            Actor("utility operators", ("crisis.priority", "crisis.restored"),
+                  "power, water, telecom, works and hospital crews working their own priorities"),
+            Actor("outage reporters", ("crisis.report",), "households reporting outages when their phones work")),
+    degenerate=(Probe("bystander", "asks for everything first and helps with nothing", Bystander),),
+    structure=structure, mode="B", horizon_days=10.0, slowest_effect_days=3.0, dt=2 * HOUR,
+    reference_seeds=(0, 1, 2), sources=("crisis.py", "_dom3.py"),
     doc=__doc__.split("\n\n")[0]))

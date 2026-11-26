@@ -155,11 +155,6 @@ class OrgEco(Module):
             ctx.emit("orgs.member", {"id": org, "manager": mgr, "goal": o["goal"], "slot": k, "price": int(o["price"]),
                                      "marketing": int(o["marketing"]), "pledge_budget": int(o["pledge_budget"]),
                                      "convener": False}, vis="public")
-        # the convener's seat (the learner occupies it): a person with a modest budget, not enough to pay for an
-        # expansion alone
-        cv = idm.create_person(ctx, "convener", "Convener", "agent", {"controller": "learner seat", "role": "convener"})
-        acct = bank.open_account(ctx, cv, "checking")
-        bank.move(ctx, "acct_genesis", acct, int(self.c["convener_cash"]), "endowment", "convener's budget")
         self._genesis_people(ctx)
         base = (ctx.now // DAY) * DAY
         ctx.schedule(ctx.now + HOUR, "orgeco.hour", {}, prio=32, period=HOUR, key="orgeco.hour")
@@ -717,20 +712,24 @@ MECHANICS = ("Organizations", "Differing goals", "Contracts", "Negotiation", "Co
 
 
 def mechanics(world) -> dict:
+    return mechanics_report(world, 0)
+
+
+def mechanics_report(world, since_seq: int = 0) -> dict:
     st = world.state
-    c = K.event_counts(world)
+    c = K.event_counts(world, since_seq)
     goals = {m["goal"] for _, m in st.scan("org_members") if not m["convener"]}
     votes = [v for _, v in st.scan("org_votes")]
     split = {v["proposal"] for v in votes if v["yes"]} & {v["proposal"] for v in votes if not v["yes"]}
-    congested = sum(1 for ev in world.events_range(0) if ev.type == "orgs.hour" and
+    congested = sum(1 for ev in world.events_range(since_seq) if ev.type == "orgs.hour" and
                     ev.payload["congestion_success"] < 1.0)
-    countered = sum(1 for ev in world.events_range(0) if ev.type == "commit.offer_status" and
+    countered = sum(1 for ev in world.events_range(since_seq) if ev.type == "commit.offer_status" and
                     ev.payload["status"] == "countered")
     settled = c["commit.settled"]
     passed = sum(1 for _, p in st.scan("org_props") if p["status"] == "passed")
     # a passed quota or levy binds every member at once (each member's load or money changes by the decision)
     binding = sum(1 for _, p in st.scan("org_props") if p["status"] == "passed" and p["kind"] in ("quotas", "levy"))
-    contrib = len({ev.payload["by"] for ev in world.events_range(0) if ev.type == "orgs.fund"})
+    contrib = len({ev.payload["by"] for ev in world.events_range(since_seq) if ev.type == "orgs.fund"})
     ev_ = evaluate(world, "", {"horizon_days": 0})
     return {
         "Organizations": {"exercised": c["orgs.member"] >= 3, "events": {"orgs.member": c["orgs.member"]}},
@@ -758,8 +757,9 @@ def mechanics(world) -> dict:
 
 
 # ====================================================================== the domain
-from .base import Domain, DomainConfig, register  # noqa: E402
-from ._kit import A, ToolPolicy  # noqa: E402
+from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, register  # noqa: E402
+
+A = K.A
 
 POPULATION = 600
 STRUCTURES = {
@@ -794,8 +794,9 @@ CONFIGS = (
 )
 
 
-def build(config: DomainConfig, rng, overrides: dict) -> dict:
+def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
     ov = dict(overrides or {})
+    rng = K.seeded_rng(config.name, seed)
     inst = generate_instance(rng, {**STRUCTURES[config.name], **(ov.pop("instance", {}) or {})})
     n = int(ov.pop("population", POPULATION))
     mods = K.order_modules([("identity", {}), ("bank", {}), ("admin", {}), ("artifacts", {}), ("cols", {}),
@@ -806,104 +807,118 @@ def build(config: DomainConfig, rng, overrides: dict) -> dict:
 def objective(world, principal: str, difficulty: int = 1) -> dict:
     d = max(1, int(difficulty))
     users = 200 + 50 * d
-    return {"description": f"Get the independent providers that share this region's backbone to keep their customers "
+    text = (f"Get the independent providers that share this region's backbone to keep their customers "
                            f"served: by day 40, over the last 14 days at least 95% of the requests of the region's "
                            f"people must succeed, at least {users} people must be using a provider, the backbone must "
-                           f"have more capacity than today, and every provider must still be in business.",
-            "window_days": 14, "horizon_days": 40, "min_success": 0.95, "min_users": users}
+                           f"have more capacity than today, and every provider must still be in business.")
+    return {"text": text, "description": text, "difficulty": d, "window_days": 14, "horizon_days": 40, "min_success": 0.95, "min_users": users}
 
 
-class Reference(ToolPolicy):
-    """Scripted reference (evaluator side, tool-only): a convener. It joins the council, proposes quotas in
-    proportion to each member's recent load as soon as congestion shows, a levy per customer and an expansion
-    project, pays its own budget into the fund, and offers each member a commitment to pay towards the expansion,
-    released when the backbone's capacity reaches the target by a due date (members counter or accept from their
-    own interest); it accepts reasonable counters."""
-    every = 12 * HOUR
+class CouncilConvener(K.ReadingReference):
+    """Scripted reference (evaluator side, tool-only): a convener. It joins the council, proposes an expansion
+    project and a levy per customer, proposes quotas in proportion to each member's customers as soon as congestion
+    shows, votes for its own proposals, pays its own budget into the fund, and offers each member a commitment to
+    pay towards the expansion, released when the backbone's capacity reaches the target by a due date (members
+    accept, counter or refuse from their own interest); it accepts the counters it receives."""
+    cycle_s = 12 * HOUR
+    pledges = True
 
-    def __init__(self, world, principal):
-        super().__init__(world, principal)
+    def __init__(self, principal, objective):
+        super().__init__(principal, objective)
         self.joined = False
         self.proposed: dict[str, int] = {}
         self.offered: set[str] = set()
         self.contributed = False
         self.accepted: set[str] = set()
         self.voted: set[str] = set()
-        self.handlers.append(self.on_result)
 
-    def on_result(self, tag, res):
-        if tag == "join":
-            self.joined = True
-
-    def plan(self):
-        now = self.world.now
+    def reads(self, t):
         if not self.joined:
-            return [A("orgs.join", tag="join")]
-        t = self.q("orgs.telemetry", hours=48)
-        if "error" in t:
+            return []
+        return [("tel", "orgs.telemetry", {"hours": 48}), ("inbox", "commit.inbox", {"status": "open"})]
+
+    def decide(self, t, got):
+        if not self.joined:
+            return [A("orgs.join", "join")]
+        tl = got.get("tel")
+        if not tl:
             return []
         out = []
-        members = [m for m in t["members"] if not m["convener"] and m["status"] == "active"]
-        hours = t["hours"]
+        members = [m for m in tl["members"] if not m["convener"] and m["status"] == "active"]
+        hours = tl["hours"]
         cong = 1.0 - (float(np.mean([min(h["success"].values() or [1.0]) for h in hours])) if hours else 1.0)
-        open_kinds = {p["kind"] for p in t["proposals"] if p["status"] == "open"}
-        passed = {p["kind"] for p in t["proposals"] if p["status"] == "passed"}
-        for p in t["proposals"]:
+        open_kinds = {p["kind"] for p in tl["proposals"] if p["status"] == "open"}
+        passed = {p["kind"] for p in tl["proposals"] if p["status"] == "passed"}
+        for p in tl["proposals"]:
             if p["status"] == "open" and p["proposal"] not in self.voted:
                 self.voted.add(p["proposal"])
-                out.append(A("orgs.vote", proposal=p["proposal"], yes=p["by"] == self.me))
-        if "expansion" not in passed and "expansion" not in open_kinds and \
-                now >= self.proposed.get("expansion", 0):
-            out.append(A("orgs.propose", kind="expansion", note="more capacity for everyone"))
-            self.proposed["expansion"] = now + 4 * DAY
-        if "levy" not in passed and "levy" not in open_kinds and now >= self.proposed.get("levy", 0):
-            out.append(A("orgs.propose", kind="levy", cents_per_customer=450, note="each member pays per customer"))
-            self.proposed["levy"] = now + 4 * DAY
-        if cong > 0.02 and "quotas" not in open_kinds and now >= self.proposed.get("quotas", 0):
-            req = {m["member"]: 0.0 for m in members}
-            for h in hours:
-                for org in req:
-                    req[org] += max(0.0, float(h["requested"]) / max(1, len(members)))
+                out.append(A("orgs.vote", None, proposal=p["proposal"], yes=p["by"] == self.me))
+        if "expansion" not in passed and "expansion" not in open_kinds and t >= self.proposed.get("expansion", 0):
+            out.append(A("orgs.propose", None, kind="expansion", note="more capacity for everyone"))
+            self.proposed["expansion"] = t + 4 * DAY
+        if self.pledges and "levy" not in passed and "levy" not in open_kinds and t >= self.proposed.get("levy", 0):
+            out.append(A("orgs.propose", None, kind="levy", cents_per_customer=450,
+                         note="each member pays per customer"))
+            self.proposed["levy"] = t + 4 * DAY
+        if self.pledges and cong > 0.02 and "quotas" not in open_kinds and t >= self.proposed.get("quotas", 0):
             total = sum(m["customers"] for m in members) or 1
             shares = {m["member"]: round(max(0.05, m["customers"] / total), 4) for m in members}
             sc = sum(shares.values())
-            shares = {k: round(v / sc, 4) for k, v in shares.items()}
-            out.append(A("orgs.propose", kind="quotas", shares=shares, note="shares by customers served"))
-            self.proposed["quotas"] = now + 6 * DAY
+            out.append(A("orgs.propose", None, kind="quotas", shares={k: round(v / sc, 4) for k, v in shares.items()},
+                         note="shares by customers served"))
+            self.proposed["quotas"] = t + 6 * DAY
         if not self.contributed:
             self.contributed = True
-            out.append(A("orgs.contribute", cents=240_000))
-        cap_target = float(t["capacity"]) + 1.0 if not t["projects"] else \
-            float(t["capacity"]) + (0.0 if any(p["status"] == "done" for p in t["projects"]) else 1.0)
-        for m in members:
-            if m["member"] in self.offered or now < 2 * DAY:
+            out.append(A("orgs.contribute", None, cents=240_000))
+        target = float(tl["capacity"]) + (0.0 if any(p["status"] == "done" for p in tl["projects"]) else 1.0)
+        for m in members if self.pledges else []:
+            if m["member"] in self.offered or t < 2 * DAY:
                 continue
             self.offered.add(m["member"])
             amt = 40_000 + 100 * int(m["customers"])
-            out.append(A("commit.offer", to=m["member"], terms={
+            out.append(A("commit.offer", None, to=m["member"], terms={
                 "title": "contribution to the backbone expansion", "payer": "$you",
                 "milestones": [{"amount_cents": amt, "due_in_s": 30 * DAY, "deliverable": {
                     "kind": "predicate", "predicate": {"metric": "orgeco_capacity", "args": {"org": "o:commons"},
-                                                       "op": ">=", "value": cap_target}}}]},
+                                                       "op": ">=", "value": target}}}]},
                 message="pay towards the expansion only if the capacity is built"))
-        # accept the members' counters
-        inbox = self.q("commit.inbox", status="open")
+        inbox = got.get("inbox")
         for o in inbox if isinstance(inbox, list) else []:
             if o["direction"] == "received" and o["status"] == "open" and o["offer"] not in self.accepted:
                 self.accepted.add(o["offer"])
-                out.append(A("commit.respond", offer=o["offer"], action="accept"))
+                out.append(A("commit.respond", None, offer=o["offer"], action="accept"))
         return out
 
+    def handle(self, tag, res, action):
+        if tag == "join" and res is not None:
+            self.joined = True
 
-def reference(world, principal, objective):
-    return Reference(world, principal)
+
+class SoloFunder(CouncilConvener):
+    """Degenerate-strategy probe: the convener pays its own budget into the fund and proposes an expansion, but
+    asks nothing of the members (no levy, no quotas, no commitments)."""
+    pledges = False
 
 
-def participant(world) -> str:
-    return "p:convener"
+def structure(world) -> dict:
+    """Measured on the built world: the goals present among the providers and whether a mission organisation is
+    among them."""
+    goals = sorted({m["goal"] for _, m in world.state.scan("org_members") if not m["convener"]})
+    return {"member_goals": goals, "mission_member": "mission" in goals}
 
+
+Reference = CouncilConvener
 
 DOMAIN = register(Domain(
     name="organization", title="Organizational ecosystem", spec_part="9.12", required_mechanics=MECHANICS,
-    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=reference, mechanics=mechanics,
-    participant_principal=participant, doc=__doc__.split("\n\n")[0]))
+    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=CouncilConvener,
+    mechanics=tuple(Mechanic(m, (), f"measured by organization.mechanics_report: {m}",
+                             count=K.measured(mechanics_report, m)) for m in MECHANICS),
+    seats=(Seat("convener", DEFAULTS["convener_cash"], "Convener"),),
+    actors=(Actor("customers", ("cols.batch:orgs.online",), "population individuals using a provider"),
+            Actor("providers", ("cols.batch:orgs.marketing", "orgs.member_update"),
+                  "provider organisations pricing and marketing from their goals")),
+    degenerate=(Probe("solo_funder", "pays its own budget and asks nothing of the members", SoloFunder),),
+    structure=structure, mode="B", horizon_days=40.0, slowest_effect_days=8.0, dt=6 * HOUR,
+    reference_seeds=(0, 1), sources=("organization.py", "_dom3.py"),
+    doc=__doc__.split("\n\n")[0]))
