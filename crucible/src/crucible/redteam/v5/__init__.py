@@ -18,7 +18,7 @@ from .base import GATES, V5Probe  # noqa: F401
 from .worlds import v5_spec, v5_world_factory  # noqa: F401
 
 MODULES = ("substrate", "sandbox", "network", "isolation", "crossworld", "private", "population", "social", "commerce",
-           "innovation", "experience", "rapid")
+           "innovation", "experience", "rapid", "civ")
 
 
 def probes(include_slow: bool = True, include_sandbox: bool = True, only: Iterable[str] = ()) -> list:

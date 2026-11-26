@@ -16,6 +16,9 @@ Kinds (each is an ordinary `WorldSpec` with the deterministic cost model, so rep
                    memberships, launches, Q&A) with code hosting and the cloud
 * ``audience``   - C2: the stand-in population `crowd`, exact audience accounting `aud` and the feeds `feed`
 * ``population`` - the B population (`pop`, `popweb`, generated sites) at a small size
+* ``tier2``      - a Tier 2 domain configuration (`crucible.domains.spec(domain, config, seed)`)
+* ``civ``        - a civilisation of `crucible.civ.generate(profile, seed, population="development")` (D-17: every
+                   Tier 2 and Tier 3 world is one); ``profile`` names it (default ``balanced``)
 
 Module configuration is overridable with ``configs={module: {...}}``; extra modules with ``extra=[...]``.
 """
@@ -44,11 +47,22 @@ def _have(names: Iterable[str]) -> list[str]:
 
 
 def v5_spec(kind: str, seed: int = 1, *, configs: dict | None = None, extra: Iterable[str] = (),
-            params: dict | None = None, workers: int = 0, media: bool = False, drop: Iterable[str] = ()):
+            params: dict | None = None, workers: int = 0, media: bool = False, drop: Iterable[str] = (),
+            profile: str | None = None, population: str = "development", domain: str | None = None,
+            config: str | None = None):
     """The `WorldSpec` of one probe-world kind (see the module docstring)."""
     from ...core.kernel import WorldSpec
     _have([])                                  # every registered kernel module (also for the innovation kind)
     from . import harness  # noqa: F401 - the red team's own harness module (rt_cohort) is registered up front
+    if kind == "civ":
+        # the real civilisation generator: a failure to generate is an error of the probe (never not-applicable)
+        from ... import civ
+        ov = {"params": dict(params)} if params else None
+        return civ.spec(profile or "balanced", int(seed), population, overrides=ov)
+    if kind == "tier2":
+        from ...domains import load_all, spec as domain_spec
+        load_all()
+        return domain_spec(str(domain), str(config), int(seed), {"params": dict(params)} if params else None)
     if kind == "population":
         from ...population.worlds import population_world
         pc = dict((configs or {}).get("pop", {}))
@@ -102,12 +116,15 @@ def v5_spec(kind: str, seed: int = 1, *, configs: dict | None = None, extra: Ite
 
 def v5_world_factory(v5: str | None = None, seed: int = 1, store=None, configs: dict | None = None,
                      extra: Iterable[str] = (), params: dict | None = None, workers: int = 0, media: bool = False,
-                     drop: Iterable[str] = (), strict: bool = False, **legacy):
+                     drop: Iterable[str] = (), strict: bool = False, profile: str | None = None,
+                     population: str = "development", domain: str | None = None, config: str | None = None,
+                     **legacy):
     """World factory for `run_probes`: 5.0 probe worlds for probes that ask for them, the 4.0 factory otherwise."""
     from ...core.kernel import World
     if v5 is None:
         return default_world_factory(seed=seed, store=store, params=params, strict=strict, drop=drop, **legacy)
-    spec = v5_spec(v5, seed, configs=configs, extra=extra, params=params, workers=workers, media=media, drop=drop)
+    spec = v5_spec(v5, seed, configs=configs, extra=extra, params=params, workers=workers, media=media, drop=drop,
+                   profile=profile, population=population, domain=domain, config=config)
     tmp = None
     if store == "sqlite":
         import tempfile
