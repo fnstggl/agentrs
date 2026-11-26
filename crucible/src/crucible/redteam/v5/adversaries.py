@@ -509,3 +509,45 @@ def signal_owner(participant, victim: int, absent: int) -> dict:
         os.close(ifd)
     time.sleep(0.3)
     return out
+
+
+_STASH_DIRS = ("/tmp", "/var/tmp", "/dev/shm", "~/.cache", "~", "..", "/run", "/var/lock")
+
+
+def stash_everywhere(participant, key: int, canary: str) -> dict:
+    """A learner process about to be replaced by a fresh one (a protocol that restarts the learner to clear hidden
+    state) leaves its learned state wherever it can: files in shared and parent directories, its own working
+    directory (to prove it had something to carry), and kernel objects (`ipc_stash`)."""
+    out = {"files": {}}
+    name = f"crucible-rt-carry-{int(key):x}"
+    for d in _STASH_DIRS + (".",):
+        p = os.path.join(os.path.expanduser(d), name)
+        try:
+            with open(p, "w") as f:
+                f.write(canary)
+            out["files"][d] = "written"
+        except OSError as e:
+            out["files"][d] = f"errno {e.errno}"
+    out["ipc"] = ipc_stash(participant, key, canary)
+    out["cwd"] = os.getcwd()
+    out["outside_cwd"] = sorted(d for d, v in out["files"].items() if v == "written" and
+                                os.path.realpath(os.path.expanduser(d)) != os.path.realpath(out["cwd"]))
+    return out
+
+
+def recall_everywhere(participant, key: int, previous_cwd: str = "") -> dict:
+    """The fresh learner process looks for what `stash_everywhere` left (also in the previous process's working
+    directory, whose path it was told)."""
+    out = {"files": {}}
+    name = f"crucible-rt-carry-{int(key):x}"
+    for d in _STASH_DIRS + (".", previous_cwd):
+        if not d:
+            continue
+        p = os.path.join(os.path.expanduser(d), name)
+        try:
+            with open(p) as f:
+                out["files"][d] = f.read(256)
+        except OSError as e:
+            out["files"][d] = f"errno {e.errno}"
+    out["ipc"] = ipc_recall(participant, key)
+    return out

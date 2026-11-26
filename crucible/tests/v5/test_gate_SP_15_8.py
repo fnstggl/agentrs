@@ -14,6 +14,8 @@ adversarial learners and checkpoints of `crucible.redteam.v5.adversaries` and th
                                                      evaluator handle, channel, environment, memory or sealed salt
     evaluator_internals_hosted                       the same learner in the jailed learner process
                                                      (`crucible.sandbox.learnerhost`)
+    hosted_state_outlives_the_process                a jailed learner process cannot leave state outside its
+                                                     checkpoint for a fresh learner process (files, kernel IPC)
     interaction_budget                               a learner granted k informative interactions cannot make more
     timing_channel                                   latency reveals neither the partition nor the outcome
     partition_awareness                              participants cannot tell validation / evaluation / sealed
