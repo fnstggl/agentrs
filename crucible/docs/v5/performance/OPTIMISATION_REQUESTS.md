@@ -106,6 +106,12 @@ the substrate's batch blobs 4-9%; sandboxed site fetches 5-7%; class-3 decisions
   asks for (`population/web.py` `_coords` is called per page; `space.text_vectors` per call): one forward pass of
   up to 16-32 texts on the GPU costs about the same as one text. The shared batching service
   (`crucible.substrate.inference_batch`, BATCHING.md) can group these calls across call sites of one tick.
+* `space/lm.py` `device()` calls `torch.cuda.is_available()` while `crucible.semantic.space` is imported
+  (`SPACE_VERSION` -> `_models` -> `identity` -> `device`): every process that imports the space initialises the
+  CUDA driver (a driver thread and open `/dev/nvidia*` files), CPU-only world workers included (measured
+  2026-11-26: 2 threads per pool worker instead of 1, which failed tests/test_scale.py; scale/pool.py now sets
+  `PYTORCH_NVML_BASED_CUDA_CHECK=1` in its workers). Proposed: read `CUDA_VISIBLE_DEVICES` first and use the
+  NVML-based check, or decide the device when the LM is first used.
 * `space/__init__.py` `_record_entries`: each representation is stored three times (space_items row, the
   `space.recorded` event with base64 vectors and chunks, the inference record; INT limitation 3): about 5 KB per
   copy and the largest event payloads of the world (see storage, R6).
@@ -170,7 +176,10 @@ the substrate's batch blobs 4-9%; sandboxed site fetches 5-7%; class-3 decisions
   the day for 24 decisions), mostly observation building and carrying the decision out through tools. Proposed: round `next` to a common decision grid per group
   (e.g. `decide_every_s` boundaries) so all due members of a group decide in one forward pass (SP-13.1).
 * Class 4 is still unbound in the integrated tree (no `register_class_runtime(world, 4, ...)` caller on
-  55433e7; D's `pop_semantic` runtime is in progress): V.1 and SP-13.1 fail until it acts.
+  55433e7; D binds it on c5c/w3b-sem in `semantic/generalists/module.py`): V.1 and SP-13.1 fail until it acts in
+  the merged tree. Its runtime already decides the tick's due participants together (one `generate`/`choose` per
+  capability and step), but `_next_times` draws each participant's gap independently, so with a few class-4 rows a
+  call rarely holds more than one participant: put class-4 activations on the population tick's decision grid.
 * `money_deposit`: one one-row `pop.deposit` batch (event + blob) per depositing individual (522 in 3 development
   days; the skeptic counted 4,424 per hour at 10M). Proposed: deposit the due individuals of a tick in one batch.
 * `population/web.py:786` `[j for j in range(n) if j not in set(own)]` rebuilds `set(own)` per element (quadratic;
