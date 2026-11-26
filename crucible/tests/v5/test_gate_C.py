@@ -64,10 +64,28 @@ def _ffprobe(data: bytes) -> dict:
     return json.loads(out.stdout)
 
 
+def artifacts_get(w, ref):
+    from crucible.substrate import artifacts
+    return artifacts.get(w, ref)
+
+
+def _integrated_world(seed: int, n: int):
+    """The integrated social internet of the one population (crucible.social.worlds.social_world): every platform
+    distributed by `aud` with the default (shared semantic space) encoder, feeds, the population's own creation."""
+    from crucible.core.kernel import World
+    from crucible.social.worlds import social_world as integrated
+    w = World.create(integrated("development", seed, n=n, creators={"prior": 0.4}), strict=True)
+    P = {h: w.system_call("admin.join", {"handle": h, "endowment": 100_000, "password": f"pw-{h}"})["principal"]
+         for h in ("alice", "bob")}
+    return w, P
+
+
 def test_C_1_media_artifacts_published():
+    """Measured in the integrated, distributed configuration with the default encoder (audit C skeptic S9): every
+    published item must also be distributed (indexed by the audience module from its bytes, not a caption)."""
     import base64
     from PIL import Image
-    w, P = social_world(seed=11)
+    w, P = _integrated_world(11, 600)
     A, B = Actor(w, P["alice"]), Actor(w, P["bob"])
     text = A.ok("studio.write", format="markdown", title="Notes on tides", body="# Tides\nThe tide turns twice a day.")
     page = A.ok("studio.write", format="html", title="Harbour guide", body="Moorings are on the **east** quay.")
@@ -120,13 +138,49 @@ def test_C_1_media_artifacts_published():
                 details[f"{cid}_codec"] = vs[0]["codec_name"]
             verified[kind] += 1
     assert w.state.tables["content"][items["video"][1]]["kind"] == "video_long"
+    # distributed from the bytes by the default encoder (no refusal, no caption fallback)
+    distributed = Counter()
+    for kind, cids in items.items():
+        for cid in cids:
+            it = w.state.tables["content"][cid].get("aud_item")
+            assert it is not None, (kind, cid, "not distributed")
+            distributed[kind] += 1
+    reps = Counter(e.payload.get("rep") for e in w.log if e.type == "aud.item")
+    # what the population itself made in a day of autonomous activity (popmedia: image cards, narrated audio and
+    # narrated slide videos, recorded rendering), decoded independently like the agents' items
+    w.advance_time(w.now + DAY)
+    pop_made = Counter()
+    pop_dist = Counter()
+    for cid, c in w.state.tables["content"].items():
+        if not (c["creator"].startswith("p") and c["creator"][1:].isdigit()):
+            continue
+        fmt = {"image": "image", "audio": "audio", "video": "video", "text": "text"}.get(c["format"])
+        if fmt is None:
+            continue
+        data = artifacts_get(w, c["ref"])
+        if fmt == "image":
+            Image.open(io.BytesIO(data)).load()
+        elif fmt == "video":
+            assert [x for x in _ffprobe(data)["streams"] if x["codec_type"] == "video"]
+        elif fmt == "audio" and c["mime"] == "audio/ogg":
+            assert data[:4] == b"OggS"
+        pop_made[fmt] += 1
+        pop_dist[fmt] += int(c.get("aud_item") is not None)
     assert w.check_invariants() == []
-    metrics = {f"published_{k}": int(verified[k]) for k in ("text", "image", "audio", "video")}
-    metrics.update({"catalogue_items": len(w.state.tables["content"]), **details})
+    metrics = {f"published_{k}": int(min(verified[k], distributed[k])) for k in ("text", "image", "audio", "video")}
+    metrics.update({"catalogue_items": len(w.state.tables["content"]), **details,
+                    "representations_from_bytes": int(reps.get("bytes", 0)),
+                    "representations_from_caption": int(reps.get("caption", 0)),
+                    **{f"population_published_{k}": int(v) for k, v in pop_made.items()},
+                    **{f"population_distributed_{k}": int(v) for k, v in pop_dist.items()}})
     evidence.record("C.1", metrics, command=CMD, notes=(
-        "Artifacts made with studio.write/image/edit_image/audio/video (Pillow, numpy+SoX, FFmpeg), published on "
-        "posts/blog/pics/pods/shorts/tube, opened by another participant through content.open and decoded "
-        "independently (UTF-8, Pillow, wave, ffprobe)."))
+        "Integrated social internet of the one population (600 members, every platform distributed by aud with the "
+        "default shared-space encoder). Artifacts made with studio.write/image/edit_image/audio/video (Pillow, "
+        "numpy+SoX, FFmpeg, jailed), published on posts/blog/pics/pods/shorts/tube, distributed from their bytes, "
+        "opened by another participant through content.open and decoded independently (UTF-8, Pillow, wave, "
+        "ffprobe); a published_* count is an item both verified and distributed. Then one day of the population's "
+        "own creation: population_published_* counts its image cards, narrated audio and slide videos."))
+    assert reps.get("caption", 0) == 0
 
 
 # ============================================================================================ reference run

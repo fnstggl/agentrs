@@ -91,10 +91,12 @@ def medium_of(platform: str, kind: str) -> int | None:
 
 
 def available(world) -> np.ndarray:
-    """Media whose platform is served in this world."""
+    """Media whose platform is served in this world and distributed to the population (an audience platform)."""
     hosts = {e.host for e in world.endpoints.values()}
+    aud = world.modules.get("aud")
+    dist = set(getattr(aud, "platforms", ()))
     from .platforms import PLATFORMS
-    return np.array([PLATFORMS[p]["host"] in hosts for p, _, _, _ in MEDIA.values()], bool)
+    return np.array([PLATFORMS[p]["host"] in hosts and p in dist for p, _, _, _ in MEDIA.values()], bool)
 
 
 def views_by_medium(world, i: int) -> np.ndarray:

@@ -306,8 +306,27 @@ def test_D4_hidden_parameters_are_not_reachable(base):
         leaks += 1
         detail.append("creator read another creator's analytics")
     probe("creator mine", w.execute(creator, {"tool": "aud.mine", "args": {}}).to_dict())
+    # the platform's own representation of content (the item vectors and term weights its recommenders and the
+    # audience read) is evaluator-side too: no observation, event or tool result may carry it, or a learner could
+    # optimise content against the encoder instead of for people (audit C skeptic S4)
+    rep_leaks = []
+    for actor in (viewer, creator):
+        evs, _ = w.visible_events(actor, 0, limit=10 ** 7)
+        for e in evs:
+            p = e.payload if isinstance(e.payload, dict) else {}
+            if any(k in p for k in ("emb", "terms", "vec", "vectors", "chunks")) or \
+                    (e.type == "space.recorded"):
+                rep_leaks.append(f"{actor} sees {e.type} with the item representation")
+                break
+        r = w.execute(actor, {"tool": "aud.item", "args": {"item": my_item}})
+        probes += 1
+        if r.ok and any(k in (r.result or {}) for k in ("emb", "terms", "legib", "rep")):
+            rep_leaks.append(f"{actor} aud.item returns the representation")
+        probes += 1
+    leaks += len(rep_leaks)
+    detail += rep_leaks
     metrics = {"hidden_parameter_probes": probes, "hidden_parameter_leaks": leaks,
-               "markers_searched": len(markers), "probe_actors": 2}
+               "markers_searched": len(markers), "probe_actors": 2, "representation_leaks": len(rep_leaks)}
     evidence.record("D.4", metrics, command=CMD,
                     notes="Probes by a participant and a creator through every feed/aud tool, tool discovery, "
                           "observation, every visible event, the artifact tools on model and decision blobs, and "

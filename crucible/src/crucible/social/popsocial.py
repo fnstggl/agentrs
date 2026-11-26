@@ -40,18 +40,18 @@ import numpy as np
 
 from ..core.errors import CrucibleError, ProtocolError
 from ..core.kernel import Ctx, Module, register_module
-from ..substrate import artifacts, attention, columns, ids
+from ..substrate import artifacts, columns, ids
 from .. import population
 from ..population import semantics, writing
 from . import audience as AUD
 from . import content as C
 
-CREATE_MODEL = {"model_id": "pop-create", "model_version": "1", "fidelity_id": "population-creator-model"}
+from .popcreate import CREATE_MODEL  # noqa: E402,F401  (pop-create@2: the creation of every medium)
 COMMUNITY_MODEL = {"model_id": "pop-community", "model_version": "1", "fidelity_id": "population-community-model"}
 SHOP_MODEL = {"model_id": "pop-shop", "model_version": "1", "fidelity_id": "population-product-discovery-model"}
 DEFAULTS = {"prior": -1.2, "platforms": {"short": "posts", "long": "blog"}, "minutes": [10.0, 45.0],
             "topic_noise": 0.08, "community_prior": -0.2, "explore": 0.15, "found_threshold": 0.32,
-            "found_prob": 0.04, "leave_value": -0.04, "creator_share": 1.0, "inbox_prior": -0.6,
+            "found_prob": 0.10, "leave_value": -0.04, "creator_share": 1.0, "inbox_prior": -0.6,
             "newsletter_followers": 5, "tier_followers": 15}
 _STOP = frozenset("""the a an and or of to in on for with at by from is are was were be been it its this that as
 after over about into new how why what who says said will would could more most than his her their they you your
@@ -98,78 +98,8 @@ class PopSocial(Module):
             population.register_activity(world, "social.community", self.act_community, owner="pop_social",
                                          prior=float(self.cfg["community_prior"]), goals=(3, 1))
 
-    # ------------------------------------------------------------------ the activity
-    def _views_seen(self, world, i: int) -> int:
-        """Views of the individual's items as the platforms publish them to their creator (delayed, noisy)."""
-        p = ids.pid(i)
-        tot = 0
-        for r in world.state.find_ids("aud_item_info", "creator", p):
-            tot += int(AUD.audience(world, int(r), principal=p)["views"])
-        return tot
-
-    def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
-        w = ctx.world
-        idx = np.asarray(idx, np.int64)
-        n = idx.size
-        rng = ctx.rng("pop_social.create")
-        coords = population.interest_coords(w, idx)
-        T = len(semantics.topic_names())
-        tc = semantics.topic_coords(coords.shape[1])
-        noise = float(self.cfg["topic_noise"])
-        topic = np.argmax(coords @ tc.T + rng.gumbel(size=(n, T)) * noise, axis=1)
-        skill = columns.col(w, "pop", "skills")[idx, 1].astype(np.float64)
-        left = columns.col(w, "pop", "attention_left_min")[idx].astype(np.float64)
-        lo, hi = (float(x) for x in self.cfg["minutes"])
-        minutes = np.minimum(left, lo + (hi - lo) * rng.random(n) * (0.5 + skill))
-        long_piece = rng.random(n) < 0.15 + 0.6 * skill
-        n_sent = np.where(long_piece, 4 + rng.integers(0, 8, n) * (0.5 + skill), 1 + rng.integers(0, 3, n))
-        made = np.zeros(n, bool)
-        u = np.zeros(n)
-        seen_new = columns.col(w, "pop", "soc_seen_views")[idx].astype(np.int64).copy()
-        last_item = columns.col(w, "pop", "soc_last_item")[idx].astype(np.int64).copy()
-        nitems = columns.col(w, "pop", "soc_items")[idx].astype(np.int64).copy()
-        # only some people ever write for an audience (creator_share: the most skilled writers)
-        share = float(self.cfg["creator_share"])
-        if share < 1.0:
-            from scipy.stats import beta as _beta          # skills are Beta(2.5, 2.5) (population genesis)
-            writer = skill >= min(0.975, float(_beta.ppf(1.0 - share, 2.5, 2.5)))
-        else:
-            writer = np.ones(n, bool)
-        for j in range(n):
-            i = int(idx[j])
-            if minutes[j] < lo * 0.5 or not writer[j]:
-                u[j] = -0.3 if not writer[j] else -0.05
-                continue
-            # what the creator learns from the platforms about its earlier pieces
-            views = self._views_seen(w, i) if nitems[j] else 0
-            gained = max(0, views - int(seen_new[j]))
-            seen_new[j] = views
-            title, body = writing.compose(rng, int(topic[j]), int(n_sent[j]), float(skill[j]))
-            plat = self.cfg["platforms"]["long" if long_piece[j] else "short"]
-            kind = "article" if plat == "blog" else "post"
-            p = ids.ensure_principal(ctx, i)
-            data = f"{title}\n\n{body}\n".encode("utf-8")
-            try:
-                ref = artifacts.put(ctx, data, "text/plain", owner=p, meta={"title": title[:80]}, kind="text")
-                cid = C.module(w).publish(ctx, p, ref, kind, plat, title)
-            except CrucibleError:
-                u[j] = -0.1
-                continue
-            rec = ctx.state.tables["content"][cid]
-            if rec.get("aud_item") is not None:
-                last_item[j] = int(rec["aud_item"])
-            made[j] = True
-            nitems[j] += 1
-            # the creator's experienced value: the audience its earlier pieces found, against the effort
-            u[j] = 0.5 * math.log1p(gained) / math.log(30.0) - 0.004 * minutes[j]
-        spend = np.flatnonzero(made & (minutes > 0))
-        if spend.size:
-            attention.spend(ctx, idx[spend], minutes[spend], activity="social.create")
-        population.record_decisions(ctx, "pop_social.created", idx, {
-            "soc_items": nitems.astype(np.int32), "soc_seen_views": seen_new, "soc_last_item": last_item.astype(np.int32)},
-            **CREATE_MODEL, extra={"t": int(now), "created": int(made.sum()),
-                                   "topics": [int(t) for t in topic[made]]})
-        return u
+    # the activities: act_create (crucible.social.popcreate), act_inbox and followup (crucible.social.popinbox),
+    # act_community and after_launch (below)
 
 
 # ================================================================================================ communities

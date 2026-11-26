@@ -73,6 +73,9 @@ def declare(world, platform: str, max_items: int) -> None:
     """Column tables of the platform's history counters (owned by `feed`; never on the population table)."""
     n = columns.rows(world, "pop")
     T = n_topics(world)
+    # the open decision's columns on the population table, named as the in-world contract requires (RUNTIME.md):
+    # the individual's latest decision on a calibrated platform (every row is in the decision batch's blob)
+    columns.declare(world, "pop", n, {"opened": ("bool", (), False), "own_topic": ("bool", (), False)})
     columns.declare(world, viewers_table(platform), n, {
         "imp": ("int32", (), 0), "opens": ("int32", (), 0), "views": ("int32", (), 0),
         "ds_imp": ("int32", (), 0), "ds_opens": ("int32", (), 0), "vring": ("int32", (RING,), 0),
@@ -228,13 +231,19 @@ def insert_random(world, platform: str, feed: np.ndarray, src: np.ndarray, gen: 
                   rng, rate: float, max_age_days: float) -> None:
     """In place: with probability `rate` per feed, one slot after the share inbox holds an item drawn uniformly at
     random from the platform's live items of the last `max_age_days` days (impression source 'random')."""
-    V, k = feed.shape
-    if V == 0 or k == 0 or rate <= 0:
-        return
     cand = AUD.items_on(world, platform)
     if cand.size:
         pub = columns.col(world, AUD.ITEMS, "published_at")[cand]
         cand = cand[pub >= world.now - max_age_days * DAY]
+    insert_into(feed, src, gen, n_in, cand, rng, rate)
+
+
+def insert_into(feed: np.ndarray, src: np.ndarray, gen: np.ndarray, n_in: np.ndarray, cand: np.ndarray, rng,
+                rate: float) -> None:
+    """The insertion itself (pure): three uniform draws per feed (insert?, slot, item) whatever the outcome."""
+    V, k = feed.shape
+    if V == 0 or k == 0 or rate <= 0:
+        return
     draw = rng.random(V)
     pos = rng.random(V)
     pick = rng.random(V)
