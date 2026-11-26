@@ -112,6 +112,8 @@ def test_V_4_batched_inference():
          "strategic_mlp_speedup": float(bm["strategic"]["mlp"]["speedup"]),
          "strategic_gru_speedup": float(bm["strategic"]["gru"]["speedup"]),
          "encoder_batch_speedup": float(bm["encoder"]["speedup"])}
+    for case, v in (bm.get("service") or {}).get("cases", {}).items():     # the shared batching service, per class
+        m[f"service_{case}_speedup"] = float(v["speedup_wall"])
     best256 = [r for r in bm["adaptive"]["rows"] if r["B"] == 256 and r.get("backend") == "torch_cpu"]
     m["class2_batched_decisions_per_cpu_s"] = float(best256[0]["decisions_per_cpu_s"] or 0) if best256 else 0.0
     evidence.record("V.4", m, command=CMD.replace("<n>", "4"), notes=f"speedups {sp}; choice {bm['choice']}")

@@ -88,8 +88,9 @@ def backend_matrix() -> dict:
         code = ("import json, sys\nfrom crucible.scale import backends\n"
                 "b = backends.bench_adaptive(batches=(1, 8, 32, 64, 256, 1024), reps=5)\n"
                 "json.dump({'adaptive': b, 'choice': backends.choose(b), 'strategic': backends.bench_strategic(),"
-                " 'encoder': backends.bench_encoder()}, open(sys.argv[1], 'w'), default=str)\n")
-        r, rec = _governed_json([sys.executable, "-c", code, out], out, "M: backend matrix", "standard", gpu_mb=1500)
+                " 'encoder': backends.bench_encoder(), 'service': backends.bench_service()}, open(sys.argv[1], 'w'),"
+                " default=str)\n")
+        r, rec = _governed_json([sys.executable, "-c", code, out], out, "M: backend matrix", "standard", gpu_mb=3500)
         return {"ok": r is not None, "result": r, "usage": rec}
     return _cached("backends", compute)
 

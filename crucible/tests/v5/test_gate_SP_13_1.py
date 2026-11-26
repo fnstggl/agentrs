@@ -28,5 +28,9 @@ def test_SP_13_1_decisions_batched_in_every_learning_class():
     for c, v in tot.items():
         m[f"{c}_calls"] = v["calls"]
         m[f"{c}_decisions"] = v["decisions"]
-    evidence.record("SP-13.1", m, command=CMD)
+    svc = (K.backend_matrix().get("result") or {}).get("service") or {}
+    for case, v in svc.get("cases", {}).items():      # the shared service grouping several call sites of one model
+        m[f"service_{case}_calls_separate"] = int(v["calls_separate"])
+        m[f"service_{case}_speedup"] = float(v["speedup_wall"])
+    evidence.record("SP-13.1", m, command=CMD, notes=f"service benchmark {svc}")
     assert m["participant_classes_batched"] >= 3, tot
