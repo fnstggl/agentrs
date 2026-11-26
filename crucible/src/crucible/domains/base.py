@@ -680,15 +680,16 @@ def make_env(domain: str, config: str, seed: int = 0, *, reward_mode: str | None
 
 
 def run(domain: str, config: str, seed: int = 0, *, policy: str = "reference", days: float | None = None,
-        difficulty: int | None = None, keep_env: bool = False) -> dict:
+        difficulty: int | None = None, keep_env: bool = False, overrides: dict | None = None) -> dict:
     """One evaluated run through the learner interface: the first seat is driven by the domain's reference
     (`policy="reference"`), its null baseline (``"null"``), a degenerate probe (its name) or a generic probe
     (``"random_tools"``); other seats idle. Returns the evaluator's outcome (evaluator side), the actions, the
-    measured mechanics and autonomous activity after genesis, and the run's labels."""
+    measured mechanics and autonomous activity after genesis, and the run's labels. `overrides` (as for `spec`)
+    build an intervention arm, e.g. ``{"module_config": {"sci": {"replicators": {"n": 0}}}}``."""
     d = REGISTRY[domain]
     days = float(d.horizon_days if days is None else days)
     difficulty = int(d.reference_difficulty if difficulty is None else difficulty)
-    env = make_env(domain, config, seed, difficulty=difficulty)
+    env = make_env(domain, config, seed, difficulty=difficulty, overrides=overrides)
     w = env.world
     since = int(w.seq)
     seats = env.agents()
@@ -714,6 +715,7 @@ def run(domain: str, config: str, seed: int = 0, *, policy: str = "reference", d
            "proc_failed": count_events(w, ("proc.failed",), since),
            "mechanics": mechanics_exercised(w, d, since), "actors": actors_active(w, d, since),
            "population": population_decisions(w, since), "reward_mode": env.reward_mode,
+           "overrides": copy.deepcopy(overrides) if overrides else None,
            "labels": {"scripted": policy == "reference", "policy_kind": getattr(pol, "kind", "unknown")}}
     if keep_env:
         out["env"] = env
@@ -1422,6 +1424,40 @@ def check(d: Domain | str, *, structure_seeds: Iterable[int] = (0, 1, 2), seeds:
     rep["tier3"] = tier3_report(d, tier3_profile) if tier3 else None
     rep["wall_s"] = round(time.perf_counter() - t0, 2)
     return rep
+
+
+# ============================================================================================ per-section (SP-9.<n>)
+def section_metrics(domain: str | Domain, *, configs: Iterable[str] | None = None, seeds: Iterable[int] | None = None,
+                    days: float | None = None) -> tuple[dict, list[dict]]:
+    """The five metrics every SP-9.<n> requirement shares, measured on integrated reference runs through
+    `crucible.experience.make(2, ...)`: required_mechanics_listed / _exercised / _missing (recorded events summed
+    over the runs), observation_only_default (default mode, evaluator hidden, reward 0.0) and
+    reachable_through_experience (the seats are the learner's agents and have tools). Returns (metrics, runs);
+    per-mechanic event counts are included as ``events_<mechanic>``."""
+    d = REGISTRY[domain] if isinstance(domain, str) else domain
+    cfgs = list(configs or d.reference_configs or [c.name for c in d.split("train")[:1]])
+    seeds = [int(s) for s in (seeds if seeds is not None else d.reference_seeds)]
+    runs = [cached_run(d.name, c, s, "reference", days) for c in cfgs for s in seeds]
+    counts = {m: sum(int(r["mechanics"]["counts"].get(m, 0)) for r in runs) for m in d.required_mechanics}
+    from ..core import evaluator_only as EO
+    from ..experience.modes import OBSERVATION_ONLY
+    env = make_env(d.name, cfgs[0], seeds[0], difficulty=d.reference_difficulty)
+    agents = env.agents()
+    reach = bool(agents) and (not d.seats or agents == d.seat_principals()) and bool(env.tools(agents[0]))
+    env.advance(HOUR)
+    oo = env.reward_mode == OBSERVATION_ONLY and bool(EO.hidden(env.world)) and env.reward(agents[0]) == 0.0
+    env.close()
+    m = {"required_mechanics_listed": len(d.required_mechanics),
+         "required_mechanics_exercised": sum(1 for n in counts.values() if n > 0),
+         "required_mechanics_missing": sum(1 for n in counts.values() if n == 0),
+         "observation_only_default": bool(oo), "reachable_through_experience": bool(reach),
+         "spec_list_matches": d.spec_part in PART9 and tuple(d.required_mechanics) ==
+         tuple(PART9[d.spec_part]["mechanics"]), "reference_runs": len(runs),
+         "reference_successes": sum(1 for r in runs if r["success"]),
+         "process_failures": sum(r["proc_failed"] for r in runs)}
+    for name, n in counts.items():
+        m["events_" + re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")] = int(n)
+    return m, runs
 
 
 # ============================================================================================ gate aggregation

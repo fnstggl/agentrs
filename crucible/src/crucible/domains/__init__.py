@@ -12,6 +12,7 @@ Public names (stable since 'domains-framework: ready'):
     civ_recipe, recipe, spec, world, tier3_spec, ordered_spec    building worlds
     ScriptedReference, act_, Idle, RandomTools, drive, make_env, run
     check, structure_report, fingerprint, mechanics_exercised    measurements (Gate N, SP-9.0, SP-9.16)
+    section_metrics                                              the shared metrics of a per-section SP-9.<n> test
 """
 from __future__ import annotations
 
@@ -20,8 +21,8 @@ import pkgutil
 
 from .base import (API_VERSION, PART9, REGISTRY, Actor, Domain, DomainConfig, Idle, Mechanic, Probe,  # noqa: F401
                    RandomTools, ScriptedReference, Seat, act_, check, civ_recipe, drive, fingerprint, make_env,
-                   mechanics_exercised, ordered_spec, part9_domains, recipe, register, run, spec, structure_report,
-                   summary, tier3_spec, unregister, validate, world)
+                   mechanics_exercised, ordered_spec, part9_domains, recipe, register, run, section_metrics, spec,
+                   structure_report, summary, tier3_spec, unregister, validate, world)
 
 # framework and kernel-module files that define no domain (load_all imports the others)
 _FRAMEWORK = {"base", "modes", "modules", "seats", "common", "lawlang", "concepts"}

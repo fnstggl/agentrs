@@ -171,6 +171,16 @@ def test_reference_succeeds_null_and_degenerate_strategies_fail(fixture_domain):
     assert again["events"] == ref["events"] and again["outcome"] == ref["outcome"]
 
 
+@pytest.mark.slow
+@pytest.mark.timeout(1200)
+def test_section_metrics_are_measured_on_reference_runs(fixture_domain):
+    m, runs = base.section_metrics(F.NAME, seeds=(0,))
+    assert m["required_mechanics_listed"] == 5 and m["required_mechanics_exercised"] == 5
+    assert m["required_mechanics_missing"] == 0 and m["observation_only_default"] is True
+    assert m["reachable_through_experience"] is True and m["events_household_demand"] > 0
+    assert len(runs) == 1 and runs[0]["success"] is True
+
+
 # ---------------------------------------------------------------------------------------------- scanners
 def test_reference_isolation_scanner_detects_world_reads(fixture_domain):
     assert base.reads_world(F.RetailReference("p:trader", {})) == []
