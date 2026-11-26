@@ -189,3 +189,34 @@ evaluator's organic metrics; raw in-world counters stay raw.
 and owner; `MUST_HOLD`; `FIXED`, the audit findings closed with the probe that now holds) and `gate_metrics`, which
 `tests/v5/test_gate_W.py` turns into Gate W evidence. The static reachability probe follows Python's import
 semantics (parent packages, literal dynamic imports, lazy package exports) from every registered module.
+
+### Wave 3 on the integrated tree (workstream O)
+
+Re-running every audit probe and new ones on the merged modules found and closed:
+
+* **Load-time work was free.** A program's module-level code ran in the worker's `load` step with 250 ms of CPU
+  unbilled per cold start (`code.run` starts a fresh worker each call). The parent now scans the program's files for
+  imports of trusted modules (a curated stdlib list and the approved packages) and the boot module imports those
+  before the first job with the working directory off the path; the program's own load-time work beyond 3 ms is
+  billed (`metering.LOAD_FREE_NS`). Probe `v5.sandbox.meter_forgery.work_at_import_time`.
+* **A dead worker was reaped before its CPU was read.** A program that delivered its answer through a world call and
+  then SIGKILLed itself was billed 0 ms; a pooled service that forged completion, kept working and exited before the
+  next request was never billed. Liveness checks no longer reap (`waitid(WNOWAIT)`), the CPU clock of the terminated
+  process is read first, and the pool bills such work to the next job of the key without failing it. Probes
+  `v5.sandbox.work_delivered_through_a_world_call_then_exit`, `v5.sandbox.forged_completion_then_exit`.
+* **Hostile protocol bytes raised in the parent** (deeply nested JSON, integers over 4,300 digits) and NaN results
+  were accepted. The parent parses with `parse_constant` refusing NaN/Infinity and treats any parse failure as a
+  protocol violation; the boot module encodes results with `allow_nan=False`.
+* **Adoption credited every locked package of a nondeterministic program** (clock, pid, working directory). Ablation
+  now includes an unablated control rerun at a position drawn from the world's RNG; an outcome that does not
+  reproduce credits nothing (`pkg._exercised`, `pkg_execs.reproducible`).
+* **The hosted learner's participant pipe unpickled what the learner sent**: an object whose `__reduce__` ran in the
+  world process found the Tier 1 grader's hidden rule and holdout and wrote them out. The participant pipe of
+  `experience.remote` carries bounded JSON frames only. Keep the evaluator handle out of the learner's process.
+
+Open (KNOWN_OPEN, owners named): the social studio (`social/render.run_tool`) still starts FFmpeg/SoX on participant
+bytes unjailed (`crucible.sandbox.isolation.run` is the jailed drop-in), and Pillow decodes participant images in the
+world process (`isolation.decode_image` decodes in the jail with identical pixels); the in-process `ExperienceEnv`
+remains readable by an in-process learner (evaluation must use `experience.remote.host`). Probes of generated
+civilisations and of every registered Tier 2 domain configuration (`crucible.redteam.v5.civ`) error until
+`civ.generate` works on the integration branch.
