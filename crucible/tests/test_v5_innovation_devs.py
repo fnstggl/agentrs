@@ -108,3 +108,27 @@ def test_garbage_programs_are_tried_and_dropped_replay_is_exact():
         assert w.check_invariants() == []
     finally:
         w.close()
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(900)
+def test_a_developer_switches_a_weak_two_stage_service_to_a_workflow_of_independent_services():
+    """A developer whose own program for the composed task converts poorly finds, through the registry's public
+    counts, services of two other providers that people keep for the two stages and rebuilds its service as a
+    workflow on the same host and declaration; the registry verifies it from the service's own calls."""
+    from crucible.innovation import civexp as CX
+    r = CX.run_arm("creation", "factual", 5, days=24, n=300)
+    w = r["world"]
+    try:
+        st = w.state
+        wfs = [x for _, x in st.scan("cap_workflows")]
+        assert wfs and all(x["status"] == "verified" for x in wfs)
+        for x in wfs:
+            proj = next(p for _, p in st.scan("dev_projects") if p["host"] == x["host"])
+            assert proj["approach"] == -1 and proj["composes"] == [c["declaration"] for c in x["components"]]
+            assert proj["decl"] == x["declaration"] and x["t"] > proj["t"]          # built first, switched later
+            assert all(M.independent(w, x["composer"], c["provider"]) for c in x["components"])
+            assert len({c["provider"] for c in x["components"]}) == 2
+        assert not w.check_invariants()
+    finally:
+        w.close()
