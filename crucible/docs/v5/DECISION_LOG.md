@@ -297,6 +297,11 @@ second population and no civ recipe change is needed:
 All their decisions are recorded with decision provenance (`work.jobs@1` FR-WORK-2, `work.assoc@1` FR-WORK-3,
 `work.value@1` FR-WORK-1) inside the population's sessions (organic under `population.check_provenance`). Rules out:
 scripted buyers, stand-in workers or genesis-created memberships.
+Addendum (wave-3b continuation): until CORE-POP makes the exogenous `employer` column a cache of employment
+contracts, the economy reads "has work" through one function, `economy.popbridge.employment` (own employer OR a
+labour-market contract, notice included): association members insure labour-market jobs too, so a dismissal by an
+incumbent reaches the association as a claim. A registered seeker who found an employer of its own stops looking.
+Incumbents leave a venue on their own refunded sales there, never on the venue's refunds of other sellers.
 
 ## D-40 SP-2.3 migrations of the institution and contract primitives (2026-11-26, workstream F, wave 3b)
 As docs/v5/workstreams/A.json integration_notes specify: `primitives.OWNERS["institution"]` is `inst.inst_charters`
