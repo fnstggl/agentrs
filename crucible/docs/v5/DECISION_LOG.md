@@ -266,6 +266,46 @@ Numbering note (integration merge): workstreams P and M both wrote D-26 in paral
 D-27 on merge. targets.json still says "adopted_by": "DECISION_LOG D-26" because editing it would change the
 SHA-256 that this entry adopts; that field refers to this entry.
 
+## D-48 The Tier 2 domain contract `domains-framework/2` (2026-11-26, workstream I, wave 3b)
+Resolves the contract split of audit I_domains section 2 (DEF-I-3) on the D-17 side: `crucible.domains.base.Domain`
+is the only domain contract and `crucible.experience` consumes it unchanged. A configuration's world is
+`build(config, seed, overrides) -> recipe`, normally `base.civ_recipe(...)` - `crucible.civ.recipe` restricted to the
+configuration's subsystems, population modules and extra modules with their declared dependencies (mode C
+composition); a standalone semantic world is allowed where the spec allows mode B (`Domain.mode = "B"`). Learners
+occupy the domain's `Seat`s (module `seat`, created at genesis; every seat by default, so multi-learner worlds work).
+The objective is public; the evaluator is evaluator-side and must be a function of recorded state (it is re-run on a
+world replayed from the event log). The reference is a scripted policy of the learner protocol (`act(obs, tools)`,
+`observe(...)`) that receives observations and its own results only, never the World (the audit's skeptic S.1: an
+omniscient reference does not show feasibility for an observation-limited learner); it is driven through
+`crucible.experience.make(2, ...)` like a learner and labelled scripted. Mechanics and autonomous participants are
+recorded-event probes (`Mechanic`, `Actor`) counted by the framework, never self-reports. Rules out: references that
+read world state, `mechanics(world) -> {name: True}` self-reports, worldgen `d5_*` families registered into the 4.0
+family table (the `d5_<domain>_<config>` names stay accepted by `experience.make`).
+
+## D-49 Configuration structure is measured on built worlds, with magnitudes reduced to presence (2026-11-26, workstream I)
+Audit I_domains section 2 item 2 and skeptic S.1: `validate()` accepted configurations that differ only in numbers.
+The structure of a configuration is `base.fingerprint(world)` of its built world (module set, participant types,
+civilisation couplings, supply-chain and freight graph shapes, regimes, and the domain's own measured structure),
+reduced by `base.discrete`: a magnitude becomes presence/absence, a numeric sequence its set of degree classes
+(0, 1, 2, 3+), a graph a scale-invariant shape. Consequences: 4 vs 6 regions on a ring is one structure; a
+configuration whose structure changes with the seed is not counted (seeds are instances, not configurations); a
+structurally unfamiliar evaluation configuration has a fingerprint atom no training configuration has; a
+compositionally unfamiliar one has no new atom and a combination no training configuration has. The declared
+`DomainConfig.structure` stays documentation (the research registry shows it) and is never used for counting.
+
+## D-50 How the Gate N, SP-9.0 and SP-9.16 metrics count (2026-11-26, workstream I)
+No manifest criterion changes; this fixes their measurement. A Part 9 section counts when one of its registered
+domains (fixtures excluded) satisfies the criterion; a section without a domain counts as failing (0 configurations,
+every mechanic missing), so the gate tests fail and never skip while fewer than fifteen sections are covered.
+`domains_implemented` (N.1) counts sections whose domain satisfies every other Gate N criterion plus clean runs (no
+failed process, no invariant violation) and observation-only defaults. Feasibility (N.5) is a tool-only reference
+that succeeds on a majority (and at least one) of its reference instances; `reference_paths_exposed` (N.n1) counts
+canary identifiers of the reference and its own ordered tool sequence in the objective, observation notes and tool
+schemas, tools named after it, and sandbox importability of `crucible`, and is asserted together with fifteen scanned
+sections (the skeptic's vacuity objection). SP-9.16 `arbitrary_failure_probability_mechanisms` counts Bernoulli
+draws about failure or success in a domain's sources without a `# fidelity: <id>` pragma naming a FIDELITY_REGISTER
+record. Every gate test carries positive controls on the fixture domain (a planted defect must be detected).
+
 ## D-69 Research instrument: confinement of the weights-only child, adversarial controls, and a positive-control design with the power to see known effects (2026-11-26, workstream N, wave 3b)
 The wave-3a development run of the controls (5 learner seeds, protocol seeds) labelled 2 of 5 kinds correctly and 1 of
 7 explanations. Diagnosis on establishment seeds only (no protocol seed was re-used to choose a design):

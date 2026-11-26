@@ -49,14 +49,14 @@ def evaluate(world, principal, obj):            # evaluator side: read authorita
     ...
     return {"success": ok, "score": s, "details": {...}}
 
-class Reference(ScriptedReference):             # tool-only: plan(obs) -> [act_(tool, tag, **args)], on_result(...)
+class ScienceReference(ScriptedReference):      # tool-only: plan(obs) -> [act_(tool, tag, **args)], on_result(...)
     def plan(self, obs): ...
     def on_result(self, tag, result, action): ...
 
 DOMAIN = base.register(Domain(
     name="science", title="Scientific research", spec_part="9.5", required_mechanics=(),   # () = the Part 9 list
     configs=(DomainConfig("lab_grid", "train", {...}, "..."), ...), build=build, objective=objective,
-    evaluate=evaluate, reference=Reference,
+    evaluate=evaluate, reference=ScienceReference,
     mechanics=(Mechanic("Experimental apparatus", ("sci.run", "sci.reading")), ...),
     seats=(Seat("researcher", 2_000_000),),
     actors=(Actor("rival labs", ("sci.paper",)), Actor("households", ("cols.batch:goods.session",))),
@@ -135,6 +135,11 @@ by calling read-only tools like any learner. Rules, checked by `check`:
 * not guaranteed (SP-9.16): the null baseline fails on every reference instance; every declared degenerate probe
   and `RandomTools` fail.
 
+Evaluator helpers: `base.seat_orgs(world, seat)` (the organisations a seat acts for) and
+`base.independent_revenue(world, seat, window_s)` (revenue of those organisations from unrelated payers,
+`goals.metrics.independent_revenue`). Evaluators may use any `crucible.goals.metrics` metric; they are evaluator-side
+and hidden from participants in observation_only.
+
 Typical degenerate probes: paying yourself through a related organisation (independent-revenue evaluators ignore
 related payers - `goals.metrics.independent_revenue`), listing without stock, publishing without data, deploying a
 no-op controller, firing all staff (when the horizon is shorter than the consequences, the evaluator is wrong:
@@ -182,25 +187,26 @@ from crucible.acceptance.v5 import evidence
 from crucible.domains import base
 from crucible.domains import science as S          # the domain module (an implementation file)
 
+CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_9_5.py"
+
 @pytest.mark.slow
 @pytest.mark.timeout(4 * 3600)
 def test_SP_9_5_scientific_research_mechanics():
-    d = base.REGISTRY["science"]
-    runs = [base.run("science", c, s, policy="reference") for c in ("lab_grid",) for s in (0, 1)]
-    counts = {m: sum(r["mechanics"]["counts"][m] for r in runs) for m in d.required_mechanics}
-    env = base.make_env("science", "lab_grid", 0)                   # experience.make(2, ...), default mode
-    reachable = env.agents() == d.seat_principals() and env.tools(env.agents()[0])
-    env.advance(3600)
-    oo = env.reward_mode == "observation_only" and env.reward(env.agents()[0]) == 0.0
-    metrics = {"required_mechanics_listed": len(d.required_mechanics),
-               "required_mechanics_exercised": sum(1 for n in counts.values() if n > 0),
-               "required_mechanics_missing": sum(1 for n in counts.values() if n == 0),
-               "observation_only_default": oo, "reachable_through_experience": bool(reachable),
-               **{f"events_{m.replace(' ', '_').lower()}": n for m, n in counts.items()}}
-    evidence.record("SP-9.5", metrics, command="PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_9_5.py",
-                    labels={"scripted": True})
-    assert metrics["required_mechanics_missing"] == 0 and oo and reachable
+    m, runs = base.section_metrics("science")      # reference runs through experience.make(2, ...), default mode
+    # an intervention control: without the replication labs no replication report is recorded
+    ablated = base.run("science", "lab_grid", 0, policy="reference",
+                       overrides={"module_config": {"sci": {"replicators": {"n": 0}}}})
+    m["ablated_replication_events"] = ablated["mechanics"]["counts"]["Independent replication"]
+    evidence.record("SP-9.5", m, command=CMD, labels={"scripted": True})
+    assert m["ablated_replication_events"] == 0 < m["events_independent_replication"]
+    assert m["required_mechanics_listed"] == 8 and m["required_mechanics_missing"] == 0
+    assert m["observation_only_default"] and m["reachable_through_experience"]
 ```
+
+`base.section_metrics(domain, configs=None, seeds=None, days=None) -> (metrics, runs)` returns the five shared
+metrics (`required_mechanics_listed`, `required_mechanics_exercised`, `required_mechanics_missing`,
+`observation_only_default`, `reachable_through_experience`) plus `events_<mechanic>` counts, measured on the
+domain's reference runs (cached in-process, shared with `check`).
 
 For every mechanic, go further than counting where the spec says so: an intervention that removes the mechanic must
 change the outcome it is responsible for (e.g. remove replication labs: no replication reports and the published

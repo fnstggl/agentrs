@@ -878,13 +878,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-I-3 (critical, open): Framework/contract split: base.Domain vs experience.registry (module DOMAIN, dict configs, build(cfg,seed)); T
+### DEF-I-3 (critical, fixed): Framework/contract split: base.Domain vs experience.registry (module DOMAIN, dict configs, build(cfg,seed)); T
 
 ```json
 {
  "area": "I_domains",
+ "fixed_by": "c5c/w3b-domfw (D-48): one contract crucible.domains.base.Domain consumed unchanged by crucible.experience.make(2, '<domain>:<config>' | 'tier2:<domain>/<config>' | 'd5_<domain>_<config>'); learners occupy the domain's seats; make() defaults to observation_only (reward 0.0, evaluator verdict only in verify()); the legacy score-delta reward exists only when legacy_shaped_reward is named",
  "id": "DEF-I-3",
  "owner": "I",
+ "regression_tests": "tests/test_v5_domains_framework.py::test_learner_occupies_the_seat_in_an_observation_only_civ_world, ::test_spec_is_a_restricted_civilisation_recipe_with_seats, tests/test_v5_experience_oo.py::test_tier2_path_against_domains_base",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -892,7 +894,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/I_domains.json",
   "finding": 2
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Framework/contract split: base.Domain vs experience.registry (module DOMAIN, dict configs, build(cfg,seed)); Tier 2 unreachable via experience.make (AttributeError); make() defaults to legacy_shaped_reward = evaluator score delta."
 }
 ```
