@@ -296,26 +296,47 @@ def decide(ctx, req: Request) -> Any:
     return decide_many(ctx, [req])[0]
 
 
+@dataclass
+class Task:
+    """A generator task with a context entered around each of its steps (e.g. the population's
+    `running_as(ctx, owner)`, so an activity handler writes its own module's columns in every step)."""
+    gen: Any
+    context: Callable[[], Any] | None = None
+
+
+class _Null:
+    def __enter__(self):
+        return None
+
+    def __exit__(self, *a):
+        return False
+
+
 def gather(ctx, tasks: Iterable) -> list:
     """Drive generator tasks together; see the module docstring. A task yields a Request (and receives its output)
-    or a list of Requests (and receives the list of outputs); its return value is its result. Non-generator tasks are
-    results already. Returns the results in task order."""
+    or a list of Requests (and receives the list of outputs); its return value is its result. A `Task` wraps a
+    generator with a context entered around each of its steps. Non-generator tasks are results already. Returns the
+    results in task order."""
     tasks = list(tasks)
     results: list = [None] * len(tasks)
     live: dict[int, Any] = {}
+    ctxs: dict[int, Callable[[], Any]] = {}
     send: dict[int, Any] = {}
     for i, t in enumerate(tasks):
-        if inspect.isgenerator(t):
-            live[i] = t
+        g, cm = (t.gen, t.context) if isinstance(t, Task) else (t, None)
+        if inspect.isgenerator(g):
+            live[i] = g
+            ctxs[i] = cm or _Null
             send[i] = None
         else:
-            results[i] = t
+            results[i] = g
     try:
         while live:
             asked = []
             for i in sorted(live):
                 try:
-                    y = live[i].send(send[i])
+                    with ctxs[i]():
+                        y = live[i].send(send[i])
                 except StopIteration as e:
                     results[i] = e.value
                     del live[i]
@@ -452,7 +473,7 @@ def torch_request(module, x: np.ndarray, *, model_id: str, cls: int | None = Non
                    cls=cls, label=label)
 
 
-__all__ = ["Op", "Request", "decide", "decide_many", "gather", "batched", "Round", "stats", "report", "STATS",
+__all__ = ["Op", "Request", "Task", "decide", "decide_many", "gather", "batched", "Round", "stats", "report", "STATS",
            "compat_key", "adaptive_request", "strategic_request", "semantic_request", "torch_request",
            "ADAPTIVE_SCORES", "STRATEGIC_LOGITS", "SEMANTIC_CHOOSE", "SEMANTIC_GENERATE", "TORCH_FORWARD",
            "reset_process_stats", "KIND_PREFIX"]

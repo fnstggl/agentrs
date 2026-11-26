@@ -84,12 +84,21 @@ class IBTest(Module):
 
     @endpoint("round", S.obj({"n": S.s_int(minimum=1, maximum=64)}, ["n"]), doc="one decision round")
     def ep_round(self, ctx, n):
-        tasks = [self._class2(ctx, self.a, n, "a1"), self._class2(ctx, self.a, n + 3, "a2"),
+        entered = []
+
+        class Owner:                                  # stands in for population.core.running_as(ctx, owner)
+            def __enter__(self):
+                entered.append(1)
+
+            def __exit__(self, *a):
+                return False
+        tasks = [IB.Task(self._class2(ctx, self.a, n, "a1"), Owner), self._class2(ctx, self.a, n + 3, "a2"),
                  self._class3(ctx, self.g, n, "g1"), self._class2(ctx, self.b, n, "b1"),
                  self._class2(ctx, self.a, 1, "a3"), self._class3(ctx, self.g, 2, "g2"),
                  self._class3(ctx, self.m, n, "m1"), "not a generator"]
         res = IB.gather(ctx, tasks)
-        assert res[-1] == "not a generator"
+        assert res[-1] == "not a generator" and len(entered) == 2     # the wrapped task's two steps
+        assert res[0].shape == (n,)
         return {"tasks": len(res)}
 
     @applier("ibt.decision")

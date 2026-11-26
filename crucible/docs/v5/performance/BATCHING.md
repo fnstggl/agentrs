@@ -65,10 +65,13 @@ handlers keep working unchanged.
    (masking and Gumbel sampling stay with the caller).
 2. `population/strategic.py` `pr_decide()`: replace `inference.recorded(ctx, f"pop.strategic.{gname}", ...)` by
    `IB.decide(ctx, IB.strategic_request(grp, O, H, model_id=f"strategic:{gname}"))`.
-3. `population/core.py` `pop.tick`: when an activity handler or a class runtime returns a generator, collect the
-   generators of all handlers of the tick and drive them with `IB.gather(ctx, gens)` (plain return values unchanged).
-   Then every class-2 group, class-3 group and the class-4 runtime that need the same shared model in one tick share
-   one call, whichever activity asked.
+3. `population/core.py` `pop.tick` (`pr_tick` calls each class runtime, then `run_cohort` calls each activity
+   handler, one after the other): when a handler returns a generator, wrap it as
+   `IB.Task(gen, lambda owner=owner: running_as(ctx, owner))` (each step then runs as its owner module, as the
+   direct call does today), collect the tasks of all class runtimes and activity handlers of the tick and drive
+   them with one `IB.gather(ctx, tasks)`; plain return values are passed through unchanged. Then every class-2 group,
+   class-3 group and the class-4 runtime that need the same shared model in one tick share one call, whichever
+   activity asked.
 
 ## How workstream D (semantic) uses it
 
