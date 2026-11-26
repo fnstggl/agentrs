@@ -671,6 +671,11 @@ class Work(Module):
                     told = (r["ok"] + 1.0) / (r["uses"] + 2.0)        # what the contact says about it
                     if rng.random() < 0.7:
                         out[r["prov"]] = (prov, 0.5 * self._public_prior(prov) + 0.5 * told, "contact")
+        if out:
+            # the individual read these candidates' public descriptions (recorded: discovery, evaluator side)
+            ctx.emit("work.considered", {"rows": [[int(i), k] for k in sorted(out)],
+                                         "via": {k: v[2] for k, v in sorted(out.items())}, "t": int(ctx.now)},
+                     vis="internal")
         return out
 
     def _resolve_result(self, st, r) -> list[str]:
@@ -835,6 +840,10 @@ class Work(Module):
             if p["active"]:
                 ch["since"] = ev.t
             st.patch("work_exp", p["key"], **ch)
+
+    @applier("work.considered")
+    def ap_considered(self, ev):
+        pass
 
     @applier("work.exp_note")
     def ap_note(self, ev):
