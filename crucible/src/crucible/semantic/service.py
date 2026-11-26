@@ -112,10 +112,22 @@ def recorded(ctx, kind: str, model_id: str, model_hash: str, inputs: Any, fn: Ca
     return _rec(ctx, kind, model_id, model_hash, inputs, fn)
 
 
+def hub_cache_dir() -> str:
+    """The Hugging Face hub cache directory, resolved from the environment exactly as `huggingface_hub.constants`
+    resolves HF_HUB_CACHE (HF_HUB_CACHE, else the legacy HUGGINGFACE_HUB_CACHE, else $HF_HOME/hub, else
+    $XDG_CACHE_HOME/huggingface/hub, else ~/.cache/huggingface/hub). Computed here instead of importing
+    huggingface_hub: the space version is derived at import time in every process (DEF-P-25), and importing the hub
+    library there added start-up cost to every 4.0 process."""
+    def ex(p):
+        return os.path.expandvars(os.path.expanduser(p))
+    home = ex(os.getenv("HF_HOME", os.path.join(os.getenv("XDG_CACHE_HOME", os.path.join(os.path.expanduser("~"),
+                                                                                       ".cache")), "huggingface")))
+    return ex(os.getenv("HF_HUB_CACHE", os.getenv("HUGGINGFACE_HUB_CACHE", os.path.join(home, "hub"))))
+
+
 def local_revision(model_id: str) -> str:
-    """Commit hash of the locally cached snapshot of `model_id` (no network)."""
-    from huggingface_hub import constants
-    base = os.path.join(constants.HF_HUB_CACHE, "models--" + model_id.replace("/", "--"))
+    """Commit hash of the locally cached snapshot of `model_id` (no network, no hub library import)."""
+    base = os.path.join(hub_cache_dir(), "models--" + model_id.replace("/", "--"))
     try:
         return open(os.path.join(base, "refs", "main")).read().strip()
     except OSError:

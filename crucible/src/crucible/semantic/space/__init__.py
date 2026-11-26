@@ -65,8 +65,11 @@ def _models() -> dict:
     from ..encoders.models import SPECS
     out = {r: s.revision for r, s in SPECS.items()}
     try:
-        from .lm import identity
-        out["lm"] = identity()["model_id"] + "@" + identity()["revision"]
+        # model id and revision only: `lm.identity()` also resolves the device (torch.cuda.is_available() starts a
+        # CUDA driver thread), which must not happen at import time in every process (DEF-P-25)
+        from ..service import local_revision
+        from .lm import MODEL_ID
+        out["lm"] = MODEL_ID + "@" + local_revision(MODEL_ID)
     except (OSError, FileNotFoundError, ImportError):
         out["lm"] = "unavailable"
     return out
