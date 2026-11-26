@@ -446,7 +446,10 @@ def population_private_values(world, n: int = 64) -> dict[str, float]:
             continue
         for j, x in enumerate(arr[:4096]):
             x = float(x)
-            if np.isfinite(x) and not x.is_integer() and abs(x) > 1e-4 and len(repr(abs(x)).replace(".", "")) >= 6:
+            # a value exactly representable in float16 is too coarse to identify (semantic chunk vectors and several
+            # population columns are float16: 0.04327392578125 occurs in both by coincidence)
+            if np.isfinite(x) and not x.is_integer() and abs(x) > 1e-4 and len(repr(abs(x)).replace(".", "")) >= 6 \
+                    and float(np.float16(x)) != x:
                 out[f"pop.{k}[{j}]"] = x
     return out
 
