@@ -299,7 +299,7 @@ Extrapolation limits: MIND-small, 50,000 Microsoft News users (US, English), 201
 | `item_age_hours` | item | hours | [0, inf] | hours since the item was first shown |
 | `slate_size` | slate | count | [1, inf] | items in the slate |
 
-Extrapolation limits: MIND-small (US Microsoft News, 2019-11-09..15), production-recommender exposure (observational); news articles only; no dwell time; non-commercial licence, acquisition route unresolved (BLOCKERS B-1).
+Extrapolation limits: MIND-small (US Microsoft News, 2019-11-09..15), production-recommender exposure (observational); news articles only; no dwell time; non-commercial licence; mirror copy used for experimental research by owner decision (D-28).
 
 ## `content_open@1` -> `content_consumption@1`
 
