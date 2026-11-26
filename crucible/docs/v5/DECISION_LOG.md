@@ -276,3 +276,23 @@ authorisation and that the official licence is pending (`datasets()["mind_small"
 derived artifacts stay marked non-commercial research only and no MIND data is redistributed (LICENSE_NOTICE.md). No
 agent accepted the licence on the owner's behalf or used a credential. Follow-up when the official files are available:
 verify the mirror against them (or re-fit) and record the acceptance (who, when, licence version).
+
+## D-78 System array blobs are not world state (2026-11-26, workstream A, wave 3b)
+Every cohort decision (`cols.batch`), neural checkpoint, training-example batch and recorded inference output is a
+content-addressed array blob. Until now each one also got an `artifacts` state row and an `artifact.stored` event, so
+the state kept one metadata row per blob for ever: 222,702 rows at day 365 of a development population world, which
+every snapshot carried (15 retained snapshots = 120 MB, growing 1.4 -> 3.3 MB per week: superlinear total), and
+retention found the blobs to pack by iterating those rows. Decision: a system array blob (`owner="sys"`,
+`kind="batch"`, `artifacts.put_array_blob`) is named only by the hash-chained event that uses it (its SHA-256 is in the
+REF the event carries); it gets no state row and no event. A world reaches one only by a REF from its own record and
+only from bytes of its own lineage (`artifacts.lineage(world)` = spec hash, shared by the world, its forks, replays and
+regenerations): its cache, its store, its read-only sources, and system blobs that its lineage wrote to the process
+pool or to a registered store; a store-less fork takes over its parent's pool lease (`Module.on_fork`, a new kernel
+hook, never defined by 4.0 modules). Participant artifacts keep rows, events and every permission rule unchanged; the
+tools never serve a system blob. Retention reads only the events written since its previous call (system-blob REFs in
+order of first appearance, `cols.batch` REFs) and looks up exactly the blob sizes it needs; the scan position is kept in
+the store (`ret/<world>/...`, verified against the event hash at that position). Consequences: v5 event logs lose the
+`artifact.stored` event per system blob (trajectories of v5 worlds change once, deterministically; 4.0 worlds have no
+artifacts module and stay byte-identical); `artifacts.export` copies every `art/` blob of the world's store (or every
+pool blob it holds); a blob that no event names is never packed. Rejected: a compact in-state blob index (still
+O(blobs) per snapshot) and per-snapshot structural sharing (keeps the state itself, its digest and its forks O(blobs)).

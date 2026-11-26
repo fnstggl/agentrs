@@ -58,7 +58,14 @@ def specs() -> dict:
                     "one attended display' (no wear-in or wear-out), carry-over between periods, ad content or "
                     "price. Never negative. Absolute levels come from the world's own organic propensities; the "
                     "shift is invariant to the publisher's sub-sampling only if that sampling depended on the outcome "
-                    "or the arm, not on exposure. Not for search ads (use 'search_result' is refused)."),
+                    "or the arm, not on exposure. Not for search ads (use 'search_result' is refused). "
+                    "params['incremental_conversion_ratio'] (2.76) = (ITT on conversions / ITT on visits) / "
+                    "(conversions per visit in the control arm): it is the conversion of ad-caused visits relative to "
+                    "organic visits ONLY under the untestable assumption that a display does not change the "
+                    "conversion of individuals who would have visited anyway; otherwise it mixes the two effects and "
+                    "overstates caused visits' conversion. A world whose purchase decision is not a probability (a "
+                    "value comparison) may not apply it, and then states that its displayed visitors convert as "
+                    "organic ones."),
             output_doc=("columns p_visit, p_visit_organic, p_incremental; sample() returns [visit, incremental] "
                         "from one coupled uniform"))
 
