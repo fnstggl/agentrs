@@ -135,7 +135,8 @@ class PopWeb(Module):
             core.register_activity(world, "forum", self.act_forum, owner=self.name, prior=0.1, goals=(3, 1))
 
     def on_load(self, world):
-        for k in ("popweb.posts", "popweb.hosts", "popweb.search", "popweb.post_reps", "popweb.active24"):
+        for k in ("popweb.posts", "popweb.hosts", "popweb.search", "popweb.post_reps", "popweb.active24",
+                  "popweb.slates"):
             world.runtime.pop(k, None)
 
     # ------------------------------------------------------------------ what people already know at the start
@@ -251,9 +252,10 @@ class PopWeb(Module):
         page_text = (parsed["title"] + " " + parsed["text"]).strip()
         tf = semantics.text_features(page_text)
         vec = self._coords(ctx, [page_text])[0] if status == 200 and page_text else np.zeros(self.D, np.float32)
-        arts = parsed.get("arts") or []
-        # the slate of article headlines a reader sees on the page, represented in the shared space
-        av = self._coords(ctx, [a[1] for a in arts]) if (status == 200 and arts) else np.zeros((0, self.D), np.float32)
+        arts = (parsed.get("arts") or []) if status == 200 else []
+        # the slate of article headlines a reader sees on the page, represented in the shared space (recorded once
+        # by the space; the page record keeps the headlines and their topics, readers look the vectors up)
+        av = self._coords(ctx, [a[1] for a in arts]) if arts else np.zeros((0, self.D), np.float32)
         dep_id, why = self._dep_state(st, host)
         out = {"key": key, "host": host, "path": path, "status": status, "digest": text.body_digest(body),
                "dep": dep_id, "why": why, "title": parsed["title"], "vec": [round(float(x), 3) for x in vec],
@@ -261,10 +263,30 @@ class PopWeb(Module):
                "leg": round(float(semantics.legibility(tf)), 4), "paths": parsed["paths"][:30],
                "hosts": [h for h in parsed["hosts"] if h != host][:12], "prices": parsed["prices"][:10],
                "kind": kind_of(parsed["title"]), "visitor": p,
-               "arts": [a[0] for a in arts], "art_vecs": [[round(float(x), 3) for x in v] for v in av],
+               "arts": [a[0] for a in arts], "art_labels": [a[1] for a in arts],
                "art_topics": [int(t) for t in (semantics.nearest_topic(av) if len(av) else [])]}
         ctx.emit("popweb.page", out, vis="internal")
         return st.get("pop_pages", key)
+
+    def slate_vectors(self, ctx_or_world, rec: dict) -> np.ndarray:
+        """[m, D] interest-space coordinates of a page record's headlines (the space's recorded representations;
+        cached per process by the page's content digest)."""
+        world = ctx_or_world.world if hasattr(ctx_or_world, "emit") else ctx_or_world
+        cache = world.runtime.setdefault("popweb.slates", {})
+        key = (rec["key"], rec.get("digest"))
+        v = cache.get(key)
+        if v is None:
+            labels = list(rec.get("art_labels") or [])
+            if not labels:
+                return np.zeros((0, self.D), np.float32)
+            if hasattr(ctx_or_world, "emit"):
+                v = self._coords(ctx_or_world, labels)
+            else:
+                v = semantics.project(semantics.text_vectors(world, labels), self.D)
+            if len(cache) > 50_000:
+                cache.clear()
+            cache[key] = v
+        return v
 
     def _page_rows(self, ctx: Ctx, keys: list[str]) -> np.ndarray:
         """Rows of article pages (host|path) in the page table, created when a page is first opened."""
@@ -316,7 +338,7 @@ class PopWeb(Module):
             m = len(r.get("arts") or [])
             if not m:
                 continue
-            V = np.asarray(r["art_vecs"], np.float32).reshape(m, self.D)
+            V = self.slate_vectors(ctx, r)
             prow = self._page_rows(ctx, [f"{r['host']}|{a}" for a in r["arts"]])
             slate[k] = (V, np.asarray(r["art_topics"], np.int64), prow)
         sizes = np.array([len(slate[int(k)][1]) if int(k) in slate else 0 for k in which.tolist()], np.int64)

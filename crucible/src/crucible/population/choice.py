@@ -125,7 +125,7 @@ def _article_inputs(world, idx: np.ndarray) -> dict | None:
         pg = st.get("pop_pages", f"{hosts[r]}|/")
         if not pg or not pg.get("arts"):
             continue
-        V = np.asarray(pg["art_vecs"], np.float32)
+        V = world.modules["popweb"].slate_vectors(world, pg)
         vn = np.maximum(np.linalg.norm(V, axis=1), 1e-6)
         cs = np.clip((V @ inter[j]) / vn, -1, 1)
         sd = cs.std()
