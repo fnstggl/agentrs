@@ -305,15 +305,25 @@ def _run_tests(folder: str) -> dict:
     return {"passed": sum(r["ok"] for r in results), "failed": sum(not r["ok"] for r in results), "results": results}
 
 
+import gc  # noqa: E402
+
 _send({"op": "ready", "landlock_abi": LANDLOCK_ABI, "seccomp": SECCOMP, "uid": os.getuid()})
+# The parent bills CPU used between a job's result and the next request as background work (and stops the worker).
+# A cyclic garbage collection triggered by a small allocation while waiting would be such work, so automatic
+# collection runs only while a job runs: a job's garbage is collected during jobs.
+gc.disable()
 while True:
     msg = _recv()
     if msg.get("op") == "job":
+        gc.enable()
         res = _run(msg)
+        gc.disable()
         res["op"], res["id"] = "done", msg["id"]
         _send(res)
     elif msg.get("op") == "load":
+        gc.enable()
         res = _load(msg)
+        gc.disable()
         res["op"], res["id"] = "loaded", msg["id"]
         _send(res)
     elif msg.get("op") == "exit":
