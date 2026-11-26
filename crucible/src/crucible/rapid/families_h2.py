@@ -31,6 +31,7 @@ def hooks(name: str) -> dict:
 
 # ====================================================================== planning engine: 8.4 resource allocation
 DIST_TERMS = (50.0, 32.0, 2.0, 0.5, 2.0)          # price, unit cost, shipping, holding at the depot and at a site
+ASM_HOLD = 2.0                                     # assembly: holding cost per component per period
 @family("plan_distribution", engine="planning", category="8.4", item="8.4.1", split="train",
         doc="A depot replenished by a supplier after a hidden lead time ships stock to sites whose demand rates are "
             "hidden and shift at hidden times (a site heats up or goes quiet for a while); unmet demand is lost and "
@@ -233,14 +234,14 @@ def team_assembly(rng, d):
     cap = float(d["resources"])
     return {"engine": "planning", "scenario": "assembly", "horizon": int(d["horizon"]), "agents": ["a0", "a1"],
             "comp_names": names, "make_names": [f"make_{n}" for n in names],
-            "unit_cost": [[round(x, 2) for x in r] for r in cost], "cap": cap, "unit_price": 20.0, "hold": 0.5,
-            "mu_mean": u(rng, 0.6, 0.9) * cap, "mu_amp": u(rng, 0.2, 0.5), "mu_phase": u(rng, 0.0, 12.0),
+            "unit_cost": [[round(x, 2) for x in r] for r in cost], "cap": cap, "unit_price": 20.0, "hold": ASM_HOLD,
+            "mu_mean": u(rng, 0.6, 0.9) * cap, "mu_amp": u(rng, 0.5, 0.8), "mu_phase": u(rng, 0.0, 12.0),
             "mu_period": 12.0, "endowment": 50_000,
             "objective": {"type": "maximize_net", "text": "Maximise the team's combined sales minus production and "
                                                           "holding costs."},
             "brief": f"You and a partner each can make components {names[0]} and {names[1]} (up to {cap:g} units per "
                      "period in total; standing rates). One unit of each makes a product that sells for 20 when a "
-                     "customer orders it; revenue and holding costs (0.5 per component per period) are shared. Each "
+                     f"customer orders it; revenue and holding costs ({ASM_HOLD:g} per component per period) are shared. Each "
                      "of you knows only your own unit costs; message your partner."}
 
 
