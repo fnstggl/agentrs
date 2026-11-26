@@ -446,6 +446,14 @@ def vertical_slices() -> dict:
                              "rapid": list(slices.RAPID_FAMILIES)}, slices.run_all)
 
 
+# --------------------------------------------------------------------------------------------- SP-17.1
+def redemonstration() -> dict:
+    """SP-17.1: crucible.civ.redemo.run_all (world gates measured with their own code on civilisations)."""
+    from . import redemo
+    return cached("redemo", {"creation": redemo.CREATION, "autonomous": redemo.AUTONOMOUS},
+                  lambda: redemo.run_all(workers=workers()))
+
+
 # --------------------------------------------------------------------------------------------- O.7, SP-10.1
 def structure(seed: int = 5) -> dict:
     """Fingerprints of every profile's BUILT world (after genesis and the first simulated hour)."""
@@ -528,7 +536,7 @@ def _main(argv):
         return 0
     fn = {"integration": integration, "effects": effects, "chains": chain_results, "structure": structure,
           "long": long_horizon, "couplings": couplings_battery, "persistence": persistence,
-          "invention": invention, "slices": vertical_slices}[what]
+          "invention": invention, "slices": vertical_slices, "redemo": redemonstration}[what]
     r = fn()
     if what in ("effects", "chains"):
         r = {k: v for k, v in r.items() if k != "experiments"}
