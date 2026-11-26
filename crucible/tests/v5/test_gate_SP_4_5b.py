@@ -7,10 +7,11 @@ runs learned recommenders refitted from recorded outcomes; members create on sev
 
 Attention competition (randomised, within one world so that both arms share every other draw): at day 3 a random
 half of 1,600 individuals receives an experimenter's informative post (on the population's most read topic) in the
-share inbox of the posts platform - the item is popular among them - and the other half does not. Outcome: what each
-individual consumed of OTHER items on posts during the next 24 hours (views and seconds). Popularity takes finite
-feed slots and attention: the treated must consume less of the competing content (one-sided Mann-Whitney U test on
-views, reported with the seconds).
+share inbox of the posts platform (as when many contacts shared it, without the notification an ordinary share sends)
+and the other half does not. Outcome: what each individual was shown and consumed of OTHER items on posts during the
+next 24 hours. Popularity takes finite
+feed slots and attention: the competing content must get fewer opportunities with the treated - fewer impressions
+(feed slots; the primary outcome, one-sided Mann-Whitney U test) and fewer views and seconds (reported).
 
 Dynamic kinds, each observed on the run (not configured):
 1. delayed feedback - the analytics a creator sees lag the exact counters (published values older than one tick);
@@ -76,20 +77,34 @@ def test_SP_4_5b_attention_competition_and_dynamics():
     sample = rng.choice(n, 1600, replace=False)
     treat, ctrl = np.sort(sample[:800]), np.sort(sample[800:])
     feed = w.modules["feed"]
-    w._run_system("experiment.assign", lambda ctx: feed.engine.deliver(ctx, treat, np.full(treat.size, item),
-                                                                       np.ones(treat.size, np.uint8),
-                                                                       platform="posts"))
+    from crucible.social.consumption import group_into_rows, ring_push
+
+    def assign(ctx):
+        # the item sits in the share inbox of the treated (as when many of one's contacts shared it) - without the
+        # notification of an ordinary share, so that the treated are not brought back more often than the control
+        u_, cnt, (newi, newg) = group_into_rows(treat, [np.full(treat.size, item, np.int32),
+                                                       np.ones(treat.size, np.uint8)], feed.R)
+        columns.batch(ctx, "pop", "share.deliver", u_,
+                      {"feed_inbox": ring_push(columns.col(w, "pop", "feed_inbox")[u_], newi, cnt),
+                       "feed_inbox_gen": ring_push(columns.col(w, "pop", "feed_inbox_gen")[u_], newg, cnt)},
+                      mode="set", extra={"deliveries": int(treat.size), "experiment": "attention_competition"})
+    w._run_system("experiment.assign", assign)
     s0 = w.seq
     w.advance_time(w.now + DAY)
     con = X.decision_rows(w, "consume", s0, platform="posts")
+    imp = X.decision_rows(w, "imp", s0, platform="posts")
     other = con["item"] != item
     views = np.zeros(n)
     secs = np.zeros(n)
+    imps = np.zeros(n)
     np.add.at(views, con["viewer"][other & con["is_view"]], 1)
     np.add.at(secs, con["viewer"][other], con["watch_s"][other])
+    np.add.at(imps, imp["viewer"][imp["item"] != item], 1)
     got_item = np.zeros(n, bool)
     got_item[AUD.viewers_of(w, item)] = True
-    u = mannwhitneyu(views[treat], views[ctrl], alternative="less")
+    # the competing content's opportunities: its impressions (feed slots) and the views and seconds it received
+    u = mannwhitneyu(imps[treat], imps[ctrl], alternative="less")
+    uv = mannwhitneyu(views[treat], views[ctrl], alternative="less")
     us = mannwhitneyu(secs[treat], secs[ctrl], alternative="less")
     # ---------------------------------------------------------------- dynamic kinds
     st = w.state
@@ -130,7 +145,9 @@ def test_SP_4_5b_attention_competition_and_dynamics():
                "competing_views_control_mean": round(float(views[ctrl].mean()), 4),
                "competing_seconds_treated_mean": round(float(secs[treat].mean()), 2),
                "competing_seconds_control_mean": round(float(secs[ctrl].mean()), 2),
-               "competing_seconds_pvalue": float(us.pvalue),
+               "competing_seconds_pvalue": float(us.pvalue), "competing_views_pvalue": float(uv.pvalue),
+               "competing_impressions_treated_mean": round(float(imps[treat].mean()), 4),
+               "competing_impressions_control_mean": round(float(imps[ctrl].mean()), 4),
                "treated_who_viewed_the_popular_item": int(got_item[treat].sum()),
                "control_who_viewed_the_popular_item": int(got_item[ctrl].sum()),
                "analytics_log_noise_sd": round(noise_sd, 4), "analytics_min_age_s": int(age.min()) if age.size else -1,
