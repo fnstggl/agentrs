@@ -80,9 +80,9 @@ def part_a(model, cfg) -> dict:
     return out
 
 
-def string_steps(model, episodes, max_steps=None):
-    from superlearner.cam_unified.semantic.demo_init import teacher_forced_rollout
-    from superlearner.cam_unified.semantic.grammar import holes_of
+def string_steps(model, episodes):
+    """Representable non-wait demonstrated decisions whose action has string holes -> [(ForcedStep, n_holes)]."""
+    from superlearner.cam_unified.semantic.demo_init import demo_string_programs, teacher_forced_rollout
     steps = teacher_forced_rollout(model, episodes, batch=8, keep=lambda ep, d: d.action.tool != "wait")
     gen = model.action_generator
     out = []
@@ -92,10 +92,12 @@ def string_steps(model, episodes, max_steps=None):
         tool = next((t for t in st.inputs.tools[0] if t.name == st.action.tool), None)
         if tool is None or not gen.grammar(tool).may_hole:
             continue
-        if not any(isinstance(v, str) for v in _leaves(st.action.args)):
-            continue
-        out.append(st)
-    return out[:max_steps] if max_steps else out
+        try:
+            progs, _ = demo_string_programs(model, [st])
+        except ValueError:
+            continue                                  # no string holes in this demonstration
+        out.append((st, len(progs[0].holes)))
+    return out
 
 
 def _leaves(v):
@@ -230,7 +232,7 @@ def ablation(model, steps, batch=8) -> dict:
             "nll_per_token": m(nll)}
 
 
-def part_d(model, train, held, n_steps=100, batch=8, seed=0) -> dict:
+def part_d(model, train, held, n_steps=100, batch=8, seed=0, deadline=None) -> dict:
     from superlearner.cam_unified.semantic.demo_init import demo_string_log_prob
     gen = model.action_generator
     enc = gen.enc
@@ -248,6 +250,8 @@ def part_d(model, train, held, n_steps=100, batch=8, seed=0) -> dict:
     losses, t0 = [], time.time()
     model.train()
     for k in range(n_steps):
+        if deadline is not None and time.time() > deadline:
+            break
         sub = rng.sample(train, min(batch, len(train)))
         lp, nt = demo_string_log_prob(model, sub, cond="latent")
         loss = -(lp / nt.float()).mean()
@@ -262,7 +266,8 @@ def part_d(model, train, held, n_steps=100, batch=8, seed=0) -> dict:
     model.eval()
     after = ablation(model, held)
     after_train = ablation(model, train[:48])
-    return {"bc_steps": n_steps, "batch": batch, "train_actions": len(train), "held_actions": len(held),
+    return {"bc_steps": len(losses), "bc_steps_planned": n_steps, "batch": batch, "train_actions": len(train),
+            "held_actions": len(held),
             "optimizer": "AdamW: gates alpha lr 1e-2, decoder cross-attention + cond source tags lr 1e-3, core + "
                          "reasoner lr 1e-4; clip 1.0 per group; loss = mean per-token NLL of the demonstrated strings",
             "loss_first": losses[0], "loss_last10_mean": sum(losses[-10:]) / 10, "seconds": time.time() - t0,
@@ -356,12 +361,18 @@ def part_g() -> dict:
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="docs/evidence/dom/W4/e2e.json")
-    ap.add_argument("--train-episodes", type=int, default=8)
-    ap.add_argument("--held-episodes", type=int, default=4)
+    ap.add_argument("--train-episodes", type=int, default=4)
+    ap.add_argument("--held-episodes", type=int, default=2)
     ap.add_argument("--bc-steps", type=int, default=100)
+    ap.add_argument("--stages", default="ABCDEFG", help="stages to run; results merge into --out")
+    ap.add_argument("--budget-s", type=float, default=840.0, help="wall-clock budget (the GPU-lock hold limit)")
     ap.add_argument("--mem-cap-gb", type=float, default=0.0, help="hard per-process GPU memory cap (0 = none)")
     args = ap.parse_args(argv)
     t_start = time.time()
+    return _run(args, argv, t_start)
+
+
+def _run(args, argv, t_start):
     if args.mem_cap_gb > 0 and torch.cuda.is_available():
         total = torch.cuda.get_device_properties(0).total_memory / 1e9
         torch.cuda.set_per_process_memory_fraction(min(1.0, args.mem_cap_gb / total))
@@ -373,45 +384,77 @@ def main(argv=None):
     model = build_model(cfg).to("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
     gen = model.action_generator
-    res = {"commit": _git_commit(), "preset": "dom_dev", "sem_model": cfg.sem_model, "core": f"{cfg.n_layers}x{cfg.d_model}",
+    res = {}
+    if os.path.exists(args.out):                 # stages merge into an existing evidence file
+        with open(args.out) as fh:
+            res = json.load(fh)
+    run = {"commit": _git_commit(), "preset": "dom_dev", "sem_model": cfg.sem_model,
+           "core": f"{cfg.n_layers}x{cfg.d_model}",
            "command": " ".join(["python", "tests/cam_unified/semantic/w4_e2e.py"] + list(argv or sys.argv[1:])),
            "device": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu",
-           "dec_xattn_every": cfg.dec_xattn_every, "bridge_prefix_tokens": gen.bridge.n_prefix}
-    res["A_value_channel"] = part_a(model, cfg)
-    print("A", json.dumps(res["A_value_channel"])[:400], flush=True)
+           "dec_xattn_every": cfg.dec_xattn_every, "bridge_prefix_tokens": gen.bridge.n_prefix,
+           "stages": args.stages, "timing_s": {}}
+    res.setdefault("runs", []).append(run)
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+
+    def save(stage, key, value, t0):
+        res[key] = value
+        run["timing_s"][stage] = round(time.time() - t0, 1)
+        run["peak_gpu_gb"] = torch.cuda.max_memory_allocated() / 1e9 if torch.cuda.is_available() else 0.0
+        with open(args.out, "w") as fh:
+            json.dump(res, fh, indent=1, default=str)
+        print(stage, json.dumps(value, default=str)[:1500], f"({run['timing_s'][stage]} s)", flush=True)
+
+    S = set(args.stages)
+    if "A" in S:
+        t0 = time.time()
+        save("A", "A_value_channel", part_a(model, cfg), t0)
+    if "G" in S:
+        t0 = time.time()
+        save("G", "G_code_run", part_g(), t0)
+    if not S & set("BCDEF"):
+        return
+    t0 = time.time()
     train_eps = load_episodes(f"{DEMO}/train/episodes.jsonl")[: args.train_episodes]
     held_eps = load_episodes(f"{DEMO}/held/episodes.jsonl")[: args.held_episodes]
-    res["families"] = sorted({e.family for e in train_eps + held_eps})
-    t0 = time.time()
-    train = string_steps(model, train_eps)
-    held = string_steps(model, held_eps)
-    res["rollout_s"] = time.time() - t0
-    print("steps", len(train), len(held), flush=True)
-    slots, n_str = [], 0
-    for st in held + train:                      # held-out demonstrations first; >= 60 demonstrated string values
-        slots.append(st)
-        n_str += sum(1 for v in _leaves(st.action.args) if isinstance(v, str))
-        if n_str >= 60:
-            break
-    res["B_string_closure"] = {"v4": sample_strings(model, slots, 4), "v3_pre_fix": sample_strings(model, slots, 3)}
-    b = res["B_string_closure"]["v4"]
-    res["B_string_closure"]["pass"] = b["slots"] >= 50 and b["own_close_rate"] >= 0.9 and b["trailing_commas"] == 0
-    print("B", json.dumps({k: v for k, v in b.items() if k != "examples"}), flush=True)
-    res["C_conditioning_at_init"] = part_c_init(model, held)
-    print("C", json.dumps(res["C_conditioning_at_init"]), flush=True)
-    res["F_semantic_context"] = part_f(model, cfg, held)
-    print("F", json.dumps(res["F_semantic_context"])[:600], flush=True)
-    res["D_bc_latent_dependence"] = part_d(model, train, held, n_steps=args.bc_steps)
-    print("D", json.dumps(res["D_bc_latent_dependence"])[:900], flush=True)
-    res["E_replay_with_conditioning"] = part_e(model, held)
-    print("E", json.dumps(res["E_replay_with_conditioning"]), flush=True)
-    res["G_code_run"] = part_g()
-    res["peak_gpu_gb"] = torch.cuda.max_memory_allocated() / 1e9 if torch.cuda.is_available() else 0.0
-    res["wall_s"] = time.time() - t_start
-    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+    run["families"] = sorted({e.family for e in train_eps + held_eps})
+    held_keys = {e.key for e in held_eps}
+    both = string_steps(model, held_eps + train_eps)              # one batched rollout (<= 8 episodes)
+    held = [s for s, _ in both if s.episode in held_keys]
+    train = [s for s, _ in both if s.episode not in held_keys]
+    run["timing_s"]["rollout"] = round(time.time() - t0, 1)
+    run["string_steps"] = {"train": len(train), "held": len(held)}
+    print("steps", len(train), len(held), f"({run['timing_s']['rollout']} s)", flush=True)
+    if "B" in S:
+        t0 = time.time()
+        slots, n_h = [], 0
+        for st, nh in sorted(both, key=lambda x: x[0].episode not in held_keys):   # held-out decisions first
+            slots.append(st)
+            n_h += nh
+            if n_h >= 60:
+                break
+        b = {"v4": sample_strings(model, slots, 4), "v3_pre_fix": sample_strings(model, slots, 3)}
+        v4 = b["v4"]
+        b["pass"] = v4["slots"] >= 50 and v4["own_close_rate"] >= 0.9 and v4["trailing_commas"] == 0
+        save("B", "B_string_closure", b, t0)
+    if "C" in S:
+        t0 = time.time()
+        save("C", "C_conditioning_at_init", part_c_init(model, held), t0)
+    if "F" in S:
+        t0 = time.time()
+        save("F", "F_semantic_context", part_f(model, cfg, held), t0)
+    if "D" in S:
+        t0 = time.time()
+        reserve = 150.0 if "E" in S else 60.0                     # time left for the after-ablations (+ E)
+        save("D", "D_bc_latent_dependence", part_d(model, train, held, n_steps=args.bc_steps,
+                                                   deadline=t_start + args.budget_s - reserve - 120.0), t0)
+    if "E" in S:
+        t0 = time.time()
+        save("E", "E_replay_with_conditioning", part_e(model, held), t0)
+    run["wall_s"] = time.time() - t_start
     with open(args.out, "w") as fh:
         json.dump(res, fh, indent=1, default=str)
-    print("wrote", args.out, "wall", res["wall_s"], flush=True)
+    print("wrote", args.out, "wall", run["wall_s"], flush=True)
 
 
 if __name__ == "__main__":
