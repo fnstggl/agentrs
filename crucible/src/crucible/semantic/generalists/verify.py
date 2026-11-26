@@ -54,24 +54,49 @@ def actions(world) -> list[dict]:
 
 
 def provenance(world) -> dict:
-    """Events acted as a semantic participant outside every model-chosen call (SP-3.2d scripted paths)."""
+    """Events acted as a semantic participant outside every model-chosen call (SP-3.2d scripted paths).
+
+    An event acted as a participant counts as inside when it lies in the seq range of one of its brain-chosen calls,
+    or when it is emitted by a scheduled job that one of its chosen calls scheduled (a renewal, a workflow run, a
+    delivery it ordered) - directly or through the job's own periodic rescheduling: the job's ``sched.add`` lies in
+    a chosen call of that participant, or in a run of a job that does. Job runs are delimited by their ``proc``
+    event and the next ``proc`` or ``cmd`` event."""
     ps = principals(world)
     covered: dict[str, list[tuple[int, int]]] = {p: [] for p in ps}
     for r in rows(world):
         for h in r["history"]:
             if h.get("seq"):
                 covered[r["principal"]].append((int(h["seq"][0]), int(h["seq"][1])))
-    outside, inside, kinds = 0, 0, {}
+
+    def chosen_by(seq: int) -> str | None:
+        for p, rs in covered.items():
+            if any(a <= seq <= b for a, b in rs):
+                return p
+        return None
+    origin: dict[str, str] = {}            # job id -> participant whose chosen call scheduled it
+    cur = None                             # the job whose run the current event belongs to
+    outside, inside, consequence, kinds = 0, 0, 0, {}
     for ev in world.events_range(0, world.seq):
+        if ev.type == "proc":
+            cur = ev.payload.get("id")
+        elif ev.type == "cmd":
+            cur = None
+        if ev.type == "sched.add":
+            who = chosen_by(ev.seq) or (origin.get(cur) if cur is not None else None)
+            if who is not None:
+                origin[ev.payload.get("id")] = who
         if ev.actor not in ps:
             continue
         if any(a <= ev.seq <= b for a, b in covered[ev.actor]):
             inside += 1
+        elif cur is not None and origin.get(cur) == ev.actor:
+            consequence += 1
         else:
             outside += 1
             kinds[ev.type] = kinds.get(ev.type, 0) + 1
-    return {"events_as_participants": inside + outside, "inside_model_chosen_calls": inside,
-            "outside_model_chosen_calls": outside, "outside_by_type": kinds}
+    return {"events_as_participants": inside + consequence + outside, "inside_model_chosen_calls": inside,
+            "scheduled_consequences_of_chosen_calls": consequence, "outside_model_chosen_calls": outside,
+            "outside_by_type": kinds}
 
 
 def productive(world, min_viewers: int = 3) -> list[dict]:

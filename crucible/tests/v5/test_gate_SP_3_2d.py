@@ -69,6 +69,12 @@ def test_SP_3_2d_not_scripted_own_goals_routing_and_checkpoints():
     m = {"scripted_semantic_agent_paths": s["provenance"]["outside_model_chosen_calls"] +
          a["provenance"]["outside_model_chosen_calls"],
          "events_as_participants": s["provenance"]["events_as_participants"],
+         "lm_outside_model_chosen_calls": s["provenance"]["outside_model_chosen_calls"],
+         "ablated_outside_model_chosen_calls": a["provenance"]["outside_model_chosen_calls"],
+         "outside_by_type": json.dumps({"lm": s["provenance"]["outside_by_type"],
+                                        "ablated": a["provenance"]["outside_by_type"]}),
+         "scheduled_consequences_of_chosen_calls": s["provenance"]["scheduled_consequences_of_chosen_calls"] +
+         a["provenance"]["scheduled_consequences_of_chosen_calls"],
          "semantic_agents_with_own_goals": s["participants_with_own_goals"],
          "capabilities_routed_to_smallest_model": routed == rederived,
          "models_with_licence_and_tool_use_verified": len(verified),
