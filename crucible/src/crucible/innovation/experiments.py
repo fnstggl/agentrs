@@ -147,9 +147,12 @@ def mine_chains(res: dict) -> list[dict]:
             if t_adopt is not None and t_adopt <= t_on:
                 stages.insert(0, {"name": f"adoption of a {first_step} provider", "subsystem": "commerce", "t": t_adopt})
         t_ask = None
-        title = w.modules["work"].task_text(need_name)[:60]
+        try:            # a need whose target is a task of the population's work; others (supply of a capability a
+            title = w.modules["work"].task_text(need_name)[:60]     # service declares, access, ...) have no request
+        except KeyError:
+            title = None
         t_from = min(x["t"] for x in stages if x["t"] is not None) if any(x["t"] is not None for x in stages) else 0
-        for e in log:
+        for e in log if title is not None else ():
             if e.type == "forum.post" and e.t >= t_from and e.payload["title"].startswith(
                     "Looking for a service: " + title[:40]):
                 t_ask = e.t

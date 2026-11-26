@@ -377,6 +377,100 @@ def data_relations(world) -> list[dict]:
     return out
 
 
+def _compute_market_relations(world) -> list[dict]:
+    """Compute providers' core capacity as a shared resource (a technology raising computing demand): every live
+    service loads the market of the provider its instance runs on, the provider's capacity constrains it."""
+    st = world.state
+    if "providers" not in st.tables or "deployments" not in st.tables:
+        return []
+    provs = sorted(pid for pid, p in st.scan("providers") if p["status"] == "active")
+    out = [rel(f"capacity/{pid}", "constraint", "constrains", f"compute-market/{pid}", "compute_market")
+           for pid in provs]
+    on = set(provs)
+    for _, dep in sorted(st.scan("deployments")):
+        if dep["status"] != "live":
+            continue
+        inst = st.get("instances", dep["instance"])
+        if inst and inst["provider"] in on:
+            out.append(rel(f"service/{dep['host']}", "service", "loads", f"compute-market/{inst['provider']}",
+                           "compute_market"))
+    return out
+
+
+def _compute_market_obs(world, nodes) -> dict:
+    """utilisation (running cores / the provider's cores) and refused share (rentals refused for capacity over the
+    last 7 days, against rentals made) of compute providers."""
+    st = world.state
+    since = world.now - 7 * DAY
+    refused: dict[str, int] = {}
+    for e in world.log:
+        if e.t >= since and e.type == "ops.loss" and e.payload.get("kind") == "capacity_unavailable":
+            refused[e.payload.get("resource")] = refused.get(e.payload.get("resource"), 0) + int(e.payload["n"])
+    out = {}
+    for n in nodes:
+        pid = n.split("/", 1)[1]
+        prov = st.get("providers", pid)
+        if prov is None:
+            continue
+        insts = st.find("instances", "provider", pid)
+        used = sum(i["cores"] for i in insts if i["status"] == "running")
+        made = sum(1 for i in insts if i["created"] >= since)
+        r = refused.get(pid, 0)
+        out[n] = {"utilisation": used / prov["cores"] if prov["cores"] else 0.0,
+                  "refused_share": r / (r + made) if r + made else 0.0}
+    return out
+
+
+def _freight_relations(world) -> list[dict]:
+    """The freight network (transport and market access): the carrier's service on each link loads the link,
+    whose daily capacity constrains it, and gives access between the link's two regions."""
+    st = world.state
+    if "links" not in st.tables or world.modules.get("freight") is None:
+        return []
+    out = []
+    for lid, l in sorted(st.scan("links")):
+        s = f"carrier/{lid}"
+        out.append(rel(s, "carrier", "loads", f"transport/{lid}", "transport_link"))
+        out.append(rel(f"capacity/{lid}", "constraint", "constrains", f"transport/{lid}", "transport_link"))
+        out.append(rel(s, "carrier", "produces", f"access/{l['a']}-{l['b']}", "capability"))
+    return out
+
+
+def _freight_obs(world, nodes) -> dict:
+    """Links: utilisation (the most loaded of the last 3 days: units reserved / daily capacity) and refused share
+    (shipments over the link in the last 7 days that waited for capacity). Carriers: holders (payers of those
+    shipments and owners of the receiving facilities)."""
+    st = world.state
+    today = world.now // DAY
+    since = world.now - 7 * DAY
+    ships: dict[str, list] = {}
+    for _, sh in st.scan("shipments"):
+        if sh["t"] >= since:
+            for lid in sh.get("route") or ():
+                ships.setdefault(lid, []).append(sh)
+    out = {}
+    for n in nodes:
+        lid = n.split("/", 1)[1]
+        link = st.get("links", lid)
+        if link is None:
+            continue
+        mine = ships.get(lid, [])
+        if n.startswith("transport/"):
+            peak = max((float((st.get("link_days", f"{lid}|{d}") or {}).get("used", 0)) for d in range(today - 2, today + 1)),
+                       default=0.0)
+            out[n] = {"utilisation": peak / max(1, link["capacity"]),
+                      "refused_share": sum(1 for x in mine if x["delayed"]) / len(mine) if mine else 0.0}
+        elif n.startswith("carrier/"):
+            hs = set()
+            for x in mine:
+                hs.add(x["payer"])
+                fac = st.get("facilities", x["to"]) if "facilities" in st.tables else None
+                if fac:
+                    hs.add(fac["owner"])
+            out[n] = {"holders": sorted(h for h in hs if h)}
+    return out
+
+
 register_provider("work", _work_relations)
 register_provider("cloud", _cloud_relations)
 register_provider("caps", _caps_relations)
@@ -385,3 +479,8 @@ register_provider("data", data_relations)
 register_observable("activity", _work_activity_obs)
 register_observable("resource", _cloud_obs)
 register_observable("service", _cloud_obs)
+register_provider("compute_market", _compute_market_relations)
+register_provider("freight", _freight_relations)
+register_observable("compute_market", _compute_market_obs)
+register_observable("transport_link", _freight_obs)
+register_observable("carrier", _freight_obs)

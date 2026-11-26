@@ -517,3 +517,140 @@ def developer_adoptions(world) -> dict:
     upgrades = sum(1 for _, c in st.scan("pkg_compat") if c["compatible"]) if "pkg_compat" in st.tables else 0
     return {"autonomous_developer_adoptions": len(auto), "later_releases": later, "compatible_upgrades": upgrades,
             "packages": len(st.tables.get("pkg_packages", {}))}
+
+
+# ====================================================================== SP-6.4b (need mechanisms from the one graph)
+# The example mechanisms of Part 6.4. LISTED are the five SP-6.4b names; the other two (reliability bottleneck,
+# computing demand) are reported separately and never counted towards need_mechanism_examples.
+LISTED = ("workflow_change", "transport_market_access", "coordination", "content_communities_tools",
+          "education_skill_availability")
+EXTRA = ("reliability_bottleneck", "computing_demand")
+NOT_LIVE = {
+    "coordination": "no module models organisational coordination load (organisations' size, overhead or "
+                    "coordination failures are not world state), so the graph has nothing to read",
+    "content_communities_tools": "communities hold no tool requirement or moderation load the population produces "
+                                 "(population members join, leave and post; nobody reports or moderates)",
+    "education_skill_availability": "the education module (domains/learning.py) is inert in civilisations (learn n=0) "
+                                    "and its learners never study in a standalone world (learn.study raises "
+                                    "KeyError 'id' at learning.py:324); no relation provider reads it yet",
+}
+
+
+def _first_seen(history: list[dict]) -> tuple[dict, dict]:
+    first, rec = {}, {}
+    for h in history:
+        for nid, n in h["needs"].items():
+            first.setdefault(nid, h["t"])
+            rec.setdefault(nid, n)
+    return first, rec
+
+
+def need_mechanisms(A: dict) -> dict:
+    """Needs of the factual civilisation, labelled by the one relation graph (`innovation.relations`: providers that
+    read the world's state, generic rules), that arose after genesis, classified by the mechanism the derivation
+    path shows (rule and the providers of its edges; no node name is consulted):
+
+    * workflow_change - a bottleneck on a later step of a multi-step work activity, first labelled after holders
+      adopted a provider for an earlier step, and never labelled in the arm where nobody builds for that step;
+    * transport_market_access - scarcity of a transport link (freight provider: load against daily capacity, or
+      shipments waiting for capacity) giving access between regions;
+    * reliability_bottleneck - scarcity of a service's rented compute under its users' load (cloud provider);
+    * computing_demand - scarcity of a compute provider's cores (compute_market provider)."""
+    f = A["factual"]
+    hist = f["history"]
+    t0 = hist[0]["t"]
+    first, rec = _first_seen(hist)
+    first_rely: dict[str, int] = {}
+    for e in f["world"].log:
+        if e.type == "work.rely" and e.payload.get("active") and e.payload.get("need"):
+            first_rely.setdefault(e.payload["need"], e.t)
+    found: dict[str, list] = {k: [] for k in LISTED + EXTRA}
+    for nid in sorted(first):
+        if first[nid] <= t0 + DAY:
+            continue
+        n = rec[nid]
+        prov = [p.get("provider") for p in n["path"]]
+        if n["rule"] == "bottleneck" and prov == ["work"]:
+            act = n["path"][0]["src"].split("/", 1)[1]
+            steps = act.split("+")
+            tgt = n["target"].split("/", 1)[1]
+            if tgt in steps and steps.index(tgt) > 0:
+                earlier = steps[:steps.index(tgt)]
+                ta = min((first_rely[s] for s in earlier if s in first_rely), default=None)
+                arm = CX.removal_arm_for(earlier[0])
+                if ta is not None and ta <= first[nid] and nid not in A[arm]["outcome"]["needs_ever"]:
+                    found["workflow_change"].append({"need": nid, "first_day": first[nid] // DAY,
+                                                     "earlier_step_adopted_day": ta // DAY, "absent_in": arm})
+        elif n["rule"] == "scarcity":
+            row = {"need": nid, "first_day": first[nid] // DAY, "holders": n["holders"]}
+            if prov[0] == "freight":
+                found["transport_market_access"].append(row)
+            elif prov[0] == "compute_market":
+                found["computing_demand"].append(row)
+            elif prov[0] == "cloud":
+                found["reliability_bottleneck"].append(row)
+    return found
+
+
+def designer_supplied_demand(A: dict) -> dict:
+    """Paths by which demand would be supplied by the designer instead of arising from world state: labelled needs
+    (any arm, any day) whose path uses relations given as data (provider `data`), measured worlds whose spec
+    carries relations or relation observables as data, and world configuration that names a workflow's composer,
+    components or declaration (a demand planted for the combination)."""
+    import json as _json
+    data_paths = sum(1 for r in A.values() for h in r["history"] for n in h["needs"].values()
+                     if any(p.get("provider") == "data" for p in n["path"]))
+    w = A["factual"]["world"]
+    spec_txt = _json.dumps(w.spec.to_dict(), sort_keys=True)
+    data_specs = int(bool(w.spec.params.get("relations") or w.spec.params.get("relation_nodes")))
+    st = w.state
+    named = 0
+    for _, wf in (st.scan("cap_workflows") if "cap_workflows" in st.tables else ()):
+        names = [wf["declaration"], wf["host"]] + [c["host"] for c in wf["components"]] + \
+            [c["declaration"] for c in wf["components"]]
+        for x in names:
+            if x and f'"{x}"' in spec_txt:
+                named += 1
+    return {"designer_supplied_demand_paths": int(data_paths + data_specs + named), "data_relation_paths": data_paths,
+            "data_relation_specs": data_specs, "configured_combination_names": named}
+
+
+def novel_combinations(A: dict) -> dict:
+    """Agent-created combinations of capabilities: verified workflow registry objects (`caps.compose`) of a population
+    developer combining live services of independent other creators, the individuals who rely on them, and the
+    future state they change - hand-work minutes of the composed activity in the factual arm against the arm in
+    which nobody builds for the generated categories (no components, no workflow)."""
+    w = A["factual"]["world"]
+    st = w.state
+    fo, ro = A["factual"]["outcome"], A["ban_novel"]["outcome"]
+    rows = []
+    for wid, wf in (st.scan("cap_workflows") if "cap_workflows" in st.tables else ()):
+        comps = {c["provider"] for c in wf["components"]}
+        indep = all(M.independent(w, wf["composer"], c) for c in comps) and \
+            all(M.independent(w, a, b) for a in comps for b in comps if a < b)
+        relied = {r["i"] for _, r in st.scan("work_exp") if r["prov"] == wf["declaration"] and r["active"]}
+        need = next((r["step_need"] for _, r in st.scan("work_exp") if r["prov"] == wf["declaration"]
+                     and r["step_need"]), None)
+        delta = (CX.minutes_for(ro, need) - CX.minutes_for(fo, need)) if need else 0.0
+        rows.append({"workflow": wid, "status": wf["status"], "components": len(comps), "independent": bool(indep),
+                     "relied": len(relied), "need": need, "hand_minutes_saved_vs_removal": round(float(delta), 1),
+                     "composer_kind": M.creator_kind(w, wf["composer"]), "created_day": int(wf.get("t", 0)) // DAY})
+    good = [r for r in rows if r["status"] == "verified" and r["components"] >= 2 and r["independent"]
+            and r["relied"] > 0 and r["hand_minutes_saved_vs_removal"] > 0 and r["composer_kind"] == "population"]
+    return {"rows": rows, "novel_combinations_changing_state": len(good)}
+
+
+def sp64b_measure(A: dict) -> dict:
+    found = need_mechanisms(A)
+    dem = designer_supplied_demand(A)
+    nc = novel_combinations(A)
+    listed = [k for k in LISTED if found[k]]
+    m = {"need_mechanism_examples": len(listed),
+         **{f"mechanism_{k}": len(found[k]) for k in LISTED + EXTRA},
+         "extra_mechanisms_demonstrated": sum(1 for k in EXTRA if found[k]),
+         "designer_supplied_demand_paths": dem["designer_supplied_demand_paths"],
+         "data_relation_paths": dem["data_relation_paths"],
+         "configured_combination_names": dem["configured_combination_names"],
+         "novel_combinations_changing_state": nc["novel_combinations_changing_state"]}
+    missing = {k: NOT_LIVE.get(k, "did not arise in the measured run") for k in LISTED if not found[k]}
+    return {"metrics": m, "found": found, "missing": missing, "combinations": nc["rows"]}
