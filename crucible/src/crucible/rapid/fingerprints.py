@@ -32,7 +32,7 @@ from typing import Any
 FP_VERSION = "rapid-fp/2"
 WEIGHTS = {"engine": 1.0, "motifs": 2.0, "motif_edges": 1.0, "topology": 1.0, "temporal": 1.0, "observation": 1.0,
            "action_interface": 1.5, "objective": 1.0, "participants": 0.5}
-PROBE_SEEDS = (0, 1, 2)
+PROBE_SEEDS = tuple(range(8))      # instances whose structures are united into the family's fingerprint
 STATEFUL = {"hidden_confounding", "delay", "stock", "decay", "hysteresis", "feedback", "path_dependence",
             "adaptive_opponent", "regime_change", "endogenous_demand", "learning_behaviour"}
 CHANNEL_PRIMS = {"measurement_noise", "missing_observation", "selection_effect", "partial_observability"}
@@ -174,24 +174,28 @@ def instance_fingerprint(env) -> dict:
 
 
 def _observed_structure(env) -> dict:
-    """What kinds of observation a world's public observations contain (from a reset and two waiting ticks):
+    """What kinds of observation a world's public observations contain (from a reset and six waiting ticks):
     whether there are readings and arrays, which entity kinds and which resource kinds. Kinds only, never how many
     (event text depends on what happened in the first ticks, so it is not part of the structure)."""
     import copy
     e = copy.deepcopy(env)
     obs = [e.reset()]
-    for _ in range(2):
+    for _ in range(6):
         if not e.done:
             obs.append(e.step(None)["observation"])
     return {"readings": any(o["numbers"] for o in obs), "arrays": any(o["arrays"] for o in obs),
-            "entities": sorted({str(x.get("kind") or "entity") for o in obs for x in o["entities"]}),
+            # entity kinds listed from the start (a catalogue the world shows); kinds that come and go with events
+            # (a job waiting, a trip) depend on what happens, so only whether entities appear at all counts
+            "entities": sorted({str(x.get("kind") or "entity") for x in obs[0]["entities"]}),
+            "event_entities": any(o["entities"] for o in obs[1:]),
             "resources": sorted({_resource_kind(k) for o in obs for k in o["resources"]})}
 
 
 def _resource_kind(key: str) -> str:
-    """Resource keys name kinds (`cash_cents`, `experiment_budget`); a key that carries an instance name after a
-    colon is reduced to its kind."""
-    return key.split(":", 1)[0]
+    """Resource keys name kinds (`cash_cents`, `experiment_budget`); a key that carries an instance name (a neutral
+    public name such as `ra67`, drawn by the seed) is reduced to its kind (`unit_cost_ra67` -> `unit_cost_*`)."""
+    import re
+    return re.sub(r"(?<![a-z])[a-z]{2}\d{2}(?!\d)", "*", key.split(":", 1)[0])
 
 
 def participant_policies(env) -> list[str]:
@@ -214,7 +218,13 @@ def merge(fps: list[dict]) -> dict:
             out[k] = sorted({x for v in vals for x in v})
         elif isinstance(vals[0], dict):
             keys = sorted({kk for v in vals for kk in v})
-            out[k] = {kk: sorted({_h(v.get(kk)) for v in vals}) for kk in keys}
+            out[k] = {}
+            for kk in keys:
+                xs = [v.get(kk) for v in vals]
+                if all(isinstance(x, list) or x is None for x in xs):
+                    out[k][kk] = sorted({str(e) for x in xs if x for e in x})     # kinds present in any instance
+                else:
+                    out[k][kk] = sorted({_h(x) for x in xs})
         else:
             out[k] = sorted({_h(v) for v in vals}) if len({_h(v) for v in vals}) > 1 else vals[0]
     return out

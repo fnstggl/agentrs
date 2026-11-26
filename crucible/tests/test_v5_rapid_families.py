@@ -82,7 +82,9 @@ def test_fingerprints_ignore_names_seeds_and_coefficients_but_not_structure():
     b = FP.instance_fingerprint(F.make("hc_confounded", 7))
     assert FP.distance(FP.merge([a]), FP.merge([b])) == 0.0
     c = FP.instance_fingerprint(F.make("hc_confounded", 0, n_variables=3))
-    assert FP.distance(FP.merge([a]), FP.merge([c])) > 0          # more variables change the observation structure
+    assert FP.distance(FP.merge([a]), FP.merge([c])) == 0.0       # distractors are not structure (M.n1)
+    h = FP.instance_fingerprint(F.make("hc_confounded", 0, horizon=200))
+    assert FP.distance(FP.merge([a]), FP.merge([h])) == 0.0       # nor is the horizon
     fps = {n: F.REGISTRY[n]["fingerprint"] for n in F.REGISTRY}
     kept, dup = FP.counted(fps)
     assert not dup and len(kept) == len(fps)

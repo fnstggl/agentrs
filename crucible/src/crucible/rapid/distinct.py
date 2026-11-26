@@ -189,6 +189,12 @@ def _interface_check(fa: str, fb: str) -> dict | None:
                 if k == "query":
                     for t in sch["properties"]["target"]["enum"]:
                         out.setdefault(_query_kind(t), {"kind": "query", "target": t, "args": {}})
+                elif k == "experiment" and "instrument" in sch["properties"]["design"]["properties"]:
+                    out.setdefault(k, None)
+                    rng = np.random.default_rng(0)
+                    act = random_action(sp, rng, ["experiment"])
+                    act["design"]["instrument"] = sch["properties"]["design"]["properties"]["instrument"]["enum"][0]
+                    out.setdefault("experiment:instrument_choice", act)
                 else:
                     out.setdefault(k, None)
         return out
@@ -220,6 +226,28 @@ LOOKALIKE = {"mk_elastic", "mk_signal", "mk_gate", "mk_drift"}
 PAIR_PROTOCOLS: dict[frozenset, str] = {}
 
 
+def _observation_check(fa: str, fb: str) -> dict | None:
+    """What the two worlds show a participant who waits three ticks: kinds of entities, arrays and resources. A
+    kind one world always shows and the other never does verifies a difference in observation structure."""
+    def kinds(f, s):
+        e = make(f, s)
+        out = set()
+        obs = [e.observe()] + [e.step(None)["observation"] for _ in range(3)]
+        for o in obs:
+            out |= {f"entity:{x.get('kind') or 'entity'}" for x in o["entities"]}
+            out |= {f"resource:{k.split(':')[0]}" for k in o["resources"]}
+            out |= {"arrays"} if o["arrays"] else set()
+        return out
+    ka = [kinds(fa, s) for s in SEEDS]
+    kb = [kinds(fb, s) for s in SEEDS]
+    only_a = set.intersection(*ka) - set.union(*kb)
+    only_b = set.intersection(*kb) - set.union(*ka)
+    if not (only_a or only_b):
+        return None
+    return {"method": "observation_structure", "ok": True, "only_in_this": sorted(only_a),
+            "only_in_nearest": sorted(only_b)}
+
+
 def verify(fa: str, fb: str, seeds=SEEDS) -> dict:
     """Verify by intervention that families `fa` and `fb` differ."""
     itf = _interface_check(fa, fb)
@@ -231,6 +259,9 @@ def verify(fa: str, fb: str, seeds=SEEDS) -> dict:
         ok = all(m["signatures"][fa] != m["signatures"][fb] and m["all_own"] for m in mats)
         return {"method": "lookalike_protocol", "ok": bool(ok),
                 "signatures": [[m["signatures"][fa], m["signatures"][fb]] for m in mats]}
+    obs = _observation_check(fa, fb)
+    if obs is not None and obs["ok"]:
+        return obs
     proto = PAIR_PROTOCOLS.get(frozenset((fa, fb)))
     if proto:
         import importlib
