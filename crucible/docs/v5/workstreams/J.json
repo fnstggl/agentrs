@@ -37,7 +37,7 @@
     "tests/v5/test_gate_O.py"
    ],
    "status_claim": "fails on measured values at e77fef3 (duplicate_shared_facts 4, identity_consistency_violations 3); the metric now also counts the kernel's mandatory duplicate check (crucible.substrate.facts.world_report: reviewed second copies holding facts, problems) - stricter, re-measured in the final lane",
-   "notes": "duplicates are composition-level and owned by other workstreams: community (forum boards / community.communities, D-21 migration C+A), product offers (products / industry retail), employment (pop.employer / industry own operators), energy price (industry grids / fleet site tariffs), institutions (gov.constitutions / inst.inst_charters). Identity: forum posts by population principals that were never materialised (crucible.economy.work _post/_ask call forum.post as ids.pid(i) without ids.ensure_principal) - ECON request in integration_notes."
+   "notes": "duplicates are composition-level and owned by other workstreams: community (forum boards / community.communities, D-21 migration C+A), product offers (products / industry retail), employment (pop.employer / industry own operators), energy price (industry grids / fleet site tariffs), institutions (gov.constitutions / inst.inst_charters). Identity: forum posts by population principals that were never materialised (crucible.economy.work _post/_ask call forum.post as ids.pid(i) without ids.ensure_principal) - ECON request in integration_notes. Kernel check on a balanced civilisation (CPU, 30 simulated minutes, this branch): duplicate_shared_facts 6, kinds employment, energy_price, listing, population, product_offer, relationship; second copies holding facts: society.minds 7 (4.0 organisational minds that run industry firms: a second population, B), sci.sci_npc 3 (researchers outside pop, B+I), industry.offers 4 (listings, owner market.listings), pop.cols:pop.contacts 1042 (relationships outside the one graph, B+C), pop.cols:pop.employer 708 (employment outside contracts, B+F); 0 problems, 0 unreviewed tables."
   },
   "O.3": {
    "implementation_files": [
@@ -92,8 +92,8 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "implemented: 7 Part 10.2 categories (1,2,3,4,5,7,8) as counterfactual experiments with placebo arms; every arm now runs in its own process",
-   "notes": "category 6 (education -> workforce) pending: no population study or labour market yet"
+   "status_claim": "fails at e77fef3 (3 seeds): cross_domain_effect_types 2 of 7 implemented categories confirmed - 1 science -> technology (true quality -0.44, CI [-0.85, -0.02], noise 0.20; adopted papers -3.33) and 3 service usage -> infrastructure demand (datacenter kWh -1,222, CI [-1,532, -913]; regional grid kWh -1,211). Not confirmed: 2 technology adoption -> production cost (an experiment bug: adoptions still in trial at the fork were kept by the arm - true quality equal in every seed; fixed), 4 infrastructure -> software (a 40% grid cut never bound: 0 outages; now 10%), 5 social adoption (goods word of mouth: goods bought -5 +- 25; rarely adds an unknown listing in the balanced profile; a second category-5 experiment social_discovery added: a labelled scripted shop announced or not on the forum, adoption verified by population payments), 7 coordination (3.5% overhead per extra operator: +31 +- 147 units, below the reshuffling noise), 8 supply disruption (goods bought -10.5/-3/-28.5 in every seed, CI [-47, 19] with t(2) = 4.30). The battery now runs six seeds (11-16); re-measured in lane3 (queued)",
+   "notes": "category 6 (education -> workforce) pending: the population neither studies nor works in a labour market yet"
   },
   "O.6": {
    "implementation_files": [
@@ -171,7 +171,7 @@
     "tests/v5/test_gate_P.py",
     "tests/test_v5_civ_longrun.py"
    ],
-   "status_claim": "harness implemented with checkpoints and resume after interruption; suite queued/run (see measurements_unofficial)",
+   "status_claim": "harness verified on a CPU smoke run (3 hour-long 'days': 2 exact + 2 free resume checks equal, 3 replay segments exact, 0 accounting mismatches); first suite at e77fef3 reached day 60-70 of the 180/365-day runs (0 unexplained violations, 0 accounting mismatches) before the slot governor stopped it at 18 GB; the full suite (30/90/180/365 days x 2 seeds, two workers, at most one 365-day run at a time) is queued as 'J: Gate P suite (restart, RAM 28G)' on the branch head at its start; results: /workspace/data/crucible/runs-c5/civ/<code key>/ and the scratch log gate_p_suite2.log",
    "notes": ""
   },
   "P.2": {
@@ -189,7 +189,7 @@
    "tests": [
     "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "see P.1",
+   "status_claim": "harness verified on a CPU smoke run (3 hour-long 'days': 2 exact + 2 free resume checks equal, 3 replay segments exact, 0 accounting mismatches); first suite at e77fef3 reached day 60-70 of the 180/365-day runs (0 unexplained violations, 0 accounting mismatches) before the slot governor stopped it at 18 GB; the full suite (30/90/180/365 days x 2 seeds, two workers, at most one 365-day run at a time) is queued as 'J: Gate P suite (restart, RAM 28G)' on the branch head at its start; results: /workspace/data/crucible/runs-c5/civ/<code key>/ and the scratch log gate_p_suite2.log",
    "notes": ""
   },
   "P.3": {
@@ -210,7 +210,7 @@
     "tests/test_v5_civ_longrun.py",
     "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "implemented, exact check (D-47): each resume check copies the store at the resume day; a NEW process resumes it freely (reported, with the origin of any divergence) and another re-executes the live run's recorded continuation on the resumed copy (counted: hash, digest and seq must equal the live world). Verified on civilisations in tests/test_v5_civ_determinism.py (CPU, 3 passed); the interruption test also regenerates the interrupted run's whole record",
+   "status_claim": "implemented, exact check (D-47): each resume check copies the store at the resume day; a NEW process resumes it freely (reported, with the origin of any divergence) and another re-executes the live run's recorded continuation on the resumed copy (counted: hash, digest and seq must equal the live world). Verified on civilisations in tests/test_v5_civ_determinism.py (CPU, 3 passed); the interruption test also regenerates the interrupted run's whole record; Gate P suite queued (see P.1)",
    "notes": ""
   },
   "P.4": {
@@ -229,7 +229,7 @@
     "tests/test_v5_civ_determinism.py",
     "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "segment replays in a child process holding one state at a time; final snapshot checked in a child; tests/test_v5_civ_determinism.py::test_segment_replay_and_snapshot_checks_run_in_children passes",
+   "status_claim": "harness verified on a CPU smoke run (3 hour-long 'days': 2 exact + 2 free resume checks equal, 3 replay segments exact, 0 accounting mismatches); first suite at e77fef3 reached day 60-70 of the 180/365-day runs (0 unexplained violations, 0 accounting mismatches) before the slot governor stopped it at 18 GB; the full suite (30/90/180/365 days x 2 seeds, two workers, at most one 365-day run at a time) is queued as 'J: Gate P suite (restart, RAM 28G)' on the branch head at its start; results: /workspace/data/crucible/runs-c5/civ/<code key>/ and the scratch log gate_p_suite2.log",
    "notes": ""
   },
   "P.5": {
@@ -248,7 +248,7 @@
    "tests": [
     "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "Accountant (event vs state equalities) checkpointed and resumed",
+   "status_claim": "harness verified on a CPU smoke run (3 hour-long 'days': 2 exact + 2 free resume checks equal, 3 replay segments exact, 0 accounting mismatches); first suite at e77fef3 reached day 60-70 of the 180/365-day runs (0 unexplained violations, 0 accounting mismatches) before the slot governor stopped it at 18 GB; the full suite (30/90/180/365 days x 2 seeds, two workers, at most one 365-day run at a time) is queued as 'J: Gate P suite (restart, RAM 28G)' on the branch head at its start; results: /workspace/data/crucible/runs-c5/civ/<code key>/ and the scratch log gate_p_suite2.log",
    "notes": ""
   },
   "P.6": {
@@ -267,7 +267,7 @@
    "tests": [
     "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "see P.1",
+   "status_claim": "harness verified on a CPU smoke run (3 hour-long 'days': 2 exact + 2 free resume checks equal, 3 replay segments exact, 0 accounting mismatches); first suite at e77fef3 reached day 60-70 of the 180/365-day runs (0 unexplained violations, 0 accounting mismatches) before the slot governor stopped it at 18 GB; the full suite (30/90/180/365 days x 2 seeds, two workers, at most one 365-day run at a time) is queued as 'J: Gate P suite (restart, RAM 28G)' on the branch head at its start; results: /workspace/data/crucible/runs-c5/civ/<code key>/ and the scratch log gate_p_suite2.log",
    "notes": ""
   },
   "P.n1": {
@@ -285,7 +285,7 @@
    "tests": [
     "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "two distinct seeds per horizon",
+   "status_claim": "harness verified on a CPU smoke run (3 hour-long 'days': 2 exact + 2 free resume checks equal, 3 replay segments exact, 0 accounting mismatches); first suite at e77fef3 reached day 60-70 of the 180/365-day runs (0 unexplained violations, 0 accounting mismatches) before the slot governor stopped it at 18 GB; the full suite (30/90/180/365 days x 2 seeds, two workers, at most one 365-day run at a time) is queued as 'J: Gate P suite (restart, RAM 28G)' on the branch head at its start; results: /workspace/data/crucible/runs-c5/civ/<code key>/ and the scratch log gate_p_suite2.log",
    "notes": ""
   },
   "SP-10.0": {
@@ -308,7 +308,7 @@
     "tests/v5/test_gate_SP_10_0.py"
    ],
    "status_claim": "fork_divergence_supported false and independent_replications 0 at e77fef3 under the free-rerun definition; redefined exactly (D-47): replications = fresh-process World.regenerate of the recorded first day from the store alone (verified exact on a 1-hour civilisation on CPU), forks = exact copy + parent untouched + intervened fork diverges + unchanged fork equal or parted first by a recorded inference outcome; free reruns reported (free_reruns_exact). Re-measured in the final lane",
-   "notes": "free reruns of one spec and seed are not bit-reproducible (DEF-J-1: shared-space vectors depend on batch composition and on the machine-wide cache; 8 sequential runs of balanced seed 5 in one process gave 4 distinct 3-day trajectories). Historical query kinds 5 and entity kinds persisting and evolving 7 met at e77fef3; institutions persisted without change in 8 days."
+   "notes": "free reruns of one spec and seed are not bit-reproducible (DEF-J-1: sandbox CPU metering beyond the memo tolerance is billed fresh - the first divergence of a fresh-process rerun; shared-space vectors depend on batch composition and on the machine-wide cache; 8 sequential runs of balanced seed 5 in one process gave 4 distinct 3-day trajectories, while 5 runs of balanced seed 41 (in-process and fresh processes with the space's disk cache off) agreed over one day). Historical query kinds 5 and entity kinds persisting and evolving 7 met at e77fef3; institutions persisted without change in 8 days."
   },
   "SP-10.1": {
    "implementation_files": [
@@ -445,22 +445,31 @@
   }
  },
  "limitations": [
-  "Civilisation worlds run the Qwen3-0.6B text path of the shared semantic space: every run belongs in a GPU slot (about 12-35 s per simulated day at the development population on the shared GPU; on CPU several minutes per day). With 4 GPU jobs for ~18 agents, slot waits of 30-60 min per job bounded how much of the battery could be re-run in this wave.",
-  "Inert subsystems of civilisations (no population activity, no autonomous use): education (learn n=0), employment (labor/jobs/firms), institutions (inst), marketplaces (xchg/market), technology invention (caps/pkg) except when an agent declares a capability; owned by other workstreams (econ/dom) in this wave. O.1 and O.n1 fail until they carry activity.",
+  "Civilisation worlds run the Qwen3-0.6B text path of the shared semantic space: every run belongs in a GPU slot (~12-35 s per simulated day at the development population on the shared GPU; several minutes per day on CPU). With 4 GPU jobs for ~18 agents and a FIFO queue of 30-40 jobs, slot waits of hours bounded how much could be re-measured in this wave.",
+  "Free reruns of one spec and seed are not bit-reproducible (DEF-J-1). Exact checks under contract 1.7 (regeneration, exact resume) are counted; free agreement is reported (D-47).",
+  "Inert subsystems of civilisations (no population activity): education (learn n=0), employment (labor/jobs/firms), institutions (inst), marketplaces (xchg/market), technology invention (caps/pkg) except when an agent declares a capability; owned by other workstreams (econ/dom) in this wave. O.1 and O.n1 fail until they carry activity.",
   "education_skills (Part 10.2 category 6) is a recorded but pending coupling: the population neither studies nor works in a labour market yet; it is listed in SP-10.2 evidence and not counted.",
   "energy_cost_pricing passes energy cost changes through to prices for NEW rentals only (cloud keeps contracted prices), and at the scarce regime the energy bill per core-hour exceeds the compute price (providers lose money) - a modelling gap of the compute market, not fixed here.",
-  "SP-17.1: D, E, G, H and Q have no civilisation measurement (Gate Q has no implementation; G/H need the standard population's 256 adaptive / 8 semantic participants); B.6, C.1, C.5, C.6, C.n1, K.1-K.3, K.6, K.7, K.n1, K.n2 are measured only in their purpose-built worlds. The harness reports each as not_measured and fails the gate.",
-  "Chains and the invention experiment use LABELLED SCRIPTED reference agents as roots (feasibility, Part 10.3); every later stage is autonomous.",
-  "An in-process World.replay / World.from_blob next to a live world changed the live world's trajectory (both the interrupted 3-day run and its uninterrupted reference diverged from the plain run, while a plain cross-process resume was exact). Verification now runs in child processes; the root cause (process-global state shared between worlds) is not identified - see integration_notes."
+  "SP-17.1: E, H and Q have no civilisation measurement; B.6, C.1, C.5, C.6, C.n1, K.1-K.3, K.6, K.7, K.n1, K.n2 are measured only in their purpose-built worlds; B.1/B.2 fail on the development population. The harness reports each as not_measured/not_met and fails the gate.",
+  "Chains, the invention experiment, Gate J/L creation and Gate G's site switch use LABELLED SCRIPTED reference agents or experimenter actions as roots (feasibility, Part 10.3); every later stage is autonomous."
  ],
  "integration_notes": [
-  "KERNEL/A: two worlds built in one process are not independent: in-process World.replay(...) / World.from_blob(...) of a civilisation's snapshot changed the trajectory of the live civilisation in the same process (scratch diagnostic diag_observer.py: variants snap / fromblob / replay / otherworld). crucible.civ now verifies in child processes and runs every counterfactual arm in its own process, but in-process forks (World.fork) used by experimenters may be affected; please find the process-global state (artifact pool, sandbox worker pool, semantic caches, model state) that leaks between worlds.",
-  "ECON/DOM: civilisations compose work (needs from work bottlenecks), caps, needs, pkg, labor, jobs, firms, learn, inst, xchg, market; make their population activities live and the civ integration metrics (crucible.civ.integration.subsystems: population_events per subsystem) will count them without civ changes. learn is configured with n=0 and labor with workers=0 because their own populations would be second populations (D-15): they need population activities instead.",
+  "O/A (DEF-J-1, high; D-20/D-21 metering): the first divergence of a fresh-process rerun of a civilisation (balanced seed 41, day 1) is a hosted site's request billed cpu_ms 4.096 / cu 204.8 instead of the remembered 0.101 / 5.05: crucible.sandbox.metering bills a fresh measurement that exceeds MEMO_TOL x anchor + MEMO_SLACK_NS, so billing depends on machine load (in-process reruns and two disk-cache-off fresh processes were identical to the first run). Please resolve an exceedance deterministically (bill the anchor and flag the job, or re-measure until two measurements agree) so the same spec and seed give the same hashes on one machine.",
+  "SEM/D (DEF-J-1, high, latent): crucible.semantic.space computes missing representations in batches whose composition depends on the world's record AND on the process-wide/machine-wide RepCache (memory LRU + ~/.cache/crucible/space, shared by every process of every agent); padded batched encoding is not batch-invariant (CPU probe: 5 of 6 padded texts differ from their single encoding by 0.9e-7..7.2e-7, the unpadded one is bitwise equal). Request: make a representation a function of its bytes only (padding-free groups by exact token length, or one item per forward pass) and add a test of bitwise equality of batched vs single encoding on CPU and GPU; then free reruns of one spec and seed become exact and the civ free-rerun counters (SP-10.0 free_reruns_exact, Gate P free_resume_equal) can become criteria.",
+  "SEM/D: world state grows ~16 MB per simulated day in a development civilisation after the event window is full (live RSS 2.6 GB at day 31 -> 3.1 GB at day 61; 365-day runs reach ~8 GB live plus a verification child): most of it is likely the per-world space records (vec + chunks + features of every recorded item kept in state). Keeping recorded vectors as content-addressed array blobs referenced by events (like cols.batch) would bound long-run memory; Gate P suites are memory-bound on this machine.",
+  "KERNEL/A: crucible.civ.determinism.regenerate_continuation mirrors the loop of World.regenerate on a loaded world (it sets World._regen); a public kernel API World.regenerate_from(world, events) would remove that coupling. The observer diagnosis (8 sequential in-process runs of balanced seed 5: 4 distinct 3-day trajectories; inv/acc/fromblob/otherworld identical, pure/digest/replay/snap(day 3) different) shows no observer effect of World.replay/from_blob/another world: the divergence is intermittent inference numerics (DEF-J-1), not process-global state.",
+  "ECON: crucible.economy.work posts to the forum (_post, the ask-board request) as ids.pid(i) without ids.ensure_principal: 3 forum posts in a 6-day civilisation are authored by principals that do not exist (O.2 identity_consistency_violations). Please call ids.ensure_principal(ctx, i) before ctx.call(..., as_principal=p) (as population.web does).",
+  "ECON/INFRA (O.2 duplicate energy_price): in a civilisation the datacenter fleet (crucible.domains.infra_world, module fleet) prices electricity from its own per-site tariff while industry grids carry the regional energy price; when both are installed the fleet should read the price of the grid of its region (one fact). Likewise products vs industry retail listings, pop.employer vs industry own operators (industry's operators should be population members), forum boards vs community.communities (D-21 migration) and gov.constitutions vs inst.inst_charters are second copies holding facts in every civilisation (crucible.substrate.facts KNOWN_DUPLICATES).",
+  "ECON/DOM: civilisations compose work (needs from work bottlenecks), caps, needs, pkg, labor, jobs, firms, learn, inst, xchg, market; make their population activities live and crucible.civ.integration.subsystems (population_events per subsystem) counts them without civ changes. learn is configured with n=0 and labor with workers=0 because their own populations would be second populations (D-15). c5c/w3b-econ1 (59db19d) adds population activities in marketplaces, the labour market and institutions: after that merge O.1/O.n1 should be re-measured.",
   "ECON: crucible.innovation.reference.ServiceCreator needs crucible.innovation.worlds.FORMAT_SCHEMAS for the format it serves; match.stable and route.tsp (FORMAT_POOL of commerce.worlds.draw) have no schema, so agents cannot declare capabilities for them.",
-  "CORE-POP: the development population yields about 2,000-2,500 autonomous sessions per simulated day in a civilisation (6,733 in 3 days) - B.2's 100,000 sessions need the standard profile.",
-  "QA: civilisation gate tests read crucible.civ.gates' disk cache ($CRUCIBLE_CIV_CACHE) keyed by the digest of the whole crucible package; official runs on the integration branch recompute everything (hours of GPU slot time: Gate P alone is 1,330 simulated days)."
+  "QA: civilisation gate tests read crucible.civ.gates' disk cache ($CRUCIBLE_CIV_CACHE) keyed by the digest of the whole crucible package; official runs recompute everything (Gate P is 1,330 simulated days: about 4-5 h with two workers at ~16 s per simulated day on a shared GPU; give it >= 28 GB RAM and at most one 365-day run at a time: longrun.suite(max_long=1)). Gate SP-17.1's lane needs 2 CPUs, ~4.5 GB GPU, ~10 GB RAM, 3-4 h.",
+  "SP-17.1 (other workstreams): Gate H's society (crucible.semantic.scenarios.build_society) is bound to the 4.0 open_digital family and its goals' checks; a civ variant needs goals whose tools exist in civilisations (documents) and ~5 GB GPU; Gate E.1/C.1 need multimodal publication by the population (it publishes text only); Gate Q has no implementation on this branch; B.1/B.2 need the standard population (10,296 individuals) in a 30-day civilisation (too large for a 10 GB lane: per-day log processing instead of log_retain 8M)."
  ],
- "test_results_unofficial": {},
+ "test_results_unofficial": {
+  "tests/test_kernel.py + tests/test_invariants.py (CPU)": "51 passed",
+  "tests/test_v5_civ_history.py + tests/test_v5_civ_determinism.py + test_v5_civ_longrun.py::suite (CPU)": "7 passed",
+  "tests/test_v5_civ_core.py + test_v5_civ_longrun.py (GPU slot, e77fef3, predecessor)": "12 passed, 1 failed (the interruption test compared free reruns; now compares under D-47 and regenerates the interrupted run - re-run in the final lane)"
+ },
  "measurements_unofficial": {
   "gate_p_first_suite (e77fef3, stopped by the slot governor at 18 GB RAM)": {
    "runs": "180d s121 to day 60, 180d s122 to day 70, 365d s131 to day 60, 365d s132 to day 70 (balanced, development population)",
@@ -476,6 +485,8 @@
  },
  "history": {
   "wave 2 (c5c/w2-civ)": "generator, 11 profiles, couplings engine (science_process, compute_energy, grid_curtailment, goods_supply, goods_wom, org_coordination; education_skills pending), goods activity, civgen genesis, provenance chains, counterfactual experiments with placebo arms, long-run harness, accounting, integration metrics, Mode C provider, tier3 entry; J.json left empty by the usage-limit stop",
-  "integration fix (c5c/w3-intfix)": "civ composes CORE-POP's social internet and ECON's work/ventures/rivals/ads; all 11 profiles generate (see INT.json)"
+  "integration fix (c5c/w3-intfix)": "civ composes CORE-POP's social internet and ECON's work/ventures/rivals/ads; all 11 profiles generate (see INT.json)",
+  "wave 3b (c5c/w3b-civ, first agent; stopped by a usage limit)": "typed strict civilisations, resumable long runs, 4 new couplings, SP-10.0 persistence (forks, history, replication), SP-10.2 battery, SP-2.1b invention experiment, SP-19.3 slices, SP-17.1 harness (J/L/B/C/K), gate lane at e77fef3",
+  "wave 3b continuation (this agent)": "determinism diagnosis (DEF-J-1; no observer effect; metering is the first divergence of fresh reruns) and exact checks under contract 1.7 (D-47: regeneration-based replication, exact resume, fork/interruption divergence origin); DEF-A-5 verified fixed on civilisations; O.2 with the kernel's duplicate check; long-run verification memory bounded; effect experiment fixes (technology_cost, infrastructure_software) and social_discovery; six seeds for effects and invention; SP-17.1 batteries for Gates D, G and H on civilisations"
  }
 }
