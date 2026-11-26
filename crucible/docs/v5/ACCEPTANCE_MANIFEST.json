@@ -1764,7 +1764,9 @@
    "workstream": "D",
    "dependencies": [],
    "implementation_files": [
-    "src/crucible/semantic/encoders/effects.py"
+    "src/crucible/semantic/encoders/effects.py",
+    "src/crucible/population/modules.py",
+    "src/crucible/semantic/space/probe.py"
    ],
    "tests": [
     "tests/v5/test_gate_E.py"
@@ -1881,7 +1883,15 @@
    "workstream": "D",
    "dependencies": [],
    "implementation_files": [
-    "src/crucible/semantic/encoders/audit.py"
+    "src/crucible/semantic/encoders/audit.py",
+    "src/crucible/civ/couplings.py",
+    "src/crucible/civ/experiments.py",
+    "src/crucible/domains/firms.py",
+    "src/crucible/population/semantics.py",
+    "src/crucible/population/space_asset.py",
+    "src/crucible/semantic/space/prior.py",
+    "src/crucible/social/meaning.py",
+    "src/crucible/social/reference.py"
    ],
    "tests": [
     "tests/v5/test_gate_E.py",
@@ -1941,7 +1951,8 @@
     "docs/v5/calibration/models/commercial_response/model_card.json",
     "docs/v5/calibration/models/software_deep_engagement/model_card.json",
     "docs/v5/calibration/models/software_repo_growth/model_card.json",
-    "src/crucible/calibration/fit_e4.py"
+    "src/crucible/calibration/fit_e4.py",
+    "src/crucible/calibration/fit_e5.py"
    ],
    "tests": [
     "tests/v5/test_gate_F.py",
@@ -1996,7 +2007,9 @@
     "src/crucible/calibration/commercial.py",
     "src/crucible/calibration/fit_commercial.py",
     "docs/v5/calibration/reports/commercial_response@1.json",
-    "src/crucible/calibration/review_e3.py"
+    "src/crucible/calibration/review_e3.py",
+    "src/crucible/calibration/fit_e5.py",
+    "src/crucible/calibration/predictors_e5.py"
    ],
    "tests": [
     "tests/v5/test_gate_F.py",
@@ -2060,7 +2073,8 @@
     "docs/v5/calibration/reports/commercial_response@1.json",
     "docs/v5/calibration/reports/software_deep_engagement@1.json",
     "docs/v5/calibration/reports/software_repo_growth@1.json",
-    "src/crucible/calibration/runtime.py"
+    "src/crucible/calibration/runtime.py",
+    "src/crucible/calibration/fit_e5.py"
    ],
    "tests": [
     "tests/v5/test_gate_F.py",
@@ -2223,7 +2237,8 @@
     "docs/v5/calibration/models/software_deep_engagement/software_deep_engagement.npz",
     "docs/v5/calibration/models/software_repo_growth/software_repo_growth.npz",
     "src/crucible/calibration/portable.py",
-    "src/crucible/calibration/predictors_e4.py"
+    "src/crucible/calibration/predictors_e4.py",
+    "src/crucible/calibration/predictors_e5.py"
    ],
    "tests": [
     "tests/v5/test_gate_F.py",
@@ -4732,7 +4747,12 @@
     "src/crucible/rapid/families_posm.py",
     "src/crucible/rapid/families_search.py",
     "src/crucible/rapid/admission.py",
-    "src/crucible/rapid/report.py"
+    "src/crucible/rapid/report.py",
+    "src/crucible/rapid/families_h1.py",
+    "src/crucible/rapid/families_h2.py",
+    "src/crucible/rapid/families_h3.py",
+    "src/crucible/rapid/families_v2.py",
+    "src/crucible/rapid/dominance.py"
    ],
    "tests": [
     "tests/v5/test_gate_M.py",
@@ -4880,7 +4900,12 @@
     "src/crucible/rapid/engines/graph_dynamical.py",
     "src/crucible/rapid/engines/state_machine.py",
     "src/crucible/rapid/engines/search.py",
-    "src/crucible/rapid/engines/base.py"
+    "src/crucible/rapid/engines/base.py",
+    "src/crucible/rapid/engines/__init__.py",
+    "src/crucible/rapid/engines/experiment_lab.py",
+    "src/crucible/rapid/engines/planning.py",
+    "src/crucible/rapid/engines/program_exec.py",
+    "src/crucible/rapid/engines/strategic.py"
    ],
    "tests": [
     "tests/v5/test_gate_M.py",
@@ -4929,7 +4954,8 @@
    "dependencies": [],
    "implementation_files": [
     "src/crucible/rapid/fingerprints.py",
-    "src/crucible/rapid/families.py"
+    "src/crucible/rapid/families.py",
+    "src/crucible/rapid/engines/base.py"
    ],
    "tests": [
     "tests/v5/test_gate_M.py",
@@ -5084,11 +5110,16 @@
    "workstream": "H",
    "dependencies": [],
    "implementation_files": [
-    "src/crucible/rapid/claims.py"
+    "src/crucible/rapid/claims.py",
+    "src/crucible/rapid/claims_h3.py",
+    "src/crucible/rapid/claims_v2.py",
+    "src/crucible/rapid/evaluator_h2.py",
+    "src/crucible/rapid/eval_program_exec.py"
    ],
    "tests": [
     "tests/v5/test_gate_M.py",
-    "tests/test_v5_rapid_families.py"
+    "tests/test_v5_rapid_families.py",
+    "tests/test_v5_rapid_h1h2.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement M.8",
    "criteria": [
@@ -6666,7 +6697,8 @@
     "src/crucible/goals/selfgoals.py",
     "src/crucible/goals/metrics.py",
     "src/crucible/experience/experiments.py",
-    "src/crucible/experience/probes.py"
+    "src/crucible/experience/probes.py",
+    "src/crucible/experience/probes_tiers.py"
    ],
    "tests": [
     "tests/v5/test_gate_R.py"
@@ -6718,7 +6750,8 @@
     "src/crucible/experience/leakage.py",
     "src/crucible/core/evaluator_only.py",
     "src/crucible/core/kernel.py",
-    "src/crucible/api/local.py"
+    "src/crucible/api/local.py",
+    "src/crucible/experience/probes_tiers.py"
    ],
    "tests": [
     "tests/v5/test_gate_R.py"
@@ -7437,7 +7470,11 @@
    "dependencies": [
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/compose.py",
+    "src/crucible/research/v5/distribution.py",
+    "src/crucible/research/v5/curriculum.py"
+   ],
    "tests": [
     "tests/v5/test_gate_T.py"
    ],
@@ -7484,7 +7521,9 @@
    "dependencies": [
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/compose.py"
+   ],
    "tests": [
     "tests/v5/test_gate_T.py"
    ],
@@ -7531,7 +7570,9 @@
    "dependencies": [
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/curriculum.py"
+   ],
    "tests": [
     "tests/v5/test_gate_T.py"
    ],
@@ -7578,7 +7619,10 @@
    "dependencies": [
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/genadmit.py",
+    "src/crucible/research/v5/compose.py"
+   ],
    "tests": [
     "tests/v5/test_gate_T.py"
    ],
@@ -7625,7 +7669,10 @@
    "dependencies": [
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/curriculum.py",
+    "src/crucible/research/v5/curriculum_lab.py"
+   ],
    "tests": [
     "tests/v5/test_gate_T.py"
    ],
@@ -7672,7 +7719,9 @@
    "dependencies": [
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/curriculum.py"
+   ],
    "tests": [
     "tests/v5/test_gate_T.py"
    ],
@@ -7719,7 +7768,13 @@
    "dependencies": [
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/distribution.py",
+    "src/crucible/research/v5/sampler.py",
+    "src/crucible/research/v5/evaluator.py",
+    "src/crucible/research/v5/curriculum.py",
+    "src/crucible/research/v5/proposal.py"
+   ],
    "tests": [
     "tests/v5/test_gate_T.py"
    ],
@@ -7766,7 +7821,10 @@
    "dependencies": [
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/curriculum.py",
+    "src/crucible/research/v5/curriculum_lab.py"
+   ],
    "tests": [
     "tests/v5/test_gate_T.py"
    ],
@@ -7814,7 +7872,11 @@
     "L",
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/levels.py",
+    "src/crucible/research/v5/learners.py",
+    "src/crucible/research/v5/hstats.py"
+   ],
    "tests": [
     "tests/v5/test_gate_U.py"
    ],
@@ -7862,7 +7924,9 @@
     "L",
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/levels.py"
+   ],
    "tests": [
     "tests/v5/test_gate_U.py"
    ],
@@ -7920,7 +7984,10 @@
     "L",
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/fresh.py",
+    "src/crucible/research/v5/learners.py"
+   ],
    "tests": [
     "tests/v5/test_gate_U.py"
    ],
@@ -7968,7 +8035,13 @@
     "L",
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/instrument.py",
+    "src/crucible/research/v5/learners.py",
+    "src/crucible/research/v5/fresh.py",
+    "src/crucible/research/v5/hstats.py",
+    "src/crucible/research/v5/curves.py"
+   ],
    "tests": [
     "tests/v5/test_gate_U.py"
    ],
@@ -8016,7 +8089,10 @@
     "L",
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/comparison.py",
+    "src/crucible/research/v5/sampler.py"
+   ],
    "tests": [
     "tests/v5/test_gate_U.py"
    ],
@@ -8064,7 +8140,9 @@
     "L",
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/curves.py"
+   ],
    "tests": [
     "tests/v5/test_gate_U.py"
    ],
@@ -8112,7 +8190,10 @@
     "L",
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/evaluator.py",
+    "src/crucible/research/v5/episodes.py"
+   ],
    "tests": [
     "tests/v5/test_gate_U.py"
    ],
@@ -8160,7 +8241,9 @@
     "L",
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/hstats.py"
+   ],
    "tests": [
     "tests/v5/test_gate_U.py"
    ],
@@ -8219,7 +8302,9 @@
     "C",
     "D"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/bench5.py"
+   ],
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
@@ -8268,7 +8353,9 @@
     "C",
     "D"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/gatev.py"
+   ],
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
@@ -8317,7 +8404,10 @@
     "C",
     "D"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/bench5.py",
+    "src/crucible/scale/backends.py"
+   ],
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
@@ -8366,7 +8456,9 @@
     "C",
     "D"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/backends.py"
+   ],
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
@@ -8415,7 +8507,9 @@
     "C",
     "D"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/gatev.py"
+   ],
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
@@ -8464,7 +8558,9 @@
     "C",
     "D"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/gatev.py"
+   ],
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
@@ -8513,7 +8609,10 @@
     "C",
     "D"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/slots.py",
+    "src/crucible/scale/bench5.py"
+   ],
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
@@ -8582,7 +8681,9 @@
     "C",
     "D"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/slots.py"
+   ],
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
@@ -8631,7 +8732,9 @@
     "C",
     "D"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/approx.py"
+   ],
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
@@ -8683,7 +8786,8 @@
     "src/crucible/sandbox/bridge.py",
     "src/crucible/sandbox/jail.py",
     "src/crucible/sandbox/isolation.py",
-    "src/crucible/redteam/v5/sandbox.py"
+    "src/crucible/redteam/v5/sandbox.py",
+    "src/crucible/redteam/v5/network.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py",
@@ -8744,7 +8848,9 @@
    "implementation_files": [
     "src/crucible/redteam/v5/isolation.py",
     "src/crucible/goals/metrics.py",
-    "src/crucible/calibration/__init__.py"
+    "src/crucible/calibration/__init__.py",
+    "src/crucible/experience/remote.py",
+    "src/crucible/redteam/v5/civ.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py"
@@ -8810,7 +8916,9 @@
     "src/crucible/redteam/v5/worlds.py",
     "src/crucible/sandbox/metering.py",
     "src/crucible/innovation/pkg.py",
-    "src/crucible/rapid/engines/program_exec.py"
+    "src/crucible/rapid/engines/program_exec.py",
+    "src/crucible/redteam/v5/civ.py",
+    "src/crucible/sandbox/runner.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py"
@@ -8929,7 +9037,8 @@
    "dependencies": [],
    "implementation_files": [
     "src/crucible/redteam/v5/crossworld.py",
-    "src/crucible/services/code.py"
+    "src/crucible/services/code.py",
+    "src/crucible/redteam/v5/civ.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py"
@@ -8978,7 +9087,8 @@
    "implementation_files": [
     "src/crucible/services/code.py",
     "src/crucible/services/cloud.py",
-    "src/crucible/sandbox/bridge.py"
+    "src/crucible/sandbox/bridge.py",
+    "src/crucible/sandbox/runner.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py"
@@ -9077,7 +9187,8 @@
     "src/crucible/sandbox/isolation.py",
     "src/crucible/semantic/media.py",
     "src/crucible/web/browser.py",
-    "src/crucible/redteam/v5/network.py"
+    "src/crucible/redteam/v5/network.py",
+    "src/crucible/redteam/v5/civ.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py"
@@ -9125,7 +9236,8 @@
    "dependencies": [],
    "implementation_files": [
     "src/crucible/redteam/v5/private.py",
-    "src/crucible/redteam/v5/population.py"
+    "src/crucible/redteam/v5/population.py",
+    "src/crucible/redteam/v5/civ.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py"
@@ -10324,7 +10436,9 @@
    "dependencies": [
     "I"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/integrity.py"
+   ],
    "tests": [
     "tests/v5/test_gate_I.py"
    ],
@@ -10497,7 +10611,9 @@
    "dependencies": [
     "K"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/integrity.py"
+   ],
    "tests": [
     "tests/v5/test_gate_K.py"
    ],
@@ -10842,7 +10958,8 @@
    ],
    "implementation_files": [
     "src/crucible/experience/leakage.py",
-    "src/crucible/experience/probes.py"
+    "src/crucible/experience/probes.py",
+    "src/crucible/experience/probes_tiers.py"
    ],
    "tests": [
     "tests/v5/test_gate_R.py"
@@ -10890,7 +11007,9 @@
    "dependencies": [
     "S"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/integrity.py"
+   ],
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
@@ -10937,7 +11056,10 @@
    "dependencies": [
     "V"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "docs/v5/performance/targets.json",
+    "src/crucible/scale/bench5.py"
+   ],
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
@@ -11381,7 +11503,9 @@
     "src/crucible/substrate/history.py",
     "src/crucible/sandbox/runner.py",
     "src/crucible/sandbox/boot.py",
-    "src/crucible/population/core.py"
+    "src/crucible/population/core.py",
+    "src/crucible/sandbox/metering.py",
+    "src/crucible/services/code.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_2_3.py",
@@ -11396,7 +11520,8 @@
     "tests/test_v5_substrate_resume.py",
     "tests/test_v5_substrate_facts.py",
     "tests/test_v5_substrate_history.py",
-    "tests/test_v5_substrate_retention.py"
+    "tests/test_v5_substrate_retention.py",
+    "tests/test_v5_substrate_memo.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-2.3",
    "criteria": [
@@ -12187,7 +12312,9 @@
     "src/crucible/calibration/registry_e2.py",
     "docs/v5/calibration/plans/E3_review_plan.json",
     "docs/v5/calibration/plans/E4_new_domains_plan.json",
-    "src/crucible/calibration/review_e3.py"
+    "src/crucible/calibration/review_e3.py",
+    "docs/v5/calibration/plans/E5_ad_exposure_plan.json",
+    "src/crucible/calibration/fit_e5.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_5_5.py",
@@ -12606,7 +12733,14 @@
     "src/crucible/rapid/engines/discrete_event.py",
     "src/crucible/rapid/engines/graph_dynamical.py",
     "src/crucible/rapid/engines/state_machine.py",
-    "src/crucible/rapid/engines/search.py"
+    "src/crucible/rapid/engines/search.py",
+    "src/crucible/rapid/engines/__init__.py",
+    "src/crucible/rapid/engines/base.py",
+    "src/crucible/rapid/engines/experiment_lab.py",
+    "src/crucible/rapid/engines/planning.py",
+    "src/crucible/rapid/engines/primitive_graph.py",
+    "src/crucible/rapid/engines/program_exec.py",
+    "src/crucible/rapid/engines/strategic.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_7_3.py",
@@ -12658,7 +12792,8 @@
     "src/crucible/rapid/oracles.py",
     "src/crucible/rapid/identify.py",
     "src/crucible/rapid/references.py",
-    "src/crucible/rapid/claims.py"
+    "src/crucible/rapid/claims.py",
+    "src/crucible/rapid/dominance.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_7_4.py"
@@ -12767,7 +12902,8 @@
    "implementation_files": [
     "src/crucible/rapid/families.py",
     "src/crucible/rapid/batch.py",
-    "src/crucible/rapid/mechview.py"
+    "src/crucible/rapid/mechview.py",
+    "src/crucible/rapid/twin.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_8_12.py",
@@ -13123,7 +13259,8 @@
    "implementation_files": [
     "src/crucible/experience/experiments.py",
     "src/crucible/experience/modules.py",
-    "src/crucible/goals/selfgoals.py"
+    "src/crucible/goals/selfgoals.py",
+    "src/crucible/experience/selfexp.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_11_4.py",
@@ -13383,9 +13520,17 @@
    "requirement": "Resource scheduler enforcing CPU, RAM, GPU memory, GPU time, disk, inference concurrency and active worlds.",
    "workstream": "M",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/slots.py",
+    "src/crucible/scale/governor.py",
+    "src/crucible/scale/_slotsite/sitecustomize.py",
+    "src/crucible/scale/govprobe.py",
+    "src/crucible/core/kernel.py",
+    "src/crucible/substrate/inference.py"
+   ],
    "tests": [
-    "tests/v5/test_gate_SP_13_7.py"
+    "tests/v5/test_gate_SP_13_7.py",
+    "tests/test_v5_slots.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-13.7",
    "criteria": [
@@ -13440,7 +13585,9 @@
    "dependencies": [
     "V"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/bench5.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_13_8.py"
    ],
@@ -13495,7 +13642,10 @@
    "requirement": "Versioned training-distribution registry across tiers with partitions and a sampler; evaluation reuse prevented.",
    "workstream": "N",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/distribution.py",
+    "src/crucible/research/v5/sampler.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_14_1.py"
    ],
@@ -13550,7 +13700,9 @@
    "requirement": "Default tier mixture 50/30/20 with all tiers available.",
    "workstream": "N",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/sampler.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_14_2.py"
    ],
@@ -13595,7 +13747,10 @@
    "requirement": "World proposal interface validated for feasibility, diversity, safety, resources, difficulty and usefulness; cannot alter the evaluator or sealed distribution.",
    "workstream": "N",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/proposal.py",
+    "src/crucible/research/v5/evaluator.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_14_4.py"
    ],
@@ -13650,7 +13805,10 @@
    "requirement": "Learning-efficiency curves at 1-64 interactions and censoring-aware acceleration N_q ratios.",
    "workstream": "N",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/curves.py",
+    "src/crucible/research/v5/instrument.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_15_3.py"
    ],
@@ -13707,7 +13865,9 @@
    "dependencies": [
     "U"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/comparison.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_15_5.py"
    ],
@@ -13765,7 +13925,10 @@
     "M",
     "U"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/instrument.py",
+    "src/crucible/research/v5/learners.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_15_6.py"
    ],
@@ -13818,7 +13981,8 @@
     "src/crucible/api/mcp_server.py",
     "src/crucible/experience/__main__.py",
     "src/crucible/web/app.py",
-    "src/crucible/scale/pool.py"
+    "src/crucible/scale/pool.py",
+    "src/crucible/redteam/v5/network.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_16.py"
@@ -15574,7 +15738,10 @@
    "requirement": "Crucible 4.0 validation and sealed evaluation families are not moved into any v5 training distribution, checked structurally (mechanism fingerprints of every v5 training family against the 4.0 val/test families), not by name.",
    "workstream": "H",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/rapid/fingerprints.py",
+    "src/crucible/rapid/admission.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_0_9.py"
    ],
@@ -15640,7 +15807,10 @@
    "requirement": "Baseline Crucible 4.0 throughput, memory consumption and world-generation cost were established before v5 changes and are reported against v5.",
    "workstream": "M",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/bench5.py",
+    "src/crucible/acceptance/v5/baseline.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_0_10.py"
    ],
@@ -15696,7 +15866,9 @@
    "requirement": "Actual compute is coordinated through a resource scheduler; expensive GPU jobs are not started simultaneously outside it.",
    "workstream": "M",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/slots.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_1_2.py"
    ],
@@ -15928,7 +16100,10 @@
    "requirement": "Compositional freedom through the 13 listed affordances (executable code, dynamic services, tool discovery, data processing, communication, market transactions, organization creation, product creation, research, experimentation, long-running workflows, agent-created tools, agent-created websites and services); no predetermined menu of strategies or task-specific moves.",
    "workstream": "L",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/scripted.py",
+    "src/crucible/experience/registry.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_2_2.py"
    ],
@@ -16210,7 +16385,10 @@
    "dependencies": [
     "SP-3.3"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/bench5.py",
+    "src/crucible/scale/gatev.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_3_3b.py"
    ],
@@ -16896,9 +17074,13 @@
    "dependencies": [
     "F"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/calibration/inworld.py",
+    "src/crucible/calibration/runtime.py"
+   ],
    "tests": [
-    "tests/v5/test_gate_SP_5_0.py"
+    "tests/v5/test_gate_SP_5_0.py",
+    "tests/test_v5_calibration_ad_exposure.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-5.0",
    "criteria": [
@@ -16962,7 +17144,11 @@
    "requirement": "Calibration data are acquired legitimately with licences recorded, contain no re-identifiable identifiers, are schema-validated, use time-based and user-level holdouts, handle missing data, estimate uncertainty, and distinguish observational from experimentally identified effects.",
    "workstream": "E",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/calibration/audit_sp5.py",
+    "src/crucible/calibration/gharchive.py",
+    "src/crucible/calibration/datasets.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_5_1.py"
    ],
@@ -17048,7 +17234,12 @@
    "requirement": "Fitted models are compared with the rule-based simulator behaviour they replace and selected on held-out fit, long-horizon stability and computational efficiency; attention allocation, repeat consumption, purchase, retention, community participation and social diffusion are each fitted or the absence justified.",
    "workstream": "E",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/calibration/audit_sp5.py",
+    "src/crucible/calibration/review_e3.py",
+    "src/crucible/calibration/fit_e4.py",
+    "src/crucible/calibration/fit_e5.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_5_3.py"
    ],
@@ -17116,9 +17307,12 @@
    "dependencies": [
     "SP-5.0"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/calibration/inworld.py"
+   ],
    "tests": [
-    "tests/v5/test_gate_SP_5_5b.py"
+    "tests/v5/test_gate_SP_5_5b.py",
+    "tests/test_v5_calibration_ad_exposure.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-5.5b",
    "criteria": [
@@ -17578,7 +17772,10 @@
    "requirement": "Objectives are generated independently of worlds (IndependentlyGenerateGoal(world, difficulty)), not hard-coded per family.",
    "workstream": "H",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/rapid/goals.py",
+    "src/crucible/rapid/goals_eval.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_7_0.py"
    ],
@@ -17634,7 +17831,10 @@
    "requirement": "Structural composition across topologies, functional forms, temporal relations, observation channels, affordances, participants, networks, resources, institutions, initial conditions and historical trajectories; superficially similar worlds that obey fundamentally different causal rules, which a learner must disambiguate.",
    "workstream": "H",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/rapid/generator.py",
+    "src/crucible/rapid/claims.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_7_2.py"
    ],
@@ -17702,7 +17902,10 @@
    "dependencies": [
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/rapid/distinct.py",
+    "src/crucible/rapid/fingerprints.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_7_5.py"
    ],
@@ -17760,7 +17963,9 @@
    "dependencies": [
     "M"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/rapid/families.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_8_0.py"
    ],
@@ -17818,7 +18023,9 @@
    "dependencies": [
     "SP-8.0"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/rapid/categories.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_8_0b.py"
    ],
@@ -17866,7 +18073,10 @@
    "dependencies": [
     "SP-8.12"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/rapid/vec.py",
+    "src/crucible/rapid/batch.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_8_12b.py"
    ],
@@ -18284,7 +18494,12 @@
    "dependencies": [
     "SP-11.1"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/loop.py",
+    "src/crucible/experience/gym.py",
+    "src/crucible/api/http_server.py",
+    "src/crucible/api/mcp_server.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_11_1b.py"
    ],
@@ -18352,7 +18567,10 @@
    "dependencies": [
     "SP-11.4"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/experiments.py",
+    "src/crucible/experience/selfexp.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_11_4b.py"
    ],
@@ -18398,7 +18616,9 @@
    "requirement": "Reports separate algorithmic limitations from environment failures.",
    "workstream": "N",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/integrity.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_11_6b.py"
    ],
@@ -18456,7 +18676,12 @@
    "dependencies": [
     "S"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/reference.py",
+    "examples/external_learner/curiosity_learner.py",
+    "src/crucible/agents/llm.py",
+    "src/crucible/experience/scripted.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_11_6c.py"
    ],
@@ -18512,7 +18737,11 @@
    "requirement": "Compatibility with existing learner interfaces is preserved: the 4.0 Gymnasium and PettingZoo interfaces keep working (Clarification 1).",
    "workstream": "L",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/api/gym_env.py",
+    "src/crucible/api/pettingzoo_env.py",
+    "src/crucible/experience/leakage.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_11_6d.py"
    ],
@@ -18812,7 +19041,9 @@
    "dependencies": [
     "G"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/bench5.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_13_1.py"
    ],
@@ -18858,7 +19089,9 @@
    "requirement": "Backends are benchmarked (NumPy, compiled kernels, Numba or equivalent, PyTorch CPU, quantized, batched GPU) and chosen by measured workload; high-frequency paths avoid excessive Python object creation.",
    "workstream": "M",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/backends.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_13_3.py"
    ],
@@ -19032,7 +19265,10 @@
    "dependencies": [
     "V"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/techniques.py",
+    "src/crucible/scale/approx.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_13_6.py"
    ],
@@ -19100,7 +19336,10 @@
    "dependencies": [
     "SP-13.7"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/slots.py",
+    "docs/v5/performance/targets.json"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_13_7b.py"
    ],
@@ -19168,7 +19407,9 @@
    "dependencies": [
     "SP-13.8"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/scale/bench5.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_13_8b.py"
    ],
@@ -19214,7 +19455,10 @@
    "requirement": "Training diversity is measured along all six dimensions (parameters, causal structures, compositions, objectives, participant policies, action spaces); seeds alone do not count.",
    "workstream": "N",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/distribution.py",
+    "src/crucible/research/v5/sampler.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_14_0.py"
    ],
@@ -19262,7 +19506,10 @@
    "dependencies": [
     "SP-14.1"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/sampler.py",
+    "src/crucible/research/v5/distribution.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_14_1b.py"
    ],
@@ -19320,7 +19567,9 @@
    "dependencies": [
     "SP-14.2"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/sampler.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_14_2b.py"
    ],
@@ -19378,7 +19627,11 @@
    "dependencies": [
     "T"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/curriculum.py",
+    "src/crucible/research/v5/curriculum_lab.py",
+    "src/crucible/research/v5/evaluator.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_14_3.py"
    ],
@@ -19446,7 +19699,10 @@
    "dependencies": [
     "U"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/instrument.py",
+    "src/crucible/research/v5/learners.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_15_0.py"
    ],
@@ -19492,7 +19748,10 @@
    "requirement": "No claim of real-world generalisation without executed, authorised Level 6 experiments.",
    "workstream": "N",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/integrity.py",
+    "src/crucible/research/v5/levels.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_15_1.py"
    ],
@@ -19538,7 +19797,11 @@
    "requirement": "Outcome metrics never use tool-call counts, reasoning length, posts, websites, agent-reported success, language-model judgments or unverified milestones.",
    "workstream": "N",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/integrity.py",
+    "src/crucible/research/v5/episodes.py",
+    "src/crucible/research/v5/evaluator.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_15_2.py"
    ],
@@ -19596,7 +19859,10 @@
    "dependencies": [
     "SP-15.3"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/curves.py",
+    "src/crucible/research/v5/instrument.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_15_3b.py"
    ],
@@ -19644,7 +19910,11 @@
    "dependencies": [
     "U"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/fresh.py",
+    "src/crucible/research/v5/learners.py",
+    "src/crucible/research/v5/curves.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_15_4.py"
    ],
@@ -19692,7 +19962,10 @@
    "dependencies": [
     "U"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/research/v5/evaluator.py",
+    "src/crucible/research/v5/hstats.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_15_7.py"
    ],
@@ -19808,7 +20081,13 @@
    "dependencies": [
     "SP-16"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/remote.py",
+    "src/crucible/sandbox/isolation.py",
+    "src/crucible/redteam/v5/network.py",
+    "src/crucible/social/integrity.py",
+    "src/crucible/commerce/integrity.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_16b.py"
    ],
@@ -19896,7 +20175,13 @@
    "dependencies": [
     "W"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/sandbox/metering.py",
+    "src/crucible/sandbox/runner.py",
+    "src/crucible/sandbox/boot.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/redteam/v5/isolation.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_16c.py"
    ],
@@ -20309,7 +20594,8 @@
     "src/crucible/selfplay/league.py",
     "src/crucible/selfplay/audit.py",
     "src/crucible/api/http_server.py",
-    "src/crucible/api/mcp_server.py"
+    "src/crucible/api/mcp_server.py",
+    "src/crucible/experience/registry.py"
    ],
    "tests": [
     "tests/v5/test_gate_OO.py"
@@ -20379,7 +20665,8 @@
    ],
    "implementation_files": [
     "src/crucible/experience/probes.py",
-    "src/crucible/core/evaluator_only.py"
+    "src/crucible/core/evaluator_only.py",
+    "src/crucible/experience/probes_tiers.py"
    ],
    "tests": [
     "tests/v5/test_gate_OO.py",
@@ -21238,7 +21525,12 @@
    "dependencies": [
     "R"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/modes.py",
+    "src/crucible/experience/registry.py",
+    "src/crucible/experience/__main__.py",
+    "src/crucible/api/mcp_server.py"
+   ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
@@ -21306,7 +21598,10 @@
    "dependencies": [
     "R"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/probes_tiers.py"
+   ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
@@ -21374,7 +21669,11 @@
    "dependencies": [
     "R"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/selfexp.py",
+    "src/crucible/experience/experiments.py",
+    "src/crucible/experience/registry.py"
+   ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
@@ -21432,7 +21731,9 @@
    "dependencies": [
     "R"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/labels.py"
+   ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
@@ -21546,7 +21847,10 @@
    "dependencies": [
     "R"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/probes_tiers.py",
+    "src/crucible/experience/gym.py"
+   ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
@@ -21679,7 +21983,10 @@
    "dependencies": [
     "R"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/probes_tiers.py",
+    "src/crucible/experience/tier1.py"
+   ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
