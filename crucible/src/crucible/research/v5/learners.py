@@ -18,7 +18,8 @@ there is no reward in ``observation_only`` and none is read. Settings are normal
     meta            learns *how to adapt*: a bandit over within-episode search strategies (step size, settle time,
                     measurement window, when to commit) scored by its own observed within-episode improvement
     transfer        learns how to learn across episodes: a bandit over cross-episode search strategies (where to
-                    start, how far to step) scored by its own observed improvement over a task's first episodes;
+                    start, how far to step) scored by its own observed improvement over a task's first episodes
+                    (untrained, it has no preference: a uniformly random strategy per task);
                     on an unfamiliar task it plays one setting per episode and keeps a per-task search state
                     (memory) - so it reaches competence on new families in fewer interactions once trained
 
@@ -486,7 +487,10 @@ class TransferLearner(LeverLearner):
         key = ctx["key"]
         st = self.tasks.get(key)
         if st is None:
-            arm = self.bandit.best() if (self.frozen or self.cfg.get("exploit_strategy")) else self.bandit.pick(rng)
+            if self.bandit.n.sum() == 0:                 # nothing learned yet: no preference among strategies
+                arm = int(rng.integers(len(TRANSFER_ARMS)))
+            else:
+                arm = self.bandit.best() if (self.frozen or self.cfg.get("exploit_strategy")) else self.bandit.pick(rng)
             start_c, step, shrink = TRANSFER_ARMS[arm]
             start = np.full(ctx["n"], 0.5) if start_c else np.asarray(ctx["u0"])
             st = {"arm": int(arm), "search": CoordSearch(start, step, shrink).to_json(), "episodes": 0,
