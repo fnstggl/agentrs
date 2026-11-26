@@ -28,7 +28,7 @@ def test_SP_3_2_participant_classes_act():
                             classes={"adaptive": 32, "strategic": 8, "semantic": 2})
     if "pop_semantic" in MODULES:
         spec.modules.append({"name": "pop_semantic", "config": {}})
-    w = World.create(spec)
+    w = World.create(spec, strict=True)
     try:
         w.advance_time(5 * 86400)
         cls = columns.col(w, "pop", "class")

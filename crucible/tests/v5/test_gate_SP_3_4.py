@@ -54,7 +54,7 @@ def test_SP_3_4_independent_learning_kinds():
     # frozen historical participants
     w = World.create(population_world("development", 4, n=60, sites=6, tick_s=1800, strategic=False,
                                       classes={"adaptive": 64, "strategic": 0, "semantic": 0},
-                                      adaptive={"min_examples": 16}))
+                                      adaptive={"min_examples": 16}), strict=True)
     w.advance_time(2 * DAY)
     fc = w.system_call("pop_adaptive.freeze_copy", {"group": 7, "from_group": 0, "share": 0.5})
     ad = w.modules["pop_adaptive"]
@@ -66,7 +66,7 @@ def test_SP_3_4_independent_learning_kinds():
                                   "frozen_example_batches": frozen_acts, "members": fc["members"]}
     # competing architectures (class 3)
     w3 = World.create(population_world("development", 3, n=120, sites=6, tick_s=1800, adaptive=False,
-                                       classes={"adaptive": 0, "strategic": 12, "semantic": 0}))
+                                       classes={"adaptive": 0, "strategic": 12, "semantic": 0}), strict=True)
     w3.advance_time(8 * DAY)
     ups = [e.payload for e in w3.log if e.type == "pop.policy_update" and str(e.payload["group"]).startswith("strategic")]
     by = {}

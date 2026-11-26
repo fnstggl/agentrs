@@ -73,7 +73,7 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
                             adaptive={"groups": list(arms.values()), "min_examples": min_examples},
                             pop={"adaptive_window_s": window_s})
     t0 = time.time()
-    w = World.create(spec)
+    w = World.create(spec, strict=True)
     ad = w.modules["pop_adaptive"]
     gid = {a: int(c["id"]) for a, c in arms.items()}
     out = {"seed": seed, "phase_days": phase_days, "arms": {a: dict(c) for a, c in arms.items()},

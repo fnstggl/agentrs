@@ -155,7 +155,7 @@ def test_G4_independent_strategic_groups():
     from crucible.population.worlds import population_world
     spec = population_world("development", 3, n=200, sites=6, tick_s=1800, adaptive=False,
                             classes={"adaptive": 0, "strategic": 16, "semantic": 0})
-    w = World.create(spec)
+    w = World.create(spec, strict=True)
     try:
         w.advance_time(w.now + 8 * DAY)
         ups = [e.payload for e in w.log if e.type == "pop.policy_update" and str(e.payload["group"]).startswith(

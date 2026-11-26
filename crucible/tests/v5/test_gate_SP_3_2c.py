@@ -42,7 +42,7 @@ def test_SP_3_2c_class_sizes_and_strategic_behaviour():
     spec = population_world("development", 7, n=400, sites=8, tick_s=1800,
                             classes={"adaptive": 32, "strategic": 32, "semantic": 0},
                             adaptive={"learn_every_s": 6 * 3600, "min_examples": 16})
-    w = World.create(spec)
+    w = World.create(spec, strict=True)
     try:
         w.advance_time(14 * DAY)
         ad = w.modules["pop_adaptive"]
