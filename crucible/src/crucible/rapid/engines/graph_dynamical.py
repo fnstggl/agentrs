@@ -227,6 +227,9 @@ class GraphDynamical(RapidEngine):
             return {"set": {n: float(state["w"][0, c["route_names"].index(n)]) for n in action["values"]}}
         if self.sc == "diffusion" and k == "allocate":
             amt = np.array([np.floor(float(action["amounts"].get(n, 0.0)) + 1e-9) for n in c["cluster_names"]])
+            op = c.get("open_at")
+            if op:                                        # a community that is not online yet takes no seeds
+                amt = np.where(np.asarray(op, dtype=float) <= float(t), amt, 0.0)
             if amt.sum() > state["seeds_left"][0] + 1e-9:
                 raise ActionError(f"only {int(state['seeds_left'][0])} seeds left")
             state["pending"] = state["pending"] + amt
@@ -314,6 +317,9 @@ class GraphDynamical(RapidEngine):
         newly, _ = th.apply({"theta": 0.0, "lo": 0.0, "hi": 1.0}, {"x": frac - theta}, {}, None, None, t)
         churn = rng.random(len(theta)) < c["churn"]
         adopted = np.where(adopted > 0.5, np.where(churn, 0.0, 1.0), newly)
+        op = c.get("open_at")
+        online = np.asarray([float(op[int(k)]) <= float(t) for k in cl]) if op else np.ones(len(theta), dtype=bool)
+        adopted = np.where(online, adopted, 0.0)          # communities come online at hidden times
         st["adopted"] = adopted
         st["seeded"] = st["seeded"] + seeded
         n_ad = float(adopted.sum())
@@ -323,7 +329,8 @@ class GraphDynamical(RapidEngine):
         rev = float(c["value"] * val[0])
         cost = float(c["seed_cost"] * seeded)
         counts = [float(adopted[cl == k].sum()) for k in range(len(c["cluster_names"]))]
-        ents = [{"kind": "community", "id": n, "adopters": counts[k], "members": int((cl == k).sum())}
+        ents = [{"kind": "community", "id": n, "adopters": counts[k],
+                 "members": int((cl == k).sum()) if (not op or float(op[k]) <= float(t)) else 0}
                 for k, n in enumerate(c["cluster_names"])]
         a = self.agents[0]
         return {"obs": {a: {"numbers": {c["gauge_names"][0]: n_ad}, "entities": ents,

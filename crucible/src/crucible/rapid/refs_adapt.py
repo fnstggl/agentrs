@@ -906,3 +906,40 @@ def fir_shape_predict_lagged(view, env) -> None:
     """`fir_shape_predict` for worlds whose settings act through lagged paths: settings held one or two ticks, up
     to three lags of each setting."""
     fir_shape_predict(view, env, lags=3, hold=(1, 2), gain=0.04)
+
+
+# ====================================================================== seeding communities as they come online
+def seed_as_communities_open(view, env=None, step: int = 2, wait: int = 1, cap: int = 8, reserve: int = 2,
+                             grown: int = 3) -> None:
+    """Scripted public reference for seeding a product in communities that come online at different times
+    (complex contagion needs a critical mass, unknown per community): a community that shows its members gets
+    `step` seeds; every `wait` periods, a seeded community whose adopters have not grown past its seeds plus
+    `grown` gets `step` more, up to `cap` seeds per community, while `reserve` seeds are kept for each community
+    not online yet. Public: community entities (members once online, adopters) and the seeds left."""
+    sp = view.action_space()
+    names = list(sp.kinds["allocate"]["properties"]["amounts"]["properties"])
+    seeded = {n: 0 for n in names}
+    when: dict = {}
+    r = view.step(None)
+    while not view.done:
+        obs = r["observation"]
+        left = int(obs["resources"].get("seeds_left", 0))
+        ents = {x["id"]: x for x in obs["entities"] if x.get("kind") == "community"}
+        online = [n for n in names if ents.get(n, {}).get("members", 0) > 0]
+        unseen = sum(1 for n in names if n not in online)
+        amt = {}
+        for n in online:
+            spare = left - reserve * unseen
+            if seeded[n] == 0 and left >= step:
+                k = step
+            elif 0 < seeded[n] < cap and view.t - when[n] >= wait and ents[n]["adopters"] < seeded[n] + grown \
+                    and spare >= step:
+                k = step
+            else:
+                continue
+            amt[n] = float(k)
+            left -= k
+        for n, k in amt.items():
+            seeded[n] += int(k)
+            when[n] = view.t
+        r = view.step({"kind": "allocate", "amounts": amt} if amt else None)

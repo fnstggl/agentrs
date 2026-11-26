@@ -410,9 +410,15 @@ def containment(env) -> dict:
     sp = view.action_space()
     names = sorted(sp.kinds["allocate"]["properties"]["amounts"]["properties"])
     total = sp.limits["allocate_total"]
+    r = view.step(None)
+    while not view.done and not any(x.get("id") == names[0] and x.get("members", 0) > 0
+                                    for x in r["observation"]["entities"] if x.get("kind") == "community"):
+        r = view.step(None)                               # wait until that community is online
     view.step({"kind": "allocate", "amounts": {names[0]: total}})
     counts, sizes = {}, {}
     for _ in range(20):
+        if view.done:
+            break
         ents = view.step(None)["observation"]["entities"]
         counts = {x["id"]: x["adopters"] for x in ents if x.get("kind") == "community"}
         sizes = {x["id"]: x["members"] for x in ents if x.get("kind") == "community"}

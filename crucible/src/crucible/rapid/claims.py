@@ -394,6 +394,9 @@ def concentrated_seeding(env) -> dict:
     th = np.asarray(cfg["theta"])
     k = int(np.argmin([th[cl == q].mean() for q in range(len(cfg["cluster_names"]))]))
     e = fork(env)
+    op = cfg.get("open_at")
+    while op and e.t < int(op[k]) and not e.done:        # a community that comes online later: wait for it
+        e.step(None)
     e.step({"kind": "allocate", "amounts": {cfg["cluster_names"][k]: float(cfg["seed_total"])}})
     for _ in range(20):
         e.step(None)

@@ -74,7 +74,7 @@ SECRET_KEYS = {
     "discrete_event": ("mu", "mu2", "shift_at", "arrival_rate", "eta", "shape", "lead_p", "demand", "season_amp", "season_period",
                        "season_phase", "shelf_life", "repair_time", "service_time"),
     "graph_dynamical": ("c1", "c2", "toll", "demand_mean", "demand_sd", "theta", "cap", "base", "hazard",
-                        "pair_demand", "shock", "rewire_at"),
+                        "pair_demand", "shock", "rewire_at", "open_at"),
     "state_machine": ("T", "slope", "base", "loss", "emit", "lever_cost"),
     "search": ("bumps", "weights", "app", "features_true", "returns", "delay", "mult_sched"),
 }

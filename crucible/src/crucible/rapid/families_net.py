@@ -80,11 +80,14 @@ def net_topology_shift(rng, d):
 
 @family("net_diffusion", engine="graph_dynamical", category="8.7", item="8.7.3", split="train",
         doc="Adoption spreads by complex contagion (each node adopts once enough of its neighbours have) on a "
-            "clustered network; seeds are placed by cluster and adopters are worth more as adoption grows.",
+            "clustered network; seeds are placed by cluster and adopters are worth more as adoption grows. "
+            "Communities come online at hidden times, so the seed budget has to be spread over time.",
         distinct_because="threshold contagion over a stochastic block graph with network effects in value; only "
-                         "cluster-level adoption counts are visible",
+                         "cluster-level adoption counts are visible; communities join the network at hidden times",
         axes={"graph_size": 90, "hidden_state_complexity": 3, "resources": 10, "horizon": 40},
-        objective="maximize_net", claims=(C + "concentrated_seeding",), identify=I + "containment")
+        objective="maximize_net", claims=(C + "concentrated_seeding",), identify=I + "containment", version="2",
+        reference="crucible.rapid.refs_adapt:seed_as_communities_open",
+        oracle="crucible.rapid.claims_w3b:oracle_diffusion_openings")
 def net_diffusion(rng, d):
     N, Cn = int(d["graph_size"]), int(d["hidden_state_complexity"])
     names = neutral_names(rng, Cn + 1)
@@ -101,15 +104,21 @@ def net_diffusion(rng, d):
     deg = A.sum(axis=1)
     by_degree = [[int(i) for i in sorted((i for i in range(N) if cluster[i] == k), key=lambda i: (-deg[i], i))]
                  for k in range(Cn)]
-    return {"engine": "graph_dynamical", "scenario": "diffusion", "horizon": int(d["horizon"]),
+    H = int(d["horizon"])
+    later = sorted(int(x) for x in rng.choice(np.arange(int(0.15 * H), int(0.6 * H)), size=Cn - 1, replace=False))
+    open_at = [0] + later
+    open_at = [open_at[int(i)] for i in rng.permutation(Cn)]
+    return {"engine": "graph_dynamical", "scenario": "diffusion", "horizon": int(d["horizon"]), "open_at": open_at,
             "adj": A.astype(int).tolist(), "cluster": cluster, "theta": theta, "by_degree": by_degree,
             "seed_total": int(d["resources"]), "seed_budget": float(d["resources"]), "seed_cost": 300.0,
             "value": 40.0, "strength": 1.0, "churn": 0.01, "cluster_names": names[:Cn], "gauge_names": names[Cn:],
             "endowment": 100_000,
             "objective": {"type": "maximize_net", "text": "Maximise your net income: adopters pay every tick, more "
                                                           "when more have adopted; seeds cost money."},
-            "brief": f"A population of {N} in {Cn} communities. You may seed adopters in a community (at most "
-                     f"{int(d['resources'])} seeds in total). Gauges: adopters in total and per community."}
+            "brief": f"A population of {N} in {Cn} communities, which come online at different times (a community "
+                     "shows its members once it is online; seeds sent to one that is not are not placed). You may "
+                     f"seed adopters in a community (at most {int(d['resources'])} seeds in total). Gauges: adopters "
+                     "in total and per community."}
 
 
 @family("net_cascade", engine="graph_dynamical", category="8.7", item="8.7.4", split="val",

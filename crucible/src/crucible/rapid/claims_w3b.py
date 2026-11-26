@@ -887,3 +887,32 @@ def identify_cheapest_node(env) -> dict:
     est = min(costs, key=costs.get) if len(costs) == len(ags) else None
     truth = int(np.argmin(env._config["c_lin"]))
     return {"question": "the node with the cheapest generation", "estimate": est, "truth": truth, "ok": est == truth}
+
+
+# ====================================================================== net_diffusion (communities come online)
+def oracle_diffusion_openings(env) -> dict:
+    """Evaluator: knows when each community comes online. Candidate plans put a number of seeds (0, 2, ..., all)
+    into each community the period it comes online, within the total; the generic seeding policies compete too."""
+    import itertools
+    from .oracles import best_of, graph_oracle, inside
+    eng, st, c = inside(env)
+    names = c["cluster_names"]
+    op = [int(x) for x in c.get("open_at") or [0] * len(names)]
+    R = int(c["seed_total"])
+    levels = sorted({0, 2, 3, 4, 5, 6, 8, R})
+
+    def plan(ks):
+        def fn(e):
+            amt = {names[i]: float(k) for i, k in enumerate(ks) if k > 0 and op[i] == e.t}
+            left = float(e._state["seeds_left"][0])
+            if not amt or sum(amt.values()) > left:
+                return None
+            return {"kind": "allocate", "amounts": amt}
+        return fn
+    pols = {}
+    for ks in itertools.product(levels, repeat=len(names)):
+        if 0 < sum(ks) <= R:
+            pols[f"seed {list(ks)} on coming online"] = plan(ks)
+    res = best_of(env, pols)
+    gen = graph_oracle(env)
+    return res if res["value"] >= gen["value"] else gen
