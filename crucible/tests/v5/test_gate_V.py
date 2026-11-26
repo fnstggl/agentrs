@@ -122,6 +122,7 @@ def test_V_4_batched_inference():
 def test_V_5_event_driven_computation():
     r = K.event_driven()["result"]
     m = {"event_driven_speedup": float(r["event_driven_speedup"]), "equal_outcomes": bool(r["equal_outcomes"]),
+         "forks_reproducible": bool(r.get("forks_reproducible", False)),
          "activation_ratio": float(r["activation_ratio"]), "activations": int(r["activations"]),
          "ticks": int(r["ticks"]), "wake_batches": int(r["wake_batches"]),
          "world_cpu_ratio": float(r["world_cpu_ratio"]), "world_cpu_per_activation_ms": float(r["world_cpu_per_activation_ms"])}

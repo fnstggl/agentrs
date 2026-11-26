@@ -9,7 +9,8 @@ decision code and models: for the individuals that tick activated (what event-dr
 every eligible individual (what a dense per-tick simulation would compute: the class-1 session decision, the
 activity logits and the class-2 shared network). Both evaluations are observers (their own random streams, no
 event, no state change), so the world's trajectory - its event hash chain - is exactly the one of the same world
-run without them (checked: equal outcomes). The speedup is the dense evaluation's CPU over the event-driven
+run without them (checked: three forks of one snapshot - plain, observed, plain again - have equal hash chains;
+`forks_reproducible` reports whether the two plain forks agree, without which no comparison can show it). The speedup is the dense evaluation's CPU over the event-driven
 evaluation's CPU for the same ticks; activations, triggered wake-ups and cost per activation are reported with it.
 
 **Caching (13.5).** `cache_workload()` runs three worlds in separate processes on one fresh representation cache:
@@ -124,26 +125,34 @@ def event_driven(kind: str = "population", profile: str = "standard", seed: int 
     blob = w.snapshot_blob()
     end = w.now + int(hours * 3600)
     base = w                                  # stays open: its lease keeps the snapshot's blobs in the process pool
-    w = World.from_blob(blob, world_id="event-driven-arm", fork=True)   # both arms: forks of the same snapshot
-    counts = bench5.EventCounter()
-    w.listeners.append(counts)
-    t, c = time.time(), time.process_time()
-    w.advance_time(end)
-    plain = {"wall_s": time.time() - t, "cpu_s": time.process_time() - c, "hash": w.last_hash, "seq": w.seq}
+    arms = {}
+    counts = dense = None
     n = int(columns.rows(w, "pop"))
-    w2 = World.from_blob(blob, world_id="event-driven-arm", fork=True)
-    dense = DenseEvaluator(w2)
-    w2.listeners.append(dense)
-    t, c = time.time(), time.process_time()
-    w2.advance_time(end)
-    dense_run = {"wall_s": time.time() - t, "cpu_s": time.process_time() - c, "hash": w2.last_hash, "seq": w2.seq}
-    w2.close()
-    w.close()
+    # three forks of the same snapshot, in this order: a plain arm (it also pays the process's warm-up), the arm
+    # with the dense observer, a second plain arm. Outcomes are equal when all three hash chains are; the plain
+    # pair alone says whether forks of this world are reproducible at all (if not, no observer can be shown
+    # harmless by comparison, and the result says so).
+    for arm in ("plain1", "dense", "plain2"):
+        f = World.from_blob(blob, world_id="event-driven-arm", fork=True)
+        if arm == "plain1":
+            counts = bench5.EventCounter(count_bytes=False)
+            f.listeners.append(counts)
+        if arm == "dense":
+            dense = DenseEvaluator(f)
+            f.listeners.append(dense)
+        t, c = time.time(), time.process_time()
+        f.advance_time(end)
+        arms[arm] = {"wall_s": time.time() - t, "cpu_s": time.process_time() - c, "hash": f.last_hash, "seq": f.seq}
+        f.close()
     base.close()
+    plain, dense_run = arms["plain2"], arms["dense"]
     wakes = counts.batches.get("pop.wake", 0)
     ticks = max(1, dense.ticks)
+    same = lambda a, b: a["hash"] == b["hash"] and a["seq"] == b["seq"]      # noqa: E731
     out = {"world": kind, "profile": profile, "seed": seed, "hours": hours, "individuals": n,
-           "equal_outcomes": plain["hash"] == dense_run["hash"] and plain["seq"] == dense_run["seq"],
+           "equal_outcomes": same(arms["plain1"], arms["dense"]) and same(arms["dense"], arms["plain2"]),
+           "forks_reproducible": same(arms["plain1"], arms["plain2"]),
+           "arm_hashes": {a: v["hash"][:16] for a, v in arms.items()},
            "ticks": dense.ticks, "activations": int(counts.activations), "sessions": int(counts.sessions),
            "policy_rows_event": dense.rows["event"], "policy_rows_dense": dense.rows["dense"],
            "policy_cpu_event_s": round(dense.cpu["event"], 4), "policy_cpu_dense_s": round(dense.cpu["dense"], 4),
@@ -152,6 +161,7 @@ def event_driven(kind: str = "population", profile: str = "standard", seed: int 
            "world_cpu_s": round(plain["cpu_s"], 3), "world_with_dense_cpu_s": round(dense_run["cpu_s"], 3),
            "world_cpu_ratio": round(dense_run["cpu_s"] / max(plain["cpu_s"], 1e-9), 3),
            "world_cpu_per_activation_ms": round(1000 * plain["cpu_s"] / max(1, counts.activations), 4),
+           "world_cpu_first_arm_s": round(arms["plain1"]["cpu_s"], 3),
            "wake_batches": int(wakes), "mean_rows_per_tick_event": round(dense.rows["event"] / ticks, 2),
            "mean_rows_per_tick_dense": round(dense.rows["dense"] / ticks, 2)}
     return out
