@@ -71,3 +71,40 @@ def test_fixture_domains_never_count_as_tier2_but_build_by_name():
         assert "exp.register" in names and "goals.check_now" not in names
     finally:
         base.unregister("fixture_retail")
+
+
+def test_hidden_mechanism_probe_finds_a_planted_law_and_nothing_else():
+    """A Tier 2 science world's hidden response law (`sci.phenomena[].law`, what a learner must discover by
+    experiment) is looked for verbatim and by its distinctive coefficients in everything the seat reaches: nothing
+    in an ordinary run; a positive control - the law (or one coefficient) planted in reached material - is found. The
+    isolation probe's hidden values include the law too."""
+    from crucible.experience import isolation as I
+    from crucible.experience import probes_tiers as PT
+    from crucible.experience.registry import tier2_domains
+    import crucible.domains.base as DB
+    found = None
+    for n, d in sorted(tier2_domains().items()):
+        if d.mode == "B":                                            # cheap standalone worlds first
+            env = make(2, n, 3)
+            exprs, coefs = PT.hidden_mechanisms(env.world)
+            if exprs and coefs:
+                found = (n, env, exprs, coefs)
+                break
+    assert found, "no Part 9 domain world with a hidden response law (research / commercialization) is registered"
+    n, env, exprs, coefs = found
+    a = env.agents()[0]
+    dom = DB.REGISTRY[env.domain]
+    DB.drive(env, {a: dom.reference_policy(a, env._objectives[a].objective)}, days=3, dt=int(dom.dt), trace=False)
+    reach = [env.observe(a), env.observe_since(a, 0), env.tools(a)]
+    P = PT.TierProbe("clean", 2)
+    P.scan_channel("observation", reach, values=coefs, canaries=exprs, label=n)
+    assert P.result()["n_leaks"] == 0, P.result()["leaks"]
+    planted = PT.TierProbe("planted law", 2)
+    planted.scan_channel("observation", reach + [{"text": f"the cost follows {exprs[0]}"}], values=coefs,
+                         canaries=exprs, label=n)
+    assert {l["kind"] for l in planted.result()["leaks"]} >= {"canary"}
+    k, v = next(iter(coefs.items()))
+    one = PT.TierProbe("planted coefficient", 2)
+    one.scan_channel("observation", reach + [{"fit": {"k": v}}], values=coefs, canaries=exprs, label=n)
+    assert any(l["kind"] == "exact_value" for l in one.result()["leaks"])
+    assert any(str(x).startswith("1.0 + ") or "*" in str(x) for x in I._hidden_of(env).values())

@@ -180,7 +180,9 @@ def _hidden_of(env) -> dict | None:
         return {k: getattr(task, k, None) for k in ("reference_net", "default_net", "random_net", "world_seed")}
     w = getattr(env, "world", None)
     if w is not None:
-        return {"spec_hash": w.spec.hash(), "world_id": w.world_id}
+        from .probes_tiers import hidden_mechanisms
+        exprs, _ = hidden_mechanisms(w)          # a science world's hidden response laws (Tier 2 research domains)
+        return {"spec_hash": w.spec.hash(), "world_id": w.world_id, **{f"law[{i}]": e for i, e in enumerate(exprs)}}
     return None
 
 

@@ -513,6 +513,42 @@ def domain_evaluation_values(env, agent: str) -> dict[str, float]:
     return out
 
 
+# keys of a world's module configuration that hold a hidden mechanism the participants are meant to discover (the
+# science world's response laws, `sci.phenomena[].law`; a domain module's own copy, e.g. `rcomm.law`)
+HIDDEN_MECHANISM_KEY = re.compile(r"^(law|laws|true_law|hidden_law)$", re.I)
+_COEF = re.compile(r"(?<![\w.])\d+\.\d+(?![\w.])")
+
+
+def hidden_mechanisms(world) -> tuple[list[str], dict[str, float]]:
+    """The hidden mechanisms in `world`'s module configuration (evaluator side): the law expressions (searched
+    verbatim) and their coefficients with at least four significant digits (searched as numbers and in text)."""
+    exprs: list[str] = []
+
+    def walk(x, depth=0):
+        if depth > 12:
+            return
+        if isinstance(x, dict):
+            for k, v in x.items():
+                if isinstance(v, str) and HIDDEN_MECHANISM_KEY.match(str(k)) and len(v) >= 12:
+                    exprs.append(v)
+                else:
+                    walk(v, depth + 1)
+        elif isinstance(x, (list, tuple)):
+            for v in x:
+                walk(v, depth + 1)
+    for m in world.spec.modules:
+        walk(m.get("config") or {})
+    exprs = sorted(set(exprs))
+    coefs: dict[str, float] = {}
+    for i, e in enumerate(exprs):
+        for c in _COEF.findall(e):
+            x = float(c)
+            sig = len(c.replace(".", "").strip("0"))
+            if sig >= 4 and distinctive(x, []):
+                coefs[f"law[{i}].{c}"] = x
+    return exprs, coefs
+
+
 def probe_domain(seed: int = 7, reference_days: float = 6.0, names: list[str] | None = None,
                  max_reference_days: float = 30.0) -> dict:
     """Tier 2: every registered Part 9 domain's first configuration through `make(2, ...)`: the kernel-world probes,
@@ -549,6 +585,13 @@ def probe_domain(seed: int = 7, reference_days: float = 6.0, names: list[str] | 
         env.advance(HOUR)
         reach = [env.observe(a), env.tools(a), env.observe_since(a, 0), sweep]
         probe_identity(P, env, a, reach, f"tier2 {name} identity")
+        exprs, coefs = hidden_mechanisms(env.world)
+        if exprs:
+            # the hidden law of the world (what a learner is meant to discover by experiment) never reaches the seat:
+            # neither the expression nor its distinctive coefficients
+            P.scan_channel("observation", reach, values=coefs, canaries=exprs,
+                           label=f"tier2 {name} hidden mechanism (law)")
+            P.notes.append(f"tier2 {name}: {len(exprs)} hidden law(s) and {len(coefs)} coefficient(s) looked for")
         vals = domain_evaluation_values(env, a)
         verdicts = {"probed": [], "not_probed": []}
         if vals:
