@@ -32,7 +32,7 @@ class StructuredSite(Site):
         self.sessions: Dict[str, str] = {}
         self.remembered: Dict[str, str] = {}
         self.wiped = False
-        self.slow_started = 0
+        self.slow_started = self.slow_active = self.slow_max_active = 0
         for name, cat, qty, price in (("Alpha widget", "tools", 12, "3.50"), ("Beta gasket", "parts", 240, "0.125"),
                                       ("Gamma bracket", "parts", 7, "19.99")):
             self._add(name, cat, qty, price)
@@ -56,6 +56,7 @@ class StructuredSite(Site):
         r("GET", "/control/wipe", self.wipe)
         r("GET", "/slow", self.slow)
         r("POST", "/slow", self.slow)
+        r("GET", "/echo", self.echo)
         r("GET", "/api/state", lambda q: as_json(self.state()))
         self.prefix("GET", "/items/", self.detail)
         self.prefix("POST", "/items/", self.item_action)
@@ -74,7 +75,7 @@ class StructuredSite(Site):
         with self.lock:
             return {"items": [dict(i) for i in self.items], "uploads": [dict(u) for u in self.uploads],
                     "wiped": self.wiped, "hits": dict(self.hits), "sessions": len(self.sessions),
-                    "slow_started": self.slow_started}
+                    "slow_started": self.slow_started, "slow_max_active": self.slow_max_active}
 
     def _nav(self) -> str:
         return ("<nav aria-label='Main'><a href='/'>Home</a><a href='/items'>Items</a>"
@@ -287,13 +288,19 @@ class StructuredSite(Site):
     def slow(self, req: Request) -> Response:
         import time
         self.slow_started += 1
+        self.slow_active += 1
+        self.slow_max_active = max(self.slow_max_active, self.slow_active)
         ms = min(20000, int(req.query.get("ms", "500") or 500))
         self.lock.release()
         try:
             time.sleep(ms / 1000.0)
         finally:
             self.lock.acquire()
+            self.slow_active -= 1
         return self._page("Slow page", f"<p>Responded after {ms} ms.</p>")
+
+    def echo(self, req: Request) -> Response:
+        return self._page("Echo", f"<p>Echo: {esc(req.query.get('value', ''))}</p>")
 
 
 # ----------------------------------------------------------------------------------------------------------------

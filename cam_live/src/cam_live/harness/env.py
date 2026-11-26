@@ -338,6 +338,7 @@ class ComputerEnvironment:
             obs.data = _scrub_obj(self.secrets, obs.data)
             obs.refs = _scrub_obj(self.secrets, obs.refs)
             obs.entities = _scrub_obj(self.secrets, obs.entities)
+            obs.provenance.uri = scrub_with(self.secrets, obs.provenance.uri)
         surface, gen = obs.data.get("surface"), obs.data.get("generation")
         with self._lock:
             if obs.obs_id in self._ledger:
@@ -573,9 +574,9 @@ class ComputerEnvironment:
         try:
             if side in _WRITE:
                 with self._write_lock:
-                    res = self._run_top(run, action)
+                    res = self._run_top(run, action, authorization)
             else:
-                res = self._run_top(run, action)
+                res = self._run_top(run, action, authorization)
         except BaseException as e:  # noqa: BLE001 — never leave waiters hanging; report and re-raise fatal ones
             now = self.clock.now()
             res = ActionResult(action_id=action.action_id, status=ResultStatus.FAILED, started=now, ended=now,
@@ -610,7 +611,7 @@ class ComputerEnvironment:
                 return f"duration limit reached ({lim.duration_s} s)"
         return None
 
-    def _context(self, run: _Run, top: ActionSpec) -> ExecContext:
+    def _context(self, run: _Run, top: ActionSpec, authorization: Optional[AuthorizationDecision] = None) -> ExecContext:
         def check(op: PrimitiveOp, _action: Optional[ActionSpec] = None) -> AuthorizationDecision:
             try:
                 dec = self.policy.check_primitive(op, top)
@@ -632,9 +633,11 @@ class ComputerEnvironment:
         now = self.clock.now()
         ctx = ExecContext(clock=self.clock, check=check, obs_sink=sink, run_dir=self.run_dir,
                           deadline=now + float(top.timeout_s or 0.0), cancel=run.cancel, secrets=self.secrets)
-        # extensions (see docs/change_requests/EB.md): sub-step dispatch for skill executors, workspace path
+        # extensions (see docs/change_requests/EB.md): sub-step dispatch for skill executors, the workspace path and
+        # the action's grant (secret brokers release a secret only against it)
         ctx.dispatch = lambda step: self._dispatch(run, top, step, ctx)   # type: ignore[attr-defined]
         ctx.workspace = self.workspace                                    # type: ignore[attr-defined]
+        ctx.authorization = authorization                                 # type: ignore[attr-defined]
         return ctx
 
     def _dispatch(self, run: _Run, top: ActionSpec, action: ActionSpec, ctx: ExecContext, depth: int = 0) -> ActionResult:
@@ -695,8 +698,8 @@ class ComputerEnvironment:
             res.failure_class = FailureClass.MISSING_PERMISSION
         return res
 
-    def _run_top(self, run: _Run, action: ActionSpec) -> ActionResult:
-        ctx = self._context(run, action)
+    def _run_top(self, run: _Run, action: ActionSpec, authorization: AuthorizationDecision) -> ActionResult:
+        ctx = self._context(run, action, authorization)
         t0 = self.clock.now()
         res = self._dispatch(run, action, action, ctx)
         res.action_id = action.action_id
@@ -720,6 +723,10 @@ class ComputerEnvironment:
                                      else FailureClass.WRONG_SITE_ASSUMPTION)
                 res.failure_detail = ("the action ran but its verification condition is not met in the resulting "
                                       f"state: {action.verify.description or action.verify.kind}")
+        if res.status != ResultStatus.OK and not res.observations:
+            res.observations.append(self.perception.error(
+                f"{action.operation} {res.status}: {res.failure_detail}", failure_class=res.failure_class,
+                parent_action_id=action.action_id, source=self.name))
         res.started = res.started or t0
         res.ended = self.clock.now()
         res.cost.seconds = max(res.cost.seconds, res.ended - res.started)

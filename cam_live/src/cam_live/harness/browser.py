@@ -267,24 +267,32 @@ def denial_class(dec: Optional[AuthorizationDecision]) -> Tuple[str, str, str]:
     return ResultStatus.DENIED, fc, "; ".join(getattr(dec, "reasons", []) or []) or "denied by the authorization layer"
 
 
-def broker_get(secrets: Any, name: str, op: PrimitiveOp, action: ActionSpec) -> str:
-    """Fetch a secret at the moment of use from whatever broker handle the authorization workstream supplies."""
+def broker_get(secrets: Any, name: str, op: PrimitiveOp, action: ActionSpec, decision: Any = None,
+               destination: str = "") -> str:
+    """Fetch a secret at the moment of use from the broker handle in ``ExecContext.secrets``. Supports the
+    authorization workstream's ``get(name, action, decision, destination)`` and simpler ``get(name)`` handles."""
+    import inspect
     if secrets is None:
         raise _Fail(ResultStatus.DENIED, FailureClass.MISSING_PERMISSION, "no secret broker is attached")
-    for meth in ("get_secret", "get", "resolve", "use", "reveal"):
-        fn = getattr(secrets, meth, None)
-        if callable(fn):
-            for args in ((name, op, action), (name, action), (name,)):
-                try:
-                    v = fn(*args)
-                except TypeError:
-                    continue
-                if isinstance(v, (bytes, bytearray)):
-                    v = bytes(v).decode()
-                if not isinstance(v, str) or not v:
-                    raise _Fail(ResultStatus.DENIED, FailureClass.MISSING_PERMISSION, f"secret {name!r} unavailable")
-                return v
-    raise _Fail(ResultStatus.DENIED, FailureClass.MISSING_PERMISSION, "secret broker has no usable accessor")
+    fn = next((getattr(secrets, m) for m in ("get", "get_secret", "resolve") if callable(getattr(secrets, m, None))), None)
+    if fn is None:
+        raise _Fail(ResultStatus.DENIED, FailureClass.MISSING_PERMISSION, "secret broker has no usable accessor")
+    try:
+        n = len([p for p in inspect.signature(fn).parameters.values()
+                 if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)])
+    except (TypeError, ValueError):
+        n = 1
+    args = {4: (name, action, decision, destination), 3: (name, op, action), 2: (name, action)}.get(n, (name,))
+    try:
+        v = fn(*args)
+    except Exception as e:  # noqa: BLE001 — the broker refused; never echo its message into an observation
+        raise _Fail(ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
+                    f"the secret broker refused {name!r}: {type(e).__name__}")
+    if isinstance(v, (bytes, bytearray)):
+        v = bytes(v).decode()
+    if not isinstance(v, str) or not v:
+        raise _Fail(ResultStatus.DENIED, FailureClass.MISSING_PERMISSION, f"secret {name!r} is unavailable")
+    return v
 
 
 class _Loop:
@@ -1304,7 +1312,7 @@ class BrowserExecutor:
 
     async def _op_inspect(self, sess, tab, action, ctx, op, res) -> Observation:
         a = action.arguments
-        await self._gate(ctx, op, action, {"url": tab.page.url, "session": sess.name})
+        await self._gate(ctx, op, action, {"page_url": tab.page.url, "session": sess.name})
         obs = await self._observe(sess, tab, mode="full" if a.get("full", True) else "diff", parent=action.action_id,
                                   a11y=True)
         if a.get("screenshot"):
@@ -1326,12 +1334,12 @@ class BrowserExecutor:
         return obs
 
     async def _op_screenshot(self, sess, tab, action, ctx, op, res) -> Observation:
-        await self._gate(ctx, op, action, {"url": tab.page.url, "session": sess.name})
+        await self._gate(ctx, op, action, {"page_url": tab.page.url, "session": sess.name})
         return await self._shot(sess, tab, action, res, bool(action.arguments.get("full_page")))
 
     async def _op_read(self, sess, tab, action, ctx, op, res) -> Observation:
         a = action.arguments
-        await self._gate(ctx, op, action, {"url": tab.page.url, "session": sess.name})
+        await self._gate(ctx, op, action, {"page_url": tab.page.url, "session": sess.name})
         if a.get("ref") or a.get("role") or a.get("name") or a.get("selector"):
             loc, st, op.note = await self._resolve(tab, a)
             text = await loc.first.inner_text(timeout=self.cfg.op_timeout_s * 1000)
@@ -1358,7 +1366,7 @@ class BrowserExecutor:
         a = action.arguments
         loc, st, op.note = await self._resolve(tab, a)
         await self._gate(ctx, op, action, {"element": {k: st.get(k) for k in ("ref", "role", "name", "tag", "href", "type")
-                                                       if st.get(k)}, "url": tab.page.url, "session": sess.name})
+                                                       if st.get(k)}, "page_url": tab.page.url, "session": sess.name})
         if st.get("disabled"):
             raise _Fail(ResultStatus.FAILED, FailureClass.WRONG_SITE_ASSUMPTION, f"{st['role']} \"{st['name']}\" is disabled")
         before, n_tabs = tab.page.url, len(sess.tabs)
@@ -1375,13 +1383,14 @@ class BrowserExecutor:
         a = action.arguments
         loc, st, op.note = await self._resolve(tab, a)
         facts = {"element": {k: st.get(k) for k in ("ref", "role", "name", "tag", "type") if st.get(k)},
-                 "url": tab.page.url, "session": sess.name}
+                 "page_url": tab.page.url, "session": sess.name}
         await self._gate(ctx, op, action, facts)
         if "secret" in a:
             if st.get("type") != "password":
                 raise _Fail(ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
                             "a stored secret may only be typed into a password field")
-            text = broker_get(ctx.secrets, str(a["secret"]), op, action)
+            text = broker_get(ctx.secrets, str(a["secret"]), op, action, getattr(ctx, "authorization", None),
+                              tab.page.url)
         else:
             text = str(a["text"])
         if st.get("disabled"):
@@ -1401,7 +1410,7 @@ class BrowserExecutor:
         a = action.arguments
         loc, st, op.note = await self._resolve(tab, a)
         await self._gate(ctx, op, action, {"element": {k: st.get(k) for k in ("ref", "role", "name", "tag") if st.get(k)},
-                                           "url": tab.page.url, "session": sess.name})
+                                           "page_url": tab.page.url, "session": sess.name})
         if st.get("tag") != "select":
             raise _Fail(ResultStatus.FAILED, FailureClass.INVALID_ARGUMENTS,
                         f"{st.get('role')} \"{st.get('name')}\" is not a select element")
@@ -1418,7 +1427,7 @@ class BrowserExecutor:
     async def _op_press(self, sess, tab, action, ctx, op, res) -> Observation:
         a = action.arguments
         loc = None
-        facts: Dict[str, Any] = {"url": tab.page.url, "session": sess.name}
+        facts: Dict[str, Any] = {"page_url": tab.page.url, "session": sess.name}
         if a.get("ref") or a.get("role") or a.get("name") or a.get("selector"):
             loc, st, op.note = await self._resolve(tab, a)
             facts["element"] = {k: st.get(k) for k in ("ref", "role", "name", "tag", "type") if st.get(k)}
@@ -1436,7 +1445,7 @@ class BrowserExecutor:
 
     async def _op_scroll(self, sess, tab, action, ctx, op, res) -> Observation:
         a = action.arguments
-        await self._gate(ctx, op, action, {"url": tab.page.url, "session": sess.name})
+        await self._gate(ctx, op, action, {"page_url": tab.page.url, "session": sess.name})
         if a.get("ref") or a.get("role") or a.get("name") or a.get("selector"):
             loc, st, op.note = await self._resolve(tab, a)
             await loc.first.scroll_into_view_if_needed(timeout=self.cfg.op_timeout_s * 1000)
@@ -1466,7 +1475,7 @@ class BrowserExecutor:
             blob = f.read()
         await self._gate(ctx, op, action, {"path": real, "bytes": len(blob), "sha256": hashlib.sha256(blob).hexdigest(),
                                            "element": {k: st.get(k) for k in ("ref", "role", "name", "type") if st.get(k)},
-                                           "url": tab.page.url, "session": sess.name})
+                                           "page_url": tab.page.url, "session": sess.name})
         if st.get("type") != "file":
             raise _Fail(ResultStatus.FAILED, FailureClass.INVALID_ARGUMENTS,
                         f"{st.get('role')} \"{st.get('name')}\" is not a file input")
@@ -1510,7 +1519,7 @@ class BrowserExecutor:
         else:
             loc, st, op.note = await self._resolve(tab, a)
             href = st.get("href") or ""
-            await self._gate(ctx, op, action, {"url": href or tab.page.url, "element": {
+            await self._gate(ctx, op, action, {"url": href or tab.page.url, "page_url": tab.page.url, "element": {
                 k: st.get(k) for k in ("ref", "role", "name", "href") if st.get(k)}, "session": sess.name})
             sess.expect_download = True
             try:
@@ -1548,7 +1557,7 @@ class BrowserExecutor:
 
     async def _op_wait_for(self, sess, tab, action, ctx, op, res) -> Observation:
         a, page = action.arguments, tab.page
-        await self._gate(ctx, op, action, {"url": page.url, "session": sess.name})
+        await self._gate(ctx, op, action, {"page_url": page.url, "session": sess.name})
         t_ms = float(a.get("timeout_s", 10.0)) * 1000
         try:
             if "text" in a:
