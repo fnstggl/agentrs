@@ -253,12 +253,13 @@ def pe_fleet_policy(rng, d):
 
 @family("pe_cascade_guard", engine="program_exec", category="8.3", item="8.3.5", split="train",
         doc="Units on a ring carry fluctuating demand; true capacities are their public ratings times hidden "
-            "factors. A tripped unit's demand moves to its working neighbours and can trip them. A guard program "
-            "sheds load every inner step.",
+            "factors that differ widely between units. A tripped unit's demand moves to its working neighbours and "
+            "can trip them. A guard program sheds load every inner step; one protection margin for all units "
+            "either sheds the strong ones needlessly or lets the weak ones trip.",
         distinct_because="cascading technical failures under an executed protection program: threshold trips "
                          "with load redistribution along a ring (a cascade) and capacities that differ from their "
-                         "ratings",
-        axes={"horizon": 30, "graph_size": 8, "observation_noise": 1.0}, objective="maximize_net",
+                         "ratings unit by unit",
+        axes={"horizon": 40, "graph_size": 8, "observation_noise": 1.0}, objective="maximize_net", version="2",
         **hooks(PE, "cascade_guard", ("trips_cascade", "capacity_below_rating")))
 def pe_cascade_guard(rng, d):
     N = max(4, int(d["graph_size"]))
@@ -266,7 +267,9 @@ def pe_cascade_guard(rng, d):
     ratings = [round(u(rng, 80.0, 120.0), 2) for _ in range(N)]
     base = [round(r * u(rng, 0.62, 0.78), 2) for r in ratings]
     phase = [round(u(rng, 0.0, 6.283), 4) for _ in range(N)]
-    hid = {"factor": [u(rng, 0.72, 1.0) for _ in range(N)]}
+    # the weakest units carry about half their rating: one margin for all cannot fit them all
+    hid = {"factor": [u(rng, 0.45, 1.0) for _ in range(N)]}
+    hid["factor"][int(rng.integers(N))] = u(rng, 0.45, 0.55)
     return {"engine": "program_exec", "scenario": "cascade_guard", "horizon": int(d["horizon"]), "inner": 6,
             "unit_names": names[:N], "margin_name": names[N], "ratings": ratings, "base": base, "phase": phase,
             "amp": 0.25, "period": 20.0, "noise_sd": 4.0 * float(d["observation_noise"]), "price": 1.0,

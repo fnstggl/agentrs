@@ -10,6 +10,7 @@ see only a `PublicView` and the public part of the configuration (names, ranges,
 from __future__ import annotations
 
 import json
+import math
 
 import numpy as np
 
@@ -1059,12 +1060,29 @@ def cg_learn(view, c: dict, ticks: int = 5) -> list:
     return [min(c["ratings"][i], trip.get(n, 1e9) - 2.0) for i, n in enumerate(names)]
 
 
-def reference_cascade_guard(view, env) -> None:
+def reference_cascade_guard(view, env, start: float = 0.6, grow: float = 1.1, back: float = 0.95,
+                            margin: float = 0.97) -> None:
+    """Public, per unit, safe exploration of the hidden capacities: deploy a guard that sheds each unit's load
+    above its capacity estimate (starting at `start` times its rating, a level every unit can carry); every tick,
+    raise the estimate of every unit that served its load without tripping by `grow` (but never above the lowest
+    load it tripped at), and set a unit that tripped to `back` times the load it tripped at; redeploy the guard
+    with the new estimates (times `margin`) each tick. Trips are reported as events with the load."""
     c = env._config
-    caps = cg_learn(view, c)
-    if not view.done:
-        view.step({"kind": "program", "source": guard_source(caps, 0.95), "ticks": view.horizon - view.t})
-    finish(view)
+    names = list(c["unit_names"])
+    est = [start * float(r) for r in c["ratings"]]
+    upper = [math.inf] * len(names)
+    while not view.done:
+        r = view.step({"kind": "program", "source": guard_source(est, margin), "ticks": 1})
+        tripped = {}
+        for e in r["observation"]["entities"]:
+            if e.get("kind") == "trip":
+                tripped[e["unit"]] = min(tripped.get(e["unit"], math.inf), float(e["load"]))
+        for i, n in enumerate(names):
+            if n in tripped:
+                upper[i] = min(upper[i], tripped[n])
+                est[i] = back * upper[i] / margin
+            else:
+                est[i] = min(est[i] * grow, back * upper[i] / margin)
 
 
 def identify_cascade_guard(env) -> dict:
