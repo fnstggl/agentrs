@@ -292,10 +292,15 @@ class PopDevelopers(Module):
         repo = r["repo"]
         via = {k: dict(v) for k, v in r["via"].items()}
         # 1. a capability without a provider: look for a package, else write it oneself
-        todo = [nd for nd in r["needs"] if via[nd].get("kind") in ("missing", "diy")]
+        # (a hand-coder looks again once its last look at the index is three days old)
+        looked = dict(r.get("looked") or {})
+        todo = [nd for nd in r["needs"] if via[nd].get("kind") == "missing" or
+                (via[nd].get("kind") == "diy" and now - int(looked.get(nd, -10 ** 9)) >= 3 * DAY)]
         rng = ctx.rng("devpop", i, now)
-        if todo and (any(via[nd]["kind"] == "missing" for nd in todo) or rng.random() < 0.35):
+        if todo:
             nd = sorted(todo, key=lambda x: (via[x]["kind"] != "missing", x))[0]
+            looked[nd] = int(now)
+            self._set(ctx, i, looked=looked)
             cand = self._find(ctx, p, r, nd, via)
             if cand is not None:
                 trial = dict(via, **{nd: cand})
