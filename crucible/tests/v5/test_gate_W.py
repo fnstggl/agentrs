@@ -16,7 +16,7 @@ import pytest
 from crucible.acceptance.v5.evidence import record
 from crucible.acceptance.v5.manifest import crucible_root
 
-pytestmark = [pytest.mark.slow, pytest.mark.timeout(2400)]
+pytestmark = [pytest.mark.slow, pytest.mark.timeout(10800)]   # the whole catalogue runs in the first test (Tier 2 probes grow with the registry)
 CMD = "PYTHONPATH=src python -m pytest tests/v5/test_gate_W.py"
 
 
