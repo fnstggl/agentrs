@@ -12,8 +12,9 @@ the population's own decisions. Measured from the world (`population.strategic.b
 class2_params_in_range / class3_params_in_range: parameter counts of every policy network in the world;
 strategic_group_behaviour_kinds: compete (two groups' live sites on one market topic at the same time), cooperate
 (a venture linked another member's venture site), unrelated objectives (>= 2 distinct objectives among deciding
-groups), adapt over the lifetime (a learning group whose weights changed and whose action distribution in the second
-half of its decisions differs from the first half, chi-square p < 0.05);
+groups), adapt over the lifetime (a learning group whose weights changed and whose policy moved: mean total
+variation distance >= 0.05 between its action distributions on its own recorded observations under its first and its
+current weights; the frozen control A0 is reported at 0);
 identical_policy_copies_across_groups: groups whose final weights equal another group's."""
 import pytest
 
@@ -58,13 +59,15 @@ def test_SP_3_2c_class_sizes_and_strategic_behaviour():
              "competing_topics": len(b["competing_topics"]), "link_pairs": int(b["link_pairs"]),
              "mutual_link_pairs": int(b["mutual_link_pairs"]), "cross_group_links": int(b["cross_group_links"]),
              "objectives": ",".join(b["objectives"]),
-             "adapting_groups": ",".join(g for g, v in b["adapt"].items() if v["pvalue"] < 0.05)}
+             "adapting_groups": ",".join(g for g, v in b["adapt"].items() if v["learning"] and v["weights_changed"]
+                                         and (v["policy_shift_tv"] or 0) >= 0.05),
+             **{f"policy_shift_tv_{g}": round(float(v["policy_shift_tv"] or 0.0), 4) for g, v in b["adapt"].items()}}
         for k, v in b["kinds"].items():
             m[f"kind_{k}"] = bool(v)
         evidence.record("SP-3.2c", m, command=CMD, notes=(
             f"Parameters per class-2 group {c2}, per class-3 group {c3}. Strategic behaviour (evaluator side, "
             f"population.strategic.behaviour): {b['kinds']}; adaptation per learning group (chi-square of action "
-            f"distributions, first vs second half): {b['adapt']}; second-half mean reward per group "
+            f"distributions, first vs second half, and the policy shift on its own observations): {b['adapt']}; second-half mean reward per group "
             f"{b['second_half_mean_reward']}; action outcomes {b['outcomes']}; successful actions {b['actions_ok']}. "
             "Group A0 is a frozen copy of A's initial weights in the same market (control)."))
     finally:

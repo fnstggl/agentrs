@@ -775,9 +775,11 @@ def behaviour(world) -> dict:
     * cooperate - links from one venture's site to another member's venture site (a cooperative act: it sends
       visitors to the other), mutual link pairs, and links across groups;
     * unrelated objectives - distinct objectives of the groups whose members decided;
-    * adapt over the lifetime - for each learning group whose weights changed: does the distribution of its chosen
-      actions in the second half of its decisions differ from the first half (chi-square p-value), and the frozen
-      identical-initialisation control's mean reward vs the learner's in the second half;
+    * adapt over the lifetime - a learning group whose weights changed and whose POLICY changed: the mean total
+      variation distance between its action distributions on its own recorded observations under its first
+      checkpoint and under its current weights is at least 0.05 (the frozen identical-init control A0 stays at 0);
+      the chi-square test of the chosen actions, first vs second half of the decisions (which also moves with the
+      situations met), and second-half mean rewards are reported alongside;
     * policy copies - groups whose final weights equal another group's."""
     from scipy.stats import chi2_contingency
     st = world.state
@@ -814,10 +816,12 @@ def behaviour(world) -> dict:
     final = {g: h[-1] for g, h in hashes.items()}
     copies = sum(1 for g, h in final.items() if any(h == h2 for g2, h2 in final.items() if g2 != g))
     adapt = {}
+    stm = world.modules.get("pop_strategic")
     for g, rec in groups.items():
-        acts = [int(r["act"]["act"]) for r in exps if r["group"] == g]
+        own = [r for r in exps if r["group"] == g]
+        acts = [int(r["act"]["act"]) for r in own]
         changed = len(set(hashes.get(g, []))) > 1
-        if not rec.get("learning") or not changed or len(acts) < 20:
+        if len(acts) < 20:
             continue
         h = len(acts) // 2
         t = np.zeros((2, len(ACTIONS)))
@@ -827,7 +831,12 @@ def behaviour(world) -> dict:
             t[1, a_] += 1
         t = t[:, t.sum(axis=0) > 0]
         p = float(chi2_contingency(t)[1]) if t.shape[1] >= 2 else 1.0
-        adapt[g] = {"pvalue": p, "decisions": len(acts), "updates": len(hashes.get(g, [])) - 1,
+        # the policy's own change: its action distribution on the SAME observations (the group's recorded decisions,
+        # with their feasibility masks) under its initial weights and its weights now - a change of the network, not
+        # of the situations it met
+        tv = _policy_shift(world, stm, g, own) if stm is not None else None
+        adapt[g] = {"learning": bool(rec.get("learning")), "weights_changed": changed, "policy_shift_tv": tv,
+                    "pvalue": p, "decisions": len(acts), "updates": len(hashes.get(g, [])) - 1,
                     "first_half": [int(x) for x in t[0]], "second_half": [int(x) for x in t[1]]}
     rewards: dict[str, list] = {}
     for r in exps:
@@ -845,9 +854,33 @@ def behaviour(world) -> dict:
     acts_all = {a: sum(1 for r in exps if r.get("outcome") == "ok" and int(r["act"]["act"]) == j)
                 for j, a in enumerate(ACTIONS)}
     kinds = {"compete": len(overlap) > 0, "cooperate": len(pairs) > 0, "unrelated_objectives": len(objs) >= 2,
-             "adapt_over_lifetime": any(v["pvalue"] < 0.05 for v in adapt.values())}
+             "adapt_over_lifetime": any(v["learning"] and v["weights_changed"] and (v["policy_shift_tv"] or 0) >= 0.05
+                                        for v in adapt.values())}
     return {"kinds": kinds, "kind_count": int(sum(kinds.values())), "competing_topics": sorted(overlap),
             "link_pairs": len(pairs), "mutual_link_pairs": len(mutual), "cross_group_links": across,
             "objectives": objs, "adapt": adapt, "identical_policy_copies": copies, "final_hashes": final,
             "second_half_mean_reward": second_half, "outcomes": outcomes, "actions_ok": acts_all,
             "decisions": len(exps)}
+
+
+def _policy_shift(world, stm, g: str, own: list) -> float | None:
+    """Mean total-variation distance between a group's action distributions (the `act` head, feasibility-masked) on
+    its own recorded observations under its first checkpoint and under its current weights."""
+    st = world.state
+    meta = st.get("pop_policies", f"strategic:{g}")
+    if meta is None or not meta.get("checkpoints") or not own:
+        return None
+    rec = st.get("pop_strat_groups", g)
+    first = StrategicGroup(rec, seed=0)
+    first.load(artifacts.get_array_blob(world, meta["checkpoints"][0][1]))
+    now = stm.group(world, g)
+    O = np.array([r["obs"] for r in own], np.float32)
+    H = np.array([r["hist"] for r in own], np.float32)
+    M = np.array([r.get("mask") or [True] * len(ACTIONS) for r in own], bool)
+
+    def dist(grp):
+        lg = grp.logits(O, H)["act"].astype(np.float64)
+        lg = np.where(M, lg, -1e9)
+        e = np.exp(lg - lg.max(axis=1, keepdims=True))
+        return e / e.sum(axis=1, keepdims=True)
+    return float(0.5 * np.abs(dist(first) - dist(now)).sum(axis=1).mean())
