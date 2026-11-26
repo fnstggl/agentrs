@@ -775,3 +775,30 @@ def identify_effect_size(env) -> dict:
     truth = records_overstate_the_effect(fork_start(env))["ok"]
     return {"ok": bool((passive > 2 * causal) == truth), "question": "do the records overstate the effect",
             "estimate": bool(passive > 2 * causal), "truth": truth}
+
+
+# ====================================================================== dl_delayed_returns (reference)
+def invest_learn_lag_then_stop(view, env) -> None:
+    """Scripted public reference for delayed investment returns: invest once and watch for the output to answer
+    (that is the construction delay L); invest at a steady level while the investment can still pay back, and
+    stop investing L + a margin ticks before the end (later investment never comes on line in time)."""
+    sp = view.action_space()
+    (name, p), = sp.kinds["levers"]["properties"]["values"]["properties"].items()
+    H = view.horizon
+
+    def out(r):
+        return list(r["observation"]["numbers"].values())[0]
+    base = out(view.step({"kind": "levers", "values": {name: float(p["maximum"])}}))
+    lag, seen = None, [base]
+    q = 0.5 * float(p["maximum"])
+    while not view.done and lag is None and view.t < H // 2:
+        v = out(view.step({"kind": "levers", "values": {name: q}}))
+        if v - seen[0] > 2.0:
+            lag = view.t - 1
+        seen.append(v)
+    lag = lag or 8
+    # capacity built after `stop` cannot repay its cost: it comes on line L ticks later and has only the last
+    # quarter of the episode (roughly a depreciating unit's payback time) left to earn
+    stop = H - lag - max(3, H // 4)
+    while not view.done:
+        view.step({"kind": "levers", "values": {name: q if view.t < stop else 0.0}})

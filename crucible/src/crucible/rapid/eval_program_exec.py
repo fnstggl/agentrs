@@ -422,9 +422,11 @@ def dt_identify(view, frac: float = 0.5) -> dict:
 
 
 def reference_deadtime_control(view, env) -> None:
+    """Public reference: identify a first-order-plus-dead-time model with a step test, then deploy a Smith
+    predictor (dead-time compensating PI) built on the identified model."""
     est = dt_identify(view)
-    r0 = view.observe()["numbers"].get(env._config["r_name"], 5.0)
-    view.step({"kind": "program", "source": pi_source(env._config, est["G"], est["tau"], est["L"], r0, est["umax"]),
+    c = dict(env._config, umax=est["umax"])
+    view.step({"kind": "program", "source": smith_source(c, est["G"], est["tau"], est["L"], 3.0),
                "ticks": view.horizon - view.t})
     finish(view)
 
