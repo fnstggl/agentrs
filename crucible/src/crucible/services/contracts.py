@@ -123,7 +123,10 @@ class Contracts(Module):
                 elif t == "membership":
                     cl = {"type": t, "person": R(c["person"]), "org": R(c["org"]), "role": c.get("role", "member"),
                           "title": str(c.get("title", ""))[:80]}
-                    if cl["role"] not in ("member", "admin") or not cl["person"].startswith("p:") or not cl["org"].startswith("o:"):
+                    # a person is an identity person ("p:<handle>") or a population individual ("p<i>",
+                    # crucible.substrate.ids): individuals of the one population take jobs too (workstream I-2, D-15)
+                    person_ok = cl["person"].startswith("p:") or re.fullmatch(r"p\d+", cl["person"]) is not None
+                    if cl["role"] not in ("member", "admin") or not person_ok or not cl["org"].startswith("o:"):
                         raise InvalidAction("membership needs a person, an organisation and role member/admin")
                     if cl["person"] not in parties or cl["org"] not in parties:
                         raise InvalidAction("membership parties must sign")

@@ -48,14 +48,17 @@ import numpy as np
 
 from ..core import schema as S
 from ..core.canonical import digest, to_jsonable
-from ..core.errors import Conflict, CrucibleError, Forbidden, InvalidAction, NotFound
+from ..core.errors import Conflict, CrucibleError, Forbidden, InvalidAction, NotFound, ProtocolError
 from ..core.kernel import Ctx, Module, applier, endpoint, process, register_module
 from ..services.identity import ident
+from ..substrate import columns
 from ..worlds.engineering_lab import Network, baseline_route
 from ..worlds.engineering_lab import evaluate as net_evaluate
 
 HOUR = 3600
 DAY = 86400
+USERS = "fleet_users"                                      # column table: the population as end users
+USE_MODEL = {"model_id": "fleet.app_use", "model_version": "1", "fidelity_id": "FR-FLEET-USERS"}
 OFF, ON, BOOT, FAILED, REPAIR, ORDERED, RETIRED = 0, 1, 2, 3, 4, 5, 6
 STATUS = ("off", "on", "booting", "failed", "repairing", "ordered", "retired")
 LEASED = (OFF, ON, BOOT, FAILED, REPAIR)
@@ -73,10 +76,12 @@ DEFAULTS: dict[str, Any] = {
     "thermal": False, "breakers": False, "wear": True, "link_cuts": False,
     "boot_h": 2, "trip_h": 6, "lead_days": 5,
     "machine": {"cores": 32, "idle_kw": 0.22, "peak_kw": 0.52},
-    "fleet_factor": [2.3, 2.8],                            # installed machines / machines needed at the peak
+    "fleet_factor": [1.7, 2.1],                            # installed machines / machines needed at the peak (the
+                                                           # incumbent provisioned for growth that did not come)
+    "demand_scale": 30.0,                                  # requests per second of the hidden demand process
     "power_cap": None,                                     # [lo, hi] x the incumbent's facility power at peak
     "lease_cents_day": 700, "repair_parts_cents": 12_000, "repair_tech_h": 6, "repair_h": 8,
-    "technicians": 2, "tech_wage_cents_day": 20_000,
+    "technicians": 1, "tech_wage_cents_day": 15_000,
     "price_per_m_cents": [40, 90], "batch_value_cents_per_core_h": 3,
     "sla_target": 0.995, "sla_credit": 0.1,
     "cut_rate_per_day": 0.03,                              # per link (hidden)
@@ -86,7 +91,10 @@ DEFAULTS: dict[str, Any] = {
     "experiment_fee_cents": 2_000, "experiment_hour_cents": 40, "max_experiment_hours": 72,
     "controller_timeout_s": 5.0,
     "operator": {"handle": "opsco", "name": "OpsCo", "lead": "opsco-lead", "cash": 30_000_000},
-    "seat": "agent",
+    "seat": "agent", "operators": [],                      # seat handles made admins of the operator at genesis
+    # end users of the tenants' services: the population (when the world has one), FR-FLEET-USERS
+    "users": {"adopt": [0.25, 0.6], "tolerance": [0.95, 0.995], "patience": [0.15, 0.45], "wom": 0.01,
+              "churn": 0.004, "prior": 0.3},
     "spot": {"kappa": 2.5, "bg_share": 0.85},
 }
 
@@ -447,6 +455,7 @@ def hour_physics(conf: dict, counts: dict, plan: dict, exo: dict, jobs: list[dic
         sid = svc["id"]
         offered = sum(float(v) for v in exo["demand"][sid].values()) * 3600.0
         good = delivered = 0.0
+        good_r = {r: 0.0 for r in exo["demand"][sid]}
         for (sv, r, s), x in reqs.items():
             if sv != sid:
                 continue
@@ -454,10 +463,15 @@ def hour_physics(conf: dict, counts: dict, plan: dict, exo: dict, jobs: list[dic
             f, rho = served_frac[s]
             d = x * 3600.0 * (1.0 - drop) * f
             delivered += d
-            good += d * sojourn_ok(float(svc["slo_ms"]), delay, float(svc["service_ms"]), rho)
+            g = d * sojourn_ok(float(svc["slo_ms"]), delay, float(svc["service_ms"]), rho)
+            good += g
+            good_r[r] = good_r.get(r, 0.0) + g
         unplaced = offered - sum(x * 3600.0 for (sv, _, _), x in reqs.items() if sv == sid)
+        # what the users of each region experienced: the share of their requests served within the SLO
+        by_region = {r: round(good_r.get(r, 0.0) / (float(v) * 3600.0), 5) if float(v) > 0 else 1.0
+                     for r, v in exo["demand"][sid].items()}
         out_svc[sid] = {"offered": round(offered, 2), "delivered": round(delivered, 2), "good": round(good, 2),
-                        "unplaced": round(max(0.0, unplaced), 2)}
+                        "unplaced": round(max(0.0, unplaced), 2), "by_region": by_region}
     net_out = {"max_util": round(netres["max_util"], 5) if netres else 0.0,
                "dropped_fraction": round(netres["dropped_fraction"], 6) if netres else 0.0,
                "volume_gbps": round(netres["volume"], 5) if netres else 0.0}
@@ -469,13 +483,15 @@ def hour_physics(conf: dict, counts: dict, plan: dict, exo: dict, jobs: list[dic
 def _topology(rng, cfg: dict, regions: list[str], sites: list[dict]) -> dict:
     nodes = list(regions) + [s["id"] for s in sites]
     links = []
+    scale = float(cfg.get("demand_scale", 1.0))     # link capacities are provisioned for the traffic volume
 
     def add(u, v, cap, lat):
         a, b = sorted([u, v])
         lid = f"{a}-{b}"
         if any(l["id"] == lid for l in links):
             return
-        links.append({"id": lid, "u": a, "v": b, "capacity": round(float(cap), 3), "latency": round(float(lat), 2)})
+        links.append({"id": lid, "u": a, "v": b, "capacity": round(float(cap) * scale, 3),
+                      "latency": round(float(lat), 2)})
     kind = cfg["topology"]
     if kind == "star":
         nodes.append("core")
@@ -526,7 +542,7 @@ def make_world(rng, cfg: dict) -> dict:
                          "slo_ms": int(rng.integers(70, 140)), "service_ms": round(float(rng.uniform(2.0, 6.0)), 3),
                          "kb": round(float(rng.uniform(20, 120)), 2),
                          "price_per_m_cents": int(rng.integers(*cfg["price_per_m_cents"]))})
-        base = {r: round(float(rng.uniform(150, 900)), 2) for r in regions}
+        base = {r: round(float(rng.uniform(150, 900)) * float(cfg.get("demand_scale", 1.0)), 2) for r in regions}
         phase = {r: (int(rng.integers(0, 24)) if cfg["follow_sun"] else 14 + int(rng.integers(-2, 3))) for r in regions}
         hidden_svc[sid] = {"base": base, "peak_hour": phase, "amp": round(float(rng.uniform(0.45, 0.75)), 3),
                            "growth": round(float(rng.uniform(-0.002, 0.012)), 5),
@@ -586,6 +602,19 @@ class Fleet(Module):
         st.declare_table("fleet_releases", index=("service",))
         st.declare_table("fleet_orders", index=("status",))
         st.declare_table("fleet_experiments", index=("by",))
+        self.has_users = "pop" in world.modules
+        if self.has_users:
+            from .. import population as P
+            try:
+                n = P.n_individuals(world)
+            except NotFound:
+                raise ProtocolError("fleet: the population module 'pop' must come before 'fleet'") from None
+            k = int(self.cfg["n_services"])
+            columns.declare(world, USERS, n, {
+                "region": ("int16", (), -1), "uses": ("uint8", (k,), 0), "tol": ("float32", (), 0.98),
+                "patience": ("float32", (), 0.3), "q": ("float32", (k,), 1.0), "changed": ("int64", (k,), -1)})
+            P.register_activity(world, "apps", self.act_apps, owner=self.name,
+                                prior=float(self.cfg["users"].get("prior", 0.3)), goals=(4, 5))
         prev = world.hooks.get("on_join")
 
         def on_join(ctx, pid, kind):
@@ -656,6 +685,22 @@ class Fleet(Module):
     def demand_mult(self, st, sid: str) -> float:
         """Tenant's share of its traffic kept here (its own decision)."""
         return float((st.get("fleet", "shares") or {}).get("share", {}).get(sid, 1.0))
+
+    def user_factor(self, st) -> dict:
+        """{service: {region: users now / users at genesis}}: the population's own adoption and abandonment of the
+        tenants' services moves their traffic (1.0 everywhere in a world without the population)."""
+        conf = self.conf(st)
+        if not self.has_users or "users0" not in self.regime(st):
+            return {svc["id"]: {r: 1.0 for r in conf["regions"]} for svc in conf["services"]}
+        u0 = self.regime(st)["users0"]
+        reg = columns.col(self.world, USERS, "region").astype(np.int64)
+        uses = columns.col(self.world, USERS, "uses")
+        out = {}
+        for k, svc in enumerate(conf["services"]):
+            cnt = np.bincount(reg[(reg >= 0) & (uses[:, k] > 0)], minlength=len(conf["regions"]))
+            out[svc["id"]] = {r: (float(cnt[j]) / u0[svc["id"]][r]) if u0[svc["id"]][r] > 0 else 0.0
+                              for j, r in enumerate(conf["regions"])}
+        return out
 
     # ------------------------------------------------------------------ genesis
     def genesis(self, ctx):
@@ -740,6 +785,12 @@ class Fleet(Module):
         hidden["sites"] = {s["id"]: {"base_price": s["base_price"], "temp_mean": s["temp_mean"],
                                      "pue0": s["pue0"]} for s in g["sites"]}
         hidden["tenants"] = tenants
+        if self.has_users:
+            hidden["users0"] = self._users_genesis(ctx, g)
+        for hnd in cfg.get("operators") or []:          # participant seats (module `seat`, created before)
+            pid = f"p:{hnd}"
+            if ctx.state.has("principals", pid):
+                idm.add_member(ctx, org, pid, "admin", "infrastructure engineer")
         hidden["grid_cap_kw"] = round(sum(
             s["installed"] * mach["peak_kw"] * s["pue0"] for s in g["sites"]) / max(1e-6, 1 - cfg["spot"]["bg_share"]), 3)
         ctx.emit("fleet.regime", {"day": 0, "cause": "genesis", "params": hidden}, vis="internal")
@@ -756,16 +807,89 @@ class Fleet(Module):
         if cfg["batch"]:
             ctx.schedule(30, "fleet.jobs", {}, prio=44, period=DAY, key="fleet_jobs")
 
+    def _users_genesis(self, ctx, g) -> dict:
+        """Who among the population uses which tenant service, from which region (FR-FLEET-USERS): each service has
+        a hidden initial adoption share; individuals have their own tolerance of bad service and patience."""
+        from .. import population as P
+        w = ctx.world
+        n = P.n_individuals(w)
+        uc = self.cfg["users"]
+        rng = w.rng_for("fleet-users")
+        R = len(g["regions"])
+        region = rng.integers(0, R, n).astype(np.int16)
+        adopt = rng.uniform(*uc["adopt"], len(g["services"]))
+        uses = (rng.random((n, len(g["services"]))) < adopt[None, :]).astype(np.uint8)
+        tol = rng.uniform(*uc["tolerance"], n).astype(np.float32)
+        pat = rng.uniform(*uc["patience"], n).astype(np.float32)
+        if n:
+            columns.batch(ctx, USERS, "fleet.users_init", np.arange(n), {
+                "region": region, "uses": uses, "tol": tol, "patience": pat}, extra={"services": len(g["services"])})
+        u0 = {}
+        for k, svc in enumerate(g["services"]):
+            cnt = np.bincount(region[uses[:, k] > 0].astype(np.int64), minlength=R)
+            u0[svc["id"]] = {r: int(cnt[j]) for j, r in enumerate(g["regions"])}
+        return u0
+
+    def act_apps(self, ctx, idx, now):
+        """Population individuals use the tenants' online services (FR-FLEET-USERS): each experiences the share of
+        its region's requests served within the SLO over the last three hours; a service that falls below its own
+        tolerance may be abandoned (with its patience), one its contacts use and that works may be adopted (word of
+        mouth). Their adoption is the traffic the tenants bring to the fleet."""
+        from .. import population as P
+        w = ctx.world
+        st = ctx.state
+        idx = np.asarray(idx, np.int64)
+        util = np.zeros(idx.size)
+        if idx.size == 0 or not st.has("fleet", "conf"):
+            return util
+        conf = self.conf(st)
+        svcs, regions = conf["services"], conf["regions"]
+        h = now // HOUR - 1
+        rows = [r for r in (st.get("fleet_hours", f"h{h - k:06d}") for k in range(3)) if r is not None]
+        Q = np.ones((len(svcs), len(regions)))
+        for k, svc in enumerate(svcs):
+            for j, r in enumerate(regions):
+                vals = [row["exact"]["services"][svc["id"]].get("by_region", {}).get(r) for row in rows]
+                vals = [v for v in vals if v is not None]
+                if vals:
+                    Q[k, j] = float(np.mean(vals))
+        reg = columns.col(w, USERS, "region")[idx].astype(np.int64)
+        uses = columns.col(w, USERS, "uses")[idx].astype(bool)
+        tol = columns.col(w, USERS, "tol")[idx].astype(np.float64)
+        pat = columns.col(w, USERS, "patience")[idx].astype(np.float64)
+        qx = Q[:, np.maximum(reg, 0)].T                                  # (n, services)
+        short = np.clip(20.0 * (tol[:, None] - qx), 0.0, 1.0)
+        rng = ctx.rng("fleet.apps", int(now))
+        u = rng.random(uses.shape)
+        abandon = uses & (((qx < tol[:, None]) & (u < pat[:, None] * short)) |
+                          (u > 1.0 - float(self.cfg["users"].get("churn", 0.0))))   # other reasons to stop
+        contacts = P.features(w, idx)["contacts"]
+        all_uses = columns.col(w, USERS, "uses")
+        cu = np.where((contacts >= 0)[:, :, None], all_uses[np.maximum(contacts, 0)], 0).astype(np.float64)
+        frac = cu.mean(axis=1)                                           # share of contacts using each service
+        adopt = (~uses) & (qx >= tol[:, None] - 0.01) &             (rng.random(uses.shape) < float(self.cfg["users"].get("wom", 0.04)) * frac)
+        new = (uses & ~abandon) | adopt
+        n_used = np.maximum(1, uses.sum(axis=1))
+        sat = np.where(uses, 1.0 - short, 0.0).sum(axis=1) / n_used
+        util = np.where(uses.any(axis=1), 0.9 * sat - 0.2, -0.3)
+        changed = np.where(new != uses, now, columns.col(w, USERS, "changed")[idx]).astype(np.int64)
+        P.record_decisions(ctx, "fleet.use", idx, {"uses": new.astype(np.uint8), "q": qx.astype(np.float32),
+                                                   "changed": changed}, table=USERS, **USE_MODEL,
+                           extra={"abandoned": int(abandon.sum()), "adopted": int(adopt.sum())})
+        return util
+
     # ------------------------------------------------------------------ exogenous inputs of an hour (hidden)
     def exogenous(self, st, h: int) -> dict:
         conf = self.conf(st)
         reg = self.regime(st)
         rng = self.world.rng_for("fleet-demand", h)
         demand, cpu = {}, {}
+        uf = self.user_factor(st)
         for svc in conf["services"]:
             hid = reg["services"][svc["id"]]
             mult = self.demand_mult(st, svc["id"])
-            demand[svc["id"]] = {r: round(demand_rps(hid, r, h, mult, rng), 3) for r in conf["regions"]}
+            demand[svc["id"]] = {r: round(demand_rps(hid, r, h, mult * uf[svc["id"]][r], rng), 3)
+                                 for r in conf["regions"]}
             cpu[svc["id"]] = float(hid["cpu_ms"])
         wr = self.world.rng_for("fleet-weather", h)
         heat = (st.get("fleet", "heat") or {}).get("until", {})
@@ -1317,12 +1441,13 @@ class Fleet(Module):
         "repo": S.s_str("repository holding the controller", maxLength=81),
         "target": S.s_str("module:function, e.g. controller.py:control", maxLength=184),
         "ref": S.s_str("commit (default: head)", maxLength=40),
-        "hours": S.s_int("simulated hours", minimum=1, maximum=72)}, ["repo", "target"]), cost_s=300)
+        "hours": S.s_int("recorded hours to replay", minimum=1, maximum=72)}, ["repo", "target"]), cost_s=300)
     def ep_experiment(self, ctx, repo, target, ref=None, hours=24):
-        """Offline test (operators, paid from the operator account): run a candidate controller and the deployed
-        one side by side for `hours` simulated hours from now, on demand freshly sampled from the current traffic
-        process and the current fleet (no failures, trips or tenant reactions). Returns energy, machine-hours,
-        attainment and batch progress of both."""
+        """Offline test (operators, paid from the operator account): replay the last `hours` recorded production
+        hours - your own measured traffic per service and region, the CPU per request your telemetry measured, the
+        recorded temperatures and energy prices - with a candidate controller and with the deployed one, starting
+        from the current fleet (no failures, trips or tenant reactions are replayed). Returns energy, machine-hours,
+        attainment and batch progress of both. It sees only what was recorded: never the demand process itself."""
         st = ctx.state
         conf = self._require_operator(ctx)
         if not re.fullmatch(TARGET_RE, target):
@@ -1353,36 +1478,31 @@ class Fleet(Module):
         return {"experiment": xid, "hours": hours, "fee_cents": fee, **res}
 
     def simulate(self, ctx, dep: dict, hours: int, seed: int) -> dict:
-        """Run a controller on sampled hours from the current state (counts only; boot lag kept)."""
+        """Replay recorded hours with a controller (trace-driven; counts only; boot lag kept). Inputs are what the
+        operator itself recorded: offered requests per service and region, measured CPU per request (telemetry,
+        noisy), temperatures, settled prices. No hidden parameter is read."""
         st = ctx.state
         conf = self.conf(st)
-        reg = self.regime(st)
-        h0 = ctx.now // HOUR
+        h_now = ctx.now // HOUR
+        recs = [st.get("fleet_hours", f"h{h:06d}") for h in range(h_now - int(hours), h_now)]
+        recs = [r for r in recs if r is not None]
         cnt = self.counts(st)
         counts = {s: {"on": c["on"], "booting": c["booting"], "off": c["off"], "failed": c["failed"],
                       "repairing": c["repairing"]} for s, c in cnt.items()}
         boot_q: list[tuple[int, str]] = []
-        rng = np.random.default_rng(seed)
         jobs = [dict(st.tables["fleet_jobs"][j], job=j) for j in st.find_ids("fleet_jobs", "status", "open")]
         tot = {"energy_cents": 0.0, "kwh": 0.0, "machine_hours": 0.0, "good": 0.0, "offered": 0.0,
-               "batch_core_h": 0.0, "plan_errors": 0, "controller_errors": 0}
+               "batch_core_h": 0.0, "plan_errors": 0, "controller_errors": 0, "hours_replayed": len(recs)}
         hist: list[dict] = []
-        for k in range(hours):
-            h = h0 + k
-            demand = {}
-            for svc in conf["services"]:
-                hid = reg["services"][svc["id"]]
-                mult = self.demand_mult(st, svc["id"])
-                demand[svc["id"]] = {r: demand_rps(hid, r, h, mult, rng) for r in conf["regions"]}
-            for (t_ready, s) in [x for x in boot_q if x[0] <= h]:
+        for k, rec in enumerate(recs):
+            h = int(rec["hour"])
+            demand = {sid: {r: float(v) for r, v in d.items()} for sid, d in rec["rps"].items()}
+            for (t_ready, s) in [x for x in boot_q if x[0] <= k]:
                 counts[s]["booting"] -= 1
                 counts[s]["on"] += 1
                 boot_q.remove((t_ready, s))
-            exo = {"demand": demand, "cpu_ms": {s["id"]: reg["services"][s["id"]]["cpu_ms"] for s in conf["services"]},
-                   "temp": {s["id"]: reg["sites"][s["id"]]["temp_mean"] for s in conf["sites"]},
-                   "price": {s["id"]: (None if conf["tariff"] == "spot" else
-                                       tariff(reg["sites"][s["id"]], conf["tariff"], h % 24)) for s in conf["sites"]},
-                   "tripped": [], "cut": []}
+            exo = {"demand": demand, "cpu_ms": {sid: float(v) for sid, v in rec["measured"]["cpu_ms"].items()},
+                   "temp": dict(rec["temp"]), "price": dict(rec["price"]), "tripped": [], "cut": []}
             obs = self._sim_obs(st, h, counts, exo, hist, jobs)
             out = self.run_controller(ctx, dep, [obs], ctx.actor, "cmd")[0]
             if not out.get("ok"):
@@ -1398,7 +1518,7 @@ class Fleet(Module):
                     n = min(target - cur, c["off"])
                     c["off"] -= n
                     c["booting"] += n
-                    boot_q += [(h + conf["boot_h"], s)] * n
+                    boot_q += [(k + conf["boot_h"], s)] * n
                 elif target < cur:
                     n = cur - target
                     b = min(n, c["booting"])
@@ -1409,11 +1529,8 @@ class Fleet(Module):
                     c["on"] -= n - b
                     c["off"] += n
             res = hour_physics(conf, counts, plan, exo, jobs, net)
-            if conf["tariff"] == "spot":
-                p = self.spot_price(st, h, sum(v["kw"] for v in res["sites"].values()))
-                exo["price"] = {s: p for s in exo["price"]}
             for s, v in res["sites"].items():
-                tot["energy_cents"] += v["kwh"] * exo["price"][s]
+                tot["energy_cents"] += v["kwh"] * float(exo["price"].get(s) or 0.0)
                 tot["kwh"] += v["kwh"]
                 tot["machine_hours"] += v["on"] + v["booting"]
             for v in res["services"].values():
@@ -1434,8 +1551,7 @@ class Fleet(Module):
         conf = self.conf(st)
         sites = []
         for s in conf["sites"]:
-            today = None if conf["tariff"] == "spot" else [round(tariff(self.regime(st)["sites"][s["id"]],
-                                                                         conf["tariff"], k), 4) for k in range(24)]
+            today = None if conf["tariff"] == "spot" else [round(tariff(s, conf["tariff"], k), 4) for k in range(24)]
             sites.append({"id": s["id"], "region": s["region"], "cores_per_machine": conf["machine"]["cores"],
                           "machines": dict(counts[s["id"]]), "power_cap_kw": s["power_cap_kw"],
                           "tripped_until": None, "price_cents_kwh": exo["price"][s["id"]], "tariff_today": today,
