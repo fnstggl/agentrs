@@ -112,35 +112,41 @@ def token_gaming(seed: int, *, n: int = 1500, warm_h: int = 24, run_h: int = 72,
 
 
 def artifact_change(seed: int, *, n: int = 1500, warm_h: int = 24, run_h: int = 24, a_topic: str = "football_nfl",
-                    b_topic: str = "recipes") -> dict:
-    """Publish about `a_topic`, then update the bytes to `b_topic`: who views it before and after the change?"""
+                    b_topic: str = "recipes", posts: int = 8) -> dict:
+    """`posts` experimenter accounts publish about `a_topic`, then update the bytes to `b_topic` (same titles): who
+    views the posts before and after the change? (The re-indexed representation should move the audience.)"""
     crucible.load_all_modules()
     spec = social_world("development", seed, n=n, platforms=["posts", "blog"], creators={"prior": -1.2})
     w = World.create(spec)
-    lab = w.system_call("admin.join", {"handle": "lab", "endowment": 10_000, "password": "pw-lab"})["principal"]
+    labs = [w.system_call("admin.join", {"handle": f"lab{j}", "endowment": 10_000, "password": f"pw-lab{j}"}
+                          )["principal"] for j in range(posts)]
     w.advance_time(w.now + warm_h * 3600)
     names = semantics.topic_names()
     rng = np.random.default_rng(seed)
     ta, tb = names.index(a_topic), names.index(b_topic)
-    title_a, body_a = writing.compose(rng, ta, 5, 1.0)
-    _, body_b = writing.compose(rng, tb, 5, 1.0)
-    cid, item = _publish(w, lab, "Notes for this week", body_a, platform="blog")
+    pub = []
+    for j, lab in enumerate(labs):
+        _, body_a = writing.compose(rng, ta, 5, 1.0)
+        pub.append((lab,) + _publish(w, lab, f"Notes for this week {j}", body_a, platform="blog"))
     w.advance_time(w.now + run_h * 3600)
     from ..population import api as P
     ca, cb = semantics.asset()["centroids"][ta], semantics.asset()["centroids"][tb]
-    v1 = AUD.viewers_of(w, item)
-    a = w.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": "Notes for this week",
-                                                          "body": body_b}})
-    r = w.execute(lab, {"tool": "content.update", "args": {"id": cid, "ref": a.result["ref"]}})
-    assert r.ok, r.error
+    before = {item: AUD.viewers_of(w, item) for _, _, item in pub}
+    for j, (lab, cid, item) in enumerate(pub):
+        _, body_b = writing.compose(rng, tb, 5, 1.0)
+        a = w.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": f"Notes for this week {j}",
+                                                              "body": body_b}})
+        r = w.execute(lab, {"tool": "content.update", "args": {"id": cid, "ref": a.result["ref"]}})
+        assert r.ok, r.error
     w.advance_time(w.now + run_h * 3600)
-    v2 = np.setdiff1d(AUD.viewers_of(w, item), v1)
+    v1 = np.unique(np.concatenate([before[i] for _, _, i in pub]))
+    v2 = np.unique(np.concatenate([np.setdiff1d(AUD.viewers_of(w, i), before[i]) for _, _, i in pub]))
 
     def lean(v):
         if v.size == 0:
             return float("nan")
         u = P.interests(w, v)
         return float(np.mean(u @ cb - u @ ca))
-    return {"seed": seed, "viewers_before": int(v1.size), "viewers_after": int(v2.size),
-            "lean_to_b_before": lean(v1), "lean_to_b_after": lean(v2),
-            "population_lean": lean(np.arange(n))}
+    return {"seed": seed, "posts": posts, "viewers_before": int(v1.size), "viewers_after": int(v2.size),
+            "lean_to_b_before": lean(v1), "lean_to_b_after": lean(v2), "population_lean": lean(np.arange(n)),
+            "scripted": "experimenter accounts publish and update the posts (the only difference is their bytes)"}
