@@ -259,6 +259,8 @@ def build_stack(cfg: Optional[CamConfig] = None, *, device=None, seed: int = 0, 
         raise ValueError("cfg.use_memory needs memory_root (E's MemoryIndex / EventArchive live on disk)")
     comps.update(components or {})
     model = build_model(cfg, components=comps, component_kwargs=ckw, **(model_kwargs or {})).to(dev)
+    from ..build import assert_no_doubles
+    assert_no_doubles(model)                      # the canonical factory's guarantee: real components only
     ingest = ProspectiveIngest(model) if prospective_ingest else None
     if memory_root is not None:
         from ..memory.archive import EventArchive

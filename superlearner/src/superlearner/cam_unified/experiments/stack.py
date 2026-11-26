@@ -228,6 +228,8 @@ def build_stack(cfg: Optional[CamConfig] = None, *, run_dir: Optional[str] = Non
     mkw.update(model_kw or {})
     model = build_model(cfg, components={"semantic": sem, "tokenizer": tok, "action_generator": gen,
                                          "entity_encoder": ent}, **mkw).to(dev)
+    from ..build import assert_no_doubles
+    assert_no_doubles(model)                      # the canonical factory's guarantee: real components only
     archive = replay = index = cons = None
     if experience:
         if run_dir is None:

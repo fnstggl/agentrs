@@ -157,6 +157,8 @@ class CheckpointSpec:
     every_updates: Optional[int] = None
     operator: Any = None
     resume: bool = False
+    ops: Any = None                    # memory.checkpoint.CheckpointOps: weights + trainer + experience of an agent
+                                       # without save/load (System.ops); full-lifetime save / load
 
 
 @dataclass
@@ -658,6 +660,9 @@ def run_lifetime(agent, env: EnvAdapter, *, evaluator: Optional[GoalEvaluator] =
         if hasattr(agent, "load") and os.path.exists(os.path.join(d, "agent")):
             agent.load(os.path.join(d, "agent"))
             agent_restored = True
+        elif ck.ops is not None and os.path.exists(os.path.join(d, "agent")):
+            ck.ops.load_full_lifetime(os.path.join(d, "agent"))
+            agent_restored = True
         elif hasattr(agent, "begin"):
             agent.begin(st["env_ids"], st["goals"])
         lp = os.path.join(d, "learner.pt")
@@ -720,6 +725,8 @@ def run_lifetime(agent, env: EnvAdapter, *, evaluator: Optional[GoalEvaluator] =
             _write_atomic(os.path.join(d, "evaluator.pkl"), evaluator.state_dict())
         if hasattr(agent, "save"):
             agent.save(os.path.join(d, "agent"))
+        elif ck.ops is not None:
+            ck.ops.save_full_lifetime(os.path.join(d, "agent"))
         ls = learner.state_dict() if learner is not None and hasattr(learner, "state_dict") else None
         if ls is not None:
             tmp = os.path.join(d, "learner.pt.tmp")

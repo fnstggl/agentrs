@@ -62,6 +62,7 @@ class RunSpec:
     isolated: bool = True
     world_seed: int = 0                        # operator RNG (handles); the world seed comes from the task
     resume: bool = False
+    require_cam_eval: Optional[bool] = None     # None = armed by the config (DOM decision path); False = declared legacy
     system: SystemConfig = field(default_factory=SystemConfig)
     command: str = ""
 
@@ -189,7 +190,8 @@ def run(spec: RunSpec) -> dict:
                            checkpoint=CheckpointSpec(ckpt_dir, every_days=spec.checkpoint_every_days, operator=rop,
                                                      resume=spec.resume),
                            transcript=os.path.join(run_dir, "transcript.jsonl"),
-                           model_version=lambda: hagent.model_version, on_step=ctl.on_step, flush_reason=None)
+                           model_version=lambda: hagent.model_version, on_step=ctl.on_step, flush_reason=None,
+                           require_cam_eval=spec.require_cam_eval)
     except StopChunk:
         stopped = True
     except ExitNow:

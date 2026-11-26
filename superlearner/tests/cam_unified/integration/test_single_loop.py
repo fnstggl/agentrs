@@ -294,3 +294,24 @@ def test_default_learner_is_the_agent_update_with_a_reward_model_in_observation_
     assert len(res.updates) == 2 and all(u.get("updated") for u in res.updates)
     assert res.versions["reward_model"] == 0          # the seam RewardModel stub (W8 replaces it)
     assert st.agent.version == 2
+
+
+def test_build_refuses_test_doubles():
+    from superlearner.cam_unified.build import assert_no_doubles, make_cam_config
+    st = Stack()
+    with pytest.raises(ValueError, match="doubles"):
+        assert_no_doubles(st.model)
+    assert make_cam_config("dom_dev").preset == "dom_dev" and make_cam_config("dev", {"n_layers": 2}).n_layers == 2
+
+
+def test_update_checkpoints_save_a_plain_agent_through_checkpoint_ops(tmp_path):
+    class Ops:
+        saved = []
+
+        def save_full_lifetime(self, path):
+            os.makedirs(path, exist_ok=True)
+            self.saved.append(path)
+    st = Stack()
+    res = R.run_lifetime(st.agent, st.env, evaluator=st.evaluator, max_decisions=4, update_every=2,
+                         checkpoint=R.CheckpointSpec(str(tmp_path / "ck"), every_updates=1, ops=Ops()))
+    assert len(Ops.saved) == 2 and all(p.endswith("agent") for p in Ops.saved) and len(res.checkpoints) == 2

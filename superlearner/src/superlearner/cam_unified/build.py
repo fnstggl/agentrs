@@ -239,10 +239,16 @@ def component_classes(model) -> dict:
     return out
 
 
+def _is_double(path: str) -> bool:
+    mod = path.split(" ")[-1]
+    head = mod.split(".")[0]
+    return any(d in mod for d in DOUBLE_MODULES) or head.startswith(("test_", "conftest"))
+
+
 def assert_no_doubles(model) -> dict:
-    """Raise when a test double (testing.py / integration_doubles.py / tests) is part of the model."""
+    """Raise when a test double (testing.py / integration_doubles.py / a test module) is part of the model."""
     cls = component_classes(model)
-    bad = {k: v for k, v in cls.items() if v and any(d in v for d in DOUBLE_MODULES)}
+    bad = {k: v for k, v in cls.items() if v and _is_double(v)}
     bad.update({f"report:{k}": v for k, v in (getattr(model, "build_report", {}) or {}).items()
                 if isinstance(v, str) and any(d in v for d in DOUBLE_MODULES)})
     if bad:
