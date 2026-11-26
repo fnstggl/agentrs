@@ -67,7 +67,7 @@ def test_try_executes_the_real_service_charges_the_caller_and_checks_outputs(wor
     assert w.state.get("accounts", acct)["balance"] == bal0 - 3                     # paid the endpoint price
     assert sum(r["cu"] for _, r in w.state.scan("svc_days")) > cu0                  # used the service's compute
     t = w.state.get("cap_trials", r.result["trial"])
-    assert t["by"] == "p:bob" and t["independent"] and t["ok"]
+    assert t["by"] == "p:bob" and t["ok"] and "independent" not in t     # independence is evaluator-side only
     seq = w.seq
     r = ex(w, "bob", "caps.try", service_host="anaroute", capability="route.shortest", input={"n": 3})
     assert not r.ok and "inputs schema" in r.error["message"]
@@ -93,15 +93,21 @@ def test_adoption_requires_own_successful_execution_and_counts_real_use(world):
     for k in range(3):
         assert ex(w, "bob", "anaroute.solve", **sample(10 + k)[0]).result["status"] == 200
     rec = w.state.get("cap_adoptions", a.result["adoption"])
-    assert rec["uses"] == 3 and rec["uses_ok"] == 3 and rec["independent"]
-    assert w.state.get("cap_decls", ana.declaration)["ind_adopters"] == 1
-    # the provider adopting its own service is recorded but never independent
+    assert rec["uses"] == 3 and rec["uses_ok"] == 3 and "independent" not in rec
+    assert w.state.get("cap_decls", ana.declaration)["adopters"] == 1
+    # the provider adopting its own service is recorded (public raw count) but the evaluator never counts it
+    from crucible.innovation import measure as M
     assert ex(w, "ana", "caps.try", service_host="anaroute", capability=ana.declaration, input=inp).result["ok"]
     own = ex(w, "ana", "caps.adopt_service", declaration=ana.declaration)
-    assert own.ok and not w.state.get("cap_adoptions", own.result["adoption"])["independent"]
-    assert w.state.get("cap_decls", ana.declaration)["ind_adopters"] == 1
+    assert own.ok and w.state.get("cap_decls", ana.declaration)["adopters"] == 2
+    prod = next(p for p in M.agent_products(w) if p["host"] == "anaroute")
+    assert M.adopters(w, prod) == ["p:bob"]
+    # nothing a participant or the provider can read carries an independence verdict
+    for e in w.log:
+        if e.type in ("caps.tried", "caps.adopted", "caps.verification") and e.vis != "internal":
+            assert "independent" not in e.payload
     assert ex(w, "bob", "caps.drop_service", declaration=ana.declaration, reason="done").ok
-    assert w.state.get("cap_decls", ana.declaration)["ind_adopters"] == 0
+    assert w.state.get("cap_decls", ana.declaration)["adopters"] == 1
     assert w.check_invariants() == []
 
 
@@ -116,7 +122,7 @@ def test_verification_runs_an_independent_suite_on_fresh_seeds(world):
     good = ex(w, "tess", "caps.verify", declaration=ana.declaration, suite_repo="tess/suite", cases=6)
     bad = ex(w, "tess", "caps.verify", declaration=mal.declaration, suite_repo="tess/suite", cases=6)
     assert good.ok and bad.ok, (good.error, bad.error)
-    assert good.result["independent"] and not good.result["provider_supplied"]
+    assert not good.result["provider_supplied"] and "independent" not in good.result
     assert good.result["mean_score"] == 1.0 and bad.result["mean_score"] < 0.5
     again = ex(w, "tess", "caps.verify", declaration=ana.declaration, suite_repo="tess/suite", cases=6)
     gen = [e for e in w.log if e.type == "ext" for o in e.payload["outcomes"] if o and o["kind"] == "caps.suite"]
@@ -128,7 +134,7 @@ def test_verification_runs_an_independent_suite_on_fresh_seeds(world):
     d2 = ex(w, "ana", "caps.declare", service_host="anaroute", capability=cap, tests_ref="ana/mytests")
     assert d2.ok
     own = ex(w, "bob", "caps.verify", declaration=d2.result["declaration"], cases=3)
-    assert own.ok and own.result["provider_supplied"] and not own.result["independent"]
+    assert own.ok and own.result["provider_supplied"]
     pub = w.query("p:bob", "caps.declaration", {"declaration": d2.result["declaration"]})["public_verifications"]
     assert pub and pub[0]["provider_supplied"]
 

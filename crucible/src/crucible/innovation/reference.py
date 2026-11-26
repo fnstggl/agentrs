@@ -32,7 +32,10 @@ def drive(world: World, agents: list, until: int, dt: int = HOUR) -> None:
 
 
 def join(world: World, handle: str, endowment: int, kind: str = "agent") -> str:
-    return world.system_call("admin.join", {"handle": handle, "endowment": int(endowment), "kind": kind})["principal"]
+    """Admit a scripted persona: each is its own operator, labelled `scripted:<handle>` (audit G S7: scripted
+    policies are labelled as such, and the evaluator reports what they create as scripted)."""
+    return world.system_call("admin.join", {"handle": handle, "endowment": int(endowment), "kind": kind,
+                                            "controller": f"scripted:{handle}"})["principal"]
 
 
 class _Agent:

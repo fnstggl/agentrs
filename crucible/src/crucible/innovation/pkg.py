@@ -251,7 +251,9 @@ class Packages(Module):
             return ["failed"]
         r = o.get("result")
         if isinstance(r, dict) and "results" in r and "passed" in r:
-            return ["tests", sorted([x.get("test"), bool(x.get("ok"))] for x in r["results"])]
+            # which tests passed, and how the failing ones failed (the exception type)
+            return ["tests", sorted([x.get("test"), bool(x.get("ok")), str(x.get("error") or "").split(":", 1)[0]]
+                                    for x in r["results"])]
         if isinstance(r, dict) and "result" in r:
             return ["ok", r["result"]]
         return ["ok", r]
@@ -281,8 +283,13 @@ class Packages(Module):
                     code._licensed(ctx, actor, r["owner"], dep_repo)):
                 raise Forbidden(f"no licence to use {dep_repo}")
             dfiles = code.files(ctx.state, dep_repo, dep_ref or None)
+            mount = f"deps/{import_dir(dep_repo)}/"
+            # the mount point belongs to the package manager: a dependent's own files there are not mounted
+            # (a shadow copy of a dependency cannot pass for the dependency)
+            for k in [k for k in out if k.startswith(mount)]:
+                del out[k]
             for p, c in dfiles.items():
-                out[f"deps/{import_dir(dep_repo)}/{p}"] = c
+                out[f"{mount}{p}"] = c
             mounted.add(dep_repo)
             queue += [(d, depth + 1) for d in list(self._manifest(dfiles).get("deps", []))[:10]]
         return out
