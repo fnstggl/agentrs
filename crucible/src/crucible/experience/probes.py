@@ -27,6 +27,10 @@ observable. Probe kinds:
     termination        episodes do not end because the verifier saw success (a one-bit outcome leak)
     tool_sweep         every evaluator-only tool of the registry is absent from the participant's tool list and
                        refused when called; every read-only tool's response joins the scanned material
+    nested_call        evaluator tools and evaluator fields do not come back through calls made on the participant's
+                       behalf later or indirectly (flows, deferred workflow jobs, triggers; `probes_tiers`)
+    identity           no family, seed, split, domain configuration or civilisation profile of the generated world
+                       reaches the participant (`probes_tiers`, OO.16)
 
 Surfaces: the Tier 1 mechanism adapter, the Tier 1 rapid adapter (single- and multi-agent), kernel worlds with v5
 modules loaded (goal, experiment, institution and commitment predicates), the innovation registry, the self-play
@@ -52,14 +56,15 @@ import numpy as np
 from .modes import LEGACY, OBSERVATION_ONLY
 
 KINDS = ("reward_scalar", "key_name", "canary", "exact_value", "free_text", "regression", "counterfactual",
-         "predicate_oracle", "termination", "tool_sweep")
+         "predicate_oracle", "termination", "tool_sweep", "nested_call", "identity")
 
 # keys that only evaluator data carry (the public objective text is allowed; see `_key_hits`)
 EVALUATOR_KEYS = frozenset({
     "progress", "streak", "success_t", "initially_true", "shaped_reward", "reference_net", "default_net",
     "random_net", "solvable", "random_score", "score_first_half", "score_second_half", "objective_quantity",
     "verified_quality", "verified_samples_ok", "currently_true", "independent_trials", "independent_trial_ok_rate",
-    "independent_adopters", "excluded_related_requests", "excluded_related_cents", "mean_score_hidden"})
+    "independent_adopters", "excluded_related_requests", "excluded_related_cents", "mean_score_hidden",
+    "related_to_author", "independent_consistent"})
 DAY = 86400
 
 
@@ -612,6 +617,25 @@ def probe_kernel(steps: int = 6) -> dict:
         env.advance(3600)
         rs.append(env.reward(a))
     rewards(P, rs, "kernel default mode, no objective")
+    # nested calls (deferred workflow jobs, triggers, flows) in a v5-module world and in the 4.0 mechanism facility
+    # (whose rig.read/rig.history results carry the evaluator-only `score`)
+    from .probes_tiers import probe_nested
+    nenv = KernelExperienceEnv({"family": "tiny", "overrides": {"n_consumers": 60}}, 2, agents=["learner"],
+                               extra_modules=V5_EXTRA + ("wf",))
+    probe_nested(P, nenv, nenv.agents()[0], "kernel v5")
+    import crucible
+    crucible.load_all_modules()
+    from ..research.tasks import make_task
+    from ..worldgen import generate
+    from ..worldgen import mech_families  # noqa: F401 - registers the mechanism facility world families
+    task = make_task("tech_pipeline", 3, validate=False)
+    cfg, wseed = task.world_config()
+    fenv = KernelExperienceEnv(generate(cfg, wseed), agents=["agent"], endowment=task.endowment, extra_modules=["wf"])
+    fa = fenv.agents()[0]
+    lv = fenv.execute(fa, {"tool": "rig.spec", "args": {}})["result"]["levers"][0]
+    fenv.execute(fa, {"tool": "rig.set", "args": {"settings": {lv["name"]: lv["max"]}}})
+    fenv.advance(3 * 3600)
+    probe_nested(P, fenv, fa, "mechanism facility (kernel)", unit=3600)
     tags = ("RUNTIME", "INTERNAL", "PRIVATEMAIL", "SPEC")
     views, rows = [], []
     legit = [400_000.0, 500_000.0, 900_000.0, *map(float, DAILY)]
@@ -964,9 +988,16 @@ def probe_cam2(steps: int = 6) -> dict:
 
 
 # ====================================================================== all
+def probe_civ() -> dict:
+    """Tier 3 (a `crucible.civ` civilisation): see `crucible.experience.probes_tiers.probe_civ`."""
+    from .probes_tiers import probe_civ as _p
+    return _p()
+
+
 SURFACES: dict[str, Callable[[], dict]] = {
     "mech": probe_mech, "rapid": probe_rapid, "kernel": probe_kernel, "innovation": probe_innovation,
     "selfplay": probe_selfplay, "numeric": probe_numeric, "gym": probe_gym, "sl": probe_sl, "cam2": probe_cam2,
+    "civ": probe_civ,
 }
 
 
