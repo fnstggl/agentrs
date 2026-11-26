@@ -190,6 +190,16 @@ def test_E2_semantic_changes_separate_more_than_nuisance_changes(encoded):
         metrics[f"mean_semantic_distance_{m}"] = r["mean_semantic_distance"]
         metrics[f"pairs_{m}"] = f"{r['n_semantic_pairs']} semantic / {r['n_nuisance_pairs']} nuisance"
         metrics[f"weakest_semantic_group_ratio_{m}"] = min(r["group_ratios"].values())
+    # the shared space on the held-out fine-grained pairs (negation, polarity, quantities vs paraphrases): what a
+    # topic-level suite cannot show, and what plain mean-pooled MiniLM (the space's topic block alone) misses
+    from crucible.semantic.space import validate as SV
+    fg = SV.finegrained("test")
+    for k, v in fg["space"]["by_kind"].items():
+        metrics[f"space_finegrained_ratio_{k}"] = v["separation_ratio"]
+        metrics[f"space_finegrained_changed_farther_{k}"] = v["changed_farther_share"]
+        metrics[f"topic_block_only_finegrained_ratio_{k}"] = fg["topic_block_only"]["by_kind"][k]["separation_ratio"]
+    metrics["space_finegrained_min_kind_ratio"] = fg["space"]["min_kind_separation_ratio"]
+    metrics["topic_block_only_finegrained_min_kind_ratio"] = fg["topic_block_only"]["min_kind_separation_ratio"]
     notes = "; ".join(f"{m}: nuisance {r['nuisance_by_kind']}, semantic {r['semantic_by_group']}"
                       for m, r in res.items())
     record("E.2", metrics, command=CMD, notes="Separation ratio = mean cosine distance of semantic pairs / mean "
