@@ -137,6 +137,12 @@ def test_display_campaigns_randomise_eligibility_and_record_ad_response_decision
     # eligibility is the platform's random assignment: about the configured holdout share, independent of state
     share = arms["holdout"] / sum(arms.values())
     assert 0.1 < share < 0.32, share
+    # E's in-world analysis of the experiment (SP-5.5b input): arms balanced on the organic visit probability, and
+    # the visit shift per attended display re-estimated from the world agrees with Criteo's randomised estimate
+    from crucible.calibration import inworld
+    r = inworld.ad_holdout_experiment(w)
+    assert r["rows"] == len(draws) and r["displayed"] > 100
+    assert abs(r["balance_z_organic_probability"]) < 3 and r["matching"], r
 
 
 def test_decisions_are_organic_population_decisions(civic):
