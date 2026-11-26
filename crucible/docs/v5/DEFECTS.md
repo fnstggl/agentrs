@@ -859,13 +859,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-I-2 (critical, open): Education world non-functional: learn.study raises KeyError('id') (learning.py:324 vs applier 675), every lear
+### DEF-I-2 (critical, fixed): Education world non-functional: learn.study raises KeyError('id') (learning.py:324 vs applier 675), every lear
 
 ```json
 {
  "area": "I_domains",
+ "fixed_by": "c5c/w3b-dom2: learn v2 (domains/learning.py) - the learners are the population (columns of table learn, study/teach activities), no row-id crash path exists (sessions are recorded by the applier, individuals are column rows); grading is form-aware and a misconception only bites where it is wrong (domains/concepts.py), so wrong content cannot raise measured learning; content controls correct > none > wrong are a permanent part of the SP-9.10 gate; lessons are read by a reading model of ordinary writing (no line format, no format oracle: learn.check removed)",
  "id": "DEF-I-2",
  "owner": "I",
+ "regression_tests": "tests/test_v5_domains_education.py::test_misconceptions_never_grade_correct_and_lowest_terms_are_required, ::test_reading_model_finds_worked_problems_in_ordinary_writing_and_ignores_prose, ::test_the_population_studies_teaches_and_is_assessed_with_clean_invariants_and_replay, tests/v5/test_gate_SP_9_10.py::test_SP_9_10_education_ecosystem",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -873,7 +875,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/I_domains.json",
   "finding": 1
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Education world non-functional: learn.study raises KeyError('id') (learning.py:324 vs applier 675), every learn.tick fails, learners never study; with bug bypassed, wrong-key lessons beat correct ones on evaluator scores (2 seeds)."
 }
 ```
@@ -899,13 +901,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-I-4 (critical, open): Infrastructure: wages are 83% of default cost; fleet.staff technicians=0 cuts cost 81-84% with attainment >=0.
+### DEF-I-4 (critical, fixed): Infrastructure: wages are 83% of default cost; fleet.staff technicians=0 cuts cost 81-84% with attainment >=0.
 
 ```json
 {
  "area": "I_domains",
+ "fixed_by": "c5c/w3b-dom2: fleet cost structure recalibrated (incumbent provisioned 1.7-2.1x the peak need for growth that did not come, one technician, demand and link capacity scaled 30x: leases ~75%, energy ~12%, staff ~6% of cost); firing the crew piles up failed machines and the 9.7 evaluator rejects a growing repair backlog; fleet.experiment replays the operator's own recorded traffic, telemetry, temperatures and prices (no hidden demand process, no hidden CPU cost)",
  "id": "DEF-I-4",
  "owner": "I",
+ "regression_tests": "tests/test_v5_domains_infrastructure.py::test_cost_structure_has_no_one_call_staffing_shortcut, ::test_experiment_replays_recorded_traffic_only, tests/v5/test_gate_SP_9_7.py::test_SP_9_7_engineering_infrastructure",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -913,7 +917,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/I_domains.json",
   "finding": 3
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Infrastructure: wages are 83% of default cost; fleet.staff technicians=0 cuts cost 81-84% with attainment >=0.99997 over 60 days (one-call shortcut); fleet.experiment hands hidden true cpu_ms and hidden demand process to participant code."
 }
 ```
@@ -945,6 +949,7 @@ B_population verdict) and P's own findings.
 {
  "area": "I_domains",
  "id": "DEF-I-6",
+ "notes": "c5c/w3b-dom2 fixed the firms part: no external buyer (clients with bounded monthly income commission work packages they can afford and negotiate; price above the client's value sells nothing; tests/test_v5_domains_labor.py::test_no_external_buyer_revenue_follows_client_budgets) and fleet/learn/firms register through crucible.load_all_modules() (domains/modules.py, workstream I-fw). Still open: admission ignores proc.failed (worldgen/admission.py, not workstream I-2).",
  "owner": "I",
  "requirements": [],
  "severity": "critical",

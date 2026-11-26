@@ -358,6 +358,47 @@ as consistent (difficulty sets the accuracy threshold and the replications neede
   ...}`); originality excludes an artifact first published by someone else and a text whose five-word shingles are
   90% in an earlier item by another creator (the population writes from one real news corpus, so the threshold is
   high).
+
+## D-54 Education on the one population; learning measured on new problems (2026-11-26, workstream I-2 dom2)
+The education module `learn` keeps no learners of its own (v1 created 40 NPC learner persons and crashed on every
+study session, DEF-I-2): its learners are the population's individuals (column table `learn`, one row per
+individual: mastery per concept and level, a permastore floor, half-life, misconceptions, perceived mastery, scores,
+goal, motivation, trust in authors, recent documents, certificates), who study and teach through the population
+activities `study` and `teach`. Lessons are read by a reading model of ordinary writing (`concepts.parse_lesson`:
+worked problems and exercises in curriculum notations, Q/A pairs, numbered lists; prose teaches nothing), not by a
+fixed line format, and the format oracle `learn.check` is removed. Grading is form-aware and a misconception only
+bites where its answer is wrong, so wrong content can never raise measured learning (the skeptic's finding: v1's
+inversion was a grader bug). The 9.10 evaluator compares readers' gains on a delayed test of new problems with
+non-readers'; SP-9.10's content controls (correct > none > wrong, same instance) are part of the gate. Learning
+constants are literature-grounded functional forms (FR-LEARN-1..6), not fits. Standalone Tier 2 worlds give the
+population an outside option (`elsewhere`, FR-ELSEWHERE-1) so that participation is a choice, not a default.
+
+## D-55 Infrastructure: a fleet worth optimising, an operator's-eye experiment, a counterfactual evaluator (2026-11-26, workstream I-2 dom2)
+The fleet's defaults are recalibrated so that technical optimisation, not a staffing call, is where savings are:
+the incumbent provisioned 1.7-2.1x its peak need (growth that did not come), one technician, demand and link
+capacities 30x (leases ~75%, energy ~12%, staff ~6% of cost). Latency physics makes the trade-off real (M/M/1
+sojourn: utilisation above ~0.5 costs SLO attainment). `fleet.experiment` replays the operator's own recorded hours
+(offered requests, telemetry, temperatures, prices) instead of sampling the hidden demand process with the hidden CPU
+cost (DEF-I-4). The population are the tenants' end users (activity `apps`, FR-FLEET-USERS): their adoption moves
+the tenants' traffic. The 9.7 evaluator compares the operator's costs and reliability with the same instance run
+with nobody acting (a deterministic shadow world, evaluator side) and requires the repair backlog not to grow
+(a cut that defers outages is not a saving).
+
+## D-56 Employment, industry and invention on the population; no money faucets (2026-11-26, workstream I-2 dom2)
+Firms earn only from clients that commission work they can afford from a bounded monthly income and negotiate
+(price above the client's value sells nothing; DEF-I-6 firms part); unknown skills raise. Workers are population
+individuals entering the labour market through the activity `job_search` (FR-FIRMS-JOBS: skills from their own
+state and education, skill-priced reservation wages); firms' initial staff are hired from the population; a
+population world without a firms configuration gets two contractors and a client (Tier 3 employment comes alive).
+4.0 `contracts` membership clauses accept population principals (`p<i>`) as persons (a minimal, commented edit of
+services/contracts.py; without it no individual could be employed). Factories' operators are their labour-market
+employees (`plantlabor`, FR-PLANT-LABOR, through the industry's own operator-count event). The 9.8 evaluator counts
+revenue only from the company's own production (resale is not manufacturing). Technologies of 9.6 are executable
+programs (`techmkt`, interface process_control/1, sandboxed, constraint-checked) that the industry's plants try on
+their own production and keep on their own measurements (FR-TECH-ADOPT); the evaluator's gain is the expected
+efficiency at the operating points the adopters ran versus their former point, from the hidden physics (noise-free,
+so a no-op technology kept after a lucky trial scores zero).
+
 ## D-69 Research instrument: confinement of the weights-only child, adversarial controls, and a positive-control design with the power to see known effects (2026-11-26, workstream N, wave 3b)
 The wave-3a development run of the controls (5 learner seeds, protocol seeds) labelled 2 of 5 kinds correctly and 1 of
 7 explanations. Diagnosis on establishment seeds only (no protocol seed was re-used to choose a design):

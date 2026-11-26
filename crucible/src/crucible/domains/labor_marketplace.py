@@ -17,9 +17,10 @@ skills, certificates and verified records, negotiates salaries), delegates (assi
 people (pay against the market; workers quit when unhappy and a better job exists) and pays salaries from its cash.
 
 Objective (public): deliver every stage of the commissioned project by its deadline at the client's quality bar.
-Evaluator (evaluator side): each stage counts only when its tasks were done by the deadline with MEASURED quality
-(the labour market's measurement of real work: a task a lead merely accepts has no measured quality and does not
-count) at or above the bar, by people employed by the participant's company; a team is at least two such people.
+Evaluator (evaluator side): the client's acceptance test - a stage counts only when its deliverable (the stage's
+final task) was done by the deadline with MEASURED quality (the labour market's measurement of real work: a task a
+lead merely accepts has no measured quality and does not count) at or above the bar, by people employed by the
+participant's company, and everything it builds on was finished by the deadline; a team is at least two such people.
 
 Configurations (structure measured on the built world: task-graph shape, required skills, a scarce specialist
 requirement, education present, the goals of the other firms):
@@ -93,7 +94,7 @@ DOCS = {
 def _commission(cfg: dict, difficulty: int = 1) -> dict:
     return {"client": CLIENT, "seat": SEAT, "org": {"handle": "leadco", "name": "Lead & Co", "capital_cents": 3_500_000},
             "title": "the commissioned project", "topology": cfg["topology"], "skills": list(cfg["skills"]),
-            "stages": 3, "width": 5, "levels": [0.35, 0.6], "effort": [12, 30], "special": cfg["special"],
+            "stages": 3, "width": 5, "levels": [0.35, 0.6], "effort": [10, 24], "special": cfg["special"],
             "deadline_days": DEADLINE[1], "budget_cents": 4_500_000, "min_quality": 0.6}
 
 
@@ -195,7 +196,12 @@ def evaluate(world, principal, obj):
                 seen.add(d)
                 closure(d, seen)
         return seen
-    stages = [all(counts(x) for x in closure(s) | {s}) for s in com["stage_tasks"]]
+    def done(t):
+        r = tasks[t]
+        return r["status"] == "done" and r.get("done_t", 1e18) <= com["deadline"]
+    # the client's acceptance test: the stage's deliverable (its final task) measured at the bar, everything it
+    # builds on finished by the deadline
+    stages = [counts(s) and all(done(x) for x in closure(s)) for s in com["stage_tasks"]]
     done = [t for t in tasks if tasks[t]["status"] == "done"]
     q = [float(tasks[t]["quality"]) for t in done if tasks[t].get("quality") is not None]
     share = sum(stages) / len(stages) if stages else 0.0
@@ -234,6 +240,7 @@ class TeamReference(ScriptedReference):
         self.offered: set = set()
         self.raised = -10**9
         self.quality: dict = {}
+        self.sinks: set = set()
         self.bar = float(self.objective.get("min_quality", 0.6))
 
     @staticmethod
@@ -250,7 +257,8 @@ class TeamReference(ScriptedReference):
     def plan(self, obs):
         if self.stage == "accept":
             self.stage = "run"
-            return [act_("commit.respond", None, offer=self.offer, action="accept", as_org=self.org),
+            return [act_("commit.inbox", "inbox", as_org=self.org),
+                    act_("commit.respond", None, offer=self.offer, action="accept", as_org=self.org),
                     act_("labor.postings", "market", limit=100)]
         acts = [act_("inst.project", "project", project=self.project), act_("labor.team", "team", org=self.org),
                 act_("labor.offers", "offers", as_org=self.org)]
@@ -261,7 +269,11 @@ class TeamReference(ScriptedReference):
     def on_result(self, tag, result, action):
         if result is None:
             return
-        if tag == "market":
+        if tag == "inbox":
+            for o in result:
+                if o["offer"] == self.offer:
+                    self.sinks = {m["deliverable"].get("task") for m in (o.get("terms") or {}).get("milestones", [])}
+        elif tag == "market":
             for p in result:
                 for k in p["skills"]:
                     self.market[k] = max(self.market.get(k, 0), int(p["salary_max"]))
@@ -357,12 +369,16 @@ class TeamReference(ScriptedReference):
                                                             self.tasks[d]["progress"] >= 0.6) for d in r["depends_on"]):
                 continue
             best = None
+            sink = t in self.sinks                      # a paid deliverable: the best measured worker
             for w in sorted(self.team):
                 fit = self._fit(self.declared.get(w, []), r["skills"])
                 q = self.quality.get(w)
                 if fit < self.min_fit or load.get(w, 0.0) > 60 or (q is not None and q < self.bar - 0.05):
                     continue
-                key = (-fit, -(q if q is not None else 0.75), load.get(w, 0.0), w)
+                if sink:
+                    key = (-(q if q is not None else 0.7), -fit, load.get(w, 0.0), w)
+                else:
+                    key = (-fit, -(q if q is not None else 0.75), load.get(w, 0.0), w)
                 if best is None or key < best[0]:
                     best = (key, w)
             if best is not None:

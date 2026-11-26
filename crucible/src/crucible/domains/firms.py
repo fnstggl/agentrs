@@ -382,7 +382,9 @@ class Firms(Module):
                            stages=int(c.get("stages", 3)), width=int(c.get("width", 6)), special=c.get("special"))
         days = int(c.get("deadline_days", 30))
         prj = ctx.call("inst.project_create", {"title": str(c.get("title", "Commissioned project")), "as_org": org,
-                                               "lead": seat, "deadline_days": days}, as_principal=seat)["project"]
+                                               "lead": seat, "deadline_days": days, "partners": [client]},
+                       as_principal=seat)["project"]
+        ctx.call("inst.project_join", {"project": prj, "as_org": client, "accept": True}, as_principal=cf["manager"])
         key_to_task = {}
         for t in brief["tasks"]:
             r = ctx.call("inst.task_add", {"project": prj, "title": t["title"], "skills": t["skills"],
