@@ -1,502 +1,513 @@
 {
  "workstream": "L",
- "branch": "c5c/w3-obs",
- "base": "87a6c54 (feat/crucible-5-complete, wave 1 + 2a merged)",
- "summary": "Wave-3 continuation of workstream L. Verified the wave-1 claims adversarially on the integrated tree and fixed what failed: a kernel nested-call leak (deferred workflow jobs, triggers and simulated participants acting through tools received evaluator-only fields), relatedness verdicts in the science world, evaluator metrics missing from the registry. Added per-tier information-flow probes (five channels per tier, nested-call and identity probes, a Tier 3 civilisation surface), Tier 3 through make(3, profile) with learner-side goals/exp modules, Tier 1 self-experiments, a verified-label channel, and gate tests for OO.9-OO.12, OO.14, OO.16, SP-11.1b, SP-11.4b, SP-11.6c, SP-11.6d, SP-2.2. Every per-tier gate now counts a tier only where its worlds were built and measured. S.7 was run through the slot scheduler and passes.",
- "requirements": {
-  "R.1": {
-   "implementation_files": [
-    "src/crucible/experience/modes.py",
-    "src/crucible/experience/tier1.py",
-    "src/crucible/experience/kernel.py",
-    "src/crucible/experience/gym.py",
-    "src/crucible/research/envs.py",
-    "src/crucible/research/bridge.py",
-    "src/crucible/selfplay/arena.py",
-    "src/crucible/scale/rollout.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_R.py",
-    "tests/test_v5_experience_core.py"
-   ],
-   "status_claim": "implemented; gate passes on the integrated tree",
-   "notes": "nonzero_native_reward_steps 0 over 993 steps on 10 reward paths (wave-3 rerun)."
-  },
-  "R.2": {
-   "implementation_files": [
-    "src/crucible/core/evaluator_only.py",
-    "src/crucible/core/kernel.py",
-    "src/crucible/experience/probes.py",
-    "src/crucible/experience/probes_tiers.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_R.py"
-   ],
-   "status_claim": "implemented; gate FAILS on 87a6c54 only because the probe run now includes the Tier 3 civilisation surface and crucible.civ.generate raises there (duplicate 'space', fixed on c5c/w3-intfix); with a scratch stand-in for that fix: 0 recoveries",
-   "notes": "wave 3 found and fixed four leak classes the wave-1 probes did not cover: deferred workflow jobs/triggers returned evaluator fields (kernel Ctx.call keyed on origin only; found by the new nested_call probe, 2 leaks on the pre-fix kernel), sci replication relatedness verdicts and the capability registry's adoption verdicts (independent_adopters/payers/buyers in caps.view/list/graph/evidence and caps.* events; caps.categories now an evaluator tool) - both found by code review of every relatedness computation feeding a participant output, which the probe scenarios did not exercise -, and scheduled_churn_share readable through self-goals (registry union)."
-  },
-  "R.3": {
-   "implementation_files": [
-    "src/crucible/core/evaluator_only.py",
-    "src/crucible/core/kernel.py",
-    "src/crucible/experience/probes_tiers.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_R.py"
-   ],
-   "status_claim": "implemented; gate FAILS on 87a6c54 for the same reason as R.2 (civ surface cannot be built until the integration fix lands)",
-   "notes": "canaries now also planted in a civilisation (runtime, internal event, private mail, spec parameter)."
-  },
-  "R.4": {
-   "implementation_files": [
-    "src/crucible/experience/leakage.py",
-    "src/crucible/experience/kernel.py",
-    "src/crucible/experience/tier1.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_R.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": "legitimate_fields_missing 0 on 9 environments."
-  },
-  "R.5": {
-   "implementation_files": [
-    "src/crucible/experience/kernel.py",
-    "src/crucible/experience/tier1.py",
-    "src/crucible/experience/remote.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_R.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": "verifier_outcomes_recorded 6."
-  },
-  "R.6": {
-   "implementation_files": [
-    "src/crucible/experience/leakage.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_R.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": "10/10 legacy runs byte-identical to c07098b."
-  },
-  "R.7": {
-   "implementation_files": [
-    "src/crucible/experience/reference.py",
-    "src/crucible/experience/loop.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_R.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": "12 parameter-changing observation-only updates."
-  },
-  "R.n1": {
-   "implementation_files": [
-    "src/crucible/experience/leakage.py",
-    "src/crucible/experience/probes.py",
-    "src/crucible/experience/probes_tiers.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_R.py"
-   ],
-   "status_claim": "implemented; gate FAILS on 87a6c54 only on the civ surface (see R.2)",
-   "notes": "12 probe kinds (nested_call and identity added), 10 surfaces incl. Tier 3; positive control: the nested-call probe finds 2 leaks on the pre-fix kernel."
-  },
-  "S.1": {
-   "implementation_files": [
-    "src/crucible/experience/tier1.py",
-    "src/crucible/experience/loop.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_S.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": ""
-  },
-  "S.2": {
-   "implementation_files": [
-    "src/crucible/experience/registry.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_S.py"
-   ],
-   "status_claim": "adapter implemented against crucible.domains.base (unit-tested with a test-module domain); gate FAILS: no v5 Tier 2 domain is registered",
-   "notes": "tier2_actions 0."
-  },
-  "S.3": {
-   "implementation_files": [
-    "src/crucible/experience/registry.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_S.py"
-   ],
-   "status_claim": "implemented (make(3, profile) -> civ_world -> KernelExperienceEnv); gate FAILS on 87a6c54 (crucible.civ.generate raises); runs once the integration fix lands",
-   "notes": ""
-  },
-  "S.4": {
-   "implementation_files": [
-    "src/crucible/experience/store.py",
-    "src/crucible/experience/loop.py",
-    "src/crucible/experience/reference.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_S.py",
-    "tests/test_v5_experience_core.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": ""
-  },
-  "S.5": {
-   "implementation_files": [
-    "src/crucible/experience/registry.py",
-    "src/crucible/experience/tier1.py",
-    "src/crucible/experience/observation.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_S.py"
-   ],
-   "status_claim": "implemented; gate FAILS (Tier 2 absent; Tier 3 until the civ fix)",
-   "notes": ""
-  },
-  "S.6": {
-   "implementation_files": [
-    "src/crucible/experience/reference.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_S.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": ""
-  },
-  "S.7": {
-   "implementation_files": [
-    "src/crucible/experience/parallel.py",
-    "src/crucible/scale/rollout.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_S.py"
-   ],
-   "status_claim": "implemented; gate RUN through crucible.scale.slots --cpu 4 on this branch: passes",
-   "notes": "parallel_environments 4 (worker-side stamps, 4 distinct worker pids), 0 farm failures, 14 learner updates, 432 farm steps, 8 vectorised environments."
-  },
-  "S.8": {
-   "implementation_files": [
-    "src/crucible/experience/__main__.py",
-    "src/crucible/experience/tier1.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_S.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": ""
-  },
-  "SP-11.1": {
-   "implementation_files": [
-    "src/crucible/experience/observation.py",
-    "src/crucible/experience/tier1.py",
-    "src/crucible/experience/kernel.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_SP_11_1.py"
-   ],
-   "status_claim": "implemented; gate FAILS (tiers_supported needs Tier 2)",
-   "notes": "Tier 3 civilisations now get the exp module (learner-side), so the civ branch of the test exercises experiments."
-  },
-  "SP-11.2": {
-   "implementation_files": [
-    "src/crucible/experience/features.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_SP_11_2.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": ""
-  },
-  "SP-11.3": {
-   "implementation_files": [
-    "src/crucible/experience/modes.py",
-    "src/crucible/experience/tier1.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_SP_11_3.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": ""
-  },
-  "SP-11.4": {
-   "implementation_files": [
-    "src/crucible/experience/experiments.py",
-    "src/crucible/experience/selfexp.py",
-    "src/crucible/goals/selfgoals.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_SP_11_4.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": "experiments now also in Tier 1 (selfexp) and Tier 3 (exp module added to civilisations)."
-  },
-  "SP-11.5": {
-   "implementation_files": [
-    "src/crucible/experience/kernel.py",
-    "src/crucible/experience/tier1.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_SP_11_5.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": ""
-  },
-  "SP-11.6": {
-   "implementation_files": [
-    "docs/v5/LEARNER_GUIDE.md",
-    "examples/external_learner/curiosity_learner.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_SP_11_6.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": "guide updated for wave 3."
-  },
-  "SP-11.1b": {
-   "implementation_files": [
-    "src/crucible/experience/loop.py",
-    "src/crucible/experience/gym.py",
-    "src/crucible/api/http_server.py",
-    "src/crucible/api/mcp_server.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_SP_11_1b.py"
-   ],
-   "status_claim": "implemented; gate FAILS only on Tier 2 (no domain); with the scratch civ stand-in: concurrent learners in Tiers 1 and 3, 4/4 surfaces exact, 0 adapters with inconsistent units",
-   "notes": ""
-  },
-  "SP-11.4b": {
-   "implementation_files": [
-    "src/crucible/experience/experiments.py",
-    "src/crucible/experience/selfexp.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_SP_11_4b.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": "measures beyond the 4.0 self-goal metrics (forum replies, search results, mail received, a Tier 1 observation number); measures equivalent to a 4.0 metric are not counted."
-  },
-  "SP-11.6c": {
-   "implementation_files": [
-    "src/crucible/experience/reference.py",
-    "examples/external_learner/curiosity_learner.py",
-    "src/crucible/agents/llm.py",
-    "src/crucible/experience/scripted.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_SP_11_6c.py"
-   ],
-   "status_claim": "implemented; gate FAILS. With the scratch civ stand-in: learner_kinds_validated 4 (scripted service deployment paid; ReferenceLearner 128 actions, 4 parameter-changing updates; curiosity learner 118 actions, 6 updates; frozen Qwen3-1.7B LLMPolicy on the GPU: 6 tool calls, mail.send carried out and received by the other participant - Qwen3-0.6B only replied wait), tiers_with_learning_improvement 1 of 3: Tier 1 scm_additive trained copy beats the frozen copy on 4/4 held-out seeds (mean 0.0057 vs -0.285) but equals the do-nothing outcome exactly (it learned to stop changing settings, not the mechanism: tiers_beating_wait_only 0); Tier 3 no difference (cash unchanged for both copies over 24 h); Tier 2 absent",
-   "notes": "the improvement criterion is met by the letter in Tier 1 only through learned inaction; the evidence records the do-nothing reference so this cannot pass as learning the mechanism. The reference learner is an interface proof, not a capable agent (algorithmic limitation, not an environment failure)."
-  },
-  "SP-11.6d": {
-   "implementation_files": [
-    "src/crucible/api/gym_env.py",
-    "src/crucible/api/pettingzoo_env.py",
-    "src/crucible/experience/leakage.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_SP_11_6d.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": "4.0 Gymnasium and PettingZoo: API loops in default and legacy mode, byte-identical to c07098b with legacy named; library checkers recorded."
-  },
-  "SP-2.2": {
-   "implementation_files": [
-    "src/crucible/experience/scripted.py",
-    "src/crucible/experience/registry.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_SP_2_2.py"
-   ],
-   "status_claim": "implemented; gate passes with the scratch civ stand-in (13/13 affordances composed in a civilisation, 0 strategy menus among 488 tools); FAILS on 87a6c54 until the civ fix (the test uses Tier 3)",
-   "notes": "scripted reference participants (labelled scripted in evidence)."
-  },
-  "OO.1": {
-   "implementation_files": [
-    "src/crucible/experience/modes.py",
-    "src/crucible/core/evaluator_only.py",
-    "src/crucible/experience/registry.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate FAILS only on Tier 2 (dev: tiers 1 and 3 measured, 0 families not observation-only)",
-   "notes": "tiers counted only where worlds were built (wave 1 counted Tier 3 when crucible.civ.generate was importable)."
-  },
-  "OO.2": {
-   "implementation_files": [
-    "src/crucible/experience/probes.py",
-    "src/crucible/experience/probes_tiers.py",
-    "src/crucible/core/evaluator_only.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate FAILS on 87a6c54 only because the civ surface cannot be built (crucible.civ.generate raises: duplicate 'space'); with a scratch stand-in for the integration fix: 12 probe kinds, 10 surfaces, 0 leaks, 0 nonzero default rewards; positive control 23 leaks of 5 kinds",
-   "notes": "Tier 3 positive control: the same probes in a legacy civilisation recover independent_revenue exactly (1,200,000 in 21 goals.check_now queries)."
-  },
-  "OO.3": {
-   "implementation_files": [
-    "src/crucible/experience/kernel.py",
-    "src/crucible/experience/tier1.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate FAILS only on Tier 2 (dev: all 7 consequence kinds in Tier 3 and tier 0, Tier 1 consequences)",
-   "notes": ""
-  },
-  "OO.4": {
-   "implementation_files": [
-    "src/crucible/experience/remote.py",
-    "src/crucible/core/evaluator_only.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate FAILS only on Tier 2 (dev: Tier 1 and a hosted Tier 3 civilisation verified independently, verifier unreachable)",
-   "notes": ""
-  },
-  "OO.5": {
-   "implementation_files": [
-    "src/crucible/experience/kernel.py",
-    "src/crucible/experience/tier1.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate FAILS only on Tier 2 (with the scratch civ stand-in: 90 objective-free civilisation days in 310 s, rss growth 865 MB, 0 limit violations; tier 0 90 days; Tier 1 28 episodes)",
-   "notes": "on the integration branch's tree (c5c/w3-intfix f90b3d5) one civilisation day costs about 760 s on one CPU (8 night hours 41 s), so 90 days would exceed the configured 5400 s wall limit: a performance problem for the civ/perf workstreams, reported, limit not raised."
-  },
-  "OO.6": {
-   "implementation_files": [
-    "examples/external_learner/curiosity_learner.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate FAILS only on Tier 2 (dev: weight-changing updates in Tiers 1 and 3, environment paid 0.0)",
-   "notes": ""
-  },
-  "OO.7": {
-   "implementation_files": [
-    "src/crucible/experience/kernel.py",
-    "src/crucible/experience/tier1.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": ""
-  },
-  "OO.8": {
-   "implementation_files": [
-    "src/crucible/experience/leakage.py",
-    "src/crucible/experience/modes.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": ""
-  },
-  "OO.9": {
-   "implementation_files": [
-    "src/crucible/experience/modes.py",
-    "src/crucible/experience/registry.py",
-    "src/crucible/experience/__main__.py",
-    "src/crucible/api/mcp_server.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate FAILS only on the Tier 2 entry point (dev: 36+ entry points, 0 not observation-only, 0 unrecorded selections)",
-   "notes": ""
-  },
-  "OO.10": {
-   "implementation_files": [
-    "src/crucible/experience/kernel.py",
-    "src/crucible/experience/probes_tiers.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate FAILS only on Tier 2 (with the scratch civ stand-in: objectives delivered in Tiers 1 and 3, the verifier's distinctive progress 0.44146 exposed 0 times, 0 rewards)",
-   "notes": ""
-  },
-  "OO.11": {
-   "implementation_files": [
-    "src/crucible/experience/selfexp.py",
-    "src/crucible/experience/experiments.py",
-    "src/crucible/experience/registry.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate FAILS only on Tier 2 (dev: experiments resolved in Tiers 1 and 3, 0 rewards paid)",
-   "notes": ""
-  },
-  "OO.12": {
-   "implementation_files": [
-    "src/crucible/experience/labels.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate passes",
-   "notes": "twin runs with and without the channel identical; labels hash-chained, never in observations; unauthorised channels refused."
-  },
-  "OO.14": {
-   "implementation_files": [
-    "src/crucible/experience/probes_tiers.py",
-    "src/crucible/experience/gym.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate FAILS only on Tier 2 (with the scratch civ stand-in: 5 channels probed in Tiers 1 and 3, 0 verifier values recovered, scalar reward documented, Tier 3 positive control finds leaks)",
-   "notes": ""
-  },
-  "OO.16": {
-   "implementation_files": [
-    "src/crucible/experience/probes_tiers.py",
-    "src/crucible/experience/tier1.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_OO.py"
-   ],
-   "status_claim": "implemented; gate FAILS only on Tier 2 (with the scratch civ stand-in: 8 identity probes in Tiers 1 and 3, 0 leaks)",
-   "notes": "rapid team families show every member's public objective text in the spec query (common knowledge in a team; reported, not stripped)."
+ "branch": "c5c/w3b-obs",
+ "base": "55433e7 (feat/crucible-5-complete: waves 1, 2a, 3a + the integration fix); merged c5c/w3b-domfw f9e9d96",
+ "summary": "Wave-3b continuation (in progress; see history for wave 3a). Re-ran every R/S/OO/SP-11 gate on the integrated tree with real civilisations: all Tier 3 parts pass; the only failures left are Tier 2 (no Part 9 domain registered yet). Added the out-of-process evaluation entry point (remote.evaluate: world, learner and evaluator in three processes, sealed seeds) with isolation probes (W.2/SP-16c), removed every CAM/AGENTRS import from the experience package and its tests (RP.1), re-probed the modules merged after wave 3a.",
+ "requirements": {},
+ "limitations": [],
+ "integration_notes": [],
+ "history": [
+  {
+   "workstream": "L",
+   "branch": "c5c/w3-obs",
+   "base": "87a6c54 (feat/crucible-5-complete, wave 1 + 2a merged)",
+   "summary": "Wave-3 continuation of workstream L. Verified the wave-1 claims adversarially on the integrated tree and fixed what failed: a kernel nested-call leak (deferred workflow jobs, triggers and simulated participants acting through tools received evaluator-only fields), relatedness verdicts in the science world, evaluator metrics missing from the registry. Added per-tier information-flow probes (five channels per tier, nested-call and identity probes, a Tier 3 civilisation surface), Tier 3 through make(3, profile) with learner-side goals/exp modules, Tier 1 self-experiments, a verified-label channel, and gate tests for OO.9-OO.12, OO.14, OO.16, SP-11.1b, SP-11.4b, SP-11.6c, SP-11.6d, SP-2.2. Every per-tier gate now counts a tier only where its worlds were built and measured. S.7 was run through the slot scheduler and passes.",
+   "requirements": {
+    "R.1": {
+     "implementation_files": [
+      "src/crucible/experience/modes.py",
+      "src/crucible/experience/tier1.py",
+      "src/crucible/experience/kernel.py",
+      "src/crucible/experience/gym.py",
+      "src/crucible/research/envs.py",
+      "src/crucible/research/bridge.py",
+      "src/crucible/selfplay/arena.py",
+      "src/crucible/scale/rollout.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_R.py",
+      "tests/test_v5_experience_core.py"
+     ],
+     "status_claim": "implemented; gate passes on the integrated tree",
+     "notes": "nonzero_native_reward_steps 0 over 993 steps on 10 reward paths (wave-3 rerun)."
+    },
+    "R.2": {
+     "implementation_files": [
+      "src/crucible/core/evaluator_only.py",
+      "src/crucible/core/kernel.py",
+      "src/crucible/experience/probes.py",
+      "src/crucible/experience/probes_tiers.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_R.py"
+     ],
+     "status_claim": "implemented; gate FAILS on 87a6c54 only because the probe run now includes the Tier 3 civilisation surface and crucible.civ.generate raises there (duplicate 'space', fixed on c5c/w3-intfix); with a scratch stand-in for that fix: 0 recoveries",
+     "notes": "wave 3 found and fixed four leak classes the wave-1 probes did not cover: deferred workflow jobs/triggers returned evaluator fields (kernel Ctx.call keyed on origin only; found by the new nested_call probe, 2 leaks on the pre-fix kernel), sci replication relatedness verdicts and the capability registry's adoption verdicts (independent_adopters/payers/buyers in caps.view/list/graph/evidence and caps.* events; caps.categories now an evaluator tool) - both found by code review of every relatedness computation feeding a participant output, which the probe scenarios did not exercise -, and scheduled_churn_share readable through self-goals (registry union)."
+    },
+    "R.3": {
+     "implementation_files": [
+      "src/crucible/core/evaluator_only.py",
+      "src/crucible/core/kernel.py",
+      "src/crucible/experience/probes_tiers.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_R.py"
+     ],
+     "status_claim": "implemented; gate FAILS on 87a6c54 for the same reason as R.2 (civ surface cannot be built until the integration fix lands)",
+     "notes": "canaries now also planted in a civilisation (runtime, internal event, private mail, spec parameter)."
+    },
+    "R.4": {
+     "implementation_files": [
+      "src/crucible/experience/leakage.py",
+      "src/crucible/experience/kernel.py",
+      "src/crucible/experience/tier1.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_R.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": "legitimate_fields_missing 0 on 9 environments."
+    },
+    "R.5": {
+     "implementation_files": [
+      "src/crucible/experience/kernel.py",
+      "src/crucible/experience/tier1.py",
+      "src/crucible/experience/remote.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_R.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": "verifier_outcomes_recorded 6."
+    },
+    "R.6": {
+     "implementation_files": [
+      "src/crucible/experience/leakage.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_R.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": "10/10 legacy runs byte-identical to c07098b."
+    },
+    "R.7": {
+     "implementation_files": [
+      "src/crucible/experience/reference.py",
+      "src/crucible/experience/loop.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_R.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": "12 parameter-changing observation-only updates."
+    },
+    "R.n1": {
+     "implementation_files": [
+      "src/crucible/experience/leakage.py",
+      "src/crucible/experience/probes.py",
+      "src/crucible/experience/probes_tiers.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_R.py"
+     ],
+     "status_claim": "implemented; gate FAILS on 87a6c54 only on the civ surface (see R.2)",
+     "notes": "12 probe kinds (nested_call and identity added), 10 surfaces incl. Tier 3; positive control: the nested-call probe finds 2 leaks on the pre-fix kernel."
+    },
+    "S.1": {
+     "implementation_files": [
+      "src/crucible/experience/tier1.py",
+      "src/crucible/experience/loop.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_S.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": ""
+    },
+    "S.2": {
+     "implementation_files": [
+      "src/crucible/experience/registry.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_S.py"
+     ],
+     "status_claim": "adapter implemented against crucible.domains.base (unit-tested with a test-module domain); gate FAILS: no v5 Tier 2 domain is registered",
+     "notes": "tier2_actions 0."
+    },
+    "S.3": {
+     "implementation_files": [
+      "src/crucible/experience/registry.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_S.py"
+     ],
+     "status_claim": "implemented (make(3, profile) -> civ_world -> KernelExperienceEnv); gate FAILS on 87a6c54 (crucible.civ.generate raises); runs once the integration fix lands",
+     "notes": ""
+    },
+    "S.4": {
+     "implementation_files": [
+      "src/crucible/experience/store.py",
+      "src/crucible/experience/loop.py",
+      "src/crucible/experience/reference.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_S.py",
+      "tests/test_v5_experience_core.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": ""
+    },
+    "S.5": {
+     "implementation_files": [
+      "src/crucible/experience/registry.py",
+      "src/crucible/experience/tier1.py",
+      "src/crucible/experience/observation.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_S.py"
+     ],
+     "status_claim": "implemented; gate FAILS (Tier 2 absent; Tier 3 until the civ fix)",
+     "notes": ""
+    },
+    "S.6": {
+     "implementation_files": [
+      "src/crucible/experience/reference.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_S.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": ""
+    },
+    "S.7": {
+     "implementation_files": [
+      "src/crucible/experience/parallel.py",
+      "src/crucible/scale/rollout.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_S.py"
+     ],
+     "status_claim": "implemented; gate RUN through crucible.scale.slots --cpu 4 on this branch: passes",
+     "notes": "parallel_environments 4 (worker-side stamps, 4 distinct worker pids), 0 farm failures, 14 learner updates, 432 farm steps, 8 vectorised environments."
+    },
+    "S.8": {
+     "implementation_files": [
+      "src/crucible/experience/__main__.py",
+      "src/crucible/experience/tier1.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_S.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": ""
+    },
+    "SP-11.1": {
+     "implementation_files": [
+      "src/crucible/experience/observation.py",
+      "src/crucible/experience/tier1.py",
+      "src/crucible/experience/kernel.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_11_1.py"
+     ],
+     "status_claim": "implemented; gate FAILS (tiers_supported needs Tier 2)",
+     "notes": "Tier 3 civilisations now get the exp module (learner-side), so the civ branch of the test exercises experiments."
+    },
+    "SP-11.2": {
+     "implementation_files": [
+      "src/crucible/experience/features.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_11_2.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": ""
+    },
+    "SP-11.3": {
+     "implementation_files": [
+      "src/crucible/experience/modes.py",
+      "src/crucible/experience/tier1.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_11_3.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": ""
+    },
+    "SP-11.4": {
+     "implementation_files": [
+      "src/crucible/experience/experiments.py",
+      "src/crucible/experience/selfexp.py",
+      "src/crucible/goals/selfgoals.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_11_4.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": "experiments now also in Tier 1 (selfexp) and Tier 3 (exp module added to civilisations)."
+    },
+    "SP-11.5": {
+     "implementation_files": [
+      "src/crucible/experience/kernel.py",
+      "src/crucible/experience/tier1.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_11_5.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": ""
+    },
+    "SP-11.6": {
+     "implementation_files": [
+      "docs/v5/LEARNER_GUIDE.md",
+      "examples/external_learner/curiosity_learner.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_11_6.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": "guide updated for wave 3."
+    },
+    "SP-11.1b": {
+     "implementation_files": [
+      "src/crucible/experience/loop.py",
+      "src/crucible/experience/gym.py",
+      "src/crucible/api/http_server.py",
+      "src/crucible/api/mcp_server.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_11_1b.py"
+     ],
+     "status_claim": "implemented; gate FAILS only on Tier 2 (no domain); with the scratch civ stand-in: concurrent learners in Tiers 1 and 3, 4/4 surfaces exact, 0 adapters with inconsistent units",
+     "notes": ""
+    },
+    "SP-11.4b": {
+     "implementation_files": [
+      "src/crucible/experience/experiments.py",
+      "src/crucible/experience/selfexp.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_11_4b.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": "measures beyond the 4.0 self-goal metrics (forum replies, search results, mail received, a Tier 1 observation number); measures equivalent to a 4.0 metric are not counted."
+    },
+    "SP-11.6c": {
+     "implementation_files": [
+      "src/crucible/experience/reference.py",
+      "examples/external_learner/curiosity_learner.py",
+      "src/crucible/agents/llm.py",
+      "src/crucible/experience/scripted.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_11_6c.py"
+     ],
+     "status_claim": "implemented; gate FAILS. With the scratch civ stand-in: learner_kinds_validated 4 (scripted service deployment paid; ReferenceLearner 128 actions, 4 parameter-changing updates; curiosity learner 118 actions, 6 updates; frozen Qwen3-1.7B LLMPolicy on the GPU: 6 tool calls, mail.send carried out and received by the other participant - Qwen3-0.6B only replied wait), tiers_with_learning_improvement 1 of 3: Tier 1 scm_additive trained copy beats the frozen copy on 4/4 held-out seeds (mean 0.0057 vs -0.285) but equals the do-nothing outcome exactly (it learned to stop changing settings, not the mechanism: tiers_beating_wait_only 0); Tier 3 no difference (cash unchanged for both copies over 24 h); Tier 2 absent",
+     "notes": "the improvement criterion is met by the letter in Tier 1 only through learned inaction; the evidence records the do-nothing reference so this cannot pass as learning the mechanism. The reference learner is an interface proof, not a capable agent (algorithmic limitation, not an environment failure)."
+    },
+    "SP-11.6d": {
+     "implementation_files": [
+      "src/crucible/api/gym_env.py",
+      "src/crucible/api/pettingzoo_env.py",
+      "src/crucible/experience/leakage.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_11_6d.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": "4.0 Gymnasium and PettingZoo: API loops in default and legacy mode, byte-identical to c07098b with legacy named; library checkers recorded."
+    },
+    "SP-2.2": {
+     "implementation_files": [
+      "src/crucible/experience/scripted.py",
+      "src/crucible/experience/registry.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_2_2.py"
+     ],
+     "status_claim": "implemented; gate passes with the scratch civ stand-in (13/13 affordances composed in a civilisation, 0 strategy menus among 488 tools); FAILS on 87a6c54 until the civ fix (the test uses Tier 3)",
+     "notes": "scripted reference participants (labelled scripted in evidence)."
+    },
+    "OO.1": {
+     "implementation_files": [
+      "src/crucible/experience/modes.py",
+      "src/crucible/core/evaluator_only.py",
+      "src/crucible/experience/registry.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate FAILS only on Tier 2 (dev: tiers 1 and 3 measured, 0 families not observation-only)",
+     "notes": "tiers counted only where worlds were built (wave 1 counted Tier 3 when crucible.civ.generate was importable)."
+    },
+    "OO.2": {
+     "implementation_files": [
+      "src/crucible/experience/probes.py",
+      "src/crucible/experience/probes_tiers.py",
+      "src/crucible/core/evaluator_only.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate FAILS on 87a6c54 only because the civ surface cannot be built (crucible.civ.generate raises: duplicate 'space'); with a scratch stand-in for the integration fix: 12 probe kinds, 10 surfaces, 0 leaks, 0 nonzero default rewards; positive control 23 leaks of 5 kinds",
+     "notes": "Tier 3 positive control: the same probes in a legacy civilisation recover independent_revenue exactly (1,200,000 in 21 goals.check_now queries)."
+    },
+    "OO.3": {
+     "implementation_files": [
+      "src/crucible/experience/kernel.py",
+      "src/crucible/experience/tier1.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate FAILS only on Tier 2 (dev: all 7 consequence kinds in Tier 3 and tier 0, Tier 1 consequences)",
+     "notes": ""
+    },
+    "OO.4": {
+     "implementation_files": [
+      "src/crucible/experience/remote.py",
+      "src/crucible/core/evaluator_only.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate FAILS only on Tier 2 (dev: Tier 1 and a hosted Tier 3 civilisation verified independently, verifier unreachable)",
+     "notes": ""
+    },
+    "OO.5": {
+     "implementation_files": [
+      "src/crucible/experience/kernel.py",
+      "src/crucible/experience/tier1.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate FAILS only on Tier 2 (with the scratch civ stand-in: 90 objective-free civilisation days in 310 s, rss growth 865 MB, 0 limit violations; tier 0 90 days; Tier 1 28 episodes)",
+     "notes": "on the integration branch's tree (c5c/w3-intfix f90b3d5) one civilisation day costs about 760 s on one CPU (8 night hours 41 s), so 90 days would exceed the configured 5400 s wall limit: a performance problem for the civ/perf workstreams, reported, limit not raised."
+    },
+    "OO.6": {
+     "implementation_files": [
+      "examples/external_learner/curiosity_learner.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate FAILS only on Tier 2 (dev: weight-changing updates in Tiers 1 and 3, environment paid 0.0)",
+     "notes": ""
+    },
+    "OO.7": {
+     "implementation_files": [
+      "src/crucible/experience/kernel.py",
+      "src/crucible/experience/tier1.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": ""
+    },
+    "OO.8": {
+     "implementation_files": [
+      "src/crucible/experience/leakage.py",
+      "src/crucible/experience/modes.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": ""
+    },
+    "OO.9": {
+     "implementation_files": [
+      "src/crucible/experience/modes.py",
+      "src/crucible/experience/registry.py",
+      "src/crucible/experience/__main__.py",
+      "src/crucible/api/mcp_server.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate FAILS only on the Tier 2 entry point (dev: 36+ entry points, 0 not observation-only, 0 unrecorded selections)",
+     "notes": ""
+    },
+    "OO.10": {
+     "implementation_files": [
+      "src/crucible/experience/kernel.py",
+      "src/crucible/experience/probes_tiers.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate FAILS only on Tier 2 (with the scratch civ stand-in: objectives delivered in Tiers 1 and 3, the verifier's distinctive progress 0.44146 exposed 0 times, 0 rewards)",
+     "notes": ""
+    },
+    "OO.11": {
+     "implementation_files": [
+      "src/crucible/experience/selfexp.py",
+      "src/crucible/experience/experiments.py",
+      "src/crucible/experience/registry.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate FAILS only on Tier 2 (dev: experiments resolved in Tiers 1 and 3, 0 rewards paid)",
+     "notes": ""
+    },
+    "OO.12": {
+     "implementation_files": [
+      "src/crucible/experience/labels.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate passes",
+     "notes": "twin runs with and without the channel identical; labels hash-chained, never in observations; unauthorised channels refused."
+    },
+    "OO.14": {
+     "implementation_files": [
+      "src/crucible/experience/probes_tiers.py",
+      "src/crucible/experience/gym.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate FAILS only on Tier 2 (with the scratch civ stand-in: 5 channels probed in Tiers 1 and 3, 0 verifier values recovered, scalar reward documented, Tier 3 positive control finds leaks)",
+     "notes": ""
+    },
+    "OO.16": {
+     "implementation_files": [
+      "src/crucible/experience/probes_tiers.py",
+      "src/crucible/experience/tier1.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_OO.py"
+     ],
+     "status_claim": "implemented; gate FAILS only on Tier 2 (with the scratch civ stand-in: 8 identity probes in Tiers 1 and 3, 0 leaks)",
+     "notes": "rapid team families show every member's public objective text in the spec query (common knowledge in a team; reported, not stripped)."
+    }
+   },
+   "limitations": [
+    "Tier 2: crucible.domains.base.REGISTRY is empty on 87a6c54 (no workstream registers a v5 domain; D-17 makes the domains configurations of crucible.civ). Every per-tier gate (OO.1, OO.3-OO.6, OO.9-OO.11, OO.14, OO.16, S.2, S.5, SP-11.1, SP-11.1b, SP-11.6c) fails on Tier 2 and records why; the adapter is unit-tested with a conforming test-module domain.",
+    "Tier 3 on 87a6c54: crucible.civ.generate raises ('civilisation modules miss dependencies [space]'). The committed tests call crucible.civ.generate/spec and fail until the integration fix is merged. Verified locally two ways, never committed: (a) a scratch pytest plugin that adds the semantic 'space' module to the civilisation spec (all Tier 3 measurements quoted as 'with the scratch civ stand-in'); (b) a scratch copy of the c5c/w3-intfix tree (f90b3d5) with this branch's files on top (no file overlap).",
+    "Civilisation cost on the integration branch's tree: one simulated day about 760 s on one CPU (vs 17 s on 87a6c54 with the stand-in); Tier 3 gate runtimes scale with it (OO.5's 90 days would exceed its 5400 s wall limit).",
+    "SP-11.6c: the reference learner's only measured 'improvement over a frozen copy' (Tier 1) is learned inaction (equal to the do-nothing outcome); no improvement in Tier 3; Qwen3-0.6B only waits, so the language-model kind uses Qwen3-1.7B. These are learner limitations, reported as such; the criterion is not weakened.",
+    "Probe coverage: an information-flow probe can only see quantities its scenario creates. The capability-registry and science verdicts were found by code review (every relatedness computation feeding a tool result or event), not by the probes, whose scenarios publish no capabilities and file no replications; they are covered by registry-level unit tests (tests/test_v5_experience_wave3.py), not by an end-to-end scenario probe.",
+    "Filtering covers everything delivered through tools, results, events and summaries, including calls made as a participant from module processes (wave-3 fix). What a module reads directly from world state for its own physics is reviewed per module, not filtered; the curated registry (core/evaluator_only.py) is extended when probes find a new quantity (wave 3: sci relatedness verdicts, the commerce evaluator metrics).",
+    "Relatedness still gates some world rules (commerce contracts refuse a related arbiter, products refuse self-reviews): a refusal reveals one bit of the evaluator's relatedness analysis. These are commerce's integrity rules; reported, not changed.",
+    "Operator-only population controls (pop_adaptive.set_learning/freeze_copy, pop_strategic.freeze_copy) are listed to participants and refused when called.",
+    "The 4.0 training export (training/trajectories.py RecordingRunner, byte-identical 4.0 code) records an objective's shaped step reward when given one; it is not a learner interface and was left unchanged (A.1/A.5 byte identity).",
+    "Learners in the same process can always read env.world; isolation from the verifier is real only through crucible.experience.host (separate process)."
+   ],
+   "integration_notes": [
+    "core/kernel.py (workstream A): Ctx.call returns EO.participant_result(...) when the chain's origin OR the calling principal is not the system (was: origin only). Effect only in worlds with evaluator_access=evaluator; 4.0 worlds unchanged (tests/test_kernel.py, test_invariants.py pass).",
+    "core/evaluator_only.py: sci.replicate/paper/papers/replications result fields and sci.replication event fields related_to_author/independent/independent_consistent; evaluator_metrics() = registry + goals.metrics.EVALUATOR_ONLY_METRICS + commerce.observables.EVALUATOR_ONLY (metric_errors and describe use it).",
+    "experience/registry.py: make(3, profile) builds civ_world(): crucible.civ.spec(profile, seed, population, overrides={'params': {'evaluator_access': ...}}) plus learner-side modules goals and exp, World.create(spec, world_id='civ-<spec hash[:12]>') (generate's rule); without extra modules it calls crucible.civ.generate. If J changes generate beyond spec+World.create, civ_world must follow.",
+    "experience/tier1.py: Tier 1 adapters list exp.register/exp.result/exp.mine (selfexp.py); tests comparing the adapter's tool list with the kernel facility exclude exp.* (test_v5_experience_core updated).",
+    "experience/probes.py: SURFACES gains 'civ' (Tier 3): Gate R (R.2, R.3, R.n1) and OO.2 now depend on crucible.civ being buildable.",
+    "Gate files added: tests/v5/test_gate_SP_11_1b.py, test_gate_SP_11_4b.py, test_gate_SP_11_6c.py (slow, GPU via slots: --cpu 1 --gpu-mb 4000), test_gate_SP_11_6d.py, test_gate_SP_2_2.py; test_gate_OO.py gains OO.9, OO.10, OO.11, OO.12, OO.14, OO.16. OO.5 and SP-11.6c are @slow and must run through crucible.scale.slots.",
+    "test_v5_experience_oo.py: inst.adopt over an evaluator metric is refused in legacy too (the v5 institution module refuses evaluator measurements in every mode); the test accepts that.",
+    "When the civ fix lands, rerun: tests/v5/test_gate_R.py, test_gate_S.py (S.3, S.5), test_gate_OO.py, test_gate_SP_11_1.py, test_gate_SP_11_1b.py, test_gate_SP_2_2.py, test_gate_SP_11_6c.py."
+   ]
   }
- },
- "limitations": [
-  "Tier 2: crucible.domains.base.REGISTRY is empty on 87a6c54 (no workstream registers a v5 domain; D-17 makes the domains configurations of crucible.civ). Every per-tier gate (OO.1, OO.3-OO.6, OO.9-OO.11, OO.14, OO.16, S.2, S.5, SP-11.1, SP-11.1b, SP-11.6c) fails on Tier 2 and records why; the adapter is unit-tested with a conforming test-module domain.",
-  "Tier 3 on 87a6c54: crucible.civ.generate raises ('civilisation modules miss dependencies [space]'). The committed tests call crucible.civ.generate/spec and fail until the integration fix is merged. Verified locally two ways, never committed: (a) a scratch pytest plugin that adds the semantic 'space' module to the civilisation spec (all Tier 3 measurements quoted as 'with the scratch civ stand-in'); (b) a scratch copy of the c5c/w3-intfix tree (f90b3d5) with this branch's files on top (no file overlap).",
-  "Civilisation cost on the integration branch's tree: one simulated day about 760 s on one CPU (vs 17 s on 87a6c54 with the stand-in); Tier 3 gate runtimes scale with it (OO.5's 90 days would exceed its 5400 s wall limit).",
-  "SP-11.6c: the reference learner's only measured 'improvement over a frozen copy' (Tier 1) is learned inaction (equal to the do-nothing outcome); no improvement in Tier 3; Qwen3-0.6B only waits, so the language-model kind uses Qwen3-1.7B. These are learner limitations, reported as such; the criterion is not weakened.",
-  "Probe coverage: an information-flow probe can only see quantities its scenario creates. The capability-registry and science verdicts were found by code review (every relatedness computation feeding a tool result or event), not by the probes, whose scenarios publish no capabilities and file no replications; they are covered by registry-level unit tests (tests/test_v5_experience_wave3.py), not by an end-to-end scenario probe.",
-  "Filtering covers everything delivered through tools, results, events and summaries, including calls made as a participant from module processes (wave-3 fix). What a module reads directly from world state for its own physics is reviewed per module, not filtered; the curated registry (core/evaluator_only.py) is extended when probes find a new quantity (wave 3: sci relatedness verdicts, the commerce evaluator metrics).",
-  "Relatedness still gates some world rules (commerce contracts refuse a related arbiter, products refuse self-reviews): a refusal reveals one bit of the evaluator's relatedness analysis. These are commerce's integrity rules; reported, not changed.",
-  "Operator-only population controls (pop_adaptive.set_learning/freeze_copy, pop_strategic.freeze_copy) are listed to participants and refused when called.",
-  "The 4.0 training export (training/trajectories.py RecordingRunner, byte-identical 4.0 code) records an objective's shaped step reward when given one; it is not a learner interface and was left unchanged (A.1/A.5 byte identity).",
-  "Learners in the same process can always read env.world; isolation from the verifier is real only through crucible.experience.host (separate process)."
- ],
- "integration_notes": [
-  "core/kernel.py (workstream A): Ctx.call returns EO.participant_result(...) when the chain's origin OR the calling principal is not the system (was: origin only). Effect only in worlds with evaluator_access=evaluator; 4.0 worlds unchanged (tests/test_kernel.py, test_invariants.py pass).",
-  "core/evaluator_only.py: sci.replicate/paper/papers/replications result fields and sci.replication event fields related_to_author/independent/independent_consistent; evaluator_metrics() = registry + goals.metrics.EVALUATOR_ONLY_METRICS + commerce.observables.EVALUATOR_ONLY (metric_errors and describe use it).",
-  "experience/registry.py: make(3, profile) builds civ_world(): crucible.civ.spec(profile, seed, population, overrides={'params': {'evaluator_access': ...}}) plus learner-side modules goals and exp, World.create(spec, world_id='civ-<spec hash[:12]>') (generate's rule); without extra modules it calls crucible.civ.generate. If J changes generate beyond spec+World.create, civ_world must follow.",
-  "experience/tier1.py: Tier 1 adapters list exp.register/exp.result/exp.mine (selfexp.py); tests comparing the adapter's tool list with the kernel facility exclude exp.* (test_v5_experience_core updated).",
-  "experience/probes.py: SURFACES gains 'civ' (Tier 3): Gate R (R.2, R.3, R.n1) and OO.2 now depend on crucible.civ being buildable.",
-  "Gate files added: tests/v5/test_gate_SP_11_1b.py, test_gate_SP_11_4b.py, test_gate_SP_11_6c.py (slow, GPU via slots: --cpu 1 --gpu-mb 4000), test_gate_SP_11_6d.py, test_gate_SP_2_2.py; test_gate_OO.py gains OO.9, OO.10, OO.11, OO.12, OO.14, OO.16. OO.5 and SP-11.6c are @slow and must run through crucible.scale.slots.",
-  "test_v5_experience_oo.py: inst.adopt over an evaluator metric is refused in legacy too (the v5 institution module refuses evaluator measurements in every mode); the test accepts that.",
-  "When the civ fix lands, rerun: tests/v5/test_gate_R.py, test_gate_S.py (S.3, S.5), test_gate_OO.py, test_gate_SP_11_1.py, test_gate_SP_11_1b.py, test_gate_SP_2_2.py, test_gate_SP_11_6c.py."
  ]
 }

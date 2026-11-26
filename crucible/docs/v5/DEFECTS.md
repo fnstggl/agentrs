@@ -1068,13 +1068,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-L-1 (critical, open): observation_only is not the default anywhere: make(), all adapters, MechVecEnv, KernelMechEnv, SelfPlay envs, 
+### DEF-L-1 (critical, fixed): observation_only is not the default anywhere: make(), all adapters, MechVecEnv, KernelMechEnv, SelfPlay envs, 
 
 ```json
 {
  "area": "L_experience",
+ "fixed_by": "c5c/w1-obs + c5c/w3-obs (workstream L): check_mode(None) and every learner-facing constructor default to observation_only; legacy/verified only when named (D-19); re-measured on 55433e7+ in wave 3b (OO.1 per tier, OO.9 entry points, R.1 0 nonzero native rewards)",
  "id": "DEF-L-1",
  "owner": "L",
+ "regression_tests": "tests/test_v5_experience_oo.py::test_observation_only_is_the_default_and_legacy_needs_naming, tests/v5/test_gate_OO.py::test_OO9_every_public_entry_point_defaults_to_observation_only, tests/v5/test_gate_R.py::test_R1_native_intermediate_reward_disabled",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1082,18 +1084,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/L_experience.json",
   "finding": 0
  },
- "status": "open",
+ "status": "fixed",
  "summary": "observation_only is not the default anywhere: make(), all adapters, MechVecEnv, KernelMechEnv, SelfPlay envs, Gym, PettingZoo, WorldEnv, CAM2 adapter and ReferenceLearner default to legacy; default MechVecEnv paid reward 30/30 steps"
 }
 ```
 
-### DEF-L-2 (critical, open): Privileged progress leaks via tools in observation_only: goals.check_now over independent_revenue let a learne
+### DEF-L-2 (critical, fixed): Privileged progress leaks via tools in observation_only: goals.check_now over independent_revenue let a learne
 
 ```json
 {
  "area": "L_experience",
+ "fixed_by": "c5c/w1-obs + c5c/w3-obs (workstream L): kernel-enforced evaluator-only registry (core/evaluator_only.py): goals.check_now, use.report, use.probe, caps.categories refused and unlisted; evaluator fields stripped from results, events and summaries (also for nested calls); evaluator metrics refused in participant-authored predicates; wave 3b: every evaluator metric swept through self-goal and commitment predicates (probe kind predicate_oracle) and EVALUATOR-ONLY documented metrics (social.integrity organic_*) joined the registry union",
  "id": "DEF-L-2",
  "owner": "L",
+ "regression_tests": "tests/test_v5_experience_oo.py::test_evaluator_tools_are_hidden_and_refused_in_observation_only_and_kept_in_legacy, tests/test_v5_experience_wave3b.py::test_metrics_documented_evaluator_only_are_in_the_registry_union, tests/v5/test_gate_R.py::test_R2_no_privileged_progress_values",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1101,18 +1105,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/L_experience.json",
   "finding": 1
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Privileged progress leaks via tools in observation_only: goals.check_now over independent_revenue let a learner recover the verifier's exact progress (0.4) in 21 read-only calls; use.report returns verified_quality; the battery sees 0"
 }
 ```
 
-### DEF-L-3 (critical, open): Gate R leakage tests prove only mode-invariance and key-name absence; world-tool oracles pass them by construc
+### DEF-L-3 (critical, fixed): Gate R leakage tests prove only mode-invariance and key-name absence; world-tool oracles pass them by construc
 
 ```json
 {
  "area": "L_experience",
+ "fixed_by": "c5c/w1-obs + c5c/w3-obs + c5c/w3b-obs (workstream L): information-flow probes (experience/probes.py, probes_tiers.py: 12 kinds incl. exact value, free text, regression, counterfactual, predicate oracle, tool sweep, nested call, identity) on the rapid adapter, kernel worlds with v5 modules, Tier 3 civilisations (wave 3b: the population's private state), the external batched adapter (stand-in for the sl adapter, RP.1) and the out-of-process evaluation path; positive controls recover the 4.0 leaks",
  "id": "DEF-L-3",
  "owner": "L",
+ "regression_tests": "tests/v5/test_gate_R.py::test_Rn1_explicit_reward_leakage_tests, tests/v5/test_gate_OO.py::test_OO2_no_native_or_privileged_reward_reaches_the_learner, tests/test_v5_experience_wave3.py::test_probe_helpers",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1120,18 +1126,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/L_experience.json",
   "finding": 2
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Gate R leakage tests prove only mode-invariance and key-name absence; world-tool oracles pass them by construction; no coverage of the rapid adapter, Tier 2/3, v5 module worlds or the sl adapter (which pays a native -0.01 penalty)"
 }
 ```
 
-### DEF-L-4 (critical, open): RapidExperienceEnv (v5 Tier 1) broken for multi-agent: execute(a1) returns a0's result, observe_since leaks pr
+### DEF-L-4 (critical, fixed): RapidExperienceEnv (v5 Tier 1) broken for multi-agent: execute(a1) returns a0's result, observe_since leaks pr
 
 ```json
 {
  "area": "L_experience",
+ "fixed_by": "c5c/w1-obs (workstream L): RapidExperienceEnv returns each agent's own result, delivers events through the rapid world's own visibility filter per agent (no duplicates), joint ticks for multi-agent families, t in seconds, cost_s, cause/action_seq, world changes counted",
  "id": "DEF-L-4",
  "owner": "L",
+ "regression_tests": "tests/test_v5_experience_oo.py::test_rapid_multi_agent_results_visibility_units_provenance_and_joint_ticks, tests/v5/test_gate_S.py::test_S1_reference_learner_acts_in_tier1",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1139,18 +1147,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/L_experience.json",
   "finding": 3
  },
- "status": "open",
+ "status": "fixed",
  "summary": "RapidExperienceEnv (v5 Tier 1) broken for multi-agent: execute(a1) returns a0's result, observe_since leaks private a0->a2 events to a1, events duplicated, t in ticks, cost_s 0, no causes, world_changes never counted"
 }
 ```
 
-### DEF-L-5 (critical, open): Tier 2 branch of make() is incompatible with workstream I's domains.base.Domain (AttributeError with a conform
+### DEF-L-5 (critical, fixed): Tier 2 branch of make() is incompatible with workstream I's domains.base.Domain (AttributeError with a conform
 
 ```json
 {
  "area": "L_experience",
+ "fixed_by": "c5c/w1-obs (workstream L): the Tier 2 branch of make() is written against crucible.domains.base (REGISTRY, configs tuple, base.spec, per-principal objective, seats; wave 3b merged the domains framework c5c/w3b-domfw and counts only Part 9 domains, never fixtures); Tier 3 runs through crucible.civ (S.3 passes on 55433e7+). The Tier 2 measurements of S.2/S.5/SP-11.1 still need a registered Part 9 domain (DEF-I-1, workstream I)",
  "id": "DEF-L-5",
  "owner": "L",
+ "regression_tests": "tests/test_v5_experience_oo.py::test_tier2_path_against_domains_base, tests/v5/test_gate_S.py::test_S3_reference_learner_acts_in_tier3",
  "requirements": [
   "S.2",
   "S.3",
@@ -1163,12 +1173,12 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/L_experience.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Tier 2 branch of make() is incompatible with workstream I's domains.base.Domain (AttributeError with a conforming domain); no domain registered and civ is a stub, so S.2, S.3, S.5 and SP-11.1 fail and would keep failing after I lands"
 }
 ```
 
-### DEF-L-6 (critical, open): Positive: reference learner genuinely learns in Tier 1 observation_only (score -0.29 -> 0.75 vs frozen -0.45);
+### DEF-L-6 (critical, not_a_defect): Positive: reference learner genuinely learns in Tier 1 observation_only (score -0.29 -> 0.75 vs frozen -0.45);
 
 ```json
 {
@@ -1176,13 +1186,14 @@ B_population verdict) and P's own findings.
  "id": "DEF-L-6",
  "owner": "L",
  "requirements": [],
+ "resolution": "a positive audit finding (the reference learner learns in Tier 1 observation-only; store, checkpoints, CLI, exp module and provenance reproduced), registered because the audit listed it among its critical findings; nothing to fix. Its skeptic follow-ups (store crash window, in-band $blob, two writers, checkpoint context, worker-side concurrency stamps) were fixed in c5c/w1-obs and are covered by tests/test_v5_experience_oo.py",
  "severity": "critical",
  "source": {
   "audit": "L_experience",
   "file": "docs/v5/audit/L_experience.json",
   "finding": 5
  },
- "status": "open",
+ "status": "not_a_defect",
  "summary": "Positive: reference learner genuinely learns in Tier 1 observation_only (score -0.29 -> 0.75 vs frozen -0.45); store, exact checkpoints, reproducible CLI, exp module and long-horizon provenance reproduced"
 }
 ```
