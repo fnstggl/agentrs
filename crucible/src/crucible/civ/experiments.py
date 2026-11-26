@@ -195,11 +195,14 @@ def remove(cid):
 
 
 def revert_adopted(w):
-    """Undo every process setting a producer adopted from a paper and kept after its own trial (as the owning
-    firm, back to the setting it had before), and stop further R&D adoption."""
+    """Undo every process setting a producer adopted from a paper - kept after its own trial, or still in trial at
+    the fork (as the owning firm, back to the setting it had before) - and stop further R&D adoption. A setting in
+    trial must be undone too: with the relation removed its trial never concludes, so it would otherwise stay
+    (at e77fef3 the arm's true quality equalled the factual arm's in every seed: the adoptions were still in
+    trial at the fork). Settings whose trial failed were already undone by the producer."""
     st = w.state
     for did, rec in sorted(st.scan("civ_rnd")):
-        if not rec.get("kept"):
+        if rec.get("kept") is False:
             continue
         d = st.get("designs", did)
         owner = next((x["person"] for x in st.find("members", "org", d["owner"]) if x.get("role") == "owner"), None)
