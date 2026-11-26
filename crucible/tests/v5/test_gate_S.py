@@ -286,3 +286,25 @@ def test_S8_reproducible_commands(tmp_path):
            notes="the same command run twice in fresh processes: identical experience-store digest, learner parameter "
                  "hash, final world digest and counts")
     assert same, [(k, outs[0][k], outs[1][k]) for k in keys]
+
+
+def test_Sn1_integration_not_claimed_as_learning_success():
+    """S.n1 (workstream N): this gate verifies integration, not learning success. The documentation corpus and every
+    evidence note are scanned clause by clause for integration presented as learning success or general
+    intelligence (`crucible.research.v5.integrity.scan_claims("integration_success")`, with planted controls), and
+    no Gate S evidence record may be labelled as learned."""
+    import glob as _glob
+    from crucible.research.v5 import integrity as G
+    scan = G.scan_claims("integration_success", G.corpus(ROOT))
+    learned = []
+    for p in _glob.glob(os.path.join(ROOT, "docs", "v5", "evidence", "gate_S", "*.json")):
+        d = json.load(open(p))
+        if isinstance(d, dict) and (d.get("labels") or {}).get("learned"):
+            learned.append(os.path.basename(p))
+    n = scan["unsupported_claims"] + len(learned)
+    record("S.n1", {"integration_claimed_as_learning_success": n, "files_scanned": scan["files_scanned"],
+                    "statements_checked": scan["statements_checked"], "planted_controls_correct": scan["controls"]["ok"],
+                    "gate_s_records_labelled_learned": len(learned)},
+           notes=f"Claims found {scan['claims'][:10]}; Gate S records labelled learned: {learned}")
+    assert scan["controls"]["ok"] and scan["files_scanned"] > 100
+    assert n == 0, (scan["claims"], learned)

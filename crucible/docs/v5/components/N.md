@@ -1,0 +1,44 @@
+# Workstream N: training distribution, curriculum and the research instrument
+
+Code: `src/crucible/research/v5/`. Gate tests: `tests/v5/test_gate_T.py`, `test_gate_U.py`,
+`test_gate_SP_14_*.py`, `test_gate_SP_15_*.py`, `test_gate_SP_11_6b.py`, and the N tests in `test_gate_I.py` (I.n2),
+`test_gate_K.py` (K.n2), `test_gate_S.py` (S.n1). Unit tests: `tests/test_v5_research_unit.py`. Status per
+requirement: `docs/v5/workstreams/N.json`.
+
+## Pieces
+
+| module | what it does |
+|---|---|
+| `distribution` | frozen, versioned registry of the nine Part 14.1 kinds over all tiers; partitions train / validation / evaluation / sealed by family and seed range; structural guard (measured fingerprint distance 0 to an evaluation family is refused); training-log audit |
+| `sampler` | seeded, resumable mixture sampler; JSON episode specs any learner stack can rebuild (`python -m crucible.research.v5.sampler make spec.json`); deficit scheduling on measured compute (default 50/30/20, refuses to start without every tier); `run_mixture` |
+| `episodes` | drives a lever learner through `crucible.experience` (own cash signal only); verified per-tick outcome from `verify()`; normalised score against evaluator-side references; blind (no-feedback) ablation |
+| `learners` | control learners with known capabilities: hold, adapter, memoriser, weights (small network), stateful (process stash), pretrained, meta (learns its search strategy), transfer (learns how to search across tasks); state split into parameters / memory / optimizer / within-episode |
+| `evaluator` | the independent evaluator: `python -I` process with JSON socket channels; holds worlds, verifiers, registry, sealed salt, preregistrations, budgets; participant channel serves only participant operations |
+| `fresh` | fresh-process weights-only evaluation: 13 checks computed in the child; safe loading; adversarial checkpoints |
+| `hstats` | crossed learner-seed x world interval (calibrated with 3-5 seeds), pigeonhole bootstrap, null calibration |
+| `curves` | budgets 0..64 (+128, 256) informative interactions, per-run N_q with censoring, Kaplan-Meier, RMST, acceleration that is never an invented finite number |
+| `instrument` | independent establishment of control capabilities, battery, classification into the seven explanations of Part 15 with prespecified effects |
+| `levels` | Levels 1-5 splits from the registry and their runs; `Level6Adapter` (docs/v5/LEVEL6_METHODOLOGY.md) |
+| `curriculum`, `curriculum_lab` | ten weakness categories, four measures, targeted generation with a 0.3 random share and an entropy floor, partition guard; planted-deficiency experiments |
+| `proposal` | world proposals validated for safety, feasibility, diversity, resources, difficulty and usefulness inside the evaluator |
+| `comparison` | A/B/C/D arms with matched experience or compute and seven control kinds |
+| `integrity` | clause-level claim scanners with planted controls; banned-proxy checks; failure classification |
+| `compose`, `genadmit` | structural composition of Tier 1 worlds (calibration without the anti-default shortcut) and their full rapid admission |
+
+## Measured in development runs (not official evidence)
+
+* Statistics: on a real 12-seed pool of one learner, the crossed interval gives a false-positive rate of 0.015 at
+  nominal 0.05; the 4.0 analysis (seeds averaged, worlds bootstrapped) gives 0.38.
+* Fresh process: a learner that keeps what it learned in process memory gains 0.33 in process and exactly 0.0 from
+  its checkpoint in a fresh process; a pickle-bearing, a memory-smuggling and an architecture-edited checkpoint are
+  refused.
+* Matched budgets: an identical meta learner trained on the v5 rapid families (arm B) scores 0.11 higher on held-out
+  rapid families than the same learner trained on the original six 4.0 families (arm A), under matched experience
+  and under matched compute (three seeds).
+* Levels: a weights learner gains on Level 1 (+0.14) and Level 2 (+0.09) and loses on Level 3 (-0.35) and Level 4
+  (-0.59): family-specific settings do not transfer to new mechanisms. Level 5 cannot run while Tier 2 is absent and
+  `crucible.civ.generate` fails.
+
+## Known limits
+
+See `limitations` in `docs/v5/workstreams/N.json`.

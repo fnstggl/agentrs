@@ -198,27 +198,20 @@ def test_In1_organic_large_adoption(organic):
     assert m["total_recount_mismatches"] == 0
 
 
-CLAIM = re.compile(r"(realistic|realism|empiric|real[- ]world|validated)", re.I)
-TOPIC = re.compile(r"(viral|virality|cascade|reach|million|10m|ten.million)", re.I)
-DISCLAIM = re.compile(r"(\bnot\b|\bno\b|never|unvalidated|without|cannot|n't|do not|does not|unless)", re.I)
-
-
 def test_In2_no_unsupported_realism_claims():
-    files = [os.path.join(ROOT, "docs/v5/components/C2.md"), os.path.join(ROOT, "docs/v5/FIDELITY_REGISTER.md")]
-    files += glob.glob(os.path.join(ROOT, "src/crucible/social/*.py"))
-    files += glob.glob(os.path.join(ROOT, "src/crucible/social/recsys/*.py"))
-    claims, checked = [], 0
-    for f in files:
-        text = open(f).read()
-        for sent in re.split(r"(?<=[.!?])\s+|\n\n", text):
-            if CLAIM.search(sent) and TOPIC.search(sent):
-                checked += 1
-                if not DISCLAIM.search(sent):
-                    claims.append(f"{os.path.relpath(f, ROOT)}: {sent.strip()[:160]}")
-    # the evidence notes of this gate are scanned too (they are written by the tests above)
-    evidence.record("I.n2", {"unsupported_realism_claims": len(claims), "statements_checked": checked,
-                             "files_scanned": len(files), "validated_cascade_realism_evidence": False},
-                    notes="Every sentence of the C2 guide, the fidelity register and the social package that speaks "
-                          "of realism/validation together with virality, cascades or reach must carry a disclaimer; "
-                          f"no validated evidence of realistic ten-million-view dynamics exists. Unsupported: {claims}")
-    assert checked > 0
+    """Every document a realism claim could hide in (README, status and architecture documents, docs/**, evidence
+    notes, every module docstring; `crucible.research.v5.integrity.corpus`) is scanned clause by clause: a clause that
+    asserts realism of large-scale viral dynamics is a claim unless a negation governs the assertion in that clause
+    ("... with no hand tuning" disclaims nothing). The scanner must first classify its planted claims and
+    disclaimers correctly. No validated evidence of realistic ten-million-view dynamics exists, so every claim found
+    is unsupported."""
+    from crucible.research.v5 import integrity as G
+    r = G.scan_claims("realism_cascades", G.corpus(ROOT))
+    evidence.record("I.n2", {"unsupported_realism_claims": r["unsupported_claims"], "statements_checked":
+                             r["statements_checked"], "files_scanned": r["files_scanned"],
+                             "planted_controls_correct": r["controls"]["ok"],
+                             "validated_cascade_realism_evidence": False},
+                    notes=f"Claims found: {r['claims'][:10]}; planted controls {r['controls']}")
+    assert r["controls"]["ok"], r["controls"]
+    assert r["files_scanned"] > 100 and r["statements_checked"] >= 1
+    assert r["unsupported_claims"] == 0, r["claims"]

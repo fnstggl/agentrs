@@ -18,8 +18,10 @@ observation channels) plus the composer's own structural modules:
 `crucible.rapid.generator.GraphBuilder` (the generator's exact construction kit) and `generator.topo_order`; the seed
 draws names and coefficients only. Then the world's economics are calibrated: lever costs are set to the marginal
 revenue of the lever at a drawn interior target setting (measured on the noise-free mechanism with constant
-settings, vectorised over a grid), so that the best constant setting is interior, the levers' defaults sit far
-from it, and no canonical setting (all levers at minimum, middle or maximum) is close to the best. Nothing in the
+settings, vectorised over a grid), so that the best constant setting is interior (drawn uniformly in 0.15-0.85 of
+each lever's range), the levers' defaults sit at least 0.3 of the range from it on a side drawn independently of
+the optimum (so neither the default nor its position predicts where the optimum is), and no canonical setting (all
+levers at minimum, middle or maximum) is close to the best. Nothing in the
 calibration is visible to a participant except through ordinary consequences (lever costs show up as costs).
 
 Why not `generator.compose` directly: its draws have revenue far above costs, so a canonical constant (all levers
@@ -42,7 +44,7 @@ from ...core.canonical import digest
 from ...rapid import families as RF
 from ...rapid.generator import CHANNELS, TEMPORAL, TOPOLOGIES, GraphBuilder, topo_order
 
-COMPOSE_VERSION = "n1-compose/1"
+COMPOSE_VERSION = "n-compose/2"
 MOTIFS = ("saturation", "threshold", "non_monotonic", "linear_nonlinear", "decay", "delay", "hysteresis", "feedback",
           "path_dependence")
 COMBINERS = ("sum", "complementarity", "multiplicative", "substitution")
@@ -465,7 +467,8 @@ def calibrate(cfg: dict, rng: np.random.Generator) -> bool:
     span = (hi - lo)
     d0 = np.array([(lev_nodes[n]["lever"]["default"] - lo[j]) / span[j] for j, n in enumerate(pub)])
     for _ in range(10):
-        target = np.array([float(rng.choice([0.2, 0.25, 0.3, 0.7, 0.75, 0.8])) for _ in range(L)])
+        # interior optimum drawn continuously (a fixed set of fractions was a learnable generator artifact)
+        target = rng.uniform(0.15, 0.85, size=L)
         tgt = lo + target * span
         costs = np.zeros(L)
         ok = True
@@ -491,8 +494,13 @@ def calibrate(cfg: dict, rng: np.random.Generator) -> bool:
         canon = [np.full(L, f) for f in (0.0, 0.5, 1.0)]
         nb = float(net.max())
         dflt = d0.copy()
-        for j in cpos:                                   # defaults far from the best constant setting
-            dflt[j] = 0.0 if target[j] >= 0.5 else 1.0
+        for j in cpos:                                   # defaults away from the best constant setting, on a side
+            side = rng.random() < 0.5                    # drawn independently of where the optimum lies
+            lo_ok, hi_ok = target[j] - 0.3 >= 0.0, target[j] + 0.3 <= 1.0
+            if side and lo_ok or not hi_ok:
+                dflt[j] = float(rng.uniform(0.0, target[j] - 0.3))
+            else:
+                dflt[j] = float(rng.uniform(target[j] + 0.3, 1.0))
         nd_ = float(_interp_rev(F, net, dflt))
         if nb - nd_ <= 1e-6:
             continue
@@ -506,6 +514,7 @@ def calibrate(cfg: dict, rng: np.random.Generator) -> bool:
         return True
     for nm in costed:                                    # no interior calibration: a plain, uncalibrated draw
         lev_nodes[nm]["lever"]["cost"] = float(rng.uniform(5.0, 50.0))
+        lev_nodes[nm]["lever"]["default"] = float(rng.uniform(0.0, LEVER_HI))
     return False
 
 
@@ -585,9 +594,10 @@ def registered(structures: list[dict] | dict):
             if n in RF.FAMILIES and n not in _REFS:
                 raise CompositionError(f"{n} already names a rapid family that this module did not register")
             if n not in RF.FAMILIES:
+                from .genadmit import claims_for
                 RF.FAMILIES[n] = RF.Family(n, "primitive_graph", sp["category"], "generated", "train", sp["doc"],
                                            sp["distinct_because"], _builder(sp["structure"], n), dict(sp["axes"]),
-                                           "maximize_net", sp["participants"], (),
+                                           "maximize_net", sp["participants"], claims_for(sp["structure"]),
                                            "crucible.rapid.identify:lever_sign", None, None, True, "1")
             _REFS[n] = _REFS.get(n, 0) + 1
             added.append(n)

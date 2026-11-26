@@ -184,6 +184,11 @@ def objective(world: World, org: str, **kw) -> dict:
     return check(world, org, **kw)
 
 
+# machine-readable label carried by every result of this module (Gate K note, K.n2): a scripted reference, not a
+# learner; its success is not evidence that any learner learned to achieve the objective
+LABELS = {"scripted": True, "learner": False, "evidence_of_learning": False, "kind": "scripted_reference"}
+
+
 def run(seed: int, days: int = 100, strategy: str = "reference", n: int = 3000, formats: list[str] | None = None,
         sustain_days: int = 14, program: str = "good", ads: bool = True, research_formats: list[str] | None = None,
         **objective_kw) -> dict:
@@ -211,7 +216,8 @@ def run(seed: int, days: int = 100, strategy: str = "reference", n: int = 3000, 
         if strategy == "reference":
             agent.day(w)
         history.append(check(w, agent.org, **objective_kw))
-    return {"seed": seed, "strategy": strategy, "org": agent.org, "days": days, "final": history[-1],
+    return {"labels": dict(LABELS), "seed": seed, "strategy": strategy, "org": agent.org, "days": days,
+            "final": history[-1],
             "sustained": sustained(history, sustain_days), "history": history,
             "first_day_met": next((i + 1 for i, h in enumerate(history) if h["met"]), None),
             "arr_by_day": [round(h["arr_usd"], 2) for h in history], "report": revenue_report(w, agent.org),
