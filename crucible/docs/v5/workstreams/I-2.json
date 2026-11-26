@@ -109,7 +109,12 @@
   "tests/test_v5_domains_invention.py": "1 passed",
   "tests/test_v5_domains_infrastructure.py": "3 passed",
   "tests/test_v5_domains_tier3_alive.py": "1 passed (66 s)",
-  "base.check (labor, invention; industry, infrastructure from the predecessor on identical domain code)": "verdicts implemented True for all four, tier3 composes, null fails, probes fail, dice 0"
+  "base.check(<domain>, tier3=True) at 8a4ad73 (direct single-thread runs)": "labor, industry, infrastructure, invention: verdicts implemented True (every verdict true: builds, runs clean, 3 stable training structures, 3 instances, compositional and structural eval configs, mechanics, evaluator replay-equal and hidden, reference feasible (2/2, 2/2, 2/2, 2/3), not exposed, autonomous actors, open-ended, observation_only, tier3 composes, null fails, probes fail, dice 0); education: queued in a slot (> 5 min)",
+  "tests/test_kernel.py": "29 passed",
+  "tests/test_invariants.py": "22 passed",
+  "tests/test_v5_domains_framework.py": "25 passed (82 s)",
+  "tests/test_v5_civ_core.py": "11 passed (83 s, CPU)",
+  "packages touched outside crucible.domains (services/contracts.py membership; labor/inst composed by firms)": "test_v5_commerce_labor 9, test_v5_commerce_contracts 9, test_open_institutions 5, test_v5_commerce_institutions 19, test_open_society 6, test_hardening 25, test_economy 15, test_entry 14: 102 passed, 0 failed"
  },
  "tier3_alive": {
   "claim": "education and employment are alive in every civilisation profile (INT.json listed both as inert)",
