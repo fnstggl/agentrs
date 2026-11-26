@@ -176,3 +176,28 @@ def test_interactions_and_consequences_are_measured_between_parties(run):
     cons = AN.consequences(m.world, ctrl, m.seq0)
     assert cons["events_visible_to_other_parties"] >= 1
     assert all(a != b for k in cons["by_pair"] for a, b in [k.split("->")])
+
+
+def test_canary_tap_exposes_only_the_protocol_its_participant_implements():
+    """A participant without `update` (a semantic generalist) stays without one behind the tap: the driver must not
+    call an update the participant does not have (regression: the SP-12.3b civilisation run crashed on it)."""
+    class NoUpdate:
+        principal = "p:x"
+        history: list = []
+
+        def act(self, obs, tools):
+            return None
+
+        def observe(self, reward, result, next_obs, done):
+            self.seen = next_obs
+
+    class WithUpdate(NoUpdate):
+        def update(self):
+            return {"updated": True}
+    log: list = []
+    tap = I.CanaryTap(NoUpdate(), "ctrl:x", {"cnryA": "ctrl:y"}, log)
+    assert not hasattr(tap, "update")
+    assert tap.act({"t": 0, "events": [{"payload": {"body": "cnryA"}}]}, []) is None
+    tap.observe(0.0, {"ok": True}, {"t": 1}, False)
+    assert tap.scanned == 3 and [x["canary"] for x in log] == ["cnryA"]
+    assert I.CanaryTap(WithUpdate(), "ctrl:x", {}, []).update() == {"updated": True}

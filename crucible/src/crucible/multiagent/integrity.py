@@ -108,7 +108,9 @@ def _scan_strings(x: Any, needles: dict[str, str], hits: Counter, depth: int = 0
 
 
 class CanaryTap:
-    """Wraps a participant and scans everything it receives for other parties' canaries (transparent otherwise)."""
+    """Wraps a participant and scans everything it receives for other parties' canaries (transparent otherwise:
+    every other attribute - `update`, `info`, `reset`, `history` - is the wrapped participant's own, and is absent
+    when the participant has none, so a driver sees exactly the protocol the participant implements)."""
 
     def __init__(self, agent, party: str, canaries: dict[str, str], log: list):
         self.agent, self.party, self.canaries, self.log = agent, party, canaries, log
@@ -137,9 +139,6 @@ class CanaryTap:
         self._scan(result, "action_result")
         self._scan(next_obs, "observation")
         return self.agent.observe(reward, result, next_obs, done)
-
-    def update(self):
-        return self.agent.update()
 
 
 def plant_canaries(world, identities: dict[str, str], tag: str = "cnry") -> dict[str, str]:
