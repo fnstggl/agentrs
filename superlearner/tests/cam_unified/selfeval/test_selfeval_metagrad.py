@@ -38,7 +38,7 @@ def test_meta_gradient_matches_exact_tabular_reference():
     mdp = X.key_to_door(n_distract=4, key_cost=0.3, apple_reward=0.2, door_reward=1.0)
     psi0 = 0.1 * torch.randn(mdp.T, mdp.S, mdp.A, dtype=X.DT, generator=torch.Generator().manual_seed(0))
     K, alpha = 2, 1.0
-    g_exact, _ = M.exact_meta_gradient(mdp, psi0, torch.zeros(mdp.S, mdp.A, dtype=X.DT), K, alpha)
+    g_exact, J = M.exact_meta_gradient(mdp, psi0, torch.zeros(mdp.S, mdp.A, dtype=X.DT), K, alpha)
     gen = torch.Generator().manual_seed(1)
     est = []
     for _ in range(24):
@@ -55,7 +55,8 @@ def test_meta_gradient_matches_exact_tabular_reference():
         Gx = q.r.sum(1)
         qb = QueryBatch(policy_inputs={"s": q.s}, actions=q.a, mask=torch.ones_like(q.s, dtype=torch.bool),
                         utility=Gx)
-        g = mrl.meta_gradient(fast, qb)[0]
+        # inner-data score term: any constant baseline is unbiased; ~E[J_query] keeps its variance low
+        g = mrl.meta_gradient(fast, qb, score_baseline=J)[0]
         est.append(-g * mdp.T)       # outer_loss is a per-step mean of -surrogate
     g_mean = torch.stack(est).mean(0)
     cos = torch.nn.functional.cosine_similarity(g_mean.flatten(), g_exact.flatten(), 0)

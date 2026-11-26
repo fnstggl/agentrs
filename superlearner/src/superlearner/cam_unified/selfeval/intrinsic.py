@@ -15,8 +15,9 @@ uses, the actor's optimiser never receives them, and a test checks that the acto
 into psi except through the differentiable inner update (where the meta-gradient is wanted).
 
 `LifetimeValue` V_L(lifetime state) predicts the remaining *verified* utility of the current lifetime (sum of
-independently verified objective utilities still to come) and is trained only on those verified targets; it is the
-baseline / bootstrap of the outer objective when a lifetime is truncated (Zheng et al. 2020's lifetime value).
+independently verified objective utilities still to come) and is trained only on those verified targets (squared
+error in utility units: a conditional-mean estimate); it is the baseline / bootstrap of the outer objective when a
+lifetime is truncated (Zheng et al. 2020's lifetime value).
 
 Versioning: `version` increments on every meta-update so records can say which reward model generated a reward
 (CD-01) and stale rewards can be recomputed from the stored inputs.
@@ -53,6 +54,7 @@ class ExperienceSignals:
     lifetime_frac: Tensor         # fraction of the lifetime budget used
     novelty: Tensor               # 1 / sqrt(1 + visit count) of the action's tool within this lifetime
     executed_ok: Tensor           # 1 if the world accepted the action
+    info_gain: Tensor             # actor-visible information gain of the update (kalman_ig + KL(w_t || w_t-1))
 
     @classmethod
     def names(cls) -> list:
@@ -131,22 +133,41 @@ class IntrinsicReward(nn.Module):
 
 
 class LifetimeValue(nn.Module):
-    """V_L(lifetime feature) -> predicted remaining verified lifetime utility (symlog regression)."""
+    """V_L(lifetime feature) -> predicted remaining verified lifetime utility, in utility units.
 
-    def __init__(self, d_model: int, d_hidden: int = 512, n_ctx: int = 4):
+    It is the baseline of the outer surrogate and the bootstrap beyond a truncated meta window (research note §7.6),
+    so it must estimate the conditional MEAN of the verified remaining utility: the default loss is a squared error on
+    the linearly scaled target (``scale``; RUDDER-style r / g_max). The former symlog + smooth-L1 regression estimated
+    exp(E[log]) (biased low for heavy tails, audit 2026-11-26) and is kept only as ``loss_kind="symlog"`` for
+    comparison; `to_utility` maps the prediction back to utility units for either kind."""
+
+    def __init__(self, d_model: int, d_hidden: int = 512, n_ctx: int = 4, loss_kind: str = "mse", scale: float = 1.0):
         super().__init__()
+        if loss_kind not in ("mse", "symlog"):
+            raise ValueError(f"loss_kind {loss_kind!r}")
         self.ctx = nn.Linear(n_ctx, d_model)
         self.mlp = _MLP(d_model, d_hidden, 1, zero_out=True)
         self.n_ctx = n_ctx
+        self.loss_kind = loss_kind
+        self.scale = float(scale)
 
     def forward(self, feat: Tensor, ctx: Optional[Tensor] = None) -> Tensor:
         c = ctx if ctx is not None else feat.new_zeros(feat.shape[0], self.n_ctx)
         return self.mlp(feat.float() + self.ctx(c.float())).squeeze(-1)
 
-    def loss(self, pred: Tensor, verified_remaining: Tensor) -> Tensor:
-        y = torch.sign(verified_remaining) * torch.log1p(verified_remaining.abs())
-        return F.smooth_l1_loss(pred, y.float())
+    def loss(self, pred: Tensor, verified_remaining: Tensor, weight: Optional[Tensor] = None) -> Tensor:
+        """Mean (weighted) loss over finite targets (non-finite = unknown, left out)."""
+        y = verified_remaining.float()
+        ok = torch.isfinite(y)
+        w = (weight.float() if weight is not None else torch.ones_like(y)) * ok.float()
+        y = torch.nan_to_num(y)
+        if self.loss_kind == "symlog":
+            l = F.smooth_l1_loss(pred.float(), torch.sign(y) * torch.log1p(y.abs()), reduction="none")
+        else:
+            l = (pred.float() - y / self.scale) ** 2
+        return (l * w).sum() / w.sum().clamp_min(1e-8)
 
-    @staticmethod
-    def to_utility(pred: Tensor) -> Tensor:
-        return torch.sign(pred) * torch.expm1(pred.abs())
+    def to_utility(self, pred: Tensor) -> Tensor:
+        if self.loss_kind == "symlog":
+            return torch.sign(pred) * torch.expm1(pred.abs())
+        return pred * self.scale
